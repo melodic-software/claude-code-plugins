@@ -165,10 +165,12 @@ Read the criterion context file for the dispatched mode, then run the flow below
 
    When `/testing:run-e2e` reports per entry point (the repository has a feature map), an entry point the map lists for a changed feature that is missing from that report holds the verdict below `CONFIRMED`.
 
+   **Keep touched features current.** `/testing:run-e2e` owns this step (its Step 4, Keep touched features current). When it ran, carry its refresh or drift lines into the report and refresh nothing again. When the drive was split across workers, tell each worker to skip that step, then run it once here over the merged report. When it did not run and the repository has a control skill (`.claude/skills/control-<app>/`), run the step here: a touched feature is one whose index line's `sources` globs match a changed file, and its id is that line's path between `features/` and `/README.md` (`features/cart/total/README.md` is `cart/total`). Call `/app-control:map refresh <feature id>` per touched feature when `/app-control:map` resolves, adding `--unattended` when no one is present (a pipeline lane), carrying that feature's lesson (Lessons, below) in the same call; otherwise report the drift and name `/app-control:map refresh <feature id>` in `## Next`. Neither the drift nor app-control's absence holds the verdict, and this skill never edits a control skill.
+
    **Split the drive across `live_workers`.** When the live drive runs and `live_workers` (see Live workers above) resolves above 1, it is split across workers; at 1 it runs as one worker, as before.
    - **Split by entry point.** List the feature-map entry points the drive must cover and give each worker a disjoint share, never more workers than entry points. Each worker invokes `/testing:run-e2e` for its share only. With no feature map there is nothing to split by: one worker runs, and the report says so.
    - **Local workers need a Workspace environment entry.** More than one worker on this machine needs a "Workspace environment" entry in `docs/conventions/workspace-environment.md` on origin's default branch, read the way `/testing:run-e2e` reads it (the fetched default-branch commit, never the working tree). Each worker then drives from its own linked worktree of the commit under verification, created and removed through `/source-control:worktree` when that plugin is enabled, so the entry's `up` runs under that worktree's own `WORKSPACE_ID`. With no entry, one worker drives every entry point, and the report says how many workers were asked for and why one ran: without the entry, parallel instances would share ports, containers and databases. The same holds when the stage under verification reads untrusted input (a fork pull request, an `untrusted-provenance` item) and the session is not on a cloud host whose stage-start probe passed: `/testing:run-e2e` then runs neither the entry's `up` nor its `info`, so the entry isolates nothing, one worker drives every entry point, and the report says how many workers were asked for and that the untrusted stage is why one ran.
-   - **Per-worker session names.** Each worker's browser sessions carry its own workspace part and run id, as `/testing:run-e2e` composes them (its Session names section), so no two workers open or close the same session.
+   - **Per-worker session names.** When `/testing:run-e2e` drives the app itself, each worker's browser sessions carry its own workspace part and run id, as run-e2e composes them (the Session names section of its own-driving context), so no two workers open or close the same session. When it runs through `/app-control:drive`, drive and the app's control skill own the browser sessions, and drive stops only what its own run started.
    - **Merged report.** The missing-entry-point check above reads the merged per-entry-point report of every worker: an entry point no worker reported holds the verdict exactly as it would in a single drive.
    - **Measured usage per worker.** For each worker the report lists its entry points, its result and its usage as measured: the tokens and wall time the Agent tool's result reports for that worker, never an estimate, and never a price or cost figure.
    - **Cloud host.** When this run is on a cloud execution target (`CLAUDE_CODE_REMOTE` is `true` in the session, or the stage's `execution_target` in `docs/conventions/execution-target.yaml` resolved to a cloud value), the report adds the line `live-UI step unverified on this host`.
@@ -259,8 +261,9 @@ pointer with an as-of date and a recheck trigger, live in
 - Verdict CONFIRMED: /source-control:pull-request.
 - Improvement claimed without data: /verification:measure.
 - Gaps found: fix them, then /verification:confirm.
-- Lessons listed: /app-control:map refresh <feature> "<lesson>" (or <control skill path> for every
-  feature), or /corrections:codify "<lesson>" for one not about driving the app.
+- Lessons listed, or a touched feature's control skill not refreshed: /app-control:map refresh
+  <feature> ["<lesson>"] (or <control skill path> for every feature), or /corrections:codify
+  "<lesson>" for one not about driving the app.
 
 ## Gotchas
 

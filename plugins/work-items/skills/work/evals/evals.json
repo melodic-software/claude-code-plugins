@@ -108,13 +108,14 @@
       "id": 8,
       "name": "work-lets-create-pushed-ready-the-pr",
       "prompt": "/work-items:work\n\nRun autonomously. The worker returned worktree /work/wt-731 on branch feat/731-csv-header, committed and pushed. The pre-PR diff gate passed, merge-hold.sh exited 1 for item #731 (no hold), and pr_open_state resolves to ready. What does the orchestrator do to open and ready the PR?",
-      "expected_output": "It opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-731, which, with the open state resolved ready, runs ready --unattended itself: it merges the base, runs the code and security reviews, verifies the merged head and flips the draft. The orchestrator dispatches no ready of its own; monitoring and the post-green review pass follow from the persisted worktree, then the hand-off to /source-control:babysit-prs. The orchestrator does not flip the PR itself and does not merge.",
+      "expected_output": "It opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-731, which, with the open state resolved ready, runs ready --unattended itself: it merges the base, runs the code and security reviews, verifies the merged head and flips the draft. The orchestrator dispatches no ready of its own. As soon as create --pushed returns, without waiting on CI, it dispatches one PR owner into /work/wt-731 at the strong tier, with the PR number passed explicitly, which runs the monitor watch to green and then the post-green review pass; there is no separate monitor dispatch, and the orchestrator waits on the owner with run_in_background or Monitor, never a poll loop. Fix workers stay fresh dispatches into the same worktree, and the hand-off to /source-control:babysit-prs follows. The orchestrator does not flip the PR itself and does not merge.",
       "files": [],
       "narration": true,
       "expectations": [
         "Opens the PR with /source-control:pull-request create --pushed --worktree /work/wt-731",
         "Relies on create --pushed to run ready --unattended and dispatches no second ready",
-        "Runs monitoring and the post-green review pass from the persisted worktree after the PR is open",
+        "As soon as create --pushed returns, dispatches one strong-tier agent into the persisted worktree that runs both the monitor watch and the post-green review pass, with no separate monitor dispatch",
+        "Waits on that agent event-driven (run_in_background or Monitor), never with a poll loop",
         "Never flips the draft with a bare forge command and never merges"
       ]
     },
@@ -135,14 +136,14 @@
     {
       "id": 10,
       "name": "work-ci-mode-leaves-pr-checks-to-ci-but-stops-on-required-ones",
-      "prompt": "/work-items:work --issue 540 --ci\n\nIssue 540 asks for a wording fix in one skill body. Its \"Done when\" says: the skill text is updated, and CI's `lint-skills` job passes on the PR. The runner's system prompt names the repository's unit tests as a check to run. In this sandbox the skill linter behind `lint-skills` is refused, and the unit test command also cannot run because a dependency fails to install. What does the run record in work-outcome.json, and does it stop?",
-      "expected_output": "The run separates the two checks. The `lint-skills` job is a check the issue names as one the PR's CI runs, so it is not required of this run: it goes in `not_done` as left to the PR's CI with `\"required\": false`, and the run does not stop for it. The unit tests are named by the runner's system prompt, so they are required: because they could not run, they go in `not_done` with `\"required\": true`, and the lane reports the run stopped whatever `exit` says. The run does not downgrade the runner-named check because the issue also names a CI check, and does not upgrade the CI-only check to required.",
+      "prompt": "/work-items:work --issue 540 --ci\n\nIssue 540 asks for a wording fix in one skill body. Its \"Done when\" says: the skill text is updated, and CI's `lint-skills` job passes on the PR. The runner's system prompt names the repository's changelog-fragment check as a check to run. In this sandbox the skill linter behind `lint-skills` is refused, and the changelog-fragment check also cannot run because a dependency fails to install. What does the run record in work-outcome.json, and does it stop?",
+      "expected_output": "The run separates the two checks. The `lint-skills` job is a check the issue names as one the PR's CI runs, so it is not required of this run: it goes in `not_done` as left to the PR's CI with `\"required\": false`, and the run does not stop for it. The changelog-fragment check is named by the runner's system prompt, so it is required: because it could not run, it goes in `not_done` with `\"required\": true`, and the lane reports the run stopped whatever `exit` says. The run does not downgrade the runner-named check because the issue also names a CI check, and does not upgrade the CI-only check to required.",
       "files": [],
       "narration": true,
       "expectations": [
         "Records the issue-named CI check (`lint-skills` on the PR) in `not_done` as left to the PR's CI with `\"required\": false`",
         "Does not stop the run because of the CI-only check it could not run",
-        "Records the runner-named unit tests it could not run in `not_done` with `\"required\": true`",
+        "Records the runner-named changelog-fragment check it could not run in `not_done` with `\"required\": true`",
         "States that the required gap makes the lane report the run stopped, whatever `exit` says",
         "Does not mark the runner-named check `\"required\": false` on the grounds that the issue named a different check as a CI check"
       ]
@@ -211,6 +212,46 @@
         "Lists part B in `remaining`",
         "Leaves part A, the delivered work, out of `remaining`",
         "Does not record part B in `not_done` in place of `remaining`"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "work-ci-mode-leaves-an-unrunnable-test-suite-to-pr-ci",
+      "prompt": "/work-items:work --issue 612 --ci\n\nIssue 612 asks for a small fix in one helper script and a unit test for it. The runner's system prompt names the repository's changelog-fragment check and the plugin's test suite as checks to run. The changelog-fragment check runs and passes. The test suite cannot run in this sandbox: its test runner is not installed and the lane has no network to install it. Everything else is done. What does the run record in work-outcome.json, and does it stop?",
+      "expected_output": "The test suite is a test run the lane could not execute, which the skill treats as the exception to the required-check rule because the PR's CI runs the suites. The run adds it to `not_done` as left to the PR's CI with `\"required\": false` and does not stop for it. The changelog-fragment check passed, so nothing required is left, and the run ends `done`, not `stopped`.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records the test suite it could not run in `not_done` as left to the PR's CI with `\"required\": false`",
+        "Does not stop the run, or report it `stopped`, because the test suite could not run",
+        "Reports the run as done, with the changelog-fragment check passed"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "work-ci-mode-stops-when-a-test-that-ran-fails",
+      "prompt": "/work-items:work --issue 613 --ci\n\nIssue 613 asks for a small fix in one helper script. The runner's system prompt names the plugin's test suite as a check to run. The suite runs in this sandbox, and one of its tests fails after the change. Two attempts to fix the code do not make it pass, and the run has no turns left to try again. What does the run record in work-outcome.json, and does it stop?",
+      "expected_output": "The test suite ran and a test failed, so it is not the unrunnable-test exception: a test that ran and failed is still required. The run adds the failing test to `not_done` with `\"required\": true`, and the lane reports the run `stopped` whatever `exit` says. It does not file the failure as left to the PR's CI with `\"required\": false`.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records the failing test in `not_done` with `\"required\": true`",
+        "States that the lane reports the run `stopped`, whatever `exit` says",
+        "Does not mark the failing test `\"required\": false` or leave it to the PR's CI on the grounds that it is a test run"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "work-ci-mode-tidies-a-small-change-and-skips-a-wide-one",
+      "prompt": "/work-items:work --issue 650 --ci\n\nThe runner's prompt says: \"Tidy cutoffs: at most 10 changed files, 300 changed lines and 1 areas, and no change under these shared paths: .github/ scripts/. Tidy entry: code-tidying:tidy-diff; the skills it may call: ai-slop:audit. Tidy turn budget: 18 of this run's 75 turns.\" The run's change edits 3 files under plugins/alpha/ and adds one fragment under .changes/alpha/, 120 lines in all, and its checks pass. What does it do before the review? And what would it do had the change also edited scripts/check-x.sh?",
+      "expected_output": "The change is 4 files, 120 lines and one area (plugins/alpha with its .changes/alpha) and touches no shared path, so it writes a lines file of the changed hunks to the scratchpad, invokes code-tidying:tidy-diff with that file and --turns 18 (less only if fewer turns remain after keeping enough to finish), runs every check again, records `tidy` in `steps`, and only then runs the review. With scripts/check-x.sh in the change it touches a shared path, so it records `tidy` as `skipped`, names the shared path in `not_done` with `\"required\": false`, and goes on to the review untidied. Either way tidy does not change `exit`.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Counts .changes/alpha in the same area as plugins/alpha and finds the change within the cutoffs",
+        "Invokes code-tidying:tidy-diff with a lines file and --turns of at most 18 before the review, then runs the checks again",
+        "With scripts/check-x.sh in the change, records `tidy` as `skipped`, names the shared path in `not_done`, and does not tidy",
+        "Does not change `exit` or fail the run because of tidy"
       ]
     }
   ]

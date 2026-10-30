@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Request a whole review of a lane pull request's head when the only thing
-holding it is findings on its review chain that an incremental review cannot
-clear (`LaneEvidence.whole_review_clears`).
+"""Request a whole review of a lane or adopted pull request's head when the
+only thing holding it is findings on its review chain that an incremental
+review cannot clear (`LaneEvidence.whole_review_clears`).
 
 A whole review runs on `ready_for_review`, so the request converts the pull
 request to a draft and marks it ready again, with the lane token (an App
@@ -48,7 +48,7 @@ RECORD_RE = re.compile(
     r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ): .*$",
     re.MULTILINE,
 )
-# Whole reviews a lane pull request may request; past that a person decides.
+# Whole reviews a pull request may request; past that a person decides.
 MAX_TOGGLES = 2
 # A lane conversion to draft this long after a record belongs to its toggle.
 CONVERT_WINDOW = timedelta(minutes=10)
@@ -63,6 +63,8 @@ MIN_SHARE = 0.3
 READY_TRIES = 3
 RECOVER_HOURS = 24
 FINDING_CODES = frozenset(code for code, _ in babysit_risk.LANES.values())
+# The lane whose clean review clears a `review-path:` hold.
+SECURITY_LANE = "claude-security-review"
 CONVERT = (
     "mutation($id: ID!) { convertPullRequestToDraft(input: {pullRequestId: $id})"
     " { pullRequest { isDraft } } }"
@@ -82,11 +84,20 @@ def record_line(head: str, at: datetime) -> str:
     )
 
 
+_FENCE_RE = re.compile(r"^```[^\n]*\n.*?^```[ \t]*$", re.MULTILINE | re.DOTALL)
+
+
+def _unfenced(body: Any) -> str:
+    """`body` without its fenced blocks, where a reason quotes changed paths:
+    a record line counts only outside them."""
+    return _FENCE_RE.sub("", str(body or "").replace("\r\n", "\n"))
+
+
 def records(body: Any) -> list[tuple[str, datetime]]:
     """(head, time) of every request line in `body`, in order."""
     return [
         (m[1], datetime.fromisoformat(m[2]))
-        for m in RECORD_RE.finditer(str(body or ""))
+        for m in RECORD_RE.finditer(_unfenced(body))
     ]
 
 
@@ -99,7 +110,7 @@ def with_records(body: str, lines: Sequence[str]) -> str:
 
 
 def record_lines(body: Any) -> list[str]:
-    return [m[0] for m in RECORD_RE.finditer(str(body or ""))]
+    return [m[0] for m in RECORD_RE.finditer(_unfenced(body))]
 
 
 def wanted(
@@ -108,21 +119,62 @@ def wanted(
     lanes: Sequence[babysit_risk.LaneEvidence],
 ) -> bool:
     """Every other gate passed (`reason` is None), the only reasons holding
-    the score are open findings, and a clean whole review would close each
-    lane's."""
+    the score are open findings and `review-path:` holds, and a clean whole
+    review would close each lane's. A `review-path:` hold stands while the
+    security lane's bound review counts an open finding of any tier
+    (`babysit_risk.security_review_clean`), so that lane must be one a whole
+    review clears."""
     held_by = babysit_risk.holding(risk)
     if reason is not None or not held_by:
         return False
-    if not all(r.code in FINDING_CODES for r in held_by):
+    path = babysit_risk.REVIEW_PATH_PREFIX
+    if not all(r.code in FINDING_CODES or r.code.startswith(path) for r in held_by):
         return False
     codes = {r.code for r in held_by}
+    review_path = any(code.startswith(path) for code in codes)
     held = [
         lane
         for lane in lanes
-        if babysit_risk.LANES.get(lane.lane, ("",))[0] in codes
-        and (babysit_risk.blocking(lane) or 0) > 0
+        if (
+            babysit_risk.LANES.get(lane.lane, ("",))[0] in codes
+            and (babysit_risk.blocking(lane) or 0) > 0
+        )
+        or (
+            review_path
+            and lane.lane == SECURITY_LANE
+            and lane.bound
+            and lane.unbound_reason is None
+            and (lane.open_findings or 0) > 0
+        )
     ]
+    if review_path and not any(lane.lane == SECURITY_LANE for lane in held):
+        return False
     return bool(held) and all(lane.whole_review_clears for lane in held)
+
+
+def request(
+    repo: str, text: Any, head: str, node_id: str, identity: str, at: datetime
+) -> tuple[list[str], dict[str, Any] | None]:
+    """The record lines the reasons comment `text` holds, plus one for `head`
+    when this sweep may request a whole review of it, and the request:
+    `{"toggle": True}` for a new record, a `skipped` answer at a cap or limit,
+    or None when `head` is already recorded. The caller writes the lines
+    before it toggles, so a failed write never toggles twice at a head."""
+    lines = record_lines(text)
+    if recorded(text, head):
+        return lines, None
+    if len(lines) >= MAX_TOGGLES:
+        return lines, {"toggled": False, "skipped": f"toggle-cap:{len(lines)}"}
+    # The timeline, not the comment the lane token can edit, holds the count.
+    toggled = lane_toggles(node_id, identity)
+    if toggled is None:
+        return lines, {"toggled": False, "skipped": "toggle-cap:unread"}
+    if toggled >= MAX_TOGGLES:
+        return lines, {"toggled": False, "skipped": f"toggle-cap:{toggled}"}
+    refusal = limits(repo)
+    if refusal is not None:
+        return lines, {"toggled": False, "skipped": refusal}
+    return [*lines, record_line(head, at)], {"toggle": True}
 
 
 def _api(args: list[str], env: Mapping[str, str] | None = None) -> Any:
@@ -202,8 +254,52 @@ def _graphql(query: str, node_id: str) -> bool:
     return proc.returncode == 0
 
 
-def toggle(node_id: str, *, sleep: Any = time.sleep) -> dict[str, Any]:
-    """Draft, then ready again; `ready_for_review` runs a whole review."""
+HOLD_STATE = (
+    "query($id: ID!) { node(id: $id) { ... on PullRequest {"
+    " isDraft body labels(first: 100) { totalCount nodes { name } } } } }"
+)
+
+
+def _held(node_id: str, human_gated: str) -> str | None:
+    """Why the pull request, read now, must not be toggled, or None: it is
+    already a draft (a person's, whose hold a mark-ready would undo), carries
+    a merge-hold label, the tracker's `human_gated` role label or a body hold,
+    or did not read whole."""
+    import babysit_merge_policy as merge_policy  # noqa: PLC0415 - import cycle
+
+    proc = gh_capture(
+        ["api", "graphql", "-f", f"query={HOLD_STATE}", "-f", f"id={node_id}"]
+    )
+    try:
+        node = json.loads(proc.stdout)["data"]["node"] if proc.returncode == 0 else None
+        labels = node["labels"]
+        names = {str(n["name"]).casefold() for n in labels["nodes"]}
+        whole = labels["totalCount"] == len(labels["nodes"])
+        draft, body = node["isDraft"], str(node["body"] or "")
+    except (KeyError, TypeError, ValueError):
+        return "hold-state-unread"
+    if draft is not False:
+        return "already-draft"
+    if not whole:
+        return "hold-state-unread"
+    holds = {*merge_policy.MERGE_HOLD_LABELS, human_gated}
+    if names & {label.casefold() for label in holds}:
+        return "hold-label"
+    if merge_policy.BODY_MERGE_HOLD_RE.search(body):
+        return "body-hold"
+    return None
+
+
+def toggle(
+    node_id: str, *, human_gated: str, sleep: Any = time.sleep
+) -> dict[str, Any]:
+    """Draft, then ready again; `ready_for_review` runs a whole review. The
+    draft state and holds, `human_gated` (the tracker's role label) among
+    them, are read just before, so a person's draft or hold set since the
+    caller's listing is never undone."""
+    held = _held(node_id, human_gated)
+    if held is not None:
+        return {"toggled": False, "skipped": held}
     if not _graphql(CONVERT, node_id):
         return {"toggled": False, "error": "convert-to-draft failed"}
     for attempt in range(1, READY_TRIES + 1):
@@ -270,6 +366,22 @@ def _converter(node_id: str) -> tuple[str, datetime] | None:
         return None
 
 
+def toggled(node_id: str, identity: str, stamps: Sequence[datetime]) -> list[datetime]:
+    """The record times in `stamps` whose toggle `identity` made: its newest
+    conversion to draft (server time, which editing the reasons comment
+    cannot move) falls within `CONVERT_WINDOW` after them. Empty when the
+    conversion is unread or another actor's."""
+    try:
+        converted = _converter(node_id) if stamps else None
+    except (RuntimeError, ValueError, OSError):
+        converted = None
+    if converted is None or _login(converted[0]) != _login(identity):
+        return []
+    return [
+        at for at in stamps if at - CONVERT_SKEW <= converted[1] <= at + CONVERT_WINDOW
+    ]
+
+
 def recover(
     repo: str,
     identity: str,
@@ -317,14 +429,7 @@ def recover(
         ]
         newest = max(reasons, key=lambda c: str(c.get("created_at")), default=None)
         stamps = [at for _, at in records((newest or {}).get("body"))]
-        if not stamps:
-            continue
-        converted = _converter(node_id)
-        if converted is None or _login(converted[0]) != _login(identity):
-            continue
-        if not any(
-            at - CONVERT_SKEW <= converted[1] <= at + CONVERT_WINDOW for at in stamps
-        ):
+        if not toggled(node_id, identity, stamps):
             continue
         out.append({"pr": number, "head": head, "ready": _graphql(READY, node_id)})
     return out
@@ -341,7 +446,35 @@ def main(argv: Sequence[str] | None = None) -> int:
     rec.add_argument("--repo", required=True)
     rec.add_argument("--identity", required=True)
     rec.add_argument("--drafts", required=True, help="JSON list of drafts")
+    req = sub.add_parser(
+        "request",
+        help="the record line for a whole review of --head, the reasons comment on stdin",
+        allow_abbrev=False,
+    )
+    tog = sub.add_parser(
+        "toggle", help="draft, then ready again: a whole review", allow_abbrev=False
+    )
+    for cmd in (req, tog):
+        cmd.add_argument("--node-id", required=True)
+    tog.add_argument("--human-gated", required=True)
+    for name in ("--repo", "--identity", "--head"):
+        req.add_argument(name, required=True)
     args = parser.parse_args(argv)
+    if args.command == "request":
+        lines, answer = request(
+            args.repo,
+            sys.stdin.read().replace("\r\n", "\n"),
+            args.head,
+            args.node_id,
+            args.identity,
+            datetime.now(UTC),
+        )
+        print(json.dumps({"line": lines[-1]} if answer == {"toggle": True} else answer))
+        return 0
+    if args.command == "toggle":
+        result = toggle(args.node_id, human_gated=args.human_gated)
+        print(json.dumps(result))
+        return 0 if result["toggled"] else 1
     drafts = json.loads(Path(args.drafts).read_text())
     result = recover(args.repo, args.identity, drafts)
     print(json.dumps(result))

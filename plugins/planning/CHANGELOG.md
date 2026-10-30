@@ -3,6 +3,312 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.126.6] - 2026-10-30
+
+### Changed
+
+- The interview skill's EARS tags and `acceptance_criteria_format` resolution ladder now live in `context/ears.md`, and the acceptance-criteria coverage prompt with its register exemption in `context/coverage-prompt.md`. SKILL.md and the other context files keep a one-sentence pointer at each former site, and SKILL.md still states that the coverage prompt writes no register row and does not bring the register gate into scope.
+
+## [0.126.5] - 2026-10-29
+
+### Changed
+
+- Synced contract copies name their canonical source at `docs/contracts/<name>/`, where the plugin contracts moved from `docs/conventions/<name>/`.
+
+### Fixed
+
+- A Brief exported from the interview page lists the note typed on an Accept, an alternative or a Hedged choice under `### Intent`, beside the user's asks, notes and own answers. Before, that text reached the Brief only inside the row's Constraints line. A Reconfirm that posts the same choice and note again adds no second bullet.
+
+## [0.126.4] - 2026-10-29
+
+### Changed
+
+- The shared interview page shows a recommendation's basis as written, through the page's markdown renderer and folded behind "Why" as the 1:1 page folds it. The page no longer adds a `Basis:` label in front of the field, which already opens with `Checked against:` and carries its own `Basis:` label.
+
+## [0.126.3] - 2026-10-29
+
+### Changed
+
+- The interview's `question-shape.md` now points to SKILL.md's Stance for the basis, withheld and wording rules instead of restating them, and `surface.md`, `lane-page.md` and `lane-shared.md` point to it for the rules every lane shares, keeping only their own lane's rules.
+- The surface README's "Differences from the shared page" table adds the page-only decision vocabulary and the two `answerLine` texts, each with its reason.
+
+### Fixed
+
+- **The `--brief` gate fails a page-export Brief that lost its Intent, Decisions or the user's own words** ([#11029](https://github.com/melodic-software/claude-code-plugins/issues/11029)). `scripts/check-open-questions.sh --brief --procedure` used to pass a Brief with `### Intent`, `### Decisions` or every Ask and own-answer line removed. Under `--procedure`, a Brief with a `- Restatement:` stamp now needs `### Intent`. A new `--surface <data_dir>` option exports the Brief from the interview page again and fails (`procedure=fail`) when the Brief lacks a section that export writes, or a line of its Intent. The page lane's wrap-up runs the gate with it.
+
+## [0.126.2] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+### Fixed
+
+- On an unanswered question, the interview page shows "Details: what we know, alternatives" open,
+  whatever `moreOpen` value the browser stored. The facts and alternatives a decision rests on are
+  in view on first load. If you close Details on a question, it stays closed there until the page
+  reloads. An answered question still follows the stored `moreOpen` value.
+
+## [0.126.1] - 2026-10-29
+
+### Changed
+
+- Split the shared page's browser suites into three parts, `tests/ui-a.test.sh`, `tests/ui-b.test.sh` and `tests/ui-c.test.sh`, in place of `tests/ui.test.sh`, so the test planner can put them on separate CI legs. `tests/ui-parts.txt` names each `ui_*.js` suite's part, and `tests/ui-run.sh` runs one part the way `ui.test.sh` ran them all: `UI_JOBS` at a time, slowest first, with `ui_snappy.js` and `ui_telemetry.js` alone at the end of part c. In CI, part c also runs alone on its leg, so other suites' browsers do not slow those two past their timing windows. A suite in no part or in two, or a part with no wrapper, fails every part before it runs anything. `bash tests/ui-run.sh --check` runs only that check.
+
+## [0.126.0] - 2026-10-29
+
+### Added
+
+- A shared interview's named tunnel can run from any machine. Before a machine starts it, `ensure-running` asks `https://<tunnel_hostname>` itself; only Cloudflare's no-connector page (HTTP 530 with error 1033, as an HTML page or the plain text Cloudflare sends a non-browser client) counts as free, and any other answer or a failure to ask runs a quick tunnel and says why on stderr and in the output's `tunnelFallback`, so a second machine does not start a replica that would split the link's guests ([#8607](https://github.com/melodic-software/claude-code-plugins/issues/8607)).
+- New `tunnel_api_token_file` option: the path of a Cloudflare API token with "Cloudflare One Connector: cloudflared Write", which cannot touch DNS but can change every tunnel in the account. When it is set, a session refuses the tunnel while another machine's connector is connected, points the tunnel's own hostname rule at its guest port while keeping the rest of the tunnel's configuration, and after starting checks again for a second connector or a rewritten route, so a named session can use any free port instead of 8765. The server's restart of an exited named tunnel goes through the same checks. Both token file options accept a path starting with `~/`.
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
+- The interview page's header eyebrow line, rail group headings, Activity headings, section headings in the detail and summary views, Why and Details tabs, and Source text toggle now use 13px sans in place of the small uppercase mono style. Legends, panel titles and table headers already use 13px sans (#10211).
+
+- A named tunnel whose token file is missing, empty or readable by others now falls back to a quick tunnel and says why, instead of refusing to start, so the options can be set on every machine before each one holds its files. A hostname that is not a DNS name still refuses, and a session whose named tunnel already runs keeps it and warns.
+- The shared README's setup names the account API token permission "Cloudflare One Connector: cloudflared", which replaces "Cloudflare Tunnel" there.
+
+- The interview surface's browser suites (`surface.test.sh`, `surface-ui-c.test.sh` and `surface-journey.test.sh`) now print each graded phase's wall seconds on its result line, as in `ui_journey.3: 12 checks in 14s`, so a CI log shows which page scripts cost a suite its time ([#8757](https://github.com/melodic-software/claude-code-plugins/issues/8757)).
+
+## [0.125.0] - 2026-10-29
+
+### Changed
+
+- Both interview pages now render markdown through one renderer in `question-shape.js`, which builds elements and text nodes only. It reads the union of the two pages' dialects. Blocks are paragraphs, `#` headings, bullet and numbered lists, and `>` quotes. Inline it renders code, bold, emphasis, `[text](url)` and bare http(s) links, and `owner/repo#N`. When the session names a repository it also links `#N`, and with a commit, repository paths. Each page adds its own plain-text runs to that: the shared page its @mention chips, the 1:1 page its question-id chips and glossary terms. The shared page now renders headings, quotes, emphasis, markdown links and `owner/repo#N`, and the 1:1 page now renders bare links and keeps a paragraph's line breaks. The page-local `md`/`inline` (1:1 page) and `rich`/`inline`/`links` (shared page) builders are gone (#10210).
+
+## [0.124.1] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `setup-apply --check` names a key set twice as `duplicate key` at its second line, and apply refuses the file.
+
+- The 1:1 interview page's README lists where its question screen, answer note, keys and phone pin still differ from the shared page, each with its reason. Its deferred list gains two open items: the shared page's question screen on the 1:1 page, and the visual-viewport pin above 820 px for a phone held landscape.
+
+### Fixed
+
+- On a phone, the 1:1 interview page's text fields use 16 px text, as the shared page's do, so iOS Safari no longer zooms in when the note box or another field gets focus.
+
+## [0.124.0] - 2026-10-29
+
+### Added
+
+- **`/planning:draft-goal-condition` gives a condition that waits on the user a way to end.** When the intent has a step only the user can decide (a choice, a waiver, an approval, a change of plan), Step 2 ends the condition with an OR exit that names those items: each one still unmet is recorded in a named file as waiting on the user, with the exact reply or command they must give, and the file's contents are shown in the conversation. Step 2 also refuses, or rewrites with the user's agreement, a draft whose only end state needs a decision the user may make the other way, names an identifier the user can replace (a pull request number, an artifact or document URL), or fixes an order of work the user may reorder or defer.
+
+## [0.123.1] - 2026-10-29
+
+### Added
+
+- Three behavior-present eval cases, `disconnected-scan-before-new-work-behavior-present`, `observed-fact-evidence-bar-behavior-present` and `unilateral-decision-not-folded-behavior-present`, each its original case with the heuristic stated in the prompt and run with `--ablation none`, so a heuristic case discriminates when its variant passes the target grader and the original fails it. ([#10184](https://github.com/melodic-software/claude-code-plugins/issues/10184))
+
+### Fixed
+
+- The `unilateral-decision-not-folded` eval case now has a `scaffold.sh` that seeds a small webhook sender with a logger module, so its runs no longer find an empty repository and stop before planning.
+
+## [0.123.0] - 2026-10-29
+
+### Added
+
+- **The shared interview lane tells Claude how to add live prototypes.** The ops table lists `add-live`, the prototype question text covers a variant's `live: {id, path}` link, and a prototype routes to `/prototype:explore-directions`, whose manifest the lane applies as screenshots, HTML snapshots and live builds, then asks as a question in the next round. A live link reaches guests only after the owner's Approve, and `add-live` is refused `live-off` while the live tier is off.
+
+### Changed
+
+- **`supersede` and `resolve` read their text from a file.** `supersede --proposes TEXT` is now `--proposes-file P`, and `resolve reconfirm --note TEXT` is now `--note-file N`. Neither command accepts an abbreviated option, so an old `--proposes` or `--note` is rejected instead of being read as a file name.
+
+### Removed
+
+- **`round.py` takes no page text on its command line.** The `reply`, `revise`, `note-reply`, `record-terminal`, `archive`, `reconfirm` and `group` commands are gone; each is an `apply` op, and calling one of the old commands is refused with a pointer to `round.sh --dir DATA_DIR apply --file OPS`. `add` reads the question only from `--file` and drops its text flags (`--short`, `--title`, `--rec`, `--facts`, `--basis`, `--waits-on`, `--commit`, `--alt`); `--id`, `--group`, `--stage`, `--round`, `--depends`, `--follow-up-of`, `--supersedes` and `--waiting` still override its fields.
+
+## [0.122.0] - 2026-10-28
+
+### Added
+
+- The interview page's restatement box shows `N of M answers accepted as recommended` before the Confirm. When every answer took the recommendation, it offers "Have agents check these answers", which sends one `accept-audit` event for the accepted questions.
+- The restatement box lists the unticked commitments of accepted and own answers. A "Tick these and confirm" button beside Confirm ticks each one, then confirms the understanding. Plain Confirm still ticks nothing.
+
+## [0.121.0] - 2026-10-28
+
+### Added
+
+- **The interview assumption sweep reports coined names.** A new `coined-term` category catches a name, label or abbreviation the session coined in a recommendation, a `Commits you to:` part or a composed artifact (one the user did not introduce, nothing existing uses, and the session-shorthand glossary lacks), even after the user accepted the answer that carried it. Each becomes a register row asking the user to accept or rename the term, recommending the closest name the user already uses; a rename carries into the draft and the rows that hold the term. The sweep sub-agent is now handed the glossary, the project's domain-vocabulary file and the user's own names for things ([#8314](https://github.com/melodic-software/claude-code-plugins/issues/8314)).
+- **A question that coins a name records it at ask-time.** Its glossary line is written in the same step as its register row, and the name is defined in the question (`context/loop.md` "Session-shorthand glossary").
+- Eval case `sweep-flags-coined-term-after-accept-all`: a recommendation coins a role name that overlaps the user's existing role, the user answers "accept all", and the sweep must still return a `coined-term` item.
+
+### Fixed
+
+- `/planning:interview` reads a `userConfig` value that arrives as its unexpanded `${user_config.KEY}` token as that key's own default, never as off. A shared session with `shared_session_open_browser` never saved now opens the owner's page in the browser, as the default `true` says.
+
+## [0.120.0] - 2026-10-28
+
+### Added
+
+- `export-brief` writes an `### Intent` section above the Brief's `### Goal`. It opens with the user's goal paragraph from the restatement's new `intent` section, or `none stated`. It then lists the text of each `ask`, `note` and `own` event word for word, in event order and under its `Q<N>`, and leaves out undone and withdrawn events and the note that gave the goal paragraph. An answered row that took the recommendation gets a `why:` line from its question's `basis` under its Constraints entry.
+- The interview asks for the goal in the user's own words before the confirmation restate and sends it as `intent`, which the restatement box shows. The terminal Brief template carries the same `### Intent` section, and `/planning:plan` reads it first.
+
+## [0.119.1] - 2026-10-28
+
+### Fixed
+
+- `/planning:interview` continuation wording: the `me`-mode persistence lines now recommend routing the next step rather than routing it, name Step 5's fallback when session-flow is absent, drop a stale cross-reference to a removed handoff-and-clear step, and give the context-window docs link in `context/loop.md` a Pointer / As of / Recheck trigger record.
+
+## [0.119.0] - 2026-10-28
+
+### Changed
+
+- `/planning:interview` no longer accepts a bare `judgment` basis for a recommendation. Every recommendation now lists each fact it rests on with its source (a `file:line`, a URL fetched this session, a session-transcript finding, or tool output) and one `Inference:` line on why those facts lead to this answer for this user. A question with no fact to cite is researched first, or asked with a `Withheld:` line naming the evidence that would settle it. The page surface's `basis` field carries the same evidence list. The shared `context/recommendation-basis.md` contract is unchanged.
+
+## [0.118.3] - 2026-10-28
+
+### Fixed
+
+- The surface-ui-c browser suite no longer flakes on loaded runners: its checks wait on what the
+  page or the page server shows instead of fixed pauses. Picking a question retries until the card
+  holds the selection, even when a re-render collapses its group mid-click; saves wait until the
+  server records the event; phases 1 and 2 wait for the page to show an external answer, revise or
+  Accept all result before checking it; and phase 6 checks Live only once the server counts the
+  waiter, and the released state only once the server reports reading with no lease and no waiter.
+  A server test covers the state frame a waiter arriving or leaving pushes while the lease is held.
+
+## [0.118.2] - 2026-10-28
+
+### Fixed
+
+- **`round.sh record-terminal` refuses a decision on a superseded or archived question** ([#10472](https://github.com/melodic-software/claude-code-plugins/issues/10472)). On a superseded question it exits non-zero with `refused: <id> is superseded; answer <id> instead`, naming the end of the `supersededBy` chain as the page server's 409 does. On an archived question it exits with `refused: <id> is archived`. Before, the decision was written and then counted nowhere, because `status` and `export-ledger` read the question as withdrawn. The interview skill's surface contract documents the refusal beside the server's 409.
+
+## [0.118.1] - 2026-10-28
+
+### Fixed
+
+- A browser merged into the owner no longer joins again as a new person when one of its requests was already in flight when the merge happened. That request now gets 401 `merged-into-owner` as well, instead of `unknown-session`, so the page shows the open-your-owner-link notice. Before, the race failed `ui_merge.js` on main now and then.
+
+## [0.118.0] - 2026-10-28
+
+### Added
+
+- `round.sh add`, `add-round` (and its `--check`), `apply` and `revise` warn, naming the question, on a `facts` field that holds more than its `Checked against:` line yet carries no link, `file:line` or `judgment` label, so a claim a question rests on cannot reach the user unchecked. It warns and never refuses, beside the existing basis-label and bare-file warnings.
+- `export-ledger --recap --changed --ledger L` lists only the rows whose status, question or answer changed since the last saved recap, then one `Unchanged since the last recap (N): <count> <status>, ...` line for the rest. It lists every row when no recap has been saved yet.
+
+### Changed
+
+- `round.sh export-ledger --recap --ledger L` reads the ledger alone when `--dir` is absent or names no directory, so the terminal lane, which has no page data, runs the same recap command; read alone, a ledger without exactly one open-question register is refused. Each recap that fits the restate cap saves its rows beside the ledger in `<L stem>.last-recap.json`, which every later recap overwrites.
+- `interview` Step 3 generates the confirmation recap with that command and pastes it verbatim, with no paraphrase and no HTML or collapsible block, and adds `--changed` after the first confirmation. The page lane's `restate` keeps the full recap, because the Brief's Decisions section is read from it.
+
+## [0.117.3] - 2026-10-28
+
+### Changed
+
+- `/planning:draft-goal-condition` gains a `## Next` section: `/implementation:implement` when an approved plan runs in this session under the armed goal, `/session-flow:continue-in-background` when the run goes on while the person is away, `/work-items:decompose` when the lever routed to multi-window work, and `/planning:interview` when the intent was too vague to draft.
+- The planning skills' `## Next` sections name only the next step. `/planning:questionnaire` leaves `/planning:interview`'s and `/planning:prd`'s `## Next`, since it runs beside the next step; prd's hand-off now says so, in the interview's words. `/naming:name-it-better` and `/architecture:record-decision` leave `/planning:design`'s `## Next` for its relationship table, marked **During.** `/architecture:record-decision` also leaves `/planning:design-handoff`'s `## Next`: its hand-off already offers the ADR and now says the offer runs beside the next step.
+- Each `## Next` bullet names one skill: `/planning:prd`'s splits its combined bullet, `/planning:wayfind`'s gives each map destination its own bullet and drops the general `/session-flow:workflow` fallback to stay within four, and `/planning:setup`'s line drops its backticks to match its siblings. `/planning:brainstorm` routes to `/planning:design` only once the contract is locked, in line with `/session-flow:workflow`'s stage order.
+
+## [0.117.2] - 2026-10-27
+
+### Fixed
+
+- Shared interview: `share.sh stop` and `restart` now ask the server to shut down through its control listener before ending it, so the server writes the usage summaries it holds on every OS. On Windows the stop used to end the process at once, losing every held summary; a one-on-one session there recorded no usage counts at all. A server that refuses or does not exit within 15 seconds is still force-ended.
+
+## [0.117.1] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.117.0] - 2026-10-27
+
+### Added
+
+- **Interview page: a re-issued question keeps its history across supersede chains (G6).** The server derives `supersedesChain` on a question that supersedes another, listing every earlier question of the chain, first asked first, with its round and, when set, its stage. It is never written to `questions.json`. The detail pane shows the whole chain, for example `Asked as Q5 in round 2, then Q35 in round 4`, where it used to link only the question it replaced.
+- **`add`, `add-round` and `apply` warn on a one-for-one mass supersede.** A write that supersedes three or more questions one for one names up to five of the pairs and points to `revise`, which keeps a question's id, thread and answer.
+
+### Changed
+
+- **The carried-rounds count starts from the chain's first question.** The `asked N rounds ago, unanswered` chip and the "Still open from earlier rounds" section count from the round the question was first asked in its stage. Before, a question re-issued in round 5 counted as new in round 5.
+- **"Still open from earlier rounds" is pinned in every view, not only Rounds.** Groups and Tree pin a copy at the top of the rail and keep each question in its group or its place in the tree.
+- **`archive` clears any hold on the questions it archives.** It removes `waiting`, `waitsOn`, `waitingBy` and `waitingSince` and adds a `No longer ...` history line, as `wait` with `clear` does. An archived question no longer carries a `waiting` hold.
+
+### Fixed
+
+- In the shared session page's chat on a phone, a reader at the newest message stays there as the on-screen keyboard opens, while typing and when a message arrives, instead of the list falling behind when the keyboard's steps arrive faster than the page draws.
+
+- Interview surface: the header now turns Live as soon as a watcher starts waiting, and leaves Live when the wait ends, even within 10 seconds of the previous wait. Before, the open page heard of a new wait only when some other change came along, so it could read Claude is working while a watcher was waiting.
+
+## [0.116.0] - 2026-10-27
+
+### Added
+
+- **`interview` page surface:** a `tldr` restate section, shown first on the page as `Scope (TLDR)`, so the user confirms scope before the export. `export-brief` writes its bullets at the head of the Brief's `### TLDR`, ahead of the counts and the stamp, and `restate` refuses a `tldr` line opening `Restatement:` or `Page title:`, the labels the `--brief` gate reads. A `tldr` over five lines warns ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+
+### Fixed
+
+- **`interview` page surface:** `export-brief` no longer lists each confirmed commitment under `### Captured assumptions` as `confirmed on Q<N>; revisit if Q<N> changes`. `/planning:plan` turned each of those lines into an assumption to revisit, but a confirmed commitment is a decision. It already sits on its decision's line, and a decision still open on unticked commitments now lists its ticked ones on a TLDR line, `- Q<N> confirmed so far: <commitments>`. Captured assumptions now holds unconfirmed commitments as named risks, plus each `needsAnswer` Notes line no user note answered, as `- asked in Notes, not answered: <text>`. That line is how an unanswered acceptance-criteria coverage prompt reaches the Brief ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+- **`interview` page surface:** `restate` refuses an `acceptance` line that asks the user something: a question mark, "tell me", "please confirm", or a line opening on say or choose. Before this, a question such as the coverage prompt could be exported and confirmed as a criterion ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+- **`interview` page surface:** `round.py` warns on `add`, `add-round`, `apply` and `revise` when a recommendation with no commitments points at a table, visual, diagram, chart or figure while the file holds a visual or the question's `facts` hold a markdown table. The Brief exports only the recommendation and its commitments, so criteria kept only in a visual never reached the planner ([#6051](https://github.com/melodic-software/claude-code-plugins/issues/6051)).
+
+## [0.115.1] - 2026-10-27
+
+### Fixed
+
+- `/planning:interview`: the page lane's `user_config` substitution record no longer claims that an unset key with a `default` substitutes that default. The manifest reference does not say so, and our own probe (the `/harness-ops:plugins` record "`userConfig`: an unset key renders the literal placeholder") found the token stays literal. The record now treats a token the lane table shows literal as unset, whatever the key's saved state. It names each key's fallback (`surface` to `terminal`, emoji markers to off), points at that probe, and rechecks when a fresh-session probe records whether a saved boolean substitutes (`skills/interview/context/lane-page.md`).
+
+## [0.115.0] - 2026-10-27
+
+### Changed
+
+- The Brief is the spec, and each planning value has one owner. `/planning:interview`'s Brief template owns the Goal, the acceptance criteria and the deferred questions. `/planning:plan` writes no Goal of its own under `## Plan` and points at the Brief's. A minimal Brief written by plan now includes `### Acceptance criteria`. A plan with no Brief puts a one-line `Goal:` under its `No Brief: <reason>` line instead.
+- `/planning:plan`'s Test strategy is the one place test boundaries are decided. `/planning:design`'s Test-seam posture thread sketches candidates for it and no longer asks the user to confirm them separately.
+- PLAN.md has one `## Execution shape` section. It holds the routing table, the scope-fencing tables and the sequential fallback, so the `### Execution shape` subsection under `## Handoff to implementation` is gone. The `## Open questions` section is also gone: a question the plan raises is a Step 1 Open Decision, and a deferred question stays in the Brief's `### Deferred questions`, and Step 5 asks for a reply to each one still open as `USER-RESERVED`. Step 4.6 tags decisions in `## Execution shape` too. `/planning:design-handoff` sends uncovered dimensions to those Step 1 Open Decisions.
+
+### Fixed
+
+- The interview page no longer takes a decision on an archived or superseded question: its Decide
+  choices, Save and Reopen are disabled, Ask, Rephrase and Research this still work, and a primary
+  `Go to <id>` button opens the end of its `supersededBy` chain. The page server answers such a
+  decision 409 `{"error": "superseded", "by": "<id>"}`, or `{"error": "archived"}`, and
+  accept-audit leaves a superseded question out.
+- An answer recorded before its question was superseded no longer counts as answered and live in
+  the page meter or `round.sh status`: both now read `supersededBy` before the decision, as
+  `export-ledger` already did, so they agree with the exported `withdrawn` row.
+
+## [0.114.1] - 2026-10-27
+
+### Fixed
+
+- Shared sessions: in the chat that covers the page (below 1100 px wide), a pop-up now moves with the typing line when the message box grows, empties after a send, or the reply bar or a list of attached files opens. Before, it kept the place it was given when it showed, so a box grown to several lines could slide under it.
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.114.0] - 2026-10-27
+
+### Added
+
+- **`/planning:interview` checks each draft round against earlier answers before it is shown.** Every round after the first gets a pre-round contradiction pass: a fresh-context sub-agent runs only the assumption sweep's contradiction category over the draft round, the answered register rows and the confirmed constraints, and each conflict is fixed in the draft (a revised recommendation, or one question naming both sides) before the round is asked inline or posted with `add-round`. `context/assumption-sweep.md` "Pre-round contradiction pass" holds the rule, with an eval case.
+- **Sweep rounds are labeled on the page.** `add-round` takes `meta.kind: "sweep"`, stored on the round's `rounds` entry rather than in meta, and the page labels that round `Sweep: reconciling earlier answers`. A question's new `reconciles` list names the earlier questions whose answers it reconciles, and the page shows each one's decision beside the question. `add-round` refuses an unknown `kind`, a `kind` on a round with no questions, and a `reconciles` id that is not in the register, naming it.
+
+## [0.113.1] - 2026-10-27
+
+### Fixed
+
+- Shared sessions: a tab hidden, or set Away by hand, while a plain heartbeat was waiting out its one-second gap now sends its Away beat at once. Before, that beat waited for the gap's timer, which a throttled or frozen background tab may run only a minute later, so the person showed Active until then.
+
+## [0.113.0] - 2026-10-27
+
+### Added
+
+- The interview page server records the plugin version and a hash of its own source at start, and `/api/state` reports them as `pluginVersion` and `sourceHash`. The page compares them with the build stamped into it when served and, when its server is older, shows "This page's server is older than the page. Run ensure-running to restart."
+- `round.sh ensure-running` restarts a running page server whose recorded plugin version or source hash differs from the installed plugin's, on its port and with its user settings file, posting no finish, and says so on stderr. The shared session's `share.sh ensure-running` and the view bridge's `ensure-running` restart such a server the same way.
+- `watch.sh` prints a `note:` line on stderr before it polls when the server's recorded plugin version differs from the installed one.
+
+## [0.112.1] - 2026-10-26
+
+### Fixed
+
+- The session bridge now writes the data-framing `note` ahead of `events` in each `/api/wait` answer and each channel relay `events` line. A model reading the line top to bottom now meets the instruction to treat page text as data before it meets the page text.
+
 ## [0.112.0] - 2026-10-26
 
 ### Added

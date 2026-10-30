@@ -11,6 +11,14 @@
 #   scripts/affected-tests.sh                    list the suites covering the diff vs the base ref
 #   scripts/affected-tests.sh --run              ... and run them, sequentially
 #   scripts/affected-tests.sh --run --jobs N     ... N shell suites at a time
+#   scripts/affected-tests.sh --run --budget S   ... timed against an S-second budget, a
+#                                                suite over its share failing, or warning with
+#                                                PLUGIN_TEST_SHARE_WARN_ONLY=1
+#                                                (run-plugin-tests.sh BUDGET)
+#   scripts/affected-tests.sh --run --write-not-run FILE
+#                                                ... and write each selected suite it did not run
+#                                                to FILE, one per line (exit 3 names them); a
+#                                                relative FILE is from the repository root
 #   scripts/affected-tests.sh path/a.sh path/b   ... for explicit paths instead of a diff
 #   scripts/affected-tests.sh --base <ref>       use <ref> as the diff base (default: origin/main)
 #   scripts/affected-tests.sh --explain          report WHY each suite was selected (stderr)
@@ -86,12 +94,19 @@
 #                    with no depth cap. A suite that names it is selected. This is
 #                    what carries a library change out to what sources it.
 #                    A Python `import`/`from` line names <stem>.py for each
-#                    dotted component and imported name equal to the stem
-#                    (`from harness.stub_harness import run` names
-#                    stub_harness.py), since an import never spells the file;
-#                    an AMBIGUOUS stem resolves to a module only when that
+#                    dotted component equal to the stem (`from
+#                    harness.stub_harness import run` names stub_harness.py),
+#                    since an import never spells the file. A name after the
+#                    `import` of `from m import name` names name.py only when
+#                    m's package directory holds it (`from harness import
+#                    stub_harness`, harness/stub_harness.py), since that name
+#                    is a submodule only there. The module must sit under the
+#                    importer's plugin or lib root (plugins/<p>/, lib/<l>/,
+#                    .github/scripts/<x>/), so a name never resolves across
+#                    plugins; an importer outside every root reaches the whole
+#                    tree. An AMBIGUOUS stem resolves to a module only when that
 #                    module is the one of its name in the nearest directory,
-#                    from the importer's up, that holds any.
+#                    from the importer's up to that root, that holds any.
 #   R4 other language a file in another language counts only where the naming
 #                    line runs or loads the file: an interpreter or process API on
 #                    the line (bash, sh, python3, node, pwsh, source, subprocess,
@@ -209,7 +224,9 @@
 # path (an ERE alternation of bounded basenames took minutes per level); one
 # awk pass then drops comment lines, splits each line into tokens, and keeps the
 # (file, name) pairs MATCHING and AMBIGUOUS NAMES let stand, marking each with
-# whether its line runs or loads the file.
+# whether its line runs or loads the file. A run that has paid for many tree
+# greps reads every code line naming a file once (build_name_lines) and greps
+# those lines instead.
 # Both stages fail loud; see the call site in select_for. Each stage's output is
 # a function of its inputs alone, so a level whose inputs an earlier level of
 # any seed already had reuses that stage's result: the copies of one shared
@@ -223,6 +240,10 @@ cd "${AFFECTED_TESTS_ROOT:-$SCRIPT_DIR/..}" || exit 2
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
+# shellcheck source=lib/pytest-python.sh
+. "$SCRIPT_DIR/lib/pytest-python.sh" || exit 2
+# shellcheck source=lib/test-git-env.sh
+. "$SCRIPT_DIR/lib/test-git-env.sh" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
 SCOPES_LIST="${AFFECTED_TESTS_SCOPES:-}"
@@ -250,7 +271,10 @@ print_fanout=""
 shard_spec=""
 replay_range=""
 against_ref=""
+not_run_file=""
 jobs=1
+budget=""
+budget_given=0
 # Whether --shard was SUPPLIED, tracked apart from its value: `--shard=` with an
 # empty right-hand side is what an unset environment variable produces, and it
 # must not read as "no shard requested" and run everything on every leg.
@@ -303,6 +327,13 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --jobs=*) jobs="${1#--jobs=}" ;;
+  --budget)
+    need_value "$1" $# "${2:-}" "seconds, a positive integer"
+    budget="$2"
+    budget_given=1
+    shift
+    ;;
+  --budget=*) budget="${1#--budget=}" budget_given=1 ;;
   --base)
     need_value "$1" $# "${2:-}" "a ref"
     base_ref="$2"
@@ -334,6 +365,11 @@ while [[ $# -gt 0 ]]; do
     against_ref="$2"
     shift
     ;;
+  --write-not-run)
+    need_value "$1" $# "${2:-}" "a file"
+    not_run_file="$2"
+    shift
+    ;;
   --)
     shift
     explicit_paths+=("$@")
@@ -353,6 +389,10 @@ if [[ ! "$jobs" =~ ^[1-9][0-9]*$ ]]; then
   echo "error: --jobs wants a positive integer; got: $jobs" >&2
   exit 2
 fi
+if [[ "$budget_given" -eq 1 && ! "$budget" =~ ^[1-9][0-9]*$ ]]; then
+  echo "error: --budget wants a positive number of seconds; got: $budget" >&2
+  exit 2
+fi
 if [[ "$shard_given" -eq 1 ]] && ! parse_shard "$shard_spec"; then
   echo "error: --shard wants <index>/<total> with total >= 1 and 0 <= index < total; got: $shard_spec" >&2
   exit 2
@@ -363,6 +403,15 @@ if [[ "$allow_unmapped" -eq 1 && "$unmapped_corpus" -eq 1 ]]; then
 fi
 if [[ -n "$against_ref" && -z "$replay_range" ]]; then
   echo "error: --against only applies to --replay." >&2
+  exit 2
+fi
+if [[ -n "$not_run_file" && "$do_run" -eq 0 ]]; then
+  echo "error: --write-not-run only applies to --run." >&2
+  exit 2
+fi
+# Emptied first, so a run that selects nothing leaves no earlier run's list.
+if [[ -n "$not_run_file" ]] && ! : >"$not_run_file"; then
+  echo "error: cannot write --write-not-run file: $not_run_file" >&2
   exit 2
 fi
 if [[ -n "$replay_range" ]] && [[ ${#explicit_paths[@]} -gt 0 || -n "$base_ref" || "$do_run" -eq 1 || "$shard_given" -eq 1 ]]; then
@@ -509,6 +558,9 @@ build_sync_map() {
 declare -A AMBIGUOUS=()   # basename -> 1 when two or more files carry it
 declare -A SYNC_MEMBER=() # path -> 1 for a shared library's source and each copy
 declare -a SCOPE_SUITES=() SCOPE_GLOBS=()
+# The extensions lang_family() names: the reverse lookup searches them all.
+CODE_SPECS=('*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1')
+UNTRACKED=()
 # build_tree_index: every tracked or untracked-unignored file, listed once for
 # the ambiguous-name set, the reverse lookup's resolution, the declared scopes
 # and the unmapped corpora. Fatal on a failed listing: a short list under-selects.
@@ -519,6 +571,21 @@ build_tree_index() {
     echo "error: listing the tree failed." >&2
     exit 2
   fi
+  # `--untracked` walks the working tree on every reverse lookup; with no
+  # untracked code file a plain `git grep` reads the same files.
+  if ! git ls-files --others --exclude-standard -- "${CODE_SPECS[@]}" >"$WORK_DIR/untracked-code"; then
+    echo "error: listing the untracked code files failed." >&2
+    exit 2
+  fi
+  [[ -s "$WORK_DIR/untracked-code" ]] && UNTRACKED=(--untracked)
+  # token_hits reads the files of a name it resolves: an ambiguous or
+  # structural basename, or __init__.py.
+  awk -v s="$STRUCTURAL_BASENAMES" '{ b = $0; sub(/.*\//, "", b) } NR == FNR { n[b]++; next }
+    n[b] > 1 || b == "__init__.py" || index(s, " " b " ")' "$WORK_DIR/all-files" "$WORK_DIR/all-files" \
+    >"$WORK_DIR/resolvable-files" || {
+    echo "error: listing the files of the resolvable names failed." >&2
+    exit 2
+  }
   # Every Python import line, for R3's module rule in token_hits. Exit 1 is no
   # match; anything above it is an unreadable lookup, fatal like the grep in
   # select_for.
@@ -581,6 +648,39 @@ build_tree_index() {
       SCOPE_GLOBS+=("${words[i]}")
     done
   done
+}
+
+declare -A NAMED=() # basename -> 1 for each name the lines of build_name_lines cover
+TREE_GREPS=0
+# build_name_lines: every code line naming a basename a frontier can hold (a
+# file of the tree, a changed path, a shared library's copy), as `git grep`
+# prints it, read from the tree once. A level whose names it covers greps these
+# lines instead of the tree, which a `git grep` walked on every level. GNU grep
+# matches the path too, so it also returns lines of a file whose path alone
+# holds a name; token_hits reads only the text after the path, and those lines
+# name nothing. `git grep -h` and `-c` over one tree align line for line.
+build_name_lines() {
+  local b names_rc=0 lines_rc=0 counts_rc=0 named_rc=0
+  {
+    awk '{ sub(/.*\//, "") } $0 != ""' "$WORK_DIR/all-files"
+    printf '%s\n' "${changed[@]##*/}" | awk '$0 != ""'
+    printf '%s' ${SYNC_SRC_COPIES[@]+"${SYNC_SRC_COPIES[@]}"} | awk '{ sub(/.*\//, "") } $0 != ""'
+  } | sort -u >"$WORK_DIR/names" || names_rc=2
+  git grep ${UNTRACKED[@]+"${UNTRACKED[@]}"} -I -h -e '' -- "${CODE_SPECS[@]}" >"$WORK_DIR/code-lines" || lines_rc=$?
+  git grep ${UNTRACKED[@]+"${UNTRACKED[@]}"} -I -c -e '' -- "${CODE_SPECS[@]}" >"$WORK_DIR/code-counts" || counts_rc=$?
+  LC_ALL=C grep -naF -f "$WORK_DIR/names" "$WORK_DIR/code-lines" >"$WORK_DIR/named" || named_rc=$?
+  if ((names_rc > 1 || lines_rc > 1 || counts_rc > 1 || named_rc > 1)) || ! awk '
+    FILENAME == ARGV[1] {
+      i = length($0); while (substr($0, i, 1) != ":") i--
+      path[++n] = substr($0, 1, i - 1); end[n] = end[n - 1] + substr($0, i + 1); next
+    }
+    { i = index($0, ":"); ln = substr($0, 1, i - 1) + 0; while (ln > end[f]) f++; print path[f] ":" substr($0, i + 1) }
+  ' "$WORK_DIR/code-counts" "$WORK_DIR/named" >"$WORK_DIR/name-lines"; then
+    echo "error: reading the code lines of the tree failed." >&2
+    exit 2
+  fi
+  rm -f "$WORK_DIR/code-lines" "$WORK_DIR/named"
+  while IFS= read -r b; do NAMED["$b"]=1; done <"$WORK_DIR/names"
 }
 
 # scope_declarations <file-list> -> one `<suite> <glob>...` line per
@@ -657,15 +757,17 @@ lang_family() {
   esac
 }
 
-# token_hits <plain> <resolve> <matched-lines> <hits>
+# token_hits <plain> <resolve> <matched-lines> <hits> <resolvable-files> <py-imports>
 # Reduce `git grep`'s SUBSTRING hits to the mentions the rules mean. Inputs:
 # the frontier paths this level looks up by plain basename, those whose names
-# must RESOLVE (AMBIGUOUS NAMES), and the `<path>:<line>` grep output. Output,
+# must RESOLVE (AMBIGUOUS NAMES), the `<path>:<line>` grep output, the files of
+# the tree that carry a resolvable name and the Python import lines, each
+# /dev/null for a level no rule reads it for. Output,
 # one line per pair:
 #   p<TAB><path><TAB><basename><TAB><1 when a kept line runs or loads it, else 0>
 #   r<TAB><path><TAB><resolved frontier path>
 token_hits() {
-  awk -v plainf="$1" -v resf="$2" -v allf="$WORK_DIR/all-files" -v impf="$WORK_DIR/py-imports" '
+  awk -v plainf="$1" -v resf="$2" -v allf="$5" -v impf="$6" '
     function dir_of(p) { sub(/[^\/]*$/, "", p); return p }
     function base_of(p) { sub(/.*\//, "", p); return p }
     function ends(s, t) { return length(s) >= length(t) && substr(s, length(s) - length(t) + 1) == t }
@@ -676,7 +778,7 @@ token_hits() {
       b = base_of($0)
       if (b ~ /^[A-Za-z0-9_.-]+$/) want[b] = 1
       else loose[b] = 1
-      if (b ~ /\.py$/) want_stem[substr(b, 1, length(b) - 3)] = 1
+      if (b ~ /\.py$/) { want_stem[substr(b, 1, length(b) - 3)] = 1; pl[b, ++npl[b]] = $0 }
       # A package initializer is reached through its package name (import_names).
       if (b == "__init__.py") rt[b, ++nrt[b]] = $0
       next
@@ -693,8 +795,9 @@ token_hits() {
       next
     }
     # R3 for a Python import, which names a module and never its file:
-    # `from a.b import c as d, e` names a.py, b.py, c.py and e.py, since an
-    # imported name can be a submodule. Same language, so no transition.
+    # `from a.b import c as d, e` names a.py and b.py, and c.py and e.py where
+    # the package a/b/ holds them, since an imported name can be a submodule.
+    # Same language, so no transition.
     FILENAME == impf {
       i = index($0, ":")
       if (i == 0) next
@@ -703,38 +806,75 @@ token_hits() {
       sub(/#.*/, "", text)
       gsub(/[(),\\]/, " ", text)
       n = split(text, w, /[ \t]+/)
+      from_line = 0; held = ""; mod = ""
       for (j = 1; j <= n; j++) {
         if (w[j] == "as") { j++; continue }
-        if (w[j] == "" || w[j] == "from" || w[j] == "import") continue
+        if (w[j] == "") continue
+        if (w[j] == "from") { from_line = 1; continue }
+        if (w[j] == "import") { if (from_line) held = from_pkg(path, mod); continue }
+        if (from_line && held == "") mod = w[j]
         m = split(w[j], comp, ".")
-        for (k = 1; k <= m; k++) if (comp[k] != "") import_names(path, comp[k])
+        for (k = 1; k <= m; k++) if (comp[k] != "") import_names(path, comp[k], held)
       }
       next
     }
+    # from_pkg: the package directory of `from m import`, as "=" and the exact
+    # directory for a relative m, or "~" and the trailing path for an absolute
+    # one. Never empty, so it marks the names after `import` too.
+    function from_pkg(path, m,   a, d, r) {
+      d = match(m, /^\.+/) ? RLENGTH : 0
+      r = substr(m, d + 1)
+      gsub(/\./, "/", r)
+      if (r != "") r = r "/"
+      if (d == 0) return "~" r
+      for (a = dir_of(path); d > 1; d--) sub(/[^\/]*\/$/, "", a)
+      return "=" a r
+    }
+    # in_pkg: whether directory dt is the package held, "" holding everything.
+    function in_pkg(dt, held,   wd) {
+      if (held == "") return 1
+      wd = substr(held, 2)
+      if (substr(held, 1, 1) == "=") return dt == wd
+      return dt == wd || ends(dt, "/" wd)
+    }
+    # root_of: the plugin or lib root holding p (plugins/<p>/, lib/<l>/,
+    # .github/scripts/<x>/), empty outside one. An import never leaves it.
+    function root_of(p) {
+      if (match(p, /^(plugins|lib)\/[^\/]+\//) || match(p, /^\.github\/scripts\/[^\/]+\//))
+        return substr(p, 1, RLENGTH)
+      return ""
+    }
     # import_names: module c, imported by path, names c.py when that is a
-    # frontier basename; an ambiguous c.py resolves when it is the only module
-    # of that name in the nearest directory, from the importer up, holding one.
-    function import_names(path, c,   b, k, key) {
+    # frontier path under the importer root; an ambiguous c.py resolves when it
+    # is the only module of that name in the nearest directory, from the
+    # importer up to its root, holding one. An imported name (held set) names
+    # only a module of the package held.
+    function import_names(path, c, held,   b, k, key, r) {
       b = c ".py"
-      if (c in want_stem) {
-        key = path SUBSEP b
-        if (!(key in kept)) order[++nkept] = key
-        kept[key] = 1
-      }
+      r = root_of(path)
+      if (c in want_stem) for (k = 1; k <= npl[b]; k++)
+        if ((r == "" || index(pl[b, k], r) == 1) && in_pkg(dir_of(pl[b, k]), held)) {
+          key = path SUBSEP b
+          if (!(key in kept)) order[++nkept] = key
+          kept[key] = 1
+          break
+        }
       if (b in nrt) for (k = 1; k <= nrt[b]; k++)
-        if (rt[b, k] != path && nearest_module(path, rt[b, k], "")) {
+        if (rt[b, k] != path && in_pkg(dir_of(rt[b, k]), held) && nearest_module(path, rt[b, k], "")) {
           key = path SUBSEP rt[b, k]
           if (!(key in rhit)) { rhit[key] = 1; print "r\t" path "\t" rt[b, k] }
         }
       # Importing package c, or anything inside it, runs c/__init__.py.
       b = "__init__.py"
       if (b in nrt) for (k = 1; k <= nrt[b]; k++)
-        if (rt[b, k] != path && pkg_of(rt[b, k]) == c && nearest_module(path, rt[b, k], c)) {
+        if (rt[b, k] != path && pkg_of(rt[b, k]) == c && in_pkg(parent_of(rt[b, k]), held) &&
+          nearest_module(path, rt[b, k], c)) {
           key = path SUBSEP rt[b, k]
           if (!(key in rhit)) { rhit[key] = 1; print "r\t" path "\t" rt[b, k] }
         }
     }
     function pkg_of(p) { p = dir_of(p); sub(/\/$/, "", p); return base_of(p) }
+    function parent_of(p) { p = dir_of(p); sub(/[^\/]*\/$/, "", p); return p }
     # uniq_suffix: the shortest path suffix, two components or more, that no
     # other file of the same basename ends in; empty when there is none.
     function uniq_suffix(t,   n, pa, k, j, suf, b, i, o, clash) {
@@ -780,12 +920,14 @@ token_hits() {
       return 0
     }
     # nearest_module: whether t is the one module of its name in the nearest
-    # directory, from the importer namer up to the root, that holds any. The
-    # importer reaches it through its own directory, a tests/ parent or a
-    # sys.path entry for its plugin lib/, never across two candidates.
+    # directory, from the importer namer up to its root (root_of, else the
+    # repository root), that holds any. The importer reaches it through its own
+    # directory, a tests/ parent or a sys.path entry for its plugin lib/, never
+    # across two candidates and never from another plugin.
     # With pkg set, t is a package __init__.py and only those of package pkg count.
-    function nearest_module(namer, t, pkg,   a, b, i, n, hit) {
+    function nearest_module(namer, t, pkg,   a, b, i, n, hit, r) {
       b = base_of(t)
+      r = root_of(namer)
       for (a = dir_of(namer); ; sub(/[^\/]*\/$/, "", a)) {
         n = 0; hit = 0
         for (i = 1; i <= nsame[b]; i++)
@@ -793,7 +935,7 @@ token_hits() {
             n++; if (same[b, i] == t) hit = 1
           }
         if (n > 0) return n == 1 && hit
-        if (a == "") return 0
+        if (a == r) return 0
       }
     }
     # runs_or_loads: R4. An interpreter or process API on the line, or a path
@@ -886,7 +1028,7 @@ token_hits() {
         print "p\t" kv[1] "\t" kv[2] "\t" kept[order[k]]
       }
     }
-  ' "$1" "$2" "$WORK_DIR/all-files" "$WORK_DIR/py-imports" "$3" >"$4"
+  ' "$1" "$2" "$5" "$6" "$3" >"$4"
 }
 
 # colocated_suites <path> -> every sibling suite covering it, one per line.
@@ -939,7 +1081,8 @@ select_for() {
   local -a frontier=() next=()
   local p b sib copy line kind hit_path hit_name hit_x grep_rc
   local origin_family hit_family hop_state
-  local pattern_key plain_key resolve_key hits_key matched hits
+  local pattern_key plain_key resolve_key hits_key matched hits covered
+  local -a index_files=()
   # PATTERN_ORIGIN maps a plain basename back to the ecosystem of the file that
   # contributed it ('*' when two families contributed it, which over-selects),
   # and PATTERN_CROSSED records whether that file had spent its transition.
@@ -971,12 +1114,13 @@ select_for() {
     : >"$WORK_DIR/patterns"
     : >"$WORK_DIR/plain"
     : >"$WORK_DIR/resolve"
-    pattern_key="" plain_key="" resolve_key=""
+    pattern_key="" plain_key="" resolve_key="" covered=1
     next=()
     for p in "${frontier[@]}"; do
       [[ -n "${VISITED[$p]:-}" ]] && continue
       VISITED["$p"]=1
-      # R1/R2
+      # R1/R2, through a file: a process substitution forks once per path.
+      colocated_suites "$p" >"$WORK_DIR/colocated"
       while IFS= read -r sib; do
         [[ -n "$sib" ]] || continue
         if [[ "$sib" == "$p" ]]; then
@@ -984,7 +1128,7 @@ select_for() {
         else
           add_suite "$sib" "co-located with $p" || true
         fi
-      done < <(colocated_suites "$p")
+      done <"$WORK_DIR/colocated"
       # R7. The suite path is joined from two pieces so this file never carries
       # its basename as one token, which would make this file name the suite.
       case "$p" in
@@ -998,6 +1142,7 @@ select_for() {
       # MANIFESTS: no mention reaches a suite from a manifest or changelog.
       [[ "$MANIFEST_BASENAMES" == *" $b "* ]] && continue
       printf '%s\n' "$b" >>"$WORK_DIR/patterns"
+      [[ -n "${NAMED[$b]:-}" ]] || covered=0
       pattern_key+="$b"$'\n'
       if [[ "$STRUCTURAL_BASENAMES" == *" $b "* ]] ||
         [[ -n "${AMBIGUOUS[$b]:-}" && -z "${SYNC_MEMBER[$p]:-}" ]]; then
@@ -1037,11 +1182,18 @@ select_for() {
         LOOKUPS=$((LOOKUPS + 1))
         matched="$WORK_DIR/matched-lines.$LOOKUPS"
         grep_rc=0
-        git grep --untracked -F -f "$WORK_DIR/patterns" \
-          -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1' \
-          >"$matched" || grep_rc=$?
+        if ((covered)); then
+          LC_ALL=C grep -aF -f "$WORK_DIR/patterns" "$WORK_DIR/name-lines" >"$matched" || grep_rc=$?
+        else
+          git grep ${UNTRACKED[@]+"${UNTRACKED[@]}"} -F -f "$WORK_DIR/patterns" -- "${CODE_SPECS[@]}" \
+            >"$matched" || grep_rc=$?
+          # Reading the name lines costs about as much as 16 tree greps, so a
+          # run builds them once it has paid that many.
+          TREE_GREPS=$((TREE_GREPS + 1))
+          ((TREE_GREPS == ${AFFECTED_TESTS_TREE_GREPS:-16})) && build_name_lines
+        fi
         if [[ "$grep_rc" -gt 1 ]]; then
-          echo "error: 'git grep' failed (exit $grep_rc) resolving dependents of the current level." >&2
+          echo "error: the grep failed (exit $grep_rc) resolving dependents of the current level." >&2
           echo "       Refusing to continue: an unreadable reverse lookup silently UNDER-selects, and" >&2
           echo "       under-selection is reported as success by everything downstream." >&2
           exit 2
@@ -1052,7 +1204,10 @@ select_for() {
       hits="$WORK_DIR/hits.$LOOKUPS"
       # Fatal for the same reason: a filter that dies mid-stream hands the walk a
       # TRUNCATED hit set.
-      if ! token_hits "$WORK_DIR/plain" "$WORK_DIR/resolve" "$matched" "$hits"; then
+      index_files=(/dev/null /dev/null)
+      [[ -n "$resolve_key" || "$plain_key" == *.py$'\n'* ]] && index_files[0]="$WORK_DIR/resolvable-files"
+      [[ "$plain_key$resolve_key" == *.py$'\n'* ]] && index_files[1]="$WORK_DIR/py-imports"
+      if ! token_hits "$WORK_DIR/plain" "$WORK_DIR/resolve" "$matched" "$hits" "${index_files[@]}"; then
         echo "error: the token filter over the reverse lookup failed on the current level." >&2
         echo "       Refusing to continue: a partial filter silently UNDER-selects, and" >&2
         echo "       under-selection is reported as success by everything downstream." >&2
@@ -1574,7 +1729,8 @@ fi
 # per-suite print lock and scripts/run-plugin-tests-serial.txt, the suites that
 # must never overlap anything. Three is the proven ceiling on a 4-vCPU runner:
 # at four, suites failed by producing empty output from an external command
-# (#3694).
+# (#3694). --budget S hands the selection there too, at any job count, since
+# that runner times each suite against its share.
 #
 # Only *.test.sh is executable HERE. The other three ecosystems are run by their
 # own lanes, with invocations this script cannot derive from a suite path
@@ -1589,18 +1745,31 @@ for s in "${selected[@]}"; do
   *) delegated+=("$s") ;;
   esac
 done
+if [[ -n "$not_run_file" && ${#delegated[@]} -gt 0 ]] &&
+  ! printf '%s\n' "${delegated[@]}" >"$not_run_file"; then
+  echo "error: cannot write --write-not-run file: $not_run_file" >&2
+  exit 2
+fi
+
+# The suites run under the CI venv's python when one exists (PyYAML and the
+# rest of .github/requirements-ci.txt), not whatever python3 the host has.
+if venv_bin=$(pytest_python::venv_bin); then
+  PATH="$venv_bin:$PATH"
+fi
 
 failed=0
-if [[ ${#runnable[@]} -gt 0 ]] && [[ "$jobs" -gt 1 ]]; then
-  echo "Running ${#runnable[@]} selected shell suite(s) across up to $jobs job(s)." >&2
+if [[ ${#runnable[@]} -gt 0 ]] && [[ "$jobs" -gt 1 || -n "$budget" ]]; then
+  echo "Running ${#runnable[@]} selected shell suite(s) across up to $jobs job(s)${budget:+ within a ${budget}s budget}." >&2
   list="$WORK_DIR/selection.txt"
   printf '%s\n' "${runnable[@]}" >"$list"
-  bash "$SCRIPT_DIR/run-plugin-tests.sh" --jobs "$jobs" --suites-from "$list" || failed=1
+  bash "$SCRIPT_DIR/run-plugin-tests.sh" --jobs "$jobs" ${budget:+--budget "$budget"} --suites-from "$list" || failed=1
 elif [[ ${#runnable[@]} -gt 0 ]]; then
   echo "Running ${#runnable[@]} selected shell suite(s) sequentially." >&2
+  n=0
   for s in "${runnable[@]}"; do
+    n=$((n + 1))
     echo "=== $s ==="
-    if bash "$s"; then
+    if (test_git_env::isolate "$WORK_DIR/gitconfig.$n" && bash "$s"); then
       echo "PASS: $s"
     else
       echo "FAIL: $s" >&2

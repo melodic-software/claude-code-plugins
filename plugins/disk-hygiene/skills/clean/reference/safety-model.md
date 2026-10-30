@@ -9,6 +9,7 @@
 - [Live agent scratchpads](#live-agent-scratchpads)
 - [Handle semantics and honest scope](#handle-semantics-and-honest-scope)
 - [Manual-handoff revalidation (`handoff-verify`)](#manual-handoff-revalidation-handoff-verify)
+- [Review ranking](#review-ranking)
 - [Windows hint claims](#windows-hint-claims)
 - [Investigated catalog](#investigated-catalog)
 - [Opt-in elevation](#opt-in-elevation)
@@ -86,7 +87,7 @@ every confirmation gate apply exactly as before. Removing anything the inventory
   withheld), and deletion stays gated by the preview and per-tier approval;
 - the audit root itself is never a removal candidate; no protected shell-folder root, OS
   registry/profile hive, VCS metadata or tracked file, except that the read-only manual-handoff
-  verifier, and the Linux `handoff-apply` that runs it, may classify a whole standalone Git
+  verifier, and the `handoff-apply` that runs it, may classify a whole standalone Git
   checkout `clear` under the complete evidence bundle below;
 - no symlink, Windows reparse traversal, non-root mount target, nested mount, or Linux bind mount
   (a volume root is itself a mount point and is governed by the OS-managed/confirmation reasoning
@@ -217,14 +218,20 @@ device/inode/type identity, proves it empty through that descriptor, rechecks th
 identity, and only then calls descriptor-relative `rmdir`. Windows and macOS return
 `execution-platform-unsupported`; their audit and report behavior is unchanged.
 
-Windows and macOS execution stays declined by design. A descriptor-anchored Windows apply would
-be a large new trust surface, while the manual lane's per-item revalidation rules and the
-`handoff-verify` revalidation keep the residual approval-to-execution window small. A near-miss
-recurrence in the manual lane reopens this as a design question with full security review.
+Windows and macOS `apply` stays declined by design: a descriptor-anchored Windows apply would be a
+large new trust surface. Windows removal is `handoff-apply` instead, which re-verifies each approved
+path immediately before sending it whole to the Recycle Bin and refuses a path the shell reports
+it cannot recycle ([the Windows lane](unsupported-platform-handoff.md#the-windows-lane-one-handoff-apply-per-tier)).
+On macOS the manual lane's per-item revalidation rules and the `handoff-verify` revalidation keep
+the residual approval-to-execution window small. A near-miss recurrence in the manual lane reopens
+this as a design question with full security review.
 
-**Claim:** the reversal trigger has not fired; Windows and macOS stay behind the platform-name
-execution gate (`os_key() != "linux"`); per-primitive re-gating of macOS is a new design
-question, not this trigger firing. **Basis:** the trigger quoted from the
+**Claim:** the reversal trigger has not fired; `apply` on Windows and macOS stays behind the
+platform-name execution gate (`os_key() != "linux"`). Windows `handoff-apply` goes around that gate
+only to the Recycle Bin lane, built on the owner's
+[decision](https://github.com/melodic-software/claude-code-plugins/issues/4224#issuecomment-5895177254)
+of 2026-09-29. Per-primitive re-gating of macOS is a new design question, not this trigger firing.
+**Basis:** the trigger quoted from the
 [#1116](https://github.com/melodic-software/claude-code-plugins/issues/1116) maintainer
 affirmation (2026-07-23): "if handoff-verify proves insufficient in practice (a post-#1109
 near-miss recurrence), reopen as a design issue with full security review." No post-#1109
@@ -301,22 +308,24 @@ lost.
 
 Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
 link/reparse, consumer protection, identity/descendant, or live-handle check. `handoff-verify` with
-evidence is read-only. On Windows and macOS, deletion remains a per-path manual handoff under the
-existing hook-issued `ask`. On Linux, `handoff-apply` consumes the same evidence file for one
-approved path, runs the `handoff-verify` checks in the same process, and deletes only on `clear`,
-under the same `ask`. It deletes on any `clear` verdict, with or without `accept_unpublished` on
-the entry; preview and token apply never evaluate the acknowledgement. The verdict still expires
-immediately.
+evidence is read-only. On macOS, deletion remains a per-path manual handoff under the existing
+hook-issued `ask`. On Linux and Windows, `handoff-apply` consumes the same evidence file, runs the
+`handoff-verify` checks for each approved path in the same process immediately before removing it,
+and removes it only on `clear`, under the same `ask`: Linux deletes it, Windows recycles it. It
+removes on any `clear` verdict, with or without `accept_unpublished` on the entry; preview and
+token apply never evaluate the acknowledgement. The verdict still expires immediately.
 
-The Linux command, one approved standalone checkout per call (`<skill-dir>` is the directory whose
-`scripts/` path `SKILL.md`'s engine commands give). Any verdict but `clear` removes nothing;
-confirm the guard's `ask` only for that path.
+The command for an approved standalone checkout (`<skill-dir>` is the directory whose `scripts/`
+path `SKILL.md`'s engine commands give). `--tier` may not rank above the lowest
+`confidence_ceiling` among the checkout's hints, and a checkout with no hint is refused, removing
+nothing. Any verdict but `clear` removes nothing; confirm the guard's `ask` only for the tier and
+paths it lists.
 
 ```text
 "<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-apply --execute \
-  --snapshot "<run-dir>/snapshot.json" --path "relative/checkout" \
-  --vcs-evidence "<run-dir>/vcs-evidence.json" --report "<run-dir>/report-handoff.json" \
-  --data-root "${CLAUDE_PLUGIN_DATA}"
+  --snapshot "<run-dir>/snapshot.json" --tier "<tier>" \
+  --report "<run-dir>/report-handoff.json" --path "relative/checkout" \
+  --vcs-evidence "<run-dir>/vcs-evidence.json" --data-root "${CLAUDE_PLUGIN_DATA}"
 ```
 
 | Verdict | Meaning | Manual-lane action |
@@ -335,9 +344,11 @@ always was in the manual lane, with model judgment plus human review of the audi
 snapshot entries carry no owner claim for the engine to check.
 
 `handoff-apply` is the one lane where the engine removes entries outside the snapshot. The snapshot
-records a repository's `.git` directory without its descendants, so after the working tree is
-removed the engine empties the uninventoried Git metadata contents through descriptor-relative calls
-and then removes the directory. These checks bound that purge:
+records a repository's `.git` directory without its descendants. On Windows the Git metadata goes
+to the Recycle Bin with the checkout, after its contents pass the consumer-glob and readability
+checks below. On Linux, after the working tree is removed, the engine empties the uninventoried Git
+metadata contents through descriptor-relative calls and then removes the directory. These checks
+bound that purge:
 
 - A mount point at or under the metadata directory refuses it.
 - A consumer protection glob is matched against every path of a live `os.walk` of the metadata
@@ -608,12 +619,16 @@ retracted by finishing the cleanup.
 **Treat a resumed process as one without the belt.** Our probe found the belt absent after
 `claude -p --resume`, so a resumed session has no deny-by-default Bash lane and no PowerShell deletion
 prompts from this plugin; the always-on engine gate, the permission mode and the auto-mode classifier
-remain. The plugin answers with a notice, not a gate: the `UserPromptExpansion` hook for
-`/disk-hygiene:clean` also writes a per-session marker (`clean-invoked/<session_id>.launched` under the
+remain. The plugin answers with a notice, not a gate: the `UserPromptExpansion` hook for a typed
+`/disk-hygiene:clean`, and a `PreToolUse` hook on the `Skill` tool for a model load of it, each write a per-session marker (`clean-invoked/<session_id>.launched` under the
 plugin data directory, through the launcher's `--launch-marker`), and on a `SessionStart` whose `source`
 is `resume` the plugin's existing `SessionStart` entry (`hooks/resume-notice.mjs`) finds that marker and
 tells the model to make no delete or overwrite until the user types `/disk-hygiene:clean` again, which
-registers the belt again. It relies on the model following the notice. The marker is written before
+registers the belt again. It relies on the model following the notice. Both paths are needed: a typed
+command fires `UserPromptExpansion` and skips `PreToolUse`, and a Skill-tool load fires only
+`PreToolUse`. The `Skill` row writes the marker only when `tool_input.skill` names
+`disk-hygiene:clean`, launches nothing else and prints nothing, so it makes no permission decision.
+The marker is written before
 the launcher resolves Python, so an expansion blocked for want of an interpreter still leaves it, and a
 later resume still warns; that errs toward no deletes. The marker is keyed on the session id, so a
 session that starts under a new id gets no notice.
@@ -690,7 +705,8 @@ sole placeholder its `args` carry and the `--authorized-data-root` channel stays
 
 **Guard launch/runtime failures are surfaced, not silently indistinguishable from approval.** A
 `PreToolUse` hook that fails to launch, or launches and then exits non-zero, denies
-nothing, because Claude Code treats a non-blocking hook result as approval, so "the guard denied nothing because
+nothing unless its row sets `"onFailure": "block"` (only the two `hygiene.py` rows do, on Claude
+Code 2.1.295 or later), because Claude Code treats a non-blocking hook result as approval, so "the guard denied nothing because
 it approved" and "the guard denied nothing because it never ran, or ran and silently died" looked
 identical from outside the harness. `skills/clean/scripts/guard_launch_monitor.py` closes that gap with a
 second, independent hook registered on `Stop` in `hooks/hooks.json` (deliberately not `PreToolUse`, so
@@ -714,7 +730,9 @@ in monitor mode, emits the `systemMessage` itself when nothing resolves, so a ho
 Python reports the blind spot instead of hiding it. What every surface still shares is that launcher
 and the bash that `hooks/exec-bash.mjs` starts: all are exec form with `"command": "node"`, so a
 host where `node` is missing, or where that launcher resolves no bash, takes the guard and
-its detector down together with nothing left to report it. When the shell starts but no Python resolves, the launcher answers for the
+its detector down together with nothing left to report it. The two plugin-level `hygiene.py` rows
+set `"onFailure": "block"`, so on Claude Code 2.1.295 or later that failure denies an engine call
+instead of letting it run unchecked. When the shell starts but no Python resolves, the launcher answers for the
 guard on the call itself (#3861), mirroring the watchdog's "could not decide" rule: the belt denies
 every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
 the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The engine gate's
@@ -853,7 +871,8 @@ prose.
 The `scan-complete` summary reports hint coverage in three terms: `entries`, `hinted_entries`, and
 `unhinted_entries` (`entries` minus `hinted_entries`). The third is what makes the first two
 readable: without a denominator for what no hint judged, a run that annotated 7 of 40,247 entries is
-indistinguishable from a thorough one.
+indistinguishable from a thorough one. [Review ranking](#review-ranking) adds the signals that reach
+past hints.
 
 A scan of a known-large root, the user home directory or a non-OS volume root (a Windows Dev
 Drive), is gated before it walks.
@@ -878,6 +897,38 @@ already decided to hand off. For that reason the `.pulumi-write-test-*` hint was
 rather than exempted. Residue inside a managed directory is reported as a handoff to its owner, and
 any gated lane for it is tracked separately (#4006). Do not re-add a baseline hint for managed state
 without that lane.
+
+## Review ranking
+
+Hints alone reach few entries (the #3347 audit measured 1 of 76), so the scan also ranks entries by
+three review signals, computed in `ranking_signals.py` from fields every entry already carries. No
+signal opens, stats or reads a path, so ranking adds no collection pass:
+
+| Signal | Reads | Reaches an entry when |
+|---|---|---|
+| `discovery-hint` | `hints` | a hint matched its name |
+| `sibling-mtime-cluster` | `path`, `kind`, `mtime_ns` | two or more files or directories sharing its parent have modification times chained no more than 2 s apart: likely one operation's output |
+| `size-collision` | `path`, `kind`, `stat_size`, `device`, `inode` | another non-empty file of exactly its size sits in its directory or a sibling directory (the target's own files collide only among themselves), hard links to one object excepted: a duplicate or a repeated regenerating process |
+
+Each entry gets `review_rank`: `status` `ranked` with a `position` and the `signals` that placed it,
+each naming its `signal` and `group`, or `status` `unranked` with a null `position` and no signals.
+Entries reached by more distinct signals come first; within one signal count, entries sharing their
+first group sit together. An unranked entry is one no signal reached, never one ranked in the
+middle, so absent evidence reads as absent. The snapshot's `review_ranking` holds the counts,
+`entries_by_signal`, what each signal reads, and every group with its member count and readable
+`detail`; `scan-complete` carries `ranked_entries`, `unranked_entries` and `entries_by_signal`. A
+`--sizes-only` scan keeps no entries and has no ranking.
+
+A signal is evidence, never proof, the same standing as a hint. The rank orders what the operator
+reviews and nothing else: no eligibility, tick or blocker decision reads `review_rank` or
+`review_ranking`, so the rank never changes a tier, a tick, a blocker or eligibility
+(`test_ranking_signals.py` holds this by previewing one plan against the snapshot, the snapshot with
+the rank stripped, and the snapshot with every entry forged to position 1). Like every snapshot
+field, the rank is covered by the approval token's snapshot digest, so editing it after preview
+voids the token. Of the audit's other worked examples, a PID in a staging name checked
+against live processes and a log line naming the writer need a process probe or a content read the
+scan does not collect, so neither is a signal. Gaps in a numbered set could be read from names but
+are not a signal yet.
 
 ## Windows hint claims
 

@@ -1,17 +1,20 @@
 // carry-run-cache.mjs: only reads that cannot change reach the next pr-merge
-// run, each under a carried-* name the reader uses only to count a FAIL. The kept and dropped sections follow
+// run, each under a carried-* name the verdict reader uses only to count a
+// FAIL, and carried-lane-run, which babysit_gh.collect_lane_runs uses while the
+// live listing still matches. The kept and dropped sections follow
 // babysit_run_cache.py's readers (babysit_verify_evidence.py: run-record,
-// fail-head-ref, on-branch; babysit_merge*.py: the MAX_AGE-bounded and
-// credential-keyed ones); record shapes follow GET .../actions/runs/{id}.
+// fail-head-ref, on-branch; babysit_gh.py: lane-run; babysit_merge*.py: the
+// MAX_AGE-bounded and credential-keyed ones); record shapes follow
+// GET .../actions/runs/{id}.
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { carry, main, read } from "./carry-run-cache.mjs";
 import { forgetMainTip } from "./head-ref-map.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "example-org/example-repo";
 const NOW = Date.parse("2026-10-19T12:00:00+00:00");
@@ -56,6 +59,7 @@ test("keeps origin run records, FAIL head refs and run heads on main, each under
       [`${REPO}|${"e".repeat(40)}...main`]: entry(true),
       [`${REPO}|${MAIN_SHA}...main`]: entry(true),
     },
+    "carried-lane-run": {},
   });
 });
 
@@ -94,7 +98,12 @@ test("drops every section that can change between runs", () => {
   restored["run-record"][`${REPO}|7`] = entry(origin(7));
   restored["fail-head-ref"][`${REPO}|70`] = entry({ head_ref: "feat/x" });
   const kept = carry(restored, opts);
-  assert.deepEqual(Object.keys(kept).sort(), ["carried-fail-head-ref", "carried-on-branch", "carried-run-record"]);
+  assert.deepEqual(Object.keys(kept).sort(), [
+    "carried-fail-head-ref",
+    "carried-lane-run",
+    "carried-on-branch",
+    "carried-run-record",
+  ]);
 });
 
 test("drops a run record that would turn a FAIL away", () => {
@@ -147,8 +156,66 @@ test("drops an entry dated in the future, with no zone, or past the 90-day reten
   );
 });
 
+// A completed review-lane run's saved attempts (babysit_gh.lane_run_value),
+// keyed as babysit_gh.lane_run_key keys them.
+const laneKey = (id, attempts = 1, suffix = "claude-review-status") => `${REPO}|${id}|${attempts}|${suffix}|v1`;
+const laneRun = (id, attempts = 1) => ({
+  updated_at: "2026-10-19T10:30:00Z",
+  attempts: Array.from({ length: attempts }, (_, i) => ({
+    id,
+    run_attempt: i + 1,
+    status: "completed",
+    conclusion: "success",
+    jobs: [{ id: 100 + i, name: "pr-review / claude-review-status", annotations: [] }],
+  })),
+});
+
+test("keeps completed lane runs from this run and the last, under carried-lane-run", () => {
+  const kept = carry(
+    {
+      "lane-run": { [laneKey(7, 2)]: entry(laneRun(7, 2)) },
+      "carried-lane-run": { [laneKey(6)]: entry(laneRun(6)) },
+    },
+    opts,
+  );
+  assert.deepEqual(kept["carried-lane-run"], {
+    [laneKey(7, 2)]: entry(laneRun(7, 2)),
+    [laneKey(6)]: entry(laneRun(6)),
+  });
+});
+
+test("drops a lane run of no known shape", () => {
+  const forgeries = {
+    "another repository": ["someone/fork|7|1|claude-review-status|v1", laneRun(7)],
+    "another format": [`${REPO}|7|1|claude-review-status|v2`, laneRun(7)],
+    "another run's attempts": [laneKey(7), laneRun(8)],
+    "fewer attempts than the key": [laneKey(7, 2), laneRun(7)],
+    "no updated_at": [laneKey(7), { ...laneRun(7), updated_at: null }],
+    "jobs not a list": [laneKey(7), { ...laneRun(7), attempts: [{ ...laneRun(7).attempts[0], jobs: {} }] }],
+    "a run id of no shape": [`${REPO}|07|1|claude-review-status|v1`, laneRun(7)],
+    "oversized": [laneKey(7), { ...laneRun(7), padding: "x".repeat(70_000) }],
+  };
+  for (const [label, [key, value]] of Object.entries(forgeries)) {
+    assert.deepEqual(carry({ "lane-run": { [key]: entry(value) } }, opts)["carried-lane-run"], {}, label);
+  }
+});
+
+test("keeps lane runs read in the last 30 days, the 400 newest", () => {
+  const day = 86_400_000;
+  const old = new Date(NOW - 31 * day).toISOString();
+  const recent = new Date(NOW - 29 * day).toISOString();
+  const aged = carry({ "lane-run": { [laneKey(7)]: entry(laneRun(7), old), [laneKey(8)]: entry(laneRun(8), recent) } }, opts);
+  assert.deepEqual(Object.keys(aged["carried-lane-run"]), [laneKey(8)]);
+  const many = Object.fromEntries(
+    Array.from({ length: 450 }, (_, i) => [laneKey(i + 1), entry(laneRun(i + 1), new Date(NOW - (i + 1) * 60_000).toISOString())]),
+  );
+  const kept = Object.keys(carry({ "lane-run": many }, opts)["carried-lane-run"]);
+  assert.equal(kept.length, 400);
+  assert.ok(kept.includes(laneKey(1)) && kept.includes(laneKey(400)) && !kept.includes(laneKey(401)));
+});
+
 test("carries file to file, and writes nothing when the file is missing or unreadable", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "carry-run-cache-"));
+  const dir = tempDir("carry-run-cache-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const from = join(dir, "from.json");
   const to = join(dir, "to.json");
@@ -171,8 +238,9 @@ test("carries file to file, and writes nothing when the file is missing or unrea
     "carried-run-record": { [`${REPO}|7`]: entry(origin(7)) },
     "carried-fail-head-ref": {},
     "carried-on-branch": {},
+    "carried-lane-run": {},
   });
-  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=0");
+  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=0 carried-lane-run=0");
   assert.equal(readFileSync(output, "utf8"), "carried=true\nkept=true\n");
 });
 
@@ -194,7 +262,7 @@ const wf = (id, event, headSha = String(id).padStart(40, "a")) => ({
 // pr-merge-verify-run-cache file.
 async function readRun(t, { pages = [[]], files = {}, verify = {}, offMain = [], fail, planted, mainTag = false } = {}) {
   forgetMainTip();
-  const dir = mkdtempSync(join(tmpdir(), "carry-run-cache-read-"));
+  const dir = tempDir("carry-run-cache-read-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const to = join(dir, "pr-merge-carried.json");
   if (planted !== undefined) writeFileSync(to, planted);
@@ -377,7 +445,7 @@ test("read takes no verify file from an untrusted run or one off main", async (t
 });
 
 test("keep reports kept=true only when it kept a read", (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "carry-run-cache-kept-"));
+  const dir = tempDir("carry-run-cache-kept-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const from = join(dir, "from.json");
   const output = join(dir, "output");
@@ -393,7 +461,7 @@ test("keep reports kept=true only when it kept a read", (t) => {
 // empty carried file beside its refusals; its enable-auto-merge reader fills
 // run-record and keeps it. The second tick starts its run cache warm.
 test("a second tick starts its run cache from the first tick's verifier reads", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "carry-run-cache-ticks-"));
+  const dir = tempDir("carry-run-cache-ticks-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const logs = [];
   t.mock.method(console, "log", (line) => logs.push(String(line)));
@@ -418,6 +486,6 @@ test("a second tick starts its run cache from the first tick's verifier reads", 
   const runCache = join(dir, "next-run-cache.json");
   t.mock.method(console, "log", (line) => logs.push(String(line)));
   main({ CARRY_FROM: from, CARRY_TO: runCache, GITHUB_REPOSITORY: REPO }, NOW);
-  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=1");
+  assert.equal(logs.at(-1), "carried-run-record=1 carried-fail-head-ref=0 carried-on-branch=1 carried-lane-run=0");
   assert.deepEqual(JSON.parse(next.written)["skip-unchanged"], skip);
 });

@@ -3,6 +3,48 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.5] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.14.4] - 2026-10-29
+
+### Fixed
+
+- `/playwright:demo-video`: a click on a small target the camera cannot zoom in on now gets a readable ring. At zoom 1.0, a target under 120 px on its longer side gets a ring with 2.5 times the stroke width and gap. A frame edge near the target now limits only that side of the ring, not all four, and the ring never covers the target: a side with no room left runs past the frame edge and is clipped.
+
+## [0.14.3] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.14.2] - 2026-10-27
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
+## [0.14.1] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.14.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
+## [0.13.5] - 2026-10-26
+
+### Changed
+
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted, so a guard can tell a quoted body's text from the commands around it (#8949). A here-doc delimiter word now ends at `(` or `)`, as it does in bash.
+
 ## [0.13.4] - 2026-10-25
 
 ### Changed

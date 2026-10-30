@@ -3,6 +3,76 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.0] - 2026-10-30
+
+### Changed
+
+- The two plugin-level destructive-guard rows for a command naming `hygiene.py` (`Bash` and `PowerShell`) set `"onFailure": "block"`, so on Claude Code 2.1.295 or later a guard that cannot launch because `node` or bash is missing, crashes, or times out denies the engine call instead of letting it run unchecked ([#9982](https://github.com/melodic-software/claude-code-plugins/issues/9982)). The `PowerShell(*python*$*)` and `PowerShell(*& $*)` rows keep the default, since they match commands that do not name the engine. An older client ignores the key.
+
+## [0.48.0] - 2026-10-29
+
+### Added
+
+- **`handoff-apply` removes one approved tier per call, and on Windows it sends each path to the Recycle Bin** ([#9764](https://github.com/melodic-software/claude-code-plugins/issues/9764)). The Windows manual lane cost about one prompt and two or three tool calls per deleted path. Now one `handoff-apply` per tier takes a repeatable `--path` and a required `--tier`, and its hook `ask` lists the tier, the count and every path, so that prompt is the tier's approval. Inside that one process each path is re-verified just before its removal, and a path whose verdict is not `clear` is skipped and reported. On Windows the engine recycles through the shell's `IFileOperation` and refuses a path the shell reports it cannot recycle, leaving it in place. If the shell deletes one outright anyway, the batch stops there. A batch whose volume reports no Recycle Bin removes nothing, and an error partway stops the batch without losing the report of what was removed. The report's `permanent_delete_used` says whether any removal was permanent.
+
+### Changed
+
+- **`handoff-apply` refuses a whole batch when `--tier` ranks above a path's lowest hint `confidence_ceiling`, or when a path has no hint.** Nothing is removed and the call exits 2. That includes a throwaway Git checkout with no hint: add a hint for it in a policy overlay and rescan before removing it. `--vcs-evidence` is now optional, as it is for `handoff-verify`. The report lists a `verdicts` entry per path in place of the single `path` and `verdict` fields.
+
+## [0.47.1] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.47.0] - 2026-10-29
+
+### Changed
+
+- **Claude can now load `/disk-hygiene:clean` through the Skill tool.** The skill sets `disable-model-invocation: false`, so a request such as "clean up my /tmp" reaches it without a typed slash command. Loading it removes nothing. The confirmation gate, preview token, kill switch and guard are unchanged, and every removal still needs the user's own answer naming one tier and its paths. When Claude loads the skill, an `--execute` it passes counts as an execution request only when a user message asked for removal. A new eval checks that a model-invoked run stops at the gate. A new `PreToolUse` hook on the Skill tool writes the same per-session marker the typed command writes, so a session resumed after Claude loaded `clean` still gets the resume notice. That hook makes no permission decision and launches no Python.
+
+## [0.46.1] - 2026-10-29
+
+### Fixed
+
+- The plugin-level engine gate no longer denies a Bash command that only reads the engine script ([#9779](https://github.com/melodic-software/claude-code-plugins/issues/9779)). A list or pipeline whose every command is a reader (`cat`, `head`, `tail`, `wc`, `grep`, `rg` without `--pre`, `git show`/`log`/`diff`/`grep`, `gh issue`/`pr`, or `sed` printing line ranges such as `sed -n '1,40p'`) defers, even when it names the engine by its own path, and the body of a here-document with a quoted delimiter (`<<'EOF'`) is read as data. A command outside that set, an unquoted here-document delimiter, a here-string, a backslash or a lone `&` keeps the command gated as before. The PowerShell lane is unchanged.
+
+## [0.46.0] - 2026-10-27
+
+### Added
+
+- `scan` ranks entries for review by three signals read from fields the snapshot already records: `discovery-hint` (`hints`), `sibling-mtime-cluster` (files or directories in one parent whose `mtime_ns` chain within 2 s, likely one operation's output) and `size-collision` (non-empty files of identical `stat_size` in one directory or sibling directories, the target's own files only among themselves, hard links to one object excepted). No path is opened or stat'ed again. Each entry carries `review_rank`: `ranked` with a `position` and the signals and groups that placed it, or `unranked` with a null position. The snapshot's `review_ranking` lists each group with its detail and what each signal reads, and `scan-complete` reports `ranked_entries`, `unranked_entries` and `entries_by_signal`. No eligibility, tick or blocker decision reads the rank, so it changes review order only. The `clean` and `audit` skills present findings in that order.
+
+## [0.45.4] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.45.3] - 2026-10-27
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
+## [0.45.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.45.1] - 2026-10-27
+
+### Fixed
+
+- **`run-python-hook.sh` ignores a tmp launch-marker directory this user does not own.** With no plugin data root, the `--launch-marker` and `--skip-unless-marker` markers live under the shared `${TMPDIR:-/tmp}/disk-hygiene-<subdir>`, so another local user could pre-create that directory, or a symlink in its place, and plant or suppress a `.launched` marker; an empty planted directory reads as "no guard launched" and skips the guard-launch monitor. A tmp marker directory that is a symlink or that this user does not own is now neither read nor written by the launcher, the same check its no-interpreter notice already made, and the launcher creates its marker directories with mode 700. The node launcher's own pre-bash skip (`hooks/exec-bash.mjs`) does not check ownership yet.
+
+## [0.45.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
 ## [0.44.1] - 2026-10-26
 
 ### Fixed

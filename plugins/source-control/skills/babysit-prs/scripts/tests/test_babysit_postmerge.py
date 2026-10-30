@@ -21,6 +21,7 @@ import dataclasses
 import io
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -224,6 +225,8 @@ class FakeGh:
         # The pull request's newest review, as the pin read returns it; a
         # non-list is an unreadable review list.
         self.pin_reviews: Any = []
+        # Pull requests the batched pin read leaves out of its response.
+        self.pin_missing: set[int] = set()
         # Artifacts by name, and single workflow runs by id (GET .../runs/<id>).
         self.artifacts: dict[str, list[dict[str, Any]]] = {}
         # Artifact listings by name, served in order, one per read, before
@@ -404,17 +407,33 @@ class FakeGh:
     def _graphql(self, joined: str) -> subprocess.CompletedProcess[str]:
         if "PolicyViewer" in joined:
             return completed({"data": {"viewer": {"login": self.viewer}}})
-        if "PostMergePin" in joined:
-            comments = (
-                self.pin_pages.pop(0)
-                if self.pin_pages
-                else {
-                    "pageInfo": {"hasNextPage": False, "endCursor": None},
-                    "nodes": self.pin_comments,
+        if "PostMergePin" in joined or "PostMergeHeadPins" in joined:
+
+            def pull() -> dict[str, Any]:
+                comments = (
+                    self.pin_pages.pop(0)
+                    if self.pin_pages
+                    else {
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        "nodes": self.pin_comments,
+                    }
+                )
+                return {"comments": comments, "reviews": {"nodes": self.pin_reviews}}
+
+            if "PostMergePin" in joined:
+                return completed({"data": {"repository": {"pullRequest": pull()}}})
+            numbers = map(int, re.findall(r"p(\d+):pullRequest", joined))
+            return completed(
+                {
+                    "data": {
+                        "repository": {
+                            f"p{n}": {"number": n, **pull()}
+                            for n in numbers
+                            if n not in self.pin_missing
+                        }
+                    }
                 }
             )
-            pull = {"comments": comments, "reviews": {"nodes": self.pin_reviews}}
-            return completed({"data": {"repository": {"pullRequest": pull}}})
         if "dequeuePullRequest" in joined:
             return completed(
                 {"data": {"dequeuePullRequest": {"clientMutationId": None}}}
@@ -741,6 +760,27 @@ class Verification(CheckCase):
         after = self.check(now=datetime(2026, 10, 12, 16, 1, tzinfo=UTC))
         self.assertEqual([f.signal for f in after.failures], ["dispatch"])
 
+    def test_the_report_records_the_earliest_canary_still_queued_in_a_window(
+        self,
+    ) -> None:
+        # A canary queued before the green one that verified the merge is in
+        # its window and fails it once it turns red, so a later tick that
+        # reuses the report must list runs back to it (`idle_refusal`).
+        self.all_green()
+        self.assertIsNone(self.check().report()["outstandingSince"])
+        self.gh.add_runs(
+            "post-merge-detect-silent-revert.yml",
+            "push",
+            canary_run(
+                20, conclusion=None, status="queued", created_at="2026-10-12T10:00:10Z"
+            ),
+        )
+        verdict = self.check()
+        self.assertTrue(verdict.merges[0].verified)
+        self.assertEqual(
+            verdict.report()["outstandingSince"], "2026-10-12T10:00:10+00:00"
+        )
+
     def test_red_canary_is_a_failure(self) -> None:
         self.gh.add_runs("pr-require-checks.yml", "workflow_dispatch", dispatch_run(11))
         self.gh.add_runs(
@@ -1008,6 +1048,16 @@ class ImmediateEnqueueNativeArm(CheckCase):
         self.assertEqual(verdict.failures, ())
         self.assertEqual(verdict.merges[0].pending, ())
         self.assertTrue(verdict.merges[0].verified)
+
+    def test_the_report_records_each_pin_it_read_once(self) -> None:
+        # A later tick reads them again before it reuses the report
+        # (`idle_refusal`), so the record is the read itself, None included.
+        self.all_green()
+        for pin in (HEAD_SHA, None):
+            with self.subTest(pin=pin):
+                report = self.check_unpinned(pin=pin).report()
+                self.assertEqual(report["pins"], {"7001": pin})
+                self.assertEqual(self.pin_reads, [7001])
 
     def test_a_pin_at_another_head_fails_the_read_back(self) -> None:
         # A push after the arm: the merged head is not the one pinned.
@@ -1627,6 +1677,78 @@ class LaneDispatch(CheckCase):
             dispatch_run(11, actor=by("maintainer"), triggering_actor=by("maintainer"))
         ]
         self.assertFalse(self.check(pinned=None).merges[0].verified)
+
+
+class LaneAlerted(CheckCase):
+    """pr-merge.yml's alert step skips a red full run only when its own
+    post-merge-dispatch on main recorded the send (`pr-merge-alerted-<id>`):
+    the same sender rule as the dispatch and re-run records. A same-name
+    artifact any other run uploaded is no record (review finding on #10491)."""
+
+    SENDER = 600
+
+    def alerted(self, **sender: Any) -> None:
+        self.gh.artifacts["pr-merge-alerted-11"] = [
+            {
+                "id": 7,
+                "name": "pr-merge-alerted-11",
+                "workflow_run": {"id": self.SENDER},
+            }
+        ]
+        record = {
+            "id": self.SENDER,
+            "path": ".github/workflows/pr-merge.yml",
+            "event": "schedule",
+            "head_branch": "main",
+            "head_sha": LATER_SHA,
+            "repository": {"full_name": REPO},
+            "head_repository": {"full_name": REPO},
+        }
+        record.update(sender)
+        self.gh.run_records[self.SENDER] = record
+
+    def cli(self) -> int:
+        with contextlib.redirect_stderr(io.StringIO()):
+            return pm.main(["--repo", REPO, "--branch", "main", "--lane-alerted", "11"])
+
+    def test_a_record_from_post_merge_dispatch_on_main_counts(self) -> None:
+        for event in ("schedule", "workflow_dispatch"):
+            self.alerted(event=event)
+            self.assertEqual(self.cli(), 0, event)
+        self.assertEqual(self.gh.writes(), [])
+
+    def test_a_same_name_record_from_any_other_run_does_not_count(self) -> None:
+        for sender in (
+            {"event": "pull_request"},
+            {"event": "pull_request_target"},
+            {"event": "push"},
+            {"path": ".github/workflows/ci.yml"},
+            {"head_branch": "feature"},
+            {"repository": {"full_name": "example-org/other"}},
+            {"head_repository": {"full_name": "outsider/example-repo"}},
+            {"head_sha": OTHER_SHA},
+        ):
+            self.alerted(**sender)
+            self.assertEqual(self.cli(), pm.EXIT_NOT_ALERTED, sender)
+
+    def test_no_record_does_not_count(self) -> None:
+        self.assertEqual(self.cli(), pm.EXIT_NOT_ALERTED)
+
+    def test_an_unreadable_record_or_sender_exits_3(self) -> None:
+        self.alerted()
+        self.gh.fail_reads.add(f"actions/runs/{self.SENDER}")
+        self.assertEqual(self.cli(), 3)
+        self.gh.fail_reads = {"artifacts?name=pr-merge-alerted-11"}
+        self.assertEqual(self.cli(), 3)
+
+    def test_not_recorded_is_a_code_no_crash_or_refusal_produces(self) -> None:
+        # pr-merge.yml sends only on this code: an uncaught exception exits 1,
+        # argparse 2, a failed read 3 and a rate limit 75.
+        self.assertNotIn(pm.EXIT_NOT_ALERTED, (0, 1, 2, pm.EXIT_UNREADABLE, 75))
+
+    def test_it_needs_a_branch(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            pm.main(["--repo", REPO, "--lane-alerted", "11"])
 
 
 class EmptyLaneRecordListing(CheckCase):
@@ -2497,6 +2619,73 @@ class NoFailedJobs(CheckCase):
         verdict = self.check()
         self.assertFalse(verdict.merges[0].verified)
         self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
+
+class ReplacedRuns(CheckCase):
+    """pr-require-checks.yml's main-dispatch concurrency group keeps one run
+    pending and cancels it when a newer dispatch takes its place
+    (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
+    Such a run never starts: GitHub lists it cancelled with no job, as runs
+    40192695442 and 40112740615 of work-resolve-issue.yml read on 2026-10-27.
+    It is no signal; a run cancelled once its jobs started is still red."""
+
+    REPLACED = 10
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(
+                self.REPLACED,
+                "cancelled",
+                head_sha=MERGE_SHA,
+                created_at="2026-10-12T10:02:00Z",
+            ),
+            dispatch_run(11),
+        )
+
+    def test_a_replaced_run_neither_holds_nor_reruns_the_merge(self) -> None:
+        self.gh.jobs[(self.REPLACED, 1)] = []
+        verdict = self.check()
+        self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
+        self.assertEqual(verdict.reruns, ())
+        self.assertEqual(verdict.failures, ())
+
+    def test_a_run_cancelled_after_its_jobs_started_still_waits_for_its_rerun(
+        self,
+    ) -> None:
+        verdict = self.check()
+        self.assertFalse(verdict.merges[0].verified)
+        self.assertIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
+        self.assertEqual([r.run_id for r in verdict.reruns], [self.REPLACED])
+
+    def test_a_replaced_run_is_no_baseline(self) -> None:
+        # Before the merge: a red run, then a replaced one. The red run is the
+        # baseline, so its failing check is no regression of the merge's run.
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")] = [
+            dispatch_run(
+                5, "failure", head_sha=HEAD_SHA, created_at="2026-10-12T09:20:00Z"
+            ),
+            dispatch_run(
+                6, "cancelled", head_sha=HEAD_SHA, created_at="2026-10-12T09:30:00Z"
+            ),
+        ]
+        self.gh.jobs[(6, 1)] = []
+        ctx = pm._Context(
+            pm._split_repo(REPO)[0],
+            pm._split_repo(REPO)[1],
+            IDENTITY,
+            branch="main",
+            now=datetime(2026, 10, 12, 11, 0, tzinfo=UTC),
+        )
+        self.assertEqual(
+            ctx._baseline(
+                pm.SIGNAL_DISPATCH, datetime(2026, 10, 12, 10, 0, tzinfo=UTC)
+            ),
+            frozenset({"test-bash"}),
+        )
 
 
 class DispatchCoverage(CheckCase):
@@ -3633,6 +3822,36 @@ class PinnedHead(CheckCase):
                     self.assertEqual(
                         [f.signal for f in verdict.failures], [pm.SIGNAL_READ_BACK]
                     )
+
+    def pin_check(self) -> Any:
+        return pm.check(
+            REPO,
+            agent_identity=IDENTITY,
+            is_human=human,
+            merged_since=SINCE,
+            now=datetime(2026, 10, 12, 11, 0, tzinfo=UTC),
+            pinned_sha=pm.pin_reader(REPO, IDENTITY),
+        )
+
+    def test_the_check_reads_its_pins_in_one_batch(self) -> None:
+        self.all_green()
+        self.gh.merged = [identity_merge()]
+        self.gh.pin_comments = [pin(HEAD_SHA)]
+        self.assertTrue(self.pin_check().merges[0].verified)
+        reads = [
+            c for c in self.gh.calls if any("PostMerge" in a and "Pin" in a for a in c)
+        ]
+        self.assertEqual(len(reads), 1)
+        self.assertIn("PostMergeHeadPins", " ".join(reads[0]))
+
+    def test_a_merge_missing_from_the_pin_batch_is_unreadable(self) -> None:
+        self.all_green()
+        self.gh.merged = [identity_merge()]
+        self.gh.pin_comments = [pin(HEAD_SHA)]
+        self.gh.pin_missing = {7001}
+        verdict = self.pin_check()
+        self.assertFalse(verdict.readable)
+        self.assertIn("#7001 pin", verdict.reason)
 
     def test_a_pin_behind_100_later_comments_is_found(self) -> None:
         chatter = [{"author": HUMAN, "body": "lgtm", "lastEditedAt": None}] * 100

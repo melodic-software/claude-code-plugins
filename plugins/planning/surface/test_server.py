@@ -152,6 +152,46 @@ class ServerCase(unittest.TestCase):
     def rp(self, *args):
         return run_round(self.dir, *args)
 
+    rp_ops_n = 0
+
+    def rp_ops(self, *ops):
+        """Run `ops` through `apply` from a fresh ops file (apply consumes it); returns (rc, out)."""
+        ServerCase.rp_ops_n += 1
+        f = self.tmp / f"rp-ops-{ServerCase.rp_ops_n}.json"
+        f.write_text(json.dumps({"ops": list(ops)}), encoding="utf-8")
+        return self.rp("apply", "--file", str(f))
+
+
+class TestBuild(ServerCase):
+    """The server reports the plugin version and source hash it started from, and the page carries
+    the build on disk, so a page newer than its server can tell (gap G10)."""
+
+    def test_state_reports_the_plugin_version_and_source_hash(self):
+        from session_bridge import plugin_build
+
+        manifest = HERE.parent / ".claude-plugin" / "plugin.json"
+        st = self.state()
+        self.assertEqual(
+            st["pluginVersion"],
+            json.loads(manifest.read_text(encoding="utf-8"))["version"],
+        )
+        self.assertRegex(st["sourceHash"], r"^[0-9a-f]{64}$")
+        self.assertEqual(st["sourceHash"], plugin_build(HERE)["sourceHash"])
+
+    def test_the_session_file_and_the_page_carry_the_same_build(self):
+        st = self.state()
+        s = session(self.dir)
+        self.assertEqual(
+            (s["pluginVersion"], s["sourceHash"]), (st["pluginVersion"], st["sourceHash"])
+        )
+        code, page, _ = self.get("/")
+        self.assertEqual(code, 200)
+        self.assertIn(
+            f'<meta name="interview-build" content="{st["pluginVersion"]} {st["sourceHash"]}">',
+            page,
+        )
+        self.assertNotIn("%%", page.split("<style>", 1)[0])
+
 
 class TestApi(ServerCase):
     """The prototype API suite, one check per method, in order (the checks share one server's state)."""
@@ -301,43 +341,41 @@ class TestApi(ServerCase):
         self.assertGreater(data["seq"], 0)
 
     def test_19_revise_refused_when_a_newer_user_event_exists(self):
-        rc, out = self.rp(
-            "revise",
-            "Q5",
-            "--rec",
-            "New rec",
-            "--affects",
-            "none",
-            "--keep-alternatives",
-            "--seq",
-            str(self.accept["seq"]),
+        rc, out = self.rp_ops(
+            {
+                "op": "revise",
+                "id": "Q5",
+                "rec": "New rec",
+                "affects": "none",
+                "keepAlternatives": True,
+                "seq": self.accept["seq"],
+            }
         )
         self.assertNotEqual(rc, 0)
         self.assertIn("refused", out)
 
     def test_20_revise_force_works(self):
-        rc, out = self.rp(
-            "revise",
-            "Q5",
-            "--rec",
-            "New rec",
-            "--affects",
-            "none",
-            "--keep-alternatives",
-            "--seq",
-            str(self.accept["seq"]),
-            "--force",
+        rc, out = self.rp_ops(
+            {
+                "op": "revise",
+                "id": "Q5",
+                "rec": "New rec",
+                "affects": "none",
+                "keepAlternatives": True,
+                "seq": self.accept["seq"],
+                "force": True,
+            }
         )
         self.assertEqual(rc, 0, out)
 
     def test_21_content_rev_bumped_by_revise_not_by_reply(self):
-        self.rp("reply", "Q5", "--text", "Thread reply only")
+        self.rp_ops({"op": "reply", "id": "Q5", "text": "Thread reply only"})
         q5 = next(x for x in self.state()["questions"]["questions"] if x["id"] == "Q5")
         self.assertEqual(q5.get("contentRev"), 1)
 
     def test_22_note_reply_lands_in_notes_and_marks_handled(self):
-        rc, out = self.rp(
-            "note-reply", "--seq", str(self.note_seq), "--text", "Got your note."
+        rc, out = self.rp_ops(
+            {"op": "note-reply", "seq": self.note_seq, "text": "Got your note."}
         )
         st = self.state()
         self.assertEqual(rc, 0, out)
@@ -1453,6 +1491,68 @@ class TestEventStreamHandle(ServerCase):
             conn.close()
 
 
+class TestEventStreamWaiter(WaitCase):
+    """A waiter arriving or leaving reaches an open tab as a state frame, even while the lease
+    stays held and the listener stays inside its listen grace: the header's Live needs a waiter,
+    so the page must hear of one without waiting on some other change."""
+
+    def test_a_waiter_inside_the_listen_grace_pushes_frames(self):
+        frames, ready = [], threading.Event()
+
+        def read(resp):
+            event = None
+            while line := resp.fp.readline():
+                if line.startswith(b"event: "):
+                    event = line[7:].strip()
+                elif line.startswith(b"data: ") and event == b"state":
+                    frames.append(json.loads(line[6:])["listener"])
+                    ready.set()
+
+        def until(pred, seconds=3):
+            """True once the newest frame satisfies pred, within seconds."""
+            deadline = time.monotonic() + seconds
+            while time.monotonic() < deadline:
+                if pred(frames[-1]):
+                    return True
+                time.sleep(0.05)
+            return False
+
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
+        try:
+            conn.request("GET", "/events")
+            threading.Thread(
+                target=read, args=(conn.getresponse(),), daemon=True
+            ).start()
+            self.assertTrue(ready.wait(TIMEOUT), "no first state frame")
+            # The first wait claims the lease; once it ends the listener stays "listening" for
+            # LISTEN_GRACE (10 s) and the lease stays held, so neither moves for the next wait.
+            code, body, _ = self.wait("after=handled&timeout=1&watcher=w1")
+            self.assertEqual(code, 200, body)
+            self.assertTrue(
+                until(lambda f: f["lease"] and f["waiters"] == 0),
+                f"no frame with the lease held and no waiter: {frames}",
+            )
+            seen = len(frames)
+            box = {}
+            # The waiter outlasts until()'s 3 s window, so its frame is seen while it is still in.
+            th = threading.Thread(
+                target=lambda: box.update(
+                    r=self.wait("after=handled&timeout=8&watcher=w1")
+                )
+            )
+            th.start()
+            arrived = until(lambda f: f["waiters"] >= 1)
+            th.join(TIMEOUT)
+            self.assertTrue(arrived, f"no frame carried the waiter: {frames[seen:]}")
+            self.assertEqual((box.get("r") or [None])[0], 200, box)
+            self.assertTrue(
+                until(lambda f: f["waiters"] == 0),
+                f"no frame after the waiter left: {frames[seen:]}",
+            )
+        finally:
+            conn.close()
+
+
 class TestEventStreamPush(ServerCase):
     """A rewrite of questions.json reaches an open stream even when the file's mtime did not move."""
 
@@ -1506,6 +1606,28 @@ class TestStateFallback(unittest.TestCase):
         ):
             self.assertTrue(hub.read_state()[1])
         self.assertFalse(hub.read_state()[1])
+
+
+class TestSignatureWaiter(unittest.TestCase):
+    """A waiter arriving or leaving inside the listen grace, lease held, still changes the
+    signature, so the open page gets the frame that turns its header Live or back to working."""
+
+    def test_a_waiter_inside_the_grace_changes_the_signature(self):
+        import server
+
+        tmp = Path(tempfile.mkdtemp(prefix="iv-sig-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        hub = server.Hub(0, tmp)
+        with hub.cond:
+            hub.claim("w1")
+            hub.lease["inflight"] -= 1
+        hub.last_wait = time.time()
+        before = hub.signature()
+        hub.waiters = 1
+        self.assertEqual(hub.listener()["state"], "listening")
+        self.assertNotEqual(hub.signature(), before)
+        hub.waiters = 0
+        self.assertEqual(hub.signature(), before)
 
 
 class TestEventStreamCap(ServerCase):
@@ -1711,7 +1833,7 @@ class TestQuestionState(WaitCase):
         self.assertFalse(rev["A"])
 
     def test_8_archived(self):
-        rc, out = self.rp("archive", "D", "--why", "Off the chosen path.")
+        rc, out = self.rp_ops({"op": "archive", "ids": ["D"], "why": "Off the chosen path."})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["D"], "archived")
 
@@ -1730,7 +1852,7 @@ class TestTerminalStale(WaitCase):
         code, data = self.post({"id": "A", "kind": "accept"})
         self.assertEqual(code, 200, data)
         time.sleep(1.1)  # timestamps have one-second resolution
-        rc, out = self.rp("record-terminal", "B", "--decision", "accept")
+        rc, out = self.rp_ops({"op": "record-terminal", "id": "B", "decision": "accept"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states(), {"A": "open", "B": "open"})
         time.sleep(1.1)
@@ -1756,7 +1878,7 @@ class TestAnswered(WaitCase):
         self.assertEqual(self.answered()["A"], (False, "open"))
 
     def test_2_terminal_decision_is_answered_and_state_stays_open(self):
-        rc, out = self.rp("record-terminal", "A", "--decision", "accept")
+        rc, out = self.rp_ops({"op": "record-terminal", "id": "A", "decision": "accept"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.answered()["A"], (True, "open"))
 
@@ -1799,6 +1921,45 @@ class TestQuestionShapeFlags(WaitCase):
         raw = (Path(self.dir) / "questions.json").read_text(encoding="utf-8")
         self.assertNotIn("restates", raw)
         self.assertNotIn('"withheld"', raw)
+
+
+class TestSupersedeChain(WaitCase):
+    """G6: a question re-issued twice carries its whole supersede chain, derived in memory, so the
+    page can show every earlier id and count carried rounds from the first."""
+
+    @classmethod
+    def prepare(cls):
+        seed_questions(
+            cls.dir,
+            question("Q5", round=2, stage="interview", supersededBy="Q35"),
+            question("Q35", round=4, stage="interview", supersedes="Q5", supersededBy="Q61"),
+            question("Q61", round=5, stage="interview", supersedes="Q35"),
+            question("L1", round=1, supersedes="L2"),
+            question("L2", round=1, supersedes="L1"),
+            question("U1", round=3, supersedes="nope"),
+        )
+
+    def test_a_three_link_chain_lists_both_earlier_questions_first_asked_first(self):
+        self.assertEqual(
+            self.q("Q61")["supersedesChain"],
+            [
+                {"id": "Q5", "round": 2, "stage": "interview"},
+                {"id": "Q35", "round": 4, "stage": "interview"},
+            ],
+        )
+        self.assertEqual(
+            self.q("Q35")["supersedesChain"], [{"id": "Q5", "round": 2, "stage": "interview"}]
+        )
+        self.assertNotIn("supersedesChain", self.q("Q5"))
+
+    def test_a_cycle_or_an_unknown_id_ends_the_walk(self):
+        self.assertEqual(self.q("L1")["supersedesChain"], [{"id": "L2", "round": 1}])
+        self.assertNotIn("supersedesChain", self.q("U1"))
+
+    def test_the_chain_stays_out_of_the_file(self):
+        self.q("Q61")
+        raw = (Path(self.dir) / "questions.json").read_text(encoding="utf-8")
+        self.assertNotIn("supersedesChain", raw)
 
 
 class TestConfirm(WaitCase):
@@ -1844,8 +2005,8 @@ class TestConfirm(WaitCase):
         body = {"id": "A", "kind": "confirm", "alt": "0"}
         code, first = self.post(body)
         self.assertEqual(code, 200, first)
-        rc, out = self.rp(
-            "revise", "A", "--commit", "Third", "--commit", "Fourth", "--force"
+        rc, out = self.rp_ops(
+            {"op": "revise", "id": "A", "commits": ["Third", "Fourth"], "force": True}
         )
         self.assertEqual(rc, 0, out)
         code, data = self.post(body)
@@ -1860,7 +2021,7 @@ class TestConfirm(WaitCase):
             for q in self.state()["questions"]["questions"]
             if q["id"] == "A"
         )
-        rc, out = self.rp("revise", "A", "--commit", "Fifth", "--force")
+        rc, out = self.rp_ops({"op": "revise", "id": "A", "commits": ["Fifth"], "force": True})
         self.assertEqual(rc, 0, out)
         before = len(self.state()["responses"]["events"])
         code, data = self.post(
@@ -2252,14 +2413,14 @@ class TestRecChangeMarksUpstream(OpsCase):
     def test_1_the_named_question_and_the_direct_dependent_go_stale(self):
         for qid in ("B", "C", "D"):
             self.decide(qid)
-        rc, out = self.rp(
-            "revise",
-            "A",
-            "--rec",
-            "Different.",
-            "--affects",
-            "C",
-            "--keep-alternatives",
+        rc, out = self.rp_ops(
+            {
+                "op": "revise",
+                "id": "A",
+                "rec": "Different.",
+                "affects": "C",
+                "keepAlternatives": True,
+            }
         )
         self.assertEqual(rc, 0, out)
         self.assertEqual(
@@ -2281,14 +2442,14 @@ class TestRecChangeMarksUpstream(OpsCase):
     def test_3_none_still_marks_the_direct_dependents(self):
         self.decide("E")
         self.assertEqual(self.states()["E"], "open")
-        rc, out = self.rp(
-            "revise",
-            "A",
-            "--rec",
-            "Once more.",
-            "--affects",
-            "none",
-            "--keep-alternatives",
+        rc, out = self.rp_ops(
+            {
+                "op": "revise",
+                "id": "A",
+                "rec": "Once more.",
+                "affects": "none",
+                "keepAlternatives": True,
+            }
         )
         self.assertEqual(rc, 0, out)
         marks = self.marks()
@@ -2303,7 +2464,7 @@ class TestRecChangeMarksUpstream(OpsCase):
 
     def test_5_a_session_terminal_record_clears_it_like_any_stale_question(self):
         time.sleep(1.1)  # a terminal decision is placed by its one-second timestamp
-        rc, out = self.rp("record-terminal", "B", "--decision", "accept")
+        rc, out = self.rp_ops({"op": "record-terminal", "id": "B", "decision": "accept"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.marks()["B"], ("open", None))
 
@@ -2326,18 +2487,18 @@ class TestTerminalAnswerRightAfterARecChange(OpsCase):
         )
 
     def test_1_the_later_write_wins_the_tie(self):
-        rc, out = self.rp(
-            "revise",
-            "A",
-            "--rec",
-            "Different.",
-            "--affects",
-            "none",
-            "--keep-alternatives",
+        rc, out = self.rp_ops(
+            {
+                "op": "revise",
+                "id": "A",
+                "rec": "Different.",
+                "affects": "none",
+                "keepAlternatives": True,
+            }
         )
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["B"], "stale")
-        rc, out = self.rp("record-terminal", "B", "--decision", "accept")
+        rc, out = self.rp_ops({"op": "record-terminal", "id": "B", "decision": "accept"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["B"], "open")
 
@@ -2359,11 +2520,12 @@ class TestRepointAndRevisedDependencies(OpsCase):
         self,
     ):
         self.decide("B")
-        rc, out = self.rp(
-            "add", "--id", "N", "--short", "S", "--title", "T?", "--rec", "Yes.",
-            "--commit", "none", "--alt", "a:No", "--alt", "b:Later",
-            "--supersedes", "A", "--repoint",
-        )  # fmt: skip
+        n = self.tmp / "add-n.json"
+        n.write_text(
+            json.dumps({**question("N", short="S", title="T?"), "commits": []}),
+            encoding="utf-8",
+        )
+        rc, out = self.rp("add", "--file", str(n), "--supersedes", "A", "--repoint")
         self.assertEqual(rc, 0, out)
         self.assertIn("repointed B, C from A to N", out)
         self.assertEqual(self.states()["B"], "open")
@@ -2372,7 +2534,7 @@ class TestRepointAndRevisedDependencies(OpsCase):
 
     def test_2_a_revised_dependency_list_changes_what_goes_stale(self):
         self.decide("C")
-        rc, out = self.rp("revise", "C", "--depends", "none", "--force")
+        rc, out = self.rp_ops({"op": "revise", "id": "C", "dependsOn": [], "force": True})
         self.assertEqual(rc, 0, out)
         self.decide("N", "alt", alt="a")
         self.assertEqual(self.states()["C"], "open")
@@ -2539,6 +2701,56 @@ class TestArchivedPrerequisiteIsMet(OpsCase):
         self.assertEqual(data["skipped"], [{"id": "D", "reason": "ineligible"}])
 
 
+class TestOffPathQuestionTakesNoDecision(OpsCase):
+    """#9715: a decision on a superseded question is 409 superseded, `by` naming the end of its
+    supersededBy chain, and one on an archived question is 409 archived; nothing is written. Ask
+    still saves, and accept-audit leaves a superseded question out."""
+
+    @classmethod
+    def prepare(cls):
+        gone = {"why": "Off the path.", "at": "2026-09-24T10:00:00Z"}
+        seed_questions(
+            cls.dir,
+            question("Q59", supersededBy="Q60"),
+            question("Q60", supersededBy="Q61"),
+            question("Q61"),
+            question("Q62", archived=gone),
+            question("Q63", archived=gone, supersededBy="Q60"),
+        )
+
+    def test_1_a_decision_is_409_and_names_the_end_two_hops_away(self):
+        decisions = (
+            ("accept", {}),
+            ("alt", {"alt": "a"}),
+            ("own", {"text": "Mine."}),
+            ("defer", {}),
+            ("hedged", {"text": "If it holds."}),
+            ("reopen", {}),
+        )
+        for kind, extra in decisions:
+            code, data = self.post({"id": "Q59", "kind": kind, **extra})
+            self.assertEqual((code, data), (409, {"error": "superseded", "by": "Q61"}))
+        code, data = self.post({"id": "Q63", "kind": "accept", "contentRev": 0})
+        self.assertEqual((code, data), (409, {"error": "superseded", "by": "Q61"}))
+        code, data = self.post({"id": "Q62", "kind": "accept"})
+        self.assertEqual((code, data), (409, {"error": "archived"}))
+        events = self.state()["responses"]["events"]
+        self.assertFalse(any(e.get("id") in ("Q59", "Q62", "Q63") for e in events))
+
+    def test_2_ask_still_saves_and_the_end_takes_the_decision(self):
+        code, data = self.post({"id": "Q59", "kind": "ask", "text": "Why replace it?"})
+        self.assertEqual(code, 200, data)
+        self.decide("Q61")
+
+    def test_3_accept_audit_leaves_a_superseded_question_out(self):
+        items = [{"id": "Q60", "contentRev": 0}]
+        code, data = self.post({"kind": "accept-audit", "alt": "1", "items": items})
+        skipped = [{"id": "Q60", "reason": "ineligible"}]
+        self.assertEqual(
+            (code, data), (409, {"error": "nothing accepted", "skipped": skipped})
+        )
+
+
 class TestFrontierLockConfirm(OpsCase):
     """frontierLock confirm, the default: a decision ahead of an open prerequisite saves, the
     event keeps the outOfOrder the page sent, and the prerequisite's first decision marks the
@@ -2567,7 +2779,7 @@ class TestFrontierLockConfirm(OpsCase):
 
     def test_2_it_stays_owed_after_the_dependency_is_dropped(self):
         self.decide("Q8", outOfOrder=["Q7"])
-        rc, out = self.rp("revise", "Q8", "--depends", "none")
+        rc, out = self.rp_ops({"op": "revise", "id": "Q8", "dependsOn": []})
         self.assertEqual(rc, 0, out)
         self.decide("Q7")
         self.assertEqual(self.states()["Q8"], "stale")
@@ -2740,7 +2952,9 @@ class TestChangedAnswerMarksEveryDirectDependent(OpsCase):
         self.assertEqual(self.changed_by()["G"], ["F"])
 
     def test_7_reconfirm_clears_it_and_unlocks_save(self):
-        rc, out = self.rp("reconfirm", "C", "--why", "It does not turn on A's answer.")
+        rc, out = self.rp_ops(
+            {"op": "reconfirm", "ids": ["C"], "why": "It does not turn on A's answer."}
+        )
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["C"], "open")
         self.assertNotIn("C", self.changed_by())
@@ -2751,14 +2965,14 @@ class TestChangedAnswerMarksEveryDirectDependent(OpsCase):
         )
         self.assertEqual(line["reviewSeq"], self.state()["responses"]["seq"])
         self.decide("C")
-        rc, out = self.rp("reconfirm", "C", "--why", "Again.")
+        rc, out = self.rp_ops({"op": "reconfirm", "ids": ["C"], "why": "Again."})
         self.assertNotEqual(rc, 0, out)
         self.assertIn("refused: C not upstream-changed", out)
         rc, out = self.rp("validate")
         self.assertEqual(rc, 0, out)
 
     def test_8_a_revise_of_the_question_clears_it_too(self):
-        rc, out = self.rp("revise", "G", "--title", "Is G still right?")
+        rc, out = self.rp_ops({"op": "revise", "id": "G", "title": "Is G still right?"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["G"], "open")
         self.assertEqual(self.changed_by(), {"D": ["B"]})
@@ -2794,10 +3008,16 @@ class TestUpstreamChangedUnderLockOff(OpsCase):
         self.decide("A")
         self.decide("A", text="Same answer, with a note.")
         self.assertEqual(self.states()["B"], "open")
-        rc, out = self.rp(
-            "revise", "A", "--rec", "Different.", "--affects", "none",
-            "--keep-alternatives", "--force",
-        )  # fmt: skip
+        rc, out = self.rp_ops(
+            {
+                "op": "revise",
+                "id": "A",
+                "rec": "Different.",
+                "affects": "none",
+                "keepAlternatives": True,
+                "force": True,
+            }
+        )
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.states()["B"], "open")  # a recommendation change marks no undecided question
         self.decide("A")

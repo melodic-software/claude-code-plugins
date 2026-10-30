@@ -1,5 +1,5 @@
 ---
-description: "Read-only, audit-only scan of one directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftovers, reported as an evidence snapshot. Removes nothing; any removal is a separate /disk-hygiene:clean run that a person invokes. Use when: 'delegate a disk-hygiene audit', 'orchestrator scan of a directory for leftovers', 'subagent scan of this directory for leftovers', 'disk-hygiene audit report'. Skip when: the ask is to clean up or reclaim space (that is /disk-hygiene:clean), one repository's caches or build output (repo-hygiene), or an OS-managed root."
+description: "Read-only, audit-only scan of one directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftovers, reported as an evidence snapshot. Removes nothing; any removal is a separate /disk-hygiene:clean run, gated on the user's own answer. Use when: 'delegate a disk-hygiene audit', 'orchestrator scan of a directory for leftovers', 'subagent scan of this directory for leftovers', 'disk-hygiene audit report'. Skip when: the ask is to clean up or reclaim space (that is /disk-hygiene:clean), one repository's caches or build output (repo-hygiene), or an OS-managed root."
 argument-hint: "[--max-depth <N>] [--sizes-only] [--policy <file>] <target-directory>"
 user-invocable: true
 disable-model-invocation: false
@@ -85,7 +85,10 @@ Report from the snapshot and the scan's stdout, and nothing the run did not obse
 - Report `truncated_paths` (a count under `--quiet`, the list in the snapshot) and every scan error
   as coverage gaps. A `large-target-confirmation-required` or `root-children-selection-required`
   status names the next step, not a failure.
-- Quote hint coverage as a rate: `hinted_entries` of `entries`, never "N findings".
+- Quote hint coverage as a rate: `hinted_entries` of `entries`, never "N findings". Quote
+  `ranked_entries` of `entries` beside it, and order the entries you list by `review_rank`
+  `position`, naming each entry's signals and group. Show an `unranked` entry as unranked, not in
+  a middle position. A rank orders review only and ranks nothing for deletion.
 - List protected entries separately, and surface an `os_autoclean` recommendation as the engine
   states it. A scan does not assess live handles or elevation, so it yields no locked,
   needs-elevation, or unverified entries: say those were not assessed, never that there are none.
@@ -97,7 +100,7 @@ Report from the snapshot and the scan's stdout, and nothing the run did not obse
 
 ## 4. Hand off
 
-Removal is `/disk-hygiene:clean`, which a person invokes. Close the report with the snapshot path
+Removal is a separate `/disk-hygiene:clean` run. Close the report with the snapshot path
 and that one line. Do not start a removal run and do not propose exact paths for one. When
 `effective` was `false`, say instead that removal is disabled by the plugin's configuration.
 
@@ -105,7 +108,7 @@ and that one line. Do not start a removal run and do not propose exact paths for
 
 /disk-hygiene:clean <target-directory>
 
-Run by a person when the findings warrant removal; it takes the same target, not this snapshot.
+Run when the findings warrant removal and the user wants it; it takes the same target, not this snapshot.
 
 ## Gotchas
 

@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: nm-explain-commit
+context:
+  scaffold_script: scaffold.sh

@@ -6,8 +6,8 @@
 // model.
 //
 // The status shows a hold the lanes own on the pull request, in place of the
-// human-gated label (owner rule 2026-10-26: a person only for an intent or
-// design change or a CRITICAL security issue). It is informational:
+// human-gated label (when a person is needed:
+// docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner). It is informational:
 // its context is not `ci-status`, the only check the main ruleset requires,
 // so it neither holds nor passes a merge. Each head's newest status in the
 // context is read first, trusted only when the GitHub Actions bot posted it

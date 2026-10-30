@@ -4,9 +4,11 @@
 // of pr-unblock.yml's address-feedback and review-dependency jobs, which a
 // skipped subscription call or a forged model-call output must not turn.
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { isVerdictName } from "../pr-verify/write-verdict.mjs";
 import { laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
 import { MAX_THREADS } from "./adjudicate-feedback.mjs";
 
@@ -77,7 +79,7 @@ const LANE_BRANCH = "work-resolve-issue/issue-12-345-1";
 
 test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled review run", () => {
   const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
-  const runs = (conclusion, event = "pull_request", posted = "", branch = LANE_BRANCH) =>
+  const runs = (conclusion, event = "pull_request", posted = "", branch = LANE_BRANCH, passed = "") =>
     evaluate(gate, {
       "github.ref": "refs/heads/main",
       "github.repository": "melodic-software/claude-code-plugins",
@@ -88,6 +90,7 @@ test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled revie
       "github.event.workflow_run.head_branch": branch,
       "github.event.workflow_run.conclusion": conclusion,
       "needs.post-verify-notes.outputs.head-sha": posted,
+      "needs.post-verify-notes.outputs.pass-head-sha": passed,
     });
   assert.equal(runs("skipped"), false);
   assert.equal(runs("cancelled"), false);
@@ -99,6 +102,9 @@ test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled revie
   assert.equal(runs("success", "workflow_run", "a".repeat(40)), true);
   // A pr-verify run's branch is main, and its notes still dispatch.
   assert.equal(runs("success", "workflow_run", "a".repeat(40), "main"), true);
+  // A pass dispatches only once its job found a stale fail-note thread.
+  assert.equal(runs("success", "workflow_run", "", "main"), false);
+  assert.equal(runs("success", "workflow_run", "", "main", "a".repeat(40)), true);
 });
 
 test("pr-feedback-dispatch.yml starts no runner for a review run off a lane branch", () => {
@@ -116,6 +122,7 @@ test("pr-feedback-dispatch.yml starts no runner for a review run off a lane bran
       "github.event.workflow_run.head_branch": branch,
       "github.event.workflow_run.conclusion": "success",
       "needs.post-verify-notes.outputs.head-sha": "",
+      "needs.post-verify-notes.outputs.pass-head-sha": "",
     });
   // Every branch the issue lane opens a PR from passes; a rename of the lane
   // branch fails here instead of silently stopping dispatches.
@@ -143,6 +150,7 @@ test("pr-feedback-dispatch.yml sweeps only after a scheduled pr-unblock-dispatch
       "github.event.workflow_run.head_branch": "main",
       "github.event.workflow_run.conclusion": "success",
       "needs.post-verify-notes.outputs.head-sha": "",
+      "needs.post-verify-notes.outputs.pass-head-sha": "",
       ...overrides,
     });
   assert.equal(runs(), true);
@@ -156,6 +164,38 @@ test("pr-feedback-dispatch.yml sweeps only after a scheduled pr-unblock-dispatch
   ]) {
     assert.equal(runs(overrides), false, label);
   }
+});
+
+test("pr-feedback-dispatch.yml decides a lane branch's head again after a pull_request_target run of pr-merge.yml, whatever its conclusion", () => {
+  const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
+  const repo = "melodic-software/claude-code-plugins";
+  const runs = (overrides = {}) =>
+    evaluate(gate, {
+      "github.ref": "refs/heads/main",
+      "github.repository": repo,
+      "github.event.workflow_run.path": ".github/workflows/pr-merge.yml",
+      "github.event.workflow_run.event": "pull_request_target",
+      "github.event.workflow_run.repository.full_name": repo,
+      "github.event.workflow_run.head_repository.full_name": repo,
+      "github.event.workflow_run.head_branch": LANE_BRANCH,
+      "github.event.workflow_run.conclusion": "skipped",
+      "needs.post-verify-notes.outputs.head-sha": "",
+      "needs.post-verify-notes.outputs.pass-head-sha": "",
+      ...overrides,
+    });
+  assert.equal(runs(), true, "the lanes App's own unlabel skips pr-merge's job and still counts");
+  assert.equal(runs({ "github.event.workflow_run.conclusion": "success" }), true);
+  for (const [label, overrides] of [
+    ["pr-merge's schedule", { "github.event.workflow_run.event": "schedule", "github.event.workflow_run.head_branch": "main" }],
+    ["a hand-started pr-merge run", { "github.event.workflow_run.event": "workflow_dispatch" }],
+    ["a branch the lanes App opens no PR from", { "github.event.workflow_run.head_branch": "feat/x" }],
+    ["a fork's PR", { "github.event.workflow_run.head_repository.full_name": "fork/claude-code-plugins" }],
+    ["another workflow's pull_request_target run", { "github.event.workflow_run.path": ".github/workflows/intake-reenter.yml" }],
+  ]) {
+    assert.equal(runs(overrides), false, label);
+  }
+  const text = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
+  assert.match(text, /\n    workflows: \[[^\]]*\bpr-merge\b[^\]]*\]\n/, "pr-merge is a workflow_run upstream");
 });
 
 test("pr-feedback-dispatch.yml posts verifier notes only for a pr-verify run of main", () => {
@@ -245,13 +285,57 @@ test("pr-unblock.yml: every address-feedback job after a model call starts its i
 // The reply job decides on the select job's proceed alone: a hostile model
 // job can forge a handoff, a neutral check or any output of its own, and the
 // round still posts its marker, so the round cap holds.
-test("pr-unblock.yml: publish-feedback runs exactly when the select job proceeded, whatever a model call reports", () => {
+test("pr-unblock.yml: publish-feedback runs exactly when the select job proceeded or listed stale fail notes, whatever a model call reports", () => {
   const { gate, needs } = jobGate(UNBLOCK, "publish-feedback");
   assert.deepEqual(needs, ["address-feedback-select", "address-feedback", "address-feedback-subscription", "address-feedback-fallback", "apply-feedback-patch", "adjudicate-feedback"]);
   // The evaluator refuses any reference left unset: the gate reads nothing else.
-  for (const [proceed, runs] of [["true", true], ["false", false], ["", false]]) {
-    assert.equal(evaluate(gate, { "needs.address-feedback-select.outputs.proceed": proceed }), runs, JSON.stringify(proceed));
+  for (const [proceed, resolveOnly, runs] of [
+    ["true", "", true],
+    ["", "true", true],
+    ["false", "", false],
+    ["", "", false],
+  ]) {
+    assert.equal(
+      evaluate(gate, { "needs.address-feedback-select.outputs.proceed": proceed, "needs.address-feedback-select.outputs.resolve-only": resolveOnly }),
+      runs,
+      JSON.stringify([proceed, resolveOnly]),
+    );
   }
+});
+
+// A pass-only round lists only stale fail-note threads: its select job's
+// proceed stays empty, so no model job and no neutral check runs, and only
+// resolve-only turns on the reply job.
+test("pr-unblock.yml: a pass-only select uploads its context but never proceeds to a model", () => {
+  const block = jobBlock(UNBLOCK, "address-feedback-select");
+  const output = (key) => {
+    const at = block.findIndex((line) => line.startsWith(`      ${key}: `));
+    const first = block[at].slice(`      ${key}: `.length);
+    if (first !== ">-") return first;
+    const folded = [];
+    for (const line of block.slice(at + 1)) {
+      if (!line.startsWith("        ")) break;
+      folded.push(line.trim());
+    }
+    return folded.join(" ");
+  };
+  const outputs = (upload, select) =>
+    Object.fromEntries(
+      ["proceed", "resolve-only"].map((key) => [
+        key,
+        evaluate(output(key), {
+          "steps.upload.outcome": upload,
+          "steps.slot.outputs.applies": "true",
+          "steps.select.outputs.proceed": select.proceed ?? "",
+          "steps.select.outputs.resolve-only": select.resolveOnly ?? "",
+        }),
+      ]),
+    );
+  assert.deepEqual(outputs("success", { proceed: "true" }), { proceed: "true", "resolve-only": "" });
+  assert.deepEqual(outputs("success", { resolveOnly: "true" }), { proceed: "", "resolve-only": "true" });
+  assert.deepEqual(outputs("skipped", {}), { proceed: "", "resolve-only": "" });
+  const upload = block.findIndex((line) => line === "        id: upload");
+  assert.equal(ifAt(block, upload + 1, 8), "steps.select.outputs.proceed == 'true' || steps.select.outputs.resolve-only == 'true'");
 });
 
 // The post-hoc review of #9565: the job checked out, set up and staged on
@@ -441,7 +525,7 @@ const CONFLICT_JOBS = [
   "resolve-conflicts-subscription-handoff",
   "resolve-conflicts-fallback",
   "apply-conflict-patch",
-  "report-conflict-status",
+  "report-stop-status",
 ];
 
 // As for review-dependency: a job that needs a skipped subscription call and
@@ -661,15 +745,19 @@ test("pr-unblock-dispatch.yml gates a hand run and every re-run, and no first pu
   assert.equal(runs("schedule", "2"), true);
   assert.equal(runs("schedule", "1", "false"), false);
   // A skipped gate lets the dispatch step run; a checked one must proceed.
-  const dispatches = (outcome, proceed = "") =>
+  const dispatches = (outcome, proceed = "", paced = "false") =>
     evaluate(stepIf(DISPATCHER, "Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs"), {
       "steps.kill.outputs.proceed": "true",
       "steps.gate.outcome": outcome,
       "steps.gate.outputs.proceed": proceed,
+      "steps.pace.outputs.paced": paced,
     });
   assert.equal(dispatches("skipped"), true);
   assert.equal(dispatches("success", "true"), true);
   assert.equal(dispatches("success", "false"), false);
+  // A tick the burn-rate pacer paces dispatches nothing (log-api-budget/pace.mjs).
+  assert.equal(dispatches("skipped", "", "true"), false);
+  assert.equal(dispatches("skipped", "", ""), true, "a pacer that wrote nothing");
 });
 
 test("pr-unblock-dispatch.yml ticks five minutes after each lost-run reconciler tick", () => {
@@ -752,4 +840,46 @@ test("every read-runner lane starts its fallback call only on its handoff jobs' 
     assert.match(handoffBlock, /\n {10}PRESENT: \$\{\{ secrets\.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' \}\}\n/, handoff);
     assert.doesNotMatch(handoffBlock.replace("secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != ''", ""), /secrets\./, `${handoff} reads only whether the token is set`);
   }
+});
+
+// post-verify-notes takes a pass or pass-notes verdict as well as a fail, by
+// write-verdict.mjs NAME's grammar: `-i` is a fail's alone. A verdict-shaped
+// name its filter drops fails the run.
+test("pr-feedback-dispatch.yml: post-verify-notes reads the names write-verdict.mjs NAME allows, pass names included", () => {
+  const step = jobBlock("pr-feedback-dispatch.yml", "post-verify-notes").join("\n").split("\n      - name: ").find((text) => text.startsWith("Download the verdict"));
+  assert.ok(step, "the download step");
+  const listFilter = /--jq '([^']+)'\)/.exec(step)?.[1];
+  const nameFilter = /names=\$\(jq -Rr '([^']+)' <<<"\$listed"\)/.exec(step)?.[1];
+  assert.ok(listFilter && nameFilter, "the step's two filters");
+  const sha = "a".repeat(40);
+  const digest = "79b4cc554b80dca6";
+  const taken = [
+    `pr-verify-42-${sha}-fail`,
+    `pr-verify-42-${sha}-fail-${digest}-i7.12`,
+    `pr-verify-42-${sha}-pass`,
+    `pr-verify-42-${sha}-pass-notes`,
+    `pr-verify-42-${sha}-pass-${digest}`,
+    `pr-verify-42-${sha}-pass-notes-${digest}`,
+  ];
+  const refused = [`pr-verify-42-${sha}-pass-i7`, `pr-verify-42-${sha}-pass-notes-${digest}-i7`, `pr-verify-42-${sha}-passed`, `pr-verify-42-${sha}-fail-i12.7`];
+  const jq = (filter, input, ...args) => {
+    const result = spawnSync("jq", [...args, filter], { input, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.split("\n").filter(Boolean);
+  };
+  const artifacts = JSON.stringify({ artifacts: [...taken, ...refused, "pr-verify-data", `pr-verify-42-${sha}-fail`.replace("fail", "skip")].map((name) => ({ name, expired: false })) });
+  const listed = jq(listFilter, artifacts, "-r");
+  assert.deepEqual(listed, [...taken, ...refused], "every verdict-shaped name is listed");
+  assert.deepEqual(jq(nameFilter, `${listed.join("\n")}\n`, "-Rr"), taken, "and only NAME's are taken");
+  for (const name of [...taken, ...refused]) {
+    assert.equal(isVerdictName(name), taken.includes(name), name);
+  }
+});
+
+test("pr-feedback-dispatch.yml: a newer completion at a head queues behind a pending one, never cancels it", () => {
+  const text = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
+  const block = /\nconcurrency:\n((?: {2}.*\n)+)/.exec(text);
+  assert.ok(block, "the workflow sets top-level concurrency");
+  assert.match(block[1], /^ {2}cancel-in-progress: false$/m);
+  assert.match(block[1], /^ {2}queue: max$/m);
 });

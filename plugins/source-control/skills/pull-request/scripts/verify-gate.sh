@@ -5,13 +5,15 @@
 # the later call that flips the draft. `record` writes the gate's result for one head commit;
 # `check` runs in the same shell command as `gh pr ready` and refuses unless that exact head
 # has a recorded `pass`, or a recorded `skipped` (`--skip verify` or `pre_ready` turned it off).
+# CI's test lanes passing on that head skips only the suites; the rest of the gate still records.
 # A result recorded for another head never counts, so a commit after the gate voids it.
 #
 # Usage:
 #   verify-gate.sh record --head <sha> --result pass|fail|skipped
 #   verify-gate.sh check  --head <sha>
 #
-# The result lives under the repository's git directory (`ready-verify/<sha>`), or under
+# The result lives under the repository's common git directory (`ready-verify/<sha>`), shared by
+# every worktree, so a record and a check agree whichever checkout the shell sits in; or under
 # $READY_VERIFY_DIR when set.
 #
 # Exit codes:
@@ -61,7 +63,8 @@ done
 
 dir="${READY_VERIFY_DIR:-}"
 if [[ -z "$dir" ]]; then
-  dir=$(git rev-parse --git-path ready-verify 2>/dev/null) || die 2 "not in a git repository, and READY_VERIFY_DIR is unset"
+  common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || die 2 "not in a git repository, and READY_VERIFY_DIR is unset"
+  dir="$common/ready-verify"
 fi
 file="$dir/$HEAD_SHA"
 

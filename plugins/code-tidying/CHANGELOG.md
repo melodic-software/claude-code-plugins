@@ -3,6 +3,69 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.3] - 2026-10-29
+
+### Changed
+
+- **`audit-comment-residue`'s detector no longer pipes into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `detect.sh` reads a file's first lines through process substitution when it looks for a generated-file marker. The script does not set `pipefail`, so its output is unchanged; the rewrite only keeps it in the form the repository's pipefail gate requires.
+
+## [0.32.2] - 2026-10-29
+
+### Changed
+
+- Synced contract copies name their canonical source at `docs/contracts/<name>/`, where the plugin contracts moved from `docs/conventions/<name>/`.
+
+## [0.32.1] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.32.0] - 2026-10-29
+
+### Added
+
+- `/code-tidying:audit-dead-code`: the grep lane now reads C# declarations ([#8765](https://github.com/melodic-software/claude-code-plugins/issues/8765)). It reads `.cs` files as text and runs no `dotnet`, MSBuild or other build, so the no-build rule from #5328 still holds. It reports two tier-2 shapes. `cs-unreferenced-private` covers a `private` member or type. `cs-unreferenced-symbol` covers any other type, and any other member whose line starts with an access modifier. Overrides, operators, constructors and indexers are not extracted. Either shape is reported when its name appears nowhere in the repository except where it is declared, every partial part and overload included. `.razor` and `.cshtml` views are part of that search, so a handler or parameter named in markup still counts as used. On the new trap fixtures, `cs-unreferenced-private` scored 66.7% precision and 66.7% recall, and `cs-unreferenced-symbol` scored 33.3% precision and 100% recall. A `.cs` file is no longer reported as `no lane for the language`. Its `unreferenced-file` stem drops every extension, so markup that spells `<Counter` saves `Counter.razor.cs`. The adjudication reference adds C# evidence patterns: reflection, assembly scanning, markup and serializers.
+
+## [0.31.1] - 2026-10-29
+
+### Changed
+
+- cite the gather-block composition record from its convention doc
+
+  The batch-simplify, dissolve-comments and tidy skills now link the
+  repository's gather-block convention for the record that a skill's
+  whole pre-compute block reaches the shell as one invocation, in place
+  of a path into the `source-control` plugin's worktree skill.
+
+### Fixed
+
+- `/code-tidying:audit-comment-residue`: `detect.sh --added-since <base>` now runs shape detection only on each added line and the line on each side of it, which a wrapped phrase can join. The number of detection calls now follows the number of added lines, not the length of each file that gained one ([#8764](https://github.com/melodic-software/claude-code-plugins/issues/8764)). The comment-text and shape detectors return their result in `REPLY` instead of on stdout, so neither the per-line loop nor the license and workaround pre-passes start a command substitution per line. The two pre-passes still read each whole file. On Git for Windows, where each command substitution forks a slow process, an ordinary pull request in a large repository could run for minutes before this fix.
+
+## [0.31.0] - 2026-10-28
+
+### Added
+
+- `/code-tidying:tidy-diff` tidies one change's own lines before its commit, scoped by a file-and-line list in the `<start><TAB><count><TAB><path>` shape `added-lines.sh` prints, so it needs no branch or base ref and runs on a detached head. On code it runs a behavior-preserving simplify pass and class-A comment deletions, each behind a COMMENT-ONLY verdict from its `change-shape.sh`; on markdown it applies `/docs-hygiene:write-for-agents` or `/docs-hygiene:write-for-humans` and `/ai-slop:audit fix` to the listed lines. `--turns <n>` bounds it: at the budget it skips the passes left and reports them, never failing its caller. It stages and commits nothing.
+
+## [0.30.8] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.30.7] - 2026-10-27
+
+### Fixed
+
+- `/code-tidying:tidy`: the open-PR throttle no longer reads a degraded search's false empty as no open tidy PRs ([#9090](https://github.com/melodic-software/claude-code-plugins/issues/9090)). `open-pr-count.sh` lists open PRs without `--search`, up to 1000, and counts `chore/tidy-*` head branches itself. A listing that reaches that limit prints `Throttle active: yes`, so tidy stops rather than adding to a backlog it could not count.
+
+## [0.30.6] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [0.30.5] - 2026-10-25
 
 ### Changed

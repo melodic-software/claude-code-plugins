@@ -45,7 +45,8 @@
 //     key read), which a patched prototype can answer with code.
 //     `declares` is whether `offset` names a plain `var`/`let`/`const`
 //     declarator of the variable. A module with a direct `eval` answers
-//     found false, since code inside the eval can write any name.
+//     found false, since code inside the eval can write any name; one
+//     whose code only reads an identifier (`foldEvals`) is that read.
 //     -> {"id":5,"ok":true,"found":true,"declares":true,
 //         "writes":[["init",120,true]],"mutations":[["method-call",160,true]],
 //         "reads":[["spread",180,true]]}
@@ -58,8 +59,12 @@
 //     -> {"id":7,"ok":true,"used":["pY"]}   names the module reads as a property
 //   {"id":8,"op":"exports","module":"<key>","source":"..."}
 //     -> {"id":8,"ok":true,"names":["pY","default"]}   every name it exports
-//   {"id":9,"op":"loads","module":"<key>","source":"..."}
-//     -> {"id":9,"ok":true,"files":["chunk-a.js"]}  files it loads whole
+//   {"id":9,"op":"loads","module":"<key>","source":"...","loaders":["Fe"]}
+//     -> {"id":9,"ok":true,"files":["chunk-a.js"],"aliases":[]}  files it
+//        loads whole, and the names it exports an alias of `require` under.
+//     `loaders`, optional here and on `namespace` and `sinks`, lists every
+//     name a module of the bundle exports such an alias under; an import
+//     of one is then a named loader, and so is the alias itself.
 //   {"id":10,"op":"namespace","module":"<key>","source":"...","file":"chunk-a.js","name":"pY"}
 //     Whether each whole load of the file reads only other exports by
 //     name; `namespace` below documents the reply.
@@ -98,12 +103,92 @@ const MODULE_CACHE = 16;
 const PATTERN_NODES = new Set(["ArrayPattern", "ObjectPattern", "AssignmentPattern", "RestElement", "Property"]);
 const modules = new Map();
 
+// The built-ins a folded `.replace` (`evalText`) relies on: the string
+// method and what it calls on the regex, the flag getters `flags` reads
+// included, since `g` and `u` decide what is replaced.
+const REPLACE_TRUSTS = ["replace", "@@replace", "exec", "flags", "global", "unicode", "unicodeSets", "lastIndex"];
+// The scanned module supplies both the regex and the subject of a folded
+// `.replace`, so the fold runs only one that cannot backtrack for long: no
+// quantifier character anywhere in the pattern (`/(a+)+$/` stays a sink),
+// and both within these lengths.
+const FOLD_PATTERN_MAX = 32;
+const FOLD_SUBJECT_MAX = 256;
+
+// What a direct `eval` argument evaluates to when the reader can tell, as
+// {text, trusts}: a string literal, a template with no expressions, or
+// `.replace` on one with a regex literal and a string literal (protobufjs's
+// `eval("quire".replace(/^/,"re"))`), which trusts REPLACE_TRUSTS; else null.
+// An argument past the FOLD_ limits, or a regex with a quantifier, is null too.
+function evalText(arg) {
+  const text = literalString(arg);
+  if (text !== null) return { text, trusts: [] };
+  if (arg?.type !== "CallExpression" || memberName(arg.callee) !== "replace" || arg.arguments.length !== 2) return null;
+  const [pattern, replacement] = arg.arguments;
+  const subject = literalString(arg.callee.object);
+  const by = literalString(replacement);
+  if (subject === null || by === null || !pattern.regex) return null;
+  const source = pattern.regex.pattern;
+  if (source.length > FOLD_PATTERN_MAX || subject.length > FOLD_SUBJECT_MAX || /[*+?{]/.test(source)) return null;
+  try {
+    return { text: subject.replace(new RegExp(source, pattern.regex.flags), by), trusts: REPLACE_TRUSTS };
+  } catch {
+    return null;
+  }
+}
+
+// The identifier a direct `eval` call only reads, as {name, trusts}: its
+// one argument folds (`evalText`) to code that parses as nothing but one
+// identifier expression, other than `eval` or `arguments`. Else null.
+// `eval?.(...)` is an indirect eval, which reads the global, so it stays.
+function evalRead(call) {
+  if (call.optional || call.callee.type !== "Identifier" || call.callee.name !== "eval" || call.arguments.length !== 1) return null;
+  const folded = evalText(call.arguments[0]);
+  if (folded === null) return null;
+  let program;
+  try {
+    program = acorn.parse(folded.text, PARSE_OPTIONS);
+  } catch {
+    return null;
+  }
+  const expr = program.body.length === 1 && program.body[0].type === "ExpressionStatement" ? program.body[0].expression : null;
+  if (expr?.type !== "Identifier" || expr.name === "eval" || expr.name === "arguments") return null;
+  return { name: expr.name, trusts: folded.trusts };
+}
+
+// Rewrites, in place, each direct `eval` that only reads an identifier
+// (`evalRead`) into that read, so scope analysis sees a plain reference
+// and no direct eval around it. Returns the built-ins the folds trust.
+function foldEvals(ast) {
+  const trusts = new Set();
+  const stack = [ast];
+  while (stack.length) {
+    const node = stack.pop();
+    const read = node.type === "CallExpression" ? evalRead(node) : null;
+    if (read !== null) {
+      for (const name of read.trusts) trusts.add(name);
+      const { start, end, range } = node;
+      for (const key of Object.keys(node)) delete node[key];
+      Object.assign(node, { type: "Identifier", name: read.name, start, end }, range ? { range } : {});
+      continue;
+    }
+    for (const key of Object.keys(node)) {
+      const child = node[key];
+      for (const c of Array.isArray(child) ? child : [child]) {
+        if (c && typeof c.type === "string" && c !== node) stack.push(c);
+      }
+    }
+  }
+  return trusts;
+}
+
 function analyze(source) {
   let ast;
   let manager;
+  let folds;
   try {
     // eslint-scope reads node.range, which acorn adds only on request.
     ast = acorn.parse(source, { ...PARSE_OPTIONS, ranges: true });
+    folds = foldEvals(ast);
     manager = eslintScope.analyze(ast, SCOPE_OPTIONS);
   } catch (e) {
     return { error: e.message };
@@ -125,7 +210,7 @@ function analyze(source) {
     globals.get(name).references.push(ref);
   }
   const evals = manager.scopes.some((s) => s.directCallToEvalScope);
-  return { ast, manager, top, refs, decls, globals, evals, parents: null };
+  return { ast, manager, top, refs, decls, globals, evals, folds, parents: null };
 }
 
 // Each node's parent, built on the module's first `writes` request.
@@ -442,6 +527,21 @@ class Unresolved extends Error {
 const propertyName = (member) =>
   !member.computed ? member.property.name : typeof member.property.value === "string" ? member.property.value : null;
 
+// The variable that holds the function node `fn` and only it: a function
+// declaration's name, or a declarator initialized with it and never
+// written again. Null for any other function.
+function functionBinding(entry, parents, fn) {
+  if (fn.type === "FunctionDeclaration") {
+    const v = fn.id && entry.decls.get(fn.id.start);
+    return v && v.defs.length === 1 && !v.references.some((r) => r.isWrite()) ? v : null;
+  }
+  if (fn.id) return null;
+  const holder = parents.get(fn);
+  if (holder?.type !== "VariableDeclarator" || holder.init !== fn || holder.id.type !== "Identifier") return null;
+  const v = entry.decls.get(holder.id.start);
+  return v && v.defs.length === 1 && v.references.every((r) => !r.isWrite() || r.identifier === holder.id) ? v : null;
+}
+
 // The two values `Flow.values` lists that are no function.
 const uncallable = (value) => value === "undefined" || value === "uncallable";
 // Whether one of `values` may be undefined: an imported binding may be,
@@ -692,19 +792,8 @@ class Flow {
     }
   }
 
-  // The variable that holds the function node `fn` and only it: a function
-  // declaration's name, or a declarator initialized with it and never
-  // written again. Null for any other function.
   binding(fn) {
-    if (fn.type === "FunctionDeclaration") {
-      const v = fn.id && this.entry.decls.get(fn.id.start);
-      return v && v.defs.length === 1 && !v.references.some((r) => r.isWrite()) ? v : null;
-    }
-    if (fn.id) return null;
-    const holder = this.parents.get(fn);
-    if (holder?.type !== "VariableDeclarator" || holder.init !== fn || holder.id.type !== "Identifier") return null;
-    const v = this.entry.decls.get(holder.id.start);
-    return v && v.defs.length === 1 && v.references.every((r) => !r.isWrite() || r.identifier === holder.id) ? v : null;
+    return functionBinding(this.entry, this.parents, fn);
   }
 
   // Every value `node` can evaluate to: "undefined", "uncallable" (any
@@ -929,7 +1018,7 @@ function flow(req) {
     if (!(e instanceof Unresolved)) throw e;
     return { ok: true, safe: false, reason: e.message, at: e.at };
   }
-  return { ok: true, safe: true, exits: walk.exits, trusted: [...walk.trusted].sort() };
+  return { ok: true, safe: true, exits: walk.exits, trusted: [...new Set([...walk.trusted, ...entry.folds])].sort() };
 }
 
 // The file name a module specifier ends in; loads match files by it.
@@ -971,11 +1060,13 @@ const isImportMeta = (n) => n?.type === "MetaProperty" && n.meta.name === "impor
 // escaping) could reach the export unseen and throws Unresolved. A promise
 // or a record on the way holds it only through the built-ins the walk
 // names in `trusted`; `thenable` is whether a promise resolves with the
-// namespace, which reads its `then` export.
+// namespace, which reads its `then` export. `loaders` maps each call of a
+// named loader with a literal specifier to the file it loads.
 class Namespace {
-  constructor(entry, name) {
+  constructor(entry, name, loaders) {
     this.entry = entry;
     this.name = name;
+    this.loaders = loaders;
     this.parents = parentsOf(entry);
     this.trusted = new Set();
     this.thenable = false;
@@ -1004,7 +1095,7 @@ class Namespace {
       const callee = node.callee;
       const bare = callee.type === "Identifier" && !this.entry.refs.get(callee.start)?.resolved;
       const meta = callee.type === "MemberExpression" && isImportMeta(callee.object) && !callee.computed;
-      if (!bare && !meta) throw new Unresolved("a require through a binding or object", node.start);
+      if (!bare && !meta && !this.loaders.has(node)) throw new Unresolved("a require through a binding or object", node.start);
       if (meta) this.importMetaIntact();
       this.trusted.add("require");
       return this.value(node);
@@ -1227,9 +1318,10 @@ class Namespace {
   }
 }
 
-// {"op":"namespace","module":key,"source"?:...,"file":F,"name":Z}
-//   Whether every place the module loads the file F whole reaches no read
-//   of the export Z other than through the walk above.
+// {"op":"namespace","module":key,"source"?:...,"file":F,"name":Z,"loaders"?:[...]}
+//   Whether every place the module loads the file F whole, a named
+//   loader's call included (`loaders` as `loads` takes them), reaches no
+//   read of the export Z other than through the walk above.
 //   -> {"safe":true,"sites":n,"trusted":[...],"thenable":bool}
 //   -> {"safe":false,"reason":"...","at":offset|null}
 function namespace(req) {
@@ -1240,13 +1332,20 @@ function namespace(req) {
   if (entry === null) return { ok: true, need_source: true };
   if (entry.error) return { ok: true, safe: false, reason: `the module does not parse: ${entry.error}`, at: null };
   if (entry.evals) return { ok: true, safe: false, reason: "the module calls eval directly", at: null };
-  const walk = new Namespace(entry, req.name);
+  const named = new Map();
+  for (const [node, spec] of loaderUses(entry, loaderNames(req)).uses) if (spec !== null) named.set(node, fileName(spec));
+  const walk = new Namespace(entry, req.name, named);
+  const paramSpecs = paramSpecsOf(entry);
   let sites = 0;
   try {
     const stack = [entry.ast];
     while (stack.length) {
       const node = stack.pop();
-      if (loadedFile(node) === req.file) {
+      // The walk does not follow a load through its specifier's parameter.
+      if (isRequire(node) && paramSpecs(node.arguments[0])?.some((s) => fileName(s) === req.file)) {
+        return { ok: true, safe: false, reason: "a parameter's caller names the file", at: node.start };
+      }
+      if ((named.get(node) ?? loadedFile(node)) === req.file) {
         sites++;
         walk.site(node);
       }
@@ -1262,7 +1361,7 @@ function namespace(req) {
     if (!(e instanceof Unresolved)) throw e;
     return { ok: true, safe: false, reason: e.message, at: e.at };
   }
-  return { ok: true, safe: true, sites, trusted: [...walk.trusted].sort(), thenable: walk.thenable };
+  return { ok: true, safe: true, sites, trusted: [...new Set([...walk.trusted, ...entry.folds])].sort(), thenable: walk.thenable };
 }
 
 // The name a member or property key spells: `x.k`, `x["k"]`, and
@@ -1276,6 +1375,12 @@ function keyName(key, computed) {
   }
   return null;
 }
+
+// Whether an object literal property is an own `__proto__` property: every
+// form but `__proto__:v` or `"__proto__":v`, which set the literal's
+// prototype instead.
+const ownProto = (p) =>
+  p.type === "Property" && keyName(p.key, p.computed) === "__proto__" && (p.computed || p.shorthand || p.method || p.kind !== "init");
 
 const SINK_LIMIT = 20;
 // A computed key known to be a number, which no trusted name spells.
@@ -1385,6 +1490,9 @@ const isDefinerHome = (n) =>
   (n?.type === "Identifier" && (n.name === "Object" || n.name === "Reflect")) ||
   (n?.type === "MemberExpression" && ["Object", "Reflect"].includes(memberName(n)));
 
+// The name a definer home (`isDefinerHome`) goes by.
+const homeName = (n) => (n.type === "Identifier" ? n.name : memberName(n));
+
 // A built-in that defines properties on an object it is given, with how
 // it takes the key: Object.defineProperty/defineProperties/assign/
 // setPrototypeOf, Reflect.defineProperty/set/setPrototypeOf, and
@@ -1393,7 +1501,11 @@ function definerOf(n) {
   const name = memberName(n);
   if (name === "__defineGetter__" || name === "__defineSetter__") return { name, receiver: true, keyed: false };
   if (n?.type !== "MemberExpression" || !isDefinerHome(n.object)) return null;
-  const home = n.object.type === "Identifier" ? n.object.name : memberName(n.object);
+  return definerNamed(homeName(n.object), name);
+}
+
+// The definer `home`'s method `name` is, as `definerOf` describes it, or null.
+function definerNamed(home, name) {
   if (home === "Object" && ["defineProperty", "defineProperties", "assign", "setPrototypeOf"].includes(name)) {
     return { name, receiver: false, keyed: name === "defineProperty" };
   }
@@ -1401,6 +1513,342 @@ function definerOf(n) {
     return { name, receiver: false, keyed: name !== "setPrototypeOf" };
   }
   return null;
+}
+
+// The statics of `Object` and `Reflect` that define nothing and hand out
+// no code to run, which a declarator may destructure freely; any other
+// key (`__defineGetter__`, `constructor`) is a definer escape. `Reflect.get`
+// and `getOwnPropertyDescriptor(s)` are not inert: each reads a definer off
+// a prototype (`g(Array.prototype,"__defineGetter__")`, `.value`) for a
+// call the scan does not follow.
+const INERT_STATICS = new Set([
+  "getPrototypeOf",
+  "getOwnPropertyNames",
+  "getOwnPropertySymbols",
+  "keys",
+  "values",
+  "entries",
+  "create",
+  "hasOwn",
+  "is",
+  "isExtensible",
+  "isFrozen",
+  "isSealed",
+  "freeze",
+  "seal",
+  "preventExtensions",
+  "fromEntries",
+  "has",
+  "ownKeys",
+]);
+
+// What a target needs to be a fresh object: `needs`, the exported
+// parameters every importer must pass a fresh object to (each a JSON
+// [name, index]), and `trusts`, the built-in names it relies on. Null in
+// place of one is a target that may be a built-in prototype.
+const FRESH = { needs: new Set(), trusts: new Set() };
+const both = (a, b) => a && b && { needs: new Set([...a.needs, ...b.needs]), trusts: new Set([...a.trusts, ...b.trusts]) };
+const trusting = (f, ...names) => both(f, { needs: new Set(), trusts: new Set(names) });
+const freshReply = (f) => ({ needs: [...f.needs].sort().map((n) => JSON.parse(n)), trusted: [...f.trusts].sort() });
+// The methods of `Object` that return the object they are given.
+const RETURNS_TARGET = new Set(["defineProperty", "defineProperties", "assign", "setPrototypeOf"]);
+// The global constructors that make their object with
+// OrdinaryCreateFromConstructor, so `new` of one, or `super()` in a class
+// extending one, gives a fresh object. `Object` is not one: `new Object(o)`
+// returns `o`.
+const BUILTIN_CONSTRUCTORS = new Set([
+  "Error",
+  "EvalError",
+  "RangeError",
+  "ReferenceError",
+  "SyntaxError",
+  "TypeError",
+  "URIError",
+  "Map",
+  "Set",
+  "WeakMap",
+  "WeakSet",
+]);
+
+// What makes a target in the analyzed module `entry` (`analyze`) a fresh
+// object, which no write can make a built-in prototype: a function from a
+// node to its freshness (FRESH, `both`) or null. Fresh are a literal, a
+// function or class expression, `new` of a class the module declares or
+// of a built-in constructor by its global name (trusting that name), a
+// call of the global `Object.create` (trusting `Object` and `create`,
+// either of which can be replaced first), what an Object definer returns
+// given a fresh object (trusting `Object` and its name), `this` in the
+// constructor of a class with no superclass or a built-in one (trusting
+// its name) or in a function only ever bound to a fresh object (trusting
+// `bind`), the own `prototype` of a function or class, a `?:` with both
+// branches fresh, and a variable only ever holding one of those. A
+// parameter never written holds what each call passes.
+function freshnessOf(entry) {
+  const parents = parentsOf(entry);
+  const variable = (id) => entry.refs.get(id.start)?.resolved ?? null;
+  const onlyInit = (v) => v.references.every((r) => !r.isWrite() || r.identifier === v.defs[0].name);
+  // The method of the global `Object` that `node` reads, directly or
+  // through a variable only ever holding it (`var c=Object.create`,
+  // `var{create:c}=Object`), or null.
+  const objectMethod = (node) => {
+    const isObject = (n) => n?.type === "Identifier" && n.name === "Object" && entry.refs.get(n.start)?.resolved === null;
+    if (node.type === "MemberExpression") return isObject(node.object) ? memberName(node) : null;
+    const v = node.type === "Identifier" ? variable(node) : null;
+    const def = v?.defs.length === 1 ? v.defs[0] : null;
+    if (def?.type !== "Variable" || def.node.init === null || !onlyInit(v)) return null;
+    if (def.node.id === def.name) return def.node.init.type === "MemberExpression" ? objectMethod(def.node.init) : null;
+    const prop = parents.get(def.name);
+    const own = prop?.type === "Property" && prop.value === def.name && parents.get(prop) === def.node.id;
+    return own && isObject(def.node.init) ? keyName(prop.key, prop.computed) : null;
+  };
+  // Every name the module exports `v` under, "default" included.
+  const exportNames = (v) => {
+    const def = v.defs[0];
+    const holder = parents.get(def.type === "Variable" ? def.parent : def.node);
+    const names = holder?.type === "ExportNamedDeclaration" ? [v.name] : holder?.type === "ExportDefaultDeclaration" ? ["default"] : [];
+    for (const r of v.references) {
+      const spec = parents.get(r.identifier);
+      if (spec?.type === "ExportSpecifier" && spec.local === r.identifier) names.push(spec.exported.name ?? spec.exported.value);
+    }
+    return names;
+  };
+  // The built-in constructor `node` names by its unshadowed global name, or null.
+  const builtinNamed = (node) =>
+    node?.type === "Identifier" && BUILTIN_CONSTRUCTORS.has(node.name) && entry.refs.get(node.start)?.resolved === null ? node.name : null;
+  // A reference to a class that hands it to other code only where `fresh`
+  // clears nothing: a `new` of it (`new.target`, an instance's
+  // `constructor`), a named member read that writes nothing or the right of
+  // `instanceof` (`this` in a getter or method), a superclass, or an
+  // `export{...}` (an importer's binding). A prototype swap on the class
+  // there is a sink.
+  const classUse = (id) => {
+    const p = parents.get(id);
+    switch (p?.type) {
+      case "NewExpression":
+        return p.callee === id;
+      case "BinaryExpression":
+        return p.operator === "instanceof" && p.right === id;
+      case "ClassDeclaration":
+      case "ClassExpression":
+        return p.superClass === id;
+      case "ExportSpecifier":
+        return p.local === id;
+      case "MemberExpression": {
+        const up = parents.get(p);
+        const written = isTarget(parents, p) || up?.type === "UpdateExpression" || (up?.type === "UnaryExpression" && up.operator === "delete");
+        return p.object === id && memberName(p) !== null && !written;
+      }
+      default:
+        return false;
+    }
+  };
+  // Whether a swap of the class `cls`'s own prototype is always a sink: it
+  // is a declaration or a plain declarator's class, never written again,
+  // and every reference to it is a `classUse`. Any other reference (an
+  // argument, an alias) could hand it to `Object.setPrototypeOf` or
+  // `__proto__=` as a target `fresh` clears.
+  const unswapped = (cls) => {
+    const holder = parents.get(cls);
+    const declarator = holder?.type === "VariableDeclarator" && holder.init === cls && holder.id.type === "Identifier" ? holder : null;
+    if (cls.type !== "ClassDeclaration" && declarator === null) return false;
+    const vars = [...entry.manager.getDeclaredVariables(cls), ...(declarator ? entry.manager.getDeclaredVariables(declarator) : [])];
+    return vars.every((v) => v.defs.length === 1 && v.references.every((r) => (r.isWrite() ? r.identifier === v.defs[0].name : classUse(r.identifier))));
+  };
+  // A class extending a built-in constructor (`class Q extends Error`):
+  // `super()` constructs with the class's own prototype, so it makes a
+  // fresh object while that is still the built-in (`unswapped`), trusting
+  // the name. Null for any other superclass.
+  const extendsBuiltin = (cls) => {
+    const name = builtinNamed(cls.superClass);
+    return name !== null && unswapped(cls) ? trusting(FRESH, name) : null;
+  };
+  // A class declared in the module and never replaced, with no superclass
+  // or a built-in one (any other derived class's instance is whatever
+  // `super()` returns) and no constructor returning a value in place of
+  // the instance: what `new` of it makes, or null.
+  const ownClass = (callee) => {
+    const v = callee.type === "Identifier" ? variable(callee) : null;
+    const def = v?.defs.length === 1 && onlyInit(v) ? v.defs[0] : null;
+    const cls = def?.type === "ClassName" ? def.node : def?.type === "Variable" && def.node.id === def.name ? def.node.init : null;
+    if (cls?.type !== "ClassDeclaration" && cls?.type !== "ClassExpression") return null;
+    const made = cls.superClass === null ? FRESH : extendsBuiltin(cls);
+    const ctor = cls.body.body.find((m) => m.kind === "constructor");
+    const stack = made && ctor ? [ctor.value.body] : [];
+    while (stack.length) {
+      const node = stack.pop();
+      if (node.type === "ReturnStatement" && node.argument !== null) return null;
+      if (FUNCTIONS.has(node.type)) continue;
+      for (const key of Object.keys(node)) {
+        const child = node[key];
+        for (const c of Array.isArray(child) ? child : [child]) if (c && typeof c.type === "string") stack.push(c);
+      }
+    }
+    return made;
+  };
+  // The assignment `v=...` writing `id`, when it runs before every read of
+  // `v`: a plain `=` inside nothing but sequences and declarations, in a
+  // statement directly in the block of `v`'s scope, every read coming
+  // later in that same function.
+  const assignedFirst = (v, id) => {
+    const set = parents.get(id);
+    if (set?.type !== "AssignmentExpression" || set.operator !== "=" || set.left !== id) return null;
+    const block = v.scope.block;
+    const statements = FUNCTIONS.has(block.type) ? block.body.body : block.body;
+    if (!Array.isArray(statements)) return null;
+    for (let node = set; !statements.includes(node); node = parents.get(node)) {
+      const up = parents.get(node);
+      const through = ["SequenceExpression", "ExpressionStatement", "VariableDeclaration"].includes(up?.type) || (up?.type === "VariableDeclarator" && up.init === node);
+      if (!through) return null;
+    }
+    // Any other write, a loop head's (`for(var v of a)`) included, rules it out.
+    const later = (r) => r.identifier === id || (!r.isWrite() && r.from.variableScope === v.scope.variableScope && r.identifier.start >= set.end);
+    const param = v.defs[0].type === "Parameter";
+    return v.references.every(later) && !(param && aliased(block)) ? set : null;
+  };
+  // Whether sloppy code could change a parameter of the function `fn`
+  // unseen, through `arguments` (an arrow's `arguments` is its caller's).
+  const aliased = (fn) => {
+    if (fn.type === "ArrowFunctionExpression") return false;
+    const scope = entry.manager.acquire(fn, true);
+    return !scope || scope.set.get("arguments")?.references.length > 0;
+  };
+  // A function declaration in a block, which sloppy code also binds outside it.
+  const inBlock = (fn) => {
+    const holder = parents.get(fn);
+    return fn.type === "FunctionDeclaration" && !["Program", "ExportNamedDeclaration"].includes(holder?.type) && !FUNCTIONS.has(parents.get(holder)?.type);
+  };
+  const passed = new Map();
+  // Parameter `index` of the function `fn`, never written: what every call
+  // passes, when `fn` is bound to a plain name and used only by direct
+  // calls and exports. Each name it is exported under needs every
+  // importer's call to pass a fresh object too.
+  const passedTo = (fn, index, depth) => {
+    const key = `${fn.start}:${index}`;
+    if (passed.has(key)) return passed.get(key);
+    passed.set(key, null);
+    const v = inBlock(fn) || aliased(fn) ? null : functionBinding(entry, parents, fn);
+    const names = v && exportNames(v);
+    let out = names && !names.includes("default") ? { needs: new Set(names.map((n) => JSON.stringify([n, index]))), trusts: new Set() } : null;
+    for (const r of out ? v.references : []) {
+      const call = parents.get(r.identifier);
+      if (r.isWrite() || (call?.type === "ExportSpecifier" && call.local === r.identifier)) continue;
+      const direct = call?.type === "CallExpression" && call.callee === r.identifier && !call.arguments.slice(0, index + 1).some((a) => a.type === "SpreadElement");
+      const arg = direct ? call.arguments[index] : undefined;
+      out = arg === undefined ? null : both(out, fresh(arg, depth + 1));
+      if (out === null) break;
+    }
+    passed.set(key, out);
+    return out;
+  };
+  const bound = new Map();
+  // `this` in the function `fn`, when every reference to `fn` binds it to
+  // a fresh object (`r.bind(o,...)`): the bound function's `this` stays
+  // `o` however it is called.
+  const boundThis = (fn, depth) => {
+    if (bound.has(fn)) return bound.get(fn);
+    bound.set(fn, null);
+    const v = inBlock(fn) ? null : functionBinding(entry, parents, fn);
+    let out = v && exportNames(v).length === 0 ? trusting(FRESH, "bind") : null;
+    for (const r of out ? v.references : []) {
+      if (r.isWrite()) continue;
+      const member = parents.get(r.identifier);
+      const call = parents.get(member);
+      const binds = call?.type === "CallExpression" && call.callee === member && member.object === r.identifier && memberName(member) === "bind";
+      const to = binds ? call.arguments[0] : undefined;
+      out = to === undefined || to.type === "SpreadElement" ? null : both(out, fresh(to, depth + 1));
+      if (out === null) break;
+    }
+    bound.set(fn, out);
+    return out;
+  };
+  const fresh = (node, depth = 0) => {
+    if (depth > 8) return null;
+    switch (node.type) {
+      case "ObjectExpression":
+      case "ArrayExpression":
+      case "FunctionExpression":
+      case "ArrowFunctionExpression":
+      case "ClassExpression":
+        return FRESH;
+      // Replacing a built-in's global name replaces what `new` of it makes.
+      case "NewExpression": {
+        const name = builtinNamed(node.callee);
+        return name !== null ? trusting(FRESH, name) : ownClass(node.callee);
+      }
+      // Replacing `Object` itself replaces the method too.
+      case "CallExpression": {
+        const name = objectMethod(node.callee);
+        if (name === "create") return trusting(FRESH, "Object", name);
+        const target = node.arguments[0];
+        const given = RETURNS_TARGET.has(name) && target !== undefined && target.type !== "SpreadElement";
+        return given ? trusting(fresh(target, depth + 1), "Object", name) : null;
+      }
+      case "ConditionalExpression": {
+        const consequent = fresh(node.consequent, depth + 1);
+        return consequent && both(consequent, fresh(node.alternate, depth + 1));
+      }
+      case "ThisExpression": {
+        let fn = parents.get(node);
+        while (fn && (!FUNCTIONS.has(fn.type) || fn.type === "ArrowFunctionExpression")) {
+          // A field initializer's `this` is the instance, which a derived class takes from `super()`.
+          if (fn.type === "PropertyDefinition" || fn.type === "StaticBlock") return null;
+          fn = parents.get(fn);
+        }
+        const holder = fn && parents.get(fn);
+        if (holder?.type !== "MethodDefinition") return fn ? boundThis(fn, depth) : null;
+        if (holder.kind !== "constructor") return null;
+        // A derived class's `this` is what `super()` returns, which can be
+        // any object unless the superclass is a built-in.
+        const cls = parents.get(parents.get(holder));
+        if (cls === undefined) return null;
+        return cls.superClass === null ? FRESH : extendsBuiltin(cls);
+      }
+      case "Identifier": {
+        const v = variable(node);
+        if (v?.defs.length !== 1) return null;
+        const def = v.defs[0];
+        if (def.type === "FunctionName" || def.type === "ClassName") return v.references.some((r) => r.isWrite()) ? null : FRESH;
+        const writes = v.references.filter((r) => r.isWrite() && r.identifier !== def.name);
+        const plain = def.type === "Parameter" || (def.type === "Variable" && def.node.id === def.name);
+        if (!plain || writes.length > 1) return null;
+        if (def.type === "Variable" && def.node.init !== null) return writes.length === 0 ? fresh(def.node.init, depth + 1) : null;
+        if (writes.length === 1) {
+          const set = assignedFirst(v, writes[0].identifier);
+          return set && fresh(set.right, depth + 1);
+        }
+        const index = def.type === "Parameter" ? def.node.params.indexOf(def.name) : -1;
+        return index < 0 || def.node.params.slice(0, index).some((p) => p.type === "RestElement") ? null : passedTo(def.node, index, depth);
+      }
+      case "MemberExpression": {
+        if (memberName(node) !== "prototype" || node.object.type !== "Identifier") return null;
+        const v = variable(node.object);
+        if (v?.defs.length !== 1) return null;
+        const def = v.defs[0];
+        const own =
+          ((def.type === "FunctionName" || def.type === "ClassName") && !v.references.some((r) => r.isWrite())) ||
+          (def.type === "Variable" &&
+            def.node.id === def.name &&
+            ["FunctionExpression", "ClassExpression"].includes(def.node.init?.type) &&
+            onlyInit(v));
+        // F.prototype stays the object F was made with only when nothing can
+        // reach F to replace it. Every reference must be `F.prototype.k` with
+        // a named key other than `constructor`: a call or `new` makes an
+        // instance whose `.constructor` is F, and `F.prototype.constructor`
+        // is F itself, either of which can set `F.prototype`.
+        const intact = (r) => {
+          if (r.isWrite()) return r.identifier === def.name;
+          const m = parents.get(r.identifier);
+          const use = m && parents.get(m);
+          const key = use?.type === "MemberExpression" && use.object === m ? memberName(use) : null;
+          return m?.type === "MemberExpression" && m.object === r.identifier && memberName(m) === "prototype" && key !== null && key !== "constructor";
+        };
+        return own && v.references.every(intact) ? FRESH : null;
+      }
+      default:
+        return null;
+    }
+  };
+  return fresh;
 }
 
 // {"op":"sinks","module":key,"source"?:...,"names":[...]}
@@ -1418,113 +1866,119 @@ function definerOf(n) {
 //     `Reflect.set(o,"some",f)`, or any other callee that may pass it on);
 //   - an object literal holding one of the names given to `assign`,
 //     `defineProperties`, `setPrototypeOf` or `defineProperty`;
-//   - a prototype swap: a `__proto__` write or `setPrototypeOf` call,
-//     which can put any object's properties on the chain;
+//   - a prototype swap: a `__proto__` write, `Reflect.set` given the key
+//     `__proto__`, an own `__proto__` property given to `Object.assign`, or
+//     a `setPrototypeOf` call, which can put any object's properties on the
+//     chain;
 //   - a write to an undeclared (global) name that is one of the names;
 //   - code run from a string through node:vm: any load of the vm module
 //     except an import naming only `isContext`, and a vm runner's name
 //     (`runInThisContext`, `runInNewContext`, ...) read from any object;
-//   - a load the scan cannot name (`unknownLoad`), which may load node:vm;
+//   - a load the scan cannot name (`unknownLoad`, and a use of a named
+//     loader other than a call with a literal specifier, given `loaders`
+//     as `loads` takes them), which may load node:vm;
 //   - the global `Function` used other than for `typeof`, `instanceof` or
 //     a `.prototype` read that stays clear of `constructor` (`prototypeOnly`),
 //     except a build whose result is discarded and a
 //     direct call whose every argument folds to a constant string and
-//     whose code, scanned the same way, hits nothing (`unrunOrClean`).
-//   A target is cleared only when it is provably a fresh object: a
-//   literal, a function, `this` in a class
-//   constructor, a variable only ever holding one of those, or the
-//   `prototype` of a function or class declared in the module that is
-//   never replaced. `Function` counts as one of the names, since the
+//     whose code, scanned the same way, hits nothing (`unrunOrClean`);
+//   - a definer read other than as a direct callee, including through an
+//     alias of `Object` or `Reflect`; a declarator destructuring them is
+//     no alias when each definer it takes (`var{defineProperty:f}=Object`)
+//     is a variable never written again and only ever called, each call
+//     then checked as a definer's;
+//   - a read of `constructor`, by name, by a computed key that may spell
+//     it or as a destructured key, since a function's `constructor` is
+//     the Function constructor (`(()=>1).constructor("code")()`), except
+//     a read whose value can never be called (`constructorInert`).
+//   A target is cleared only when it is provably a fresh object
+//   (`freshnessOf`). `Function` counts as one of the names, since the
 //   folded calls trust it: a write of it anywhere is a sink of its own
-//   (as an argument, only to a definer).
+//   (as an argument, only to a definer, as are `Object` and the built-in
+//   constructors).
 //   -> {"hits":[[kind, name|null, offset], ...]} (at most SINK_LIMIT); a
-//      module that does not parse or calls `eval` directly is one hit.
+//      module that does not parse or calls `eval` directly is one hit,
+//      except a direct `eval` that only reads an identifier (`foldEvals`),
+//      read as that identifier, whose fold adds its built-ins to "trusted".
+//      "pending" holds the hits on a target that is fresh only if every
+//      importer passes fresh objects, each [kind, name|null, offset,
+//      [[export, index], ...]], for the caller to check (`fresh_args`);
+//      "trusted" lists the names the cleared targets relied on, which the
+//      caller must check every module for too.
 function sinks(req) {
   if (typeof req.module !== "string" || !Array.isArray(req.names)) {
     return { ok: false, error: "sinks needs a string `module` and a `names` list" };
   }
   const entry = moduleFor(req);
   if (entry === null) return { ok: true, need_source: true };
-  return { ok: true, hits: sinkHits(entry, new Set([...req.names, "Function"]), 0) };
+  return { ok: true, ...sinkHits(entry, new Set([...req.names, "Function"]), 0, loaderNames(req)) };
 }
 
 // How deep a folded `Function` body that builds another is followed.
 const FOLD_DEPTH = 4;
 
-// The `sinks` hits for an analyzed module (`analyze`), or for code a
-// `Function` call folded to, `depth` folds down.
-function sinkHits(entry, names, depth) {
-  if (entry.error) return [["unparsed", null, 0]];
-  if (entry.evals) return [["eval", null, 0]];
+// The `sinks` reply for an analyzed module (`analyze`), or for code a
+// `Function` call folded to, `depth` folds down; `loaders` as
+// `loaderNames` reads them.
+function sinkHits(entry, names, depth, loaders = new Set()) {
+  if (entry.error) return { hits: [["unparsed", null, 0]], pending: [], trusted: [] };
+  if (entry.evals) return { hits: [["eval", null, 0]], pending: [], trusted: [] };
   const parents = parentsOf(entry);
   const hits = [];
   const hit = (kind, name, node) => hits.length < SINK_LIMIT && hits.push([kind, name, node.start]);
+  const held = loaderUses(entry, loaders);
+  for (const [node, spec] of held.uses) {
+    if (spec === null) hit("unknown-load", null, node);
+    else if (VM_SPECIFIERS.has(spec)) hit("vm-string-code", null, node);
+  }
   const variable = (id) => entry.refs.get(id.start)?.resolved ?? null;
   const onlyInit = (v) => v.references.every((r) => !r.isWrite() || r.identifier === v.defs[0].name);
-  const fresh = (node, depth = 0) => {
-    if (depth > 8) return false;
-    switch (node.type) {
-      case "ObjectExpression":
-      case "ArrayExpression":
-      case "FunctionExpression":
-      case "ArrowFunctionExpression":
-      case "ClassExpression":
-        return true;
-      // No call is fresh: even `Object.create(...)` can be replaced first
-      // (`Object.create=()=>Array.prototype`).
-      case "ThisExpression": {
-        let fn = parents.get(node);
-        while (fn && (!FUNCTIONS.has(fn.type) || fn.type === "ArrowFunctionExpression")) fn = parents.get(fn);
-        const holder = fn && parents.get(fn);
-        if (holder?.type !== "MethodDefinition" || holder.kind !== "constructor") return false;
-        // A derived class's `this` is what `super()` returns, which can be any object.
-        const cls = parents.get(parents.get(holder));
-        return cls !== undefined && cls.superClass === null;
-      }
-      case "Identifier": {
-        const v = variable(node);
-        if (v?.defs.length !== 1) return false;
-        const def = v.defs[0];
-        if (def.type === "FunctionName" || def.type === "ClassName") return !v.references.some((r) => r.isWrite());
-        return def.type === "Variable" && def.node.id === def.name && def.node.init !== null && onlyInit(v) && fresh(def.node.init, depth + 1);
-      }
-      case "MemberExpression": {
-        if (memberName(node) !== "prototype" || node.object.type !== "Identifier") return false;
-        const v = variable(node.object);
-        if (v?.defs.length !== 1) return false;
-        const def = v.defs[0];
-        const own =
-          ((def.type === "FunctionName" || def.type === "ClassName") && !v.references.some((r) => r.isWrite())) ||
-          (def.type === "Variable" &&
-            def.node.id === def.name &&
-            ["FunctionExpression", "ClassExpression"].includes(def.node.init?.type) &&
-            onlyInit(v));
-        // F.prototype stays the object F was made with only when nothing can
-        // reach F to replace it. Every reference must be `F.prototype.k` with
-        // a named key other than `constructor`: a call or `new` makes an
-        // instance whose `.constructor` is F, and `F.prototype.constructor`
-        // is F itself, either of which can set `F.prototype`.
-        return (
-          own &&
-          v.references.every((r) => {
-            if (r.isWrite()) return r.identifier === def.name;
-            const m = parents.get(r.identifier);
-            const use = m && parents.get(m);
-            const key = use?.type === "MemberExpression" && use.object === m ? memberName(use) : null;
-            return (
-              m?.type === "MemberExpression" &&
-              m.object === r.identifier &&
-              memberName(m) === "prototype" &&
-              key !== null &&
-              key !== "constructor"
-            );
-          })
-        );
-      }
-      default:
-        return false;
+  const fresh = freshnessOf(entry);
+  const pending = [];
+  const trusted = new Set(entry.folds);
+  // `loads` never sees a parameter's callers in code a `Function` call folded to.
+  const paramSpecs = depth === 0 ? paramSpecsOf(entry) : () => null;
+  // Counts each of `found` ([kind, name, node]) unless every one of
+  // `targets` is fresh. Cleared, the hits leave their trusted names; on
+  // a target fresh only through importers they wait in `pending`.
+  const unlessFresh = (found, targets) => {
+    if (found.length === 0) return;
+    let f = FRESH;
+    for (const t of targets) f = f && (t === undefined || t.type === "SpreadElement" ? null : both(f, fresh(t)));
+    if (f === null) {
+      for (const [kind, name, node] of found) hit(kind, name, node);
+      return;
+    }
+    for (const name of f.trusts) trusted.add(name);
+    if (f.needs.size === 0) return;
+    const { needs } = freshReply(f);
+    for (const [kind, name, node] of found) {
+      if (pending.length < SINK_LIMIT) pending.push([kind, name, node.start, needs]);
+      else hit(kind, name, node);
     }
   };
+  // The definer a callee is, read directly (`definerOf`) or through a key
+  // destructured from `Object` or `Reflect`.
+  const definerAt = (callee) => {
+    if (callee.type !== "Identifier") return definerOf(callee);
+    const def = variable(callee)?.defs[0];
+    const prop = def?.type === "Variable" ? parents.get(def.name) : null;
+    if (prop?.type !== "Property" || prop.value !== def.name || parents.get(prop) !== def.node.id || !isDefinerHome(def.node.init)) return null;
+    return definerNamed(homeName(def.node.init), keyName(prop.key, prop.computed));
+  };
+  // Whether every definer the declarator `d` destructures from `Object` or
+  // `Reflect` is a variable never written again and only ever called, and
+  // every other key it takes is inert (`INERT_STATICS`); a computed key or
+  // a rest element may take anything.
+  const onlyCalled = (d) =>
+    d.id.properties.every((p) => {
+      if (p.type !== "Property" || p.computed) return false;
+      const key = keyName(p.key, false);
+      if (definerNamed(homeName(d.init), key) === null) return INERT_STATICS.has(key);
+      const v = p.value.type === "Identifier" ? entry.decls.get(p.value.start) : null;
+      const called = (r) => parents.get(r.identifier)?.type === "CallExpression" && parents.get(r.identifier).callee === r.identifier;
+      return v?.defs.length === 1 && onlyInit(v) && v.references.every((r) => r.isWrite() || called(r));
+    });
   // `Promise=f` in a module replaces the global binding a trusted
   // `Promise.all` reads.
   for (const ref of entry.manager.globalScope.through) {
@@ -1574,13 +2028,42 @@ function sinkHits(entry, names, depth) {
       (["IfStatement", "WhileStatement", "DoWhileStatement", "ForStatement", "ConditionalExpression"].includes(end?.type) && end.test === top)
     );
   };
-  // Whether the value of `n` is thrown away: an expression statement, or a
-  // sequence operand other than the last (`try{return new Function(""),!0}`).
+  // Whether the value of `n` is thrown away: an expression statement, a
+  // sequence operand other than the last (`try{return new Function(""),!0}`),
+  // or a branch of a conditional or the right operand of a logical
+  // expression whose own value is thrown away (`r ? o.constructor : null;`).
   const discarded = (n) => {
     const p = parents.get(n);
     if (p?.type === "ExpressionStatement") return true;
     if (p?.type === "SequenceExpression") return p.expressions.at(-1) !== n || discarded(p);
+    if (p?.type === "ConditionalExpression") return p.test !== n && discarded(p);
+    if (p?.type === "LogicalExpression") return p.right === n && discarded(p);
     return p?.type === "ChainExpression" && discarded(p);
+  };
+  // Whether the property key `key` may be `constructor`.
+  const maySpellConstructor = (key, computed) => {
+    const name = keyName(key, computed);
+    const keys = name === null ? keyValues(key) : new Set([name]);
+    return keys === null || keys.has("constructor");
+  };
+  // Whether the `constructor` read as `node` is only discarded, tested,
+  // compared by identity, the right of `instanceof`, or followed by a
+  // `name` read or a plain `prototype` write: none of these calls it or
+  // coerces it, which would call a `valueOf` or `toString` with it as
+  // `this`. A Function constructor owns `name` and `prototype`, so no
+  // inherited getter or setter runs on it either.
+  const constructorInert = (node) => {
+    let top = node;
+    while (parents.get(top)?.type === "ChainExpression") top = parents.get(top);
+    const end = parents.get(top);
+    if (end?.type === "MemberExpression" && end.object === top) {
+      const by = parents.get(end);
+      const plainWrite = by?.type === "AssignmentExpression" && by.operator === "=" && by.left === end;
+      return memberName(end) === "name" ? !isTarget(parents, end) : memberName(end) === "prototype" && plainWrite;
+    }
+    if (end?.type === "BinaryExpression") return end.operator === "===" || end.operator === "!==" || (end.operator === "instanceof" && end.right === top);
+    if (end?.type === "UnaryExpression") return ["typeof", "!", "void", "delete"].includes(end.operator);
+    return discarded(top) || onlyTested(parents, top);
   };
   // `Function(...)` and `new Function(...)` build a function from strings
   // and run none of its body; only a call runs it. So the global
@@ -1600,7 +2083,10 @@ function sinkHits(entry, names, depth) {
     const parts = built.arguments.map(literalString);
     if (parts.some((s) => s === null || s.includes("<!--") || s.includes("-->"))) return false;
     const body = parts.pop() ?? "";
-    return sinkHits(analyze(`(function(${parts.join(",")}\n) {\n${body}\n})`), names, depth + 1).length === 0;
+    const folded = sinkHits(analyze(`(function(${parts.join(",")}\n) {\n${body}\n})`), names, depth + 1);
+    if (folded.hits.length > 0 || folded.pending.length > 0) return false;
+    for (const name of folded.trusted) trusted.add(name);
+    return true;
   };
   const stack = [entry.ast];
   while (stack.length && hits.length < SINK_LIMIT) {
@@ -1613,45 +2099,55 @@ function sinkHits(entry, names, depth) {
         (holder?.type === "UnaryExpression" && holder.operator === "delete");
       if (written) {
         const key = keyName(node.property, node.computed);
-        if (key === "__proto__") {
-          if (!fresh(node.object)) hit("proto-swap", key, node);
-        } else if (key === null) {
-          const spelled = fresh(node.object) ? [] : keyNames(node.property);
-          if (spelled === null) hit("computed-write", null, node);
-          else for (const n of spelled) hit("write", n, node);
-        } else if (names.has(key) && !fresh(node.object)) {
-          hit("write", key, node);
+        const found = [];
+        if (key === "__proto__") found.push(["proto-swap", key, node]);
+        else if (key !== null) {
+          if (names.has(key)) found.push(["write", key, node]);
+        } else {
+          const spelled = keyNames(node.property);
+          if (spelled === null) found.push(["computed-write", null, node]);
+          else for (const n of spelled) found.push(["write", n, node]);
         }
+        unlessFresh(found, [node.object]);
       }
     } else if (node.type === "CallExpression") {
-      const definer = definerOf(node.callee);
-      const target = definer?.receiver ? node.callee.object : node.arguments[0];
-      const freshArg = (n) => n !== undefined && n.type !== "SpreadElement" && fresh(n);
-      // Reflect.set(target,key,value,receiver) writes onto `receiver` when one is given.
-      const receiver = definer?.name === "set" && !definer.receiver ? node.arguments[3] : undefined;
-      const freshTarget = definer !== null && freshArg(target) && (receiver === undefined || freshArg(receiver));
+      const definer = definerAt(node.callee);
+      const found = [];
       for (const arg of node.arguments) {
         const key = keyName(arg, true);
-        // `Function` counts only given to a definer: any other callee that
-        // could write it by its parameter is a computed write of its own,
-        // and a type test like underscore's `tagTester("Function")` is no write.
-        if (key !== null && names.has(key) && !freshTarget && (key !== "Function" || definer !== null)) hit("argument", key, arg);
+        // `Function`, `Object` and the built-in constructors count only
+        // given to a definer: any other callee that could write one by its
+        // parameter is a computed write of its own, and a type test like
+        // underscore's `tagTester("Function")` is no write.
+        const builtin = key === "Function" || key === "Object" || BUILTIN_CONSTRUCTORS.has(key);
+        if (key !== null && names.has(key) && (!builtin || definer !== null)) found.push(["argument", key, arg]);
       }
-      if (definer !== null && !freshTarget) {
-        if (definer.name === "setPrototypeOf") hit("proto-swap", null, node);
-        if (node.arguments.some((a) => a.type === "SpreadElement")) hit("computed-define", null, node);
+      if (definer === null) {
+        for (const [kind, name, at] of found) hit(kind, name, at);
+      } else {
+        if (definer.name === "setPrototypeOf") found.push(["proto-swap", null, node]);
+        if (node.arguments.some((a) => a.type === "SpreadElement")) found.push(["computed-define", null, node]);
         const keyArg = definer.receiver ? node.arguments[0] : definer.keyed ? node.arguments[1] : null;
+        // A [[Set]] of `__proto__` runs the `Object.prototype` setter, which
+        // swaps the prototype: `Reflect.set(o,"__proto__",p)`, and an own
+        // `__proto__` property `Object.assign` copies (`{["__proto__"]:p}`).
+        if (definer.name === "set" && keyArg && keyName(keyArg, true) === "__proto__") found.push(["proto-swap", null, node]);
         if (keyArg && keyName(keyArg, true) === null) {
           const spelled = keyNames(keyArg);
-          if (spelled === null) hit("computed-define", null, keyArg);
-          else for (const n of spelled) hit("argument", n, keyArg);
+          if (spelled === null) found.push(["computed-define", null, keyArg]);
+          else for (const n of spelled) found.push(["argument", n, keyArg]);
         }
         if (definer.name === "assign" || definer.name === "defineProperties") {
           for (const arg of node.arguments.slice(1)) {
-            if (arg.type !== "ObjectExpression") hit("computed-define", null, arg);
-            else for (const key of literalNames(arg)) hit(key === null ? "computed-define" : "object-key", key, arg);
+            if (arg.type !== "ObjectExpression") found.push(["computed-define", null, arg]);
+            else for (const key of literalNames(arg)) found.push([key === null ? "computed-define" : "object-key", key, arg]);
+            if (definer.name === "assign" && arg.type === "ObjectExpression" && arg.properties.some(ownProto)) found.push(["proto-swap", null, arg]);
           }
         }
+        const target = definer.receiver ? node.callee.object : node.arguments[0];
+        // Reflect.set(target,key,value,receiver) writes onto `receiver` when one is given.
+        const receiver = definer.name === "set" && !definer.receiver ? node.arguments[3] : undefined;
+        unlessFresh(found, receiver === undefined ? [target] : [target, receiver]);
       }
     }
     // A built-in that defines properties, read other than as a direct
@@ -1687,6 +2183,15 @@ function sinkHits(entry, names, depth) {
     if ((member === "eval" || member === "Function") && !isTarget(parents, node)) {
       hit(member === "eval" ? "indirect-eval" : "function-constructor", null, node);
     }
+    // A function's `constructor` is the Function constructor, so is any
+    // object's `constructor.constructor`, and neither needs the name
+    // `Function` (`(()=>1).constructor("code")()`). A compound write
+    // (`x.constructor+=s`) reads and coerces it first.
+    const overwritten = isTarget(parents, node) && !(holder?.type === "AssignmentExpression" && holder.operator !== "=");
+    const constructorRead =
+      (node.type === "MemberExpression" && !overwritten && maySpellConstructor(node.property, node.computed) && !constructorInert(node)) ||
+      (node.type === "Property" && holder?.type === "ObjectPattern" && maySpellConstructor(node.key, node.computed));
+    if (constructorRead) hit("function-constructor", null, node);
     // node:vm runs strings as code, and even a new context reaches this
     // realm (`this.constructor.constructor("...")()` inside
     // `runInNewContext` patches the outer prototypes). Any load of the vm
@@ -1695,14 +2200,17 @@ function sinkHits(entry, names, depth) {
     if ((VM_RUNNERS.has(member) && !isTarget(parents, node)) || (node.type === "Property" && parents.get(node)?.type === "ObjectPattern" && VM_RUNNERS.has(keyName(node.key, node.computed)))) {
       hit("vm-string-code", null, node);
     }
-    if (VM_SPECIFIERS.has(loadedSpecifier(node))) {
+    const specs = (isRequire(node) ? paramSpecs(node.arguments[0]) : null) ?? [loadedSpecifier(node)];
+    if (specs.some((s) => VM_SPECIFIERS.has(s))) {
       const harmless =
         node.type === "ImportDeclaration" &&
         node.specifiers.every((s) => s.type === "ImportSpecifier" && VM_HARMLESS.has(s.imported.name ?? s.imported.value));
       if (!harmless) hit("vm-string-code", null, node);
     }
-    // A load the scan cannot name may load node:vm.
-    if (unknownLoad(node, holder, keyValues)) hit("unknown-load", null, node);
+    // A load the scan cannot name may load node:vm, and `loads` never sees
+    // one in code a `Function` call folded to.
+    const unseen = depth > 0 && loadedFile(node) !== null;
+    if (unseen || (unknownLoad(node, parents, keyValues, paramSpecs) && !held.cleared.has(node))) hit("unknown-load", null, node);
     if (definerOf(node) !== null && !(holder?.type === "CallExpression" && holder.callee === node)) {
       hit("definer-escape", null, node);
     } else if (isDefinerHome(node) && !(holder?.type === "MemberExpression" && holder.property === node && !holder.computed)) {
@@ -1711,7 +2219,8 @@ function sinkHits(entry, names, depth) {
         ((holder?.type === "CallExpression" || holder?.type === "NewExpression") && holder.callee === node) ||
         holder?.type === "BinaryExpression" ||
         (holder?.type === "UnaryExpression" && holder.operator === "typeof") ||
-        (holder?.type === "Property" && holder.key === node && !holder.computed && holder.value !== node);
+        (holder?.type === "Property" && holder.key === node && !holder.computed && holder.value !== node) ||
+        (holder?.type === "VariableDeclarator" && holder.init === node && holder.id.type === "ObjectPattern" && onlyCalled(holder));
       if (!named && !inert) hit("definer-escape", null, node);
     }
     for (const key of Object.keys(node)) {
@@ -1721,7 +2230,42 @@ function sinkHits(entry, names, depth) {
       }
     }
   }
-  return hits;
+  return { hits, pending, trusted: [...trusted].sort() };
+}
+
+// {"op":"fresh_args","module":key,"source"?:...,"name":Z,"from":path,"index":i}
+//   Whether every use of the export Z the module imports from `from` is a
+//   direct call passing a fresh object (`freshnessOf`) as argument i: the
+//   check a `sinks` "pending" need leaves to each importer.
+//   -> {"fresh":true,"needs":[[export, index], ...],"trusted":[...]}, the
+//      needs those arguments carry on the module's own exports
+//   -> {"fresh":false} for any other use, a re-export of Z, and a module
+//      that does not parse or calls `eval` directly
+function freshArgs(req) {
+  if (typeof req.module !== "string" || typeof req.name !== "string" || typeof req.from !== "string" || !Number.isInteger(req.index)) {
+    return { ok: false, error: "fresh_args needs a string `module`, `name` and `from` and an integer `index`" };
+  }
+  const entry = moduleFor(req);
+  if (entry === null) return { ok: true, need_source: true };
+  if (entry.error || entry.evals) return { ok: true, fresh: false };
+  const parents = parentsOf(entry);
+  const fresh = freshnessOf(entry);
+  let found = FRESH;
+  for (const node of entry.ast.body) {
+    if (node.source?.value !== req.from) continue;
+    for (const spec of node.specifiers ?? []) {
+      if (node.type === "ExportNamedDeclaration" && (spec.local.name ?? spec.local.value) === req.name) return { ok: true, fresh: false };
+      if (spec.type !== "ImportSpecifier" || (spec.imported.name ?? spec.imported.value) !== req.name) continue;
+      for (const r of entry.decls.get(spec.local.start)?.references ?? []) {
+        const call = parents.get(r.identifier);
+        const direct = call?.type === "CallExpression" && call.callee === r.identifier && !call.arguments.slice(0, req.index + 1).some((a) => a.type === "SpreadElement");
+        const arg = direct ? call.arguments[req.index] : undefined;
+        found = arg === undefined ? null : both(found, fresh(arg));
+        if (found === null) return { ok: true, fresh: false };
+      }
+    }
+  }
+  return { ok: true, fresh: true, ...freshReply(found) };
 }
 
 // {"op":"exports","module":key,"source"?:...}
@@ -1787,7 +2331,9 @@ function scanFor(req) {
   if (scan === undefined) {
     if (typeof req.source !== "string") return undefined;
     try {
-      scan = scanOrNull(acorn.parse(req.source, PARSE_OPTIONS));
+      const ast = acorn.parse(req.source, PARSE_OPTIONS);
+      foldEvals(ast);
+      scan = scanOrNull(ast);
     } catch {
       scan = null;
     }
@@ -1796,16 +2342,21 @@ function scanFor(req) {
   return scan;
 }
 
-// Whether `node` (with parent `parent`) may load a module the scan cannot
-// name: `import(x)` with a specifier that is no literal, and `require`,
-// `import.meta.require` or `x.require` used other than as the direct callee
-// of a call with a literal specifier (an alias, `.call`, `(0,require)`), a
-// `typeof` test, or `require.resolve`. A binding named `require` is no use.
+// Whether `node` (its parent in `parents`) may load a module the scan
+// cannot name: `import(x)` with a specifier that is no literal, and
+// `require`, `import.meta.require` or `x.require` used other than as the
+// direct callee of a call with a literal specifier (an alias, `.call`,
+// `(0,require)`), a `typeof` test, `require.resolve`, or a member read only
+// tested for truth (`onlyTested`, lodash's `w&&w.require&&w.require("util")`).
+// A binding named `require` is no use.
 // A computed member or destructured key counts when `keyValues` (from
 // `keyValuesOf`) finds it unknown or able to spell `require`
 // (`module[k]`, `x["req"+"uire"]`, `{[k]:r}=globalThis`), except the
 // target of a plain `o[k]=v`; even a literal specifier does not name its file.
-function unknownLoad(node, parent, keyValues) {
+// A specifier `paramSpecs` (from `paramSpecsOf`) names the literals of is
+// named too.
+function unknownLoad(node, parents, keyValues, paramSpecs = () => null) {
+  const parent = parents.get(node);
   if (node.type === "ImportExpression") return literalString(node.source) === null;
   // `import.meta` other than read by name can hand out its `require`
   // (`var m=import.meta`, `{require:r}=import.meta`), and so can any
@@ -1835,17 +2386,156 @@ function unknownLoad(node, parent, keyValues) {
       ["ImportSpecifier", "ImportDefaultSpecifier", "ImportNamespaceSpecifier", "ExportSpecifier", "LabeledStatement", "BreakStatement", "ContinueStatement"].includes(parent?.type);
     if (binding) return false;
   }
-  if (parent?.type === "CallExpression" && parent.callee === node) return computed || literalString(parent.arguments[0]) === null;
+  if (parent?.type === "CallExpression" && parent.callee === node) {
+    return computed || (literalString(parent.arguments[0]) === null && paramSpecs(parent.arguments[0]) === null);
+  }
   if (parent?.type === "UnaryExpression" && parent.operator === "typeof") return false;
+  if (node.type === "MemberExpression" && !computed && onlyTested(parents, node)) return false;
   return !(parent?.type === "MemberExpression" && parent.object === node && memberName(parent) === "resolve");
 }
 
-// `computed` is whether a computed key may load a module the scan cannot
-// name, which takes the scope analysis to tell (`computedLoad`).
+// What a load's specifier `arg` can be when it is a parameter: for a plain
+// parameter of a function declaration, never written, whose function is
+// not exported and is only ever called directly with a literal string in
+// its place, those strings; else null. protobufjs's `inquire(moduleName)`
+// loads `moduleName`, and each caller names a package.
+function paramSpecsOf(entry) {
+  const parents = parentsOf(entry);
+  return (arg) => {
+    const v = arg?.type === "Identifier" ? entry.refs.get(arg.start)?.resolved : null;
+    const def = v?.defs.length === 1 ? v.defs[0] : null;
+    const fn = def?.type === "Parameter" ? def.node : null;
+    if (fn?.type !== "FunctionDeclaration" || fn.id === null || v.references.some((r) => r.isWrite())) return null;
+    const index = fn.params.indexOf(def.name);
+    const callee = entry.decls.get(fn.id.start);
+    const exported = ["ExportNamedDeclaration", "ExportDefaultDeclaration"].includes(parents.get(fn)?.type);
+    if (index < 0 || callee?.defs.length !== 1 || exported) return null;
+    const specs = [];
+    for (const r of callee.references) {
+      const call = parents.get(r.identifier);
+      if (r.isWrite() || call?.type !== "CallExpression" || call.callee !== r.identifier) return null;
+      if (call.arguments.slice(0, index + 1).some((a) => a.type === "SpreadElement")) return null;
+      const spec = literalString(call.arguments[index]);
+      if (spec === null) return null;
+      specs.push(spec);
+    }
+    return specs;
+  };
+}
+
+// Whether the value of `node` is only tested for truth, so it never
+// leaves the expression: a `&&` operand other than the last, the test of
+// an `if`, a loop or `?:`, or the operand of `!`. The last operand of a
+// `&&` is what the whole `&&` may evaluate to.
+function onlyTested(parents, node) {
+  let value = node;
+  let holder = parents.get(node);
+  while (holder?.type === "LogicalExpression" && holder.operator === "&&" && holder.right === value) {
+    value = holder;
+    holder = parents.get(holder);
+  }
+  if (holder?.type === "LogicalExpression") return holder.operator === "&&" && holder.left === value;
+  if (holder?.type === "UnaryExpression") return holder.operator === "!";
+  return ["IfStatement", "WhileStatement", "DoWhileStatement", "ForStatement", "ConditionalExpression"].includes(holder?.type) && holder.test === value;
+}
+
+// Whether `node`, with parent `parent`, initializes a plain declarator with
+// `import.meta.require` or `require` itself, which `aliasesOf` may find to
+// be an exported alias.
+const aliasInit = (node, parent) =>
+  parent?.type === "VariableDeclarator" &&
+  parent.init === node &&
+  parent.id.type === "Identifier" &&
+  ((node.type === "MemberExpression" && isImportMeta(node.object) && memberName(node) === "require") ||
+    (node.type === "Identifier" && node.name === "require"));
+
+// The module's aliases of the loader, as [variable, initializer, [exported
+// names]]: each module-scope variable a plain declarator initializes with
+// `import.meta.require` or a `require` no binding declares, never written
+// again, and exported by name other than `default` (Bun's runtime chunk:
+// `var Fe=import.meta.require;export{...,Fe}`). A module with a direct
+// `eval` has none: eslint-scope resolves no reference there.
+function aliasesOf(entry) {
+  if (entry.evals) return [];
+  const parents = parentsOf(entry);
+  const out = [];
+  for (const v of entry.top?.variables ?? []) {
+    const def = v.defs.length === 1 ? v.defs[0] : null;
+    const init = def?.type === "Variable" && def.node.id === def.name ? def.node.init : null;
+    if (init === null || !aliasInit(init, def.node)) continue;
+    if (init.type === "Identifier" && entry.refs.get(init.start)?.resolved) continue;
+    if (v.references.some((r) => r.isWrite() && r.identifier !== def.name)) continue;
+    const names = parents.get(def.parent)?.type === "ExportNamedDeclaration" ? [v.name] : [];
+    for (const r of v.references) {
+      const spec = parents.get(r.identifier);
+      if (spec?.type === "ExportSpecifier" && spec.local === r.identifier) names.push(spec.exported.name ?? spec.exported.value);
+    }
+    if (names.length > 0 && !names.includes("default")) out.push([v, init, names]);
+  }
+  return out;
+}
+
+// The names a request's `loaders` lists: every name some module exports an
+// alias under (`aliasesOf`), which the caller collects across the bundle.
+const loaderNames = (req) => new Set(Array.isArray(req.loaders) ? req.loaders.filter((n) => typeof n === "string") : []);
+
+// The named loaders the module holds, given `names` (`loaderNames`): each
+// of its aliases exported only under those names, and each import of one
+// of them by name. A call of one with a literal specifier loads that file.
+//   -> {aliases: every name the module exports an alias under,
+//       cleared: the initializers of the aliases that are named loaders,
+//       uses: [[call, specifier]] for each call with a literal specifier and
+//             [node, null] for any other use (a call with no literal, an
+//             alias, an escape, a re-export), which may load any file}
+function loaderUses(entry, names) {
+  const parents = parentsOf(entry);
+  const own = aliasesOf(entry);
+  const cleared = new Set();
+  const held = [];
+  for (const [v, init, exported] of own) {
+    if (!exported.every((n) => names.has(n))) continue;
+    cleared.add(init);
+    held.push(v);
+  }
+  const uses = [];
+  for (const node of entry.ast.body) {
+    if (node.type === "ImportDeclaration") {
+      for (const spec of node.specifiers) {
+        const v = spec.type === "ImportSpecifier" && names.has(spec.imported.name ?? spec.imported.value) ? entry.decls.get(spec.local.start) : null;
+        if (v) held.push(v);
+      }
+    } else if (node.type === "ExportNamedDeclaration" && node.source) {
+      for (const spec of node.specifiers) if (names.has(spec.local.name ?? spec.local.value)) uses.push([spec, null]);
+    }
+  }
+  for (const v of held) {
+    // Under a direct `eval` the import's references are unresolved, so any use may be unseen.
+    if (entry.evals) {
+      uses.push([v.defs[0].name, null]);
+      continue;
+    }
+    // An alias's own declarator and its exports are how importers get it.
+    const alias = v.defs[0].type === "Variable";
+    for (const r of v.references) {
+      const id = r.identifier;
+      const parent = parents.get(id);
+      if (alias && (id === v.defs[0].name || (parent?.type === "ExportSpecifier" && parent.local === id))) continue;
+      const spec = parent?.type === "CallExpression" && parent.callee === id ? literalString(parent.arguments[0]) : null;
+      uses.push(spec === null ? [id, null] : [parent, spec]);
+    }
+  }
+  return { aliases: own.flatMap(([, , exported]) => exported), cleared, uses };
+}
+
+// `computed` is whether a computed key or a variable specifier may load a
+// module, which takes the scope analysis to tell (`computedLoads`);
+// `aliasInits` are the offsets of the `aliasInit` reads, which `loads`
+// counts unless each is a named loader's (`loaderUses`).
 function scanOf(ast) {
   const keys = new Set();
   const loads = new Set();
   const imports = [];
+  const aliasInits = [];
   for (const node of ast.body) {
     if (node.type !== "ImportDeclaration" && !(node.type === "ExportNamedDeclaration" && node.source)) continue;
     for (const spec of node.specifiers) {
@@ -1858,12 +2548,22 @@ function scanOf(ast) {
     computed = true;
     return new Set();
   };
-  const stack = [[ast, null]];
+  // A specifier that is a variable may be a parameter `paramSpecsOf` names.
+  const deferredSpecs = (arg) => {
+    if (arg?.type !== "Identifier") return null;
+    computed = true;
+    return [];
+  };
+  const parents = new Map();
+  const stack = [ast];
   while (stack.length) {
-    const [node, parent] = stack.pop();
+    const node = stack.pop();
     const loaded = loadedFile(node);
     if (loaded !== null) loads.add(loaded);
-    if (unknownLoad(node, parent, deferred)) loads.add(UNKNOWN_FILE);
+    if (unknownLoad(node, parents, deferred, deferredSpecs)) {
+      if (aliasInit(node, parents.get(node))) aliasInits.push(node.start);
+      else loads.add(UNKNOWN_FILE);
+    }
     if (node.type === "MemberExpression") {
       const p = node.property;
       if (!node.computed) keys.add(p.name);
@@ -1879,22 +2579,30 @@ function scanOf(ast) {
     for (const key of Object.keys(node)) {
       const child = node[key];
       for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) stack.push([c, node]);
+        if (c && typeof c.type === "string" && c !== node) {
+          parents.set(c, node);
+          stack.push(c);
+        }
       }
     }
   }
-  return { keys, loads, imports, computed };
+  return { keys, loads, imports, computed, aliasInits };
 }
 
-// Whether a computed key in the module may load a module the scan cannot
+// The files the loads `scanOf` deferred to the scope analysis load: each
+// file a parameter's callers name (`paramSpecsOf`), and UNKNOWN_FILE when a
+// computed key or a variable specifier may load a module the scan cannot
 // name (`unknownLoad` with the key's provenance).
-function computedLoad(entry) {
+function computedLoads(entry) {
   const parents = parentsOf(entry);
   const keyValues = keyValuesOf(entry);
+  const paramSpecs = paramSpecsOf(entry);
+  const files = new Set();
   const stack = [entry.ast];
   while (stack.length) {
     const node = stack.pop();
-    if (unknownLoad(node, parents.get(node), keyValues)) return true;
+    if (unknownLoad(node, parents, keyValues, paramSpecs) && !aliasInit(node, parents.get(node))) return new Set([UNKNOWN_FILE]);
+    if (isRequire(node)) for (const spec of paramSpecs(node.arguments[0]) ?? []) files.add(fileName(spec));
     for (const key of Object.keys(node)) {
       const child = node[key];
       for (const c of Array.isArray(child) ? child : [child]) {
@@ -1902,7 +2610,7 @@ function computedLoad(entry) {
       }
     }
   }
-  return false;
+  return files;
 }
 
 // {"op":"keys_used","module":key,"source"?:...,"names":[...]}
@@ -1917,22 +2625,39 @@ function keysUsed(req) {
   return { ok: true, used: req.names.filter((n) => scan === null || scan.keys.has(n)) };
 }
 
-// {"op":"loads","module":key,"source"?:...}
-//   -> {"files":[file names the module loads whole]} (`loadedFile`), with
-//      "*" when it may load one the scan cannot name (`unknownLoad`), or
-//      {"files":null} for a module that does not parse.
+// {"op":"loads","module":key,"source"?:...,"loaders"?:[...]}
+//   -> {"files":[file names the module loads whole]} (`loadedFile`, a
+//      named loader's call with a literal specifier, `loaderUses`, and each
+//      literal the callers pass a parameter specifier, `paramSpecsOf`), with
+//      "*" when it may load one the scan cannot name (`unknownLoad`, an
+//      alias that is no named loader, any other use of one), and
+//      "aliases", the names it exports an alias under (`aliasesOf`); or
+//      {"files":null,"aliases":[]} for a module that does not parse.
 function loads(req) {
   if (typeof req.module !== "string") return { ok: false, error: "loads needs a string `module`" };
   const scan = scanFor(req);
   if (scan === undefined) return { ok: true, need_source: true };
-  if (scan === null) return { ok: true, files: null };
+  if (scan === null) return { ok: true, files: null, aliases: [] };
   if (scan.computed && !scan.loads.has(UNKNOWN_FILE)) {
     const entry = moduleFor(req);
     if (entry === null) return { ok: true, need_source: true };
-    if (entry.error || computedLoad(entry)) scan.loads.add(UNKNOWN_FILE);
+    for (const file of entry.error ? [UNKNOWN_FILE] : computedLoads(entry)) scan.loads.add(file);
     scan.computed = false;
   }
-  return { ok: true, files: [...scan.loads].sort() };
+  const names = loaderNames(req);
+  const files = new Set(scan.loads);
+  let aliases = [];
+  if (scan.aliasInits.length > 0 || scan.imports.some(([n]) => names.has(n))) {
+    const entry = moduleFor(req);
+    if (entry === null) return { ok: true, need_source: true };
+    if (entry.error) return { ok: true, files: null, aliases: [] };
+    const held = loaderUses(entry, names);
+    aliases = held.aliases;
+    const cleared = new Set([...held.cleared].map((n) => n.start));
+    if (scan.aliasInits.some((at) => !cleared.has(at))) files.add(UNKNOWN_FILE);
+    for (const [, spec] of held.uses) files.add(spec === null ? UNKNOWN_FILE : fileName(spec));
+  }
+  return { ok: true, files: [...files].sort(), aliases };
 }
 
 // {"op":"imports","module":key,"source"?:...}
@@ -1961,7 +2686,10 @@ function handle(req) {
       }
       try {
         const ast = acorn.parse(req.source, PARSE_OPTIONS);
-        if (typeof req.module === "string") scans.set(req.module, scanOrNull(ast));
+        if (typeof req.module === "string") {
+          foldEvals(ast);
+          scans.set(req.module, scanOrNull(ast));
+        }
         return { ok: true, parsed: true };
       } catch (e) {
         if (typeof req.module === "string") scans.set(req.module, null);
@@ -1981,6 +2709,8 @@ function handle(req) {
       return namespace(req);
     case "sinks":
       return sinks(req);
+    case "fresh_args":
+      return freshArgs(req);
     case "exports":
       return exportsOf(req);
     case "imports":

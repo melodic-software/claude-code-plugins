@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "checkouts/identity/.claude/skills/control-identity/steps/sign-in.yaml"
+          }
+        }
+      ],
+      "why": "read the included file in the other checkout"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": ".claude/skills/control-shop/features/orders/history/steps.yaml"
+          }
+        }
+      ],
+      "why": "never opened the included steps, so their ids were guessed"
+    }
+  ]
+}

@@ -22,7 +22,7 @@ disposition or a release note first names a design-family surface).
 
 ## Why the verdict is complementary
 
-`/design` drafts a persistent, shareable canvas that the user edits by hand. This skill builds throwaway variants on the real stack or as a local HTML mockup, switchable
+`/design` drafts a persistent, shareable canvas that the user edits by hand. This skill builds throwaway variants as a local HTML mockup by default, or on the real stack on request, switchable
 from a control bar, and captures only the winning-variant key. The canvas is the right shape when
 the user wants to keep tweaking a layout; the mockup is right when the question is which
 direction, answered and discarded.
@@ -30,7 +30,7 @@ direction, answered and discarded.
 ## Presence and the offer
 
 The model cannot check presence: a model-invocation-disabled skill never enters its listing. When
-the intent selector lands on the HTML mockup substrate, build the mockup by default and give the
+the intent selector lands on the HTML mockup substrate, build the mockup either way and give the
 user the conditional sentence from the Boundary section ("If /design is available in your session
 ..."), with the lifecycle difference stated; the user checks their own session and runs
 `/design <scope>` if they want the canvas.

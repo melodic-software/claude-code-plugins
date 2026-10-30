@@ -3,6 +3,51 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.3] - 2026-10-30
+
+### Changed
+
+- **Stryker.NET exercised-scope filter limits stated** ([#9687](https://github.com/melodic-software/claude-code-plugins/issues/9687)). `audit/context/tool-test-restriction.md` now says the joined `test-case-filter` can match more tests than the set: a generic class's term has no trailing `.`, and a term can match in another listed project. Those extra tests can turn NoCoverage into Survived or Killed. It also stops claiming the probe measured which directory `test-projects` paths resolve against.
+
+## [0.11.2] - 2026-10-30
+
+### Changed
+
+- **Stryker.NET's `test-case-filter` keeps NoCoverage under `perTest`** ([#9687](https://github.com/melodic-software/claude-code-plugins/issues/9687)). A probe of Stryker.NET 5.0.0 on the `dotnet-test-selection` fixture showed the filter applies in the initial coverage run, so a mutant reached only by excluded tests reports NoCoverage. The `audit/context/tool-test-restriction.md` row now reads `yes` with the version, probe date and recheck trigger, so `audit --exercised` may use Stryker.NET's own restriction. A new "Running Stryker.NET on a test set" section says how: `dotnet-test-selection.sh` output becomes `test-projects` and a `FullyQualifiedName~` `test-case-filter`, written to an untracked copy of the Stryker config beside the original and passed with `--config-file`, so the user's config file is never edited.
+
+## [0.11.1] - 2026-10-29
+
+### Fixed
+
+- **`suppression-lint.sh` no longer pipes into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). It checks a parsed record for unparsable lines with a here-string, so under `set -o pipefail` a record it cannot parse can no longer be graded when grep exits before printf finishes writing.
+
+## [0.11.0] - 2026-10-29
+
+### Changed
+
+- **`audit` runs without a config** ([#8766](https://github.com/melodic-software/claude-code-plugins/issues/8766)). Phase 0 first reads the config layers that `setup` lists, merges them, and names the layer behind each value on a new `Config:` line in the scope report. With no layer present it no longer refuses. It falls back to `tool: manual`, takes the diff target from `origin/HEAD`, mutates the changed source files minus test code (every source file under `--exercised`), and applies the effort mutant cap. It lists those defaults under `no config: fallback defaults`. The test command is never guessed: the user supplies or confirms it before the baseline run, and an unattended run with none stops and asks for one. When the configured tool is missing, the audit names the install command and offers `tool: manual` for the run. It refuses only when the user declines both.
+- **`setup check` reports missing config as INFO** that names the audit's fallback, not FAIL, skips the tracked-file probe for a file that does not exist, and `setup` now calls configuration optional. `setup apply` still writes only the team file. New eval cases cover the fallback, the confirmed test command, a config at the user-global layer only, a missing tool, and the INFO probe.
+
+## [0.10.0] - 2026-10-27
+
+### Changed
+
+- **`setup` names what the detected test runner supports up front.** `apply` step 2 says, beside
+  the tool proposal and before the diff-target question, whether the runner supports
+  `audit --exercised` and `/testing:cleanup`'s mutation gate; a name-filter-only runner (Maven
+  `-Dtest`, Gradle `--tests`) supports neither, so the user can stop before investing in setup.
+  `check` step 3 adds the same line as an INFO row. A new setup eval case covers a Gradle project.
+
+## [0.9.0] - 2026-10-27
+
+### Added
+
+- **`scripts/estimate-run.sh --mutants <n> --seconds <s>`** prints `Estimated wall-clock: <h>h <m>m (<n> mutants x <s>s per build-and-test)`, rounded up to the minute in exact integer arithmetic, with its test.
+
+### Changed
+
+- **`audit` estimates a run from a timed build and test run, not `baseline-suite-ms`.** Before any mutation run it times one build plus test run of the selected tests (every `dotnet-test-selection.sh` line, summed, for a .NET test set), takes the mutant count from the tool's dry run or listing, and prints the line `estimate-run.sh` computes; where the build cannot be made to recompile without editing tracked source, it says the estimate is a floor. `--full` confirms against the same line.
+
 ## [0.8.0] - 2026-10-26
 
 ### Added

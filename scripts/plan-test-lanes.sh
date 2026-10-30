@@ -15,8 +15,9 @@
 #   bash_needs, python_needs  a JSON object from leg number to the optional toolchains
 #                             its suites need: animation (the animation and
 #                             speech suites), inventory, duckdb, visualcheck, browser
-#                             (the shared-page UI suite, which drives Chromium), lefthook
-#                             (the guardrails remote's end-to-end suite)
+#                             (the shared-page UI and alignment suites, which drive Chromium), lefthook
+#                             (the guardrails remote's end-to-end suite), demovideo (the
+#                             demo-video shell suite: its locked requirements and ffmpeg)
 #   node_packages             the Node packages to install and test, space-separated
 #   windows_jobs              the pr-test-windows.yml jobs to run, a JSON list
 #   windows_steps             the pr-test-windows.yml steps to run, a JSON list of the keys
@@ -55,15 +56,20 @@
 #
 # LEGS ARE SIZED FROM SUITE-SECONDS: ceil(seconds / budget), at least 1, at most
 # the lane's cap and the suite count. test-bash takes 120 s a leg (three suites
-# run at a time, so about 40 s of wall) up to 6 legs, and the whole tree always
-# takes 6; test-python takes 180 s a leg (one suite at a time) up to 5. A
+# run at a time, so about 40 s of wall) up to 7 legs, and the whole tree always
+# takes 7; test-python takes 180 s a leg (one suite at a time) up to 5. A
 # suite's seconds are its median wall in scripts/suite-seconds.txt, measured
-# over whole-tree CI runs; a suite the file does not list counts 5, and a suite
+# over whole-tree CI runs; a suite the file does not list counts the mean of
+# the listed suites of its runner, rounded and at least 5, and a suite
 # scripts/run-plugin-tests-serial.txt runs alone counts three times its
-# seconds. A leg's load is the larger of its suite-seconds and its serial
-# suite-seconds plus three times its longest suite that runs three at a time,
-# since one suite cannot be split across workers. Suites go longest first to the least-loaded leg, so the legs
-# finish close together, and every selected suite lands on exactly one leg.
+# seconds. A leg's load is its suite-seconds plus two thirds of three times its
+# longest suite that runs three at a time: list scheduling on three workers
+# ends within a third of the total plus two thirds of the longest suite, since
+# one suite cannot be split across workers. Weighing only the larger of the two
+# filled a long suite's other two workers right up to its length, so its leg
+# had no room for a slow run. Suites go longest first to the least-loaded leg,
+# so the legs finish close together, and every selected suite lands on exactly
+# one leg.
 #
 # Exit: 0 planned; 2 usage, a failed selector or listing, or a selected suite no
 # lane runs.
@@ -166,8 +172,8 @@ done
 
 # --- the selection ----------------------------------------------------------
 
-# select_into <out> <path>...: the selector's suites for <path>... into <out>; sets
-# `unmapped` from its report.
+# select_into <out> <path>...: the selector's suites for <path>... into <out>; adds
+# its report's count to `unmapped`.
 select_into() {
   local out="$1" rc=0
   shift
@@ -175,7 +181,7 @@ select_into() {
   case "$rc" in
   0) ;;
   4)
-    unmapped=$(awk '/^UNMAPPED:/ { print $2; exit }' "$WORK/selector.err")
+    unmapped=$((unmapped + $(awk '/^UNMAPPED:/ { n = $2; exit } END { print n + 0 }' "$WORK/selector.err")))
     awk '/^UNMAPPED:/ { f = 1; print; next } f && /^  - / { print; next } { f = 0 }' "$WORK/selector.err" >&2
     ;;
   *)
@@ -185,31 +191,31 @@ select_into() {
   esac
 }
 
-unmapped=0
-: >"$WORK/selection"
-if [[ ${#changed[@]} -gt 0 ]] && ((!whole || !whole_windows)); then
-  select_into "$WORK/selection" "${changed[@]}"
-fi
-
-# The Windows plan selects from the changed files minus the paths of WINDOWS_INERT,
-# and only reruns the selector when that drops some but not all of them.
-inert=() win_changed=()
+# The Windows plan selects from the changed files minus the paths of WINDOWS_INERT.
+# The selector walks each changed file on its own and unions what they reach,
+# so the selection is that of the Windows files plus that of the inert ones,
+# and no file is walked twice.
+inert=() win_changed=() inert_changed=()
 read_list::into inert "$WINDOWS_INERT" --comments inline || exit 2
 for f in ${changed[@]+"${changed[@]}"}; do
   for pat in ${inert[@]+"${inert[@]}"}; do
     # shellcheck disable=SC2053 # the right-hand side is a glob on purpose.
-    [[ "$f" == $pat ]] && continue 2
+    [[ "$f" == $pat ]] && {
+      inert_changed+=("$f")
+      continue 2
+    }
   done
   win_changed+=("$f")
 done
-WIN_SELECTION="$WORK/selection"
-if ((!whole_windows)) && [[ ${#win_changed[@]} -lt ${#changed[@]} ]]; then
-  WIN_SELECTION="$WORK/win-selection"
-  : >"$WIN_SELECTION"
-  keep_unmapped="$unmapped"
-  [[ ${#win_changed[@]} -eq 0 ]] || select_into "$WIN_SELECTION" "${win_changed[@]}"
-  unmapped="$keep_unmapped"
+unmapped=0
+: >"$WORK/win-selection"
+: >"$WORK/inert-selection"
+if [[ ${#changed[@]} -gt 0 ]] && ((!whole || !whole_windows)); then
+  [[ ${#win_changed[@]} -eq 0 ]] || select_into "$WORK/win-selection" "${win_changed[@]}"
+  [[ ${#inert_changed[@]} -eq 0 ]] || select_into "$WORK/inert-selection" "${inert_changed[@]}"
 fi
+cat "$WORK/win-selection" "$WORK/inert-selection" >"$WORK/selection"
+WIN_SELECTION="$WORK/win-selection"
 
 # Assigned through a nameref, which shellcheck cannot follow (SC2154).
 exclusions=() outside=() rows=()
@@ -331,21 +337,32 @@ done <<<"$packages"
 # lane's legs, plan and needs. A leg runs <workers> suites at a time
 # (scripts/run-plugin-tests.sh), so a suite on <serial-list>, which runs alone,
 # weighs <workers> times its seconds. One suite cannot be split, so a leg is
-# estimated at the larger of its suite-seconds and its serial suite-seconds plus
-# <workers> times its longest parallel suite.
+# estimated at its suite-seconds plus (<workers> - 1) / <workers> of <workers>
+# times its longest parallel suite, the list-scheduling bound.
 pack() {
   local lane="$1" budget="$2" cap="$3" force="$4" workers="$5" list="$6" serial="${7:-/dev/null}"
-  awk -v def="$DEFAULT_SECONDS" -v workers="$workers" '
-    FILENAME == ARGV[1] { if ($0 !~ /^[[:blank:]]*(#|$)/) secs[$1] = $2; next }
+  local runner
+  case "$lane" in
+    python) runner='(^|/)test_[^/]*[.]py$' ;;
+    *) runner='[.]test[.]sh$' ;;
+  esac
+  awk -v def="$DEFAULT_SECONDS" -v workers="$workers" -v runner="$runner" '
+    FILENAME == ARGV[1] {
+      if ($0 ~ /^[[:blank:]]*(#|$)/) next
+      secs[$1] = $2
+      if ($1 ~ runner) { n++; sum += $2 }
+      next
+    }
     FILENAME == ARGV[2] { sub(/#.*/, ""); if (NF) alone[$1] = 1; next }
     NF {
-      s = ($1 in secs) ? secs[$1] : def
+      if (u == "") { u = n ? int(sum / n + 0.5) : 0; if (u < def) u = def }
+      s = ($1 in secs) ? secs[$1] : u
       printf "%s\t%s\t%s\n", s * (($1 in alone) ? workers : 1), $1, ($1 in alone) ? 0 : s * workers
     }' \
     "$SECONDS_LIST" "$serial" "$list" |
     LC_ALL=C sort -t "$(printf '\t')" -k1,1nr -k2,2 |
-    awk -F '\t' -v lane="$lane" -v budget="$budget" -v cap="$cap" -v force="$force" '
-      function est(l) { return load[l] > solo[l] + top[l] ? load[l] : solo[l] + top[l] }
+    awk -F '\t' -v lane="$lane" -v budget="$budget" -v cap="$cap" -v force="$force" -v workers="$workers" '
+      function est(l) { return load[l] + top[l] * (workers - 1) / workers }
       function need(p,   s) {
         s = ""
         # The animation wheels are also where the speech suites get numpy.
@@ -353,8 +370,9 @@ pack() {
         if (p ~ /^plugins\/harness-ops\/skills\/inventory\//) s = s " inventory"
         if (p ~ /^plugins\/harness-ops\//) s = s " duckdb"
         if (p ~ /^plugins\/testing\/skills\/check-visual-parity\//) s = s " visualcheck"
-        if (p == "plugins/planning/shared/tests/ui.test.sh") s = s " browser"
+        if (p ~ /^plugins\/planning\/shared\/tests\/ui-[a-z]\.test\.sh$/ || p == "plugins/planning/shared/tests/align.test.sh") s = s " browser"
         if (p == "plugins/guardrails/git-hooks/lefthook-remote.test.sh") s = s " lefthook"
+        if (p == "plugins/playwright/skills/demo-video/scripts/demo-video.test.sh") s = s " demovideo"
         return s
       }
       {
@@ -391,6 +409,7 @@ pack() {
           if ((l, "visualcheck") in has) s = s " visualcheck"
           if ((l, "browser") in has) s = s " browser"
           if ((l, "lefthook") in has) s = s " lefthook"
+          if ((l, "demovideo") in has) s = s " demovideo"
           sub(/^ /, "", s)
           legsj = legsj (l ? "," : "") l
           planj = planj (l ? "," : "") "\"" l "\":[" items[l] "]"
@@ -402,7 +421,7 @@ pack() {
       }' || die "planning the $lane legs failed"
 }
 
-pack bash 120 6 "$whole" 3 "$WORK/bash" scripts/run-plugin-tests-serial.txt
+pack bash 120 7 "$whole" 3 "$WORK/bash" scripts/run-plugin-tests-serial.txt
 pack python 180 5 0 1 "$WORK/python"
 echo "node=$([[ -n "$node_packages" ]] && echo true || echo false)"
 echo "node_packages=$node_packages"

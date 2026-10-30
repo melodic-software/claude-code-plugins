@@ -10,11 +10,14 @@ request whose two lanes were each re-run once after a successful attempt.
 from __future__ import annotations
 
 import copy
+import importlib.util
 import json
 import pathlib
+import re
 import sys
 import unittest
 from typing import Any
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
@@ -23,6 +26,11 @@ import babysit_risk as risk
 
 FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures" / "review_evidence"
 PROBE = json.loads((FIXTURES / "probe_rerun_after_success.json").read_text())
+# The caller's edit record (babysit_merge._attach_edits): the recorded comments
+# were never edited.
+for _comment in PROBE["comments"]:
+    _comment["edit"] = {"lastEditedAt": None}
+UNEDITED = {"lastEditedAt": None}
 
 S = "5e1f" * 10  # pinned head
 S0 = "a0" * 20
@@ -73,6 +81,13 @@ AUTH_FAILURE = dict(
     OTHER_FAILURE,
     message="claude-review: failure-class=auth:"
     " the Claude credential was rejected; the owner replaces the secret",
+)
+# publish-review's failure line (ci-workflows publish.cjs `fail`) for a failed
+# runner isolation or CLI install (ci-workflows#893).
+INSTALL_FAILURE = dict(
+    OTHER_FAILURE,
+    message="claude-review: failure-class=install-failed: the runner isolation"
+    " or the Claude Code CLI install or its integrity check failed",
 )
 
 # publish-review's failure line (ci-workflows publish.cjs `fail`) as a run
@@ -139,7 +154,9 @@ def run(
     *,
     attempts: list[dict[str, Any]] | None = None,
     created: str = "2026-01-01T00:00:00Z",
+    tree: str | None = None,
 ) -> dict[str, Any]:
+    """A lane run at `sha`; its head's tree is `tree`, else one of its own."""
     if attempts is None:
         annotations = [record(lane, sha, tail)] if tail is not None else []
         attempts = [attempt(lane, sha, 1, annotations)]
@@ -158,8 +175,14 @@ def run(
         "conclusion": latest["conclusion"],
         "run_attempt": latest["run_attempt"],
         "created_at": created,
+        "head_commit": {"id": sha, "tree_id": tree or tree_of(sha)},
         "attempts": attempts,
     }
+
+
+def tree_of(sha: str) -> str:
+    """A tree sha of `sha`'s own, distinct per commit sha."""
+    return sha[::-1]
 
 
 def marker(lane: str, sha: str, login: str = "github-actions[bot]") -> dict[str, Any]:
@@ -167,6 +190,7 @@ def marker(lane: str, sha: str, login: str = "github-actions[bot]") -> dict[str,
         "id": next(_ids),
         "user": {"login": login, "type": "Bot"},
         "created_at": "2026-01-01T00:00:00Z",
+        "edit": UNEDITED,
         "body": f"<!-- claude-lane-reviewed-head lane={lane} sha={sha} -->\n"
         f"{lane} has reviewed this pull request through {sha}.",
     }
@@ -198,6 +222,8 @@ def thread(
                 "path": "app.py",
                 "diffHunk": hunk,
                 "originalCommit": {"oid": S1},
+                "lastEditedAt": None,
+                "editor": None,
             }
         ],
     }
@@ -224,6 +250,13 @@ class ProbeFixtureTests(unittest.TestCase):
     """Bind the recorded probe data as recorded and with one change each."""
 
     def bind(self, data: dict[str, Any]) -> dict[str, Any]:
+        # The probe left each run's commit object out; a listed run has one.
+        data = copy.deepcopy(data)
+        for item in data["runs"]:
+            item["head_commit"] = {
+                "id": item["head_sha"],
+                "tree_id": tree_of(item["head_sha"]),
+            }
         return by_lane(
             ev.bind(
                 data["head_sha"],
@@ -376,6 +409,8 @@ class LaneSourceTests(Base):
             "plugins/foo/.gitattributes",
             "docs/standards/README.md",
             "docs/standards/simpler-code.md",
+            "docs/contracts/instruction-exception-register/README.md",
+            "docs/contracts/untrusted-content/README.md",
             "docs/conventions/instruction-exception-register/README.md",
             "docs/conventions/untrusted-content/README.md",
             ".claude-lane/pr-context.md",
@@ -470,6 +505,914 @@ class LaneSourceTests(Base):
         result = self.bind([whole(lane, S) for lane in LANES], changed_paths=None)
         for lane in LANES:
             self.assertUnbound(result[lane], "changed-files-unread")
+
+
+BASE = "b0" * 20
+# The gate reads workflow YAML with PyYAML; with none, nothing clears.
+NEEDS_YAML = unittest.skipUnless(
+    importlib.util.find_spec("yaml"),
+    "PyYAML not installed (CI's check-skills job installs it)",
+)
+WORKFLOW = ".github/workflows/lint-docs.yml"
+# A workflow whose token cannot write and that reaches no secret.
+READ_ONLY = """\
+name: lint-docs
+on:
+  pull_request:
+    paths: ['docs/**']
+  push:
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm test
+  call:
+    uses: melodic-software/ci-workflows/.github/workflows/x.yml@v1
+"""
+
+
+def reader(files: dict[str, str | None]) -> Any:
+    """A head-file reader over `files`; any other path raises, as an unproven
+    read does."""
+
+    def read(path: str, original: str) -> str | None:
+        if original != BASE or path not in files:
+            raise RuntimeError(f"head-file-unproven:{path}")
+        return files[path]
+
+    return read
+
+
+class ReadOnlyWorkflowTests(Base):
+    """A changed workflow binds only when its head copy cannot post as
+    github-actions[bot] with write access (the reviewed-head marker's author)
+    nor reach a credential that could; anything else, or any doubt, stays a
+    lane source."""
+
+    def bound(
+        self, files: dict[str, str | None], *extra: str, base: Any = BASE
+    ) -> dict[str, Any]:
+        return by_lane(
+            ev.bind(
+                S,
+                [whole(lane, S) for lane in LANES],
+                both_markers(),
+                [],
+                is_human=is_human,
+                changed_paths=("app.py", *files, *extra),
+                head_file=reader(files),
+                base_sha=base,
+            )
+        )
+
+    def assertBinds(self, result: dict[str, Any]) -> None:
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+            self.assertIsNone(result[lane].unbound_reason, lane)
+            self.assertEqual(result[lane].open_findings, 0, lane)
+
+    def assertHeld(self, result: dict[str, Any]) -> None:
+        for lane in LANES:
+            self.assertUnbound(result[lane], "lane-source-changed")
+
+    @NEEDS_YAML
+    def test_a_read_only_workflow_edit_binds(self) -> None:
+        self.assertBinds(self.bound({WORKFLOW: READ_ONLY}))
+
+    @NEEDS_YAML
+    def test_a_clean_review_clears_a_read_only_workflow_edit_end_to_end(self) -> None:
+        # Owner direction 2026-10-27: a workflow-file pull request needs a
+        # person only for a HIGH or CRITICAL security finding. The scorer
+        # takes the bound evidence beside an enforcement-floor path.
+        floored = "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py"
+        base = READ_ONLY.replace("npm test", "npm run lint")
+
+        def scored(lanes: dict[str, Any]) -> Any:
+            files = (
+                risk.ChangedFile(
+                    floored, None, "modified", 1, 1, True, "100644", "100644"
+                ),
+                risk.ChangedFile(
+                    WORKFLOW,
+                    None,
+                    "modified",
+                    1,
+                    1,
+                    True,
+                    "100644",
+                    "100644",
+                    patch="@@ -18 +18 @@\n-      - run: npm run lint\n+      - run: npm test",
+                    contents=(base, READ_ONLY),
+                ),
+            )
+            return risk.score(
+                risk.RiskInput(
+                    files=files,
+                    files_complete=True,
+                    max_changed_lines=None,
+                    high_paths=(),
+                    lanes=tuple(lanes[lane] for lane in LANES),
+                    lines_optional=True,
+                    public=True,
+                )
+            )
+
+        lanes = by_lane(
+            ev.bind(
+                S,
+                [whole(lane, S) for lane in LANES],
+                both_markers(),
+                [],
+                is_human=is_human,
+                changed_paths=(floored, WORKFLOW),
+                head_file=reader({WORKFLOW: READ_ONLY}),
+                base_sha=BASE,
+            )
+        )
+        self.assertBinds(lanes)
+        result = scored(lanes)
+        self.assertFalse(risk.holds(result), [r.code for r in result.reasons])
+        # A CRITICAL finding from that review holds it for a person.
+        critical = by_lane(
+            ev.bind(
+                S,
+                [whole("claude-review", S), whole("claude-security-review", S, 1, 1)],
+                both_markers(),
+                [
+                    thread(
+                        "x\n\nseverity: CRITICAL\n`claude-lane: claude-security-review`"
+                    )
+                ],
+                is_human=is_human,
+                changed_paths=(floored, WORKFLOW),
+                head_file=reader({WORKFLOW: READ_ONLY}),
+                base_sha=BASE,
+            )
+        )
+        result = scored(critical)
+        self.assertEqual(
+            [r.code for r in risk.person_reasons(risk.holding(result))],
+            ["security-finding"],
+        )
+
+    @NEEDS_YAML
+    def test_read_all_and_empty_permissions_bind(self) -> None:
+        for perms in ("permissions: read-all", "permissions: {}"):
+            with self.subTest(perms):
+                text = READ_ONLY.replace("permissions:\n  contents: read", perms, 1)
+                self.assertBinds(self.bound({WORKFLOW: text}))
+
+    def test_a_deleted_workflow_stays_a_lane_source(self) -> None:
+        # What a deleted workflow enforced goes with it.
+        for path in (
+            ".github/workflows/pr-merge.yml",
+            ".github/workflows/pr-require-checks.yml",
+            ".github/workflows/pr-verify.yml",
+            WORKFLOW,
+        ):
+            with self.subTest(path):
+                self.assertHeld(self.bound({path: None}))
+
+    @NEEDS_YAML
+    def test_a_read_only_rewrite_of_a_floor_workflow_stays_a_lane_source(
+        self,
+    ) -> None:
+        floored = [
+            path
+            for path, _ in risk.FLOOR_CLASSES
+            if ev.WORKFLOW_PATH_RE.match(path) and path not in ev.REVIEW_CALLERS
+        ]
+        self.assertIn(".github/workflows/pr-merge.yml", floored)
+        self.assertIn(".github/workflows/pr-require-checks.yml", floored)
+        for path in floored:
+            stem = ev.WORKFLOW_PATH_RE.match(path)[1]
+            text = READ_ONLY.replace("name: lint-docs", f"name: {stem}", 1)
+            with self.subTest(path):
+                self.assertHeld(self.bound({path: text}))
+
+    @NEEDS_YAML
+    def test_each_unsafe_workflow_stays_a_lane_source(self) -> None:
+        top = "permissions:\n  contents: read\njobs:"
+        job = "    permissions:\n      contents: read\n      pull-requests: read\n"
+        cases = {
+            "a write scope at the top": READ_ONLY.replace(
+                top, "permissions:\n  contents: read\n  pull-requests: write\njobs:"
+            ),
+            "a write scope in one job": READ_ONLY.replace(
+                job, "    permissions:\n      issues: write\n"
+            ),
+            "write-all": READ_ONLY.replace(top, "permissions: write-all\njobs:"),
+            "write-all in a flow mapping": READ_ONLY.replace(
+                top, "permissions: {contents: read, statuses: write}\njobs:"
+            ),
+            "id-token: write": READ_ONLY.replace(
+                job, "    permissions:\n      id-token: write\n"
+            ),
+            "a pull_request_target trigger": READ_ONLY.replace(
+                "  push:\n", "  pull_request_target:\n"
+            ),
+            "a workflow_run trigger": READ_ONLY.replace(
+                "  push:\n", "  workflow_run:\n    workflows: [x]\n"
+            ),
+            "a workflow_call trigger": READ_ONLY.replace(
+                "  push:\n", "  workflow_call:\n"
+            ),
+            "unparsable YAML": READ_ONLY + "  bad: [unclosed\n",
+            "not a mapping": "- just\n- a list\n",
+            "two documents": READ_ONLY + "---\n" + READ_ONLY,
+            "a reusable call with secrets: inherit": READ_ONLY
+            + "    secrets: inherit\n",
+            "a direct secret": READ_ONLY.replace(
+                "secrets.GITHUB_TOKEN", "secrets.SCAN_CARRIER_PRIVATE_KEY"
+            ),
+            "a secret spelled with a YAML escape": READ_ONLY.replace(
+                "- run: npm test", '- run: "echo ${{ \\x73ecrets.APP_KEY }}"'
+            ),
+            "missing permissions everywhere": READ_ONLY.replace(top, "jobs:").replace(
+                job, ""
+            ),
+            "a job with no permissions and none at the top": READ_ONLY.replace(
+                top, "jobs:"
+            ),
+            "a name that is not the stem": READ_ONLY.replace(
+                "name: lint-docs", "name: pr-require-checks"
+            ),
+            "no name": READ_ONLY.replace("name: lint-docs\n", ""),
+            "a repeated key": READ_ONLY.replace(
+                top, "permissions:\n  contents: read\npermissions: write-all\njobs:"
+            ),
+            "a key repeated in another case": READ_ONLY.replace(
+                top,
+                "permissions:\n  contents: read\nPermissions:\n  contents: read\njobs:",
+            ),
+            "an anchor and alias": READ_ONLY.replace(
+                top, "permissions: &p\n  contents: read\nenv: *p\njobs:"
+            ),
+            "a merge key": READ_ONLY.replace(
+                job, "    permissions:\n      <<: {contents: read}\n"
+            ),
+            "an explicit tag": READ_ONLY.replace(
+                "contents: read\njobs:", "contents: !!str read\njobs:"
+            ),
+            "an unknown top-level key": READ_ONLY + "Jobs: {}\n",
+            "an unknown job key": READ_ONLY.replace(
+                "    runs-on:", "    Permissions: {}\n    runs-on:"
+            ),
+            "an expression for a scope": READ_ONLY.replace(
+                "pull-requests: read", "pull-requests: ${{ 'write' }}"
+            ),
+            "no jobs": "name: lint-docs\non: push\npermissions: {}\njobs: {}\n",
+            "no trigger": READ_ONLY.replace("on:", "run-name:", 1),
+        }
+        # Each case holds through the parsed reading alone too, with the
+        # raw-text backstop matching nothing.
+        never = re.compile(r"(?!)")
+        for backstop in (ev.WORKFLOW_DENIED_TEXT_RE, never):
+            with mock.patch.object(ev, "WORKFLOW_DENIED_TEXT_RE", backstop):
+                self.assertBinds(self.bound({WORKFLOW: READ_ONLY}))
+                for name, text in cases.items():
+                    with self.subTest(name, backstop=backstop.pattern):
+                        self.assertHeld(self.bound({WORKFLOW: text}))
+
+    def test_a_review_caller_with_read_only_content_stays_a_lane_source(self) -> None:
+        for lane in LANES:
+            path = FILES[lane]
+            stem = path.rsplit("/", 1)[1][: -len(".yml")]
+            text = READ_ONLY.replace("lint-docs", stem)
+            with self.subTest(path):
+                self.assertHeld(self.bound({path: text}))
+                self.assertHeld(self.bound({path: None}))
+
+    def test_other_workflow_paths_stay_lane_sources(self) -> None:
+        for path in (
+            ".github/workflows/lint-docs.yaml",
+            ".github/workflows/sub/lint-docs.yml",
+            ".github/workflows/Lint-Docs.yml",
+            ".github/workflows",
+        ):
+            with self.subTest(path):
+                self.assertHeld(self.bound({path: READ_ONLY}))
+
+    def test_doubt_about_the_read_stays_a_lane_source(self) -> None:
+        # A rename's old side 404s and the comparison does not show it
+        # removed, so the reader raises; so does any refused read.
+        self.assertHeld(self.bound({}, WORKFLOW))
+        # No YAML parser where the gate runs.
+        with mock.patch.dict(sys.modules, {"yaml": None}):
+            self.assertHeld(self.bound({WORKFLOW: READ_ONLY}))
+        # No base commit to prove a deletion against.
+        for base in (None, "main"):
+            with self.subTest(base):
+                self.assertHeld(self.bound({WORKFLOW: READ_ONLY}, base=base))
+        # No reader at all.
+        result = by_lane(
+            ev.bind(
+                S,
+                [whole(lane, S) for lane in LANES],
+                both_markers(),
+                [],
+                is_human=is_human,
+                changed_paths=(WORKFLOW,),
+                base_sha=BASE,
+            )
+        )
+        self.assertHeld(result)
+
+    def test_a_read_only_workflow_beside_another_lane_source_is_not_read(self) -> None:
+        reads: list[str] = []
+
+        def read(path: str, original: str) -> str | None:
+            reads.append(path)
+            return READ_ONLY
+
+        result = by_lane(
+            ev.bind(
+                S,
+                [whole(lane, S) for lane in LANES],
+                both_markers(),
+                [],
+                is_human=is_human,
+                changed_paths=(WORKFLOW, "CLAUDE.md"),
+                head_file=read,
+                base_sha=BASE,
+            )
+        )
+        self.assertHeld(result)
+        self.assertEqual(reads, [])
+
+    def test_a_forged_marker_workflow_stays_unbound(self) -> None:
+        # A pull request adds a workflow whose token can write pull requests
+        # and that posts a clean reviewed-head marker as github-actions[bot].
+        # Its marker is indistinguishable from the lane's, so no lane binds.
+        forger = """\
+name: forge
+on: pull_request
+permissions:
+  pull-requests: write
+jobs:
+  post:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: gh pr comment "$PR" --body "$MARKER"
+"""
+        forged = [*both_markers(), marker("claude-security-review", S)]
+        result = by_lane(
+            ev.bind(
+                S,
+                [whole(lane, S) for lane in LANES],
+                forged,
+                [],
+                is_human=is_human,
+                changed_paths=(".github/workflows/forge.yml",),
+                head_file=reader({".github/workflows/forge.yml": forger}),
+                base_sha=BASE,
+            )
+        )
+        self.assertHeld(result)
+        # The scorer holds it until a main-run review binds (MainRunReviewTests).
+        scored = risk.score(
+            risk.RiskInput(
+                files=(),
+                files_complete=True,
+                max_changed_lines=None,
+                high_paths=(),
+                lanes=tuple(result.values()),
+            )
+        )
+        self.assertTrue(risk.holds(scored))
+
+
+REPO = "owner/repo"
+PR = 42
+MAIN_SHA = "c3" * 20
+HEAD_TREE = tree_of(S)
+CONTEXT = {
+    "repo": REPO,
+    "pr": PR,
+    "tree": HEAD_TREE,
+    "branch": "main",
+    "carried_critical": {lane: 0 for lane in LANES},
+}
+
+
+def recorded(reviews: Any, context: Any) -> Any:
+    """`context` with the record job's check runs for each review in
+    `reviews` on the head, as a completed run leaves them, unless the test
+    set `head_records` itself."""
+    if not isinstance(context, dict) or "head_records" in context:
+        return context
+    records: dict[str, list[list[int]]] = {lane: [] for lane in LANES}
+    for review in reviews or ():
+        verdict = review.get("verdict") if isinstance(review, dict) else None
+        if isinstance(verdict, dict) and verdict.get("lane") in records:
+            records[verdict["lane"]].append(
+                [verdict.get("findings"), verdict.get("critical")]
+            )
+    return dict(context, head_records=records)
+
+
+def main_review(
+    lane: str,
+    *,
+    head: str = S,
+    tree: str = HEAD_TREE,
+    findings: int = 0,
+    critical: int = 0,
+    max_line_bytes: Any = 120,
+    **run_fields: Any,
+) -> dict[str, Any]:
+    """A main-run review record as `babysit_gh.collect_main_reviews` reads
+    it: the artifact, its run and its verdict.json, each field a value the
+    workflow and GitHub's artifact and run records carry."""
+    run_id = next(_ids)
+    run_record = {
+        "id": run_id,
+        "path": ".github/workflows/pr-review-main.yml",
+        "event": "workflow_run",
+        "head_branch": "main",
+        "head_sha": MAIN_SHA,
+        "status": "completed",
+        "conclusion": "success",
+        "repository": {"full_name": REPO},
+        "head_repository": {"full_name": REPO},
+    }
+    run_record.update(run_fields)
+    return {
+        "lane": lane,
+        "on_branch": True,
+        "artifact": {
+            "id": next(_ids),
+            "name": f"pr-review-main-{lane}-{PR}-{tree}",
+            "expired": False,
+            "workflow_run": {"id": run_id},
+        },
+        "run": run_record,
+        "verdict": {
+            "schema": 1,
+            "lane": lane,
+            "pr": PR,
+            "head_sha": head,
+            "tree": tree,
+            "findings": findings,
+            "critical": critical,
+            "max_line_bytes": max_line_bytes,
+        },
+    }
+
+
+class MainRunReviewTests(Base):
+    """A pull request that changes a lane source binds a lane only on a review
+    that ran from main's copy of pr-review-main.yml (owner direction
+    2026-10-28): the run's identity, never a comment's author."""
+
+    SOURCE = ".github/workflows/deploy.yml"
+
+    def main_bind(
+        self,
+        reviews: Any,
+        *,
+        comments: list[dict[str, Any]] | None = None,
+        context: Any = CONTEXT,
+        threads: list[dict[str, Any]] | None = (),  # type: ignore[assignment]
+    ) -> dict[str, Any]:
+        return by_lane(
+            ev.bind(
+                S,
+                [whole(lane, S) for lane in LANES],
+                both_markers() if comments is None else comments,
+                list(threads) if threads is not None else None,
+                is_human=is_human,
+                changed_paths=("app.py", self.SOURCE),
+                head_file=fixed_head,
+                main_reviews=reviews,
+                main_context=recorded(reviews, context),
+            )
+        )
+
+    def test_a_verdict_with_no_matching_record_on_the_head_does_not_bind(
+        self,
+    ) -> None:
+        # A run cancelled before `record` left a verdict but no check run, so
+        # its CRITICAL would not carry to a later head: it binds nothing.
+        reviews = [main_review(lane, findings=1, critical=1) for lane in LANES]
+        for records in (
+            {lane: [] for lane in LANES},
+            {lane: [[0, 0]] for lane in LANES},
+            {},
+            None,
+        ):
+            with self.subTest(records=records):
+                result = self.main_bind(
+                    reviews, context=dict(CONTEXT, head_records=records)
+                )
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
+        matched = self.main_bind(
+            reviews,
+            context=dict(CONTEXT, head_records={lane: [[1, 1]] for lane in LANES}),
+        )
+        for lane in LANES:
+            self.assertTrue(matched[lane].bound, lane)
+
+    def test_a_designed_stop_on_the_head_names_the_unbound_reason(self) -> None:
+        # pr-review-main stopped on a diff too large to read whole and posted
+        # `verdict=none reason=too-large`: no verdict, so nothing binds, and
+        # the reason says why; a CRITICAL another head carried still holds.
+        context = dict(
+            CONTEXT,
+            carried_critical={"claude-review": 0, "claude-security-review": 2},
+            head_records={lane: [] for lane in LANES},
+            head_stops={lane: ["too-large"] for lane in LANES},
+        )
+        result = self.main_bind(None, context=context)
+        for lane in LANES:
+            self.assertUnbound(result[lane], "main-review-stop:too-large")
+        self.assertEqual(result["claude-security-review"].blocking_findings, 2)
+        # The scorer reports the stop by name as a lane cause, the same MED
+        # unbound evidence as before; no person code is added for it.
+        scored = risk.score(
+            risk.RiskInput(
+                files=(),
+                files_complete=True,
+                max_changed_lines=None,
+                high_paths=(),
+                lanes=tuple(result.values()),
+            )
+        )
+        unbound = {
+            r.code: (r.severity, r.detail)
+            for r in scored.reasons
+            if r.code.startswith("evidence-unbound:")
+        }
+        self.assertEqual(
+            unbound,
+            {
+                f"evidence-unbound:{lane}": (
+                    risk.Risk.MED,
+                    "not bound: main-review-stop:too-large",
+                )
+                for lane in LANES
+            },
+        )
+        # The carried CRITICAL is the only reason a person reads.
+        self.assertEqual(
+            [r.code for r in risk.person_reasons(scored.reasons)],
+            ["security-finding"],
+        )
+
+    def test_a_verdict_on_the_head_binds_over_a_stop_beside_it(self) -> None:
+        # A re-run reviewed the head whole after an earlier run stopped on it.
+        reviews = [main_review(lane, findings=1, critical=0) for lane in LANES]
+        result = self.main_bind(
+            reviews,
+            context=dict(
+                CONTEXT,
+                head_records={lane: [[1, 0]] for lane in LANES},
+                head_stops={lane: ["binary"] for lane in LANES},
+            ),
+        )
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+            self.assertIsNone(result[lane].unbound_reason)
+
+    def test_the_code_lanes_pull_request_runs_change_nothing(self) -> None:
+        # Pin for the merge job's read cut: a lane-source pull request's
+        # evidence is the same whether or not the code lane's runs were
+        # listed, so the caller lists only the security lane's.
+        security = [whole("claude-security-review", S)]
+        both = [whole(lane, S) for lane in LANES]
+        for reviews in (None, [main_review(lane) for lane in LANES]):
+            with self.subTest(reviews=bool(reviews)):
+                results = [
+                    ev.bind(
+                        S,
+                        runs,
+                        both_markers(),
+                        [],
+                        is_human=is_human,
+                        changed_paths=("app.py", self.SOURCE),
+                        head_file=fixed_head,
+                        main_reviews=reviews,
+                        main_context=recorded(reviews, CONTEXT),
+                    )
+                    for runs in (security, both)
+                ]
+                self.assertEqual(results[0], results[1])
+
+    def test_a_clean_main_run_review_of_the_head_binds_both_lanes(self) -> None:
+        result = self.main_bind([main_review(lane) for lane in LANES])
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+            self.assertIsNone(result[lane].unbound_reason)
+            self.assertEqual(result[lane].open_findings, 0)
+        self.assertEqual(result["claude-security-review"].blocking_findings, 0)
+
+    def test_a_verdict_on_a_diff_with_a_line_past_the_cap_does_not_bind(self) -> None:
+        # Read may cut a 2,500-byte line short, so a review of that diff saw
+        # part of it; a 1,000-byte line is read whole.
+        clean = self.main_bind(
+            [main_review(lane, max_line_bytes=1000) for lane in LANES]
+        )
+        for lane in LANES:
+            self.assertTrue(clean[lane].bound, lane)
+        for longest in (2500, ev.LONG_LINE_BYTES + 1, None, "1000", True):
+            with self.subTest(longest=longest):
+                result = self.main_bind(
+                    [main_review(lane, max_line_bytes=longest) for lane in LANES]
+                )
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_a_forged_marker_on_pull_request_runs_still_unbinds(self) -> None:
+        # Clean pull_request records and markers by github-actions[bot], which
+        # any write-token workflow in the head can post, bind nothing.
+        forged = [*both_markers(), marker("claude-security-review", S)]
+        result = self.main_bind(None, comments=forged)
+        for lane in LANES:
+            self.assertUnbound(result[lane], "lane-source-changed")
+        self.assertEqual(self.main_bind([]), self.main_bind(None))
+
+    def test_one_lane_reviewed_from_main_binds_only_that_lane(self) -> None:
+        result = self.main_bind([main_review("claude-review")])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertUnbound(result["claude-security-review"], "lane-source-changed")
+
+    def test_a_review_of_another_head_or_tree_does_not_bind(self) -> None:
+        for review in (
+            main_review("claude-review", head=S1),
+            main_review("claude-review", tree=tree_of(S1)),
+        ):
+            with self.subTest(review["verdict"]):
+                result = self.main_bind([review])
+                self.assertUnbound(result["claude-review"], "lane-source-changed")
+
+    def test_a_run_not_from_mains_definition_does_not_bind(self) -> None:
+        for fields in (
+            {"event": "pull_request"},
+            {"head_branch": "feature"},
+            {"path": ".github/workflows/pr-review-hosted.yml"},
+            {"repository": {"full_name": "fork/repo"}},
+            {"head_repository": {"full_name": "fork/repo"}},
+            {"head_sha": "not-a-sha"},
+        ):
+            with self.subTest(fields):
+                result = self.main_bind([main_review("claude-review", **fields)])
+                self.assertUnbound(result["claude-review"], "lane-source-changed")
+
+    def test_an_artifact_or_verdict_that_does_not_match_its_run_does_not_bind(
+        self,
+    ) -> None:
+        def changed(edit: Any) -> dict[str, Any]:
+            review = main_review("claude-review")
+            edit(review)
+            return review
+
+        for name, edit in (
+            ("head not on main", lambda r: r.update(on_branch=False)),
+            ("on_branch unread", lambda r: r.pop("on_branch")),
+            (
+                "another run's artifact",
+                lambda r: r["artifact"]["workflow_run"].update(id=1),
+            ),
+            ("expired", lambda r: r["artifact"].update(expired=True)),
+            (
+                "other lane's name",
+                lambda r: r["artifact"].update(
+                    name=f"pr-review-main-claude-security-review-{PR}-{HEAD_TREE}"
+                ),
+            ),
+            ("other pull request", lambda r: r["verdict"].update(pr=PR + 1)),
+            ("other tree in verdict", lambda r: r["verdict"].update(tree=tree_of(S1))),
+            (
+                "other lane in verdict",
+                lambda r: r["verdict"].update(lane="claude-security-review"),
+            ),
+            ("unknown schema", lambda r: r["verdict"].update(schema=2)),
+            ("negative count", lambda r: r["verdict"].update(findings=-1)),
+            ("bool count", lambda r: r["verdict"].update(findings=True)),
+            ("critical over findings", lambda r: r["verdict"].update(critical=1)),
+            ("short head", lambda r: r["verdict"].update(head_sha=S[:12])),
+        ):
+            with self.subTest(name):
+                result = self.main_bind([changed(edit)])
+                self.assertUnbound(result["claude-review"], "lane-source-changed")
+
+    def test_no_context_binds_nothing(self) -> None:
+        reviews = [main_review(lane) for lane in LANES]
+        for context in (None, {}, dict(CONTEXT, tree="x"), dict(CONTEXT, pr="42")):
+            with self.subTest(context):
+                result = self.main_bind(reviews, context=context)
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "lane-source-changed")
+
+    def test_a_clean_verdict_from_a_run_that_did_not_succeed_does_not_bind(
+        self,
+    ) -> None:
+        for fields in ({"status": "in_progress"}, {"conclusion": "failure"}):
+            with self.subTest(fields):
+                result = self.main_bind([main_review("claude-review", **fields)])
+                self.assertUnbound(result["claude-review"], "lane-source-changed")
+
+    def test_a_finding_from_a_failed_run_still_counts(self) -> None:
+        # A run fails as a whole when either lane's job fails, after the
+        # other lane uploaded; its findings still count, as pr-verify's FAIL
+        # does, so failing one lane and re-running cannot clear the other's.
+        result = self.main_bind(
+            [
+                main_review("claude-review"),
+                main_review(
+                    "claude-security-review",
+                    findings=1,
+                    critical=1,
+                    conclusion="failure",
+                ),
+                main_review("claude-security-review"),
+            ]
+        )
+        security = result["claude-security-review"]
+        self.assertTrue(security.bound)
+        self.assertEqual((security.open_findings, security.blocking_findings), (1, 1))
+
+    def test_findings_count_the_most_any_review_of_the_tree_reported(self) -> None:
+        # A re-run, or an empty commit with the same tree, never clears one.
+        result = self.main_bind(
+            [
+                main_review("claude-review", findings=2),
+                main_review("claude-review", findings=0),
+                main_review("claude-security-review", findings=3, critical=1),
+                main_review("claude-security-review", head=S0, findings=0),
+            ]
+        )
+        self.assertEqual(result["claude-review"].open_findings, 2)
+        security = result["claude-security-review"]
+        self.assertEqual((security.open_findings, security.blocking_findings), (3, 1))
+        scored = risk.score(
+            risk.RiskInput(
+                files=(),
+                files_complete=True,
+                max_changed_lines=None,
+                high_paths=(),
+                lanes=tuple(result.values()),
+            )
+        )
+        self.assertIn("security-finding", [r.code for r in risk.holding(scored)])
+
+    def test_a_critical_thread_the_pull_request_review_left_still_holds(self) -> None:
+        # The pull_request review's own CRITICAL finding can only add a hold.
+        threads = [
+            thread(
+                "severity: CRITICAL\nbad",
+                author={"__typename": "Bot", "login": "claude"},
+            )
+        ]
+        runs_review = main_review("claude-security-review")
+        result = by_lane(
+            ev.bind(
+                S,
+                [
+                    whole("claude-review", S),
+                    whole("claude-security-review", S, n=1, k=1),
+                ],
+                both_markers(),
+                threads,
+                is_human=is_human,
+                changed_paths=(self.SOURCE,),
+                head_file=fixed_head,
+                main_reviews=[main_review("claude-review"), runs_review],
+                main_context=recorded(
+                    [main_review("claude-review"), runs_review], CONTEXT
+                ),
+            )
+        )
+        security = result["claude-security-review"]
+        self.assertTrue(security.bound)
+        self.assertEqual(security.blocking_findings, 1)
+
+    def test_a_critical_an_earlier_head_recorded_holds_after_a_clean_re_roll(
+        self,
+    ) -> None:
+        # A whitespace push makes a new tree whose clean review would bind at
+        # zero; the CRITICAL the record job left on the earlier head holds.
+        context = dict(
+            CONTEXT, carried_critical={"claude-review": 0, "claude-security-review": 2}
+        )
+        result = self.main_bind([main_review(lane) for lane in LANES], context=context)
+        security = result["claude-security-review"]
+        self.assertTrue(security.bound)
+        self.assertEqual((security.open_findings, security.blocking_findings), (2, 2))
+        scored = risk.score(
+            risk.RiskInput(
+                files=(),
+                files_complete=True,
+                max_changed_lines=None,
+                high_paths=(),
+                lanes=tuple(result.values()),
+            )
+        )
+        self.assertIn(
+            "security-finding",
+            [r.code for r in risk.person_reasons(risk.holding(scored))],
+        )
+
+    def test_a_recorded_critical_holds_with_no_verdict_at_the_head(self) -> None:
+        context = dict(
+            CONTEXT, carried_critical={"claude-review": 0, "claude-security-review": 1}
+        )
+        security = self.main_bind([], context=context)["claude-security-review"]
+        self.assertFalse(security.bound)
+        self.assertEqual(security.blocking_findings, 1)
+
+    def test_unread_recorded_counts_bind_no_lane(self) -> None:
+        reviews = [main_review(lane) for lane in LANES]
+        for carried in (
+            None,
+            {},
+            {"claude-review": 0},
+            {"claude-review": 0, "claude-security-review": -1},
+        ):
+            with self.subTest(carried):
+                context = {k: v for k, v in CONTEXT.items() if k != "carried_critical"}
+                if carried is not None:
+                    context["carried_critical"] = carried
+                result = self.main_bind(reviews, context=context)
+                self.assertUnbound(
+                    result["claude-security-review"], "lane-source-changed"
+                )
+
+    def test_a_retargeted_pull_request_still_binds_nothing(self) -> None:
+        result = by_lane(
+            ev.bind(
+                S,
+                [],
+                [],
+                [],
+                is_human=is_human,
+                base_changed=True,
+                changed_paths=(self.SOURCE,),
+                main_reviews=[main_review(lane) for lane in LANES],
+                main_context=recorded([main_review(lane) for lane in LANES], CONTEXT),
+            )
+        )
+        for lane in LANES:
+            self.assertUnbound(result[lane], "base-retargeted")
+
+    def test_a_clean_main_run_review_makes_an_ordinary_workflow_edit_mergeable(
+        self,
+    ) -> None:
+        # End to end through the scorer: a workflow edit that adds no write
+        # scope, trigger or secret, off the gate, merges on a clean review.
+        result = self.main_bind([main_review(lane) for lane in LANES])
+        text = "name: deploy\non: push\npermissions: {}\njobs:\n  a:\n    runs-on: ubuntu-24.04\n"
+        changed = risk.ChangedFile(
+            path=self.SOURCE,
+            previous_path=None,
+            status="modified",
+            additions=1,
+            deletions=1,
+            has_patch=True,
+            mode="100644",
+            previous_mode="100644",
+            patch="@@ -1,1 +1,1 @@\n-name: old\n+name: deploy",
+            contents=(text.replace("deploy", "old", 1), text),
+        )
+        scored = risk.score(
+            risk.RiskInput(
+                files=(changed,),
+                files_complete=True,
+                max_changed_lines=1000,
+                high_paths=(),
+                lanes=tuple(result.values()),
+                public=True,
+            )
+        )
+        self.assertEqual(risk.holding(scored), [], scored.reasons)
+        unbound = self.main_bind(None)
+        scored = risk.score(
+            risk.RiskInput(
+                files=(changed,),
+                files_complete=True,
+                max_changed_lines=1000,
+                high_paths=(),
+                lanes=tuple(unbound.values()),
+                public=True,
+            )
+        )
+        self.assertTrue(risk.holds(scored))
+
+    def test_needs_main_review_matches_what_bind_reads(self) -> None:
+        self.assertTrue(ev.needs_main_review([self.SOURCE], fixed_head, None))
+        self.assertTrue(ev.needs_main_review(None, fixed_head, None))
+        self.assertTrue(ev.needs_main_review(["CLAUDE.md"], fixed_head, None))
+        self.assertFalse(ev.needs_main_review(["app.py"], fixed_head, None))
+        self.assertFalse(ev.needs_main_review([], fixed_head, None))
 
 
 class RunSelectionTests(Base):
@@ -617,9 +1560,41 @@ class AttemptRuleTests(Base):
                 self.assertUnbound(result["claude-review"], "rerun-not-allowed")
 
     def test_a_credential_failure_is_not_a_rate_limit(self) -> None:
-        self.assertFalse(
-            ev.rate_limited("claude-review", {"annotations": [AUTH_FAILURE]})
+        self.assertEqual(
+            ev.rerun_classes("claude-review", {"annotations": [AUTH_FAILURE]}),
+            {"auth"},
         )
+
+    def test_second_attempt_after_an_install_failure(self) -> None:
+        first = attempt("claude-review", S, 1, [INSTALL_FAILURE], "failure")
+        result = self.bind([self.lane_run(first, self.ok(2))])
+        self.assertTrue(result["claude-review"].bound)
+
+    def test_an_install_failure_lookalike_does_not_bind(self) -> None:
+        for message in (
+            "claude-review: failure-class=install-failed-x: something else",
+            "claude-review: failure-class=other: an unclassified failure"
+            " (detail quoting failure-class=install-failed: failed)",
+            "claude-security-review: failure-class=install-failed: another lane",
+            # The older reusables' status line names no lane.
+            "failure-class=install-failed: the subprocess isolation failed",
+        ):
+            with self.subTest(message=message):
+                first = attempt(
+                    "claude-review",
+                    S,
+                    1,
+                    [dict(INSTALL_FAILURE, message=message)],
+                    "failure",
+                )
+                result = self.bind([self.lane_run(first, self.ok(2))])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_third_attempt_after_an_install_failure_is_not_allowed(self) -> None:
+        first = attempt("claude-review", S, 1, [INSTALL_FAILURE], "failure")
+        second = attempt("claude-review", S, 2, [INSTALL_FAILURE], "failure")
+        result = self.bind([self.lane_run(first, second, self.ok(3))])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
 
     def test_second_attempt_after_a_publish_rate_limit_failure(self) -> None:
         first = attempt("claude-review", S, 1, [PUBLISH_RATE_LIMIT], "failure")
@@ -725,15 +1700,164 @@ class AttemptRuleTests(Base):
         self.assertUnbound(result["claude-review"], "evidence-error")
 
     def test_every_rerun_the_gate_starts_binds(self) -> None:
-        # The merge gate re-runs a review only on what `rate_limited` accepts
+        # The merge gate re-runs a review only on `GATE_RERUN_CLASSES`
         # (babysit_merge.rerun_rate_limited_review); each such re-run must
         # bind, or the gate spends the one allowed attempt for nothing.
-        for note in (RATE_LIMIT, PUBLISH_RATE_LIMIT):
-            with self.subTest(message=note["message"][:40]):
+        # `LOST` is a conclusion, not an annotation (LostRerunTests).
+        self.assertLessEqual(ev.GATE_RERUN_CLASSES, {*ev.RERUN_CLASSES, ev.LOST})
+        notes = {
+            "rate-limit": RATE_LIMIT,
+            "publish-rate-limit": PUBLISH_RATE_LIMIT,
+            ev.INSTALL_FAILED: INSTALL_FAILURE,
+        }
+        self.assertEqual({*notes, ev.LOST}, ev.GATE_RERUN_CLASSES)
+        for name, note in notes.items():
+            with self.subTest(name):
                 first = attempt("claude-review", S, 1, [note], "failure")
-                self.assertTrue(ev.rate_limited("claude-review", first["jobs"][0]))
+                self.assertEqual(
+                    ev.rerun_classes("claude-review", first["jobs"][0]), {name}
+                )
                 result = self.bind([self.lane_run(first, self.ok(2))])
                 self.assertTrue(result["claude-review"].bound)
+
+
+# After the pinned head's markers (both_markers), as an earlier run's would be.
+FIRST_STARTED = "2026-01-01T00:10:00Z"
+SECOND_STARTED = "2026-01-01T02:00:00Z"
+
+
+def lost(
+    lane: str = "claude-review",
+    conclusion: str = "cancelled",
+    *,
+    lane_job: bool = True,
+    annotations: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Attempt 1 an outage lost: with its lane job cut short, or (no
+    `lane_job`, as a run that never started) with no job at all."""
+    first = attempt(lane, S, 1, annotations or [], conclusion)
+    first["run_started_at"] = FIRST_STARTED
+    if not lane_job:
+        first["jobs"] = []
+    return first
+
+
+def rerun_ok(lane: str = "claude-review") -> dict[str, Any]:
+    second = attempt(lane, S, 2, [record(lane, S, "findings=0 inline=0 scope=whole")])
+    second["run_started_at"] = SECOND_STARTED
+    return second
+
+
+class LostRerunTests(Base):
+    """Attempt 2 after an attempt 1 an outage lost (#8524) binds only when
+    attempt 1 reached no side effect on the head."""
+
+    def lane_run(self, *attempts: dict[str, Any]) -> dict[str, Any]:
+        return run("claude-review", S, attempts=list(attempts))
+
+    def comment(self, at: str, body: str) -> dict[str, Any]:
+        return {
+            "id": next(_ids),
+            "user": {"login": "github-actions[bot]", "type": "Bot"},
+            "created_at": at,
+            "edit": UNEDITED,
+            "body": body,
+        }
+
+    def test_second_attempt_after_a_lost_first_binds(self) -> None:
+        for conclusion in sorted(ev.LOST_CONCLUSIONS):
+            for lane_job in (True, False):
+                with self.subTest(conclusion=conclusion, lane_job=lane_job):
+                    first = lost(conclusion=conclusion, lane_job=lane_job)
+                    result = self.bind([self.lane_run(first, rerun_ok())])
+                    self.assertTrue(result["claude-review"].bound)
+                    self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_a_lost_first_that_recorded_a_review_does_not_bind(self) -> None:
+        done = record("claude-review", S, "findings=0 inline=0 scope=whole")
+        first = lost(annotations=[done])
+        result = self.bind([self.lane_run(first, rerun_ok())])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_lost_first_whose_lane_job_ended_on_its_own_does_not_bind(self) -> None:
+        # The run was lost, but its lane job had already failed on a class
+        # outside RERUN_CLASSES, or succeeded: it judged the head.
+        for conclusion, notes in (("failure", [OTHER_FAILURE]), ("success", [])):
+            with self.subTest(conclusion=conclusion):
+                first = lost(annotations=notes)
+                first["jobs"][0]["conclusion"] = conclusion
+                result = self.bind([self.lane_run(first, rerun_ok())])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_lost_first_whose_lane_posted_does_not_bind(self) -> None:
+        # Between the two attempts' starts: the marker, a summary comment, or
+        # an inline thread of this lane.
+        mark = dict(marker("claude-review", S), created_at="2026-01-01T00:40:00Z")
+        summary = self.comment(
+            "2026-01-01T00:45:00Z", "Summary\n\n`claude-lane: claude-review`"
+        )
+        posted = thread(created="2026-01-01T00:50:00Z")
+        for comments, threads in (
+            ([*both_markers(), mark], []),
+            ([*both_markers(), summary], []),
+            (both_markers(), [posted]),
+        ):
+            with self.subTest(comments=len(comments), threads=len(threads)):
+                result = self.bind(
+                    [self.lane_run(lost(), rerun_ok())], comments, threads
+                )
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_what_the_lane_posted_outside_attempt_one_does_not_hold(self) -> None:
+        # Attempt 2's own posts come after its start.
+        late = self.comment(
+            "2026-01-01T02:30:00Z", "Summary\n\n`claude-lane: claude-review`"
+        )
+        other_lane = self.comment(
+            "2026-01-01T00:45:00Z", "Summary\n\n`claude-lane: claude-security-review`"
+        )
+        for comments in ([*both_markers(), late], [*both_markers(), other_lane]):
+            with self.subTest(body=comments[-1]["body"][-30:]):
+                result = self.bind([self.lane_run(lost(), rerun_ok())], comments, [])
+                self.assertTrue(result["claude-review"].bound)
+
+    def test_an_unreadable_start_does_not_bind(self) -> None:
+        for first_start in (None, "x"):
+            with self.subTest(first_start=first_start):
+                first = lost()
+                first["run_started_at"] = first_start
+                result = self.bind([self.lane_run(first, rerun_ok())])
+                self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_third_attempt_after_a_lost_first_is_not_allowed(self) -> None:
+        second = lost()
+        second.update(run_attempt=2, run_started_at="2026-01-01T01:00:00Z")
+        second["jobs"][0]["run_attempt"] = 2
+        third = rerun_ok()
+        third["run_attempt"] = 3
+        third["jobs"][0]["run_attempt"] = 3
+        result = self.bind([self.lane_run(lost(), second, third)])
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_a_lost_run_that_never_reached_its_lane_job_counts_nothing(self) -> None:
+        # An earlier head's run lost before its lane job (no jobs listed)
+        # neither unbinds the lane nor adds a finding.
+        older = run("claude-review", S0, attempts=[lost(lane_job=False)])
+        result = self.bind([older, whole("claude-review", S)])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_lane_posted_counts_unreadable_input_as_posted(self) -> None:
+        for comments, threads in ((None, []), ([1], []), ([], None), ([], [1])):
+            with self.subTest(comments=comments, threads=threads):
+                self.assertTrue(
+                    ev.lane_posted(
+                        "claude-review", S, FIRST_STARTED, None, comments, threads
+                    )
+                )
+        self.assertFalse(
+            ev.lane_posted("claude-review", S, FIRST_STARTED, None, [], [])
+        )
 
 
 # The caller workflows' `Report the kill switch` notice
@@ -1494,12 +2618,18 @@ class CoveringReviewTests(Base):
     PUSHER = {"__typename": "User", "login": "pusher"}
 
     def two_reviews(
-        self, earlier: str, latest: str, *, earlier_sha: str = S0
+        self,
+        earlier: str,
+        latest: str,
+        *,
+        earlier_sha: str = S0,
+        tree: str | None = None,
     ) -> list[dict[str, Any]]:
-        # An earlier review in the 00:00-01:00 window, the latest in 02:00-03:00.
+        # An earlier review in the 00:00-01:00 window, the latest in 02:00-03:00,
+        # of the pinned head, whose tree is `tree` when given.
         runs = [
             run("claude-review", earlier_sha, earlier, created="2026-01-01T00:00:00Z"),
-            run("claude-review", S, latest, created="2026-01-01T02:00:00Z"),
+            run("claude-review", S, latest, created="2026-01-01T02:00:00Z", tree=tree),
         ]
         job = runs[1]["attempts"][0]["jobs"][0]
         job["started_at"], job["completed_at"] = (
@@ -1597,11 +2727,16 @@ class CoveringReviewTests(Base):
         self.assertEqual(result["claude-review"].open_findings, 1)
 
     def incremental_then_whole(
-        self, incremental_sha: str, counts: str = "findings=1 inline=1"
+        self,
+        incremental_sha: str,
+        counts: str = "findings=1 inline=1",
+        *,
+        tree: str | None = None,
     ) -> list[dict[str, Any]]:
         # A clean whole review at S0 (00:00-01:00); an incremental review at
         # `incremental_sha` raised one finding (02:00-03:00), inline by
-        # default; then a clean whole review of the pinned head S (04:00-05:00).
+        # default; then a clean whole review of the pinned head S (04:00-05:00),
+        # whose tree is `tree` when given.
         return [
             whole("claude-review", S0),
             windowed(
@@ -1620,6 +2755,7 @@ class CoveringReviewTests(Base):
                     S,
                     "findings=0 inline=0 scope=whole",
                     created="2026-01-01T04:00:00Z",
+                    tree=tree,
                 ),
                 "2026-01-01T04:00:00Z",
                 "2026-01-01T05:00:00Z",
@@ -1675,6 +2811,76 @@ class CoveringReviewTests(Base):
         result = self.bind(runs, threads=[])
         self.assertTrue(result["claude-review"].bound)
         self.assertEqual(result["claude-review"].open_findings, 0)
+
+    # #8638: a head is new for closure only when its tree changed, so an
+    # empty commit (new sha, same tree) cannot re-roll the review.
+
+    def test_a_clean_whole_review_of_an_empty_commit_keeps_an_incremental_finding(
+        self,
+    ) -> None:
+        runs = self.incremental_then_whole(S1, tree=tree_of(S1))
+        result = self.bind(runs, threads=self.incremental_thread())
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_a_clean_whole_review_of_an_empty_commit_keeps_a_summary_finding(
+        self,
+    ) -> None:
+        runs = self.incremental_then_whole(S1, "findings=1 inline=0", tree=tree_of(S1))
+        result = self.bind(runs, threads=[])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 1)
+
+    def test_a_clean_whole_review_of_an_empty_commit_keeps_a_whole_reviews_findings(
+        self,
+    ) -> None:
+        empty = self.two_reviews(
+            "findings=1 inline=1 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            tree=tree_of(S0),
+        )
+        result = self.bind(empty, threads=self.agent_resolved())
+        self.assertEqual(result["claude-review"].open_findings, 1)
+        threadless = self.two_reviews(
+            "findings=2 inline=1 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            tree=tree_of(S0),
+        )
+        self.assertEqual(
+            self.bind(threadless, threads=[])["claude-review"].open_findings, 2
+        )
+
+    def test_a_clean_whole_review_of_a_changed_tree_clears_the_finding(
+        self,
+    ) -> None:
+        runs = self.two_reviews(
+            "findings=2 inline=1 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            tree="7e" * 20,
+        )
+        result = self.bind(runs, threads=self.agent_resolved())
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 0)
+
+    def test_a_reviewed_run_with_no_readable_tree_unbinds(self) -> None:
+        for commit in (None, {"id": S}, {"id": S, "tree_id": "not-a-sha"}):
+            with self.subTest(commit=commit):
+                runs = self.two_reviews(
+                    "findings=1 inline=1 scope=whole", "findings=0 inline=0 scope=whole"
+                )
+                runs[1]["head_commit"] = commit
+                result = self.bind(runs, threads=self.agent_resolved())
+                self.assertUnbound(result["claude-review"], "tree-unread")
+
+    def test_two_trees_for_one_head_unbind(self) -> None:
+        runs = self.two_reviews(
+            "findings=1 inline=1 scope=whole",
+            "findings=0 inline=0 scope=whole",
+            earlier_sha=S,
+        )
+        runs[1]["head_commit"] = {"id": S, "tree_id": "7e" * 20}
+        result = self.bind(runs, threads=self.agent_resolved())
+        self.assertUnbound(result["claude-review"], "evidence-error")
 
     def test_summary_findings_the_covering_review_reports_still_count(
         self,
@@ -1760,6 +2966,7 @@ class CoveringReviewTests(Base):
             "findings=0 inline=0 scope=whole",
         )
         runs[1]["head_sha"] = S1
+        runs[1]["head_commit"] = {"id": S1, "tree_id": tree_of(S1)}
         for item in runs[1]["attempts"]:
             item["head_sha"] = S1
             for job in item["jobs"]:
@@ -2272,6 +3479,30 @@ class SeverityTests(Base):
                 self.assertEqual(result.open_findings, 3)
                 self.assertEqual(result.blocking_findings, blocking)
 
+    def test_a_rerolled_review_of_the_same_tree_never_lowers_the_count(
+        self,
+    ) -> None:
+        # #8638: the earlier review of the tree reported the same summary
+        # findings; its line is not read, so the newer one's line cannot
+        # clear them, whether the re-roll is a re-run or an empty commit.
+        for sha in (S, S0):
+            with self.subTest(earlier=sha):
+                runs = [
+                    whole("claude-review", S),
+                    run(self.SEC, sha, "findings=2 inline=0 scope=whole"),
+                    run(
+                        self.SEC,
+                        S,
+                        "findings=2 inline=0 scope=whole",
+                        created="2026-01-01T02:00:00Z",
+                        tree=tree_of(sha),
+                    ),
+                ]
+                comments = self.summary_markers("critical-findings: 0")
+                result = self.bind(runs, comments=comments)[self.SEC]
+                self.assertEqual(result.open_findings, 2)
+                self.assertEqual(result.blocking_findings, 2)
+
     def test_a_summary_comment_the_review_posted_carries_the_line(self) -> None:
         # The probe fixture's producer shape: the Claude App posts the summary
         # and the head marker is a separate status comment.
@@ -2283,6 +3514,7 @@ class SeverityTests(Base):
                 "user": {"login": "claude[bot]", "type": "Bot"},
                 "created_at": at,
                 "body": body,
+                "edit": UNEDITED,
             }
 
         for body, at, blocking in (
@@ -2342,6 +3574,7 @@ class SeverityTests(Base):
                 "user": user or {"login": "github-actions[bot]", "type": "Bot"},
                 "created_at": "2026-01-01T00:30:00Z",
                 "body": body,
+                "edit": UNEDITED,
             }
 
         footed = f"summary\n\ncritical-findings: 0\n\nclaude-lane: {self.SEC}"
@@ -2374,6 +3607,128 @@ class SeverityTests(Base):
             self.SEC
         ]
         self.assertEqual(result.blocking_findings, 1)
+
+    # #10817: a whole review at S0 reported one IMPORTANT summary finding with
+    # `critical-findings: 0`, then an incremental review at S found none. The
+    # lane edits one marker in place, so S0's summary lives in its history.
+    ACTIONS_BOT = {"__typename": "Bot", "login": "github-actions"}
+
+    def earlier_link(self) -> list[dict[str, Any]]:
+        early = attempt(
+            self.SEC, S0, 1, [record(self.SEC, S0, "findings=1 inline=0 scope=whole")]
+        )
+        late = attempt(
+            self.SEC,
+            S,
+            1,
+            [record(self.SEC, S, f"findings=0 inline=0 scope=incremental since={S0}")],
+        )
+        late["jobs"][0]["started_at"] = "2026-01-01T02:00:00Z"
+        late["jobs"][0]["completed_at"] = "2026-01-01T03:00:00Z"
+        return [
+            whole("claude-review", S),
+            run(self.SEC, S0, attempts=[early]),
+            run(self.SEC, S, attempts=[late], created="2026-01-01T02:00:00Z"),
+        ]
+
+    def edited_marker(
+        self, earlier: str | None, history: Any = None
+    ) -> list[dict[str, Any]]:
+        """Both markers, the security one edited from S0's summary (`earlier`)
+        to S's clean one; `history` replaces the edit history whole."""
+        current = (
+            f"<!-- claude-lane-reviewed-head lane={self.SEC} sha={S} -->\n"
+            "reviewed: 0 finding(s).\n\ncritical-findings: 0"
+        )
+        old = (
+            f"<!-- claude-lane-reviewed-head lane={self.SEC} sha={S0} -->\n"
+            f"reviewed: 1 finding(s).\n\n{earlier}"
+        )
+        if history is None:
+            history = {
+                "totalCount": 2,
+                "nodes": [
+                    {"editedAt": "2026-01-01T02:30:00Z", "deletedAt": None,
+                     "editor": self.ACTIONS_BOT, "diff": current},
+                    {"editedAt": "2026-01-01T00:30:00Z", "deletedAt": None,
+                     "editor": self.ACTIONS_BOT, "diff": old},
+                ],
+            }  # fmt: skip
+        found = both_markers()
+        for item in found:
+            if f"lane={self.SEC}" in item["body"]:
+                item["body"] = current
+                item["edit"] = {
+                    "lastEditedAt": "2026-01-01T02:30:00Z",
+                    "editor": self.ACTIONS_BOT,
+                    "history": history,
+                }
+        return found
+
+    def test_an_earlier_links_summary_blocks_only_when_critical_or_unreadable(
+        self,
+    ) -> None:
+        for earlier, blocking in (
+            ("critical-findings: 0", 0),
+            ("critical-findings: 1", 1),
+            ("critical-findings: 7", 1),
+            ("no line", 1),
+            ("critical-findings: 0\ncritical-findings: 0", 1),
+        ):
+            with self.subTest(earlier=earlier):
+                comments = self.edited_marker(earlier)
+                result = self.bind(self.earlier_link(), comments=comments)[self.SEC]
+                self.assertTrue(result.bound)
+                self.assertEqual(result.open_findings, 1)
+                self.assertEqual(result.blocking_findings, blocking)
+
+    def test_an_unreadable_marker_history_counts_the_earlier_summary_in_full(
+        self,
+    ) -> None:
+        good = self.edited_marker("critical-findings: 0")[1]["edit"]["history"]
+        nodes = good["nodes"]
+        for name, history in (
+            ("absent", "missing"),
+            ("truncated", {"totalCount": 3, "nodes": nodes}),
+            ("deleted", {"totalCount": 2, "nodes": [nodes[0], {**nodes[1], "deletedAt": "2026-01-01T04:00:00Z"}]}),
+            ("no diff", {"totalCount": 2, "nodes": [nodes[0], {**nodes[1], "diff": None}]}),
+            ("another editor", {"totalCount": 2, "nodes": [nodes[0], {**nodes[1], "editor": MAINTAINER}]}),
+            ("outside the job", {"totalCount": 2, "nodes": [nodes[0], {**nodes[1], "editedAt": "2026-01-01T01:30:00Z"}]}),
+        ):  # fmt: skip
+            with self.subTest(name=name):
+                comments = self.edited_marker("critical-findings: 0", history)
+                if name == "absent":
+                    del comments[1]["edit"]["history"]
+                result = self.bind(self.earlier_link(), comments=comments)[self.SEC]
+                self.assertTrue(result.bound)
+                self.assertEqual(result.blocking_findings, 1)
+
+    def test_a_revision_for_another_head_does_not_read_for_the_earlier_link(
+        self,
+    ) -> None:
+        # S's own revision falls in S0's window: it names S, not S0.
+        comments = self.edited_marker("no line")
+        history = comments[1]["edit"]["history"]
+        history["nodes"][0]["editedAt"] = "2026-01-01T00:40:00Z"
+        result = self.bind(self.earlier_link(), comments=comments)[self.SEC]
+        self.assertEqual(result.blocking_findings, 1)
+
+    def test_the_covering_reviews_line_still_reads_beside_the_history(self) -> None:
+        # The newest revision is the current marker body: it must not count
+        # as a second line for the covering review.
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=2, k=0)]
+        comments = self.summary_markers("critical-findings: 0")
+        sec = comments[1]
+        sec["edit"] = {
+            "lastEditedAt": "2026-01-01T00:30:00Z",
+            "editor": self.ACTIONS_BOT,
+            "history": {"totalCount": 1, "nodes": [
+                {"editedAt": "2026-01-01T00:30:00Z", "deletedAt": None,
+                 "editor": self.ACTIONS_BOT, "diff": sec["body"]},
+            ]},
+        }  # fmt: skip
+        result = self.bind(runs, comments=comments)[self.SEC]
+        self.assertEqual(result.blocking_findings, 0)
 
     def test_claude_review_findings_all_block(self) -> None:
         runs = [whole("claude-review", S, n=1, k=0), whole(self.SEC, S)]
@@ -2421,3 +3776,136 @@ class CodeLaneOnCliTests(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EditedCommentTests(Base):
+    """Anyone with write access can edit a comment, and the last editor wrote
+    its whole body, so a lane comment whose last editor is not its own author
+    proves nothing and unbinds. The producer's own marker edits bind."""
+
+    SEC = "claude-security-review"
+    HUMAN_EDIT = {
+        "lastEditedAt": "2026-01-02T00:00:00Z",
+        "editor": {"__typename": "User", "login": "pusher"},
+    }
+    APP_EDIT = {
+        "lastEditedAt": "2026-01-02T00:00:00Z",
+        "editor": {"__typename": "Bot", "login": "melodic-lanes"},
+    }
+    OWN_EDIT = {
+        "lastEditedAt": "2026-01-02T00:00:00Z",
+        "editor": {"__typename": "Bot", "login": "github-actions"},
+    }
+
+    def markers(self, edit: Any) -> list[dict[str, Any]]:
+        found = both_markers()
+        for item in found:
+            if f"lane={self.SEC}" in item["body"]:
+                if edit is None:
+                    del item["edit"]
+                else:
+                    item["edit"] = edit
+        return found
+
+    def runs(self) -> list[dict[str, Any]]:
+        return [whole(lane, S) for lane in LANES]
+
+    def test_a_marker_edited_by_another_identity_unbinds_every_lane(self) -> None:
+        # The edited text cannot say which lane's marker it was.
+        for name, edit in (
+            ("a person", self.HUMAN_EDIT),
+            ("another App", self.APP_EDIT),
+            ("no edit record", None),
+            ("an unreadable record", "edited"),
+            ("an editor that is not read", {"lastEditedAt": "2026-01-02T00:00:00Z"}),
+        ):
+            with self.subTest(name):
+                result = self.bind(self.runs(), self.markers(edit))
+                for lane in LANES:
+                    self.assertUnbound(result[lane], "comment-edited")
+
+    def test_a_marker_the_producer_edited_still_binds(self) -> None:
+        # ci-workflows publish.cjs writeMarker updates the lane's marker on
+        # each later review; GraphQL names its editor without `[bot]`.
+        result = self.bind(self.runs(), self.markers(self.OWN_EDIT))
+        for lane in LANES:
+            self.assertTrue(result[lane].bound, lane)
+
+    def test_an_edited_summary_count_unbinds(self) -> None:
+        summary = {
+            "id": next(_ids),
+            "user": {"login": "github-actions[bot]", "type": "Bot"},
+            "created_at": "2026-01-01T00:30:00Z",
+            "body": f"summary\n\ncritical-findings: 0\n\n`claude-lane: {self.SEC}`",
+            "edit": self.HUMAN_EDIT,
+        }
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1)]
+        result = self.bind(runs, [*both_markers(), summary])
+        self.assertUnbound(result[self.SEC], "comment-edited")
+
+    def test_an_edited_thread_finding_fails_closed(self) -> None:
+        # A CRITICAL finding edited down to a SUGGESTION, or with its footer
+        # removed, would leave the count; it unbinds instead.
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        for name, body in (
+            ("downgraded", f"x\n\nseverity: SUGGESTION\n`claude-lane: {self.SEC}`"),
+            ("footer kept", f"x\n\nseverity: CRITICAL\n`claude-lane: {self.SEC}`"),
+        ):
+            with self.subTest(name):
+                item = thread(body)
+                item["comments"][0]["lastEditedAt"] = "2026-01-02T00:00:00Z"
+                item["comments"][0]["editor"] = {
+                    "__typename": "User",
+                    "login": "pusher",
+                }
+                result = self.bind(runs, threads=[item])
+                self.assertUnbound(result[self.SEC], "comment-edited")
+
+    def test_a_finding_whose_footer_a_person_deleted_fails_closed(self) -> None:
+        # Without its footer the body no longer names the lane; the edit is
+        # read before the body, so it unbinds rather than leaving the count.
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        for name, login in (
+            ("github-actions", "github-actions"),
+            ("Claude App", "claude"),
+        ):
+            with self.subTest(name):
+                item = thread(
+                    "x\n\nseverity: CRITICAL",
+                    author={"__typename": "Bot", "login": login},
+                )
+                item["comments"][0]["lastEditedAt"] = "2026-01-02T00:00:00Z"
+                item["comments"][0]["editor"] = {
+                    "__typename": "User",
+                    "login": "pusher",
+                }
+                result = self.bind(runs, threads=[item])
+                self.assertUnbound(result[self.SEC], "comment-edited")
+
+    def test_a_summary_whose_footer_a_person_deleted_unbinds(self) -> None:
+        summary = {
+            "id": next(_ids),
+            "user": {"login": "github-actions[bot]", "type": "Bot"},
+            "created_at": "2026-01-01T00:30:00Z",
+            "body": "summary\n\ncritical-findings: 1",
+            "edit": self.HUMAN_EDIT,
+        }
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1)]
+        result = self.bind(runs, [*both_markers(), summary])
+        self.assertUnbound(result[self.SEC], "comment-edited")
+
+    def test_a_thread_whose_edit_fields_were_not_read_fails_closed(self) -> None:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        item = thread(f"x\n\nseverity: SUGGESTION\n`claude-lane: {self.SEC}`")
+        del item["comments"][0]["lastEditedAt"]
+        result = self.bind(runs, threads=[item])
+        self.assertUnbound(result[self.SEC], "comment-edited")
+
+    def test_a_thread_its_author_edited_still_counts(self) -> None:
+        runs = [whole("claude-review", S), whole(self.SEC, S, n=1, k=1)]
+        item = thread(f"x\n\nseverity: CRITICAL\n`claude-lane: {self.SEC}`")
+        item["comments"][0]["lastEditedAt"] = "2026-01-02T00:00:00Z"
+        item["comments"][0]["editor"] = {"__typename": "Bot", "login": "claude"}
+        result = self.bind(runs, threads=[item])
+        self.assertTrue(result[self.SEC].bound)
+        self.assertEqual(result[self.SEC].blocking_findings, 1)

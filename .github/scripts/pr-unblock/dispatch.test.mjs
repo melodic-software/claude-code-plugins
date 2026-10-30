@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchConflicting, main } from "./dispatch.mjs";
+import { createGitHubApi, dispatchConflicting, main, shareTimeline } from "./dispatch.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const CHECK_NAME = "pr-unblock / resolve-conflicts";
 // The lanes App bot's user id (.github/standards/trusted-actors/trusted-actors.json).
@@ -64,8 +64,10 @@ function pr(number, overrides = {}) {
 // or a Map from head SHA to the check runs GitHub returns for it. `runIds`
 // maps a PR number to the workflow_run_id its dispatch returns, undefined
 // included; any other PR gets 9000 plus its number. `workflowRuns` is the
-// pr-unblock.yml run listing.
+// pr-unblock.yml run listing. `stops` maps a head SHA to its
+// pr-unblock / apply-conflict-patch check runs, read into calls.stops.
 function fakeApi({
+  stops = new Map(),
   pages = [[]],
   requeries = [],
   checked = new Set(),
@@ -77,8 +79,9 @@ function fakeApi({
   docsPulls = [],
   comments = new Map(),
   labelEvents = new Map(),
+  reviewComments = new Map(),
 } = {}) {
-  const calls = { list: [], get: [], checks: [], dispatch: [], runs: [], timeline: [] };
+  const calls = { list: [], get: [], checks: [], stops: [], dispatch: [], runs: [], timeline: [], reviewComments: [], reviews: [] };
   let round = 0;
   return {
     calls,
@@ -115,6 +118,10 @@ function fakeApi({
       return answer.filter((node) => numbers.includes(node.number));
     },
     async listCheckRuns({ sha, checkName, appId }) {
+      if (checkName === "pr-unblock / apply-conflict-patch") {
+        calls.stops.push({ sha, appId });
+        return stops.get(sha) ?? [];
+      }
       calls.checks.push({ sha, checkName, appId });
       if (failChecks.has(sha)) {
         throw new Error("check-runs read failed");
@@ -131,6 +138,15 @@ function fakeApi({
     async listTimeline(number) {
       calls.timeline.push(number);
       return [...(comments.get(number) ?? []).map((comment) => ({ event: "commented", ...comment })), ...(labelEvents.get(number) ?? [])];
+    },
+    // The REST review comments and reviews, with an inline reply's in_reply_to_id.
+    async listReviewComments(number) {
+      calls.reviewComments.push(number);
+      return reviewComments.get(number) ?? [];
+    },
+    async listReviews(number) {
+      calls.reviews.push(number);
+      return [];
     },
     async listWorkflowRuns(workflow) {
       calls.runs.push(workflow);
@@ -483,7 +499,7 @@ test("main reads a held PR's timeline once, however many dispatchers ask", async
   const ci = { ...ciFixPull(61), labels: { nodes: [{ name: "needs-human" }] } };
   const docs = { ...docsPull(61), labels: { nodes: [{ name: "needs-human" }] } };
   const api = fakeApi({ pages: [[held]], ciFixPulls: [ci], docsPulls: [docs], labelEvents: new Map([[61, labeledBy(OWNER)]]) });
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  const dir = tempDir("pr-unblock-dispatch-");
   try {
     await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
@@ -494,6 +510,51 @@ test("main reads a held PR's timeline once, however many dispatchers ask", async
   }
   assert.deepEqual(api.calls.dispatch, [], "a person's label holds all three");
   assert.deepEqual(api.calls.timeline, [61]);
+  assert.deepEqual(api.calls.reviewComments, [], "a PR the timeline alone holds needs no review read");
+});
+
+// GitHub's timeline has no event for a reply inside an existing review thread
+// (#10526, #10533): it is only in pulls/<n>/comments, with in_reply_to_id.
+const inlineReply = (user) => [{ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: "2026-10-18T11:00:00Z", updated_at: "2026-10-18T11:00:00Z" }];
+
+test("a person's inline review-thread reply since another lane's escalation holds all three, read once", async () => {
+  const held = pr(71, LABELS("needs-human"));
+  const ci = { ...ciFixPull(71), labels: { nodes: [{ name: "needs-human" }] } };
+  const docs = { ...docsPull(71), labels: { nodes: [{ name: "needs-human" }] } };
+  const api = fakeApi({
+    pages: [[held]],
+    ciFixPulls: [ci],
+    docsPulls: [docs],
+    labelEvents: new Map([[71, labeledBy(APP_USER)]]),
+    comments: new Map([[71, escalationComment("feedback-disputed")]]),
+    reviewComments: new Map([[71, inlineReply(OWNER)]]),
+  });
+  const dir = tempDir("pr-unblock-dispatch-");
+  try {
+    await main(
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
+      { api, sleep: async () => {}, log: () => {}, loadLimits: async () => LIMIT_DEFAULTS, loadAdoption: async () => ({}) },
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.deepEqual(api.calls.dispatch, [], "the person's inline reply holds all three");
+  assert.deepEqual([api.calls.timeline, api.calls.reviewComments, api.calls.reviews], [[71], [71], [71]]);
+});
+
+test("a bot's inline review-thread reply leaves another lane's escalation workable for resolve-conflicts", async () => {
+  const disputed = pr(81, LABELS("needs-human"));
+  const { api, run } = harness(
+    {
+      pages: [[disputed]],
+      labelEvents: new Map([[81, labeledBy(APP_USER)]]),
+      comments: new Map([[81, escalationComment("feedback-disputed")]]),
+      reviewComments: new Map([[81, inlineReply(APP_USER)]]),
+    },
+    { appSenderId: LANES_APP, maxDispatch: 9 },
+  );
+  await run();
+  assert.deepEqual(dispatchedNumbers(api), ["81"]);
 });
 
 test("skips a PR while a resolve-conflicts run for it is queued or going", async () => {
@@ -694,7 +755,7 @@ test("a 15-digit workflow_run_id is accepted", async () => {
 
 // main against a fake API, with GITHUB_OUTPUT a real file it appends to.
 async function runMain(apiOptions, limits = LIMIT_DEFAULTS, now = undefined) {
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  const dir = tempDir("pr-unblock-dispatch-");
   const output = join(dir, "output");
   writeFileSync(output, "");
   try {
@@ -852,7 +913,7 @@ test("main records fix-docs dispatches beside the others, capped by limits.fix-d
 async function mainWithFailedListing(error) {
   const api = fakeApi({ pages: [[pr(181)]], ciFixPulls: [ciFixPull(182)], docsPulls: [docsPull(183)], workflowRuns: error });
   const lines = [];
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  const dir = tempDir("pr-unblock-dispatch-");
   try {
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
@@ -899,7 +960,7 @@ async function mainWithHistoryAnswers(answers, pulls) {
   const adapter = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch: budget.fetch });
   const api = { ...fakeApi({ pages: [[]], docsPulls: pulls }), readDocsFixHistory: adapter.readDocsFixHistory };
   const lines = [];
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  const dir = tempDir("pr-unblock-dispatch-");
   try {
     const code = await main(
       { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "1", GITHUB_OUTPUT: join(dir, "out"), APP_SENDER_ID: String(LANES_APP), BASE_PATH: dir },
@@ -965,7 +1026,7 @@ test("the adapter marks a run listing budgetedFetch gave up on as rate limited, 
 });
 
 test("without the lanes App sender id main still dispatches conflicts, dispatches no fix-ci, and exits 1", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  const dir = tempDir("pr-unblock-dispatch-");
   try {
     const output = join(dir, "output");
     writeFileSync(output, "");
@@ -981,7 +1042,7 @@ test("without the lanes App sender id main still dispatches conflicts, dispatche
 });
 
 test("main appends each run id to RUN_IDS_FILE as soon as its dispatch returns", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-dispatch-"));
+  const dir = tempDir("pr-unblock-dispatch-");
   try {
     const file = join(dir, "ids");
     const api = fakeApi({ pages: [[pr(160), pr(161)]], runIds: new Map([["161", undefined]]) });
@@ -1138,7 +1199,7 @@ test("the GitHub adapter calls the documented endpoints", async () => {
 test("the required-run read takes the newest pr-require-checks run that tested the head", async () => {
   const head = "c".repeat(40);
   const urls = [];
-  const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure" });
+  const failed = (id, path, created) => ({ id, path, created_at: created, status: "completed", conclusion: "failure", head_repository: { full_name: "octo/repo" } });
   // Run 14 is a contract-only run (only ci-status ran), stepped past.
   const contractOnly = [
     { name: "ci-status", conclusion: "failure" },
@@ -1187,6 +1248,27 @@ test("the required-run read takes the newest pr-require-checks run that tested t
   });
   assert.equal(urls.at(-1), "https://api.example/repos/octo/repo/actions/runs/13/jobs?filter=latest&per_page=100");
   await assert.rejects(api.readRequiredRun("main"), /not a commit SHA/);
+});
+
+test("the required-run read skips a fork's newer run at the same head SHA", async () => {
+  const head = "c".repeat(40);
+  const urls = [];
+  const own = { id: 21, path: ".github/workflows/pr-require-checks.yml", created_at: "2026-10-22T02:00:00Z", status: "completed", conclusion: "failure", head_repository: { full_name: "octo/repo" } };
+  // A fork PR pushed the same commit: its run is newer and still going.
+  const fork = { ...own, id: 22, created_at: "2026-10-22T03:00:00Z", status: "in_progress", conclusion: null, head_repository: { full_name: "someone/repo" } };
+  const responses = [{ total_count: 2, workflow_runs: [fork, own] }, { total_count: 1, jobs: [{ name: "test-node", conclusion: "failure" }] }];
+  const api = createGitHubApi({
+    token: "t0ken",
+    repository: "octo/repo",
+    apiUrl: "https://api.example",
+    graphqlUrl: "https://api.example/graphql",
+    fetch: async (url) => {
+      urls.push(url);
+      return { ok: true, status: 200, json: async () => responses.shift() };
+    },
+  });
+  assert.deepEqual(await api.readRequiredRun(head), { run: own, jobs: [{ name: "test-node", conclusion: "failure" }] });
+  assert.equal(urls.at(-1), "https://api.example/repos/octo/repo/actions/runs/21/jobs?filter=latest&per_page=100");
 });
 
 // The record a run leaves: the next run, against the same GitHub state,
@@ -1245,7 +1327,7 @@ test("only a finished run that handles the head for good is recorded", async () 
 });
 
 test("main carries the record in DISPATCH_RECORD and writes it only when it changed", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-record-"));
+  const dir = tempDir("pr-unblock-record-");
   const output = join(dir, "output");
   const path = join(dir, "record.json");
   const env = {
@@ -1263,7 +1345,7 @@ test("main carries the record in DISPATCH_RECORD and writes it only when it chan
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "record-changed=true\n");
-    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 4, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, dispatched: {} });
+    assert.deepEqual(JSON.parse(readFileSync(path, "utf8")), { version: 4, handled: { [CHECK_NAME]: [pr(1).headRefOid] }, dispatched: {}, docsRuns: {} });
     writeFileSync(output, "");
     assert.equal(await main(env, options()), 0);
     assert.equal(readFileSync(output, "utf8"), "");
@@ -1312,7 +1394,7 @@ test("a head capped by refused-credential stops names the class in its cap warni
 });
 
 test("main records a fix-ci head at the per-head cap in DISPATCH_RECORD, warns once, and reads nothing for it on the next run", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-unblock-record-"));
+  const dir = tempDir("pr-unblock-record-");
   const output = join(dir, "output");
   const path = join(dir, "record.json");
   const env = {
@@ -1350,4 +1432,66 @@ test("main records a fix-ci head at the per-head cap in DISPATCH_RECORD, warns o
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("the dispatcher lists review comments since a time when given one, and shares each read by PR and time", async () => {
+  const urls = [];
+  const fetch = async (url) => {
+    urls.push(url);
+    return { ok: true, status: 200, json: async () => [], headers: { get: () => "" } };
+  };
+  const base = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  const api = shareTimeline(base);
+  await Promise.all([api.listReviewComments(5, "2026-10-18T10:00:00Z"), api.listReviewComments(5, "2026-10-18T10:00:00Z"), api.listReviewComments(5, "2026-10-18T11:00:00Z")]);
+  await base.listReviewComments(5);
+  assert.deepEqual(urls, [
+    "https://api.example/repos/o/r/pulls/5/comments?since=2026-10-18T10%3A00%3A00Z&per_page=100",
+    "https://api.example/repos/o/r/pulls/5/comments?since=2026-10-18T11%3A00%3A00Z&per_page=100",
+    "https://api.example/repos/o/r/pulls/5/comments?per_page=100",
+  ]);
+});
+
+// A same-head retry after a stop routed to a failing status: the push job's
+// lane-stopped skip (escalation-routes.mjs stopSkip) releases the head's
+// earlier resolve-conflicts checks, up to limit-stops-per-head stops.
+const at = (time) => `2026-10-26T${time}:00Z`;
+const modelRun = (time) => ({ ...SUCCESS_RUN, started_at: at(time), completed_at: at(time) });
+const laneStopRun = (time) => ({ status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, started_at: at(time) });
+
+test("a push job's lane stop releases the head for a same-head retry, up to limit-stops-per-head stops", async () => {
+  const head = pr(1).headRefOid;
+  const once = harness({ pages: [[pr(1)]], checked: new Map([[head, [modelRun("10:00")]]]), stops: new Map([[head, [laneStopRun("10:05")]]]) });
+  await once.run();
+  assert.deepEqual(dispatchedNumbers(once.api), ["1"], "one stop: retried");
+
+  const record = emptyRecord();
+  const three = harness(
+    {
+      pages: [[pr(1)]],
+      checked: new Map([[head, [modelRun("10:00"), modelRun("10:30"), modelRun("11:00")]]]),
+      stops: new Map([[head, [laneStopRun("10:05"), laneStopRun("10:35"), laneStopRun("11:05")]]]),
+    },
+    { record },
+  );
+  await three.run();
+  assert.deepEqual(dispatchedNumbers(three.api), [], "three stops: the cap");
+  assert.ok(three.lines.some((line) => line.startsWith("::warning::#1:") && line.includes("stopped 3 time(s)")));
+  assert.ok(record.handled.get(CHECK_NAME).has(head), "the capped head is recorded");
+});
+
+test("a retry that did not stop, or a select job's own lane stop, handles the head", async () => {
+  const head = pr(1).headRefOid;
+  // The newest push job check is not a stop: the retry landed.
+  const landed = harness({
+    pages: [[pr(1)]],
+    checked: new Map([[head, [modelRun("10:00"), modelRun("10:30")]]]),
+    stops: new Map([[head, [laneStopRun("10:05"), { ...SUCCESS_RUN, started_at: at("10:35") }]]]),
+  });
+  await landed.run();
+  assert.deepEqual(dispatchedNumbers(landed.api), []);
+  // A select job's stop (the repeat cap) is deterministic: no retry.
+  const terminal = harness({ pages: [[pr(1)]], checked: new Map([[head, [laneStopRun("10:00")]]]) });
+  await terminal.run();
+  assert.deepEqual(dispatchedNumbers(terminal.api), []);
+  assert.deepEqual(terminal.api.calls.stops.map((call) => call.sha), [head], "the push job's checks are read, and hold no stop");
 });

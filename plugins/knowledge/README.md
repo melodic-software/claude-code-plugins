@@ -9,12 +9,13 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
 
 | Skill | Invoke | What it does |
 |---|---|---|
+| `absorb-upstream` | `/knowledge:absorb-upstream` | Absorbs one outside source (a GitHub repository at a pinned commit, or one web page or post) into a tracked `docs/upstream/` record: per idea, what it does, the upstream's problem in our own words labeled Stated or Inference with a link, our matching problem, and a take, adapt, already-have or reject disposition with the reason, plus a license notice. The directory is configurable ([`reference/config.md`](reference/config.md)). |
 | `book-distill` | `/knowledge:book-distill` | Turns a technical book (PDF/EPUB) into concept-organized, author-attributed skill reference files through a structured, multi-session read-write pipeline, updating the target skill's routing table. |
 | `course-digest` | `/knowledge:course-digest` | Extracts and synthesizes an online video course (Dometrain, Teachable), transcripts, frames, resources, companion code, into repo-applicable recommendations. Actions: full pipeline (default), `extract`, `analyze`, `status`, `resume`, `continue`. |
 | `docpage-digest` | `/knowledge:docpage-digest` | Ingests a single online documentation page (docs-site URL) into a verified knowledge slice. Unaltered original, SOURCES.md inventory, per-section model-matched digests, dual verification (one cross-vendor verifier), and an interview-ready handoff artifact. Publisher profiles (fetch channel, applicability filter, doc queue) are separable context files; first profile: Anthropic docs. |
 | `map-corpus` | `/knowledge:map-corpus` | Maps a multi-resource documentation corpus into a verified, classified, triaged slice before any digesting: bounded discovery, a user-approved link map classifying every discovered URL, deterministic node manifests over immutable snapshots, and a per-node relevance inventory whose evidence a script gate verifies, handing an approved queue to N runs of `/knowledge:docpage-digest`. |
 | `video-digest` | `/knowledge:video-digest` | Watches a single public video from YouTube or X (Twitter), transcript + visual frames, harvests reference links, drives external research, and synthesizes a prioritized repo-applicability menu. Actions: `watch`, `queue`, `transcript`, `resume`. |
-| `setup` | `/knowledge:setup` | `check` (default) verifies `library_dir` against the repository's artifact convention and probes the extraction prerequisites read-only; `apply` routes personal option changes through Claude Code's plugin configuration prompt; `apply install-deps` provisions the video pipelines' node dependencies and Chromium. |
+| `setup` | `/knowledge:setup` | `check` (default) verifies `library_dir` against the repository's artifact convention, reports `absorb-upstream`'s record directory, and probes the extraction prerequisites read-only; `apply` routes personal option changes through Claude Code's plugin configuration prompt; `apply install-deps` provisions the video pipelines' node dependencies and Chromium. |
 
 ## What book-distill produces
 
@@ -130,27 +131,35 @@ reads it from.
 
 Three supported routes:
 
-1. **Interactively.** Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure knowledge@<marketplace>`.
-2. **Headless.** Repeat `--config` for each option. Replace
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure knowledge@<marketplace>`.
+2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+   run from the project the plugin is installed in. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin configure knowledge@<marketplace> --values-stdin < values.json
+   ```
+
+   `values.json` holds a JSON object of strings, booleans included:
+
+   ```json
+   {"library_dir": "<value>"}
+   ```
+
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
+   value, and why a session started before the change keeps the old value until a fresh
+   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
+   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+
+   The fallback the convention names, for a Claude Code release without
+   `plugin configure`, reruns the install with the new value, passing the scope
+   `claude plugin list` reports for this plugin:
 
    ```shell
    claude plugin install knowledge@<marketplace> -s <scope> --config library_dir=<value>
    ```
-
-   The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value. The short-circuit message is
-   about the install, not the config write. Do **not** `claude plugin uninstall` to
-   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
-   resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin. The verified-version
-   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
-
-   The value is stored immediately; the session you are in does not change. Hooks are
-   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior. A check run in the old session
-   still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -167,17 +176,16 @@ Three supported routes:
    }
    ```
 
-   Plugin option values are read from **user**, `--settings`, and managed settings
-   only, **not** from a project's `.claude/settings.json`. To vary behavior per
-   repository, enable or disable the plugin in that project's `enabledPlugins`
-   instead of setting an option there.
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from.
 
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
-hands a configured value to a hook process; the value comes from the routes above.
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
 
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence

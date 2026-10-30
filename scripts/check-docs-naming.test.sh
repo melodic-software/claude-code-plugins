@@ -22,10 +22,10 @@ mk_repo() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --git || return 1
   dir="${!1}"
-  mkdir -p "$dir/docs/conventions/standards" "$dir/docs/adr"
+  mkdir -p "$dir/docs/contracts/standards" "$dir/docs/adr"
   printf 'seed\n' >"$dir/docs/README.md"
   printf 'seed\n' >"$dir/docs/plugin-philosophy.md"
-  printf 'seed\n' >"$dir/docs/conventions/standards/README.md"
+  printf 'seed\n' >"$dir/docs/contracts/standards/README.md"
   printf 'seed\n' >"$dir/docs/adr/0001-first.md"
   git_test_config "$dir" add -A >/dev/null
   git_test_config "$dir" commit -qm base
@@ -332,7 +332,7 @@ if [[ -n "$drift_ready" ]]; then
     docs/NEW-FILE.md docs/a/snake_case.md docs/a/Mixed.md docs/a/foo..md
     docs/a/foo.md. docs/a/foo... docs/a/noext docs/a/README.md.bak
     docs/a/v1.2.schema.json docs/Foo.md docs/foo.md
-    docs/conventions/standards/readme.md docs/x/Readme.md
+    docs/contracts/standards/readme.md docs/x/Readme.md
     docs/a/Bad_Name.PY "docs/x/caf"$'\303\251'".py" "docs/x/Caf"$'\303\251'".py"
     "docs/New"$'\n'"line/foo.md" "docs/new"$'\n'"line/foo.md"
     Top_Level.txt other/Bad_Name.json

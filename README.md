@@ -89,8 +89,7 @@ regardless, and an existing install keeps its setting when the catalog default c
 
 The shell suites here are spawn-bound, and Git Bash on Windows pays roughly
 140 ms per process spawn against roughly 3 ms on Linux, so running every
-`**/*.test.sh` locally is an hours-long wall on a Windows box and nobody does
-it. Run the suites that actually cover your change instead:
+`**/*.test.sh` locally takes hours on a Windows box, so nobody does it. Run the suites that actually cover your change instead:
 
 ```shell
 scripts/affected-tests.sh                 # list the suites covering your diff vs origin/main
@@ -144,10 +143,36 @@ ceilings that fail spuriously under concurrency. Selection is the lever.
 
 CI is unaffected, it still runs everything.
 
+### Per-suite time budget in CI
+
+On GitHub Actions, `scripts/run-plugin-tests.sh` times each shell suite a
+`test-bash` leg runs:
+
+| Suite wall time | Result |
+|---|---|
+| over 120 s | `SLOW:` line and a warning annotation naming the suite; the leg still passes |
+| over 300 s | `FAIL:` line and an error annotation; the leg fails |
+
+Basis, from the shell medians in `scripts/suite-seconds.txt` (measured on
+`ubuntu-24.04` CI runners through 2026-10-28):
+
+- 120 s is the work the planner packs into one `test-bash` leg, so a suite
+  over it fills a leg on its own. Twelve shell suites are over it.
+- 300 s is more than half of a leg's 9-minute limit. No shell suite outside
+  the exception list has a median over 150 s, half the ceiling.
+
+A suite that needs more gets a row with its own ceiling in
+[`scripts/suite-budget-exceptions.txt`](scripts/suite-budget-exceptions.txt),
+so the exception shows in review. The ten suites with a median over 150 s
+start there at 480 s. Outside CI the check is off, since the numbers are CI
+runner times; `PLUGIN_TEST_SUITE_BUDGET=1` turns it on. Python suites in the `test-python` lane are not budgeted.
+Every run, in CI or not, prints a `TIME: <suite> <seconds>s` line after each
+suite's result, so a leg's log shows the time each suite took.
+
 ### Local pre-flight for hygiene gates
 
 Several hygiene findings only show up after a push because the **gate name in CI is not the
-local command**. The gap is discoverability, not a missing runner: every gate below has a local form.
+local command**. The gap is discoverability, not a missing runner, because every gate below has a local form.
 
 | CI gate / step id | Local command | Notes |
 |---|---|---|
@@ -158,9 +183,10 @@ local command**. The gap is discoverability, not a missing runner: every gate be
 | `purged-em-dashes` | `scripts/check-purged-em-dashes.sh` | In-repo. |
 | `changelog-parity` | `scripts/check-changelog-parity.sh --check` | In-repo; add `--check-bump origin/main` for the version-bump check. A bare run exits 2 with a usage message. |
 | `shell-portability` | `scripts/check-shell-portability.sh origin/main` | In-repo; `--all` scans the whole tree. A bare run exits 2 with a usage message. |
+| `comment-hygiene` | `bash scripts/check-comment-hygiene.sh origin/main <files>` | In-repo wrapper; fetches the pinned `check-comment-markers` action's own patterns library at the SHA `origin/main`'s workflow pins, so it needs network. File paths are relative to the repository root. |
 | `machine-specific-paths` | `EXTENSIONS='<extensions>' EXCLUDE='<excludes>' bash <ci-workflows-checkout>/.github/actions/check-machine-paths/check-machine-specific-paths.sh` | Run from this repo's root. See [Running `machine-specific-paths` locally](#running-machine-specific-paths-locally). `scripts/check-affected.sh` runs the same scan on the changed files without a `ci-workflows` checkout. |
 
-`scripts/check-affected.sh` runs the rows that apply to a diff, `typos`, `machine-specific-paths`, `plugin-options-docs`, `changelog-parity` and `markdown` among them, and prints `CI only: <gate>` for every hygiene gate it leaves to CI, the whole-repo scanners included. Its `machine-specific-paths` check repeats the composite's scan and exemptions over `plugins/guardrails/lib/path-detection/machine-path-patterns.sh`, the copy of the patterns file the composite sources, with the `exclude:` pathspecs of the workflow step; `scripts/check-affected-gates.test.sh` fails when those pathspecs differ. `scripts/check-affected-gates.txt` lists each gate and how it is covered.
+`scripts/check-affected.sh` runs the rows that apply to a diff, `typos`, `machine-specific-paths`, `plugin-options-docs`, `changelog-parity`, `comment-hygiene` and `markdown` among them, and prints `CI only: <gate>` for every hygiene gate it leaves to CI, the whole-repo scanners included. Its `machine-specific-paths` check repeats the composite's scan and exemptions over `plugins/guardrails/lib/path-detection/machine-path-patterns.sh`, the copy of the patterns file the composite sources, with the `exclude:` pathspecs of the workflow step; `scripts/check-affected-gates.test.sh` fails when those pathspecs differ. `scripts/check-affected-gates.txt` lists each gate and how it is covered.
 `scripts/aggregate-hygiene-results.sh` consumes CI step outcomes; it does not run the gates.
 
 - **Claim:** every row of the mapping table is a local command; `machine-specific-paths` runs the
@@ -190,6 +216,19 @@ checkout.
 The script uses `git grep` in the current directory: it scans tracked files only, so `git add -N`
 or commit a new file before running. Exit 0 is clean, exit 1 means findings.
 
+### Artifact retention
+
+Every `actions/upload-artifact` step in `.github/workflows/` and `.github/actions/` sets
+`retention-days`, and the value equals its artifact family's row in
+[`.github/artifact-retention.json`](.github/artifact-retention.json). A new upload needs a row:
+the name or `<literal prefix>*`, `retention-days` (1 to 89, or `max` for 90), `readers` (each a
+repository path, then what reads it and how far back) and the `reason` that length is needed. A
+`max` row also names its `max-reader`, the reader that needs 90 days. Keep the shortest retention
+the readers need: an upload with no `retention-days` keeps its artifact 90 days, and every kept
+artifact lengthens the listing the pr-verify evidence reader pages through.
+`scripts/check-artifact-retention.sh` enforces this in `lint-repo` and states how a name maps to a
+family.
+
 ### The check-script contract
 
 `scripts/check-*.sh` is one family with one caller-visible interface, so a CI
@@ -210,7 +249,7 @@ Keeping `1` and `2` apart is the whole point: "your tree is wrong" and "I could
 not look" are different answers, and a lane that reads only success or failure
 collapses them into one. This is the mechanical form, for this family, of the
 fail-loud rule in
-[`docs/conventions/liveness-assertion/`](docs/conventions/liveness-assertion/README.md).
+[`docs/contracts/liveness-assertion/`](docs/contracts/liveness-assertion/README.md).
 An environment failure is spelled out rather than left to `set -e`: resolving the
 repo root and sourcing a shared library each end in `|| exit 2`, because `set -e`
 would exit with the failing command's own status and hand the caller a `1` that

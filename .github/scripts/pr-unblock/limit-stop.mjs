@@ -21,6 +21,9 @@
 // `limit-stops-per-head` stops the dispatchers stop re-dispatching the head;
 // the next push makes a new one.
 import { LIMIT_DEFAULTS, clampReset } from "../work-resolve-issue/limits.mjs";
+import { laneStop } from "./escalation-routes.mjs";
+
+export { ACTIONS_APP_ID, LANE_STOP, laneStop, retryRung } from "./escalation-routes.mjs";
 
 const ISO = String.raw`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?Z`;
 const NAME = "[a-z][a-z0-9]*(?:-[a-z0-9]+)*";
@@ -91,10 +94,25 @@ const heldSkip = (run) => run.status === "completed" && run.conclusion === "neut
 // `failuresRetry` a failed run of any kind does too. Either way the head is
 // handled once `limit-stops-per-head` of them, limit stops included, stand on
 // it, so a dispatcher and a run that disagree about a hold stop there.
-const released = (run, heldSkipsRelease) => heldSkipsRelease && heldSkip(run);
+const released = (run, heldSkipsRelease) => (heldSkipsRelease && heldSkip(run)) || killSwitchStop(run);
 
-// Whether `runs` handle the head: any run that is not an untrusted skip or a
-// reset limit stop does, and so do `limit-stops-per-head` limit stops.
+// The neutral check a run the lanes kill switch stopped posts: its own
+// kill-switch step, or the broker refusing its mint for a switch turned on
+// after the run read its variables. The dispatchers run only with the switch
+// off, so such a run never handles its head, and every dispatcher reads it
+// like a held skip: it counts toward `limit-stops-per-head`, so a switch that
+// keeps flipping mid-run still ends the head there.
+export const KILL_SWITCH_STOP = "Skipped: kill-switch";
+export const killSwitchStop = (run) => run?.status === "completed" && run.conclusion === "neutral" && run.output?.title === KILL_SWITCH_STOP;
+
+// Whether an emitter (push, reply or verdict) check releases the head's
+// earlier activity checks for a same-head retry: a lane stop, or a
+// kill-switch stop, which did no work.
+export const releasesHead = (run) => laneStop(run) || killSwitchStop(run);
+
+// Whether `runs` handle the head: any run that is not an untrusted skip, a
+// kill-switch stop or a reset limit stop does, and so do
+// `limit-stops-per-head` such stops.
 export function anyHandles(runs, { now, limits = LIMIT_DEFAULTS, failuresRetry = false, heldSkipsRelease = false }) {
   let stops = 0;
   for (const run of runs) {
@@ -147,3 +165,21 @@ export function cappedAt(runs, { limits = LIMIT_DEFAULTS, failuresRetry = false,
   const { done, retryable } = completedRuns(runs, { limits, failuresRetry, heldSkipsRelease });
   return done.length >= limits["limit-stops-per-head"] && done.length > 0 && done.every(retryable) ? done.length : 0;
 }
+
+const startOf = (run) => Date.parse(run?.started_at ?? "");
+
+// How a head's emitter checks (`stopRuns`, REST shape) release its activity
+// checks for a same-head retry: `cut` is the newest emitter check's start
+// when that check releases the head (releasesHead) and fewer than `cap` such
+// checks stand on it (the dispatcher's own per-head cap), so activity checks
+// that started before it stop counting; null otherwise. `stops` counts them.
+export function stopRelease(stopRuns, cap) {
+  const stops = stopRuns.filter(releasesHead).length;
+  const newest = stopRuns.reduce((a, b) => (startOf(b) > startOf(a) ? b : a), stopRuns[0]);
+  return { cut: releasesHead(newest) && stops < cap ? startOf(newest) : null, stops };
+}
+
+// `runs` without those started before `cut`, a limit stop kept.
+export const releasedBy = (runs, cut, limits = LIMIT_DEFAULTS) =>
+  cut === null ? runs : runs.filter((run) => limitResetsAt(run, limits) !== null || !(startOf(run) < cut));
+

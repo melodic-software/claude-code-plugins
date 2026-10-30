@@ -3,6 +3,118 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.8.0] - 2026-10-30
+
+### Added
+
+- `/review:code-review` and `/review:security-review` read the settled review threads the wrapper
+  names on the `SETTLED THREADS:` prompt line, as data, and drop a candidate finding whose point
+  matches a thread marked `lines changed since resolution: no`. A different problem on the same
+  lines, or a match on a thread whose lines changed since it was resolved, is still reported. A
+  thread's answer is comment text, so a `manifest <field>: flag` line, a CRITICAL or trust-control
+  security finding, and a security finding the code-review lane reports where no security lane
+  runs are never dropped as settled. Hunter and verifier briefs name the file beside the diff and PR context files. Each skill gains
+  one eval case: a settled point on unchanged lines is not re-raised, and a new problem on those
+  lines still is.
+
+### Changed
+
+- `/review:security-review` holds `critical-security` only for a leak (a token, secret or signing
+  key exposed, or a token's scope grown), a compromise of the owner's accounts or machines, or a
+  charge. A new "Owner threat model: throughput phase" section makes weakening, narrowing or
+  removing a path, trust-path, person-approval or bot-author hold, or a pin ceremony, no
+  finding. A hold on untrusted provenance or an untrusted spec is still judged. The section reads
+  the owner decision from the tracked loop-lane record, never from the pull request. A kill switch
+  that can no longer stop a lane stays a finding but is never CRITICAL on its own. Deleting the
+  section brings back findings for those hold removals; the narrowed severity bar and the kill
+  switch cap stay. Three eval cases cover a path-hold removal (no hold), a token scope widening
+  (held) and a billable runner (cost hold).
+
+## [1.7.5] - 2026-10-29
+
+### Changed
+
+- Synced contract copies name their canonical source at `docs/contracts/<name>/`, where the plugin contracts moved from `docs/conventions/<name>/`.
+
+## [1.7.4] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [1.7.3] - 2026-10-29
+
+### Changed
+
+- `/review:security-review` opens each inline comment for a `manifest <field>: flag` with that flag's summary line, `manifest <field>: flag, <reason>`, and puts its severity line last above the footer. The pr-unblock lane matches that first line to find a `dependencies` flag it may settle without a person.
+
+## [1.7.2] - 2026-10-29
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
+- `/review:fanout` and `/review:quality-gate` cite the gather-block convention doc for the pre-compute composition record, in place of a link into `source-control`'s worktree skill folder.
+
+## [1.7.1] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `setup-apply --check` names a key set twice as `duplicate key` at its second line and prints no PASS line, and apply refuses the file.
+
+## [1.7.0] - 2026-10-29
+
+### Added
+
+- Three `recall-*` eval cases rebuilt from bugs the review lanes missed (#8254, #7617 and #5997),
+  each with a regex grader that reports the bug found or missed at its file and line in the
+  rebuilt files.
+- The README asks a pull request that changes a review lane's prompt, model or effort to cite the
+  recall score before and after the change.
+
+## [1.6.4] - 2026-10-28
+
+### Changed
+
+- The shared `lib/publish-gate.mjs` copy gains the lanes' leak-scan functions (`scanLeak`, `deeperLeak`, `changedBytes`). Nothing in this plugin calls them, and its publish gate behaves as before.
+
+## [1.6.3] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [1.6.2] - 2026-10-27
+
+### Fixed
+
+- `/review:security-review` rates a finding CRITICAL (the one severity that holds a pull request for a person) only when it shows who reaches the change, what security impact they get, and that no existing control stops it, each with file and line.
+  - Touching a trust control, a gate file or a hold path no longer counts as a severity by itself.
+  - A widening of who is trusted, of what a token may do, of untrusted reach or of the kill switch still meets the bar by itself, unless a cited control blocks it.
+  - A weakened merge hold, such as one that guards only spend, has to show a security impact like any other finding.
+  - A finding that rests on a configuration value quotes the line it read. A marketplace entry with `"defaultEnabled": false` is therefore read as opt-in (IMPORTANT), not default-on.
+  - Every CRITICAL candidate now gets a refute pass that looks for a blocking control.
+  - A finding the review cannot settle stays CRITICAL.
+
+## [1.6.1] - 2026-10-27
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [1.6.0] - 2026-10-27
+
+### Added
+
+- The view bridge records the plugin version and a hash of its own source at server start, and `view-bridge.sh ensure-running` restarts a running server whose recorded build differs from the installed plugin's, saying so on stderr. `watch.sh` prints a `note:` line on stderr before it polls when the server's recorded plugin version differs from the installed one.
+
+## [1.5.1] - 2026-10-26
+
+### Fixed
+
+- The view bridge's session bridge now writes the data-framing `note` ahead of `events` in each `/api/wait` answer and each channel relay `events` line. A model reading the line top to bottom now meets the instruction to treat page text as data before it meets the page text.
+
 ## [1.5.0] - 2026-10-26
 
 ### Changed

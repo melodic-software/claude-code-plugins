@@ -12,7 +12,7 @@ metadata:
 
 ## Repository context. Gather first
 
-Collect each with its own Bash call, never combined, and not as pre-compute lines ([gather-block record](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md), "The pre-compute block runs as one shell invocation"):
+Collect each with its own Bash call, never combined, and not as pre-compute lines ([gather-block record](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation), "The pre-compute block runs as one shell invocation"):
 
 - Current branch, `git branch --show-current`
 - Recent commits, `git log --oneline -5`

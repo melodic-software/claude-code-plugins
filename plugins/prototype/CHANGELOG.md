@@ -3,6 +3,34 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0] - 2026-10-30
+
+### Added
+
+- `/prototype:explore-directions` has an opt-in review mode ([#8774](https://github.com/melodic-software/claude-code-plugins/issues/8774)): on the user's yes it starts `/planning:interview`'s shared session, asks one `prototype` question per screen with a companion four-outcome decision (approve as is, approve with tweaks, combine, rework), and reads the round's digest back as UI acceptance criteria and a record of the directions that lost. It publishes nothing to claude.ai, falls back to the local mockup when the shared session cannot start, and states its boundaries with the `/design` canvas, the playground and the bundled `prototype` skill. The discipline gains a scoped persistence exception for it.
+
+## [0.17.0] - 2026-10-29
+
+### Added
+
+- **`explore-directions` mockups cover screen states, test ids and acceptance criteria.** The plan names each screen's variants and states (2 or 3 variants per screen on a multi-screen run), every state derives from the one synthetic data set, and the bundled switcher steps through the current variant's states on a state button and the up and down arrow keys. Interactive and asserted elements carry proposed `data-testid`s that the copy-out terminator lists from the markup, and step 5 records the picks as UI acceptance criteria per screen.
+
+### Fixed
+
+- `/prototype:explore-directions`: for an existing app, the skill now finds the app's design system before the plan, and in a redesign treats it as the baseline the variants depart from. It reuses what `/user-interface:design` found when that skill handed off earlier in the conversation, otherwise runs that skill's detection steps when it is installed, and otherwise reads the project's design files itself.
+
+## [0.16.0] - 2026-10-29
+
+### Added
+
+- **`explore-directions` builds prototypes for a shared interview.** For a `/planning:interview` shared session it writes the tiers the session offers (screenshots, one self-contained HTML snapshot per variant, a static live build) under the session's `staging/` folder, plus a `manifest.json` with a required where-to-look line, and keeps the in-page switcher only for prototypes of the interview page itself.
+
+## [0.15.0] - 2026-10-27
+
+### Changed
+
+- `/prototype:explore-directions` builds its variants as a self-contained HTML mockup by default, so whoever decides opens one `file://` page with nothing running. The real stack (sub-shape A, or B when no page can host the variants) is an explicit override, chosen only when the person asks for the variants on the real stack or in the app, and stays where the winner is folded in; the skill suggests it when the judgment depends on live data volume or page chrome the mockup cannot rebuild. The description, Purpose, intent selector, boundary sections, README and `docs/native-surfaces` rows now name the mockup as the default host. New evals cover the default, the default with a dev server running, and the real-stack override.
+
 ## [0.14.2] - 2026-10-26
 
 ### Fixed

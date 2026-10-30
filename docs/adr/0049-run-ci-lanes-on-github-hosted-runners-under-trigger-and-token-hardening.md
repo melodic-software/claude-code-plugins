@@ -69,7 +69,7 @@ lane or any other surface keeps `L2`.
 - The model holds `gh` and can fetch an untrusted comment itself, which the trusted-text filter
   never sees. This is accepted in the same class as web pages and CI logs: lane instructions frame
   any text the model fetches as data
-  ([`untrusted-content`](../conventions/untrusted-content/README.md)).
+  ([`untrusted-content`](../contracts/untrusted-content/README.md)).
 - claude-code-action passes the job's `GITHUB_TOKEN` into the model's environment
   (`DEFAULT_WORKFLOW_TOKEN`, `action.yml:308` at `ed670b4`), so every job that runs the model
   grants that token only `contents: read` and `pull-requests: read` (the trigger gate reads the

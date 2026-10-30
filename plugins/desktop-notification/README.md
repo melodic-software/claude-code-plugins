@@ -7,8 +7,10 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 
 ## Behavior
 
-- **Fires on attention prompts.** We match only the `permission_prompt` and
-  `idle_prompt` notification types; every other notification is a silent no-op.
+- **Fires on attention prompts.** We match the `permission_prompt` and
+  `idle_prompt` notification types, plus the `plugin_notification` this plugin's
+  mod raises (title `desktop-notification`, see [Forwarding mod toasts](#forwarding-mod-toasts));
+  every other notification is a silent no-op.
 - **Advisory, never blocking.** The hook always exits `0`; a Notification hook is
   not a gate.
 - **Pointer**: the notification types and what a Notification hook can return are
@@ -41,6 +43,34 @@ notification, and, on macOS and Linux, an OS-native desktop toast.
 The OS toast body includes the current git branch when the project is a git
 repository (e.g. `Waiting for your input — feat/my-branch`); outside a repo it is
 just the message.
+
+### Forwarding mod toasts
+
+A hooks module (`hooks/register.ts`) hooks `ui.toast`. For each toast any mod shows,
+it raises `$.ui.notify` with the title `desktop-notification`, then calls `next` so
+the toast still shows. Claude Code fires a `plugin_notification` Notification for
+that call, and the hook above sends it through the same channels, headed
+`Claude Code`. A `plugin_notification` from any other mod is left alone.
+`desktop_notification_forward_toasts_enabled` turns forwarding off;
+`desktop_notification_enabled` set to `false`, or all three channel options set to
+`false`, turns it off too. `$.ui.notify` also alerts through Claude Code's own
+`preferredNotifChannel`, so a forwarded toast can alert twice; that setting set to
+`notifications_disabled` leaves only the plugin's channels.
+
+- **Probe** (Claude Code 2.1.312, two-plugin mod test under `claude plugin test`):
+  a user-tier mod's `ui.toast` hook hears toasts from mods at the `prepend`,
+  `user` and `append` tiers, and its own. Hooks run in tier order (`prepend`,
+  `user`, `append`), and toasts from two senders arrive in the order fired. Not
+  probed: toasts Claude Code raises itself, and a live interactive or `-p` session.
+- **Needs** Claude Code 2.1.295 or later with mods on, the first release with
+  `$.ui.notify` ([changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md#21295));
+  mods themselves load from 2.1.287. The settings hook runs on any version.
+- **Pointer**: the `ui.toast` hook and `$.ui.notify` are in
+  [Mods API](https://code.claude.com/docs/en/plugins/mods/api.md#show-something-without-starting-a-turn),
+  and the `plugin_notification` title rule is in
+  [Notification](https://code.claude.com/docs/en/hooks#notification). **As of**:
+  2026-10-28. **Recheck trigger**: either section renames `ui.toast`,
+  `$.ui.notify` or `plugin_notification`, or changes where the hook's `title` comes from.
 
 ## Requirements
 
@@ -85,6 +115,7 @@ Every channel is toggled by its own `userConfig` boolean (default **on**; set to
 | `desktop_notification_bell_enabled` | The `bell` channel. |
 | `desktop_notification_terminal_notify_enabled` | The `terminal_notify` (OSC 9) channel. |
 | `desktop_notification_os_toast_enabled` | The `os_toast` channel. |
+| `desktop_notification_forward_toasts_enabled` | Forwarding mod toasts as notifications. |
 
 Set them interactively with `/plugin configure desktop-notification@<marketplace>`, or headless
 on the install command:
@@ -115,32 +146,41 @@ reads it from.
 | `desktop_notification_bell_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED` | Audible terminal bell (a bare BEL). On by default. |
 | `desktop_notification_terminal_notify_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED` | OSC 9 terminal notification emitted through the hook's terminalSequence output. On by default. |
 | `desktop_notification_os_toast_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_OS_TOAST_ENABLED` | OS-native desktop toast: macOS (osascript) or Linux (requires notify-send). On by default. No effect on Windows, where the terminal channels carry the alert. |
+| `desktop_notification_forward_toasts_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_FORWARD_TOASTS_ENABLED` | Sends each toast a mod shows as a native notification through the hooks module, and the toast still shows. On by default. Needs Claude Code 2.1.295 or later with mods on. |
 
 ### How to set these
 
 Three supported routes:
 
-1. **Interactively.** Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure desktop-notification@<marketplace>`.
-2. **Headless.** Repeat `--config` for each option. Replace
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure desktop-notification@<marketplace>`.
+2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+   run from the project the plugin is installed in. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin configure desktop-notification@<marketplace> --values-stdin < values.json
+   ```
+
+   `values.json` holds a JSON object of strings, booleans included:
+
+   ```json
+   {"desktop_notification_enabled": "<value>"}
+   ```
+
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
+   value, and why a session started before the change keeps the old value until a fresh
+   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
+   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+
+   The fallback the convention names, for a Claude Code release without
+   `plugin configure`, reruns the install with the new value, passing the scope
+   `claude plugin list` reports for this plugin:
 
    ```shell
    claude plugin install desktop-notification@<marketplace> -s <scope> --config desktop_notification_enabled=<value>
    ```
-
-   The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value. The short-circuit message is
-   about the install, not the config write. Do **not** `claude plugin uninstall` to
-   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
-   resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin. The verified-version
-   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
-
-   The value is stored immediately; the session you are in does not change. Hooks are
-   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior. A check run in the old session
-   still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -157,17 +197,16 @@ Three supported routes:
    }
    ```
 
-   Plugin option values are read from **user**, `--settings`, and managed settings
-   only, **not** from a project's `.claude/settings.json`. To vary behavior per
-   repository, enable or disable the plugin in that project's `enabledPlugins`
-   instead of setting an option there.
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from.
 
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
-hands a configured value to a hook process; the value comes from the routes above.
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
 
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence

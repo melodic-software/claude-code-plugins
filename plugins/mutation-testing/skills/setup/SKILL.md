@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the mutation-testing plugin for this repository. check inspects the ecosystem's mutation tool (installed, runnable, supported test runner), the baseline suite's health, and the tracked .claude/mutation-testing.md config across its merge layers, read-only; apply detects the ecosystem, installs or names the tool, interviews for the diff target and operator set, and writes the config plus an empty arid-node suppression record. Use when: 'set up mutation testing', 'is mutation testing configured', 'which mutation tool for this repo', 'mutation-testing setup', or the audit skill reports missing config or an unavailable tool. Re-runnable. Safe to invoke again to reconfigure."
+description: "Verify and configure the mutation-testing plugin for this repository. check inspects the ecosystem's mutation tool (installed, runnable, supported test runner), the baseline suite's health, and the tracked .claude/mutation-testing.md config across its merge layers, read-only; apply detects the ecosystem, installs or names the tool, interviews for the diff target and operator set, and writes the config plus an empty arid-node suppression record. Use when: 'set up mutation testing', 'is mutation testing configured', 'which mutation tool for this repo', 'mutation-testing setup', or the audit skill ran on fallback defaults or reports an unavailable tool. Re-runnable. Safe to invoke again to reconfigure."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -7,12 +7,14 @@ disable-model-invocation: true
 
 ## Purpose
 
-Establish the four things `/mutation-testing:audit` cannot infer safely at run time: **which tool**,
+Establish the four things `/mutation-testing:audit` cannot infer repeatably at run time: **which tool**,
 **which diff target**, **which operators**, and **where arid-node suppressions live**.
 
-Configuration is required rather than optional here, which differs from a plugin whose config merely
-speeds up inference. A mutation run drives the project's own test runner against deliberately broken
-source; guessing the tool or the diff target either does nothing or does something expensive.
+Configuration is optional: with none at any layer, the audit falls back to `tool: manual`, the diff
+target from `origin/HEAD`, the changed source files and the effort cap, and asks the user for the
+test command, which it never guesses. Configure anyway for a repeatable run. A mutation run drives
+the project's own test runner against deliberately broken source; a guessed tool or diff target
+either does nothing or does something expensive, and the config records the answers once.
 Check-centric per the uniform setup contract (`docs/plugin-philosophy.md`
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects read-only;
 `apply` interviews and writes, then re-runs `check`. No argument or `check` runs the check; `apply`
@@ -54,7 +56,10 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    installs but cannot start is the common case and is worth distinguishing.
 3. **Test runner supported**. Confirm the project's runner is one the tool drives. Report the
    detected runner and the tool's support status. Unsupported → FAIL; this blocks every later step,
-   so report it before anything about scores.
+   so report it before anything about scores. A supported runner also gets an INFO row naming what
+   it supports, decided as `apply` step 2 decides it: a name-filter-only runner (Maven `-Dtest`,
+   Gradle `--tests`) has no `audit --exercised` and no `/testing:cleanup` mutation gate, while the
+   diff, `--full` and `--paths` scopes still work.
 4. **Baseline suite is green**. Run the project's test command once, unmutated, and report the
    result. Red → FAIL. A red baseline kills every mutant and reports a perfect score, so no mutation
    result is meaningful until this passes. Record the wall-clock; it is the input to the timeout
@@ -65,7 +70,9 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    inflate the score by an unknown margin.
 6. **Config presence (effective, across layers)**. Report the merged result and which layer
    contributes what: tool, diff target, operator set, timeout, paths to mutate. Nothing readable →
-   FAIL; unlike an inference-speeding config, this one is required.
+   INFO naming the audit's fallback: `tool: manual`, the diff target from `origin/HEAD`, the
+   changed source files, the effort cap, and a test command the user supplies or confirms at run
+   time. `apply` writes a config that replaces it.
 7. **Diff target resolves**, the configured target must resolve in this repository
    (`git rev-parse --verify <target>`). Unresolvable → FAIL naming it; a stale default here silently
    scopes a run to nothing or to everything. A `test-command` without `{tests}` as a standalone
@@ -119,7 +126,8 @@ run a mutation analysis. That is `/mutation-testing:audit`.
    matching pattern. Checking only `check-ignore` is the trap: immediately after `apply` writes them
    the files are untracked but not ignored, so `check-ignore` is silent and the probe would report
    success on two files no teammate will ever receive. The `.local.md` overlays are expected to be
-   both untracked and ignored. INFO, not FAIL.
+   both untracked and ignored. INFO, not FAIL. A file that does not exist is not probed: probe 6
+   already reports the missing config as INFO, and probe 8 the missing record.
 
 ## `apply` (idempotent)
 
@@ -130,7 +138,16 @@ unambiguous; ask only where the answer is genuinely the user's.
    changes. Nothing is dropped without the user confirming.
 2. **Detect and propose the tool.** From the ecosystem, name the tool and the exact install command,
    and ask before installing anything. Installing a dependency into the consumer's project is the
-   user's decision, not this skill's. Propose, never install unprompted.
+   user's decision, not this skill's. Propose, never install unprompted. In the same message, before
+   any later question, name the detected test runner and what it supports, so the user can stop
+   here; read its kind from the audit skill's
+   [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md) "`test-command` filter
+   forms". A path-list runner or `dotnet test` supports `audit --exercised` and `/testing:cleanup`'s
+   mutation gate, which runs through it. A name-filter-only runner (Maven `-Dtest`, Gradle
+   `--tests`), or one that table does not list, supports neither: `audit --exercised` refuses
+   unless the tool's own restriction reads `yes` in that file, and cleanup's mutation runs always
+   need a path-list `test-command`, so it can offer only its cannot-fail-only mode. The diff,
+   `--full` and `--paths` scopes need no `test-command` and work for every runner the tool drives.
 3. **Settle the diff target.** Default to the repository's own default branch as resolved from
    `origin/HEAD`, not a hardcoded `main` or `master`. Confirm it resolves.
 4. **Settle the operator set.** Default to the tool's defaults, and say why: optional and
@@ -145,8 +162,8 @@ unambiguous; ask only where the answer is genuinely the user's.
    audit fills `{tests}` with each path quoted as its own argument. When the detected runner is
    `dotnet test`, propose `dotnet test {tests}`: the audit runs it once per test project, with
    `{tests}` replaced by that project and a name filter for the test files' classes. Propose nothing
-   for a runner that only filters by name (Maven `-Dtest`, Gradle `--tests`) and say that
-   `audit --exercised` refuses for that ecosystem. The forms and their sources are in the
+   for a runner that only filters by name (Maven `-Dtest`, Gradle `--tests`); step 2 already said
+   what that costs. The forms and their sources are in the
    audit skill's [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md).
 7. **Write the config** following
    [`${CLAUDE_PLUGIN_ROOT}/skills/setup/templates/config-template.md`](templates/config-template.md).

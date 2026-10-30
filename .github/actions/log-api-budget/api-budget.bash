@@ -5,8 +5,11 @@
 # is one line in $RUNNER_TEMP/api-budget/<token>:
 #   <status> <limit> <remaining> <used> <reset epoch> <resource>
 # (`na` for a missing value). api-budget.mjs and babysit_gh.py append the same
-# lines. Never fails the caller, except that a stop the rate guard below
-# cannot record ends the step.
+# lines. A request the gh wrapper counts with no header block to read (each
+# page of --paginate, a call that is not `gh api`) is a line `request`, or
+# `request graphql` for a GraphQL request. Never
+# fails the caller, except that a stop the rate guard below cannot record ends
+# the step.
 #
 #   api_budget_read <token> <file>
 #                               gh api -i output: the header block at the start
@@ -16,7 +19,8 @@
 #                               api_budget_read, keeping stdout, stderr and the
 #                               exit status as they were (not --paginate, whose
 #                               per-page header blocks are left out), behind
-#                               the rate guard below
+#                               the rate guard below; every gh call also counts
+#                               each request it sends (api_budget_traced)
 #
 # The rate guard, rate-guard.mjs's shell port: once a response shows a pool
 # exhausted, no gh call goes to that pool before its reset for the rest of the
@@ -70,6 +74,13 @@
 #                               with the same reset and resource, else na
 #   api_budget_emit_content     the notice for the job's content-creating
 #                               writes: count and most in any 60 s
+#   api_budget_emit_calls <token>...
+#                               the hub's api-calls notice for each token,
+#                               `<token>=N not-modified=M graphql=K`: N is the
+#                               job's own requests, M its 304 answers, which
+#                               GitHub does not count, and K the GraphQL ones
+#                               among N, which spend their own pool; 0 for a
+#                               token with no reading
 #
 # pr-require-checks.yml's ci-status job carries this file verbatim in its
 # API_BUDGET_SH env (it has no checkout of this directory);
@@ -126,14 +137,15 @@ api_budget_wrap_gh() {
     for arg; do
       case $arg in
         # --paginate prints a header block per page, which could not be told
-        # from body text that looks like one: left as it is.
+        # from body text that looks like one: no reading, only its requests.
         --silent | --slurp | --paginate) api_budget_pass "$@"; return ;;
         # The caller reads the headers itself: the guard reads them too, and
         # the output goes on unchanged.
         -i | --include)
           out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
-          command gh "$@" >"$out" || rc=$?
+          api_budget_traced "$out" "$@" || rc=$?
           api_budget_observe "$out" "$pool" "gh $*" || rc=1
+          api_budget_read "$API_BUDGET_GH_TOKEN" "$out" >/dev/null
           cat "$out"
           rm -f "$out"
           return "$rc"
@@ -142,8 +154,8 @@ api_budget_wrap_gh() {
       esac
     done
     out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
-    # gh-read-exempt: the wrapper under every call, gh_read included: the same call with -i.
-    command gh api -i "${@:2}" >"$out" || rc=$?
+    # The wrapper under every call, gh_read included: the same call with -i.
+    api_budget_traced "$out" api -i "${@:2}" || rc=$?
     api_budget_observe "$out" "$pool" "gh $*" || rc=1
     api_budget_read "$API_BUDGET_GH_TOKEN" "$out"
     rm -f "$out"
@@ -158,13 +170,57 @@ api_budget_wrap_gh() {
 api_budget_pass() {
   local err rc=0 seconds=3600
   err=$(mktemp 2>/dev/null) || { command gh "$@"; return; }
-  command gh "$@" 2>"$err" || rc=$?
+  api_budget_traced - "$@" 2>"$err" || rc=$?
   cat "$err" >&2
   if ((rc != 0)) && grep -qiE 'rate limit|RATE_LIMITED|abuse detection|\(HTTP 429\)' "$err"; then
     ! grep -qiE 'secondary rate limit|abuse detection' "$err" || seconds=60
     api_budget_stop '*' $(($(date +%s) + seconds)) fallback "gh $*" || :
   fi
   rm -f "$err"
+  return "$rc"
+}
+
+# api_budget_traced <out|-> <gh args>: gh with GH_DEBUG=1, stdout to <out>
+# (`-`: left as it is). That level logs only head lines per request (`* Request
+# at`, `* Request to <url>`, `* Request took`), never headers or bodies, which
+# GH_DEBUG=api adds and which no filter could tell from gh's own text. Each
+# request to a GitHub API URL (a redirect to a download host is not one) is a
+# `request` line in the token's file, less the one an <out> header block
+# already gives a reading. Once gh exits, its stderr goes on without what the
+# debug level adds: those lines, a `* <error>` line while a request is open,
+# `[git ...]` command lines, and the `lookup ...` line under `error connecting
+# to`. Returns gh's status.
+api_budget_traced() {
+  local out=$1 log rc=0 skip=0 nl=0 first state=${RUNNER_TEMP:-}/api-budget/${API_BUDGET_GH_TOKEN:-}
+  shift
+  log=$(mktemp 2>/dev/null) || {
+    if [[ $out == - ]]; then command gh "$@"; else command gh "$@" >"$out"; fi
+    return
+  }
+  if [[ $out == - ]]; then
+    GH_DEBUG=1 command gh "$@" 2>"$log" || rc=$?
+  else
+    GH_DEBUG=1 command gh "$@" >"$out" 2>"$log" || rc=$?
+    read -r first <"$out" 2>/dev/null
+    [[ ! ${first:-} =~ ^HTTP/[0-9.]+\ [0-9]{3} ]] || skip=1
+  fi
+  if [[ -z ${RUNNER_TEMP:-} || ! ${API_BUDGET_GH_TOKEN:-} =~ ^[a-z][a-z0-9-]{0,39}$ ]] || ! mkdir -p "${state%/*}" 2>/dev/null; then
+    state=/dev/null
+  fi
+  [[ $(tail -c 1 "$log" | od -An -c) != *'\n'* ]] || nl=1
+  awk -v state="$state" -v skip="$skip" -v nl="$nl" '
+    /^\* Request at / { open++; next }
+    /^\* Request took / { if (open) open--; next }
+    /^\* Request to / {
+      if ($4 ~ /^https:\/\/((api|uploads)\.github\.com|[^\/]+\/api)\// && ++n > skip) print "request" ($4 ~ /\/graphql([?]|$)/ ? " graphql" : "") >>state
+      next
+    }
+    /^\* (Using proxy|Skipping TLS verification): / || (open && /^\* /) || /^\[git[] ]/ { next }
+    /^lookup / && kept ~ /^error connecting to / { kept = ""; next }
+    { printf "%s%s", sep, $0; sep = "\n"; kept = $0; last = NR }
+    END { close(state); if (sep != "" && (nl || last != NR)) printf "\n" }
+  ' "$log" >&2
+  rm -f "$log"
   return "$rc"
 }
 
@@ -364,6 +420,17 @@ api_budget_emit_content() {
   where="workflow=${workflow:-na} job=${GITHUB_JOB:-na} run=${GITHUB_RUN_ID:-na} attempt=${GITHUB_RUN_ATTEMPT:-na}"
   sort -n "$file" | awk -v where="$where" '/^[0-9]+$/ { t[++n] = $1; while (t[n] - t[j + 1] >= 60) j++; if (n - j > max) max = n - j }
     END { if (n) printf "::notice title=api-budget::content-creation %s count=%d max-per-minute=%d\n", where, n, max }'
+  return 0
+}
+
+api_budget_emit_calls() {
+  local token file
+  for token; do
+    file=${RUNNER_TEMP:-}/api-budget/$token
+    [[ -n ${RUNNER_TEMP:-} && $token =~ ^[a-z][a-z0-9-]{0,39}$ ]] || continue
+    [[ -s $file ]] || file=/dev/null
+    awk '$1 != 304 { n++ } $1 == 304 { m++ } $6 == "graphql" || $2 == "graphql" { g++ } END { printf "::notice title=api-calls::%s=%d not-modified=%d graphql=%d\n", token, n, m, g }' token="$token" "$file"
+  done
   return 0
 }
 

@@ -70,6 +70,33 @@ class TestBraceMap(unittest.TestCase):
         bm = inv.build_brace_map("y=a/b;x={c:1}")
         self.assertEqual(len(bm.pairs), 1)
 
+    def _first_closes_before(self, src: str, marker: str) -> None:
+        """The first `{` in `src` pairs with the `}` that starts `marker`."""
+        bm = inv.build_brace_map(src)
+        self.assertEqual(bm.pairs.get(src.index("{")), src.index(marker))
+
+    def test_a_regex_after_a_spread_is_a_regex(self) -> None:
+        # Claude Code 2.1.312: `[y,b,.../^[\\/]{2}/.test(Rb())?...]` read as
+        # division left one brace pair spanning most of the bundle.
+        self._first_closes_before("var z,x={y:[.../[{]/.test(z)]};var w={a:1}", "};")
+
+    def test_of_as_a_name_is_not_a_keyword(self) -> None:
+        # Claude Code 2.1.312: `${of/1000} s` read `of` as the for-of keyword.
+        self._first_closes_before(
+            "var of=1;function f(){return`${of/1000} s`}var g={h:1}", "}var"
+        )
+        self._first_closes_before(
+            "var of=4;function f(){return of/2}var g={h:1}", "}var"
+        )
+
+    def test_a_regex_after_the_of_keyword_is_a_regex(self) -> None:
+        self._first_closes_before(
+            'var s="";function f(){for(const m of/[}]/.exec(s)){}}var g={h:1}', "}var"
+        )
+        self._first_closes_before(
+            'var s="";function f(){for(const[m]of/[}]/.exec(s)){}}var g={h:1}', "}var"
+        )
+
     def test_enclosing_finds_innermost(self) -> None:
         src = "x={outer:{inner:1}}"
         bm = inv.build_brace_map(src)
@@ -666,6 +693,37 @@ class TestNameLocality(unittest.TestCase):
         )
         self.assertTrue(skills["slides"]["disable_model_invocation"])
         self.assertNotIn("unresolved_dynamic_names", notes)
+
+    _HELPER = (
+        'var n="slides";var f={name:n,intent:"slides",'
+        'description:"Make a new Slides deck artifact from a brief"};'
+        'var g={name:"design",description:"Make a design"};'
+        "function nTr(){h(f)}function h(t,r){eo({name:t.name,"
+        "description:t.description,policyGate:r,isEnabled:()=>l(t),"
+        "userInvocable:!0,disableModelInvocation:!0})}"
+    )
+
+    def test_a_descriptor_passed_to_a_helper_resolves(self) -> None:
+        # Claude Code 2.1.312: the slides registration moved into
+        # `function h(t,r){ol({name:t.name,...})}`, called once as `h(f)`.
+        skills, notes = self._skills(self.HEAD + self._HELPER)
+        self.assertEqual(
+            skills["slides"]["description"],
+            "Make a new Slides deck artifact from a brief",
+        )
+        self.assertNotIn("unresolved_dynamic_names", notes)
+
+    def test_a_helper_called_twice_or_exported_stays_unresolved(self) -> None:
+        for extra in ("h(g);", "export{h};"):
+            skills, notes = self._skills(self.HEAD + self._HELPER + extra)
+            self.assertEqual(skills, {}, extra)
+            self.assertEqual(notes["unresolved_dynamic_names"], ["t.name"], extra)
+
+    def test_a_helper_reassigning_its_parameter_stays_unresolved(self) -> None:
+        src = self._HELPER.replace("function h(t,r){", "function h(t,r){t=g;")
+        skills, notes = self._skills(self.HEAD + src)
+        self.assertEqual(skills, {})
+        self.assertEqual(notes["unresolved_dynamic_names"], ["t.name"])
 
     def test_a_loop_over_a_literal_table_is_enumerated(self) -> None:
         src = (
@@ -2972,6 +3030,66 @@ class TestBuiltinPlugins(unittest.TestCase):
             rec["gate_flags"], [{"flag": "tengu_mellow_hollerith", "default": None}]
         )
         self.assertIn("gate_flags", rec["partial"])
+
+    _GATE = 'var xe=()=>!Il("hipaa")&&lo("tengu_mellow_hollerith",!1);'
+
+    def test_a_gate_declared_as_a_function_is_read(self) -> None:
+        # Claude Code 2.1.312 (cc-plugin-easel): `isAvailable:t` names
+        # `function t(){if(k(e(),r)!==!0)return!1;...}`, with the flag read
+        # through `function e(){return"tengu_joyful_otter"}`.
+        rec = self._test_module(
+            self._GATE,
+            'function e(){return"tengu_joyful_otter"}var r=!1;'
+            'function xe(){if(lo(e(),r)!==!0)return!1;return!Il("hipaa")}',
+        )
+        self.assertEqual(
+            rec["gate_flags"], [{"flag": "tengu_joyful_otter", "default": False}]
+        )
+        self.assertNotIn("gate_flags", rec["partial"])
+
+    def test_a_function_gate_showing_no_flag_call_is_unread(self) -> None:
+        rec = self._test_module(self._GATE, "function xe(){return ie.isOn()}")
+        self.assertIsNone(rec["gate_flags"])
+        self.assertIn("gate_flags", rec["partial"])
+
+    _FACTORY = "{return{...r,name:w[e],async"
+
+    def test_a_conditional_spread_in_a_skill_factory_keeps_earlier_keys(self) -> None:
+        # Claude Code 2.1.296: `...e==="run"&&{onUserTypedArgs:Lt}`.
+        rec = self._test_module(
+            self._FACTORY,
+            '{return{...r,name:w[e],...e==="run"&&{onUserTypedArgs:L},async',
+        )
+        skills = {s["name"]: s for s in rec["skills"]}
+        self.assertEqual(
+            skills["claude-test"]["description"], "Check that the web app still works"
+        )
+        self.assertIs(skills["claude-test-draft"]["user_invocable"], False)
+        self.assertNotIn("skills", rec["partial"])
+
+    def test_a_conditional_spread_key_is_unresolved(self) -> None:
+        rec = self._test_module(
+            self._FACTORY,
+            '{return{...r,name:w[e],...e==="run"&&{description:"x"},async',
+        )
+        skills = {s["name"]: s for s in rec["skills"]}
+        self.assertEqual(skills["claude-test"]["description_source"], "unresolved")
+        self.assertIn("skills", rec["partial"])
+        # `a||b&&{...}` spreads `a` when it is truthy: not a conditional literal.
+        rec = self._test_module(
+            self._FACTORY, "{return{...r,name:w[e],...q||e&&{a:1},async"
+        )
+        self.assertIn("skills", rec["partial"])
+
+    def test_a_conditional_spread_name_leaves_the_factory_name_unresolved(
+        self,
+    ) -> None:
+        rec = self._test_module(
+            self._FACTORY,
+            '{return{...r,name:w[e],...e==="run"&&{name:"override"},async',
+        )
+        self.assertNotIn("claude-test", {s["name"] for s in rec["skills"]})
+        self.assertIn("skills", rec["partial"])
 
     def test_a_present_but_unresolved_description_is_partial(self) -> None:
         rec = self._test_module('description:"Claude Test",', "description:qq(),")

@@ -21,12 +21,20 @@ cat >"$STUB_DIR/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$GH_STUB_CALLS"
 if [[ "$1 $2" == "auth status" ]]; then
-  [[ " ${GH_STUB_AUTH_HOSTS:-github.com} " == *" $4 "* ]]
+  # Like gh, an enterprise token in the environment vouches for any host.
+  [[ -n "${GH_ENTERPRISE_TOKEN:-}" || " ${GH_STUB_AUTH_HOSTS:-github.com} " == *" $4 "* ]]
   exit
 fi
 if [[ "$1 $2" == "pr list" ]]; then
   [[ "${GH_STUB_LIST_FAIL:-}" == 1 ]] && exit 1
-  printf '[{"number":1,"headRefName":"fix/improve-a"},{"number":2,"headRefName":"feat/other"},{"number":3,"headRefName":"docs/improve-b"}]'
+  # Like gh, return only the fields --json asked for.
+  fields=""
+  while (($# > 0)); do
+    [[ "$1" == --json ]] && fields="$2"
+    shift
+  done
+  printf '[{"number":1,"headRefName":"fix/improve-a","isCrossRepository":false,"headRepositoryOwner":{"login":"acme"}},{"number":2,"headRefName":"feat/other","isCrossRepository":true,"headRepositoryOwner":{"login":"forker"}},{"number":3,"headRefName":"docs/improve-b","isCrossRepository":false,"headRepositoryOwner":{"login":"acme"}}]' |
+    jq -c --arg f "$fields" 'map(with_entries(select(.key as $k | any($f | split(",")[]; . == $k))))'
   exit 0
 fi
 [[ "$1" == api ]] || { echo "gh-stub: unrouted $*" >&2; exit 1; }
@@ -87,9 +95,10 @@ exit 0
 STUB_EOF
 chmod +x "$STUB_DIR/gh" "$STUB_DIR/git"
 
+# An ambient enterprise token is dropped; RUN_ENTERPRISE_TOKEN sets one for a case.
 run() {
   : >"$TEST_TMPDIR/calls"
-  GH_STUB_CALLS="$TEST_TMPDIR/calls" PATH="$STUB_DIR:$PATH" bash "$SCRIPT" "$@"
+  env -u GH_ENTERPRISE_TOKEN -u GITHUB_ENTERPRISE_TOKEN ${RUN_ENTERPRISE_TOKEN:+GH_ENTERPRISE_TOKEN="$RUN_ENTERPRISE_TOKEN"} GH_STUB_CALLS="$TEST_TMPDIR/calls" PATH="$STUB_DIR:$PATH" bash "$SCRIPT" "$@"
 }
 
 out=$(run view 7)
@@ -115,15 +124,22 @@ assert_eq "paging stops at the first short page" "3" "$(grep -c '/files?' "$TEST
 out=$(GH_STUB_API_FAIL=1 run view 7)
 assert_eq "a failed visibility lookup reads UNKNOWN, never a guess" "UNKNOWN" "$(jq -r .visibility <<<"$out")"
 
-out=$(run view 7 --repo ghe.example/acme/ghe-app)
-assert_eq "visibility on another host asks that host" "PRIVATE" "$(jq -r .visibility <<<"$out")"
+out=$(GH_STUB_AUTH_HOSTS="github.com ghe.example" run view 7 --repo ghe.example/acme/ghe-app)
+assert_eq "visibility on another host gh is logged in to asks that host" "PRIVATE" "$(jq -r .visibility <<<"$out")"
 calls=$(cat "$TEST_TMPDIR/calls")
 assert_contains "--repo HOST/OWNER/REPO reads from that host" "$calls" "api --hostname ghe.example repos/acme/ghe-app/pulls/7"
 assert_contains "the visibility host comes from the pull request URL" "$calls" "api --hostname ghe.example repos/acme/ghe-app --jq"
 
-out=$(GH_STUB_URL_HOST=ghe.example GH_STUB_URL_REPO=acme/ghe-app run view 7)
+out=$(GH_STUB_AUTH_HOSTS="github.com ghe.example" GH_STUB_URL_HOST=ghe.example GH_STUB_URL_REPO=acme/ghe-app run view 7)
 assert_eq "visibility asks the host in the pull request URL, not the requested host" "PRIVATE" "$(jq -r .visibility <<<"$out")"
 assert_contains "a URL host that differs from the requested host reaches the visibility lookup" "$(cat "$TEST_TMPDIR/calls")" "api --hostname ghe.example repos/acme/ghe-app --jq"
+
+out=$(GH_STUB_URL_HOST=ghe.example GH_STUB_URL_REPO=acme/ghe-app run view 7)
+assert_eq "visibility on a host gh is not logged in to reads UNKNOWN" "UNKNOWN" "$(jq -r .visibility <<<"$out")"
+assert_not_contains "a host gh is not logged in to gets no api request" "$(cat "$TEST_TMPDIR/calls")" "api --hostname ghe.example"
+out=$(RUN_ENTERPRISE_TOKEN=t GH_STUB_URL_HOST=ghe.example GH_STUB_URL_REPO=acme/ghe-app run view 7)
+assert_eq "an enterprise token in the environment does not count as a login" "UNKNOWN" "$(jq -r .visibility <<<"$out")"
+assert_not_contains "an enterprise token sends no api request to that host" "$(cat "$TEST_TMPDIR/calls")" "api --hostname ghe.example"
 
 out=$(run view https://ghe.example/acme/ghe-app/pull/7)
 assert_eq "a pull request URL names its own host and repository" "https://ghe.example/acme/ghe-app/pull/7" "$(jq -r .url <<<"$out")"
@@ -182,6 +198,13 @@ assert_eq "list --head-match keeps only matching head branches" "1,3" "$(jq -r '
 calls=$(cat "$TEST_TMPDIR/calls")
 assert_contains "list lifts gh's 30-row default" "$calls" "--limit 1000"
 assert_contains "list defaults to open pull requests" "$calls" "--state open"
+
+out=$(run list)
+assert_eq "list carries isCrossRepository and headRepositoryOwner for each pull request" "1 false acme,2 true forker,3 false acme" \
+  "$(jq -r 'map("\(.number) \(.isCrossRepository) \(.headRepositoryOwner.login)") | join(",")' <<<"$out")"
+calls=$(cat "$TEST_TMPDIR/calls")
+assert_contains "list asks for isCrossRepository" "$calls" "isCrossRepository"
+assert_contains "list asks for headRepositoryOwner" "$calls" "headRepositoryOwner"
 
 run list --head feat/x --state all >/dev/null
 calls=$(cat "$TEST_TMPDIR/calls")

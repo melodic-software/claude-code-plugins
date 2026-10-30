@@ -60,13 +60,20 @@ deny can return process environment or git config. The lists live once, in
 `cases/lib/lane-write-tools.json`, copied from this marketplace repository's `collect-base-activity`
 action; when the lane's lists change, change that file.
 
+The `intake-permissions` area runs under `dontAsk` with only `Bash(gh issue view *)` allowed, the
+rule shape a read-only issue lane grants. A control runs a plain `gh issue view 1`, and four cases
+expect a deny when `;`, `&&`, `|` or `$()` adds a `touch` the rule does not approve. Each case's
+settings put a stub `gh` first on `PATH` that logs its arguments and prints `gh-stub-marker`, so a
+call that gets through touches no real issue; the control passes only on that marker.
+
 The `autocompact` area checks which auto-compact window `/autocompact`, run with no argument, reports
 when a project settings file, the `--autocompact` flag and the environment variable each set one. Its
 cases judge the printed line, not a tool call. A base case sets only the project file's top-level
 window, and each other case adds one element to a case it names as its control. No case passes
-`/autocompact` an argument, which would save to the operator's user settings. Whether `claude -p`
-prints the window without a model turn is unconfirmed until the area's first live run; a model
-answer reads as `inconclusive`.
+`/autocompact` an argument, which would save to the operator's user settings. Under `claude -p` the
+command prints the window with no model turn: a `<synthetic>` assistant message and a result with
+`num_turns` 0, which the verdict reads as printed output (record 16). A model answer reads as
+`inconclusive`.
 
 ## Reading a result
 

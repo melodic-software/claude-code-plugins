@@ -1,6 +1,7 @@
 # Mutation testing configuration
 
-Written by `/mutation-testing:setup apply`. Read by `/mutation-testing:audit`.
+Written by `/mutation-testing:setup apply`. Read by `/mutation-testing:audit`, which falls back to
+`tool: manual` and asks for the test command when none of the layers below exists.
 
 Layers resolve user-global (`~/.claude/mutation-testing.md`) → team (this file) →
 local overlay (`.claude/mutation-testing.local.md`). Scalars override; lists union.
@@ -46,8 +47,8 @@ operators: default
 timeout-ms: <n>
 
 # Measured wall-clock of one unmutated suite run, in milliseconds, at the time
-# setup last ran. Recorded so the audit can report an estimated run cost before
-# starting, and so a later slowdown is visible rather than inferred.
+# setup last ran. Recorded so a later slowdown is visible rather than inferred;
+# the audit's run estimate times its own build and test run instead.
 baseline-suite-ms: <n>
 
 # Optional. Cap on how many mutants a single audit run will generate, as a guard

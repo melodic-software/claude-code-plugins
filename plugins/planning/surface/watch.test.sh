@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Tests for watch.sh against a live server started through round.sh ensure-running.
 #   bash watch.test.sh
-# Cases: curl missing (WATCH_CURL override), wrong token (exit 2 at once), a PORT that is not all
-# digits (exit 2 naming the env file), a delivery
+# Cases: curl missing (WATCH_CURL override), wrong token (exit 2 at once), the note: line for a
+# server recording another plugin version, a PORT that is not all digits (exit 2 naming the env
+# file), a delivery
 # (one JSON line carrying dataDir and next, .watch-seq stored), re-delivery bounds, the
 # skill's documented wake command read from context/surface.md (AC9, AC10), a dead http_proxy
 # the watcher bypasses, a data dir named with $( ), a backtick and a single quote, server gone
@@ -105,6 +106,23 @@ if [[ "$rc" -eq 2 && "$took" -le 20 ]] && grep -q "token changed: re-run ensure-
   ok "exits 2 at once on a wrong token (${took}s)"
 else
   bad "wrong token: rc=$rc took=${took}s err=$(cat "$tmp/b.err")"
+fi
+
+# (p) gap G10: an env file recording another plugin version (a server started before a plugin
+# update) gets one `note:` line on stderr before the first poll; the live server's own version, in
+# case (b)'s env file, gets none. The wrong token ends each run after one poll.
+installed=$(sed -n 's/^  "version": "\([^"]*\)".*/\1/p' "$here/../.claude-plugin/plugin.json")
+mkdir -p "$tmp/older"
+grep -v -e '^PLUGIN_VERSION=' -e '^TOKEN=' "$tmp/env.saved" >"$tmp/older/.interview-session.env"
+printf 'TOKEN=not-the-token\nPLUGIN_VERSION=0.0.0-older\n' >>"$tmp/older/.interview-session.env"
+bounded 25 "$tmp/p.out" "$tmp/p.err" bash "$here/watch.sh" "$tmp/older"
+rc=$?
+want="note: the interview server runs 0.0.0-older, not this plugin's $installed: run round.sh ensure-running to restart it, then re-arm"
+if [[ "$rc" -eq 2 && -n "$installed" && "$(grep -c '^note: ' "$tmp/p.err")" == 1 ]] && grep -qxF -- "$want" "$tmp/p.err" &&
+  grep -qxF -- "PLUGIN_VERSION=$installed" "$tmp/env.saved" && ! grep -q '^note: ' "$tmp/b.err"; then
+  ok "a server recording another plugin version gets one note: line; the installed version gets none"
+else
+  bad "version note: rc=$rc installed=[$installed] err=$(cat "$tmp/p.err") b.err=$(cat "$tmp/b.err")"
 fi
 
 # (k) a PORT that is not all digits: exit 2 naming the env file, never a stripped port
@@ -229,8 +247,8 @@ if [[ "$n_marker" == 1 && "$cmd_lines" == 1 ]]; then
 else
   bad "documented wake command: marker x${n_marker:-0}, command lines $cmd_lines"
 fi
-add_out=$(bash "$here/round.sh" --dir "$d" add --id Q1 --short Store --title "Which store keeps the answers?" \
-  --rec "JSON files in the data dir." --commit none --alt "a:SQLite" --alt "b:One file per answer" 2>&1)
+printf '%s' '{"id": "Q1", "short": "Store", "title": "Which store keeps the answers?", "recommendation": "JSON files in the data dir.", "commits": [], "alternatives": [{"key": "a", "text": "SQLite"}, {"key": "b", "text": "One file per answer"}]}' >"$tmp/q1.json"
+add_out=$(bash "$here/round.sh" --dir "$d" add --file "$tmp/q1.json" 2>&1)
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -H "X-Interview-Token: $TOKEN" \
   -H 'Content-Type: application/json' --data '{"kind": "accept", "id": "Q1"}' \
   "http://127.0.0.1:$PORT/api/answer")

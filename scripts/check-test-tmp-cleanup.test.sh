@@ -27,6 +27,13 @@ write_offender() { printf 'd=$(%s -d)\nrm -rf "$d"\n' "$MK" >"$1"; }
 write_fixture_user() { printf 'fixture_tree::build f\nln -s /usr/bin/%s f/bin/\n' "$MK" >"$1"; }
 write_comment_only() { printf '# uses %s somewhere else\necho hi\n' "$MK" >"$1"; }
 
+# JS fixtures: a folder under os.tmpdir() with and without a removal hook.
+write_js_offender() { printf 'const d = mkdtempSync(join(tmpdir(), "x-"));\n' >"$1"; }
+write_js_unbound() { printf 'after(() => {});\nconst f = join(mkdtempSync(join(tmpdir(), "x-")), "f");\n' >"$1"; }
+write_js_hooked() { printf 'after(() => rmSync(d));\nconst d = mkdtempSync(join(tmpdir(), "x-"));\n' >"$1"; }
+write_js_helper() { printf 'import { tempDir } from "../lib/test-tmp.mjs";\nconst d = tempDir("x-");\n' >"$1"; }
+write_js_under_root() { printf 'after(() => {});\nconst d = join(mkdtempSync(join(root, "x-")), "f");\n' >"$1"; }
+
 # mk_repo <out-var>: a repo with one clean suite, one comment-only suite, and an
 # empty baseline. The builder assigns through a nameref, which shellcheck
 # cannot follow.
@@ -94,6 +101,17 @@ run_case "a baselined file that is gone fails as stale" 1 \
 
 run_case "a missing baseline is an environment error" 2 \
   "rm scripts/test-tmp-cleanup-baseline.txt"
+
+run_case "a JS suite with a tmpdir folder and no removal hook fails and is named" 1 \
+  "$(declare -f write_js_offender); write_js_offender plugins/p/bad.test.mjs" \
+  "plugins/p/bad.test.mjs"
+
+run_case "a JS suite whose folder is never bound to a name fails despite a hook" 1 \
+  "$(declare -f write_js_unbound); write_js_unbound plugins/p/unbound.test.mjs" \
+  "plugins/p/unbound.test.mjs"
+
+run_case "JS suites with a removal hook, the helper, or a folder under a cleaned root pass" 0 \
+  "$(declare -f write_js_hooked write_js_helper write_js_under_root); write_js_hooked plugins/p/h.test.mjs; write_js_helper plugins/p/t.test.js; write_js_under_root plugins/p/r.test.mjs"
 
 # Findings on stderr only.
 repo=""

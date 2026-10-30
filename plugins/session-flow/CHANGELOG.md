@@ -1,5 +1,121 @@
 # Changelog: session-flow plugin
 
+## [1.10.4] - 2026-10-29
+
+### Fixed
+
+- **The per-project state key no longer pipes into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `lib/state-key.sh` checks the remote identity with a here-string instead of `printf | grep -q`, so under `set -o pipefail` a valid identity can no longer be read as invalid and keyed by hash when grep exits before printf finishes writing.
+
+## [1.10.3] - 2026-10-29
+
+### Changed
+
+- Synced contract copies name their canonical source at `docs/contracts/<name>/`, where the plugin contracts moved from `docs/conventions/<name>/`.
+
+## [1.10.2] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [1.10.1] - 2026-10-29
+
+### Changed
+
+- `continue-in-background`: the launch report now says a denied action does not stop the
+  launched session and that the denial is in its transcript and `claude logs`, reaching the final
+  hand-off only when the task reports it. The statement rests on a new probe record,
+  `reference/denial-probe.md` (Claude Code 2.1.312, 2026-10-28). Whether a session stops on a
+  prompt after auto mode falls back on repeated denials stays unverified.
+
+## [1.10.0] - 2026-10-29
+
+### Added
+
+- `/session-flow:audit-sessions`: the `tools.denials` finding now counts denials per kind over the sessions above the threshold (`by_kind`) and names the most common kind (`dominant_kind`), in both the JSON and the markdown report. The rule's basis says how the kinds are read from the store, with an As of date and a recheck trigger (#10812).
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
+- A handoff now checks a goal's condition before carrying it into the goal region. A condition that ties its proof to this conversation, such as "shown by output you produced", gets a warning above the region that suggests commit- or file-anchored wording, and the condition itself stays verbatim. A goal already met at a recorded commit or file, with only the user's decisions left, gets no goal region and a note listing those decisions. `/session-flow:continue-in-background` redrafts such a goal instead of launching with it (#8763).
+
+- `/session-flow:audit-sessions`: the `subagents.count` finding now suggests `/harness-ops:observability` with route `retro-codify`, the same as `tokens.sub`, in place of `/harness-config:unhobble`, per the owner decision of 2026-10-11 (#10812).
+
+- `/session-flow:audit-sessions`: Step 2 now passes the sweep's `--catalog` only the installed skills that `reference/sweep-rules.json` or the correction lens suggests, in place of every skill in the session's listing. `sweep.py` checks no other name, and the skill's evals now expect the shorter list (#10839).
+
+## [1.9.0] - 2026-10-29
+
+### Added
+
+- `/session-flow:audit-sessions` drift check: the census now counts each `toolDenialKind` value as a `denial_kind:<value>` key, so a denial kind that first appears in the newest Claude Code version is reported as a `new` change in `collect.py drift`. A new expect-absent canary, `invariant:subagent_files_missing`, counts sessions that have no subagent file even though an Agent or Task call returned without an error. A rejected, denied or failed call writes no file, so it does not count. It feeds `subagents.count`, which no longer shows as unchecked for lack of a canary.
+
+## [1.8.1] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `setup-apply --check` names a key set twice as `duplicate key` at its second line, and apply refuses the file.
+
+## [1.8.0] - 2026-10-29
+
+### Added
+
+- `/session-flow:audit-sessions ticket --pattern '<regex>'`: groups stored sessions by the key the pattern matches in the title or branches, else the working directory. Per key it reports the sessions, output tokens, distinct linked PRs, gaps between sessions, and the first-to-last span, labeled a session-side proxy, not cycle time. `--branch` keeps the one key a branch name matches. The `sweep` report is unchanged.
+- `/session-flow:retro session --pattern '<regex>'` adds a ticket section from that rollup when the current branch has a key.
+
+### Changed
+
+- Shared `transcript_reader.py` synced where this plugin carries it: it gains
+  `iter_workflow_agents`, which this plugin does not call; `iter_subagents` is unchanged.
+
+## [1.7.1] - 2026-10-28
+
+### Changed
+
+- `/session-flow:audit-sessions` drift canaries are now validated against Claude Code 2.1.312. A collect and sweep over 2,387 sessions (2.1.280 through 2.1.312) found no `invariant:usage_regress`, `invariant:active_over_wall` or `invariant:stop_wait_over_sum` count, and `tokens.main` and `tokens.sub` report values on 2.1.296 transcripts.
+
+## [1.7.0] - 2026-10-28
+
+### Added
+
+- `/session-flow:audit-sessions now` audits the current session against the sweep's rules, so you can change course before the session ends. It collects only this session, by the id from `${CLAUDE_SESSION_ID}`, and stops without collecting when that id does not expand. It reports the per-session metrics, with each finding over its threshold.
+- `sweep.py --session <id>...` limits metrics and findings to the named sessions. Each row's store p90 still covers every interactive session in scope, and the drift check still reads every record. The machine-wide cache ratio and per-PR churn are reported as not applicable, and `--write-report` is refused.
+
+## [1.6.2] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [1.6.1] - 2026-10-27
+
+### Fixed
+
+- **`/session-flow:audit-sessions` redacts bare `sk-ant-oat01-` tokens and dotted `ghs_` tokens whole ([#9026](https://github.com/melodic-software/claude-code-plugins/issues/9026)).** `redact.py` now runs two of its own rules before the vendored gitleaks rules. Before this, a bare `sk-ant-oat01-` value went unredacted, and the vendored `github-app-token` rule replaced only the first 36 characters of a stateless `ghs_` token containing a dot, so the rest of the token stayed in the text.
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
+## [1.6.0] - 2026-10-27
+
+### Added
+
+- **`/session-flow:audit-sessions correction`, a judged correction lens ([#5928](https://github.com/melodic-software/claude-code-plugins/issues/5928)).** The session's own model judges each short turn the collector flagged as a correction or not, reading the excerpts as untrusted data. `sweep.py --correction-candidates` prints those excerpts with a stable `turn_id`, and `sweep.py --judged <file>` merges the verdicts into a separate `Judged (unranked)` section whose findings carry `"confidence": "judged"`. They never enter the measured findings, suggestions or exit code, and no agreement figure exists yet. The skill deletes the verdict file after the merge, and `--judged` refuses `--write-report`, so no saved report holds an excerpt.
+
+## [1.5.1] - 2026-10-27
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [1.5.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
 ## [1.4.5] - 2026-10-25
 
 ### Changed

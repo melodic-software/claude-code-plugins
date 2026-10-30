@@ -11,22 +11,24 @@
 //   2. For VALID replies, which name no commit (the model job commits
 //      nothing), finds the one commit apply-feedback-patch pushed: the lanes
 //      App's, after the select job's head, carrying the review-threads
-//      row's Lane-Activity trailer (isLaneFix). Confirms it changes each
-//      VALID thread's path, or a line its evidence cites in a file of the PR
+//      row's Lane-Activity trailer (isLaneFix). Confirms its Lane-Thread
+//      trailer lines name each VALID thread and it changes that thread's path, or a line its evidence cites in a file of the PR
 //      or the thread's scope (touchesThread), and that the branch changed no path outside the
 //      kept threads' scope (thread-scope.mjs) and none under
 //      .github/workflows/. With no such commit in that range and no patch
 //      written this round (a retry after a round whose fix landed but whose
 //      replies did not post), each VALID thread's fix is an earlier commit on
-//      the PR of the same kind, committed after the thread's newest reviewer
-//      or lane comment, that changed the thread's path and a line the
+//      the PR of the same kind whose Lane-Thread trailer names the thread,
+//      committed after the thread's newest reviewer or lane comment, that changed the thread's path and a line the
 //      reply's evidence cites, and that no lane reply already named as a
 //      fix (earlierFixOf). A push
 //      that was superseded, refused, escalated or held ends the round
 //      feedback-not-landed.
 //   3. Re-reads each thread and skips one that is resolved, moved, or has a
 //      comment the model job did not see; posts the templated reply on its
-//      root comment and resolves it only when it is VALID. The PR head is
+//      root comment and resolves it only when it is VALID, and only on a
+//      lanes App PR: on a PR a person opened the lanes App cannot resolve, so
+//      the thread is left open for the person or their babysit worker tier. The PR head is
 //      re-read before each post and each resolve: once it is not the head
 //      this job gated, nothing more is posted or resolved.
 //   4. Posts the round marker, as the lanes App, once per model run: a
@@ -37,15 +39,26 @@
 //      moved head it escalates feedback-not-landed, and beside a patch, a
 //      refusal or a named upload feedback-invalid. Otherwise escalates
 //      feedback-invalid, feedback-incomplete (a kept thread has no
-//      disposition), feedback-not-landed, feedback-partial (posting stopped
-//      after a reply), feedback-uncertain (an UNCERTAIN or VALID-defer reply),
-//      or a reason adjudicate-feedback.mjs settleDisputes gives for an
-//      INCORRECT reply: feedback-unadjudicated, feedback-question-intent,
-//      feedback-question-design, feedback-question-security, or
-//      feedback-disputed (the finding stood at an earlier adjudication and
+//      disposition; the round marker names each such thread),
+//      feedback-not-landed, feedback-partial (posting stopped
+//      after a reply), or a reason adjudicate-feedback.mjs settleDisputes
+//      gives for an INCORRECT, UNCERTAIN or VALID-defer reply:
+//      feedback-unadjudicated, feedback-question-intent,
+//      feedback-question-design, feedback-question-security,
+//      feedback-disputed, feedback-uncertain, feedback-verifier-open, or
+//      feedback-stood-open (the finding stood at an earlier adjudication and
 //      this round left it open). A finding that stands with the head unmoved
 //      skips finding-stands instead, which feedback-dispatch.mjs's sweep
 //      dispatches again.
+//
+// A pass-only round is the exception: when pr-verify passed the PR's current
+// head, pr-feedback-dispatch.yml sends pr-unblock.yml with verify-pass-head,
+// and the select job lists in run.json's stale_notes the open fail-note
+// threads from earlier heads (address-feedback.mjs staleVerifyNotes), with no
+// thread for a model. This job then resolves each one still open and stale
+// while the PR head is the passing one, and posts no reply and no round
+// marker, and skips pass-only. The job token cannot resolve a thread; the
+// lane token can.
 //
 // Environment:
 //   GH_TOKEN              the lane token (pull-requests: write, contents: read)
@@ -56,6 +69,8 @@
 //   APP_SENDER_ID         the lanes App bot's user id, the round marker author
 //   TRUSTED_ACTORS        the base's trusted-actors.json, for the reviewer bot
 //                         and the people whose replies are direction
+//   REVIEWER_IDS          the listed review bots' ids, one per line
+//                         (address-feedback.mjs reviewerIdsFrom)
 //   FEEDBACK_REPLIES_DIR  the downloaded artifacts: the select job's run.json
 //                         and the model run's scanned replies.jsonl
 //   RUN_SHA256            run.json's SHA-256, from the select job
@@ -86,13 +101,16 @@ import {
   need,
   positive,
   reviewerIdFrom,
+  reviewerIdsFrom,
   ROUND_MARKER,
   scanRefusal,
   SHA,
+  staleVerifyNotes,
   trustedHumansFrom,
 } from "./address-feedback.mjs";
-import { parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
-import { inThreadScope } from "./thread-scope.mjs";
+import { DISPUTED, LEFT_OPEN, parseVerdicts, settleDisputes } from "./adjudicate-feedback.mjs";
+import { inThreadScope, THREAD_ID, threadsNamed } from "./thread-scope.mjs";
+import { stopSkip } from "./escalation-routes.mjs";
 
 // bytes: replies.jsonl's cap, the read runner's carry, seal and scan cap too;
 // runBytes: run.json's, the 1 MiB the read runner accepts for it.
@@ -101,7 +119,6 @@ export const LIMITS = { bytes: 49152, runBytes: 1048576, note: 2000, evidence: 1
 const WEB_FLOW_ID = 19864447;
 // The trailer apply-patch.mjs writes from patch-rules.json's review-threads row.
 export const FIX_TRAILER = "Lane-Activity: pr-unblock/address-feedback";
-const THREAD_ID = /^PRRT_[A-Za-z0-9_-]{1,100}$/;
 const PATH_LINE = /^[A-Za-z0-9_@+.-]+(\/[A-Za-z0-9_@+.-]+)*:[1-9][0-9]{0,6}$/;
 const DOT_SEGMENT = /(^|\/)\.\.?(\/|:)/;
 // Tab and newline only, and no direction, zero-width or byte-order mark.
@@ -118,8 +135,8 @@ const KEYS = ["disposition", "evidence", "fix_sha", "note", "thread"];
 const LABELS = {
   VALID: "VALID, fixed",
   INCORRECT: "INCORRECT, left open",
-  UNCERTAIN: "UNCERTAIN, left open for a person",
-  "VALID-defer": "VALID (defer), left open for a person",
+  UNCERTAIN: "UNCERTAIN, left open",
+  "VALID-defer": "VALID (defer), left open",
 };
 
 class Invalid extends Error {}
@@ -132,8 +149,22 @@ function check(condition, why) {
 
 const sameIds = (a, b) => a.length === b.length && a.every((id, i) => id === b[i]);
 
+// The check runs a ci snapshot may cite: a github-actions job page.
+const CI_RUN_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[1-9][0-9]{0,19}\/job\/[1-9][0-9]{0,19}$/;
+const CI_RUN_NAME = /^[A-Za-z0-9_.-]+( \([0-9]{1,3}\))?$/;
+const ciValid = (ci) =>
+  ci !== null &&
+  typeof ci === "object" &&
+  Object.keys(ci).sort().join(",") === "runs,state" &&
+  ["green", "red", "unsettled"].includes(ci.state) &&
+  Array.isArray(ci.runs) &&
+  ci.runs.length <= 100 &&
+  ci.runs.every((run) => run !== null && typeof run === "object" && Object.keys(run).sort().join(",") === "name,url" && CI_RUN_NAME.test(String(run.name)) && CI_RUN_URL.test(String(run.url)));
+
 // run.json is the select job's: the gated head and the threads it kept, with
-// the comment ids the model was shown.
+// the comment ids the model was shown and, from a select job that records
+// them, the reviewed heads it kept them on and the head's covering check runs
+// (address-feedback.mjs ciSnapshot).
 export function parseRun(text) {
   let run;
   try {
@@ -148,6 +179,16 @@ export function parseRun(text) {
       (run.pr_paths === undefined || (Array.isArray(run.pr_paths) && run.pr_paths.every((path) => typeof path === "string"))),
     "run.json is malformed",
   );
+  check(
+    run.stale_notes === undefined ||
+      (Array.isArray(run.stale_notes) && run.stale_notes.length > 0 && run.threads.length === 0 && run.stale_notes.every((id) => THREAD_ID.test(String(id)))),
+    "run.json holds a malformed stale_notes list",
+  );
+  check(
+    run.reviewed_heads === undefined || (Array.isArray(run.reviewed_heads) && run.reviewed_heads.every((sha) => SHA.test(String(sha)))),
+    "run.json holds a malformed reviewed_heads list",
+  );
+  check(run.ci === undefined || ciValid(run.ci), "run.json holds a malformed ci snapshot");
   for (const thread of run.threads) {
     check(
       THREAD_ID.test(thread?.id ?? "") &&
@@ -262,8 +303,7 @@ function touchesThread(changed, thread, cited) {
 }
 
 // A commit the lanes App authored through the API (the web-flow committer,
-// with a valid signature, as upstreamHeadHolds in check-trusted-trigger.mjs
-// requires) with the fix trailer on a line of its own.
+// with a valid signature) with the fix trailer on a line of its own.
 const isLaneFix = (commit, appId) =>
   commit.author?.id === appId &&
   commit.committer?.id === WEB_FLOW_ID &&
@@ -274,7 +314,8 @@ const isLaneFix = (commit, appId) =>
     .some((line) => line.replace(/\r$/, "") === FIX_TRAILER);
 
 // The newest of the PR's `commits` (oldest first, as GET /pulls/{n}/commits
-// lists them) that is a lane fix commit, committed (the date GitHub sets for
+// lists them) that is a lane fix commit whose Lane-Thread trailer names
+// `thread`, committed (the date GitHub sets for
 // a web-flow commit) after `after` (epoch ms), not in `claimed` (a commit a
 // lane reply already named as another thread's fix), whose files touch
 // `thread` (touchesThread), and in which one `evidence` path:line falls
@@ -286,7 +327,12 @@ export async function earlierFixOf({ commits, appId, after, thread, evidence, cl
   const cites = evidence.map((ev) => [ev.slice(0, ev.lastIndexOf(":")), Number(ev.slice(ev.lastIndexOf(":") + 1))]);
   for (let i = commits.length - 1; i >= 0; i -= 1) {
     const commit = commits[i];
-    if (!isLaneFix(commit, appId) || claimed.has(commit.sha) || !(Date.parse(commit.commit?.committer?.date ?? "") > after)) {
+    if (
+      !isLaneFix(commit, appId) ||
+      !threadsNamed(commit.commit.message).has(thread.id) ||
+      claimed.has(commit.sha) ||
+      !(Date.parse(commit.commit?.committer?.date ?? "") > after)
+    ) {
       continue;
     }
     const later = new Set();
@@ -321,8 +367,8 @@ const claimedFixes = (reviewComments, appId) =>
 // threads' paths and the PR's own files (run.json, whose SHA-256 the select
 // job recorded), adding none of those files, and nothing under
 // .github/workflows/. With a VALID reply the range must hold
-// exactly one fix commit (isLaneFix), and it must change, for every VALID
-// thread, its path, a file the PR already
+// exactly one fix commit (isLaneFix), whose Lane-Thread trailer must name
+// every VALID thread, and it must change, for every VALID thread, its path, a file the PR already
 // changes or inThreadScope allows for that thread alone at a line the reply's
 // evidence cites, or for a thread on a skill's SKILL.md any file in that
 // skill's directory (touchesThread).
@@ -368,8 +414,9 @@ async function fixesLanded({ api, pr, run, headSha, replies, appId, judgedAt, pa
     const commitFiles = (await api.getCommit(fixSha)).files ?? [];
     const changed = commitFiles.map((file) => file.filename);
     const patches = new Map(commitFiles.map((file) => [file.filename, file.patch]));
+    const named = threadsNamed(fixes[0].commit.message);
     const touches = (thread, reply) => touchesThread(changed, thread, citedFiles(reply.evidence, patches, thread, prPaths));
-    if (!valid.every((reply) => touches(threadOf.get(reply.thread), reply))) {
+    if (!valid.every((reply) => named.has(reply.thread) && touches(threadOf.get(reply.thread), reply))) {
       return null;
     }
     for (const reply of valid) {
@@ -442,8 +489,78 @@ async function resolveAfterReply(api, id, expected, headMoved) {
 // posts; a re-run of this job alone reuses that run's artifact.
 export const modelRunLine = (modelRun) => `<!-- pr-unblock:address-feedback-model-run ${modelRun} -->`;
 
+// The pass-only round's skip, which feedback-dispatch.mjs tells apart from a
+// round's reply check: it answers no thread, so it releases nothing and holds
+// nothing.
+export const PASS_ONLY_SKIP = "pass-only";
+
+// A pass-only round: the select job listed the fail-note threads a pr-verify
+// pass at its head left stale, and no model ran. Each one still open and still
+// stale (staleVerifyNotes) is resolved while the PR head is the passing one;
+// a failed resolve is logged, the rest are tried, and the job then fails so
+// a re-run tries again. Nothing is posted and no round is counted.
+async function resolveStaleNotes({ api, pr, headSha, headRef, run, log }) {
+  const headMoved = async () => run.head_sha !== headSha || (await api.readBranch(headRef)) !== headSha;
+  const open = new Set(staleVerifyNotes(await api.listThreads(pr), headSha));
+  const failed = [];
+  let resolved = 0;
+  for (const id of run.stale_notes) {
+    if (!open.has(id)) {
+      log(`${id} is no open fail-note thread from an earlier head; left alone`);
+      continue;
+    }
+    try {
+      if (await headMoved()) {
+        log(`the PR head is no longer ${run.head_sha}, which pr-verify passed; nothing more is resolved`);
+        break;
+      }
+      if ((await api.resolveThread(id)) !== true) {
+        throw new Error("it does not read resolved");
+      }
+      resolved += 1;
+    } catch (error) {
+      failed.push(id);
+      log(`could not resolve ${id}: ${String(error?.message ?? error).slice(0, 300)}`);
+    }
+  }
+  log(`resolved ${resolved} fail-note thread(s) a pr-verify pass at ${run.head_sha} superseded`);
+  if (failed.length > 0) {
+    throw new Error(`could not resolve ${failed.join(", ")}`);
+  }
+  return { escalationReason: "", skipReason: PASS_ONLY_SKIP, posted: [] };
+}
+
+// run.json when it is a pass-only round's, else null; any other run.json,
+// readable or not, is judged by postReplies.
+function staleRunOf(readArtifact) {
+  try {
+    const run = parseRun(readArtifact().runText);
+    return run.stale_notes ? run : null;
+  } catch {
+    return null;
+  }
+}
+
+// The round marker's lines naming each kept thread with no disposition (its
+// id and root comment), which report-escalation.sh copies into the
+// feedback-incomplete escalation: at most 20, then how many more.
+const UNDISPOSED_SHOWN = 20;
+export const undisposedLines = (undisposed = []) =>
+  undisposed.length === 0
+    ? []
+    : [
+        "",
+        "Kept review threads with no disposition:",
+        ...undisposed.slice(0, UNDISPOSED_SHOWN).map(({ id, comment }) => `- \`${id}\` (root comment ${comment})`),
+        ...(undisposed.length > UNDISPOSED_SHOWN ? [`- and ${undisposed.length - UNDISPOSED_SHOWN} more`] : []),
+      ];
+
 export async function publish(args) {
   const { api, pr, headSha, appId, modelRun, maxRounds = DEFAULT_MAX_ROUNDS, log = () => {} } = args;
+  const staleRun = staleRunOf(args.readArtifact);
+  if (staleRun !== null) {
+    return resolveStaleNotes({ api, pr, headSha, headRef: args.headRef, run: staleRun, log });
+  }
   let result = null;
   let failure = null;
   try {
@@ -466,7 +583,12 @@ export async function publish(args) {
       const round = roundLine(rounds, maxRounds + FRESH_FIXER_ROUNDS);
       await api.createIssueComment(
         pr,
-        [ROUND_MARKER, ...(runLine ? [runLine] : []), `pr-unblock / address-feedback finished ${round} on ${headSha}.`].join("\n"),
+        [
+          ROUND_MARKER,
+          ...(runLine ? [runLine] : []),
+          `pr-unblock / address-feedback finished ${round} on ${headSha}.`,
+          ...undisposedLines(result?.undisposed),
+        ].join("\n"),
       );
       log(`recorded round ${rounds}${result?.escalationReason ? `; escalating ${result.escalationReason}` : ""}`);
     }
@@ -482,7 +604,7 @@ export async function publish(args) {
   return result;
 }
 
-async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", scanRefused = "", repliesExpected = false, reviewerId, trustedHumans, readArtifact, readAdjudication = () => null, fileExists, log }) {
+async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", scanRefused = "", repliesExpected = false, reviewerId, reviewerIds = [], trustedHumans, readArtifact, readAdjudication = () => null, fileExists, log }) {
   let escalationReason = "";
   // fixesLanded judged the range up to headSha; a push after it is unjudged.
   const headMoved = async () => (await api.readBranch(headRef)) !== headSha;
@@ -525,13 +647,20 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       return { escalationReason, posted: [] };
     }
     // Every kept thread needs its disposition: one left out would stay open
-    // with no reply, and the head's check run stops another dispatch.
+    // with no reply, and the head's check run stops another dispatch. The
+    // round marker names each one left out, for the escalation.
     if (replies.length !== run.threads.length) {
-      log(`no reply is posted: ${replies.length} of ${run.threads.length} kept threads have a disposition`);
+      const disposed = new Set(replies.map((reply) => reply.thread));
+      const undisposed = run.threads.filter((thread) => !disposed.has(thread.id)).map((thread) => ({ id: thread.id, comment: thread.comment_ids[0] }));
+      log(`no reply is posted: ${replies.length} of ${run.threads.length} kept threads have a disposition; none for ${undisposed.map((thread) => thread.id).join(", ")}`);
       escalationReason = "feedback-incomplete";
-      return { escalationReason, posted: [] };
+      return { escalationReason, posted: [], undisposed };
     }
-    const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, appId, trustedHumans });
+    // The threads are judged on the heads the select job kept them on: the
+    // review lane re-marks its one marker on this round's fix push. A run.json
+    // from before the select job recorded them reads the markers now.
+    const heads = run.reviewed_heads && new Set(run.reviewed_heads);
+    const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, reviewerIds, appId, trustedHumans, heads });
     const now = new Map(kept.map((thread) => [thread.id, thread]));
     const shown = new Map(run.threads.map((thread) => [thread.id, thread]));
     const createdAt = new Map(reviewComments.map((comment) => [comment.id, comment.created_at]));
@@ -557,14 +686,23 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       claimed: claimedFixes(reviewComments, appId),
     });
     if (landed === null) {
-      log("no reply is posted: no one fix commit for the VALID replies reached the PR branch, or the branch changed another path");
+      log("no reply is posted: no one fix commit naming each VALID thread reached the PR branch, or the branch changed another path");
       escalationReason = "feedback-not-landed";
       return { escalationReason, posted: [] };
     }
     replies = replies.map((reply) => (reply.disposition === "VALID" ? { ...reply, fixSha: landed.get(reply.thread) } : reply));
-    if (replies.some((reply) => reply.disposition === "UNCERTAIN" || reply.disposition === "VALID-defer")) {
-      escalationReason = "feedback-uncertain";
-    }
+    // GitHub lets only a PR's author or a writer resolve its threads, and the
+    // lanes App is neither on a PR a person opened: there each answered thread
+    // is left open with the lanes App's reply, for the person or their
+    // babysit worker tier to resolve. The stand-in returns LEFT_OPEN, so
+    // settleDisputes reports such a thread as left open, not resolved.
+    const appPr = (await api.getPull(pr))?.user?.id === appId;
+    const resolve = appPr
+      ? resolveAfterReply
+      : async (_api, id) => {
+          log(`${id}: left open; the lanes App cannot resolve a thread on a PR it did not open`);
+          return LEFT_OPEN;
+        };
     const posted = [];
     for (const reply of replies) {
       const ids = shown.get(reply.thread).comment_ids;
@@ -596,7 +734,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
           throw new Error(`the reply on ${reply.thread} did not land on its thread`);
         }
         posted.push({ thread: reply.thread, disposition: reply.disposition });
-        if (reply.disposition === "VALID" && !(await resolveAfterReply(api, reply.thread, [...ids, answer.id], headMoved))) {
+        if (reply.disposition === "VALID" && !(await resolve(api, reply.thread, [...ids, answer.id], headMoved))) {
           log(`replied on ${reply.thread} but left it open: it or the PR head changed while the reply was posted`);
           escalationReason = "feedback-partial";
           continue;
@@ -606,13 +744,14 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
         escalationReason = "feedback-partial";
         break;
       }
-      log(`replied on ${reply.thread} (${reply.disposition})${reply.disposition === "VALID" ? "; resolved" : ""}`);
+      log(`replied on ${reply.thread} (${reply.disposition})${reply.disposition === "VALID" && appPr ? "; resolved" : ""}`);
     }
-    // An INCORRECT thread goes to the adjudicator's verdict, not straight to
-    // a person (owner decision): it is resolved, handed back to the next round,
-    // or escalated with the question the verdict names; a thread whose finding
-    // stood at an earlier adjudication and is still open escalates
-    // feedback-disputed (adjudicate-feedback.mjs settleDisputes). The
+    // A thread left open (INCORRECT, UNCERTAIN or VALID-defer) goes to the
+    // adjudicator's verdict, not straight to a person (owner decision): it is
+    // resolved, handed back to the next round, or escalated with the question
+    // the verdict names; a thread whose finding stood at an earlier
+    // adjudication and is still open ends feedback-stood-open
+    // (adjudicate-feedback.mjs settleDisputes). The
     // adjudicator read the select job's head, which this round's fix push
     // may have moved past headSha.
     // A head that moved this round gets a review run, which starts the next
@@ -621,14 +760,16 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       api,
       pr,
       adjudicatedSha: run.head_sha,
+      headSha,
       posted,
       replies,
       shown,
       now,
-      verdicts: posted.some((entry) => entry.disposition === "INCORRECT") ? parseVerdicts(readAdjudication(), run.head_sha) : new Map(),
+      verdicts: posted.some((entry) => DISPUTED.includes(entry.disposition)) ? parseVerdicts(readAdjudication(), run.head_sha) : new Map(),
+      ci: run.ci,
       pushed: run.head_sha !== headSha,
       headMoved,
-      resolveAfterReply,
+      resolveAfterReply: resolve,
       escalationReason,
       log,
     });
@@ -738,6 +879,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     repliesExpected: attempt !== "" || (env.REPLIES_SHA256 ?? "") !== "",
     maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
     reviewerId: reviewerIdFrom(env.TRUSTED_ACTORS),
+    reviewerIds: reviewerIdsFrom(env.REVIEWER_IDS),
     trustedHumans: trustedHumansFrom(env.TRUSTED_ACTORS),
     readArtifact: () => ({ runText: readRun(), repliesText: readReplies() }),
     readAdjudication,
@@ -746,7 +888,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   });
   if (escalationReason) {
     writeFileSync(env.ESCALATION_REASON_FILE, `${escalationReason}\n`);
-    writeFileSync(env.SKIP_REASON_FILE, "awaiting-human\n");
+    writeFileSync(env.SKIP_REASON_FILE, `${stopSkip(escalationReason)}\n`);
   } else if (skipReason) {
     writeFileSync(env.SKIP_REASON_FILE, `${skipReason}\n`);
   }

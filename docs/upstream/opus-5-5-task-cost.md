@@ -18,7 +18,7 @@
 This is the provenance record for this repository's response to the claude.dev post "What a task
 costs on Opus 5.5". It follows the record shape of [opus-5-5-usage-guide.md](opus-5-5-usage-guide.md)
 and [claude-dev-sonnet-5-5-blog.md](claude-dev-sonnet-5-5-blog.md), and the
-[upstream-drift](../conventions/upstream-drift/README.md#required-parts) convention. Each row maps
+[upstream-drift](../contracts/upstream-drift/README.md#required-parts) convention. Each row maps
 one post item to the official docs section this repository trusts for it, and says what the
 repository does. The post's figures appear only in this file, each labeled vendor-reported. Every
 place where the post and the docs, or two docs pages, disagree is in [Conflicts](#conflicts).

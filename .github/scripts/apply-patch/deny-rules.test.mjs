@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { loadRules, REFUSALS } from "./apply-patch.mjs";
 import { PATH_RULES, segments } from "./protected-paths.mjs";
 import { denyRules, main, PATTERNS } from "./deny-rules.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO_ROOT = join(import.meta.dirname, "../../..");
 const ISSUE_REFUSE = loadRules(REPO_ROOT).issue.refuse;
@@ -59,6 +59,8 @@ test("the issue row's path refusals become Edit rules; its symlink, gitlink and 
     "Edit(/.github/**/settings*.json)",
     "Edit(/docs/**/settings*.json)",
     "Edit(/scripts/**/settings*.json)",
+    "Edit(/.github/actions/resolve-config/lane-grants.json)",
+    "Edit(/.github/standards/trusted-actors/trusted-actors.json)",
   ]);
   assert.ok(ISSUE_REFUSE.some((name) => Object.hasOwn(REFUSALS, name) && !Object.hasOwn(PATH_RULES, name)));
 });
@@ -73,13 +75,15 @@ test("a row that refuses no path rule gets no rules", () => {
 test("the rules match only paths apply-patch refuses, plugins/ settings files included, and cover the common ones", () => {
   const dirs = execFileSync("git", ["-C", REPO_ROOT, "ls-tree", "-d", "--name-only", "HEAD"], { encoding: "utf8" }).split("\n").filter(Boolean);
   const rules = denyRules(ISSUE_REFUSE, dirs);
-  const tracked = execFileSync("git", ["-C", REPO_ROOT, "ls-files"], { encoding: "utf8" }).split("\n").filter(Boolean);
+  const tracked = execFileSync("git", ["-C", REPO_ROOT, "ls-files"], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).split("\n").filter(Boolean);
   const accepted = [
     ...tracked,
     "plugins/x/settings.json",
     "plugins/x/.claude/settings.local.json",
     ".github/scripts/settings.mjs",
     ".github/actions/x/action.yml",
+    ".github/actions/resolve-config/lane-rules.json",
+    ".github/standards/trusted-actors/trusted-actors.schema.json",
     "docs/x/CODEOWNERS",
     "a/CODEOWNERS",
     "settings.yaml",
@@ -92,7 +96,7 @@ test("the rules match only paths apply-patch refuses, plugins/ settings files in
       path,
     );
   }
-  for (const path of [".github/workflows/ci.yml", ".github/workflows/sub/x.yml", ".github/CODEOWNERS", "CODEOWNERS", "a/b/.gitmodules", ".claude/settings.json", ".claude/settings.local.json", "settings.json", "docs/x/settings.json"]) {
+  for (const path of [".github/workflows/ci.yml", ".github/workflows/sub/x.yml", ".github/CODEOWNERS", "CODEOWNERS", "a/b/.gitmodules", ".claude/settings.json", ".claude/settings.local.json", "settings.json", "docs/x/settings.json", ".github/actions/resolve-config/lane-grants.json", ".github/standards/trusted-actors/trusted-actors.json"]) {
     assert.ok(refused(path), path);
     assert.ok(
       rules.some((rule) => matches(rule, path)),
@@ -102,7 +106,7 @@ test("the rules match only paths apply-patch refuses, plugins/ settings files in
 });
 
 test("main prints the row's rules for the base's top-level directories", (t) => {
-  const base = mkdtempSync(join(tmpdir(), "deny-rules-"));
+  const base = tempDir("deny-rules-");
   t.after(() => rmSync(base, { recursive: true, force: true }));
   for (const dir of [".git", ".github/actions/resolve-config", "plugins", "lib"]) mkdirSync(join(base, dir), { recursive: true });
   writeFileSync(join(base, "README.md"), "");

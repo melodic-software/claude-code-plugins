@@ -24,7 +24,7 @@ subagent by default**, so the reading stays out of the main conversation;
 | `discovery:researcher` | `/discovery:research` | Runs the full research discipline in a fresh context, writes the artifact set and coverage ledger, returns a file pointer plus a verification request. |
 | `discovery:research-verifier` | `/discovery:research` | Read-only. Grades a research artifact's verifier-owned outcome-gate rows in a fresh context and returns the `verification:` line the parent writes into `RESEARCH.md`. |
 | `discovery:sweep-worker` | the `discovery:research-sweep` workflow | Runs one workflow stage with web search and fetch only, so no stage that reads untrusted pages holds a shell or file access. Inherits the model and pins no effort; the workflow passes both from the role map. |
-| `discovery:docs-fetcher` | the `discovery:research-sweep` workflow | Runs `scripts/docs-raw.sh` once on one URL and returns its output: a fresh, raw read of the page or its section map. Holds `Bash` only, and `hooks/hooks.json` registers `lib/docs-fetcher-gate.mjs` on `Bash` to deny it any other command or a non-public host; for the one allowed command the gate returns no decision, so the session's permission rules still apply. It gets a URL and section ids, never the question or a claim. The command passes once per agent run, so a page cannot steer a second fetch. The gate checks only the host written in the command, so `docs-raw.sh` runs `fetch-docs.sh --public-only`: every address the host resolves to must be global, or the page is unread `private-address`, and curl then connects only to the checked address (`--connect-to`, no proxy, no `~/.curlrc`), so neither an https redirect to another host nor a second DNS answer reaches a private network. This is OWASP's case 2 check for open destinations rather than a host allowlist, which an open research sweep cannot have ([SSRF prevention cheat sheet](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html)). The gate fails open when `node` is missing or the hook times out: Claude Code treats that hook error as non-blocking, and the session's permission rules alone hold this agent's `Bash`; a stdin error or a crash inside the gate denies. The gate is always-on: one process (`node`) per `Bash` call, ratcheted in `.performance/ratchets.json` as `discovery-pretooluse-bash-docs-fetcher-gate-spawns`. |
+| `discovery:docs-fetcher` | the `discovery:research-sweep` workflow | Runs `scripts/docs-raw.sh` once on one URL and returns its output: a fresh, raw read of the page or its section map. Holds `Bash` only, and `hooks/hooks.json` registers `lib/docs-fetcher-gate.mjs` on `Bash` to deny it any other command or a non-public host; for the one allowed command the gate returns no decision, so the session's permission rules still apply. It gets a URL and section ids, never the question or a claim. The command passes once per agent run, so a page cannot steer a second fetch. The gate checks only the host written in the command, so `docs-raw.sh` runs `fetch-docs.sh --public-only`: every address the host resolves to must be global, or the page is unread `private-address`, and curl then connects only to the checked address (`--connect-to`, no proxy, no `~/.curlrc`), so neither an https redirect to another host nor a second DNS answer reaches a private network. This is OWASP's case 2 check for open destinations rather than a host allowlist, which an open research sweep cannot have ([SSRF prevention cheat sheet](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html)). A stdin error or a crash inside the gate denies. The row sets `"onFailure": "block"`, so when `node` is missing or the hook times out, Claude Code 2.1.295 or later denies the call, in every agent and the main thread; an older client ignores the key and lets the call go ahead, leaving this agent's `Bash` to the session's permission rules alone ([hook budget](../../docs/contracts/hook-budget/README.md#which-rows-set-onfailure-block)). The gate is always-on: one process (`node`) per `Bash` call, ratcheted in `.performance/ratchets.json` as `discovery-pretooluse-bash-docs-fetcher-gate-spawns`. |
 | `discovery:intent-tracer` | `/discovery:trace-intent` | Investigates the resolvable evidence categories in a fresh context, grades each claim on the intent-evidence tier, writes the artifact set, and returns a file pointer plus a verification request. |
 
 | Workflow | Launched by | What it does |
@@ -114,9 +114,11 @@ shape.
 
 ## Requirements
 
-- **Node.js** for the WebFetch truncation hook. Without `node` the hook cannot start, and a
-  truncated WebFetch result gets no note. A `SessionStart` notice names `/discovery:check`, which
-  reports whether `node` resolves and the hook is registered.
+- **Node.js** for the WebFetch truncation hook and the `docs-fetcher` gate. Without `node` the
+  truncation hook cannot start, and a truncated WebFetch result gets no note. The gate's row sets
+  `"onFailure": "block"`, so on Claude Code 2.1.295 or later every `Bash` call is denied until
+  `node` resolves. A `SessionStart` notice names `/discovery:check`, which reports whether `node`
+  resolves and the hook is registered.
 - **curl and jq** for `/discovery:read-docs`; **Python 3**, optional, converts a page served only
   as HTML. Each is declared in `prerequisites.json` with what degrades without it.
 
@@ -161,27 +163,35 @@ reads it from.
 
 Three supported routes:
 
-1. **Interactively.** Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure discovery@<marketplace>`.
-2. **Headless.** Repeat `--config` for each option. Replace
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure discovery@<marketplace>`.
+2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+   run from the project the plugin is installed in. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin configure discovery@<marketplace> --values-stdin < values.json
+   ```
+
+   `values.json` holds a JSON object of strings, booleans included:
+
+   ```json
+   {"explore_output": "<value>"}
+   ```
+
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
+   value, and why a session started before the change keeps the old value until a fresh
+   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
+   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+
+   The fallback the convention names, for a Claude Code release without
+   `plugin configure`, reruns the install with the new value, passing the scope
+   `claude plugin list` reports for this plugin:
 
    ```shell
    claude plugin install discovery@<marketplace> -s <scope> --config explore_output=<value>
    ```
-
-   The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value. The short-circuit message is
-   about the install, not the config write. Do **not** `claude plugin uninstall` to
-   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
-   resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin. The verified-version
-   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
-
-   The value is stored immediately; the session you are in does not change. Hooks are
-   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior. A check run in the old session
-   still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -198,17 +208,16 @@ Three supported routes:
    }
    ```
 
-   Plugin option values are read from **user**, `--settings`, and managed settings
-   only, **not** from a project's `.claude/settings.json`. To vary behavior per
-   repository, enable or disable the plugin in that project's `enabledPlugins`
-   instead of setting an option there.
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from.
 
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
-hands a configured value to a hook process; the value comes from the routes above.
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
 
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence

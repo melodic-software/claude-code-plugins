@@ -1,6 +1,6 @@
 ---
-description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared] (register the commit-msg convention, pre-commit content and reference-verify entries with the repository's hook manager) | apply install-read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable and safe."
-argument-hint: "[check|apply] [install-git-hooks [scope=local|shared]|install-read-deny [scope user remove]]"
+description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only verification, default) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared|user] (register the commit-msg convention, pre-commit content and reference-verify entries with the repository's hook manager; user: the commit-msg entry as a git config hook under an includeIf) | apply install-read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable and safe."
+argument-hint: "[check|apply] [install-git-hooks [scope]|install-read-deny [scope user remove]|identity-domains]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -30,14 +30,16 @@ Thin check-centric setup per the uniform setup contract (`docs/plugin-philosophy
 "Setup is explicit and repeatable" in the marketplace repository): `check` inspects and
 reports, `apply` resolves. Every tunable is a native `userConfig` option (one enable toggle
 per guard plus scalars such as `block_dangerous_git_allow`), so bare `apply` is guidance
-and writes nothing beyond the gated cleanup of retired hooks. The explicit `install-*` actions
-below are the only other writes, each as its section states: `install-git-hooks` writes the
-plugin's git-hook entry copies, and `install-read-deny` touches settings, through your edit tools.
+and writes nothing beyond the gated cleanup of retired hooks. The explicit actions below are
+the only other writes, each as its section states: `install-git-hooks` writes the plugin's
+git-hook entry copies, `install-read-deny` touches settings through your edit tools, and
+`identity-domains` writes the `block-cross-domain` map into the plugin data directory.
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then
 points at each remediation. Both are non-interactive: never prompt when the action is given.
-The one question any action asks is `install-read-deny`'s scope and consent, and only in an
-attended run.
+Only two actions ask questions, and only in an attended run: `install-read-deny` asks for
+scope and consent, and `identity-domains` asks for the values the profile lacks and for
+confirmation.
 
 ## `check` (read-only)
 
@@ -126,7 +128,7 @@ file.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 
-## `apply install-git-hooks [scope=local|shared]` (explicit argument only)
+## `apply install-git-hooks [scope=local|shared|user]` (explicit argument only)
 
 Registers the plugin's git-hook entries (`git-hooks/entries.json`) with the repository's hook
 manager, so the checks cover every commit, not only Claude's tool calls:
@@ -142,12 +144,15 @@ with your own edit tools. Never runs from bare `apply`.
 1. **Scope.** Use the argument when given. Otherwise, when the user is present, ask: `local`
    (this clone only, nothing committed) or `shared` (committed, so every teammate and agent
    gets it; with lefthook, every clone then runs the hooks on the plugin repository's `main`
-   branch, fetched daily, rather than a copy the repository reviewed). When nobody can answer, use
-   `local`.
+   branch, fetched hourly, rather than a copy the repository reviewed). When nobody can answer, use
+   `local`. `user` is offered beside them and never chosen for the user: it installs only the
+   `commit-msg-convention` entry, once, as a git config hook covering every repository an
+   `includeIf` condition matches. For `user`, follow
+   [context/install-commit-msg.md](context/install-commit-msg.md) in place of the steps below.
 2. **Plan.** For `local`, run `node "${CLAUDE_PLUGIN_ROOT}/lib/git-hooks/install.mjs" plan
    --scope local`. For `shared`, run `plan --scope remote` first: with lefthook, or no hook
    manager yet, the committed `lefthook.yml` gets one `remotes:` entry that fetches the hooks
-   from the plugin's repository and refetches them daily, so nothing is copied and no refresh
+   from the plugin's repository and refetches them hourly, so nothing is copied and no refresh
    is ever committed. When it returns `remote-needs-lefthook` (husky or plain hooks) or
    `remote-source-dir`, run `plan --scope shared` instead, which commits copies under
    `.githooks/guardrails/`. Read the JSON: `manager`, `actions[]`, `decisions[]`.
@@ -226,14 +231,42 @@ Never runs from bare `apply`.
 6. **Report** the file, each rule added, already present or removed, and whether
    `block_credential_read_enabled` is on, since only that guard covers interpreter reads.
 
+## `apply identity-domains` (explicit argument only)
+
+Writes `block-cross-domain`'s map, `${CLAUDE_PLUGIN_DATA}/identity-domains.json`, from the
+identity domains `/harness-ops:machine-profile` recorded. `<script>` is
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/identity-domains.sh"`; its header has the
+full rules. Never runs from bare `apply`.
+
+1. **Profile.** The stored profile is `machine-profile/profile.json` in the harness-ops
+   plugin's data directory. A saved `/harness-ops:machine-profile` discover output works
+   too. When neither path is known, ask the operator. With no profile, point at
+   `/harness-ops:machine-profile` and stop.
+2. **Preview.** Run `<script> --profile <file> --data-dir "${CLAUDE_PLUGIN_DATA}"`, which
+   writes nothing and also says whether a map is already there. Each domain with an absolute tree and no
+   wildcard becomes one map domain, named after the tree's last segment: the tree is its
+   root, and a `gh` directory the profile records `set` is its `gh_config_dir`. Show the map
+   and every `note:` line, since those name the skipped trees and the values left out.
+3. **Values the profile lacks.** Owners, identity markers, `az_config_dir` and shared
+   exceptions are not discovered. In an attended run, ask for them once, by domain name, and
+   pass them as `--owner NAME=OWNER`, `--marker NAME=TEXT`, `--az-config-dir NAME=DIR` and
+   `--shared-exception PATH`. A value nobody gives is left out of the map.
+4. **Write.** Run `<script> --profile <file> [values] --data-dir "${CLAUDE_PLUGIN_DATA}"
+   --confirm` only after the operator says yes to that map in this turn. An unattended run
+   stops at the preview. When a different map is already there, the script refuses unless
+   you add `--replace`, and you add it only when the operator agrees to overwrite that map.
+5. **Report** the map path and the domains written. The map names this machine's trees, so it
+   never goes in a tracked file, a fixture or a doc. The guard compiles it on its next call.
+
 ## What this skill does NOT do
 
 - Exercise a guard. Any matching tool call does that end-to-end.
 - Write the plugin cache or `pluginConfigs`, or user settings other than the two
   `install-read-deny` rules the user said yes to.
 - Install any tool, during either `check` or `apply`. Guidance only. The ONLY writes
-  this skill ever performs are `apply install-git-hooks`' entry copies and the decisions
-  it applies, the `apply install-read-deny` rules in the settings file its scope names, and
-  `apply`'s confirmed cleanup of the retired hooks.
+  this skill ever performs are `apply install-git-hooks`' entry copies (at `scope=user`, the
+  stable copy under the user's git config directory) and the decisions it applies, the
+  `apply install-read-deny` rules in the settings file its scope names, the confirmed
+  `apply identity-domains` map, and `apply`'s confirmed cleanup of the retired hooks.
 - Weaken a guard: it reports and routes; disabling is always the user's explicit act
   through the native configuration surface.

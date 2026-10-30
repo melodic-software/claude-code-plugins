@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchFeedback, main } from "./feedback-dispatch.mjs";
+import { createGitHubApi, dispatchFeedback, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
 // its top-level run-name scalar as YAML reads it (a double-quoted string, or a
@@ -46,9 +46,12 @@ const failedRun = (line, completed = "2026-10-17T10:00:00Z") => ({
   completed_at: completed,
   output: { title: "Failed", summary: line === null ? "The activity step failed." : `${line}\n\nThe activity step failed.` },
 });
-const thread = (authors, isResolved = false) => ({
+// The first comment's review, as THREADS_QUERY reads it: its author's
+// review of `reviewed`.
+const onReview = (author, reviewed = HEAD) => ({ pullRequestReview: { author, commit: { oid: reviewed } } });
+const thread = (authors, isResolved = false, reviewed = HEAD) => ({
   isResolved,
-  comments: { nodes: authors.map((author) => ({ author })), pageInfo: { hasNextPage: false } },
+  comments: { nodes: authors.map((author, i) => ({ author, ...(i === 0 ? onReview(author, reviewed) : {}) })), pageInfo: { hasNextPage: false } },
 });
 // The #7794 shape: the reviewer bot's finding, the lanes App's UNCERTAIN reply
 // (publish-feedback.mjs renderReply), then `reply`, each a minute apart.
@@ -58,7 +61,7 @@ const decidedThread = (reply = { author: KYLE }) => ({
   isResolved: false,
   comments: {
     nodes: [
-      { author: CLAUDE, body: "finding" },
+      { author: CLAUDE, body: "finding", ...onReview(CLAUDE) },
       { author: LANE, body: "**pr-unblock / address-feedback: UNCERTAIN, left open for a person**\n\nnote" },
       { body: "Owner decision: drop the reference.", ...reply },
     ].map((node, i) => ({ createdAt: `2026-10-17T20:0${i}:00Z`, lastEditedAt: null, editor: null, ...node })),
@@ -89,8 +92,10 @@ function fakeApi({
   workflowRunId = 38779200001,
   permissions = { "kyle-sexton": "admin" },
   labelEvents = [],
+  reviewComments = [],
+  reviews = [],
 } = {}) {
-  const calls = { dispatch: [], permission: [], labelEvents: 0 };
+  const calls = { dispatch: [], permission: [], labelEvents: 0, reviewReads: [] };
   return {
     calls,
     // The event's workflow_run, which the script takes in place of a read.
@@ -116,6 +121,11 @@ function fakeApi({
       calls.labelEvents += 1;
       return labelEvents;
     },
+    async listReviewComments(number, since) {
+      calls.reviewReads.push(since);
+      return reviewComments;
+    },
+    listReviews: async () => reviews,
     async getPermission(login) {
       calls.permission.push(login);
       return permissions[login] ?? "none";
@@ -147,7 +157,7 @@ const resolvedLane = ({ laneEnabled = true, slots = {}, applies = true, skipReas
   return { lane: { name: "pr-unblock", enabled: laneEnabled, slots: all }, selected };
 };
 
-async function decide(api, resolved = resolvedLane()) {
+async function decide(api, resolved = resolvedLane(), extra = {}) {
   const lines = [];
   const asked = [];
   const result = await dispatchFeedback({
@@ -162,6 +172,7 @@ async function decide(api, resolved = resolvedLane()) {
       return resolved;
     },
     log: (line) => lines.push(line),
+    ...extra,
   });
   return { result, lines, asked };
 }
@@ -178,6 +189,63 @@ const pull = (overrides) => [
     ...overrides,
   },
 ];
+
+// Owner decision 2026-10-29: pr-verify's FAILs at the cap never clear for the
+// pull request, so a fix round's push could never merge: the gate's reader
+// (verify-cap.mjs) says so, the dispatcher starts no round and posts nothing,
+// and pr-merge closes it for a fresh attempt.
+test("a PR whose pr-verify FAILs are at the cap gets no address-feedback round", async () => {
+  const api = fakeApi();
+  const asked = [];
+  const verifyCapped = (request) => {
+    asked.push(request);
+    return "verify:repeated-fail: fails at 3 heads, the cap is 3";
+  };
+  const { result, lines } = await decide(api, resolvedLane(), { verifyCapped });
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.deepEqual(asked, [{ number: 42, head: HEAD, base: undefined }]);
+  assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
+  // The cap never clears for the head: a later run at it reads nothing.
+  const record = emptyRecord();
+  await decide(api, resolvedLane(), { verifyCapped, record });
+  const again = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
+  assert.equal(again.result, null);
+  assert.equal(asked.length, 2);
+  assert.match(again.lines.join("\n"), /\(recorded\)/);
+});
+
+// A sibling pull request's FAIL run the reader cannot read may hide the cap:
+// no round this run, but the head is not recorded, so the next run reads again.
+test("a PR whose sibling FAIL run cannot be read gets no round this run and is read again next run", async () => {
+  const record = emptyRecord();
+  let reads = 0;
+  const verifyCapped = () => {
+    reads += 1;
+    return "verify:unreadable: a FAIL run of a pull request for the same issue";
+  };
+  const first = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
+  assert.equal(first.result, null);
+  const again = await decide(fakeApi(), resolvedLane(), { verifyCapped, record });
+  assert.equal(again.result, null);
+  assert.equal(reads, 2);
+});
+
+// A verifier PASS at a new head clears no cap, so the pass-only dispatch
+// starts no round either.
+test("a pass-only dispatch of a PR whose pr-verify FAILs are at the cap gets no round", async () => {
+  const api = fakeApi();
+  const { result, lines } = await decide(api, resolvedLane(), { passOnly: true, verifyCapped: () => "verify:repeated-fail: fails at 3 heads, the cap is 3" });
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
+});
+
+test("a PR the reader does not find at the cap dispatches as before", async () => {
+  const api = fakeApi();
+  const { result } = await decide(api, resolvedLane(), { verifyCapped: () => null });
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+});
 
 test("a reviewed lanes App PR with a reviewer-bot thread dispatches address-feedback on main", async () => {
   const api = fakeApi();
@@ -240,7 +308,7 @@ test("the security review workflow is an upstream too", async () => {
 // footer (ci-workflows publish-review publish.cjs commentBody at v0.63.0).
 const laneThread = (body) => ({
   isResolved: false,
-  comments: { nodes: [{ author: ACTIONS_BOT_NODE, body }], pageInfo: { hasNextPage: false } },
+  comments: { nodes: [{ author: ACTIONS_BOT_NODE, body, ...onReview(ACTIONS_BOT_NODE) }], pageInfo: { hasNextPage: false } },
 });
 
 test("a github-actions[bot] thread ending in the lane footer dispatches like the reviewer bot's", async () => {
@@ -253,13 +321,23 @@ test("the code lane's github-actions[bot] thread dispatches like the reviewer bo
   assert.equal((await decide(api)).result.number, 42);
 });
 
-test("a github-actions[bot] thread without a review lane's footer last dispatches nothing", async () => {
-  for (const body of ["Unquoted input.", "claude-lane: claude-security-review\nUnquoted input."]) {
-    const api = fakeApi({ threads: [laneThread(body)] });
-    assert.equal((await decide(api)).result, null, body);
-    assert.deepEqual(api.calls.dispatch, []);
-  }
-});
+// An unresolved thread the select job will not keep still dispatches once on
+// an ungated head: select escalates feedback-untaken-threads, so the stall
+// ends in a stop instead of silence (#10092).
+for (const [label, threads] of [
+  ["a github-actions[bot] thread without a review lane's footer last", [laneThread("Unquoted input.")]],
+  ["a github-actions[bot] thread with the footer first", [laneThread("claude-lane: claude-security-review\nUnquoted input.")]],
+  ["the only open thread has a human reply", [thread([CLAUDE, KYLE])]],
+  ["the only open thread is a human's", [thread([KYLE])]],
+  ["the reply after the lane's escalation is a stranger's", [decidedThread({ author: STRANGER })]],
+  ["the trusted reply was last edited by a stranger", [decidedThread({ author: KYLE, lastEditedAt: "2026-10-17T20:30:00Z", editor: STRANGER })]],
+]) {
+  test(`${label} dispatches once, for select to escalate feedback-untaken-threads`, async () => {
+    const api = fakeApi({ threads });
+    assert.equal((await decide(api)).result.number, 42);
+    assert.equal(api.calls.dispatch.length, 1);
+  });
+}
 
 for (const [label, options] of [
   ["the upstream is another workflow", { run: { path: ".github/workflows/ci.yml" } }],
@@ -287,12 +365,6 @@ for (const [label, options] of [
     comments: [marker("claude-review", HEAD, { id: 9999001 }), marker("claude-security-review")],
   }],
   ["every thread is resolved", { threads: [thread([CLAUDE], true)] }],
-  ["the only open thread has a human reply", { threads: [thread([CLAUDE, KYLE])] }],
-  ["the only open thread is a human's", { threads: [thread([KYLE])] }],
-  ["the reply after the lane's escalation is a stranger's", { threads: [decidedThread({ author: STRANGER })] }],
-  ["the trusted reply was last edited by a stranger", {
-    threads: [decidedThread({ author: KYLE, lastEditedAt: "2026-10-17T20:30:00Z", editor: STRANGER })],
-  }],
   ["the head already has an address-feedback check run", {
     checkRuns: [{ status: "completed", conclusion: "success", output: { title: "Done" } }],
   }],
@@ -482,7 +554,7 @@ const noActors = (dir) => {
 };
 
 test("main writes run-id and takes the upstream run from the event file", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   try {
     const output = join(dir, "output");
     writeFileSync(output, "");
@@ -517,7 +589,7 @@ const VERIFY_RUN = upstreamRun({ id: 99, path: ".github/workflows/pr-verify.yml"
 // run at the head.
 const VERIFY_CREATED = "2026-10-17T12:00:00Z";
 function verifyApi(options = {}) {
-  const note = { isResolved: false, comments: { nodes: [{ author: ACTIONS_BOT_NODE, body: "<!-- pr-verify:fail-note -->\nnotes" }], pageInfo: { hasNextPage: false } } };
+  const note = { isResolved: false, comments: { nodes: [{ author: ACTIONS_BOT_NODE, body: "<!-- pr-verify:fail-note -->\nnotes", ...onReview(ACTIONS_BOT_NODE) }], pageInfo: { hasNextPage: false } } };
   const api = fakeApi({ threads: [note], ...options });
   api.getWorkflowRun = async (id) => (id === VERIFY_RUN.id ? { ...VERIFY_RUN, created_at: VERIFY_CREATED } : null);
   api.listCompletedRuns = async () => [upstreamRun({ id: 13, created_at: "2026-10-17T10:30:00Z" })];
@@ -546,7 +618,7 @@ async function verifyMain(dir, api, head = HEAD, record = null) {
 }
 
 test("a pr-verify run dispatches through the newest review run at the posted head", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const api = verifyApi();
   const asked = [];
@@ -565,10 +637,25 @@ test("a pr-verify run dispatches through the newest review run at the posted hea
   assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
 });
 
+// A fork PR that pushed the same commit lists its review runs at the head too:
+// its newer run is passed over, not taken as the upstream and then refused.
+test("a pr-verify run dispatches through this repository's review run, not a fork's newer one", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const api = verifyApi();
+  api.listCompletedRuns = async () => [
+    upstreamRun({ id: 13, created_at: "2026-10-17T10:30:00Z" }),
+    upstreamRun({ id: 14, created_at: "2026-10-17T11:30:00Z", head_repository: { full_name: "stranger/x" } }),
+  ];
+  const { output } = await verifyMain(dir, api);
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+});
+
 // An earlier round at the head (a no-model-turn skip, or one that answered
 // without pushing) handled the reviewer's threads, not the notes posted since.
 test("a pr-verify run dispatches past a check run and a handled record from before its notes", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const before = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "neutral", started_at: "2026-10-17T11:00:00Z", output: { title: "Skipped: no-model-turn" } };
   const record = join(dir, "record.json");
@@ -581,7 +668,7 @@ test("a pr-verify run dispatches past a check run and a handled record from befo
 });
 
 test("a pr-verify run does not dispatch twice: a check run started after it handles its notes", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const after = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-17T12:05:00Z" };
   const api = verifyApi({ checkRuns: [after] });
@@ -591,7 +678,7 @@ test("a pr-verify run does not dispatch twice: a check run started after it hand
 });
 
 test("a pr-verify run with no completed review run at the head dispatches nothing", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const api = verifyApi();
   api.listCompletedRuns = async () => [upstreamRun({ conclusion: "skipped" })];
@@ -606,7 +693,7 @@ test("a pr-verify run with no completed review run at the head dispatches nothin
 });
 
 test("an event file that holds no workflow run fails the run", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const path = join(dir, "event.json");
   writeFileSync(path, JSON.stringify({ action: "completed" }));
@@ -622,7 +709,7 @@ test("an event file that holds no workflow run fails the run", async (t) => {
 // The repository's GITHUB_TOKEN budget: a review of a PR the lanes App did not
 // open is the common case, and it needs only the PR list for the head.
 test("a review of a PR the lanes App did not open costs one API request", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const urls = [];
   const fetch = async (url) => {
@@ -660,6 +747,7 @@ test("pullsForCommit reads the commit's PRs from GraphQL when the REST answer is
         number: 42,
         state: "OPEN",
         isDraft: false,
+        mergedAt: null,
         headRefName: "feat/x",
         headRefOid: HEAD,
         baseRefName: "main",
@@ -678,6 +766,7 @@ test("pullsForCommit reads the commit's PRs from GraphQL when the REST answer is
       number: 42,
       state: "open",
       draft: false,
+      merged_at: null,
       user: { id: APP_ID, login: "melodic-automation-lanes[bot]", type: "Bot" },
       labels: [{ name: "needs-human" }],
       head: { sha: HEAD, ref: "feat/x", repo: { full_name: REPOSITORY } },
@@ -896,7 +985,7 @@ test("without needs-human a trusted reply dispatches with no permission read", a
 const askedThread = (reply) => ({
   isResolved: false,
   comments: {
-    nodes: [{ author: CLAUDE, body: "finding" }, reply].map((node, i) => ({
+    nodes: [{ author: CLAUDE, body: "finding", ...onReview(CLAUDE, OLD_HEAD) }, reply].map((node, i) => ({
       createdAt: `2026-10-17T20:0${i}:00Z`,
       lastEditedAt: null,
       editor: null,
@@ -921,15 +1010,15 @@ for (const [label, options] of [
   }],
   ["a trusted reply that asks no fix", { threads: [askedThread({ author: KYLE_LOGIN, body: "Owner decision: drop it." })] }],
 ]) {
-  test(`a thread the lane never answered dispatches nothing for ${label}`, async () => {
+  test(`a thread the lane never answered dispatches once for select to escalate, for ${label}`, async () => {
     const api = fakeApi(options);
-    assert.equal((await decide(api)).result, null);
-    assert.deepEqual(api.calls.dispatch, []);
+    assert.equal((await decide(api)).result.number, 42);
+    assert.equal(api.calls.dispatch.length, 1);
   });
 }
 
 test("main reads the trusted people from the base's trusted-actor list", async (t) => {
-  const dir = mkdtempSync(join(tmpdir(), "feedback-dispatch-"));
+  const dir = tempDir("feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const actors = join(dir, "actors.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: KYLE.databaseId, login: "kyle-sexton", kind: "human" }] }));
@@ -972,6 +1061,58 @@ test("the API client reads review threads across pages through GraphQL", async (
     bodies.map((body) => body.variables.after),
     [null, "c1"],
   );
+});
+
+// #10092: a PR whose only unresolved threads the select job will not keep (a
+// Codex-root thread, a review of an older head) stalled with no stop. On an
+// ungated head the dispatcher fires once; select escalates
+// feedback-untaken-threads, and the not-run job's lane-stopped checks (on
+// address-feedback and publish-feedback) handle the head, so the next tick
+// does not fire again.
+const CODEX = { databaseId: 199175422, login: "chatgpt-codex-connector" };
+const selectStopped = [
+  roundRun("address-feedback", "neutral", "Skipped: lane-stopped", "2026-10-17T10:00:00Z"),
+  roundRun("publish-feedback", "neutral", "Skipped: lane-stopped", "2026-10-17T10:00:01Z"),
+];
+for (const [label, author, reviewed] of [
+  ["a Codex-only PR", CODEX, HEAD],
+  ["a stale-head-only PR", CLAUDE, OLD_HEAD],
+]) {
+  test(`${label} dispatches once, then not again on the same head`, async () => {
+    const open = { isResolved: false, comments: { nodes: [{ author, body: "finding", ...onReview(author, reviewed) }], pageInfo: { hasNextPage: false } } };
+    const first = fakeApi({ threads: [open] });
+    assert.equal((await decide(first)).result.number, 42);
+    assert.equal(first.calls.dispatch.length, 1);
+    const second = fakeApi({ threads: [open], checkRuns: selectStopped });
+    assert.equal((await decide(second)).result, null);
+    assert.deepEqual(second.calls.dispatch, []);
+  });
+}
+
+test("a PR with no unresolved thread does not dispatch", async () => {
+  const api = fakeApi({ threads: [thread([CODEX], true), thread([CLAUDE], true)] });
+  const { result, lines } = await decide(api);
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.match(lines.at(-1), /has no unresolved review thread/);
+});
+
+test("on a gated head only a workable thread dispatches; an untaken one does not", async () => {
+  const gated = { pulls: pull({ labels: [{ name: "needs-human" }] }) };
+  const api = fakeApi({ ...gated, threads: [thread([CODEX])] });
+  assert.equal((await decide(api)).result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
+test("the API client reads each thread's review and its commit", async () => {
+  const bodies = [];
+  const fetch = async (url, init) => {
+    bodies.push(JSON.parse(init.body));
+    return new Response(JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [], pageInfo: { hasNextPage: false } } } } } }));
+  };
+  const api = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  await api.listReviewThreads(42);
+  assert.match(bodies[0].query, /pullRequestReview \{ author \{ \.\.\. on Bot \{ databaseId \} \.\.\. on User \{ databaseId \} \} commit \{ oid \} \}/);
 });
 
 // The record one run leaves for the next at the same head. `counting` wraps
@@ -1135,13 +1276,18 @@ function sweepApi({ openPulls = pull(), checksAt = { [HEAD]: [failedRound, noMod
   // Both review lanes marked each PR's head reviewed.
   const headOf = (number) => openPulls.find((p) => p.number === number).head.sha;
   api.listIssueComments = async (number) => [marker("claude-review", headOf(number)), marker("claude-security-review", headOf(number))];
+  api.listReviewThreads = async (number) => [thread([CLAUDE], false, headOf(number))];
   api.listCheckRuns = async ({ sha, checkName }) => (checksAt[sha] ?? []).filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName);
   api.listCompletedRuns = async (path, head) => (path.endsWith("pr-review-hosted.yml") ? (reviewRuns[head] ?? []) : []);
+  api.listStatuses = async () => [];
+  // No lost pr-feedback-dispatch.yml run in the lookback window.
+  api.listRecentRuns = async () => [];
+  api.listRunJobs = async () => assert.fail("no lost run, so no jobs read");
   return api;
 }
 
-async function sweepMain(t, api, tick = TICK) {
-  const dir = mkdtempSync(join(tmpdir(), "pr-feedback-dispatch-"));
+async function sweepMain(t, api, tick = TICK, now = undefined) {
+  const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const output = join(dir, "output");
   writeFileSync(output, "");
@@ -1157,7 +1303,7 @@ async function sweepMain(t, api, tick = TICK) {
       TRUSTED_ACTORS: noActors(dir),
       DISPATCH_RECORD: join(dir, "record.json"),
     },
-    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line) },
+    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line), now },
   );
   return { output: readFileSync(output, "utf8"), lines };
 }
@@ -1270,4 +1416,865 @@ test("a PR the sweep cannot read is logged and the next PR is still swept", asyn
   assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["43"]);
   assert.equal(output, "run-id=38779200001\nupstream-run-id=14\n");
   assert.ok(lines.some((line) => line.startsWith("::warning::#42:") && line.includes("502")), lines.join("\n"));
+});
+
+// A listed review bot's thread (pr-pipeline.yaml review-threads.reviewer-ids),
+// keyed on the GraphQL author databaseId; Codex's id from #10092.
+const decideListed = (api, reviewerIds) =>
+  dispatchFeedback({
+    api,
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    upstream: api.upstream,
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+    reviewerIds,
+    resolveSlot: async () => resolvedLane(),
+    log: () => {},
+  });
+
+// On a needs-human PR, a thread whose root a review bot wrote in its own
+// review on HEAD, then a write-access trusted person's fix request.
+const listedAsked = (root, reviewer = root) => ({
+  isResolved: false,
+  comments: {
+    nodes: [
+      { author: root, body: "finding", pullRequestReview: { author: reviewer, commit: { oid: HEAD } } },
+      { author: KYLE_LOGIN, body: REQUEST },
+    ].map((node, i) => ({ createdAt: `2026-10-17T20:0${i}:00Z`, lastEditedAt: null, editor: null, ...node })),
+    pageInfo: { hasNextPage: false },
+  },
+});
+const gatedListed = async (root, reviewerIds, reviewer = root) => (await decideListed(fakeApi({ pulls: humanGated(), threads: [listedAsked(root, reviewer)] }), reviewerIds))?.number ?? null;
+
+test("on a needs-human PR a listed review bot's thread is workable like the reviewer bot's; an unlisted bot's or a borrowed login's is not", async () => {
+  assert.equal(await gatedListed(CODEX, [CODEX.databaseId]), 42);
+  assert.equal(await gatedListed(CODEX, []), null);
+  assert.equal(await gatedListed({ databaseId: 206951365, login: "cursor" }, [CODEX.databaseId]), null);
+  assert.equal(await gatedListed({ databaseId: 4343, login: CODEX.login }, [CODEX.databaseId]), null);
+  // Codex's comment in another account's review is not vouched for.
+  assert.equal(await gatedListed(CODEX, [CODEX.databaseId], CLAUDE), null);
+});
+
+test("main reads the listed review bots from REVIEWER_IDS", async () => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  try {
+    const output = join(dir, "output");
+    writeFileSync(output, "");
+    const env = {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output,
+      GITHUB_EVENT_PATH: eventFile(dir),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: noActors(dir),
+      REVIEWER_IDS: "chatgpt-codex-connector[bot]",
+    };
+    await assert.rejects(main(env, { api: fakeApi({ threads: [thread([CODEX])] }), resolveSlot: async () => resolvedLane(), log: () => {} }), /REVIEWER_IDS/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// A round whose reply job stopped on a reason routed to a failing status
+// (feedback-not-landed, -invalid, -partial, -incomplete, -unadjudicated and
+// the rest): its lane-stopped skip releases the head like no-model-turn, so
+// the tick retries it on the same head, a fresh model session, under
+// SWEEP_HEAD_CAP with the other releasing skips.
+const laneStopped = (started) => roundRun("publish-feedback", "neutral", "Skipped: lane-stopped", started);
+
+test("a scheduled tick retries a head whose reply job stopped, until SWEEP_HEAD_CAP stops stand", async (t) => {
+  const api = sweepApi({ checksAt: { [HEAD]: [answeredRound, laneStopped("2026-10-17T10:05:00Z")] } });
+  await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
+  const capped = sweepApi({
+    checksAt: { [HEAD]: [answeredRound, laneStopped("2026-10-17T10:05:00Z"), laneStopped("2026-10-17T11:05:00Z"), laneStopped("2026-10-17T12:05:00Z")] },
+  });
+  assert.equal((await sweepMain(t, capped)).output, "");
+  assert.deepEqual(capped.calls.dispatch, []);
+  // A select job's own stop (the round cap) posts on the address-feedback
+  // check, after the reply check: it holds the head.
+  const terminal = sweepApi({ checksAt: { [HEAD]: [answeredRound, laneStopped("2026-10-17T10:05:00Z"), roundRun("address-feedback", "neutral", "Skipped: lane-stopped", "2026-10-17T11:00:00Z")] } });
+  await sweepMain(t, terminal);
+  assert.deepEqual(terminal.calls.dispatch, []);
+});
+
+// A kill switch turned on after a round's model leg ran stops its reply job
+// at the broker (request-lane-token kill-switch-ok): its publish-feedback
+// check skips kill-switch and posts no reply, so the head is released like a
+// lane stop. The tick, which the switch also stops, re-dispatches it once the
+// switch lifts, under SWEEP_HEAD_CAP; a trigger at that head does too, and so
+// does one after a kill-switch stop of the address-feedback run itself.
+const killSwitched = (name, started) => roundRun(name, "neutral", "Skipped: kill-switch", started);
+
+test("a scheduled tick re-dispatches a head whose reply job the kill switch stopped, until SWEEP_HEAD_CAP stops stand", async (t) => {
+  const api = sweepApi({ checksAt: { [HEAD]: [answeredRound, killSwitched("publish-feedback", "2026-10-17T10:05:00Z")] } });
+  await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
+  const capped = sweepApi({
+    checksAt: {
+      [HEAD]: [
+        answeredRound,
+        killSwitched("publish-feedback", "2026-10-17T10:05:00Z"),
+        killSwitched("publish-feedback", "2026-10-17T11:05:00Z"),
+        killSwitched("publish-feedback", "2026-10-17T12:05:00Z"),
+      ],
+    },
+  });
+  assert.equal((await sweepMain(t, capped)).output, "");
+  assert.deepEqual(capped.calls.dispatch, []);
+});
+
+test("a head the kill switch stopped dispatches again, and is not recorded as handled", async () => {
+  for (const [label, checks] of [
+    ["the reply job's mint was refused", [roundRun("address-feedback", "success", "Passed", "2026-10-17T10:00:00Z"), killSwitched("publish-feedback", "2026-10-17T10:05:00Z")]],
+    ["the address-feedback run's own kill step stopped it", [killSwitched("address-feedback", "2026-10-17T10:00:00Z")]],
+  ]) {
+    const record = emptyRecord();
+    const { result } = await decideWith(fakeApi({ checkRuns: checks }), record);
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" }, label);
+    assert.equal(record.handled.size, 0, label);
+  }
+});
+
+// The recovery: a pr-feedback-dispatch.yml run an outage lost in the
+// lookback window (24 hours before NOW) makes the tick decide every open
+// lanes App head through dispatchFeedback. `runs` is the one listing, `jobs`
+// each run's latest jobs by id; no head here was released, so the sweep of
+// released heads dispatches nothing.
+const NOW = Date.parse("2026-10-17T14:00:00Z");
+const lostRun = (overrides = {}) => ({
+  id: 600,
+  path: ".github/workflows/pr-feedback-dispatch.yml",
+  event: "workflow_run",
+  status: "completed",
+  conclusion: "cancelled",
+  run_attempt: 1,
+  created_at: "2026-10-17T13:00:00Z",
+  ...overrides,
+});
+// The dispatch job lost mid-run: its first step ran, the running one was cancelled.
+const startedJobs = [
+  { id: 1, name: "dispatch", conclusion: "cancelled", steps: [{ name: "Set up job", conclusion: "success" }, { name: "Dispatch", conclusion: "cancelled" }] },
+];
+function recoveryApi({ runs = [lostRun()], jobs = { 600: startedJobs }, ...options } = {}) {
+  const api = sweepApi({ checksAt: {}, ...options });
+  api.listings = [];
+  api.jobReads = [];
+  api.pullReads = 0;
+  api.listRecentRuns = async (workflow, since) => {
+    api.listings.push({ workflow, since });
+    return runs;
+  };
+  api.listRunJobs = async (id) => {
+    api.jobReads.push(id);
+    return jobs[id] ?? [];
+  };
+  const listOpenPulls = api.listOpenPulls;
+  api.listOpenPulls = async (base) => {
+    api.pullReads += 1;
+    return listOpenPulls(base);
+  };
+  return api;
+}
+
+test("a tick with no lost pr-feedback-dispatch.yml run in the window makes one run listing for recovery and dispatches nothing", async (t) => {
+  const api = recoveryApi({ runs: [lostRun({ conclusion: "success" }), lostRun({ id: 601, status: "in_progress", conclusion: null }), lostRun({ id: 602, conclusion: "failure" })] });
+  const { output } = await sweepMain(t, api, TICK, NOW);
+  assert.equal(api.listings.length, 1);
+  assert.deepEqual(api.jobReads, []);
+  assert.equal(api.pullReads, 1, "only the sweep of released heads lists the PRs");
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.equal(output, "");
+});
+
+test("a lost pr-feedback-dispatch.yml run with a started job gets one fresh dispatch of a head dispatchFeedback sends", async (t) => {
+  for (const conclusion of ["cancelled", "timed_out"]) {
+    const api = recoveryApi({ runs: [lostRun({ conclusion })] });
+    const { output, lines } = await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.jobReads, [600], conclusion);
+    assert.deepEqual(
+      api.calls.dispatch,
+      [{ workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID } }],
+      conclusion,
+    );
+    // The record names the head's newest review run, as the sweep's does.
+    assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n", conclusion);
+    assert.ok(lines.some((line) => line.startsWith("recover: ") && line.includes("run 600")), lines.join("\n"));
+  }
+});
+
+test("a lost run whose dispatch job never started or was not lost, or this run itself, is not recovered", async (t) => {
+  const ran = startedJobs[0].steps;
+  for (const [label, runs, jobs, reads] of [
+    ["no step ran", [lostRun()], { 600: [{ id: 1, name: "dispatch", conclusion: "cancelled", steps: [] }] }, [600]],
+    ["every step skipped or unfinished", [lostRun()], { 600: [{ id: 1, name: "dispatch", conclusion: "cancelled", steps: [{ conclusion: "skipped" }, { conclusion: null }] }] }, [600]],
+    ["no job", [lostRun({ conclusion: "startup_failure" })], { 600: [] }, [600]],
+    // Another job of the run was lost; the dispatch job finished or was skipped.
+    ["a lost ci-status re-run", [lostRun()], { 600: [{ id: 2, name: "rerun-ci-status", conclusion: "cancelled", steps: ran }, { id: 1, name: "dispatch", conclusion: "success", steps: ran }] }, [600]],
+    ["this run", [lostRun({ id: Number(RUN_ID) })], {}, []],
+  ]) {
+    const api = recoveryApi({ runs, jobs });
+    const { output } = await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.jobReads, reads, label);
+    assert.equal(api.pullReads, 1, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+});
+
+test("a lost run that already dispatched is not dispatched again", async (t) => {
+  // Its round's address-feedback check run is on the head.
+  const checked = recoveryApi({ checksAt: { [HEAD]: [answeredRound] } });
+  const first = await sweepMain(t, checked, TICK, NOW);
+  assert.deepEqual(checked.calls.dispatch, []);
+  assert.equal(first.output, "");
+  assert.match(first.lines.join("\n"), /already has a pr-unblock \/ address-feedback check run/);
+  // Its dispatched run is still going.
+  const going = recoveryApi();
+  going.listWorkflowRuns = async () => [{ id: 7, status: "in_progress", display_title: TITLE_42, created_at: "2026-10-17T13:05:00Z" }];
+  const second = await sweepMain(t, going, TICK, NOW);
+  assert.deepEqual(going.calls.dispatch, []);
+  assert.match(second.lines.join("\n"), /is not done yet/);
+});
+
+test("the recovery leaves a head the sweep has capped alone", async (t) => {
+  const api = recoveryApi({
+    checksAt: { [HEAD]: [answeredRound, noModelTurn("2026-10-17T10:05:00Z"), findingStands("2026-10-17T11:05:00Z"), findingStands("2026-10-17T12:05:00Z")] },
+  });
+  const { output, lines } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.jobReads, [600]);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.equal(output, "");
+  assert.ok(lines.some((line) => line.includes("the sweep's cap")), lines.join("\n"));
+});
+
+test("the recovery lists only runs created within the lookback window, and an older lost run is not counted", async (t) => {
+  const api = recoveryApi({ runs: [lostRun({ created_at: "2026-10-16T13:59:59Z" })] });
+  const { output } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.listings, [{ workflow: ".github/workflows/pr-feedback-dispatch.yml", since: "2026-10-16T14:00:00Z" }]);
+  assert.deepEqual(api.jobReads, []);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.equal(output, "");
+});
+
+test("a failed recovery listing is a warning, and the tick ends green", async (t) => {
+  const api = recoveryApi();
+  api.listRecentRuns = async () => {
+    throw Object.assign(new Error("GET runs returned 403"), { rateLimited: true });
+  };
+  const { output, lines } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.equal(output, "");
+  assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes("403")), lines.join("\n"));
+});
+
+test("the recovery reads its listing and jobs through the REST API", async () => {
+  const urls = [];
+  const fetch = async (url) => {
+    urls.push(url);
+    return new Response(JSON.stringify(url.includes("/jobs") ? { total_count: 1, jobs: startedJobs } : { workflow_runs: [lostRun()] }));
+  };
+  const api = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  assert.deepEqual(await api.listRecentRuns(".github/workflows/pr-feedback-dispatch.yml", "2026-10-16T14:00:00Z"), [lostRun()]);
+  assert.deepEqual(await api.listRunJobs(600), startedJobs);
+  assert.deepEqual(urls, [
+    `https://api.example/repos/${REPOSITORY}/actions/workflows/pr-feedback-dispatch.yml/runs?created=%3E%3D2026-10-16T14%3A00%3A00Z&per_page=100`,
+    `https://api.example/repos/${REPOSITORY}/actions/runs/600/jobs?filter=latest&per_page=100`,
+  ]);
+});
+
+// A pr-verify pass whose post-verify-notes job found an open fail-note thread
+// from an earlier head names its head in VERIFY_PASS_HEAD_SHA: the dispatch
+// sends a pass-only round, which needs no workable thread, no review marker
+// and no check-run room, since it runs no model and posts no address-feedback
+// check.
+async function passMain(dir, api, env = { VERIFY_PASS_HEAD_SHA: HEAD }) {
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const lines = [];
+  await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output,
+      GITHUB_EVENT_PATH: eventFile(dir, VERIFY_RUN),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: noActors(dir),
+      ...env,
+    },
+    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line) },
+  );
+  return { output: readFileSync(output, "utf8"), lines };
+}
+
+test("a pr-verify pass with stale fail notes sends a pass-only round through the newest review run at its head", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const after = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-17T13:00:00Z" };
+  const api = verifyApi({ threads: [], comments: [], checkRuns: [after] });
+  const { output } = await passMain(dir, api);
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs), [
+    { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID, "verify-pass-head": HEAD },
+  ]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+});
+
+test("a pass-only round waits like any round: not while a run for the PR is going, nor on a held PR", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const going = { id: 7, status: "in_progress", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T12:30:00Z" };
+  const busy = verifyApi({ workflowRuns: [going] });
+  await passMain(dir, busy);
+  assert.deepEqual(busy.calls.dispatch, []);
+  const held = verifyApi({
+    pulls: [{ number: 42, state: "open", draft: false, user: { id: APP_ID }, labels: [{ name: "do-not-merge" }], head: { sha: HEAD, repo: { full_name: REPOSITORY } }, base: { ref: "main" } }],
+  });
+  await passMain(dir, held);
+  assert.deepEqual(held.calls.dispatch, []);
+});
+
+// On a PR a person opened, verify-notes holds a FAIL with the pr-verify-failed
+// label, which the next pass removes, so no round of any kind goes there, a
+// trusted person's included; the lanes App resolves nothing on it.
+test("no round reaches a PR a person opened, a trusted one's included, pass-only or not", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const actors = join(dir, "kyle.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: KYLE.databaseId, login: "kyle-sexton", kind: "human" }] }));
+  const opened = (id) => [{ number: 42, state: "open", draft: false, user: { id }, labels: [], head: { sha: HEAD, repo: { full_name: REPOSITORY } }, base: { ref: "main" } }];
+  const after = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-17T13:00:00Z" };
+  for (const id of [KYLE.databaseId, KYLE.databaseId + 1]) {
+    const pass = verifyApi({ pulls: opened(id), threads: [], comments: [], checkRuns: [after] });
+    const { lines } = await passMain(dir, pass, { VERIFY_PASS_HEAD_SHA: HEAD, TRUSTED_ACTORS: actors });
+    assert.deepEqual(pass.calls.dispatch, [], `a pass-only round for author ${id}`);
+    assert.match(lines.at(-1), /not opened by the lanes App/);
+    const fail = verifyApi({ pulls: opened(id) });
+    await passMain(dir, fail, { VERIFY_HEAD_SHA: HEAD, TRUSTED_ACTORS: actors });
+    assert.deepEqual(fail.calls.dispatch, [], `a fail round for author ${id}`);
+  }
+});
+
+test("a pr-verify run names exactly one head: a fail's or a pass's", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  await assert.rejects(passMain(dir, verifyApi(), { VERIFY_HEAD_SHA: HEAD, VERIFY_PASS_HEAD_SHA: HEAD }), /exactly one/);
+  await assert.rejects(passMain(dir, verifyApi(), {}), /VERIFY_HEAD_SHA/);
+});
+
+// A pass-only round's reply job resolves stale fail notes and skips pass-only
+// (publish-feedback.mjs). It answers no thread, so it must not hide the
+// release of the round before it.
+const passOnly = (started = "2026-10-17T13:05:00Z") => roundRun("publish-feedback", "neutral", "Skipped: pass-only", started);
+
+test("a pass-only round's reply check after a finding-stands skip leaves the head released, for a review completion and a tick", async (t) => {
+  const record = emptyRecord();
+  const { result } = await decideWith(fakeApi({ checkRuns: [answeredRound, findingStands(), passOnly()] }), record);
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+  assert.equal(record.handled.size, 0);
+  const api = sweepApi({ checksAt: { [HEAD]: [answeredRound, findingStands(), passOnly()] } });
+  await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["42"]);
+});
+
+// A head whose address-feedback stop still fails after a person resolved
+// every thread: nothing else dispatches the lane there, so the sweep does,
+// once per stop, and the run's select job clears the status.
+const STOP = { context: "pr-unblock/address-feedback", state: "failure", created_at: "2026-10-17T12:00:00Z", creator: { login: "github-actions[bot]" } };
+function staleApi({ statuses = [STOP], threads = [{ isResolved: true, comments: { nodes: [] } }], workflowRuns = [], openPulls = pull() } = {}) {
+  const api = sweepApi({ checksAt: {}, openPulls });
+  api.listStatuses = async () => statuses;
+  api.listReviewThreads = async () => threads;
+  api.listWorkflowRuns = async () => workflowRuns;
+  return api;
+}
+
+test("a scheduled tick dispatches a head whose address-feedback stop fails with every thread resolved", async (t) => {
+  const api = staleApi();
+  const { output } = await sweepMain(t, api);
+  assert.deepEqual(api.calls.dispatch, [
+    { workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID } },
+  ]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+  const error = staleApi({ statuses: [{ ...STOP, state: "error" }] });
+  await sweepMain(t, error);
+  assert.equal(error.calls.dispatch.length, 1);
+});
+
+test("the stale-stop sweep leaves a passing or newer status, an open thread, a run since the stop, another account's status and a held PR", async (t) => {
+  for (const [label, options] of [
+    ["the newest status passes", { statuses: [{ ...STOP, state: "success" }, STOP] }],
+    ["no status", { statuses: [] }],
+    ["another account's status", { statuses: [{ ...STOP, creator: { login: "someone" } }] }],
+    ["an unresolved thread", { threads: [{ isResolved: false, comments: { nodes: [] } }] }],
+    ["a run since the stop", { workflowRuns: [{ id: 7, status: "completed", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T12:05:00Z" }] }],
+    ["do-not-merge", { openPulls: pull({ labels: [{ name: "do-not-merge" }] }) }],
+  ]) {
+    const api = staleApi(options);
+    const { output } = await sweepMain(t, api);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+  // A run from before the stop does not hold it.
+  const older = staleApi({ workflowRuns: [{ id: 6, status: "completed", display_title: "pr-unblock address-feedback #42", created_at: "2026-10-17T11:00:00Z" }] });
+  await sweepMain(t, older);
+  assert.equal(older.calls.dispatch.length, 1);
+});
+
+// #10134 and #10224: lanes App PRs held by one github-actions[bot] lane thread
+// each, never dispatched. The thread itself is workable; the human gate at
+// the one trigger skipped it, and nothing revisits the head once the label
+// comes off.
+const PR_MERGE_ESCALATION = {
+  user: APP_USER,
+  body: "<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nUnattended merge risk.",
+  created_at: "2026-10-18T09:59:59Z",
+  updated_at: "2026-10-18T09:59:59Z",
+};
+const LANE_FINDING = laneThread("**Advisory:** the goal claims a measurement.\n\nclaude-lane: claude-review");
+
+test("a github-actions[bot] lane thread on an ungated lanes App PR dispatches", async () => {
+  const api = fakeApi({ pulls: pull(), threads: [LANE_FINDING] });
+  assert.equal((await decide(api)).result?.number, 42);
+});
+
+test("a pr-merge escalation's needs-human gates a github-actions[bot] lane thread (#10134)", async () => {
+  const api = fakeApi({ pulls: humanGated(), comments: [...reviewed, PR_MERGE_ESCALATION], threads: [LANE_FINDING], labelEvents: [appLabeled] });
+  const { result, lines } = await decide(api);
+  assert.equal(result, null);
+  assert.ok(lines.at(-1).includes("is labeled needs-human (unknown: no lane escalation by the lanes App right after it added needs-human)"), lines.at(-1));
+});
+
+test("a review-lane hold at the head gates a github-actions[bot] lane thread (#10224)", async () => {
+  const api = fakeApi({
+    pulls: humanGated(),
+    comments: [...reviewed, holdComment()],
+    threads: [laneThread("severity: CRITICAL\nA person should confirm.\n\nclaude-lane: claude-security-review")],
+    labelEvents: [labelEvent("labeled", ACTIONS_USER, "2026-10-18T09:00:00Z")],
+  });
+  const { result, lines } = await decide(api);
+  assert.equal(result, null);
+  assert.ok(lines.at(-1).includes("is labeled needs-human (review-hold: "), lines.at(-1));
+});
+
+test("the sweep does not revisit a head the human gate skipped once the label is off", async () => {
+  // The skipped dispatch posted no reply check, so sweepOne finds no release.
+  const api = { ...fakeApi({ pulls: pull(), threads: [LANE_FINDING] }), listOpenPulls: async () => pull() };
+  const lines = [];
+  const result = await sweepReleased({
+    api,
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+    resolveSlot: async () => resolvedLane(),
+    log: (line) => lines.push(line),
+  });
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
+// A label coming off a PR starts pr-merge.yml on pull_request_target; its
+// completion carries the PR's head and decides it through the newest review
+// run there, so a head the human gate skipped dispatches once the label is off.
+const MERGE_RUN = upstreamRun({ id: 77, path: ".github/workflows/pr-merge.yml", event: "pull_request_target", conclusion: "skipped" });
+
+async function mergeMain(dir, api, run = MERGE_RUN) {
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  const lines = [];
+  await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output,
+      GITHUB_EVENT_PATH: eventFile(dir, run),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: noActors(dir),
+    },
+    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line) },
+  );
+  return { output: readFileSync(output, "utf8"), lines };
+}
+
+const mergeApi = (options = {}) => {
+  const api = fakeApi({ pulls: pull(), threads: [LANE_FINDING], ...options });
+  api.listCompletedRuns = async (path) => (path.endsWith("pr-review-hosted.yml") ? [upstreamRun({ id: 13, created_at: "2026-10-17T10:30:00Z" })] : []);
+  return api;
+};
+
+test("a needs-human unlabel dispatches a head the gate skipped, through its newest review run (#10134)", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const api = mergeApi();
+  const { output, lines } = await mergeMain(dir, api);
+  assert.equal(api.calls.dispatch.length, 1, lines.join("\n"));
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+});
+
+test("repeated pr-merge completions at a released head dispatch it at most SWEEP_HEAD_CAP times", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  // Each dispatched round handles nothing: its reply check skips no-model-turn,
+  // which releases the head for the next trigger.
+  const checkRuns = [];
+  const api = mergeApi({ checkRuns });
+  const dispatch = api.dispatchWorkflow;
+  api.dispatchWorkflow = async (request) => {
+    const minute = String(checkRuns.length).padStart(2, "0");
+    checkRuns.push(roundRun("address-feedback", "failure", "Failed", `2026-10-17T11:${minute}:00Z`), noModelTurn(`2026-10-17T11:${minute}:30Z`));
+    return dispatch(request);
+  };
+  const lines = [];
+  for (let completion = 0; completion < SWEEP_HEAD_CAP + 3; completion += 1) {
+    lines.push(...(await mergeMain(dir, api, { ...MERGE_RUN, pull_requests: [{ number: 42 }] })).lines);
+  }
+  assert.equal(api.calls.dispatch.length, SWEEP_HEAD_CAP, lines.join("\n"));
+  assert.match(lines.at(-1), new RegExp(`#42: head ${HEAD} was released ${SWEEP_HEAD_CAP} times, the sweep's cap`));
+});
+
+test("a needs-human unlabel at a head released under the cap dispatches it once", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const checkRuns = [failedRound, noModelTurn()];
+  const api = mergeApi({ checkRuns });
+  const dispatch = api.dispatchWorkflow;
+  api.dispatchWorkflow = async (request) => {
+    // The dispatched round's address-feedback check run, its reply still to come.
+    checkRuns.push(roundRun("address-feedback", "failure", "Failed", "2026-10-17T11:00:00Z"));
+    return dispatch(request);
+  };
+  assert.equal((await mergeMain(dir, api)).output, "run-id=38779200001\nupstream-run-id=13\n");
+  const again = await mergeMain(dir, api);
+  assert.equal(again.output, "");
+  assert.equal(api.calls.dispatch.length, 1, again.lines.join("\n"));
+});
+
+test("a pr-merge run on a head still gated, of another event, or with no review run dispatches nothing", async (t) => {
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const gated = mergeApi({ pulls: humanGated(), comments: [...reviewed, PR_MERGE_ESCALATION], labelEvents: [appLabeled] });
+  assert.match((await mergeMain(dir, gated)).lines.at(-1), /is labeled needs-human \(unknown: /);
+  assert.deepEqual(gated.calls.dispatch, []);
+  const scheduled = mergeApi();
+  scheduled.listCompletedRuns = async () => assert.fail("a scheduled pr-merge run reads nothing");
+  assert.match((await mergeMain(dir, scheduled, { ...MERGE_RUN, event: "schedule" })).lines.at(-1), /not a pull_request_target run/);
+  const unreviewed = mergeApi();
+  unreviewed.listCompletedRuns = async () => [];
+  assert.match((await mergeMain(dir, unreviewed)).lines.at(-1), /no completed review run yet/);
+  assert.deepEqual([...scheduled.calls.dispatch, ...unreviewed.calls.dispatch], []);
+});
+
+// Owner PRs: one a person on the trusted-actors list opened, adopted under the
+// base config's `adoption` section once its last update and head commit are
+// idle-hours old (fix-ci's adoption rule). Its round posts as the lanes App.
+const NOW_MS = Date.parse("2026-10-28T12:00:00Z");
+const ADOPTION = { ownerIds: new Set([KYLE.databaseId]), idleHours: 2 };
+const ownerPull = (overrides = {}) =>
+  pull({ user: { id: KYLE.databaseId, type: "User" }, updated_at: "2026-10-28T09:00:00Z", body: "Closes #1", ...overrides });
+const ownerApi = (options = {}, committedAt = "2026-10-28T08:00:00Z") => {
+  const api = fakeApi({ pulls: ownerPull(), ...options });
+  api.calls.commits = [];
+  api.headCommittedAt = async (sha) => {
+    api.calls.commits.push(sha);
+    return committedAt;
+  };
+  return api;
+};
+async function decideOwner(api, { adoption = ADOPTION, passOnly = false, verifyCapped } = {}) {
+  const lines = [];
+  const result = await dispatchFeedback({
+    api,
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    upstream: api.upstream,
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+    resolveSlot: async () => resolvedLane(),
+    adoption,
+    passOnly,
+    verifyCapped,
+    now: NOW_MS,
+    log: (line) => lines.push(line),
+  });
+  return { result, lines };
+}
+
+// capped_close closes only the lanes App's pull requests, so an adopted
+// owner's PR at the cap would sit with no round: the cap skip is the lanes
+// App's alone.
+test("an adopted owner PR at the verify cap still gets its round, the cap unread", async () => {
+  const asked = [];
+  const verifyCapped = (request) => {
+    asked.push(request);
+    return "verify:repeated-fail: fails at 3 heads, the cap is 3";
+  };
+  const { result } = await decideOwner(ownerApi({ threads: [thread([CLAUDE])] }), { verifyCapped });
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+  assert.deepEqual(asked, []);
+});
+
+test("an idle owner PR's lane-review thread dispatches address-feedback, so the lanes App answers it", async () => {
+  for (const threads of [[thread([CLAUDE])], [LANE_FINDING]]) {
+    const api = ownerApi({ threads });
+    const { result } = await decideOwner(api);
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+    assert.deepEqual(api.calls.dispatch[0].inputs, { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID });
+    assert.deepEqual(api.calls.commits, [HEAD]);
+  }
+});
+
+test("an owner PR or its head commit active within idle-hours is not dispatched", async () => {
+  for (const [label, api] of [
+    ["a recent update", ownerApi({ pulls: ownerPull({ updated_at: "2026-10-28T11:00:00Z" }) })],
+    ["a recent head commit", ownerApi({}, "2026-10-28T11:30:00Z")],
+    ["an unreadable update", ownerApi({ pulls: ownerPull({ updated_at: undefined }) })],
+    ["an unreadable commit date", ownerApi({}, "")],
+  ]) {
+    const { result, lines } = await decideOwner(api);
+    assert.equal(result, null, label);
+    assert.match(lines.at(-1), /owner PR or its head commit active in the last 2 hour\(s\)/, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+  }
+});
+
+test("an owner PR with a Hold: body line is not dispatched", async () => {
+  const api = ownerApi({ pulls: ownerPull({ body: "Summary\n  hold: I am still on this" }) });
+  const { result, lines } = await decideOwner(api);
+  assert.equal(result, null);
+  assert.match(lines.at(-1), /held by a Hold: line/);
+});
+
+test("a person's PR is not served without an adoption section, or when the person is not on the trusted list", async () => {
+  for (const [label, api, adoption] of [
+    ["no adoption section", ownerApi(), NO_ADOPTION],
+    ["an untrusted person", ownerApi({ pulls: ownerPull({ user: { id: STRANGER.databaseId, type: "User" } }) }), ADOPTION],
+    ["a trusted id typed as a Bot", ownerApi({ pulls: ownerPull({ user: { id: KYLE.databaseId, type: "Bot" } }) }), ADOPTION],
+  ]) {
+    const { result, lines } = await decideOwner(api, { adoption });
+    assert.equal(result, null, label);
+    assert.match(lines.at(-1), /was not opened by the lanes App or an adopted owner/, label);
+    assert.deepEqual(api.calls.commits, [], label);
+  }
+});
+
+test("on an owner PR a thread a person wrote or answered stays the person's and starts no round", async () => {
+  for (const [label, threads] of [
+    ["a thread the owner opened", [thread([KYLE])]],
+    ["a reviewer thread the owner answered", [{ isResolved: false, comments: { nodes: [{ author: CLAUDE, body: "finding", createdAt: "2026-10-28T08:00:00Z", ...onReview(CLAUDE) }, { author: KYLE, body: "Fixed in abc.", createdAt: "2026-10-28T08:01:00Z" }], pageInfo: { hasNextPage: false } } }]],
+  ]) {
+    const api = ownerApi({ threads });
+    const { result, lines } = await decideOwner(api);
+    assert.equal(result, null, label);
+    assert.match(lines.at(-1), /has no thread the lane works/, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+  }
+});
+
+// On an owner PR a lane escalation's needs-human lets the round work only as
+// it lets fix-ci work there (gate-source.mjs prHold): another lane's
+// escalation with no person speaking since the label does; address-feedback's
+// own escalation, or a person's review comment since the label, holds it, and
+// then only a write-access fix request dispatches. A lanes App PR reads the
+// escalation through gateSource alone, as before.
+const ownFeedbackEscalation = () =>
+  escalationComment({ body: `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n${RESUME}\nThe pr-unblock lane stopped.\n\n- Reason: \`feedback-round-cap\`` });
+// The review markers as the REST API returns them, typed Bot, so they are no
+// person speaking.
+const botReviewed = [marker("claude-review", HEAD, ACTIONS_USER), marker("claude-security-review", HEAD, ACTIONS_USER)];
+const ownerGated = (options = {}) =>
+  ownerApi({ pulls: ownerPull({ labels: [{ name: "needs-human" }] }), comments: [...botReviewed, escalationComment()], labelEvents: [appLabeled], ...options });
+const personSpoke = [{ user: { login: KYLE_LOGIN.login, id: KYLE.databaseId, type: "User" }, created_at: "2026-10-18T11:00:00Z", updated_at: "2026-10-18T11:00:00Z" }];
+
+test("an owner PR another lane's escalation gated dispatches for a reviewer-bot thread when no person spoke since", async () => {
+  const api = ownerGated();
+  const { result, lines } = await decideOwner(api);
+  assert.equal(result?.number, 42, lines.join("\n"));
+  assert.equal(api.calls.dispatch.length, 1);
+  // The review comments are read from a second before the label went on.
+  assert.deepEqual(api.calls.reviewReads, ["2026-10-18T09:59:59Z"]);
+});
+
+for (const [label, options, why] of [
+  ["address-feedback's own escalation", { comments: [...botReviewed, ownFeedbackEscalation()] }, "address-feedback escalated it"],
+  ["a person's review comment since the label", { reviewComments: personSpoke }, "a person commented or reviewed since needs-human went on"],
+]) {
+  test(`an owner PR a lane escalation gated dispatches nothing for a reviewer-bot thread after ${label}`, async () => {
+    const api = ownerGated(options);
+    const { result, lines } = await decideOwner(api);
+    assert.equal(result, null, lines.join("\n"));
+    assert.match(lines.at(-1), new RegExp(`#42 is labeled needs-human \\(held by needs-human: ${why}\\) and has no thread a trusted person with write access asked the lane to fix`));
+    assert.deepEqual(api.calls.dispatch, []);
+  });
+}
+
+test("an owner PR a lane escalation holds still dispatches for a write-access trusted person's fix request", async () => {
+  const api = ownerGated({ reviewComments: personSpoke, threads: [decidedThread({ author: KYLE_LOGIN, body: REQUEST })] });
+  const { result, lines } = await decideOwner(api);
+  assert.equal(result?.number, 42, lines.join("\n"));
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.deepEqual(api.calls.permission, ["kyle-sexton"]);
+});
+
+test("a lanes App PR under its own address-feedback escalation still dispatches for a reviewer-bot thread under an adoption section", async () => {
+  const api = ownerApi({ pulls: humanGated(), comments: [...botReviewed, ownFeedbackEscalation()], labelEvents: [appLabeled], reviewComments: personSpoke });
+  const { result, lines } = await decideOwner(api);
+  assert.equal(result?.number, 42, lines.join("\n"));
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.deepEqual(api.calls.reviewReads, []);
+});
+
+test("a lanes App PR is decided as before under an adoption section: no idle read", async () => {
+  const api = ownerApi({ pulls: pull({ updated_at: "2026-10-28T11:59:00Z" }) }, "2026-10-28T11:59:00Z");
+  const { result } = await decideOwner(api);
+  assert.equal(result?.number, 42);
+  assert.deepEqual(api.calls.commits, []);
+});
+
+test("a pass-only round never goes to an owner PR", async () => {
+  const api = ownerApi();
+  const { result, lines } = await decideOwner(api, { passOnly: true });
+  assert.equal(result, null);
+  assert.match(lines.at(-1), /was not opened by the lanes App$/);
+});
+
+test("the sweep dispatches an idle owner PR whose reviewed head the lane has not answered", async () => {
+  const sweepApi = (pulls) => {
+    const api = ownerApi({ pulls });
+    Object.assign(api, {
+      listOpenPulls: async () => pulls,
+      listStatuses: async () => [],
+      listCompletedRuns: async (path) => (path.endsWith("pr-review-hosted.yml") ? [upstreamRun({ conclusion: "success", created_at: "2026-10-28T08:30:00Z" })] : []),
+    });
+    return api;
+  };
+  const sweep = (api) =>
+    sweepReleased({
+      api,
+      repository: REPOSITORY,
+      runId: RUN_ID,
+      appSenderId: APP_ID,
+      trustedHumans: new Set([KYLE.databaseId]),
+      resolveSlot: async () => resolvedLane(),
+      adoption: ADOPTION,
+      now: NOW_MS,
+      log: () => {},
+    });
+  const idle = sweepApi(ownerPull());
+  assert.equal((await sweep(idle))?.number, 42);
+  assert.equal(idle.calls.dispatch.length, 1);
+  // Still active: the listing's update time skips it before any read.
+  const active = sweepApi(ownerPull({ updated_at: "2026-10-28T11:00:00Z" }));
+  assert.equal(await sweep(active), null);
+  assert.deepEqual(active.calls.commits, []);
+  // A head the lane already answered costs two check-run reads and a status
+  // read a tick: no review run, commit or thread read.
+  const answered = sweepApi(ownerPull());
+  const done = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "success", started_at: "2026-10-28T09:00:00Z", output: { title: "Answered" } };
+  const reads = [];
+  for (const name of ["listCheckRuns", "listCompletedRuns", "listStatuses", "listReviewThreads", "listIssueComments", "pullsForCommit", "headCommittedAt"]) {
+    const inner = answered[name];
+    answered[name] = async (...args) => {
+      reads.push(args[0]?.checkName ? `${name}:${args[0].checkName}` : name);
+      return name === "listCheckRuns" ? (args[0].checkName === "pr-unblock / address-feedback" ? [done] : []) : inner(...args);
+    };
+  }
+  assert.equal(await sweep(answered), null);
+  assert.deepEqual(reads, ["listCheckRuns:pr-unblock / address-feedback", "listCheckRuns:pr-unblock / publish-feedback", "listStatuses"]);
+  // An untrusted person's PR is never listed.
+  const stranger = sweepApi(ownerPull({ user: { id: STRANGER.databaseId, type: "User" } }));
+  assert.equal(await sweep(stranger), null);
+  assert.deepEqual(stranger.calls.dispatch, []);
+});
+
+const ownerSweepApi = (pulls) => {
+  const api = ownerApi({ pulls });
+  Object.assign(api, {
+    listOpenPulls: async () => pulls,
+    listStatuses: async () => [],
+    listCompletedRuns: async (path) => (path.endsWith("pr-review-hosted.yml") ? [upstreamRun({ conclusion: "success", created_at: "2026-10-28T08:30:00Z" })] : []),
+  });
+  return api;
+};
+const ownerSweep = (api) =>
+  sweepReleased({
+    api,
+    repository: REPOSITORY,
+    runId: RUN_ID,
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+    resolveSlot: async () => resolvedLane(),
+    adoption: ADOPTION,
+    now: NOW_MS,
+    log: () => {},
+  });
+
+test("the sweep decides an idle owner head with no round only within the idle window, so a skip is not re-read every tick", async () => {
+  // Idle since 09:00 + 2 h = 11:00: inside the window, the full decision runs.
+  const fresh = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T09:00:00Z" }));
+  fresh.listReviewThreads = async () => [thread([KYLE])];
+  assert.equal(await ownerSweep(fresh), null);
+  assert.deepEqual(fresh.calls.commits, [HEAD]);
+  // Idle since 07:00 + 2 h = 09:00, more than IDLE_OWNER_WINDOW_HOURS ago: the
+  // same skip costs one check-run read, no review run, PR, commit or thread read.
+  const reads = [];
+  const settled = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T07:00:00Z" }));
+  for (const name of ["listCheckRuns", "listCompletedRuns", "listStatuses", "listReviewThreads", "listIssueComments", "pullsForCommit", "headCommittedAt"]) {
+    const inner = settled[name];
+    settled[name] = async (...args) => {
+      reads.push(name);
+      return inner(...args);
+    };
+  }
+  assert.equal(await ownerSweep(settled), null);
+  assert.deepEqual(reads, ["listCheckRuns"]);
+  assert.equal(IDLE_OWNER_WINDOW_HOURS, 2);
+  // A new update opens the window again.
+  const reopened = ownerSweepApi(ownerPull({ updated_at: "2026-10-28T09:59:00Z" }));
+  assert.equal((await ownerSweep(reopened))?.number, 42);
+});
+
+test("the sweep clears an idle owner PR's failing stop once no thread is left, past the idle window, under its gates", async () => {
+  const stopped = (pullOverrides = {}, committedAt = "2026-10-28T08:00:00Z") => {
+    const api = ownerApi({ pulls: ownerPull({ updated_at: "2026-10-28T07:00:00Z", ...pullOverrides }) }, committedAt);
+    const round = { name: "pr-unblock / address-feedback", status: "completed", conclusion: "failure", started_at: "2026-10-28T06:00:00Z", output: { title: "Escalated" } };
+    Object.assign(api, {
+      listOpenPulls: async () => ownerPull({ updated_at: "2026-10-28T07:00:00Z", ...pullOverrides }),
+      listCheckRuns: async ({ checkName }) => (checkName === "pr-unblock / address-feedback" ? [round] : []),
+      listStatuses: async () => [{ ...STOP, created_at: "2026-10-28T06:30:00Z" }],
+      listReviewThreads: async () => [{ isResolved: true, comments: { nodes: [] } }],
+      listWorkflowRuns: async () => [],
+      listCompletedRuns: async (path) => (path.endsWith("pr-review-hosted.yml") ? [upstreamRun({ conclusion: "success", created_at: "2026-10-28T05:30:00Z" })] : []),
+    });
+    return api;
+  };
+  const api = stopped();
+  const result = await ownerSweep(api);
+  assert.equal(result?.number, 42);
+  assert.deepEqual(api.calls.dispatch[0].inputs, { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID });
+  // A Hold: line or a recent head commit still keeps the lane off.
+  for (const [label, held] of [
+    ["a Hold: line", stopped({ body: "Hold: mine" })],
+    ["a recent head commit", stopped({}, "2026-10-28T11:30:00Z")],
+  ]) {
+    assert.equal(await ownerSweep(held), null, label);
+    assert.deepEqual(held.calls.dispatch, [], label);
+  }
+  // An open thread leaves the stop to the person.
+  const open = stopped();
+  open.listReviewThreads = async () => [{ isResolved: false, comments: { nodes: [] } }];
+  assert.equal(await ownerSweep(open), null);
+});
+
+test("ownerAdoption reads the base adoption section and the trusted list's people; an unreadable base adopts no owner", async () => {
+  const root = new URL("../../../", import.meta.url).pathname;
+  const adoption = await ownerAdoption({ BASE_PATH: root });
+  assert.ok(Number.isInteger(adoption.idleHours));
+  assert.ok(adoption.ownerIds.has(KYLE.databaseId));
+  const lines = [];
+  assert.equal(await ownerAdoption({ BASE_PATH: "/nonexistent-base" }, (line) => lines.push(line)), NO_ADOPTION);
+  assert.match(lines[0], /no owner PR is served this run/);
 });

@@ -48,8 +48,10 @@ export async function writePlan({ plan, call, repo, labels, runUrl, wait = () =>
       done.failed.push({ target: family.signal, error: error.message });
     }
   }
-  // A body a person vetted for agent-ready is replaced, so agent-ready comes
-  // off before the PATCH (a 404 means it was not on the issue). The PATCH
+  // The rolling issue's author is github-actions[bot], outside the trusted
+  // list, so the issue lane never works from it: a person who wants a signal
+  // worked re-files it as a new issue. A stray agent-ready still comes off
+  // before the PATCH (a 404 means it was not on the issue). The PATCH
   // runs last and carries the marker, so a failed call before it leaves the
   // old state recorded and the write is retried on the next run.
   const writes = [
@@ -125,6 +127,7 @@ async function main(env = process.env) {
   const windowStart = new Date(now.getTime() - Number(env.WINDOW_MINUTES ?? 65) * 60_000);
   const { call, used } = client(env);
   const get = (path) => call("GET", path);
+  const graphql = (query, variables) => call("POST", "/graphql", { query, variables });
   const getStatus = async (url) => {
     const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
     if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
@@ -144,6 +147,7 @@ async function main(env = process.env) {
 
   const data = await collect({
     get,
+    graphql,
     getStatus,
     readArtifact,
     repo,

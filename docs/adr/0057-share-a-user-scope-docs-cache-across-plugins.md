@@ -41,7 +41,7 @@ as of 2026-10-04.
    sees bytes from two entries. A `store_version` marks the store and each entry, and a reader that
    meets a version it does not know treats the entry as a miss rather than parsing it.
 5. **Nothing in the store is committed**, and its contents are untrusted data
-   ([untrusted-content](../conventions/untrusted-content/README.md)).
+   ([untrusted-content](../contracts/untrusted-content/README.md)).
 
 ## Alternatives considered
 

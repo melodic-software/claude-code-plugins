@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped before filing. `.work-item-tracker.json` sets `config.role_labels.autonomous-eligible` to an empty string, which is a configuration error, so I can't resolve the label for --agent-ready. Set it to a real label (or remove the entry to use the default) and rerun.",
+      "why": "names the entry and the error"
+    },
+    {
+      "answer": "Configuration error: the autonomous-eligible role label in role_labels is empty.\nNo item was created.",
+      "why": "terse"
+    },
+    {
+      "answer": "I did not fall back to the default: role_labels maps autonomous-eligible to a blank value, so I stopped.",
+      "why": "negated fallback"
+    },
+    {
+      "answer": "**Hard stop.** `role_labels[\"autonomous-eligible\"]` is present but invalid (empty string). Nothing was filed.",
+      "why": "invalid wording"
+    },
+    {
+      "answer": "The binding is misconfigured: autonomous-eligible resolves to \"\". Fix .work-item-tracker.json before adding agent-ready items.",
+      "why": "misconfigured"
+    },
+    {
+      "answer": "Stopping rather than falling back to agent-ready: role_labels maps autonomous-eligible to an empty string, a configuration error.",
+      "why": "rather than falling back"
+    },
+    {
+      "answer": "The binding maps the agent-ready role to an empty string in .work-item-tracker.json, so I won't file anything until that is fixed.",
+      "why": "names the binding file, not the key"
+    },
+    {
+      "answer": "I didn't fall back to the default label; the binding's autonomous-eligible entry is empty.",
+      "why": "contracted negation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "config.role_labels autonomous-eligible was empty, so I used the default agent-ready label and filed the item.",
+      "why": "silent fallback reported"
+    },
+    {
+      "answer": "The autonomous-eligible entry in role_labels is empty; falling back to agent-ready.",
+      "why": "fallback"
+    },
+    {
+      "answer": "Filed #1: Retry failed webhook deliveries (labels: category:general, area: webhooks, agent-ready).",
+      "why": "filed, no error named"
+    },
+    {
+      "answer": "Created item #1. Note: role_labels autonomous-eligible is empty in the binding.",
+      "why": "noted the empty entry after creating"
+    },
+    {
+      "answer": "Should I file it with the agent-ready label?",
+      "why": "question, no error named"
+    }
+  ]
+}

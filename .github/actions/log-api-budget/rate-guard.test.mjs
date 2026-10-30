@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { apiLimits, classify, createRateLimitLatch, entryOf, isContentWrite, poolOf, RateLimitStop } from "./rate-guard.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./rate-guard.vectors.json", import.meta.url), "utf8"));
 const SCHEMA_PATH = new URL("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json", import.meta.url);
@@ -15,7 +15,7 @@ const READ_FLOOR = apiLimits({ resolvedPath: "" })["github-token"]["read-floor"]
 
 // Runs fn in a fresh directory, removed once fn (sync or async) is done.
 async function withDir(fn) {
-  const dir = mkdtempSync(join(tmpdir(), "rate-guard-"));
+  const dir = tempDir("rate-guard-");
   try {
     return await fn(dir);
   } finally {
@@ -452,12 +452,10 @@ const UNGUARDED = {
   // Package registries and status pages, not the API.
   ".github/scripts/pr-unblock/dependency-classify.mjs": "package registries",
   ".github/scripts/maintenance-reconcile-lost-runs/component-status.mjs": "the status pages, not the API",
-  // Their fetch is budgetedFetch's, which the guard wraps.
-  ".github/scripts/pr-unblock/dispatch.mjs": "fetch injected from budgetedFetch",
-  ".github/scripts/pr-unblock/feedback-dispatch.mjs": "fetch injected from budgetedFetch",
   // Script activities that run from a copy of their own directory, where the
   // guard module is not: open until the copy carries it.
   ".github/scripts/apply-patch/apply-patch.mjs": "script activity run from a directory copy",
+  // Its mains run from the base checkout count their requests (countedFetch).
   ".github/scripts/pr-unblock/address-feedback.mjs": "imported by script activities run from a directory copy",
   ".github/scripts/work-resolve-issue/report-outcome.mjs": "script activity run from a directory copy",
   // pr-merge's own guard is its owner's change.

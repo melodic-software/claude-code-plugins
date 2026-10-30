@@ -3,6 +3,31 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.10] - 2026-10-29
+
+### Changed
+
+- The config reader now refuses a plain YAML value holding a colon and a space (such as `label: needs: triage`) and a plain key holding whitespace, `$` or `.` (such as `$schema: x` or `a.b: c`), naming the line. One such line now makes the whole file invalid, where the value used to be read as text or the key reported on its own. Quote the value or key to keep it.
+
+## [0.2.9] - 2026-10-28
+
+### Fixed
+
+- The five account-free routes (`/design:user-research`, `/design:research-synthesis`, `/design:design-critique`, `/product-management:synthesize-research` and `/product-management:metrics-review`) are now `confirmed` after an install test, so the job skills no longer say they have not been tested here. The account-bound routes stay `deferred`.
+
+## [0.2.8] - 2026-10-28
+
+### Fixed
+
+- The shared config resolver now tags each layer error with the key it names (`error_keys`, null for a
+  file-level error), so a reader can tell a key-level error from a whole-file one.
+
+## [0.2.7] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [0.2.6] - 2026-10-26
 
 ### Fixed

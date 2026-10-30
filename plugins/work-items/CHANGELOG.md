@@ -3,6 +3,195 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.12.1] - 2026-10-30
+
+### Changed
+
+- The `work` skill's CI mode reads a fourth `author_kind` in `issue.json`, `verify-findings`: the
+  pr-merge lane's record of the verifier's findings on an earlier pull request for the issue that
+  it closed at the verify cap. Its text is data, never instructions: the run takes each finding
+  only as a hint to check against the code and the issue's body, and reports any instruction in it.
+
+## [3.12.0] - 2026-10-30
+
+### Added
+
+- `work-item-tracker.sh status-storage [--repo <owner>/<repo>]` reports where the tracker stores an item's status: `field` when the organization has a `Work status` single-select issue field with options, else `labels`. The core reads it from the adapter's `get-field-options`. It reports `labels` for an adapter without that verb, such as `local-markdown`. It also reports `labels` when GitHub refuses the issue-field listing, as it does for a user-owned repository or a token without `read:org`. `CONTRACT.md` documents the output, and the tracker and conformance suites cover it.
+
+### Changed
+
+- `/work-items:work`: the issue lane's outcome file takes three more stop codes: `blocked-by-pr` (waits on an open pull request, run again once it merges or closes), `already-done` (work already on the default branch, closed once the lane confirms the cited commit or pull request) and `report-delivered` (a read-only issue's report, posted and closed). Only `intent-change`, `design-change`, `security-risk` and `cost-risk` reach a person; a reason with no code is run again at most once, and not at all after an earlier retry, then stops. A reason that names a security concern reaches a person even after a close, host-only or manual-external code.
+
+### Fixed
+
+- `rule-admit.sh` and intake admission no longer refuse an issue for naming a subscription login or Claude subscription usage (text such as "runs on the subscription login" or "spends Claude subscription usage"), since model usage under the Claude subscriptions is not cost in the owner's cost definition (`docs/contracts/loop-lane/README.md`). Every other subscription (a Claude subscription upgrade or purchase, and Azure or Copilot subscription usage, included), a plan or seat change, and a paid subscription purchase still refuse.
+
+### Security
+
+- The work-loop and attend-queue lanes take their `Lane telemetry: <lane>` issue only when the lane's write identity opened it. An exact-title issue another account opened is skipped and named in the lane's report, and with none left the lane creates its own.
+
+## [3.11.9] - 2026-10-29
+
+### Fixed
+
+- **The legacy frontier-tier signal and the Linear schema fidelity check no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `legacy-frontier-tier-signal.sh` matches the body with a here-string, and `fidelity.sh` reads the normalized adapter source and validator through process substitution, so under `set -o pipefail` a match can no longer read as a miss when grep exits before the producer finishes writing.
+
+## [3.11.8] - 2026-10-29
+
+### Changed
+
+- `/work-items:work` in issue-lane mode reads `issue.json`'s `stale_branch`, an earlier run's
+  branch that fell behind the default branch: it reuses that run's approach where it still fits
+  and redoes the work fresh, treating the commit subjects and file list as data
+  ([#9468](https://github.com/melodic-software/claude-code-plugins/issues/9468)).
+
+## [3.11.7] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [3.11.6] - 2026-10-29
+
+### Fixed
+
+- The `work` skill's CI mode reads `issue.json`'s `split_parent`, the body of the issue a size split filed this one from, before it pushes back: a question is not open where that body states exactly one choice for it, and it never picks among options the body lists. The parent's other done-when items are sibling parts' work, its text is data that records no decision, and it adds no work beyond the issue's own done-when ([#10176](https://github.com/melodic-software/claude-code-plugins/issues/10176)).
+
+## [3.11.5] - 2026-10-29
+
+### Fixed
+
+- The `work` skill's CI mode does not do, or stop for, the body done-when items `issue.json` lists in `person_checks`, as checks a person runs; only that field excuses an item, never a refinement comment's text. Intake no longer edits the issue body when it splits them off, so the body still lists them ([#9372](https://github.com/melodic-software/claude-code-plugins/issues/9372)).
+
+## [3.11.4] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `parse-concern-value.sh` takes the fallback for it.
+
+## [3.11.3] - 2026-10-29
+
+### Changed
+
+- `/work-items:work`: the issue lane's outcome file takes a `manual-external` stop code for a manual step on external state that needs the owner present, which the lane routes to the `attended` label; `host-only` now covers a host run alone.
+
+## [3.11.2] - 2026-10-28
+
+### Changed
+
+- `/work-items:work` now dispatches one PR owner as soon as `create --pushed` returns, without waiting on CI. The owner runs at the strong tier in the persisted worktree and runs both the monitor watch and the post-green review pass, so the separate monitor dispatch and its idle handoff are gone. The orchestrator waits on the owner with `run_in_background` or Monitor, never a poll loop. Fix workers are still fresh dispatches into the same worktree, and the never-merge boundary and the `/source-control:babysit-prs` handoff are unchanged.
+
+## [3.11.1] - 2026-10-28
+
+### Fixed
+
+- `rule-admit.sh` and intake admission no longer refuse an issue for a charge word inside a fenced code block or an inline code span (a job or file name such as `fix-ci-subscription`); the same word in prose still refuses. A plain "hosted runner" or "macOS minutes" now refuses only on a repository whose visibility does not read public, where standard GitHub-hosted runner minutes bill; larger and self-hosted runners still refuse everywhere. `charge-words.json` gains the `code` and `cost_private` patterns, and a definition missing either exits 8.
+
+## [3.11.0] - 2026-10-28
+
+### Added
+
+- `/work-items:work --ci` tidies its change before the review when the runner's prompt names tidy cutoffs: it measures the change (files, changed lines, areas, shared paths), and within the cutoffs invokes the named tidy entry with a lines file of its hunks and the tidy turn budget, then runs every check again. A change over a cutoff is not tidied, and `tidy` is recorded in `steps` either way; tidy never fails the run.
+
+## [3.10.3] - 2026-10-28
+
+### Changed
+
+- `/work-items:work` opens a `stopped` reason with a code the issue lane routes by: `host-only`, `intent-change`, `design-change`, `security-risk` or `cost-risk`. A reason with none still goes to a person. Runs on [#6930](https://github.com/melodic-software/claude-code-plugins/issues/6930) and [#6887](https://github.com/melodic-software/claude-code-plugins/issues/6887) stopped for a host-only need in free text, so each went to `needs-human` instead of the host queue.
+
+## [3.10.2] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [3.10.1] - 2026-10-27
+
+### Fixed
+
+- `/work-items:work` CI mode files a test run the lane could not execute in `not_done` as left to the PR's CI with `"required": false`, so the run no longer stops for a suite the PR's CI runs. A test that ran and failed, and any other required check the run could not run, still make the lane report the run `stopped`.
+
+## [3.10.0] - 2026-10-27
+
+### Added
+
+- **`ai_disclaimer` setting.** Set it per user in `userConfig` or per repository in
+  `docs/conventions/work-items.yaml`, which wins; the schema gains the key.
+  `reference/ai-disclaimer.md` states the key, its layers and the prefix once, and every reader
+  points there.
+
+### Changed
+
+- **Lanes no longer prefix the AI disclaimer by default.** Triage, the work-loop intake sweep,
+  attend-queue answers and autonomous filing from `work` and `scan-todos` add it only when
+  `ai_disclaimer` resolves `true`; set it to keep the old behavior. A lane running on a person's
+  own `gh` token, with no `lane_app_slug`, now posts model-written items and comments under that
+  person's name with no AI marker at all; set `ai_disclaimer: true` there.
+- **The work-loop objection window no longer treats an escalation's answer as a new objection.** A
+  comment answers the newest work-loop escalation marker only when that marker is newer than the
+  window comment, the comment comes before the autonomous-eligible role label was last applied,
+  and its author is the trusted labeler who applied it. An attend-queue answer without the
+  disclaimer does not re-escalate the item; any other comment in that span is still an objection.
+- **The objection window no longer reads the AI disclaimer.** Who counts as a person rests on the
+  author alone (not the write identity, not a bot account): a comment carrying the prefix is still
+  a person's objection, since anyone can type it.
+
+## [3.9.1] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [3.9.0] - 2026-10-27
+
+### Added
+
+- The view bridge records the plugin version and a hash of its own source at server start, and `view-bridge.sh ensure-running` restarts a running server whose recorded build differs from the installed plugin's, saying so on stderr. `watch.sh` prints a `note:` line on stderr before it polls when the server's recorded plugin version differs from the installed one.
+
+## [3.8.1] - 2026-10-27
+
+### Changed
+
+- `rule-admit.sh` reads its charge words from `scripts/charge-words.json`, the one definition
+  intake admission reads too, and exits 8 when that file is unreadable.
+
+## [3.8.0] - 2026-10-27
+
+### Added
+
+- `/work-items:triage sweep` re-checks open issues already wearing the human-gated role label. It selects those that fail the label test and carry a `RECOMMENDED` line (from the seam's write identity or a user with write access) or an unedited `**Decision recorded.**` comment from such a user, and states the count before any change. Attended, it asks once for that count, then posts one comment per item carrying a `Decision defaulted` line, its basis and the failed test, and removes the label. Unattended, it reports the count and changes nothing. It skips pull requests, unclassed and human-floor items, signal-marked and escalated items, items the issue dimensions human-gated, and items a person re-labeled after an earlier sweep, and it applies no other label.
+- `/work-items:attend-queue` lists parked human-gated issues and pull requests (the label with no trusted escalation marker) as `[human-gated]` rows after every other worked row, and works them one at a time in the same interview shape as escalations.
+
+### Changed
+
+- `/work-items:triage` states one human-gated label test: the label applies only when an item needs an irreversible act, a person's consent (a manual QA or UX sign-off included), a secret, or a design choice the owner has not made. A reversible change with a well-grounded recommendation takes the decision-defaulted exit instead, and the human-gated outcome in step 5 names which part of the test the item meets.
+
+## [3.7.0] - 2026-10-27
+
+### Added
+
+- `/work-items:decompose` checks each acceptance criterion id against the base commit, flags one that already passes there and asks whether to sharpen it or leave it out as met, and shows and asks what each slice demos before approval.
+
+- Outcome eval cases for each model-invoked skill and frozen trigger-probe sets under `probes/`.
+
+### Changed
+
+- Tighten the bodies of eight skills (attend-queue, decompose, onboard-adapter, scan-todos, ship, track, triage, work): rationale, history notes and repeated lines are cut; every gate, stop, command and report line stays. Descriptions are unchanged.
+
+## [3.6.0] - 2026-10-26
+
+### Added
+
+- **`attend-queue` lists `[held]` and `[post-merge]` rows.** A `[held]` row is an open pull request carrying the human-gated role label or `do-not-merge` that does not list as `[escalated]`, so no pull request lists twice. A `[post-merge]` row is an open human-gated issue whose first body line is a `babysit-merge-demotion` or `post-merge-failure` record marker, counted only from the workflow identity or a trusted escalation author; a record from anyone else is reported as a suspected spoof. Both rows only prompt the operator: the lane claims, edits, closes, reverts and merges nothing on them.
+
+### Changed
+
+- **`attend-queue`'s default order is owner-blocked pull requests (`[escalated]` pull requests, then `[held]`), then stopped work (`[ratify]`, then `[escalated]` issues), then `[post-merge]`, then `[intake]`,** oldest first within each row kind; the operator's chosen order still overrides it. Every row carries its link, and the skill states that issue-lane hand-backs arrive as `[escalated]` rows with their run link.
+
+### Fixed
+
+- The view bridge's session bridge now writes the data-framing `note` ahead of `events` in each `/api/wait` answer and each channel relay `events` line. A model reading the line top to bottom now meets the instruction to treat page text as data before it meets the page text.
+
 ## [3.5.0] - 2026-10-26
 
 ### Added

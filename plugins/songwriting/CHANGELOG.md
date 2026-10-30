@@ -3,6 +3,18 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.3] - 2026-10-30
+
+### Changed
+
+- The `metaphor` eval cases now split by what the user asks for. `mt-loneliness-labeled-menu` asks for options and expects the labeled menu. The new `mt-loneliness-one-labeled` asks for one metaphor and expects one candidate labeled with its family distance.
+
+## [1.7.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [1.7.1] - 2026-10-25
 
 ### Changed

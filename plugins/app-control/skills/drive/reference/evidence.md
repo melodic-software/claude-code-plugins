@@ -10,7 +10,8 @@
 
 One directory per run: `--out <dir>` when given, else a new temporary directory whose path the
 report prints. It holds `report.md`, `report.json` and the artifacts. Each artifact name carries the
-feature and entry point it came from, for example `checkout-cart-02-screenshot.png`.
+feature and entry point it came from, and the tier for a capture with a row per tier, for example
+`checkout-cart-02-screenshot.png`, or `checkout-cart-02-server-cpu.cpuprofile` for a tier row.
 
 Raw captures (traces, profiles, heap snapshots, thread dumps, recordings) are written straight into this
 directory and kept as evidence. Drive's `cleanup` never deletes the run directory or anything in it:
@@ -20,11 +21,12 @@ deletes it. A heap snapshot or trace can hold whatever the process held in memor
 included, so the report marks each raw capture "may hold secrets; do not commit", and says so when
 the run directory sits in a git working tree and is not ignored. A command line can carry a token
 as an argument, so `report.md` and `report.json` carry the same mark once they hold one.
+`report.json` records each mark in `secrets_mark`.
 
 ## report.md
 
 For a person. It lists, in order: the mode and the control skill (or the line
-`No control skill: drive used <fallback>.`), the launch record, what `ready` found, each step with its action, entry
+`No control skill: drive used <fallback>.`), the launch record, what `ready` found and its exit status, each step with its action, entry
 point, observed text and artifact paths (a capture step also names the process, by pid, name,
 start time and command line, and the exact command run), then capability gaps, `blocked:` lines and cleanup. It
 records what was done and seen. It rates nothing and says nothing about whether a change works.
@@ -39,9 +41,10 @@ For a job. One object with these fields:
 | `control_skill` | The control skill used, by full name and source, such as `control-shop (project: .claude/skills/control-shop/SKILL.md)`, or `harness-ops:control-claude-code (plugin: <folder>/skills/control-claude-code/SKILL.md)`, or `null` |
 | `fallback` | What drive used when `control_skill` is `null`, else `null` |
 | `mode` | `interactive` or `unattended` |
-| `launch` | The process this run launched: `pid`, `uid`, `start_time` (the integer the process table gives, compared exactly), `command_line` (a display form) and `command_line_sha256` (over the raw command line bytes, on Linux every byte of `/proc/<pid>/cmdline` as read, trailing NUL included), or `null` when the run launched nothing |
-| `ready` | `surfaces` (URL, port or command), `build`, `data`, `telemetry` |
-| `steps` | A list; each has `action`, `entry_point`, `observed` (text) and `artifacts` (paths); a step from a steps file also has `id` and `outcome` (`done`, `failed`, `skipped: optional` or `blocked: <reason>`) and `finally: true` for a finally step, and a step a failure ended is not listed; a capture step also has `process` (pid, name, start time and command line, plus the parent pid, uid and command line sha256 when a wrapper resolved to it) and `command` (the exact command run) |
+| `launch` | A list with one entry per process this run launched, one per app: `app`, `pid`, `uid`, `start_time` (the integer the process table gives, compared exactly), `command_line` (a display form) and `command_line_sha256` (over the raw command line bytes, on Linux every byte of `/proc/<pid>/cmdline` as read, trailing NUL included); an empty list when the run launched nothing. A record written as one object, as earlier runs wrote it, reads as a list of one |
+| `ready` | `environment` (the selected name, or `null`), `surfaces` (URL, port or command), `services` (each dependency service's name, url, whether it answered, and whether the app's exposed target matches it, or `not exposed`), `build`, `data`, `telemetry`, `exit` (the Ready command's exit status, or `null` when it did not run) |
+| `steps` | A list; each has `action`, `entry_point`, `observed` (text) and `artifacts` (paths); a step from a steps file also has `id` and `outcome` (`done`, `failed`, `skipped: optional` or `blocked: <reason>`) and `finally: true` for a finally step, and a step a failure ended is not listed; a capture step also has `process` (pid, name, start time and command line, plus the uid and command line sha256 when a pid-bound capture or an elevated attach bound it, and the parent pid when a wrapper resolved to it) and `command` (the exact command run) |
+| `secrets_mark` | A list with one entry per raw capture, plus `report.md` and `report.json` once they hold a command line: `path`, `mark` (`may hold secrets; do not commit`) and `unignored_in_git_tree` (`true` when the run directory sits in a git working tree and is not ignored); an empty list when the run wrote no raw capture and recorded no command line |
 | `capability_gaps` | Signals and capture kinds the app or project does not provide |
 | `blocked` | Each step that needed a person or a grant, with its reason and the narrowest grant |
 | `cleanup` | What was stopped, and each evidence path with whether it exists and is not empty |

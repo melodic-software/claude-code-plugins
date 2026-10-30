@@ -39,6 +39,9 @@
 # basename is also what routes a member's changes back here, since
 # scripts/affected-tests.sh selects any suite that NAMES the changed file.
 set -uo pipefail
+# Members read CHECK_DATA_ROOT in place of the tree they are run in, so a
+# caller's value would point every fixture run at that caller's tree.
+unset CHECK_DATA_ROOT
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)" || exit 2
@@ -67,11 +70,13 @@ REGISTRY=(
   "check-adr-numbers.sh|-|-|adr_numbers"
   "check-affected.sh|-|-|-"
   "check-app-key-references.sh|-|-|-"
+  "check-artifact-retention.sh|node|-|-"
   "check-all-skills-verb-contract.sh|-|-|-"
   "check-cant-fail-scan.sh|-|-|-"
   "check-changed-skills.sh|-|-|-"
   "check-changelog-fragments.sh|-|--check|changelog_fragments"
   "check-changelog-parity.sh|-|--check|changelog_parity"
+  "check-comment-hygiene.sh|curl|HEAD|-"
   "check-conformance-registry.sh|-|-|-"
   "check-convention-yaml.sh|CHECK_JSONSCHEMA_BIN=/nonexistent/check-jsonschema|--check|convention_yaml"
   "check-cross-plugin-source-drift.sh|-|-|-"

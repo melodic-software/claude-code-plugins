@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.14.3] - 2026-10-29
+
+### Fixed
+
+- **Retirement-manifest validation no longer pipes into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `lib/check-retirements.sh` checks each record's id, date, version, path and heading with a here-string instead of `printf | grep -q`, so under `set -o pipefail` a valid field can no longer be rejected, or a `..` path missed, when grep exits before printf finishes writing.
+
+## [0.14.2] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error.
+
+## [0.14.1] - 2026-10-28
+
+### Fixed
+
+- `fingerprint.mjs compare` measures a local JSON object or array by its string values. It used to quote-strip every value away, so a copy in a JSON file could never fire. Now it fires, and its span reports the value's line in the file. Keys are not measured. Each value is stripped on its own, so an unclosed fence in one value no longer blanks the values after it, and a quoted excerpt inside a value still strips. Markdown, a bare JSON scalar and malformed JSON compare exactly as before.
+
+## [0.14.0] - 2026-10-28
+
+### Changed
+
+- **`setup` writes the YAML settings files.** `apply` writes the team layer to `<home>/attribution.yaml` and the local overlay to `<home>/attribution.local.yaml`, `<home>` being the convention home that `lib/resolve-convention-home.sh` prints, else `docs/conventions`. While the convention-home pointer is broken, it writes neither file. Before the first write to a layer still on its `.claude/` JSON fallback, it carries every key of that JSON into the new YAML file, because the detectors stop reading the JSON once the YAML exists. It checks that the overlay is gitignored before writing it, and its key examples are block-style YAML that cites `schemas/attribution.schema.json`.
+- **The README and the audit skill name the YAML files as what `setup` manages.** The README's key example is YAML, in place of the JSON form.
+- **`attribution-r001` and `attribution-r002` migrate into the YAML files.** Their `successor` prose named `.claude/attribution.json` and `.claude/attribution.local.json` as the destinations; it now names `<home>/attribution.yaml` and `<home>/attribution.local.yaml`, and a key the current layer already sets keeps its value. The detection fields are unchanged.
+
+## [0.13.0] - 2026-10-28
+
+### Added
+
+- **`schemas/attribution.schema.json`: the settings have a schema.** It describes the team layer `<home>/attribution.yaml`; the same keys are valid in `<home>/attribution.local.yaml` and the legacy `.claude/` JSON files. The keys are `excluded_paths`, `budgets`, `separation`, `stamp_expiry_days`, `trigger_less_stamp_check`, `judge_samples`, `gates` and `accuracy`, each optional and typed, and the schema rejects any other key, `accuracy.judge_samples` included. The audit itself still reads the files as before.
+
+## [0.12.0] - 2026-10-28
+
+### Added
+
+- **`audit`: the detectors read YAML settings first.** `check-stamps.sh`, `list-corpus.sh`, `score-golden.sh` and `sweep-ledger.sh` read the team layer from `<home>/attribution.yaml` and the overlay from `<home>/attribution.local.yaml` (ADR 0075), `<home>` being the bound convention home, else `docs/conventions`. Each falls back to its `.claude/attribution.json` or `.claude/attribution.local.json` only when the YAML is absent, per file rather than per key, so a repository with no YAML reads what it read before. A YAML file that does not parse is named on stderr and read as absent, its `.claude/` JSON included.
+
+### Changed
+
+- **`audit`: one config reader serves all four detectors.** `lib.sh` carries `cfg_scalar` and `cfg_list` in place of each script's own jq reader, and every `--show-config` line names the layer that supplied its value. `check-stamps.sh` now names it for `stamp_expiry_days` and `trigger_less_stamp_check`, where it reported `(bundled default)` for a configured value. The jq-missing notice and `sweep-ledger.sh status`'s exit 4 now apply only when a JSON layer is present, and an `excluded_paths` glob holding a space is kept whole instead of split in two. The audit skill reads `.separation` from a YAML layer as well as a JSON one, and the jq prerequisite note says only the JSON layers need jq.
+
+## [0.11.12] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [0.11.11] - 2026-10-25
 
 ### Changed

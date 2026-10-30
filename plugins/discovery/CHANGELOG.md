@@ -1,5 +1,70 @@
 # Changelog: discovery plugin
 
+## [0.40.0] - 2026-10-30
+
+### Changed
+
+- The `docs-fetcher` gate's `PreToolUse` `Bash` row sets `"onFailure": "block"`, so on Claude Code 2.1.295 or later a gate that cannot start because `node` is missing, or that reaches its 10 s timeout, denies the call instead of leaving `discovery:docs-fetcher` with an unchecked `Bash` ([#9982](https://github.com/melodic-software/claude-code-plugins/issues/9982)). The row matches every `Bash` call, so on such a host the main thread's `Bash` is denied too. An older client ignores the key.
+
+## [0.39.8] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.39.7] - 2026-10-29
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
+## [0.39.6] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `setup-apply --check` names a key set twice as `duplicate key` at its second line, and apply refuses the file.
+
+## [0.39.5] - 2026-10-29
+
+### Changed
+
+- **`blindspot`, `explore`, `research` and `trace-intent` cite the gather-block convention.** The
+  dated record for why git reads stay out of the pre-compute block now links the repository's
+  gather-block convention, at the same heading, instead of a reference file inside the
+  source-control plugin's worktree skill.
+
+### Fixed
+
+- **`research-sweep` holds `applies_to` to the grammar criterion 13 parses.** Every `applies_to`
+  field in the read, consolidate and synthesis schemas now carries the grammar as a `pattern`, and
+  the workflow checks each surviving finding and source against the same grammar as
+  `check-source-applicability.py`. For a free-text value, the workflow asks the synthesizer once
+  more and names the grammar. A value that still fails is recorded `unstated`, and its text goes to
+  the finding's qualifiers, so free text no longer reaches the artifact.
+
+## [0.39.4] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.39.3] - 2026-10-27
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.39.2] - 2026-10-27
+
+### Added
+
+- Outcome eval cases for `blindspot`, `check`, `explore`, `read-docs`, `research` and `trace-intent`, and held-out triggering probes under `probes/` ([#6557](https://github.com/melodic-software/claude-code-plugins/issues/6557)).
+
+### Changed
+
+- **`blindspot`, `explore`, `trace-intent`:** shorter skill bodies with the same directives, measured against the previous text on Opus and Sonnet with no loss beyond the 0.05 margin ([#6557](https://github.com/melodic-software/claude-code-plugins/issues/6557)).
+
 ## [0.39.1] - 2026-10-25
 
 ### Changed

@@ -81,10 +81,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -152,10 +151,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -208,7 +206,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Isolate the runner
         if: steps.models.outcome == 'success'
@@ -262,7 +260,7 @@ jobs:
         if: steps.credential.outputs.present == 'true' && steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 25
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -301,6 +299,17 @@ jobs:
             Read(/${{ runner.temp }}/**)
           json-schema-file: ${{ runner.temp }}/lane-sweep-schema.json
           leg-timeout-minutes: "20"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.judge.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.unit }}
 
       # After a handoff, the denial check: a leg that hit a permission denial
       # hands nothing on; continue-on-error lets the report record the stop,
@@ -343,7 +352,7 @@ jobs:
 
       - name: Report the judgment's outcome
         if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.key-leg.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -375,7 +384,7 @@ jobs:
           name: findings-${{ matrix.unit }}
           path: ${{ runner.temp }}/lane-sweep-findings/findings.json
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 3
 
       - name: Fail without findings
         if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success' && steps.handoff.outcome != 'success'
@@ -405,10 +414,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -461,10 +469,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -524,7 +531,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Isolate the runner
         if: steps.models.outcome == 'success'
@@ -579,7 +586,7 @@ jobs:
         if: steps.credential.outputs.present == 'true' && steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 25
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -620,6 +627,17 @@ jobs:
           fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
           leg-timeout-minutes: "20"
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.judge.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.unit }}
+
       # After a handoff, the denial check: a leg that hit a permission denial
       # hands nothing on; continue-on-error lets the report record the stop,
       # and "Fail without findings" carries the red.
@@ -658,7 +676,7 @@ jobs:
 
       - name: Report the judgment's outcome
         if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.sub-leg.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -692,7 +710,7 @@ jobs:
           name: findings-${{ matrix.unit }}
           path: ${{ runner.temp }}/lane-sweep-findings/findings.json
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 3
 
       - name: Fail without findings
         if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success' && steps.handoff.outcome != 'success'
@@ -721,10 +739,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -776,10 +793,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -832,7 +848,7 @@ jobs:
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.models.outcome == 'success'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Isolate the runner
         if: steps.models.outcome == 'success'
@@ -885,7 +901,7 @@ jobs:
         if: steps.credential.outputs.present == 'true' && steps.prompt.outcome == 'success'
         continue-on-error: true
         timeout-minutes: 25
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -925,9 +941,20 @@ jobs:
           json-schema-file: ${{ runner.temp }}/lane-sweep-schema.json
           leg-timeout-minutes: "20"
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.judge.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-${{ matrix.unit }}
+
       - name: Report the judgment's outcome
         if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           outcome: ${{ steps.judge.outcome }}
           execution-file: ${{ steps.judge.outputs.execution-file }}
@@ -961,7 +988,7 @@ jobs:
           name: findings-${{ matrix.unit }}
           path: ${{ runner.temp }}/lane-sweep-findings/findings.json
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 3
 
       - name: Fail without findings
         if: always() && steps.unit.outcome == 'success' && steps.findings.outcome != 'success'
@@ -990,10 +1017,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -1069,10 +1095,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill

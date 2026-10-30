@@ -304,13 +304,14 @@
       "id": 25,
       "name": "refresh-working-tree-changed-during-source-wave",
       "prompt": "/app-control:map refresh .claude/skills/control-clockwork. Before the source wave, git status --porcelain printed nothing. After the subagents returned, it prints ` M src/timesheet/Toolbar.tsx`.",
-      "expected_output": "The working tree changed during the source wave, so the outcome is blocked and the report names src/timesheet/Toolbar.tsx as the changed path. The live pass does not run, no control skill file is edited, nothing is reverted or committed, and no pull request is opened.",
+      "expected_output": "The working tree changed during the source wave, so the outcome is blocked and the report names src/timesheet/Toolbar.tsx as the changed path. The live pass does not run, no control skill file is edited, nothing is reverted or committed, and no pull request is opened. The report states that the tripwire cannot see writes under .git/, to ignored paths or outside the checkout.",
       "files": [],
       "narration": true,
       "expectations": [
         "Reports the outcome as blocked",
         "Names src/timesheet/Toolbar.tsx as the changed path",
-        "Edits no control skill file and opens no pull request"
+        "Edits no control skill file and opens no pull request",
+        "States that the tripwire cannot see writes under .git/, to ignored paths or outside the checkout"
       ]
     },
     {
@@ -376,6 +377,19 @@
         "Writes the lesson into no control skill file",
         "Names /corrections:codify as where the lesson goes",
         "Reports the outcome clean and opens no pull request"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "check-reports-over-budget-feature-file",
+      "prompt": "/app-control:map check .claude/skills/control-shop. The hub SKILL.md is 5,200 characters and indexes two features, cart and export, and every index line, section and link is in order. features/cart/README.md is 9,400 characters, because its Gotchas section has grown to sixty lines; features/billing/export/README.md is 1,300 characters.",
+      "expected_output": "check-map.sh runs on the directory and prints one finding, size-budget | features/cart/README.md | 9400 characters, budget 4000. The report gives that line and the count 1, reports nothing for the hub or the export feature, edits no file, and gives no verdict word such as pass, fail or clean.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports features/cart/README.md under the size-budget rule with the 4000-character budget",
+        "Reports no finding for SKILL.md or features/billing/export/README.md",
+        "Edits no file and gives no verdict word"
       ]
     }
   ]

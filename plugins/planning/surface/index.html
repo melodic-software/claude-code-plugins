@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="interview-token" content="%%TOKEN%%">
+<meta name="interview-build" content="%%PLUGIN_VERSION%% %%SOURCE_HASH%%">
 <title>Interview</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="/question-shape.css">
@@ -47,7 +48,7 @@ body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.55 var(--san
 header.top{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;border-bottom:1px solid var(--line-strong);padding-bottom:8px}
 .hrow{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 24px}
 .hrow2{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;min-height:28px;font-size:13px}
-.eyebrow{font:500 12px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.eyebrow{font:500 13px/1 var(--sans);color:var(--muted)}
 #roundLbl:not(:empty)+#eyebrow:not(:empty)::before{content:" \00b7  "}
 .mlink{border:0;background:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
 .qcount::before{content:"\00b7  ";color:var(--faint)}
@@ -62,7 +63,7 @@ header.top{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;border-botto
 .notice[hidden]{display:none}
 .notice span{overflow:hidden;text-overflow:ellipsis}
 #reBanner{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px}
-#reBanner[hidden],.ntoast[hidden],.ctx[hidden],.handoff[hidden]{display:none}
+#reBanner[hidden],#oldServer[hidden],.ntoast[hidden],.ctx[hidden],.handoff[hidden]{display:none}
 #ledgerLine.synced{border-color:var(--line-strong);color:var(--muted);background:var(--panel)}
 .ctx{font:500 12.5px/1 var(--mono);font-variant-numeric:tabular-nums;padding:6px 10px;border-radius:999px;border:1px solid var(--accent);color:var(--accent);background:var(--accent-soft);white-space:nowrap}
 abbr.term{text-decoration:underline dotted;text-underline-offset:2px;cursor:help}
@@ -130,7 +131,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .sec-h{display:flex;align-items:center;gap:8px;flex:1;min-width:0;border:0;background:none;padding:2px 0;cursor:pointer;text-align:left;color:var(--muted)}
 .sec-h .caret{font:12px var(--mono);width:12px;transition:transform .15s}
 .sec[data-collapsed="true"] .caret{transform:rotate(-90deg)}
-.sec-h h2{font:500 12px/1.2 var(--mono);letter-spacing:.07em;text-transform:uppercase;margin:0;flex:1}
+.sec-h h2{font:500 13px/1.2 var(--sans);margin:0;flex:1}
 .sec-h .cnt{font:500 11.5px var(--mono);color:var(--faint);font-variant-numeric:tabular-nums}
 .sec.pin .sec-h h2{color:var(--chg)}
 .sec.locked .sec-h h2{color:var(--faint)}
@@ -187,7 +188,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .act-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
 .act-list li{display:grid;gap:2px;font-size:13.5px;border-left:2px solid var(--line);padding-left:10px}
 .act-list li.unseen{border-color:var(--chg)}
-.act-h,#actLog>summary{font:500 12px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:12px 0 8px}
+.act-h,#actLog>summary{font:500 13px/1 var(--sans);color:var(--muted);margin:12px 0 8px}
 #actLog>summary{cursor:pointer}
 #actLog[open]>summary{margin-bottom:10px}
 .nudge-q{font-size:13px;color:var(--chg);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -196,7 +197,7 @@ nav.rail{display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;min-height:
 .chip.plain::before{display:none}
 .chip.hot{color:var(--chg);background:transparent;border:1px solid var(--chg)}
 .chip.hot::before{display:none}
-.chip.basis{margin-left:8px;text-transform:none;letter-spacing:0;vertical-align:middle}
+.chip.basis{margin-left:8px;vertical-align:middle}
 .chip.basis-verified{color:var(--ok);background:var(--ok-soft)}
 .chip.basis-judgment{color:var(--warn);background:transparent;border:1px solid var(--warn)}
 .chip.basis-judgment::before{display:none}
@@ -229,7 +230,7 @@ section.blk{display:grid;gap:8px}
 section.roundrestate{border-left:3px solid var(--res);background:var(--res-soft);padding:9px 14px;border-radius:0 6px 6px 0;margin-bottom:10px}
 section.proposal{border-left:3px solid var(--warn);background:var(--warn-soft);padding:9px 14px;border-radius:0 6px 6px 0}
 section.proposal textarea{width:100%;font:inherit}
-section.blk>h4,.dtab{font:500 12px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:0}
+section.blk>h4,.dtab{font:500 13px/1 var(--sans);color:var(--muted);margin:0}
 details.src,.discl{display:grid;gap:12px}
 .dtabs{display:flex;flex-wrap:wrap;gap:4px 22px} /* Why and Details toggle side by side, their panels below both: opening one never moves the other */
 .dtab{border:0;background:none;padding:4px 0;cursor:pointer;text-align:left}
@@ -239,13 +240,13 @@ details.src,.discl{display:grid;gap:12px}
 .dpanel[hidden]{display:none}
 #more>section+section{margin-top:12px}
 #why .md{font-size:14px}
-details.src>summary{font:500 12px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);cursor:pointer;padding:4px 0}
+details.src>summary{font:500 13px/1 var(--sans);color:var(--muted);cursor:pointer;padding:4px 0}
 details.src[open]>summary{margin-bottom:10px}
 .md{max-width:72ch}
 .md p{margin:0 0 .5em}.md p:last-child{margin-bottom:0}
 .md ul,.md ol{margin:0 0 .5em;padding-left:20px}
 .md blockquote{margin:0 0 .5em;padding:2px 0 2px 12px;border-left:3px solid var(--line-strong)}
-.md h3,.md h4,.md h5{font:600 16px var(--sans);margin:.6em 0 .3em}
+.md h3,.md h4,.md h5,.md h6{font:600 16px var(--sans);margin:.6em 0 .3em}
 code{font:13px var(--mono);background:var(--ground);padding:1px 4px;border-radius:3px}
 a{color:var(--accent)}
 .recbox{border:1px solid var(--ok);background:var(--ok-soft);border-radius:6px;padding:10px 16px;max-width:80ch;display:grid;gap:6px}
@@ -441,6 +442,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   .cline:not(.wline) .age{flex:none} /* only the text is clamped, so the age stays inline beside it; the full line is in Activity; two lines keep the question title on the first screen */
   .cline[hidden]{display:none}
   button.act,.choice{min-height:44px}
+  :root :is(textarea,input:not([type=checkbox],[type=radio]),select){font-size:16px} /* below 16px, iOS Safari zooms into a field on focus */
   .notice{max-width:100%}
   aside.fly.open,.layout.pinned aside.fly.open{position:fixed;inset:var(--vv-top,0px) 0 auto;height:var(--vv-h,100dvh);width:auto;border-radius:0}
   #pinBtn{display:none}
@@ -475,6 +477,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       <button class="cline wline" id="workLine" aria-live="polite" title="Open the Activity panel (l)" hidden></button>
       <div class="notice" id="notice" hidden></div>
     </div>
+    <div class="banner" id="oldServer" role="alert" hidden>This page's server is older than the page. Run ensure-running to restart.</div>
     <div class="banner" id="reBanner" hidden></div>
     <div class="handoff" id="hoBanner" role="status" hidden></div>
     <details class="cons" id="consPanel" hidden><summary id="consSum"></summary><ul id="consList"></ul></details>
@@ -559,6 +562,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 (function(){
   "use strict";
   const TOKEN = document.querySelector('meta[name="interview-token"]').content;
+  // "<plugin version> <source hash>" of the files the server read this page from; a server too old to fill it in leaves its placeholders.
+  const BUILD = document.querySelector('meta[name="interview-build"]').content;
+  const serverOld = data => BUILD.includes("%%") || BUILD !== (data.pluginVersion || "") + " " + (data.sourceHash || "");
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const byIdCmp = (a, b) => String(a.id).localeCompare(String(b.id), undefined, {numeric: true});
@@ -608,7 +614,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     listener: {state: "idle"}, online: false, session: "", sel: null, pick: new Set(), busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", search: "", fly: null, pinned: null, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
     instance: "", restarted: false, finished: null, need: null, actKeys: null,
-    armed: null, snap: {}, conflict: null, undo: null, propEdit: null, propDraft: null, propMsg: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, noteOpen: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
+    armed: null, snap: {}, conflict: null, undo: null, propEdit: null, propDraft: null, propMsg: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, noteOpen: new Set(), moreShut: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
 
   // ---------- storage (every access guarded) ----------
@@ -624,69 +630,70 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function settingSrc(k){ return k in localSettings() ? "this browser" : (S.settings[k] || {}).layer || "default"; }
   const who = () => setting("displayName") || "You";
 
-  // ---------- markdown subset (escape first) ----------
+  // ---------- markdown (question-shape.js renders it as elements; this page adds question ids and glossary terms) ----------
+  const roundOf = q => (S.doc.rounds || []).find(x => (x.stage || "") === (q.stage || "") && x.round === (q.round || 1));
+  const SWEEP = "Sweep: reconciling earlier answers";
+  const sweepChip = q => (roundOf(q) || {}).kind === "sweep" ? '<span class="chip plain" title="' + SWEEP + '">Sweep</span>' : "";
   function roundRestateCard(q){ // the round's restate, pinned above the round's first question
-    const stage = q.stage || "", round = q.round || 1, r = (S.doc.rounds || []).find(x => (x.stage || "") === stage && x.round === round);
+    const stage = q.stage || "", round = q.round || 1, r = roundOf(q);
     if (!r || !r.restate) return "";
     const first = S.doc.questions.filter(x => (x.stage || "") === stage && (x.round || 1) === round).sort(byIdCmp)[0];
     if (!first || first.id !== q.id) return "";
     const list = (label, ids) => ids.length ? "<p><b>" + label + "</b> " + ids.map(refHtml).join(" ") + "</p>" : "";
-    return '<section class="blk roundrestate" id="roundRestate"><h4>Where round ' + esc(String(round)) + " starts</h4>" + md(r.restate.text) + list("Decided:", r.restate.decided || []) + list("Open:", r.restate.open || []) + "</section>";
+    const head = r.kind === "sweep" ? SWEEP + " (round " + round + ")" : "Where round " + round + " starts";
+    return '<section class="blk roundrestate" id="roundRestate"><h4>' + esc(head) + "</h4>" + mdHtml(r.restate.text) + list("Decided:", r.restate.decided || []) + list("Open:", r.restate.open || []) + "</section>";
+  }
+  function reconcilesHtml(q){ // each earlier answer a sweep question reconciles, beside the question
+    const ids = (q.reconciles || []).filter(id => Q[id]);
+    if (!ids.length) return "";
+    return '<section class="blk" id="reconciles"><h4>Earlier answers this reconciles</h4>' + ids.map(id => {
+      const p = Q[id], d = counted(p), t = d ? decidedText(p, d) : null;
+      return "<p>" + refHtml(id) + " " + (t ? lineHtml(t[0]) + (t[1] ? ' <span class="kbd">' + lineHtml(t[1]) + "</span>" : "") : '<span class="kbd">No answer counts yet</span>') + "</p>";
+    }).join("") + "</section>";
   }
   function refHtml(id){ const q = Q[id]; return '<button type="button" class="ref" data-q="' + esc(id) + '"><b>' + esc(id) + '</b>' + esc(q ? (q.short || q.title) : "unknown") + '</button>'; }
   let termMemo = {key: null, re: null, defs: {}};
-  function termMemoOf(){ // the glossary's terms as escaped text, longest first, so one pass wraps each defined term; rebuilt only when the glossary changes
+  const QID = /^[A-Z]{1,3}\d{1,4}$/;
+  function termMemoOf(){ // the glossary's terms longest first, then question ids, so one pass finds each; rebuilt only when the glossary changes
     const g = (S.doc && S.doc.glossary) || [], key = JSON.stringify(g);
     if (termMemo.key !== key) {
-      const defs = {}; g.forEach(t => { defs[esc(t.term)] = t.definition; });
+      const defs = {}; g.forEach(t => { defs[t.term] = t.definition; });
       const names = Object.keys(defs).sort((a, b) => b.length - a.length).map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-      termMemo = {key, defs, re: names.length ? new RegExp("(?<![\\w-])(?:" + names.join("|") + ")(?![\\w-])", "g") : null};
+      termMemo = {key, defs, re: new RegExp((names.length ? "(?<![\\w-])(?:" + names.join("|") + ")(?![\\w-])|" : "") + "\\b([A-Z]{1,3}\\d{1,4})\\b", "g")};
     }
     return termMemo;
   }
-  const termRe = () => termMemoOf().re, termDefs = () => termMemoOf().defs;
-  function inline(raw){
-    return String(raw ?? "").split(/(`[^`\n]+`)/).map((part, i) => {
-      if (i % 2) return "<code>" + esc(part.slice(1, -1)) + "</code>";
-      const keep = [];
-      let e = esc(part).replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, t, u) => { keep.push('<a href="' + u + '" target="_blank" rel="noopener noreferrer">' + t + '</a>'); return "\u0000" + (keep.length - 1) + "\u0000"; });
-      const link = (t, repo, n) => { keep.push('<a href="https://github.com/' + repo + '/issues/' + n + '" target="_blank" rel="noopener noreferrer">' + t + '</a>'); return "\u0000" + (keep.length - 1) + "\u0000"; };
-      e = e.replace(/(^|[^\w/.&#-])([\w.-]+\/[\w.-]+)#(\d+)\b/g, (m, pre, repo, n) => pre + link(repo + "#" + n, repo, n));
-      const base = /^[\w.-]+\/[\w.-]+$/.test(S.doc.meta.repo || "") ? S.doc.meta.repo : "";
-      if (base) e = e.replace(/(^|[^\w/&#-])#(\d+)\b/g, (m, pre, n) => pre + link("#" + n, base, n));
-      e = e.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, "$1<em>$2</em>");
-      const end = id => '<button type="button" class="ref" data-q="' + id + '"><b>' + id + "</b></button>";
-      e = e.replace(/\b([A-Z]{1,3})(\d{1,4})\s?(?:-|&ndash;|–)\s?\1?(\d{1,4})\b/g, (m, p, a, b) => { // Qa-Qb: one chip-range, not two chips and a bare hyphen
-        if (!Q[p + a] || !Q[p + b]) return m;
-        keep.push('<span class="rrange" title="' + p + a + " to " + p + b + '">' + end(p + a) + "<span>&ndash;</span>" + end(p + b) + "</span>");
-        return "\u0000" + (keep.length - 1) + "\u0000";
-      });
-      e = e.replace(/\b([A-Z]{1,3}\d{1,4})\b/g, (m, id) => Q[id] ? refHtml(id) : m);
-      const termRx = termRe();
-      if (termRx) e = e.split(/(<[^>]*>|\u0000\d+\u0000)/).map((seg, k) => k % 2 ? seg : seg.replace(termRx, m => '<abbr class="term" tabindex="0" title="' + esc(termDefs()[m]) + '">' + m + "</abbr>")).join(""); // outside tags and kept links
-      return e.replace(/\u0000(\d+)\u0000/g, (m, n) => keep[+n]);
-    }).join("");
-  }
-  function md(src){
-    const lines = String(src ?? "").replace(/\r/g, "").split("\n"), out = [];
-    let para = [], list = null, quote = [];
-    const flushP = () => { if (para.length) out.push("<p>" + inline(para.join(" ")) + "</p>"); para = []; };
-    const flushL = () => { if (list) out.push("<" + list.t + ">" + list.items.map(x => "<li>" + inline(x) + "</li>").join("") + "</" + list.t + ">"); list = null; };
-    const flushQ = () => { if (quote.length) out.push("<blockquote><p>" + inline(quote.join(" ")) + "</p></blockquote>"); quote = []; };
-    for (const ln of lines) {
-      let m;
-      if (!ln.trim()) { flushP(); flushL(); flushQ(); }
-      else if ((m = ln.match(/^\s*[-*]\s+(.*)$/)) || (m = ln.match(/^\s*\d+[.)]\s+(.*)$/))) {
-        const t = /^\s*\d/.test(ln) ? "ol" : "ul"; flushP(); flushQ();
-        if (!list || list.t !== t) { flushL(); list = {t, items: []}; }
-        list.items.push(m[1]);
-      } else if ((m = ln.match(/^(#{1,4})\s+(.*)$/))) { flushP(); flushL(); flushQ(); const h = Math.min(5, m[1].length + 2); out.push("<h" + h + ">" + inline(m[2]) + "</h" + h + ">"); }
-      else if ((m = ln.match(/^>\s?(.*)$/))) { flushP(); flushL(); quote.push(m[1].trim()); }
-      else { flushL(); flushQ(); para.push(ln.trim()); }
+  const node = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  function refNode(id, title){ const b = node("button", "ref"); b.type = "button"; b.dataset.q = id; b.append(node("b", "", id), title); return b; }
+  const QRANGE = /\b([A-Z]{1,3})(\d{1,4})\s?[-–]\s?\1?(\d{1,4})\b/g;
+  function qText(parent, s){ // the markdown's plain runs: Qa-Qb as one chip-range, not two chips and a bare hyphen
+    let i = 0;
+    for (const m of s.matchAll(QRANGE)) {
+      const a = m[1] + m[2], b = m[1] + m[3];
+      if (!Q[a] || !Q[b]) continue;
+      if (m.index > i) idsAndTerms(parent, s.slice(i, m.index));
+      const r = node("span", "rrange"); r.title = a + " to " + b; r.append(refNode(a, ""), node("span", "", "–"), refNode(b, "")); parent.append(r);
+      i = m.index + m[0].length;
     }
-    flushP(); flushL(); flushQ();
-    return '<div class="md">' + out.join("") + "</div>";
+    if (i < s.length) idsAndTerms(parent, s.slice(i));
   }
+  function idsAndTerms(parent, s){ // a question's id as its chip, a defined term with its definition
+    const {re, defs} = termMemoOf(); let i = 0;
+    for (const m of s.matchAll(re)) {
+      const id = Q[m[0]] && (m[1] || QID.test(m[0])) ? m[0] : "", def = id || m[1] ? null : defs[m[0]]; // a question's id wins over a term spelled like it
+      if (!id && def == null) continue;
+      if (m.index > i) parent.append(s.slice(i, m.index));
+      if (id) parent.append(refNode(id, Q[id].short || Q[id].title || ""));
+      else { const t = node("abbr", "term", m[0]); t.tabIndex = 0; t.title = def; parent.append(t); }
+      i = m.index + m[0].length;
+    }
+    if (i < s.length) parent.append(s.slice(i));
+  }
+  // The page builds its HTML as strings: the renderer's elements go in serialized, so their text stays escaped.
+  const MD = {heading: 3, repo: () => ({repo: S.doc.meta.repo}), text: qText}, mdBox = document.createElement("div");
+  const serialize = fill => { mdBox.replaceChildren(); fill(mdBox); return mdBox.innerHTML; };
+  const lineHtml = raw => serialize(b => QuestionShape.inline(b, raw, MD));
+  const mdHtml = src => '<div class="md">' + serialize(b => b.append(QuestionShape.markdown(src, MD))) + "</div>";
   function firstLine(s){ return String(s || "").replace(/[*`#]/g, "").split(/\n|(?<=[.!?])\s/)[0].trim(); }
 
   // ---------- derived state ----------
@@ -702,12 +709,18 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function stateOf(q){ // a hold wins over a recorded decision
     if (q.state === "archived" || q.archived) return "arch";
     if (q.state === "proposed") return "prop"; // Claude proposes it: the user accepts, edits or declines it before it is a question
-    if (q.waiting && !q.supersededBy) return q.waitingBy === "user" ? "need" : "wait";
+    if (q.supersededBy) return "sup"; // before the decision, as export-ledger reads it: a superseded answer counts nowhere
+    if (q.waiting) return q.waitingBy === "user" ? "need" : "wait";
     const d = counted(q);
     if (d) return d.decision;
-    if (q.supersededBy) return "sup";
     return "open";
   }
+  function chainEnd(q){ // where q's supersededBy chain ends, as the server's chain_end walks it: the question to answer instead
+    const seen = new Set([q.id]); let cur = q;
+    while (cur.supersededBy && Q[cur.supersededBy] && !seen.has(cur.supersededBy)) { seen.add(cur.supersededBy); cur = Q[cur.supersededBy]; }
+    return cur === q ? q.supersededBy || "" : cur.id;
+  }
+  const offWhy = q => q.supersededBy ? "Superseded: " + q.id + " takes no decision. Answer " + chainEnd(q) + " instead." : "Archived: " + q.id + " takes no decision.";
   const isAnswered = st => !["open", "wait", "need", "arch", "prop"].includes(st);
   const isOpen = st => st === "open" || st === "need" || st === "prop";
   const live = q => !["sup", "arch"].includes(stateOf(q));
@@ -760,13 +773,24 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return s;
   }
   const byClaude = (q, i) => (q.commitsConfirmed || []).find(c => String(c.index) === String(i));
-  const accepted = q => ["accept", "hedged", "own"].includes(stateOf(q)); // alt and defer carry none, and neither does a held question
-  function commitRows(){ // commitments carried by accept (or reconfirmed accept), hedged and own decisions
+  const accepted = q => ["accept", "hedged"].includes(stateOf(q)); // an own answer and an alt replace the recommendation and carry none, defer carries none, and neither does a held question
+  function commitRows(){ // commitments carried by accept (or reconfirmed accept) and hedged decisions
     const out = [];
     S.doc.questions.slice().sort(byIdCmp).forEach(q => { if (!accepted(q)) return; const cf = confirmed(q); (q.commits || []).forEach((c, i) => out.push({q, i, c, on: cf.has(String(i))})); });
     return out;
   }
   const openAssumptions = () => commitRows().filter(r => !r.on).length;
+  const tickRows = () => commitRows().filter(r => !r.on && stateOf(r.q) === "accept"); // what Tick these and confirm ticks; a hedged accept's condition is still open
+  function acceptTally(){ // the live answers, and those that took the recommendation as it stood
+    const all = S.doc.questions.filter(q => live(q) && isAnswered(stateOf(q))).sort(byIdCmp);
+    return {all, acc: all.filter(q => stateOf(q) === "accept")};
+  }
+  const noteOf = q => String((decisionOf(q) || {}).text || "").trim();
+  const auditSent = q => { let ev = null; for (const e of events()) if (e.id === q.id && DEC.has(e.kind) && !e.withdrawn && (!ev || e.seq > ev.seq)) ev = e; return !!(ev && ev.auditSeq); }; // its live accept came from an accept-audit
+  function auditSplit(acc){ // [what the agents check sends, "id (why)" for each it leaves out]
+    const why = q => noteOf(q) ? "it carries a note, which the check does not send" : afterAnswer(q) ? "Claude changed it after your answer" : auditSent(q) ? "already sent for checking" : "";
+    return [acc.filter(q => !why(q)), acc.filter(why).map(q => q.id + " (" + why(q) + ")")];
+  }
   const toConfirm = q => { const cf = confirmed(q); return (q.commits || []).filter((c, i) => !cf.has(String(i))).length; }; // commitments of q not yet ticked
   function stateLabel(q){ // LABEL for q's state; an accepted question with unticked commitments says how many
     const st = stateOf(q), n = st === "accept" ? toConfirm(q) : 0;
@@ -817,10 +841,20 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const basisLabel = q => { const m = String(q.basis || "").match(/^\s*(?:basis\s*:\s*)?\**(verified|judgment)\b|(?:^|[.!?;(\n]|\s-)\s*\**(?:basis\s*:\s*)?(verified|judgment)\**(?:\s*:[^\n]*)?[.)]*\s*$/i); return m ? (m[1] || m[2]).toLowerCase() : ""; }; // the outcome label recommendation-basis.md defines, leading or trailing the basis
   const withheld = q => q.withheld === true; // the server derives it: no recommendation to accept, the field names the evidence that would settle it
   const eligible = q => stateOf(q) === "open" && !upChanged(q) && !!q.recommendation && !withheld(q) && !(q.group && lockedBy(q.group).length) && upOf(q).every(p => parentMet(p) && !isStale(Q[p]));
+  const chainOf = q => (q.supersedesChain || []).filter(c => c && Q[c.id]); // the earlier questions q re-issues, the first asked first (server-derived from supersedes)
+  function chainHtml(q){ // "Asked as Q5 in round 2, then Q35 in round 4": every earlier question of q's supersede chain, not only the one it replaced
+    const at = c => " in round " + esc(String(c.round || 1)) + ((c.stage || "") !== (q.stage || "") && c.stage ? " (" + esc(stageLabel(c.stage)) + ")" : "");
+    return "Asked as " + chainOf(q).map(c => refHtml(c.id) + at(c)).join(", then ");
+  }
+  const firstOf = q => chainOf(q).find(x => (x.stage || "") === (q.stage || "")); // the supersede chain's first question in q's own stage
+  function firstAsked(q){ // the round q was first asked in: its chain's first question in the same stage, else its own
+    const c = firstOf(q);
+    return c ? Math.min(c.round || 1, q.round || 1) : q.round || 1;
+  }
   function carryOver(){
     const max = {}, out = {};
     S.doc.questions.forEach(q => { const s = q.stage || ""; max[s] = Math.max(max[s] || 0, q.round || 1); });
-    S.doc.questions.forEach(q => { const n = (max[q.stage || ""] || 0) - (q.round || 1); if (n > 0 && needsYou(q)) out[q.id] = n; });
+    S.doc.questions.forEach(q => { const n = (max[q.stage || ""] || 0) - firstAsked(q); if (n > 0 && needsYou(q)) out[q.id] = n; });
     return out;
   }
   const searchTerm = () => S.search.trim().toLowerCase();
@@ -855,14 +889,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   // ---------- rail ----------
   function sections(){
     const carry = carryOver(), qs = S.doc.questions.slice().sort(byIdCmp), secs = [];
+    const carried = qs.filter(q => carry[q.id]), rest = qs.filter(q => !carry[q.id]); // the carried section is pinned in every view; Groups and the tree still draw its questions in place too
     if (S.view === "groups") {
       const gs = S.doc.groups || [];
       gs.forEach(g => secs.push({key: "g:" + g.id, gid: g.id, title: g.title || g.id, hint: g.summary, hintStale: summaryStale(g), items: qs.filter(q => q.group === g.id), lock: lockedBy(g.id)}));
       const known = new Set(gs.map(g => g.id)), un = qs.filter(q => !known.has(q.group));
       if (un.length) secs[un.includes(qs[0]) ? "unshift" : "push"]({key: "g:-", title: "Ungrouped", items: un, lock: []});
     } else if (S.view === "rounds") {
-      const carried = qs.filter(q => carry[q.id]), rest = qs.filter(q => !carry[q.id]);
-      if (carried.length) secs.push({key: "carry", title: "Still open from earlier rounds", hint: "Pinned.", items: carried, pin: true, lock: []});
       const stages = Object.keys((S.doc.meta || {}).stages || {}), keys = [];
       rest.forEach(q => { const k = (q.stage || "") + ":" + (q.round || 1); if (!keys.includes(k)) keys.push(k); });
       const seen = [], rank = st => stages.includes(st) ? stages.indexOf(st) : stages.length + seen.indexOf(st);
@@ -870,6 +903,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       keys.sort((a, b) => { const [sa, ra] = a.split(":"), [sb, rb] = b.split(":"); return (rank(sa) - rank(sb)) || (ra - rb); });
       keys.forEach(k => { const items = rest.filter(q => (q.stage || "") + ":" + (q.round || 1) === k); secs.push({key: "r:" + k, round: k, title: roundLabel(items[0]), items, lock: []}); });
     }
+    if (carried.length) secs.unshift({key: "carry", title: "Still open from earlier rounds", hint: S.view === "rounds" ? "Pinned." : "Pinned. Each also stays in its place below.", items: carried, pin: true, copy: S.view !== "rounds", lock: []});
     const landed = landedIds();
     secs.forEach(s => { // open or waiting sections start expanded; a stored toggle applies only while its default holds; a new round's section opens
       s.open = s.items.filter(q => !isAnswered(stateOf(q)) && (stateOf(q) === "wait" || upChanged(q) || needsYou(q))).length;
@@ -911,7 +945,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (up) chips.push('<span class="chip plain" title="' + esc("Reconfirm " + waitOn(q).join(", ") + " (under Review), or answer this one anyway") + '">Waiting on ' + esc(waitOn(q).join(", ")) + "</span>");
     if (q.revising && st !== "arch") chips.push('<span class="chip hot" title="Claude has not handled your answer to this question yet.">Answer not handled yet</span>');
     if (q.claudeRevising && st !== "arch") chips.push('<span class="chip hot" title="' + esc("Claude is revising this: " + q.claudeRevising.why) + '">Claude is revising this: ' + esc(trunc(q.claudeRevising.why, 60)) + "</span>");
-    if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round and still unanswered.") + '">asked ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " ago, unanswered</span>");
+    if (carry[q.id]) chips.push('<span class="chip hot" title="' + esc("Asked " + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " before this stage's latest round" + (firstOf(q) ? ", first as " + firstOf(q).id : "") + ", and still unanswered.") + '">asked ' + carry[q.id] + (carry[q.id] > 1 ? " rounds" : " round") + " ago, unanswered</span>");
     if (q.revised && st === "open") chips.push('<span class="chip plain">Revised</span>');
     const aa = live(q) && afterAnswer(q);
     if (aa) chips.push('<span class="chip hot">' + esc(afterText(aa)) + "</span>");
@@ -953,14 +987,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const done = allDone();
     S.pick.forEach(id => { if (!Q[id] || !eligible(Q[id])) S.pick.delete(id); }); // a selection never outlives the question's eligibility
     let html = '<button class="sumbtn' + (done ? " done" : "") + '" data-sum="1" aria-current="' + (S.sel === SUMMARY) + '">' + (done ? "All answered: summary and wrap-up" : "Summary and wrap-up") + "</button>";
-    if (S.view === "tree") html += treeHtml(true);
-    else {
-      const {secs, carry} = sections(), op = opened(), fresh = unseenIds();
+    {
+      const {secs, carry} = sections(), op = opened(), fresh = unseenIds(), tree = S.view === "tree";
       for (const s of secs) {
         const items = s.items.filter(passes);
         if (!items.length && filtering()) continue;
         const {live: liveItems, arch, open: archOpen} = archSplit(s, items);
-        const li = q => { const pk = s.gid && eligible(q); return "<li" + (pk ? ' class="pickable"' : "") + ">" + (pk ? '<input type="checkbox" class="pick" data-pick="' + esc(q.id) + '" aria-label="Select ' + esc(q.id) + ' to accept"' + (S.pick.has(q.id) ? " checked" : "") + ">" : "") + railItem(q, s, carry, fresh) + "</li>"; };
+        const card = q => { const h = railItem(q, s, carry, fresh); return s.copy ? h.replace(/(id|aria-describedby)="qd-/g, '$1="pqd-') : h; }; // Groups and the tree draw the pinned questions again, so the pinned copy's description ids must not repeat
+        const li = q => { const pk = s.gid && eligible(q); return "<li" + (pk ? ' class="pickable"' : "") + ">" + (pk ? '<input type="checkbox" class="pick" data-pick="' + esc(q.id) + '" aria-label="Select ' + esc(q.id) + ' to accept"' + (S.pick.has(q.id) ? " checked" : "") + ">" : "") + card(q) + "</li>"; };
         const o = lsGet("col:" + s.key, null), coll = s.collapsed && !(filtering() && !(o && o.d === s.done)); // a filter opens a section with no applicable stored toggle that holds a match
         const elig = s.items.filter(q => s.gid ? eligible(q) : op.has(q.id) && eligible(q)), picked = s.gid ? elig.filter(q => S.pick.has(q.id)) : [], aa = s.gid ? 'data-acceptall="' + esc(s.gid) + '"' : s.round ? 'data-acceptround="' + esc(s.round) + '"' : "";
         html += '<div class="sec' + (s.pin ? " pin" : "") + (s.lock.length ? " locked" : "") + (s.fresh ? " fresh" : "") + '" data-key="' + esc(s.key) + '" data-collapsed="' + coll + '" data-dflt="' + s.done + '">' +
@@ -972,6 +1006,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
           (s.hint ? '<div class="sec-hint">' + (s.hintStale ? '<span class="chip hot" title="This summary was written before questions were added to the group">Stale</span> ' : "") + esc(s.hint) + "</div>" : "") +
           '<ul class="qlist">' + (items.length ? liveItems.map(li).join("") + (arch.length ? '<li class="archrow"><button class="archtoggle" data-archtoggle="' + esc(s.key) + '" aria-expanded="' + archOpen + '">' + arch.length + " archived</button></li>" + (archOpen ? arch.map(li).join("") : "") : "") : '<li class="empty">None.</li>') + "</ul></div>";
       }
+      if (tree) html += treeHtml(true);
     }
     const hiddenByShow = searchTerm() && S.filter !== "all" ? S.doc.questions.filter(q => matchesSearch(q) && !passesShow(q)).length : 0; // the Show filter and the search both apply, so say when Show hides matches
     $("searchNote").textContent = hiddenByShow ? hiddenByShow + (hiddenByShow === 1 ? " match is" : " matches are") + " hidden by Show: " + $("filter").selectedOptions[0].textContent + "." : "";
@@ -988,13 +1023,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function railOrder(all){ // all: every question in rail order, so a just-answered question still marks the position
     const keep = id => all || passes(Q[id]);
-    if (S.view === "tree") { const t = treeData(), out = [], walk = id => { if (out.includes(id)) return; out.push(id); t.kids[id].forEach(walk); }; t.roots.forEach(walk); return out.filter(keep); }
-    return sections().secs.flatMap(s => { const r = archSplit(s, s.items.filter(q => keep(q.id))); return r.live.concat(all || r.open ? r.arch : []).map(q => q.id); }); // the order the rail draws, without collapsed archived cards
+    if (S.view === "tree") { const t = treeData(), pinned = sections().secs.flatMap(s => s.items.map(q => q.id)), out = [], walk = id => { if (out.includes(id)) return; out.push(id); t.kids[id].forEach(walk); }; t.roots.forEach(walk); return pinned.concat(out.filter(id => !pinned.includes(id))).filter(keep); } // the pinned carried questions first, then the tree without them
+
+    return [...new Set(sections().secs.flatMap(s => { const r = archSplit(s, s.items.filter(q => keep(q.id))); return r.live.concat(all || r.open ? r.arch : []).map(q => q.id); }))]; // the order the rail draws, without collapsed archived cards; a pinned question counts once, at its pinned place
   }
   function revealInRail(id){
-    const list = $("railList"), el = list.querySelector(id === SUMMARY ? ".sumbtn" : '.qbtn[data-q="' + CSS.escape(id) + '"]');
+    const list = $("railList"), lr = list.getBoundingClientRect(), inView = e => { const r = e.getBoundingClientRect(); return r.top >= lr.top && r.bottom <= lr.bottom; };
+    const els = [...list.querySelectorAll(id === SUMMARY ? ".sumbtn" : '.qbtn[data-q="' + CSS.escape(id) + '"]')].filter(e => e.getClientRects().length); // a pinned question has a second card in Groups and Tree: a shown copy, the one in view first
+    const el = els.find(inView) || els[0];
     if (!el) return;
-    const lr = list.getBoundingClientRect(), er = el.getBoundingClientRect();
+    const er = el.getBoundingClientRect();
     if (er.top < lr.top) list.scrollTo({top: list.scrollTop + er.top - lr.top - 40, behavior: "smooth"});
     else if (er.bottom > lr.bottom) list.scrollTo({top: list.scrollTop + er.bottom - lr.bottom + 40, behavior: "smooth"});
   }
@@ -1171,7 +1209,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   function histLine(h){
     const mine = h.by !== "claude", cls = h.by === "claude" ? "by-claude" : h.by === "user-terminal" ? "by-term" : "";
-    const body = h.by === "claude" || h.text ? md(h.text) : "";
+    const body = h.by === "claude" || h.text ? mdHtml(h.text) : "";
     return '<li class="' + cls + (h.withdrawn ? " undone" : "") + '"><div class="hl"><span class="who">' + esc(whoLabel(h)) + (h.withdrawn ? " (undone)" : "") + '</span><span class="dot">&middot;</span><time>' + esc(fmt(h.at)) + "</time>" +
       (mine && h.seq ? receipts(h.seq) : "") + "</div>" + (body ? '<div class="hb">' + body + "</div>" : "") + "</li>";
   }
@@ -1286,7 +1324,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   function proposalHtml(q){ // a proposed question is one Needs-you card and no Decide list until the user accepts, edits or declines it
     const g = groupById(q.group), from = (q.proposed || {}).fromSeq, edit = S.propEdit === q.id, msg = S.propMsg && S.propMsg.id === q.id ? S.propMsg.text : "";
     let h = '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + groupSpan(q, g) + '<span class="chip s-prop">' + LABEL.prop + "</span></div></div>";
-    h += '<section class="blk proposal" id="proposal" aria-labelledby="propHead"><h4 id="propHead">Needs you</h4><p>Claude proposes adding: <b>' + inline(q.title) + "</b></p>" +
+    h += '<section class="blk proposal" id="proposal" aria-labelledby="propHead"><h4 id="propHead">Needs you</h4><p>Claude proposes adding: <b>' + lineHtml(q.title) + "</b></p>" +
       (from ? '<p class="kbd">From your question (#' + esc(String(from)) + ").</p>" : "") +
       (edit ? '<label class="kbd" for="propText">Ask it as</label><textarea id="propText" rows="2" maxlength="' + LINE_CAP + '">' + esc(S.propDraft ?? q.title) + "</textarea>" : "") +
       '<div class="arow">' + (edit
@@ -1330,60 +1368,61 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const st = stateOf(q), d = decisionOf(q), aa = live(q) && afterAnswer(q), vis = visualsFor(q), g = groupById(q.group), lock = q.group ? lockedBy(q.group) : [];
     const marks = (S.doc.meta || {}).emojiMarkers === true;
     let h = checkpointBanner() + roundRestateCard(q);
-    h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + addedChip(q) + groupSpan(q, g) +
+    h += '<div class="dhead"><div class="dids"><b>' + esc(q.id) + "</b><span>" + esc(roundLabel(q)) + "</span>" + sweepChip(q) + addedChip(q) + groupSpan(q, g) +
       '<span class="chip s-' + esc(st) + '">' + stateLabel(q) + '</span><span class="grow"></span>' +
-      (vis.length ? '<button class="tbtn small" data-panel="visuals">Visuals (' + vis.length + ")</button>" : "") + '</div><h3 id="qhead">' + (marks ? "❓ " : "") + inline(q.title) + "</h3>" +
+      (vis.length ? '<button class="tbtn small" data-panel="visuals">Visuals (' + vis.length + ")</button>" : "") + '</div><h3 id="qhead">' + (marks ? "❓ " : "") + lineHtml(q.title) + "</h3>" +
       (counted(q) ? '<p class="youans">' + esc(answerLine(q)) + (aa ? ' <span class="chip hot">' + esc(afterText(aa)) + "</span>" : "") + "</p>" : "") + (waitingReply(q) ? '<p class="youans"><span class="chip hot">Waiting for Claude\'s reply</span></p>' : "") + "</div>";
     const kids = S.doc.questions.filter(x => x.followUpOf === q.id).map(x => x.id);
     const unblocks = S.doc.questions.filter(x => (x.dependsOn || []).includes(q.id)).map(x => x.id);
     const link = (label, ids) => ids.length ? "<span>" + label + " " + ids.map(refHtml).join(" ") + "</span>" : "";
     const links = link("Follow-up of", q.followUpOf ? [q.followUpOf] : []) + link("Follow-ups:", kids) + link("Needs", (q.dependsOn || []).filter(x => Q[x])) +
-      link("Unblocks", unblocks) + link("Supersedes", q.supersedes ? [q.supersedes] : []);
+      link("Unblocks", unblocks) + (chainOf(q).length ? '<span id="askedAs">' + chainHtml(q) + "</span>" : link("Supersedes", q.supersedes ? [q.supersedes] : []));
     if (links) h += '<div class="links">' + links + "</div>";
-    if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer that one instead." : q.archived ? inline(q.archived.why || "off the current path") : q.proposed ? "you declined Claude's proposal." : "off the current path") + "</div>"; // a replacement named here is the one banner for a superseded, archived card
+    h += reconcilesHtml(q);
+    if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer " + refHtml(chainEnd(q)) + " instead." : q.archived ? lineHtml(q.archived.why || "off the current path") : q.proposed ? "you declined Claude's proposal." : "off the current path") + "</div>"; // a replacement named here is the one banner for a superseded, archived card
     if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
     else if (upChanged(q)) h += '<div class="lockban" id="upstreamChanged">' + (upLock(q).length ? LOCK_SVG : "") + "<b>Upstream changed, not handled yet:</b> the answer to " + changedBy(q).map(refHtml).join(" ") + " changed or was reopened, and Claude has not revised or reconfirmed " + esc(q.id) + " yet. " + (upLock(q).length ? "Save stays locked until it does; Ask, Rephrase and Research this still work." : "You can still answer.") + "</div>";
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + waitOn(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. Reconfirm " + esc(waitOn(q).join(", ")) + " (under Review), or answer this one anyway.</div>";
     const planned = planChange(q);
-    if (planned && !(d && d.decision && !d.aside)) h += '<div class="banner" id="planban"><b>/planning:plan changed your answer.</b> Was: ' + inline(planned.was) + ". Plan proposes: " + inline(planned.proposes) + ". Reconfirm the proposal or keep yours.</div>";
-    if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + inline(q.waitsOn) + ". Research in progress" + (fmtT(q.waitingSince) ? ", started " + esc(fmtT(q.waitingSince)) : "") + ". You can answer anyway; it counts once the research returns.</div>";
-    if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + inline(q.waitsOn) + ".</div>";
+    if (planned && !(d && d.decision && !d.aside)) h += '<div class="banner" id="planban"><b>/planning:plan changed your answer.</b> Was: ' + lineHtml(planned.was) + ". Plan proposes: " + lineHtml(planned.proposes) + ". Reconfirm the proposal or keep yours.</div>";
+    if (st === "wait") h += '<div class="waitban"><b>Pending research:</b> ' + lineHtml(q.waitsOn) + ". Research in progress" + (fmtT(q.waitingSince) ? ", started " + esc(fmtT(q.waitingSince)) : "") + ". You can answer anyway; it counts once the research returns.</div>";
+    if (st === "need") h += '<div class="waitban need"><b>Needs your answer:</b> ' + lineHtml(q.waitsOn) + ".</div>";
     if (q.revising && st !== "arch") h += '<div class="banner"><b>Answer not handled yet.</b> Claude has not handled your answer to this question yet, so it may be revised. You can still answer.</div>';
-    if (q.claudeRevising && st !== "arch") h += '<div class="banner"><b>Claude is revising this:</b> ' + inline(q.claudeRevising.why) + " You can still answer.</div>";
+    if (q.claudeRevising && st !== "arch") h += '<div class="banner"><b>Claude is revising this:</b> ' + lineHtml(q.claudeRevising.why) + " You can still answer.</div>";
     if (awaitingRec(q) && st !== "arch") h += '<div class="banner" id="awaitRec"><b>Claude is writing the recommendation.</b> You accepted this question; its recommendation and alternatives land here next. You can still answer in your own words, defer it or ask Claude.</div>';
     if (lock.length) h += '<div class="lockban"><b>Locked:</b> opens after ' + lock.map(x => esc(groupTitle(x))).join(", ") + ". You can still answer.</div>";
     const ups = lockMode() === "off" || !live(q) ? [] : openPrereqs(q);
     if (ups.length) h += '<div class="lockban" id="frontierLock">' + LOCK_SVG + "<b>Locked:</b> waits on " + ups.map(refHtml).join(" ") + ", still open. " + esc(lockAdvice(q)) + "</div>";
-    if (q.supersededBy && st !== "arch") h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer that one instead.</div>";
+    if (q.supersededBy && st !== "arch") h += '<div class="sup-banner"><b>Superseded by</b> ' + refHtml(q.supersededBy) + ". Answer " + refHtml(chainEnd(q)) + " instead.</div>"; // the chain's end, as the Go to button names it
     if (q.revised) { // the full banner until the user has opened the question since its latest revision, then a chip
-      const rr = recRev(q), prev = q.previousRecommendation ? '<details class="why"><summary>Previous</summary>' + md(q.previousRecommendation) + "</details>" : "";
+      const rr = recRev(q), prev = q.previousRecommendation ? '<details class="why"><summary>Previous</summary>' + mdHtml(q.previousRecommendation) + "</details>" : "";
       h += S.revSeen === rr ? '<div class="revchip"><span class="chip plain" title="Recommendation revised">Revised</span>' + prev + "</div>"
-        : '<div class="banner"><b>Recommendation revised.</b> ' + (q.revised === true || q.revised === "Recommendation revised." ? "" : "<b>Claude's reason:</b> " + inline(q.revised)) + prev + "</div>";
+        : '<div class="banner"><b>Recommendation revised.</b> ' + (q.revised === true || q.revised === "Recommendation revised." ? "" : "<b>Claude's reason:</b> " + lineHtml(q.revised)) + prev + "</div>";
       const rs = lsGet("revSeen", {}); if (rs[q.id] !== rr) { rs[q.id] = rr; lsSet("revSeen", rs); }
     }
-    if (q.claudeNote) h += '<div class="note"><b>Claude:</b> ' + inline(q.claudeNote) + "</div>";
+    if (q.claudeNote) h += '<div class="note"><b>Claude:</b> ' + lineHtml(q.claudeNote) + "</div>";
     const lc = latestClaude(q);
-    if (lc) h += '<div class="latest" id="latest"><span class="who">' + esc(whoLabel(lc)) + " &middot; " + esc(fmt(lc.at)) + "</span>" + md(lc.text) + "</div>";
+    if (lc) h += '<div class="latest" id="latest"><span class="who">' + esc(whoLabel(lc)) + " &middot; " + esc(fmt(lc.at)) + "</span>" + mdHtml(lc.text) + "</div>";
     let facts = String(q.facts || "").replace(/\r/g, "");
     const sm = facts.match(/^(?:[ \t]*\n)*((?:>[^\n]*(?:\n|$)|[ \t]*\n(?=[ \t]*>))+)/), src = sm ? sm[1].replace(/^>[ \t]?/gm, "").trim() : ""; // a Source block opens facts with the quote: it shows above the recommendation
-    if (src) { facts = facts.slice(sm[0].length); h += '<details class="src" id="src"' + (lsGet("srcOpen", true) ? " open" : "") + "><summary>Source text</summary>" + md(src.replace(/^/gm, "> ")) + "</details>"; }
+    if (src) { facts = facts.slice(sm[0].length); h += '<details class="src" id="src"' + (lsGet("srcOpen", true) ? " open" : "") + "><summary>Source text</summary>" + mdHtml(src.replace(/^/gm, "> ")) + "</details>"; }
     if (q.recommendation) h += '<section class="blk"><h4>' + (withheld(q) ? "Recommendation withheld" : (marks ? "➡️ " : "") + "Recommendation (Rec)") + (basisLabel(q) && !withheld(q) ? ' <span class="chip basis basis-' + basisLabel(q) + '" title="Basis: ' + basisLabel(q) + '">' + (basisLabel(q) === "verified" ? "Verified" : "Judgment") + "</span>" : "") + '</h4><div class="recbox">' + // the Rec row under Decide carries the whole recommendation (#5815), so the card does not repeat it
-      (withheld(q) ? md(q.recommendation) : '<p id="recWhere">The full recommendation is the Rec row under Decide.</p>') + "</div></section>";
+      (withheld(q) ? mdHtml(q.recommendation) : '<p id="recWhere">The full recommendation is the Rec row under Decide.</p>') + "</div></section>";
     if (q.commits && q.commits.length) {
       const cf = confirmed(q), acc = accepted(q);
-      h += '<section class="blk"><h4>Accepting commits you to: confirm each' + (acc ? "" : " once accepted") + '</h4><div class="crows">' + q.commits.map((c, i) => {
+      h += '<section class="blk"><h4>Accepting commits you to: ' + (acc ? "confirm each" : stateOf(q) === "own" ? "replaced by your own answer" : "confirm each once accepted") + '</h4><div class="crows">' + q.commits.map((c, i) => {
         const on = cf.has(String(i)), id = "cf-" + esc(q.id) + "-" + i, by = byClaude(q, i);
-        return '<div class="crow' + (on ? " ok" : "") + '"><input type="checkbox" id="' + id + '" data-confirm="' + i + '" data-cq="' + esc(q.id) + '"' + (on ? " checked" : "") + (acc ? "" : " disabled") + '><label for="' + id + '">' + inline(c) +
+        return '<div class="crow' + (on ? " ok" : "") + '"><input type="checkbox" id="' + id + '" data-confirm="' + i + '" data-cq="' + esc(q.id) + '"' + (on ? " checked" : "") + (acc ? "" : " disabled") + '><label for="' + id + '">' + lineHtml(c) +
           (by ? ' <span class="kbd">Confirmed by Claude: ' + esc(by.reason) + "</span>" : "") + "</label>" +
           '<button type="button" class="tbtn small" data-challenge="' + i + '" title="Ask Claude about this commitment">Challenge</button></div>';
       }).join("") + "</div>" + (acc && q.commits.some((c, i) => !cf.has(String(i))) ? '<div class="arow"><button type="button" class="tbtn small" data-toconfirm="' + esc(q.id) + '">Review commitments to confirm</button></div>' : "") + "</section>";
     }
     let more = "";
-    if (facts.trim()) more += '<section class="blk"><h4>What we know</h4>' + md(facts) + "</section>";
+    if (facts.trim()) more += '<section class="blk"><h4>What we know</h4>' + mdHtml(facts) + "</section>";
     if (altsOf(q).length) more += '<section class="blk"><h4>Alternatives</h4><div class="alts">' + altsOf(q).map(a =>
-      '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">(' + esc(a.key) + ")</span><span>" + inline(a.text) + (a.tradeoff ? '<span class="to">' + inline(a.tradeoff) + "</span>" : "") + "</span></div>").join("") + "</div></section>";
-    const why = q.recommendation && q.basis ? md(q.basis) : "", tab = (id, label, open) => '<button type="button" class="dtab" id="' + id + 'Btn" data-discl="' + id + '" aria-expanded="' + open + '" aria-controls="' + id + '">' + label + "</button>";
-    const whyOpen = lsGet("whyOpen", false) === true, moreOpen = lsGet("moreOpen", false) === true; // one toggle row, the panels below it: opening Why never moves Details
+      '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">(' + esc(a.key) + ")</span><span>" + lineHtml(a.text) + (a.tradeoff ? '<span class="to">' + lineHtml(a.tradeoff) + "</span>" : "") + "</span></div>").join("") + "</div></section>";
+    const why = q.recommendation && q.basis ? mdHtml(q.basis) : "", tab = (id, label, open) => '<button type="button" class="dtab" id="' + id + 'Btn" data-discl="' + id + '" aria-expanded="' + open + '" aria-controls="' + id + '">' + label + "</button>";
+    const whyOpen = lsGet("whyOpen", false) === true, moreOpen = !S.moreShut.has(q.id) && (lsGet("moreOpen", false) === true || (st !== "arch" && !isAnswered(st))); // one toggle row, the panels below it: opening Why never moves Details; an unanswered question opens Details until the user closes it there
     if (why || more) h += '<div class="discl" id="discl"><div class="dtabs">' + (why ? tab("why", "Why", whyOpen) : "") + (more ? tab("more", "Details: what we know, alternatives", moreOpen) : "") + "</div>" +
       (why ? '<div class="dpanel" id="why" role="region" aria-labelledby="whyBtn"' + (whyOpen ? "" : " hidden") + ">" + why + "</div>" : "") +
       (more ? '<div class="dpanel" id="more" role="region" aria-labelledby="moreBtn"' + (moreOpen ? "" : " hidden") + ">" + more + "</div>" : "") + "</div>";
@@ -1408,10 +1447,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     note.disabled = false;
     const d = decisionOf(q), text = note.value.trim(), shut = closed(), can = !S.busy && !shut;
     const last = lastEventSeq(q.id);
-    const st = stateOf(q);
+    const st = stateOf(q), off = !live(q), end = q.supersededBy ? chainEnd(q) : ""; // an archived or superseded question takes no decision; Ask, Rephrase and Research this still work
     $("cur").innerHTML = d && d.decision && d.aside // one action: the earlier answer no longer counts
       ? '<span class="aside-why">Claude set your earlier answer (' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.text ? ": <q>" + esc(trunc(d.text, 80)) + "</q>" : "") + ") aside" +
-        (st === "need" ? " because it needs your decision." : ". It no longer counts.") + '</span><button class="act primary" data-again="1">Answer again</button>'
+        (st === "need" ? " because it needs your decision." : ". It no longer counts.") + "</span>" + (off ? "" : '<button class="act primary" data-again="1">Answer again</button>')
       : d && d.decision
       ? '<span class="chip s-' + esc(d.decision) + '">' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + "</span>" +
         '<span class="when">' + esc(fmt(d.updatedAt)) + (d.src === "terminal" ? ", in the terminal" : "") + "</span>" + (d.src === "page" && d.seq ? receipts(d.seq) : "") +
@@ -1423,16 +1462,17 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const armed = armedOf(cs);
     const other = c => !c.re && ["own", "defer", "hedged"].includes(c.kind); // the answers that rest on the note: the second column of a wide Decide pane, in the same row order
     const row = c => '<label class="choice' + (!c.re && !c.wn && c.kind === "accept" ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
-      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + inline(c.label) + "</b> " + inline(c.rich || c.text) + "</span></label>";
+      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can && !off ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + lineHtml(c.label) + "</b> " + lineHtml(c.rich || c.text) + "</span></label>";
     $("choices").innerHTML = '<div class="cg">' + cs.filter(c => !other(c)).map(row).join("") + '</div><div class="cg">' + cs.filter(other).map(row).join("") + "</div>";
     const needText = armed && needsNote(armed) && !(armed.who ? named(text) : text), frozen = wrapFreeze() > 0;
     const hardLock = lockMode() === "hard" ? openPrereqs(q) : [], ul = upLock(q); // only a decision waits; Ask, Rephrase and Research this stay enabled
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + (armed.kind === "accept" && !armed.re && (armed.wn || withNote(q, armed)) ? "Accept with note" : armed.label) : "Save";
     const asks = armed && armed.kind === "own" && /\?$/.test(text), cut = !asks && midSentence(text);
-    $("decideRow").innerHTML = '<button class="act primary" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && armed && !needText && !frozen && !hardLock.length && !ul.length ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd" id="saveHint">' + (shut ? closedWhy() : frozen ? "Wrapping up" : hardLock.length ? "Locked: answer " + esc(joinIds(hardLock)) + " first" : ul.length ? "Locked: Claude reviews it after " + esc(joinIds(ul)) + " changed" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : armed.who ? "Name who decides in the note" : "Own answer needs a note") : QuestionShape.keyHint("save")) + "</span>" +
+    $("decideRow").innerHTML = (end ? '<button class="act primary" data-go="' + esc(end) + '">Go to ' + esc(end) + "</button>" : "") + // the live end of the supersededBy chain takes the answer instead
+      '<button class="act' + (off ? "" : " primary") + '" data-save="1" data-submit="1" aria-keyshortcuts="Control+Enter Meta+Enter"' + (can && !off && armed && !needText && !frozen && !hardLock.length && !ul.length ? "" : " disabled") + ">" + esc(label) + '</button><span class="kbd" id="saveHint">' + (off ? esc(offWhy(q)) : shut ? closedWhy() : frozen ? "Wrapping up" : hardLock.length ? "Locked: answer " + esc(joinIds(hardLock)) + " first" : ul.length ? "Locked: Claude reviews it after " + esc(joinIds(ul)) + " changed" : needText ? (armed.kind === "hedged" ? "Hedged needs a condition" : armed.wn ? "Accept with note needs a note" : armed.who ? "Name who decides in the note" : "Own answer needs a note") : QuestionShape.keyHint("save")) + "</span>" +
       (asks ? '<span class="nudge-q" id="askNudge">This reads as a question. Ask Claude instead?<button class="act soft" data-act="ask" data-submit="1"' + (can ? "" : " disabled") + ">Ask Claude</button></span>" : "") +
       (cut ? '<span class="nudge-q" id="cutNudge">This note looks cut off. Finish it before saving?</span>' : "") +
-      (d && d.decision && !d.aside ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
+      (d && d.decision && !d.aside && !off ? '<span style="flex:1"></span><button class="act" data-act="reopen" data-submit="1" aria-keyshortcuts="r"' + (can && !frozen ? "" : " disabled") + ' title="Keeps your note (r)">Reopen</button>' : "");
     $("talkRow").innerHTML = '<button class="act soft" data-act="ask" data-submit="1" aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"' + (can && text ? "" : " disabled") + ' title="Sends your note as a question (Ctrl+Shift+Enter)">Ask Claude</button>' +
       '<button class="act soft" data-act="rephrase" data-submit="1"' + (can ? "" : " disabled") + ' title="Asks Claude to restate this plainly">Rephrase</button>' +
       (st === "wait"
@@ -1511,14 +1551,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     nt.filter(n => n.by === "you" && midSentence(n.text)).forEach(n => out.push("A note to Claude ends mid-sentence: <q>" + esc(trunc(n.text.trim().slice(-60), 60)) + "</q>"));
     const askAt = nt.map(n => n.by === "claude" && n.needsAnswer).lastIndexOf(true); // pinned until a note from you follows it
     const ask = askAt >= 0 && !nt.slice(askAt + 1).some(n => n.by === "you") ? nt[askAt] : null;
-    if (ask) out.unshift('<div class="ask"><div><b>Claude needs an answer in Notes:</b> ' + inline(trunc(ask.text, 300)) + '</div><textarea id="looseReply" rows="2" aria-label="Your answer to Claude"' + (S.api >= 2 ? "" : " disabled") + ">" + esc(S.looseDraft || "") + '</textarea><div class="arow"><button type="button" class="tbtn primary" data-looseans="1" data-submit="1"' + (S.api >= 2 ? "" : " disabled") + ">Send answer</button></div></div>");
+    if (ask) out.unshift('<div class="ask"><div><b>Claude needs an answer in Notes:</b> ' + lineHtml(trunc(ask.text, 300)) + '</div><textarea id="looseReply" rows="2" aria-label="Your answer to Claude"' + (S.api >= 2 ? "" : " disabled") + ">" + esc(S.looseDraft || "") + '</textarea><div class="arow"><button type="button" class="tbtn primary" data-looseans="1" data-submit="1"' + (S.api >= 2 ? "" : " disabled") + ">Send answer</button></div></div>");
     else if (nt.length && nt[nt.length - 1].by === "claude") out.push('Claude replied in <button type="button" class="ref" data-panel="notes">Notes</button> and you have not answered.');
     return out;
   }
   function finishedBody(f){ // the closing event: what ended, where the Brief is, what happens next
     const next = f.next || (S.doc.meta || {}).next || "";
     return "<p>" + esc(f.text || "The interview is complete.") + ' <span class="kbd">' + esc(fmt(f.at)) + "</span></p>" +
-      (f.brief ? "<p>Brief: <code>" + esc(f.brief) + "</code></p>" : "") + (next ? md(next) : "") + '<p class="kbd">You can close this tab.</p>';
+      (f.brief ? "<p>Brief: <code>" + esc(f.brief) + "</code></p>" : "") + (next ? mdHtml(next) : "") + '<p class="kbd">You can close this tab.</p>';
   }
   const finishedHtml = f => '<section class="blk" id="finished"><h4>Interview finished</h4>' + finishedBody(f) + "</section>";
   function showFinish(){ // once per finish: a dismissible modal, never over another dialog
@@ -1541,7 +1581,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const r = S.doc.restatement;
     return r ? events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn && e.contentRev === r.rev).pop() || null : null;
   }
-  const USECT = [["problem", "Problem"], ["goal", "Goal"], ["workSize", "Work size"], ["constraints", "Constraints"], ["decisions", "Decisions"], ["acceptance", "Acceptance criteria"], ["outOfScope", "Out of scope"], ["deferred", "Deferred"], ["planningOwned", "Left to the plan stage"]];
+  const USECT = [["tldr", "Scope (TLDR)"], ["problem", "Problem"], ["intent", "Your goal, in your words"], ["goal", "Goal"], ["workSize", "Work size"], ["constraints", "Constraints"], ["decisions", "Decisions"], ["acceptance", "Acceptance criteria"], ["outOfScope", "Out of scope"], ["deferred", "Deferred"], ["planningOwned", "Left to the plan stage"]];
   function confirmedRev(){ // the newest earlier restatement whose newest live verdict is a Confirm
     const cur = S.doc.restatement, vs = events().filter(e => e.kind === "confirm-understanding" && !e.withdrawn);
     return cur && (S.doc.restatements || []).filter(r => r.rev < cur.rev).reverse().find(r => (vs.filter(e => e.contentRev === r.rev).pop() || {}).alt === "confirm") || null;
@@ -1552,16 +1592,24 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const rows = USECT.filter(([k]) => sec(old, k) !== sec(r, k)).map(([k, t]) => "<h5>" + t + '</h5><div class="diff">' + wordDiff(sec(old, k), sec(r, k), /^/m) + "</div>");
     return '<div class="rediff" id="reDiff"><b>Changed since the version you confirmed (rev ' + esc(old.rev) + ", " + esc(fmt(old.at)) + ")</b>" + (rows.join("") || "<p>No section text changed.</p>") + "</div>";
   }
+  function preConfirmHtml(){ // the accept tally, the agents-check offer on an all-accept run, and what Tick these and confirm ticks
+    const {all, acc} = acceptTally(), [send, left] = auditSplit(acc), rows = tickRows();
+    let h = all.length ? '<p id="acceptTally">' + acc.length + " of " + all.length + " answers accepted as recommended</p>" : "";
+    if (all.length && acc.length === all.length) h += '<p class="kbd" id="auditOffer">Every answer took the recommendation. Agents can check them before you confirm. <button type="button" class="tbtn small" data-auditaccepted="1" data-submit="1"' + (S.api >= 2 && send.length ? "" : " disabled") + ">Have agents check these answers</button>" +
+      (left.length ? " Left out: " + esc(left.join(", ")) + "." : "") + "</p>";
+    if (rows.length) h += '<div id="uTick"><p class="kbd">Not ticked yet on your accepted answers; Tick these and confirm ticks them:</p><ul>' + rows.map(r => "<li>" + refHtml(r.q.id) + " " + lineHtml(r.c) + "</li>").join("") + "</ul></div>";
+    return h;
+  }
   function uBoxHtml(){ // the draft is never part of this markup, so typing does not rebuild the box
     const r = S.doc.restatement;
     if (!r) return '<section class="blk"><h4>Shared understanding</h4><p class="empty">Claude has not restated the shared understanding yet.</p></section>';
-    const u = uState(), body = USECT.filter(([k]) => String((r.sections || {})[k] || "").trim()).map(([k, t]) => "<h5>" + t + "</h5>" + md(r.sections[k])).join("");
+    const u = uState(), body = USECT.filter(([k]) => String((r.sections || {})[k] || "").trim()).map(([k, t]) => "<h5>" + t + "</h5>" + mdHtml(r.sections[k])).join("");
     const na = openAssumptions(), foot = u && u.alt === "confirm" ? '<p id="uDone"><b>Confirmed</b> ' + esc(fmt(u.at)) + "</p>" +
         (na ? '<p class="kbd" id="uCommit">Confirming the understanding does not tick commitments. ' + ("The " + na + (na === 1 ? " unticked commitment becomes a named risk" : " unticked commitments become named risks")) + " in the Brief unless you tick " + (na === 1 ? "it" : "them") + '. <button type="button" class="tbtn small" data-toconfirm="">Open the commitment list</button></p>' : "")
-      : u ? '<div class="banner" id="uDone"><b>You flagged:</b> ' + inline(u.text) + " (" + esc(fmt(u.at)) + "). Claude fixes the understanding and restates it.</div>"
+      : u ? '<div class="banner" id="uDone"><b>You flagged:</b> ' + lineHtml(u.text) + " (" + esc(fmt(u.at)) + "). Claude fixes the understanding and restates it.</div>"
       : reDiffHtml() + (wrapSent() ? '<p class="kbd" id="uDone">Not confirmed; wrap-up already sent.</p>'
-      : '<div class="ustate"><textarea id="offText" rows="2" aria-label="What is off" placeholder="What is off? Required to flag it."></textarea>' +
-        '<div class="arow"><button class="act primary" data-understand="confirm" data-submit="1">Confirm</button><button class="act" data-understand="off" data-submit="1">Something\'s off</button>' +
+      : '<div class="ustate">' + preConfirmHtml() + '<textarea id="offText" rows="2" aria-label="What is off" placeholder="What is off? Required to flag it."></textarea>' +
+        '<div class="arow"><button class="act primary" data-understand="confirm" data-submit="1">Confirm</button>' + (tickRows().length ? '<button class="act" data-understand="tick" data-submit="1">Tick these and confirm</button>' : "") + '<button class="act" data-understand="off" data-submit="1">Something\'s off</button>' +
         '<span class="kbd">Or say what is off, then flag it.</span>' + (S.uMsg ? '<span class="toast bad">' + esc(S.uMsg) + "</span>" : "") + "</div></div>");
     return '<section class="blk" id="restate"><h4>Shared understanding, restated ' + esc(fmt(r.at)) + "</h4>" + body + foot + "</section>";
   }
@@ -1571,7 +1619,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const claude = [...new Set(all.filter(r => byClaude(r.q, r.i)).map(r => r.q))];
     return '<section class="blk" id="toConfirm"><h4>To confirm</h4><p class="kbd">Things your answers commit you to</p>' + ids.map(id => '<div class="crows" id="tc-' + esc(id) + '"><div>' + refHtml(id) + "</div>" +
       rows.filter(r => r.q.id === id).map(r => { const k = "sc-" + esc(id) + "-" + r.i;
-        return '<div class="crow"><input type="checkbox" id="' + k + '" data-confirm="' + r.i + '" data-cq="' + esc(id) + '"><label for="' + k + '">' + inline(r.c) + "</label><span></span></div>"; }).join("") + "</div>").join("") +
+        return '<div class="crow"><input type="checkbox" id="' + k + '" data-confirm="' + r.i + '" data-cq="' + esc(id) + '"><label for="' + k + '">' + lineHtml(r.c) + "</label><span></span></div>"; }).join("") + "</div>").join("") +
       (!rows.length ? '<p class="empty">All confirmed.</p>' : wrapSent() ? "" : '<div class="arow"><button class="act" data-confirmall="1" data-submit="1">Confirm all (' + rows.length + ")</button></div>") + "</section>" +
       (claude.length ? '<p class="kbd" id="byClaude">Confirmed by Claude: ' + claude.map(q => esc(q.id) + " (" + esc(q.commitsConfirmed[0].reason) + ")").join(", ") + "</p>" : "");
   }
@@ -1602,7 +1650,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const le = looseEnds();
     h += '<section class="blk"><h4>Loose ends</h4>' + (le.length ? '<ul class="loose">' + le.map(x => "<li>" + x + "</li>").join("") + "</ul>" : '<p class="empty">None.</p>') + "</section>";
     const next = (S.doc.meta || {}).next || "Claude records your decisions in the ledger and answers any loose ends. Wrap-up then exports the decisions, and this session can be discarded.";
-    h += '<section class="blk"><h4>What Claude does next</h4>' + (p.length ? "<p>" + esc(st) + ".</p>" : "") + md(next) + "</section>";
+    h += '<section class="blk"><h4>What Claude does next</h4>' + (p.length ? "<p>" + esc(st) + ".</p>" : "") + mdHtml(next) + "</section>";
     const u = uState(), unconf = S.doc.restatement && !(u && u.alt === "confirm"), nOpen = openAssumptions();
     if (S.finished) h += finishedHtml(S.finished);
     else h += '<section class="blk"><div class="arow"><button class="act' + (outstanding().length ? "" : " primary") + '" data-wrapup="1" data-submit="1"' + (S.api >= 2 && !S.busy ? "" : " disabled") + ">Finish: export and end the session</button>" +
@@ -1617,10 +1665,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const a = document.activeElement; if (!a || a === document.body || !a.closest) return null;
     if (a.id) return {s: "#" + CSS.escape(a.id), start: a.selectionStart, end: a.selectionEnd};
     const attrs = [...a.attributes].filter(x => x.name.startsWith("data-")).map(x => "[" + x.name + '="' + CSS.escape(x.value) + '"]').join(""), box = a.closest("[id]");
-    return attrs && box ? {s: "#" + CSS.escape(box.id) + " " + a.tagName.toLowerCase() + attrs} : null;
+    return attrs && box ? {s: "#" + CSS.escape(box.id) + " " + a.tagName.toLowerCase() + attrs, pin: !!a.closest(".sec.pin")} : null;
   }
   function restoreFocus(f){
-    const el = f && document.querySelector(f.s);
+    const el = f && ([...document.querySelectorAll(f.s)].find(e => !!e.closest(".sec.pin") === !!f.pin) || document.querySelector(f.s)); // a pinned card and its copy in place share data attributes: keep the one that had focus
     if (!el || el === document.activeElement) return;
     if (el.id === "qhead") el.tabIndex = -1; // a heading focused by Go keeps focus across a rebuild
     el.focus({preventScroll: true});
@@ -1683,7 +1731,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       if (c.err) return {md: cap("File") + '<p class="empty">' + esc(c.err) + "</p>"};
       return Object.assign(visualBody(Object.assign({}, v, {content: c.content, file: undefined})), {cap: cap("File")});
     }
-    if (f === "markdown") return {md: md(v.content)};
+    if (f === "markdown") return {md: mdHtml(v.content)};
     if (f === "image") { // only a data:image/ or http(s) URL renders; anything else shows as text
       const s = v.content;
       if (typeof s === "string" && /^(data:image\/|https?:\/\/)/i.test(s)) return {html: '<img alt="' + esc(v.title || v.id) + '" src="' + esc(s) + '" class="vimg">'};
@@ -1728,7 +1776,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const linkIds = e => { const w = new Set(String(e.text).split(/\W+/)); return (e.ids || []).filter(id => Q[id] && !w.has(id)); }; // ids the text already links are not listed again
   function renderActivity(body){ // newest first, split into what needs the user and a collapsed log; opening the panel marks every entry seen
     const un = new Set(unseenActs().map(actKey)), list = acts().slice().reverse(), need = list.filter(needsAct), log = list.filter(e => !needsAct(e));
-    const rows = es => '<ol class="act-list">' + es.map(e => '<li class="' + (un.has(actKey(e)) ? "unseen" : "") + '"><div class="hl"><time>' + esc(fmt(e.at)) + "</time>" + (un.has(actKey(e)) ? '<span class="kbd">new</span>' : "") + "</div><div>" + inline(e.text) + "</div>" +
+    const rows = es => '<ol class="act-list">' + es.map(e => '<li class="' + (un.has(actKey(e)) ? "unseen" : "") + '"><div class="hl"><time>' + esc(fmt(e.at)) + "</time>" + (un.has(actKey(e)) ? '<span class="kbd">new</span>' : "") + "</div><div>" + lineHtml(e.text) + "</div>" +
       (linkIds(e).length ? '<div class="links">' + linkIds(e).map(refHtml).join(" ") + "</div>" : "") + (e.notes ? '<div><button type="button" class="ref" data-panel="notes">Notes</button></div>' : "") + "</li>").join("") + "</ol>";
     const open = body.querySelector("#actLog") ? body.querySelector("#actLog").open : false; // a re-render keeps the log as the user left it
     body.innerHTML = '<div class="fscope">What Claude did, newest first. Question ids open the question.</div>' +
@@ -1747,8 +1795,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       const hl = '<span class="who">' + who1 + '</span><span class="dot">&middot;</span><time>' + esc(fmt(n.at)) + "</time>" + (n.seq ? receipts(n.seq) : "");
       return '<div class="nmsg' + (n.by === "claude" ? " claude" : "") + '"' + (i === nt.length - 1 ? ' id="noteNewest" tabindex="-1"' : "") + ">" +
         (folded ? '<button type="button" class="nsum" data-notetoggle="' + esc(key) + '" aria-expanded="' + open + '"><span class="hl">' + hl + '</span><span class="nt">' + esc(trunc(String(n.text).split("\n")[0], 120)) + "</span></button>" +
-          '<div class="nfull"' + (open ? "" : " hidden") + ">" + md(n.text) + "</div>"
-          : '<div class="hl">' + hl + "</div>" + md(n.text)) + "</div>";
+          '<div class="nfull"' + (open ? "" : " hidden") + ">" + mdHtml(n.text) + "</div>"
+          : '<div class="hl">' + hl + "</div>" + mdHtml(n.text)) + "</div>";
     };
     body.innerHTML = '<div class="fscope">Free-text notes for Claude, not tied to a question. Each note wakes Claude. Notes never count as open items.</div>' +
       (fold ? '<div class="arow"><button type="button" class="tbtn small" data-notenewest="1">Jump to newest note</button></div>' : "") +
@@ -1997,6 +2045,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   async function submitArmed(){
     const q = Q[S.sel]; if (!q) return;
+    if (!live(q)) { toast("Not saved. " + offWhy(q), true); return; } // before any dialog: an archived or superseded question takes no decision
     const c = armedOf(choicesOf(q));
     if (!c && S.armed) { S.armed = null; toast("Pick a choice again: the choices changed.", true); renderAnswer(); return; }
     if (!c) { toast("Pick a choice first.", true); const el = $("choices"); el.classList.remove("nudge"); void el.offsetWidth; el.classList.add("nudge"); return; }
@@ -2058,8 +2107,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (closed()) { toast(closedWhy(), true); return; }
     const typing = document.activeElement === $("note"), held = stateOf(q) === "wait";
     const text = keep !== undefined ? keep : $("note").value.trim(), isDec = DEC.has(kind);
-    if (kind === "ask") { const r = await resolveRef(q, text, "Send as a question"); if (r === false) return; if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; } }
+    if (kind === "ask" && live(q)) { const r = await resolveRef(q, text, "Send as a question"); if (r === false) return; if (r) { await send(r.kind, r.alt, undefined, undefined, r.kind === "accept"); return; } } // an off-path question takes no option, so its ask goes as typed
     if (isDec && stateOf(q) === "prop") return; // the keyboard: a proposal takes Accept, Edit or Not this, never a decision
+    if (isDec && !live(q)) { toast("Not saved. " + offWhy(q), true); return; } // the choices are disabled; this catches the keyboard
     if (isDec && wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
     if (isDec && kind !== "reopen" && upLock(q).length) { toast("Not saved: " + upText(q), true); return; } // Save is disabled; this catches the keyboard
     const waits = isDec && kind !== "reopen" && lockMode() !== "off" ? openPrereqs(q) : [];
@@ -2087,6 +2137,9 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       }
       if (res.status === 409 && data.error === "upstream-changed") { // the server's lock: Claude has not revised or reconfirmed it since an upstream answer changed
         S.busy = false; toast("Not saved: the answer to " + joinIds((data.changedBy || []).map(String)) + " changed, and Claude has not revised or reconfirmed " + q.id + " yet.", true); await refresh().catch(() => {}); renderAll(); return;
+      }
+      if (res.status === 409 && (data.error === "superseded" || data.error === "archived")) { // the server's refusal: the question left the path after this page last read it
+        S.busy = false; toast("Not saved: " + q.id + (data.by ? " is superseded. Answer " + data.by + " instead." : " is archived."), true); await refresh().catch(() => {}); renderAll(); return;
       }
       if (!res.ok) throw new Error(data.error || res.status);
       saved = true; S.conflict = null;
@@ -2166,6 +2219,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!r) return;
     if (alt === "off" && !text) { S.uMsg = "Say what is off first."; renderSummary(); if ($("offText")) $("offText").focus(); return; }
     if (S.api < 2 || S.busy) return;
+    if (alt === "tick") { // one confirm per listed commitment, then the Confirm; a failed tick stops before the Confirm
+      for (const x of tickRows()) if (!confirmed(x.q).has(String(x.i)) && !(await confirmCommit(x.q.id, x.i))) { S.uMsg = "Could not tick " + x.q.id + ", so the understanding is not confirmed."; renderSummary(); return; }
+      alt = "confirm";
+    }
     S.busy = true;
     try {
       const {res, data} = await post({kind: "confirm-understanding", alt, text: alt === "off" ? text : "", contentRev: r.rev});
@@ -2174,6 +2231,22 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
       if (!res.ok) throw new Error(data.error || res.status);
       S.uMsg = ""; S.offDraft = ""; await refresh();
     } catch (e) { S.busy = false; if (!e.quiet) { S.uMsg = "Not sent (" + e.message + ")."; renderSummary(); } }
+  }
+  async function auditAccepted(){ // one accept-audit event over the accepted answers auditSplit lets through, so agents check an all-accept run
+    const [qs] = auditSplit(acceptTally().acc);
+    if (!qs.length || S.api < 2 || S.busy) return;
+    if (closed()) { toast(closedWhy(), true); return; }
+    if (wrapFreeze() > 0) { toast("Wrapping up. Saves resume once Claude handles the wrap-up.", true); return; }
+    const last = qs[qs.length - 1];
+    S.busy = true;
+    try {
+      const {res, data} = await post({kind: "accept-audit", alt: (last.stage || "") + ":" + (last.round || 1), items: qs.map(q => ({id: q.id, contentRev: crev(q)}))});
+      S.busy = false;
+      const sk = (data.skipped || []).map(x => x.id);
+      await refresh().catch(() => {});
+      toast(res.ok ? "Sent " + (data.accepted || []).length + " answers for agents to check." + (sk.length ? " Skipped " + sk.join(", ") + ": changed or not eligible." : "") : "Not sent (" + (data.error || res.status) + ")." + (sk.length ? " Skipped " + sk.join(", ") + "." : ""), !res.ok || sk.length > 0);
+      renderAll();
+    } catch (e) { S.busy = false; if (!e.quiet) toast("Not sent (" + e.message + ").", true); }
   }
   function challenge(i){
     const q = Q[S.sel], c = q && (q.commits || [])[i]; if (c === undefined) return;
@@ -2256,6 +2329,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     S.listener = data.listener || S.listener;
     if (S.instance && data.instance && data.instance !== S.instance) S.restarted = true; // a new server holds a new token: this page cannot save any more
     S.instance = data.instance || S.instance;
+    $("oldServer").hidden = S.restarted || !serverOld(data); // after a restart the newer server is not the one that served this page: the page is the old one, and the restart notice says reload
     S.finished = S.doc.finished || null; // kept in memory when the server goes away: its last frame is what the offline state reads
     const kept = finLoad();
     if (S.finished) { if (!kept || kept.session !== S.session || (kept.finished || {}).at !== S.finished.at) finSave({session: S.session, finished: S.finished}); }
@@ -2371,6 +2445,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const cb = t.closest("[data-confirm]"); if (cb) { e.preventDefault(); confirmCommit(cb.dataset.cq, cb.dataset.confirm); return; } // the next state render ticks it
     if (t.closest("[data-confirmall]")) { confirmAll(); return; }
     const un = t.closest("[data-understand]"); if (un) { confirmUnderstanding(un.dataset.understand); return; }
+    if (t.closest("[data-auditaccepted]")) { auditAccepted(); return; }
     const nt = t.closest("#needToast button");
     if (nt) { if (nt.dataset.notify) { enableNotify(); return; } S.need = null; renderNeedToast(); if (nt.dataset.ntgo) goTo(nt.dataset.ntgo); return; }
     const go = t.closest("[data-go]"); if (go) { goTo(go.dataset.go); return; }
@@ -2416,10 +2491,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (t.closest("[data-sendnote]")) { sendNote(); return; }
     if (t.closest("[data-notenewest]")) { const n = $("noteNewest"); if (n) { n.scrollIntoView({block: "nearest"}); n.focus({preventScroll: true}); } return; }
     const dt = t.closest("[data-discl]");
-    if (dt) { // toggled in place, like a details element; the choice is kept for the next question
+    if (dt) { // toggled in place, like a details element; the choice is kept for the next question, and a closed Details stays closed on its question until a reload
       const k = dt.dataset.discl, open = dt.getAttribute("aria-expanded") !== "true", panel = $(k);
       dt.setAttribute("aria-expanded", String(open)); if (panel) panel.hidden = !open;
       lsSet(k + "Open", open);
+      if (k === "more") S.moreShut[open ? "delete" : "add"](S.sel);
       return;
     }
     const nz = t.closest("[data-notetoggle]");

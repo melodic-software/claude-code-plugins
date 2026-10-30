@@ -501,6 +501,34 @@
         "The run requires the --brief cross-check to exit 0 before it hands off",
         "The handoff message lists Q3 and Q4 by id and question and does not route to /planning:plan"
       ]
+    },
+    {
+      "id": 36,
+      "name": "pre-round-contradiction-pass",
+      "prompt": "/planning:interview me — add nightly exports of the billing ledger to the analytics warehouse.\n\n[Session state: an engineering session in the terminal lane. Round 1 is answered: Q1 (export window) `answered` as \"only between 01:00 and 03:00 UTC\", Q2 (who may read the export) `answered` as \"finance only\". The constraint ledger holds C1 `confirmed`: no export may include card numbers. The model has drafted round 2: Q3 recommends a full-table export that includes the `card_number` column, and Q4 recommends running the export at 04:00 UTC after the backup job. The frontier is not empty, and round 2 has not been shown.]",
+      "expected_output": "Before round 2 is shown, the skill dispatches a fresh-context (non-fork) sub-agent with the draft round and the answered rows and confirmed constraints, and has it check only for contradictions, withholding the rationale. The pass finds that Q3 contradicts C1 and Q4 contradicts Q1's answer. The skill fixes the draft before showing it: Q3's recommendation drops the card column, and Q4 either moves into the 01:00 to 03:00 window or is asked as one question that names both sides and cites Q1 as the earlier answer it reconciles. Round 2 is then shown with no recommendation that contradicts an earlier answer or a confirmed constraint. The full assumption sweep does not run here, since the frontier is not empty.",
+      "files": [],
+      "expectations": [
+        "A fresh-context (non-fork) sub-agent checks the draft round 2 against the answered rows and confirmed constraints before round 2 is shown",
+        "The pre-round pass looks only for contradictions; it does not run the full assumption sweep's other categories",
+        "Round 2 as shown has no recommendation that includes the card number column, which C1 rules out",
+        "Round 2 as shown does not recommend a 04:00 UTC run as settled: Q4 is revised into Q1's window or asked as one question naming both sides that cites Q1",
+        "No conflict found by the pass is registered as a register row of its own before round 2 is asked"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "sweep-flags-coined-term-after-accept-all",
+      "prompt": "/planning:interview me Set up approval roles for production deploys.\n\n[Session state: in round 1 the user said their team already has a \"release captain\" who signs off each deploy. Round 3's Q9 recommended three approval roles, one named `GATEKEEPER`, a name coined in that recommendation: it was not defined in the question and the session-shorthand glossary has no line for it. Its duties overlap the release captain's. The user replied \"accept all\" to round 3, and Q9 through Q12 are `answered`. The frontier is now empty, so the assumption sweep runs.]",
+      "expected_output": "The sweep sub-agent is handed the session-shorthand glossary and the names the user has used, and returns a `coined-term` item for `GATEKEEPER`, sourced to Q9's recommendation, even though the user accepted it: \"accept all\" accepted the role set, not a name the user never saw defined. The skill writes that item as a register row at the next contiguous `Q<N>`, asking the user to accept `GATEKEEPER` or rename it, names the overlap with the release captain, and recommends the user's existing name, release captain. The run returns to Step 2 and does not lock the contract while that row is `open`.",
+      "files": [],
+      "expectations": [
+        "The sweep returns a `coined-term` item for `GATEKEEPER`, sourced to Q9's recommendation",
+        "The user's \"accept all\" is not treated as settling the coined name",
+        "The item becomes a register row at the next contiguous `Q<N>` (no `S<N>` id in the register) asking the user to accept or rename `GATEKEEPER`",
+        "The row names the overlap with the user's existing release captain role and recommends the name release captain",
+        "The run returns to Step 2 while that row is `open` and does not lock the contract over it"
+      ]
     }
   ]
 }

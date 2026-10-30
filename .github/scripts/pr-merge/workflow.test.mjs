@@ -1,21 +1,23 @@
 // pr-merge.yml's main-verification trigger. Expected values come from the
-// owner decision of 2026-10-18 (every merge to main starts the full run,
-// whoever merged), GitHub's concurrency rules (a group holds one running and
-// one pending job, and a newer pending job replaces the older one unless
-// `queue: max` is set), and the rule babysit_postmerge.py and
-// post-merge-demotion-alert.yml share: a cancelled full run counts as red, so
-// no pr-require-checks run may be cancelled by concurrency.
+// owner decision of 2026-10-18 (every merge to main gets a full run, whoever
+// merged), the efficiency plan of 2026-10-26 (items 5 and 7(b): at most one
+// full run of main per 30 minutes, and no wait on the run), GitHub's
+// concurrency rules (a group holds one running and one pending job, and a
+// newer pending job replaces the older one unless `queue: max` is set), and
+// the rule babysit_postmerge.py and post-merge-demotion-alert.yml share: a
+// cancelled full run counts as red, unless it never started, so no running
+// pr-require-checks run may be cancelled by concurrency.
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
+import { CACHE_ONLY_TIMEOUT_MS, CACHE_ONLY_WINDOW_MS, LANE_ROOM_TIMEOUT_MS, VERIFY_BUDGET_MS, VERIFY_TIMEOUT_MS } from "./enable-auto-merge.mjs";
 import { classify, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const merge = read("pr-merge.yml");
@@ -45,207 +47,335 @@ test("push dispatches share one group that queues one and cancels nothing", () =
   assert.doesNotMatch(dispatch, /\n {6}queue:/);
 });
 
-test("a push job holds the group until the dispatched run finishes", () => {
+// The job ends once it dispatches (efficiency plan item 7(b), owner
+// decision): post-merge-dispatch sends a red run to the alert on the next
+// scheduled run, so no step polls the run or sleeps on a held runner.
+test("dispatch-full-run ends once it dispatches: no wait on the run it started", () => {
   const dispatch = job("dispatch-full-run");
-  const record = dispatch.indexOf("- name: Record the dispatched run");
-  const wait = dispatch.indexOf("- name: Wait for the full run to finish");
-  assert.ok(record >= 0 && wait > record);
-  const step = dispatch.slice(wait);
-  assert.match(step, /\n {8}if: github\.event_name == 'push' && steps\.dispatch\.outputs\.run-id != ''\n/);
-  assert.doesNotMatch(step, /gh run watch|--exit-status/);
+  assert.deepEqual(
+    [...dispatch.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]),
+    ["Check out the api-budget library", "Read main's full-run cover", "Start the full CI run on main", "Record the dispatched run", "Log the API budget at the end"],
+  );
+  assert.doesNotMatch(dispatch, /sleep 180|actions\/runs\/\$RUN_ID|post-merge-demotion-alert\.yml\/dispatches/);
+  const timeout = Number(/\n {4}timeout-minutes: (\d+)\n/.exec(dispatch)[1]);
+  assert.ok(timeout <= 10, `timeout-minutes ${timeout}`);
 });
 
-// The wait step's body, run under bash against a stub gh (one canned run
-// read, then any write logged) and a stub sleep. The alert workflow hears of
-// a failed run only through this dispatch: GITHUB_TOKEN started the run, so
-// it raises no workflow_run event.
 const HEAD = "0123456789abcdef0123456789abcdef01234567";
-const SEND = `api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=4242 -f inputs[head-sha]=${HEAD}`;
-// With notModified N, the first read finds the run in progress with ETag
-// "e1", the next N reads (sent with If-None-Match on it) are answered 304
-// with gh's exit 1, and the one after finds it completed. With limited, every
-// read is refused with limitedMessage. Each entry of sendErrors fails one send
-// in turn with that stderr; the send after them succeeds, unless
-// dispatchFails.
 // gh's stderr for a POST GitHub refused for a rate limit, as run 39906176584
 // logged it (pr-merge.yml, dispatch-full-run, "Start the full CI run on main",
 // 2026-10-23T05:30:57Z).
 const RATE_LIMITED_STDERR =
   "gh: API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23 05:30:57 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) (HTTP 403)";
-function runWait(conclusion, { dispatchFails = false, sendErrors = [], notModified = 0, limited = false, limitedMessage = RATE_LIMITED_STDERR } = {}) {
-  const step = job("dispatch-full-run").split("\n      - name: Wait for the full run to finish\n")[1];
-  const body = /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/
-    .exec(step)[1]
-    .split("\n")
-    .map((l) => l.slice(10))
-    .join("\n");
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-wait-"));
+
+// The cover step's body, run under bash against a stub gh that applies the
+// step's --jq filter to a canned listing of pr-require-checks.yml dispatches
+// on main, newest first, as the runs API lists them. `runs` entries are
+// {minutesAgo, sha, actor, conclusion}. The cap (owner decision, efficiency
+// plan item 5) is one full run of main per 30 minutes.
+const coverBody = (id) => {
+  const block = job(id).split("\n      - name: Read main's full-run cover\n")[1].split("\n      - name: ")[0];
+  return { block, body: runBody(block) };
+};
+function runCover(runs, { jobId = "dispatch-full-run", fails = false, limited = false, tip = HEAD } = {}) {
+  const dir = tempDir("pr-merge-cover-");
   mkdirSync(join(dir, "bin"));
-  writeFileSync(join(dir, "bin", "sleep"), `#!/bin/sh\necho "$*" >>"${dir}/sleeps"\n`, {
-    mode: 0o755,
-  });
-  writeFileSync(join(dir, "n304"), String(notModified));
-  sendErrors.forEach((stderr, i) => writeFileSync(join(dir, `send-stderr-${i + 1}`), stderr));
-  const done = `{"status": "completed", "conclusion": "${conclusion}", "head_sha": "${HEAD}"}`;
-  const first = notModified > 0 ? `{"status": "in_progress", "conclusion": null, "head_sha": "${HEAD}"}` : done;
+  const now = Date.now();
+  const listing = {
+    workflow_runs: runs.map((r, i) => ({
+      id: 100 - i,
+      head_sha: r.sha ?? HEAD,
+      head_branch: "main",
+      created_at: new Date(now - r.minutesAgo * 60_000).toISOString().replace(/\.\d{3}Z$/, "Z"),
+      actor: { login: r.actor ?? "github-actions[bot]" },
+      status: r.conclusion ? "completed" : "in_progress",
+      conclusion: r.conclusion ?? null,
+    })),
+  };
+  writeFileSync(join(dir, "listing.json"), JSON.stringify(listing));
   writeFileSync(
     join(dir, "bin", "gh"),
     `#!/usr/bin/env bash
 printf '%s\\n' "$*" >>"${dir}/log"
-case "$*" in
-  *-X\\ POST*)
-    s=$(($(cat "${dir}/sends" 2>/dev/null || echo 0) + 1)); echo "$s" >"${dir}/sends"
-    if [ -f "${dir}/send-stderr-$s" ]; then cat "${dir}/send-stderr-$s" >&2; exit 1; fi
-    exit ${dispatchFails ? 1 : 0} ;;
-  ${limited ? `*) echo '${limitedMessage}' >&2; exit 1 ;;` : ""}
-  *'-H If-None-Match: "e1"')
-    n=$(cat "${dir}/n304")
-    if [ "$n" -gt 0 ]; then
-      echo $((n - 1)) >"${dir}/n304"
-      printf 'HTTP/2.0 304 Not Modified\\r\\nEtag: "e1"\\r\\n\\r\\n'
-      echo 'gh: HTTP 304' >&2
-      exit 1
-    fi
-    printf 'HTTP/2.0 200 OK\\r\\nEtag: "e2"\\r\\n\\r\\n%s\\n' '${done}' ;;
-  *) printf 'HTTP/2.0 200 OK\\r\\nEtag: "e1"\\r\\n\\r\\n%s\\n' '${first}' ;;
-esac
+${fails ? `echo 'gh: Server Error (HTTP 502)' >&2; exit 1` : ""}
+${limited ? `echo '${RATE_LIMITED_STDERR}' >&2; exit 1` : ""}
+while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then exec jq -c "$2" "${dir}/listing.json"; fi; shift; done
+exit 1
 `,
     { mode: 0o755 },
   );
-  writeFileSync(join(dir, "body.sh"), body);
+  writeFileSync(join(dir, "body.sh"), coverBody(jobId).body);
+  writeFileSync(join(dir, "output"), "");
   const result = spawnSync("bash", ["-e", join(dir, "body.sh")], {
     env: {
       ...process.env,
       PATH: `${join(dir, "bin")}:${process.env.PATH}`,
       GH_TOKEN: "x",
       REPO: "o/r",
-      RUN_ID: "4242",
+      TIP: tip,
+      CAP_MINUTES: /\n {10}CAP_MINUTES: (\d+)\n/.exec(coverBody(jobId).block)[1],
+      GITHUB_OUTPUT: join(dir, "output"),
       RUNNER_TEMP: dir,
     },
     encoding: "utf8",
   });
+  const output = readFileSync(join(dir, "output"), "utf8");
   const log = existsSync(join(dir, "log")) ? readFileSync(join(dir, "log"), "utf8") : "";
-  const sleeps = existsSync(join(dir, "sleeps")) ? readFileSync(join(dir, "sleeps"), "utf8").split("\n").filter(Boolean) : [];
   rmSync(dir, { recursive: true, force: true });
   return {
     status: result.status,
     out: result.stdout + result.stderr,
-    writes: log.split("\n").filter((l) => l.includes("-X POST")),
-    reads: log.split("\n").filter((l) => l.startsWith("api -i ")),
-    sleeps,
+    capped: /^capped=true$/m.test(output),
+    uncovered: /^uncovered=true$/m.test(output),
+    limited: /^rate-limited=true$/m.test(output),
+    writes: log.split("\n").filter((l) => l.includes("-X")),
   };
 }
+const OLDER = "89abcdef0123456789abcdef0123456789abcdef";
 
-test("a rate-limited read of the full run stops the wait red after one read", () => {
-  const { status, out, reads, writes } = runWait("failure", { limited: true });
-  assert.equal(status, 1, out);
-  assert.equal(reads.length, 1);
-  assert.deepEqual(writes, []);
-  assert.match(out, /::error title=GitHub rate limit::the read of run 4242 was rate limited/);
+// The two copies differ only in how a failed read is classified:
+// post-merge-dispatch sources the shared rate guard from its checkout,
+// dispatch-full-run has none and matches the pattern the guard reads.
+test("both jobs read main's cover with the same cap logic, a 30-minute cap and the run's own SHA as the tip", () => {
+  const a = coverBody("dispatch-full-run");
+  const b = coverBody("post-merge-dispatch");
+  const afterRead = (body) => body.slice(body.indexOf('\n  echo "::warning::the read of main\'s full runs failed'));
+  assert.equal(afterRead(a.body), afterRead(b.body));
+  assert.match(a.body, /grep -qiE 'rate limit\|RATE_LIMITED\|abuse detection\|HTTP 429' "\$RUNNER_TEMP\/cover-stderr"/);
+  assert.match(b.body, /\. \.base\/\.github\/scripts\/pr-merge\/rate-stop\.bash\n/);
+  assert.match(b.body, /stop=\$\(rate_stop_from "\$RUNNER_TEMP\/cover-stderr" /);
+  for (const body of [a.body, b.body]) assert.match(body, /echo "rate-limited=true" >>"\$GITHUB_OUTPUT"\n(?: +echo "stop=\$stop" >>"\$GITHUB_OUTPUT"\n)? +exit 1\n/);
+  for (const { block } of [a, b]) {
+    assert.match(block, /\n {10}CAP_MINUTES: 30\n/);
+    assert.match(block, /\n {10}TIP: \$\{\{ github\.sha \}\}\n/);
+    assert.match(block, /^ {8}id: cover\n/);
+  }
+  assert.match(a.body, /actions\/workflows\/pr-require-checks\.yml\/runs\?event=workflow_dispatch&branch=main/);
 });
 
-// gh's bare 429 message names no rate limit, and is one all the same.
-test("a bare HTTP 429 on the read of the full run stops the wait red after one read", () => {
-  const { status, out, reads, writes } = runWait("failure", { limited: true, limitedMessage: "gh: Too Many Requests (HTTP 429)" });
-  assert.equal(status, 1, out);
-  assert.equal(reads.length, 1);
-  assert.deepEqual(writes, []);
-  assert.match(out, /::error title=GitHub rate limit::the read of run 4242 was rate limited/);
+test("a full run of main started within 30 minutes caps the next dispatch", () => {
+  const r = runCover([{ minutesAgo: 12, sha: OLDER }]);
+  assert.equal(r.status, 0, r.out);
+  assert.equal(r.capped, true);
+  assert.equal(r.uncovered, true);
+  assert.match(r.out, /::notice::a full run of main was started at .*, within 30 minutes/);
+  assert.deepEqual(r.writes, []);
 });
 
-// A 304 is the run as last read: the wait keeps its three-minute pace and
-// sends the red run once it completes, as with plain reads.
-test("a poll answered 304 waits on, then sends the red run once it completes", () => {
-  const { status, writes, reads, sleeps } = runWait("failure", { notModified: 2 });
-  assert.equal(status, 0);
-  assert.deepEqual(writes, [SEND]);
-  assert.deepEqual(sleeps, ["180", "180", "180", "180"]);
-  assert.deepEqual(reads, [
-    "api -i repos/o/r/actions/runs/4242",
-    'api -i repos/o/r/actions/runs/4242 -H If-None-Match: "e1"',
-    'api -i repos/o/r/actions/runs/4242 -H If-None-Match: "e1"',
-    'api -i repos/o/r/actions/runs/4242 -H If-None-Match: "e1"',
+test("a full run of main older than 30 minutes caps nothing, and a run at the tip covers it", () => {
+  const old = runCover([{ minutesAgo: 31, sha: OLDER }]);
+  assert.equal(old.capped, false);
+  assert.equal(old.uncovered, true);
+  const atTip = runCover([{ minutesAgo: 45, conclusion: "success" }]);
+  assert.equal(atTip.capped, false);
+  assert.equal(atTip.uncovered, false);
+  assert.deepEqual(runCover([]), { status: 0, out: "", capped: false, uncovered: true, limited: false, writes: [] });
+});
+
+// A cancelled run is no cover: replaced before it started, or cancelled once
+// running, which reads red. Only github-actions[bot]'s dispatches count: the
+// post-merge check credits no one else's for a lane merge.
+test("a cancelled run or another actor's dispatch neither caps nor covers", () => {
+  const r = runCover([
+    { minutesAgo: 5, conclusion: "cancelled" },
+    { minutesAgo: 8, actor: "maintainer" },
+    { minutesAgo: 40, sha: OLDER, conclusion: "success" },
   ]);
+  assert.equal(r.capped, false, r.out);
+  assert.equal(r.uncovered, true);
 });
 
-// The alert serializes on signal and head SHA, so the send names the run's
-// head SHA as the run reports it, not this workflow's push SHA.
-test("a red full run is sent to post-merge-demotion-alert.yml by its run id and head SHA", () => {
-  const { status, writes } = runWait("failure");
-  assert.equal(status, 0);
-  assert.deepEqual(writes, [SEND]);
+test("a failed read sets neither output, so the run dispatches as with no cap", () => {
+  const r = runCover([{ minutesAgo: 5 }], { fails: true });
+  assert.equal(r.status, 0);
+  assert.equal(r.capped, false);
+  assert.equal(r.uncovered, false);
+  assert.equal(r.limited, false);
+  assert.match(r.out, /::warning::the read of main's full runs failed; no cap applies to this run/);
 });
 
-// babysit_postmerge.py's FAILED_CONCLUSIONS, the conclusions post-merge
-// demotion counts as red: a cancel on a time-budget overrun is red too.
-test("every red conclusion of a full run is sent to post-merge-demotion-alert.yml", () => {
-  for (const conclusion of ["failure", "timed_out", "cancelled", "startup_failure", "action_required"]) {
-    const { status, writes } = runWait(conclusion);
-    assert.equal(status, 0, conclusion);
-    assert.deepEqual(writes, [SEND], conclusion);
-  }
+// stop-on-limit (docs/conventions/pr-pipeline/README.md): a read refused for a
+// rate limit is no ordinary failure. The step stops red with rate-limited=true
+// and the dispatch after it sends nothing.
+test("a rate-limited read stops dispatch-full-run red, and the dispatch is skipped", () => {
+  const r = runCover([{ minutesAgo: 5 }], { limited: true });
+  assert.equal(r.status, 1, r.out);
+  assert.equal(r.limited, true);
+  assert.equal(r.capped, false);
+  assert.match(r.out, /::error title=GitHub rate limit::the read of main's full runs was rate limited; nothing more is sent/);
+  assert.doesNotMatch(r.out, /no cap applies/);
+  const text = stepIf("dispatch-full-run", "Start the full CI run on main");
+  assert.equal(evalStep(text, outs({ limited: "true", uncovered: "true" })), false);
 });
 
-test("a green, skipped or neutral full run is sent nowhere", () => {
-  for (const conclusion of ["success", "skipped", "neutral"]) {
-    const { status, writes } = runWait(conclusion);
-    assert.equal(status, 0, conclusion);
-    assert.deepEqual(writes, [], conclusion);
-  }
+// The dispatch steps' conditions, evaluated over the cover and post-merge
+// outputs: dispatch-full-run starts nothing within the cap; post-merge-dispatch
+// starts main's tip when no run covers it, for any merge, and keeps the lane's
+// own request, both outside the cap.
+const stepIf = (id, name) => {
+  const block = job(id).split(`\n      - name: ${name}\n`)[1].split("\n      - name: ")[0];
+  const text = /\n {8}if: (?:>-\n((?: {10}.*\n)+)|(.*)\n)/.exec(block);
+  return (text[1] ?? text[2]).replaceAll("\n", " ");
+};
+const evalStep = (text, steps) =>
+  new Function("steps", `return (${text.replace(/\.([a-z]+(?:-[a-z]+)+)/g, '["$1"]')});`)(steps);
+const outs = ({ capped = "", uncovered = "", needs = "false", limited = "", proceed = "true", live = "true", bypass = "" } = {}) => ({
+  kill: { outputs: { proceed } },
+  mode: { outputs: { live } },
+  cover: { outputs: { capped, uncovered, "rate-limited": limited } },
+  "post-merge": { outputs: { "needs-dispatch": needs } },
+  bypass: { outputs: { bypass } },
 });
 
-test("a send that fails fails the job", () => {
-  const { status, out } = runWait("failure", { dispatchFails: true });
-  assert.equal(status, 1);
-  assert.match(out, /::error::could not send run 4242 to post-merge-demotion-alert\.yml/);
+test("dispatch-full-run starts nothing within the cap, and anything outside it", () => {
+  const text = stepIf("dispatch-full-run", "Start the full CI run on main");
+  assert.equal(evalStep(text, outs({ capped: "true" })), false);
+  assert.equal(evalStep(text, outs({ uncovered: "true" })), true);
+  // A failed cover read sets nothing: the dispatch goes ahead.
+  assert.equal(evalStep(text, outs()), true);
 });
 
-// The owner outage rule (Q677: at most three attempts, a capped full-jitter
-// backoff), sent again only when the request never left, as the dispatch.
-// The 180 s entries are the wait's own polls; the alert's waits come after.
-test("an alert send that never left is sent again after a jittered wait, at most three times", () => {
-  const timeout = 'Post "https://api.github.com/repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches": net/http: TLS handshake timeout';
-  const sent = runWait("failure", { sendErrors: [timeout, timeout] });
-  assert.equal(sent.status, 0, sent.out);
-  assert.deepEqual(sent.writes, [SEND, SEND, SEND]);
-  const waits = sent.sleeps.slice(1).map(Number);
-  assert.equal(waits.length, 2);
-  assert.ok(waits[0] >= 1 && waits[0] <= 10, `${waits[0]}`);
-  assert.ok(waits[1] >= 1 && waits[1] <= 20, `${waits[1]}`);
-  const spent = runWait("failure", { sendErrors: [timeout, timeout, timeout] });
-  assert.equal(spent.status, 1, spent.out);
-  assert.equal(spent.writes.length, 3);
-  assert.match(spent.out, /::error::could not send run 4242 to post-merge-demotion-alert\.yml after 3 attempt\(s\)/);
-  // A send that may have reached GitHub is not sent again.
-  const answered = runWait("failure", { sendErrors: ["gh: Server Error (HTTP 502)", ""] });
-  assert.equal(answered.status, 1);
-  assert.deepEqual(answered.writes, [SEND]);
+test("post-merge-dispatch starts main's uncovered tip for any merge, outside the cap only", () => {
+  const text = stepIf("post-merge-dispatch", "Start the full CI run on main");
+  const expr = text;
+  assert.equal(evalStep(expr, outs({ uncovered: "true" })), true, "a skipped merge of anyone's");
+  assert.equal(evalStep(expr, outs({ uncovered: "true", capped: "true" })), false);
+  assert.equal(evalStep(expr, outs({ needs: "true" })), true, "the lane's own request");
+  assert.equal(evalStep(expr, outs({ needs: "true", capped: "true" })), false);
+  assert.equal(evalStep(expr, outs()), false, "a covered tip");
+  assert.equal(evalStep(expr, outs({ uncovered: "true", limited: "true" })), false, "a rate-limited cover read");
+  assert.equal(evalStep(expr, outs({ uncovered: "true", proceed: "false", live: "" })), false, "the kill switch on");
+  assert.equal(evalStep(expr, outs({ uncovered: "true", live: "" })), false, "report-only on");
+  // merge.full-run-cap-bypass: an uncovered lane batch starts one run inside the cap.
+  assert.equal(evalStep(expr, outs({ capped: "true", bypass: "true" })), true, "an uncovered lane batch inside the cap");
+  assert.equal(evalStep(expr, outs({ capped: "true", bypass: "true", limited: "true" })), false, "a rate-limited cover read");
+  assert.equal(evalStep(expr, outs({ capped: "true", bypass: "true", live: "" })), false, "report-only on");
 });
 
-test("a rate-limited alert send is sent once and stops red", () => {
-  for (const stderr of [RATE_LIMITED_STDERR, "gh: Too Many Requests (HTTP 429)"]) {
-    const { status, out, writes, sleeps } = runWait("failure", { sendErrors: [stderr] });
-    assert.equal(status, 1, out);
-    assert.deepEqual(writes, [SEND]);
-    assert.deepEqual(sleeps, ["180"]);
-    assert.match(out, /::error title=GitHub rate limit::the send of run 4242 to post-merge-demotion-alert\.yml was rate limited/);
-  }
+// Review decision on #10491: the scheduled job reads the cover only while the
+// lane is live (kill switch off, report-only off), as its post-merge check
+// does; dispatch-full-run's push carve-out still starts a run per merge.
+test("post-merge-dispatch reads the cover only while the lane is live", () => {
+  const dispatch = job("post-merge-dispatch");
+  const block = dispatch.split("\n      - name: Read main's full-run cover\n")[1].split("\n      - name: ")[0];
+  assert.match(block, /\n {8}if: steps\.kill\.outputs\.proceed == 'true' && steps\.mode\.outputs\.live == 'true'\n/);
+  const names = [...dispatch.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.equal(names.indexOf("Read main's full-run cover") + 1, names.indexOf("Find lane merges no full run covers"));
+  assert.equal(names.indexOf("Find lane merges no full run covers") + 1, names.indexOf("Start the full CI run on main"));
+  assert.ok(names.indexOf("Check earlier lane merges") < names.indexOf("Read main's full-run cover"));
+  const cover = job("dispatch-full-run").split("\n      - name: Read main's full-run cover\n")[1].split("\n      - name: ")[0];
+  assert.doesNotMatch(cover, /\n {8}if:/);
+  assert.doesNotMatch(job("dispatch-full-run"), /steps\.(kill|mode)\./);
 });
 
-test("the dispatch job's token is actions: write and nothing else", () => {
-  const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(job("dispatch-full-run"))[1];
+// contents: read only checks out the api-budget library, sparse, from main.
+test("the dispatch job's token is actions: write and contents: read, and nothing else", () => {
+  const dispatch = job("dispatch-full-run");
+  const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(dispatch)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
-    ["actions: write"],
+    ["actions: write", "contents: read"],
   );
+  const checkout = dispatch.split("\n      - name: Check out the api-budget library\n")[1].split("\n      - name: ")[0];
+  assert.match(checkout, /^ {8}continue-on-error: true\n/);
+  assert.match(checkout, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {10}sparse-checkout-cone-mode: false\n/);
 });
 
-test("pr-require-checks.yml never cancels a dispatched or scheduled run", () => {
+// The cover read and each dispatch POST leave a rate-limit reading, so the
+// job-end api-calls notice counts them; the POST is recorded, never guarded.
+test("dispatch-full-run's cover read and dispatch POST each leave one reading", () => {
+  const dir = tempDir("pr-merge-reading-");
+  mkdirSync(join(dir, "bin"));
+  symlinkSync(fileURLToPath(new URL("../../..", import.meta.url)), join(dir, ".base"));
+  const headers = "X-Ratelimit-Limit: 5000\r\nX-Ratelimit-Remaining: 4000\r\nX-Ratelimit-Used: 1000\r\nX-Ratelimit-Reset: 9999999999\r\nX-Ratelimit-Resource: core\r\n\r\n";
+  writeFileSync(
+    join(dir, "bin", "gh"),
+    `#!/usr/bin/env bash
+if [[ " $* " == *" -X POST "* ]]; then printf 'HTTP/2.0 200 OK\\r\\n${headers.replaceAll("\r\n", "\\r\\n")}{"workflow_run_id":4242}'; exit 0; fi
+printf 'HTTP/2.0 200 OK\\r\\n${headers.replaceAll("\r\n", "\\r\\n")}'
+while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '[]' | jq -c "$2"; exit; fi; shift; done
+`,
+    { mode: 0o755 },
+  );
+  writeFileSync(join(dir, "cover.sh"), coverBody("dispatch-full-run").body);
+  writeFileSync(join(dir, "dispatch.sh"), dispatchStep("dispatch-full-run").body);
+  writeFileSync(join(dir, "output"), "");
+  const env = { ...process.env, PATH: `${join(dir, "bin")}:${process.env.PATH}`, GH_TOKEN: "x", REPO: "o/r", TIP: HEAD, CAP_MINUTES: "30", WAIT_CAP: "180", GITHUB_EVENT_NAME: "push", GITHUB_SHA: HEAD, GITHUB_RUN_ID: "77", GITHUB_OUTPUT: join(dir, "output"), RUNNER_TEMP: dir };
+  try {
+    for (const body of ["cover.sh", "dispatch.sh"]) {
+      const r = spawnSync("bash", ["-e", join(dir, body)], { cwd: dir, env, encoding: "utf8" });
+      assert.equal(r.status, 0, r.stdout + r.stderr);
+    }
+    assert.match(readFileSync(join(dir, "output"), "utf8"), /^run-id=4242$/m);
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core\n".repeat(2));
+    const calls = spawnSync("bash", ["-c", ". .base/.github/actions/log-api-budget/api-budget.bash; api_budget_emit_calls github-token"], { cwd: dir, env, encoding: "utf8" });
+    assert.equal(calls.stdout, "::notice title=api-calls::github-token=2 not-modified=0 graphql=0\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// pr-require-checks.yml's concurrency, evaluated per event. Main's dispatches
+// share one group with no `queue` key: GitHub then keeps one running and one
+// pending, "When a new job or workflow run is queued, any existing pending job
+// or workflow run in the same group is canceled and replaced", whereas
+// `queue: max` keeps up to 100 pending, which would batch nothing
+// (https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency).
+// That group never cancels a running run, which reads red to the post-merge
+// check; every other group keeps its cancel.
+const checksConcurrency = () => {
   const checks = read("pr-require-checks.yml");
+  const block = /\nconcurrency:\n {2}group: >-\n([\s\S]*?)\n {2}cancel-in-progress: (.*)\n(?=\S|\n)/.exec(checks);
+  assert.ok(block, "a workflow-level concurrency block");
+  const unwrap = (text) => text.trim().replace(/^\$\{\{\s*/, "").replace(/\s*\}\}$/, "").replaceAll("\n", " ");
+  const evaluate = (text, github) =>
+    new Function("github", "contains", "fromJSON", "format", `return (${unwrap(text)});`)(
+      github,
+      (list, item) => list.includes(item),
+      JSON.parse,
+      (template, ...values) => template.replace(/\{(\d+)\}/g, (_, i) => String(values[i])),
+    );
+  return { checks, block, group: (github) => evaluate(block[1], github), cancel: (github) => evaluate(block[2], github) };
+};
+const prEvent = (action, number = 5) => ({
+  event_name: "pull_request",
+  ref: `refs/pull/${number}/merge`,
+  repository: "o/r",
+  workflow: "pr-require-checks",
+  run_id: 900 + number,
+  event: { action, pull_request: { number, head: { repo: { full_name: "o/r" } } }, changes: {} },
+});
+
+test("pr-require-checks.yml holds main's dispatches in one group that cancels nothing", () => {
+  const { checks, block, group, cancel } = checksConcurrency();
   const on = checks.slice(checks.indexOf("\non:\n"), checks.indexOf("\npermissions:\n"));
   assert.doesNotMatch(on, /\n {2}push:/);
-  const group = /\nconcurrency:\n {2}group: >-\n([\s\S]*?)\n {2}cancel-in-progress:/.exec(checks)[1];
-  assert.match(group, /github\.event\.pull_request\.number \|\| github\.run_id/);
+  assert.doesNotMatch(block[0], /queue:/);
+  const main = (run_id, run_attempt = 1) => ({ event_name: "workflow_dispatch", ref: "refs/heads/main", workflow: "pr-require-checks", run_id, run_attempt, event: { pull_request: { head: { repo: {} } }, changes: {} } });
+  assert.equal(group(main(1)), group(main(2)));
+  assert.equal(cancel(main(1)), false);
+  // A re-run keeps its own group, so no newer dispatch replaces the one
+  // re-run a red run waits on (babysit_postmerge.py reads it red otherwise).
+  assert.equal(group(main(3, 2)), "pr-require-checks-3");
+  assert.equal(cancel(main(3, 2)), true);
+});
+
+test("pr-require-checks.yml keeps every other run's group and cancel", () => {
+  const { group, cancel } = checksConcurrency();
+  // A missing event field reads null in an expression; this stands in for it.
+  const none = { pull_request: { head: { repo: {} } }, changes: {} };
+  const other = [
+    { event_name: "workflow_dispatch", ref: "refs/heads/feat/x", workflow: "pr-require-checks", run_id: 7, event: none },
+    { event_name: "schedule", ref: "refs/heads/main", workflow: "pr-require-checks", run_id: 8, event: none },
+    { event_name: "merge_group", ref: "refs/heads/gh-readonly-queue/main/pr-1", workflow: "pr-require-checks", run_id: 9, event: none },
+  ];
+  for (const github of other) {
+    assert.equal(group(github), `pr-require-checks-${github.run_id}`, github.event_name);
+    assert.equal(cancel(github), true, github.event_name);
+  }
+  assert.equal(group(prEvent("synchronize")), "pr-require-checks-5");
+  assert.equal(group(prEvent("labeled")), "ci-contract-5-905");
+  assert.equal(cancel(prEvent("synchronize")), true);
 });
 
 // Only a scheduled or hand-started run arms (enable-auto-merge.mjs
@@ -272,11 +402,45 @@ test("a pull request event wakes enable-auto-merge only for a lanes App pull req
   const armIf = /\n {4}if: >-\n([\s\S]*?)\n {4}[a-z-]+:/.exec(job("enable-auto-merge"))[1];
   assert.match(
     armIf,
-    /\(github\.event_name != 'pull_request_target'\n {6}\|\| \(github\.event\.pull_request\.head\.repo\.full_name == github\.repository\n {6}&& format\('\{0\}', github\.event\.pull_request\.user\.id\) == vars\.AUTOMATION_LANES_APP_SENDER_ID\)\)\n/,
+    /\(github\.event_name != 'pull_request_target'\n {6}\|\| \(github\.event\.pull_request\.head\.repo\.full_name == github\.repository\n {6}&& format\('\{0\}', github\.event\.pull_request\.user\.id\) == vars\.AUTOMATION_LANES_APP_SENDER_ID\n {6}&& github\.event\.sender\.type != 'Bot'\)\)\n/,
   );
   assert.match(armIf, /^ {6}!cancelled\(\)\n/);
   assert.doesNotMatch(armIf, /schedule|workflow_dispatch/);
 });
+
+// A bot-sent pull_request_target run would wait in the queue and then stop at
+// who.mjs (a bot is never a listed human), so the job's condition skips it
+// first. The condition's syntax is the subset JavaScript reads the same way,
+// so the test evaluates it against hand-written events.
+const evalIf = (id, event) => {
+  const text = /\n {4}if: >-\n([\s\S]*?)\n {4}(?:[a-z-]+:|#)/.exec(job(id))[1].replaceAll("\n", " ");
+  const format = (template, value) => template.replace("{0}", value);
+  return new Function("github", "vars", "cancelled", "format", `return (${text});`)(
+    { ref: "refs/heads/main", repository: "o/r", ...event },
+    { AUTOMATION_LANES_APP_SENDER_ID: "99" },
+    () => false,
+    format,
+  );
+};
+const pullRequestEvent = (senderType) => ({
+  event_name: "pull_request_target",
+  event: { sender: { type: senderType }, pull_request: { head: { repo: { full_name: "o/r" } }, user: { id: 99 } } },
+});
+
+for (const id of ["merge", "enable-auto-merge"]) {
+  test(`${id} skips a bot-sent pull_request_target run and runs a user-sent one`, () => {
+    assert.equal(evalIf(id, pullRequestEvent("Bot")), false);
+    assert.equal(evalIf(id, pullRequestEvent("User")), true);
+  });
+
+  test(`${id} does not gate schedule or workflow_dispatch on the sender type`, () => {
+    for (const event_name of ["schedule", "workflow_dispatch"]) {
+      for (const type of ["Bot", "User"]) {
+        assert.equal(evalIf(id, { event_name, event: { sender: { type } } }), true, `${event_name} sent by ${type}`);
+      }
+    }
+  });
+}
 
 // The merge job's skip, run for enable-auto-merge's own group before the lane
 // token or any other read.
@@ -299,8 +463,9 @@ test("enable-auto-merge skips its work when a waiting run's enable-auto-merge jo
 // answers in that job's RUNNER_TEMP; the readers' tests count what it saves.
 test("the merge and enable-auto-merge jobs' kept-file readers share their reads", () => {
   for (const [id, scripts] of [
-    ["merge", ["rotation.mjs", "head-ref-map.mjs read", "lane-records.mjs read"]],
-    ["enable-auto-merge", ["head-ref-map.mjs read", "lane-records.mjs read"]],
+    ["merge", ["rotation.mjs", "head-ref-map.mjs read", "lane-records.mjs read", "listing-carry.mjs"]],
+    ["enable-auto-merge", ["head-ref-map.mjs read", "lane-records.mjs read", "verify-answers.mjs", "listing-carry.mjs"]],
+    ["post-merge-dispatch", ["lane-records.mjs read", "last-report.mjs"]],
   ]) {
     for (const script of scripts) {
       const step = new RegExp(`\\n {10}PR_MERGE_READS_PATH: (.*)\\n {8}run: node \\.base/\\.github/scripts/pr-merge/${script.replace(".", "\\.")}\\n`).exec(job(id));
@@ -315,6 +480,9 @@ test("the last verifier read enable-auto-merge starts ends inside its step's tim
   assert.ok(step, "the arm step names its timeout");
   // The room read, then the verdict budget and the last read it starts.
   assert.ok(LANE_ROOM_TIMEOUT_MS + VERIFY_BUDGET_MS + VERIFY_TIMEOUT_MS < Number(step[1]) * 60_000);
+  // A read of a kept refusal alone starts no later than its window past the
+  // budget and ends inside the same bound.
+  assert.ok(CACHE_ONLY_WINDOW_MS + CACHE_ONLY_TIMEOUT_MS <= VERIFY_TIMEOUT_MS);
 });
 
 test("enable-auto-merge logs both tokens' readings at job end, before the token is revoked", () => {
@@ -322,7 +490,7 @@ test("enable-auto-merge logs both tokens' readings at job end, before the token 
   const block = /- name: Log the API budget at job end\n([\s\S]*?)(?=\n {6}- name: |$)/.exec(arm)?.[1];
   assert.ok(block, "a job-end budget step");
   assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
-  assert.match(block, /^ {8}id: budget-end\n {8}if: always\(\) && steps\.lane-token\.outputs\.token != ''\n/);
+  assert.match(block, /^ {8}id: budget-end\n {8}if: always\(\) && needs\.post-merge-dispatch\.outputs\.rate-limited == ''\n/);
   assert.match(block, /\n {8}continue-on-error: true\n {8}timeout-minutes: 1\n/);
   assert.match(block, /\n {10}tokens: lanes-app github-token\n/);
   // The reader's gh calls read into both names.
@@ -332,6 +500,194 @@ test("enable-auto-merge logs both tokens' readings at job end, before the token 
   assert.ok(names.indexOf("Arm and disarm auto-merge") < names.indexOf("Log the API budget at job end"));
   assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Revoke the lane token"));
 });
+
+// The hub ranks GITHUB_TOKEN spend by each job's `api-calls` notice, so a
+// job that calls GitHub with the job token and logs nothing is spend no one
+// sees. Every such job carries the log-api-budget step, run whatever failed
+// or stopped before it, naming github-token: under `always()` alone, so a job
+// that ends before it mints a lane token still logs the job token's calls. A
+// token with no reading logs 0 (log-api-budget.test.mjs).
+test("every job that calls GitHub with the job token logs its api-calls", () => {
+  const ids = [...jobs.matchAll(/\n {2}([a-z-]+):\n/g)].map((m) => m[1]);
+  const callers = ids.filter((id) => job(id).includes("${{ github.token }}"));
+  for (const id of ["post-merge-dispatch", "merge", "enable-auto-merge", "unarmed-status", "dispatch-full-run", "gate-check"]) {
+    assert.ok(callers.includes(id), `${id} calls GitHub with the job token`);
+  }
+  const unlogged = callers.filter((id) => {
+    const step = `\n${/- name: Log the API budget[^\n]*\n([\s\S]*?)(?=\n {6}- name: |$)/.exec(job(id))?.[1] ?? ""}`;
+    return !(
+      /\n {8}if: always\(\)(?: && needs\.post-merge-dispatch\.outputs\.rate-limited == '')?\n/.test(step) &&
+      /\n {8}continue-on-error: true\n/.test(step) &&
+      /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /.test(step) &&
+      /\n {10}tokens: (?:[a-z-]+ )*github-token\b/.test(step)
+    );
+  });
+  assert.deepEqual(unlogged, []);
+});
+
+// A node step whose only token is the job token and whose script builds a
+// createGitHub client keeps each answer's reading under github-token (the
+// client's rate guard writes it when API_BUDGET_TOKEN names the bucket), or
+// the job-end notice counts nothing; one that also holds the lane token names
+// lanes-app and the github-token override. A step whose script calls nothing
+// needs no bucket, so none is asked of it.
+test("every createGitHub step that calls GitHub with the job token names the bucket its calls go to", () => {
+  const ids = [...jobs.matchAll(/\n {2}([a-z-]+):\n/g)].map((m) => m[1]);
+  const unnamed = [];
+  const needless = [];
+  for (const id of ids) {
+    const body = job(id);
+    const jobBucket = /(?:^|\n) {4}env:\n(?: {6}.*\n)*? {6}API_BUDGET_TOKEN: ([a-z-]+)$/m.exec(body.split("\n    steps:\n")[0])?.[1];
+    for (const step of body.split(/\n {6}- name: /).slice(1)) {
+      const name = step.split("\n")[0];
+      const script = /\n {8}run: (?:\|\n(?: {10}.*\n|\s*\n)*? {10})?(?:[A-Z_]+=\S+ )*node \.base\/(\S+\.mjs)/.exec(step)?.[1];
+      if (!script || !step.includes("${{ github.token }}")) {
+        continue;
+      }
+      const calls = readFileSync(new URL(`../../../${script}`, import.meta.url), "utf8").includes("createGitHub(");
+      const bucket = /\n {10}API_BUDGET_TOKEN: ([a-z-]+)\n/.exec(step)?.[1];
+      // A step that also holds the lane token as its GH_TOKEN counts that
+      // token's calls under lanes-app and the job token's under the override
+      // (rate-guard.mjs budgetToken).
+      if (step.includes("${{ steps.lane-token.outputs.token }}")) {
+        const override = /\n {10}API_BUDGET_OVERRIDE_TOKEN: ([a-z-]+)\n/.exec(step)?.[1];
+        if (calls && (bucket !== "lanes-app" || override !== "github-token")) {
+          unnamed.push(`${id}: ${name}`);
+        }
+        continue;
+      }
+      if (calls && (bucket ?? jobBucket) !== "github-token") {
+        unnamed.push(`${id}: ${name}`);
+      }
+      if (!calls && bucket !== undefined) {
+        needless.push(`${id}: ${name}`);
+      }
+    }
+  }
+  assert.deepEqual(unnamed, []);
+  assert.deepEqual(needless, []);
+});
+
+// The sweep-count step's one read, the run's start, goes through the wrapped
+// gh, so the job-end notice counts it; sweep-summary.mjs calls nothing.
+test("the merge job's sweep-count read leaves one github-token reading", () => {
+  const step = /- name: Count the sweep's refusals\n([\s\S]*?)(?=\n {6}- name: )/.exec(job("merge"))[1];
+  const run = /\n {8}run: \|\n((?: {10}.*\n|\s*\n)+)/.exec(step)[1].replace(/^ {10}/gm, "");
+  const dir = tempDir("pr-merge-sweep-count-");
+  try {
+    mkdirSync(join(dir, "bin"));
+    symlinkSync(fileURLToPath(new URL("../../..", import.meta.url)), join(dir, ".base"));
+    const headers = "X-Ratelimit-Limit: 5000\\r\\nX-Ratelimit-Remaining: 4000\\r\\nX-Ratelimit-Used: 1000\\r\\nX-Ratelimit-Reset: 9999999999\\r\\nX-Ratelimit-Resource: core\\r\\n\\r\\n";
+    writeFileSync(
+      join(dir, "bin", "gh"),
+      `#!/usr/bin/env bash
+printf 'HTTP/2.0 200 OK\\r\\n${headers}'
+while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '{"run_started_at":"2026-10-28T00:00:00Z"}' | jq -r "$2"; exit; fi; shift; done
+`,
+      { mode: 0o755 },
+    );
+    writeFileSync(join(dir, "bin", "node"), "#!/usr/bin/env bash\necho \"$RUN_STARTED_AT\" >\"$RUNNER_TEMP/started\"\n", { mode: 0o755 });
+    writeFileSync(join(dir, "sweep.json"), '{"refusal_counts":{}}');
+    const r = spawnSync("bash", ["-c", run], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { PATH: `${join(dir, "bin")}:${process.env.PATH}`, GH_TOKEN: "x", REPO: "o/r", GITHUB_RUN_ID: "77", LIMITED: "", RUNNER_TEMP: dir, SWEEP_SUMMARY_TO: join(dir, "sweep.json") },
+    });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.equal(readFileSync(join(dir, "started"), "utf8"), "2026-10-28T00:00:00Z\n");
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core\n");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// A run that stops at the superseded step, before the lane token, still
+// ends with the job token's calls: who's read, the pending-run listing and
+// the waiting run's jobs read, each through createGitHub.
+for (const jobId of ["merge", "enable-auto-merge"]) {
+  test(`${jobId}: a run that stops as superseded still logs its github-token calls`, async () => {
+    const body = job(jobId);
+    const stepOf = (name) => new RegExp(`- name: ${name}\\n([\\s\\S]*?)(?=\\n {6}- name: |\\n*$)`).exec(body)?.[1];
+    const context = { "github.event_name": "workflow_dispatch", "github.actor_id": String(OWNER.id), "github.token": "t" };
+    const envOf = (step) =>
+      Object.fromEntries([...step.matchAll(/^ {10}([A-Z_]+): (.*)$/gm)].map(([, k, v]) => [k, v.replace(/\$\{\{ (\S+) \}\}/g, (_, e) => context[e] ?? "")]));
+    const answers = {
+      "/repos/o/r/actions/runs/4242": { id: 4242, run_attempt: 2, actor: OWNER, triggering_actor: OWNER },
+      "/repos/o/r/actions/workflows/pr-merge.yml/runs": { workflow_runs: [{ id: 5000, status: "pending", event: "schedule", head_branch: "main", run_attempt: 1 }] },
+      "/repos/o/r/actions/runs/5000/jobs": { jobs: [{ name: jobId, status: "waiting" }] },
+    };
+    const server = createServer((req, res) => {
+      const answer = answers[req.url.split("?")[0]];
+      res.writeHead(answer ? 200 : 404, {
+        "Content-Type": "application/json",
+        "X-Ratelimit-Limit": "5000",
+        "X-Ratelimit-Remaining": "4000",
+        "X-Ratelimit-Used": "1000",
+        "X-Ratelimit-Reset": "9999999999",
+        "X-Ratelimit-Resource": "core",
+      });
+      res.end(JSON.stringify(answer ?? { message: "Not Found" }));
+    });
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const dir = tempDir("pr-merge-superseded-budget-");
+    try {
+      symlinkSync(fileURLToPath(new URL("../../../", import.meta.url)), join(dir, ".base"));
+      const output = join(dir, "output");
+      writeFileSync(output, "");
+      writeFileSync(join(dir, "summary"), "");
+      const base = {
+        PATH: process.env.PATH,
+        RUNNER_TEMP: dir,
+        GITHUB_OUTPUT: output,
+        GITHUB_STEP_SUMMARY: join(dir, "summary"),
+        GITHUB_REPOSITORY: "o/r",
+        GITHUB_RUN_ID: "4242",
+        GITHUB_RUN_ATTEMPT: "2",
+        GITHUB_EVENT_NAME: "workflow_dispatch",
+        GITHUB_API_URL: `http://127.0.0.1:${server.address().port}`,
+        NODE_OPTIONS: "--preserve-symlinks-main",
+      };
+      let stdout = "";
+      for (const name of ["Check who started the run", "Check for a newer run that does this work"]) {
+        const step = stepOf(name);
+        const run = /\n {8}run: (.*)/.exec(step)[1];
+        const status = await new Promise((resolve) => {
+          const child = spawn("bash", ["-ec", run], { cwd: dir, env: { ...base, ...envOf(step) }, stdio: ["ignore", "pipe", "ignore"] });
+          child.stdout.on("data", (chunk) => (stdout += chunk));
+          child.on("close", resolve);
+        });
+        assert.equal(status, 0, name);
+      }
+      // enable-auto-merge names each step (API_BUDGET_SCRIPT), so its job
+      // total splits by step: who's one read, superseded's two. The merge job
+      // names none.
+      assert.deepEqual(
+        stdout.match(/^::notice title=api-calls::script=.*$/gm) ?? [],
+        jobId === "enable-auto-merge"
+          ? [
+              "::notice title=api-calls::script=who github-token=1 lanes-app=0 not-modified=0 graphql=0",
+              "::notice title=api-calls::script=superseded github-token=2 lanes-app=0 not-modified=0 graphql=0",
+            ]
+          : [],
+      );
+      assert.match(readFileSync(output, "utf8"), /^proceed=true$/m);
+      assert.match(readFileSync(output, "utf8"), /^superseded=true$/m);
+      const log = stepOf("Log the API budget at job end");
+      assert.match(log, /^ {8}id: budget-end\n {8}if: always\(\) && needs\.post-merge-dispatch\.outputs\.rate-limited == ''\n/);
+      const action = readFileSync(new URL("../../actions/log-api-budget/action.yml", import.meta.url), "utf8");
+      const out = spawnSync("bash", ["-c", /\n {6}run: \|\n([\s\S]*)$/.exec(action)[1].replace(/^ {8}/gm, "")], {
+        cwd: dir,
+        encoding: "utf8",
+        env: { ...base, GITHUB_ACTION_PATH: fileURLToPath(new URL("../../actions/log-api-budget/", import.meta.url)), TOKENS: /\n {10}tokens: (.*)\n/.exec(log)[1] },
+      });
+      assert.match(out.stdout, /^::notice title=api-calls::github-token=3 not-modified=0 graphql=0$/m);
+      assert.match(out.stdout, /^::notice title=api-calls::lanes-app=0 not-modified=0 graphql=0$/m);
+    } finally {
+      server.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+}
 
 // The lane's room (lane-room) reads this run's post-merge report, which
 // post-merge-dispatch keeps, rather than running the check a third time per
@@ -361,6 +717,10 @@ test("enable-auto-merge reads the lane's room from this run's post-merge-dispatc
   assert.doesNotMatch(read, /run-id|github-token|repository:/);
   const step = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(arm)[1];
   assert.match(step, /\n {10}POSTMERGE_RESULT: \$\{\{ runner\.temp \}\}\/post-merge\/post-merge\.json\n/);
+  // The commit whose code ran it, kept beside it, for lane-room.
+  assert.match(dispatch, /\n {10}git -C \.base rev-parse HEAD >"\$kept\/post-merge-code-sha" \|\| true\n/);
+  assert.match(step, /\n {10}POSTMERGE_CODE_SHA=\$\(cat "\$RUNNER_TEMP\/post-merge\/post-merge-code-sha" 2>\/dev\/null \|\| true\)\n/);
+  assert.match(step, /\n {10}export [^\n]*\bPOSTMERGE_CODE_SHA\n/);
   assert.match(step, /\n {10}RUNG_CAP: \$\{\{ vars\.CLAUDE_LANES_MERGE_RUNG_CAP \}\}\n/);
   const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
   assert.ok(names.indexOf("Read this run's post-merge report") < names.indexOf("Arm and disarm auto-merge"));
@@ -452,7 +812,10 @@ test("enable-auto-merge asks the broker for its own activity's merge token", () 
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(arm)[1];
   assert.deepEqual(
     [...block.matchAll(/ {6}([a-z-]+): ([a-z]+)/g)].map((m) => `${m[1]}: ${m[2]}`),
-    ["contents: read", "actions: read", "pull-requests: read", "checks: read", "issues: read", "id-token: write"],
+    // statuses: read for the head's pr-unblock statuses: GitHub lists that
+    // endpoint under the "Commit statuses" read permission, which the lanes
+    // App does not hold.
+    ["contents: read", "actions: read", "pull-requests: read", "checks: read", "issues: read", "statuses: read", "id-token: write"],
   );
   // The verifier evidence is read as the gate reads it: the job's
   // GITHUB_TOKEN for the Actions reads, with the run's head-ref map and
@@ -505,7 +868,7 @@ const limited = (headers, message = "API rate limit exceeded for installation") 
 });
 function runDispatch(answers, { jobId = "dispatch-full-run", cap, event = "push" } = {}) {
   const step = dispatchStep(jobId);
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-dispatch-"));
+  const dir = tempDir("pr-merge-dispatch-");
   mkdirSync(join(dir, "bin"));
   answers.forEach((a, i) => {
     const text =
@@ -731,13 +1094,11 @@ test("a rate limit after a TLS handshake timeout still stops red, with no furthe
   }
 });
 
-// Only a lane merge is picked up by the scheduled post-merge check; any other
-// merge waits for the next push or pr-require-checks.yml's own schedule.
+// post-merge-dispatch's cover starts main's tip for any merge no run covers.
 test("the exhausted-retry warning names who starts the run next", () => {
-  assert.match(read("pr-require-checks.yml"), /\n {2}schedule:\n {4}- cron: /);
   for (const jobId of ["dispatch-full-run", "post-merge-dispatch"]) {
     const r = runDispatch([refused()], { jobId, event: "schedule" });
-    assert.match(r.out, /::warning::no full CI run started .*; a scheduled pr-merge run starts one only for a lane merge, and any other merge waits for the next push or pr-require-checks' own schedule$/m, jobId);
+    assert.match(r.out, /::warning::no full CI run started .*; the next scheduled pr-merge run starts one for main's tip$/m, jobId);
   }
 });
 
@@ -766,13 +1127,11 @@ test("a dispatch that returns no run id is not sent again and records nothing", 
   assert.doesNotMatch(r.output, /run-id=/);
 });
 
-test("a dispatch that failed skips the record and the wait", () => {
+test("a dispatch that failed skips the record", () => {
   for (const id of ["dispatch-full-run", "post-merge-dispatch"]) {
     const record = job(id).split("\n      - name: Record the dispatched run\n")[1];
     assert.match(record, /^ {8}if: steps\.dispatch\.outputs\.run-id != ''\n/, id);
   }
-  const wait = job("dispatch-full-run").split("\n      - name: Wait for the full run to finish\n")[1];
-  assert.match(wait, /^ {8}if: github\.event_name == 'push' && steps\.dispatch\.outputs\.run-id != ''\n/);
 });
 
 // Each job's "Check who started the run" step, run under bash from a directory
@@ -817,7 +1176,7 @@ async function runWho(
     res.end(JSON.stringify(found ? record : { message: "Not Found" }));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-who-"));
+  const dir = tempDir("pr-merge-who-");
   try {
     symlinkSync(fileURLToPath(new URL("../../../", import.meta.url)), join(dir, ".base"));
     writeFileSync(join(dir, "body.sh"), body);
@@ -1001,4 +1360,153 @@ test("a token grant is found at any indentation", () => {
     const top = `on: push\n${grant}jobs:\n  plain:\n    steps:\n${restore("      ")}`;
     assert.deepEqual(tokenJobRestores(top).map((r) => r.job), ["plain"], grant);
   }
+});
+
+// The verifier answers (babysit_verify_evidence.py --answers-in/--answers-out)
+// cross runs only as the artifact of a scheduled or hand-started run of
+// main's pr-merge.yml, read through rotation.mjs newestTrustedRun and
+// onMain, never actions/cache, which any job in main's cache scope can write.
+test("enable-auto-merge reads the verifier answers only from a trusted run and uploads them under their own name, always", () => {
+  const arm = job("enable-auto-merge");
+  const step = (name) => new RegExp(`- name: ${name}\\n([\\s\\S]*?)(?=\\n {6}- name: |\\n*$)`).exec(arm)?.[1];
+  const read = step("Read the verifier answers the last run kept");
+  assert.ok(read, "an answers read");
+  assert.match(read, /^ {8}if: steps\.lane-token\.outputs\.token != '' && \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/);
+  assert.match(read, /\n {8}continue-on-error: true\n/);
+  assert.match(read, /\n {10}ACTIONS_TOKEN: \$\{\{ github\.token \}\}\n {10}VERIFY_ANSWERS_PATH: \$\{\{ runner\.temp \}\}\/verify-answers-in\.json\n/);
+  const script = readFileSync(new URL("./verify-answers.mjs", import.meta.url), "utf8");
+  assert.match(script, /newestTrustedRun\(\{ repo, runId, actions, name: ANSWERS_ARTIFACT, accept \}\)/);
+  assert.match(script, /const accept = \(run\) => onMain\(/);
+  assert.match(script, /export const ANSWERS_ARTIFACT = "pr-merge-verify-answers";/);
+  const armStep = step("Arm and disarm auto-merge");
+  assert.match(armStep, /\n {10}VERIFY_ANSWERS_IN: \$\{\{ runner\.temp \}\}\/verify-answers-in\.json\n {10}VERIFY_ANSWERS_OUT: \$\{\{ runner\.temp \}\}\/verify-answers\/verify-answers\.json\n/);
+  assert.match(armStep, /\n {10}VERIFY_CACHE=\$\(yq '\.merge\."verify-cache" \/\/ "shadow"' "\$config"\)\n/);
+  assert.match(armStep, /\n {10}export [^\n]*\bVERIFY_CACHE\b/);
+  const upload = step("Upload the verifier answers for the next run");
+  assert.ok(upload, "an answers upload");
+  assert.match(upload, /^ {8}if: >-\n {10}always\(\) && steps\.arm\.outcome != 'skipped'\n {10}&& \(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)\n/);
+  assert.match(upload, /\n {8}uses: actions\/upload-artifact@[0-9a-f]{40} /);
+  // Bounded, so the job's timeout stays above the sum of its steps'.
+  assert.match(upload, /\n {8}timeout-minutes: [0-9]+\n/);
+  assert.match(upload, /\n {10}name: pr-merge-verify-answers\n {10}path: \|\n {12}\$\{\{ runner\.temp \}\}\/verify-answers\/verify-answers\.json\n {12}\$\{\{ runner\.temp \}\}\/verify-answers\/eam-skip\.json\n {10}retention-days: 1\n {10}if-no-files-found: ignore\n/);
+  const names = [...arm.matchAll(/\n {6}- name: (.*)/g)].map((m) => m[1]);
+  assert.ok(names.indexOf("Read the verifier answers the last run kept") < names.indexOf("Arm and disarm auto-merge"));
+  assert.ok(names.indexOf("Arm and disarm auto-merge") < names.indexOf("Upload the verifier answers for the next run"));
+  // Its own name in the workflow, never downloaded by name, never cached.
+  assert.equal([...merge.matchAll(/\n {10}name: pr-merge-verify-answers\n/g)].length, 1);
+  assert.doesNotMatch(merge, /uses: actions\/cache[^\n]*\n(?:[^\n]*\n){0,6}[^\n]*verify-answers/);
+  assert.doesNotMatch(merge, /uses: actions\/download-artifact[^\n]*\n(?:[^\n]*\n){0,3}[^\n]*verify-answers/);
+});
+
+// merge.full-run-cap-bypass (owner standing direction, relayed 2026-10-29:
+// runner minutes on this repository are not a cost, and the cap now limits
+// lane throughput). Inside the cap, post-merge-dispatch starts one run of
+// main's tip when the post-merge report lists an unverified lane merge with no
+// dispatch under way and no listed run created at or after the merge on a
+// commit that contains it. The checkout is a real history: BEFORE, then the
+// merge MERGED, then TIP; LATER is a commit the checkout lacks.
+const LATER = "f".repeat(40);
+function runBypass({ merges, runs, bypass = true, mergedAt = "2026-10-29T01:00:00Z" }) {
+  const dir = tempDir("pr-merge-bypass-");
+  const git = (...args) =>
+    execFileSync("git", ["-C", join(dir, ".base"), ...args], {
+      encoding: "utf8",
+      env: { ...process.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+    }).trim();
+  mkdirSync(join(dir, ".base/docs/conventions"), { recursive: true });
+  git("init", "-q", "-b", "main");
+  const commit = (message) => {
+    git("-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "--allow-empty", "-m", message);
+    return git("rev-parse", "HEAD");
+  };
+  const shas = { BEFORE: commit("before"), MERGED: commit("the lane merge"), TIP: commit("tip"), LATER };
+  const config = bypass === undefined ? "merge: {}\n" : `merge:\n  full-run-cap-bypass: ${bypass}\n`;
+  writeFileSync(join(dir, ".base/docs/conventions/pr-pipeline.yaml"), config);
+  const autoMerges = merges.map((m, i) => ({
+    number: 100 + i,
+    mergeCommit: shas.MERGED,
+    mergedAt,
+    verified: m.verified ?? false,
+    pending: m.pending ?? ["dispatch-run-pending", "canary-run-pending"],
+  }));
+  writeFileSync(join(dir, "post-merge.json"), JSON.stringify({ ok: true, autoMerges }));
+  writeFileSync(join(dir, "cover-runs.json"), JSON.stringify(runs.map((r) => ({ sha: shas[r.at], created: r.created }))));
+  writeFileSync(join(dir, "output"), "");
+  const block = job("post-merge-dispatch").split("\n      - name: Find lane merges no full run covers\n")[1].split("\n      - name: ")[0];
+  writeFileSync(join(dir, "body.sh"), runBody(block));
+  const result = spawnSync("bash", ["-e", join(dir, "body.sh")], {
+    cwd: dir,
+    env: { ...process.env, GITHUB_OUTPUT: join(dir, "output"), RUNNER_TEMP: dir, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" },
+    encoding: "utf8",
+  });
+  const output = readFileSync(join(dir, "output"), "utf8");
+  rmSync(dir, { recursive: true, force: true });
+  return { status: result.status, out: result.stdout + result.stderr, bypass: /^bypass=true$/m.test(output) };
+}
+// The run that started the window: before the merge, at the commit before it.
+const STARTED = { at: "BEFORE", created: "2026-10-29T00:50:00Z" };
+
+test("inside the cap, an unverified lane merge no started run covers starts one run", () => {
+  const r = runBypass({ merges: [{}, {}], runs: [STARTED] });
+  assert.equal(r.status, 0, r.out);
+  assert.equal(r.bypass, true);
+  assert.match(r.out, /::notice::no full run covers lane merge\(s\) #100 #101; one run of main's tip starts inside the cap/);
+});
+
+test("a run created after the merge on a commit that contains it covers the batch: the cap holds", () => {
+  for (const at of ["MERGED", "TIP", "LATER"]) {
+    const r = runBypass({ merges: [{}], runs: [{ at, created: "2026-10-29T01:05:00Z" }, STARTED] });
+    assert.equal(r.status, 0, r.out);
+    assert.equal(r.bypass, false, `a run at ${at}`);
+  }
+});
+
+test("a run after the merge on a commit without it, or one before the merge at the tip, covers nothing", () => {
+  assert.equal(runBypass({ merges: [{}], runs: [{ at: "BEFORE", created: "2026-10-29T01:05:00Z" }, STARTED] }).bypass, true);
+  assert.equal(runBypass({ merges: [{}], runs: [{ at: "TIP", created: "2026-10-29T00:59:59Z" }, STARTED] }).bypass, true);
+});
+
+test("the second tick in the window finds the run the first tick started and starts none", () => {
+  // The first tick's dispatch, at main's tip, is in the next listing.
+  const r = runBypass({ merges: [{}], runs: [{ at: "TIP", created: "2026-10-29T01:11:30Z" }, STARTED] });
+  assert.equal(r.bypass, false, r.out);
+});
+
+test("no lane merge, a verified one, or one with a run under way keeps the cap", () => {
+  assert.equal(runBypass({ merges: [], runs: [STARTED] }).bypass, false);
+  assert.equal(runBypass({ merges: [{ verified: true, pending: [] }], runs: [STARTED] }).bypass, false);
+  for (const pending of [["dispatch-run-pending", "dispatch-run-in-progress:77"], ["dispatch-run-pending", "attribution-pending:77"], ["canary-run-pending"]]) {
+    assert.equal(runBypass({ merges: [{ pending }], runs: [STARTED] }).bypass, false, pending.join(","));
+  }
+});
+
+test("merge.full-run-cap-bypass false keeps the cap; absent is true", () => {
+  const off = runBypass({ merges: [{}], runs: [STARTED], bypass: false });
+  assert.equal(off.bypass, false);
+  assert.match(off.out, /::notice::merge\.full-run-cap-bypass is false: the cap holds/);
+  assert.equal(runBypass({ merges: [{}], runs: [STARTED], bypass: undefined }).bypass, true);
+});
+
+test("a merge older than every listed run is skipped, not read as uncovered", () => {
+  const r = runBypass({ merges: [{}], runs: [STARTED], mergedAt: "2026-10-29T00:40:00Z" });
+  assert.equal(r.bypass, false, r.out);
+});
+
+test("the bypass step runs only inside the cap after a check that judged, and the yaml default is on", () => {
+  const block = job("post-merge-dispatch").split("\n      - name: Find lane merges no full run covers\n")[1].split("\n      - name: ")[0];
+  assert.match(block, /\n {8}if: >-\n {10}steps\.cover\.outputs\.capped == 'true'\n {10}&& contains\(fromJSON\('\["0","5"\]'\), steps\.post-merge\.outputs\.code\)\n/);
+  const config = readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8");
+  assert.match(config, /\n {2}full-run-cap-bypass: true\n/);
+  assert.doesNotMatch(job("dispatch-full-run"), /steps\.bypass/);
+});
+
+// Every enable-auto-merge step that counts its GitHub calls (API_BUDGET_TOKEN)
+// names itself (API_BUDGET_SCRIPT, rate-guard.mjs scriptCalls), each a name of
+// its own, so the job-end api-calls total splits by step.
+test("enable-auto-merge: every step that counts its calls names itself once", () => {
+  const steps = job("enable-auto-merge").split(/\n {6}- name: /).filter((step) => /^ {10}API_BUDGET_TOKEN: /m.test(step));
+  const names = steps.map((step) => /^ {10}API_BUDGET_SCRIPT: ([a-z][a-z0-9-]{0,39})$/m.exec(step)?.[1]);
+  assert.ok(steps.length > 0);
+  assert.ok(names.every(Boolean), names.join(" "));
+  assert.equal(new Set(names).size, names.length);
 });

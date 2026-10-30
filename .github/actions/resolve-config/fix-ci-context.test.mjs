@@ -2,13 +2,13 @@
 // FIX_CI_ROUNDS, main takes loop.fix-ci-rounds from the base's
 // pr-pipeline.yaml. Lives here because it needs resolve-config's dependencies.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { main } from "../../scripts/pr-unblock/fix-ci-context.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 // The lanes App bot's id (.github/standards/trusted-actors/trusted-actors.json).
@@ -21,10 +21,13 @@ const fixCommit = {
 const api = {
   getPull: async () => ({ state: "open", head: { sha: "a".repeat(40) } }),
   listPullCommits: async () => [fixCommit, fixCommit, fixCommit],
+  // A failing check: the round cap is read only when one fails.
+  listCommitCheckRuns: async () =>
+    Object.assign([{ id: 11, name: "lint-shell", status: "completed", conclusion: "failure", app: { slug: "github-actions" } }], { complete: true }),
 };
 
 test("with no FIX_CI_ROUNDS, main reads loop.fix-ci-rounds from the base config", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "fix-ci-context-"));
+  const dir = tempDir("fix-ci-context-");
   try {
     const env = {
       GITHUB_TOKEN: "t",

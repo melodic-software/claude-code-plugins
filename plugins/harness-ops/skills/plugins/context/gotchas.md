@@ -7,6 +7,7 @@
 - [Native-Windows `projectPath` vs Git Bash `$PWD`](#native-windows-projectpath-vs-git-bash-pwd)
 - [A subdirectory install is invisible to this skill: `currentProject` cannot see it](#a-subdirectory-install-is-invisible-to-this-skill-currentproject-cannot-see-it)
 - [Concurrency / TOCTOU](#concurrency--toctou)
+- [Never run plugin CLI writes concurrently: the sweep stays serial](#never-run-plugin-cli-writes-concurrently-the-sweep-stays-serial)
 - [Dual-scope divergence is normal, not a defect](#dual-scope-divergence-is-normal-not-a-defect)
 - [A `projectPath` can outlive its directory](#a-projectpath-can-outlive-its-directory)
 - [A large absent-path count is not evidence of careless installs](#a-large-absent-path-count-is-not-evidence-of-careless-installs)
@@ -15,6 +16,7 @@
 - [`marketplace remove` is a bulk uninstall, not a declaration removal, and it deletes this skill's own run journal](#marketplace-remove-is-a-bulk-uninstall-not-a-declaration-removal-and-it-deletes-this-skills-own-run-journal)
 - [Internal-schema drift: fail loud, never guess](#internal-schema-drift-fail-loud-never-guess)
 - [Captured values on Windows carry `\r`: strip it before embedding in any command or JSON](#captured-values-on-windows-carry-r-strip-it-before-embedding-in-any-command-or-json)
+- [A fleet-sized value on jq's command line fails the exec](#a-fleet-sized-value-on-jqs-command-line-fails-the-exec)
 - [`--all` with `install_new: all` is a mass install of every catalog, and nothing warns you](#--all-with-install_new-all-is-a-mass-install-of-every-catalog-and-nothing-warns-you)
 - [A disabled-by-default install writes `false`, and only an install record can be uninstalled](#a-disabled-by-default-install-writes-false-and-only-an-install-record-can-be-uninstalled)
 
@@ -126,6 +128,24 @@ valid staleness or correctness check: a mismatch is as likely to be this race as
 chasing it as an enumeration bug wastes the session. Compare only within one `fleet-state.sh`
 snapshot, and when two reads must be compared, treat a difference as a re-read signal rather than
 evidence about either read.
+
+## Never run plugin CLI writes concurrently: the sweep stays serial
+
+The user sweep runs one `claude plugin update` at a time on purpose, and so does every other
+mutating plugin CLI call this skill makes. Concurrent calls lose each other's registry writes, and
+the lost call still exits 0 and prints success, so neither the exit code nor the CLI's output shows
+the loss. A sweep that ran in parallel would report plugins as updated while
+`installed_plugins.json` still pins their old versions.
+
+Probe (Claude Code 2.1.310, Linux, 2026-10-26): a scratch `CLAUDE_CONFIG_DIR` and a local git
+marketplace of 12 plugins, all installed at 1.0.0 at user scope; the marketplace moved to 2.0.0,
+then N distinct `claude plugin update <id> -s user` calls were launched at once, repeated 10
+times. Every call exited 0 and copied 2.0.0 into the cache. The registry lost 36 of 80 updates at
+N=8 (every repetition lost some) and 11 of 40 at N=4 (8 of 10 repetitions). The serial control
+lost none. Concurrent `claude plugin uninstall -s project` calls lose writes the same way.
+Results and method: issue #6309.
+**Recheck trigger:** a Claude Code release note that adds locking or atomic writes to the plugin
+registry, or a `plugin update` that takes several plugins in one call. Re-run the probe then.
 
 ## Dual-scope divergence is normal, not a defect
 
@@ -352,6 +372,26 @@ captured from any other source before embedding it in a `claude plugin` command 
 A `jq() { command jq "$@" | tr -d '\r'; }` wrapper gives the same guarantee at the price of a second
 process per call. Don't rediscover this the hard way in a second script.
 
+## A fleet-sized value on jq's command line fails the exec
+
+The kernel caps the size of one exec argument (`MAX_ARG_STRLEN`), so a value that grows with the
+fleet reaches jq through a file or stdin: the divergence records, the installed and enabled rows,
+the failed-update rows, and the assembled marketplace blocks. A fleet with about a thousand
+install records produced a `.divergences` too large for `jq --argjson div`. In `sync-run.sh`,
+`json_object_file` writes the JSON fields to one file in the run directory and the jq program
+reads them back with `. as {$name, ...}`. The digest reads `.blocks.jsonl` with `--slurpfile`.
+`fleet-state.sh` sends its payload on stdin. Pass only fixed-size values with `--arg` or
+`--argjson`: a name, a timestamp, an exit code, a cap. When a marketplace block cannot be
+assembled, the run adds an `errors[]` entry naming the marketplace and the jq failure, and the
+report lists it under `Action needed`.
+
+- **Pointer**: when sizing a value against the limit, fetch the "Limits on size of arguments and
+  environment" subsection of
+  [execve(2) DESCRIPTION](https://man7.org/linux/man-pages/man2/execve.2.html#DESCRIPTION) live.
+- **As of**: 2026-10-28
+- **Recheck trigger**: a `sync` run on Linux or Windows reporting a jq exec failure on a value this
+  section says travels through a file.
+
 ## `--all` with `install_new: all` is a mass install of every catalog, and nothing warns you
 
 Observed 2026-09-14 on **Claude Code 2.1.270**, harness-ops 0.56.2. A `sync --all` run under
@@ -415,9 +455,11 @@ direct observation.
 *As of* 2026-09-15 on **Claude Code 2.1.272** (win32) for the observation, 2026-10-18 on docs
 for 2.1.300; the revert itself ran on 2.1.263–2.1.272 with no observed change in the behavior.
 ***Recheck trigger:*** a bulk or glob-accepting form appearing on `claude plugin uninstall --help`;
-any release note or `plugins-reference` change touching what a non-interactive `plugin` subcommand
-loads at startup, or documenting `--bare` for it; the headless page changing what `--bare` skips;
-or an observed uninstall that does not spawn a plugin-loading session.
+any release note, or change to the [plugin loading reference](https://code.claude.com/docs/en/plugins/loading)
+or the [plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference), touching
+what a non-interactive `plugin` subcommand loads at startup, or documenting `--bare` for it; the
+headless page changing what `--bare` skips; or an observed uninstall that does not spawn a
+plugin-loading session.
 
 ## A disabled-by-default install writes `false`, and only an install record can be uninstalled
 

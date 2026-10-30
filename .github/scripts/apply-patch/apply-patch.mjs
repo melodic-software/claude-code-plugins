@@ -49,7 +49,9 @@
 // PATCH_ACTIVITY, PATCH_FILE, PATCH_SHA256, HOLD_LABELS, SKIP_REASON_FILE,
 // ESCALATION_REASON_FILE; optional BASE_REF, KEPT_THREADS_FILE (the select
 // job's threads.json, whose threads' path and named_paths the kept-threads
-// predicate reads), DEPENDENCY_VERDICT (the scanned verdict the
+// predicate reads), PATCH_REPLIES_FILE (a thread-trailer row's scanned
+// replies.jsonl, whose VALID replies name the kept threads the commit's
+// Lane-Thread lines name), DEPENDENCY_VERDICT (the scanned verdict the
 // dependency-verdict requirement reads) and GITHUB_OUTPUT (gets commit=<sha>
 // and branch=<ref>). A row that allows dependency-manifests reads the
 // [ecosystem, directory] pairs from BASE_DIR's .github/dependabot.yml. A merge
@@ -68,8 +70,10 @@ import { pathToFileURL } from "node:url";
 
 import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
+import { stopSkip } from "../pr-unblock/escalation-routes.mjs";
+import { THREAD_ID, threadTrailerLines } from "../pr-unblock/thread-scope.mjs";
 import { PREDICATES } from "./predicates.mjs";
-import { PROTECTED_REFUSALS } from "./protected-paths.mjs";
+import { PROTECTED_REFUSALS, segments } from "./protected-paths.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 
 export { segments } from "./protected-paths.mjs";
@@ -89,9 +93,19 @@ const REGULAR = "100644";
 const EXECUTABLE = "100755";
 const ZERO = /^0+$/;
 
+// Path refusals a row may add to the universal set, in any case and through
+// any .. segment; rename-into-refused does not read them.
+const ROW_PATH_RULES = {
+  // A path under a skills/ directory at any depth.
+  skills: (s) => s.slice(0, -1).includes("skills"),
+  "skill-md": (s) => s.at(-1) === "skill.md",
+};
+const rowPathRule = (name) => (entry) => ROW_PATH_RULES[name](segments(entry.path));
+
 // The refusal table. Every row must name every refusal but those in ALWAYS,
-// which apply to every row unnamed; any match refuses the whole patch, and
-// `kind` picks the row's escalation reason.
+// which apply to every row unnamed, and the `optional` ones, which apply only
+// to a row that names them; any match refuses the whole patch, and `kind`
+// picks the row's escalation reason.
 export const ALWAYS = ["backslash"];
 export const REFUSALS = {
   backslash: PROTECTED_REFUSALS.backslash,
@@ -99,13 +113,21 @@ export const REFUSALS = {
   codeowners: PROTECTED_REFUSALS.codeowners,
   gitmodules: PROTECTED_REFUSALS.gitmodules,
   settings: PROTECTED_REFUSALS.settings,
+  "lane-grants": PROTECTED_REFUSALS["lane-grants"],
   symlink: { kind: "invalid", test: (entry) => entry.oldMode === SYMLINK || entry.newMode === SYMLINK },
   gitlink: { kind: "invalid", test: (entry) => entry.oldMode === GITLINK || entry.newMode === GITLINK },
   "rename-into-refused": PROTECTED_REFUSALS["rename-into-refused"],
+  skills: { kind: "protected-path", optional: true, test: rowPathRule("skills") },
+  "skill-md": { kind: "protected-path", optional: true, test: rowPathRule("skill-md") },
+  // A mode that gains the executable bit: a new file at 100755, or a change
+  // to it. Optional, so the issue row's script-exec-bit and the ci-context
+  // row's script fixes keep working.
+  "new-exec-bit": { kind: "protected-path", optional: true, test: (entry) => entry.newMode === EXECUTABLE && entry.oldMode !== EXECUTABLE },
 };
 
-// The names of the refusals that match one changed entry; by default all.
-export const refusalsOf = (entry, names = Object.keys(REFUSALS)) => names.filter((name) => REFUSALS[name].test(entry));
+// The names of the refusals that match one changed entry; by default all but
+// the optional ones, which apply only to a row that names them.
+export const refusalsOf = (entry, names = Object.keys(REFUSALS).filter((name) => !REFUSALS[name].optional)) => names.filter((name) => REFUSALS[name].test(entry));
 
 // Credential shapes: any match in the patch or a patched blob refuses it all.
 // GitHub prefixes from
@@ -145,6 +167,28 @@ export function rungUpEscalation(text) {
   return reasons.length > 0 && reasons.length === escalatedChecks(text).length && reasons.every((reason) => RUNG_UP_REASONS.has(reason));
 }
 
+// An escalation only a person settles, and the reason it stops with: a fix
+// that needs a path the lane token may not push, or one that would weaken a
+// required check after its fresh fixer round (weakenStop; escalation-routes.json
+// holds both).
+const HELD_ESCALATIONS = [
+  ["protected-path", "ci-fix-protected-path"],
+  ["weaken-required", "ci-fix-weaken-required"],
+];
+
+// The held reason a report's escalations name, or "".
+export function heldEscalation(text) {
+  const reasons = reportLines(text).flatMap((line) => ESCALATED_REASON.exec(line)?.[1] ?? []);
+  return HELD_ESCALATIONS.find(([reason]) => reasons.includes(reason))?.[1] ?? "";
+}
+
+// The first weaken-required stop on a head stops for one fresh fixer round
+// instead of a person: a fail-routed reason, whose lane-stopped check the
+// fix-ci dispatcher retries on the same head with the no-weaken brief
+// (fix-ci-context.mjs). The guard itself stays: the round still may not weaken.
+export const WEAKEN_RETRY = "ci-fix-weaken-retry";
+const weakenStop = (held, weakenRetry) => (held === "ci-fix-weaken-required" && weakenRetry ? WEAKEN_RETRY : held);
+
 const reportText = (reportDir) => {
   const file = reportDir ? join(reportDir, "reply.txt") : "";
   return Boolean(file) && existsSync(file) && lstatSync(file).isFile() ? readFileSync(file, "utf8") : "";
@@ -156,6 +200,7 @@ const REPORTS = {
   "ci-escalations": {
     escalated: (reportDir) => escalatedChecks(reportText(reportDir)).length > 0,
     rungUp: (reportDir) => rungUpEscalation(reportText(reportDir)),
+    held: (reportDir) => heldEscalation(reportText(reportDir)),
   },
 };
 
@@ -167,9 +212,52 @@ const REQUIREMENTS = {
 // git's raw status letter as the REST file listing names it.
 const STATUS = { M: "modified", A: "added", D: "removed", T: "changed" };
 
+// The mode of `path` in the tree `treeSha`, walked one directory at a time
+// through the Git trees API; null when it is absent.
+async function modeAt(api, treeSha, path) {
+  const parts = path.split("/");
+  let sha = treeSha;
+  for (const [i, name] of parts.entries()) {
+    const item = ((await api.getTree(sha))?.tree ?? []).find((row) => row?.path === name);
+    if (!item || (i < parts.length - 1 && item.type !== "tree")) {
+      return null;
+    }
+    if (i === parts.length - 1) {
+      return item.type === "blob" ? item.mode : null;
+    }
+    sha = item.sha;
+  }
+  return null;
+}
+
 // A row's content rule: what each changed file's bytes must also meet, read
 // from the local objects. It returns the first refusal, or null.
 export const CONTENT_RULES = {
+  // A file mode changes only back to the one the path has at the merge base
+  // of the PR head and its base: a mode the PR itself introduced is reverted,
+  // and no other is changed; a file the PR added may drop to 100644, the
+  // default mode. Content-only changes read nothing.
+  "pr-mode-revert": async ({ entries, api, pr, headSha }) => {
+    const changed = entries.filter((entry) => [REGULAR, EXECUTABLE].includes(entry.oldMode) && [REGULAR, EXECUTABLE].includes(entry.newMode) && entry.oldMode !== entry.newMode);
+    if (changed.length === 0) {
+      return null;
+    }
+    const baseSha = (await api.getPull(pr))?.base?.sha;
+    if (!SHA.test(String(baseSha ?? ""))) {
+      return "the pull request's base commit is unknown";
+    }
+    const tree = (await api.compare(baseSha, headSha))?.merge_base_commit?.commit?.tree?.sha;
+    if (!SHA.test(String(tree ?? ""))) {
+      return "the merge base of the head and the base is unknown";
+    }
+    for (const entry of changed) {
+      const mode = await modeAt(api, tree, entry.path);
+      if (mode !== entry.newMode && !(mode === null && entry.newMode === REGULAR)) {
+        return `${entry.path} changes mode ${entry.oldMode} to ${entry.newMode}, but the merge base holds it ${mode === null ? "not at all" : `at ${mode}`}`;
+      }
+    }
+    return null;
+  },
   // A version change of a regular npm or pip manifest or lock file modified in
   // place, as dependency-classify.mjs's fixRefusal decides; the verdict job
   // runs the same rule again on what landed.
@@ -273,7 +361,7 @@ export function checkRow(row) {
   const fail = (message) => {
     throw new Error(`patch-rules.json row \`${row.name}\` ${message}`);
   };
-  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !row.refuse?.includes(name));
+  const missing = Object.keys(REFUSALS).filter((name) => !ALWAYS.includes(name) && !REFUSALS[name].optional && !row.refuse?.includes(name));
   if (missing.length > 0) {
     fail(`does not refuse ${missing.join(", ")}`);
   }
@@ -323,6 +411,10 @@ export function checkRow(row) {
   if (!Object.hasOwn(TARGETS, String(row.target))) {
     fail(`names an unknown target: ${row.target}`);
   }
+  // Lane-Thread lines name kept threads, so only a kept-threads row writes them.
+  if (row["thread-trailer"] !== undefined && (row["thread-trailer"] !== true || !row.allow.includes("kept-threads"))) {
+    fail("sets thread-trailer but does not allow kept-threads");
+  }
   return row;
 }
 
@@ -338,9 +430,9 @@ export const reasonFor = (row, kind) =>
 // invalid, since the producer said it wrote a change), else its empty reason.
 export const pushReason = (row, kind) => reasonFor(row, kind === "empty" ? (row["empty-at-push"] ?? "empty") : kind);
 
-// The commit message with the row's placeholders filled; a placeholder with no
-// value throws.
-export function commitMessage(row, values) {
+// The commit message with the row's placeholders filled, then a Lane-Thread
+// line for each of `threads`; a placeholder with no value throws.
+export function commitMessage(row, values, threads = []) {
   const fill = (text) =>
     text.replace(/\{(ref|base|lane|activity|issue)\}/g, (_, key) => {
       if (!values[key]) {
@@ -348,7 +440,7 @@ export function commitMessage(row, values) {
       }
       return values[key];
     });
-  return `${fill(row.commit.message)}\n\n${fill(row.commit.trailer)}\n`;
+  return [fill(row.commit.message), "", fill(row.commit.trailer), ...threadTrailerLines(threads), ""].join("\n");
 }
 
 const sha256Of = (bytes) => createHash("sha256").update(bytes).digest("hex");
@@ -374,9 +466,16 @@ export function patchProblem(file, expected) {
 // `rung` is the producer's model rung (0 or 1): at 0, an empty patch whose
 // report escalated only checks a stronger model may answer skips rung-up, and
 // the caller runs the producer once more at rung 1, instead of escalating.
-export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0, mergeState = "" }) {
+// `weakenRetry` is true when the head has had no lane stop yet, so a
+// weaken-required stop there takes its one fresh fixer round (weakenStop).
+export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0, weakenRetry = false, mergeState = "" }) {
   checkRow(row);
-  const decide = (proceed, skipReason, escalationReason) => ({ proceed, skipReason, escalationReason });
+  // A stop routed to a failing status skips lane-stopped (escalation-routes.mjs).
+  const decide = (proceed, skipReason, escalationReason) => ({
+    proceed,
+    skipReason: skipReason === "awaiting-human" && escalationReason ? stopSkip(escalationReason) : skipReason,
+    escalationReason,
+  });
   // A merge row: a clean merge commits with no patch; a conflicted one needs
   // the model's patch, and an empty one leaves the conflicts as git left them.
   if (isMerge(row)) {
@@ -405,7 +504,8 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
     if (escalated && rung === 0 && report.rungUp(reportDir)) {
       return decide(false, "rung-up", "");
     }
-    return decide(false, "awaiting-human", reasonFor(row, escalated ? "escalated" : "empty"));
+    const held = escalated ? weakenStop(report.held(reportDir), weakenRetry) : "";
+    return decide(false, "awaiting-human", held || reasonFor(row, escalated ? "escalated" : "empty"));
   }
   let names = [];
   try {
@@ -733,6 +833,11 @@ export async function push({
   const target = TARGETS[row.target];
   // A merge row builds its predicates once the conflict tree is checked.
   const allow = isMerge(row) ? [] : row.allow.map((name) => PREDICATES[name](context));
+  // A commit naming no thread would land no reply, so a thread-trailer row
+  // writes nothing without the threads the replies fix.
+  if (row["thread-trailer"] === true && !Array.isArray(context.fixedThreads)) {
+    throw new Error("the thread-trailer row needs the model job's scanned replies");
+  }
   if (!NAME.test(String(lane)) || !NAME.test(String(activity))) {
     throw new Error("LANE and PATCH_ACTIVITY must be lane and activity names");
   }
@@ -744,7 +849,7 @@ export async function push({
   if (badRef) {
     throw new Error(badRef);
   }
-  const message = commitMessage(row, { ref: headRef, base: baseRef, lane, activity, [target.number]: String(number) });
+  const message = commitMessage(row, { ref: headRef, base: baseRef, lane, activity, [target.number]: String(number) }, context.fixedThreads);
   const escalate = (kind, why) => {
     log(why);
     return { outcome: "escalate", escalationReason: pushReason(row, kind) };
@@ -843,7 +948,7 @@ export async function push({
   }
   // Before any tree or commit is built: each file's change must also meet the
   // row's content rule.
-  const contentRefusal = row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries, git, context });
+  const contentRefusal = row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries, git, context, api, pr, headSha });
   if (contentRefusal) {
     return escalate("protected-path", `refused by the ${row["content-rule"]} rule (${String(contentRefusal).slice(0, 200)})`);
   }
@@ -914,6 +1019,9 @@ export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch = g
   const refPath = (ref) => ref.split("/").map(encodeURIComponent).join("/");
   return {
     getPull: async (pr) => (await request(`pulls/${pr}`)).data,
+    // The merge base and a tree, for the pr-mode-revert content rule (contents read).
+    compare: async (base, head) => (await request(`compare/${base}...${head}`)).data,
+    getTree: async (sha) => (await request(`git/trees/${sha}`)).data,
     async listLabels(pr) {
       const { data, link } = await request(`issues/${pr}/labels?per_page=100`);
       if (/rel="next"/.test(link)) {
@@ -944,8 +1052,8 @@ function need(env, keys) {
 }
 
 // The kept threads of a threads.json: each a path and, when a fix request
-// named files, its named_paths; and the files the PR already changes, its
-// pr_paths.
+// named files, its named_paths; the files the PR already changes, its
+// pr_paths; and the thread ids of the select job's shape, in its order.
 export function keptThreadsFrom(file) {
   if (!file) {
     return undefined;
@@ -967,7 +1075,37 @@ export function keptThreadsFrom(file) {
     paths: new Set(threads.map((thread) => thread.path)),
     threads: threads.map(({ path, named_paths }) => ({ path, named_paths })),
     prPaths: new Set(prPaths),
+    ids: threads.map((thread) => thread.id).filter((id) => typeof id === "string" && THREAD_ID.test(id)),
   };
+}
+
+// replies.jsonl's cap, as publish-feedback.mjs reads it.
+const MAX_REPLIES_BYTES = 49152;
+
+// The kept threads (keptThreadsFrom's ids, in their order) that a VALID reply
+// in the scanned replies.jsonl names: only those ids, never text copied from a
+// reply, reach the commit message. A line that is not a reply names nothing;
+// publish-feedback.mjs judges the whole file.
+export function fixedThreadsFrom(file, kept) {
+  if (!file) {
+    return undefined;
+  }
+  const stat = lstatSync(file);
+  if (!stat.isFile() || stat.size > MAX_REPLIES_BYTES) {
+    throw new Error(`PATCH_REPLIES_FILE is not a regular file of at most ${MAX_REPLIES_BYTES} bytes`);
+  }
+  const valid = new Set();
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    try {
+      const reply = JSON.parse(line);
+      if (reply?.disposition === "VALID") {
+        valid.add(reply.thread);
+      }
+    } catch {
+      // Not a reply.
+    }
+  }
+  return (kept?.ids ?? []).filter((id) => valid.has(id));
 }
 
 // The base dependabot.yml's [ecosystem, directory] pairs, or null when the
@@ -1017,6 +1155,15 @@ function modelRung(value = "") {
   return value === "1" ? 1 : 0;
 }
 
+// WEAKEN_RETRY from fix-ci-context's weaken-retry output: `true`, or empty or
+// `false`; anything else is refused.
+function weakenRetryFrom(value = "") {
+  if (!["", "true", "false"].includes(value)) {
+    throw new Error("WEAKEN_RETRY must be empty, true or false");
+  }
+  return value === "true";
+}
+
 export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = (line) => console.log(line) } = {}) {
   const row = rowFor(loadRules(env.BASE_DIR), { prepare: env.PATCH_PREPARE ?? "", target: env.PATCH_TARGET || "pr" });
   const target = TARGETS[row.target];
@@ -1031,6 +1178,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
       patchDir: env.PATCH_DIR ?? "",
       reportDir: env.REPORT_DIR ?? "",
       rung: modelRung(env.MODEL_RUNG),
+      weakenRetry: weakenRetryFrom(env.WEAKEN_RETRY),
       mergeState: env.MERGE_STATE ?? "",
     });
     appendFileSync(env.GITHUB_OUTPUT, `proceed=${result.proceed}\nskip-reason=${result.skipReason}\nescalation-reason=${result.escalationReason}\n`);
@@ -1062,13 +1210,15 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     throw new Error(`${numberKey} is not a positive integer`);
   }
   const merge = isMerge(row) ? mergeFrom(env, { cwd, gitBin }) : undefined;
+  const keptThreads = keptThreadsFrom(env.KEPT_THREADS_FILE);
   const result = await push({
     api: api ?? createGitHubApi({ token: env.GH_TOKEN, repository: env.GITHUB_REPOSITORY, apiUrl: env.GITHUB_API_URL ?? "https://api.github.com" }),
     cwd,
     gitBin,
     row,
     context: {
-      keptThreads: keptThreadsFrom(env.KEPT_THREADS_FILE),
+      keptThreads,
+      fixedThreads: row["thread-trailer"] === true ? fixedThreadsFrom(env.PATCH_REPLIES_FILE, keptThreads) : undefined,
       dependencyVerdict: env.DEPENDENCY_VERDICT ?? "",
       // Read from the trusted base copy, and only for a row that needs it.
       dependabotConfig: row.allow.includes("dependency-manifests") ? dependabotPairs(env.BASE_DIR) : undefined,
@@ -1097,7 +1247,8 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
     appendFileSync(env.GITHUB_OUTPUT, `commit=${result.commit}\nbranch=${result.branch}\n`);
   }
   if (result.outcome !== "pushed") {
-    writeFileSync(env.SKIP_REASON_FILE, result.outcome === "superseded" ? "superseded-sha\n" : "awaiting-human\n");
+    const skip = result.outcome === "superseded" ? "superseded-sha" : result.outcome === "escalate" ? stopSkip(result.escalationReason) : "awaiting-human";
+    writeFileSync(env.SKIP_REASON_FILE, `${skip}\n`);
   }
   log(`apply-patch (${row.name}): ${result.outcome}${result.escalationReason ? ` (${result.escalationReason})` : ""}`);
   return 0;

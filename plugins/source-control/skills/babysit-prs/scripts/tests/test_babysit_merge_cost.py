@@ -7,13 +7,16 @@ every change since is a base merge (owner decisions Q17 c and Q18 d on
 from __future__ import annotations
 
 import pathlib
+import subprocess
 import sys
 import unittest
+from datetime import datetime, timedelta
 from typing import Any
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_gh
 import babysit_merge_policy as policy
 
 REPO = "owner/repo"
@@ -23,7 +26,7 @@ PR_CREATED = "2026-10-22T10:00:00Z"
 HEAD = "0123456789abcdef0123456789abcdef01234567"
 BASE = "main"
 OLD = "fedcba9876543210fedcba9876543210fedcba98"
-LANE = {"login": "github-actions[bot]", "type": "Bot"}
+CHECKS = dict(policy.REVIEW_LANES)
 PULL = {
     "number": 99,
     "created_at": PR_CREATED,
@@ -33,29 +36,173 @@ PULL = {
 TF = {"filename": "infra/main.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 
 
-def _marker(
+def _run(
     sha: str,
     at: str = "2026-10-22T11:00:00Z",
+    *,
     criteria: str = "cost",
-    user: dict[str, Any] = LANE,
+    lane: str = "pr-review-hosted.yml",
+    job: str | None = None,
+    notice: str | None = None,
+    created: str = "2026-10-22T10:30:00Z",
+    repo: str | None = REPO,
 ) -> dict[str, Any]:
-    body = f"<!-- claude-lane-hold lane=claude-review sha={sha} criteria={criteria} -->\nHeld."
-    return {"user": user, "node_id": "IC_M", "created_at": at, "body": body}
+    """A review lane's pull_request run on `sha` with its head in `repo`,
+    started at `created`, whose status job (or `job`) finished at `at` and
+    recorded a hold notice naming `notice` (default `sha`)."""
+    message = (
+        f"claude-lane-hold lane=claude-review sha={notice or sha} "
+        f"criteria={criteria} label=needs-human"
+    )
+    return {
+        "lane": lane,
+        "sha": sha,
+        "at": at,
+        "job": job or CHECKS[lane],
+        "created": created,
+        "repo": repo,
+        "notes": [{"annotation_level": "notice", "message": message}],
+    }
 
 
 def _net(*files: dict[str, Any]) -> dict[str, Any]:
     return {"files": list(files)}
 
 
-def _deletions(deleted: Any) -> dict[str, Any]:
-    """A COMMENT_DELETED answer: a list of deletion times, or the timeline
-    items as given."""
-    items = (
-        {"filteredCount": len(deleted), "nodes": [{"createdAt": t} for t in deleted]}
-        if isinstance(deleted, (list, tuple))
-        else deleted
+# A base commit a merge of the base names as its second parent.
+MAIN = "5" * 40
+# The base branch's tip commit, which its full ref resolves to.
+TIP = "3" * 40
+
+
+def _history(sha: str, answer: Any) -> Any:
+    """`answer` (a compare of base...sha) with the commits a history of base
+    merges lists unless it names its own: OLD alone for OLD, OLD and a merge
+    HEAD of the base for HEAD, the head alone for any other."""
+    if not isinstance(answer, dict) or "commits" in answer or "files" not in answer:
+        return answer
+    commits = [{"sha": OLD if sha == HEAD else sha, "parents": [{"sha": MAIN}]}]
+    if sha == HEAD:
+        commits.append({"sha": HEAD, "parents": [{"sha": OLD}, {"sha": MAIN}]})
+    return answer | {"commits": commits, "total_commits": len(commits)}
+
+
+def _push(after: str, timestamp: str) -> dict[str, Any]:
+    """A push of `after` to the head branch, as the repository activity API
+    lists it."""
+    return {
+        "after": after,
+        "timestamp": timestamp,
+        "activity_type": "push",
+        "ref": "refs/heads/fix/cost",
+    }
+
+
+def _newest_first(moves: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(moves, key=lambda m: m["timestamp"], reverse=True)
+
+
+def _pushes(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Each run's head pushed five minutes before its first status job
+    finished."""
+    first: dict[str, str] = {}
+    for r in runs:
+        first[r["sha"]] = min(first.get(r["sha"], r["at"]), r["at"])
+    return _newest_first(
+        [
+            _push(
+                sha,
+                (datetime.fromisoformat(at) - timedelta(minutes=5)).strftime(
+                    "%Y-%m-%dT%H:%M:%SZ"
+                ),
+            )
+            for sha, at in first.items()
+        ]
     )
-    return {"repository": {"pullRequest": {"timelineItems": items}}}
+
+
+class Lanes:
+    """The head reads of `_noticed_head` over `runs`, the compares (a run's
+    head answers _net(TF) unless `compares` names it) and the head branch's
+    push history (`activity`, by default `_pushes(runs)`). A read whose label
+    (or `compare <sha>`, or `activity`) is `unreadable` fails. `reads` logs
+    every endpoint and `envs` the environment each lane read took."""
+
+    def __init__(
+        self,
+        runs: list[dict[str, Any]],
+        compares: dict[str, Any],
+        unreadable: str = "",
+        activity: Any = None,
+    ) -> None:
+        self.runs = runs
+        self.compares = {r["sha"]: _net(TF) for r in runs} | compares
+        self.unreadable = unreadable
+        self.activity = _pushes(runs) if activity is None else activity
+        self.reads: list[str] = []
+        self.envs: list[Any] = []
+
+    def get_pages(self, endpoint: str, env: Any = None) -> tuple[int | None, Any]:
+        """The activity as `gh api --paginate --slurp` gives it: one entry
+        per page of 100."""
+        self.reads.append(endpoint)
+        assert endpoint == (
+            "repos/owner/repo/activity?ref=refs%2Fheads%2Ffix%2Fcost"
+            "&direction=desc&per_page=100"
+        ), endpoint
+        self.envs.append(env)
+        if self.unreadable == "activity":
+            return 404, None
+        if not isinstance(self.activity, list):
+            return 200, [self.activity]
+        moves = self.activity
+        return 200, [moves[i : i + 100] for i in range(0, max(len(moves), 1), 100)]
+
+    def get(self, endpoint: str, env: Any = None) -> tuple[int | None, Any]:
+        self.reads.append(endpoint)
+        if "/git/ref/heads/" in endpoint:
+            return (404, None) if self.unreadable == "ref" else (200, {"object": {"sha": TIP}})
+        if endpoint.endswith(f"...{TIP}"):
+            parent = endpoint.split("/compare/", 1)[1].split("...")[0]
+            return 200, {"status": "ahead" if parent == MAIN else "diverged"}
+        sha = endpoint.rsplit("...", 1)[1]
+        if sha in self.compares and self.unreadable != f"compare {sha}":
+            return 200, _history(sha, self.compares[sha])
+        return 404, None
+
+    def paginated(
+        self, endpoint: str, label: str, items_key: str | None = None, env: Any = None
+    ) -> list[dict[str, Any]]:
+        self.reads.append(endpoint)
+        self.envs.append(env)
+        if label == self.unreadable:
+            raise policy.PolicyReadError(label)
+        prefix = "repos/owner/repo/"
+        if "/actions/workflows/" in endpoint:
+            lane = endpoint.split("/actions/workflows/", 1)[1].split("/", 1)[0]
+            assert endpoint == (
+                f"{prefix}actions/workflows/{lane}/runs?event=pull_request"
+                "&branch=fix%2Fcost&per_page=100"
+            ), endpoint
+            assert items_key == "workflow_runs"
+            return [
+                {
+                    "id": i + 1,
+                    "head_sha": r["sha"],
+                    "created_at": r["created"],
+                    "head_repository": r["repo"] and {"full_name": r["repo"]},
+                }
+                for i, r in enumerate(self.runs)
+                if r["lane"] == lane
+            ]
+        if "/jobs?" in endpoint:
+            assert items_key == "jobs"
+            n = int(endpoint.split("/actions/runs/", 1)[1].split("/", 1)[0])
+            run = self.runs[n - 1]
+            return [{"id": n, "name": run["job"], "completed_at": run["at"]}]
+        n = int(endpoint.split("/check-runs/", 1)[1].split("/", 1)[0])
+        assert endpoint == f"{prefix}check-runs/{n}/annotations?per_page=100", endpoint
+        return self.runs[n - 1]["notes"]
 
 
 def _comment(**changes: Any) -> dict[str, Any]:
@@ -81,61 +228,42 @@ class CostDecision(unittest.TestCase):
         issue: int | None = 40,
         node: Any = ...,
         created: Any = None,
-        markers: list[dict[str, Any]] | None = None,
+        runs: list[dict[str, Any]] | None = None,
         compares: dict[str, Any] | None = None,
         unreadable: str = "",
         pull: dict[str, Any] | None = None,
-        marker_node: Any = ...,
-        deleted: Any = (),
         head: str = HEAD,
+        activity: Any = None,
     ) -> str | None:
         created = PR_CREATED if created is None else created
-        self.reads: list[str] = []
-        compares = compares or {}
+        self.lanes = lanes = Lanes(
+            [_run(HEAD)] if runs is None else runs, compares or {}, unreadable, activity
+        )
+        self.reads = lanes.reads
 
-        def get(endpoint: str) -> tuple[int | None, Any]:
+        def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
+            if "/compare/" in endpoint or "/git/ref/" in endpoint:
+                return lanes.get(endpoint, env)
             self.reads.append(endpoint)
-            if "/compare/" in endpoint:
-                sha = endpoint.rsplit("...", 1)[1]
-                if sha in compares and unreadable != f"compare {sha}":
-                    return 200, compares[sha]
-                return 404, None
             return status, comment if comment is not None else _comment()
 
-        def paginated(endpoint: str, label: str) -> list[dict[str, Any]]:
-            self.reads.append(endpoint)
-            if label == unreadable:
-                raise policy.PolicyReadError(label)
-            self.assertEqual(endpoint, "repos/owner/repo/issues/99/comments?per_page=100")
-            return [_marker(HEAD)] if markers is None else markers
-
         answer = {"lastEditedAt": edited} if node is ... else node
-        held = {"lastEditedAt": None} if marker_node is ... else marker_node
 
         def graphql(query: str, what: str, **variables: Any) -> dict[str, Any]:
-            if query == policy.COMMENT_DELETED:
-                self.reads.append("deleted")
-                self.assertEqual(variables, {"owner": "owner", "name": "repo", "number": 99})
-                if unreadable == "deleted":
-                    raise policy.PolicyReadError(what)
-                return _deletions(deleted)
-            if variables.get("id") != "IC_M":
-                return {"node": answer}
-            self.reads.append("marker edited")
-            if unreadable == "marker edited":
-                raise policy.PolicyReadError(what)
-            return {"node": held}
+            self.assertEqual(query, policy.COMMENT_EDITED)
+            return {"node": answer}
 
         with (
             mock.patch.object(policy, "_get", side_effect=get),
-            mock.patch.object(policy, "_paginated", side_effect=paginated),
+            mock.patch.object(policy, "_get_pages", side_effect=lanes.get_pages),
+            mock.patch.object(policy, "_paginated", side_effect=lanes.paginated),
             mock.patch.object(policy, "_graphql", side_effect=graphql),
         ):
             return policy.cost_decision(
                 REPO,
                 (pull or PULL)
                 | {"body": body, "created_at": created}
-                | ({} if head == HEAD else {"head": {"sha": head}}),
+                | ({} if head == HEAD else {"head": {"sha": head, "ref": "fix/cost"}}),
                 issue,
                 permission=lambda login: permission,
                 agent_identity=IDENTITY,
@@ -148,11 +276,20 @@ class CostDecision(unittest.TestCase):
             self.reads,
             [
                 "repos/owner/repo/issues/comments/7",
-                "repos/owner/repo/issues/99/comments?per_page=100",
-                "marker edited",
-                "deleted",
+                f"repos/owner/repo/git/ref/heads/{BASE}",
+                "repos/owner/repo/actions/workflows/pr-review-hosted.yml/runs"
+                "?event=pull_request&branch=fix%2Fcost&per_page=100",
+                f"repos/owner/repo/compare/{TIP}...{HEAD}",
+                "repos/owner/repo/actions/runs/1/jobs?filter=all&per_page=100",
+                "repos/owner/repo/check-runs/1/annotations?per_page=100",
+                "repos/owner/repo/actions/workflows/pr-review-security-hosted.yml/runs"
+                "?event=pull_request&branch=fix%2Fcost&per_page=100",
+                "repos/owner/repo/activity?ref=refs%2Fheads%2Ffix%2Fcost"
+                "&direction=desc&per_page=100",
             ],
         )
+        # The lane-change vet names the base's tip commit, never the branch.
+        self.assertFalse(any("/compare/main" in r or r.endswith("...main") for r in self.reads))
 
     def test_a_decision_on_the_pull_request_itself_clears(self) -> None:
         link = "https://github.com/owner/repo/pull/99#issuecomment-7"
@@ -193,8 +330,8 @@ class CostDecision(unittest.TestCase):
             issue_url="https://api.github.com/repos/owner/repo/issues/99",
             created_at="2026-10-21T09:00:00Z",
         )
-        markers = [_marker(HEAD, "2026-10-21T08:00:00Z")]
-        self.assertEqual(self.decide(body=link, comment=comment, markers=markers), link)
+        runs = [_run(HEAD, "2026-10-21T08:00:00Z", created="2026-10-21T07:50:00Z")]
+        self.assertEqual(self.decide(body=link, comment=comment, runs=runs), link)
         # With no time it decides no head, so it carries to none.
         timeless = comment | {"created_at": None}
         self.assertIsNone(self.decide(body=link, comment=timeless))
@@ -272,7 +409,7 @@ class CostDecision(unittest.TestCase):
 
     # The carry rule (#9436 Q18 d): the decided head is OLD, the head HEAD.
     def later(self, compares: dict[str, Any], **change: Any) -> str | None:
-        return self.decide(markers=[_marker(OLD)], compares=compares, **change)
+        return self.decide(runs=[_run(OLD)], compares=compares, **change)
 
     def test_a_base_merge_after_the_decision_carries(self) -> None:
         self.assertEqual(self.later({OLD: _net(TF), HEAD: _net(TF)}), LINK)
@@ -283,20 +420,39 @@ class CostDecision(unittest.TestCase):
         script = {"filename": "scripts/run.sh", "status": "modified", "patch": "+y"}
         self.assertIsNone(self.later({OLD: _net(TF), HEAD: _net(TF, script)}))
         self.assertEqual(
-            self.reads[-2:],
+            self.reads[-3:],
             [
-                f"repos/owner/repo/compare/{BASE}...{OLD}",
-                f"repos/owner/repo/compare/{BASE}...{HEAD}",
+                f"repos/owner/repo/compare/{TIP}...{OLD}",
+                f"repos/owner/repo/compare/{TIP}...{HEAD}",
+                f"repos/owner/repo/compare/{MAIN}...{TIP}",
             ],
         )
 
-    def test_a_rebase_with_the_same_net_change_carries_in_any_file_order(
+    def test_a_base_merge_with_the_same_net_change_carries_in_any_file_order(
         self,
     ) -> None:
         doc = {"filename": "docs/a.md", "status": "added", "patch": "+a"}
         self.assertEqual(self.later({OLD: _net(TF, doc), HEAD: _net(doc, TF)}), LINK)
-        # A rebase that drops one of its files is a change of its own.
+        # A merge that drops one of its files is a change of its own.
         self.assertIsNone(self.later({OLD: _net(TF, doc), HEAD: _net(TF)}))
+
+    def test_a_rebase_or_a_commit_of_its_own_with_the_same_net_change_re_holds(
+        self,
+    ) -> None:
+        rewritten = "6" * 40
+        for name, commits in {
+            "a rebase": [
+                {"sha": rewritten, "parents": [{"sha": MAIN}]},
+                {"sha": HEAD, "parents": [{"sha": rewritten}]},
+            ],
+            "a commit of its own": [
+                {"sha": OLD, "parents": [{"sha": MAIN}]},
+                {"sha": HEAD, "parents": [{"sha": OLD}]},
+            ],
+        }.items():
+            with self.subTest(name):
+                head = _net(TF) | {"commits": commits, "total_commits": 2}
+                self.assertIsNone(self.later({OLD: _net(TF), HEAD: head}))
 
     def test_a_conflict_resolution_that_changes_the_net_change_re_holds(
         self,
@@ -314,7 +470,10 @@ class CostDecision(unittest.TestCase):
     ) -> None:
         def many(n: int) -> dict[str, Any]:
             return _net(
-                *({"filename": f"f{i}", "status": "added", "patch": "+x"} for i in range(n))
+                *(
+                    {"filename": f"f{i}", "status": "added", "patch": "+x"}
+                    for i in range(n)
+                )
             )
 
         self.assertEqual(self.later({OLD: many(299), HEAD: many(299)}), LINK)
@@ -325,88 +484,368 @@ class CostDecision(unittest.TestCase):
     def test_a_failed_read_does_not_carry(self) -> None:
         same = {OLD: _net(TF), HEAD: _net(TF)}
         self.assertIsNone(self.later(same, unreadable=f"compare {HEAD}"))
-        self.assertIsNone(self.later(same, unreadable="cost hold markers"))
+        for label in (
+            "pr-review-hosted.yml runs",
+            "pr-review-security-hosted.yml runs",
+            "run 1 jobs",
+            "job 1 annotations",
+            f"compare {OLD}",
+        ):
+            with self.subTest(label):
+                self.assertIsNone(self.later(same, unreadable=label))
         self.assertIsNone(self.later({OLD: _net(TF), HEAD: {"status": "diverged"}}))
 
-    def test_the_decided_head_is_the_latest_bot_marker_before_the_decision(
+    def test_the_decided_head_is_the_newest_cost_notice_before_the_decision(
         self,
     ) -> None:
         added = {"filename": "b.tf", "status": "added", "patch": "+b"}
         changed = {OLD: _net(TF), HEAD: _net(TF, added)}
-        older_head = [_marker(HEAD, "2026-10-22T10:30:00Z"), _marker(OLD, "2026-10-22T11:30:00Z")]
-        self.assertIsNone(self.decide(markers=older_head, compares=changed))
-        newer_head = [_marker(OLD, "2026-10-22T10:30:00Z"), _marker(HEAD, "2026-10-22T11:30:00Z")]
-        self.assertEqual(self.decide(markers=newer_head, compares=changed), LINK)
+        older_head = [
+            _run(HEAD, "2026-10-22T10:40:00Z"),
+            _run(OLD, "2026-10-22T11:30:00Z"),
+        ]
+        self.assertIsNone(self.decide(runs=older_head, compares=changed))
+        late = "2026-10-22T11:30:00Z"
         for name, extra in {
-            "after": _marker(HEAD, "2026-10-22T12:30:00Z"),
-            "a person": _marker(HEAD, "2026-10-22T11:30:00Z", user={"type": "User"}),
-            "another bot": _marker(
-                HEAD, "2026-10-22T11:30:00Z", user={"login": "claude[bot]", "type": "Bot"}
+            "a later notice at the head": _run(HEAD, late),
+            "from the security lane": _run(
+                HEAD, late, lane="pr-review-security-hosted.yml"
             ),
-            "not on the first line": _marker(HEAD, "2026-10-22T11:30:00Z")
-            | {"body": f"Held.\n<!-- claude-lane-hold lane=claude-review sha={HEAD} criteria=cost -->"},
-            "not cost": _marker(HEAD, "2026-10-22T11:30:00Z", criteria="trust-gate"),
+            "with cost among its criteria": _run(
+                HEAD, late, criteria="cost,trust-gate"
+            ),
+        }.items():
+            with self.subTest(name):
+                self.assertEqual(
+                    self.decide(runs=[_run(OLD), extra], compares=changed), LINK
+                )
+        for name, extra in {
+            "a job done after it": _run(HEAD, "2026-10-22T12:30:00Z"),
+            "a run started after it": _run(HEAD, late, created="2026-10-22T12:10:00Z"),
+            "a job other than the status job": _run(
+                HEAD, late, job="pr-review / review-key"
+            ),
+            "the other lane's status job name": _run(
+                HEAD, late, job=CHECKS["pr-review-security-hosted.yml"]
+            ),
+            "a notice naming another head than its run's": _run(OLD, late, notice=HEAD),
+            "a notice without cost": _run(HEAD, late, criteria="trust-gate"),
+            "a run whose head is in another repository": _run(
+                HEAD, late, repo="fork/repo"
+            ),
+            "a run with no head repository": _run(HEAD, late, repo=None),
+            "two heads at the newest time": _run(
+                HEAD, lane="pr-review-security-hosted.yml"
+            ),
         }.items():
             with self.subTest(name):
                 self.assertIsNone(
-                    self.decide(markers=[_marker(OLD), extra], compares=changed)
+                    self.decide(runs=[_run(OLD), extra], compares=changed)
                 )
-        both = _marker(HEAD, "2026-10-22T11:30:00Z", criteria="cost,trust-gate")
-        self.assertEqual(self.decide(markers=[_marker(OLD), both], compares=changed), LINK)
+        # A run that started after the decision is not read at all.
+        self.decide(
+            runs=[
+                _run(HEAD),
+                _run(OLD, "2026-10-22T12:30:00Z", created="2026-10-22T12:10:00Z"),
+            ]
+        )
+        self.assertNotIn(
+            "repos/owner/repo/actions/runs/2/jobs?filter=all&per_page=100", self.reads
+        )
 
-    def test_with_no_marker_before_the_decision_nothing_carries(self) -> None:
+    def test_a_lane_run_on_a_head_it_cannot_vet_decides_nothing(self) -> None:
+        for name, answer in {
+            "the code lane's workflow": _net(
+                TF, {"filename": ".github/workflows/pr-review-hosted.yml"}
+            ),
+            "the security lane's workflow": _net(
+                {"filename": ".github/workflows/pr-review-security-hosted.yml"}
+            ),
+            "300 files": _net(*({"filename": f"f{i}"} for i in range(300))),
+            "no file list": {"status": "diverged"},
+        }.items():
+            with self.subTest(name):
+                self.assertIsNone(self.decide(compares={HEAD: answer}))
+                runs = [_run(OLD, "2026-10-22T10:40:00Z"), _run(HEAD)]
+                self.assertIsNone(self.decide(runs=runs, compares={OLD: answer}))
+
+    # #10437: a deleted lane run of a head pushed after the decided head,
+    # before the decision, would make an older notice the decided head. The
+    # branch's push history, which deleting a run leaves, shows that head, and
+    # it must have a run of every review lane started before the decision.
+    def test_a_head_pushed_since_the_decided_head_with_no_run_of_every_lane_keeps_the_hold(
+        self,
+    ) -> None:
+        new = "1" * 40
+        same = {OLD: _net(TF), HEAD: _net(TF)}
+
+        def plain(sha: str, lane: str) -> dict[str, Any]:
+            return _run(
+                sha,
+                "2026-10-22T11:20:00Z",
+                criteria="trust-gate",
+                lane=lane,
+                created="2026-10-22T11:12:00Z",
+            )
+
+        def history(*moves: dict[str, Any]) -> list[dict[str, Any]]:
+            return _newest_first([_push(OLD, "2026-10-22T10:25:00Z"), *moves])
+
+        def carried(
+            runs: list[dict[str, Any]], activity: Any, **change: Any
+        ) -> str | None:
+            return self.decide(
+                runs=[_run(OLD), *runs], compares=same, activity=activity, **change
+            )
+
+        both = [
+            plain(new, "pr-review-hosted.yml"),
+            plain(new, "pr-review-security-hosted.yml"),
+        ]
+        pushed = history(_push(new, "2026-10-22T11:10:00Z"))
+        # No deletion: both lanes ran on the newer head, which noticed no cost.
+        self.assertEqual(carried(both, pushed), LINK)
+        # A head pushed after the decision needs no run here.
+        self.assertEqual(carried([], history(_push(new, "2026-10-22T12:10:00Z"))), LINK)
+        for name, runs in {
+            "both lanes' runs deleted": [],
+            "the code lane's run deleted": [
+                plain(new, "pr-review-security-hosted.yml")
+            ],
+            "the security lane's run deleted": [plain(new, "pr-review-hosted.yml")],
+            "a run started only after the decision": [
+                r | {"created": "2026-10-22T12:05:00Z"} for r in both
+            ],
+            "a run whose head is in another repository": [
+                r | {"repo": "fork/repo"} for r in both
+            ],
+        }.items():
+            with self.subTest(name):
+                self.assertIsNone(carried(runs, pushed))
+                self.assertTrue(any("/activity?" in r for r in self.reads))
+        # Pushing the decided head again after the decision makes it the head:
+        # the gap before the decision still keeps the hold.
+        back = history(
+            _push(new, "2026-10-22T11:10:00Z"), _push(OLD, "2026-10-22T12:30:00Z")
+        )
+        self.assertIsNone(carried([], back, head=OLD))
+        # No push of the decided head before the decision, or a read that
+        # fails, keeps the hold.
+        self.assertIsNone(carried(both, [_push(new, "2026-10-22T11:10:00Z")]))
+        self.assertIsNone(carried(both, [_push(OLD, "2026-10-22T12:30:00Z")]))
+        self.assertIsNone(carried(both, pushed, unreadable="activity"))
+        self.assertIsNone(carried(both, {"message": "Not Found"}))
+
+    # A branch name recreated for each sync (chore/standards-sync, #10990)
+    # keeps its whole history in the activity API, so the decided head's push
+    # can sit past the first page of 100.
+    def test_the_push_history_is_read_past_its_first_page(self) -> None:
+        new = "1" * 40
+        same = {OLD: _net(TF), HEAD: _net(TF)}
+
+        def carried(activity: Any, **change: Any) -> str | None:
+            return self.decide(
+                runs=[_run(OLD)], compares=same, activity=activity, **change
+            )
+
+        # 149 pushes after the decision, then the decided head: 150 entries.
+        after = [
+            _push(new, f"2026-10-22T12:{10 + i // 60:02d}:{i % 60:02d}Z")
+            for i in range(149)
+        ]
+        long = _newest_first([*after, _push(OLD, "2026-10-22T10:25:00Z")])
+        self.assertEqual(len(long), 150)
+        self.assertEqual(carried(long), LINK)
+        # A push with no lane run between the decided head and the decision,
+        # as entry 119, on the second page, keeps the hold.
+        gap = _newest_first(
+            [
+                *after[:118],
+                _push(new, "2026-10-22T11:10:00Z"),
+                _push(OLD, "2026-10-22T10:25:00Z"),
+            ]
+        )
+        self.assertEqual(gap[118]["timestamp"], "2026-10-22T11:10:00Z")
+        self.assertIsNone(carried(gap))
+        # A read that fails on a later page fails the whole paginated read.
+        self.assertIsNone(carried(long, unreadable="activity"))
+
+    def test_branch_activity_joins_the_pages_and_fails_closed(self) -> None:
+        def full(start: int = 0) -> list[dict[str, Any]]:
+            return [{"id": start + i} for i in range(100)]
+
+        self.assertEqual(
+            policy.branch_activity([full(), [{"id": 100}]]), [*full(), {"id": 100}]
+        )
+        # gh stops at an answer with no next link; a full one may not be the end.
+        for pages in ([full()], [full(), full(100)]):
+            with self.assertRaisesRegex(
+                policy.PolicyReadError, "full page with no next link"
+            ):
+                policy.branch_activity(pages)
+        # No page, or a page that is no list, is unreadable, as unran_head names it.
+        self.assertIsNone(policy.branch_activity([full(), {"message": "Not Found"}]))
+        self.assertIsNone(policy.branch_activity([full(), None]))
+        self.assertIsNone(policy.branch_activity([]))
+        self.assertIsNone(policy.branch_activity(None))
+        # Twenty pages are read; a twenty-first is refused.
+        twenty = [full(i * 100) for i in range(19)] + [[{"id": 1900}]]
+        self.assertEqual(len(policy.branch_activity(twenty)), 1901)
+        with self.assertRaisesRegex(policy.PolicyReadError, "runs past 20 pages"):
+            policy.branch_activity([full(i * 100) for i in range(20)] + [[]])
+
+    ENDPOINT = "repos/o/r/activity?ref=refs%2Fheads%2Fb&direction=desc&per_page=100"
+
+    def pages(self, bodies: list[Any], cursors: list[str | None]) -> tuple[Any, Any]:
+        """`_get_pages` over gh answers stubbed at the one gh seam: page n
+        answers `bodies[n]` (a status int fails it) with a Link rel="next"
+        naming `after=cursors[n]` (None: no link); `?after=c` reads the page
+        after the one whose cursor is c. Returns the result and the reads."""
+        reads: list[str] = []
+
+        def send(args: list[str], **_: Any) -> tuple[Any, dict[str, str]]:
+            reads.append(args[1])
+            assert len(reads) <= len(bodies), "read past the stubbed pages"
+            after = args[1].partition("&after=")[2]
+            n = cursors.index(after) + 1 if after else 0
+            body, cursor = bodies[n], cursors[n]
+            if isinstance(body, int):
+                return subprocess.CompletedProcess(
+                    args, 1, "", f"gh: Server Error (HTTP {body})"
+                ), {}
+            link = (
+                {}
+                if cursor is None
+                else {
+                    "link": "<https://api.github.com/repositories/1/activity?ref="
+                    f'refs%2Fheads%2Fb&per_page=100&after={cursor}>; rel="next"'
+                }
+            )
+            return subprocess.CompletedProcess(args, 0, body, ""), link
+
+        with mock.patch.object(babysit_gh, "_send", side_effect=send):
+            try:
+                result: Any = policy._get_pages(self.ENDPOINT)
+            except policy.PolicyReadError as exc:
+                result = exc
+        return result, reads
+
+    @staticmethod
+    def page(start: int, size: int = 100) -> str:
+        return str([{"id": start + i} for i in range(size)]).replace("'", '"')
+
+    def test_get_pages_follows_each_cursor_to_a_short_page(self) -> None:
+        bodies = [self.page(0), self.page(100), self.page(200, 3)]
+        result, reads = self.pages(bodies, ["Y3Vy+MQ==", "c2", None])
+        self.assertEqual(result[0], 200)
+        self.assertEqual([len(page) for page in result[1]], [100, 100, 3])
+        # The cursor as the link spells it, a `+` included, after the endpoint.
+        self.assertEqual(
+            reads,
+            [
+                self.ENDPOINT,
+                f"{self.ENDPOINT}&after=Y3Vy+MQ==",
+                f"{self.ENDPOINT}&after=c2",
+            ],
+        )
+
+    def test_get_pages_stops_at_twenty_reads_on_a_longer_history(self) -> None:
+        bodies = [self.page(i * 100) for i in range(25)]
+        result, reads = self.pages(bodies, [f"c{i}" for i in range(25)])
+        self.assertIsInstance(result, policy.PolicyReadError)
+        self.assertIn("runs past 20 pages", str(result))
+        self.assertEqual(len(reads), 20)
+
+    def test_get_pages_refuses_a_repeated_or_missing_cursor(self) -> None:
+        for cursors, message in (
+            (["c0", "c0", "c0"], "names no new page"),
+            (["c0", None, None], "full page with no next link"),
+        ):
+            with self.subTest(cursors=cursors):
+                bodies = [self.page(0), self.page(100), self.page(200)]
+                result, reads = self.pages(bodies, cursors)
+                self.assertIsInstance(result, policy.PolicyReadError)
+                self.assertIn(message, str(result))
+                self.assertEqual(len(reads), 2)
+
+    def test_get_pages_fails_on_a_later_page_and_stops_on_one_that_is_no_list(
+        self,
+    ) -> None:
+        bodies = [self.page(0), self.page(100), 502, self.page(300)]
+        result, reads = self.pages(bodies, ["c0", "c1", "c2", None])
+        self.assertEqual(result, (502, None))
+        self.assertEqual(len(reads), 3)
+        bodies = [self.page(0), '{"message": "Not Found"}', self.page(200)]
+        result, reads = self.pages(bodies, ["c0", "c1", None])
+        self.assertEqual(result[0], 200)
+        self.assertIsNone(policy.branch_activity(result[1]))
+        self.assertEqual(len(reads), 2)
+
+    def test_unran_head_names_the_first_head_pushed_since_with_no_run_of_every_lane(
+        self,
+    ) -> None:
+        new = "1" * 40
+        at = "2026-10-22T12:00:00Z"
+        gone = _push("0" * 40, "2026-10-22T11:05:00Z") | {
+            "activity_type": "branch_deletion"
+        }
+        moves = [
+            _push(new, "2026-10-22T11:10:00Z"),
+            gone,
+            _push(OLD, "2026-10-22T10:25:00Z"),
+        ]
+        self.assertIsNone(policy.unran_head(moves, [[OLD, new], [new]], OLD, at))
+        self.assertIn(new, policy.unran_head(moves, [[OLD], [new]], OLD, at) or "")
+        self.assertIn(
+            "every review lane", policy.unran_head(moves, [[OLD, new]], OLD, at) or ""
+        )
+        self.assertIn(
+            "every review lane", policy.unran_head(moves, None, OLD, at) or ""
+        )
+        self.assertIn(
+            "no push of", policy.unran_head(moves, [[new], [new]], HEAD, at) or ""
+        )
+        self.assertIn(
+            "no push of",
+            policy.unran_head(moves, [[new], [new]], OLD, "not a time") or "",
+        )
+        odd = [{"after": new, "timestamp": "soon"}, *moves]
+        self.assertIn(
+            "unreadable", policy.unran_head(odd, [[new], [new]], OLD, at) or ""
+        )
+        self.assertIn("unreadable", policy.unran_head("nope", [[], []], OLD, at) or "")
+        # Only the moves after the decided head's last push before it count.
+        again = [_push(OLD, "2026-10-22T11:30:00Z"), *moves]
+        self.assertIsNone(policy.unran_head(again, [[OLD], [OLD]], OLD, at))
+
+    def test_the_lane_reads_take_the_actions_token_when_set(self) -> None:
+        with mock.patch.dict(policy.os.environ, {policy.ACTIONS_TOKEN_ENV: "job"}):
+            self.assertEqual(self.decide(), LINK)
+        self.assertEqual(self.lanes.envs, [{"GH_TOKEN": "job"}] * 5)
+        with mock.patch.dict(policy.os.environ, {policy.ACTIONS_TOKEN_ENV: ""}):
+            self.assertEqual(self.decide(), LINK)
+        self.assertEqual(self.lanes.envs, [None] * 5)
+
+    def test_the_decided_head_is_never_read_from_a_comment(self) -> None:
+        self.decide()
+        self.assertFalse(any("/issues/99/comments" in r for r in self.reads))
+
+    def test_with_no_notice_before_the_decision_nothing_carries(self) -> None:
         link = "https://github.com/owner/repo/pull/99#issuecomment-7"
         own = _comment(issue_url="https://api.github.com/repos/owner/repo/issues/99")
         for body, comment in ((link, own), (LINK, None)):
             with self.subTest(body):
-                self.assertIsNone(self.decide(body=body, comment=comment, markers=[]))
+                self.assertIsNone(self.decide(body=body, comment=comment, runs=[]))
                 self.assertFalse(any("/compare/" in r for r in self.reads))
 
-    def test_an_edited_or_unreadable_newest_marker_does_not_carry(self) -> None:
-        same = {OLD: _net(TF), HEAD: _net(TF)}
-        for name, change in {
-            "edited": dict(marker_node={"lastEditedAt": "2026-10-22T11:05:00Z"}),
-            "a null node": dict(marker_node=None),
-            "no lastEditedAt key": dict(marker_node={}),
-            "unreadable": dict(unreadable="marker edited"),
-        }.items():
-            with self.subTest(name):
-                self.assertIsNone(self.decide(**change))
-                self.assertIsNone(self.later(same, **change))
-        # An older unedited marker at this head does not stand in.
-        older = [_marker(HEAD, "2026-10-22T10:00:00Z"), _marker(OLD)]
-        edited = {"lastEditedAt": "2026-10-22T11:05:00Z"}
-        self.assertIsNone(self.decide(markers=older, compares=same, marker_node=edited))
-
-    def test_a_comment_deleted_since_the_newest_marker_does_not_carry(self) -> None:
-        same = {OLD: _net(TF), HEAD: _net(TF)}
-        # Deleting the newer marker would make an older head the decided head.
-        promoted = self.decide(
-            markers=[_marker(OLD, "2026-10-22T10:30:00Z")],
-            head=OLD,
-            deleted=["2026-10-22T11:45:00Z"],
+    def test_at_the_decided_head_it_carries_with_no_net_change_compare(self) -> None:
+        self.assertEqual(self.decide(), LINK)
+        self.assertEqual(
+            [r for r in self.reads if "/compare/" in r],
+            [f"repos/owner/repo/compare/{TIP}...{HEAD}"],
         )
-        self.assertIsNone(promoted)
-        self.assertFalse(any("/compare/" in r for r in self.reads))
-        for name, change in {
-            "at the marker's time": dict(deleted=["2026-10-22T11:00:00Z"]),
-            "unreadable": dict(unreadable="deleted"),
-            "more than listed": dict(
-                deleted={"filteredCount": 101, "nodes": [{"createdAt": "2026-10-22T09:00:00Z"}]}
-            ),
-            "an unparsed time": dict(deleted=["soon"]),
-        }.items():
-            with self.subTest(name):
-                self.assertIsNone(self.decide(**change))
-        self.assertIsNone(self.later(same, deleted=["2026-10-22T11:30:00Z"]))
-        # A deletion before the marker was posted does not stop it.
-        self.assertEqual(self.decide(deleted=["2026-10-22T10:59:59Z"]), LINK)
-        self.assertEqual(self.later(same, deleted=["2026-10-22T09:00:00Z"]), LINK)
-
-    def test_at_the_decided_head_it_carries_with_no_compare_read(self) -> None:
-        pull = PULL | {"base": {"ref": "-unusable"}}
-        self.assertEqual(self.decide(pull=pull), LINK)
-        self.assertFalse(any("/compare/" in r for r in self.reads))
+        # With no usable base no run can be vetted, so nothing carries.
+        self.assertIsNone(self.decide(pull=PULL | {"base": {"ref": "-unusable"}}))
 
     def test_a_duplicate_filename_a_pure_rename_or_an_unusable_base_does_not_carry(
         self,
@@ -422,7 +861,11 @@ class CostDecision(unittest.TestCase):
                 self.assertFalse(any("/compare/" in r for r in self.reads))
         pull = PULL | {"base": {"ref": "release/2.x"}}
         self.assertEqual(self.later(same, pull=pull), LINK)
-        self.assertIn(f"repos/owner/repo/compare/release/2.x...{OLD}", self.reads)
+        self.assertIn("repos/owner/repo/git/ref/heads/release/2.x", self.reads)
+        self.assertIn(f"repos/owner/repo/compare/{TIP}...{OLD}", self.reads)
+        # The carry names the base by its tip commit.
+        self.assertIn(f"repos/owner/repo/compare/{TIP}...{HEAD}", self.reads)
+        self.assertIsNone(self.later(same, unreadable="ref"))
 
     def test_the_decision_is_the_newest_on_the_pull_request_else_the_issue(
         self,
@@ -441,24 +884,25 @@ class CostDecision(unittest.TestCase):
                 created_at="2026-10-22T11:30:00Z",
             ),
         }
-        changed = {OLD: _net(TF), HEAD: _net(TF, {"filename": "b.tf", "status": "added", "patch": "+b"})}
+        changed = {
+            OLD: _net(TF),
+            HEAD: _net(TF, {"filename": "b.tf", "status": "added", "patch": "+b"}),
+        }
 
-        def pick(body: str, markers: list[dict[str, Any]]) -> str | None:
-            def get(endpoint: str) -> tuple[int | None, Any]:
-                if "/compare/" in endpoint:
-                    sha = endpoint.rsplit("...", 1)[1]
-                    return 200, changed[sha]
+        def pick(body: str, runs: list[dict[str, Any]]) -> str | None:
+            lanes = Lanes(runs, changed)
+
+            def get(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
+                if any(k in endpoint for k in ("/compare/", "/git/ref/")):
+                    return lanes.get(endpoint, env)
                 return 200, rows[endpoint.rsplit("/", 1)[1]]
 
             with (
                 mock.patch.object(policy, "_get", side_effect=get),
-                mock.patch.object(policy, "_paginated", return_value=markers),
+                mock.patch.object(policy, "_get_pages", side_effect=lanes.get_pages),
+                mock.patch.object(policy, "_paginated", side_effect=lanes.paginated),
                 mock.patch.object(
-                    policy,
-                    "_graphql",
-                    side_effect=lambda query, *_, **__: _deletions([])
-                    if query == policy.COMMENT_DELETED
-                    else {"node": {"lastEditedAt": None}},
+                    policy, "_graphql", return_value={"node": {"lastEditedAt": None}}
                 ),
             ):
                 return policy.cost_decision(
@@ -470,10 +914,13 @@ class CostDecision(unittest.TestCase):
                 )
 
         every = f"Closes #40\n{LINK}\n{on_pull(8)}\n{on_pull(9)}"
-        self.assertEqual(pick(every, [_marker(HEAD, "2026-10-22T11:15:00Z")]), on_pull(9))
-        older_head = [_marker(HEAD, "2026-10-22T10:00:00Z"), _marker(OLD, "2026-10-22T11:15:00Z")]
+        self.assertEqual(pick(every, [_run(HEAD, "2026-10-22T11:15:00Z")]), on_pull(9))
+        older_head = [
+            _run(HEAD, "2026-10-22T10:00:00Z", created="2026-10-22T09:50:00Z"),
+            _run(OLD, "2026-10-22T11:15:00Z"),
+        ]
         self.assertIsNone(pick(every, older_head))
-        self.assertEqual(pick(f"Closes #40\n{LINK}", [_marker(HEAD)]), LINK)
+        self.assertEqual(pick(f"Closes #40\n{LINK}", [_run(HEAD)]), LINK)
 
     def test_a_failed_permission_read_clears_nothing(self) -> None:
         def refuse(login: str) -> str:

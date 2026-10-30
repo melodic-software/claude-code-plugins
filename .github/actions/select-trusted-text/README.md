@@ -39,7 +39,9 @@ used.
 That query covers bodies only, so the PR title has its own rule: the PR's `timelineItems` of type
 `RENAMED_TITLE_EVENT` are read page by page (the same 50-page cap). When any rename's `actor` is
 null or not listed, the title is withheld (empty) and counted once under `edited-by-untrusted`;
-the body still follows the edit rule above.
+the body still follows the edit rule above. A page of either GraphQL connection that comes back
+with no node list is a failed read. The exported `titleRenamers` is that one rename read;
+pr-verify's `resolve-pr.mjs` uses it under its own, latest-renamer rule.
 
 `selectTrustedIssueComments` applies the same author and edit rules to one issue's comments; the
 issue lane's `write-issue.mjs` uses it to give the model only trusted comments beside the issue.
@@ -58,7 +60,7 @@ file, so a lane never reads a partial context and the model step does not run. U
 which exit 0 with `proceed=false`, a failure here is an error a human should see.
 
 Kept text is still data to the model, never instructions
-([`untrusted-content`](../../../docs/conventions/untrusted-content/README.md)): a listed bot can
+([`untrusted-content`](../../../docs/contracts/untrusted-content/README.md)): a listed bot can
 quote text a stranger wrote, and the model can fetch unfiltered comments itself. ADR 0049's
 Consequences record both.
 

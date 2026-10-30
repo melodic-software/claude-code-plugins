@@ -18,7 +18,7 @@ them from the file rather than from a copy of tool output.
 - **`view`** prints one object: `number`, `url`, `state`, `isDraft`, `title`, `baseRefName`,
   `headRefName`, `baseRefOid`, `headRefOid`, `mergeCommit` (`null` until merged), `additions`,
   `deletions`, `files`, `labels`, and the repository's `visibility` (`PUBLIC`, `PRIVATE`,
-  `INTERNAL`, or `UNKNOWN` when the lookup fails). `<pr>` is a number, a PR URL (which names its own host and
+  `INTERNAL`, or `UNKNOWN` when the lookup fails or the forge CLI is not logged in to the PR's host, which is then never asked). `<pr>` is a number, a PR URL (which names its own host and
   repository), or a head branch; with none
   it reads the current branch's PR. A PR whose head branch is on a fork is not found by branch
   name, or when no `<pr>` is given, so pass its number. `--diff` prints the unified diff instead. `view` reads through
@@ -26,9 +26,14 @@ them from the file rather than from a copy of tool output.
   takes `HOST/OWNER/REPO`; without it `view` reads the `origin` remote's host when the forge CLI is
   logged in to that host, and github.com otherwise.
 - **`list`** prints an array of `number`, `url`, `state`, `isDraft`, `title`, `headRefName`,
-  `baseRefName`, `mergeCommit`, open PRs by default, up to 1000 rows. `--head-match` keeps the
-  PRs whose head branch matches the ERE. `--search` keeps the PRs the forge's text search matches,
-  such as those whose text mentions a work item's reference.
+  `baseRefName`, `mergeCommit`, `isCrossRepository` and `headRepositoryOwner`, open PRs by
+  default, up to 1000 rows. A caller after the repository's own PR on a branch counts only rows
+  whose `isCrossRepository` is `false`.
+  `--head-match` keeps the PRs whose head branch matches the ERE. `--search` keeps the PRs the
+  forge's text search matches, such as those whose text mentions a work item's reference.
+  - **Pointer**: when checking whether the forge's head filter can name a head repository, fetch
+    the `--head` option of [gh pr list](https://cli.github.com/manual/gh_pr_list) live. **As of**:
+    2026-10-27. **Recheck trigger**: a gh release note changes `gh pr list --head`.
 - **Exit codes.** 0 read; 1 bad argument; 2 the forge call failed, which includes a branch with no
   PR; 5 a prerequisite is missing. Report a non-zero exit as it is: a failed read is not an empty
   result.

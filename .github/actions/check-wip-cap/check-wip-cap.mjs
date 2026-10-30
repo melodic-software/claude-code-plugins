@@ -17,7 +17,8 @@
 // work-unblock re-fires none) and logs one `admission paused: reason=...`
 // line. When a read fails (the open listing, the base config) the lane keeps
 // the last known pause, the status work-unblock's hourly sweep last saved in
-// WIP_STATE; with none it fails open.
+// WIP_STATE; with none it fails open. A base config that cannot be read also
+// closes admissions, whatever wip.pause-from says.
 //
 // Queued work is the agent-ready issues no open lane PR names, on its first
 // body line or else by its lane branch, and no blocker still blocks (at most
@@ -28,6 +29,11 @@
 // queued issue leaves the count only by running. A search that answers
 // incomplete_results: true closes admissions whatever wip.pause-from says. A
 // failed queued read without that flag leaves admissions open.
+//
+// With `pauseOnly` (WIP_READS=pause) it makes only the open listing and the
+// merged count, the two reads the run pause depends on, and leaves the
+// admission fields unread (`admission_basis` `not-read`, admissions open, unless
+// a search answered incomplete or the base config could not be read).
 //
 // As the action's step it writes `capped` (the run pause), `admission-open`,
 // `wip` (the status as one flat JSON object) and `state-saved` (`true` when a
@@ -41,6 +47,7 @@
 //                       sets limits and wip (resolve-config's wipFromBase)
 //   LANES_BOT_LOGIN     the lanes App bot login (default melodic-automation-lanes[bot])
 //   WIP_STATE           the last known state file (optional), read then rewritten
+//   WIP_READS           `pause` for the pause reads alone; anything else reads all
 //   GITHUB_OUTPUT, GITHUB_STEP_SUMMARY
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
@@ -87,7 +94,8 @@ const isCount = (value) => Number.isSafeInteger(value) && value >= 0;
 // read fails. `searchIncomplete` is whether any answer said incomplete_results
 // true, which a degraded search answers with a false empty. Reads run one at a time, and
 // none starts once `remaining()` (the last x-ratelimit-remaining seen) is 0 or less.
-export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, windowHours, remaining = () => null }) {
+// `pauseOnly` stops after the open listing and the merged count.
+export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, windowHours, remaining = () => null, pauseOnly = false }) {
   const author = `author:app/${bot.replace(/\[bot\]$/, "")}`;
   const since = isoSecond(now - windowHours * HOUR_MS);
   let searchIncomplete = false;
@@ -143,6 +151,9 @@ export async function readLaneWip(github, { repo, bot = DEFAULT_BOT, now, window
     issue: namedIssue(pr),
   })))?.items ?? null;
   const merged = await count(`repo:${repo} is:pr is:merged ${author} merged:>=${since}`);
+  if (pauseOnly) {
+    return { open, merged, admitted: null, queued: null, queuedUnlisted: null, blocked: [], searchIncomplete, pauseOnly };
+  }
   const admitted = await count(`repo:${repo} is:pr ${author} created:>=${since}`);
   const holds = ISSUE_HOLDS.map((label) => `-label:${label.includes(" ") ? `"${label}"` : label}`).join(" ");
   const queued = await list(`repo:${repo} is:issue is:open label:agent-ready ${holds}`, (issue) => Number(issue?.number));
@@ -182,7 +193,10 @@ const round = (value, places) => (value === null ? null : Number(value.toFixed(p
 
 // The status as one flat object; the field names are a published contract
 // (README.md, WIP cap).
-export function wipStatus({ open, merged, admitted, queued = null, queuedUnlisted = 0, blocked = [], searchIncomplete = false }, { limits, wip, now }) {
+export function wipStatus(
+  { open, merged, admitted, queued = null, queuedUnlisted = 0, blocked = [], searchIncomplete = false, pauseOnly = false },
+  { limits, wip, now, configError = false },
+) {
   const window = wip["merge-rate-window-hours"];
   const held = open?.filter((pr) => pr.held) ?? null;
   const ages = held?.map((pr) => (now - pr.createdAt) / HOUR_MS).filter(Number.isFinite) ?? [];
@@ -212,11 +226,12 @@ export function wipStatus({ open, merged, admitted, queued = null, queuedUnliste
   const queuedTotal = queuedIssues === null ? null : queuedIssues + heldCount;
   const queuedOver = queuedTotal !== null && (truncated || queuedTotal >= queuedCap - 1e-9);
   // Admissions left before the cap; null when nothing gates them. An
-  // incomplete search answer leaves none whatever pause-from says: its counts
-  // may be false empties.
-  const room = searchIncomplete
+  // unreadable base config or an incomplete search answer leaves none whatever
+  // pause-from says: the caps or the counts are unknown.
+  const unknown = configError ? "config-unreadable" : searchIncomplete ? "search-incomplete" : null;
+  const room = unknown
     ? 0
-    : !pausing || queuedTotal === null
+    : !pausing || queuedTotal === null || pauseOnly
       ? null
       : truncated
         ? 0
@@ -254,17 +269,17 @@ export function wipStatus({ open, merged, admitted, queued = null, queuedUnliste
     paused: pausing && reasons.length > 0,
     pause_reason: pausing && reasons.length > 0 ? reasons.join(",") : null,
     admission_open: room === null || room > 0,
-    admission_reason: room === 0 ? (searchIncomplete ? "search-incomplete" : "queued") : null,
+    admission_reason: room === 0 ? (unknown ?? "queued") : null,
     admission_room: room,
-    admission_basis: searchIncomplete ? "search-incomplete" : queuedTotal === null ? "fail-open" : "read",
+    admission_basis: unknown ?? (pauseOnly ? "not-read" : queuedTotal === null ? "fail-open" : "read"),
   };
 }
 
 // The status from the lanes App's PRs in `repo`, for the issue lane's check
 // and work-unblock's sweep alike.
-export async function checkWip(github, { repo, bot, now, limits, wip, remaining }) {
-  const reads = await readLaneWip(github, { repo, bot, now, windowHours: wip["merge-rate-window-hours"], remaining });
-  return wipStatus(reads, { limits, wip, now });
+export async function checkWip(github, { repo, bot, now, limits, wip, remaining, pauseOnly = false, configError = false }) {
+  const reads = await readLaneWip(github, { repo, bot, now, windowHours: wip["merge-rate-window-hours"], remaining, pauseOnly });
+  return wipStatus(reads, { limits, wip, now, configError });
 }
 
 // The last x-ratelimit-remaining a search response carried, for readLaneWip's
@@ -345,8 +360,8 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   const rate = searchRateLimit();
   github ??= createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined, onResponse: rate.onResponse });
   const read = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)
-    ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining })
-    : wipStatus({ open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null }, { limits, wip, now });
+    ? await checkWip(github, { repo, bot: env.LANES_BOT_LOGIN || DEFAULT_BOT, now, limits, wip, remaining: rate.remaining, pauseOnly: env.WIP_READS === "pause", configError })
+    : wipStatus({ open: null, merged: null, admitted: null, queued: null, queuedUnlisted: null }, { limits, wip, now, configError });
   const readError = configError || read.countable_lane_prs === null;
   const pausing = configError || (wip["pause-from"] !== "" && now >= Date.parse(wip["pause-from"]));
   const status = keepLastState(read, { readError, prior: readError && env.WIP_STATE ? lastState(env.WIP_STATE) : null, pausing });
@@ -367,6 +382,11 @@ export async function main({ env = process.env, github, now = Date.now(), log = 
   if (status.admission_basis === "search-incomplete") {
     log(
       `::warning title=check-wip-cap::GitHub search answered incomplete results (admission_basis search-incomplete), so its counts are unknown and no new admissions are made this run`,
+    );
+  }
+  if (status.admission_basis === "config-unreadable") {
+    log(
+      `::warning title=check-wip-cap::the base config could not be read (admission_basis config-unreadable), so the caps are unknown and no new admissions are made this run`,
     );
   }
   if (status.alert) {

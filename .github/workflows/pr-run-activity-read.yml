@@ -884,7 +884,9 @@ jobs:
       # marker is turn-cap, stopped, limited or funding for a run whose lane branch
       # passes the same tip check and is not behind the default branch, the
       # model runs on that branch's tip instead (resume-branch, resume-tip,
-      # resume-cause); a branch behind it starts fresh from the default tip.
+      # resume-cause); a branch behind it starts fresh from the default tip
+      # (stale-branch, stale-tip, and stale-noted when a lanes App comment
+      # already names it).
       - name: Check for an earlier run's work on the issue
         id: issue-prior
         if: >-
@@ -1074,6 +1076,7 @@ jobs:
       # changed since fails the step. Runs from the base copy, with the job's
       # read-only token, before the checkout below replaces it.
       - name: Write the issue for the skill
+        id: write-issue
         if: >-
           steps.go.outputs.run == 'true' && inputs.issue-number != ''
           && steps.config.outputs.kind == 'skill'
@@ -1090,14 +1093,23 @@ jobs:
           RESUME_BRANCH: ${{ steps.issue-prior.outputs.resume-branch }}
           RESUME_TIP: ${{ steps.issue-prior.outputs.resume-tip }}
           RESUME_CAUSE: ${{ steps.issue-prior.outputs.resume-cause }}
+          # A fresh run's stale lane branch, at the tip issue-prior checked
+          # (issue-prior), whose commits the model reads as data.
+          STALE_BRANCH: ${{ steps.issue-prior.outputs.stale-branch }}
+          STALE_TIP: ${{ steps.issue-prior.outputs.stale-tip }}
           BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
-        run: node .base/.github/scripts/work-resolve-issue/write-issue.mjs
+          CONFIG_PATH: ${{ inputs.config-path }}
+        run: |
+          # The issue lane's web hosts as admission reads them (resolve-config issueLaneWebHostsFromBase).
+          ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' ".base/$CONFIG_PATH")
+          export ISSUE_LANE_WEB_HOSTS
+          node .base/.github/scripts/work-resolve-issue/write-issue.mjs
 
       # run-claude-cli refuses to run without these root-owned settings, which
       # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.launch.outcome == 'success' && steps.go.outputs.run == 'true'
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
@@ -1131,9 +1143,11 @@ jobs:
       # clean otherwise; the mode check reads each launcher leg. The sealer and its public key go with it: the head
       # checkout replaces .base, and the head's own key file is the PR's.
       # Head code can rewrite either copy, as it can the collector's; a
-      # forged sealer gains nothing the model job does not already hold.
+      # forged sealer gains nothing the model job does not already hold. It
+      # runs after a failed earlier step too (a write-issue refusal), so the
+      # carry step can still seal lane.json naming why the run never started.
       - name: Copy the patch collector and the output sealer from the base
-        if: steps.go.outputs.run == 'true'
+        if: always() && steps.go.outputs.run == 'true'
         env:
           DEST: ${{ runner.temp }}/read-patch
           SEAL_DIR: ${{ runner.temp }}/seal-lane-output
@@ -1400,7 +1414,7 @@ jobs:
         if: steps.key-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
           # No work may outlive the result message the launcher reads.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -1452,7 +1466,7 @@ jobs:
         if: steps.token-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1498,7 +1512,7 @@ jobs:
         if: steps.fallback-present.outputs.present == 'true'
         continue-on-error: true
         timeout-minutes: ${{ fromJSON(steps.launch.outputs.step-minutes || '50') }}
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
           LD_LIBRARY_PATH: ""
@@ -1722,7 +1736,7 @@ jobs:
           && (steps.act-key.outcome == 'success' || steps.act-key.outcome == 'failure'
           || steps.act-token.outcome == 'success' || steps.act-token.outcome == 'failure'
           || steps.act-fallback.outcome == 'success' || steps.act-fallback.outcome == 'failure')
-        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           outcome: ${{ steps.act-key.outcome != 'skipped' && steps.act-key.outcome || steps.act-token.outcome != 'skipped' && steps.act-token.outcome || steps.act-fallback.outcome }}
           execution-file: ${{ steps.act-key.outputs.execution-file || steps.act-token.outputs.execution-file || steps.act-fallback.outputs.execution-file }}
@@ -1870,13 +1884,23 @@ jobs:
         env:
           SCRATCH_OUTCOME: ${{ github.workspace }}/.lane/scratch/work-outcome.json
           OUT_DIR: ${{ runner.temp }}/work-outcome
-          LANE_CLASS: ${{ steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class || steps.act-fallback.outputs.lane-class }}
+          # A run whose issue file was not written never started: issue-edited
+          # when the issue changed after its label (write-issue's refused
+          # output), issue-file for any other cause, so report-outcome names it.
+          LANE_CLASS: >-
+            ${{ steps.write-issue.outputs.refused == 'edited' && 'issue-edited'
+            || steps.write-issue.outcome == 'failure' && 'issue-file'
+            || steps.act-key.outputs.lane-class || steps.act-token.outputs.lane-class
+            || steps.act-fallback.outputs.lane-class }}
           LANE_RESETS: ${{ steps.act-key.outputs.lane-resets || steps.act-token.outputs.lane-resets || steps.act-fallback.outputs.lane-resets }}
           # The run's turn cap, so a turn-cap stop names it.
           LANE_MAX_TURNS: ${{ steps.config.outputs.max-turns }}
           # The branch a resumed run continued, which still holds the work
           # when the run left no change of its own.
           LANE_RESUME: ${{ steps.issue-prior.outputs.resume-branch }}
+          # The stale lane branch this run started fresh past, when no lanes
+          # App comment names it yet, so report-outcome names it once.
+          LANE_STALE: ${{ steps.issue-prior.outputs.stale-noted == 'false' && steps.issue-prior.outputs.stale-branch || '' }}
           # A run that exited non-zero, and the API error it ended on, so a
           # funding stop is named as one (report-outcome readFunding).
           LANE_FAILED: ${{ steps.act-key.outcome == 'failure' || steps.act-token.outcome == 'failure' || steps.act-fallback.outcome == 'failure' }}
@@ -1889,9 +1913,9 @@ jobs:
             head -c 49152 "$SCRATCH_OUTCOME" >"$OUT_DIR/work-outcome.json"
           fi
           jq -n --arg class "$LANE_CLASS" --arg resets "$LANE_RESETS" \
-            --arg max_turns "$LANE_MAX_TURNS" --arg resume "$LANE_RESUME" \
+            --arg max_turns "$LANE_MAX_TURNS" --arg resume "$LANE_RESUME" --arg stale "$LANE_STALE" \
             --arg failed "$LANE_FAILED" --arg status "$LANE_API_STATUS" --arg error_text "$LANE_ERROR_TEXT" \
-            '{branch: "", class: $class, resets: $resets, "max-turns": $max_turns, resume: $resume,
+            '{branch: "", class: $class, resets: $resets, "max-turns": $max_turns, resume: $resume, stale: $stale,
               failed: $failed, "api-error-status": $status, "error-text": $error_text}' >"$OUT_DIR/lane.json"
 
       # The reply, the run fields, the patch, a review-threads skill's
@@ -2475,8 +2499,6 @@ jobs:
             const { pathToFileURL } = require('url');
             const { execFileSync } = require('child_process');
             const { HEAD_SHA, REPLY_DIR, PATCH_FILE, GITHUB_WORKSPACE, TEXT_PATCH } = process.env;
-            // The one findSecret label that warns instead of blocking.
-            const WARN_ONLY = 'password or secret assignment';
             // A regular file's bytes, a link's target text; anything else holds none.
             const read = (file) => {
               let stat;
@@ -2489,9 +2511,10 @@ jobs:
               return stat.isFile() ? fs.readFileSync(file) : null;
             };
             let hit = null;
+            let scratch = null;
             try {
               if (!/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no head');
-              const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
+              scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
               // The gate's commit, from this job's own token: the default
               // branch's tip now, never a run job output, which head code with
               // sudo on that runner could have forged.
@@ -2504,7 +2527,7 @@ jobs:
               const specifiers = [...source.matchAll(/\bfrom\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|\bimport\s*\(\s*['"]?([^'")]*)/gm)].map((match) => match[1] ?? match[2] ?? match[3]);
               if (specifiers.some((name) => !name.startsWith('node:'))) throw new Error('the gate imports more than node builtins');
               fs.writeFileSync(path.join(scratch, 'publish-gate.mjs'), source);
-              const { findSecret, SECRET_PATTERNS } = await import(pathToFileURL(path.join(scratch, 'publish-gate.mjs')).href);
+              const { WARN_ONLY, scanLeak, changedBytes } = await import(pathToFileURL(path.join(scratch, 'publish-gate.mjs')).href);
               // git with no global or system config, in a fresh bare repository
               // that borrows at most the checkout's objects and nothing else
               // from its .git (collect-patch.sh runs the same way).
@@ -2545,11 +2568,12 @@ jobs:
               if (patch) core.setOutput('patch-sha256', crypto.createHash('sha256').update(patch).digest('hex'));
               if (replies) {
                 core.setOutput('replies-sha256', crypto.createHash('sha256').update(replies).digest('hex'));
-                // adjudicate-feedback's gate: an INCORRECT reply, or a line
-                // that is not JSON, which the adjudicator's own checks refuse.
+                // adjudicate-feedback's gate: a reply that leaves its thread
+                // open (adjudicate-feedback.mjs DISPUTED), or a line that is
+                // not JSON, which the adjudicator's own checks refuse.
                 const disputed = replies.toString('utf8').split('\n').filter((line) => line.trim() !== '').some((line) => {
                   try {
-                    return JSON.parse(line)?.disposition === 'INCORRECT';
+                    return ['INCORRECT', 'UNCERTAIN', 'VALID-defer'].includes(JSON.parse(line)?.disposition);
                   } catch {
                     return true;
                   }
@@ -2569,116 +2593,16 @@ jobs:
                 }
                 core.setOutput('dependency-verdict', ['merge', 'fix', 'close', 'escalate'].includes(value) ? value : '');
               }
-              // A credential format blocks and asks for rotation. The one broad
-              // label, an assignment that may be a test fixture, only warns, and
-              // only on a plain line. Each line is judged on its own: every
-              // blocking pattern on the raw line, then findSecret (which adds the
-              // gate's normalized copy). When findSecret names the assignment,
-              // its matches are blanked and the line read again, and each match
-              // is read again with its = and : blanked. A line whose assignment
-              // sits beside markup or escapes the gate folds (a tag, an entity,
-              // a doubled backslash: publish-gate.mjs normalize(), lines 60-66),
-              // or whose assignment only the folded copy shows, blocks under its
-              // own label: blanking cannot be trusted there. findSecret on the
-              // whole text runs too, and any credential label from it blocks.
-              const HIDDEN = 'assignment hidden by markup or escapes';
-              const blocking = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
-              const warnPattern = SECRET_PATTERNS.find(([label]) => label === WARN_ONLY)?.[1];
-              const warnOne = warnPattern && new RegExp(warnPattern.source, warnPattern.flags.replace('g', ''));
-              const warnAll = warnPattern && new RegExp(warnPattern.source, `${warnPattern.flags.replace('g', '')}g`);
-              const folds = (line) => /<[^<>]*>/.test(line) || /&#?\w+;/.test(line) || line.includes('\\\\');
-              const credential = (label) => ({ block: label, credential: true });
-              const classifyLine = (line) => {
-                const raw = blocking.find(([, re]) => re.test(line));
-                if (raw) return credential(raw[0]);
-                const first = findSecret(line);
-                if (!first) return {};
-                if (first[0] !== WARN_ONLY || !warnPattern) return credential(first[0]);
-                const again = findSecret(line.replace(warnAll, (match) => ' '.repeat(match.length)));
-                if (again && again[0] !== WARN_ONLY) return credential(again[0]);
-                for (const [match] of line.matchAll(warnAll)) {
-                  const inside = findSecret(match.replace(/[:=]/g, ' '));
-                  if (inside && inside[0] !== WARN_ONLY) return credential(inside[0]);
-                }
-                if (again || folds(line) || !warnOne.test(line)) return { block: HIDDEN, credential: false };
-                return { warn: true };
-              };
-              const classify = (text) => {
-                let warn = false;
-                for (const line of text.split(/\r?\n/)) {
-                  const result = classifyLine(line);
-                  if (result.block) return result;
-                  warn ||= Boolean(result.warn);
-                }
-                const whole = findSecret(text);
-                if (whole && whole[0] !== WARN_ONLY) return credential(whole[0]);
-                return { warn };
-              };
-              // Two more passes, on credential formats only (owner ruling Q37),
-              // each blocking with the label and the rotation line:
-              // - UTF-16LE: the text with its NUL bytes removed, so a token
-              //   written two bytes a character reads as one. #8532 reads a
-              //   NUL as a space to keep line numbers (b9e9475b3a); here it is
-              //   removed, since a space between every character would split
-              //   the token again.
-              // - Split lines: each pair of adjacent lines joined with no
-              //   separator, counting only a match that straddles the join of
-              //   a pattern neither line matches alone, so a token cut across
-              //   two lines is caught and nothing a single line holds is
-              //   judged twice. The OpenAI key pattern (any sk- and 20 token
-              //   characters) and the R2 key pair pattern (a 32-hex and a
-              //   64-hex token on one line) are left out of this pass: joining
-              //   a line that ends in an sk- word to the next line's first
-              //   word matches the first, adjacent md5 and sha256 lines match
-              //   the second, and a false block fails fix-ci closed and asks
-              //   for a rotation. In the patch the pair is hunk
-              //   lines with their +, - or space prefix removed and the file
-              //   headers dropped, or a token split inside an added hunk
-              //   would join as "...ab+cd..." and never match.
-              const straddles = (left, right) => {
-                const joined = left + right;
-                for (const [label, re] of blocking) {
-                  if (label === 'OpenAI key' || label === 'R2 key pair' || re.test(left) || re.test(right)) continue;
-                  for (const match of joined.matchAll(new RegExp(re.source, `${re.flags.replace('g', '')}g`))) {
-                    if (match.index < left.length && match.index + match[0].length > left.length) return label;
-                  }
-                }
-                return null;
-              };
-              const credentialIn = (text) => {
-                for (const line of text.split(/\r?\n/)) {
-                  const raw = blocking.find(([, re]) => re.test(line));
-                  if (raw) return raw[0];
-                }
-                const found = findSecret(text);
-                return found && found[0] !== WARN_ONLY ? found[0] : null;
-              };
-              const HUNK_HEADER = /^(?:\+\+\+|---) /;
-              const deeper = (text, diff) => {
-                const plain = text.replace(/\0/g, '');
-                if (plain !== text) {
-                  const label = credentialIn(plain);
-                  if (label) return label;
-                }
-                let lines = plain.split(/\r?\n/);
-                if (diff) lines = lines.filter((line) => /^[-+ ]/.test(line) && !HUNK_HEADER.test(line)).map((line) => line.slice(1));
-                for (let i = 0; i + 1 < lines.length; i += 1) {
-                  const label = straddles(lines[i], lines[i + 1]);
-                  if (label) return label;
-                }
-                return null;
-              };
-              // Each source has a kind, which names no model-chosen text.
+              // The gate's scanLeak: per-line credential formats, the warn-only
+              // assignment, then the UTF-16LE and split-line passes. A
+              // credential format blocks and asks for rotation; the one broad
+              // label only warns, on a plain line. Each source has a kind,
+              // which names no model-chosen text.
               const warned = new Set();
-              const judge = (kind, bytes, how = (b) => classify(b.toString('latin1')), diff = false) => {
+              const judge = (kind, bytes, diff = false) => {
                 if (hit || !bytes) return;
-                const { block, credential: format, warn } = how(bytes);
-                if (block) {
-                  hit = { label: block, credential: format };
-                  return;
-                }
-                const deep = deeper(bytes.toString('latin1'), diff);
-                if (deep) hit = { label: deep, credential: true };
+                const { block, credential: format, warn } = scanLeak(bytes, { diff });
+                if (block) hit = { label: block, credential: format };
                 else if (warn) warned.add(kind);
               };
               judge('the reply', reply);
@@ -2687,7 +2611,7 @@ jobs:
               judge('the verdict', verdict);
               judge('the outcome', outcome);
               judge('lane.json', lane);
-              judge('the patch', patch, undefined, true);
+              judge('the patch', patch, true);
               // A merge-base patch applies to a conflict tree only the apply job
               // rebuilds, so it is held to text hunks, whose every added byte
               // the text scan above read; a binary hunk blocks.
@@ -2713,18 +2637,15 @@ jobs:
                 } catch {
                   hit = { label: 'the patch does not apply to the head', credential: false };
                 }
-                const fields = made ? apply(['diff-tree', '-r', '-z', '--no-renames', HEAD_SHA, made]).toString('latin1').split('\0') : [];
-                for (let i = 0; i + 1 < fields.length; i += 2) {
-                  const [, mode, , sha] = fields[i].replace(/^:/, '').split(' ');
-                  judge('the patch', Buffer.from(fields[i + 1], 'latin1'));
-                  if (/^(100644|100755|120000)$/.test(mode)) judge('the patch', apply(['cat-file', 'blob', sha]));
-                }
+                if (made) for (const bytes of changedBytes(apply, HEAD_SHA, made)) judge('the patch', bytes);
               }
               if (!hit) {
                 for (const kind of warned) core.warning(`leak-scan: ${WARN_ONLY} in ${kind}; not blocking, check it is no real credential`);
               }
             } catch (error) {
               hit = { label: `no finished scan (${error.name})`, credential: false };
+            } finally {
+              if (scratch) fs.rmSync(scratch, { recursive: true, force: true });
             }
             core.setOutput('clean', hit ? 'false' : 'true');
             if (hit) {
@@ -2790,7 +2711,7 @@ jobs:
         with:
           name: patch-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}
           path: ${{ steps.leak-scan.outputs.dir }}/patch.diff
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: error
           overwrite: false
 
@@ -2818,7 +2739,7 @@ jobs:
         with:
           name: dependency-verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
           path: ${{ steps.leak-scan.outputs.dir }}/dependency-verdict.json
-          retention-days: 7
+          retention-days: 3
           if-no-files-found: error
           overwrite: false
 
@@ -2898,21 +2819,21 @@ jobs:
           if-no-files-found: error
           overwrite: false
 
-  # PR mode: the scan job's refusal, as an artifact a job that succeeds
-  # uploads. A failed scan fails the caller's job for this whole workflow, and
-  # no documentation says a failed job's outputs reach a workflow_call
-  # caller, so the reply and verdict jobs download this marker by name
-  # instead (address-feedback.mjs scanRefusal). The scan's own result decides
-  # it (a failed or cancelled scan published nothing); the scan's outputs
-  # only name an oversize patch. It reads nothing from the run job, so head
+  # The scan job's refusal, as an artifact a job that succeeds uploads. A
+  # failed scan fails the caller's job for this whole workflow, and no
+  # documentation says a failed job's outputs reach a workflow_call caller,
+  # so the reply and verdict jobs download this marker by name instead
+  # (address-feedback.mjs scanRefusal), and in issue mode so does
+  # report-outcome, which names the refusal in the issue's hand-back. The
+  # scan's own result decides it (a failed or cancelled scan published
+  # nothing); the scan's outputs only name an oversize patch. It reads nothing from the run job, so head
   # code can only fail the scan or add a marker, either of which hands the
   # round to a person. always(), since cancelled() is true once the scan was
   # cancelled, and !cancelled() would skip that arm.
   scan-refusal:
     needs: scan
     if: >-
-      always() && inputs.issue-number == ''
-      && (needs.scan.result == 'failure' || needs.scan.result == 'cancelled')
+      always() && (needs.scan.result == 'failure' || needs.scan.result == 'cancelled')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -2998,8 +2919,11 @@ jobs:
           LABEL_SENDER_ID: ${{ format('{0}', github.event.sender.id) }}
           LABEL_NAME: ${{ github.event.label.name }}
           LABEL_EVENT_AT: ${{ github.event.issue.updated_at }}
+          CONFIG_PATH: ${{ inputs.config-path }}
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
+          ISSUE_LANE_WEB_HOSTS=$(yq -o=json -I=0 '(.activities."resolve-issue"."web-access" | select(.enabled == true) | .domains) // []' ".base/$CONFIG_PATH")
+          export ISSUE_LANE_WEB_HOSTS
           if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]] || ! [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] ||
             ! [[ $REUSE_BRANCH =~ ^work-resolve-issue/issue-${ISSUE_NUMBER}-[1-9][0-9]*-[1-9][0-9]*$ ]]; then
             echo "::error::the summary pass needs this issue's lane branch and a base commit"
@@ -3079,7 +3003,7 @@ jobs:
         id: summary-settings
         if: steps.summary-prompt.outcome == 'success'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Isolate the runner
         id: isolate
@@ -3098,7 +3022,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback == ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3124,7 +3048,7 @@ jobs:
         if: steps.isolate.outcome == 'success' && inputs.fallback != ''
         continue-on-error: true
         timeout-minutes: 15
-        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         env:
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
@@ -3144,6 +3068,17 @@ jobs:
             Read(//proc/**)
           json-schema-file: ${{ runner.temp }}/reuse-summary-schema.json
           leg-timeout-minutes: "10"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && (steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file) != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.summary-key.outputs.execution-file || steps.summary-token.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: reuse-summary-${{ inputs.issue-number }}-${{ inputs.fallback == '' && 'key' || 'token' }}
 
       # The summary file: issue, branch and tip are runner values from before
       # the model ran; output is the launcher's structured output, model

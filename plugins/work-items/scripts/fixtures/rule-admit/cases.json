@@ -276,6 +276,106 @@
       "expect": { "verdict": "refuse", "reason": "cost hit in title or body: spending limit" }
     },
     {
+      "name": "a job name in an inline code span admits",
+      "source": "owner standing direction: cost is anything that can bill the owner; a stop that is not a real cost risk is a defect",
+      "issue": { "body": "Two rows in the install table read awkwardly; the `pr-retention.yml` job reports them." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "a charge word in a fenced block admits",
+      "source": "owner standing direction: cost is anything that can bill the owner; a stop that is not a real cost risk is a defect",
+      "issue": { "body": "Two rows in the install table read awkwardly.\n\n```yaml\nretention-days: 5\n```" },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "a paid subscription in prose refuses beside code",
+      "source": "owner standing direction: cost is anything that can bill the owner; a stop that is not a real cost risk is a defect",
+      "issue": { "body": "The `nightly-subscription` job needs a paid subscription." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription;" }
+    },
+    {
+      "name": "model usage on the subscription login admits",
+      "source": "owner standing direction 2026-10-27: model usage under the Claude subscriptions is not cost",
+      "issue": { "body": "Two rows in the install table read awkwardly when the lane runs on the subscription login." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "model usage under the Claude subscriptions admits",
+      "source": "owner standing direction 2026-10-27: model usage under the Claude subscriptions is not cost",
+      "issue": { "body": "Two rows in the install table read awkwardly; the fix spends only Claude subscription usage." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "model usage under the Claude subscription admits",
+      "source": "owner standing direction 2026-10-27: model usage under the Claude subscriptions is not cost",
+      "issue": { "body": "Two rows in the install table read awkwardly when the lane reports Claude subscription usage." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "subscription usage another vendor bills refuses",
+      "source": "owner standing direction 2026-10-27: only model usage under the Claude subscriptions is not cost",
+      "issue": { "body": "Two rows in the install table read awkwardly until the lane raises Copilot subscription usage." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription;" }
+    },
+    {
+      "name": "a Claude subscription upgrade refuses",
+      "source": "owner standing direction 2026-10-27: plan or seat changes are cost; only model usage under the Claude subscriptions is not",
+      "issue": { "body": "Two rows in the install table read awkwardly until we upgrade the Claude subscription to a higher plan." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription;" }
+    },
+    {
+      "name": "a plan or seat change refuses",
+      "source": "owner standing direction 2026-10-27: plan or seat changes are cost",
+      "issue": { "body": "Two rows in the install table read awkwardly until a plan or seat change lands." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: seat;" }
+    },
+    {
+      "name": "a paid subscription purchase refuses",
+      "source": "owner standing direction 2026-10-27: anything that can bill the owner is cost",
+      "issue": { "body": "Two rows in the install table read awkwardly until a paid subscription purchase lands." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription;" }
+    },
+    {
+      "name": "larger runners in prose refuse on a public repository",
+      "source": "owner standing direction: cost is anything that can bill the owner; a stop that is not a real cost risk is a defect",
+      "visibility": "public",
+      "issue": { "body": "Move the slow leg to larger runners." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: larger runners;" }
+    },
+    {
+      "name": "larger GitHub-hosted runners in prose refuse on a public repository",
+      "source": "https://docs.github.com/en/billing/concepts/product-billing/github-actions: larger runners are always charged for, even when used by public repositories",
+      "visibility": "public",
+      "issue": { "body": "Move the slow leg to larger GitHub-hosted runners." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: larger github-hosted runners;" }
+    },
+    {
+      "name": "a charge word in a fenced block with CRLF line endings admits",
+      "source": "GitHub issue bodies typed in the web UI end lines in CRLF; a fence line ending in \\r still closes the block",
+      "issue": { "body": "Two rows in the install table read awkwardly.\r\n\r\n```yaml\r\nretention-days: 5\r\n```\r\n" },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "a paid subscription between two fenced blocks refuses when the first holds a ``` mid-line",
+      "source": "CommonMark fenced code blocks: a fence is a whole line, so ``` inside a line neither opens nor closes one",
+      "issue": { "body": "Two rows in the install table read awkwardly.\n\n```yaml\nmessage: \"```\"\n```\n\nBuy a paid subscription.\n\n```yaml\nretention-days: 5\n```" },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription;" }
+    },
+    {
+      "name": "a hosted runner admits on a public repository",
+      "source": "https://docs.github.com/en/billing/concepts/product-billing/github-actions: Actions usage is free for public repositories that use standard GitHub-hosted runners",
+      "visibility": "public",
+      "issue": { "body": "Two rows in the install table read awkwardly on GitHub-hosted runners." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "a hosted runner refuses on a private repository",
+      "source": "owner standing direction: cost is anything that can bill the owner; a stop that is not a real cost risk is a defect",
+      "visibility": "private",
+      "issue": { "body": "Two rows in the install table read awkwardly on GitHub-hosted runners." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: hosted runners;" }
+    },
+    {
       "name": "Claude eval cost and quota admit",
       "source": "owner decision #9904: spend covered by the subscription or the fixed API credit is fine",
       "issue": { "title": "Run claude plugin eval and report the Claude eval cost", "body": "The Claude eval quota covers each run." },

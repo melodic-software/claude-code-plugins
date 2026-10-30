@@ -355,7 +355,9 @@ EXECUTORS = {ENGINE_PATH, TELEMETRY_PATH}
 LABEL_ONLY = {SCRIPTS / "deep_inventory.py"}
 # The engine functions that may delete. `apply_plan` and `handoff_apply` are the two
 # lanes, each reached only from the CLI behind its own gates. `anchored_remove`, and
-# `purge_directory_contents` beneath it, are the removers both lanes share.
+# `purge_directory_contents` beneath it, are the removers both lanes share; the
+# handoff lane reaches it through `unlink_handoff_path`, and recycles through
+# `recycle_handoff_path` and `windows_recycle` on Windows.
 # `write_text_atomic` and `run_inventory` remove only the temporary file they wrote themselves.
 DELETERS = {
     "apply_plan",
@@ -371,6 +373,9 @@ REGISTRY_NAMERS = {"apply_plan"}
 FENCED = (
     "apply_plan",
     "handoff_apply",
+    "unlink_handoff_path",
+    "recycle_handoff_path",
+    "windows_recycle",
     "anchored_remove",
     "purge_directory_contents",
 )
@@ -398,11 +403,12 @@ ACTIONS = re.compile(
     r"\b(?:rm|rmdir|unlink|rimraf|rmSync|unlinkSync|Remove-Item|child_process)\b"
     r"|\s-delete\b"
 )
-# What the launchers already do: remove a cache temp file, spawn bash. The
-# shared prerequisites checker spawns each declared detect command.
+# What the launchers already do: remove a cache temp file or a verdict-marker
+# directory, spawn bash. The shared prerequisites checker spawns each declared
+# detect command.
 LAUNCHER_ACTIONS = {
     PLUGIN / "hooks" / "run-python-hook.sh": 2,
-    PLUGIN / "hooks" / "exec-bash.mjs": 1,
+    PLUGIN / "hooks" / "exec-bash.mjs": 3,
     PLUGIN / "lib" / "prerequisites.mjs": 1,
 }
 SHIPPED = sorted(
@@ -481,9 +487,11 @@ class OnlyTheEngineLanesDestroyTest(unittest.TestCase):
     """Only the engine deletes, through two lanes that each keep their own gates.
 
     `apply` needs `--execute`, `--confirm-tier` and a fresh token, then runs
-    `apply_plan`. `handoff-apply` needs `--execute` and one exact path, verifies
-    it in process, then runs `handoff_apply`, which takes no plan and so no owner
-    claim. Both reach `anchored_remove`. A registry command may appear only in
+    `apply_plan`. `handoff-apply` needs `--execute`, `--tier` and exact paths,
+    and runs `handoff_apply`, which takes no plan and so no owner claim and
+    verifies each path in process. Both reach `anchored_remove`, the handoff
+    lane through `unlink_handoff_path`; on Windows it recycles through
+    `recycle_handoff_path` instead. A registry command may appear only in
     `apply_plan`, so a destructive route built on the registry would sit behind
     the tier and token gates. Read-only commands are fenced the same way: the
     report's probes are run by a session tool or the operator, never by shipped
@@ -526,7 +534,8 @@ class OnlyTheEngineLanesDestroyTest(unittest.TestCase):
             "from os import unlink\nunlink(path)\n",
             "import shutil\nshutil.rmtree(path)\n",
             "import hygiene\nhygiene.apply_plan(snapshot, plan)\n",
-            "import hygiene\nhygiene.handoff_apply(snapshot, 'x', {})\n",
+            "import hygiene\nhygiene.handoff_apply(snapshot, ['x'], 'low', None)\n",
+            "import hygiene\nhygiene.windows_recycle(path)\n",
             "import hygiene\nhygiene.anchored_remove(fd, 'x', entry, {}, target)\n",
             "import hygiene\nhygiene.purge_directory_contents(fd, 0, path, check)\n",
         ):
@@ -629,8 +638,15 @@ class EngineSourceTest(unittest.TestCase):
     def test_the_remover_is_reached_only_from_the_two_lanes(self) -> None:
         self.assertEqual(2, self.references("anchored_remove"))
         self.assertEqual(
-            ["apply_plan", "handoff_apply"], self.callers("anchored_remove")
+            ["apply_plan", "unlink_handoff_path"], self.callers("anchored_remove")
         )
+        for helper, caller in (
+            ("unlink_handoff_path", "handoff_apply"),
+            ("recycle_handoff_path", "handoff_apply"),
+            ("windows_recycle", "recycle_handoff_path"),
+        ):
+            self.assertEqual(1, self.references(helper), helper)
+            self.assertEqual([caller], self.callers(helper), helper)
 
     def test_git_metadata_is_emptied_only_from_the_handoff_lane(self) -> None:
         self.assertEqual(2, self.references("purge_directory_contents"))
@@ -640,7 +656,7 @@ class EngineSourceTest(unittest.TestCase):
         )
         for lane, keywords in (
             ("apply_plan", []),
-            ("handoff_apply", ["purge_protected"]),
+            ("unlink_handoff_path", ["purge_protected"]),
         ):
             (call,) = (
                 node for _, node in self.calls("anchored_remove", self.function(lane))
@@ -650,7 +666,7 @@ class EngineSourceTest(unittest.TestCase):
     def test_the_handoff_lane_takes_no_plan_and_so_carries_no_owner_claim(self) -> None:
         arguments = self.function("handoff_apply").args
         self.assertEqual(
-            ["snapshot", "relative", "vcs_evidence"],
+            ["snapshot", "approved", "tier", "vcs_evidence"],
             [argument.arg for argument in arguments.args],
         )
 

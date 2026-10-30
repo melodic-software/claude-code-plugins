@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: audit-macos-reports-unknown-and-stops
+graders:
+  - name: reports-unknown
+    type: regex
+    pattern: '\bUNKNOWN\b'
+    target: last_message
+  - name: stops-without-windows-scripts
+    type: llm
+    criteria: "PASS only if the reply (1) says the macOS audit is not implemented, (2) reports that gap at UNKNOWN severity rather than giving OK, WARN or CRIT results for checks on this host, (3) points to the discovery guide or porting guidance for adding macOS checks, and (4) stops there. FAIL if it reports check results for this host, runs or proposes running Invoke-MachineHealthCheck.ps1 or any other Windows check script, or proposes installing PowerShell so the Windows scripts can run."

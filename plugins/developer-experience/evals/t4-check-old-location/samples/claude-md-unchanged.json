@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# tarnquill project notes\n\n- The paging library is shared with the reporting service; keep `Paging` free of I/O.\n- Release builds come from `main` only.\n",
+      "why": "CLAUDE.md as seeded"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "@AGENTS.md\n\n# tarnquill project notes\n\n- The paging library is shared with the reporting service; keep `Paging` free of I/O.\n- Release builds come from `main` only.\n",
+      "why": "near miss: the import line was added, which setup never does"
+    },
+    {
+      "answer": "",
+      "why": "CLAUDE.md emptied or removed"
+    }
+  ]
+}

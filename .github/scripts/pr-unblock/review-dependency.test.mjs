@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { ciStatusOf, countRounds, main, readConfig, readPolicy, roundLine, rounds, select as selectLive } from "./review-dependency.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // No registry reads in tests: the provenance gate finds nothing unless a test
 // passes its own, and the policy lists nothing unless a test passes its own.
@@ -22,7 +22,7 @@ const dependabotCommit = (sha, message = "bump") => ({
   commit: { message, author: { name: "dependabot[bot]", email: "49699333+dependabot[bot]@users.noreply.github.com" }, ...SIGNED },
 });
 
-function fakeApi({ pull = {}, comments = [], ciRuns = [], files = [], modelRuns = {}, commits = null, commitFiles = {} } = {}) {
+function fakeApi({ pull = {}, comments = [], ciRuns = [], annotations = {}, files = [], modelRuns = {}, commits = null, commitFiles = {} } = {}) {
   const listed = commits ?? [HEAD, ...Object.keys(modelRuns).filter((sha) => sha !== HEAD)].map((sha) => dependabotCommit(sha));
   return {
     getCommit: async (sha) => ({ sha, files: (commitFiles[sha] ?? []).map((filename) => ({ filename })) }),
@@ -41,6 +41,10 @@ function fakeApi({ pull = {}, comments = [], ciRuns = [], files = [], modelRuns 
     listPullFiles: async () => files,
     listPullCommits: async () => listed,
     listCheckRuns: async (sha, name) => (name === "ci-status" ? ciRuns : (modelRuns[sha] ?? [])),
+    listAnnotations: async (id) => {
+      if (!Object.hasOwn(annotations, id)) throw new Error(`GET check-runs/${id}/annotations returned 500`);
+      return annotations[id];
+    },
   };
 }
 
@@ -138,6 +142,46 @@ test("select reviews a red ci-status even on a patch bump", async () => {
   assert.deepEqual(result.file.classification.reasons, ["ci-status-red"]);
 });
 
+// The contract-only ci-status a full run in flight superseded, as GitHub
+// annotated it on the run that sent #10776 to a person.
+const EXIT = { annotation_level: "failure", message: "Process completed with exit code 1." };
+const superseded = (sha) => ({
+  annotation_level: "failure",
+  message: `superseded by full run https://github.com/o/r/actions/runs/40778283306 in flight on ${sha}: its own ci-status check run is newer than this one and decides the merge gate.`,
+});
+const NOTICE = { annotation_level: "notice", message: "github-token=2 not-modified=0" };
+const supersededRun = { id: 9, app: { slug: "github-actions" }, status: "completed", conclusion: "failure" };
+const patchBump = (annotations) =>
+  select({
+    api: fakeApi({ pull: { title: "bump x from 1.4.0 to 1.4.1" }, ciRuns: [supersededRun], annotations }),
+    pr: 7,
+    headSha: HEAD,
+    appId: APP,
+    dependabotId: DEPENDABOT,
+    config: [],
+  });
+
+test("select does not read a ci-status a full run in flight superseded as red", async () => {
+  const result = await patchBump({ 9: [EXIT, superseded(HEAD), NOTICE] });
+  assert.equal(result.decision, "skip");
+  assert.equal(result.skipReason, "not-applicable");
+  assert.equal(result.classification.reasons.includes("ci-status-red"), false);
+});
+
+test("select keeps a superseded-looking ci-status red unless only the marker for this head explains it", async () => {
+  for (const annotations of [
+    { 9: [EXIT, superseded(OTHER)] },
+    { 9: [EXIT, superseded(HEAD), { annotation_level: "failure", message: "pr-contract: the title is not a Conventional Commit" }] },
+    { 9: [EXIT, NOTICE] },
+    { 9: [] },
+    {},
+  ]) {
+    const result = await patchBump(annotations);
+    assert.equal(result.decision, "proceed", JSON.stringify(annotations));
+    assert.deepEqual(result.file.classification.reasons, ["ci-status-red"]);
+  }
+});
+
 const POLICY = {
   autoMerge: {
     reviewOnly: [
@@ -175,7 +219,7 @@ test("select skips a minor bump of an unlisted dependency and reviews every bump
 });
 
 test("readPolicy is the parsed file, or null with a warning when missing or not JSON", () => {
-  const dir = mkdtempSync(join(tmpdir(), "dependabot-policy-"));
+  const dir = tempDir("dependabot-policy-");
   const warnings = [];
   const log = (line) => warnings.push(line);
   assert.equal(readPolicy(join(dir, "absent.json"), log), null);
@@ -188,7 +232,7 @@ test("readPolicy is the parsed file, or null with a warning when missing or not 
 });
 
 test("readConfig is null for a missing file and for one with no entry, each with its own warning", () => {
-  const dir = mkdtempSync(join(tmpdir(), "dependabot-config-"));
+  const dir = tempDir("dependabot-config-");
   const warnings = [];
   const log = (line) => warnings.push(line);
   assert.equal(readConfig(join(dir, "absent.yml"), log), null);
@@ -377,7 +421,7 @@ test("select caps each patch and the total it hands the model", async () => {
 });
 
 test("main writes the outputs, the context file and the run fields, with the security flag", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "review-dependency-"));
+  const dir = tempDir("review-dependency-");
   const actors = join(dir, "actors.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }));
   const env = {
@@ -418,7 +462,7 @@ test("main writes the outputs, the context file and the run fields, with the sec
 });
 
 test("main writes no context or run file when the select skips", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "review-dependency-"));
+  const dir = tempDir("review-dependency-");
   const actors = join(dir, "actors.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }));
   const env = {
@@ -442,7 +486,7 @@ test("main writes no context or run file when the select skips", async () => {
 
 // main over a readable base config and policy, with the registry stubbed.
 async function mainWith({ title, policy = POLICY, provenance = async () => [] }) {
-  const dir = mkdtempSync(join(tmpdir(), "review-dependency-"));
+  const dir = tempDir("review-dependency-");
   const actors = join(dir, "actors.json");
   writeFileSync(actors, JSON.stringify({ actors: [{ id: DEPENDABOT, login: "dependabot[bot]", kind: "bot" }] }));
   writeFileSync(join(dir, "dependabot.yml"), "updates:\n  - package-ecosystem: npm\n    directory: /\n");

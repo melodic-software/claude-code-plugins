@@ -1,5 +1,5 @@
 {
-  "description": "Blocks a destructive disk-hygiene delete that falls outside its authorized roots, detects the guard silently failing to launch, hands /disk-hygiene:clean the guard's interpreter and data root when it expands, and warns a resumed session that the clean skill's guard is no longer registered.",
+  "description": "Blocks a destructive disk-hygiene delete that falls outside its authorized roots, detects the guard silently failing to launch, hands /disk-hygiene:clean the guard's interpreter and data root when it expands, records when the model loads it through the Skill tool, and warns a resumed session that the clean skill's guard is no longer registered.",
   "hooks": {
     "SessionStart": [
       {
@@ -49,6 +49,7 @@
             ],
             "if": "Bash(*hygiene.py*)",
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking the disk-hygiene delete against its authorized roots..."
           }
         ]
@@ -76,6 +77,7 @@
             ],
             "if": "PowerShell(*hygiene.py*)",
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking the disk-hygiene delete against its authorized roots..."
           },
           {
@@ -121,6 +123,29 @@
             "if": "PowerShell(*& $*)",
             "timeout": 60,
             "statusMessage": "Checking the disk-hygiene delete against its authorized roots..."
+          }
+        ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--skip-unless-stdin-contains",
+              "disk-hygiene:clean",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh",
+              "--marker-root",
+              "${CLAUDE_PLUGIN_DATA}",
+              "--launch-marker",
+              "clean-invoked",
+              "--only-skill",
+              "disk-hygiene:clean"
+            ],
+            "timeout": 20,
+            "statusMessage": "Recording that /disk-hygiene:clean loaded..."
           }
         ]
       }

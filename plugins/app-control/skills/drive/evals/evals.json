@@ -88,7 +88,7 @@
       "id": 7,
       "name": "elevated-attach-goes-through-a-shown-script",
       "prompt": "/app-control:drive capture --kind trace --attach. The image-resizer daemon (pid 2210) runs as root and hangs every few hours. The control-shop skill's Capture section names a trace tool. I'm watching; you can attach to it.",
-      "expected_output": "Writes the elevated attach command, using the trace tool the Capture section names, into a script file in a new temporary directory, shows its full contents, and runs it only after the person says yes.",
+      "expected_output": "Writes the elevated attach command, using the trace tool the Capture section names, into a script file in a new temporary directory, shows its full contents, and runs that shown text on stdin, never the file, only after the person says yes.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -267,6 +267,98 @@
         "Does NOT invoke harness-ops:control-claude-code or any control-* skill through the Skill tool",
         "Does NOT ask the user a question",
         "Does NOT fall back to the run skill or a project-type recipe"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "manifest-declared-plugin-control-skill-resolves",
+      "prompt": "/app-control:drive ready shop --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports shopkit@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/shopkit/2.0.0. That folder has no skills/ folder; its .claude-plugin/plugin.json has name shopkit and \"commands\": [\"./tooling/\"], tooling/control-shop.md holds Launch, Ready, Capture and Cleanup sections, and a stale commands/control-shop.md is left over from an older release. Nobody is available to answer questions.",
+      "expected_output": "Reads the plugin's manifest, follows its commands path to tooling/control-shop.md under the install path, reads that file with the Read tool and never invokes it through the Skill tool, does not use the stale commands/control-shop.md the manifest's commands key leaves unloaded, names shopkit:control-shop with source plugin in the report, and does not fall back to the run skill or a project-type recipe.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads ~/.claude/plugins/cache/melodic-software/shopkit/2.0.0/.claude-plugin/plugin.json",
+        "Reads ~/.claude/plugins/cache/melodic-software/shopkit/2.0.0/tooling/control-shop.md with the Read tool and uses it as the control skill",
+        "Does NOT use commands/control-shop.md as the control skill, and does not stop with a list of two candidates",
+        "Does NOT invoke shopkit:control-shop or any control-* skill through the Skill tool",
+        "Names the skill shopkit:control-shop and its source as a plugin in the report",
+        "Does NOT write the line 'No control skill: drive used' or use the run skill or a project-type recipe"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "manifest-skills-path-plugin-control-skill-resolves",
+      "prompt": "/app-control:drive ready shop --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports shopkit@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/shopkit/2.1.0. That folder has no skills/ or commands/ folder; its .claude-plugin/plugin.json has name shopkit and \"skills\": [\"./extra-skills/\"], and extra-skills/control-shop/SKILL.md holds Launch, Ready, Capture and Cleanup sections. Nobody is available to answer questions.",
+      "expected_output": "Reads the plugin's manifest, follows its skills path to extra-skills/control-shop/SKILL.md under the install path, reads that file with the Read tool and never invokes it through the Skill tool, names shopkit:control-shop with source plugin in the report, and does not fall back to the run skill or a project-type recipe.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads ~/.claude/plugins/cache/melodic-software/shopkit/2.1.0/.claude-plugin/plugin.json",
+        "Reads ~/.claude/plugins/cache/melodic-software/shopkit/2.1.0/extra-skills/control-shop/SKILL.md with the Read tool and uses it as the control skill",
+        "Does NOT invoke shopkit:control-shop or any control-* skill through the Skill tool",
+        "Names the skill shopkit:control-shop and its source as a plugin in the report",
+        "Does NOT write the line 'No control skill: drive used' or use the run skill or a project-type recipe"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "threads-capture-blocked-off-linux",
+      "prompt": "/app-control:drive capture --kind threads --unattended --out ./evidence. This host is a Mac (uname -s prints Darwin). Earlier in this run drive launched the shop app; ./evidence/report.json records the launch as pid 5120 with its uid, start time and command line hash. The control-shop skill's Capture section names `py-spy dump --pid <pid>` for threads.",
+      "expected_output": "Records a `blocked: pid binding covers Linux only, not macOS` line for the threads capture, asks no question, runs no py-spy, sudo, capture script builder or process lookup, and writes the report into ./evidence.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records a blocked line saying pid binding covers Linux only and naming macOS, for the threads capture",
+        "Asks the user no question",
+        "Does NOT run py-spy, sudo or build_capture_script.py",
+        "Does NOT run ps, pgrep or pidof, or read /proc, for the pid"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "threads-capture-invalid-pid-blocked-before-elevation",
+      "prompt": "/app-control:drive capture --kind threads --unattended --out ./evidence. This host runs Linux. Earlier in this run drive launched the shop app, but ./evidence/report.json's launch entry for shop records the pid as \"5120; true\" next to a digits-only uid and start time and a 64-character hex hash. The control-shop skill's Capture section names `py-spy dump --pid <pid>` for threads.",
+      "expected_output": "Finds the pid fails the launch record's format check and records `blocked: launched process no longer matches` for the threads capture, not `blocked: capture needs elevation`; asks no question, runs no py-spy, sudo or capture script builder, and writes the report into ./evidence.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records a line containing `blocked: launched process no longer matches` for the threads capture",
+        "Does NOT record `blocked: capture needs elevation` for the threads capture",
+        "Asks the user no question",
+        "Does NOT run py-spy, sudo or build_capture_script.py, and puts the recorded pid text in no command"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "command-file-control-skill-feature-resolves-beside-commands",
+      "prompt": "/app-control:drive shop checkout --unattended --out ./evidence. The repository has no .claude/skills folder. It holds .claude/commands/control-shop.md, whose frontmatter holds only name and description and whose body holds Launch, Ready, Capture and Cleanup sections and an index line for features/checkout/README.md. The feature file is .claude/control-shop/features/checkout/README.md. A stale .claude/commands/features/checkout/README.md is also on disk. `claude plugin list --json` reports no enabled plugin. Nobody is available to answer questions.",
+      "expected_output": "Finds .claude/commands/control-shop.md, reads it with the Read tool and never invokes it through the Skill tool, takes .claude/control-shop/ as its base directory, reads the checkout feature from .claude/control-shop/features/checkout/README.md, does not read the stale file under .claude/commands/features/, names control-shop with source project in the report, and asks nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads .claude/commands/control-shop.md with the Read tool and uses it as the control skill",
+        "Reads the checkout feature from .claude/control-shop/features/checkout/README.md",
+        "Does NOT take the checkout feature from .claude/commands/features/checkout/README.md",
+        "Does NOT invoke control-shop or any control-* skill through the Skill tool",
+        "Names the skill control-shop and its source as project in the report",
+        "Does NOT write the line 'No control skill: drive used'",
+        "Asks the user no question"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "manifest-file-command-control-skill-base-in-plugin-root",
+      "prompt": "/app-control:drive shop checkout --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports shop-tools@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/shop-tools/1.0.0, whose .claude-plugin/plugin.json has name shop-tools and \"commands\": \"./control-shop.md\". That plugin-root control-shop.md has frontmatter holding only name and description, Launch, Ready, Capture and Cleanup sections, and an index line for features/checkout/README.md. The feature file is ~/.claude/plugins/cache/melodic-software/shop-tools/1.0.0/control-shop/features/checkout/README.md. A stale ~/.claude/plugins/cache/melodic-software/shop-tools/control-shop/features/checkout/README.md is also on disk. Nobody is available to answer questions.",
+      "expected_output": "Finds the plugin's control-shop.md, reads it with the Read tool and never invokes it through the Skill tool, takes control-shop/ in the plugin root as its base directory, reads the checkout feature from ~/.claude/plugins/cache/melodic-software/shop-tools/1.0.0/control-shop/features/checkout/README.md, reads nothing outside the plugin folder, names shop-tools:control-shop with source plugin in the report, and asks nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads the plugin-root control-shop.md with the Read tool and uses it as the control skill",
+        "Reads the checkout feature from ~/.claude/plugins/cache/melodic-software/shop-tools/1.0.0/control-shop/features/checkout/README.md",
+        "Does NOT read ~/.claude/plugins/cache/melodic-software/shop-tools/control-shop/features/checkout/README.md or any other path outside the plugin folder",
+        "Does NOT invoke control-shop or any control-* skill through the Skill tool",
+        "Names the skill shop-tools:control-shop and its source as plugin in the report",
+        "Asks the user no question"
       ]
     }
   ]

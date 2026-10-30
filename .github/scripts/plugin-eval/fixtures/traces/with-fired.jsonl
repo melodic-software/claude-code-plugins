@@ -1,0 +1,3 @@
+{"type": "system", "subtype": "init", "model": "claude-sonnet-5-5", "skills": ["testing:write", "testing:plan", "code-review"]}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "Skill", "input": {"skill": "testing:write"}}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "Done."}]}}

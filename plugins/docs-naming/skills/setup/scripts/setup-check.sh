@@ -192,7 +192,7 @@ esac
 # --- the casing regex --------------------------------------------------------
 
 regex="$(get '.file_names.regex')"
-if printf 'probe.md' | grep -Eq "$regex" >/dev/null 2>&1; then
+if grep -Eq "$regex" <<<'probe.md' >/dev/null 2>&1; then
   row PASS "regex" "compiles under grep -E and accepts a lower-kebab probe"
 elif [[ $? -eq 1 ]]; then
   row WARN "regex" "compiles, but rejects the probe 'probe.md'; confirm that is intended"

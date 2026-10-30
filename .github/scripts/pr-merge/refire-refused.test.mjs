@@ -83,8 +83,14 @@ const run = (
   job: { id: id * 10, name: jobName, conclusion, steps },
   annotations: messages.map((message) => ({ annotation_level: "failure", message })),
 });
-// The failed check a dispatched run's report job posts on the PR's head.
-const linkedCheck = (id) => ({ conclusion: "failure", details_url: `https://github.com/${REPO}/actions/runs/${id}` });
+// The failed check a dispatched run's report job posts on the PR's head, as
+// the API returns it (check run 122864732692 on #10583): details_url is the
+// check run's own page, and only external_id names the posting run.
+const linkedCheck = (id) => ({
+  conclusion: "failure",
+  details_url: `https://github.com/${REPO}/runs/${id + 5000}`,
+  external_id: `pr-unblock:apply-conflict-patch:${id}:1`,
+});
 const marker = (path, blob, head, { user = BOT, at = "2026-10-17T21:50:00Z" } = {}) => ({ user, created_at: at, body: refireComment(path, blob, head, LANE) });
 
 // `blobs` is main's blob per file; `changed` lists the files each head SHA
@@ -205,6 +211,20 @@ test("a dispatched pr-unblock run re-fires only when its failed check is on the 
   });
   assert.equal(await main({ env, github: rerun.github, actions: rerun.actions, now: NOW }), 0);
   assert.equal(pushes(rerun.calls).length, 0);
+});
+
+test("a refused run links to its PR through the check's external_id, or a details_url naming the run's page, never the check run's own page", async () => {
+  const dispatched = run(90, { number: 9, messages: [denial(WRITER)] });
+  const refires = async (check) => {
+    const w = world({ pulls: [pr(9)], runs: { [LANE]: [dispatched] }, checks: { [sha(9)]: [check] } });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    return pushes(w.calls).length;
+  };
+  assert.equal(await refires({ conclusion: "failure", details_url: `https://github.com/${REPO}/runs/122864732692`, external_id: "pr-unblock:apply-feedback-patch:90:1" }), 1);
+  assert.equal(await refires({ conclusion: "failure", details_url: `https://github.com/${REPO}/runs/90`, external_id: "" }), 0);
+  assert.equal(await refires({ conclusion: "failure", details_url: `https://github.com/${REPO}/runs/5090`, external_id: "pr-unblock:apply-feedback-patch:91:1" }), 0);
+  assert.equal(await refires({ conclusion: "failure", details_url: `https://github.com/${REPO}/actions/runs/90` }), 1);
+  assert.equal(await refires({ conclusion: "success", external_id: "pr-unblock:apply-feedback-patch:90:1" }), 0);
 });
 
 test("a pr-refine.yml run is no longer read or re-fired", async () => {
@@ -428,4 +448,35 @@ test("the kill switch stops the run before any API call", async () => {
   const w = refusedWorld([pr(9)]);
   assert.equal(await main({ env: { ...env, KILL_SWITCH: "" }, github: w.github, actions: w.actions, now: NOW }), 0);
   assert.deepEqual(w.calls, []);
+});
+
+// The Re-fire step names lanes-app (its GH_TOKEN, the lane token); the job
+// token's client still counts and plans as github-token: the reading lands in
+// api-budget/github-token, and its read floor uses github-token's limit-cap of
+// 1000 (rate-limits.json), so 950 of 5000 used is under a tenth of the plan
+// left (50 of 1000), where lanes-app's uncapped plan of 5000 would not be.
+test("the job token's client counts its readings and plans its read floor as github-token", async () => {
+  const { actionsClient } = await import("./refire-refused.mjs");
+  const { createRateLimitLatch } = await import("../../actions/log-api-budget/rate-guard.mjs");
+  const { tempDir } = await import("../../../lib/test-tmp.mjs");
+  const { rmSync, existsSync } = await import("node:fs");
+  const dir = tempDir("refire-budget-");
+  const saved = { RUNNER_TEMP: process.env.RUNNER_TEMP, API_BUDGET_TOKEN: process.env.API_BUDGET_TOKEN };
+  Object.assign(process.env, { RUNNER_TEMP: dir, API_BUDGET_TOKEN: "lanes-app" });
+  try {
+    const lines = [];
+    const latch = createRateLimitLatch({ log: (line) => lines.push(line), fail: () => {}, stopFile: null });
+    const headers = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4050", "x-ratelimit-used": "950", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" };
+    const fetchImpl = async () => new Response("{}", { status: 200, headers });
+    await actionsClient({ ACTIONS_TOKEN: "job" }, { latch, fetchImpl })("GET", "/repos/o/r/actions/runs");
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4050 950 1792751600 core\n");
+    assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
+    assert.deepEqual(lines, ["::warning::GitHub's core API has under its read floor left (50 of the planned 1000; header remaining 4050 of 5000); reads continue"]);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

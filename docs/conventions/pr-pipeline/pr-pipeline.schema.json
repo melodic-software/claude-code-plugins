@@ -94,19 +94,26 @@
           "default": 5,
           "description": "Issues one work-unblock sweep restarts or re-fires."
         },
+        "readmit-per-run": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20,
+          "description": "Open status: ready issues with neither agent-ready nor admission-deferred that one work-unblock sweep runs intake's admission rules on, oldest updated first. Only an issue that reaches the rules counts: one with a hold or refuse label, an open blocker or an open sub-issue, or one admission skips (its status: ready added by neither a listed human nor the lanes App, or its agent-ready removal standing), does not."
+        },
         "limit-stops-per-head": {
           "type": "integer",
           "minimum": 1,
           "maximum": 10,
           "default": 3,
-          "description": "Limit stops on one PR head after which the pr-unblock dispatchers stop dispatching it again; also the failed resolve-conflicts runs, and the failed or not-applicable fix-ci runs across base moves, one head gets."
+          "description": "Limit stops on one PR head after which the pr-unblock dispatchers stop dispatching it again; also the failed resolve-conflicts runs, the failed or not-applicable fix-ci runs across base moves, and the broker-allowed fix-docs runs that posted no check, one head gets."
         },
         "limit-stops-per-issue": {
           "type": "integer",
           "minimum": 1,
           "maximum": 10,
           "default": 3,
-          "description": "Limit stops since a person last added agent-ready after which work-unblock hands the issue to a person."
+          "description": "Limit and funding stops since a person last added agent-ready after which work-unblock stops restarting the issue: it comments with outcome=failed, removes agent-ready and adds no label."
         },
         "wip-cap": {
           "type": "integer",
@@ -120,7 +127,14 @@
           "minimum": 0,
           "maximum": 5,
           "default": 0,
-          "description": "Times work-unblock restarts an issue whose run reached its turn cap, since a listed human last added agent-ready; past it the issue goes to a person. 0 never restarts."
+          "description": "Times work-unblock restarts an issue whose run reached its turn cap, since a listed human last added agent-ready; past it the stop takes the turn-cap-spent route in the issue lane's stop-routes.json. 0 never restarts."
+        },
+        "stop-retries": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "default": 2,
+          "description": "Times work-unblock restarts an issue whose stop routes to retry in the issue lane's stop-routes.json, since a listed human last added agent-ready; past it the stop takes the retry-spent route. 0 never retries."
         },
         "fix-ci-per-run": {
           "type": "integer",
@@ -277,7 +291,7 @@
           "type": "integer",
           "minimum": 1,
           "maximum": 720,
-          "description": "Hours both a person's pull request (its last update) and its head commit (its committer date) must be unchanged before it is adopted. Absent: nothing is adopted."
+          "description": "Hours both a person's pull request (in pr-merge its trusted-actor activity and its head's arrival, in fix-ci its last update) and its head commit (its committer date) must be unchanged before it is adopted. Absent: nothing is adopted."
         },
         "spec-from-body-apps": {
           "type": "array",
@@ -285,6 +299,34 @@
           "items": { "type": "integer", "minimum": 1 },
           "default": [],
           "description": "App account ids whose pull request bodies a script writes: an adopted one that closes no issue is judged against its title and body, as a person's is. Any other App needs a closing issue a trusted person wrote."
+        }
+      }
+    },
+    "review-threads": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Review bots whose review threads pr-unblock's address-feedback works as the reviewer bot's. Absent: none. Contract: README.md, Review threads.",
+      "properties": {
+        "reviewer-ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1 },
+          "default": [],
+          "description": "Account ids, as GitHub records them for a comment's author, of review bots besides claude[bot] and the review lanes. A thread one of them opened is worked exactly as the reviewer bot's, and its later comments count as the reviewer bot's; a login is never matched."
+        }
+      }
+    },
+    "attended": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Work that needs the owner present: the classes of manual step on external state intake's refinement may record as `External state: manual (<class>: <what>)`, which admission refuses with the `attended` label. Absent: no class, so no refinement records one. Contract: README.md, Attended work.",
+      "properties": {
+        "classes": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" },
+          "additionalProperties": { "type": "string", "minLength": 1 },
+          "default": {},
+          "description": "Each class name and its one-line meaning, which the refinement model reads; a refinement naming any other class is refused."
         }
       }
     },
@@ -327,6 +369,12 @@
           "minimum": 0,
           "maximum": 1,
           "description": "Share of the header's limit left, by the header's remaining, at which the repository kill switch should be set. A threshold meant for the hub's limits sampler; the rate guard does not enforce it."
+        },
+        "pace": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips its even-numbered scheduled ticks (.github/actions/log-api-budget/pace.mjs), so the timer lanes slow to half cadence before the breaker stops every lane. 0 turns pacing off."
         },
         "read-floor": {
           "type": "number",
@@ -455,10 +503,13 @@
         "research-first",
         "probe-first",
         "workflow-modified",
+        "kill-switch",
         "rung-up",
         "no-model-turn",
         "finding-stands",
-        "clean-merge"
+        "clean-merge",
+        "lane-stopped",
+        "pass-only"
       ],
       "description": "The one reason a skipped activity's neutral check carries. Not used by the config file; the runner and check-run reporter validate reasons against it. Meaning: README.md, Outputs and skips."
     },
@@ -497,6 +548,10 @@
       ],
       "description": "Only the runner that stages a skill's edit tools grants checks, self-checks, verify-scripts and web-access: the write runner, or the read runner for a skill with applied-by.patch and no prepare: ci-context. Anywhere else they would do nothing, so they are refused."
     },
+    "no-head-test-check": {
+      "not": { "pattern": "^scripts/(affected-tests|run-outside-node-suites|selection-audit|check-guardrails-ps-differential|run-test-file)\\.sh( |$)" },
+      "description": "A check or self-check of a skill whose effect is not read runs in the write runner's run job, which holds the lane token and id-token: write, so it may not be a script that runs the checkout's test files. check-affected.sh --tests is allowed: run from the base copy against the checkout, it skips the branch's tests."
+    },
     "leaf": {
       "type": "object",
       "additionalProperties": false,
@@ -507,6 +562,7 @@
         "self-checks": ["skill"],
         "verify-scripts": ["skill"],
         "web-access": ["skill"],
+        "tidy": ["skill"],
         "applied-by": ["skill"],
         "permission-mode": ["skill"]
       },
@@ -517,6 +573,11 @@
         "checks": { "$ref": "#/$defs/edit-runner" },
         "self-checks": { "$ref": "#/$defs/edit-runner" },
         "verify-scripts": { "$ref": "#/$defs/edit-runner" },
+        "tidy": {
+          "required": ["effect", "applied-by"],
+          "properties": { "effect": { "const": "read" }, "applied-by": { "required": ["patch"] } },
+          "not": { "required": ["prepare"] }
+        },
         "prepare": {
           "oneOf": [
             {
@@ -536,6 +597,18 @@
         "$ref": "#/$defs/edit-runner"
       },
       "allOf": [
+        {
+          "if": { "required": ["effect"], "properties": { "effect": { "not": { "const": "read" } } } },
+          "then": {
+            "properties": {
+              "checks": { "items": { "$ref": "#/$defs/no-head-test-check" } },
+              "self-checks": { "items": { "$ref": "#/$defs/no-head-test-check" } },
+              "verify-scripts": {
+                "items": { "not": { "enum": ["scripts/run-test-file.sh", "plugins/skill-quality/scripts/check-skill.sh"] } }
+              }
+            }
+          }
+        },
         {
           "if": { "required": ["effect", "prepare"], "properties": { "effect": { "const": "read" }, "prepare": { "enum": ["ci-context", "review-threads", "merge-base"] } } },
           "then": { "required": ["applied-by"], "properties": { "applied-by": { "required": ["patch"] } } }
@@ -595,7 +668,7 @@
             "type": "string",
             "pattern": "^(scripts|plugins/[a-z0-9-]+/(skills/[a-z0-9-]+/)?scripts)/[A-Za-z0-9_-]+\\.sh$"
           },
-          "description": "Exact repository-relative paths of scripts the skill may run with any arguments. The runner that stages the skill's edit tools copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (code it runs can still read the token from an ancestor process), with any arguments but a path outside it. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh, scripts/git-mv-rm.sh and scripts/new-changelog-fragment.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does."
+          "description": "Exact repository-relative paths of scripts the skill may run with any arguments. The runner that stages the skill's edit tools copies each script's plugin (or the base scripts/) to a read-only directory, denies Edit and Write on it, and allows a wrapper that runs the script from the checkout, with GH_TOKEN and GITHUB_TOKEN unset (code it runs can still read the token from an ancestor process), with any arguments but a path outside it. A script that changes files, runs code from the checkout, or reaches the network hands the run that power: list one only when it limits itself, as scripts/run-test-file.sh, scripts/git-mv-rm.sh and scripts/new-changelog-fragment.sh do, or when the run may hold that power, as plugins/skill-quality/scripts/check-skill.sh (checkout test scripts and markdownlint) does. Those two run checkout code, so a skill whose effect is not read, whose run job holds the lane token and id-token: write, may list neither."
         },
         "web-access": {
           "type": "object",
@@ -622,6 +695,47 @@
           "if": { "properties": { "enabled": { "const": true } } },
           "then": { "required": ["domains"] },
           "description": "Whether the skill may read the web, off when absent. On, the runner that stages the skill's edit tools allows WebSearch, WebFetch to the listed domains (`any`: every domain), and the research skills, and the listed domains also open to the skill's sandboxed shell commands. On needs reads-untrusted: true."
+        },
+        "tidy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["entry", "passes", "turn-share", "cutoffs"],
+          "properties": {
+            "entry": {
+              "$ref": "#/$defs/skill",
+              "description": "The diff-scoped tidy skill the run invokes on its own change before its last check run."
+            },
+            "passes": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/skill" },
+              "description": "The other quality skills the entry may invoke. The runner allows exactly the entry and these, and no other skill they could reach."
+            },
+            "turn-share": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "description": "Percent of the run's turn cap tidy may spend, rounded down. At the cap the run skips the remaining tidy passes and hands its change on; tidy never fails the run."
+            },
+            "cutoffs": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["max-files", "max-lines", "max-areas", "shared-paths"],
+              "properties": {
+                "max-files": { "type": "integer", "minimum": 1, "description": "Most changed files a tidied change may have." },
+                "max-lines": { "type": "integer", "minimum": 1, "description": "Most changed lines, added plus removed." },
+                "max-areas": { "type": "integer", "minimum": 1, "description": "Most areas the change may touch: plugins/<name> (with .changes/<name>), docs/<dir>, else the top-level path segment." },
+                "shared-paths": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*/?$" },
+                  "description": "Shared or high-impact paths: a change touching one (a directory ends in /, a file is named whole) is not tidied in the run."
+                }
+              },
+              "description": "The small single-area cutoffs: a change over any of them is not tidied in the run."
+            }
+          },
+          "description": "In-run tidy of the skill's own change before its last check run, on a read skill that hands on a patch with no prepare mode (the launcher also requires an issue lane): the runner loads the entry's and each pass's plugin, allows those skills and the scripts they run, and names the cutoffs and the turn budget to the run (pr-run-activity.md, Issue mode)."
         },
         "permission-mode": {
           "enum": ["dontAsk", "auto"],
@@ -809,7 +923,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["max-turns"],
-      "description": "A model profile names its model, or a role profile names a multi-agent role, never both. A role profile has no model or effort key, so it can name neither default nor a model ID: its model and effort come from the role map, plugins/multi-agent/reference/defaults.yaml in the base checkout, and the model is opus when the role map gives inherit or no alias (README.md, Models).",
+      "description": "A model profile names its model, or a role profile names a multi-agent role, never both. A role profile has no model or effort key, so it can name no model ID: its model and effort come from the role map, plugins/multi-agent/reference/defaults.yaml in the base checkout, and the model is opus when the role map gives inherit or no alias (README.md, Models).",
       "oneOf": [
         {
           "required": ["model"],
@@ -822,8 +936,8 @@
       ],
       "properties": {
         "model": {
-          "enum": ["default", "best", "fable", "opus", "sonnet"],
-          "description": "A model alias, never a full model ID, passed as --model. default passes no --model, so the account's default model runs."
+          "enum": ["opus", "sonnet"],
+          "description": "A model alias, never a full model ID, passed as --model. best and fable stay out until the owner sets a Fable allowance for the lanes, and default stays out because run-claude-cli cannot pass it; the config reader resolves any value outside haiku, sonnet and opus to opus (README.md, Models)."
         },
         "effort": {
           "enum": ["low", "medium", "high", "xhigh", "max"],
@@ -842,9 +956,9 @@
           "description": "The role whose effort the run takes, in place of its own role's."
         },
         "subagent-model": {
-          "enum": ["inherit", "best", "fable", "opus", "sonnet"],
+          "enum": ["inherit", "opus", "sonnet"],
           "default": "inherit",
-          "description": "The model subagents run on when neither the spawn nor the agent definition names one, set as CLAUDE_CODE_SUBAGENT_MODEL through the run's settings. inherit sets nothing."
+          "description": "The model subagents run on when neither the spawn nor the agent definition names one, set as CLAUDE_CODE_SUBAGENT_MODEL through the run's settings. inherit sets nothing. best and fable stay out until the owner sets a Fable allowance for the lanes; the config reader resolves any other value outside haiku, sonnet and opus to opus (README.md, Models)."
         },
         "max-turns": {
           "type": "integer",
@@ -917,6 +1031,11 @@
           "default": false,
           "description": "true: the merge authority reports each decision and writes nothing (no enqueue, dequeue or comment). The pr-merge lane starts true; the owner sets false to let it merge (README.md, Merge authority)."
         },
+        "full-run-cap-bypass": {
+          "type": "boolean",
+          "default": true,
+          "description": "true: pr-merge's post-merge-dispatch starts a full run of main inside its 30-minute cap when the post-merge report lists an unverified lane merge that no started full run covers, one run for the whole uncovered batch. false: the cap holds for every merge. Absent is true."
+        },
         "lane-prs": {
           "enum": ["native", "gate"],
           "default": "native",
@@ -985,7 +1104,19 @@
           "type": "integer",
           "minimum": 1,
           "default": 3,
-          "description": "Counted pr-verify fail verdicts at this many distinct heads of one pull request refuse it `verify:repeated-fail`, for a human, whatever a later pass says (README.md, Verifier verdict). Any other value is 1, so any earlier fail holds."
+          "description": "Counted pr-verify fail verdicts at this many distinct heads of one pull request refuse it `verify:repeated-fail` whatever a later pass says: the pr-merge lane closes a lanes App pull request for a fresh attempt at its issue, and address-feedback and fix-ci start no more rounds on it (README.md, Verifier verdict). Any other value is 1, so any earlier fail holds."
+        },
+        "verify-cap-attempts": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 1,
+          "description": "Fresh attempts one issue gets after the pr-merge lane closes its pull request at `max-verify-fails` or as `verify:too-old`: the issue goes back to agent-ready with the FAIL findings, and the closed pull request's FAILs leave the cap's count. Past this many the issue is parked at `status: confirmed` (README.md, Verifier verdict). The lower of the base's and main's applies; any other value is 0, so no attempt starts."
+        },
+        "verify-cache": {
+          "type": "string",
+          "enum": ["shadow", "serve"],
+          "default": "shadow",
+          "description": "How enable-auto-merge uses the verifier refusals the last run kept (babysit_verify_evidence.py --answers-in/--answers-out). shadow: every pull request is still read in full, and each read logs whether the kept answer's key matched and whether it decides as the fresh read does. serve: an unarmed pull request whose kept refusal's key still matches is answered from it with no further read. Only refusals are kept, an armed pull request is always read in full, and a kept answer never arms."
         },
         "risk-escalation-minutes": {
           "type": "integer",
@@ -1012,6 +1143,13 @@
           },
           "description": "GitHub login the unattended merge lane acts as. It must be the [bot] login of a GitHub App dedicated to this lane: a machine user is a User and would pass every human test, and GitHub's shared built-in bots (github-actions[bot], dependabot[bot]) are rejected in any letter case. Absent: the unattended path stays inert. Required when authority is local-babysit."
         },
+        "trust-path-hold-apps": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$" },
+          "uniqueItems": true,
+          "default": [],
+          "description": "[bot] logins of GitHub Apps whose touch puts a trust-gate path change in a person's hands. ci-status fails a same-repository pull request that changes a trust-gate path when one of them opened it, authored or committed one of its commits, or pushed to its head branch, as it fails an exempt author's (README.md, Both lanes review the head). It is read at the base commit. Empty or absent: no App is held this way."
+        },
         "diff-check": {
           "type": "object",
           "additionalProperties": false,
@@ -1034,7 +1172,12 @@
             "high-path-floor": {
               "type": "boolean",
               "default": false,
-              "description": "true scores a plugin or marketplace manifest change that installs or runs something new HIGH. Absent or false: no manifest review. The risk scorer's fixed HIGH path floor (resolve-config, request-lane-token, the trusted-trigger check, check-kill-switch, the rate guard, code owners and submodules) and denied-paths count either way. The local babysit lane always applies the manifest review."
+              "description": "true scores a plugin or marketplace manifest change that installs or runs something new HIGH. Absent or false: no manifest review. The risk scorer's fixed HIGH path floor (resolve-config, request-lane-token, the trusted-trigger check, check-kill-switch, the rate guard, code owners and submodules) and denied-paths count either way while path-holds is true. The local babysit lane always applies the manifest review."
+            },
+            "path-holds": {
+              "type": "boolean",
+              "default": false,
+              "description": "pr-merge lane only: true holds a pull request for a changed path alone, on the risk scorer's path floor and denied-paths (`high-path:` and `review-path:`), enable-auto-merge's and ci-status's hold paths. Absent or false: no path holds it; the gate report lists each skipped hold. Unsafe or aliasing paths, the manifest review, cost holds and the trusted-actor widening count either way. The local babysit lane always holds paths."
             },
             "c2-contradictions": {
               "type": "boolean",

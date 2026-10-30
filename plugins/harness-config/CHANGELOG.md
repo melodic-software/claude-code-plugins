@@ -5,6 +5,30 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.1.7] - 2026-10-29
+
+### Fixed
+
+- **The harness-config audit scripts no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `audit-engine.sh` scans the settings file for a secret-shaped value through process substitution, `automode-entry-diff.sh` matches each rule with a here-string, and `lib/check-retirements.sh` and `lib/state-key.sh` do the same for their field checks. Under `set -o pipefail` a match can no longer read as a miss when grep exits before the producer finishes writing.
+
+## [2.1.6] - 2026-10-29
+
+### Changed
+
+- Synced contract copies name their canonical source at `docs/contracts/<name>/`, where the plugin contracts moved from `docs/conventions/<name>/`.
+
+## [2.1.5] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error.
+
+## [2.1.4] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [2.1.3] - 2026-10-26
 
 ### Added

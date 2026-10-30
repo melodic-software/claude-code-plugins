@@ -71,6 +71,26 @@ ISSUE_BODY=$(printf '%s' "$ISSUE_JSON" | jq -r '.body // empty' || true)
 if [[ "$ISSUE_STATE" == "open" ]]; then   # REST returns `open`/`closed`, not `OPEN`/`CLOSED`
 ```
 
+## Refs issue read
+
+When the orphan-PR prompt yields `Refs: #<N>`, one read returns what the `## Remaining` section
+lists: the issue body and its open sub-issues. A missing or closed issue leaves both empty, and
+the section falls back to its one-line form.
+
+```bash
+REFS_JSON=$(gh issue view "$REFS_NUM" --json state,body,subIssues 2>/dev/null || true)
+if [[ "$(printf '%s' "$REFS_JSON" | jq -r '.state // empty')" == "OPEN" ]]; then
+  REFS_BODY=$(printf '%s' "$REFS_JSON" | jq -r '.body // empty')
+  REFS_OPEN_SUBS=$(printf '%s' "$REFS_JSON" | jq -r '.subIssues.nodes[]? | select(.state == "OPEN") | "#\(.number) \(.title)"')
+fi
+```
+
+Under the GraphQL restriction in [Issue state over REST](#issue-state-over-rest), read the body
+from `gh api "repos/{owner}/{repo}/issues/${REFS_NUM}"` (state `open`) and the sub-issues from
+`gh api "repos/{owner}/{repo}/issues/${REFS_NUM}/sub_issues"`. Pointer:
+[List sub-issues](https://docs.github.com/en/rest/issues/sub-issues#list-sub-issues). As-of:
+2026-10-28. Recheck trigger: that endpoint moves or its `state` field changes.
+
 ## Placeholder anchoring
 
 `gh api` has no `--repo` flag. `{owner}` and `{repo}` expand from the repository of the **current

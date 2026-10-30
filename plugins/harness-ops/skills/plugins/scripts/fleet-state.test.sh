@@ -223,10 +223,9 @@ assert_eq "missing-enabled: other repo's already-enabled project install exclude
 # Case: a marketplace-entry defaultEnabled:false install with no explicit
 # enabledPlugins entry is a deliberate publisher opt-in-required default, NOT
 # missing_from_enabled — auto-enabling it would override the publisher's
-# intent (per plugins-reference.md: the marketplace entry's defaultEnabled
-# takes precedence over plugin.json's, and "the user turns it on with
-# claude plugin enable" is the documented opt-in path, not sync auto-enabling
-# on their behalf)
+# intent (per the plugin manifest reference's defaultEnabled section: the
+# marketplace entry's defaultEnabled overrides plugin.json's, so turning the
+# plugin on is the user's opt-in, not sync auto-enabling on their behalf)
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -1851,10 +1850,10 @@ assert_eq "linkedWorktree: false for a separate-git-dir main checkout under a wo
 assert_eq "linkedWorktree: null for a user-scope record" \
   "null" "$(jq -r '.installed[] | select(.id == "alpha@market1" and .scope == "user") | .linkedWorktree' <<<"$out" 2>/dev/null)"
 assert_eq "label: a lagging linked-worktree record is labeled" \
-  "update ineffective; uninstall clears it" \
+  "update ineffective, uninstall clears it" \
   "$(jq -r '.installed[] | select(.id == "alpha@market1" and .scope == "project") | .label' <<<"$out" 2>/dev/null)"
 assert_eq "label: the same label rides divergences[].scopes[]" \
-  "update ineffective; uninstall clears it" \
+  "update ineffective, uninstall clears it" \
   "$(jq -r '.divergences[] | select(.id == "alpha@market1") | .scopes[] | select(.scope == "project") | .label' <<<"$out" 2>/dev/null)"
 assert_eq "label: a lagging record in a main checkout is not labeled" \
   "null" "$(jq -r '.installed[] | select(.id == "beta@market1" and .scope == "project") | .label' <<<"$out" 2>/dev/null)"

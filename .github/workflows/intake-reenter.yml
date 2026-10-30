@@ -47,7 +47,11 @@ jobs:
   reenter:
     # Pull request comments, bot and App-posted comments, closed issues and
     # issues without a parked status label stop here, before a runner starts;
-    # so does any unlabel other than `needs-human`.
+    # so does any unlabel other than `needs-human`, and a `needs-human` unlabel
+    # whose payload already shows `status: confirmed`: a session parking an
+    # issue swaps the labels in one edit, and the script refuses any issue
+    # with a `status:` label anyway. When the payload predates the add, the
+    # script's own label read refuses it.
     if: >-
       !github.event.issue.pull_request
       && github.event.issue.state == 'open'
@@ -58,7 +62,8 @@ jobs:
                || contains(github.event.issue.labels.*.name, 'status: confirmed')
                || contains(github.event.issue.labels.*.name, 'status: needs-info')))
           || (github.event_name == 'issues'
-              && github.event.label.name == 'needs-human'))
+              && github.event.label.name == 'needs-human'
+              && !contains(github.event.issue.labels.*.name, 'status: confirmed')))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -71,6 +76,10 @@ jobs:
     concurrency:
       group: intake-reenter-${{ github.event.issue.number }}
       queue: max
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -80,10 +89,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -109,3 +117,11 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           KILL_SWITCH: proceed
         run: node .base/.github/scripts/intake-reenter/reenter.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

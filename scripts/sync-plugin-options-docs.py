@@ -71,6 +71,13 @@ def convention_cite(plugin: str) -> str:
     return f"the [plugin-reconfiguration convention]({CONVENTION_URL})"
 
 
+UNINSTALL_DOCS = (
+    "https://code.claude.com/docs/en/plugins/cli-reference"
+    "#what-an-uninstall-deletes-and-keeps"
+)
+CONFIGURE_DOCS = "https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure"
+
+
 def render(plugin: str, marketplace: str, options: dict) -> str:
     lines = [
         BEGIN,
@@ -112,55 +119,49 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
             )
         lines.append(f"| `{key}` | {typ} | {default} | `{env_var(key)}` | {desc} |")
 
-    # The verified-version record lives only in the plugin-reconfiguration
-    # convention. Generated README copy cites that doc and does not restate
-    # 2.1.240. The claim covers a NON-SENSITIVE option only, so `first` is
-    # drawn from the non-sensitive options when there are any, and the
-    # already-installed-still-writes sentence is withheld when there are none.
+    # Pointer-only: this block states no Claude Code CLI or settings behavior as
+    # fact. Each upstream specific is a link to the docs section that owns it, and
+    # what this repository measured (what a rerun prints and writes, which scope it
+    # lands at, why the old session keeps the old value) lives only in the
+    # plugin-reconfiguration convention, which carries the dated record. Do not
+    # restate either here: a copy in every README is drift waiting to happen.
+    # The `install --config` rerun record covers a NON-SENSITIVE option only, so
+    # the fallback is drawn from the non-sensitive options and withheld when there
+    # are none. `first` (the example key) prefers a non-sensitive option too.
     cite = convention_cite(plugin)
     non_sensitive = [k for k, s in options.items() if not s.get("sensitive")]
     sensitive = [k for k, s in options.items() if s.get("sensitive")]
     first = non_sensitive[0] if non_sensitive else next(iter(options))
 
     if non_sensitive:
-        reconfigure = [
-            "   The same command reconfigures a plugin that is **already installed**: it prints",
-            "   `already installed` and still writes the value. The short-circuit message is",
-            "   about the install, not the config write. Do **not** `claude plugin uninstall` to",
-            "   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,",
-            "   resetting every option in the table above to its default. `-s` defaults to `user`,",
-            "   so pass the scope `claude plugin list` reports for this plugin. The verified-version",
-            f"   record lives in {cite}.",
+        fallback = [
+            "   The fallback the convention names, for a Claude Code release without",
+            "   `plugin configure`, reruns the install with the new value, passing the scope",
+            "   `claude plugin list` reports for this plugin:",
             "",
-            "   The value is stored immediately; the session you are in does not change. Hooks are",
-            "   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh",
-            "   Claude Code session before expecting new behavior. A check run in the old session",
-            "   still reports the old value, and that is not a failed write.",
+            "   ```shell",
+            f"   claude plugin install {plugin}@{marketplace} -s <scope> --config {first}=<value>",
+            "   ```",
         ]
-        if sensitive:
-            # The convention records that the already-installed write was not
-            # verified for a sensitive value. It does not say the headless
-            # route is unavailable. Keep "observation" / "claim" as the subject.
-            reconfigure += [
-                "",
-                "   The already-installed-still-writes observation does **not** cover this"
-                f" plugin's `sensitive` option(s) ({', '.join(f'`{k}`' for k in sensitive)}).",
-                "   Re-verify before relying on that claim for those values. Route 1 is the safer",
-                "   rotation path: `/plugin configure` masks input, where a secret passed on the",
-                "   command line lands in shell history and the process table.",
-            ]
     else:
-        # Sensitive-only plugin: `--config` still seeds a value, but nothing here may present a
-        # post-install `--config` as a verified rotation path for a credential.
-        reconfigure = [
-            "   Route 1 is the rotation path for this plugin, not this one. Every option here is",
-            "   `sensitive`, and `/plugin configure` masks input. A secret passed on the command",
-            "   line lands in shell history and the process table. Do not rely on this command to",
-            f"   rotate a credential; the verified-version record lives in {cite}.",
-            "   Do **not**",
-            "   `claude plugin uninstall` to reconfigure either: uninstalling drops this",
-            "   plugin's whole stored `pluginConfigs` entry, resetting every option in the table",
-            "   above to its default.",
+        fallback = [
+            "   Every option here is `sensitive`, so the convention's `install --config` fallback",
+            "   does not apply: it puts the value on the command line, and its record covers no",
+            "   sensitive value.",
+        ]
+    if sensitive and non_sensitive:
+        fallback += [
+            "",
+            "   Never pass this plugin's `sensitive` option(s)"
+            f" ({', '.join(f'`{k}`' for k in sensitive)}) through that fallback: it puts",
+            "   a secret on the command line, and its record covers no sensitive value.",
+        ]
+    if sensitive:
+        fallback += [
+            "",
+            "   For a `sensitive` option, route 1 stays the recommended route. What",
+            "   `plugin configure` does with a sensitive value, and on which hosts that was",
+            f"   measured, is recorded in {cite}.",
         ]
 
     lines += [
@@ -169,16 +170,29 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         "",
         "Three supported routes:",
         "",
-        "1. **Interactively.** Claude Code prompts for declared options when you enable the",
-        f"   plugin. To change them later: `/plugin configure {plugin}@{marketplace}`.",
-        "2. **Headless.** Repeat `--config` for each option. Replace",
+        "1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):",
+        f"   `/plugin configure {plugin}@{marketplace}`.",
+        f"2. **Headless.** Save the values with [`claude plugin configure`]({CONFIGURE_DOCS}),",
+        "   run from the project the plugin is installed in. Replace",
         f"   `{marketplace}` with the marketplace you installed this plugin from:",
         "",
         "   ```shell",
-        f"   claude plugin install {plugin}@{marketplace} -s <scope> --config {first}=<value>",
+        f"   claude plugin configure {plugin}@{marketplace} --values-stdin < values.json",
         "   ```",
         "",
-        *reconfigure,
+        "   `values.json` holds a JSON object of strings, booleans included:",
+        "",
+        "   ```json",
+        f'   {{"{first}": "<value>"}}',
+        "   ```",
+        "",
+        f"   This is the preferred headless route in {cite}, which records its",
+        "   limits: the Claude Code version it needs, which install it finds, how it rejects a bad",
+        "   value, and why a session started before the change keeps the old value until a fresh",
+        "   session starts. Do **not** `claude plugin uninstall` to reconfigure: see",
+        f"   [What an uninstall deletes and keeps]({UNINSTALL_DOCS}).",
+        "",
+        *fallback,
         "",
         "3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**",
         "   settings (`~/.claude/settings.json`):",
@@ -195,13 +209,11 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         "   }",
         "   ```",
         "",
-        "   Plugin option values are read from **user**, `--settings`, and managed settings",
-        "   only, **not** from a project's `.claude/settings.json`. To vary behavior per",
-        "   repository, enable or disable the plugin in that project's `enabledPlugins`",
-        "   instead of setting an option there.",
+        "   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)",
+        "   entry names the settings scopes Claude Code reads this key from.",
         "",
-        "Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code",
-        "hands a configured value to a hook process; the value comes from the routes above.",
+        "Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one",
+        "of the routes above.",
         "",
         "### Upstream documentation",
         "",
@@ -211,6 +223,7 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         # anchors must target the live headings. A link CI accepts is not the same as a
         # link that works.
         "- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export",
+        f"- [Plugin configure]({CONFIGURE_DOCS}): the `--values-stdin` flag's reference entry",
         "- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry",
         "- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`",
         "- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence",

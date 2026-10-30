@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/melodic-software/claude-code-plugins/.github/actions/resolve-config/patch-rules.schema.json",
   "title": "Patch rules",
-  "description": "What the apply-patch script is to admit from a producer's patch: one row per prepare mode a patch-producing skill uses, `default` for one with no prepare mode, and `issue` for a patch that goes to a new issue-lane branch. Contract: docs/conventions/pr-pipeline/README.md, Patch rules.",
+  "description": "What the apply-patch script is to admit from a producer's patch: one row per prepare mode a patch-producing skill uses, `docs` for a markdown-only patch, `default` for one with no prepare mode, and `issue` for a patch that goes to a new issue-lane branch. Contract: docs/conventions/pr-pipeline/README.md, Patch rules.",
   "type": "object",
   "additionalProperties": false,
   "required": ["default", "issue"],
@@ -11,6 +11,7 @@
     "review-threads": { "$ref": "#/$defs/row" },
     "dependency-review": { "$ref": "#/$defs/row" },
     "merge-base": { "$ref": "#/$defs/row" },
+    "docs": { "$ref": "#/$defs/row" },
     "default": { "$ref": "#/$defs/row" },
     "issue": { "$ref": "#/$defs/row" }
   },
@@ -30,19 +31,23 @@
               "codeowners",
               "gitmodules",
               "settings",
+              "lane-grants",
               "symlink",
               "gitlink",
-              "rename-into-refused"
+              "rename-into-refused",
+              "skills",
+              "skill-md",
+              "new-exec-bit"
             ]
           },
-          "description": "Named refusals; any match refuses the whole patch. github-workflows: .github/workflows/** in any case and through any .. segment; codeowners: CODEOWNERS at the root, in .github/ or in docs/; gitmodules: .gitmodules; settings: **/settings*.json outside plugins/; symlink: mode 120000; gitlink: mode 160000; rename-into-refused: a rename whose new path another refusal matches."
+          "description": "Named refusals; any match refuses the whole patch. github-workflows: .github/workflows/** in any case and through any .. segment; codeowners: CODEOWNERS at the root, in .github/ or in docs/; gitmodules: .gitmodules; settings: **/settings*.json outside plugins/; lane-grants: .github/actions/resolve-config/lane-grants.json and .github/standards/trusted-actors/trusted-actors.json, in any case and through any .. segment; symlink: mode 120000; gitlink: mode 160000; rename-into-refused: a rename whose new path github-workflows, codeowners, gitmodules, settings or lane-grants matches, or that holds a backslash. Optional, refused only where a row names them, in any case and through any .. segment: skills: a path under a skills/ directory at any depth; skill-md: a SKILL.md at any depth. Optional, refused only where a row names it: new-exec-bit: a new file at mode 100755, or a change to that mode."
         },
         "allow": {
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
-          "items": { "enum": ["any", "kept-threads", "dependency-manifests", "merge-result"] },
-          "description": "What a path the refusals pass must also meet. any: nothing more; kept-threads: the path of a thread the run kept; dependency-manifests: an npm or pip manifest or lock file outside .github/; merge-result: a path the base merge left conflicted, which the patch must leave with no conflict markers; the merge's own changes from the base side pass through without facing the rules."
+          "items": { "enum": ["any", "markdown", "kept-threads", "dependency-manifests", "merge-result"] },
+          "description": "What a path the refusals pass must also meet. any: nothing more; markdown: a path ending in .md, in that case; kept-threads: the path of a thread the run kept; dependency-manifests: an npm or pip manifest or lock file outside .github/; merge-result: a path the base merge left conflicted, which the patch must leave with no conflict markers; the merge's own changes from the base side pass through without facing the rules."
         },
         "max-files": {
           "oneOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }],
@@ -88,13 +93,17 @@
             }
           }
         },
+        "thread-trailer": {
+          "const": true,
+          "description": "kept-threads rows: after the trailer, apply-patch adds a Lane-Thread: <thread id> line for each kept thread a VALID reply in the model job's scanned replies names, which publish-feedback.mjs requires before it credits the commit to that thread; with no replies read, nothing is committed."
+        },
         "reads-report": {
           "enum": [null, "ci-escalations"],
           "description": "The producer report apply-patch reads; ci-escalations: the checks the model escalated."
         },
         "content-rule": {
-          "enum": ["dependency-version-change"],
-          "description": "What each changed file's bytes must also meet, after every refusal and allow rule passes and before any commit is built; a refusal escalates as protected-path. dependency-version-change: each file modified in place, a regular file, an npm or pip manifest or lock file in fix scope, changed only by a version (dependency-classify.mjs fixRefusal)."
+          "enum": ["dependency-version-change", "pr-mode-revert"],
+          "description": "What each changed file's bytes must also meet, after every refusal and allow rule passes and before any commit is built; a refusal escalates as protected-path. dependency-version-change: each file modified in place, a regular file, an npm or pip manifest or lock file in fix scope, changed only by a version (dependency-classify.mjs fixRefusal). pr-mode-revert: a file whose mode changes between 100644 and 100755 takes the mode the path has at the merge base of the PR head and its base, read through the GitHub API; content-only changes read nothing."
         },
         "skip-moved-head": {
           "type": "boolean",

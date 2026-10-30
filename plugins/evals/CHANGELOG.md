@@ -1,5 +1,48 @@
 # Changelog: evals
 
+## [0.10.15] - 2026-10-30
+
+### Changed
+
+- plugin-eval: the worktree guard records add the Claude Code 2.1.312 recheck: a `--worktree` session still refuses `claude plugin eval --help`, and a normal session started in a git worktree runs it.
+
+## [0.10.14] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.10.13] - 2026-10-29
+
+### Fixed
+
+- `/evals:methodology`: the "Rewrite this criterion" answer is now a fill-in template with slots for quality (with the user need it serves), measure, trials, target and `basis:`. The `basis:` slot accepts a measured baseline, a prior result, a benchmark or expert review that the user supplied, or `baseline-relative`. The target must follow from that basis, so a target backed only by how severe a miss would be has no slot. When the user supplies no basis, the target is written relative to the current rate, never as a placeholder.
+
+## [0.10.12] - 2026-10-28
+
+### Fixed
+
+- `/evals:plugin-eval read` now ends by removing the `--keep-temp` sandboxes of the run it read, once the reading and any trace review are done, so they no longer pile up until a later preflight. It removes only the `claude-eval-*` directories that hold that file's `tracePath`s, by literal path and never by glob. When the removal is refused, it prints the per-sandbox command for those paths. The preflight leftover count is unchanged.
+
+## [0.10.11] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.10.10] - 2026-10-27
+
+### Fixed
+
+- `plugin-eval` preflight's leftover-sandbox cleanup now prints a per-sandbox loop that opens each sandbox and its mode-000 `sealed/` directory with `chmod 700` before `chmod -R u+rwx` and `rm -rf`, since the old `chmod -R u+w` stopped with `Permission denied` on a kept sandbox ([#9414](https://github.com/melodic-software/claude-code-plugins/issues/9414)).
+- `plugin-eval`'s run step now adds `--scaffold` when a selected case's `case.yaml` sets `context.scaffold_script`, after the user reads each such script, because such a case run without it runs against an unstaged workspace and its delta reads 0 ([#9414](https://github.com/melodic-software/claude-code-plugins/issues/9414)).
+
+## [0.10.9] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [0.10.8] - 2026-10-25
 
 ### Fixed

@@ -3,6 +3,18 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.12] - 2026-10-29
+
+### Fixed
+
+- **`audit-fleet.sh` and `setup-config.sh` no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). The `timeout --help` probe and the existing-entry check read their input through process substitution, so under `set -o pipefail` a supported `--kill-after` or a present entry can no longer read as absent when grep exits before the producer finishes writing.
+
+## [0.28.11] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [0.28.10] - 2026-10-25
 
 ### Changed

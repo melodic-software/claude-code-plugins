@@ -70,11 +70,27 @@ GATE = "plugins/source-control/skills/babysit-prs/scripts/engine.test.sh"
 SIGHTING = f"{RUN_URL}/11/attempts/2"
 
 
-def bash_log(*results: tuple[str, bool], tail: str = "") -> str:
-    """A test-bash leg's log: each suite's block, then PASS or FAIL."""
+NONCE = "0123456789abcdef"
+
+
+def advisory(suite: str, nonce: str = NONCE) -> str:
+    """The runner's warning for a failing advisory suite."""
+    return (
+        f"::warning::{suite} failed (exit 1) but is advisory on this run "
+        f"(nonce {nonce}; PLUGIN_TEST_ADVISORY=1, scripts/run-plugin-tests-advisory.txt)"
+    )
+
+
+def bash_log(
+    *results: tuple[str, bool], tail: str = "", inside: dict[str, str] | None = None
+) -> str:
+    """A test-bash leg's log: the runner's advisory nonce, then each suite's
+    block (with `inside[suite]` among its own output), then PASS or FAIL."""
     lines = ["##[group]Run jq -r --arg leg ...", "##[endgroup]"]
+    lines += [f"Advisory nonce: {NONCE}"]
     for suite, ok in results:
         lines += [f"=== {suite} ===", "FAIL: a case inside the suite"]
+        lines += [(inside or {}).get(suite, "")]
         lines += [f"{'PASS' if ok else 'FAIL'}: {suite}"]
     lines += [tail, "One or more plugin tests failed."]
     return "\n".join(STAMP + line for line in lines)
@@ -313,6 +329,38 @@ class AffectedSet(AffectedBase):
         verdict = self.check()
         self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
         self.assertEqual(verdict.quarantines, ())
+
+    def quarantine_days_at(self, days: dict[str, int]) -> None:
+        """`merge.quarantine-days` by the SHA it is read at (default 7)."""
+        self.read_config.side_effect = lambda repo, sha, *a, **k: mock.Mock(
+            quarantine_days=days.get(sha, policy.QUARANTINE_DAYS),
+            confirm_wait_minutes=policy.CONFIRM_WAIT_MINUTES,
+        )
+
+    def test_raising_quarantine_days_at_the_red_sha_does_not_lengthen_it(
+        self,
+    ) -> None:
+        # 7 days at the last green run's commit, 30 at the red one: the issue
+        # filed 8 days ago has expired, so the suite demotes.
+        self.quarantine_days_at({OTHER_SHA: 7, LATER_SHA: 30})
+        self.quarantine_issue(FLAKY, "2026-10-04T10:00:00Z")
+        self.red_dispatch(bash_log((FLAKY, False)))
+        verdict = self.check()
+        self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
+
+    def test_a_lowered_quarantine_days_at_the_red_sha_shortens_it(self) -> None:
+        # 30 at the base, 3 at the red commit: the issue filed 4 days ago expired.
+        self.quarantine_days_at({OTHER_SHA: 30, LATER_SHA: 3})
+        self.quarantine_issue(FLAKY, "2026-10-08T10:00:00Z")
+        self.red_dispatch(bash_log((FLAKY, False)))
+        self.assertEqual([f.signal for f in self.check().failures], ["dispatch"])
+
+    def test_quarantine_days_agreeing_at_both_shas_still_excuses(self) -> None:
+        # 10 at both: the issue filed 8 days ago is still open.
+        self.quarantine_days_at({OTHER_SHA: 10, LATER_SHA: 10})
+        self.quarantine_issue(FLAKY, "2026-10-04T10:00:00Z")
+        self.red_dispatch(bash_log((FLAKY, False)))
+        self.assertEqual(self.check().failures, ())
 
     def red_baseline(self) -> None:
         """Dispatch run 10, before the merge, red on the same leg."""
@@ -677,6 +725,13 @@ class AffectedSuites(unittest.TestCase):
         return self.git(self.root, "rev-parse", "HEAD")
 
     def setUp(self) -> None:
+        # The machine's global config signs commits (commit.gpgsign) through a
+        # key the fixture cannot reach, which fails `git commit` under load.
+        env = mock.patch.dict(
+            os.environ, {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+        )
+        env.start()
+        self.addCleanup(env.stop)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.root = pathlib.Path(tmp.name) / "clone"
@@ -684,6 +739,9 @@ class AffectedSuites(unittest.TestCase):
         self.git(self.root, "init", "-q")
         self.git(self.root, "config", "user.email", "t@example.com")
         self.git(self.root, "config", "user.name", "t")
+        # Repo-local, as in test_prune_babysit_worktrees.py: a global
+        # commit.gpgsign would sign every fixture commit with the machine's key.
+        self.git(self.root, "config", "commit.gpgsign", "false")
         self.green = self.commit(
             {pm.PLAN_SCRIPT: self.PLAN, "tree.txt": "green"}, "green"
         )
@@ -759,8 +817,36 @@ class SuiteFailures(unittest.TestCase):
             (FLAKY, False),
             (TOUCHED, False),
             (GATE, True),
-            tail=f"::warning::{TOUCHED} failed (exit 1) but is advisory on this run",
+            tail=advisory(TOUCHED),
         )
+        self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY}))
+
+    def test_an_advisory_line_inside_another_suites_block_excuses_nothing(
+        self,
+    ) -> None:
+        # FLAKY's own output prints TOUCHED's advisory warning, with the
+        # nonce guessed wrong or copied from an older run.
+        for forged in (advisory(TOUCHED, "f" * 16), advisory(TOUCHED, "")):
+            with self.subTest(forged):
+                log = bash_log((FLAKY, False), (TOUCHED, False), inside={FLAKY: forged})
+                self.assertEqual(
+                    pm.suite_failures(log, "bash"), frozenset({FLAKY, TOUCHED})
+                )
+
+    def test_a_nonce_line_inside_a_block_is_not_the_runners(self) -> None:
+        # A suite prints its own nonce line and a warning carrying it; only
+        # the runner's line, before any block, sets the nonce.
+        forged = f"Advisory nonce: {'e' * 16}"
+        log = bash_log(
+            (FLAKY, False), (TOUCHED, False), inside={FLAKY: forged}
+        ).replace(f"Advisory nonce: {NONCE}", "Suites: 2")
+        log += "\n" + STAMP + advisory(TOUCHED, "e" * 16)
+        self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY, TOUCHED}))
+
+    def test_bash_drops_an_advisory_suite_from_a_titled_warning(self) -> None:
+        # run-plugin-tests.sh's suite_annotate titles each warning by its suite.
+        titled = advisory(TOUCHED).replace("::warning::", f"::warning title={TOUCHED}::", 1)
+        log = bash_log((FLAKY, False), (TOUCHED, False), (GATE, True), tail=titled)
         self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY}))
 
     def test_a_real_leg_log_names_only_runner_suites(self) -> None:
@@ -769,7 +855,7 @@ class SuiteFailures(unittest.TestCase):
         log = (FIXTURES / "job-log-bash-ui-fail.txt").read_text(encoding="utf-8")
         self.assertEqual(
             pm.suite_failures(log, "bash"),
-            frozenset({"plugins/planning/shared/tests/ui.test.sh"}),
+            frozenset({"plugins/planning/shared/tests/ui-a.test.sh"}),
         )
 
     def test_bash_names_a_suite_that_never_reported(self) -> None:

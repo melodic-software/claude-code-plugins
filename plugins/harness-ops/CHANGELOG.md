@@ -3,6 +3,209 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.18.0] - 2026-10-30
+
+### Changed
+
+- `/harness-ops:inventory`'s parser reader now reads a direct `eval` as a plain read of an identifier when its argument is a constant: a string literal, a template with no expressions, or `.replace` on a literal with a regex literal and a string literal. The code must parse as that one identifier, as protobufjs's `eval("quire".replace(/^/,"re"))` does ([#10002](https://github.com/melodic-software/claude-code-plugins/issues/10002)). The module then resolves names, and its sink scan no longer counts the `eval` against every trusted name. A folded `.replace` trusts `replace`, `@@replace`, `exec`, `lastIndex`, `flags` and the `global`, `unicode` and `unicodeSets` getters, so a module that writes one of them on a prototype leaves the list partial. A `require` whose specifier is a function's parameter counts as a named load of each literal the function's callers pass. That holds only when every caller is a direct call with a literal; any other caller makes it an unknown load. A direct `eval` whose argument does not fold stays a sink.
+
+### Security
+
+- `restart-consumer.sh` resolves an unpinned lane's `Lane telemetry: <lane>` issue, and its own `Lane telemetry: restart-consumer` fallback, only from issues the write identity opened, or the lane's `telemetry.author` when set. An exact-title issue another account opened is skipped and named in a warning, so an outside account can no longer capture a lane's telemetry home by opening an issue with the same title. A `telemetry.author` that is not a GitHub user login is a config error for an unpinned lane.
+
+## [4.17.0] - 2026-10-29
+
+### Added
+
+- **The parser reader's sink rule clears receivers that a built-in constructor makes fresh.** Under `--reader=parser`, `new` of a built-in constructor named by its unshadowed global name (`Error` and the other native errors, `Map`, `Set`, `WeakMap`, `WeakSet`) is a fresh object. So is `this` in the constructor of a class extending one, as in `class Qs extends Error{constructor(e){super(e);Object.setPrototypeOf(this,Qs.prototype)}}`, and so is `new` of that class. A computed write, a computed define or a prototype swap on such a receiver is no longer a sink. Each clearance trusts the constructor's name, so a module that may replace it (`Error=f`, `globalThis.Map=f`) is a sink instead. A call that passes the name as a string, such as `tagTester("Error")`, is not a sink, the same rule as for `Object`. A class extending a built-in counts only while every reference to it is a `new`, a named member read that writes nothing, the right of `instanceof`, a superclass or an `export{...}`: `super()` calls the class's own prototype, and a prototype swap on the class could make `this` any object.
+
+### Fixed
+
+- **The lane launcher and the shared libraries no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `lane-launcher.sh` reads the `timeout --help` probe, the App installation's repository list and the target lane names through process substitution, and `lib/check-retirements.sh` and `lib/state-key.sh` use here-strings. Under `set -o pipefail` a match can no longer read as a miss when grep exits before the producer finishes writing.
+
+- The parser reader's sink rule now counts two more prototype swaps, in any module: `Reflect.set(o,"__proto__",p)`, and an own `__proto__` property given to `Object.assign` (`Object.assign(o,{["__proto__"]:p})`). Each runs the `Object.prototype.__proto__` setter on `o`. Before, neither was a sink unless a trusted name was `__proto__`.
+
+## [4.16.0] - 2026-10-29
+
+### Added
+
+- **The parser reader's sink rule counts the fresh objects Bun's runtime helpers define on as fresh targets.** Bun's verbatim runtime chunk still reads partial: its getters read by a computed key (`this[a]`, `b[c]`), which may spell `require` and so counts as a load the parser cannot name. Under `--reader=parser`, `Object.create(...)`, an object an `Object` definer returns, `new` of a class the module declares, a `?:` of fresh objects, and a parameter assigned one before any read now count as fresh targets. So does `this` in a function only ever bound to a fresh object (`r.bind(b,c)`), and a parameter of a function every caller passes a fresh object. For an exported helper such as `__export`, every importer's call must pass one, no module may re-export the helper, and no module may load the runtime module whole or load a file the parser cannot name. A target cleared through `Object.create` or a definer's return makes `Object` and `create` or the definer's name trusted names, and one cleared through `bind` makes `bind` one; every module is then checked for those names too. Like `Function`, `Object` passed as a string counts only when the callee is a definer. A declarator destructuring definers from `Object` (`var{defineProperty:f}=Object`) is no longer a definer escape when each definer it takes is only ever called and every other key is an inert static such as `getPrototypeOf`; each call is checked like a direct `Object.defineProperty` call. A parameter of a function that reads `arguments` or is declared in a block is never followed, since sloppy code can change or call it unseen.
+
+- `/harness-ops:morning-brief` prints an Owner touches section: per UTC day over the last `--touch-days` (default 2), the operator login's approvals, merges and `do-not-merge` lifts, the hold label (`--hold-label`, default `needs-human`) applied and lifted, and escalation comments; then hold waits from apply to lift, escalations by lane, kind and reason, and the most-touched items. It reads GitHub's own timeline events with one paged GraphQL search per day, so it needs no store and a later run compares against an earlier one. An escalation counts only from the lane identity (`merge.agent-identity` in `pr-pipeline.yaml`, or `--lane-identity`) or the operator (`gh api user`, or `--owner-login`). The operator login's actions include any agent session holding that login, and the section says so.
+
+### Fixed
+
+- Under `--reader=parser`, code a `Function("...")()` call folds to is a sink when it loads a file (`import("...")`, `require("...")`), since the load scan never reads it and such a load could take a module whole.
+
+- The Stuck section's upstream pointers name the GraphQL reference pages that now hold the search query and the labeled event.
+
+## [4.15.5] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [4.15.4] - 2026-10-29
+
+### Changed
+
+- `/harness-ops:changelog`'s surface discovery counts contract folders under `docs/contracts/` as well as `docs/conventions/`, so a marketplace keeps its contract count through the plugin-contracts move.
+
+- `/harness-ops:lanes` and `/harness-ops:observability` cite the gather-block convention doc for the pre-compute composition record, in place of a link into `source-control`'s worktree skill folder.
+
+## [4.15.3] - 2026-10-29
+
+### Fixed
+
+- plugins skill: three references to the retired `plugins-reference` docs page now name current pages. The recheck trigger for the `--bare` uninstall record in `context/gotchas.md` links the plugin loading reference and the plugin commands reference. The re-verification note in `context/scope-semantics.md` names the retired `plugins-reference` and `discover-plugins` pages by subject instead of slug. The `defaultEnabled` comment in `scripts/fleet-state.test.sh` cites the plugin manifest reference (#10804).
+
+## [4.15.2] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `parse-concern-value.sh` takes the fallback for it.
+
+## [4.15.1] - 2026-10-29
+
+### Fixed
+
+- `/harness-ops:plugins` sync: the report is easier to read. It opens with a one-line `Result:` verdict: `<N> item(s) under Action needed`, `changes applied, nothing under Action needed`, or `clean, nothing changed and nothing under Action needed`, and in audit `see the predictions below, nothing under Action needed` or `no change predicted, a lower bound against the unrefreshed catalog`. Each line now carries one fact. The `Divergences:` row, the `Timing:` rows, the cache-content tally and the source-checkout row put each part on its own indented line, and a list of more than three ids puts one id per line. Each remedy is a `remedy:` line under the fact it fixes instead of being joined to it with `;`.
+- The render no longer prints the explanatory paragraphs under stale project records and user-home project records on every run, and no longer breaks sentences at fixed columns. The reasons stay in `context/stale-records-cache-content.md` and `context/scope-semantics.md`. Version moves and the `Catalog regression:` interval read `->` in plain ASCII.
+- The messages the report quotes from the scripts no longer join two facts with `;`: `fleet-state.sh` labels a lagging linked-worktree record `update ineffective, uninstall clears it`, and the refresh-failure, cache-content fallback and divergence-split notes read as one sentence each.
+
+## [4.15.0] - 2026-10-29
+
+### Added
+
+- **The parser reader follows an exported `require` alias into its importers.** Bun's runtime chunk exports `import.meta.require` (`var Fe=import.meta.require;export{...,Fe}`), and other modules load files through the imported `Fe("...")`. Under `--reader=parser` such an alias is now a named loader: an importer's call of it with a literal specifier loads that file, followed like `require(...)`. Any other use (a call with no literal, an alias, an escape, a re-export) still counts as a load the parser cannot name, in the sink rule too. The alias stays unknown when Bun's module table names no file for its module, or when a module loads that file whole.
+- A `.require` member read that is only tested for truth no longer counts as a load the parser cannot name: a `&&` operand other than the last, an `if`, loop or `?:` test, or a `!` operand, as in lodash's `w&&w.require&&w.require("util")`. A read that may pass the loader on still counts: the last `&&` operand, or any `||` or `??` operand.
+
+### Fixed
+
+- `/harness-ops:plugins` sync: the report's `Normalized:` row now says how many `enabledPlugins` keys moved, `1 of 101 keys moved` for one appended key, instead of counting every key as reordered. `normalize-enabled-plugins.sh` prints `normalized moved=K keys=N` (and `would-normalize moved=K keys=N` under `--check`), K being the fewest keys the reorder moves.
+- `normalize-enabled-plugins.sh` prints `missing-file keys=0` (exit 0) when the settings file does not exist, rather than `already-sorted keys=0`, and the report renders it as `Normalized: skipped, no user settings file`.
+
+## [4.14.0] - 2026-10-29
+
+### Added
+
+- `/harness-ops:behavior-probes`: an `intake-permissions` area that checks, under `dontAsk` with only `Bash(gh issue view *)` allowed, that a plain `gh issue view` runs and that the `;`, `&&`, `|` and `$()` forms adding a second command are denied. A stub `gh` logs the calls, so a failed deny touches no real issue.
+
+## [4.13.4] - 2026-10-28
+
+### Fixed
+
+- **The inventory reads Claude Code 2.1.312 again.** The bundle tokenizer now reads a regex after a spread (`.../x/.test(y)`) and treats `of` as a name outside a for-of head (`${of/1000}`). Both shapes are new in 2.1.312 and left brace pairs spanning most of the bundle, so the `builtin_tools`, `builtin_plugins` and `bundled_workflows` canaries went missing and 18 bundled skills read as computed names. The 19th, the slides skill, moved into a helper `function h(t){...name:t.name...}` called once as `h(f)`, and now resolves through it. A plugin gate written as a `function` declaration (`cc-plugin-easel`, `cc-plugin-claude-platform`) reports its flag. `cc-plugin-claude-platform`'s runtime-built `skills` getter is recorded as an accepted floor.
+
+## [4.13.3] - 2026-10-28
+
+### Changed
+
+- **bump @microsoft/tui-test from 0.1.0 to 0.1.1 in /plugins/harness-ops/skills/control-claude-code/driver in the npm-minor-patch group** (#10643).
+  - `@microsoft/tui-test` 0.1.0→0.1.1
+
+### Fixed
+
+- `lanes` start, restart and status now report a `claude plugin test` probe that hangs on the pure-Bash timeout path (macOS) as "did not finish in N s" every time; the watchdog could lose its timeout flag and report "gave no message the launcher knows" instead.
+
+## [4.13.2] - 2026-10-28
+
+### Fixed
+
+- **The inventory reads built-in plugin skills past a conditional spread.** A skill factory whose returned object holds `...COND&&{...}` (Claude Code 2.1.296's claude-test plugin) no longer drops every key written before it: the spread shadows only its own keys, which read as unresolved. On 2.1.296 the claude-test skills' descriptions and `user_invocable` now resolve, and only its `gate_flags`, an accepted floor, stays partial.
+
+- `/harness-ops:plugins sync` no longer drops a marketplace from the digest on a large fleet. `sync-run.sh` used to pass the block's fields, the divergence records and installed rows among them, to jq as command-line arguments, and on a fleet with about a thousand install records one of them grew past the kernel's per-argument limit, so the exec failed. The block's JSON fields now go to jq through a file in the run directory, and the digest reads the blocks with `--slurpfile`. The divergence split, the first-pass sidecar, the cache-check fallback and the disabled-install list read their fleet-sized inputs the same way.
+- A marketplace block that cannot be assembled is no longer left out silently. The run adds an `errors[]` entry naming the marketplace and the jq failure, and the report lists it under `Action needed`, so the report no longer reads as if no marketplace resolved.
+
+## [4.13.1] - 2026-10-28
+
+### Fixed
+
+- **behavior-probes reads a local slash command's output in a `prints` case.** Under `claude -p` the output arrives as a `<synthetic>` assistant message with a result of `num_turns` 0; the verdict now reads it instead of reporting `inconclusive` as a model turn. The `autocompact` area passed its first live run on Claude Code 2.1.312 (record 16).
+
+## [4.13.0] - 2026-10-28
+
+### Added
+
+- behavior-probes: a `subagent/skill-tool-skill-placeholder-effort` case for `${CLAUDE_EFFORT}` in a skill a subagent pinned `low` loads through the Skill tool, with the session at `medium`. Its live run on Claude Code 2.1.310 showed the subagent's `low`, while a rerun of the preloaded case on the same version still read the session's `medium`; `records.md` gains records 14 and 15, and a rerun of both on 2.1.312 gave the same results.
+
+## [4.12.2] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [4.12.1] - 2026-10-27
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
+## [4.12.0] - 2026-10-27
+
+### Added
+
+- **`/harness-ops:plugins sync` offers to fast-forward a `directory` marketplace's checkout.**
+  When the checkout is clean, on a branch with an upstream, and only behind it, the report's
+  digest marks it `offered` and the skill asks once per marketplace. On a yes it reruns with
+  `--pull-source`: `sync-run.sh` checks the checkout again, runs `git pull --ff-only` before
+  the marketplace refresh, and the run goes on against the newer catalog, its `source:` row
+  naming the commits it moved from and to. The script refuses a dirty, detached, upstream-less,
+  ahead, diverged or current checkout with the reason and touches nothing, and a refused or
+  failed pull does not stop the run. The new `directory_source_pull` option takes `ask`
+  (default) or `never`; an autonomous or ambiguous session never asks or pulls, and the script
+  treats a set `CLAUDE_CODE_REMOTE` as `never` (#7454).
+- **The `autoUpdate: off` suggestion can be silenced.** Marketplaces named in the new
+  `quiet_auto_update_marketplaces` option render `autoUpdate: off` without the suggestion to
+  enable it; unset keeps it.
+
+### Fixed
+
+- `/harness-ops:morning-brief`: a queue count or stuck label whose search reads 0 is checked against the REST issue listing, which does not go through search ([#9090](https://github.com/melodic-software/claude-code-plugins/issues/9090)). When that listing reads more than 0 or fails, the label shows `count unavailable` on a `PARTIAL` line, and the Stuck section prints no all-clear.
+- `/harness-ops:lanes` restart consumer: the `Lane telemetry: <lane>` issue lookup reads REST `search/issues` and treats an answer whose `incomplete_results` is not `false` as a failed read, so the lane records `api-error` instead of `no-telemetry` when search is degraded ([#9090](https://github.com/melodic-software/claude-code-plugins/issues/9090)).
+
+## [4.11.3] - 2026-10-27
+
+### Changed
+
+- `plugins` sync now calls `claude plugin install` and `claude plugin update` with `--json` and read the result line: an update's `updateOutcome` and `newVersion` decide whether it moved and to which version, so a reworded CLI sentence no longer misfiles an already-current id. Unset userConfig options and a disabled-by-default install have no field of their own, so those two are still read from the result's `message`. A CLI that prints no result line is still read from its text, and one older than the flag that rejects `--json` as an unknown option is called once more without it.
+
+## [4.11.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [4.11.1] - 2026-10-27
+
+### Changed
+
+- `audit-native-overlap` now says who writes a native-overlap verdict or dismissal: a person, or a session acting on the owner's recorded direction, and never an unattended run ([#9105](https://github.com/melodic-software/claude-code-plugins/issues/9105)). It used to say a person and never a run. The new wording is in the skill's statements of the rule, its `summary`, the `canonical-pairs.json` note, and these `overlap.py` texts: the view header, the generated Dismissed section's lead sentence, the `detect` report note and the `dismiss` help. A run of the skill still only recommends a verdict and never records one. The skill's evals are unchanged.
+
+## [4.11.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
+## [4.10.4] - 2026-10-26
+
+### Changed
+
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted, so a guard can tell a quoted body's text from the commands around it (#8949). A here-doc delimiter word now ends at `(` or `)`, as it does in bash.
+
+## [4.10.3] - 2026-10-26
+
+### Changed
+
+- `context/gotchas.md` records why the user sweep stays serial: concurrent `claude plugin update` and `plugin uninstall` calls lose registry writes while exiting 0 (probe on Claude Code 2.1.310, #6309).
+
+## [4.10.2] - 2026-10-26
+
+### Fixed
+
+- `/harness-ops:changelog` `status`, `diff` and `apply` read the changelog page's current `**X.Y.Z**` release headings again instead of reporting `range: not computed`; the older `<Update label>` blocks still parse. One parser, `scripts/changelog-releases.sh`, now serves the status script, the `fetch` slice and the behavior-probes `recheck`.
+
 ## [4.10.1] - 2026-10-26
 
 ### Changed

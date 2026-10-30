@@ -16,9 +16,19 @@
 // that window, or a force-push that dropped its commit, costs one more run.
 // At most `fix-docs-per-run` dispatches per dispatcher run. Logs carry PR
 // numbers, SHAs, run ids and counts only.
+//
+// A run whose model leg emitted an empty head posts no check (post-decline:
+// false), so a check run alone would let a head be dispatched every cycle.
+// The dispatch record keeps the fix-docs runs dispatched on each head; once
+// `limit-stops-per-head` are kept, each one's status and jobs are read
+// through the Actions API, and a head with that many whose broker-allowed job succeeded
+// (which no run job can write: handoff-evidence.sh's allowed) goes into the
+// dispatch record with one `::warning::`, until a new push. A run the broker
+// refused, or one a hold skipped, ended with no model turn: it does not count
+// and leaves the list once it is done, as a run that is gone does.
 
 import { isHandled, markHandled, emptyRecord } from "./dispatch-record.mjs";
-import { prHold } from "./gate-source.mjs";
+import { prHold, reviewReader } from "./gate-source.mjs";
 import { serverFailure } from "./request-budget.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -37,6 +47,12 @@ export const DEFAULTS = Object.freeze({
   actionsAppId: 15368,
   // fix-docs's applies-when labels-absent (docs/conventions/pr-pipeline.yaml).
   holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
+  // pr-refine.yml's first fix-docs call's broker-allowed job; the other legs
+  // run only after it succeeded.
+  allowedJob: "fix-docs / broker-allowed",
+  // fix-docs runs with a broker allow one head gets:
+  // limits.limit-stops-per-head's default, which dispatch.mjs passes resolved.
+  maxRunsPerHead: 3,
 });
 
 export const HISTORY_COMMITS = 50;
@@ -146,6 +162,19 @@ function historyHasRun(pullRequest) {
 // and the PR (pr-refine.yml's run-name).
 const runTitle = (workflow, activity, number) => `${workflow.replace(/\.ya?ml$/, "")} ${activity} #${number}`;
 
+// What a fix-docs run (its status and the REST listing's latest jobs) shows:
+// "allowed" when its broker-allowed job succeeded, "done" when it ended
+// without that or is gone (null), else "going".
+export function docsRunState(run, allowedJob = DEFAULTS.allowedJob) {
+  if (run === null) {
+    return "done";
+  }
+  if (run.jobs.some((job) => job?.name === allowedJob && job.conclusion === "success")) {
+    return "allowed";
+  }
+  return run.status === "completed" ? "done" : "going";
+}
+
 export async function dispatchDocsFixes({
   api,
   runId,
@@ -160,6 +189,8 @@ export async function dispatchDocsFixes({
   excludedAuthorIds = DEFAULTS.excludedAuthorIds,
   actionsAppId = DEFAULTS.actionsAppId,
   holdLabels = DEFAULTS.holdLabels,
+  allowedJob = DEFAULTS.allowedJob,
+  maxRunsPerHead = DEFAULTS.maxRunsPerHead,
   gateLabel = null,
   appSenderId,
 }) {
@@ -231,6 +262,7 @@ export async function dispatchDocsFixes({
         activity,
         appId: appSenderId,
         readTimeline: () => api.listTimeline(node.number),
+        readReviews: reviewReader(api, node.number),
       });
       if (held) {
         log(`skip fix-docs #${node.number}: ${why}`);
@@ -244,6 +276,36 @@ export async function dispatchDocsFixes({
       failed += 1;
       log(`::error::#${node.number}: could not read fix-docs history or holds: ${error.message}`);
       continue;
+    }
+    // The per-head cap is the loop's hard end, so a head whose runs cannot be
+    // read is not dispatched.
+    const head = node.headRefOid;
+    const kept = record.docsRuns.get(head) ?? [];
+    if (kept.length >= maxRunsPerHead) {
+      const states = [];
+      try {
+        for (const id of kept) {
+          states.push(docsRunState(await api.readRunJobs(id), allowedJob));
+        }
+      } catch (error) {
+        if (error.rateLimited) {
+          log(`::warning::#${node.number}: its fix-docs run read is rate limited (${error.message}); no fix-docs dispatched, a later run retries`);
+        } else if (serverFailure(error)) {
+          log(`::warning::#${node.number}: could not read its fix-docs runs: ${error.message}; skipped, a later run retries`);
+        } else {
+          failed += 1;
+          log(`::error::#${node.number}: could not read its fix-docs runs (${error.message}); left for a later run`);
+        }
+        continue;
+      }
+      const allowed = states.filter((state) => state === "allowed").length;
+      if (allowed >= maxRunsPerHead) {
+        log(`::warning::#${node.number}: head ${head}'s fix-docs ran ${allowed} time(s) with no ${checkName} check run, the most one head gets; no fix-docs until a new push`);
+        markHandled(record, checkName, head);
+        record.docsRuns.delete(head);
+        continue;
+      }
+      record.docsRuns.set(head, kept.filter((_, index) => states[index] !== "done"));
     }
     // Every dispatch call counts against the cap: one that failed or returned
     // no usable id may still have started a run.
@@ -261,7 +323,8 @@ export async function dispatchDocsFixes({
         continue;
       }
       dispatched.push({ number: node.number, workflowRunId: id });
-      log(`dispatched fix-docs #${node.number} head ${node.headRefOid} workflow_run_id=${id}`);
+      record.docsRuns.set(head, [...(record.docsRuns.get(head) ?? []), id]);
+      log(`dispatched fix-docs #${node.number} head ${head} workflow_run_id=${id}`);
     } catch (error) {
       failed += 1;
       log(`::error::#${node.number}: dispatch failed: ${error.message}`);

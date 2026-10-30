@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "1.0",
+  "meta": {
+    "title": "Surface tick and confirm",
+    "eyebrow": "Interview",
+    "stages": {"interview": "Interview"}
+  },
+  "rev": 1,
+  "groups": [
+    {"id": "base", "title": "Basics", "summary": "One question whose recommendation commits the user to two things."}
+  ],
+  "questions": [
+    {"id": "T1", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Cache", "title": "Should the build keep a shared cache?", "recommendation": "Yes.", "commits": ["Keeps the cache warm between runs", "Runs the warm-up on every push"], "alternatives": [{"key": "a", "text": "No"}]}
+  ]
+}

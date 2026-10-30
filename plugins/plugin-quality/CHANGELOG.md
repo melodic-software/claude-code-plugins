@@ -5,6 +5,24 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.6] - 2026-10-29
+
+### Fixed
+
+- **`collect-standards.sh` and the retirement check no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). The `disable-model-invocation` probe reads the frontmatter through process substitution, and `lib/check-retirements.sh` checks each record's fields with a here-string, so under `set -o pipefail` a match can no longer read as a miss when grep exits before the producer finishes writing.
+
+## [0.17.5] - 2026-10-28
+
+### Fixed
+
+- The audit standards probes read a contract from `docs/contracts/<topic>/README.md` when it exists and fall back to the convention home, so a contract moved out of `docs/conventions/` is graded from its content, not the stub left at its old path.
+
+## [0.17.4] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [0.17.3] - 2026-10-25
 
 ### Changed

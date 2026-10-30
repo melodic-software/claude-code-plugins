@@ -105,7 +105,10 @@ Two further shapes, both first seen in 2.1.284:
 - **Descriptor member.** `let t=c;ps({name:t.name,description:t.description,...})` with
   `c={name:o,...}` and `o="slides"` (`registerSlidesSkill`). The identifier is followed through
   `a=b` aliases to its object literal by the same nearest-preceding rule; that object's `name` and
-  description stand in for the registration's member reads.
+  description stand in for the registration's member reads. When the registration sits in
+  `function h(t,r){ps({name:t.name,...})}` and the module calls `h(f)`, a parameter is followed to
+  its argument only when the module names `h` in nothing but that declaration and that one call,
+  and the body assigns no new value to the parameter before the registration.
 - **Loop over a literal table.** ``for(let{kind:e,description:n}of Qi)ps({name:`artifact-${e}`,...})``
   with `Qi=[{kind:"report",...},...]`. When the table binding is an array of object literals, each
   row is expanded into its own skill and `bundled_skill_notes.rosters_resolved` records the table
@@ -151,6 +154,9 @@ depth resumes the template text. In 2.1.284 `` `prints ${to(fn.replace(/^(["'])(
 put quote characters inside a regex inside a substitution; skipping the substitution as quoted
 text desynced the reader, swallowed 21 MB into one brace pair, and left 15 of 152 command literals
 resolved with every canary missing.
+
+A `/` starts a regex after a spread (`[.../^[\\/]{2}/.test(e)]`) and after the `of` of a for-of
+head (`x of`, `] of`); any other `of` is a minified name, so `${of/1000}` divides.
 
 A call to the registrar identifier whose object carries no `name:` is another module's function
 sharing the minified name, not a registration; it is counted in `same_identifier_calls_skipped` and
@@ -354,8 +360,8 @@ Per plugin, from the merged fields:
 | `aliases` | the short names of the `["diff","cc-plugin-diff"]` pairs the bundle maps |
 | `default_enabled` | `defaultEnabled` as written; absent is true only when the consumer's `defaultEnabled??!0` is the one default rule in the registrar module's functions that walk `.builtinPlugins` (`absent-default`); missing or ambiguous there, absent is unknown and partial |
 | `enabled_from_policy_only`, `enabled_from_trusted_settings_only` | as written; absent is false |
-| `gated`, `gate_flags` | `isAvailable` present; each `f(FLAG,DEFAULT)` call in it whose first argument reads a `tengu_` string, through one identifier or a `()=>"tengu_x"` arrow. Other terms of the gate are runtime state and are not listed |
-| `skills` | the `skills` array: an object, an identifier bound to one (through `Object.freeze`), or a module function `f("run",{...})` returning an object literal whose `name:w[e]` reads a literal table and whose `...r` spreads the argument |
+| `gated`, `gate_flags` | `isAvailable` present; each `f(FLAG,DEFAULT)` call in it whose first argument reads a `tengu_` string, through one identifier, a `()=>"tengu_x"` arrow or a `function f(){return"tengu_x"}`. An identifier gate is its binding or the body of the `function` it names. Other terms of the gate are runtime state and are not listed |
+| `skills` | the `skills` array: an object, an identifier bound to one (through `Object.freeze`), or a module function `f("run",{...})` returning an object literal whose `name:w[e]` reads a literal table and whose `...r` spreads the argument. In that literal a `...COND&&{...}` spread shadows only its own keys, which read as unresolved |
 | `agents`, `commands` | the function-hooks manifest's embedded files (`files:{"agents/author.md":`---…`}`), frontmatter `name` and `description`; plus commands passed to `.command.register(obj)` or `.registerCommand(obj)` in the module when the manifest declares `command.register`. An argument that is the enclosing arrow's own parameter is a pass-through and is skipped |
 | `hook_events` | the manifest's `scan.hooks` (or `shipped.hooks`); `[]` without a hooks module |
 | `mcp_servers` | the field's form (`getter`, `value`) or null; the server list is decided per session |
@@ -374,7 +380,7 @@ since the spread may override it (a `name` dropped this way leaves the registrat
 | `load` | the loader requires the plugin but the walk could not place the call (`load_guards` null), including any call after an unrecognized exit or a compound latch test, or its call sites are guarded differently and none is unguarded |
 | `default_enabled`, `enabled_from_policy_only`, `enabled_from_trusted_settings_only` | not a `!0`/`!1` literal, or absent behind an unresolved spread (`default_enabled` also when the consumer's `??!0` rule is not found) |
 | `gated` | `isAvailable` absent behind an unresolved spread |
-| `gate_flags` | the gate expression did not read (getter, method, unbound identifier, unsplittable call), or a flag's default did not resolve. A list that did read is still a floor: `builtin_plugin_notes.floors` |
+| `gate_flags` | the gate expression did not read (getter, method, unbound identifier, unsplittable call, a `function` body showing no flag call), or a flag's default did not resolve. A list that did read is still a floor: `builtin_plugin_notes.floors` |
 | `skills` | the field is not an array, an element did not resolve, or a skill's name, description or `user_invocable` did not resolve; also any embedded `skills/*/SKILL.md` problem below |
 | `agents`, `commands`, `skills` (embedded files) | the manifest's `files` value or a path in it is not a literal, a file's text is not a literal or holds a `${...}` substitution, or its frontmatter has no `name` or a `description` `_frontmatter` does not parse (plain scalars, folded across indented lines, and `\|`/`>` block scalars parse) |
 | `commands` (registered) | the manifest's `calls` is not a literal array, it declares `command.register` and no command resolved, a registered object or its name or description did not resolve, or one name is registered with two different records (both are kept) |
@@ -398,7 +404,9 @@ an export of it.
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| The loader requires 11 built-in plugins (10 on 2.1.285, which lacks `cc-plugin-you-should-know`), each with one registration, and only `cc-plugin-claude-test` and `cc-plugin-plugin-authoring` declare skills; claude-test's agents and diff's `/diff` command come from the manifest and the hooks API | `inventory.py --binary-only` on the 2.1.285, 2.1.286 and 2.1.287 native builds: `builtin_plugin_notes.loaded_not_registered` empty, every plugin's `partial` empty. Derived per run, so no document restates the roster | 2026-10-01, Claude Code 2.1.287 | `--self-check` reports the `builtin_plugins` lane degraded or broken, or a run's plugin names change |
+| The loader requires 11 built-in plugins (10 on 2.1.285, which lacks `cc-plugin-you-should-know`; 13 on 2.1.312, which adds `cc-plugin-claude-platform` and `cc-plugin-easel`), each with one registration, and only `cc-plugin-claude-test`, `cc-plugin-plugin-authoring` and `cc-plugin-claude-platform` declare skills; claude-test's agents and diff's `/diff` command come from the manifest and the hooks API | `inventory.py --binary-only` on the 2.1.285, 2.1.286, 2.1.287, 2.1.296 and 2.1.312 native builds: `builtin_plugin_notes.loaded_not_registered` empty, every plugin's `partial` empty but the accepted floors below. Derived per run, so no document restates the roster | 2026-10-28, Claude Code 2.1.312 | `--self-check` reports the `builtin_plugins` lane degraded or broken, or a run's plugin names change |
+| Accepted floor: `cc-plugin-claude-test`'s `gate_flags` stays partial, so the lane's partial-plugin advisory names it. Its `isAvailable:He` is a function declaration whose flag test is `ie.isOn()`, an object method calling `ct()`, which builds a state object from `pt({answer:()=>Fn(Te,!1),...})` with `Te="tengu_mellow_hollerith"`: four hops past the one identifier the gate rule follows, and the answer also turns on the signed-in login | `inventory.py --binary-only` on the 2.1.296 linux-x64 native build: `partial: ["gate_flags"]`, `gate_flags: null` | 2026-10-28, Claude Code 2.1.296; unchanged on 2.1.312, where the gate is `function wo(){...&&An.isOn()}` and the flag constant is imported | the claude-test gate reads the flag through a direct `f(FLAG,DEFAULT)` call, or the advisory names another field of it |
+| Accepted floor: `cc-plugin-claude-platform`'s `skills` stays partial, so the advisory names it. The field is `get skills(){return vot(l)&&!Kfe("claude-api")?e??=p():void 0}`, and `p()` returns `[{...d,isEnabled:...}]` where `d` is built at run time by `claudeApiSkillDefinition`, loaded from another module through `import.meta.require`: a per-session getter over a runtime-built object | `inventory.py --binary-only` on the 2.1.312 linux-x64 native build: `partial: ["skills"]`, `skills: []` | 2026-10-28, Claude Code 2.1.312 | the field becomes an array of object literals, or the advisory names another field of it |
 
 ### 12. Resolve bindings with a parser, when selected
 
@@ -453,24 +461,54 @@ member write of a trusted name, a write whose computed key may be one, a trusted
 string or `Symbol.x` argument to any call, an object literal holding one given to
 `Object.assign`, `defineProperties` or `setPrototypeOf`, a definer (`Object.defineProperty`,
 `Reflect.set`, `__defineGetter__`) given a key that may be one or read other than as a direct
-callee, an alias of `Object` or `Reflect`, a prototype swap (`__proto__=`, `setPrototypeOf`), and a
-write to an undeclared name that is a trusted one (`Promise=f`). A key is a name when it is a
-string, a template without substitutions, or `Symbol.x`. A computed key is known when every value
-it can take is: a literal, a number (arithmetic, `++`, unary minus), a boolean or `typeof`
-result, or a variable each write of which is one of those, so a loop counter (`o[i]=`) or a
-TypeScript enum (`e[e.X=1]=`) writes no trusted name; any other key may write every one. A target
-is cleared only when it is provably fresh: a literal or a function (never a call result, not even
-`Object.create(...)`, which can be replaced); `this` in the constructor of a class with no
-superclass (a derived class's `this` is whatever `super()` returns); a variable that only ever
-holds one of those; or the `prototype` of a function or class declared in the module whose every
-reference is `F.prototype.k` with a named key other than `constructor` (a call, `new`, or
-`F.prototype.constructor` leads back to F, which could replace it). `Reflect.set`'s receiver, when
-given, must be fresh too. A module that does not parse or calls `eval` is a sink, and so is code
-built from a string: global `eval` other than a direct call, the global `Function` used other
+callee, an alias of `Object` or `Reflect` (a destructuring declarator is none when each definer it
+takes, as in `var{defineProperty:f}=Object`, is never written again and only called, each call
+then checked as that definer's, and every other key it takes is a static that defines nothing
+and hands out no code, such as `getPrototypeOf` or `keys`), a prototype swap (`__proto__=`,
+`setPrototypeOf`, and a `__proto__` set through `Reflect.set(o,"__proto__",p)` or an own
+`__proto__` property given to `Object.assign`, as in `{["__proto__"]:p}`), and a write to
+an undeclared name that is a trusted one (`Promise=f`). A key is a name when it is a string, a
+template without substitutions, or `Symbol.x`. A computed key is known when every value it can
+take is: a literal, a number (arithmetic, `++`, unary minus), a boolean or `typeof` result, or a
+variable each write of which is one of those, so a loop counter (`o[i]=`) or a TypeScript enum
+(`e[e.X=1]=`) writes no trusted name; any other key may write every one. A target is cleared only
+when it is provably fresh: a literal, a function, or `new` of a class declared in the module with
+no superclass and no constructor returning a value; `new` of a built-in constructor named by its
+unshadowed global name (`Error` and the other native errors, `Map`, `Set`, `WeakMap`, `WeakSet`),
+which trusts that name; a call of the global `Object.create`, or the object an `Object` definer
+returns, which trusts `Object` and `create` or the definer's name, since any of them can be
+replaced first; `this` in the constructor of a class with no superclass, or in a function every
+reference to which binds it to a fresh object (`r.bind(b,c)`, trusting `bind`). A derived class's
+`this` is whatever `super()` returns, so it is fresh only in a class extending one of those
+built-ins, trusting that name; `new` of such a class is fresh the same way. `super()` calls the
+class's own prototype, so the class counts only while every reference to it is a `new`, a named
+member read that writes nothing, the right of `instanceof`, a superclass or an `export{...}`.
+These hand the class on only as `new.target`, an instance's `constructor`, `this` in a getter or
+method, or an importer's binding, none of which is a fresh target, so a prototype swap through
+one is a sink. Also fresh: a `?:` whose branches both are; a variable
+that only ever holds one of those, or is assigned one before any read in its own function; the
+`prototype` of a function or class declared in the module whose every reference is `F.prototype.k`
+with a named key other than `constructor` (a call, `new`, or
+`F.prototype.constructor` leads back to F, which could replace it); and a parameter never written,
+when every call of its function passes one (not followed for a function that reads `arguments` or
+is declared in a block, which sloppy code can change or call unseen). For an exported function
+those calls include every importer's: `sinks` holds the hit as pending, and it clears only when
+each module importing the export calls it directly with a fresh argument (the helper's
+`fresh_args` op), none re-exports it, and no module loads its file whole or loads a file the
+parser cannot name. Every module is then checked for the names the cleared targets trusted as
+well. `Reflect.set`'s receiver, when given, must be fresh too. A module that does not parse or
+calls `eval` is a sink, and so is code built from a string: global `eval` other than a direct
+call, the global `Function` used other
 than for `typeof`, `instanceof`, a `.prototype` read that cannot reach `constructor` (every
 further member, past any call on the way, names another key, a computed one known not to spell
 it, and the chain ends discarded, tested, compared or written, never held, passed on or the left
-of `instanceof`) or a build cleared below, any member named `eval` or `Function`, and node:vm,
+of `instanceof`) or a build cleared below, any member named `eval` or `Function`, a read of
+`constructor` (by name, by a computed key that may spell it, as an unknown key does while a loop
+counter does not, or as a destructured key; every
+function's `constructor` is `Function`, as in `(()=>0).constructor("...")()`) other than one that
+is discarded, tested, compared with `===` or `!==`, the right of `instanceof`, or followed by a
+`.name` read or a plain `.prototype` write, since coercing it or writing a key it lacks runs a
+method with it as `this`; and node:vm,
 since code in a new context still reaches this realm (`this.constructor.constructor("...")()`
 inside `runInNewContext`): any load of `vm` or `node:vm` except an import naming only
 `isContext`, and a runner's name
@@ -485,21 +523,25 @@ workflow runtime, the plugin loader, a test kit). A load the scan cannot name (b
 
 `Function(...)` and `new Function(...)` build a function from strings and run none of its body;
 only a call runs it. So a use of the global `Function` is no sink when the function it builds is
-discarded (an expression statement, or a sequence operand other than the last, as in
-`try{return new Function(""),!0}catch(e){return!1}`), nor when it is called directly
+discarded (an expression statement, a sequence operand other than the last, as in
+`try{return new Function(""),!0}catch(e){return!1}`, or a conditional branch or the right
+operand of a logical expression whose own value is discarded), nor when it is called directly
 (`Function("return this")()`) with every argument a string literal or a template without
 substitutions and the code those spell, parsed with acorn as an unnamed function expression in a
 module, holds no sink by this same rule (followed up to 4 folds deep). The module goal rejects
 what only sloppy code allows (`with`) and parses the rest the same, except an HTML-like comment,
 so text holding `<!--` or `-->` is not folded. `test_reader_findings` pins the three shapes #9983 reports
 on 2.1.310 (lodash's probe, the `new Function("")` probe, an unused syntax check) as clearing;
-ajv's generated code is no constant and stays a sink. Any other use stays a sink: a stored function
+ajv's generated code is no constant and stays a sink. Folded code that loads a file
+(`import("...")`, `require("...")`) is a sink too, since the bundle's load scan never reads it.
+Any other use stays a sink: a stored function
 (`var F=Function("...");F()`), a body that is no constant (`Function(s)()`), `.call` or `.apply`
 on the result. The folded calls trust the global `Function` itself, so the rule counts `Function`
 among the trusted names: a write of it (`Function=g`, `globalThis.Function=g`), a definer given
 the key `"Function"`, or a computed key that may spell it, in any module, is a sink. Another call
 given the string (`tagTester("Function")`) is not: a callee that could write it by its parameter
-holds a computed write of its own.
+holds a computed write of its own. `Object` and the built-in constructors above count the same
+way.
 
 The bundle is not a closed world: a module can be loaded whole as a namespace, where a computed
 read (`N[k]`) or an enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches an export
@@ -525,8 +567,27 @@ behind a comma, or called with no literal; a computed member or destructured key
 as the sink rule reads a computed key, is unknown or may be `require`, as in `module[k]`,
 `x["req"+"uire"]` and `{[k]:r}=globalThis`, other than the target of a plain `o[k]=v`) could
 load any file whole, so any such module fails every export hop; `typeof require`,
-`require.resolve` and a binding named `require` do not count. A computed read whose key is a
+`require.resolve`, a binding named `require`, and a `.require` member read that is only tested
+(a `&&` operand other than the last, an `if`, loop or `?:` test, a `!` operand, as in lodash's
+`w&&w.require&&w.require("util")`) do not count. A computed read whose key is a
 parameter, a `for in` key or a string built with `+` is unknown, so a module holding one counts.
+A template `import()` whose specifier starts with a bare package name
+(`` import(`@withfig/autocomplete/build/${e}.js`) ``) counts too: no source read shows that a bare
+specifier cannot reach a file embedded in the executable (pointer: Bun's
+[standalone executables](https://bun.com/docs/compiler/executables#embed-directories) page, as of
+2026-10-29; recheck when it documents how a bare specifier resolves inside a compiled executable).
+
+A named loader is followed instead: an alias of `import.meta.require` or `require` that a
+module-scope declarator initializes, never written again and exported by name other than
+`default` (Bun's runtime chunk: `var Fe=import.meta.require;export{...,Fe}`, the helper's
+`aliases`). Every import of an exported alias name, in any module, holds the loader. A call of it
+with a literal specifier loads that file whole, followed by the `namespace` op like
+`require(...)`, and a literal `vm` or `node:vm` is a sink. Any other use (a call with no literal,
+an alias, an escape, a re-export, in an importer or the runtime chunk) counts as a load the scan
+cannot name, in the sink rule too. The alias stays such a load when Bun's module table names no
+file for its module or any module loads that file whole, since `R.Fe(s)` on a namespace of it
+reaches the alias unseen.
+
 On 2.1.284 to 2.1.288 the chunk
 re-exporting the Explore and Plan array as `ARTIFACT_FAMILY_TOOL_NAMES` is loaded whole 13 to 14
 times, each read by name, but on 2.1.288 3 modules hold a load the scan cannot name without a
@@ -536,8 +597,13 @@ Stated assumptions, not checked:
 
 - Code built from strings is not analyzed, only counted as a sink (above), except a direct call
   of `Function` on constant strings, whose code is scanned as written.
-- Every function's `constructor` is `Function`, and only `Function.prototype` is checked for a
-  read of it: `(()=>0).constructor("...")()` builds code no rule counts.
+- An accessor or definer read off a prototype as a value is not followed:
+  `Object.getOwnPropertyDescriptor(Object.prototype,"__pro"+"to__").set` hands out the
+  `__proto__` setter, which swaps any object's prototype when called, and the same read of
+  `__defineGetter__` hands out a definer that takes any key. Neither read is counted.
+- `Function` and its `constructor` reached only reflectively are not counted: a key handed to a
+  call (`Reflect.get(f,"constructor")`), a property descriptor, or an enumeration of a
+  prototype's keys.
 - An array method a JavaScriptCore build adds that V8's `Array.prototype` lacks is read as
   throwing by the method rule.
 - A spread is a copy of the elements, the reading both readers rest on: the sink rule does not

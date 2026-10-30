@@ -340,6 +340,7 @@ class TestExportBrief(SessionCase):
                 "## Brief",
                 "### TLDR",
                 "### Problem",
+                "### Intent",
                 "### Goal",
                 "### Work size",
                 "### Constraints",
@@ -351,14 +352,15 @@ class TestExportBrief(SessionCase):
             ],
         )
         self.assertIn("Export test", text)
-        self.assertIn("risk: Unticked promise (unconfirmed)", text)
+        # Q1's own answer replaced the recommendation, so its commitment is no risk.
+        self.assertNotIn("Unticked promise", text)
         self.assertRegex(text, r"- Q2: .*\*\*arbiter: USER-RESERVED\*\*")
         self.assertTrue(text.rstrip().endswith("## Plan"))
         self.assertNotIn("superseded-by-plan", text)
         # Field labels from context/problem-framing.md "Problem fields" and "Work size".
         self.assertIn(
             "### Problem\n\n- Gap: unknown\n- Who / how many: unknown\n- Frequency: unknown\n"
-            "- Trend: unknown\n- Cost: unknown\n- Evidence: unknown\n\n### Goal",
+            "- Trend: unknown\n- Cost: unknown\n- Evidence: unknown\n\n### Intent",
             text,
         )
         self.assertIn(
@@ -550,11 +552,12 @@ class TestExportBrief(SessionCase):
         text, section = self.acceptance_section("# Sneaky\n```\n~~~")
         headings = [x for x in text.splitlines() if x.startswith("#")]
         self.assertEqual(
-            headings[:7],
+            headings[:8],
             [
                 "## Brief",
                 "### TLDR",
                 "### Problem",
+                "### Intent",
                 "### Goal",
                 "### Work size",
                 "### Constraints",
@@ -571,15 +574,39 @@ class TestExportBrief(SessionCase):
         self.assertEqual(rc, 0, out)
         self.assertIn("brief=ok", out)
 
-    def test_confirmed_commitment_is_an_assumption_and_archived_is_out_of_scope(self):
+    def test_confirmed_commitment_stays_on_its_decision_and_archived_is_out_of_scope(self):
         self.decided()
         text = self.export("brief").read_text(encoding="utf-8")
         assumptions = text.split("### Captured assumptions")[1].split("###")[0]
-        self.assertIn("One writer only", assumptions)
-        self.assertIn("No network: confirmed on Q1", assumptions)
-        self.assertNotIn("risk:", assumptions)
+        self.assertEqual(assumptions.strip(), "- none")
+        constraints = text.split("### Constraints")[1].split("###")[0]
+        self.assertIn("confirmed: One writer only; No network", constraints)
         scope = text.split("### Out-of-scope")[1].split("###")[0]
         self.assertIn("Off the chosen path.", scope)
+
+    COVERAGE = "Are the criteria missing an unwanted-behavior case and a state-driven case?"
+
+    def with_coverage_prompt(self, events):
+        """Q1 accepted, then the coverage prompt posted in Notes with needsAnswer, then events."""
+        self.session([question("Q1")], [event(1, "Q1", "accept"), *events])
+        path = self.dir / "questions.json"
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        doc["notes"] = [
+            {"at": "2026-09-24T10:05:00Z", "by": "claude", "text": self.COVERAGE, "needsAnswer": True}
+        ]
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        text = self.export("brief").read_text(encoding="utf-8")
+        return text.split("### Captured assumptions")[1].split("###")[0]
+
+    def test_an_unanswered_notes_ask_is_reported_under_captured_assumptions(self):
+        before = {**event(2, None, "note", text="An earlier note."), "at": "2026-09-24T10:01:00Z"}
+        assumptions = self.with_coverage_prompt([before])
+        self.assertIn(f"- asked in Notes, not answered: {self.COVERAGE}\n", assumptions)
+
+    def test_an_answered_notes_ask_is_not_reported(self):
+        reply = {**event(2, None, "note", text="Neither applies."), "at": "2026-09-24T10:06:00Z"}
+        assumptions = self.with_coverage_prompt([reply])
+        self.assertNotIn("asked in Notes", assumptions)
 
 
 LEDGER_HEAD = "# Interview ledger\n\n## Open-question register\n\n"
@@ -858,6 +885,35 @@ class TestBriefRestatements(SessionCase):
         )
         self.assertEqual(self.section(text, "Work size"), ["- Size: Small"])
 
+    def test_restated_tldr_leads_the_tldr_ahead_of_the_counts(self):
+        tldr = ["- Ships the build cache", "- Leaves remote caching out"]
+        text = self.brief(
+            [self.rev(1, goal="Ship it.", acceptance="- it ships", tldr="\n".join(tldr))],
+            [self.confirm(2, 1)],
+        )
+        lines = self.section(text, "TLDR")
+        self.assertEqual(lines[:2], tldr)
+        self.assertTrue(lines[2].startswith("- 2 questions:"), lines)
+        rc, out = self.check(
+            "--ledger", self.export("ledger"), "--brief", self.export("brief")
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertIn("brief=ok", out)
+
+    def test_every_restatement_section_reaches_the_brief(self):
+        schema = json.loads(
+            (HERE / "schema" / "questions.schema.json").read_text(encoding="utf-8")
+        )
+        keys = sorted(schema["$defs"]["sections"]["properties"])
+        self.assertEqual(len(keys), 11, keys)
+        text = self.brief(
+            [self.rev(1, **{k: f"- marker {k} text" for k in keys})],
+            [self.confirm(2, 1)],
+        )
+        for k in keys:
+            with self.subTest(section=k):
+                self.assertIn(f"marker {k} text", text)
+
     def test_restated_deferred_planning_owned_and_decisions_reach_the_brief(self):
         deferred = ["Q3: moderation model, defer until after V1", "offline mode"]
         owned = ["cache key layout", "Q4: retry budget"]
@@ -971,6 +1027,7 @@ class TestBriefRestatements(SessionCase):
                 self.rev(
                     1,
                     problem="# Sneaky problem",
+                    intent="# Sneaky intent",
                     goal="# Sneaky goal",
                     workSize="```\n### Sneaky size",
                     constraints="# Sneaky\n```\n~~~",
@@ -980,7 +1037,7 @@ class TestBriefRestatements(SessionCase):
             [self.confirm(2, 1)],
         )
         headings = [x for x in text.splitlines() if x.startswith("#")]
-        self.assertEqual(len(headings), 11, headings)
+        self.assertEqual(len(headings), 12, headings)
         self.assertFalse(
             any(x.startswith(("```", "~~~", "# Sneaky")) for x in text.splitlines())
         )
@@ -1129,6 +1186,60 @@ class TestBriefDecisionsOnce(SessionCase):
         self.assertIn("- Q4 Short Q4: accepted: Recommended answer for Q4.", constraints)
 
 
+class TestChangedRowsRecap(SessionCase):
+    """confirmation_recap with `since` lists only the rows changed since that recap, plus a
+    count per status for the rest; with no data dir it reads the ledger text alone."""
+
+    LEDGER = (
+        "# Interview ledger\n\n## Open-question register\n\n"
+        "- Q1 | answered | round 1 | Share the cache? | answer:: accepted: share it\n"
+        "- Q2 | open | round 1 | Which runner image? |\n"
+        "- Q3 | withdrawn | round 2 | Split the job? | answer:: archived: folded into Q1\n"
+    )
+
+    def test_the_ledger_alone_gives_one_line_per_row(self):
+        recap, fits = exporters.confirmation_recap(None, 20000, self.LEDGER)
+        self.assertTrue(fits)
+        self.assertEqual(
+            recap.splitlines(),
+            [
+                "Q1 answered: Share the cache? (accepted: share it)",
+                "Q2 open: Which runner image? ()",
+                "Withdrawn (1): Q3",
+            ],
+        )
+
+    def test_only_changed_rows_are_listed_and_the_rest_counted(self):
+        since = exporters.recap_state(exporters.recap_rows(None, self.LEDGER))
+        changed = self.LEDGER.replace(
+            "Which runner image? |", "Which runner image? | the slim image"
+        ).replace("- Q2 | open", "- Q2 | answered")
+        recap, _ = exporters.confirmation_recap(None, 20000, changed, since)
+        self.assertEqual(
+            recap.splitlines(),
+            [
+                "Q2 answered: Which runner image? (the slim image)",
+                "Unchanged since the last recap (2): 1 answered, 1 withdrawn",
+            ],
+        )
+        recap, _ = exporters.confirmation_recap(None, 20000, self.LEDGER, since)
+        self.assertEqual(
+            recap, "Unchanged since the last recap (3): 1 answered, 1 open, 1 withdrawn\n"
+        )
+
+    def test_a_page_answer_since_the_last_recap_is_the_changed_row(self):
+        qs = [question(f"Q{i}") for i in (1, 2, 3)]
+        self.session(qs, [event(1, "Q1", "accept")])
+        since = exporters.recap_state(exporters.recap_rows(self.dir))
+        self.session(qs, [event(1, "Q1", "accept"), event(2, "Q2", "alt", alt="a")])
+        recap, fits = exporters.confirmation_recap(self.dir, 20000, since=since)
+        self.assertTrue(fits)
+        lines = recap.splitlines()
+        self.assertEqual(len(lines), 2, lines)
+        self.assertTrue(lines[0].startswith("Q2 answered: "), lines)
+        self.assertEqual(lines[1], "Unchanged since the last recap (2): 1 answered, 1 open")
+
+
 class TestSupersededCommitments(SessionCase):
     """A commitment list a later revise replaced never reaches the Brief."""
 
@@ -1137,9 +1248,23 @@ class TestSupersededCommitments(SessionCase):
             [question("Q1", commits=["PR 1 ships the parser", "PR 6 ships docs"])],
             [event(1, "Q1", "accept"), event(2, "Q1", "confirm", alt="0")],
         )
-        rc, out = self.rp(
-            "revise", "Q1", "--commit", "One PR ships everything", "--force"
+        ops = self.tmp / "revise.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "ops": [
+                        {
+                            "op": "revise",
+                            "id": "Q1",
+                            "commits": ["One PR ships everything"],
+                            "force": True,
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
         )
+        rc, out = self.rp("apply", "--file", str(ops))
         self.assertEqual(rc, 0, out)
         text = self.export("brief").read_text(encoding="utf-8")
         self.assertIn("risk: One PR ships everything (unconfirmed); from Q1", text)
@@ -1159,7 +1284,14 @@ class TestResolvedOwnAnswer(SessionCase):
             [question("Q1", commits=["Measure at p75"]), question("Q2")],
             [event(1, "Q1", "own", text=self.TYPED), event(2, "Q2", "accept")],
         )
-        rc, out = self.rp("reply", "Q1", "--resolution", self.READ)
+        ops = self.tmp / "reply.json"
+        ops.write_text(
+            json.dumps(
+                {"ops": [{"op": "reply", "id": "Q1", "resolution": self.READ}]}
+            ),
+            encoding="utf-8",
+        )
+        rc, out = self.rp("apply", "--file", str(ops))
         self.assertEqual(rc, 0, out)
 
     def row(self, ledger):
@@ -1227,6 +1359,151 @@ class TestResolvedOwnAnswer(SessionCase):
         self.assertNotIn(self.READ, row)
 
 
+class TestBriefIntent(SessionCase):
+    """The Brief's Intent, above its Goal: the restated intent paragraph, then the user's own
+    words from each live ask, note and own event and each note typed on a choice; an answered
+    row's basis is its `why:` line."""
+
+    INTENT = "Ship it so I stop babysitting builds."
+
+    def section(self, text, name):
+        return text.split(f"### {name}\n")[1].split("###")[0].strip().splitlines()
+
+    def test_intent_holds_the_live_asks_and_note_verbatim_before_the_goal(self):
+        events = [
+            event(1, "Q1", "ask", text="Does the cache survive a runner restart?"),
+            event(2, None, "note", text="I mostly care about the nightly job | not PRs."),
+            {**event(3, "Q2", "ask", text="Skip the cache entirely?"), "withdrawn": True},
+            event(4, "Q2", "ask", text="Which bucket holds it?"),
+            event(5, "Q3", "own", text="Keep it on local disk."),
+        ]
+        events, revs = confirmed(events, intent=self.INTENT)
+        self.session([question(f"Q{i}") for i in (1, 2, 3)], events, restatements=revs)
+        text = self.export("brief").read_text(encoding="utf-8")
+        headings = [x for x in text.splitlines() if x.startswith("#")]
+        self.assertLess(headings.index("### Intent"), headings.index("### Goal"))
+        self.assertEqual(
+            self.section(text, "Intent"),
+            [
+                self.INTENT,
+                "",
+                "- Q1 asked: Does the cache survive a runner restart?",
+                "- note: I mostly care about the nightly job | not PRs.",
+                "- Q2 asked: Which bucket holds it?",
+                "- Q3 own answer: Keep it on local disk.",
+            ],
+        )
+        self.assertNotIn("Skip the cache entirely?", text)
+
+    def test_an_undone_own_answer_is_left_out_and_no_intent_reads_none_stated(self):
+        events = [
+            event(1, "Q1", "own", text="First try."),
+            {**event(2, "Q1", "undo"), "undoSeq": 1},
+            event(3, "Q1", "own", text="Second try."),
+        ]
+        self.session([question("Q1")], events)
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertEqual(
+            self.section(text, "Intent"),
+            ["none stated", "", "- Q1 own answer: Second try."],
+        )
+        self.assertNotIn("First try.", text)
+
+    def test_a_note_typed_on_a_choice_is_listed_once_and_a_bare_choice_is_not(self):
+        events = [
+            event(1, "Q1", "ask", text="Does it cover forks?"),
+            event(2, "Q2", "accept", text="Fine  for\nnow."),
+            event(3, "Q3", "alt", alt="b", text="Only on weekends."),
+            event(4, "Q4", "hedged", text="Only if the lock is cheap."),
+            event(5, "Q5", "accept"),
+            event(6, "Q6", "own", text="Keep it on local disk."),
+            event(7, "Q3", "alt", alt="b", text="Only on weekends."),
+        ]
+        self.session([question(f"Q{i}") for i in range(1, 7)], events)
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertEqual(
+            self.section(text, "Intent"),
+            [
+                "none stated",
+                "",
+                "- Q1 asked: Does it cover forks?",
+                "- Q2 accepted with note: Fine for now.",
+                "- Q3 chose (b) with note: Only on weekends.",
+                "- Q4 accepted on condition: Only if the lock is cheap.",
+                "- Q6 own answer: Keep it on local disk.",
+            ],
+        )
+
+    def test_a_repeated_ask_or_note_is_listed_each_time(self):
+        events = [
+            event(1, "Q1", "ask", text="Why?"),
+            event(2, None, "note", text="Nightly only."),
+            event(3, "Q1", "ask", text="Why?"),
+            event(4, None, "note", text="Nightly only."),
+        ]
+        self.session([question("Q1")], events)
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertEqual(
+            self.section(text, "Intent"),
+            [
+                "none stated",
+                "",
+                "- Q1 asked: Why?",
+                "- note: Nightly only.",
+                "- Q1 asked: Why?",
+                "- note: Nightly only.",
+            ],
+        )
+
+    def test_the_note_that_gave_the_intent_is_not_repeated(self):
+        events = [
+            event(1, None, "note", text="Ship it  so I stop\nbabysitting builds."),
+            event(2, None, "note", text="Nightly only."),
+        ]
+        events, revs = confirmed(events, intent=self.INTENT)
+        self.session([question("Q1")], events, restatements=revs)
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertEqual(
+            self.section(text, "Intent"), [self.INTENT, "", "- note: Nightly only."]
+        )
+
+    def test_an_answered_row_with_a_basis_exports_a_why_line(self):
+        basis = "The runner disk is wiped nightly."
+        events, revs = confirmed(
+            [
+                event(1, "Q1", "accept"),
+                event(2, "Q2", "accept"),
+                event(3, "Q3", "accept"),
+                event(4, "Q4", "alt", alt="a"),
+            ],
+            constraints="- Q2 accepted: Recommended answer for Q2.",
+        )
+        self.session(
+            [
+                question("Q1", basis=basis),
+                question("Q2", basis="Shared buckets leak between forks."),
+                question("Q3"),
+                # The basis argues for the recommendation, which an alternative turned down.
+                question("Q4", basis="Why the recommendation wins."),
+            ],
+            events,
+            restatements=revs,
+        )
+        text = self.export("brief").read_text(encoding="utf-8")
+        constraints = self.section(text, "Constraints")
+        self.assertEqual(
+            constraints,
+            [
+                "- Q2 accepted: Recommended answer for Q2.",
+                "- Q1 Short Q1: accepted: Recommended answer for Q1.",
+                f"  - why: {basis}",
+                "- Q2 why: Shared buckets leak between forks.",
+                "- Q3 Short Q3: accepted: Recommended answer for Q3.",
+                "- Q4 Short Q4: alt a: Alt a of Q4",
+            ],
+        )
+
+
 class TestConfirmsAgainstAnEarlierList(unittest.TestCase):
     def test_a_confirm_at_or_below_commits_since_seq_does_not_tick(self):
         q = question("Q1", commits=["A", "B"], commitsSinceSeq=5)
@@ -1248,7 +1525,8 @@ class TestConfirmedInTheTerminal(SessionCase):
         self.session(qs, [event(1, "Q1", "accept"), event(2, "Q1", "confirm", alt="0")])
         brief = self.export("brief").read_text(encoding="utf-8")
         self.assertIn("- 2 commitments confirmed; 0 unconfirmed", brief)
-        self.assertIn("- No network: confirmed on Q1", brief)
+        self.assertIn("confirmed: One writer only; No network", brief)
+        self.assertNotIn("confirmed on Q1", brief)
         [row] = register_rows(self.export("ledger"))
         self.assertIn("commitments:: +One writer only; +No network", row)
 
@@ -1323,9 +1601,10 @@ class TestAcceptAuditExport(SessionCase):
 
 
 class TestCommitmentsCarriedByAnswerKind(SessionCase):
-    """Q24: accept and own carry a recommendation's commitments; alt and defer carry none."""
+    """Accept and hedged carry a recommendation's commitments; an own answer and an alt replace
+    the recommendation and carry none, and a defer carries none."""
 
-    def test_only_accept_and_own_carry_risks(self):
+    def test_only_accept_carries_risks(self):
         qs = [question(f"Q{i}", commits=[f"Part of Q{i}"]) for i in range(1, 5)]
         events = [
             event(1, "Q1", "accept"),
@@ -1335,15 +1614,33 @@ class TestCommitmentsCarriedByAnswerKind(SessionCase):
         ]
         self.session(qs, events)
         brief = self.export("brief").read_text(encoding="utf-8")
-        self.assertIn("- 0 commitments confirmed; 2 unconfirmed", brief)
+        self.assertIn("- 0 commitments confirmed; 1 unconfirmed", brief)
         self.assertIn("- risk: Part of Q1 (unconfirmed); from Q1", brief)
-        self.assertIn("- risk: Part of Q3 (unconfirmed); from Q3", brief)
-        self.assertNotIn("Part of Q2", brief)
-        self.assertNotIn("Part of Q4", brief)
+        for n in (2, 3, 4):
+            self.assertNotIn(f"Part of Q{n}", brief)
         report = self.export("report").read_text(encoding="utf-8")
         risks = report.split("<h2>Named risks</h2>", 1)[1]
         self.assertIn("Part of Q1", risks)
         self.assertNotIn("Part of Q2", risks)
+        self.assertNotIn("Part of Q3", risks)
+
+    def test_an_own_answer_drops_a_ticked_commitment_of_the_recommendation_it_replaced(self):
+        qs = [question("Q1", commits=["Cleanup runs after the nightly report"])]
+        events = [
+            event(1, "Q1", "accept"),
+            event(2, "Q1", "confirm", alt="0"),
+            event(3, "Q1", "own", text="Run it at 03:00, after backups finish."),
+        ]
+        self.session(qs, events)
+        brief = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("- 0 commitments confirmed; 0 unconfirmed", brief)
+        self.assertIn("free-text: Run it at 03:00, after backups finish.", brief)
+        self.assertNotIn("nightly report", brief)
+        # The ledger keeps the tick, so an import restores it.
+        self.assertIn(
+            "commitments:: +Cleanup runs after the nightly report",
+            register_rows(self.export("ledger"))[0],
+        )
 
 
 class TestAutoHandledAccepts(SessionCase):
@@ -1555,7 +1852,8 @@ class TestReadableResolutions(SessionCase):
         self.assertNotIn("Q1", constraints)
         scope = brief.split("### Out-of-scope")[1].split("###")[0]
         self.assertIn(f"- Q5 Question Q5?: {plain[4]}\n", scope)
-        self.assertIn("- One / writer; only: confirmed on Q1;", brief)
+        self.assertNotIn("confirmed on Q1", brief)
+        self.assertIn("- Q1 confirmed so far: One / writer; only\n", brief)
         self.assertIn("- risk: No network (unconfirmed); from Q1\n", brief)
         report = self.export("report").read_text(encoding="utf-8")
         cells = [html.unescape(c) for c in re.findall(r"<td>([^<]*)</td></tr>", report)]
@@ -3824,7 +4122,8 @@ class TestResumedState(SessionCase):
         self.assertIn(
             "- 1 commitment confirmed; 1 unconfirmed, carried as named risks", brief
         )
-        self.assertIn("- One writer: confirmed on Q1; revisit if Q1 changes\n", brief)
+        self.assertNotIn("revisit if Q1", brief)
+        self.assertIn("- Q1 confirmed so far: One writer\n", brief)
         self.assertIn("- risk: No network (unconfirmed); from Q1\n", brief)
 
     # Every combination: seed x hold x decision x commitment set, one question each.
@@ -4096,9 +4395,23 @@ class TestUntickedCommitmentGate(SessionCase):
             ]
         )
         self.assertEqual(self.gate(), 0)
-        rc, out = self.rp(
-            "revise", "Q1", "--commit", "Two writers", "--commit", "Online", "--force"
+        ops = self.tmp / "revise.json"
+        ops.write_text(
+            json.dumps(
+                {
+                    "ops": [
+                        {
+                            "op": "revise",
+                            "id": "Q1",
+                            "commits": ["Two writers", "Online"],
+                            "force": True,
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
         )
+        rc, out = self.rp("apply", "--file", str(ops))
         self.assertEqual(rc, 0, out)
         self.assertEqual(
             self.row(),

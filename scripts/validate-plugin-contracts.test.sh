@@ -74,7 +74,7 @@ reset_fixture() {
 # arguments it still carries one unrelated row, so an empty table is only ever
 # asserted deliberately.
 write_registry() {
-  mkdir -p "$TMP/docs/conventions/config-cascade"
+  mkdir -p "$TMP/docs/contracts/config-cascade"
   {
     echo '# Consumer config cascade (fixture)'
     echo
@@ -96,7 +96,7 @@ write_registry() {
     echo '### Overlay spelling drift'
     echo
     echo 'Prose after the table.'
-  } >"$TMP/docs/conventions/config-cascade/README.md"
+  } >"$TMP/docs/contracts/config-cascade/README.md"
 }
 
 # make_plugin <name> <user-config-keys> -- an empty string declares no
@@ -178,7 +178,7 @@ fi
 #         it, the shape the shipping "`standards` (`planning`, `review`)" row
 #         takes. Every backticked token in the cell is an owner. -------------
 reset_fixture
-mkdir -p "$TMP/docs/conventions/config-cascade"
+mkdir -p "$TMP/docs/contracts/config-cascade"
 {
   echo '# Consumer config cascade (fixture)'
   echo
@@ -187,7 +187,7 @@ mkdir -p "$TMP/docs/conventions/config-cascade"
   echo '| Surface | Consumer config path | Layers | Conformance |'
   echo '|---|---|---|---|'
   echo '| `a-shared-surface` (`alpha`, `gamma`) | `.claude/shared.yaml` | all three | conforms |'
-} >"$TMP/docs/conventions/config-cascade/README.md"
+} >"$TMP/docs/contracts/config-cascade/README.md"
 make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha '[check]'
 out="$(run_fixture)"
@@ -195,6 +195,26 @@ if has_fail_line "$OWNS_TRACKED_CONFIG"; then
   ok "a plugin named alongside the surface it co-owns is read out of the registry row"
 else
   fail "a co-owner named in the surface cell should not reach the carve-out: $out"
+fi
+
+# --- 2c. The registry moved to docs/contracts/config-cascade/ and left a stub
+#         with no Implementers table at docs/conventions/config-cascade/. The
+#         moved file is read: alpha is a registered owner, and the stub raises
+#         no missing-section failure. ---------------------------------------
+reset_fixture
+write_registry alpha
+mkdir -p "$TMP/docs/contracts"
+mv "$TMP/docs/conventions/config-cascade" "$TMP/docs/contracts/config-cascade"
+mkdir -p "$TMP/docs/conventions/config-cascade"
+printf '# Consumer config cascade (moved)\n\nThis contract now lives at docs/contracts/config-cascade/.\n' \
+  >"$TMP/docs/conventions/config-cascade/README.md"
+make_plugin alpha alpha_api_key
+carve_out_body | write_setup_skill alpha '[check]'
+out="$(run_fixture)"
+if has_fail_line "$OWNS_TRACKED_CONFIG" && ! grep -q 'must carry an "## Implementers" section' <<<"$out"; then
+  ok "the registry is read from docs/contracts/, not the stub left at docs/conventions/"
+else
+  fail "the moved registry should be read, not the stub: $out"
 fi
 
 # --- 3. Mentioning apply in prose is not a carve-out declaration:
@@ -306,9 +326,9 @@ fi
 
 # --- 7. Present but restructured: the Implementers section is gone. ---------
 reset_fixture
-mkdir -p "$TMP/docs/conventions/config-cascade"
+mkdir -p "$TMP/docs/contracts/config-cascade"
 printf '# Consumer config cascade (fixture)\n\nNo Implementers section here.\n' \
-  >"$TMP/docs/conventions/config-cascade/README.md"
+  >"$TMP/docs/contracts/config-cascade/README.md"
 make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha '[check]'
 out="$(run_fixture)"
@@ -322,7 +342,7 @@ fi
 reset_fixture
 # Drop the one unrelated row's section so the Implementers table is genuinely
 # empty rather than merely narrow.
-mkdir -p "$TMP/docs/conventions/config-cascade"
+mkdir -p "$TMP/docs/contracts/config-cascade"
 {
   echo '# Consumer config cascade (fixture)'
   echo
@@ -330,7 +350,7 @@ mkdir -p "$TMP/docs/conventions/config-cascade"
   echo
   echo '| Surface | Consumer config path | Layers | Conformance |'
   echo '|---|---|---|---|'
-} >"$TMP/docs/conventions/config-cascade/README.md"
+} >"$TMP/docs/contracts/config-cascade/README.md"
 make_plugin alpha alpha_api_key
 carve_out_body | write_setup_skill alpha '[check]'
 out="$(run_fixture)"
@@ -1314,7 +1334,7 @@ fi
 # Empty fails; over budget and malformed warn without a failure bullet; a
 # conforming hint is silent. write_arg_body's "-" omits the key, so empty
 # hints are written as the literal quoted string.
-HINT_DOC='docs/conventions/argument-hint/README.md'
+HINT_DOC='docs/contracts/argument-hint/README.md'
 HINT_MALFORMED='argument-hint is malformed'
 
 hint_case() {
@@ -1519,7 +1539,7 @@ fi
 
 # --- 8e. Plugin names and option text. --------------------------------------
 # displayName fails; each title and description shape warns on its own line.
-OPT_DOC='docs/conventions/plugin-option-naming/README.md'
+OPT_DOC='docs/contracts/plugin-option-naming/README.md'
 
 # write_manifest <plugin> <extra-json-members> -- written verbatim after name.
 write_manifest() {
@@ -1554,6 +1574,44 @@ if has_fail_line 'plugin entry "optfix" must not set displayName' && ! grep -q '
   ok "a displayName in a marketplace entry fails, and only that entry"
 else
   fail "a displayName in a marketplace entry should fail for that entry only: $out"
+fi
+
+# core_case <core-entry-extra-json> <dependencies-json> -- catalog: on1 (no
+# defaultEnabled), on2 (true), off (false), and core.
+core_case() {
+  reset_fixture
+  mkdir -p "$TMP/.claude-plugin"
+  printf '{"plugins": [{"name": "on1", "source": "./plugins/on1"}, {"name": "on2", "source": "./plugins/on2", "defaultEnabled": true}, {"name": "off", "source": "./plugins/off", "defaultEnabled": false}, {"name": "core", "source": "./plugins/core"%s}]}\n' "$1" \
+    >"$TMP/.claude-plugin/marketplace.json"
+  write_manifest core ", \"dependencies\": $2"
+  out="$(run_fixture)"
+  rm -rf "$TMP/.claude-plugin"
+}
+core_case ', "defaultEnabled": false' '["on1", {"name": "on2"}]'
+if ! grep -qE 'must set "defaultEnabled": false|must equal the catalog' <<<"$out"; then
+  ok "a default-off core whose dependencies equal the default-on set passes"
+else
+  fail "a conforming core bundle should pass: $out"
+fi
+core_case '' '["on1", "on2"]'
+if has_fail_line 'plugin entry "core" must set "defaultEnabled": false'; then
+  ok "a core entry without defaultEnabled false fails"
+else
+  fail "a default-on core entry should fail: $out"
+fi
+core_case ', "defaultEnabled": false' '["on1", "off"]'
+if has_fail_line 'missing: on2; not default-on: off'; then
+  ok "core dependencies that differ from the default-on set fail, naming both sides"
+else
+  fail "core dependencies differing from the default-on set should fail: $out"
+fi
+# The core bundle's Done-when check, run on the real catalog: jq's `//` treats
+# false like a missing value, so the default-off entry still prints `absent`.
+done_when="$(jq -r '.plugins[] | select(.name == "core") | [.source, (.defaultEnabled // "absent")] | join(" ")' "$SCRIPT_DIR/../.claude-plugin/marketplace.json")"
+if [[ "$done_when" == "./plugins/core absent" ]]; then
+  ok "the catalog's core entry meets the issue's Done-when jq check"
+else
+  fail "the Done-when jq check should print './plugins/core absent': $done_when"
 fi
 
 # type<TAB>title<TAB>description: each conforming option draws nothing.
@@ -1708,7 +1766,7 @@ else
 fi
 
 # The shipping tree itself, clean and with zero warnings, is the job of
-# scripts/validate-plugins.sh in check-plugins, which runs this validator over
+# scripts/validate-plugins.sh in check-catalog, which runs this validator over
 # the whole tree on every pull request; run here, it read every plugin file.
 
 test_harness::report

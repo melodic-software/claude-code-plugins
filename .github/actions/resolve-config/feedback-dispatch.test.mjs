@@ -5,13 +5,13 @@
 // dispatches nothing when the slot is disabled. Lives here because it needs
 // resolve-config's dependencies.
 import assert from "node:assert/strict";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { main } from "../../scripts/pr-unblock/feedback-dispatch.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
 const REPOSITORY = "melodic-software/claude-code-plugins";
@@ -92,7 +92,7 @@ const withoutSlot = (text) =>
   );
 
 function baseWith(text) {
-  const base = mkdtempSync(join(tmpdir(), "feedback-dispatch-base-"));
+  const base = tempDir("feedback-dispatch-base-");
   for (const file of [
     "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
     ".github/standards/github-actions-conventions/vocabulary.json",
@@ -127,7 +127,8 @@ function fakes() {
         body: `<!-- claude-lane-reviewed-head lane=${lane} sha=${HEAD} -->`,
       })),
     listReviewThreads: async () => [
-      { isResolved: false, comments: { nodes: [{ author: CLAUDE }], pageInfo: { hasNextPage: false } } },
+      // A reviewer-bot finding on a review of the marked head.
+      { isResolved: false, comments: { nodes: [{ author: CLAUDE, pullRequestReview: { author: CLAUDE, commit: { oid: HEAD } } }], pageInfo: { hasNextPage: false } } },
     ],
     listCheckRuns: async () => [],
     listWorkflowRuns: async () => [],

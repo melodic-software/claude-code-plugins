@@ -1,0 +1,367 @@
+{
+  "$schema": "./artifact-retention.schema.json",
+  "families": {
+    "pr-verify-*": {
+      "retention-days": "max",
+      "readers": [
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py reads FAIL verdicts back to the pull request's creation, capped at TOO_OLD_DAYS (80), and PASS verdicts at the current head",
+        ".github/scripts/pr-merge/carry-run-cache.mjs RETENTION_DAYS (90) bounds the verdict runs it carries",
+        ".github/workflows/pr-require-checks.yml ci-status reads the PASS verdict at the head",
+        ".github/scripts/pr-verify/resolve-pr.mjs reads by exact name",
+        ".github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs reads by exact name",
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_skip.py reads the saved listing",
+        "scripts/credential-sweep.sh --since defaults to 90 days ago, GitHub's default artifact retention"
+      ],
+      "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+      "reason": "A FAIL verdict must outlive the 80-day FAIL look-back (babysit_verify_evidence.py TOO_OLD_DAYS = 80, ten days under 90): a shorter retention drops earlier FAILs, and the gate then stops refusing verify:earlier-fail and the FAIL cap. scripts/credential-sweep.sh also assumes 90-day artifacts. write-verdict.mjs retentionDays keeps FAIL at max and PASS or PASS-NOTES 30 days (an expired PASS fails closed as verify:missing); the row records the longest.",
+      "computed-by": ".github/scripts/pr-verify/write-verdict.mjs",
+      "uploads": [
+        ".github/workflows/pr-verify.yml#check-intent",
+        ".github/workflows/pr-verify.yml#check-intent-subscription",
+        ".github/workflows/pr-verify.yml#check-intent-fallback"
+      ]
+    },
+    "pr-review-main-*": {
+      "retention-days": "max",
+      "readers": [
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py _main_bound binds a lane-source pull request's lanes on these verdicts and counts the most findings any of them reported for the head's tree"
+      ],
+      "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py",
+      "reason": "A verdict that reported findings must outlive a later clean review of the same tree, or its expiry would lower the count the gate reads; the gate counts the most findings any unexpired verdict of the tree reported.",
+      "uploads": [
+        ".github/workflows/pr-review-main.yml#review",
+        ".github/workflows/pr-review-main.yml#review-subscription",
+        ".github/workflows/pr-review-main.yml#review-fallback"
+      ]
+    },
+    "pr-merge-dispatched-*": {
+      "retention-days": "max",
+      "readers": [
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py LANE_DISPATCH_ARTIFACT proves a lane dispatch covered a merge",
+        ".github/scripts/pr-merge/lane-records.mjs keeps the records the post-merge check proved"
+      ],
+      "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
+      "reason": "The post-merge check reads the dispatch record of every merge it judges, back to the merges it has not yet judged.",
+      "pending-cut": "Under owner review (poteto): about 5,660 artifacts at 90 days."
+    },
+    "pr-merge-rerun-*": {
+      "retention-days": "max",
+      "readers": [
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py LANE_RERUN_ARTIFACT, read back to merged_since with no age cap",
+        ".github/scripts/pr-merge/lane-records.mjs keeps the records the post-merge check proved"
+      ],
+      "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
+      "reason": "The post-merge check reads the lane's re-run record back to merged_since, with no age cap."
+    },
+    "pr-merge-alerted-*": {
+      "retention-days": 1,
+      "readers": [
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py LANE_ALERT_ARTIFACT (`--lane-alerted`), asked by .github/workflows/pr-merge.yml post-merge-dispatch only for full runs created within LOOKBACK_HOURS (6)"
+      ],
+      "reason": "Read back only for full runs created in the last 6 hours (pr-merge.yml LOOKBACK_HOURS), and each record is uploaded after its run was created; 1 day, the minimum, outlasts that window."
+    },
+    "pr-merge-post-merge-report": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-merge.yml later jobs of the same run",
+        ".github/scripts/pr-merge/rotation.mjs the newest trusted run's copy"
+      ],
+      "reason": "Read by its own run and the next run; 1 day is the minimum."
+    },
+    "pr-merge-gate-cursor": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/pr-merge/rotation.mjs CURSOR_ARTIFACT, from the newest trusted run"
+      ],
+      "reason": "Read by the next run; 1 day is the minimum."
+    },
+    "pr-merge-verify-listing": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/pr-merge/listing-carry.mjs LISTING_ARTIFACT, from the newest trusted run"
+      ],
+      "reason": "Read by the next run as its listing base; 1 day is the minimum."
+    },
+    "pr-merge-head-refs": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/pr-merge/head-ref-map.mjs MAP_ARTIFACT, from the newest trusted run"
+      ],
+      "reason": "Read by the next run; 1 day is the minimum."
+    },
+    "pr-merge-lane-records": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/pr-merge/lane-records.mjs RECORDS_ARTIFACT, from the newest trusted run"
+      ],
+      "reason": "Read by the next run; 1 day is the minimum."
+    },
+    "pr-merge-run-cache": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/pr-merge/carry-run-cache.mjs CARRY_ARTIFACT, from the newest trusted run"
+      ],
+      "reason": "Read by the next run; 1 day is the minimum."
+    },
+    "pr-merge-summary": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-merge.yml a person reading the sweep's verdicts from the run"
+      ],
+      "reason": "No code reader; 1 day is the minimum.",
+      "pending-cut": "Under owner review (poteto)."
+    },
+    "pr-merge-gate-rows": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-merge.yml gate-check job, same run",
+        ".github/scripts/pr-merge/gate-check.mjs"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "pr-merge-verify-answers": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/pr-merge/verify-answers.mjs ANSWERS_ARTIFACT, from the newest trusted run"
+      ],
+      "reason": "Read by the next run; 1 day is the minimum."
+    },
+    "pr-merge-verify-run-cache": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/pr-merge/carry-run-cache.mjs VERIFY_ARTIFACT, from the newest trusted run"
+      ],
+      "reason": "Read by the next run; 1 day is the minimum."
+    },
+    "lane-transcript-*": {
+      "retention-days": 7,
+      "readers": [
+        ".github/actions/upload-lane-transcript/README.md the transcript puller, a daily task outside CI that copies each sealed transcript to its sink"
+      ],
+      "reason": "A recorded owner decision on the lane transcript store: CI keeps each encrypted transcript 7 days and a daily puller copies it to the sink, so a week of missed pulls loses nothing."
+    },
+    "skill-reply-*": {
+      "retention-days": 7,
+      "readers": [
+        ".github/workflows/pr-run-activity-write.yml reply-attempt download, same run",
+        ".github/workflows/pr-run-activity-read.yml a person reading act-turns.json denials by hand"
+      ],
+      "reason": "A person reads the denials by hand, and 1 day would lose them over a weekend; 7 days in both lanes is a recorded owner decision.",
+      "pending-cut": "3 days would still cover a weekend; changing the recorded owner decision needs the owner."
+    },
+    "patch-*": {
+      "retention-days": 3,
+      "readers": [
+        ".github/workflows/pr-run-activity-write.yml patch-attempt download, same run, possibly an earlier attempt"
+      ],
+      "reason": "Every reader is in the same run; a manual re-run of the write job may read an earlier attempt, so 3 days covers a weekend."
+    },
+    "feedback-replies-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-write.yml same run",
+        ".github/workflows/pr-unblock.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "dependency-verdict-*": {
+      "retention-days": 3,
+      "readers": [
+        ".github/workflows/pr-run-activity-write.yml same run"
+      ],
+      "reason": "Every reader is in the same run; the manual re-run of either write job alone (pr-run-activity-write.yml) reads it, so 3 days covers a weekend."
+    },
+    "work-outcome-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-write.yml same run",
+        ".github/workflows/work-resolve-issue.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "verdict-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-read.yml same run",
+        ".github/workflows/pr-run-activity-write.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "scan-refused-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-write.yml same run",
+        ".github/workflows/pr-unblock.yml same run",
+        ".github/scripts/pr-unblock/address-feedback.mjs MARKER_FILE",
+        ".github/scripts/work-resolve-issue/report-outcome.mjs the scan-refused marker"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "reuse-summary-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-write.yml same run",
+        ".github/scripts/work-resolve-issue/report-outcome.mjs REUSE_SUMMARY_DIR"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "refine-context-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/intake-triage.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "refinement-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/intake-triage.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "lane-sweep-units": {
+      "retention-days": 7,
+      "readers": [
+        ".github/workflows/maintenance-audit-lane-runs.yml later jobs of the same run"
+      ],
+      "reason": "Read only by its own run and that run's re-runs; no reason is recorded for 7 days."
+    },
+    "judge-handoff-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/maintenance-audit-lane-runs.yml judge-handoffs job, same run",
+        ".github/scripts/maintenance-audit-lane-runs/handoff.mjs PREFIX"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "judge-subscription-handoff-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/maintenance-audit-lane-runs.yml judge-subscription-handoffs job, same run",
+        ".github/scripts/maintenance-audit-lane-runs/handoff.mjs PREFIX"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "findings-*": {
+      "retention-days": 3,
+      "readers": [
+        ".github/workflows/maintenance-audit-lane-runs.yml findings-* download by the file job, same run"
+      ],
+      "reason": "Only its own run reads it (the file job downloads findings-*); a manual re-run of the file job may read an earlier attempt, so 3 days covers a weekend, as for patch-*."
+    },
+    "mutation-range": {
+      "retention-days": 7,
+      "readers": [
+        ".github/workflows/post-merge-test-mutation.yml downloads it from the triggering run on workflow_run"
+      ],
+      "reason": "Read by the run its workflow_run event starts; 7 days covers a manual re-run of that run."
+    },
+    "selection-audit-*": {
+      "retention-days": 7,
+      "readers": [
+        ".github/workflows/maintenance-audit-test-selection.yml a person reading the trace report"
+      ],
+      "reason": "Manual inspection only; no workflow reads it after the run."
+    },
+    "selection-red-replay-*": {
+      "retention-days": 7,
+      "readers": [
+        ".github/workflows/maintenance-audit-test-selection.yml a person reading the replay report"
+      ],
+      "reason": "Manual inspection only; no workflow reads it after the run."
+    },
+    "branch-cleanup-candidates-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/maintenance-delete-stale-branches.yml delete job, same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "branch-cleanup-ledger-*": {
+      "retention-days": "max",
+      "readers": [
+        ".github/workflows/maintenance-delete-stale-branches.yml a person restoring a deleted branch from its ledger SHA, as the workflow header says"
+      ],
+      "max-reader": ".github/workflows/maintenance-delete-stale-branches.yml",
+      "reason": "The ledger is the only record of a deleted branch's SHA, so it is kept as long as a person may need to restore the branch."
+    },
+    "reconcile-rerun-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs rerunRecordName, the re-run's trust check",
+        ".github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs RECORD"
+      ],
+      "reason": "Read by the re-run it records; 1 day is the minimum.",
+      "uploads": [
+        ".github/workflows/maintenance-reconcile-lost-runs.yml#reconcile"
+      ]
+    },
+    "pr-feedback-dispatched-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs RUN_RECORD_NAME, the dispatched run's trust check"
+      ],
+      "reason": "Read by the run it dispatched; 1 day is the minimum.",
+      "uploads": [
+        ".github/workflows/pr-feedback-dispatch.yml#dispatch"
+      ]
+    },
+    "rerun-ci-status-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs ciStatusRerunRecordName, the re-run's trust check"
+      ],
+      "reason": "Read by the re-run it records; 1 day is the minimum.",
+      "uploads": [
+        ".github/workflows/pr-feedback-dispatch.yml#rerun-ci-status"
+      ]
+    },
+    "pr-unblock-dispatched-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs RECORD_NAME, the dispatched run's trust check"
+      ],
+      "reason": "Read by the run it dispatched; 1 day is the minimum.",
+      "uploads": [
+        ".github/workflows/pr-unblock-dispatch.yml#dispatch"
+      ]
+    },
+    "feedback-context-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-read.yml same run",
+        ".github/workflows/pr-run-activity-write.yml same run, across attempts"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "feedback-adjudication-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-write.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "dependency-context-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-read.yml same run",
+        ".github/workflows/pr-run-activity-write.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "ci-context-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/workflows/pr-run-activity-read.yml same run"
+      ],
+      "reason": "Read by its own run; 1 day is the minimum."
+    },
+    "eval-browser-*": {
+      "retention-days": 7,
+      "readers": [
+        ".github/workflows/eval-browser-dispatch.yml a person reading a manual eval run's results"
+      ],
+      "reason": "Manual inspection only; no workflow reads it after the run."
+    }
+  }
+}

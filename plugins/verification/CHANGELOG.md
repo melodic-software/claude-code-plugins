@@ -3,6 +3,49 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.3] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.13.2] - 2026-10-29
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
+## [0.13.1] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `setup-apply --check` names a key set twice as `duplicate key` at its second line, and apply refuses the file.
+
+## [0.13.0] - 2026-10-28
+
+### Added
+
+- `/verification:confirm` keeps a control skill current. When `/testing:run-e2e` ran, its refresh or drift lines carry into the report; when the live drive is split across workers, the workers skip the refresh and confirm runs it once over the merged report. When it did not, confirm calls `/app-control:map refresh <feature id>` (with `--unattended` when no one is present) for each feature whose index `sources` globs match a changed file, carrying that feature's lesson in the same call, or, without app-control, reports the drift and names the command in `## Next`. Neither the drift nor app-control's absence holds the verdict.
+
+## [0.12.3] - 2026-10-28
+
+### Fixed
+
+- `/verification:confirm`: the per-worker session-names rule now points at `/testing:run-e2e`'s own-driving Session names section, where that rule moved, and says that on a run through `/app-control:drive` the drive skill and the app's control skill own the browser sessions.
+
+## [0.12.2] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.12.1] - 2026-10-27
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
 ## [0.12.0] - 2026-10-25
 
 ### Added

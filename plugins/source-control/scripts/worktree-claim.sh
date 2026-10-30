@@ -37,6 +37,13 @@
 #     this host, and no ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/*/<sid>.jsonl
 #     changed within N minutes (default 120; a missing transcript is idle). It
 #     does not look at PR or landed state; the caller requires that separately.
+#   stale --batch --repo-dir DIR [--idle-minutes N]
+#     The same verdict for each NUL-delimited path on stdin, from one worktree
+#     list parse and one transcript scan. Prints one `exit<TAB>path<TAB>note`
+#     row per path, in input order, where exit and note are what single-path
+#     `stale` would return and print for it (a tab or newline in the note reads
+#     as a space). A path holding a tab or newline is usage (exit 2) and no row
+#     is printed. --repo-dir is required: no single path locates the repository.
 #
 # Requires git >= 2.36.0 (`git worktree list --porcelain -z`); older git fails
 # closed with exit 5 and a message naming the floor and the installed version.
@@ -44,6 +51,7 @@
 # Exit codes:
 #   0  report: no unclaimed linked worktrees
 #      stale: provably stale (one evidence line printed)
+#      stale --batch: every path evaluated (each row carries its own exit)
 #      claim: locked, or already claimed by this session
 #      check-enter: our claim, or path is not a linked worktree
 #      release: unlocked this session's lock, or the tree was already unlocked
@@ -93,6 +101,7 @@ Usage:
   $PROG check-enter <path> [--repo-dir DIR] [--session-id ID]
   $PROG release <path> [--repo-dir DIR] [--session-id ID]
   $PROG stale <path> [--repo-dir DIR] [--idle-minutes N]
+  $PROG stale --batch --repo-dir DIR [--idle-minutes N] < NUL-delimited paths
 EOF
   exit "$EX_USAGE"
 }
@@ -126,7 +135,19 @@ normalize_path() {
 # `check-enter .` or a `/tmp` vs `/private/tmp` spelling still matches
 # porcelain (git-worktree(1) accepts relative or absolute).
 canonicalize_path() {
-  local p="$1" base="${2:-$PWD}" phys
+  local out
+  canonicalize_path_to out "$@"
+  printf '%s' "$out"
+}
+
+# canonicalize_path_to <var> <path> [base]: canonicalize_path into <var>
+# without forking in the common case (an already-clean path to an existing
+# directory), which parse_worktrees hits once per registered worktree. Siblings
+# under one non-symlink parent share a single `cd -P` through CANON_PARENT.
+CANON_PARENT=""
+CANON_PARENT_PHYS=""
+canonicalize_path_to() {
+  local __var="$1" p="$2" base="${3:-$PWD}" here="$PWD" phys
   p="${p%$'\r'}"
   # shellcheck disable=SC2088
   if [[ "$p" == "~/"* && -n "${HOME:-}" ]]; then
@@ -135,8 +156,22 @@ canonicalize_path() {
   if [[ "$p" != /* && ! "$p" =~ ^[A-Za-z]:/ ]]; then
     p="${base%/}/$p"
   fi
-  p="$(normalize_path "$p")"
-  if [[ -d "$p" ]]; then
+  if [[ "$p" == *//* || "$p" == */./* || "$p" == */../* || "$p" == */. || "$p" == */.. || "$p" == ?*/ ]]; then
+    p="$(normalize_path "$p")"
+  fi
+  local parent="${p%/*}"
+  if [[ -d "$p" && ! -L "$p" && -n "$parent" && "$parent" == "$CANON_PARENT" ]]; then
+    # Sibling of the last directory resolved: reuse its parent's physical path.
+    p="${CANON_PARENT_PHYS}/${p##*/}"
+  elif [[ -d "$p" && -d "$here" ]] && CDPATH='' builtin cd -P -- "$p" 2>/dev/null; then
+    phys="$PWD"
+    builtin cd -- "$here" || exit "$EX_ENV"
+    if [[ ! -L "$p" && -n "$parent" ]]; then
+      CANON_PARENT="$parent"
+      CANON_PARENT_PHYS="${phys%/*}"
+    fi
+    p="$phys"
+  elif [[ -d "$p" ]]; then
     phys="$(cd "$p" && pwd -P 2>/dev/null)" || phys=""
     [[ -n "$phys" ]] && p="$phys"
   elif [[ -e "$p" ]]; then
@@ -146,7 +181,7 @@ canonicalize_path() {
       p="${dir}/$(basename -- "$p")"
     fi
   fi
-  printf '%s' "$p"
+  printf -v "$__var" '%s' "$p"
 }
 
 # Resolve --session-id / CLAUDE_SESSION_ID. Echoes empty when neither is usable.
@@ -175,7 +210,7 @@ valid_session_id() {
 # Fills WT_PATHS / WT_REASONS / WT_IS_LINKED from the shared fact record.
 # Linked means "not the main worktree and not bare".
 parse_worktrees() {
-  local repo="$1" porcelain i
+  local repo="$1" porcelain i canon
   WT_PATHS=()
   WT_REASONS=()
   WT_IS_LINKED=()
@@ -189,7 +224,8 @@ parse_worktrees() {
   [[ ${#WT_FACT_PATH[@]} -gt 0 ]] || return 0
   for i in "${!WT_FACT_PATH[@]}"; do
     [[ "${WT_FACT_BARE[$i]}" == "yes" ]] && continue
-    WT_PATHS+=("$(canonicalize_path "${WT_FACT_PATH[$i]}")")
+    canonicalize_path_to canon "${WT_FACT_PATH[$i]}"
+    WT_PATHS+=("$canon")
     WT_REASONS+=("${WT_FACT_LOCKED[$i]}")
     if [[ "${WT_FACT_LINKED[$i]}" == "yes" ]]; then
       WT_IS_LINKED+=(1)
@@ -199,8 +235,9 @@ parse_worktrees() {
   done
 }
 
-# Longest worktree-path prefix of <target>, or empty. <target> must already
-# be canonicalized (absolute, `.`/`..` collapsed, symlinks resolved).
+# Index of the longest worktree-path prefix of <target> into WT_INDEX; fails
+# when none matches. <target> must already be canonicalized (absolute, `.`/`..`
+# collapsed, symlinks resolved). Set, not printed, so a caller needs no subshell.
 find_worktree_index() {
   local target="$1" i best=-1 best_len=0
   for i in "${!WT_PATHS[@]}"; do
@@ -212,11 +249,8 @@ find_worktree_index() {
       fi
     fi
   done
-  if ((best >= 0)); then
-    printf '%s' "$best"
-    return 0
-  fi
-  return 1
+  WT_INDEX="$best"
+  ((best >= 0))
 }
 
 resolve_repo_dir() {
@@ -243,6 +277,7 @@ repo_dir=""
 session_id=""
 path=""
 all_unclaimed=0
+batch=0
 idle_minutes=120
 root_dir=""
 
@@ -270,6 +305,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --all-unclaimed)
     all_unclaimed=1
+    shift
+    ;;
+  --batch)
+    batch=1
     shift
     ;;
   -h | --help)
@@ -330,7 +369,19 @@ if [[ "$cmd" == "release" && -z "$session_id" ]]; then
   printf '%s: release needs --session-id or CLAUDE_SESSION_ID to prove ownership\n' "$PROG" >&2
   exit "$EX_USAGE"
 fi
-if [[ "$cmd" == "stale" && -z "$path" ]]; then
+if ((batch)) && [[ "$cmd" != "stale" ]]; then
+  printf '%s: --batch applies to stale only\n' "$PROG" >&2
+  exit "$EX_USAGE"
+fi
+if ((batch)) && [[ -n "$path" ]]; then
+  printf '%s: stale --batch reads its paths from stdin, not arguments\n' "$PROG" >&2
+  exit "$EX_USAGE"
+fi
+if ((batch)) && [[ -z "$repo_dir" ]]; then
+  printf '%s: stale --batch needs --repo-dir\n' "$PROG" >&2
+  exit "$EX_USAGE"
+fi
+if [[ "$cmd" == "stale" ]] && ((batch == 0)) && [[ -z "$path" ]]; then
   printf '%s: stale requires a path\n' "$PROG" >&2
   exit "$EX_USAGE"
 fi
@@ -435,10 +486,11 @@ lock_one() {
 
 do_claim_one() {
   local idx
-  if ! idx="$(find_worktree_index "$path")"; then
+  if ! find_worktree_index "$path"; then
     printf '%s: not a registered worktree: %s\n' "$PROG" "$path" >&2
     exit "$EX_ENV"
   fi
+  idx="$WT_INDEX"
   if ((WT_IS_LINKED[idx] == 0)); then
     printf '%s: refusing to claim the main worktree: %s\n' "$PROG" "${WT_PATHS[idx]}" >&2
     exit "$EX_USAGE"
@@ -471,10 +523,11 @@ do_claim_all() {
 
 do_check_enter() {
   local idx
-  if ! idx="$(find_worktree_index "$path")"; then
+  if ! find_worktree_index "$path"; then
     # Not a linked (or main) worktree path — nothing to consult.
     return "$EX_OK"
   fi
+  idx="$WT_INDEX"
   if ((WT_IS_LINKED[idx] == 0)); then
     return "$EX_OK"
   fi
@@ -497,10 +550,11 @@ do_check_enter() {
 
 do_release() {
   local idx wt reason
-  if ! idx="$(find_worktree_index "$path")"; then
+  if ! find_worktree_index "$path"; then
     printf '%s: not a registered worktree: %s\n' "$PROG" "$path" >&2
     return "$EX_ENV"
   fi
+  idx="$WT_INDEX"
   wt="${WT_PATHS[idx]}"
   if ((WT_IS_LINKED[idx] == 0)); then
     printf '%s: refusing to release the main worktree: %s\n' "$PROG" "$wt" >&2
@@ -522,47 +576,121 @@ do_release() {
   printf 'released %s\n' "$wt"
 }
 
+# scan_transcripts <name> [-quit]: on its first call only, list each
+# <projects>/*/<name> changed within the idle window into TRANSCRIPTS, one per
+# line with a newline on each side, so a session's lookup is one string match.
+# A batch passes `*.jsonl` to cover every session at once; a single path passes
+# its own <sid>.jsonl and -quit. TRANSCRIPT_SCAN records ok, unreadable or failed.
+TRANSCRIPT_SCAN=""
+TRANSCRIPTS=""
+scan_transcripts() {
+  [[ -z "$TRANSCRIPT_SCAN" ]] || return 0
+  local found
+  TRANSCRIPT_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
+  if [[ ! -d "$TRANSCRIPT_DIR" || ! -r "$TRANSCRIPT_DIR" ]]; then
+    TRANSCRIPT_SCAN=unreadable
+  elif found="$(find "$TRANSCRIPT_DIR" -mindepth 2 -maxdepth 2 -name "$1" -mmin "-$idle_minutes" -print ${2:+"$2"} 2>/dev/null)"; then
+    TRANSCRIPT_SCAN=ok
+    TRANSCRIPTS=$'\n'"$found"$'\n'
+  else
+    TRANSCRIPT_SCAN=failed
+  fi
+}
+
+# stale_verdict <canonical-path>: the stale verdict into STALE_NOTE, returned as
+# the exit code `stale` documents. Forks only for the host name and the
+# transcript scan, each once per run, so --batch pays nothing more per path.
 # ponytail: liveness is provable only from this host's transcripts; a lock from
 # another host, or without a session id, stays "not provable".
-do_stale() {
-  local idx wt reason lane host sid projects hit
-  if ! idx="$(find_worktree_index "$path")"; then
-    printf '%s: not a registered worktree: %s\n' "$PROG" "$path" >&2
+THIS_HOST=""
+stale_verdict() {
+  local idx reason host sid hit
+  if ! find_worktree_index "$1"; then
+    STALE_NOTE="not a registered worktree: $1"
     return "$EX_ENV"
   fi
-  wt="${WT_PATHS[idx]}"
+  idx="$WT_INDEX"
   reason="${WT_REASONS[idx]}"
   if ((WT_IS_LINKED[idx] == 0)) || [[ -z "$reason" ]]; then
-    printf 'not provable: %s is not a linked worktree with a lock reason\n' "$wt"
+    STALE_NOTE="not provable: ${WT_PATHS[idx]} is not a linked worktree with a lock reason"
     return "$EX_UNCLAIMED_REPORT"
   fi
-  if ! lane="$(worktree_reason_lane "$reason")"; then
-    printf 'not provable: the lock reason names no session: %s\n' "$reason"
+  # Called for the BASH_REMATCH it sets, not its output, so no subshell runs.
+  if ! worktree_reason_lane "$reason" >/dev/null; then
+    STALE_NOTE="not provable: the lock reason names no session: $reason"
     return "$EX_UNCLAIMED_REPORT"
   fi
-  read -r host sid <<<"$lane"
-  if [[ "$host" != "$(worktree_host_name)" ]]; then
-    printf 'not provable: the lock is from host %s, not this host\n' "$host"
+  host="${BASH_REMATCH[1]}"
+  sid="${BASH_REMATCH[2]}"
+  [[ -n "$THIS_HOST" ]] || THIS_HOST="$(worktree_host_name)"
+  if [[ "$host" != "$THIS_HOST" ]]; then
+    STALE_NOTE="not provable: the lock is from host $host, not this host"
     return "$EX_UNCLAIMED_REPORT"
   fi
-  projects="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
-  if [[ ! -d "$projects" || ! -r "$projects" ]]; then
-    printf 'not provable: transcript directory %s is unreadable\n' "$projects"
+  if ((batch)); then
+    scan_transcripts '*.jsonl'
+  else
+    scan_transcripts "$sid.jsonl" -quit
+  fi
+  case "$TRANSCRIPT_SCAN" in
+  unreadable)
+    STALE_NOTE="not provable: transcript directory $TRANSCRIPT_DIR is unreadable"
+    return "$EX_UNCLAIMED_REPORT"
+    ;;
+  failed)
+    STALE_NOTE="not provable: scanning $TRANSCRIPT_DIR failed"
+    return "$EX_UNCLAIMED_REPORT"
+    ;;
+  *) ;;
+  esac
+  if [[ "$TRANSCRIPTS" == *"/$sid.jsonl"$'\n'* ]]; then
+    hit="${TRANSCRIPTS%%"/$sid.jsonl"$'\n'*}"
+    STALE_NOTE="not provable: transcript ${hit##*$'\n'}/$sid.jsonl changed within $idle_minutes minutes"
     return "$EX_UNCLAIMED_REPORT"
   fi
-  if ! hit="$(find "$projects" -mindepth 2 -maxdepth 2 -name "$sid.jsonl" -mmin "-$idle_minutes" -print -quit 2>/dev/null)"; then
-    printf 'not provable: scanning %s failed\n' "$projects"
-    return "$EX_UNCLAIMED_REPORT"
+  STALE_NOTE="stale: session $sid on $host has no transcript change in $idle_minutes minutes"
+  return "$EX_OK"
+}
+
+do_stale() {
+  local rc
+  stale_verdict "$path"
+  rc=$?
+  if ((rc == EX_ENV)); then
+    printf '%s: %s\n' "$PROG" "$STALE_NOTE" >&2
+  else
+    printf '%s\n' "$STALE_NOTE"
   fi
-  if [[ -n "$hit" ]]; then
-    printf 'not provable: transcript %s changed within %s minutes\n' "$hit" "$idle_minutes"
-    return "$EX_UNCLAIMED_REPORT"
-  fi
-  printf 'stale: session %s on %s has no transcript change in %s minutes\n' "$sid" "$host" "$idle_minutes"
+  return "$rc"
+}
+
+do_stale_batch() {
+  local input canon rc i
+  local -a inputs=()
+  while IFS= read -r -d '' input || [[ -n "$input" ]]; do
+    [[ -n "$input" ]] || continue
+    if [[ "$input" == *$'\t'* || "$input" == *$'\n'* ]]; then
+      printf '%s: stale --batch: a path holds a tab or newline: %q\n' "$PROG" "$input" >&2
+      return "$EX_USAGE"
+    fi
+    inputs+=("$input")
+  done
+  [[ ${#inputs[@]} -gt 0 ]] || return "$EX_OK"
+  for i in "${!inputs[@]}"; do
+    canonicalize_path_to canon "${inputs[i]}"
+    stale_verdict "$canon"
+    rc=$?
+    printf '%s\t%s\t%s\n' "$rc" "${inputs[i]}" "${STALE_NOTE//[$'\t\n']/ }"
+  done
+  return "$EX_OK"
 }
 
 case "$cmd" in
 stale)
+  if ((batch)); then
+    do_stale_batch
+    exit $?
+  fi
   do_stale
   exit $?
   ;;

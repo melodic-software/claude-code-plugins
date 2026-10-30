@@ -37,16 +37,19 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { testedRun } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
+import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { DEPENDABOT_ID, POLICY_PATH } from "./dependency-classify.mjs";
 import { dispatchDependencyReviews } from "./dependency-dispatch.mjs";
 import { emptyRecord, isHandled, markHandled, pruneRecord, readRecord, writeRecord } from "./dispatch-record.mjs";
-import { prHold } from "./gate-source.mjs";
+import { prHold, reviewReader } from "./gate-source.mjs";
 import { runTitle, shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUERY as CI_FIX_QUERY } from "./fix-ci-dispatch.mjs";
-import { dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
-import { anyHandles, cappedAt, limitStop, pendingStop, permanentlyHandles } from "./limit-stop.mjs";
+import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
+import { anyHandles, cappedAt, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { budgetedFetch, serverFailure } from "./request-budget.mjs";
+import { verifyCapReader } from "./verify-cap.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -54,6 +57,9 @@ export const DEFAULTS = Object.freeze({
   workflow: "pr-unblock.yml",
   activity: "resolve-conflicts",
   checkName: "pr-unblock / resolve-conflicts",
+  // The push job's check: its lane-stopped skip releases the head for a
+  // same-head retry (limit-stop.mjs stopRelease).
+  stopCheckName: "pr-unblock / apply-conflict-patch",
   // The GitHub Actions app: only a check run it created counts, so another
   // app cannot suppress a dispatch by posting a run under the same name.
   appId: 15368,
@@ -120,6 +126,7 @@ export async function dispatchConflicting({
   workflow = DEFAULTS.workflow,
   activity = DEFAULTS.activity,
   checkName = DEFAULTS.checkName,
+  stopCheckName = DEFAULTS.stopCheckName,
   appId = DEFAULTS.appId,
   maxDispatch = DEFAULTS.maxDispatch,
   unknownRetries = DEFAULTS.unknownRetries,
@@ -200,14 +207,27 @@ export async function dispatchConflicting({
         activity,
         appId: appSenderId,
         readTimeline: () => api.listTimeline(node.number),
+        readReviews: reviewReader(api, node.number),
       });
       // Not recorded: the hold can come off with the head unchanged.
       if (held) {
         log(`skip #${node.number}: ${why}`);
         continue;
       }
-      const existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
+      let existing = await api.listCheckRuns({ sha: node.headRefOid, checkName, appId });
       const options = { limits, failuresRetry: true, heldSkipsRelease: true };
+      // A push job that stopped on a reason routed to a failing status
+      // releases the head's earlier checks: the next run retries the same
+      // head, a fresh model session, until limit-stops-per-head such stops
+      // stand on it.
+      if (anyHandles(existing, { now, ...options })) {
+        const cap = (limits ?? LIMIT_DEFAULTS)["limit-stops-per-head"];
+        const { cut, stops } = stopRelease(await api.listCheckRuns({ sha: node.headRefOid, checkName: stopCheckName, appId }), cap);
+        existing = releasedBy(existing, cut, limits);
+        if (cut === null && stops >= cap) {
+          log(`::warning::#${node.number}: head ${node.headRefOid}'s ${stopCheckName} stopped ${stops} time(s), the most one head gets; no ${activity} retry until a new push`);
+        }
+      }
       handled = anyHandles(existing, { now, ...options });
       // Handled only because a limit stop has not reset: the log names it.
       waiting = handled && !anyHandles(existing, { now: Infinity, ...options }) ? pendingStop(existing, { now, limits }) : null;
@@ -289,8 +309,10 @@ export function createGitHubApi({
   repository,
   apiUrl,
   graphqlUrl,
-  fetch = globalThis.fetch,
+  fetch: rawFetch = globalThis.fetch,
 }) {
+  // Each request's rate-limit reading goes to the job-end api-calls notice.
+  const fetch = countRequests(rawFetch);
   const [owner, name] = repository.split("/");
   // Connection: close ends each socket after its answer, so no request goes
   // out on a pooled one that sat idle through dispatchConflicting's waits and
@@ -319,7 +341,7 @@ export function createGitHubApi({
 
   async function paginate(path) {
     const rows = [];
-    let url = `${apiUrl}/repos/${owner}/${name}/${path}?per_page=100`;
+    let url = `${apiUrl}/repos/${owner}/${name}/${path}${path.includes("?") ? "&" : "?"}per_page=100`;
     while (url) {
       const response = await fetch(url, { headers });
       if (!response.ok) {
@@ -380,14 +402,18 @@ export function createGitHubApi({
     async getCommit(sha) {
       return request(`${apiUrl}/repos/${owner}/${name}/commits/${encodeURIComponent(sha)}`);
     },
-    // A held PR's issue timeline (gate-source.mjs reads its REST shape).
+    // A held PR's issue timeline, review comments and reviews (gate-source.mjs
+    // reads their REST shape).
     listTimeline: (number) => paginate(`issues/${Number(number)}/timeline`),
-    // Every check run on a commit, up to 300, as fix-ci-context reads them
+    // Written or edited since `since` (GitHub's since query value) when given.
+    listReviewComments: (number, since) => paginate(`pulls/${Number(number)}/comments${since === undefined ? "" : `?since=${encodeURIComponent(since)}`}`),
+    listReviews: (number) => paginate(`pulls/${Number(number)}/reviews`),
+    // Every check run on a commit, skips included, up to 300, as fix-ci-context reads them
     // (address-feedback.mjs listCommitCheckRuns).
     async listCommitCheckRuns(sha) {
       const runs = [];
       for (let page = 1; page <= 3; page += 1) {
-        const data = await request(`${apiUrl}/repos/${owner}/${name}/commits/${sha}/check-runs?filter=latest&per_page=100&page=${page}`);
+        const data = await request(`${apiUrl}/repos/${owner}/${name}/commits/${sha}/check-runs?filter=all&per_page=100&page=${page}`);
         runs.push(...(data.check_runs ?? []));
         if ((data.check_runs ?? []).length < 100) {
           break;
@@ -424,8 +450,10 @@ export function createGitHubApi({
         throw new Error("not a commit SHA");
       }
       const listing = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs?head_sha=${sha}&event=pull_request&per_page=100`);
+      // A fork PR at the same head SHA lists its runs here too; a newer one
+      // must not become the tested run or suppress a fix-ci dispatch.
       const runs = (listing.workflow_runs ?? [])
-        .filter((run) => run.path === path)
+        .filter((run) => run.path === path && run.head_repository?.full_name === repository)
         .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id - a.id);
       const tested = await testedRun(runs, async (run) => {
         const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`);
@@ -435,6 +463,27 @@ export function createGitHubApi({
         return jobs.jobs;
       });
       return { run: tested?.run ?? null, jobs: tested?.jobs ?? [] };
+    },
+    // One run's status and latest jobs, as fix-docs-dispatch.mjs counts a
+    // head's runs; null when the run is gone.
+    async readRunJobs(runId) {
+      if (!RUN_ID.test(String(runId))) {
+        throw new Error("not a run id");
+      }
+      let run;
+      try {
+        run = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${runId}`);
+      } catch (error) {
+        if (error.status === 404) {
+          return null;
+        }
+        throw error;
+      }
+      const jobs = await request(`${apiUrl}/repos/${owner}/${name}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
+      if (!Array.isArray(jobs.jobs) || jobs.total_count > jobs.jobs.length) {
+        throw new Error(`run ${runId}'s job listing is not one complete page`);
+      }
+      return { status: run.status, jobs: jobs.jobs };
     },
     // The newest workflow_dispatch runs: a run still queued or going is
     // among them, since a dispatcher waits at most minutes behind it.
@@ -505,17 +554,20 @@ function wrapRunIds(base, env) {
   };
 }
 
-// A held PR's timeline is read at most once a run, however many dispatchers
-// ask.
+// A held PR's timeline, review comments (by their since time) and reviews are
+// each read at most once a run, however many dispatchers ask.
 export function shareTimeline(base) {
-  const seen = new Map();
-  const listTimeline = (number) => {
-    if (!seen.has(number)) {
-      seen.set(number, base.listTimeline(number));
-    }
-    return seen.get(number);
+  const shared = (method) => {
+    const seen = new Map();
+    return (...args) => {
+      const key = args.join(" ");
+      if (!seen.has(key)) {
+        seen.set(key, base[method](...args));
+      }
+      return seen.get(key);
+    };
   };
-  return { ...base, listTimeline };
+  return { ...base, listTimeline: shared("listTimeline"), listReviewComments: shared("listReviewComments"), listReviews: shared("listReviews") };
 }
 
 // Writes the dispatched run ids, lowest PR first, as the step output run-ids,
@@ -528,6 +580,9 @@ export async function main(
     log = (line) => console.log(line),
     loadLimits = loadBaseLimits,
     loadAdoption = loadBaseAdoption,
+    // The gate's reader for fix-ci's FAIL-cap skip (verify-cap.mjs), when the
+    // workflow names it in VERIFY_EVIDENCE_SCRIPT.
+    verifyCapped = env.VERIFY_EVIDENCE_SCRIPT ? verifyCapReader(env, { log }) : undefined,
     now,
   } = {},
 ) {
@@ -547,7 +602,7 @@ export async function main(
       fetch: budget.fetch,
     });
   try {
-    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, now });
+    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, verifyCapped, now });
   } finally {
     if (budget) {
       log(budget.summary());
@@ -555,7 +610,7 @@ export async function main(
   }
 }
 
-async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, now }) {
+async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, verifyCapped, now }) {
   const limits = await loadLimits(env);
   const adoption = await loadAdoption(env);
   const listed = await listAll(client, DEFAULTS.base);
@@ -616,6 +671,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
       adoption: { ownerIds, idleHours: adoption["idle-hours"], held: ownersHeld },
       holdLabels,
       gateLabel,
+      verifyCapped,
       now,
     });
     fixes.failed += ownersHeld === "" ? 0 : 1;
@@ -628,6 +684,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
     log,
     record,
     maxDispatch: limits["fix-docs-per-run"] ?? 2,
+    maxRunsPerHead: limits["limit-stops-per-head"] ?? DOCS_FIX_DEFAULTS.maxRunsPerHead,
     ...gate,
   });
   const dispatched = [...conflicts.dispatched, ...reviews.dispatched, ...fixes.dispatched, ...docs.dispatched];

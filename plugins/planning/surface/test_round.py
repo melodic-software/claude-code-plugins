@@ -1,6 +1,6 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/.claude-plugin/plugin.json
-"""Tests for round.py V1: schema validation, refusals and warnings, --affects, apply, archive,
+"""Tests for round.py V1: schema validation, refusals and warnings, affects, apply, archive,
 status --latency, the sidecar lock and the rebuild check.
 
 Every test drives round.py through its CLI (`sys.executable round.py ...`) in a temporary data dir.
@@ -156,6 +156,18 @@ class DirCase(unittest.TestCase):
         self.assertEqual(self.raw(), before, "a refused command changed questions.json")
         return out + err
 
+    def ops_file(self, name, fields):
+        """A fresh one-op ops file; apply consumes its file, so every run writes a new one."""
+        return self.file(f"op-{name}.json", {"ops": [{"op": name, **fields}]})
+
+    def op(self, name, **fields):
+        """Run one `apply` op, the one write path for page text; returns (rc, out, err)."""
+        return self.rp("apply", "--file", self.ops_file(name, fields))
+
+    def op_refused(self, name, **fields):
+        """`assert_refused` for one `apply` op."""
+        return self.assert_refused("apply", "--file", self.ops_file(name, fields))
+
 
 class TestSchema(DirCase):
     """AC31: shipped schemas, v2.1 files load and validate, every write is validated."""
@@ -257,29 +269,29 @@ class TestRefusals(DirCase):
         out = self.assert_refused("add", "--file", self.file("q.json", q))
         self.assertIn("alternatives", out)
 
+    def test_each_apply_only_command_refuses_and_points_at_apply(self):
+        from round import APPLY_ONLY
+
+        for name in APPLY_ONLY:
+            with self.subTest(command=name):
+                out = self.assert_refused(name, "Q1", "--text", "old-style page text")
+                self.assertIn("apply --file", out)
+
+    def test_add_without_file_is_refused_and_writes_nothing(self):
+        before = self.raw()
+        rc, out, err = self.rp("add", "--id", "Q4")
+        self.assertNotEqual(rc, 0, out + err)
+        self.assertIn("--file", out + err)
+        self.assertEqual(self.raw(), before)
+
+    def test_add_with_a_non_object_file_is_refused(self):
+        for name, data in (("list.json", [question("Q4")]), ("str.json", "Q4")):
+            with self.subTest(file=name):
+                out = self.assert_refused("add", "--file", self.file(name, data))
+                self.assertIn("holds one question object", out)
+
     def test_add_with_explicit_empty_commits_is_allowed(self):
         rc, out, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
-        self.assertEqual(rc, 0, out + err)
-        self.assertEqual(self.q("Q4")["commits"], [])
-
-    def test_add_flags_commit_none_means_an_empty_list(self):
-        rc, out, err = self.rp(
-            "add",
-            "--id",
-            "Q4",
-            "--short",
-            "S",
-            "--title",
-            "T?",
-            "--rec",
-            "Yes.",
-            "--commit",
-            "none",
-            "--alt",
-            "a:No",
-            "--alt",
-            "b:Later",
-        )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q4")["commits"], [])
 
@@ -324,15 +336,10 @@ class TestRefusals(DirCase):
         out = self.assert_refused("add", "--file", self.file("q.json", q))
         self.assertIn("Q4 alternative (a) repeats or contains the recommendation", out)
 
-    def test_add_alt_flag_with_recommended_marker_is_refused(self):
+    def test_add_alternative_with_recommended_marker_is_refused(self):
+        alts = [{"key": "a", "text": "Yes (Recommended)"}, {"key": "b", "text": "Later"}]
         out = self.assert_refused(
-            "add",
-            "--file",
-            self.file("q.json", question("Q4", alternatives=[])),
-            "--alt",
-            "a:Yes (Recommended)",
-            "--alt",
-            "b:Later",
+            "add", "--file", self.file("q.json", question("Q4", alternatives=alts))
         )
         self.assertIn("Q4 alternative (a) repeats or contains the recommendation", out)
 
@@ -393,7 +400,7 @@ class TestRefusals(DirCase):
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0, err)
         self.assertIn("Q4 facts links a repo file by branch", err)
-        rc, _, err = self.rp("revise", "Q1", "--facts", f"[a.py]({link})")
+        rc, _, err = self.op("revise", id="Q1", facts=f"[a.py]({link})")
         self.assertEqual(rc, 0, err)
         self.assertIn("Q1 facts links a repo file by branch", err)
 
@@ -403,7 +410,7 @@ class TestRefusals(DirCase):
         rc, _, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0, err)
         self.assertNotIn("by branch", err)
-        rc, _, err = self.rp("revise", "Q1", "--facts", f"[a.py]({link})")
+        rc, _, err = self.op("revise", id="Q1", facts=f"[a.py]({link})")
         self.assertEqual(rc, 0, err)
         self.assertNotIn("by branch", err)
 
@@ -418,14 +425,12 @@ class TestRefusals(DirCase):
         self.assertEqual(self.q("Q4")["recommendation"], q["recommendation"])
 
     def test_revise_warns_on_a_recommendation_that_asks_the_user_something(self):
-        rc, out, err = self.rp(
+        rc, out, err = self.op(
             "revise",
-            "Q1",
-            "--rec",
-            "Ship it. Which rung do you intend?",
-            "--affects",
-            "none",
-            "--keep-alternatives",
+            id="Q1",
+            rec="Ship it. Which rung do you intend?",
+            affects="none",
+            keepAlternatives=True,
         )
         self.assertEqual(rc, 0, out + err)
         self.assertIn("Q1 recommendation asks the user something", err)
@@ -448,6 +453,53 @@ class TestRefusals(DirCase):
         rc, out, err = self.rp("add", "--file", self.file("q.json", q))
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("asks the user", err)
+
+    TABLE = "| AC | Criterion |\n|---|---|\n| AC1 | builds reuse the cache |"
+    VISUAL_WARNING = "recommendation refers to a table or visual"
+
+    def test_add_warns_on_a_recommendation_that_points_at_a_table_it_does_not_carry(self):
+        q = question(
+            "Q4",
+            recommendation="Adopt the ten criteria in the table as written.",
+            facts=self.TABLE,
+        )
+        rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q4 {self.VISUAL_WARNING}", err)
+
+    def test_a_table_reference_with_commitments_or_nothing_shown_draws_no_warning(self):
+        for name, q in (
+            (
+                "commitments carry it",
+                question(
+                    "Q4",
+                    recommendation="Adopt the criteria in the table as written.",
+                    facts=self.TABLE,
+                    commits=["AC1: builds reuse the cache"],
+                ),
+            ),
+            (
+                "a database table, no visual or facts table",
+                question("Q4", recommendation="Add an index to the orders table."),
+            ),
+        ):
+            with self.subTest(name):
+                self.write_doc(base_doc())
+                rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+                self.assertEqual(rc, 0, out + err)
+                self.assertNotIn(self.VISUAL_WARNING, err)
+
+    def test_revise_warns_on_a_recommendation_that_points_at_a_table(self):
+        rc, out, err = self.op(
+            "revise",
+            id="Q2",
+            rec="Adopt the criteria in the table.",
+            facts=self.TABLE,
+            affects="none",
+            keepAlternatives=True,
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q2 {self.VISUAL_WARNING}", err)
 
     def test_bare_issue_ref_warns_without_meta_repo(self):
         q = question("Q4", title="Does #123 block the release?")
@@ -540,6 +592,57 @@ class TestRefusals(DirCase):
             self.assertEqual(rc, 0, out + err)
             self.assertNotIn("names a local file", err, rec)
 
+    FACTS_WARNING = "facts carries no link, file:line or judgment label"
+
+    def test_facts_with_no_reference_warns_and_check_exits_zero(self):
+        q = question("Q4", facts="The cache is shared by every job today.")
+        before = self.raw()
+        path = self.file("round.json", {"questions": [q]})
+        rc, out, err = self.rp("add-round", "--file", path, "--check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q4 {self.FACTS_WARNING}", err)
+        self.assertIn("basis carries no outcome label", err)
+        self.assertEqual(self.raw(), before)
+        rc, out, err = self.op("revise", id="Q1", facts="Every job shares the cache.")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(f"Q1 {self.FACTS_WARNING}", err)
+
+    def test_facts_with_a_link_file_line_or_judgment_label_is_quiet(self):
+        for n, facts in enumerate(
+            (
+                "> Releases ship on a weekday.\n\n[Release policy](https://example.com/policy#days)",
+                "The cache is shared (https://example.com/ci#cache).",
+                "The lock is per data dir (`plugins/planning/surface/round.py:217`).",
+                "The pin is a digest (plugins/planning/tests/interview-defenses.test.sh:644).",
+                "Checked against: C1, C3",
+                "Checked against: none\n\nMost jobs would gain from it. Judgment",
+                "(judgment) Most jobs would gain from it.",
+            ),
+            start=4,
+        ):
+            q = question(f"Q{n}", facts=facts)
+            rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0, out + err)
+            self.assertNotIn(self.FACTS_WARNING, err, facts)
+
+    def test_no_facts_draws_no_warning(self):
+        rc, out, err = self.rp("add", "--file", self.file("q.json", question("Q4")))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn(self.FACTS_WARNING, err)
+
+    def test_a_time_of_day_or_judgment_as_a_word_is_not_a_reference(self):
+        for n, facts in enumerate(
+            (
+                "The nightly build starts at 16:30.",
+                "Checked against: C2\n\nWhich cache to keep is a judgment call for the team.",
+            ),
+            start=4,
+        ):
+            q = question(f"Q{n}", facts=facts)
+            rc, out, err = self.rp("add", "--file", self.file("q.json", q))
+            self.assertEqual(rc, 0, out + err)
+            self.assertIn(f"Q{n} {self.FACTS_WARNING}", err, facts)
+
     def test_bare_unknown_id_token_warns(self):
         q = question(
             "Q4",
@@ -577,49 +680,49 @@ class TestRefusals(DirCase):
 
 
 class TestAffects(DirCase):
-    """R2: --affects on recommendation changes; AC11 guard with --force."""
+    """R2: affects on recommendation changes; AC11 guard with force."""
 
     def test_reply_rec_without_affects_is_refused(self):
-        out = self.assert_refused("reply", "Q1", "--rec", "New.")
-        self.assertIn("--affects", out)
+        out = self.op_refused("reply", id="Q1", rec="New.")
+        self.assertIn("`affects`", out)
 
     def test_revise_rec_without_affects_is_refused(self):
-        out = self.assert_refused("revise", "Q1", "--rec", "New.")
-        self.assertIn("--affects", out)
+        out = self.op_refused("revise", id="Q1", rec="New.")
+        self.assertIn("`affects`", out)
 
     def test_reply_rec_stores_affects_on_the_history_line(self):
-        rc, out, err = self.rp(
-            "reply", "Q1", "--rec", "New.", "--affects", "Q2,Q3", "--keep-alternatives"
+        rc, out, err = self.op(
+            "reply", id="Q1", rec="New.", affects="Q2,Q3", keepAlternatives=True
         )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["history"][-1]["affects"], ["Q2", "Q3"])
 
     def test_revise_rec_affects_none_is_an_empty_list(self):
-        rc, out, err = self.rp(
-            "revise", "Q1", "--rec", "New.", "--affects", "none", "--keep-alternatives"
+        rc, out, err = self.op(
+            "revise", id="Q1", rec="New.", affects="none", keepAlternatives=True
         )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["history"][-1]["affects"], [])
 
     def test_revise_line_records_the_fields_it_changed(self):
-        rc, out, err = self.rp("revise", "Q1", "--title", "New title?", "--short", "New short")
+        rc, out, err = self.op("revise", id="Q1", title="New title?", short="New short")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["history"][-1]["changed"], ["title", "short"])
-        rc, out, err = self.rp(
-            "revise", "Q1", "--rec", "New.", "--affects", "none", "--keep-alternatives"
+        rc, out, err = self.op(
+            "revise", id="Q1", rec="New.", affects="none", keepAlternatives=True
         )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["history"][-1]["changed"], ["recommendation"])
 
     def test_reply_without_rec_needs_no_affects(self):
-        rc, out, err = self.rp("reply", "Q1", "--text", "Thread only.")
+        rc, out, err = self.op("reply", id="Q1", text="Thread only.")
         self.assertEqual(rc, 0, out + err)
 
     def test_note_without_a_reply_target_says_posted_and_can_need_an_answer(self):
-        rc, out, err = self.rp("note-reply", "--text", "FYI.")
+        rc, out, err = self.op("note-reply", text="FYI.")
         self.assertEqual(rc, 0, out + err)
         self.assertIn("Note posted", out)
-        rc, out, err = self.rp("note-reply", "--text", "Which one?", "--needs-answer")
+        rc, out, err = self.op("note-reply", text="Which one?", needsAnswer=True)
         self.assertEqual(rc, 0, out + err)
         notes = self.doc()["notes"]
         self.assertNotIn("needsAnswer", notes[0])
@@ -647,31 +750,11 @@ class TestAffects(DirCase):
                 },
             ]
         )
-        for cmd in ("reply", "revise"):
-            out = self.assert_refused(
-                cmd,
-                "Q1",
-                "--rec",
-                "New.",
-                "--affects",
-                "none",
-                "--seq",
-                "1",
-                "--keep-alternatives",
-            )
+        rec = {"id": "Q1", "rec": "New.", "affects": "none", "seq": 1, "keepAlternatives": True}
+        for name in ("reply", "revise"):
+            out = self.op_refused(name, **rec)
             self.assertIn("refused", out)
-            rc, out, err = self.rp(
-                cmd,
-                "Q1",
-                "--rec",
-                "New.",
-                "--affects",
-                "none",
-                "--seq",
-                "1",
-                "--force",
-                "--keep-alternatives",
-            )
+            rc, out, err = self.op(name, **rec, force=True)
             self.assertEqual(rc, 0, out + err)
 
     def test_withdrawn_and_undo_events_do_not_block_a_revision(self):
@@ -683,29 +766,13 @@ class TestAffects(DirCase):
             {**undo, "at": at, "undoSeq": 1},
         ]
         self.write_events(events)
-        rc, out, err = self.rp(
-            "revise",
-            "Q1",
-            "--rec",
-            "New.",
-            "--affects",
-            "none",
-            "--seq",
-            "1",
-            "--keep-alternatives",
+        rc, out, err = self.op(
+            "revise", id="Q1", rec="New.", affects="none", seq=1, keepAlternatives=True
         )
         self.assertEqual(rc, 0, out + err)
         self.write_events([*events, {**accept, "seq": 3, "at": at}])
-        out = self.assert_refused(
-            "revise",
-            "Q1",
-            "--rec",
-            "Newer.",
-            "--affects",
-            "none",
-            "--seq",
-            "1",
-            "--keep-alternatives",
+        out = self.op_refused(
+            "revise", id="Q1", rec="Newer.", affects="none", seq=1, keepAlternatives=True
         )
         self.assertIn("#3", out)
 
@@ -713,8 +780,8 @@ class TestAffects(DirCase):
 class TestRevise(DirCase):
     """R-I on revise: replacing the alternatives keeps at least two."""
 
-    def test_cli_revise_with_one_alternative_is_refused(self):
-        out = self.assert_refused("revise", "Q1", "--alt", "a:Only this")
+    def test_revise_with_one_key_text_alternative_is_refused(self):
+        out = self.op_refused("revise", id="Q1", alternatives=["a:Only this"])
         self.assertIn("R-I", out)
 
     def test_apply_revise_with_fewer_than_two_alternatives_is_refused(self):
@@ -724,7 +791,7 @@ class TestRevise(DirCase):
             self.assertIn("R-I", out)
 
     def test_revise_with_two_alternatives_saves(self):
-        rc, out, err = self.rp("revise", "Q1", "--alt", "a:One", "--alt", "b:Two")
+        rc, out, err = self.op("revise", id="Q1", alternatives=["a:One", "b:Two"])
         self.assertEqual(rc, 0, out + err)
         self.assertEqual([a["key"] for a in self.q("Q1")["alternatives"]], ["a", "b"])
 
@@ -736,10 +803,9 @@ class TestSharedQuestionShape(DirCase):
         return self.rp("apply", "--file", self.file("ops.json", {"ops": list(ops)}))
 
     def test_short_is_capped_at_80_on_every_write_path(self):
-        rc, out, err = self.rp("revise", "Q1", "--short", "x" * 80)
+        rc, out, err = self.op("revise", id="Q1", short="x" * 80)
         self.assertEqual(rc, 0, out + err)
         for args in (
-            ("revise", "Q1", "--short", "x" * 81),
             ("apply", "--file", self.file("r.json", {"ops": [{"op": "revise", "id": "Q1", "short": "x" * 81}]})),
             ("apply", "--file", self.file("a.json", {"ops": [{"op": "add", "question": question("Q4", short="x" * 81)}]})),
         ):
@@ -782,7 +848,7 @@ class TestStoredLongShort(DirCase):
     def test_an_answer_and_a_revise_of_other_fields_are_accepted(self):
         for args in (
             ("apply", "--file", self.file("t.json", {"ops": [{"op": "record-terminal", "id": "Q1", "decision": "accept"}]})),
-            ("revise", "Q1", "--title", "New title?", "--facts", "New facts."),
+            ("apply", "--file", self.ops_file("revise", {"id": "Q1", "title": "New title?", "facts": "New facts."})),
         ):
             with self.subTest(args=args[:2]):
                 rc, out, err = self.rp(*args)
@@ -792,7 +858,7 @@ class TestStoredLongShort(DirCase):
 
     def test_setting_a_long_short_is_refused(self):
         for args in (
-            ("revise", "Q2", "--short", self.LONG),
+            ("apply", "--file", self.ops_file("revise", {"id": "Q2", "short": self.LONG})),
             ("add", "--file", self.file("q.json", question("Q4", short=self.LONG))),
         ):
             with self.subTest(args=args[:2]):
@@ -802,49 +868,34 @@ class TestStoredLongShort(DirCase):
 class TestRecAlternativeCollision(DirCase):
     def test_reply_rec_equal_or_containing_an_alternative_is_refused(self):
         for rec in ("  no.", "Pick no, then ship it"):
-            out = self.assert_refused(
-                "reply", "Q1", "--rec", rec, "--affects", "none", "--keep-alternatives"
+            out = self.op_refused(
+                "reply", id="Q1", rec=rec, affects="none", keepAlternatives=True
             )
             self.assertIn("Q1", out)
             self.assertIn("(a)", out)
-            self.assertIn("--alt", out)
+            self.assertIn("`alternatives` in the same op", out)
 
     def test_revise_rec_colliding_with_an_alternative_is_refused(self):
-        out = self.assert_refused(
-            "revise", "Q1", "--rec", "No", "--affects", "none", "--keep-alternatives"
+        out = self.op_refused(
+            "revise", id="Q1", rec="No", affects="none", keepAlternatives=True
         )
-        self.assertIn("revise --alt", out)
+        self.assertIn("`alternatives` in the same revise op", out)
 
     def test_revise_rec_with_alt_that_removes_the_collision_saves(self):
-        rc, out, err = self.rp(
-            "revise",
-            "Q1",
-            "--rec",
-            "No",
-            "--affects",
-            "none",
-            "--alt",
-            "a:Yes",
-            "--alt",
-            "b:Later",
+        rc, out, err = self.op(
+            "revise", id="Q1", rec="No", affects="none", alternatives=["a:Yes", "b:Later"]
         )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["recommendation"], "No")
 
     def test_revise_alt_colliding_with_the_existing_rec_is_refused(self):
-        self.assert_refused(
-            "revise", "Q1", "--alt", "a:yes. it keeps things simple", "--alt", "b:Later"
+        self.op_refused(
+            "revise", id="Q1", alternatives=["a:yes. it keeps things simple", "b:Later"]
         )
 
     def test_reply_rec_without_a_collision_saves(self):
-        rc, out, err = self.rp(
-            "reply",
-            "Q1",
-            "--rec",
-            "Ship it now.",
-            "--affects",
-            "none",
-            "--keep-alternatives",
+        rc, out, err = self.op(
+            "reply", id="Q1", rec="Ship it now.", affects="none", keepAlternatives=True
         )
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["recommendation"], "Ship it now.")
@@ -854,26 +905,21 @@ class TestRecReviewsAlternatives(DirCase):
     """R-I: a recommendation change carries revised alternatives or states the current ones were
     checked against it (keepAlternatives); the history line records which."""
 
-    REC = ["--rec", "Ship it now.", "--affects", "none"]
-    ALTS = ["--alt", "a:Wait a week", "--alt", "b:Never"]
+    REC = {"id": "Q1", "rec": "Ship it now.", "affects": "none"}
+    ALTS = {"alternatives": ["a:Wait a week", "b:Never"]}
 
     def apply(self, *ops):
         return self.rp("apply", "--file", self.file("ops.json", {"ops": list(ops)}))
 
     def test_rec_without_alternatives_or_keep_is_refused_naming_the_question(self):
-        for cmd in ("reply", "revise"):
-            with self.subTest(cmd=cmd):
-                out = self.assert_refused(cmd, "Q1", *self.REC)
+        for name in ("reply", "revise"):
+            with self.subTest(op=name):
+                out = self.op_refused(name, **self.REC)
                 self.assertIn("Q1", out)
-                self.assertIn("--keep-alternatives", out)
-        op = {"op": "revise", "id": "Q1", "rec": "Ship it now.", "affects": "none"}
-        out = self.assert_refused(
-            "apply", "--file", self.file("ops.json", {"ops": [op]})
-        )
-        self.assertIn("keepAlternatives", out)
+                self.assertIn("`keepAlternatives: true`", out)
 
     def test_revise_with_alternatives_records_both_changes(self):
-        rc, out, err = self.rp("revise", "Q1", *self.REC, *self.ALTS)
+        rc, out, err = self.op("revise", **self.REC, **self.ALTS)
         self.assertEqual(rc, 0, out + err)
         q = self.q("Q1")
         self.assertEqual(q["alternatives"][0], {"key": "a", "text": "Wait a week"})
@@ -882,9 +928,9 @@ class TestRecReviewsAlternatives(DirCase):
         self.assertIn("recommendation, alternatives", line["text"])
 
     def test_keep_alternatives_applies_and_records_that_they_were_kept(self):
-        for cmd in ("reply", "revise"):
-            with self.subTest(cmd=cmd):
-                rc, out, err = self.rp(cmd, "Q1", *self.REC, "--keep-alternatives")
+        for name in ("reply", "revise"):
+            with self.subTest(op=name):
+                rc, out, err = self.op(name, **self.REC, keepAlternatives=True)
                 self.assertEqual(rc, 0, out + err)
                 q = self.q("Q1")
                 self.assertEqual(
@@ -904,20 +950,18 @@ class TestRecReviewsAlternatives(DirCase):
         self.assertEqual(q["history"][-1]["alternatives"], "rewritten")
 
     def test_a_new_alternative_repeating_the_new_recommendation_is_refused(self):
-        for cmd in ("reply", "revise"):
-            with self.subTest(cmd=cmd):
-                out = self.assert_refused(cmd, "Q1", *self.REC, "--alt", "a:Ship it now", "--alt", "b:Never")  # fmt: skip
+        for name in ("reply", "revise"):
+            with self.subTest(op=name):
+                out = self.op_refused(name, **self.REC, alternatives=["a:Ship it now", "b:Never"])  # fmt: skip
                 self.assertIn("(a)", out)
 
     def test_both_or_keep_without_rec_is_refused(self):
-        out = self.assert_refused(
-            "revise", "Q1", *self.REC, *self.ALTS, "--keep-alternatives"
-        )
+        out = self.op_refused("revise", **self.REC, **self.ALTS, keepAlternatives=True)
         self.assertIn("not both", out)
-        for cmd in ("reply", "revise"):
-            with self.subTest(cmd=cmd):
-                self.assert_refused(cmd, "Q1", "--text", "Hi.", "--keep-alternatives")
-        self.assert_refused("reply", "Q1", "--text", "Hi.", *self.ALTS)
+        for name in ("reply", "revise"):
+            with self.subTest(op=name):
+                self.op_refused(name, id="Q1", text="Hi.", keepAlternatives=True)
+        self.op_refused("reply", id="Q1", text="Hi.", **self.ALTS)
 
 
 class TestRevisedReason(DirCase):
@@ -925,15 +969,14 @@ class TestRevisedReason(DirCase):
     "Recommendation revised." phrase itself, so it is never stored as the reason."""
 
     def test_no_why_stores_true_and_a_why_is_stored_as_given(self):
-        for cmd in ("reply", "revise"):
-            with self.subTest(cmd=cmd):
-                rec = ["--rec", f"New by {cmd}.", "--affects", "none"]
-                rc, out, err = self.rp(cmd, "Q1", *rec, "--keep-alternatives")
+        for name in ("reply", "revise"):
+            with self.subTest(op=name):
+                rec = {"id": "Q1", "affects": "none", "keepAlternatives": True}
+                rc, out, err = self.op(name, **rec, rec=f"New by {name}.")
                 self.assertEqual(rc, 0, out + err)
                 self.assertIs(self.q("Q1")["revised"], True)
-                rec[1] = f"Newer by {cmd}."
-                rc, out, err = self.rp(
-                    cmd, "Q1", *rec, "--keep-alternatives", "--why", "Faster."
+                rc, out, err = self.op(
+                    name, **rec, rec=f"Newer by {name}.", why="Faster."
                 )
                 self.assertEqual(rc, 0, out + err)
                 self.assertEqual(self.q("Q1")["revised"], "Faster.")
@@ -944,7 +987,7 @@ class TestRegroup(DirCase):
     the groups, both in place: the question keeps its id, thread and answer."""
 
     def test_revise_group_moves_the_question_and_logs_it(self):
-        rc, out, err = self.rp("revise", "Q1", "--group", "g2")
+        rc, out, err = self.op("revise", id="Q1", group="g2")
         self.assertEqual(rc, 0, out + err)
         q = self.q("Q1")
         self.assertEqual(q["group"], "g2")
@@ -953,19 +996,15 @@ class TestRegroup(DirCase):
         self.assertIn("group (g1 -> g2)", out)
 
     def test_a_move_warns_on_a_summary_written_for_the_old_members(self):
-        rc, out, err = self.rp("group", "g1", "--summary", "Q1 and Q2.")
+        rc, out, err = self.op("group", id="g1", summary="Q1 and Q2.")
         self.assertEqual(rc, 0, out + err)
-        rc, out, err = self.rp("revise", "Q1", "--group", "g2")
+        rc, out, err = self.op("revise", id="Q1", group="g2")
         self.assertEqual(rc, 0, out + err)
         self.assertIn("group g1 summary predates moving Q1", out + err)
 
     def test_unknown_group_or_a_no_op_move_is_refused(self):
-        self.assertIn(
-            "unknown group", self.assert_refused("revise", "Q1", "--group", "g9")
-        )
-        self.assertIn(
-            "nothing to revise", self.assert_refused("revise", "Q1", "--group", "g1")
-        )
+        self.assertIn("unknown group", self.op_refused("revise", id="Q1", group="g9"))
+        self.assertIn("nothing to revise", self.op_refused("revise", id="Q1", group="g1"))
 
     def test_group_order_reorders_the_groups(self):
         rc, out, err = self.rp("group-order", "g2", "g1")
@@ -988,37 +1027,34 @@ class TestRegroup(DirCase):
 
 class TestReviseCommits(DirCase):
     def revise_commits(self, *commits):
-        args = [a for c in commits for a in ("--commit", c)]
-        return self.rp(
+        return self.op(
             "revise",
-            "Q1",
-            "--rec",
-            "New.",
-            "--affects",
-            "none",
-            "--keep-alternatives",
-            *args,
+            id="Q1",
+            rec="New.",
+            affects="none",
+            keepAlternatives=True,
+            commits=list(commits),
         )
 
-    def test_cli_writes_the_commitments_in_order(self):
+    def test_rec_with_commits_writes_them_in_order(self):
         rc, out, err = self.revise_commits("A", "B")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["commits"], ["A", "B"])
 
-    def test_commit_none_clears_them(self):
-        rc, out, err = self.revise_commits("none")
+    def test_rec_with_an_empty_commit_list_clears_them(self):
+        rc, out, err = self.revise_commits()
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["commits"], [])
 
     def test_commit_alone_is_a_revision(self):
-        rc, out, err = self.rp("revise", "Q1", "--commit", "A")
+        rc, out, err = self.op("revise", id="Q1", commits=["A"])
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["commits"], ["A"])
         self.assertEqual(self.q("Q1")["contentRev"], 1)
         self.assertIn("commitments", self.q("Q1")["history"][-1]["text"])
 
     def test_the_same_list_changes_nothing(self):
-        out = self.assert_refused("revise", "Q1", "--commit", "Only one writer")
+        out = self.op_refused("revise", id="Q1", commits=["Only one writer"])
         self.assertIn("nothing to revise", out)
 
     def test_apply_op_takes_a_list_and_an_empty_list_clears(self):
@@ -1029,7 +1065,7 @@ class TestReviseCommits(DirCase):
             self.assertEqual(self.q("Q1")["commits"], want)
 
     def test_an_over_cap_commitment_is_refused_before_writing(self):
-        self.assert_refused("revise", "Q1", "--commit", "x" * 501)
+        self.op_refused("revise", id="Q1", commits=["x" * 501])
         ops = {"ops": [{"op": "revise", "id": "Q1", "commits": ["ok", "x" * 501]}]}
         self.assert_refused("apply", "--file", self.file("ops.json", ops))
 
@@ -1051,9 +1087,7 @@ class TestReviseCommits(DirCase):
                 }
             ]
         )
-        rc, out, err = self.rp(
-            "revise", "Q1", "--commit", "A", "--commit", "B", "--seq", "7"
-        )
+        rc, out, err = self.op("revise", id="Q1", commits=["A", "B"], seq=7)
         self.assertEqual(rc, 0, out + err)
         q = self.q("Q1")
         self.assertNotIn("commitsConfirmed", q)
@@ -1066,7 +1100,7 @@ class TestReviseDepends(DirCase):
     """revise replaces dependsOn, validated like add, and logs the change in the history."""
 
     def test_the_list_is_replaced_and_logged(self):
-        rc, out, err = self.rp("revise", "Q3", "--depends", "Q1", "--depends", "Q2")
+        rc, out, err = self.op("revise", id="Q3", dependsOn=["Q1", "Q2"])
         self.assertEqual(rc, 0, out + err)
         q = self.q("Q3")
         self.assertEqual(q["dependsOn"], ["Q1", "Q2"])
@@ -1082,7 +1116,7 @@ class TestReviseDepends(DirCase):
         self.assertEqual(rc, 0, out + err)
 
     def test_none_clears_and_an_empty_op_list_clears(self):
-        rc, out, err = self.rp("revise", "Q2", "--depends", "none")
+        rc, out, err = self.op("revise", id="Q2", dependsOn=["none"])
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("dependsOn", self.q("Q2"))
         for deps in (["Q1"], []):
@@ -1094,26 +1128,26 @@ class TestReviseDepends(DirCase):
     def test_unknown_self_and_cyclic_references_are_refused(self):
         self.assertIn(
             "unknown reference in Q3: Q9",
-            self.assert_refused("revise", "Q3", "--depends", "Q9"),
+            self.op_refused("revise", id="Q3", dependsOn=["Q9"]),
         )
         self.assertIn(
             "cannot depend on itself",
-            self.assert_refused("revise", "Q3", "--depends", "Q3"),
+            self.op_refused("revise", id="Q3", dependsOn=["Q3"]),
         )
         self.assertIn(
             "already depends on Q1",
-            self.assert_refused("revise", "Q1", "--depends", "Q2"),
+            self.op_refused("revise", id="Q1", dependsOn=["Q2"]),
         )
         ops = {"ops": [{"op": "revise", "id": "Q3", "dependsOn": ["Q1", "Q9"]}]}
         self.assert_refused("apply", "--file", self.file("ops.json", ops))
 
     def test_the_same_list_changes_nothing(self):
         self.assertIn(
-            "nothing to revise", self.assert_refused("revise", "Q2", "--depends", "Q1")
+            "nothing to revise", self.op_refused("revise", id="Q2", dependsOn=["Q1"])
         )
 
     def test_alongside_another_field_it_adds_its_own_line(self):
-        rc, out, err = self.rp("revise", "Q3", "--title", "Renamed?", "--depends", "Q1")
+        rc, out, err = self.op("revise", id="Q3", title="Renamed?", dependsOn=["Q1"])
         self.assertEqual(rc, 0, out + err)
         q = self.q("Q3")
         self.assertEqual(q["contentRev"], 1)
@@ -1144,9 +1178,8 @@ class TestDeclaredDepends(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("dependsOn", err)
         self.assertEqual(self.q("Q4")["dependsOn"], [])
-        flags = ["--id", "Q5", "--short", "S", "--title", "T?", "--rec", "Yes."]
-        flags += ["--commit", "none", "--alt", "a:No", "--alt", "b:Later"]
-        rc, out, err = self.rp("add", *flags, "--depends", "none")
+        q = question("Q5", short="S", title="T?", recommendation="Yes.")
+        rc, out, err = self.rp("add", "--file", self.file("q5.json", q), "--depends", "none")
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("dependsOn", err)
         self.assertEqual(self.q("Q5")["dependsOn"], [])
@@ -1224,31 +1257,15 @@ class TestRecChangeStampsPageSeq(DirCase):
         )  # fmt: skip
 
     def test_revise_and_reply_with_rec_stamp_the_seq_and_other_changes_do_not(self):
-        rc, out, err = self.rp(
-            "revise",
-            "Q1",
-            "--rec",
-            "New.",
-            "--affects",
-            "Q3",
-            "--force",
-            "--keep-alternatives",
+        rc, out, err = self.op(
+            "revise", id="Q1", rec="New.", affects="Q3", force=True, keepAlternatives=True
         )
         self.assertEqual(rc, 0, out + err)
-        rc, out, err = self.rp(
-            "reply",
-            "Q1",
-            "--rec",
-            "Newer.",
-            "--affects",
-            "none",
-            "--force",
-            "--keep-alternatives",
+        rc, out, err = self.op(
+            "reply", id="Q1", rec="Newer.", affects="none", force=True, keepAlternatives=True
         )
         self.assertEqual(rc, 0, out + err)
-        rc, out, err = self.rp(
-            "revise", "Q1", "--title", "Renamed?", "--affects", "Q3", "--force"
-        )
+        rc, out, err = self.op("revise", id="Q1", title="Renamed?", affects="Q3", force=True)
         self.assertEqual(rc, 0, out + err)
         lines = self.q("Q1")["history"][-3:]
         self.assertEqual([h.get("pageSeq") for h in lines], [4, 4, None])
@@ -1302,19 +1319,19 @@ class TestReconfirm(DirCase):
         self.assertEqual(rc, 0, out + err)
 
     def test_refusals_write_nothing(self):
-        out = self.assert_refused("reconfirm", "Q3", "--why", "Fine.")
+        out = self.op_refused("reconfirm", ids=["Q3"], why="Fine.")
         self.assertIn("refused: Q3 not upstream-changed; nothing to reconfirm", out)
-        out = self.assert_refused("reconfirm", "Q2", "Q3", "--why", "Fine.")
+        out = self.op_refused("reconfirm", ids=["Q2", "Q3"], why="Fine.")
         self.assertIn("refused: Q3 not upstream-changed", out)
-        out = self.assert_refused("reconfirm", "Q2", "--why", "  ")
+        out = self.op_refused("reconfirm", ids=["Q2"], why="  ")
         self.assertIn("refused: reconfirm needs a why", out)
-        out = self.assert_refused("reconfirm", "Q9", "--why", "Fine.")
+        out = self.op_refused("reconfirm", ids=["Q9"], why="Fine.")
         self.assertIn("unknown question: Q9", out)
         ops = {"ops": [{"op": "reconfirm", "ids": ["Q2"]}]}
         self.assert_refused("apply", "--file", self.file("ops.json", ops))
 
     def test_a_revise_line_carries_review_seq_and_clears_it(self):
-        rc, out, err = self.rp("revise", "Q2", "--title", "Still the question?")
+        rc, out, err = self.op("revise", id="Q2", title="Still the question?")
         self.assertEqual(rc, 0, out + err)
         line = self.q("Q2")["history"][-1]
         self.assertEqual((line["kind"], line["reviewSeq"]), ("revise", 2))
@@ -1340,10 +1357,8 @@ class TestSupersedeRepoint(DirCase):
         self.write_doc(doc)
 
     def add(self, *extra):
-        return self.rp(
-            "add", "--id", "Q6", "--short", "S", "--title", "T?", "--rec", "Yes.",
-            "--commit", "none", "--alt", "a:No", "--alt", "b:Later", "--supersedes", "Q1", *extra,
-        )  # fmt: skip
+        q = question("Q6", short="S", title="T?", recommendation="Yes.")
+        return self.rp("add", "--file", self.file("q6.json", q), "--supersedes", "Q1", *extra)
 
     def test_without_the_flag_it_only_names_the_dependents(self):
         rc, out, err = self.add()
@@ -1392,6 +1407,37 @@ class TestSupersedeRepoint(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertIn("repointed Q2, Q4 from Q1 to Q6", out)
         self.assertEqual(self.q("Q2")["dependsOn"], ["Q6"])
+
+
+class TestMassSupersede(DirCase):
+    """G6: one write that supersedes three or more questions one for one warns and names revise."""
+
+    def replacements(self, *olds):
+        return [
+            question(f"R{old}", short=f"New {old}", supersedes=old, dependsOn=[])
+            for old in olds
+        ]
+
+    def test_superseding_three_questions_one_for_one_warns_naming_revise(self):
+        rnd = {"questions": self.replacements("Q1", "Q2", "Q3")}
+        rc, out, err = self.rp("add-round", "--file", self.file("r.json", rnd), "--round", "2")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("supersedes 3 questions one for one", err)
+        self.assertIn("Q1 by RQ1, Q2 by RQ2, Q3 by RQ3", err)
+        self.assertIn("use revise <id>", err)
+        self.assertEqual(self.q("Q3")["supersededBy"], "RQ3")
+
+    def test_the_apply_add_ops_of_one_write_count_together(self):
+        ops = {"ops": [{"op": "add", "question": q} for q in self.replacements("Q1", "Q2", "Q3")]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("revise <id>", err)
+
+    def test_two_supersedes_do_not_warn(self):
+        rnd = {"questions": self.replacements("Q1", "Q2")}
+        rc, out, err = self.rp("add-round", "--file", self.file("r.json", rnd), "--round", "2")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("one for one", out + err)
 
 
 class TestSupersedeShortAndDuplicateId(DirCase):
@@ -1570,6 +1616,34 @@ class TestStatusLive(DirCase):
         g1 = json.loads(out)["groups"][0]
         self.assertEqual((g1["live"], g1["answered"], g1["superseded"]), (2, 1, ["Q4"]))
 
+    def test_an_answer_superseded_after_it_counts_nowhere(self):
+        """#9715: status reads supersededBy before the decision, as export-ledger does, so the two
+        agree once an answered question is superseded."""
+        at = "2026-09-24T10:00:00Z"
+        self.write_events(
+            [{"seq": 1, "id": "Q1", "kind": "alt", "alt": "a", "text": "", "at": at}]
+        )
+        ledger = self.tmp / "ledger.md"
+
+        def counts():  # (answered per status --json, Q1's export-ledger status)
+            rc, out, err = self.rp("status", "--json")
+            self.assertEqual(rc, 0, out + err)
+            answered = sum(g["answered"] for g in json.loads(out)["groups"])
+            rc, out, err = self.rp("export-ledger", "--out", str(ledger))
+            self.assertEqual(rc, 0, out + err)
+            rows = [
+                line.split(" | ")
+                for line in ledger.read_text(encoding="utf-8").splitlines()
+                if line.startswith("- Q")
+            ]
+            return answered, next(r[1] for r in rows if r[0] == "- Q1")
+
+        self.assertEqual(counts(), (1, "answered"))
+        q = question("Q6", short="S", title="T?", recommendation="Yes.")
+        rc, out, err = self.rp("add", "--file", self.file("q6.json", q), "--supersedes", "Q1")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(counts(), (0, "withdrawn"))
+
     def test_an_accepted_row_with_an_unticked_commitment_is_named(self):
         doc = base_doc()
         doc["questions"][0]["commits"] = ["No network"]
@@ -1589,6 +1663,31 @@ class TestStatusLive(DirCase):
         rc, out, err = self.rp("status")
         self.assertEqual(rc, 0, out + err)
         self.assertIn('  Q1 Short Q1 accepted, to confirm: ["No network"]', out.splitlines())
+
+    def test_a_hedged_row_is_named_and_an_own_answer_is_not(self):
+        doc = base_doc()
+        doc["questions"][0]["commits"] = ["No network"]
+        self.write_doc(doc)
+        for kind, listed in (("hedged", True), ("own", False)):
+            with self.subTest(kind=kind):
+                self.write_events(
+                    [
+                        {
+                            "seq": 1,
+                            "id": "Q1",
+                            "kind": kind,
+                            "alt": None,
+                            "text": "only if cheap",
+                            "at": "2026-09-24T10:00:00Z",
+                        }
+                    ]
+                )
+                rc, out, err = self.rp("status", "--json")
+                self.assertEqual(rc, 0, out + err)
+                pending = [
+                    c["id"] for g in json.loads(out)["groups"] for c in g["toConfirm"]
+                ]
+                self.assertEqual(pending, ["Q1"] if listed else [])
 
 
 class TestDirRequired(unittest.TestCase):
@@ -1763,7 +1862,7 @@ class TestApply(DirCase):
             ]
         }
         out = self.assert_refused("apply", "--file", self.file("ops.json", ops))
-        self.assertIn("--affects", out)
+        self.assertIn("`affects`", out)
 
     def test_unknown_op_is_refused(self):
         ops = {"ops": [{"op": "explode", "id": "Q1"}]}
@@ -2527,6 +2626,55 @@ class TestClaudeActivity(DirCase):
                     op["sections"] = sections
                 self.refused(op)
 
+    def test_restate_refuses_an_acceptance_line_that_asks_the_user(self):
+        for line in (
+            "- AC3: Say add both, add one, or neither.",
+            "- Does it need an unwanted-behavior case?",
+            "- [state-driven] Please confirm the timeout.",
+            "AC2: Choose one of the two layouts",
+            "1. Say which one applies",
+        ):
+            with self.subTest(line=line):
+                out = self.refused(
+                    {"op": "restate", "sections": {"acceptance": f"- AC1: it ships\n{line}"}}
+                )
+                self.assertIn("acceptance line asks the user something", out)
+
+    def test_restate_keeps_checkable_criteria_and_a_code_span_question_mark(self):
+        acceptance = (
+            "- AC1: [unwanted-behavior] IF the upload fails, THEN the manifest is discarded\n"
+            "- AC2: the lookup uses `a?.b`\n"
+            "- AC3: a picked row stays selected\n"
+            "- AC4: Pick lists reprint from the handheld\n"
+            "- AC5: Reply emails keep their thread"
+        )
+        self.apply({"op": "restate", "sections": {"acceptance": acceptance}})
+        self.assertEqual(
+            self.doc()["restatement"]["sections"]["acceptance"], acceptance
+        )
+
+    def test_restate_takes_a_tldr_and_refuses_a_gate_label_in_it(self):
+        self.apply({"op": "restate", "sections": {"tldr": "- Ships the build cache"}})
+        self.assertEqual(
+            self.doc()["restatement"]["sections"], {"tldr": "- Ships the build cache"}
+        )
+        for line in (
+            "- Restatement: confirmed at rev 9",
+            "Page title: Other",
+            "- Page  title: Other",
+            "Page\ttitle: Other",
+        ):
+            with self.subTest(line=line):
+                out = self.refused({"op": "restate", "sections": {"tldr": line}})
+                self.assertIn("a label the --brief gate reads", out)
+
+    def test_restate_warns_on_a_tldr_over_five_lines(self):
+        tldr = "\n".join(f"- scope item {n}" for n in range(1, 7))
+        ops = {"ops": [{"op": "restate", "sections": {"tldr": tldr}}]}
+        rc, out, err = self.rp("apply", "--file", self.file("ops.json", ops))
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("restate tldr has 6 lines", err)
+
     def test_constraint_records_each_constraint_in_the_page_state(self):
         self.apply(
             {"op": "constraint", "text": "Builds stop at ten minutes."},
@@ -2602,13 +2750,13 @@ class TestClaudeActivity(DirCase):
     def test_cli_writes(self):
         for args in (
             ("bump",),
-            ("group", "g3", "--title", "T"),
+            ("apply", "--file", self.ops_file("group", {"id": "g3", "title": "T"})),
             ("handle", "--seq", "1"),
         ):
             rc, out, err = self.rp(*args)
             self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.entries(), [])
-        rc, out, err = self.rp("reply", "Q1", "--text", "Because.")
+        rc, out, err = self.op("reply", id="Q1", text="Because.")
         self.assertEqual(rc, 0, out + err)
         [e] = self.entries()
         self.assertEqual((e["text"], e["ids"]), ("Replied on Q1", ["Q1"]))
@@ -2619,7 +2767,7 @@ class TestClaudeActivity(DirCase):
         self.apply({"op": "reply", "id": "Q1", "text": "Because."})
         self.assertIs(self.entries()[-1].get("waits"), True)
         self.assertNotIn("revised", self.entries()[-1])
-        rc, out, err = self.rp("revise", "Q1", "--rec", "Do it now.", "--affects", "none", "--keep-alternatives", "--force")
+        rc, out, err = self.op("revise", id="Q1", rec="Do it now.", affects="none", keepAlternatives=True, force=True)  # fmt: skip
         self.assertEqual(rc, 0, out + err)
         self.assertIs(self.entries()[-1].get("revised"), True)
         self.assertNotIn("waits", self.entries()[-1])
@@ -2629,7 +2777,7 @@ class TestClaudeActivity(DirCase):
         self.assertNotIn("asks", self.entries()[-1])
         self.apply({"op": "note-reply", "needsAnswer": True, "text": "Anything else?"})
         self.assertIs(self.entries()[-1].get("asks"), True)
-        rc, out, err = self.rp("note-reply", "--text", "Which one?", "--needs-answer")
+        rc, out, err = self.op("note-reply", text="Which one?", needsAnswer=True)
         self.assertEqual(rc, 0, out + err)
         self.assertIs(self.entries()[-1].get("asks"), True)
 
@@ -2640,7 +2788,7 @@ class TestClaudeActivity(DirCase):
         )
         [e] = self.entries()
         self.assertEqual((e["ids"], e.get("notes")), (["Q1"], True))
-        rc, out, err = self.rp("note-reply", "--text", "Again.")
+        rc, out, err = self.op("note-reply", text="Again.")
         self.assertEqual(rc, 0, out + err)
         e = self.entries()[-1]
         self.assertIs(e.get("notes"), True)
@@ -2673,31 +2821,45 @@ class TestRecordTerminal(DirCase):
     """record-terminal --decision alt takes only a key from the question's alternatives."""
 
     def test_unknown_alt_key_is_refused(self):
-        out = self.assert_refused(
-            "record-terminal", "Q1", "--decision", "alt", "--alt", "z"
-        )
+        out = self.op_refused("record-terminal", id="Q1", decision="alt", alt="z")
         self.assertIn("alternatives", out)
 
     def test_known_alt_key_is_recorded(self):
-        rc, out, err = self.rp(
-            "record-terminal", "Q1", "--decision", "alt", "--alt", "b"
-        )
+        rc, out, err = self.op("record-terminal", id="Q1", decision="alt", alt="b")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["terminal"]["alt"], "b")
+
+
+class TestRecordTerminalOffPath(DirCase):
+    """record-terminal refuses a decision on a superseded or archived question, as the server's
+    409 does, so an answer that would count nowhere is never written."""
+
+    def test_superseded_names_the_end_of_the_chain(self):
+        doc = base_doc()
+        doc["questions"][0]["supersededBy"] = "Q2"
+        doc["questions"][1]["supersededBy"] = "Q3"
+        self.write_doc(doc)
+        out = self.op_refused("record-terminal", id="Q1", decision="accept")
+        self.assertIn("refused: Q1 is superseded; answer Q3 instead", out)
+
+    def test_archived_is_refused(self):
+        doc = base_doc()
+        doc["questions"][2]["archived"] = {"why": "Off path.", "at": "2026-09-24T10:00:00Z"}
+        self.write_doc(doc)
+        out = self.op_refused("record-terminal", id="Q3", decision="accept")
+        self.assertIn("refused: Q3 is archived", out)
 
 
 class TestRecordTerminalHedged(DirCase):
     """record-terminal --decision hedged carries its condition in --text, one line."""
 
     def test_a_condition_is_required_and_capped_at_a_line(self):
-        for extra in ([], ["--text", "  "], ["--text", "x" * 501]):
-            self.assert_refused("record-terminal", "Q1", "--decision", "hedged", *extra)
+        for extra in ({}, {"text": "  "}, {"text": "x" * 501}):
+            self.op_refused("record-terminal", id="Q1", decision="hedged", **extra)
         self.assertNotIn("terminal", self.q("Q1"))
 
     def test_a_hedged_answer_is_recorded_and_validates(self):
-        rc, out, err = self.rp(
-            "record-terminal", "Q1", "--decision", "hedged", "--text", "if cheap"
-        )
+        rc, out, err = self.op("record-terminal", id="Q1", decision="hedged", text="if cheap")
         self.assertEqual(rc, 0, out + err)
         t = self.q("Q1")["terminal"]
         self.assertEqual((t["decision"], t["text"]), ("hedged", "if cheap"))
@@ -2730,7 +2892,7 @@ class TestReplyResolution(DirCase):
 
     def test_the_resolution_is_bound_to_the_answer_it_resolves(self):
         self.answer("own")
-        rc, out, err = self.rp("reply", "Q1", "--resolution", "2.0 s or less at p75")
+        rc, out, err = self.op("reply", id="Q1", resolution="2.0 s or less at p75")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(
             {k: v for k, v in self.q("Q1")["resolution"].items() if k != "at"},
@@ -2751,27 +2913,23 @@ class TestReplyResolution(DirCase):
             with self.subTest(kind=kind):
                 if kind:
                     self.answer(kind)
-                out = self.assert_refused("reply", "Q1", "--resolution", "x")
+                out = self.op_refused("reply", id="Q1", resolution="x")
                 self.assertIn("no counted own answer", out)
 
     def test_a_revised_recommendation_cannot_carry_one(self):
         self.answer("own")
-        out = self.assert_refused(
-            "reply", "Q1", "--resolution", "x", "--rec", "y", "--affects", "none"
-        )
+        out = self.op_refused("reply", id="Q1", resolution="x", rec="y", affects="none")
         self.assertIn("not both", out)
 
     def test_an_empty_resolution_is_refused(self):
         self.answer("own")
-        self.assertIn(
-            "needs text", self.assert_refused("reply", "Q1", "--resolution", " ")
-        )
+        self.assertIn("needs text", self.op_refused("reply", id="Q1", resolution=" "))
 
 
 class TestReviseSetsAsideOwn(DirCase):
     """A recommendation revision sets aside the counted own answer; other decisions stay."""
 
-    REC = ["--rec", "Use the lock.", "--affects", "none", "--keep-alternatives"]
+    REC = {"rec": "Use the lock.", "affects": "none", "keepAlternatives": True}
     CLOSED = "First group: 1 of 2 live answered; open: Q2 Short Q2"
     OPEN = "First group: 0 of 2 live answered; open: Q1 Short Q1, Q2 Short Q2"
 
@@ -2803,7 +2961,7 @@ class TestReviseSetsAsideOwn(DirCase):
     def test_revise_rec_sets_the_own_answer_aside(self):
         self.answer("own", "what are the patterns?")
         self.assertIn(self.CLOSED, self.status())
-        rc, out, err = self.rp("revise", "Q1", *self.REC, "--seq", "1")
+        rc, out, err = self.op("revise", id="Q1", **self.REC, seq=1)
         self.assertEqual(rc, 0, out + err)
         q = self.q("Q1")
         self.assertEqual(q["setAsideSeq"], 1)
@@ -2815,9 +2973,7 @@ class TestReviseSetsAsideOwn(DirCase):
 
     def test_reply_rec_sets_the_own_answer_aside(self):
         self.answer("own", "what are the patterns?")
-        rc, out, err = self.rp(
-            "reply", "Q1", "--text", "See below.", *self.REC, "--seq", "1"
-        )
+        rc, out, err = self.op("reply", id="Q1", text="See below.", **self.REC, seq=1)
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.q("Q1")["setAsideSeq"], 1)
         self.assertIsNone(self.latest())
@@ -2825,17 +2981,15 @@ class TestReviseSetsAsideOwn(DirCase):
 
     def test_reply_without_rec_and_revise_without_rec_keep_the_answer(self):
         self.answer("own", "what are the patterns?")
-        self.assertEqual(self.rp("reply", "Q1", "--text", "Noted.", "--seq", "1")[0], 0)
-        self.assertEqual(
-            self.rp("revise", "Q1", "--title", "Renamed?", "--seq", "1")[0], 0
-        )
+        self.assertEqual(self.op("reply", id="Q1", text="Noted.", seq=1)[0], 0)
+        self.assertEqual(self.op("revise", id="Q1", title="Renamed?", seq=1)[0], 0)
         self.assertNotIn("setAsideSeq", self.q("Q1"))
         self.assertIn(self.CLOSED, self.status())
 
     def test_accept_and_alt_answers_are_not_set_aside(self):
         for kind in ("accept", "alt"):
             self.answer(kind)
-            rc, out, err = self.rp("revise", "Q1", *self.REC, "--seq", "1")
+            rc, out, err = self.op("revise", id="Q1", **self.REC, seq=1)
             self.assertEqual(rc, 0, out + err)
             self.assertNotIn("setAsideSeq", self.q("Q1"))
             self.assertIsNotNone(self.latest())
@@ -2870,10 +3024,8 @@ class TestReviseSetsAsideOwn(DirCase):
 
     def test_a_terminal_own_record_after_the_revision_counts(self):
         self.answer("own", "what are the patterns?")
-        self.assertEqual(self.rp("revise", "Q1", *self.REC, "--seq", "1")[0], 0)
-        rc, out, err = self.rp(
-            "record-terminal", "Q1", "--decision", "own", "--text", "the patterns"
-        )
+        self.assertEqual(self.op("revise", id="Q1", **self.REC, seq=1)[0], 0)
+        rc, out, err = self.op("record-terminal", id="Q1", decision="own", text="the patterns")
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.latest()["decision"], "own")
         self.assertEqual(self.latest()["text"], "the patterns")
@@ -2913,7 +3065,7 @@ class TestArchive(DirCase):
     """AC20 server side: archive sets archived {why, at}, never state."""
 
     def test_archive_sets_archived_and_a_history_line(self):
-        rc, out, err = self.rp("archive", "Q2", "Q3", "--why", "Off the chosen path.")
+        rc, out, err = self.op("archive", ids=["Q2", "Q3"], why="Off the chosen path.")
         self.assertEqual(rc, 0, out + err)
         for qid in ("Q2", "Q3"):
             q = self.q(qid)
@@ -2922,15 +3074,32 @@ class TestArchive(DirCase):
             self.assertNotIn("state", q)
             self.assertIn("Off the chosen path.", q["history"][-1]["text"])
 
+    def test_archive_clears_a_hold(self):
+        """G6: an archived question carries no `waiting` hold."""
+        hold = {"ops": [{"op": "wait", "id": "Q2", "waitsOn": "the retry benchmark"}]}
+        rc, out, err = self.rp("apply", "--file", self.file("hold.json", hold))
+        self.assertEqual(rc, 0, out + err)
+        self.assertTrue(self.q("Q2")["waiting"])
+        rc, out, err = self.op("archive", ids=["Q2"], why="Re-issued.")
+        self.assertEqual(rc, 0, out + err)
+        q = self.q("Q2")
+        for key in ("waiting", "waitsOn", "waitingBy", "waitingSince"):
+            self.assertNotIn(key, q)
+        self.assertEqual(q["history"][-2]["text"], "No longer pending research.")
+        self.assertIn("Re-issued.", q["history"][-1]["text"])
+        rc, out, err = self.rp("status")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("waits on:", out)
+
     def test_archive_unknown_id_is_refused(self):
-        self.assert_refused("archive", "Q2", "Q9", "--why", "x")
+        self.op_refused("archive", ids=["Q2", "Q9"], why="x")
 
     def test_archive_needs_why(self):
-        rc, _, _ = self.rp("archive", "Q2")
+        rc, _, _ = self.op("archive", ids=["Q2"])
         self.assertNotEqual(rc, 0)
 
     def test_status_does_not_count_archived_as_answered(self):
-        self.rp("archive", "Q3", "--why", "Off path.")
+        self.op("archive", ids=["Q3"], why="Off path.")
         rc, out, err = self.rp("status")
         self.assertEqual(rc, 0, out + err)
         self.assertIn("Second group: 0 of 0 live answered; 1 archived", out)
@@ -3281,11 +3450,89 @@ class TestRebuild(unittest.TestCase):
         self.assertEqual(history["Q1"][1]["alt"], "0")
 
 
+class TestRestartsAnOldServer(unittest.TestCase):
+    """ensure-running restarts a server whose recorded plugin version differs from the installed
+    one: the old server runs from a copy of this folder whose manifest names another version."""
+
+    def setUp(self):
+        from session_bridge import running
+
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-old-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.dir = self.tmp / "data"
+        self.dir.mkdir()
+        (self.dir / "questions.json").write_text(json.dumps(base_doc()), encoding="utf-8")
+        old = self.tmp / "old" / "surface"
+        old.mkdir(parents=True)
+        for f in HERE.glob("*.py"):
+            if not f.name.startswith("test_"):
+                shutil.copy(f, old / f.name)
+        shutil.copy(HERE / "index.html", old / "index.html")
+        (old.parent / ".claude-plugin").mkdir()
+        (old.parent / ".claude-plugin" / "plugin.json").write_text(
+            '{"name": "planning", "version": "0.0.0-old"}', encoding="utf-8"
+        )
+        self.addCleanup(run_round, self.dir, "stop")
+        self.old = subprocess.Popen(
+            [sys.executable, str(old / "server.py"), "--dir", str(self.dir), "--nonce", "old"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        self.addCleanup(self.old.wait, 10)
+        self.addCleanup(self.old.kill)
+        path = self.dir / ".interview-session.json"
+        deadline = time.monotonic() + 10
+        self.s = {}
+        while time.monotonic() < deadline:
+            try:
+                s = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                s = {}
+            if s.get("nonce") == "old" and running(self.dir, s):
+                self.s = s
+                break
+            time.sleep(0.05)
+        self.assertEqual(self.s.get("pluginVersion"), "0.0.0-old", "the old server did not start")
+
+    def test_ensure_running_starts_the_installed_version_in_its_place(self):
+        installed = json.loads(
+            (HERE.parent / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )["version"]
+        rc, out, err = run_round(self.dir, "ensure-running")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn(
+            f"restarted the page server: it runs 0.0.0-old, this plugin is {installed}", err
+        )
+        self.assertIsNotNone(self.old.wait(timeout=10))
+        s = json.loads((self.dir / ".interview-session.json").read_text(encoding="utf-8"))
+        self.assertNotEqual(s["pid"], self.s["pid"])
+        if os.name == "posix":
+            self.assertEqual(s["port"], self.s["port"])
+        self.assertEqual(out.strip(), f"http://127.0.0.1:{s['port']}/")
+        conn = http.client.HTTPConnection("127.0.0.1", s["port"], timeout=10)
+        try:
+            conn.request("GET", "/api/state")
+            state = json.loads(conn.getresponse().read())
+        finally:
+            conn.close()
+        self.assertEqual(state["pluginVersion"], installed)
+        rc, out, err = run_round(self.dir, "ensure-running")
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("restarted", err)
+        self.assertEqual(
+            json.loads((self.dir / ".interview-session.json").read_text(encoding="utf-8"))[
+                "pid"
+            ],
+            s["pid"],
+        )
+
+
 class TestGroupSummaryOf(DirCase):
     """A group summary records the questions it was written for and warns when they change."""
 
     def add_group(self, summary):
-        rc, out, err = self.rp("group", "g3", "--title", "T", "--summary", summary)
+        rc, out, err = self.op("group", id="g3", title="T", summary=summary)
         self.assertEqual(rc, 0, out + err)
 
     def add(self, qid):
@@ -3550,11 +3797,11 @@ class TestReplyHintOnOwnAnswer(DirCase):
                 }
             ]
         )
-        rc, _, err = self.rp("reply", "Q1", "--text", "Two readings: 1 or 2.")
+        rc, _, err = self.op("reply", id="Q1", text="Two readings: 1 or 2.")
         self.assertEqual(rc, 0, err)
         self.assertIn("revise", err)
         self.assertIn("wait --by user", err)
-        _, _, err = self.rp("reply", "Q2", "--text", "plain")
+        _, _, err = self.op("reply", id="Q2", text="plain")
         self.assertNotIn("hint:", err)
 
 
@@ -3709,7 +3956,7 @@ class TestRoundTooling(DirCase):
     def test_revise_leaves_a_binary_question_one_alternative(self):
         q = question("Q4", binary=True, alternatives=[{"key": "a", "text": "No"}])
         self.rp("add-round", "--file", self.round_file(q))
-        rc, out, err = self.rp("revise", "Q4", "--alt", "a:Not now")
+        rc, out, err = self.op("revise", id="Q4", alternatives=["a:Not now"])
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(
             self.q("Q4")["alternatives"], [{"key": "a", "text": "Not now"}]
@@ -3815,7 +4062,7 @@ class TestRoundTooling(DirCase):
     def test_revise_refuses_two_alternatives_on_a_binary_question(self):
         q = question("Q4", binary=True, alternatives=[{"key": "a", "text": "No"}])
         self.rp("add-round", "--file", self.round_file(q))
-        out = self.assert_refused("revise", "Q4", "--alt", "a:No", "--alt", "b:Later")
+        out = self.op_refused("revise", id="Q4", alternatives=["a:No", "b:Later"])
         self.assertIn("a binary question has exactly 1", out)
 
     def test_check_says_what_it_would_add(self):
@@ -3919,9 +4166,21 @@ class TestSupersedeResolve(DirCase):
         self.ledger = self.tmp / "ledger.md"
         self.ledger.write_bytes(self.LEDGER.encode("utf-8"))
 
+    TEXT_FLAGS = {"--proposes": "--proposes-file", "--note": "--note-file"}
+
     def cmd(self, *args):
+        """Run round.py; a `--proposes X` or `--note X` pair is written to a file and passed as
+        the matching `-file` flag, as a caller writes the text before running the command."""
+        argv, it = [], iter(args)
+        for arg in it:
+            if arg in self.TEXT_FLAGS:
+                path = self.tmp / f"{arg.lstrip('-')}-{len(argv)}.txt"
+                path.write_text(next(it), encoding="utf-8")
+                argv += [self.TEXT_FLAGS[arg], str(path)]
+            else:
+                argv.append(arg)
         p = subprocess.run(
-            [sys.executable, str(ROUND), *args],
+            [sys.executable, str(ROUND), *argv],
             capture_output=True,
             text=True,
             timeout=60,
@@ -4191,6 +4450,26 @@ class TestSupersedeResolve(DirCase):
         self.assertEqual(self.ledger.read_bytes(), self.LEDGER.encode("utf-8"))
         self.assertEqual(list(self.tmp.glob("*.bak")), [])
 
+    def test_the_text_flags_take_a_file_not_the_text(self):
+        for args in (
+            ("supersede", "Q1", "--proposes", "x"),
+            ("resolve", "Q1", "reconfirm", "--note", "n"),
+        ):
+            p = subprocess.run(
+                [sys.executable, str(ROUND), *args, "--ledger", str(self.ledger)],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+            self.assertEqual(p.returncode, 2, (args, p.stdout, p.stderr))
+        rc, out, err = self.cmd(
+            "supersede", "Q1", "--proposes-file", str(self.tmp / "missing.txt"),
+            "--ledger", str(self.ledger),
+        )
+        self.assertEqual(rc, 1, out + err)
+        self.assertIn("refused: cannot read proposal file", err)
+        self.assertEqual(self.ledger.read_bytes(), self.LEDGER.encode("utf-8"))
+
 
 class TestLedgerCheck(DirCase):
     """ledger-check, and wake.sh running it after apply, show ledger drift while the interview runs."""
@@ -4364,6 +4643,133 @@ class TestConfirmationRecap(DirCase):
         self.assertTrue(gone.startswith(head))
         self.assertTrue(gone.endswith(f"Q{self.LIVE + self.WITHDRAWN}"))
         self.assertNotIn("Q1 withdrawn", "\n".join(lines))
+
+
+class TestRecapFromTheLedger(unittest.TestCase):
+    """export-ledger --recap --ledger reads the ledger alone with no data dir (the terminal lane),
+    saves its rows beside the ledger, and --changed lists only the rows changed since."""
+
+    ROWS = [
+        "- Q1 | answered | round 1 | Share the cache? | answer:: accepted: share it",
+        "- Q2 | open | round 1 | Which runner image? |",
+        "- Q3 | answered | round 2 | Keep the lock file? | keep it",
+        "- Q4 | withdrawn | round 2 | Split the job? | answer:: archived: folded into Q1",
+    ]
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-recap-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.ledger = self.tmp / "interview-checklist.md"
+        self.state = self.tmp / "interview-checklist.last-recap.json"
+        self.write_ledger(self.ROWS)
+
+    def write_ledger(self, rows):
+        text = "# Interview ledger\n\n## Open-question register\n\n" + "\n".join(rows) + "\n"
+        self.ledger.write_text(text, encoding="utf-8")
+
+    def recap(self, *extra):
+        out_path = self.tmp / "recap.md"
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(ROUND),
+                "export-ledger",
+                "--recap",
+                "--ledger",
+                str(self.ledger),
+                "--out",
+                str(out_path),
+                *extra,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        return out_path.read_text(encoding="utf-8").splitlines(), p.stderr
+
+    def test_the_recap_reads_the_ledger_alone_and_saves_its_rows(self):
+        lines, _ = self.recap()
+        self.assertEqual(
+            lines,
+            [
+                "Q1 answered: Share the cache? (accepted: share it)",
+                "Q2 open: Which runner image? ()",
+                "Q3 answered: Keep the lock file? (keep it)",
+                "Withdrawn (1): Q4",
+            ],
+        )
+        rows = json.loads(self.state.read_text(encoding="utf-8"))["rows"]
+        self.assertEqual(sorted(rows), ["Q1", "Q2", "Q3", "Q4"])
+        self.assertEqual(rows["Q3"], "answered: Keep the lock file? (keep it)")
+
+    def test_a_missing_data_dir_reads_the_ledger_alone_too(self):
+        lines, _ = self.recap("--dir", str(self.tmp / "no-such-dir"))
+        self.assertEqual(lines[0], "Q1 answered: Share the cache? (accepted: share it)")
+
+    def test_changed_lists_every_row_until_a_recap_is_saved(self):
+        lines, _ = self.recap("--changed")
+        self.assertEqual(len(lines), 4)
+        self.assertFalse(any(x.startswith("Unchanged") for x in lines), lines)
+
+    def test_changed_lists_only_the_changed_rows_and_counts_the_rest(self):
+        self.recap()
+        rows = list(self.ROWS)
+        rows[1] = "- Q2 | answered | round 1 | Which runner image? | the slim image"
+        rows.append("- Q5 | open | round 3 | Cache the test data? |")
+        self.write_ledger(rows)
+        lines, _ = self.recap("--changed")
+        self.assertEqual(
+            lines,
+            [
+                "Q2 answered: Which runner image? (the slim image)",
+                "Q5 open: Cache the test data? ()",
+                "Unchanged since the last recap (3): 2 answered, 1 withdrawn",
+            ],
+        )
+        lines, _ = self.recap("--changed")
+        self.assertEqual(
+            lines, ["Unchanged since the last recap (5): 3 answered, 1 open, 1 withdrawn"]
+        )
+
+    def test_an_unreadable_saved_recap_warns_and_lists_every_row(self):
+        self.state.write_text("not json", encoding="utf-8")
+        lines, err = self.recap("--changed")
+        self.assertEqual(len(lines), 4)
+        self.assertIn("cannot read the last recap", err)
+
+    def test_a_ledger_with_no_register_is_refused(self):
+        self.ledger.write_text("# Interview ledger\n\nNo register here.\n", encoding="utf-8")
+        out_path = self.tmp / "recap.md"
+        p = subprocess.run(
+            [
+                sys.executable,
+                str(ROUND),
+                "export-ledger",
+                "--recap",
+                "--ledger",
+                str(self.ledger),
+                "--out",
+                str(out_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("0 open-question register headings", p.stderr)
+        self.assertFalse(out_path.exists())
+        self.assertFalse(self.state.exists())
+
+    def test_changed_needs_recap_and_a_ledger(self):
+        d = self.tmp / "data"
+        d.mkdir()
+        (d / "questions.json").write_text(json.dumps(base_doc()), encoding="utf-8")
+        rc, out, err = run_round(
+            d, "export-ledger", "--changed", "--out", str(self.tmp / "x.md")
+        )
+        self.assertNotEqual(rc, 0)
+        self.assertIn("--changed needs --recap and --ledger", out + err)
 
 
 class TestCliHygiene(DirCase):
@@ -4600,6 +5006,103 @@ class TestRoundRestate(DirCase):
         self.assertNotIn("rounds", self.doc())
         rc, out, err = self.rp("validate")
         self.assertEqual(rc, 0, out + err)
+
+
+class TestSweepRound(DirCase):
+    """#9695: a round of sweep questions carries meta.kind "sweep", and a question names the
+    earlier answers it reconciles."""
+
+    def spec(self, meta=None, **extra):
+        q = question("Q4", round=2, dependsOn=[], reconciles=["Q1"], **extra)
+        body = {
+            "questions": [q],
+            "restate": {"text": "Q1 is settled. Q4 is open. The round turns on Q4.", "decided": ["Q1"], "open": ["Q4"]},
+        }
+        body["meta"] = {"kind": "sweep"} if meta is None else meta
+        return body
+
+    def post(self, spec):
+        path = self.tmp / "sweep-round.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        return str(path)
+
+    def test_a_sweep_round_with_reconciles_is_posted(self):
+        rc, out, err = self.rp("add-round", "--file", self.post(self.spec()))
+        self.assertEqual(rc, 0, out + err)
+        (entry,) = self.doc()["rounds"]
+        self.assertEqual(entry["kind"], "sweep")
+        self.assertEqual(self.q("Q4")["reconciles"], ["Q1"])
+        self.assertNotIn("kind", self.doc()["meta"])
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_kind_beside_other_meta_keys_merges_the_rest(self):
+        spec = self.spec(meta={"kind": "sweep", "eyebrow": "Sweep"})
+        rc, out, err = self.rp("add-round", "--file", self.post(spec))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["meta"]["eyebrow"], "Sweep")
+        self.assertNotIn("kind", self.doc()["meta"])
+        self.assertEqual(self.doc()["rounds"][0]["kind"], "sweep")
+
+    def test_apply_posts_a_sweep_round(self):
+        op = {"op": "add-round", **self.spec()}
+        rc, out, err = self.rp("apply", "--file", self.post({"ops": [op]}))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["rounds"][0]["kind"], "sweep")
+
+    def test_a_reconciles_id_not_in_the_register_is_refused_naming_it(self):
+        spec = self.spec()
+        spec["questions"][0]["reconciles"] = ["Q1", "Q99"]
+        out = self.assert_refused("add-round", "--file", self.post(spec))
+        self.assertIn("Q99", out)
+        self.assertIn("not in the register", out)
+        self.assertNotIn("Q1,", out)
+
+    def test_apply_refuses_an_unknown_reconciles_id(self):
+        spec = self.spec()
+        spec["questions"][0]["reconciles"] = ["Q42"]
+        out = self.assert_refused("apply", "--file", self.post({"ops": [{"op": "add-round", **spec}]}))
+        self.assertIn("Q42", out)
+
+    def test_reconciles_must_be_a_list_of_ids(self):
+        spec = self.spec()
+        spec["questions"][0]["reconciles"] = "Q1"
+        out = self.assert_refused("add-round", "--file", self.post(spec))
+        self.assertIn("reconciles", out)
+
+    def test_an_unknown_kind_is_refused(self):
+        out = self.assert_refused("add-round", "--file", self.post(self.spec(meta={"kind": "audit"})))
+        self.assertIn("meta.kind", out)
+
+    def test_a_kind_on_a_round_without_questions_is_refused(self):
+        out = self.assert_refused(
+            "add-round", "--file", self.post({"meta": {"kind": "sweep"}, "groups": [{"id": "g3", "title": "T"}]})
+        )
+        self.assertIn("meta.kind", out)
+
+    def test_reconciles_may_not_name_a_question_of_the_same_write(self):
+        spec = self.spec()
+        spec["questions"].append(question("Q5", round=2, dependsOn=[], reconciles=["Q4"]))
+        out = self.assert_refused("add-round", "--file", self.post(spec))
+        self.assertIn("Q5 reconciles Q4", out)
+
+    def test_a_later_write_to_the_sweep_round_keeps_its_kind(self):
+        self.rp("add-round", "--file", self.post(self.spec()))
+        more = {
+            "questions": [question("Q5", round=2, stage="interview", dependsOn=[])],
+            "restate": {"text": "Q4 is open. Q5 joins it.", "decided": [], "open": ["Q4", "Q5"]},
+        }
+        rc, out, err = self.rp("add-round", "--file", self.post(more))
+        self.assertEqual(rc, 0, out + err)
+        (entry,) = self.doc()["rounds"]
+        self.assertEqual(entry["kind"], "sweep")
+        self.assertIn("Q5 joins it", entry["restate"]["text"])
+
+    def test_an_ordinary_round_has_no_kind(self):
+        spec = self.spec(meta={})
+        rc, out, err = self.rp("add-round", "--file", self.post(spec))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("kind", self.doc()["rounds"][0])
 
 
 if __name__ == "__main__":

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "/tmp/plugin/discovery/skills/check/scripts/check.sh"}}], "why": "direct exec"},
+    {"answer": [{"tool": "Bash", "input": {"command": "bash \"/tmp/plugin/discovery/skills/check/scripts/check.sh\""}}], "why": "through bash, quoted"},
+    {"answer": [{"tool": "Bash", "input": {"command": "\"${CLAUDE_SKILL_DIR}/scripts/check.sh\""}}], "why": "skill-dir token left unexpanded"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "command -v node"}}], "why": "own probe, not the script"},
+    {"answer": [{"tool": "Bash", "input": {"command": "cat /tmp/plugin/discovery/skills/check/SKILL.md"}}], "why": "reads the skill, runs nothing"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "/tmp/plugin/discovery/skills/check/scripts/check.sh"}}], "why": "read, not run"},
+    {"answer": [], "why": "no calls"}
+  ]
+}

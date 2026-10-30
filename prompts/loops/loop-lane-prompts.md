@@ -353,8 +353,8 @@ IDs. The alias tracks the current recommended model and a pinned ID rots.
 
 Each role below names a capability tier. The alias each tier binds, and the
 reason for each binding, live in the loop-lane convention's
-[tier table](../../docs/conventions/loop-lane/README.md#3-capability-tiers)
-and [Alias binding](../../docs/conventions/loop-lane/README.md#alias-binding);
+[tier table](../../docs/contracts/loop-lane/README.md#3-capability-tiers)
+and [Alias binding](../../docs/contracts/loop-lane/README.md#alias-binding);
 read them there rather than from this file.
 
 - **Worker lane root: strong tier.** The orchestrator in the convention's
@@ -370,7 +370,7 @@ read them there rather than from this file.
   requires for conflict workers unconditionally.
 - **No `haiku` dispatch.** The convention admits it nowhere in these lanes,
   mechanical greps and log pulls included, on the four grounds listed under
-  [Alias binding](../../docs/conventions/loop-lane/README.md#alias-binding):
+  [Alias binding](../../docs/contracts/loop-lane/README.md#alias-binding):
   the reviewer floor, early stop and unverified completion, over-refusal, and
   the provider alias.
 
@@ -520,8 +520,9 @@ variable that sets it).
 > the direction that `/work-items:triage`'s mutation gate and the
 > self-observation filing contract require: triage, classify, label,
 > comment, file follow-up items, claim items, author branches and PRs,
-> all without a human turn. Prefix every comment and item you create with
-> the AI disclaimer specified by triage. You never merge.
+> all without a human turn. Prefix comments and items you create with the
+> AI disclaimer only as work-items' `ai_disclaimer` setting says. You never
+> merge.
 >
 > **Discipline.** Invoke `/discipline:sweep-all`'s **full batch pass once per
 > cycle, at the cycle root only**, never from inside that skill's own audit

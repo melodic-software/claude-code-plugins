@@ -1424,34 +1424,36 @@ if [[ $rc -eq 0 ]]; then ok "the release pull request passes: a consumed fragmen
 fragment_case release release/plugins-copy
 if [[ $rc -eq 1 && "$out" == *"FRAGMENT-MODE RELEASE: alpha"* ]]; then ok "only the exact release branch may version a fragment-mode plugin"; else fail "near-miss branch treated as the release: rc=$rc out='$out'"; fi
 
-# A listed convention (docs/conventions/<name>/) is versioned by its CHANGELOG
+# A listed convention (docs/conventions/<name>/ or docs/contracts/<name>/) is versioned by its CHANGELOG
 # heading alone, so only the release pull request may add one.
 convention_case() {
   mk_repo repo
   git_init_test_repo "$repo"
   mk_plugin "$repo" alpha 1.0.0 yes
   printf 'alpha\n%s\n' "$1" >"$repo/scripts/fragment-plugins.txt"
-  mkdir -p "$repo/docs/conventions/demo"
-  printf '# Changelog\n\n## 2.0.0 - 2026-01-01\n\n- one\n' >"$repo/docs/conventions/demo/CHANGELOG.md"
+  mkdir -p "$repo/docs/$home/demo"
+  printf '# Changelog\n\n## 2.0.0 - 2026-01-01\n\n- one\n' >"$repo/docs/$home/demo/CHANGELOG.md"
   git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
   local base
   base="$(git -C "$repo" rev-parse HEAD)"
-  printf '# Changelog\n\n## 2.1.0 - 2026-01-02\n\n- two\n\n## 2.0.0 - 2026-01-01\n\n- one\n' >"$repo/docs/conventions/demo/CHANGELOG.md"
+  printf '# Changelog\n\n## 2.1.0 - 2026-01-02\n\n- two\n\n## 2.0.0 - 2026-01-01\n\n- one\n' >"$repo/docs/$home/demo/CHANGELOG.md"
   git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm change
   out="$(cd "$repo" && CHANGELOG_HEAD_REF="${2:-}" bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
   rc=$?
   rm -rf "$repo"
 }
-convention_case demo
-if [[ $rc -eq 1 && "$out" == *"FRAGMENT-MODE RELEASE: demo"*"adds the version heading(s) 2.1.0"* ]]; then
-  ok "a non-release change set that adds a listed convention's CHANGELOG heading fails"
-else
-  fail "added heading on a listed convention not caught: rc=$rc out='$out'"
-fi
-convention_case demo release/plugins
-if [[ $rc -eq 0 ]]; then ok "the release pull request may add a listed convention's heading"; else fail "release heading on a convention wrongly failed: rc=$rc out='$out'"; fi
-convention_case ''
-if [[ $rc -eq 0 ]]; then ok "an unlisted convention's heading stays the change set's own"; else fail "unlisted convention heading wrongly failed: rc=$rc out='$out'"; fi
+for home in conventions contracts; do
+  convention_case demo
+  if [[ $rc -eq 1 && "$out" == *"FRAGMENT-MODE RELEASE: demo"*"adds the version heading(s) 2.1.0"* ]]; then
+    ok "[$home] a non-release change set that adds a listed convention's CHANGELOG heading fails"
+  else
+    fail "[$home] added heading on a listed convention not caught: rc=$rc out='$out'"
+  fi
+  convention_case demo release/plugins
+  if [[ $rc -eq 0 ]]; then ok "[$home] the release pull request may add a listed convention's heading"; else fail "[$home] release heading on a convention wrongly failed: rc=$rc out='$out'"; fi
+  convention_case ''
+  if [[ $rc -eq 0 ]]; then ok "[$home] an unlisted convention's heading stays the change set's own"; else fail "[$home] unlisted convention heading wrongly failed: rc=$rc out='$out'"; fi
+done
 
 fragment_case re_release release/plugins
 if [[ $rc -eq 1 && "$out" == *"BUMP WITHOUT CHANGE: alpha went 1.0.0 -> 1.1.0"* ]]; then
@@ -1524,5 +1526,40 @@ add_beta_file() { printf 'new\n' >"$repo/plugins/beta/NEW.md"; }
 remove_beta() { git -C "$repo" rm -rq plugins/beta; }
 merge_case --check-preserved add_beta_file remove_beta
 if [[ $rc -eq 0 ]]; then ok "removing a plugin passes --check-preserved after main adds a file to it (directory read at the branch tip)"; else fail "plugin removal read as a deleted changelog: rc=$rc out='$out'"; fi
+
+# ===================== version_sort_key fields ======================
+# No mode can reach the function with a bad field, so these cases call it
+# directly. The script has no source guard, so the definition is lifted out of
+# it and run in its own bash, inside a fixture tree that catches anything it
+# writes.
+vsk_def="$(sed -n '/^version_sort_key() {/,/^}/p' "$SCRIPT")"
+# vsk <version>: sets out and rc to the function's output and exit status.
+vsk() {
+  # shellcheck disable=SC2016  # the program is expanded by the child bash
+  out="$(cd "$repo" && bash -c "$vsk_def"$'\n''version_sort_key key "$1" && printf "%s\n" "$key"' vsk "$1" 2>&1)"
+  rc=$?
+}
+if [[ "$vsk_def" == "version_sort_key() {"*"}" ]]; then ok "version_sort_key's definition lifts out of the script"; else fail "version_sort_key's definition did not lift out: '$vsk_def'"; fi
+
+mk_repo repo
+# shellcheck disable=SC2016  # the $(...) is the payload, never expanded here
+vsk '1 * a[$(touch MARKER)]'
+if [[ $rc -eq 2 && "$out" == *"not a number"* && ! -e "$repo/MARKER" ]]; then ok "a field holding \$(...) is refused with exit 2 and runs nothing"; else fail "command-substitution field: rc=$rc marker=$([[ -e "$repo/MARKER" ]] && echo created || echo absent) out='$out'"; fi
+for bad_version in 1x.0.0 1.2x.3 '1.*.3' '1. 2.3'; do
+  vsk "$bad_version"
+  if [[ $rc -eq 2 ]]; then ok "a non-numeric field is refused with exit 2 ('$bad_version')"; else fail "non-numeric field '$bad_version' not refused: rc=$rc out='$out'"; fi
+done
+
+vsk 1.2
+if [[ $rc -eq 0 && "$out" == "00001.00002.00000" ]]; then ok "a missing field still keys as 0 (1.2)"; else fail "two-field version: rc=$rc out='$out'"; fi
+for tail_version in 1.2.3+build 1.2.3-rc1; do
+  vsk "$tail_version"
+  if [[ $rc -eq 0 && "$out" == "00001.00002.00003" ]]; then ok "a SemVer tail is stripped before the key ($tail_version)"; else fail "tail version '$tail_version': rc=$rc out='$out'"; fi
+done
+vsk 0.9.0
+nine_key="$out"
+vsk 0.10.0
+if [[ $rc -eq 0 && "$out" > "$nine_key" ]]; then ok "0.10.0 still keys above 0.9.0"; else fail "0.10.0 keyed '$out', 0.9.0 keyed '$nine_key' (rc=$rc)"; fi
+rm -rf "$repo"
 
 test_harness::report

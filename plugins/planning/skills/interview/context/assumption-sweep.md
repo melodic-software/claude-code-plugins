@@ -26,7 +26,11 @@ can yield a fork. Hand it:
 - every recommendation as asked, with its `Checked against:` line and `Commits you to:` parts;
 - the composed artifacts the interview read: explore or research output, an existing
   implementation, an upstream Brief;
-- the Brief draft, or the shared-understanding draft in a general session.
+- the Brief draft, or the shared-understanding draft in a general session;
+- the ledger's session-shorthand glossary (loop.md "Session-shorthand glossary"), the project's
+  domain-vocabulary file when Step 1 read one, and the names the user has used this session for
+  the things in scope, so it can tell a coined name from an existing one and find the closest
+  name the user already uses.
 
 Withhold the rationale that sold each recommendation. The sweep checks what would be locked, not
 why it was recommended.
@@ -42,8 +46,13 @@ why it was recommended.
 - **Hedged and free-text rows:** every row whose resolution carries `hedged:`, and every
   `free-text:` row whose answer is hedged. List them for the Step 3 confirmation restate, which
   loop.md "Hedged flag" defines.
+- **Coined terms:** a name, label or abbreviation in a recommendation, a `Commits you to:` part or
+  a composed artifact that the session coined: the user did not introduce it, neither the codebase,
+  the domain-vocabulary file nor an upstream artifact already uses it, and the session-shorthand
+  glossary has no line for it. An accepted answer does not settle it: an "accept all" accepts the
+  choice, not a name the user never saw defined. Its class is `decision`.
 
-The acceptance-criteria coverage prompt is never a sweep item.
+The acceptance-criteria coverage prompt is never a sweep item ([`coverage-prompt.md`](coverage-prompt.md)).
 
 ## Item shape
 
@@ -57,7 +66,8 @@ The sub-agent returns one line per item, numbered `S<N>` within this sweep:
 Fields:
 
 - **id:** `S<N>`, contiguous within the sweep.
-- **category:** `undecided`, `hidden-default`, `contradiction`, `inherited`, or `hedged`.
+- **category:** `undecided`, `hidden-default`, `contradiction`, `inherited`, `hedged`, or
+  `coined-term`.
 - **class:** `decision` (the user's call), `fact` (the environment answers it), `tenant` (a
   setting of the environment the work targets, confirmed by whoever owns it or read from a
   connected system that holds it), or `person` (only a
@@ -84,7 +94,42 @@ You write the results, not the sub-agent, so register ids stay contiguous.
   `### Deferred questions` with its arbiter tag.
 - **contradiction:** one row naming both sides, asked as a choice between them.
 - **hedged:** no new row. The rows go to the confirmation restate.
+- **coined-term:** a register row asking the user to accept or rename the term, with the closest
+  existing name in the user's vocabulary as the recommendation, and naming the existing term it
+  overlaps. With no existing name close to it, recommend keeping the term, defined in one line. An
+  accepted or renamed term is written to the glossary; a rename also replaces the term in the
+  draft and in the resolutions of the rows that carry it, and the next sweep covers those rows.
 - **Unattended:** an item that is the user's decision is `blocked` with **arbiter:
   USER-RESERVED**, per loop.md "Unattended path".
 
 Any `open` row it adds returns the run to Step 2.
+
+The round that asks these rows is a **sweep round**. On the page, post it with
+`"meta": {"kind": "sweep"}` on `add-round`, and give each question that weighs earlier answers a
+`reconciles` list of their `Q<N>` ids; the page labels the round `Sweep: reconciling earlier
+answers` and shows each listed answer beside the question ([`surface.md`](surface.md) "A round").
+In the terminal lane, open the round with that label and quote each listed earlier answer under
+its question.
+
+## Pre-round contradiction pass
+
+Before every round after the first is asked inline or posted with `add-round`, check the draft
+round against what the user already answered, so a conflict is caught before the user sees it
+rather than at the next sweep.
+
+- **Dispatch:** a fresh-context (non-fork) sub-agent, as in "Dispatch" above. Hand it the draft
+  round (each question with its recommendation, `Checked against:` line and `Commits you to:`
+  parts) and every `answered` register row with its resolution, plus the `confirmed` constraint
+  rows. Withhold the rationale, as above.
+- **Scope:** only the **Contradictions** category of "What it looks for", read with the draft
+  round's recommendations standing in for answers: a recommendation that cannot hold beside an
+  `answered` row or a `confirmed` constraint. No other category runs here; the sweep still runs
+  once the frontier is empty.
+- **Return:** one line per conflict in the "Item shape" above, category `contradiction`, with the
+  draft question and the earlier row as its dependencies; nothing when there is none.
+- **Disposition:** fix each in the draft before posting. A conflict with a `confirmed` constraint
+  is fixed by revising the recommendation so it holds, citing the constraint on its
+  `Checked against:` line. A conflict with an answered row is fixed the same way, or by replacing
+  the question with one that names both sides and lists that row's `Q<N>` in `reconciles` (only
+  question ids go there). A draft conflict never becomes a register row of its own; the revised
+  question takes its place.

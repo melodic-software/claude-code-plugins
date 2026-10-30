@@ -75,7 +75,7 @@ test("live config: resolve-conflicts holds no write token; its push job may only
   assert.deepEqual(push.needs, ["resolve-conflicts"]);
   assert.equal(selected("pr-unblock", "apply-conflict-patch", { labels: ["do-not-merge"] }).applies, false);
   // The write runner holds needs-human itself unless the select job read
-  // another lane's escalation (patch-fix-requested).
+  // another lane's escalation (patch-human-gate).
   assert.equal(selected("pr-unblock", "apply-conflict-patch", { labels: ["needs-human"] }).applies, true);
   assert.equal(selected("pr-unblock", "apply-conflict-patch", { draft: true }).applies, false);
 });
@@ -90,14 +90,21 @@ test("live config: resolve-conflicts waits for a human while do-not-merge is on 
   assert.equal(selected("pr-unblock", "resolve-conflicts", { labels: ["needs-human"] }).applies, true);
 });
 
-test("live config: resolve-conflicts does not apply to a draft or a clean PR", () => {
+// A clean PR applies so a hand dispatch can merge the default branch into a
+// head that is only behind; the select job skips one already up to date.
+test("live config: resolve-conflicts applies to a clean ready PR, and not to a draft", () => {
   assert.equal(
     skipReason("pr-unblock", "resolve-conflicts", { draft: true }),
     "not-applicable",
   );
   assert.equal(
-    skipReason("pr-unblock", "resolve-conflicts", { mergeable: "clean" }),
+    skipReason("pr-unblock", "resolve-conflicts", { draft: true, mergeable: "clean" }),
     "not-applicable",
+  );
+  assert.equal(selected("pr-unblock", "resolve-conflicts", { mergeable: "clean" }).applies, true);
+  assert.equal(
+    skipReason("pr-unblock", "resolve-conflicts", { mergeable: "clean", labels: ["do-not-merge"] }),
+    "awaiting-human",
   );
 });
 
@@ -395,6 +402,26 @@ test("live config: resolve-issue reads any host; review-dependency reads release
   assert.deepEqual(others, []);
 });
 
+// #8485 (owner decision (a), 2026-10-19; cutoffs, share and entry accepted
+// 2026-10-26): resolve-issue tidies a small single-area change in the run,
+// with the named quality skills only; no other activity tidies.
+test("live config: resolve-issue tidies within the small single-area cutoffs with the named quality skills; no other activity tidies", () => {
+  const tidy = selected("work-resolve-issue", "resolve-issue", ISSUE).tidy;
+  assert.equal(tidy.entry, "code-tidying:tidy-diff");
+  assert.deepEqual(tidy.passes, ["docs-hygiene:write-for-agents", "docs-hygiene:write-for-humans", "ai-slop:audit"]);
+  assert.equal(tidy["turn-share"], 25);
+  assert.deepEqual(
+    { files: tidy.cutoffs["max-files"], lines: tidy.cutoffs["max-lines"], areas: tidy.cutoffs["max-areas"] },
+    { files: 10, lines: 300, areas: 1 },
+  );
+  for (const path of [".github/", "scripts/", "docs/conventions/"]) assert.ok(tidy.cutoffs["shared-paths"].includes(path), path);
+  const doc = parse(FILES.config);
+  assert.deepEqual(
+    Object.keys(doc.activities).filter((name) => name !== "resolve-issue" && doc.activities[name].tidy),
+    [],
+  );
+});
+
 // The model run holds no write token; only the script that
 // commits its patch may write a branch.
 test("live config: resolve-issue holds no write token; apply-issue-patch may only write its branch; report-outcome may only write PRs and issues", () => {
@@ -415,12 +442,16 @@ test("live config: resolve-issue holds no write token; apply-issue-patch may onl
 });
 
 // activity-rules.json is trust-root data: a config that gives resolve-issue a
-// write effect again is refused.
+// write effect again is refused. The schema takes tidy only on a read skill
+// that hands on a patch, so the write-effect config drops it too, and the
+// refusal comes from the activity rules rather than the schema.
 test("live config: resolve-issue with a write effect is refused", () => {
-  const writes = FILES.config.replace(
-    "effect: read\n    applied-by:\n      patch: apply-issue-patch\n      work-outcome: report-outcome\n",
-    "effect: mutate-branch\n",
-  );
+  const writes = FILES.config
+    .replace(
+      "effect: read\n    applied-by:\n      patch: apply-issue-patch\n      work-outcome: report-outcome\n",
+      "effect: mutate-branch\n",
+    )
+    .replace(/^    tidy:\n(?: {6}.*\n)+/m, "");
   assert.notEqual(writes, FILES.config);
   assert.throws(
     () => resolve({ ...FILES, config: writes }, { lane: "work-resolve-issue", activity: "resolve-issue", configPath: CONFIG_PATH, basePath: ".base", facts: { ...FACTS, ...ISSUE } }),
@@ -458,6 +489,8 @@ test("live config: apply-issue-patch runs apply-patch.mjs and holds on the issue
   const holds = activities["resolve-issue"]["applies-when"]["labels-absent"];
   const applyHolds = new Set(activities["apply-issue-patch"]["applies-when"]["labels-absent"]);
   assert.ok(holds.length > 0);
+  // Owner decision 2026-10-28: attended work waits for the owner, so the lane never starts it.
+  assert.ok(holds.includes("attended"), "resolve-issue holds on attended");
   assert.deepEqual(holds.filter((hold) => !applyHolds.has(hold)), [], "apply-issue-patch's labels-absent covers resolve-issue's");
   assert.deepEqual(activities["apply-issue-patch"]["applies-when"].labels, activities["resolve-issue"]["applies-when"].labels);
   for (const hold of applyHolds) {

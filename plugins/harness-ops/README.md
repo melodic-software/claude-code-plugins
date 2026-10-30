@@ -416,6 +416,17 @@ options tune the skills:
   automatically, leaving one the CLI installs disabled by default off; `none` reports them without
   installing. `/config` shows these three as a picker; a value set by hand outside it is treated
   as `ask` and named in the sync digest.
+- **`directory_source_pull`** (string, optional). What `sync` does when a `directory`
+  marketplace's git checkout is clean, on a branch with an upstream, and only behind it. `ask`
+  (default) asks once whether to run `git -C <path> pull --ff-only`; on yes the skill runs the
+  sync again with the pull first: the script re-checks the checkout, fast-forwards it, refreshes
+  the marketplace and finishes the sync against the new catalog, and its report says from which
+  commit to which. `never` keeps the pull-and-rerun bullet. An autonomous session (`CLAUDE_CODE_REMOTE`,
+  `/loop`, `/schedule`) never asks or pulls. A value set by hand outside the picker runs as `ask`
+  and is named in the report.
+- **`quiet_auto_update_marketplaces`** (string, optional). Comma-separated marketplace names
+  whose `sync` report shows `autoUpdate: off` without the suggestion to enable it, for a
+  marketplace you keep off on purpose. Unset keeps the suggestion.
 - **`registry_dir`** (string, optional). Project-relative directory for the
   known-issues registry (`registry.json`). Set it to keep the
   registry inside your repo (git-tracked, team-shared) instead of the
@@ -493,6 +504,8 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `registry_dir` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_REGISTRY_DIR` | Project-relative directory holding the known-issues registry (registry.json). Leave unset to keep the registry in the plugin data directory, ${CLAUDE_PLUGIN_DATA}. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
 | `install_new` | string | `"ask"` | `CLAUDE_PLUGIN_OPTION_INSTALL_NEW` | Sync action for catalog plugins not yet installed. ask (default) offers them in AskUserQuestion chunks, at most 4 options per question and 4 questions per call; a chunk of 1 is a single-select Install/Skip question. Each pick is installed and enabled. all installs every one; none only reports them. |
+| `directory_source_pull` | string | `"ask"` | `CLAUDE_PLUGIN_OPTION_DIRECTORY_SOURCE_PULL` | Sync action for a directory marketplace whose git checkout is clean, on a branch with an upstream, and only behind it. ask (default) offers to run git pull --ff-only and continues the sync with the refreshed catalog; never only reports the command. An autonomous session never asks or pulls. |
+| `quiet_auto_update_marketplaces` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_QUIET_AUTO_UPDATE_MARKETPLACES` | Comma-separated marketplace names whose sync report shows autoUpdate: off without the suggestion to enable it. Empty, the default, keeps the suggestion for every marketplace with autoUpdate off. |
 | `skill_usage_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_AUDIT_ENABLED` | Emits telemetry on skill usage, on by default. Shared by both skill-usage audit hooks (the Skill-tool and slash-command expansion paths), and also gates the shared skill-usage.jsonl store. |
 | `skill_usage_scope` | string | `"repo"` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE` | Where the skill-usage store lives. repo (default) keeps it in the project tree, out of git status via a machine-local .git/info/exclude entry; user puts the skill_usage_dir subpath under $HOME as one cross-repo store; data-dir uses ${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>. |
 | `skill_usage_dir` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR` | Relative directory where the skill-usage-audit hooks write skill-usage.jsonl, under the skill_usage_scope root (repo: the project root; user: $HOME). Leave unset to use .claude/observability. The data-dir scope ignores it. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
@@ -520,27 +533,35 @@ reads it from.
 
 Three supported routes:
 
-1. **Interactively.** Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure harness-ops@<marketplace>`.
-2. **Headless.** Repeat `--config` for each option. Replace
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure harness-ops@<marketplace>`.
+2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+   run from the project the plugin is installed in. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin configure harness-ops@<marketplace> --values-stdin < values.json
+   ```
+
+   `values.json` holds a JSON object of strings, booleans included:
+
+   ```json
+   {"registry_dir": "<value>"}
+   ```
+
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
+   value, and why a session started before the change keeps the old value until a fresh
+   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
+   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+
+   The fallback the convention names, for a Claude Code release without
+   `plugin configure`, reruns the install with the new value, passing the scope
+   `claude plugin list` reports for this plugin:
 
    ```shell
    claude plugin install harness-ops@<marketplace> -s <scope> --config registry_dir=<value>
    ```
-
-   The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value. The short-circuit message is
-   about the install, not the config write. Do **not** `claude plugin uninstall` to
-   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
-   resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin. The verified-version
-   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
-
-   The value is stored immediately; the session you are in does not change. Hooks are
-   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior. A check run in the old session
-   still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -557,17 +578,16 @@ Three supported routes:
    }
    ```
 
-   Plugin option values are read from **user**, `--settings`, and managed settings
-   only, **not** from a project's `.claude/settings.json`. To vary behavior per
-   repository, enable or disable the plugin in that project's `enabledPlugins`
-   instead of setting an option there.
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from.
 
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
-hands a configured value to a hook process; the value comes from the routes above.
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
 
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence

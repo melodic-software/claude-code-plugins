@@ -4,11 +4,15 @@
 # "<path>:<line>: <message>"; one on an unchanged line, in an unstaged change,
 # in a symlinked file, an ordinary binary, or under an exempt path does not;
 # a token in a file holding a NUL byte, UTF-16LE text included, blocks; a staged
-# gitignored file is judged and an untracked one is not; --worktree covers uncommitted and untracked files; and the plugin's vendored
+# gitignored file is judged and an untracked one is not; files judged in one
+# commit keep each file's own findings; a merge in progress is judged like any
+# commit; --worktree covers uncommitted and untracked files; and the plugin's vendored
 # installer wires the entry, pattern libraries included, so `git commit` runs it.
 # test-scope: plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/check-lib.sh plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/lib/secret-detection/secret-patterns.sh plugins/guardrails/lib/path-detection/hardcoded-path-patterns.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
+# Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
+unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT "${!GIT_CONFIG_KEY_@}" "${!GIT_CONFIG_VALUE_@}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHECK="$HERE/pre-commit-content.sh"
@@ -218,6 +222,59 @@ expect "--worktree: an untracked file is judged whole" "1|loose.md:1: machine-sp
 $HINT" "$(check "$REPO" --worktree)"
 rm "$REPO/loose.md"
 expect "--worktree: no uncommitted change passes" "0|" "$(check "$REPO" --worktree)"
+
+# One commit of many files judged together gives each file's own findings: a
+# secret, machine paths, a Windows path a .ps1 may hold beside a Linux path it
+# may not, a NUL-byte file, a name git quotes, and clean text the path scan
+# still has to read (ASCII and not).
+new_repo
+BS="\\"
+FAKE_WIN="C:${BS}Users${BS}alice${BS}build.log"
+printf 'token=%s\n' "$FAKE_GHP" >"$REPO/a.md"
+printf 'see %s here\n' "$FAKE_LINUX" >"$REPO/b.md"
+for c in c c2 c3; do
+  printf '#!/bin/sh\necho %s >%sdev%snull\n' "$c" "$SL" "$SL" >"$REPO/$c.sh"
+done
+printf 'log = "%s"\n' "$FAKE_WIN" >"$REPO/d.ps1"
+printf 'log = "%s"\nsrc = "%s"\n' "$FAKE_WIN" "$FAKE_LINUX" >"$REPO/e.ps1"
+printf '\303\251t\303\251 dev notes\n' >"$REPO/f.md"
+printf 'MZ\0token=%s\n' "$FAKE_GHP" >"$REPO/n.bin"
+want="1|a.md:1: secret or credential pattern: GitHub PAT
+b.md:1: machine-specific path (Linux user path detected)
+e.ps1:2: machine-specific path (Linux user path detected)
+n.bin:1: secret or credential pattern: GitHub PAT"
+if printf 'token=%s\n' "$FAKE_GHP" 2>/dev/null >"$REPO/q\"x.txt"; then
+  want="$want
+q\"x.txt:1: secret or credential pattern: GitHub PAT"
+else
+  echo "skip: this file system refuses a name holding a double quote"
+fi
+git -C "$REPO" add -A
+expect "files judged together keep each file's findings" "$want
+$HINT" "$(check "$REPO")"
+
+# A merge in progress is judged like any commit: what the merged branch brings
+# and what the conflict resolution writes.
+new_repo
+git -C "$REPO" checkout -q -b side
+printf 'line one\nside change\n' >"$REPO/notes.md"
+printf 'token=%s\n' "$FAKE_GHP" >"$REPO/side.txt"
+git -C "$REPO" add notes.md side.txt
+git -C "$REPO" commit -q -m side --no-verify
+git -C "$REPO" checkout -q main
+printf 'line one\nmain change\n' >"$REPO/notes.md"
+git -C "$REPO" commit -q -am main --no-verify
+git -C "$REPO" merge -q --no-commit side >/dev/null 2>&1
+expect "the merge stops on the conflict" yes "$(test -f "$REPO/.git/MERGE_HEAD" && echo yes)"
+printf 'line one\nresolved\n' >"$REPO/notes.md"
+git -C "$REPO" add notes.md
+expect "a merge: a secret the merged branch brings blocks" "1|side.txt:1: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
+git -C "$REPO" rm -q --cached side.txt
+printf 'line one\nresolved %s\n' "$FAKE_GHP" >"$REPO/notes.md"
+git -C "$REPO" add notes.md
+expect "a merge: a secret the conflict resolution writes blocks" "1|notes.md:2: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
 
 # End to end through the plugin's vendored installer and a real commit.
 new_repo

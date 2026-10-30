@@ -1,9 +1,9 @@
 name: pr-require-checks
 
 on:
-  # A dispatch runs the full contract corpus. pr-merge.yml's
-  # `dispatch-full-run` starts one on main after every merge, whoever merged,
-  # collapsing a burst of merges into one run of the newest tip.
+  # A dispatch runs the full contract corpus. pr-merge.yml starts one on main
+  # for the merges since the last, whoever merged, at most one per 30 minutes,
+  # each of the newest tip.
   workflow_dispatch:
   # NO PUSH TRIGGER. Every commit reaches main through the merge queue (the
   # repository's merge-queue ruleset, with the org `pull_request` rule and no
@@ -62,7 +62,7 @@ on:
   # request number and reports `skipped`, because the title and linkage were
   # already checked on the pull request before it could enter the queue, and a
   # label can land after enqueue, so a step of its own re-reads `do-not-merge`
-  # from the API; and `ci-status` aggregates the lanes and records `ci-lanes` on the
+  # and the other hold labels from the API; and `ci-status` aggregates the lanes and records `ci-lanes` on the
   # merge-group commit (`github.sha`), a SHA no contract-only run ever reads.
   merge_group:
     types: [checks_requested]
@@ -70,7 +70,8 @@ on:
 permissions:
   contents: read
 
-# THE GROUP BRANCHES ON THE PREDICATE, AND EVERY BRANCH CANCELS. A contract-only
+# THE GROUP BRANCHES ON THE PREDICATE, AND EVERY BRANCH BUT MAIN'S DISPATCH
+# CANCELS. A contract-only
 # run takes a group of its own keyed on `github.run_id`, so it can neither be
 # cancelled nor evict anything, and it waits for nothing: its `ci-status` reads
 # the `ci-lanes` status once and finishes (see the `ci-status` job). The
@@ -83,16 +84,28 @@ permissions:
 # The full branch keeps one group per pull request, so a `synchronize` still
 # cancels everything on the old SHA; the PR number scopes cancellation to
 # exactly one pull request, where `head_ref` would collide across same-named
-# fork branches. A merge-group, schedule or dispatch run keeps the unique
-# `github.run_id` group, so it is never cancelled.
+# fork branches. A merge-group, schedule or other-branch dispatch run keeps
+# the unique `github.run_id` group, so it is never cancelled.
+#
+# A dispatch on main (pr-merge.yml's whole-suite run of main's tip) shares one
+# group with no `queue` key and `cancel-in-progress` false: one runs, one waits,
+# and a newer dispatch replaces the waiting one, which GitHub cancels before
+# any job starts. The newer one holds a later tip, so it covers every merge the
+# replaced one did. A running whole-suite run is never cancelled: the post-merge
+# check and post-merge-demotion-alert.yml read a cancelled run as red, and read
+# a replaced one (cancelled, no job) as no run. Only attempt 1 joins it: a
+# re-run keeps its own `github.run_id` group, so a newer dispatch can never
+# replace the one re-run a red run waits on.
 concurrency:
   group: >-
-    ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
+    ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1)
+    && 'pr-require-checks-main-dispatch'
+    || ((github.event.pull_request.head.repo.full_name == github.repository &&
     (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
     (github.event.action == 'edited' && !github.event.changes.base)))
     && format('ci-contract-{0}-{1}', github.event.pull_request.number, github.run_id)
-    || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id) }}
-  cancel-in-progress: true
+    || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id)) }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main' || github.run_attempt != 1 }}
 
 # Quality lanes run the ci-workflows composite actions (referenced by SHA,
 # bumped via Dependabot — never copied) against this repo's exact standards
@@ -106,10 +119,10 @@ concurrency:
 # JOBS ARE NAMED <verb>-<domain>, AND THE JOB ID IS THE CHECK NAME. The verb
 # says what a job does: `lint` runs linters over source, `check` holds a
 # repository contract across files, `test` executes code. The domain says over
-# what: `repo`, `shell`, `plugins`, `skills`, or the ecosystem a test job runs
+# what: `repo`, `shell`, `plugins`, `catalog`, `skills`, or the ecosystem a test job runs
 # (`bash`, `python`, `node`). One marker, `mark-lanes`, one resolver,
-# `select-tests`, nine working jobs,
-# `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`, `test-bash`,
+# `select-tests`, ten working jobs,
+# `lint-repo`, `lint-shell`, `check-plugins`, `check-catalog`, `check-skills`, `test-bash`,
 # `test-python`, `test-node`, `check-managed-files` and `check-tests`, and one aggregate, `ci-status`, whose name,
 # like this workflow's and this file's, is what the org ci-gate ruleset and its
 # verifiers read. No ordinals, no tool name for a multi-tool job, no runner OS
@@ -117,7 +130,8 @@ concurrency:
 # step keeps its `id`, its aggregator key, in whichever job it runs.
 #
 # A DOMAIN IS A JOB ONLY WHEN THAT SHORTENS THE CRITICAL PATH BY MORE THAN A
-# JOB COSTS: about 15 s of fixed setup bare, about 40 s with a toolchain. The
+# JOB COSTS: about 15 s of fixed setup bare, about 40 s with a toolchain, or
+# when a job that outgrows its timeout is split (see the timeout rule). The
 # three test lanes are jobs for a different reason: each runs only when the
 # change selects suites of its ecosystem, and skips otherwise, so a change to
 # shell code starts no Python or Node runner and a C# or docs change starts
@@ -134,7 +148,12 @@ concurrency:
 # seconds, minutes: select-tests 24 / 35 plus the planner (up to 21 s measured), 3;
 # lint-repo 244 / 265, 7, sized for its whole-tree load (the scheduled runs);
 # lint-shell 345 / 385 with a whole-repository ShellCheck, 9; check-plugins
-# 110 / 120, 3; check-skills at most 585 / 645, the wall of a measured job
+# 74 / 82 over its 97 runs of 2026-10-28 04:27 to 10:59Z, its wall less the
+# composite schema steps it then ran plus 3 s for their pip-installed
+# replacement (those steps alone reached 121 s on a stalled uv download), 2,
+# held at the floor of 3; check-catalog about 77, the sum of its steps (setup
+# and checkout included) in the 125 s run of the job it was split from, 3;
+# check-skills at most 585 / 645, the wall of a measured job
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
 # whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
 # suite among them, plus about 55 s of setup), 9; test-python per leg about
@@ -264,10 +283,14 @@ jobs:
     timeout-minutes: 3
     # The detect-changes action lists the pull request's files through the
     # API. Nothing else in this workflow needs that read, so it is granted here
-    # and nowhere else. No write scope: this job runs pull request code.
+    # and nowhere else. The queue-hold step reads the queued pull request and
+    # its head's commit statuses ("Commit statuses" read, per
+    # https://docs.github.com/en/rest/authentication/permissions-required-for-github-apps).
+    # No write scope: this job runs pull request code.
     permissions:
       contents: read
       pull-requests: read
+      statuses: read
     outputs:
       run_full: ${{ steps.detect.outputs.docs_only != 'true' }}
       run_tests: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
@@ -301,8 +324,89 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # A QUEUED PULL REQUEST A HOLD STOPS FAILS HERE, BEFORE THE LANES. In the
+      # merge queue the holds that cost no lane work, its hold labels, a
+      # pr-unblock stop on its head and the lanes kill switch, are judged by
+      # the base commit's merge-holds.mjs queueHolds: a held group fails this
+      # job in seconds, and every lane, which needs it, skips. ci-status still
+      # judges each hold itself, from its own reads, so the aggregate fails on
+      # the hold and on this job, and a skipped lane stays skipped there (this
+      # job did not succeed). Nothing here feeds a ci-status hold: this job runs
+      # pull request code. Only a hold read fails it: a read that fails, a ref
+      # it cannot parse, or a base module without queueHolds leaves the hold to
+      # ci-status, which retries and fails closed. Two reads, the pull request
+      # and its head's statuses (one per 100), through the api-budget gh
+      # wrapper, whose api-calls notice the step ends with. The base's
+      # module, tracker config and wrapper come from one shallow fetch of the
+      # group's base commit, which leaves `ok=true` only when all of it read;
+      # it never fails the job, so a failed fetch only leaves the holds to
+      # ci-status. The runner's Node runs the module: queueHolds needs no
+      # API newer than the image's. Pinned by
+      # scripts/ci-early-queue-holds.test.sh, which runs this body.
+      - name: Read the base commit's queue-hold rules
+        id: queue_rules
+        if: github.event_name == 'merge_group'
+        env:
+          BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          dir="$RUNNER_TEMP/queue-rules"
+          if [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] && git fetch --no-tags --depth=1 origin "$BASE_SHA" && mkdir -p "$dir" &&
+            git show "$BASE_SHA:.github/scripts/pr-merge/merge-holds.mjs" >"$dir/merge-holds.mjs" &&
+            git show "$BASE_SHA:.github/actions/log-api-budget/api-budget.bash" >"$dir/api-budget.bash"; then
+            git show "$BASE_SHA:.work-item-tracker.json" >"$dir/tracker.json" 2>/dev/null || rm -f "$dir/tracker.json"
+            echo "ok=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::warning::the base commit '$BASE_SHA' could not be read; ci-status judges the holds."
+          fi
+      - name: Fail a queued pull request a hold stops, before the lanes
+        if: github.event_name == 'merge_group'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RULES: ${{ steps.queue_rules.outputs.ok == 'true' && format('{0}/queue-rules', runner.temp) || '' }}
+          LANES_APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}
+          LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+        run: |
+          if [ -z "$RULES" ] || [ ! -s "$RULES/merge-holds.mjs" ]; then
+            echo "::notice::the base commit's hold rules did not read; ci-status judges the holds."
+            exit 0
+          fi
+          # shellcheck source=/dev/null
+          if . "$RULES/api-budget.bash"; then
+            api_budget_wrap_gh github-token
+            trap 'api_budget_emit github-token; api_budget_emit_calls github-token' EXIT
+          fi
+          leave() { echo "::warning::$1; ci-status judges the holds."; exit 0; }
+          pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
+          [ -n "$pr" ] || leave "cannot read a pull request number from the merge-group ref '$GITHUB_REF'"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" >"$RUNNER_TEMP/queued-pull.json" || leave "could not read #$pr"
+          head=$(jq -r '.head.sha // ""' "$RUNNER_TEMP/queued-pull.json") || head=
+          [[ $head =~ ^[0-9a-f]{40}$ ]] || leave "the head of #$pr is not a commit SHA"
+          rows=$(gh api "repos/$GITHUB_REPOSITORY/commits/$head/statuses?per_page=100" --paginate --jq '.[]') || leave "could not read the statuses of $head"
+          tracker=null
+          [ ! -s "$RULES/tracker.json" ] || tracker=$(cat "$RULES/tracker.json")
+          jq -n --slurpfile pull "$RUNNER_TEMP/queued-pull.json" --argjson tracker "$tracker" --slurpfile statuses <(printf '%s\n' "$rows") \
+            --arg appId "${LANES_APP_SENDER_ID:-}" --arg disabled "${LANES_DISABLED:-}" --arg repoDisabled "${LANES_REPO_DISABLED:-}" \
+            '{pull: $pull[0], statuses: $statuses, tracker: $tracker, lanes: {appId: $appId, disabled: $disabled, repoDisabled: $repoDisabled}}' \
+            >"$RUNNER_TEMP/queue-holds.json" || leave "the reads of #$pr do not parse"
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          reasons=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+            import { pathToFileURL } from "node:url";
+            const { queueHolds } = await import(pathToFileURL(process.argv[2]).href);
+            for (const reason of queueHolds(JSON.parse(readFileSync(process.argv[1], "utf8")))) console.log(reason.replaceAll(/[\r\n]/g, " "));' \
+            "$RUNNER_TEMP/queue-holds.json" "$RULES/merge-holds.mjs") || leave "the base commit's merge-holds.mjs could not judge #$pr"
+          if [ -z "$reasons" ]; then
+            echo "#$pr: no hold label, pr-unblock stop or kill switch holds it before the lanes."
+            exit 0
+          fi
+          while IFS= read -r reason; do
+            echo "::error::${reason//%/%25} The lanes do not run for this group."
+          done <<<"$reasons"
+          exit 1
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        with:
+          filter: blob:none
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
       # branch, and a merge group against the queue's base commit, unless its
       # diff touches a plugin or marketplace manifest, as a release does. A schedule
@@ -352,7 +456,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/detect-changes@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/detect-changes@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           filters: |
             shell:
@@ -871,7 +975,7 @@ jobs:
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdownlint@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/markdownlint@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
@@ -888,7 +992,7 @@ jobs:
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/typos@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: _typos.toml
           paths: ${{ steps.typos_paths.outputs.paths }}
@@ -898,8 +1002,9 @@ jobs:
           # drift. The managed config cannot carry a consumer-local
           # exclusion, so the exemption lives on the caller. The judge
           # calibration cases are code copied verbatim from other repositories'
-          # histories, so a correction would change what the judge is measured on.
-          exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/**
+          # histories, so a correction would change what the judge is measured on;
+          # the developer-experience labeled samples are judge inputs for the same reason.
+          exclude: plugins/*/skills/*/vendor/** plugins/*/tools/*/vendor/** plugins/testing/skills/audit/evals/judge-calibration/cases/** plugins/developer-experience/evals/sources/labels/**
 
       # Every run scans only history the commit under test can reach, so a
       # finding on another branch cannot fail it (#3599); each branch is scanned
@@ -911,7 +1016,7 @@ jobs:
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -926,7 +1031,7 @@ jobs:
       - name: Check local links and anchors
         id: lychee
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/lychee-offline@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: lychee.toml
           exclude: >-
@@ -936,7 +1041,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           config: .editorconfig-checker.json
 
@@ -950,13 +1055,13 @@ jobs:
         id: actionlint
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -964,7 +1069,7 @@ jobs:
         id: workflow_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -976,12 +1081,12 @@ jobs:
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -1014,12 +1119,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           # The audit-comment-residue skill IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
@@ -1117,7 +1222,7 @@ jobs:
       # not enforce the policy does not pay for its toolchain either.
       - name: Set up Node
         if: needs.select-tests.outputs.run_workflows == 'true'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -1167,6 +1272,17 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh app-key-references {0}
         run: scripts/check-app-key-references.sh --check
 
+      # Every upload-artifact step keeps its artifact for the days its family's
+      # row in .github/artifact-retention.json names. Parses workflows with the
+      # yaml package the runner-policy install above provides, so it gates on
+      # the workflows filter group, which holds the table.
+      - name: Check every artifact upload matches the retention table
+        id: artifact_retention
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        continue-on-error: true
+        shell: bash scripts/run-hygiene-gate.sh artifact-retention {0}
+        run: scripts/check-artifact-retention.sh --check
+
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
 
@@ -1203,6 +1319,7 @@ jobs:
             convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             app-key-references=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.app_key_references.outcome }}
+            artifact-retention=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.artifact_retention.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
@@ -1267,6 +1384,8 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        with:
+          filter: blob:none
 
       # PyYAML reads the frontmatter surface (YAML has no jq) for the slow-shapes
       # gate, which fails closed if the module is missing rather than clearing
@@ -1470,7 +1589,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -1501,14 +1620,17 @@ jobs:
 
   # PLUGIN CONTRACTS ACROSS FILES: the manifest schemas and duplicate keys, the
   # catalog presence and enablement, option docs, the changelog and vendor-bump
-  # gates, the hook-declaration gates, `claude plugin validate`, the
-  # rendered-view HTML assets, the performance counter ceilings, and the
-  # shared-library copy gates with their delivery checks.
+  # gates, the hook-declaration gates, the performance counter ceilings, the
+  # cross-plugin drift check, and the delivery checks of the shared-library
+  # copies. The steps that read the root npm install (`claude plugin validate`
+  # and the rendered-view HTML assets), with the copy and prerequisite gates
+  # moved beside them, are `check-catalog`'s: as one job the two took up to
+  # 125 s against a 3-minute cap that holds a p95 of at most 120.
   #
   # The hook, catalog and changelog gates run first, on Python with the pinned
-  # requirements. Node and the root npm install follow, gated like the steps
-  # that read them. The manifest schema steps run last: their composite leaves
-  # uv on PATH for every later step.
+  # requirements, then the manifest schema steps, whose composite leaves uv on
+  # PATH for every later step. Node follows for the counter ceilings, gated
+  # like the steps that read it.
   #
   # The shared-library bump checks need base history: `download-full-history`
   # runs once, at the top, and every bump check below resolves
@@ -1523,11 +1645,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     # pull-requests: read lets "Resolve the queued pull request" read the
-    # queued pull request in a merge group; checks: read lets the aggregator
-    # quote a composite gate's annotations.
+    # queued pull request in a merge group.
     permissions:
       contents: read
-      checks: read
       pull-requests: read
     steps:
       - name: Check out
@@ -1540,7 +1660,8 @@ jobs:
       # PyYAML reads the frontmatter surface (YAML has no jq) for the
       # hook-exec-form and summary-reader-parity gates. Those gates fail closed
       # if the module is missing rather than clearing files they never parsed,
-      # so this install is load-bearing, not convenience.
+      # so this install is load-bearing, not convenience. It also installs the
+      # check-jsonschema the manifest schema steps run.
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -1566,7 +1687,7 @@ jobs:
       # whole hook entry whenever the key is unset (the declared userConfig
       # `default` is unimplemented upstream — anthropics/claude-code#46477), so
       # the hook never fires on a default install. The channel decision matrix
-      # (docs/conventions/hook-config-delivery/) rules argv out for hooks; this
+      # (docs/contracts/hook-config-delivery/) rules argv out for hooks; this
       # gate pins the exact regression #1242 fixed.
       - name: Check plugin hook configs for bare userConfig argv tokens
         id: userconfig_argv
@@ -1897,22 +2018,22 @@ jobs:
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
           fi
 
+      # check-jsonschema comes from the hash-locked requirements install above,
+      # not the ci-workflows action: its setup-uv download from
+      # releases.astral.sh stalled 116 s in merge group run 40676402542 and the
+      # job hit its cap, and its uvx then fetched a second CPython.
       - name: Validate marketplace manifest
         id: marketplace_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
-        with:
-          schemafile: https://json.schemastore.org/claude-code-marketplace.json
-          files: .claude-plugin/marketplace.json
+        shell: bash scripts/run-hygiene-gate.sh marketplace-schema {0}
+        run: check-jsonschema --schemafile https://json.schemastore.org/claude-code-marketplace.json .claude-plugin/marketplace.json
       - name: Validate plugin manifests
         id: plugin_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
-        with:
-          schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
-          files: plugins/*/.claude-plugin/plugin.json
+        shell: bash scripts/run-hygiene-gate.sh plugin-schema {0}
+        run: check-jsonschema --schemafile https://json.schemastore.org/claude-code-plugin-manifest.json plugins/*/.claude-plugin/plugin.json
 
       # JSON Schema validates the ALREADY-PARSED document, so it structurally
       # cannot see a duplicate object key -- by the time a schema runs, the
@@ -1929,13 +2050,157 @@ jobs:
         shell: bash scripts/run-hygiene-gate.sh manifest-duplicate-keys {0}
         run: python3 scripts/check-manifest-duplicate-keys.py
 
-      # The root npm install, for the steps below that read it: htmlhint and the
-      # claude CLI from node_modules/.bin, and node for the prerequisite gate
-      # and the counter ceilings. Gated like those steps,
-      # so a docs-only diff does not pay for it.
+      # Node for the counter ceilings, whose hook rows start each hook through
+      # its node launcher. They read no root npm install: that is
+      # `check-catalog`'s. Gated like that step, so a docs-only diff does not
+      # pay for it.
       - name: Set up Node
         if: needs.select-tests.outputs.run_tests == 'true'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .node-version
+
+      # The shared-library delivery checks (ADR 0019): a change to a canonical
+      # bumps every carrying plugin. That the copies match their canonical is
+      # checked in `check-catalog`. The bump checks need a base ref, so they
+      # return early off a pull request rather than diffing against a ref that
+      # does not exist.
+      - name: Verify carrying plugins bumped when a generated copy's canonical changed
+        if: needs.select-tests.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/sync-shared-copies.sh --check-bump "origin/$BASE_REF"
+      - name: Verify contract, changelog, and carrying plugins bumped together
+        if: needs.select-tests.outputs.run_tests == 'true'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/check-standards-contract-bump.sh "origin/$BASE_REF"
+
+      - name: Check for unregistered or drifted cross-plugin source clusters
+        if: needs.select-tests.outputs.run_tests == 'true'
+        run: scripts/check-cross-plugin-source-drift.sh --check
+
+      # Counter ceilings from .performance/ratchets.json: each counter's command
+      # runs and the step fails when one rises above its checked-in ceiling.
+      # Counters only, never durations, so the answer does not move with runner
+      # load. A lower count is lowered in the file by hand in the same PR
+      # (`ratchet.py propose-tighten --write`); there is no scheduled tightening
+      # job. A runner image change can also lower a count: the check log then
+      # shows `propose-tighten can lower it`, and the ceiling is lowered by hand
+      # in a PR. The hook counters run through scripts/hook-census.sh under
+      # strace, so its suite runs first here: no other lane runs a scripts/
+      # suite that needs strace. The counts depend on the image's bash, git, jq
+      # and coreutils, so the versions are printed beside every check: an ABOVE
+      # after an image bump reads in one log. The js-complexity-share counter
+      # runs lizard from the pinned install above (.github/requirements-ci.txt),
+      # and its version is printed the same way.
+      - name: Check performance counter ceilings
+        if: needs.select-tests.outputs.run_tests == 'true'
+        run: |
+          bash scripts/hook-census.test.sh
+          bash scripts/hook-census.sh --versions
+          echo "lizard $(lizard --version)"
+          python3 plugins/performance/scripts/ratchet.py check --file .performance/ratchets.json
+
+      - name: Report not applicable to a docs-only diff
+        if: needs.select-tests.outputs.run_tests == 'false'
+        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the manifest schemas and duplicate-key detector, the shared-library bump checks, the cross-plugin drift check and the counter ceilings cannot be affected — reporting success."
+
+      - name: Aggregate hygiene results
+        if: always()
+        env:
+          # The feed's rules are stated on the one in `lint-repo`; the docs-only
+          # gate pins them on every job.
+          CHECK_RESULTS: |
+            userconfig-argv=${{ steps.userconfig_argv.outcome }}
+            hook-exec-form=${{ steps.hook_exec_form.outcome }}
+            exec-form-windows-probe=${{ steps.exec_form_windows_probe.outcome }}
+            cant-fail-scan=${{ steps.cant_fail_scan.outcome }}
+            hooks-description=${{ steps.hooks_description.outcome }}
+            summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
+            plugin-options-docs=${{ steps.plugin_options_docs.outcome }}
+            plugin-manifest-presence=${{ steps.plugin_manifest_presence.outcome }}
+            plugin-catalog-enablement=${{ steps.plugin_catalog_enablement.outcome }}
+            changelog-parity=${{ steps.changelog_parity_check.outcome }}
+            queued-pr=${{ github.event_name != 'merge_group' && 'success' || steps.queued_pr.outcome }}
+            changelog-parity-bump=${{ steps.changelog_parity_bump.outcome }}
+            changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
+            changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
+            changelog-fragments=${{ steps.changelog_fragments_check.outcome }}
+            changelog-fragments-required=${{ steps.changelog_fragments_required.outcome }}
+            changelog-fragments-release=${{ steps.changelog_fragments_release.outcome }}
+            vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
+            marketplace-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
+            plugin-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.plugin_schema.outcome }}
+            manifest-duplicate-keys=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.duplicate_keys.outcome }}
+        run: scripts/aggregate-hygiene-results.sh
+
+  # THE PLUGIN CHECKS THAT READ THE ROOT NPM INSTALL: `claude plugin validate`
+  # over the plugins and the catalog (with the contract, catalog, cheatsheet
+  # and native-overlap drift checks and the mod tests scripts/validate-plugins.sh
+  # runs) and the rendered-view HTML assets, plus the shared-library copy and
+  # declared-prerequisite gates, which moved with them and need Node at most.
+  #
+  # ITS OWN JOB BECAUSE OF THE 3-MINUTE CAP. Inside `check-plugins` these
+  # steps took 54 s of a job that ran 99 to 125 s on the scheduled runs of
+  # 2026-10-23 to 10-26, and 1.5 x 125 is over 180. Apart, each job's steps,
+  # its own setup and checkout included, summed to under 80 s on the slowest
+  # of those runs. Neither job sets the critical path, which `check-skills`
+  # holds: this is the split the timeout rule asks of a job that outgrows its
+  # cap, not a domain that shortens the critical path.
+  #
+  # Every step, the checkout included, is gated like the steps that read the
+  # install, so a docs-only diff pays for no checkout or install. None is a
+  # `continue-on-error` gate: each fails the job directly, so this job has no
+  # aggregator feed.
+  #
+  # The job skips only on a contract-only event or a draft (see `lint-repo`).
+  check-catalog:
+    needs: [select-tests]
+    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The plugin validation diffs against the lane base and against
+      # origin/<base_ref>, which this fetches on a pull request.
+      - name: Fetch base
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        with:
+          filter: blob:none
+
+      # The pinned interpreter for the native-overlap registry checks
+      # scripts/validate-plugins.sh runs. They read no package, so nothing is
+      # installed into it.
+      - name: Set up Python
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .python-version
+
+      # The root npm install, for the steps below that read it: htmlhint and the
+      # claude CLI from node_modules/.bin, and node for the prerequisite gate.
+      - name: Set up Node
+        if: needs.select-tests.outputs.run_tests == 'true'
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -1993,107 +2258,23 @@ jobs:
           fi
 
       # The shared-library gates (ADR 0019). Every per-plugin copy is generated
-      # from one canonical source by scripts/sync-shared-copies.sh.
-      # CI only verifies: the copies match their canonical, and a change to a
-      # canonical bumps every carrying plugin. The libraries' own suites are
-      # corpus suites, reached by the selector. The bump checks need a base
-      # ref, so they return early off a pull request rather than diffing against a ref
-      # that does not exist.
+      # from one canonical source by scripts/sync-shared-copies.sh, and CI only
+      # verifies that the copies match their canonical. That a change to a
+      # canonical bumps every carrying plugin is checked in `check-plugins`. The
+      # libraries' own suites are corpus suites, reached by the selector.
       - name: Verify generated shared-library copies match their canonical sources
         if: needs.select-tests.outputs.run_tests == 'true'
         run: scripts/sync-shared-copies.sh --check
-      # docs/conventions/prerequisites/: the gate validates every
+      # docs/contracts/prerequisites/: the gate validates every
       # prerequisites.json and fails on an undeclared tool not listed in
       # scripts/prerequisites-baseline.txt. Its suites run through the selector.
       - name: Check plugin prerequisites are declared
         if: needs.select-tests.outputs.run_tests == 'true'
         run: node scripts/check-declared-prerequisites.mjs
-      - name: Verify carrying plugins bumped when a generated copy's canonical changed
-        if: needs.select-tests.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-shared-copies.sh --check-bump "origin/$BASE_REF"
-      - name: Verify contract, changelog, and carrying plugins bumped together
-        if: needs.select-tests.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/check-standards-contract-bump.sh "origin/$BASE_REF"
-
-      - name: Check for unregistered or drifted cross-plugin source clusters
-        if: needs.select-tests.outputs.run_tests == 'true'
-        run: scripts/check-cross-plugin-source-drift.sh --check
-
-      # Counter ceilings from .performance/ratchets.json: each counter's command
-      # runs and the step fails when one rises above its checked-in ceiling.
-      # Counters only, never durations, so the answer does not move with runner
-      # load. A lower count is lowered in the file by hand in the same PR
-      # (`ratchet.py propose-tighten --write`); there is no scheduled tightening
-      # job. A runner image change can also lower a count: the check log then
-      # shows `propose-tighten can lower it`, and the ceiling is lowered by hand
-      # in a PR. The hook counters run through scripts/hook-census.sh under
-      # strace, so its suite runs first here: no other lane runs a scripts/
-      # suite that needs strace. The counts depend on the image's bash, git, jq
-      # and coreutils, so the versions are printed beside every check: an ABOVE
-      # after an image bump reads in one log. The js-complexity-share counter
-      # runs lizard from the pinned install above (.github/requirements-ci.txt),
-      # and its version is printed the same way.
-      - name: Check performance counter ceilings
-        if: needs.select-tests.outputs.run_tests == 'true'
-        run: |
-          bash scripts/hook-census.test.sh
-          bash scripts/hook-census.sh --versions
-          echo "lizard $(lizard --version)"
-          python3 plugins/performance/scripts/ratchet.py check --file .performance/ratchets.json
 
       - name: Report not applicable to a docs-only diff
         if: needs.select-tests.outputs.run_tests == 'false'
-        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the manifest schemas and duplicate-key detector, the plugin validation, the shared-library sync gates and the counter ceilings cannot be affected — reporting success."
-
-      - name: Aggregate hygiene results
-        if: always()
-        env:
-          # The feed's rules are stated on the one in `lint-repo`; the docs-only
-          # gate pins them on every job.
-          # Gates that run as `uses:` actions, whose output
-          # scripts/run-hygiene-gate.sh cannot capture: a failure here quotes
-          # the job's own check-run annotations (checks: read), else points at
-          # the step log.
-          CHECK_RUN_ID: ${{ job.check_run_id }}
-          GH_TOKEN: ${{ github.token }}
-          STEP_LOG_CHECKS: marketplace-schema plugin-schema
-          CHECK_RESULTS: |
-            userconfig-argv=${{ steps.userconfig_argv.outcome }}
-            hook-exec-form=${{ steps.hook_exec_form.outcome }}
-            exec-form-windows-probe=${{ steps.exec_form_windows_probe.outcome }}
-            cant-fail-scan=${{ steps.cant_fail_scan.outcome }}
-            hooks-description=${{ steps.hooks_description.outcome }}
-            summary-reader-parity=${{ steps.summary_reader_parity.outcome }}
-            plugin-options-docs=${{ steps.plugin_options_docs.outcome }}
-            plugin-manifest-presence=${{ steps.plugin_manifest_presence.outcome }}
-            plugin-catalog-enablement=${{ steps.plugin_catalog_enablement.outcome }}
-            changelog-parity=${{ steps.changelog_parity_check.outcome }}
-            queued-pr=${{ github.event_name != 'merge_group' && 'success' || steps.queued_pr.outcome }}
-            changelog-parity-bump=${{ steps.changelog_parity_bump.outcome }}
-            changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
-            changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
-            changelog-fragments=${{ steps.changelog_fragments_check.outcome }}
-            changelog-fragments-required=${{ steps.changelog_fragments_required.outcome }}
-            changelog-fragments-release=${{ steps.changelog_fragments_release.outcome }}
-            vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
-            marketplace-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
-            plugin-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.plugin_schema.outcome }}
-            manifest-duplicate-keys=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.duplicate_keys.outcome }}
-        run: scripts/aggregate-hygiene-results.sh
+        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin validation, the rendered-view HTML assets, the shared-library copies and the declared prerequisites cannot be affected — reporting success."
 
   # SKILL AND EVAL CONTRACTS: check 25 and the changed-skills gate, the
   # portability lint, leaf names, spoke paths, the listing budgets, the eval
@@ -2309,7 +2490,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -2515,11 +2696,13 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        with:
+          filter: blob:none
       # Node, Python, ShellCheck, shfmt, Biome and Ruff are declared here so
       # hosted and local runs exercise the same contract suites instead of
       # inheriting different image tool inventories.
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2543,7 +2726,7 @@ jobs:
         # available to the bash-format contract suites in this same job. It
         # verifies the install on one small file that sources nothing; the
         # ShellCheck gate in `lint-shell` is what lints the repository.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -2576,27 +2759,80 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           shfmt --version
           test "$(shfmt --version)" = "$SHFMT_VERSION"
+      # demo-video renders and probes its fixture with ffmpeg and ffprobe, which the
+      # hosted image does not carry. Both come from BtbN's static GPL build (the
+      # Linux static build ffmpeg.org links; GPL for libx264), a month-end tag BtbN
+      # keeps, checked against its published SHA-256 on every run. The archive is
+      # about 154 MB, so it has its own cache entry that only the demovideo leg
+      # restores and saves. The step timeout makes a stalled download fail here
+      # instead of spending the leg.
+      - name: Restore the pinned ffmpeg download
+        id: ffmpeg_cache
+        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo')
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ci-tools-ffmpeg
+          key: ci-tools-ffmpeg-${{ runner.os }}-n8.1.3-9-g29e619e767
+      - name: Install ffmpeg for demo-video
+        timeout-minutes: 2
+        env:
+          FFMPEG_RELEASE: autobuild-2026-09-30-13-08
+          FFMPEG_BUILD: n8.1.3-9-g29e619e767
+          FFMPEG_SHA256: 97ce978979194b5cf7e06a5e68020dbdaa7a4f3294c5452b6a1bc347100dbb79
+        run: |
+          leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
+            { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
+          [[ "$leg_needs" == *demovideo* ]] || exit 0
+          asset="ffmpeg-$FFMPEG_BUILD-linux64-gpl-8.1.tar.xz"
+          mkdir -p "$HOME/.local/bin" "$HOME/.cache/ci-tools-ffmpeg"
+          cached="$HOME/.cache/ci-tools-ffmpeg/$asset"
+          [ -f "$cached" ] || curl -fSL --no-progress-meter --retry 3 --retry-all-errors -o "$cached" \
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/$FFMPEG_RELEASE/$asset"
+          echo "$FFMPEG_SHA256  $cached" | sha256sum -c - ||
+            { echo "::error::$asset does not match FFMPEG_SHA256"; exit 1; }
+          tar -xJf "$cached" -C "$HOME/.local/bin" --strip-components=2 --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          for tool in ffmpeg ffprobe; do
+            [ -x "$HOME/.local/bin/$tool" ] || { echo "::error::$asset holds no bin/$tool"; exit 1; }
+            line=$("$HOME/.local/bin/$tool" -version | sed -n 1p)
+            echo "$line"
+            [[ "$line" == *"$FFMPEG_BUILD"* ]] || { echo "::error::$tool reports '$line', not $FFMPEG_BUILD"; exit 1; }
+          done
+      - name: Save the pinned ffmpeg download
+        if: github.ref == 'refs/heads/main' && contains(fromJSON(env.LEG_PLAN)[env.LEG], 'demovideo') && steps.ffmpeg_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ci-tools-ffmpeg
+          key: ${{ steps.ffmpeg_cache.outputs.cache-primary-key }}
       # The animation wheels (numpy and opencv; the speech suites need their
-      # numpy) and the inventory's parser packages go only on a leg whose suites
-      # need them, per the plan (`LEG_PLAN`). An under-install is loud, not
-      # quiet: those suites fail rather than skip without their dependency
-      # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, INVENTORY_REQUIRE_ACORN).
+      # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
+      # inventory's parser packages go only on a leg whose suites need them,
+      # per the plan (`LEG_PLAN`). An under-install is loud, not quiet: those
+      # suites fail rather than skip without their dependency
+      # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, DEMO_VIDEO_REQUIRE_DEPS,
+      # INVENTORY_REQUIRE_ACORN).
       - name: Install locked plugin test toolchains
         run: |
-          # The animation lock must hold every pin its requirements.in declares, so an edit to
-          # the .in without regenerating the lock fails here instead of testing a stale lock.
-          stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
-                           <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.txt | sort) | paste -sd ' ')
-          [ -z "$stale" ] || { echo "::error::plugins/animation/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
+          # Each lock must hold every pin its requirements.in declares, so an edit to the .in
+          # without regenerating the lock fails here instead of testing a stale lock.
+          for dir in plugins/animation plugins/playwright/skills/demo-video; do
+            stale=$(comm -23 <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' "$dir/requirements.in" | sort) \
+                             <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' "$dir/requirements.txt" | sort) | paste -sd ' ')
+            [ -z "$stale" ] || { echo "::error::$dir/requirements.txt lacks $stale from requirements.in; regenerate the lock"; exit 1; }
+          done
           leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
           npm ci
-          # The yaml package scripts/check-read-caller-keys.test.sh parses with.
+          # The yaml package scripts/check-read-caller-keys.test.sh and
+          # scripts/check-artifact-retention.test.sh parse with.
           npm ci --prefix .github/standards/runner-policy
           requirements=(--requirement .github/requirements-ci.txt)
           if [[ "$leg_needs" == *animation* ]]; then
             requirements+=(--requirement plugins/animation/requirements.txt)
+          fi
+          if [[ "$leg_needs" == *demovideo* ]]; then
+            requirements+=(--requirement plugins/playwright/skills/demo-video/requirements.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
           # The animation render tests and the shared-page UI suite drive the locked playwright's headless Chromium.
@@ -2674,6 +2910,8 @@ jobs:
           ANIMATION_REQUIRE_DEPS: '1'
           # The speech suite fails on a missing numpy here instead of skipping green.
           SPEECH_REQUIRE_DEPS: '1'
+          # The demo-video suite fails on a missing numpy, Pillow, ffmpeg or ffprobe here instead of skipping green.
+          DEMO_VIDEO_REQUIRE_DEPS: '1'
           # The inventory parser suites fail on a missing acorn here instead of skipping green.
           INVENTORY_REQUIRE_ACORN: '1'
           # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
@@ -2729,8 +2967,10 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
+        with:
+          filter: blob:none
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -2749,7 +2989,19 @@ jobs:
         with:
           path: ~/.cache/pip
           key: pip-${{ runner.os }}-${{ hashFiles('.python-version', '.github/requirements-ci.txt', 'plugins/animation/requirements.txt') }}
+      # A stalled Chromium download can take minutes of this job's 7-minute limit, so the
+      # browser is cached under the locked playwright version (the lockfile hash) and a hit
+      # skips the download.
+      - name: Restore the Playwright browser
+        id: playwright_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - name: Install locked plugin test toolchains
+        id: toolchains
+        env:
+          PLAYWRIGHT_CACHE_HIT: ${{ steps.playwright_cache.outputs.cache-hit }}
         run: |
           # The animation lock must hold every pin its requirements.in declares, so an edit to
           # the .in without regenerating the lock fails here instead of testing a stale lock.
@@ -2767,7 +3019,12 @@ jobs:
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
           # The animation render tests capture through the locked playwright's headless Chromium.
           if [[ "$leg_needs" == *animation* ]]; then
-            node node_modules/playwright/cli.js install --only-shell chromium
+            if [[ "$PLAYWRIGHT_CACHE_HIT" == "true" ]]; then
+              echo "The Playwright browser cache hit; no Chromium download."
+            else
+              node node_modules/playwright/cli.js install --only-shell chromium
+              echo "browser_downloaded=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -2787,6 +3044,12 @@ jobs:
         with:
           path: ~/.cache/pip
           key: ${{ steps.pip_cache.outputs.cache-primary-key }}
+      - name: Save the Playwright browser
+        if: github.ref == 'refs/heads/main' && steps.playwright_cache.outputs.cache-hit != 'true' && steps.toolchains.outputs.browser_downloaded == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright_cache.outputs.cache-primary-key }}
       - name: Run this leg's Python suites
         env:
           ANIMATION_REQUIRE_DEPS: '1'
@@ -2834,7 +3097,7 @@ jobs:
       # from, so a change to any one of them invalidates the cache the others
       # share.
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .node-version
       - name: Restore the npm cache
@@ -3014,7 +3277,7 @@ jobs:
           # The guard diffs base...head; both commits must be present.
           fetch-depth: 0
       - name: Guard managed files
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
 
   # THE WHOLE-TREE CAN'T-FAIL SCAN, WHENEVER THERE IS NO DIFF BASE: the
   # schedule, a dispatch, and a pull request or merge group that
@@ -3059,6 +3322,7 @@ jobs:
       - lint-repo
       - lint-shell
       - check-plugins
+      - check-catalog
       - check-skills
       - test-bash
       - test-python
@@ -3083,18 +3347,21 @@ jobs:
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
     # 15 s of retry sleeps for each of the hold-lift step's two reads, the
-    # review-lane step's six and the lanes-hold step's eight (in the merge
+    # review-lane step's six, the lanes-hold step's eight (in the merge
     # queue the verdict reader's reads more, about 73 with pr-merge's carried
-    # reads and about 860 without them, measured 2026-10-25; its wall time is
-    # unmeasured, and a cold one can reach the cap, which fails red), about four
-    # minutes, plus the cost-hold step's reads: one for most pull requests,
-    # which stop at the label events; for a lane-labeled one whose body cites a
+    # reads and about 860 without them, measured 2026-10-25, up to the cold-read
+    # headroom check's cold_cost under the listing's caps; its wall time is
+    # unmeasured, and a cold one can reach the cap, which fails red) and the pr-unblock status step's one (two in the
+    # merge queue), about four and a half minutes, plus the cost-hold step's
+    # reads: one for most pull requests, which stop at the label events; for a lane-labeled one whose body cites a
     # decision, about eight (nine on a Refs issue), and two more per review
     # run since the window opened, plus the base-config checkout's fetch
     # (seconds; its retries replace the contents reads' 15 s each).
     # 20: a cold verdict reader in the merge queue takes about 6 to 11
     # minutes (0.4 to 0.7 s a call, as pr-merge's reader logs, for about 860
-    # calls), on top of the job's other reads.
+    # calls), and at most about 15 under the listing's caps (793 per-FAIL
+    # reads at 0.7 s, plus the whole listings' shared 300 s
+    # LISTING_TIMEOUT_SECONDS), on top of the job's other reads.
     timeout-minutes: 20
     env:
       # gh_read's wait budget: a rate-limit wait must end by
@@ -3105,10 +3372,12 @@ jobs:
       # of status writes and the 90 s rerun wait, plus retry sleeps.
       GH_READ_JOB_SECONDS: 1200
       GH_READ_MARGIN_SECONDS: 300
-      # The lanes App's bot account id, which the trust-hold and lanes-hold
-      # steps match a pull request author against (scripts/ci-lanes-pr-hold.test.sh
-      # checks it is merge.agent-identity's trusted-actor id).
-      LANES_APP_ID: 337595936
+      # The lanes App's bot account id, which the trust-hold, cost-hold and
+      # lanes-hold steps match a pull request author against. Its one source is
+      # the repository variable; each step that reads it fails closed or keeps
+      # its hold when it is not a numeric id, and the cost-hold and lanes-hold
+      # steps when it is not merge.agent-identity's trusted-actor id at the base.
+      LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
       # api-budget.bash, verbatim (log-api-budget.test.mjs checks): the gh
       # wrapper and the job-end api-budget notice, since this job has no
       # checkout of that file. The read helper step below puts it in
@@ -3126,8 +3395,11 @@ jobs:
         # is one line in $RUNNER_TEMP/api-budget/<token>:
         #   <status> <limit> <remaining> <used> <reset epoch> <resource>
         # (`na` for a missing value). api-budget.mjs and babysit_gh.py append the same
-        # lines. Never fails the caller, except that a stop the rate guard below
-        # cannot record ends the step.
+        # lines. A request the gh wrapper counts with no header block to read (each
+        # page of --paginate, a call that is not `gh api`) is a line `request`, or
+        # `request graphql` for a GraphQL request. Never
+        # fails the caller, except that a stop the rate guard below cannot record ends
+        # the step.
         #
         #   api_budget_read <token> <file>
         #                               gh api -i output: the header block at the start
@@ -3137,7 +3409,8 @@ jobs:
         #                               api_budget_read, keeping stdout, stderr and the
         #                               exit status as they were (not --paginate, whose
         #                               per-page header blocks are left out), behind
-        #                               the rate guard below
+        #                               the rate guard below; every gh call also counts
+        #                               each request it sends (api_budget_traced)
         #
         # The rate guard, rate-guard.mjs's shell port: once a response shows a pool
         # exhausted, no gh call goes to that pool before its reset for the rest of the
@@ -3191,6 +3464,13 @@ jobs:
         #                               with the same reset and resource, else na
         #   api_budget_emit_content     the notice for the job's content-creating
         #                               writes: count and most in any 60 s
+        #   api_budget_emit_calls <token>...
+        #                               the hub's api-calls notice for each token,
+        #                               `<token>=N not-modified=M graphql=K`: N is the
+        #                               job's own requests, M its 304 answers, which
+        #                               GitHub does not count, and K the GraphQL ones
+        #                               among N, which spend their own pool; 0 for a
+        #                               token with no reading
         #
         # pr-require-checks.yml's ci-status job carries this file verbatim in its
         # API_BUDGET_SH env (it has no checkout of this directory);
@@ -3247,14 +3527,15 @@ jobs:
             for arg; do
               case $arg in
                 # --paginate prints a header block per page, which could not be told
-                # from body text that looks like one: left as it is.
+                # from body text that looks like one: no reading, only its requests.
                 --silent | --slurp | --paginate) api_budget_pass "$@"; return ;;
                 # The caller reads the headers itself: the guard reads them too, and
                 # the output goes on unchanged.
                 -i | --include)
                   out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
-                  command gh "$@" >"$out" || rc=$?
+                  api_budget_traced "$out" "$@" || rc=$?
                   api_budget_observe "$out" "$pool" "gh $*" || rc=1
+                  api_budget_read "$API_BUDGET_GH_TOKEN" "$out" >/dev/null
                   cat "$out"
                   rm -f "$out"
                   return "$rc"
@@ -3263,8 +3544,8 @@ jobs:
               esac
             done
             out=$(mktemp 2>/dev/null) || { api_budget_pass "$@"; return; }
-            # gh-read-exempt: the wrapper under every call, gh_read included: the same call with -i.
-            command gh api -i "${@:2}" >"$out" || rc=$?
+            # The wrapper under every call, gh_read included: the same call with -i.
+            api_budget_traced "$out" api -i "${@:2}" || rc=$?
             api_budget_observe "$out" "$pool" "gh $*" || rc=1
             api_budget_read "$API_BUDGET_GH_TOKEN" "$out"
             rm -f "$out"
@@ -3279,13 +3560,57 @@ jobs:
         api_budget_pass() {
           local err rc=0 seconds=3600
           err=$(mktemp 2>/dev/null) || { command gh "$@"; return; }
-          command gh "$@" 2>"$err" || rc=$?
+          api_budget_traced - "$@" 2>"$err" || rc=$?
           cat "$err" >&2
           if ((rc != 0)) && grep -qiE 'rate limit|RATE_LIMITED|abuse detection|\(HTTP 429\)' "$err"; then
             ! grep -qiE 'secondary rate limit|abuse detection' "$err" || seconds=60
             api_budget_stop '*' $(($(date +%s) + seconds)) fallback "gh $*" || :
           fi
           rm -f "$err"
+          return "$rc"
+        }
+
+        # api_budget_traced <out|-> <gh args>: gh with GH_DEBUG=1, stdout to <out>
+        # (`-`: left as it is). That level logs only head lines per request (`* Request
+        # at`, `* Request to <url>`, `* Request took`), never headers or bodies, which
+        # GH_DEBUG=api adds and which no filter could tell from gh's own text. Each
+        # request to a GitHub API URL (a redirect to a download host is not one) is a
+        # `request` line in the token's file, less the one an <out> header block
+        # already gives a reading. Once gh exits, its stderr goes on without what the
+        # debug level adds: those lines, a `* <error>` line while a request is open,
+        # `[git ...]` command lines, and the `lookup ...` line under `error connecting
+        # to`. Returns gh's status.
+        api_budget_traced() {
+          local out=$1 log rc=0 skip=0 nl=0 first state=${RUNNER_TEMP:-}/api-budget/${API_BUDGET_GH_TOKEN:-}
+          shift
+          log=$(mktemp 2>/dev/null) || {
+            if [[ $out == - ]]; then command gh "$@"; else command gh "$@" >"$out"; fi
+            return
+          }
+          if [[ $out == - ]]; then
+            GH_DEBUG=1 command gh "$@" 2>"$log" || rc=$?
+          else
+            GH_DEBUG=1 command gh "$@" >"$out" 2>"$log" || rc=$?
+            read -r first <"$out" 2>/dev/null
+            [[ ! ${first:-} =~ ^HTTP/[0-9.]+\ [0-9]{3} ]] || skip=1
+          fi
+          if [[ -z ${RUNNER_TEMP:-} || ! ${API_BUDGET_GH_TOKEN:-} =~ ^[a-z][a-z0-9-]{0,39}$ ]] || ! mkdir -p "${state%/*}" 2>/dev/null; then
+            state=/dev/null
+          fi
+          [[ $(tail -c 1 "$log" | od -An -c) != *'\n'* ]] || nl=1
+          awk -v state="$state" -v skip="$skip" -v nl="$nl" '
+            /^\* Request at / { open++; next }
+            /^\* Request took / { if (open) open--; next }
+            /^\* Request to / {
+              if ($4 ~ /^https:\/\/((api|uploads)\.github\.com|[^\/]+\/api)\// && ++n > skip) print "request" ($4 ~ /\/graphql([?]|$)/ ? " graphql" : "") >>state
+              next
+            }
+            /^\* (Using proxy|Skipping TLS verification): / || (open && /^\* /) || /^\[git[] ]/ { next }
+            /^lookup / && kept ~ /^error connecting to / { kept = ""; next }
+            { printf "%s%s", sep, $0; sep = "\n"; kept = $0; last = NR }
+            END { close(state); if (sep != "" && (nl || last != NR)) printf "\n" }
+          ' "$log" >&2
+          rm -f "$log"
           return "$rc"
         }
 
@@ -3488,6 +3813,17 @@ jobs:
           return 0
         }
 
+        api_budget_emit_calls() {
+          local token file
+          for token; do
+            file=${RUNNER_TEMP:-}/api-budget/$token
+            [[ -n ${RUNNER_TEMP:-} && $token =~ ^[a-z][a-z0-9-]{0,39}$ ]] || continue
+            [[ -s $file ]] || file=/dev/null
+            awk '$1 != 304 { n++ } $1 == 304 { m++ } $6 == "graphql" || $2 == "graphql" { g++ } END { printf "::notice title=api-calls::%s=%d not-modified=%d graphql=%d\n", token, n, m, g }' token="$token" "$file"
+          done
+          return 0
+        }
+
         api_budget_emit() {
           local token file where workflow=${GITHUB_WORKFLOW_REF:-}
           workflow=${workflow%%@*}
@@ -3595,15 +3931,58 @@ jobs:
               waited=1
             done
           }
+          # ONE READ OF THE PULL, ITS LABELS AND ITS EVENTS PER JOB. pr_read
+          # <gh api args>... answers what an earlier step of this job read for
+          # the same args, else reads through gh_read and keeps the answer in
+          # $RUNNER_TEMP/pr-reads. Steps use it for three reads only: the pull
+          # request (pulls/<n>), its labels and its issue events. Comments,
+          # reviews, runs, jobs and annotations are always read live with
+          # gh_read, so a member's veto or a new review is never missed. A read
+          # that fails keeps nothing, so the next step reads again and fails
+          # closed as before. pr_read_put <answer> <args>... keeps an answer a
+          # step read its own way; pr_read_forget drops every kept answer, and
+          # every step that writes to the pull request runs it after its write
+          # (the cost-hold step and the lanes App step's auto-merge disarm).
+          # check-contract writes before any step reads through this cache.
+          pr_read() {
+            local file out
+            file=$(pr_read_file "$@") || file=
+            if [ -n "$file" ] && [ -f "$file" ]; then
+              cat "$file"
+              return 0
+            fi
+            out=$(gh_read "$@") || return 1
+            [ -z "$file" ] || pr_read_put "$out" "$@"
+            [ -z "$out" ] || printf '%s\n' "$out"
+          }
+          pr_read_file() {
+            local dir=${RUNNER_TEMP:-}/pr-reads
+            if [ -z "${RUNNER_TEMP:-}" ] || ! mkdir -p "$dir" 2>/dev/null; then
+              return 1
+            fi
+            printf '%s/%s\n' "$dir" "$(printf '%s\0' "$@" | sha256sum | cut -c1-40)"
+          }
+          pr_read_put() {
+            local out=$1 file
+            shift
+            file=$(pr_read_file "$@") || return 0
+            if ! { [ -z "$out" ] || printf '%s\n' "$out"; } >"$file.$$" 2>/dev/null || ! mv -f "$file.$$" "$file" 2>/dev/null; then
+              rm -f "$file.$$"
+            fi
+            return 0
+          }
+          pr_read_forget() {
+            [ -z "${RUNNER_TEMP:-}" ] || rm -rf "$RUNNER_TEMP/pr-reads"
+          }
           echo $(($(date +%s) + GH_READ_JOB_SECONDS - GH_READ_MARGIN_SECONDS)) >"$RUNNER_TEMP/gh-read.deadline"
           # fd 9 is each sourcing step's stderr, so the notices reach the log
           # when a caller captures or redirects gh_read's own stderr.
           # The api-budget gh wrapper too: every `gh api` of a sourcing step,
           # gh_read's included, leaves its rate-limit reading for the notice
           # the lane-scope step writes.
-          { echo 'exec 9>&2'; declare -f gh_read; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
+          { echo 'exec 9>&2'; declare -f gh_read pr_read pr_read_file pr_read_put pr_read_forget; printf '%s\n' "${API_BUDGET_SH:-}" '! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token'; } >"$RUNNER_TEMP/gh-read.sh"
       - name: Check the pull-request contract
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           token: ${{ github.token }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
@@ -3731,7 +4110,8 @@ jobs:
       # image's default. The same checkout of the default branch holds the
       # merge queue's verdict reader as main has it: babysit_verify_evidence.py
       # with its sibling modules and its config parser, and the pr-merge
-      # scripts that start its run cache and read its head-ref map, with every
+      # scripts that start its run cache and read its head-ref map and
+      # carried artifact listing, with every
       # module they import (scripts/ci-lanes-pr-hold.test.sh checks the list).
       # No pull request code is checked out and no credential is kept.
       - name: Check out main's Node pin and verdict reader
@@ -3743,11 +4123,13 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.node-version
+            /.github/actions/setup-pinned-node/
             /plugins/source-control/skills/babysit-prs/scripts/*.py
             /plugins/source-control/lib/parse-concern-value.sh
             /plugins/source-control/lib/yaml-subset.awk
             /.github/scripts/pr-merge/head-ref-map.mjs
             /.github/scripts/pr-merge/carry-run-cache.mjs
+            /.github/scripts/pr-merge/listing-carry.mjs
             /.github/scripts/pr-merge/rotation.mjs
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
@@ -3755,37 +4137,97 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Set up Node
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
-      # THE HOLD STEPS READ THEIR CONFIG FROM THE BASE COMMIT, ONCE. The tracker
-      # config names the human-gated label and the trusted-actor list names who
-      # may lift a hold; both are read at the base so the pull request cannot
-      # rewrite its own hold, as is merge-holds.mjs, whose refsIssue the cost
-      # step runs. A sparse checkout of the three files at the base SHA
+      # THE HOLD STEPS READ THEIR CONFIG ONCE, FROM THE DEFAULT BRANCH'S TIP AT
+      # RUN TIME, OR THE BASE COMMIT FOR ANOTHER BASE. The tracker
+      # config names the human-gated label, the trusted-actor list names who
+      # may lift a hold and, with pr-pipeline.yaml's merge.agent-identity, the
+      # lanes App's id that LANES_APP_ID must equal, and its
+      # merge.trust-path-hold-apps the agent Apps whose trust-gate changes the
+      # review-lanes step holds; all are read there, never at the head,
+      # so the pull request cannot rewrite its own hold, as is merge-holds.mjs,
+      # whose refsIssue the cost step runs, and clear-escalations.mjs with every
+      # module and data file it loads, whose recheckStaleHold the hold-lift
+      # step runs. A re-run replays the event, whose base.sha stays stale, so
+      # a pull request into the default branch reads that branch's tip as it
+      # stands now: a policy merged since applies on the next run. A pull
+      # request's head cannot change the default branch, so the tip is no more
+      # the pull request's code than the base commit is. A merge group, and a
+      # pull request into another branch, keep the event's base SHA.
+      # hold_ref resolves the commit and outputs it only as 40 hex: it reads
+      # the tip with an unauthenticated `git ls-remote` of this public
+      # repository, run outside any checkout, and falls back to the base SHA
+      # with a warning when that read fails or returns anything else.
+      - name: Resolve the hold config's commit
+        id: hold_ref
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+        run: |
+          hex='^[0-9a-f]{40}$'
+          if [[ ! $BASE_SHA =~ $hex ]]; then
+            echo "::error::the base commit '$BASE_SHA' is not a commit SHA, so the hold config has no commit to read."
+            exit 1
+          fi
+          sha=$BASE_SHA
+          if [ "$EVENT" = pull_request ] && [ -n "$DEFAULT_BRANCH" ] && [ "$BASE_REF" = "$DEFAULT_BRANCH" ]; then
+            tip=$(GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY" "refs/heads/$DEFAULT_BRANCH" |
+              awk -v ref="refs/heads/$DEFAULT_BRANCH" '$2 == ref { print $1 }') || tip=
+            if [[ $tip =~ $hex ]]; then
+              sha=$tip
+            else
+              echo "::warning::could not read the tip of $DEFAULT_BRANCH, so the hold config falls back to the base commit $BASE_SHA, which a policy merged after it does not reach."
+            fi
+          fi
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      # A sparse checkout of these files at that SHA
       # is a git fetch, not a REST request: as of actions/checkout v7.0.1 its
       # API calls (default branch, object format, the stale-merge tracepoint, the
       # no-git archive download) all return early for a 40-hex `ref` on a runner
       # with git; recheck on a checkout bump. It checks out no pull request
-      # code: the ref is the base commit, the only code run from it is that
-      # base module, and no credential is persisted.
+      # code: the ref is the default branch's tip or the base commit, the only
+      # code run from it is those modules, and no credential is persisted. It
+      # never runs on an empty ref, which would check out the event's ref, the
+      # pull request's own merge commit.
       # The steps below read BASE_CONFIG: empty when this step did not succeed,
       # which each of them treats as an unreadable config; a file missing from
-      # a checkout that succeeded is a file the base commit does not have.
+      # a checkout that succeeded is a file that commit does not have.
       - name: Check out the base commit's hold config
         id: base_config
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.hold_ref.outputs.sha != '' }}
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          ref: ${{ steps.hold_ref.outputs.sha }}
           path: base-config
           persist-credentials: false
           sparse-checkout: |
             /.work-item-tracker.json
             /.github/standards/trusted-actors/trusted-actors.json
             /.github/scripts/pr-merge/merge-holds.mjs
+            /docs/conventions/pr-pipeline.yaml
+            /.github/scripts/pr-merge/clear-escalations.mjs
+            /.github/scripts/pr-merge/enable-auto-merge.mjs
+            /.github/scripts/pr-unblock/address-feedback.mjs
+            /.github/scripts/pr-unblock/gate-source.mjs
+            /.github/scripts/pr-unblock/escalation-routes.mjs
+            /.github/scripts/pr-unblock/escalation-routes.json
+            /.github/scripts/pr-unblock/retry-fetch.mjs
+            /.github/scripts/pr-unblock/thread-scope.mjs
+            /.github/scripts/work-resolve-issue/report-outcome.mjs
+            /.github/scripts/work-resolve-issue/limits.mjs
+            /.github/scripts/work-resolve-issue/retry-fetch.mjs
+            /.github/scripts/work-resolve-issue/stop-routes.mjs
+            /.github/scripts/work-resolve-issue/stop-routes.json
+            /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
+            /.github/actions/check-kill-switch/check-kill-switch.mjs
+            /.github/actions/log-api-budget/rate-guard.mjs
+            /.github/actions/log-api-budget/rate-limits.json
           sparse-checkout-cone-mode: false
       # A COST HOLD THE OWNER ALREADY DECIDED COMES OFF. A review lane re-holds
       # every new head, so its `cost` hold went back on after the owner had
@@ -3801,9 +4243,9 @@ jobs:
       #   lane's status job records (any attempt, on this branch), never from
       #   the hold comment, which anyone with write access can edit or delete.
       #   A pull_request run takes its workflow from the pull request, so a
-      #   run whose head changes either review-lane workflow from the base (or
-      #   whose comparison lists 300 files, the API's cap) could forge that
-      #   notice, and keeps the hold.
+      #   run in it or started before the decision whose head changes either
+      #   review-lane workflow from the base (or whose comparison lists 300
+      #   files, the API's cap) could forge that notice, and keeps the hold.
       # - No lanes App escalation comment (a `<!-- work-items:escalation`
       #   marker) was written or edited and no comment was deleted in it: a
       #   lanes App escalation adds no label event to a label already on. Its
@@ -3816,13 +4258,24 @@ jobs:
       #   pull request and naming it as `#<number>` (merge-holds.mjs
       #   namesPull). Of those, the newest on the pull request, else the
       #   newest on the issue, is the decision. It covers the head it decided
-      #   (the newest github-actions[bot] cost hold marker before it, while
-      #   never edited and no comment was deleted since it was posted; with
-      #   none, an edited one or a deletion since, no head) and a later head only when the pull request's net
-      #   change against its base branch is the same at both, so every change
-      #   since is a base merge (the base's merge-holds.mjs costMarker and
-      #   sameNetChange; owner decisions Q17 c and Q18 d on #9436, as
-      #   ci-workflows v0.65.4's hold step reads them). The linked issue is the one issue in this repository that
+      #   and a later head only when every commit since is a merge and the
+      #   pull request's net change against its base branch is the same at
+      #   both, so every change since is a base merge (the base's
+      #   merge-holds.mjs baseMergeCarry; owner decisions Q17 c and Q18 d on
+      #   #9436). The decided head is the `sha=` of the
+      #   newest cost hold notice a review lane's status job recorded before
+      #   the decision, read with the holds below from runs vetted the same
+      #   way and only where it names its own run's head; never a hold
+      #   comment, which any GITHUB_TOKEN workflow can post as
+      #   github-actions[bot]. With none, or two heads at that time, it covers
+      #   no head. Nor does it while the head branch's push history (the
+      #   repository activity API, which deleting a run leaves) shows a head
+      #   pushed after the decided head's last push and before the decision
+      #   with no run of every review lane started before the decision, since
+      #   a deleted run of a newer head would make an older notice the decided
+      #   head (the base's merge-holds.mjs unranHead, #10437); a history with
+      #   no push of the decided head before it, or a full page, covers none
+      #   too. The linked issue is the one issue in this repository that
       #   GitHub records it as closing, else, when it closes none, the one issue
       #   its plain `Refs:` lines name (the base's merge-holds.mjs refsIssue),
       #   read to be an issue and not a pull request. A second closing issue
@@ -3844,19 +4297,21 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
-          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_wrap_gh github-token; }
+          . "$RUNNER_TEMP/gh-read.sh"
           keep() {
             echo "The cost hold stays for a person: $1."
             exit 0
           }
+          # Every read is live, as this step acts on it; its pull and events
+          # answers are kept for the later steps' pr_read of the same args.
           read_api() {
             local attempt out
             for attempt in 1 2 3; do
               # gh-read-exempt: an unreadable input keeps the hold, and a wait would act on stale reads.
               if out=$(gh api "$@" 2>"$RUNNER_TEMP/cost-hold.err"); then
+                [[ ! $1 =~ ^repos/[^/]+/[^/]+/(pulls/[0-9]+|issues/[0-9]+/events\?per_page=100)$ ]] || pr_read_put "$out" "$@"
                 printf '%s\n' "$out"
                 return 0
               fi
@@ -3880,6 +4335,10 @@ jobs:
               | if . == "" then "needs-human" else . end' <<<"$tracker") || keep "the tracker config is invalid"
           fi
           actors=$(cat "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json") || keep "the trusted-actor list is unreadable"
+          # A stale or mistyped variable would miss the lanes App's escalation below.
+          identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml" 2>/dev/null) || keep "merge.agent-identity is unreadable"
+          jq -e --arg login "$identity" --argjson id "$LANES_APP_ID" '[.actors[] | select(.login == $login) | .id] == [$id]' <<<"$actors" >/dev/null ||
+            keep "AUTOMATION_LANES_APP_SENDER_ID is not $identity's trusted-actor id"
           humans=$(jq -ec '[.actors[] | select(.kind == "human") | .id | numbers] | select(length > 0)' <<<"$actors") || keep "the trusted-actor list names no person"
           events=$(read_api "repos/$repo/issues/$PR_NUMBER/events?per_page=100" --paginate) || keep "the events are unreadable"
           # The window opens at the newest removal a trusted person made directly, not through an App.
@@ -3924,11 +4383,9 @@ jobs:
           fi
           opened=$(jq -r '.created_at | fromdateiso8601' <<<"$pr") || keep "the pull request has no creation time"
           comments=$(read_api "repos/$repo/issues/$PR_NUMBER/comments?per_page=100" --paginate) || keep "the comments are unreadable"
-          jq -sc 'add // []' <<<"$comments" >"$RUNNER_TEMP/cost-hold-comments.json" || keep "the comments do not parse"
           # shellcheck disable=SC2016 # GraphQL variables, not shell
           deleted=$(read_api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){timelineItems(itemTypes:[COMMENT_DELETED_EVENT],last:100){filteredCount nodes{... on CommentDeletedEvent{createdAt}}}}}}' \
             -F owner="${repo%%/*}" -F name="${repo#*/}" -F number="$PR_NUMBER") || keep "the deleted comments are unreadable"
-          jq '.data' <<<"$deleted" >"$RUNNER_TEMP/cost-hold-deleted.json" || keep "the deleted comments do not parse"
           # holds_js <function> <json-file>...: one function of the base's
           # merge-holds.mjs over the files. The module goes last: as the first
           # argument it would run as the command line.
@@ -3942,32 +4399,38 @@ jobs:
               console.log(out !== null && typeof out === "object" ? JSON.stringify(out) : String(out ?? ""));' \
               "$@" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs"
           }
-          # carries <comment>: whether the decision comment covers HEAD_SHA:
-          # its decided head, from the newest cost hold marker before it and
-          # only while that marker was never edited and no comment was deleted
-          # since it was posted (the base's deletedSince, so deleting a newer
-          # marker cannot promote an older head), is HEAD_SHA, or the net
-          # change against the base branch is the same at both. No marker, an
-          # edited or unreadable newest marker, a deletion since it, an
+          # carries <decided>: whether a decision whose decided head is
+          # <decided> covers HEAD_SHA: it is HEAD_SHA, or every commit since
+          # is a merge whose other parents the base branch holds (their
+          # compare against it is ahead or identical, the base's
+          # mergedParents and baseParents) and the net change is the same at
+          # both (the base's baseMergeCarry). Every compare is against the
+          # base branch's tip, read once by its full ref (refs/heads/), so no
+          # tag of the same name stands in for it. No decided head, an
           # unusable base branch name or any read that fails carries nothing.
           carries() {
-            local at="$RUNNER_TEMP/cost-hold-at.json" marker decided marker_edited base_ref
-            jq '.created_at' <<<"$1" >"$at" || return 1
-            marker=$(holds_js costMarker "$RUNNER_TEMP/cost-hold-comments.json" "$at") || return 1
-            [ -n "$marker" ] || return 1
-            decided=$(jq -r '.sha' <<<"$marker") || return 1
+            local decided=$1 base_ref tip parents sha diff in_base='[]'
             [[ $decided =~ ^[0-9a-f]{40}$ ]] || return 1
-            # shellcheck disable=SC2016 # GraphQL variables, not shell
-            marker_edited=$(read_api graphql -f query='query($id:ID!){node(id:$id){... on IssueComment{lastEditedAt}}}' -F id="$(jq -r '.node' <<<"$marker")") || return 1
-            jq -e '.data.node | objects | has("lastEditedAt") and .lastEditedAt == null' <<<"$marker_edited" >/dev/null 2>&1 || return 1
-            jq '.at' <<<"$marker" >"$RUNNER_TEMP/cost-hold-marker-at.json" || return 1
-            [ "$(holds_js deletedSince "$RUNNER_TEMP/cost-hold-deleted.json" "$RUNNER_TEMP/cost-hold-marker-at.json")" = false ] || return 1
             [ "$decided" != "$HEAD_SHA" ] || return 0
             base_ref=$(jq -r '.base.ref // ""' <<<"$pr") || return 1
             jq -en --arg b "$base_ref" '$b | test("^(?!-)(?!.*\\.\\.)[A-Za-z0-9._/-]{1,255}$")' >/dev/null || return 1
-            read_api "repos/$repo/compare/$base_ref...$decided" >"$RUNNER_TEMP/cost-hold-then.json" || return 1
-            read_api "repos/$repo/compare/$base_ref...$HEAD_SHA" >"$RUNNER_TEMP/cost-hold-now.json" || return 1
-            [ "$(holds_js sameNetChange "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json")" = true ]
+            tip=$(read_api "repos/$repo/git/ref/heads/$base_ref") || return 1
+            tip=$(jq -r '.object.sha // ""' <<<"$tip") || return 1
+            [[ $tip =~ ^[0-9a-f]{40}$ ]] || return 1
+            read_api "repos/$repo/compare/$tip...$decided" >"$RUNNER_TEMP/cost-hold-then.json" || return 1
+            read_api "repos/$repo/compare/$tip...$HEAD_SHA" >"$RUNNER_TEMP/cost-hold-now.json" || return 1
+            jq -n --arg sha "$decided" '$sha' >"$RUNNER_TEMP/cost-hold-decided.json" || return 1
+            parents=$(holds_js mergedParents "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json") || return 1
+            for sha in $(jq -r '.[]?' <<<"$parents"); do
+              [[ $sha =~ ^[0-9a-f]{40}$ ]] || return 1
+              diff=$(read_api "repos/$repo/compare/$sha...$tip") || return 1
+              case $(jq -r '.status // ""' <<<"$diff") in
+              ahead | identical) in_base=$(jq -c --arg s "$sha" '. + [$s]' <<<"$in_base") || return 1 ;;
+              esac
+            done
+            jq -n --argjson b "$in_base" '$b' >"$RUNNER_TEMP/cost-hold-in-base.json" || return 1
+            [ "$(holds_js baseMergeCarry "$RUNNER_TEMP/cost-hold-then.json" "$RUNNER_TEMP/cost-hold-now.json" "$RUNNER_TEMP/cost-hold-decided.json" \
+              "$RUNNER_TEMP/cost-hold-in-base.json")" = true ]
           }
           # Every decision that counts, as {own, at, link, id, comment}.
           decisions='[]' refs_read=
@@ -4002,15 +4465,21 @@ jobs:
           # review lanes' hold step picks it; only it may carry.
           chosen=$(jq -c '([.[] | select(.own)] | if length > 0 then . else null end) // [.[] | select(.own | not)]
             | to_entries | sort_by([-.value.at, .key]) | .[0].value // empty' <<<"$decisions") || keep "the decisions do not parse"
-          decision='' decision_id=''
-          if [ -n "$chosen" ] && carries "$(jq -c .comment <<<"$chosen")"; then
-            decision=$(jq -r .link <<<"$chosen") decision_id=$(jq -r .id <<<"$chosen")
-          fi
-          [ -n "$decision" ] || keep "the body cites no recorded owner cost decision covering this head"
-          # Every hold a review lane recorded in the window, as {at, criteria}.
-          holds='[]' vetted=''
+          [ -n "$chosen" ] || keep "the body cites no recorded owner cost decision covering this head"
+          decided_at=$(jq -r '.at' <<<"$chosen") || keep "the decisions do not parse"
+          # Every hold notice a review lane's status job recorded in a run
+          # whose head is in this repository (a fork's same-named branch speaks
+          # for another pull request), updated in the window or started before
+          # the decision, as {at, criteria, sha, run}: `sha` as the notice
+          # names it, `run` the head its run ran on.
+          # `ran` lists, per lane, the heads of its runs from this repository
+          # started before the decision.
+          notices='[]' vetted='' ran='[]'
           while read -r file check; do
             runs=$(read_api "repos/$repo/actions/workflows/$file/runs?event=pull_request&branch=$ref&per_page=100" --paginate) || keep "the $file runs are unreadable"
+            ran=$(jq -nc --argjson ran "$ran" --arg repo "$repo" --argjson decided "$decided_at" '$ran + [[inputs.workflow_runs[]
+              | select(.head_repository.full_name == $repo and (.created_at | fromdateiso8601) < $decided) | .head_sha] | unique]' <<<"$runs") ||
+              keep "the $file runs do not parse"
             while read -r id sha; do
               [ -n "$id" ] || continue
               [[ $sha =~ ^[0-9a-f]{40}$ ]] || keep "run $id names no head commit"
@@ -4024,17 +4493,64 @@ jobs:
                 vetted+=" $sha"
               fi
               jobs=$(read_api "repos/$repo/actions/runs/$id/jobs?filter=all&per_page=100" --paginate) || keep "the jobs of run $id are unreadable"
-              for job in $(jq -nr --arg check "$check" --argjson since "$since" '[inputs.jobs[] | select(.name == $check
-                and .completed_at != null and (.completed_at | fromdateiso8601) > $since) | "\(.id)/\(.completed_at)"] | unique[]' <<<"$jobs"); do
+              for job in $(jq -nr --arg check "$check" '[inputs.jobs[] | select(.name == $check
+                and .completed_at != null) | "\(.id)/\(.completed_at)"] | unique[]' <<<"$jobs"); do
                 notes=$(read_api "repos/$repo/check-runs/${job%%/*}/annotations?per_page=100" --paginate) || keep "the annotations of job ${job%%/*} are unreadable"
-                holds=$(jq -nc --argjson holds "$holds" --arg at "${job#*/}" '$holds + [inputs[] | select(.annotation_level == "notice")
+                notices=$(jq -nc --argjson notices "$notices" --arg at "${job#*/}" --arg run "$sha" '$notices + [inputs[] | select(.annotation_level == "notice")
                   | .message | select(startswith("claude-lane-hold "))
-                  | {at: ($at | fromdateiso8601), criteria: (capture("^claude-lane-hold lane=[a-z-]+ sha=[0-9a-f]{40} criteria=(?<c>[a-z,-]+) label=").c // "unparsed")}]' \
+                  | (capture("^claude-lane-hold lane=[a-z-]+ sha=(?<sha>[0-9a-f]{40}) criteria=(?<c>[a-z,-]+) label=") // {sha: "", c: "unparsed"}) as $m
+                  | {at: ($at | fromdateiso8601), criteria: $m.c, sha: $m.sha, run: $run}]' \
                   <<<"$notes") || keep "the annotations of job ${job%%/*} do not parse"
               done
-            done < <(jq -nr --argjson since "$since" '[inputs.workflow_runs[] | select((.updated_at | fromdateiso8601) > $since) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
+            done < <(jq -nr --arg repo "$repo" --argjson since "$since" --argjson decided "$decided_at" '[inputs.workflow_runs[]
+              | select(.head_repository.full_name == $repo)
+              | select((.updated_at | fromdateiso8601) > $since or (.created_at | fromdateiso8601) < $decided) | "\(.id) \(.head_sha)"] | unique[]' <<<"$runs")
           done <<<'pr-review-hosted.yml pr-review / claude-review-status
           pr-review-security-hosted.yml pr-review-security / security-review'
+          # The decided head: the sha of the newest cost notice before the
+          # decision that names its own run's head; none when two heads share
+          # that time.
+          decided=$(jq -r --argjson at "$decided_at" '[.[] | select(.at < $at and .sha == .run and any(.criteria | split(",")[]; . == "cost"))]
+            | (map(.at) | max) as $newest | [.[] | select(.at == $newest) | .sha] | unique
+            | if length == 1 then .[0] else "" end' <<<"$notices") || keep "the hold notices do not parse"
+          # The decided head stands only while the head branch's push history
+          # shows a run of every lane on each head pushed since it before the
+          # decision (the base's unranHead). The activity API keeps a branch
+          # name's history across deletions, so a reused name fills any one
+          # page: it is read to its end along the Link header's rel="next"
+          # cursor, as merge-holds.mjs reads it, for at most 20 pages.
+          if [ -n "$decided" ]; then
+            # Each page goes to a file: the whole history is too long for one argument.
+            next="repos/$repo/activity?ref=refs%2Fheads%2F$ref&direction=desc&per_page=100" pages=0
+            : >"$RUNNER_TEMP/cost-hold-pages.json"
+            while [ -n "$next" ]; do
+              [ "$pages" -lt 20 ] || keep "the head branch's push history runs past 20 pages"
+              page=$(read_api "$next" -i) || keep "the head branch's push history is unreadable"
+              pages=$((pages + 1))
+              next=$(awk '{ sub(/\r$/, "") } $0 == "" { exit } tolower($0) ~ /^link:/' <<<"$page" |
+                sed -nE 's#.*<https://[^/>]+/([^>]*)>; *rel="next".*#\1#p')
+              size=$(awk 'body { print; next } { sub(/\r$/, "") } $0 == "" { body = 1 }' <<<"$page" |
+                tee -a "$RUNNER_TEMP/cost-hold-pages.json" | jq -e 'if type == "array" then length else error("not a list") end') ||
+                keep "the head branch's push history is unreadable"
+              # Only a short page ends the history.
+              if [ "$size" -lt 100 ]; then
+                next=''
+              elif [ -z "$next" ]; then
+                keep "the head branch's push history has a full page with no next link"
+              fi
+            done
+            jq -cs 'add' "$RUNNER_TEMP/cost-hold-pages.json" >"$RUNNER_TEMP/cost-hold-activity.json" ||
+              keep "the head branch's push history is unreadable"
+            printf '%s\n' "$ran" >"$RUNNER_TEMP/cost-hold-ran.json"
+            jq -n --arg sha "$decided" '$sha' >"$RUNNER_TEMP/cost-hold-decided.json"
+            jq '.comment.created_at' <<<"$chosen" >"$RUNNER_TEMP/cost-hold-decided-at.json" || keep "the decisions do not parse"
+            gap=$(holds_js unranHead "$RUNNER_TEMP/cost-hold-activity.json" "$RUNNER_TEMP/cost-hold-ran.json" \
+              "$RUNNER_TEMP/cost-hold-decided.json" "$RUNNER_TEMP/cost-hold-decided-at.json") || keep "the head branch's push history could not be checked"
+            [ -z "$gap" ] || keep "$gap"
+          fi
+          carries "$decided" || keep "the body cites no recorded owner cost decision covering this head"
+          decision=$(jq -r .link <<<"$chosen") decision_id=$(jq -r .id <<<"$chosen")
+          holds=$(jq -c --argjson since "$since" '[.[] | select(.at > $since)]' <<<"$notices") || keep "the hold notices do not parse"
           verdict=$(jq -nr --arg label "$label" --argjson since "$since" --argjson holds "$holds" --argjson app "$LANES_APP_ID" \
             --slurpfile events <(printf '%s\n' "$events") --slurpfile comments <(printf '%s\n' "$comments") \
             --slurpfile deleted <(printf '%s\n' "$deleted") '
@@ -4070,17 +4586,23 @@ jobs:
           # shellcheck disable=SC2016 # $l is a jq variable
           gh api -X DELETE "repos/$repo/issues/$PR_NUMBER/labels/$(jq -rn --arg l "$label" '$l | @uri')" >/dev/null ||
             echo "::warning::could not remove '$label' from #$PR_NUMBER; the step below holds it."
+          # The labels, comments and events changed: the steps below read them live.
+          pr_read_forget
       # A PULL REQUEST CARRYING THE HUMAN-GATED LABEL IS HELD. A review lane or
       # an escalation puts the label on so a person decides; removing it is the
       # approval, and the `unlabeled` event re-runs this job. The label's name
       # is the base commit's .work-item-tracker.json role_labels.human-gated
-      # (default `needs-human`), resolved as pr-merge.yml resolves it, and read
+      # (default `needs-human`), resolved by the base checkout's merge-holds.mjs
+      # humanGatedLabel as pr-merge.yml resolves it, and read
       # at the base so the pull request cannot rename its own hold. Labels are
       # read live, not from the event payload, which a later label event
-      # outdates. The reason is the newest review-lane hold comment's text: a
-      # `<!-- claude-lane-hold lane=` comment by claude[bot], or by
+      # outdates. The reason is the newest hold comment's text: a review
+      # lane's `<!-- claude-lane-hold lane=` comment by claude[bot], or by
       # github-actions[bot] when its last non-blank line is the lane's
-      # `claude-lane: <lane>` footer. Without one the error names none. An unreadable tracker config or label list fails closed.
+      # `claude-lane: <lane>` footer, or pr-merge's refusal, a
+      # merge.agent-identity comment with `<!-- babysit-merge-risk -->` on its
+      # first or second line, whose fenced reasons it names, so the error
+      # names the hold that set the label. Without one the error names none. An unreadable tracker config or label list fails closed.
       # It outputs the label's name, and `held=false` once the live labels
       # read without it, for the hold-lift step below. Pinned
       # by scripts/ci-hold-human-gated.test.sh, which runs this body.
@@ -4103,18 +4625,23 @@ jobs:
             echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."
             exit 1
           fi
-          human_gated=needs-human
-          if [ -n "$tracker" ]; then
-            human_gated=$(jq -er '[objects | .config | objects | .role_labels | objects
-              | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
-              | if . == "" then "needs-human" else . end' <<<"$tracker") || {
-              echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA"
-              exit 1
+          # The base module's humanGatedLabel; an empty tracker config names none.
+          # The module is not the first argument, which would run its main.
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          human_gated=$(TRACKER=$tracker node --input-type=module -e 'import { pathToFileURL } from "node:url";
+            const { humanGatedLabel } = await import(pathToFileURL(process.argv[2]).href);
+            const text = process.env.TRACKER ?? "";
+            const label = humanGatedLabel(text === "" ? null : JSON.parse(text));
+            if (typeof label !== "string" || !label) {
+              throw new Error("no verdict");
             }
-          fi
+            console.log(label);' label "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") && [ -n "$human_gated" ] || {
+            echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA with its merge-holds.mjs"
+            exit 1
+          }
           echo "label=$human_gated" >>"$GITHUB_OUTPUT"
           for attempt in 1 2 3; do
-            if labels=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate --jq '.[].name'); then
+            if raw=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate) && labels=$(jq -r '.[].name' <<<"$raw"); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$PR_NUMBER; re-run this run."; exit 1; }
@@ -4125,15 +4652,24 @@ jobs:
             echo "#$PR_NUMBER carries no '$human_gated' label."
             exit 0
           fi
-          # gh-read-exempt: the reason is best effort; the step fails either way.
-          reason=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
-            --jq '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+          # The lanes App's login, best effort: unread, only the review lanes'
+          # hold comments name a reason.
+          identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml" 2>/dev/null) || identity=
+          [[ $identity =~ ^[a-z0-9][a-z0-9-]*\[bot\]$ ]] || identity=
+          # The reason is best effort; the step fails either way.
+          reason=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate |
+            jq -r '.[] | select(.user.type == "Bot" and (((.body | test("(^|\n)<!-- claude-lane-hold lane="))
               and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
                 and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
                   | test("^\u0060?claude-lane: (claude-review|claude-security-review)\u0060?$")))))
+              or (.user.login == "'"$identity"'"
+                and ([.body | splits("\r?\n")][0:2] | map(gsub("^\\s+|\\s+$"; "")) | index("<!-- babysit-merge-risk -->") != null
+                  and index("<!-- work-items:escalation lane=pr-merge kind=escalated -->") != null))))
               | .body | @json' | tail -n 1 |
-            jq -r '[splits("[\r\n]+") | gsub("^\\s+|\\s+$"; "")
-              | select(. != "" and (test("^<!--|^\u0060?claude-lane: ") | not))] | join(" ") | .[0:300]') || reason=
+            jq -r '[splits("\r?\n") | gsub("^\\s+|\\s+$"; "")] as $lines | ($lines | index("\u0060\u0060\u0060text")) as $open
+              | if $open != null and ($lines[0:2] | index("<!-- babysit-merge-risk -->")) != null
+                then $lines[$open + 1:] | .[0:(index("\u0060\u0060\u0060") // length)] else $lines end
+              | [.[] | select(. != "" and (test("^<!--|^\u0060?claude-lane: ") | not))] | join(" ") | .[0:300]') || reason=
           why=
           [ -z "$reason" ] || why=" (${reason//%/%25})"
           echo "::error::#$PR_NUMBER carries '$human_gated'$why. Removing the label approves this pull request; ci-status re-runs on the unlabel."
@@ -4147,7 +4683,13 @@ jobs:
       # lifts. A bot or another account lifting the hold, or no recorded
       # removal, fails; adding the label back and having a trusted person
       # remove it approves: a trusted person's `labeled` event after the hold
-      # starts a new hold that only that list's removal lifts.
+      # starts a new hold that only that list's removal lifts. The one removal
+      # by another account that lifts it is the lanes App's (LANES_APP_ID, on
+      # the base list) own, after its stale-review-hold comment since the hold
+      # names a head no hold comment names, while none names this head, and
+      # only when the base commit's clear-escalations.mjs recheckStaleHold,
+      # the predicate the App ran, passes again here at this head with this
+      # job's token.
       # It runs only when the step above read the live labels and found the
       # label off. A hold is the newest hold comment or the newest `labeled`
       # event of the label by github-actions[bot] or claude[bot], whichever is
@@ -4163,6 +4705,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           HUMAN_GATED: ${{ steps.human_gated.outputs.label }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
@@ -4173,19 +4716,19 @@ jobs:
           fi
           # shellcheck disable=SC2016 # the $ in the --jq filter is a regex anchor
           for attempt in 1 2 3; do
-            if held_at=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate \
-              --jq '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+            if raw=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --paginate) && held_at=$(jq -r \
+              '.[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
                 and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
                   and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
                     | test("^`?claude-lane: (claude-review|claude-security-review)`?$")))))
-                | .created_at'); then
+                | .created_at' <<<"$raw"); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the comments of #$PR_NUMBER; re-run this run."; exit 1; }
             sleep $((attempt * 5))
           done
           for attempt in 1 2 3; do
-            if events=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
+            if events=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the events of #$PR_NUMBER; re-run this run."; exit 1; }
@@ -4226,6 +4769,57 @@ jobs:
             echo "::error::a review lane held #$PR_NUMBER at $held_at, and no removal of '$HUMAN_GATED' since then is recorded. Add the label back; a person on the trusted-actor list removing it approves this pull request."
             exit 1
           fi
+          # A stale hold the lanes App cleared (clear-escalations.mjs
+          # stale-review-hold): the App removed the label itself, after its own
+          # comment since the hold opening with that clear's marker; the
+          # newest such marker names a head no review-lane hold comment names,
+          # every hold comment names its head, and none names this head. Hold
+          # comments count from the label's last removal before the label the
+          # App removed went on, as clear-escalations.mjs holdsSince counts
+          # them, so a hold a person already lifted counts for nothing. The
+          # base commit's clear-escalations.mjs recheckStaleHold must then find
+          # the hold no longer standing at the marker's head as it was when the
+          # App removed the label. A later head is judged by its own review
+          # lanes, as after a person's lift, so a clean push after the clear
+          # stays green before they run.
+          if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ && $actor_id == "$LANES_APP_ID" && -z $via_app && ${HEAD_SHA:-} =~ ^[0-9a-f]{40}$ ]] &&
+            jq -e --argjson id "$LANES_APP_ID" 'any(.actors[]; .id == $id)' <<<"$actors" >/dev/null 2>&1; then
+            # shellcheck disable=SC2016 # $e and $on are jq variables
+            since=$(jq -rs --arg label "$HUMAN_GATED" --arg lifted_at "$lifted_at" '[add[] | select(.label.name == $label)] as $e
+              | ([$e[] | select(.event == "labeled" and .created_at < $lifted_at) | .created_at] | max) as $on
+              | [$e[] | select(.event == "unlabeled" and $on != null and .created_at <= $on) | .created_at] | max // ""' <<<"$events") || since=
+            # shellcheck disable=SC2016 # $c, $app and the rest are jq variables
+            stale=$(jq -rs --arg held_at "$held_at" --arg lifted_at "$lifted_at" --arg since "$since" --arg head "$HEAD_SHA" --argjson app "$LANES_APP_ID" '(add // []) as $c
+              | [$c[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+                  and ([.created_at, (.updated_at // .created_at)] | max) >= $since
+                  and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
+                    and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
+                      | test("^`?claude-lane: (claude-review|claude-security-review)`?$")))))
+                | [.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "")
+                  | capture("^<!-- claude-lane-hold lane=[a-z-]+ sha=(?<sha>[0-9a-f]{40}) criteria=[a-z,-]+ -->$").sha] | first // null] as $held
+              | [$c[] | select(.user.id == $app and .created_at > $held_at and .created_at <= $lifted_at)] | sort_by(.created_at)
+                | [last // empty | .body | split("\n")[0] | sub("\r$"; "")
+                  | capture("^<!-- pr-pipeline needs-human-cleared reason=stale-review-hold head=(?<head>[0-9a-f]{40}) -->$").head] as $cleared
+              | if any($held[]; . == null or . == $head) then ""
+                else [$cleared[] | select(. as $h | $held | index($h) == null)] | first // "" end' <<<"$raw") || stale=
+            # The marker only points here: the base commit's
+            # clear-escalations.mjs recheckStaleHold, the predicate the App
+            # ran, judges the hold again at the marker's head with this job's
+            # token. The module is not the first argument, which would run
+            # its main.
+            module="$BASE_CONFIG/.github/scripts/pr-merge/clear-escalations.mjs"
+            if [ -n "$stale" ] && [ -f "$module" ]; then
+              # shellcheck disable=SC2016 # JavaScript, not shell
+              if PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" CLEARED_SHA="$stale" HUMAN_GATED="$HUMAN_GATED" \
+                TRUSTED_ACTORS_PATH="$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json" \
+                node --input-type=module -e 'import { pathToFileURL } from "node:url";
+                  const { recheckStaleHold } = await import(pathToFileURL(process.argv[2]).href);
+                  process.exitCode = await recheckStaleHold();' recheck "$module"; then
+                echo "$actor_login cleared the review-lane hold on #$PR_NUMBER as stale: its marker names $stale, which no hold names, and the hold no longer stands at $HEAD_SHA."
+                exit 0
+              fi
+            fi
+          fi
           if [[ " $humans " != *" $actor_id "* ]]; then
             echo "::error::$actor_login removed '$HUMAN_GATED' from #$PR_NUMBER after a review lane held it, and is not a person on the trusted-actor list. Add the label back; a person on that list removing it approves this pull request."
             exit 1
@@ -4236,6 +4830,87 @@ jobs:
             exit 1
           fi
           echo "$actor_login, a person on the trusted-actor list, lifted the review-lane hold on #$PR_NUMBER."
+      # A HUMAN-MERGE HOLD LIFTS ONLY BY A LISTED PERSON. report-outcome puts
+      # `human-merge-hold` on a lanes App pull request a person merges:
+      # its body's `Hold: a human merges this` line is text the App can edit.
+      # While the label is on this fails. Once it is off, it fails unless the
+      # first removal at or after the newest time any account added it was by
+      # a `human` of the base commit's trusted-actor list, matched by numeric
+      # id, acting directly and not through an App. It reads no other step's
+      # outcome, so neither the human-gated label nor a recorded cost decision
+      # lifts it. Labels and events are read live; an unreadable label list,
+      # event list or trusted-actor list fails closed. Pinned by
+      # scripts/ci-hold-human-merge.test.sh, which runs this body.
+      - name: Fail a human-merge hold a listed person has not lifted
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          label=human-merge-hold
+          for attempt in 1 2 3; do
+            if raw=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate) && labels=$(jq -r '.[].name' <<<"$raw"); then
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$PR_NUMBER; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          if grep -qixF -- "$label" <<<"$labels"; then
+            echo "::error::#$PR_NUMBER carries '$label': a person merges it. A person on the trusted-actor list removing the label approves it."
+            exit 1
+          fi
+          for attempt in 1 2 3; do
+            if events=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/events?per_page=100" --paginate); then
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read the events of #$PR_NUMBER; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          held_at=$(jq -rs --arg label "$label" '[add[] | select(.event == "labeled" and (.label.name | ascii_downcase) == $label)
+            | .created_at] | max // empty' <<<"$events") || {
+            echo "::error::cannot read the events of #$PR_NUMBER."
+            exit 1
+          }
+          if [ -z "$held_at" ]; then
+            echo "No human-merge hold on #$PR_NUMBER."
+            exit 0
+          fi
+          if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
+            exit 1
+          fi
+          if [ ! -d "$BASE_CONFIG" ] || ! actors=$(cat "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json"); then
+            echo "::error::could not read the trusted-actor list at $BASE_SHA; re-run this run."
+            exit 1
+          fi
+          humans=$(jq -er '[.actors[] | select(.kind == "human") | .id | numbers | tostring] | select(length > 0) | join(" ")' <<<"$actors") || {
+            echo "::error::the trusted-actor list at $BASE_SHA names no person."
+            exit 1
+          }
+          lifted=$(jq -rs --arg label "$label" --arg held_at "$held_at" '[add[] | select(.event == "unlabeled"
+              and (.label.name | ascii_downcase) == $label and .created_at >= $held_at)]
+            | min_by(.created_at) // empty | [.created_at, (.actor.id // 0 | tostring), (.actor.login // "an unknown account"),
+              (.performed_via_github_app | if . == null then "" else .slug // .name // "an unnamed App" end)] | @tsv' <<<"$events") || {
+            echo "::error::cannot read the events of #$PR_NUMBER."
+            exit 1
+          }
+          IFS=$'\t' read -r lifted_at actor_id actor_login via_app <<<"$lifted"
+          if [ -z "$lifted_at" ]; then
+            echo "::error::'$label' was added to #$PR_NUMBER at $held_at, and no removal since then is recorded. Add the label back; a person on the trusted-actor list removing it approves this pull request."
+            exit 1
+          fi
+          if [[ " $humans " != *" $actor_id "* ]]; then
+            echo "::error::$actor_login removed '$label' from #$PR_NUMBER and is not a person on the trusted-actor list. Add the label back; a person on that list removing it approves this pull request."
+            exit 1
+          fi
+          if [ -n "$via_app" ]; then
+            echo "::error::$actor_login removed '$label' from #$PR_NUMBER through the App $via_app, which is not a person's own approval. Add the label back; a person on the trusted-actor list removing it directly approves this pull request."
+            exit 1
+          fi
+          echo "$actor_login, a person on the trusted-actor list, lifted the human-merge hold on #$PR_NUMBER."
       # BOTH REVIEW LANES REVIEW THE HEAD. Neither review check is required by a
       # ruleset (github-iac ADR 0017); this step makes ci-status need them. For
       # each lane it takes the newest pull_request run of the lane's caller
@@ -4257,7 +4932,14 @@ jobs:
       # standards-sync App, by numeric author id, are exempt: no review lane
       # reviews them. An exempt author's PR still fails when a changed file
       # (or a renamed file's old path) is a trust-gate path, since no security
-      # lane reads it; a person merges it. A draft is exempt
+      # lane reads it; a person merges it. So does any other same-repository
+      # PR changing one that an agent App (merge.trust-path-hold-apps in the
+      # base commit's pr-pipeline.yaml) opened, authored or committed a commit
+      # of, or pushed to its head branch (the repository activity API, one
+      # page), since its head can rewrite the review callers; it still needs
+      # both lanes otherwise. Those reads run only once a trust-gate path
+      # matched, and an unreadable base config, PR, commit list or push
+      # history, or a short commit list or full push page, fails closed. A draft is exempt
       # (see `Note a draft`). pr-feedback-dispatch.yml re-runs this job when a
       # review run completes. An unreadable run or job list fails closed.
       # The jobs API can list a finished job's steps empty or cut short, so a
@@ -4281,6 +4963,8 @@ jobs:
           AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
           # dependabot[bot], melodic-plugin-release[bot] and
@@ -4293,10 +4977,11 @@ jobs:
             echo "::error::the head '$HEAD_SHA' is not a commit SHA."
             exit 1
           fi
+          # READER=pr_read for the pull alone; runs, jobs and annotations are live.
           read_api() {
             local attempt body
             for attempt in 1 2 3; do
-              if body=$(gh_read "$2"); then
+              if body=$("${READER:-gh_read}" "${@:2}"); then
                 printf '%s\n' "$body"
                 return 0
               fi
@@ -4304,14 +4989,17 @@ jobs:
               sleep $((attempt * 5))
             done
           }
-          if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
+          # held_paths: sets files to the changed and renamed-from paths of the
+          # pull request and held to those that are trust-gate paths.
+          held_paths() {
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
-            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/request-lane-token/*' '.github/actions/check-kill-switch/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-merge.yml' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules')
+            # BEGIN hold-floor hold_patterns: generated by scripts/sync-hold-floor.py
+            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' '.claude/*' '*/.claude/*' '.claude-lane/*' '*/.claude-lane/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' 'docs/standards/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
+            # END hold-floor hold_patterns
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
               exit 1
             fi
-            pr=$(read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
             # The broker step above leaves the file list it read; read it again
             # only when that step could not.
             if [ -s "$RUNNER_TEMP/pr-files.json" ]; then
@@ -4325,17 +5013,25 @@ jobs:
                 sleep $((attempt * 5))
               done
             fi
-            if [ "$(grep -c . <<<"$files")" -lt "$(jq '.changed_files // 0' <<<"$pr")" ]; then
-              echo "::error::GitHub listed fewer files than #$PR_NUMBER changes, so its hold-paths cannot be checked; a person merges it."
-              exit 1
-            fi
             held=
+            # Case-folded, as the floor matches: a case-insensitive checkout
+            # reads `.github/codeowners` as CODEOWNERS.
+            shopt -s nocasematch
             while IFS= read -r path; do
               for pattern in "${hold_patterns[@]}"; do
                 # shellcheck disable=SC2053 # the pattern is matched as a glob on purpose
                 [[ $path != $pattern ]] || held="$held $path"
               done
             done < <(tr '\t' '\n' <<<"$files" | grep .)
+            shopt -u nocasematch
+          }
+          if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
+            held_paths
+            pr=$(READER=pr_read read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
+            if [ "$(grep -c . <<<"$files")" -lt "$(jq '.changed_files // 0' <<<"$pr")" ]; then
+              echo "::error::GitHub listed fewer files than #$PR_NUMBER changes, so its hold-paths cannot be checked; a person merges it."
+              exit 1
+            fi
             if [ -n "$held" ]; then
               echo "::error::#$PR_NUMBER is by an author no review lane reviews and changes trust-gate paths:${held//%/%25}. A person merges it."
               exit 1
@@ -4350,6 +5046,93 @@ jobs:
               echo "::error::'$check' did not run on $HEAD_SHA (head repository: ${HEAD_REPO:-unknown}): a fork, or a bot outside the caller's allowed-bot-sender-ids, gets no review, and a kill-switch job that did not succeed stops it. A push by a person on the trusted-actor list starts a review."
             done <<<"$lanes"
             exit 1
+          fi
+          # An agent App's head can rewrite the review callers, so a trust-gate
+          # path it touched waits for a person as an exempt author's does: the
+          # base's merge.trust-path-hold-apps, matched by login against the
+          # author, each commit's author and committer (account or noreply
+          # address) and each push to the head branch. GitHub lists at most
+          # 3000 files, so a list that long may hide one.
+          held_paths
+          if [ -n "$held" ] || [ "$(grep -c . <<<"$files")" -ge 3000 ]; then
+            conf=$BASE_CONFIG/docs/conventions/pr-pipeline.yaml
+            apps='[]'
+            # pipefail, and an empty list counts as unread: the step runs without
+            # pipefail, so a failed yq would otherwise leave apps empty and pass.
+            if [ ! -d "$BASE_CONFIG" ] || { [ -e "$conf" ] && ! apps=$(set -o pipefail; yq -o=json -I=0 '.merge."trust-path-hold-apps" // []' "$conf" |
+              jq -ce 'if type == "array" and all(.[]; type == "string" and test("^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$"))
+                then map(ascii_downcase) else error("not a list of [bot] logins") end'); } || [ -z "$apps" ]; then
+              echo "::error::could not read merge.trust-path-hold-apps from pr-pipeline.yaml in the hold config (the default branch's tip at run time, or the base commit for another base), so whether an agent App touched the trust-gate paths of #$PR_NUMBER is unknown; re-run this run."
+              exit 1
+            fi
+            if [ "$apps" != '[]' ]; then
+              pr=$(READER=pr_read read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
+              if [ "$(grep -c . <<<"$files")" -lt "$(jq '.changed_files // 0' <<<"$pr")" ]; then
+                held="$held (and files GitHub did not list)"
+              fi
+            fi
+            if [ "$apps" != '[]' ] && [ -n "$held" ]; then
+              commits=$(read_api "the commits of #$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits?per_page=100" --paginate) || exit 1
+              ref=$(jq -rn --arg r "refs/heads/$HEAD_REF" '$r | @uri')
+              want=$(jq -er '.commits | numbers' <<<"$pr") && listed=$(jq -n '[inputs | arrays[]] | length' <<<"$commits") && [ "$listed" -ge "$want" ] || {
+                echo "::error::GitHub listed fewer commits than #$PR_NUMBER has, so whether an agent App wrote one cannot be checked; a person merges it."
+                exit 1
+              }
+              # The activity API keeps a branch name's history across deletions,
+              # so a reused name fills any one page: read page by page along the
+              # Link header's rel="next" cursor, keeping only App pushes and
+              # stopping at the first page with one. Only a short page ends the
+              # history: a full page with no next link, a next link this step
+              # cannot read or that leaves this repository's activity of the
+              # branch (gh would expand a {placeholder} in it), or past 20 pages
+              # (2000 entries; the busiest reused name had 564), a person merges it.
+              next_re='^repositories/([0-9]+)/activity\?[A-Za-z0-9%&=._~-]+$'
+              pushes='[]' next="repos/$GITHUB_REPOSITORY/activity?ref=$ref&direction=desc&per_page=100" pages=0
+              while [ -n "$next" ]; do
+                if [ "$pages" -ge 20 ]; then
+                  echo "::error::the push history of $HEAD_REF runs past 20 pages, so whether an agent App pushed to it cannot be checked; a person merges it."
+                  exit 1
+                fi
+                page=$(read_api "the push history of $HEAD_REF" "$next" -i) || exit 1
+                pages=$((pages + 1))
+                link=$(awk '{ sub(/\r$/, "") } $0 == "" { exit } tolower($0) ~ /^link:/' <<<"$page")
+                next=$(sed -nE 's#.*<https://[^/>]+/([^>]*)>; *rel="next".*#\1#p' <<<"$link")
+                pushes=$(awk 'body { print; next } { sub(/\r$/, "") } $0 == "" { body = 1 }' <<<"$page" |
+                  jq -ren --argjson apps "$apps" 'input | if type == "array" then . else error("not a list") end
+                    | "\(length) \([.[] | select(.actor.login // "" | ascii_downcase as $l | any($apps[]; . == $l)) | {actor: {login: .actor.login}, after}] | tojson)"') || {
+                  echo "::error::the push history of $HEAD_REF is unreadable, so whether an agent App pushed to it cannot be checked; a person merges it."
+                  exit 1
+                }
+                size=${pushes%% *} pushes=${pushes#* }
+                if [ "$pushes" != '[]' ]; then
+                  next=
+                elif [ -z "$next" ] && [[ ${link,,} =~ rel=\"?next ]]; then
+                  echo "::error::the push history of $HEAD_REF has a next link this step cannot read; a person merges it."
+                  exit 1
+                elif [ -z "$next" ] && [ "$size" -ge 100 ]; then
+                  echo "::error::the push history of $HEAD_REF fills page $pages with no next link, so whether an agent App pushed to it cannot be checked; a person merges it."
+                  exit 1
+                elif [ -n "$next" ] && { [[ ! $next =~ $next_re ]] || [ "${BASH_REMATCH[1]}" != "$GITHUB_REPOSITORY_ID" ] || [[ "&${next#*\?}&" != *"&ref=$ref&"* ]]; }; then
+                  echo "::error::the push history of $HEAD_REF has a next link outside this repository's activity of the branch; a person merges it."
+                  exit 1
+                fi
+              done
+              why=$(jq -nr --argjson apps "$apps" --argjson pr "$pr" --argjson pushes "$pushes" '
+                def app: ascii_downcase as $l | any($apps[]; . == $l);
+                def mail: ascii_downcase as $m
+                  | any($apps[]; . as $a | $m == $a + "@users.noreply.github.com" or ($m | endswith("+" + $a + "@users.noreply.github.com")));
+                [if ($pr.user.login // "" | app) then "\($pr.user.login) opened it" else empty end]
+                + [inputs[] | select(any(.author.login, .committer.login; . // "" | app)
+                    or any(.commit.author.email, .commit.committer.email; . // "" | mail))
+                  | "an agent App authored or committed \(.sha[0:12])"]
+                + [$pushes[] | select(.actor.login // "" | app) | "\(.actor.login) pushed \((.after // "")[0:12]) to it"]
+                | unique | join("; ")' <<<"$commits")
+              if [ -n "$why" ]; then
+                echo "::error::#$PR_NUMBER changes trust-gate paths:${held//%/%25}, and $why, so no review lane decides it. A person merges it."
+                exit 1
+              fi
+              echo "No agent App opened, wrote or pushed to #$PR_NUMBER; the review lanes decide its trust-gate paths."
+            fi
           fi
           failed=0
           while read -r file lane check; do
@@ -4427,9 +5210,15 @@ jobs:
       # and a `do-not-merge` or human-gated label applied after enqueue would
       # merge. This step reads the live labels of the pull request the group was
       # built for, named in the merge-group ref (`gh-readonly-queue/<base>/pr-<N>-<sha>`),
-      # and fails if it carries either; the queue then removes that pull
-      # request. The human-gated label is resolved at the group's base commit,
-      # as the step above resolves it. It reads only that one pull request: under the ruleset's ALLGREEN grouping a
+      # and fails if it carries either, or `pr-verify-failed`; the queue then
+      # removes that pull request. verify-notes.mjs puts `pr-verify-failed` on a
+      # pull request a person opened when pr-verify fails its head, and removes
+      # it on a pass. It is read here only: a red ci-status on a pull_request
+      # event stops pr-verify from judging the next head (pr-verify.yml), so
+      # the pass that removes the label would never come. The rule is the base
+      # checkout's merge-holds.mjs labelHolds (the human-gated label by its
+      # humanGatedLabel, as the step above resolves it), which select-tests'
+      # queueHolds runs too; a base module that cannot judge fails closed. It reads only that one pull request: under the ruleset's ALLGREEN grouping a
       # pull request merges only when its own group passes, and a failed group
       # removes the pull request it was built for, never one ahead of it
       # (HEADGREEN would need every entry read), so failing on an earlier
@@ -4466,15 +5255,33 @@ jobs:
             echo "::error::could not read .work-item-tracker.json at $BASE_SHA; re-run this run."
             exit 1
           fi
-          human_gated=needs-human
-          if [ -n "$tracker" ]; then
-            human_gated=$(jq -er '[objects | .config | objects | .role_labels | objects
-              | .["human-gated"] | strings | gsub("^\\s+|\\s+$"; "")][0] // ""
-              | if . == "" then "needs-human" else . end' <<<"$tracker") || {
-              echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA"
-              exit 1
-            }
+          module=$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs
+          if [ ! -s "$module" ]; then
+            echo "::error::cannot read merge-holds.mjs at $BASE_SHA; re-run this run."
+            exit 1
           fi
+          # The base module's labelHolds over the tracker config (an empty one
+          # names no label) and the live labels: `label` prints the human-gated
+          # label, `holds` the reasons as a JSON list of strings. The module is
+          # never the first argument, which would run its main.
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          label_holds() {
+            TRACKER=$tracker node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const [mode, module, labels, number] = process.argv.slice(1);
+              const { humanGatedLabel, labelHolds } = await import(pathToFileURL(module).href);
+              const text = process.env.TRACKER ?? "";
+              const tracker = text === "" ? null : JSON.parse(text);
+              const out = mode === "label" ? humanGatedLabel(tracker) : labelHolds(JSON.parse(readFileSync(labels, "utf8")), tracker, Number(number));
+              if (mode === "label" ? typeof out !== "string" || !out : !Array.isArray(out) || !out.every((reason) => typeof reason === "string" && reason)) {
+                throw new Error("no verdict");
+              }
+              console.log(mode === "label" ? out : JSON.stringify(out));' "$@"
+          }
+          human_gated=$(label_holds label "$module") && [ -n "$human_gated" ] || {
+            echo "::error::cannot read the human-gated role label from .work-item-tracker.json at $BASE_SHA with its merge-holds.mjs"
+            exit 1
+          }
           for attempt in 1 2 3; do
             if labels=$(gh_read "repos/$GITHUB_REPOSITORY/issues/$pr/labels?per_page=100" --paginate --jq '.[].name'); then
               break
@@ -4482,17 +5289,20 @@ jobs:
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$pr; re-run this run."; exit 1; }
             sleep $((attempt * 5))
           done
-          held=0
-          if grep -qxF do-not-merge <<<"$labels"; then
-            held=1
-            echo "::error::#$pr carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge."
+          jq -Rsc 'split("\n") | map(select(length > 0))' <<<"$labels" >"$RUNNER_TEMP/queued-labels.json"
+          if ! reasons=$(label_holds holds "$module" "$RUNNER_TEMP/queued-labels.json" "$pr") || [ -z "$reasons" ] ||
+            ! failing=$(jq -r 'if type == "array" then .[] else error("not a list") end' <<<"$reasons"); then
+            echo "::error::merge-holds.mjs at $BASE_SHA could not judge the labels of #$pr; re-run this run."
+            exit 1
           fi
-          if grep -qxF -- "$human_gated" <<<"$labels"; then
-            held=1
-            echo "::error::#$pr carries '$human_gated'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge."
+          if [ -n "$failing" ]; then
+            while IFS= read -r reason; do
+              echo "::error::${reason//%/%25}"
+            done <<<"$failing"
+            exit 1
           fi
-          [ "$held" -eq 0 ] || exit 1
           echo "#$pr carries neither 'do-not-merge' nor '$human_gated'."
+          held=0
           # The trust hold, for a pull request an automation opened: its linked
           # issue (babysit_merge_policy._linked_issue: the closing issues here,
           # or with none, the one issue its plain `Refs:` lines name, by the
@@ -4620,7 +5430,9 @@ jobs:
       # so the lanes-hold step's reader reads only what landed since: about 73
       # requests for a lanes App pull request where a cold reader makes about
       # 860 (one run read and compare per FAIL and a download per untied
-      # FAIL), measured 2026-10-25 on 6,620 artifacts with 294 FAILs. They
+      # FAIL), measured 2026-10-25 on 6,620 artifacts with 294 FAILs, and at
+      # most the cold-read headroom check's cold_cost under the listing's
+      # caps (that check states the derivation). They
       # come from that run's pr-merge-run-cache artifact, found as pr-merge.yml
       # finds it (carry-run-cache.mjs `read`): only that run's steps could
       # upload it. This job holds write scopes and is the required check, so it
@@ -4637,6 +5449,7 @@ jobs:
         timeout-minutes: 2
         env:
           ACTIONS_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs read
@@ -4654,9 +5467,13 @@ jobs:
       # on the holds that gate honors: a body hold, a member's veto comment,
       # and a changed file or renamed-from path matching the merge lane's
       # denied paths (pr-pipeline.yaml merge.diff-check.denied-paths, as main
-      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR), so a push after
+      # has it, plus merge-holds.mjs's HOLD_PATH_FLOOR) while the base's
+      # merge.diff-check.path-holds is true (owner decision Q15), so a push after
       # arming is held on its own pull request event; a person on the
-      # trusted-actor list (as main has it) lifts it by approving the head,
+      # trusted-actor list (as main has it) lifts it by approving the head, and
+      # the approval carries to a later head whose every change since is a
+      # merge of the base changing no hold path or other file beyond it
+      # (merge-holds.mjs liftersOf, which reads with this step's GH_TOKEN),
       # then re-runs ci-status. A trusted-actor list
       # change that adds or widens an entry (merge-holds.mjs actorsHold, both
       # sides read at BASE_SHA and the head) holds too, lifted the same way.
@@ -4685,16 +5502,24 @@ jobs:
       # one armed before it was turned on stops in the merge queue, as the
       # gate stops: CLAUDE_LANES_DISABLED and CLAUDE_LANES_REPO_DISABLED from
       # the vars context, no API read, and only the exact value `false` on
-      # both proceeds. Every other author's pull request is not affected.
+      # both proceeds, by the base checkout's merge-holds.mjs switchHold, which
+      # select-tests' queueHolds runs too; a base module that cannot judge
+      # fails closed. Every other author's pull request is not affected.
+      # Once both read `false`, maintenance-reconcile-lost-runs.yml re-runs
+      # ci-status on each open lanes App pull request this failed, at most 3
+      # per half-hourly run, when ci-status was the run's only failed job on
+      # attempt 1 (its `switch` kind keys on the error's "the lanes kill
+      # switch is on" text, which reconcile.test.mjs pins here).
       # IN THE MERGE QUEUE A LANES APP PULL REQUEST ALSO NEEDS A VERIFIER PASS
       # AT ITS HEAD: a PASS or PASS-NOTES artifact of a completed, successful
       # pr-verify.yml run on main (merge-holds.mjs verdictHold), taken by
       # exact name from the reader's listing (below), with and without the
       # head-branch digest, stopping at the first name that holds such a run:
       # one run read per artifact taken. The same approval of the head lifts
-      # it. Only in the queue: pr-verify runs only after a successful
-      # pull_request run of this workflow, so a red ci-status there would
-      # never get a verdict, and a pull request event reads nothing for it.
+      # it. Only in the queue: pr-verify runs only after a pull_request run of
+      # this workflow that succeeded or failed only on holds an approving
+      # review of the head lifts, so a ci-status red for anything else there
+      # would never get a verdict, and a pull request event reads nothing for it.
       # A push to an armed lanes App pull request turns its auto-merge off
       # (one mutation, no read), so enable-auto-merge's reader judges each
       # new head before it is armed again; the queue still checks the head
@@ -4703,9 +5528,10 @@ jobs:
       # babysit_verify_evidence.py `evidence --base-sha <group base>` from
       # the .base checkout of main for the pull request at its head, the
       # reader enable-auto-merge armed it on, on a listing of its own (every
-      # page, saved to BABYSIT_VERIFY_LISTING) with pr-merge's head-ref map and
-      # carried run cache, so a FAIL uploaded after enable-auto-merge's one
-      # listing of its run still holds. Its report goes to merge-holds.mjs
+      # page, or the pages since pr-merge's last saved listing when they hold
+      # GitHub's live artifact count, saved to BABYSIT_VERIFY_LISTING) with
+      # pr-merge's head-ref map and carried run cache, so a FAIL uploaded
+      # after enable-auto-merge's one listing of its run still holds. Its report goes to merge-holds.mjs
       # evidenceHold, which holds on every refusal but the three a pass decides
       # (those stay with verdictHold and linkHold): every FAIL class,
       # verify:unreadable and verify:too-old. The same approval of the head
@@ -4729,6 +5555,85 @@ jobs:
       # reader holds it (verify:spec-changed). A record or link that does not
       # read holds.
       # Pinned by scripts/ci-lanes-pr-hold.test.sh, which runs this body.
+      # A HEAD A PR-UNBLOCK LANE STOPPED IS HELD. A lane stop that
+      # escalation-routes.json routes `fail` ends in a failing
+      # `pr-unblock/<activity>` commit status on the head (pr-unblock.yml
+      # report-stop-status), and only ci-status is required, so this step
+      # fails while the newest status of any `pr-unblock/*` context on the
+      # head is `failure` or `error`, naming each, by the base commit's
+      # merge-holds.mjs unblockStops, the rule enable-auto-merge judges a head
+      # by: newest per context, by github-actions[bot] only, as
+      # report-escalation.sh `clear` reads it, so its later `success` on the
+      # same head supersedes the failure, and another account's status neither
+      # holds nor clears. On a pull request
+      # event the head is the event's; in the merge queue it is the head of
+      # the pull request named in the group's ref, read live (the ref's SHA is
+      # the group's base). A status event re-runs nothing, so a stop posted
+      # after this step passed holds at the merge queue's run. An unparsable
+      # ref, a head that is not a commit SHA, an unreadable pull request or
+      # status list, or a base module that cannot judge them fails closed.
+      # Pinned by scripts/ci-hold-pr-unblock-status.test.sh, which runs this body.
+      - name: Fail a head a pr-unblock lane stopped
+        id: pr_unblock_status
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          module=${BASE_CONFIG:-}/.github/scripts/pr-merge/merge-holds.mjs
+          if [ -z "${BASE_CONFIG:-}" ] || [ ! -s "$module" ]; then
+            echo "::error::cannot read merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+            exit 1
+          fi
+          read3() {
+            local attempt
+            for attempt in 1 2 3; do
+              "${READER:-gh_read}" "${@:2}" && return 0
+              [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
+              sleep $((attempt * 5))
+            done
+          }
+          head=$HEAD_SHA
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
+            if [ -z "$pr" ]; then
+              echo "::error::cannot read a pull request number from the merge-group ref '$GITHUB_REF'."
+              exit 1
+            fi
+            pull=$(READER=pr_read read3 "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
+            head=$(jq -r '.head.sha // ""' <<<"$pull") || head=
+          fi
+          if [[ ! $head =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the head '$head' is not a commit SHA."
+            exit 1
+          fi
+          # Newest first across pages, as unblockStops reads them. An inline
+          # import, not holds_js: holds_js is a function of the cost-hold step's
+          # own shell, which runs on pull_request events only, and this step
+          # runs in the merge queue too.
+          rows=$(read3 "the statuses of $head" "repos/$GITHUB_REPOSITORY/commits/$head/statuses?per_page=100" --paginate --jq '.[]') || exit 1
+          jq -s . <<<"$rows" >"$RUNNER_TEMP/pr-unblock-statuses.json" || { echo "::error::the statuses of $head do not parse."; exit 1; }
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          if ! stops=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+            import { pathToFileURL } from "node:url";
+            const { unblockStops } = await import(pathToFileURL(process.argv[2]).href);
+            console.log(JSON.stringify(unblockStops(JSON.parse(readFileSync(process.argv[1], "utf8")))));' \
+            "$RUNNER_TEMP/pr-unblock-statuses.json" "$module") ||
+            ! jq -e 'type == "array"' <<<"$stops" >/dev/null ||
+            ! failing=$(jq -r '.[] | [.context, .state, .description] | @tsv' <<<"$stops"); then
+            echo "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the statuses of $head; re-run this run."
+            exit 1
+          fi
+          if [ -z "$failing" ]; then
+            echo "No pr-unblock/* status fails on $head."
+            exit 0
+          fi
+          while IFS=$'\t' read -r context state description; do
+            echo "::error::'$context' is $state on $head: ${description//%/%25}. The lane that stopped clears it by running again on this head, or a new head carries none."
+          done <<<"$failing"
+          exit 1
       - name: Fail a lanes App pull request its body or a member holds
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
         env:
@@ -4739,6 +5644,7 @@ jobs:
           PR_MERGE_SCRIPTS: .base/.github/scripts/pr-merge
           ACTIONS_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -4752,10 +5658,27 @@ jobs:
           # exact value `false` lets a lanes App pull request merge.
           LANES_DISABLED: ${{ vars.CLAUDE_LANES_DISABLED }}
           LANES_REPO_DISABLED: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
           . "$RUNNER_TEMP/gh-read.sh"
           if [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]]; then
             echo "::error::the job's LANES_APP_ID is not a numeric id."
+            exit 1
+          fi
+          # The id must be merge.agent-identity's entry in the base commit's
+          # trusted-actor list: a stale or mistyped variable would read the
+          # lanes App's pull request as another author's and skip every hold
+          # here and the trust hold's link rule. This step runs on every pull
+          # request and in the queue, so a mismatch turns ci-status red.
+          if [ ! -d "${BASE_CONFIG:-}" ] ||
+            ! identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
+            ! want=$(jq -er --arg login "$identity" '[.actors[] | select(.login == $login) | .id | numbers]
+              | if length == 1 then .[0] else error("not one entry") end' "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json"); then
+            echo "::error::cannot read merge.agent-identity's trusted-actor id from the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+            exit 1
+          fi
+          if [ "$want" != "$LANES_APP_ID" ]; then
+            echo "::error::the job's LANES_APP_ID ($LANES_APP_ID, the AUTOMATION_LANES_APP_SENDER_ID variable) is not $identity's trusted-actor id ($want); correct the variable."
             exit 1
           fi
           pr=$PR_NUMBER
@@ -4773,7 +5696,7 @@ jobs:
           read_api() {
             local attempt body
             for attempt in 1 2 3; do
-              if body=$(gh_read "${@:2}"); then
+              if body=$("${READER:-gh_read}" "${@:2}"); then
                 printf '%s\n' "$body"
                 return 0
               fi
@@ -4781,7 +5704,7 @@ jobs:
               sleep $((attempt * 5))
             done
           }
-          pull=$(read_api "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
+          pull=$(READER=pr_read read_api "#$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr") || exit 1
           if ! jq -e '(.user.id | numbers) and (.user.type | strings)' <<<"$pull" >/dev/null; then
             echo "::error::the author of #$pr could not be read."
             exit 1
@@ -4790,8 +5713,27 @@ jobs:
             echo "#$pr is not the lanes App's; pr-merge's gate or a person reads its holds."
             exit 0
           fi
-          if [ "${LANES_DISABLED:-}" != false ] || [ "${LANES_REPO_DISABLED:-}" != false ]; then
-            echo "::error::#$pr: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run."
+          # The kill switch, by the base checkout's merge-holds.mjs switchHold:
+          # it answers JSON null or the hold's reason, and anything else fails
+          # closed.
+          printf '%s\n' "$pull" >"$RUNNER_TEMP/lanes-pull.json"
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          if [ ! -s "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs" ] ||
+            ! switched=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const { switchHold } = await import(pathToFileURL(process.argv[2]).href);
+              const { LANES_APP_ID: appId, LANES_DISABLED: disabled, LANES_REPO_DISABLED: repoDisabled } = process.env;
+              const reason = switchHold(JSON.parse(readFileSync(process.argv[1], "utf8")), { appId, disabled, repoDisabled });
+              if (reason !== null && (typeof reason !== "string" || !reason)) {
+                throw new Error("no verdict");
+              }
+              console.log(JSON.stringify(reason));' "$RUNNER_TEMP/lanes-pull.json" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") ||
+            [ -z "$switched" ] || ! reason=$(jq -er 'if . == null then "" else strings end' <<<"$switched"); then
+            echo "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the lanes kill switch for #$pr; re-run this run."
+            exit 1
+          fi
+          if [ -n "$reason" ]; then
+            echo "::error::${reason//%/%25}"
             exit 1
           fi
           BASE_SHA=$GROUP_BASE_SHA
@@ -4815,6 +5757,8 @@ jobs:
               if gh api graphql -f query='mutation($id: ID!) { disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId } }' \
                 -f id="$(jq -r '.node_id' <<<"$pull")" >/dev/null; then
                 echo "#$pr: a push moved its head, so its native auto-merge is off until enable-auto-merge's next scheduled run judges the new head."
+                # The pull changed: later reads take it live.
+                pr_read_forget
               else
                 echo "::warning::could not turn off native auto-merge on #$pr after a push to its head; the merge queue still needs a pr-verify pass at the head it merges, and the next scheduled enable-auto-merge run disarms a head its reader refuses."
               fi
@@ -4835,6 +5779,13 @@ jobs:
             echo "::error::cannot read merge.diff-check.denied-paths from $config at $BASE_SHA."
             exit 1
           }
+          # merge.diff-check.path-holds at BASE_SHA: absent or false turns the
+          # hold paths off (merge-holds.mjs pathHoldsOf).
+          PATH_HOLDS=$(yq '.merge."diff-check"."path-holds" // false' "$RUNNER_TEMP/pr-pipeline.yaml") || {
+            echo "::error::cannot read merge.diff-check.path-holds from $config at $BASE_SHA."
+            exit 1
+          }
+          export PATH_HOLDS
           read_api "the files of #$pr" "repos/$GITHUB_REPOSITORY/pulls/$pr/files?per_page=100" --paginate \
             --jq '.[] | [.filename, .previous_filename, .status] | @json' >"$RUNNER_TEMP/files.jsonl" || exit 1
           changed=$(jq -er '.changed_files | numbers' <<<"$pull") || { echo "::error::the changed-file count of #$pr could not be read."; exit 1; }
@@ -4852,7 +5803,8 @@ jobs:
             "repos/$GITHUB_REPOSITORY/contents/$actors?ref=$BASE_SHA" >"$RUNNER_TEMP/trusted-actors.json" || exit 1
           : >"$RUNNER_TEMP/discussion.jsonl"
           for kind in "issues/$pr/comments" "pulls/$pr/reviews" "pulls/$pr/comments"; do
-            rows=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate --jq '.[] | @json') || exit 1
+            raw=$(read_api "the $kind of #$pr" "repos/$GITHUB_REPOSITORY/$kind?per_page=100" --paginate) || exit 1
+            rows=$(jq -c '.[]' <<<"$raw") || { echo "::error::the $kind of #$pr do not parse."; exit 1; }
             [ -z "$rows" ] || printf '%s\n' "$rows" >>"$RUNNER_TEMP/discussion.jsonl"
           done
           verdicts=()
@@ -4866,12 +5818,30 @@ jobs:
             # pr-merge's head-ref map: a read that fails leaves none, and the
             # reader downloads each untied FAIL instead.
             node "$PR_MERGE_SCRIPTS/head-ref-map.mjs" read || echo "::notice::no head-ref map from pr-merge's last run; the verdict reader reads each untied FAIL."
+            # pr-merge's last saved artifact listing: the reader lists only the
+            # pages since it and keeps that listing only when it holds GitHub's
+            # live artifact count, else lists every page, as with no file.
+            node "$PR_MERGE_SCRIPTS/listing-carry.mjs" || echo "::notice::no artifact listing from pr-merge's last run; the verdict reader lists every page."
             # A cold reader runs only with the headroom for it. With no carried
             # run cache, or one whose carried sections (carry-run-cache.mjs
-            # carry) are all empty, the reader reads every FAIL: about 860
-            # GITHUB_TOKEN requests, measured 2026-10-25, so a cold read costs
-            # 900. A missing cache is shared, so every entry the queue builds at
-            # once goes cold together: the cost counts max_entries_to_build of
+            # carry) are all empty, the reader reads every FAIL: 860
+            # GITHUB_TOKEN requests measured 2026-10-25, 67 of them the one
+            # whole listing of 6,620 artifacts, so 793 per-FAIL reads. Its
+            # listing is capped by babysit_verify_evidence.py: INCREMENTAL_READS
+            # (3) incremental reads on a carried listing (at most 13 pages each,
+            # LISTING_CARRY_MAX_AGE), then LISTING_READS (3) whole listings, each up to
+            # 1 + len(LISTING_WAITS) (3) attempts that page from the first,
+            # and a top-up after each (at most 7 pages: LISTING_OVERLAP's 2 h
+            # at the 255 uploads an hour seen 2026-10-27, plus one). At 77
+            # pages a whole listing (76 at the 7,522-artifact peak of
+            # 2026-10-27, plus one) a cold read costs at most
+            # 793 + 3 x 13 + 3 x (3 x 77 + 7) = 1,546, cold_cost below;
+            # test_babysit_verify_evidence derives it from those caps and fails
+            # when cold_cost differs. It covers this path only: an
+            # entry with a carried run cache but no carried listing pays the
+            # listing's part (up to 753) unguarded. A missing cache is shared,
+            # so every entry the queue builds at once goes cold together: the
+            # cost counts max_entries_to_build of
             # the base branch's merge_queue rule (one read of
             # repos/<repo>/rules/branches/<base>, the largest any ruleset sets).
             # It runs when the core pool's remaining count, read once from
@@ -4896,16 +5866,17 @@ jobs:
                 echo "::error::$cold, and the merge queue's max_entries_to_build could not be read, so the headroom for cold reads cannot be judged. Re-queue it."
                 exit 1
               fi
+              cold_cost=1546
               rate=$(read_api "the GITHUB_TOKEN rate limit" rate_limit) || rate=
               if ! remaining=$(jq -er '.resources.core.remaining | numbers | floor' <<<"$rate" 2>/dev/null) ||
                 ! limit=$(jq -er '.resources.core.limit | numbers | floor' <<<"$rate" 2>/dev/null) ||
-                ! need=$(awk -v floor="$API_BUDGET_READ_FLOOR" -v cap="$API_BUDGET_LIMIT_CAP" -v limit="$limit" -v entries="$entries" \
-                  'BEGIN { if (floor !~ /^[0-9.]+$/ || cap !~ /^[0-9]+$/) exit 1; if (limit < cap) cap = limit; printf "%d\n", 900 * entries + int(floor * cap + 0.999999) }'); then
-                echo "::error::$cold, and GITHUB_TOKEN's remaining requests could not be read, so a cold read (about 860 requests) is not started. Re-queue it."
+                ! need=$(awk -v floor="$API_BUDGET_READ_FLOOR" -v cap="$API_BUDGET_LIMIT_CAP" -v limit="$limit" -v entries="$entries" -v cost="$cold_cost" \
+                  'BEGIN { if (floor !~ /^[0-9.]+$/ || cap !~ /^[0-9]+$/) exit 1; if (limit < cap) cap = limit; printf "%d\n", cost * entries + int(floor * cap + 0.999999) }'); then
+                echo "::error::$cold, and GITHUB_TOKEN's remaining requests could not be read, so a cold read (up to $cold_cost requests) is not started. Re-queue it."
                 exit 1
               fi
               if [ "$remaining" -lt "$need" ]; then
-                echo "::error::$cold, and GITHUB_TOKEN has $remaining requests left, under the $need a cold read needs (900 for each of the $entries entries the queue builds, plus the read floor). Re-queue it after the reset or after pr-merge's next scheduled run uploads its cache."
+                echo "::error::$cold, and GITHUB_TOKEN has $remaining requests left, under the $need a cold read needs ($cold_cost for each of the $entries entries the queue builds, plus the read floor). Re-queue it after the reset or after pr-merge's next scheduled run uploads its cache."
                 exit 1
               fi
               echo "::notice::no carried run cache from pr-merge's last run; GITHUB_TOKEN has $remaining requests left (cold reads for $entries queue entries need $need), so the verdict reader reads every FAIL."
@@ -5005,7 +5976,7 @@ jobs:
         env:
           LANES: ${{ toJSON(needs) }}
         run: |
-          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_content; }
+          [ -z "${API_BUDGET_SH:-}" ] || { eval "$API_BUDGET_SH"; api_budget_emit github-token; api_budget_emit_calls github-token; api_budget_emit_content; }
           results=$(jq -r '
             .["select-tests"] as $s
             | to_entries
@@ -5027,7 +5998,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@30b251532b2e9f7e0c4215e1dee5be0d3c688743 # v0.65.15
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@81a603a6e2b0319428c981bf28f3fe923032afb2 # v0.65.17
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane

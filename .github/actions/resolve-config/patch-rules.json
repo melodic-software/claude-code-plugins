@@ -1,6 +1,6 @@
 {
   "ci-context": {
-    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["any"],
     "max-files": 300,
     "requires": [],
@@ -11,17 +11,19 @@
     "escalations": ["ci-fix-empty", "ci-fix-escalated", "ci-fix-invalid", "ci-fix-not-applied", "ci-fix-protected-path"]
   },
   "review-threads": {
-    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused", "new-exec-bit"],
     "allow": ["kept-threads"],
     "max-files": 300,
     "requires": [],
+    "content-rule": "pr-mode-revert",
     "commit": { "parents": ["head"], "message": "Address review feedback on {ref}", "trailer": "Lane-Activity: {lane}/{activity}" },
+    "thread-trailer": true,
     "reads-report": null,
     "skip-moved-head": true,
     "escalations": ["feedback-not-landed", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "dependency-review": {
-    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["dependency-manifests"],
     "max-files": 300,
     "requires": ["dependency-verdict: fix"],
@@ -32,7 +34,7 @@
     "escalations": ["dependency-fix-not-landed", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "merge-base": {
-    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["merge-result"],
     "max-files": 300,
     "max-blobs": 300,
@@ -50,8 +52,18 @@
       "conflict-patch-protected-path"
     ]
   },
+  "docs": {
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused", "skills", "skill-md"],
+    "allow": ["markdown"],
+    "max-files": 300,
+    "requires": [],
+    "commit": { "parents": ["head"], "message": "Apply {activity} on {ref}", "trailer": "Lane-Activity: {lane}/{activity}" },
+    "reads-report": null,
+    "skip-moved-head": false,
+    "escalations": ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]
+  },
   "default": {
-    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["any"],
     "max-files": 300,
     "requires": [],
@@ -61,7 +73,7 @@
     "escalations": ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]
   },
   "issue": {
-    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
     "allow": ["any"],
     "max-files": 300,
     "requires": [],

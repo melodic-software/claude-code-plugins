@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, cpSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 
-import { checkRow, createGitHubApi, credentialIn, hasConflictMarkers, keptThreadsFrom, loadRules, main, mergeFrom, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { checkRow, createGitHubApi, credentialIn, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, mergeFrom, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The registry as committed: the rows these tests hold apply-patch to.
 const REPO_ROOT = join(import.meta.dirname, "../../..");
@@ -27,7 +27,7 @@ const STATELESS_TOKEN = `${"ghs"}_123456_${JWT}`;
 const GITHUB_TOKENS = [`${"ghp"}_${"a1".repeat(18)}`, `${"ghs"}_${"B2".repeat(18)}`, `${"github"}_pat_${"c3".repeat(41)}`, STATELESS_TOKEN, `${"ghs"}_${JWT}`];
 
 function scratch(t) {
-  const dir = mkdtempSync(join(tmpdir(), "apply-patch-"));
+  const dir = tempDir("apply-patch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   return dir;
 }
@@ -189,7 +189,7 @@ function fakeApi(repo, head, overrides = {}) {
       if (overrides.tree) {
         return overrides.tree;
       }
-      const index = join(mkdtempSync(join(tmpdir(), "apply-patch-index-")), "index");
+      const index = join(tempDir("apply-patch-index-"), "index");
       const env = { ...process.env, GIT_INDEX_FILE: index };
       execFileSync("git", ["read-tree", baseTree], { cwd: repo, env });
       for (const item of entries) {
@@ -280,6 +280,61 @@ test("refuses a rename from an allowed path into .github/workflows/", async (t) 
   assert.deepEqual(api.calls, []);
 });
 
+// ADR 0085 Decision 6: the central grant file and the trusted-actor list
+// decide every admitted repository's lane tokens, so no lane patch may change them.
+test("every row refuses the central lane grant file and the trusted-actor list, in any case and through any .. segment, and nothing beside them", () => {
+  for (const name of Object.keys(RULES)) {
+    const universal = RULES[name].refuse.filter((refusal) => !REFUSALS[refusal].optional);
+    for (const path of [
+      ".github/actions/resolve-config/lane-grants.json",
+      ".GitHub/Actions/Resolve-Config/LANE-GRANTS.json",
+      "docs/../.github/actions/resolve-config/lane-grants.json",
+      ".github/standards/trusted-actors/trusted-actors.json",
+      ".github/standards/x/../trusted-actors/Trusted-Actors.JSON",
+    ]) {
+      assert.deepEqual(refusalsOf(entry(path), universal), ["lane-grants"], `${name} ${path}`);
+    }
+    for (const path of [
+      ".github/actions/resolve-config/lane-rules.json",
+      ".github/actions/resolve-config/lane-grants.test.mjs",
+      ".github/standards/trusted-actors/trusted-actors.schema.json",
+      "plugins/p/.github/actions/resolve-config/lane-grants.json",
+      "lane-grants.json",
+    ]) {
+      assert.deepEqual(refusalsOf(entry(path), universal), [], `${name} ${path}`);
+    }
+  }
+});
+
+test("refuses a patch that edits the trusted-actor list, before any API call", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    mkdirSync(join(repo, ".github/standards/trusted-actors"), { recursive: true });
+    writeFileSync(join(repo, ".github/standards/trusted-actors/trusted-actors.json"), '{"version":1,"actors":[]}\n');
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.deepEqual(await pushWith(fix, api, { row: row("ci-context"), log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "ci-fix-protected-path" });
+  assert.deepEqual(lines, ["refused (lane-grants): .github/standards/trusted-actors/trusted-actors.json"]);
+  assert.deepEqual(api.calls, []);
+});
+
+test("refuses a rename from an allowed path into the central lane grant file", async (t) => {
+  const fix = repoWithPatch(
+    t,
+    (repo) => {
+      mkdirSync(join(repo, ".github/actions/resolve-config"), { recursive: true });
+      renameSync(join(repo, "notes.md"), join(repo, ".github/actions/resolve-config/lane-grants.json"));
+    },
+    { renames: true },
+  );
+  assert.match(readFileSync(fix.patchFile, "utf8"), /^rename to \.github\/actions\/resolve-config\/lane-grants\.json$/m);
+  const api = fakeApi(fix.repo, fix.head);
+  const lines = [];
+  assert.deepEqual(await pushWith(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  assert.deepEqual(lines, ["refused (rename-into-refused): .github/actions/resolve-config/lane-grants.json"]);
+  assert.deepEqual(api.calls, []);
+});
+
 test("a patch that edits .github/scripts/ or .github/actions/ pushes", async (t) => {
   const fix = repoWithPatch(t, (repo) => {
     mkdirSync(join(repo, ".github/scripts"), { recursive: true });
@@ -349,8 +404,8 @@ test("a patch over max-files is refused", async (t) => {
 });
 
 // Agent instructions, plugin hooks and manifests, MCP config and .claude
-// reach review on every row; settings files, submodules and code owners stay
-// refused on every row.
+// reach review on every row past its optional refusals; settings files,
+// submodules and code owners stay refused on every row.
 const INSTRUCTION_PATHS = [
   ["CLAUDE.md", []],
   ["AGENTS.md", []],
@@ -374,25 +429,133 @@ const INSTRUCTION_PATHS = [
 test("every row refuses the same instruction paths: settings, submodules and code owners only", () => {
   for (const [path, refusals] of INSTRUCTION_PATHS) {
     for (const name of Object.keys(RULES)) {
-      assert.deepEqual(refusalsOf(entry(path), RULES[name].refuse), refusals, `${name} ${path}`);
+      const universal = RULES[name].refuse.filter((refusal) => !REFUSALS[refusal].optional);
+      assert.deepEqual(refusalsOf(entry(path), universal), refusals, `${name} ${path}`);
     }
   }
 });
 
-// fix-docs hands on its patch with no prepare mode, so the default row holds
-// it: an edit to an agent instruction or a plugin hook pushes, and one to a
-// code owners file is refused whole before any API call.
+// --- the docs row: markdown only, nothing under skills/ and no SKILL.md ---
+
+test("refuses a path under a skills/ directory at any depth, in any case, and a SKILL.md anywhere, only where a row names them", () => {
+  for (const [path, refusals] of [
+    ["plugins/p/skills/s/SKILL.md", ["skills", "skill-md"]],
+    ["plugins/p/skills/s/reference/r.md", ["skills"]],
+    ["skills/x.md", ["skills"]],
+    ["plugins/p/Skills/s/notes.md", ["skills"]],
+    ["a/../skills/x.md", ["skills"]],
+    ["docs/skill.md", ["skill-md"]],
+    ["SKILL.md", ["skill-md"]],
+    ["docs/skills.md", []],
+    ["plugins/p/skillset/x.md", []],
+  ]) {
+    assert.deepEqual(refusalsOf(entry(path), ["skills", "skill-md"]), refusals, path);
+    assert.deepEqual(refusalsOf(entry(path), RULES.default.refuse), [], `default ${path}`);
+  }
+});
+
+test("only the docs row names the skills and skill-md refusals, only review-threads new-exec-bit, and no row has to", () => {
+  for (const name of Object.keys(RULES)) {
+    const named = RULES[name].refuse.filter((refusal) => REFUSALS[refusal].optional);
+    assert.deepEqual(named, { docs: ["skills", "skill-md"], "review-threads": ["new-exec-bit"] }[name] ?? [], name);
+  }
+  const refuse = RULES.docs.refuse.filter((name) => !REFUSALS[name].optional);
+  assert.doesNotThrow(() => checkRow(row("docs", { refuse })));
+  assert.throws(() => checkRow(row("docs", { refuse: refuse.filter((name) => name !== "codeowners") })), /does not refuse codeowners/);
+});
+
+test("the docs row allows markdown alone, refuses the universal set, and keeps the default row's cap, commit, moved-head path and reasons", () => {
+  const docs = row("docs");
+  const fallback = row("default");
+  assert.deepEqual(docs.allow, ["markdown"]);
+  assert.deepEqual(
+    docs.refuse.filter((name) => !REFUSALS[name].optional),
+    fallback.refuse,
+  );
+  for (const key of ["max-files", "requires", "commit", "reads-report", "skip-moved-head", "escalations"]) {
+    assert.deepEqual(docs[key], fallback[key], key);
+  }
+});
+
+const docsPush = (fix, api, extra = {}) => pushWith(fix, api, { row: row("docs"), lane: "pr-refine", activity: "fix-docs", ...extra });
+
+test("under the docs row a patch that edits only markdown outside skills/ pushes", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "README.md"), "# fixed\n");
+    mkdirSync(join(repo, "docs"));
+    writeFileSync(join(repo, "docs/AGENTS.md"), "x\n");
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await docsPush(fix, api), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(createCommit.message, "Apply fix-docs on feat/x\n\nLane-Activity: pr-refine/fix-docs\n");
+  assert.deepEqual(createCommit.parents, [fix.head]);
+});
+
+for (const [path, edit] of [
+  ["scripts/x.sh", (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\nfoo=2\n")],
+  ["config.json", (repo) => writeFileSync(join(repo, "config.json"), "{}\n")],
+  ["lib/x.mjs", (repo) => (mkdirSync(join(repo, "lib")), writeFileSync(join(repo, "lib/x.mjs"), "export {};\n"))],
+  ["GUIDE.MD", (repo) => writeFileSync(join(repo, "GUIDE.MD"), "x\n")],
+]) {
+  test(`under the docs row a patch that also edits the non-markdown ${path} is refused patch-protected-path before any API call`, async (t) => {
+    const fix = repoWithPatch(t, (repo) => {
+      writeFileSync(join(repo, "README.md"), "# fixed\n");
+      edit(repo);
+    });
+    const api = fakeApi(fix.repo, fix.head);
+    const lines = [];
+    assert.deepEqual(await docsPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-protected-path" });
+    assert.deepEqual(lines, [`not allowed by markdown: ${path}`]);
+    assert.deepEqual(api.calls, []);
+  });
+}
+
+for (const [path, refusal] of [
+  ["plugins/p/skills/s/SKILL.md", "skills"],
+  ["plugins/p/skills/s/reference/r.md", "skills"],
+  ["docs/SKILL.md", "skill-md"],
+]) {
+  test(`under the docs row a patch that touches ${path} is refused patch-protected-path before any API call`, async (t) => {
+    const fix = repoWithPatch(t, (repo) => {
+      writeFileSync(join(repo, "README.md"), "# fixed\n");
+      mkdirSync(dirname(join(repo, path)), { recursive: true });
+      writeFileSync(join(repo, path), "# changed\n");
+    });
+    const api = fakeApi(fix.repo, fix.head);
+    const lines = [];
+    assert.deepEqual(await docsPush(fix, api, { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "patch-protected-path" });
+    assert.deepEqual(lines, [`refused (${refusal}): ${path}`]);
+    assert.deepEqual(api.calls, []);
+  });
+}
+
+test("under the docs row deleting a SKILL.md is refused patch-protected-path before any API call", async (t) => {
+  const path = "plugins/p/skills/s/SKILL.md";
+  const fix = repoWithPatch(t, (repo) => rmSync(join(repo, path)), {
+    head: (repo) => {
+      mkdirSync(dirname(join(repo, path)), { recursive: true });
+      writeFileSync(join(repo, path), "# skill\n");
+    },
+  });
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await docsPush(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  assert.deepEqual(api.calls, []);
+});
+
+// fix-docs's patch takes the docs row: an edit to an agent instruction
+// outside skills/ pushes, and one to a code owners file is refused whole
+// before any API call.
 for (const [path, edit] of [
   ["CLAUDE.md", (repo) => writeFileSync(join(repo, "CLAUDE.md"), "Follow the rules.\n")],
-  ["docs/AGENTS.md", (repo) => (mkdirSync(join(repo, "docs")), writeFileSync(join(repo, "docs/AGENTS.md"), "x\n"))],
-  ["plugins/x/hooks/h.sh", (repo) => (mkdirSync(join(repo, "plugins/x/hooks"), { recursive: true }), writeFileSync(join(repo, "plugins/x/hooks/h.sh"), "x\n"))],
+  [".claude/rules/r.md", (repo) => (mkdirSync(join(repo, ".claude/rules"), { recursive: true }), writeFileSync(join(repo, ".claude/rules/r.md"), "x\n"))],
 ]) {
   test(`a fix-docs patch that edits ${path} pushes`, async (t) => {
     const fix = repoWithPatch(t, (repo) => {
       writeFileSync(join(repo, "README.md"), "# fixed\n");
       edit(repo);
     });
-    assert.equal((await pushWith(fix, fakeApi(fix.repo, fix.head), { lane: "pr-refine", activity: "fix-docs" })).outcome, "pushed");
+    assert.equal((await docsPush(fix, fakeApi(fix.repo, fix.head))).outcome, "pushed");
   });
 }
 
@@ -404,7 +567,7 @@ test("a fix-docs patch that edits docs/CODEOWNERS is refused patch-protected-pat
   });
   const api = fakeApi(fix.repo, fix.head);
   const lines = [];
-  assert.deepEqual(await pushWith(fix, api, { lane: "pr-refine", activity: "fix-docs", log: (line) => lines.push(line) }), {
+  assert.deepEqual(await docsPush(fix, api, { log: (line) => lines.push(line) }), {
     outcome: "escalate",
     escalationReason: "patch-protected-path",
   });
@@ -420,20 +583,11 @@ test("a fix-docs patch of 300 files pushes, and one of 301 escalates patch-inval
     }
   };
   const atCap = repoWithPatch(t, files(300));
-  assert.equal((await pushWith(atCap, fakeApi(atCap.repo, atCap.head))).outcome, "pushed");
+  assert.equal((await docsPush(atCap, fakeApi(atCap.repo, atCap.head))).outcome, "pushed");
   const over = repoWithPatch(t, files(301));
   const refused = fakeApi(over.repo, over.head);
-  assert.deepEqual(await pushWith(over, refused), { outcome: "escalate", escalationReason: "patch-invalid" });
+  assert.deepEqual(await docsPush(over, refused), { outcome: "escalate", escalationReason: "patch-invalid" });
   assert.deepEqual(refused.calls, []);
-});
-
-test("a fix-docs patch commits Apply fix-docs on the head with the Lane-Activity: pr-refine/fix-docs trailer", async (t) => {
-  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# fixed\n"));
-  const api = fakeApi(fix.repo, fix.head);
-  assert.deepEqual(await pushWith(fix, api, { lane: "pr-refine", activity: "fix-docs" }), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
-  const { createCommit } = api.calls.find((call) => call.createCommit);
-  assert.equal(createCommit.message, "Apply fix-docs on feat/x\n\nLane-Activity: pr-refine/fix-docs\n");
-  assert.deepEqual(createCommit.parents, [fix.head]);
 });
 
 test("a fix-ci patch that edits CLAUDE.md pushes", async (t) => {
@@ -686,15 +840,15 @@ const keptOf = (threads) => ({ paths: new Set(threads.map((thread) => thread.pat
 test("kept-threads admits a kept thread's path and refuses one outside every thread's scope", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
   const kept = fakeApi(fix.repo, fix.head);
-  assert.equal((await pushWith(fix, kept, { row: row("review-threads"), context: { keptThreads: keptOf([{ path: "README.md" }]) } })).outcome, "pushed");
+  assert.equal((await pushWith(fix, kept, { row: row("review-threads"), context: { keptThreads: keptOf([{ path: "README.md" }]), fixedThreads: [] } })).outcome, "pushed");
   const outside = fakeApi(fix.repo, fix.head);
-  assert.deepEqual(await pushWith(fix, outside, { row: row("review-threads"), context: { keptThreads: keptOf([{ path: "notes.md" }]) } }), {
+  assert.deepEqual(await pushWith(fix, outside, { row: row("review-threads"), context: { keptThreads: keptOf([{ path: "notes.md" }]), fixedThreads: [] } }), {
     outcome: "escalate",
     escalationReason: "patch-protected-path",
   });
   assert.deepEqual(outside.calls, []);
   await assert.rejects(pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads") }), /kept thread paths/);
-  await assert.rejects(pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: new Set(["README.md"]) } }), /kept thread paths/);
+  await assert.rejects(pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: new Set(["README.md"]), fixedThreads: [] } }), /kept thread paths/);
 });
 
 // The review-threads row's scope, as the write runner's promote step held a
@@ -708,7 +862,7 @@ const threadPatch = (t, paths) =>
       writeFileSync(join(repo, path), `${path}\n`);
     }
   });
-const threadPush = (fix, threads = SCOPE_THREADS) => pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: keptOf(threads) } });
+const threadPush = (fix, threads = SCOPE_THREADS) => pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: keptOf(threads), fixedThreads: [] } });
 
 test("review-threads: the thread's path, its plugin's files and a sibling test push", async (t) => {
   const fix = threadPatch(t, [
@@ -747,7 +901,7 @@ test("review-threads: a file a kept thread's named_paths holds pushes; the same 
 // A finding on a doc fixed in a script the pull request also changes: the
 // thread file's pr_paths carry the PR's files into every thread's scope.
 const docThread = (prPaths) => ({ ...keptOf([{ path: "README.md" }]), prPaths: new Set(prPaths) });
-const docPush = (fix, prPaths) => pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: docThread(prPaths) } });
+const docPush = (fix, prPaths) => pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: docThread(prPaths), fixedThreads: [] } });
 
 test("review-threads: a thread on one PR file fixed in another PR file pushes", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\nfoo=2\n"));
@@ -809,6 +963,7 @@ test("keptThreadsFrom reads a threads.json's paths and named_paths, and refuses 
       { path: "src/c.py", named_paths: undefined },
     ],
     prPaths: new Set(),
+    ids: ["PRRT_1", "PRRT_2"],
   });
   writeFileSync(file, JSON.stringify({ threads: [{ path: "plugins/p/a.md" }], pr_paths: ["plugins/p/a.md", "src/d.sh"] }));
   assert.deepEqual(keptThreadsFrom(file).prPaths, new Set(["plugins/p/a.md", "src/d.sh"]));
@@ -817,6 +972,93 @@ test("keptThreadsFrom reads a threads.json's paths and named_paths, and refuses 
     writeFileSync(file, text);
     assert.throws(() => keptThreadsFrom(file), /KEPT_THREADS_FILE/, text);
   }
+});
+
+test("keptThreadsFrom keeps each thread id of the select job's shape, in the file's order", (t) => {
+  const file = join(scratch(t), "threads.json");
+  writeFileSync(file, JSON.stringify({ threads: [{ id: "PRRT_2", path: "a" }, { id: "PRRT_1", path: "b" }, { id: "PRRT_x\nLane-Thread: PRRT_y", path: "c" }, { path: "d" }] }));
+  assert.deepEqual(keptThreadsFrom(file).ids, ["PRRT_2", "PRRT_1"]);
+});
+
+// replies.jsonl as the model job's scan job uploads it, one reply per line.
+const replyLine = (thread, disposition) => JSON.stringify({ thread, disposition, evidence: ["a:1"], fix_sha: "", note: "n" });
+
+test("fixedThreadsFrom names each kept thread a VALID reply names, in the kept order, and nothing else", (t) => {
+  const file = join(scratch(t), "replies.jsonl");
+  const kept = { ids: ["PRRT_1", "PRRT_2", "PRRT_3"] };
+  writeFileSync(
+    file,
+    [
+      replyLine("PRRT_3", "VALID"),
+      replyLine("PRRT_2", "INCORRECT"),
+      // A thread the select job did not keep adds no line.
+      replyLine("PRRT_9", "VALID"),
+      replyLine("PRRT_1", "VALID"),
+      replyLine("PRRT_1", "VALID"),
+      replyLine("PRRT_2", "VALID-defer"),
+      "not json",
+      JSON.stringify(["PRRT_2", "VALID"]),
+      "",
+    ].join("\n"),
+  );
+  assert.deepEqual(fixedThreadsFrom(file, kept), ["PRRT_1", "PRRT_3"]);
+  writeFileSync(file, replyLine("PRRT_2", "UNCERTAIN"));
+  assert.deepEqual(fixedThreadsFrom(file, kept), []);
+  assert.equal(fixedThreadsFrom("", kept), undefined);
+  writeFileSync(file, "x".repeat(49153));
+  assert.throws(() => fixedThreadsFrom(file, kept), /PATCH_REPLIES_FILE/);
+  assert.throws(() => fixedThreadsFrom(join(scratch(t), "missing.jsonl"), kept), /ENOENT/);
+});
+
+test("review-threads: the commit names each fixed thread in a Lane-Thread line after the activity trailer", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  const keptThreads = keptOf([{ path: "README.md" }]);
+  for (const [fixedThreads, trailer] of [
+    [["PRRT_1", "PRRT_3"], "Lane-Thread: PRRT_1\nLane-Thread: PRRT_3\n"],
+    [[], ""],
+  ]) {
+    const api = fakeApi(fix.repo, fix.head);
+    assert.equal((await pushWith(fix, api, { row: row("review-threads"), context: { keptThreads, fixedThreads } })).outcome, "pushed");
+    const { createCommit } = api.calls.find((call) => call.createCommit);
+    assert.equal(createCommit.message, `Address review feedback on feat/x\n\nLane-Activity: some-lane/some-activity\n${trailer}`);
+  }
+  // With no replies read, the row writes nothing rather than a commit no thread can claim.
+  const none = fakeApi(fix.repo, fix.head);
+  await assert.rejects(pushWith(fix, none, { row: row("review-threads"), context: { keptThreads } }), /replies/);
+  assert.deepEqual(none.calls, []);
+});
+
+test("main names the threads the scanned replies fix in the review-threads commit", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  const base = scratch(t);
+  mkdirSync(join(base, dirname(RULES_PATH)), { recursive: true });
+  cpSync(join(REPO_ROOT, RULES_PATH), join(base, RULES_PATH));
+  const out = scratch(t);
+  writeFileSync(join(out, "threads.json"), JSON.stringify({ threads: [{ id: "PRRT_a", path: "README.md" }, { id: "PRRT_b", path: "README.md" }] }));
+  writeFileSync(join(out, "replies.jsonl"), [replyLine("PRRT_a", "INCORRECT"), replyLine("PRRT_b", "VALID")].join("\n"));
+  const env = {
+    BASE_DIR: base,
+    PATCH_PREPARE: "review-threads",
+    GH_TOKEN: "t",
+    GITHUB_REPOSITORY: "o/r",
+    PR_NUMBER: "42",
+    HEAD_SHA: fix.head,
+    PATCH_HEAD_SHA: fix.head,
+    HEAD_REF: "feat/x",
+    LANE: "pr-unblock",
+    PATCH_ACTIVITY: "address-feedback",
+    PATCH_FILE: fix.patchFile,
+    PATCH_SHA256: fix.sum,
+    HOLD_LABELS: "[]",
+    KEPT_THREADS_FILE: join(out, "threads.json"),
+    PATCH_REPLIES_FILE: join(out, "replies.jsonl"),
+    SKIP_REASON_FILE: join(out, "skip"),
+    ESCALATION_REASON_FILE: join(out, "escalation"),
+  };
+  const api = fakeApi(fix.repo, fix.head);
+  await main([], env, { api, cwd: fix.repo, gitBin: "git", log: () => {} });
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(createCommit.message, "Address review feedback on feat/x\n\nLane-Activity: pr-unblock/address-feedback\nLane-Thread: PRRT_b\n");
 });
 
 test("checkRow holds merge-result and max-blobs to a merge row, and a merge row to merge-result on a pull request", () => {
@@ -957,8 +1199,8 @@ test("under the ci-context row a head that moved since the model job skips super
   assert.deepEqual(api.calls, []);
 });
 
-// The default row keeps the moved-head path on purpose: fix-docs runs once
-// per pull request, so a skipped fix-docs patch would never run again. The
+// The docs row keeps the moved-head path on purpose: fix-docs runs once per
+// pull request, so a skipped fix-docs patch would never run again. The
 // review-threads row skips, as the write runner's promote step refused a
 // branch that moved during the run: the replies judged the gated head.
 test("the ci-context, review-threads and dependency-review rows skip a moved head; the other PR rows keep the moved-head path", (t) => {
@@ -966,8 +1208,10 @@ test("the ci-context, review-threads and dependency-review rows skip a moved hea
   writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
   const sum = sha256("diff --git a/x b/x\n");
   const moved = { patchState: "written", patchSha256: sum, patchHeadSha: "b".repeat(40), headSha: "a".repeat(40), patchDir: dir };
-  assert.equal(RULES.default["skip-moved-head"], false);
-  assert.deepEqual(select({ row: row("default"), ...moved }), { proceed: true, skipReason: "", escalationReason: "" });
+  for (const name of ["default", "docs"]) {
+    assert.equal(RULES[name]["skip-moved-head"], false, name);
+    assert.deepEqual(select({ row: row(name), ...moved }), { proceed: true, skipReason: "", escalationReason: "" }, name);
+  }
   for (const name of ["ci-context", "review-threads", "dependency-review"]) {
     assert.deepEqual(select({ row: row(name), ...moved }), { proceed: false, skipReason: "superseded-sha", escalationReason: "" }, name);
   }
@@ -984,7 +1228,7 @@ test("under the dependency-review row a head that moved since the select job ski
 test("under the review-threads row a head that moved since the model job skips superseded-sha before any API call", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
   const api = fakeApi(fix.repo, fix.head);
-  const result = await pushWith(fix, api, { row: row("review-threads"), patchHeadSha: "b".repeat(40), context: { keptThreads: keptOf([{ path: "README.md" }]) } });
+  const result = await pushWith(fix, api, { row: row("review-threads"), patchHeadSha: "b".repeat(40), context: { keptThreads: keptOf([{ path: "README.md" }]), fixedThreads: [] } });
   assert.deepEqual(result, { outcome: "superseded" });
   assert.deepEqual(api.calls, []);
 });
@@ -999,7 +1243,7 @@ const patchDirOf = (t, text) => {
 };
 const selectCi = (dir, sum, extra = {}) =>
   select({ row: row("ci-context"), patchState: "written", patchSha256: sum, patchHeadSha: "a".repeat(40), headSha: "a".repeat(40), patchDir: dir, ...extra });
-const INVALID = { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-invalid" };
+const INVALID = { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-invalid" };
 
 test("a draft set during the run drops the fix uncommitted", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
@@ -1118,42 +1362,48 @@ test("every reason the push writes for the ci-context row is one the write runne
   assert.deepEqual([...reasons].sort(), [...accepted].sort());
 });
 
-// The same for fix-docs, whose patch takes the default row: a patch that
-// applies but changes nothing escalates patch-empty, and every reason the
-// push writes is in the write runner's case list.
-test("every reason the push writes for the default row is one the write runner's script step accepts, an empty diff patch-empty", () => {
-  const source = readFileSync(join(REPO_ROOT, ".github/scripts/apply-patch/apply-patch.mjs"), "utf8");
-  const pushBody = source.slice(source.indexOf("export async function push("), source.indexOf("\nexport", source.indexOf("export async function push(") + 1));
-  const kinds = new Set([...pushBody.matchAll(/escalate\("([a-z-]+)"/g)].map((match) => match[1]));
-  for (const name of row("default").refuse) kinds.add(REFUSALS[name].kind);
-  assert.ok(kinds.has("empty"), [...kinds].join(" "));
-  assert.equal(pushReason(row("default"), "empty"), "patch-empty");
-  const write = readFileSync(join(REPO_ROOT, ".github/workflows/pr-run-activity-write.yml"), "utf8");
-  const line = write.split("\n").find((text) => text.includes(":ci-fix-invalid |"));
-  const accepted = new Set([...line.matchAll(/:(patch-[a-z-]+)/g)].map((match) => match[1]));
-  for (const kind of kinds) assert.ok(accepted.has(pushReason(row("default"), kind)), `${kind}: ${pushReason(row("default"), kind)}`);
-});
+// The same for fix-docs's docs row and the default row: a patch that applies
+// but changes nothing escalates patch-empty, and every reason the push writes
+// is in the write runner's case list.
+for (const name of ["docs", "default"]) {
+  test(`every reason the push writes for the ${name} row is one the write runner's script step accepts, an empty diff patch-empty`, () => {
+    const source = readFileSync(join(REPO_ROOT, ".github/scripts/apply-patch/apply-patch.mjs"), "utf8");
+    const pushBody = source.slice(source.indexOf("export async function push("), source.indexOf("\nexport", source.indexOf("export async function push(") + 1));
+    const kinds = new Set([...pushBody.matchAll(/escalate\("([a-z-]+)"/g)].map((match) => match[1]));
+    for (const refusal of row(name).refuse) kinds.add(REFUSALS[refusal].kind);
+    assert.ok(kinds.has("empty"), [...kinds].join(" "));
+    assert.equal(pushReason(row(name), "empty"), "patch-empty");
+    const write = readFileSync(join(REPO_ROOT, ".github/workflows/pr-run-activity-write.yml"), "utf8");
+    const line = write.split("\n").find((text) => text.includes(":ci-fix-invalid |"));
+    const accepted = new Set([...line.matchAll(/:(patch-[a-z-]+)/g)].map((match) => match[1]));
+    for (const kind of kinds) assert.ok(accepted.has(pushReason(row(name), kind)), `${kind}: ${pushReason(row(name), kind)}`);
+  });
+}
 
 test("an empty patch-state whose report escalated a check names ci-fix-escalated", (t) => {
   const reportDir = scratch(t);
   writeFileSync(join(reportDir, "reply.txt"), "lint-shell: escalated not-reproducible needs a secret\n");
   const head = "a".repeat(40);
   const base = { row: row("ci-context"), patchState: "empty", patchSha256: "", patchHeadSha: head, headSha: head, patchDir: scratch(t) };
-  assert.deepEqual(select({ ...base, reportDir, rung: 1 }), { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" });
+  assert.deepEqual(select({ ...base, reportDir, rung: 1 }), { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-escalated" });
   assert.equal(select({ ...base, reportDir: scratch(t) }).escalationReason, "ci-fix-empty");
 });
 
 // A fix-ci run that changed nothing and escalated only
 // unfixed or not-reproducible checks retries once, one model rung up, instead
-// of handing the PR to a person; protected-path, weaken-required and flaky
-// stay with a person, and a rung-1 run never retries again.
+// of stopping; flaky ends in a failing status (the dispatcher retries the
+// head), protected-path and weaken-required stay with a person, and a rung-1
+// run never retries again in the same run.
 for (const [why, reply, rung, want] of [
   ["unfixed at rung 0", "test-node: escalated unfixed three fixes failed\n", 0, { proceed: false, skipReason: "rung-up", escalationReason: "" }],
   ["unfixed and not-reproducible at rung 0", "a: escalated unfixed x\nb: escalated not-reproducible y\nc: fixed\n", 0, { proceed: false, skipReason: "rung-up", escalationReason: "" }],
-  ["unfixed at rung 1", "test-node: escalated unfixed three fixes failed\n", 1, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" }],
-  ["protected-path at rung 0", "lint: escalated protected-path edits .github\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" }],
-  ["weaken-required beside unfixed at rung 0", "a: escalated unfixed x\nb: escalated weaken-required y\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" }],
-  ["flaky at rung 0", "a: escalated flaky x\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" }],
+  ["unfixed at rung 1", "test-node: escalated unfixed three fixes failed\n", 1, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-escalated" }],
+  // A fix that needs a path the lane token may not push, or one that weakens
+  // a required check, stays with a person.
+  ["protected-path at rung 0", "lint: escalated protected-path edits .github\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-protected-path" }],
+  ["weaken-required beside unfixed at rung 0", "a: escalated unfixed x\nb: escalated weaken-required y\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-weaken-required" }],
+  ["protected-path beside weaken-required at rung 1", "a: escalated weaken-required x\nb: escalated protected-path y\n", 1, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-protected-path" }],
+  ["flaky at rung 0", "a: escalated flaky x\n", 0, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-escalated" }],
 ]) {
   test(`an empty fix-ci patch escalating ${why} selects ${want.skipReason}`, (t) => {
     const reportDir = scratch(t);
@@ -1163,6 +1413,24 @@ for (const [why, reply, rung, want] of [
     assert.deepEqual(select({ ...base, reportDir, rung }), want);
   });
 }
+
+// fix-docs's push takes the default row, which reads no report, so even a
+// reply that would rung-up fix-ci never selects rung-up there: an empty patch
+// escalates patch-empty and a written one pushes.
+test("the default row (fix-docs) never selects rung-up, for an empty or a written patch", (t) => {
+  const reportDir = scratch(t);
+  writeFileSync(join(reportDir, "reply.txt"), "test-node: escalated unfixed three fixes failed\n");
+  const dir = scratch(t);
+  writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
+  const head = "a".repeat(40);
+  const base = { row: row("default"), patchHeadSha: head, headSha: head, reportDir };
+  for (const rung of [0, 1]) {
+    const empty = select({ ...base, patchState: "empty", patchSha256: "", patchDir: scratch(t), rung });
+    assert.deepEqual(empty, { proceed: false, skipReason: "awaiting-human", escalationReason: "patch-empty" }, `empty, rung ${rung}`);
+    const written = select({ ...base, patchState: "written", patchSha256: sha256("diff --git a/x b/x\n"), patchDir: dir, rung });
+    assert.deepEqual(written, { proceed: true, skipReason: "", escalationReason: "" }, `written, rung ${rung}`);
+  }
+});
 
 // A written fix pushes a new head whose own CI has not run yet: escalating
 // then would hand a PR to a person on the old head's checks. The new head's
@@ -1198,7 +1466,7 @@ test("a written fix escalates nothing, and a run that writes no patch escalates 
   writeFileSync(join(nextReport, "reply.txt"), reply);
   const next = "b".repeat(40);
   const red = { row: row("ci-context"), patchState: "empty", patchSha256: "", patchHeadSha: next, headSha: next, patchDir: scratch(t), reportDir: nextReport };
-  assert.deepEqual(select(red), { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-escalated" });
+  assert.deepEqual(select(red), { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-escalated" });
 });
 
 test("select reads the rung from MODEL_RUNG and refuses any other value", async (t) => {
@@ -1215,10 +1483,53 @@ test("select reads the rung from MODEL_RUNG and refuses any other value", async 
     await main(["select"], env, { log: () => {} });
     return readFileSync(out, "utf8");
   };
-  assert.match(await outputFor("1"), /^skip-reason=awaiting-human$/m);
+  assert.match(await outputFor("1"), /^skip-reason=lane-stopped$/m);
   assert.match(await outputFor("0"), /^skip-reason=rung-up$/m);
   assert.match(await outputFor(""), /^skip-reason=rung-up$/m);
   await assert.rejects(() => outputFor("2"), /MODEL_RUNG/);
+});
+
+// The first weaken-required stop on a head (no lane stop there yet, so
+// fix-ci-context passes weakenRetry) stops for one fresh fixer round: a
+// fail-routed reason the dispatcher retries. Without weakenRetry (the fresh
+// round ran, or an earlier stop spent the head's retry) it holds for a person
+// as before, and a protected-path escalation beside it always does.
+for (const [why, reply, rung, weakenRetry, want] of [
+  ["weaken-required, first on the head", "a: escalated weaken-required y\n", 0, true, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-retry" }],
+  ["weaken-required beside unfixed, first on the head", "a: escalated unfixed x\nb: escalated weaken-required y\n", 0, true, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-retry" }],
+  ["weaken-required at the in-run rung-up, first on the head", "a: escalated weaken-required y\n", 1, true, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-retry" }],
+  ["weaken-required in the fresh round", "a: escalated weaken-required y\n", 1, false, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-weaken-required" }],
+  ["weaken-required with no retry left at rung 0", "a: escalated weaken-required y\n", 0, false, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-weaken-required" }],
+  ["protected-path beside weaken-required, first on the head", "a: escalated weaken-required x\nb: escalated protected-path y\n", 0, true, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-protected-path" }],
+  ["unfixed alone, first on the head", "a: escalated unfixed x\n", 0, true, { proceed: false, skipReason: "rung-up", escalationReason: "" }],
+]) {
+  test(`an empty fix-ci patch escalating ${why} selects ${want.escalationReason || want.skipReason}`, (t) => {
+    const reportDir = scratch(t);
+    writeFileSync(join(reportDir, "reply.txt"), reply);
+    const head = "a".repeat(40);
+    const base = { row: row("ci-context"), patchState: "empty", patchSha256: "", patchHeadSha: head, headSha: head, patchDir: scratch(t) };
+    assert.deepEqual(select({ ...base, reportDir, rung, weakenRetry }), want);
+  });
+}
+
+test("select reads weakenRetry from WEAKEN_RETRY and refuses any other value", async (t) => {
+  const reportDir = scratch(t);
+  writeFileSync(join(reportDir, "reply.txt"), "test-node: escalated weaken-required x\n");
+  const head = "a".repeat(40);
+  const baseDir = scratch(t);
+  mkdirSync(join(baseDir, dirname(RULES_PATH)), { recursive: true });
+  writeFileSync(join(baseDir, RULES_PATH), JSON.stringify(RULES));
+  const outputFor = async (value) => {
+    const out = join(scratch(t), "out");
+    writeFileSync(out, "");
+    const env = { BASE_DIR: baseDir, PATCH_PREPARE: "ci-context", PATCH_STATE: "empty", PATCH_HEAD_SHA: head, HEAD_SHA: head, PATCH_DIR: scratch(t), REPORT_DIR: reportDir, GITHUB_OUTPUT: out, WEAKEN_RETRY: value };
+    await main(["select"], env, { log: () => {} });
+    return readFileSync(out, "utf8");
+  };
+  assert.match(await outputFor("true"), /^escalation-reason=ci-fix-weaken-retry$/m);
+  assert.match(await outputFor("false"), /^escalation-reason=ci-fix-weaken-required$/m);
+  assert.match(await outputFor(""), /^escalation-reason=ci-fix-weaken-required$/m);
+  await assert.rejects(() => outputFor("yes"), /WEAKEN_RETRY/);
 });
 
 // --- select and main ---
@@ -1360,9 +1671,14 @@ test("issue target: the issue row refuses the universal set, each refusal before
     ["CODEOWNERS", (repo) => writeFileSync(join(repo, "CODEOWNERS"), "* @o\n"), "patch-protected-path"],
     [".gitmodules", (repo) => writeFileSync(join(repo, ".gitmodules"), "\n"), "patch-protected-path"],
     ["a settings.json", (repo) => writeFileSync(join(repo, "settings.json"), "{}\n"), "patch-protected-path"],
+    [
+      "the central lane grant file",
+      (repo) => (mkdirSync(join(repo, ".github/actions/resolve-config"), { recursive: true }), writeFileSync(join(repo, ".github/actions/resolve-config/lane-grants.json"), "{}\n")),
+      "patch-protected-path",
+    ],
     ["a symbolic link", (repo) => symlinkSync("README.md", join(repo, "link")), "patch-invalid"],
   ];
-  assert.deepEqual(issueRow().refuse, ["github-workflows", "codeowners", "gitmodules", "settings", "symlink", "gitlink", "rename-into-refused"]);
+  assert.deepEqual(issueRow().refuse, ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"]);
   for (const [what, edit, reason] of cases) {
     const fix = repoWithPatch(t, edit);
     const api = fakeApi(fix.repo, fix.head, { labels: READY });
@@ -1792,12 +2108,12 @@ test("select under the merge-base row: a clean merge proceeds with no patch, an 
   const at = (mergeState, patchState, extra = {}) =>
     select({ row: row("merge-base"), mergeState, patchState, patchSha256: sum, patchHeadSha: head, headSha: head, patchDir: dir, ...extra });
   assert.deepEqual(at("clean", ""), { proceed: true, skipReason: "", escalationReason: "" });
-  assert.deepEqual(at("clean", "written"), { proceed: false, skipReason: "awaiting-human", escalationReason: "conflict-patch-invalid" });
+  assert.deepEqual(at("clean", "written"), { proceed: false, skipReason: "lane-stopped", escalationReason: "conflict-patch-invalid" });
   assert.deepEqual(at("conflicted", "written"), { proceed: true, skipReason: "", escalationReason: "" });
-  assert.deepEqual(at("conflicted", "empty"), { proceed: false, skipReason: "awaiting-human", escalationReason: "unresolved-conflict" });
-  assert.deepEqual(at("conflicted", ""), { proceed: false, skipReason: "awaiting-human", escalationReason: "conflict-patch-invalid" });
+  assert.deepEqual(at("conflicted", "empty"), { proceed: false, skipReason: "lane-stopped", escalationReason: "unresolved-conflict" });
+  assert.deepEqual(at("conflicted", ""), { proceed: false, skipReason: "lane-stopped", escalationReason: "conflict-patch-invalid" });
   for (const state of ["", "escalate", "Clean"]) {
-    assert.deepEqual(at(state, ""), { proceed: false, skipReason: "awaiting-human", escalationReason: "conflict-patch-invalid" }, state);
+    assert.deepEqual(at(state, ""), { proceed: false, skipReason: "lane-stopped", escalationReason: "conflict-patch-invalid" }, state);
   }
   assert.deepEqual(at("clean", "", { patchHeadSha: "b".repeat(40) }), { proceed: false, skipReason: "superseded-sha", escalationReason: "" });
   assert.deepEqual(at("conflicted", "written", { headSha: "b".repeat(40) }), { proceed: false, skipReason: "superseded-sha", escalationReason: "" });
@@ -1888,4 +2204,136 @@ test("main reads the merge's conflicted paths from the checkout and takes no pat
   };
   await main([], cleanEnv, { api: fakeApi(clean.repo, clean.head), cwd: clean.repo, gitBin: "git", log: () => {} });
   assert.match(readFileSync(cleanEnv.GITHUB_OUTPUT, "utf8"), /^commit=c{40}$/m);
+});
+
+// --- review-threads file modes (#10080): no new executable bit, and a mode
+// change only back to the merge base's ---
+
+test("new-exec-bit is optional: it refuses a mode that gains the executable bit only where a row names it", () => {
+  const names = ["new-exec-bit"];
+  assert.deepEqual(refusalsOf(entry("scripts/x.sh", "100644", "100755"), names), ["new-exec-bit"]);
+  assert.deepEqual(refusalsOf(entry("scripts/new.sh", "000000", "100755"), names), ["new-exec-bit"]);
+  assert.deepEqual(refusalsOf(entry("scripts/x.sh", "100755", "100755"), names), []);
+  assert.deepEqual(refusalsOf(entry("scripts/x.sh", "100755", "100644"), names), []);
+  assert.deepEqual(refusalsOf(entry("scripts/x.sh", "100644", "100755")), [], "not in the default set");
+  assert.equal(REFUSALS["new-exec-bit"].optional, true);
+  assert.deepEqual(Object.keys(RULES).filter((name) => RULES[name].refuse.includes("new-exec-bit")), ["review-threads"]);
+});
+
+// A PR whose merge base holds `path` at `baseMode`, whose head holds it at
+// `headMode`, and a model patch that leaves it at `patchMode`; the fake API
+// reads the merge base's trees from the repository, as GitHub would.
+// `newInHead` leaves `path` out of the merge base, so the PR adds it.
+function modeFix(t, { path = "plugins/p/scripts/lib.sh", baseMode, headMode, patchMode, newInHead = false, edit = () => {} }) {
+  const repo = scratch(t);
+  git(repo, ["init", "-q", "-b", "main"]);
+  git(repo, ["config", "user.email", "t@example.com"]);
+  git(repo, ["config", "user.name", "t"]);
+  git(repo, ["config", "core.fileMode", "true"]);
+  writeFileSync(join(repo, "README.md"), "# r\n");
+  const place = (mode) => {
+    mkdirSync(join(repo, dirname(path)), { recursive: true });
+    writeFileSync(join(repo, path), "x=1\n");
+    chmodSync(join(repo, path), mode);
+  };
+  if (!newInHead) {
+    place(baseMode);
+  }
+  const base = commitAll(repo, "base");
+  if (newInHead) {
+    place(headMode);
+  }
+  chmodSync(join(repo, path), headMode);
+  writeFileSync(join(repo, "README.md"), "# pr\n");
+  const head = commitAll(repo, "head");
+  chmodSync(join(repo, path), patchMode);
+  edit(repo);
+  git(repo, ["add", "-A"]);
+  const text = execFileSync("git", ["diff", "--cached", "--binary", "--full-index", "--no-renames", head], { cwd: repo, encoding: "utf8" });
+  git(repo, ["reset", "-q", "--hard", head]);
+  const patchFile = join(scratch(t), "patch.diff");
+  writeFileSync(patchFile, text);
+  return { repo, head, base, path, patchFile, sum: sha256(text) };
+}
+
+const modeApi = (fix) => {
+  const api = fakeApi(fix.repo, fix.head, { pull: { draft: false, head: { repo: { full_name: "o/r" } }, base: { sha: "e".repeat(40) } } });
+  api.compares = [];
+  api.compare = async (from, to) => {
+    api.compares.push([from, to]);
+    return { merge_base_commit: { sha: fix.base, commit: { tree: { sha: git(fix.repo, ["rev-parse", `${fix.base}^{tree}`]) } } } };
+  };
+  api.getTree = async (sha) => ({
+    tree: git(fix.repo, ["ls-tree", sha])
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        const [meta, name] = line.split("\t");
+        const [mode, type, object] = meta.split(" ");
+        return { path: name, mode, type, sha: object };
+      }),
+  });
+  return api;
+};
+const modePush = (fix, api, threads = [{ path: fix.path }]) => pushWith(fix, api, { row: row("review-threads"), context: { keptThreads: keptOf(threads), fixedThreads: [] } });
+
+test("review-threads: reverting an executable bit the PR introduced pushes the merge base's mode", async (t) => {
+  const fix = modeFix(t, { baseMode: 0o644, headMode: 0o755, patchMode: 0o644 });
+  const api = modeApi(fix);
+  assert.equal((await modePush(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(git(fix.repo, ["ls-tree", createCommit.tree, "--", fix.path]).split(" ")[0], "100644");
+  assert.deepEqual(api.compares, [["e".repeat(40), fix.head]]);
+});
+
+test("review-threads: dropping the executable bit from a file the PR added pushes 100644", async (t) => {
+  const fix = modeFix(t, { headMode: 0o755, patchMode: 0o644, newInHead: true });
+  const api = modeApi(fix);
+  assert.equal((await modePush(fix, api)).outcome, "pushed");
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.equal(git(fix.repo, ["ls-tree", createCommit.tree, "--", fix.path]).split(" ")[0], "100644");
+});
+
+test("review-threads: a patch that sets an executable bit the head lacks is refused before any write", async (t) => {
+  for (const [label, fix] of [
+    ["a mode change", modeFix(t, { baseMode: 0o755, headMode: 0o644, patchMode: 0o755 })],
+    ["a new file", modeFix(t, { baseMode: 0o644, headMode: 0o644, patchMode: 0o644, edit: (repo) => { writeFileSync(join(repo, "plugins/p/scripts/new.sh"), "#!/bin/sh\n"); chmodSync(join(repo, "plugins/p/scripts/new.sh"), 0o755); } })],
+  ]) {
+    const api = modeApi(fix);
+    assert.deepEqual(await modePush(fix, api, [{ path: fix.path }, { path: "plugins/p/scripts/new.sh" }]), { outcome: "escalate", escalationReason: "patch-protected-path" }, label);
+    assert.deepEqual(writes(api), [], label);
+  }
+});
+
+test("review-threads: removing an executable bit the merge base also had is refused", async (t) => {
+  const fix = modeFix(t, { baseMode: 0o755, headMode: 0o755, patchMode: 0o644 });
+  const api = modeApi(fix);
+  assert.deepEqual(await modePush(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  assert.deepEqual(writes(api), []);
+});
+
+test("review-threads: a mode revert on a path outside every kept thread's scope is refused", async (t) => {
+  const fix = modeFix(t, { baseMode: 0o644, headMode: 0o755, patchMode: 0o644 });
+  const api = modeApi(fix);
+  assert.deepEqual(await modePush(fix, api, [{ path: "README.md" }]), { outcome: "escalate", escalationReason: "patch-protected-path" });
+  assert.deepEqual(writes(api), []);
+});
+
+test("review-threads: a content-only fix reads no merge base", async (t) => {
+  const fix = modeFix(t, { baseMode: 0o644, headMode: 0o755, patchMode: 0o755, edit: (repo) => writeFileSync(join(repo, "plugins/p/scripts/lib.sh"), "x=2\n") });
+  const api = modeApi(fix);
+  assert.equal((await modePush(fix, api)).outcome, "pushed");
+  assert.deepEqual(api.compares, []);
+});
+
+test("createGitHubApi reads a comparison and a tree", async () => {
+  const sent = [];
+  const fetch = async (url, init) => {
+    sent.push(`${init.method} ${url}`);
+    return new Response(JSON.stringify({ ok: 1 }), { status: 200 });
+  };
+  const api = createGitHubApi({ token: "t", repository: "o/r", apiUrl: "https://api", fetch, sleep: async () => {} });
+  await api.compare("a".repeat(40), "b".repeat(40));
+  await api.getTree("c".repeat(40));
+  assert.deepEqual(sent, [`GET https://api/repos/o/r/compare/${"a".repeat(40)}...${"b".repeat(40)}`, `GET https://api/repos/o/r/git/trees/${"c".repeat(40)}`]);
 });

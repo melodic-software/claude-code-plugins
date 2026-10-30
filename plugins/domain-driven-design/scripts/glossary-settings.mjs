@@ -42,7 +42,7 @@ const isFileName = (key, value) => typeof value === "string" && new RegExp(schem
 
 /** The git root of `dir`, else `dir` itself: settings anchor at the repository root, never a subdirectory. */
 function gitRoot(dir) {
-  const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { encoding: "utf8" });
+  const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { cwd: ROOT, encoding: "utf8" });
   return r.status === 0 ? r.stdout.trim() : dir;
 }
 const project = resolvePath(opts.project ?? gitRoot(process.cwd()));
@@ -58,23 +58,27 @@ function conventionHome() {
   return { home: null, error: `convention home unresolved (${cause}); the team and local layers are not read` };
 }
 
-/** The userConfig values from --user-config, with each value that is not a file name dropped and named. */
+/** The userConfig values from --user-config, with each value that is not a file name dropped and named.
+ * `keys` tags each error as the resolver's `error_keys` does. */
 function userConfig(file) {
-  if (!file) return { value: undefined, errors: [] };
+  if (!file) return { value: undefined, errors: [], keys: [] };
   let value;
   try {
     value = readJson(file);
   } catch (e) {
-    return { value: undefined, errors: [`userConfig (${file}): unreadable or not JSON (${e.code ?? "parse error"})`] };
+    return { value: undefined, errors: [`userConfig (${file}): unreadable or not JSON (${e.code ?? "parse error"})`], keys: [null] };
   }
   const errors = [];
+  const keys = [];
   const kept = {};
   for (const [key, v] of Object.entries(value ?? {})) {
     const unset = v === "" || v === null || (typeof v === "string" && v.startsWith("${user_config."));
-    if (KEYS.includes(key) && !unset && !isFileName(key, v)) errors.push(`userConfig (${file}): "${key}": ${JSON.stringify(v)} is not a file name; a value names a file, never a path`);
-    else kept[key] = v;
+    if (KEYS.includes(key) && !unset && !isFileName(key, v)) {
+      errors.push(`userConfig (${file}): "${key}": ${JSON.stringify(v)} is not a file name; a value names a file, never a path`);
+      keys.push(key);
+    } else kept[key] = v;
   }
-  return { value: kept, errors };
+  return { value: kept, errors, keys };
 }
 
 const scratch = mkdtempSync(join(tmpdir(), "ddd-settings-"));
@@ -85,7 +89,10 @@ try {
   // With no usable home, an empty scratch directory stands in, so neither repository layer is read.
   const out = run(home ?? scratch);
   const layer = (name) => out.layers.find((l) => l.name === name);
-  if (user.errors.length) Object.assign(layer("userConfig"), { state: "invalid", errors: [...layer("userConfig").errors, ...user.errors] });
+  if (user.errors.length) {
+    const u = layer("userConfig");
+    Object.assign(u, { state: "invalid", errors: [...u.errors, ...user.errors], error_keys: [...u.error_keys, ...user.keys] });
+  }
   if (home === null) for (const name of ["team", "local"]) layer(name).path = null;
 
   // The cascade without the personal overlay: the team file alone, copied only when the cascade read
@@ -106,6 +113,7 @@ try {
       const l = layer(name);
       l.state = "invalid";
       l.errors.push(`${name} (${l.path}): "${key}": ${JSON.stringify(v)} is not a file name; a value names a file, never a path`);
+      l.error_keys.push(key);
     };
     const below = { value: withoutLocal.values[key], from: withoutLocal.provenance[key] };
     if (below.from === "team" && !isFileName(key, below.value)) {

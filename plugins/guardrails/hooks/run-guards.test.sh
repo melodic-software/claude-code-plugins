@@ -195,7 +195,14 @@ assert_exit "ask and context beside an exit 2: denied" 2 "$RC"
 assert_absent "ask and context beside an exit 2: the ask is dropped" "$OUT" '"ask"'
 
 # --- the shipped guards ask through the dispatcher only when attended --------
-ATT_REPO="$TEST_TMPDIR/att-repo"
+# Outside the temp directory, under the checkout's gitignored .work/:
+# block-dangerous-git allows reset --hard in a repository under the temp
+# directory (#9779), and these rows need its refusal.
+ATT_TOP=$(git -C "$HOOK_DIR" rev-parse --show-toplevel)
+ATT_TOP="${ATT_TOP//$'\r'/}"
+mkdir -p "$ATT_TOP/.work"
+ATT_REPO=$(mktemp -d "$ATT_TOP/.work/run-guards-att.XXXXXX")
+trap 'rm -rf "$TEST_TMPDIR" "$ATT_REPO"' EXIT
 git init -q "$ATT_REPO"
 att_run() { # att_run <attended> <command>: the whole shipped Bash row
   local p
@@ -705,6 +712,42 @@ assert_exit "a block, then the merge aborts: still denied" 2 "$RC"
 assert_contains "a block, then the merge aborts: the fail-closed line is on stderr" "$ERR" "fail-closed"
 run "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/mergeabort.sh"
 assert_exit "no block, then the merge aborts: the open posture allows" 0 "$RC"
+
+# --- the verdict marker: every deliberate exit writes it, nothing else -------
+# exec-bash.mjs --require-verdict (#7681) names a file in EXEC_BASH_VERDICT_FILE
+# and denies an exit 0 that left none, which is how a crashed Git Bash reads.
+# The dispatcher writes it at each deliberate exit; a crash, an abort of its own
+# code, and a --report process (whose parent answers) write none.
+VERDICT="$TEST_TMPDIR/verdict"
+verdict_seen() { if [[ -e "$VERDICT" ]]; then echo yes; else echo no; fi; }
+verdict_run() { # <label> <yes|no> <stdin> <guard>...
+  local label="$1" want="$2" input="$3" g
+  shift 3
+  local -a opts=(--hook "$1")
+  shift
+  for g in "$@"; do opts+=(--also "$g"); done
+  rm -f "$VERDICT"
+  guard_invoke --via dispatched --payload "$input" "${opts[@]}" -- "EXEC_BASH_VERDICT_FILE=$VERDICT"
+  assert_eq "verdict marker: $label" "$want" "$(verdict_seen)"
+}
+verdict_run "an allow writes it" yes "$PAYLOAD" "$TEST_TMPDIR/allow.sh"
+verdict_run "a block writes it" yes "$PAYLOAD" "$TEST_TMPDIR/block.sh"
+verdict_run "empty stdin writes it" yes "" "$TEST_TMPDIR/allow.sh"
+verdict_run "cut-short stdin writes it" yes "$CUT_PREFIX" "$TEST_TMPDIR/allow.sh"
+verdict_run "a guard's hard error the chain finishes writes it" yes "$PAYLOAD" "$TEST_TMPDIR/hard.sh" "$TEST_TMPDIR/allow.sh"
+verdict_run "a deep exit whose rest forks writes it" yes "$PAYLOAD" "$TEST_TMPDIR/deep0.sh" "$TEST_TMPDIR/allow.sh"
+verdict_run "a dispatcher killed mid-chain writes none" no "$PAYLOAD" "$TEST_TMPDIR/die.sh" "$TEST_TMPDIR/allow.sh"
+verdict_run "an abort in the dispatcher's own merge writes none" no "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/mergeabort.sh"
+assert_exit "verdict marker: with one expected, the dispatcher's own abort denies" 2 "$GUARD_RC"
+assert_contains "verdict marker: the abort line says the call is denied" "$GUARD_ERR" "fail-closed"
+rm -f "$VERDICT"
+EXEC_BASH_VERDICT_FILE="$VERDICT" bash "$DISPATCH" --report "" "$TEST_TMPDIR/allow.sh" <<<"$PAYLOAD" >/dev/null 2>&1
+assert_eq "verdict marker: a --report process writes none" no "$(verdict_seen)"
+rm -f "$VERDICT"
+EXEC_BASH_VERDICT_FILE="$VERDICT" bash "$DISPATCH" --max-substitutions 1 "$TEST_TMPDIR/allow.sh" \
+  <<<"$(jq -n '{tool_name:"Bash",tool_input:{command:"echo $(a) $(b)"}}')" >/dev/null 2>&1
+assert_exit "verdict marker: the substitution cap still blocks" 2 "$?"
+assert_eq "verdict marker: the substitution cap writes it" yes "$(verdict_seen)"
 
 # Two real guards walk the same alias chain in one process. The alias memo in
 # hook::git_alias_admit is per invocation: a memo hit means "already analyzed,
@@ -1448,6 +1491,7 @@ PARSE_BODY='bps_cb() {
 hook::buffer_stdin_to INPUT || exit 0
 hook::jq_fields "$INPUT" ".tool_input.command" || exit 0
 hook::bash_parse_segments "${HOOK_JQ_FIELDS[0]}" bps_cb
+printf "%s:HD [%s]\n" "$PARSE_LABEL" "${HOOK_HEREDOC_BODIES[*]-}" >>"'"$SEEN"'"
 exit 0'
 stub parse-a.sh "PARSE_LABEL=a; PARSE_EXIT_ON=; ${PARSE_BODY}"
 stub parse-b.sh "PARSE_LABEL=b; PARSE_EXIT_ON=; ${PARSE_BODY}"
@@ -1470,6 +1514,7 @@ assert_eq "shared parse: the first guard sees what it sees alone" "$SHARE_ALONE"
 assert_eq "shared parse: a replaying guard sees the same segments" "$SHARE_ALONE" "$(share_by_label b)"
 assert_eq "shared parse: a third guard sees the same segments" "$SHARE_ALONE" "$(share_by_label c)"
 assert_contains "shared parse: the redirections ride along" "$SHARE_ALONE" "R:>&|2|1|0|0 R:>||out.log|0|0"
+assert_contains "shared parse: the heredoc body spans ride along" "$SHARE_ALONE" "HD [86 95 0 1 EOF]"
 assert_eq "shared parse: the event's command is walked once" "1" \
   "$(grep -cxF "$SHARE_WALK" "$SEEN.walks")"
 assert_eq "shared parse: a callback's re-parse is walked per guard, never cached" "3" \

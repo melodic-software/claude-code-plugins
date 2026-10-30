@@ -332,10 +332,12 @@ const LIMITS = {
   "reset-clamp-min": 1,
   "reset-clamp-max": 168,
   "restarts-per-run": 5,
+  "readmit-per-run": 20,
   "limit-stops-per-head": 3,
   "limit-stops-per-issue": 3,
   "wip-cap": 60,
   "turn-cap-restarts": 0,
+  "stop-retries": 2,
   // The fix-ci defaults the owner chose (2026-10-18 interview).
   "fix-ci-per-run": 2,
   "fix-ci-restarts": 1,
@@ -374,7 +376,7 @@ test("limits: api passes through as set, and an unknown pool or field, or a shar
 });
 
 test("limits: an unknown key, a value that is not an integer, or one out of its range is rejected", () => {
-  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }, { "turn-cap-restarts": -1 }, { "turn-cap-restarts": 6 }, { "fix-ci-per-run": 0 }, { "fix-ci-per-run": 21 }, { "fix-ci-restarts": -1 }, { "fix-ci-restarts": 6 }, { "fix-docs-per-run": 0 }, { "fix-docs-per-run": 21 }, { "admission-window-hours": 24 }, { "admission-factor": 0 }, { "admission-factor": 1.1 }, { "admission-min-per-hour": -1 }, { "admission-min-per-hour": 101 }]) {
+  for (const limits of [{ "fallback-resets": 5 }, { "fallback-reset": 0 }, { "restarts-per-run": -1 }, { "reset-clamp-max": 1.5 }, { "limit-stops-per-head": "3" }, { "limit-stops-per-head": 11 }, { "limit-stops-per-issue": 11 }, { "restarts-per-run": 51 }, { "readmit-per-run": 0 }, { "readmit-per-run": 101 }, { "fallback-reset": 721 }, { "reset-clamp-max": 721 }, { "wip-cap": 0 }, { "wip-cap": 501 }, { "turn-cap-restarts": -1 }, { "turn-cap-restarts": 6 }, { "stop-retries": -1 }, { "stop-retries": 6 }, { "fix-ci-per-run": 0 }, { "fix-ci-per-run": 21 }, { "fix-ci-restarts": -1 }, { "fix-ci-restarts": 6 }, { "fix-docs-per-run": 0 }, { "fix-docs-per-run": 21 }, { "admission-window-hours": 24 }, { "admission-factor": 0 }, { "admission-factor": 1.1 }, { "admission-min-per-hour": -1 }, { "admission-min-per-hour": 101 }]) {
     const config = edited((doc) => {
       doc.limits = limits;
     });
@@ -1734,6 +1736,13 @@ for (const [why, edit] of [
   });
 }
 
+const TIDY = {
+  entry: "code-tidying:tidy-diff",
+  passes: ["ai-slop:audit"],
+  "turn-share": 25,
+  cutoffs: { "max-files": 10, "max-lines": 300, "max-areas": 1, "shared-paths": [".github/"] },
+};
+
 // Only the runner that stages a skill's edit tools grants these, and the read
 // runner does so only for applied-by.patch without ci-context.
 for (const [key, value] of [
@@ -1741,6 +1750,7 @@ for (const [key, value] of [
   ["self-checks", ["scripts/check-x.sh"]],
   ["verify-scripts", ["scripts/check-x.sh"]],
   ["web-access", { enabled: true, domains: "any" }],
+  ["tidy", TIDY],
 ]) {
   test(`${key} on a read skill that hands on a patch resolves and is carried`, () => {
     const config = appliedByEdit((doc) => {
@@ -1754,6 +1764,16 @@ for (const [key, value] of [
     assertRejected(() => unblock(appliedByEdit((doc) => (doc.activities["fix-ci"][key] = value))), "invalid-config");
   });
 }
+
+// Only the launcher's no-prepare patch skill stages tidy, so a patch skill
+// with a prepare mode cannot ask for it.
+test("tidy on a read skill that hands on a patch with a prepare mode fails the schema", () => {
+  const config = appliedByEdit((doc) => {
+    doc.activities["fix-ci"].prepare = "merge-base";
+    doc.activities["fix-ci"].tidy = TIDY;
+  });
+  assertRejected(() => unblock(config), "invalid-config");
+});
 
 test("applied-by-supported: an applying leaf fails on a key its runner does not name", () => {
   const selected = unblock(APPLIED_BY);
@@ -1789,12 +1809,13 @@ const PATCH_RULES = JSON.parse(read("./patch-rules.json"));
 const PATCH_RULES_SCHEMA = JSON.parse(read("./patch-rules.schema.json"));
 const patchRules = (name) => JSON.parse(fixture(name));
 
-test("patch rules: the shipped registry passes, with a row for each prepare mode and the default and issue targets", () => {
+test("patch rules: the shipped registry passes, with a row for each prepare mode, the docs row and the default and issue targets", () => {
   assert.equal(checkPatchRules(PATCH_RULES, PATCH_RULES_SCHEMA), PATCH_RULES);
   assert.deepEqual(Object.keys(PATCH_RULES).sort(), [
     "ci-context",
     "default",
     "dependency-review",
+    "docs",
     "issue",
     "merge-base",
     "review-threads",
@@ -1823,6 +1844,14 @@ for (const [name, why, message] of [
   });
 }
 
+test("patch rules: a row that does not refuse lane-grants is rejected, so no lane patch can change the central grants (ADR 0085 Decision 6)", () => {
+  const refuse = PATCH_RULES.default.refuse.filter((name) => name !== "lane-grants");
+  assert.throws(
+    () => checkPatchRules({ ...PATCH_RULES, default: { ...PATCH_RULES.default, refuse } }, PATCH_RULES_SCHEMA),
+    (error) => error instanceof Rejection && error.code === "patch-rules" && /row `default` does not refuse lane-grants$/.test(error.message),
+  );
+});
+
 test("patch rules: a missing registry or schema is rejected", () => {
   assertRejected(() => checkPatchRules(undefined, PATCH_RULES_SCHEMA), "patch-rules");
   assertRejected(() => checkPatchRules(PATCH_RULES, undefined), "patch-rules");
@@ -1847,4 +1876,32 @@ test("patch rules: a patch producer whose prepare mode has no row is rejected; o
     "patch-rules",
   );
   assert.doesNotThrow(() => checkPatchRules(withoutCiContext, PATCH_RULES_SCHEMA, { "fix-docs": producer }));
+});
+
+test("review-threads: reviewer-ids resolves to the listed ids, none when absent, and only integer ids pass the schema", () => {
+  assert.deepEqual(run(fixture("valid.yaml"), { activity: "run-tests" })["review-threads"], { "reviewer-ids": [] });
+  const listed = edited((doc) => {
+    doc["review-threads"] = { "reviewer-ids": [199175422] };
+  });
+  assert.deepEqual(run(listed, { activity: "run-tests" })["review-threads"], { "reviewer-ids": [199175422] });
+  for (const bad of [["chatgpt-codex-connector[bot]"], [0], [199175422, 199175422]]) {
+    const config = edited((doc) => {
+      doc["review-threads"] = { "reviewer-ids": bad };
+    });
+    assertRejected(() => run(config, { activity: "run-tests" }), "invalid-config");
+  }
+});
+
+test("review-threads: the broker's resolveGrant returns the same effect and grant with or without reviewer-ids", () => {
+  const listed = edited((doc) => {
+    doc["review-threads"] = { "reviewer-ids": [199175422] };
+  });
+  for (const options of [{ activity: "run-tests" }, { lane: "pr-refine", activity: "fix-prose" }]) {
+    assert.deepEqual(grantOf(listed, options), grantOf(fixture("valid.yaml"), options));
+  }
+});
+
+test("review-threads: the live config lists Codex's account id", () => {
+  const live = parse(read("../../../docs/conventions/pr-pipeline.yaml"));
+  assert.ok(live["review-threads"]["reviewer-ids"].includes(199175422));
 });

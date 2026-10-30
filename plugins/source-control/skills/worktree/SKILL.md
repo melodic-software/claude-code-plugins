@@ -27,9 +27,11 @@ there is anything to decide about. Treat a failure (not a repository, git unavai
 value and carry on. Keep these as separate body calls rather than pre-compute: the harness composes
 a pre-computed block into one shell invocation, and a worktree-isolated agent refuses a git-bearing
 compound command, which would make this skill uninvocable from inside a worktree. The dated record
-for the composition half is
-[reference/gather-block.md](reference/gather-block.md), "The pre-compute block runs as one shell
-invocation".
+for the composition half is the
+[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
+"The pre-compute block runs as one shell invocation". The Bash shapes an isolated session accepts at
+body time and in subagents are recorded in [reference/gather-block.md](reference/gather-block.md),
+"Accepted command shapes for body-time and subagent Bash".
 
 That refusal is documented behavior, not a quirk of one release, so the constraint is durable. Per
 [worktrees](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) (fetched
@@ -81,7 +83,7 @@ This skill is self-contained, every action runs on plain `git`, plus the forge C
 
 Detect current state and guide user to the right action.
 
-1. **Check git repo**: `git rev-parse --is-inside-work-tree`. If not in a repo → "Not in a git repository. `status` and `audit` still work here."
+1. **Check git repo**: `git rev-parse --is-inside-work-tree`. If not in a repo → "Not in a git repository. `status`, `cleanup` and `audit` still work here, across repositories."
 
 2. **Detect current branch**: `git rev-parse --abbrev-ref HEAD`
 
@@ -245,7 +247,7 @@ This skill complements other workflow components. It does not duplicate their lo
 ## Graceful Degradation
 
 - **Forge CLI unavailable or fails**: `status` and `cleanup` work with git-only data. PR cross-reference and the delete-branch-on-merge check are skipped with note: "Forge API unavailable. PR status unknown."
-- **Not in a git repo**: `status` and `audit` run across repositories: `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-discover.sh` resolves the worktree roots, discovers repositories and maps each worktree to its owner ([context/status.md](context/status.md#outside-a-repository-cross-repository-mode)). Pass it `--project-dir "${CLAUDE_PROJECT_DIR}"`, the resolved path, so a project-scoped fleet config is read. `cleanup` reports candidates grouped by owning repository and removes nothing; run it from that repository to act. `create` exits with "Not in a git repository."
+- **Not in a git repo**: `status` and `audit` run across repositories: `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-discover.sh` resolves the worktree roots, discovers repositories and maps each worktree to its owner ([context/status.md](context/status.md#outside-a-repository-cross-repository-mode)). Pass it `--project-dir "${CLAUDE_PROJECT_DIR}"`, the resolved path, so a project-scoped fleet config is read. `cleanup` shows candidates grouped by owning repository behind one confirm and removes each through `git -C <owning-repo>` with every guard unchanged ([context/cleanup.md](context/cleanup.md#outside-a-repository-across-repositories)). `create` exits with "Not in a git repository."
 - **`worktree_stale_days` invalid or unexpanded**: Falls back to 14-day default silently (treat a literal `${user_config.worktree_stale_days}` token as unset).
 - **`worktree_reap_after_hours` invalid or unexpanded**: Falls back to 48 hours silently (treat a literal `${user_config.worktree_reap_after_hours}` token as unset).
 - **No worktrees exist**: `status` reports "No linked worktrees found." `cleanup` reports "Nothing to clean up."

@@ -15,7 +15,8 @@ No secret travels on this command line: the control token and the owner token co
   `<img>` or a frame sends no header.
 - Control listener (`--control-port`): session_bridge's `LoopbackHandler` with NAME `shared`
   (token header `X-Shared-Token`), for `share.sh`, `watch.sh` and `wake.sh` only, never tunneled.
-  It adds `POST /api/ops` (Claude's ops) and `GET /api/status`.
+  It adds `POST /api/ops` (Claude's ops), `GET /api/status` and `POST /api/shutdown`, which
+  `share.sh stop` asks first so the server's own shutdown runs on every OS.
 
 The domain rules live in session.py; this file routes, authenticates, caps and renders. It also
 watches the tunnel (tunnel.py): when its process exits it starts a new one, allows the new host and
@@ -764,6 +765,9 @@ class ControlHandler(session_bridge.LoopbackHandler):
             return self.send(200, {"ok": problem is None, **({"error": problem} if problem else {})})
         if path == "/api/live/stop":
             return self.stop_lives(msg)
+        if path == "/api/shutdown":  # share.py stop: the exit SIGTERM starts, which Windows' TerminateProcess skips
+            self.send(200, {"ok": True})  # answered before the shutdown starts, so share.py reads it
+            return app.quit.set()
         if path != "/api/ops":
             return self.send(404, {"error": "not found"})
         try:
@@ -1284,6 +1288,7 @@ class App:
         self._backoff = 2.0
         self._last_sync = 0.0
         self._stop = threading.Event()
+        self.quit = threading.Event()  # main() runs shutdown() once it is set: SIGTERM or POST /api/shutdown
         self._chunk_lock, self._chunk_readers = threading.Lock(), set()
         self._probe_lock, self._probes = threading.Lock(), {}  # nonce asked -> (answer, expiry)
         self.live_starter = LIVE_STARTER
@@ -1521,7 +1526,7 @@ class App:
                 self.tunnel_up = False
                 return
             try:
-                live = tunnel.ensure(self.dir, self.guest_port, *tunnel.config(rec))  # a named tunnel comes back at its address
+                live = self.restart_tunnel(rec, live)
                 self._backoff = 2.0
                 self.log.info("tunnel started: %s", live["url"])
             except (tunnel.TunnelDown, TimeoutError) as exc:
@@ -1537,6 +1542,32 @@ class App:
             self.tunnel_host = tunnel.host(url)
             if self.session.set_share(url):
                 self.changed()
+
+    def restart_tunnel(self, rec, live):
+        """Bring back the recorded tunnel to the guest port. A named one comes back at its address only through the same
+        lease and route as `share.py ensure-running`: another machine that took the link meanwhile, for certain, gets a
+        quick tunnel started here instead (guests on the named link then reach that machine, and no page there can learn
+        this session's new link); an uncertain answer raises TunnelDown, so the watch retries after its backoff."""
+        hostname, token_file = tunnel.config(rec)
+        api_file = rec.get("apiTokenFile") or ""
+        if hostname:
+            own = live if live and tunnel.config(live)[0] == hostname else None
+            why, sure = share_cli.lease(hostname, token_file, api_file, self.guest_port, own, rec)
+            if why and not sure:
+                raise tunnel.TunnelDown(f"named tunnel {hostname} not restarted: {why}")
+            if why:
+                self.log.warning("named tunnel %s: %s; a quick tunnel serves this session instead", hostname, loggable(why))
+                return tunnel.ensure(self.dir, self.guest_port)
+        live = tunnel.ensure(self.dir, self.guest_port, hostname, token_file, fields={"apiTokenFile": api_file} if hostname else None)
+        if hostname and api_file:
+            why, sure = share_cli.confirm(hostname, token_file, api_file, self.guest_port, live, rec)
+            if why:
+                if not sure:
+                    detached.stop(live["pid"], live["marker"], live["processStart"])  # the record stays, so the watch retries
+                    raise tunnel.TunnelDown(f"named tunnel {hostname} stopped: {why}")
+                self.log.warning("named tunnel %s: %s; a quick tunnel serves this session instead", hostname, loggable(why))
+                return tunnel.fall_back(self.dir, self.guest_port)
+        return live
 
     def watch_lives(self):
         """Once a second, the live starter's own watch (QuickTunnelStarter.watch), apart from the tunnel's: a restart
@@ -1612,11 +1643,10 @@ def main(argv=None):
         print(f"cannot start: {exc}", file=sys.stderr)
         return 2
     app.serve()
-    done = threading.Event()
     with contextlib.suppress(ValueError):  # signals only reach the main thread
-        signal.signal(signal.SIGTERM, lambda *_: done.set())
+        signal.signal(signal.SIGTERM, lambda *_: app.quit.set())
     try:
-        while not done.wait(1.0):
+        while not app.quit.wait(1.0):
             pass
     except KeyboardInterrupt:
         pass

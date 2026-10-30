@@ -21,8 +21,7 @@
 
 Every record below is our decision, resting on a pointer to an official-docs section or on our own
 probe on a real machine, never on training data, and stores no upstream text. Last re-verified
-2026-09-05 against
-plugins-reference and discover-plugins (both since split: the
+2026-09-05 against the plugin reference and plugin discovery pages (both since split: the
 [plugin manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference), [plugin commands reference](https://code.claude.com/docs/en/plugins/cli-reference),
 [plugin loading reference](https://code.claude.com/docs/en/plugins/loading) and [Install and manage plugins](https://code.claude.com/docs/en/plugins/install) now hold their content),
 plugin-marketplaces (since split into the
@@ -181,7 +180,7 @@ Step 4 and `sync.md` Step 2 and the `currentProject` filter in `sync-run.sh`.
 
 **A lagging record in a linked worktree is labeled, counted, and cleared by `uninstall`, never
 trusted to `update`.** `fleet-state.sh` marks each project/local record `linkedWorktree` and labels a
-lagging one `update ineffective; uninstall clears it`; the row stays a divergence, and any update the
+lagging one `update ineffective, uninstall clears it`; the row stays a divergence, and any update the
 run does make is verified by re-reading the record ([converge.md](converge.md) Step 4). `uninstall`
 clears it and edits that worktree's tracked settings file ([converge.md](converge.md) Step 5).
 **Record**: pointer, the update-strategy results of the 2026-10-12 converge run in

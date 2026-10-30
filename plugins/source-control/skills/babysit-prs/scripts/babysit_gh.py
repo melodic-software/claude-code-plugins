@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import atexit
 import contextlib
+import io
 import json
 import math
 import os
@@ -13,12 +14,14 @@ import re
 import subprocess
 import sys
 import time
+import zipfile
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, cast, overload
 from urllib.parse import quote, unquote, urlparse
 
+import babysit_run_cache as run_cache
 from babysit_util import (
     DEFAULT_COMMAND_TIMEOUT_SECONDS,
     dig,
@@ -1013,6 +1016,23 @@ def gh_capture(
     )
 
 
+def gh_api_with_headers(
+    args: list[str],
+    *,
+    timeout_seconds: float | None = None,
+    env_overrides: Mapping[str, str] | None = None,
+) -> tuple[subprocess.CompletedProcess[str], dict[str, str]]:
+    """One `gh api` request, as `gh_capture` sends it, and its response
+    headers by lowercase name (none for a call `_includes_headers` sends
+    without -i)."""
+    return _send(
+        args,
+        timeout_seconds=timeout_seconds,
+        env_overrides=env_overrides,
+        binary=False,
+    )
+
+
 def gh_json(args: list[str], env_overrides: Mapping[str, str] | None = None) -> Any:
     text = _run_gh(
         args, timeout_seconds=None, check=True, env_overrides=env_overrides
@@ -1470,10 +1490,13 @@ def discover_prs(
 def fetch_pull_request_author(repo: str, number: int) -> str:
     """The PR author's login from `gh pr view --json author`."""
     repo = repo.casefold()
-    author = gh_json(["pr", "view", str(number), "--repo", repo, "--json", "author"])
-    if not is_json_object(author):
+    payload = gh_json(["pr", "view", str(number), "--repo", repo, "--json", "author"])
+    author = payload.get("author") if is_json_object(payload) else None
+    login = author.get("login") if is_json_object(author) else None
+    if not isinstance(login, str) or not login:
+        # Fail closed: an unread author cannot be shown not to be a self login.
         raise RuntimeError(f"Unexpected gh pr view author for {repo}#{number}")
-    return str(author.get("login") or "")
+    return login
 
 
 def view_pr_fields(
@@ -2133,7 +2156,8 @@ def fetch_review_threads(
     ({__typename login}, or None when open or the resolver is unknown),
     `originalStartLine` and `originalLine` (the commented range), `comments`
     (each with author{__typename login}, body, path, url, createdAt, updatedAt,
-    databaseId, diffHunk, originalCommit{oid}), `comments_total_count`, and `comments_truncated`. Resolved
+    databaseId, lastEditedAt, editor{__typename login}, diffHunk,
+    originalCommit{oid}), `comments_total_count`, and `comments_truncated`. Resolved
     threads are dropped unless `include_resolved`. `projection` maps each
     record to the caller's shape inside the loop.
     """
@@ -2149,6 +2173,7 @@ def fetch_review_threads(
         f"comments(first:{comments_first})"
         "{totalCount pageInfo{hasNextPage} "
         "nodes{author{__typename login} body path url createdAt updatedAt databaseId "
+        "lastEditedAt editor{__typename login} "
         "diffHunk originalCommit{oid}}}}}}}}"
     )
     threads: list[Any] = []
@@ -2260,6 +2285,292 @@ def fetch_review_threads(
     return threads
 
 
+# A completed lane run's attempts, saved in the pr-merge run cache
+# (babysit_run_cache.py) by run, attempt and lane, and carried to the next
+# run by .github/scripts/pr-merge/carry-run-cache.mjs, which bounds them and
+# checks the same key and format.
+LANE_RUN_SECTION = "lane-run"
+CARRIED_LANE_RUN_SECTION = "carried-lane-run"
+LANE_RUN_FORMAT = "v1"
+# What `babysit_review_evidence.bind()` reads of an attempt, a job and an
+# annotation; a saved attempt keeps only these. A change to what bind() reads
+# changes LANE_RUN_FORMAT, so no record saved without the new field is used.
+LANE_ATTEMPT_FIELDS = (
+    "id",
+    "run_attempt",
+    "status",
+    "conclusion",
+    "head_sha",
+    "run_started_at",
+)
+LANE_JOB_FIELDS = (
+    "id",
+    "name",
+    "conclusion",
+    "head_sha",
+    "run_id",
+    "run_attempt",
+    "started_at",
+    "completed_at",
+)
+LANE_ANNOTATION_FIELDS = ("annotation_level", "title", "message")
+
+
+def _pick(record: Mapping[str, Any], fields: Iterable[str]) -> dict[str, Any]:
+    return {k: record[k] for k in fields if k in record}
+
+
+def _slim_job(job: Mapping[str, Any]) -> dict[str, Any]:
+    out = _pick(job, LANE_JOB_FIELDS)
+    if "annotations" in job:
+        out["annotations"] = [
+            _pick(a, LANE_ANNOTATION_FIELDS) if isinstance(a, Mapping) else a
+            for a in job["annotations"]
+        ]
+    return out
+
+
+def lane_run_key(repo: str, run_id: int, attempt: int, job_suffix: str) -> str:
+    return f"{repo}|{run_id}|{attempt}|{job_suffix}|{LANE_RUN_FORMAT}"
+
+
+def lane_run_value(latest: Mapping[str, Any], attempts: list[dict[str, Any]]) -> Any:
+    """What a completed run's attempts are saved as: each attempt with only
+    the fields bind() reads, and the latest attempt's `updated_at`."""
+    return {
+        "updated_at": latest.get("updated_at"),
+        "attempts": [
+            {
+                **_pick(a, LANE_ATTEMPT_FIELDS),
+                "jobs": [_slim_job(j) for j in a["jobs"]],
+            }
+            for a in attempts
+        ],
+    }
+
+
+def carried_lane_attempts(
+    item: Mapping[str, Any], value: Any
+) -> list[dict[str, Any]] | None:
+    """The attempts a saved `value` holds for the listed run `item`, or None
+    when it does not match what the listing shows now: the run completed at
+    the attempt saved, with the same `updated_at` and the same fields bind()
+    reads of its latest attempt, which is the listing's record itself, and
+    every saved job names this run, its attempt and the listed head."""
+    run_id = item.get("id")
+    count = item.get("run_attempt")
+    if (
+        item.get("status") != "completed"
+        or not isinstance(count, int)
+        or isinstance(count, bool)
+        or not isinstance(value, dict)
+        or not isinstance(item.get("updated_at"), str)
+        or value.get("updated_at") != item.get("updated_at")
+    ):
+        return None
+    attempts = value.get("attempts")
+    if not isinstance(attempts, list) or len(attempts) != count:
+        return None
+    for n, attempt in enumerate(attempts, 1):
+        if (
+            not isinstance(attempt, dict)
+            or attempt.get("id") != run_id
+            or attempt.get("run_attempt") != n
+            or not isinstance(attempt.get("jobs"), list)
+            or not all(
+                isinstance(job, dict)
+                and job.get("run_id") == run_id
+                and job.get("run_attempt") == n
+                and job.get("head_sha") == item.get("head_sha")
+                for job in attempt["jobs"]
+            )
+        ):
+            return None
+    latest = attempts[-1]
+    if any(
+        (k in latest) != (k in item) or latest.get(k) != item.get(k)
+        for k in LANE_ATTEMPT_FIELDS
+    ):
+        return None
+    return [*attempts[:-1], {**item, "jobs": latest["jobs"]}]
+
+
+def collect_main_reviews(
+    repo: str,
+    names: Mapping[str, str],
+    workflow_path: str,
+    branch: str,
+    env_overrides: Mapping[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """The `main_reviews` input of `babysit_review_evidence.bind()`: for each
+    lane in `names`, every artifact listed under its exact name
+    (`main_review_name`), with its run record, whether `branch` holds that
+    run's head (a compare read), and its `verdict.json`. An artifact whose
+    run is not `workflow_path` on a `workflow_run` event on `branch` is
+    skipped before any download: it cannot count, and a pull request's own
+    workflow can upload one under any name. bind() judges every field of
+    what is kept. Any failed read raises `RuntimeError`, which the caller
+    turns into unbound evidence."""
+    env = env_overrides
+
+    def read(path: str, binary: bool = False) -> Any:
+        if binary:
+            return _run_gh(
+                ["api", path],
+                timeout_seconds=None,
+                check=True,
+                env_overrides=env,
+                binary=True,
+            ).stdout
+        return gh_json(["api", path], env) if env else gh_json(["api", path])
+
+    records: list[dict[str, Any]] = []
+    on_branch: dict[str, bool] = {}
+    for lane, name in names.items():
+        listing = fetch_paginated_api(
+            f"repos/{repo}/actions/artifacts?name={quote(name, safe='')}&per_page=100",
+            f"{name} artifacts",
+            items_key="artifacts",
+            env_overrides=env,
+        )
+        for artifact in listing:
+            if artifact.get("name") != name or artifact.get("expired") is True:
+                continue
+            run_id = json_object(artifact.get("workflow_run")).get("id")
+            if not isinstance(run_id, int) or isinstance(run_id, bool):
+                continue
+            run = json_object(read(f"repos/{repo}/actions/runs/{run_id}"))
+            if (
+                run.get("path") != workflow_path
+                or run.get("event") != "workflow_run"
+                or run.get("head_branch") != branch
+            ):
+                continue
+            head = run.get("head_sha")
+            if not isinstance(head, str) or not re.fullmatch(r"[0-9a-f]{40}", head):
+                continue
+            if head not in on_branch:
+                compare = json_object(
+                    read(f"repos/{repo}/compare/{head}...{quote(branch, safe='')}")
+                )
+                on_branch[head] = compare.get("status") in ("ahead", "identical")
+            raw = read(f"repos/{repo}/actions/artifacts/{artifact.get('id')}/zip", True)
+            try:
+                with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                    verdict = json.loads(archive.read("verdict.json").decode("utf-8"))
+            except Exception as exc:  # noqa: BLE001 - zip, zlib or JSON: unread
+                raise RuntimeError(
+                    f"{name} artifact {artifact.get('id')}: {exc}"
+                ) from exc
+            records.append(
+                {
+                    "lane": lane,
+                    "artifact": artifact,
+                    "run": run,
+                    "on_branch": on_branch[head],
+                    "verdict": verdict,
+                }
+            )
+    return records
+
+
+# The check run pr-review-main.yml's record job posts per lane on each head it
+# reviewed, titled with its counts, or with the designed stop that left that
+# head without a verdict (a diff the review cannot read whole).
+MAIN_REVIEW_CHECK_TITLE = re.compile(r"findings=(\d{1,6}) critical=(\d{1,6})")
+MAIN_REVIEW_STOP_TITLE = re.compile(r"verdict=none reason=(too-large|binary|long-line)")
+
+# One record: (findings, CRITICAL), ("stop", reason), or None when unread.
+MainReviewRecord = tuple[int, int] | tuple[str, str] | None
+
+
+def main_review_stop(record: MainReviewRecord) -> str | None:
+    """The stop reason a record carries, or None for any other record."""
+    if isinstance(record, tuple) and len(record) == 2 and record[0] == "stop":
+        return str(record[1])
+    return None
+
+
+def collect_main_review_counts(
+    repo: str,
+    shas: Mapping[str, Iterable[str]],
+    names: Mapping[str, str],
+    env_overrides: Mapping[str, str] | None = None,
+) -> dict[str, dict[str, list[MainReviewRecord]]]:
+    """Per head SHA and lane, the records of every check run named
+    `names[lane]` on that head, read only on the heads `shas[lane]` lists:
+    (findings, CRITICAL) for a counts title, ("stop", reason) for a designed
+    stop's title, None for a title that does not read, counting only runs the
+    github-actions app posted. `filter=all` reads every run of the name, since
+    the default returns only the latest, which a re-run or a forged clean
+    record would replace. A failed read raises `RuntimeError`."""
+    found: dict[str, dict[str, list[MainReviewRecord]]] = {}
+    for lane, name in names.items():
+        for sha in dict.fromkeys(shas.get(lane, ())):
+            if not re.fullmatch(r"[0-9a-f]{40}", str(sha)):
+                raise RuntimeError(f"a pull request head is not a SHA: {sha!r}")
+            runs = fetch_paginated_api(
+                f"repos/{repo}/commits/{sha}/check-runs"
+                f"?check_name={quote(name, safe='')}&filter=all&per_page=100",
+                f"{name} on {sha[:12]}",
+                items_key="check_runs",
+                env_overrides=env_overrides,
+            )
+            counts: list[MainReviewRecord] = []
+            for check in runs:
+                # Only the record job's own token posts as github-actions.
+                app = json_object(check.get("app")).get("slug")
+                if check.get("name") != name or app != "github-actions":
+                    continue
+                title = str(json_object(check.get("output")).get("title") or "")
+                if match := MAIN_REVIEW_CHECK_TITLE.fullmatch(title):
+                    counts.append((int(match[1]), int(match[2])))
+                elif match := MAIN_REVIEW_STOP_TITLE.fullmatch(title):
+                    counts.append(("stop", match[1]))
+                else:
+                    counts.append(None)
+            found.setdefault(sha, {})[lane] = counts
+    return found
+
+
+def main_review_critical(
+    counts: Mapping[str, Mapping[str, list[MainReviewRecord]]],
+    names: Iterable[str],
+) -> dict[str, int]:
+    """Per lane, the most CRITICAL findings any head's record carries; a
+    record whose title did not read counts one, so a doubtful record holds
+    rather than clears. A designed stop carries no verdict and counts none."""
+    found = dict.fromkeys(names, 0)
+    for by_lane in counts.values():
+        for lane in found:
+            for each in by_lane.get(lane, ()):
+                if each is None:
+                    found[lane] = max(found[lane], 1)
+                elif main_review_stop(each) is None:
+                    found[lane] = max(found[lane], int(each[1]))
+    return found
+
+
+def collect_main_review_critical(
+    repo: str,
+    shas: Iterable[str],
+    names: Mapping[str, str],
+    env_overrides: Mapping[str, str] | None = None,
+) -> dict[str, int]:
+    """Per lane, the most CRITICAL findings any check run named `names[lane]`
+    records on one of `shas` (every head of the pull request). The checks API
+    has no delete, so a count recorded once stays readable after its verdict
+    artifact expires or is deleted (`collect_main_review_counts`). A failed
+    read raises `RuntimeError`."""
+    heads = list(shas)
+    return main_review_critical(
+        collect_main_review_counts(
+            repo, {lane: heads for lane in names}, names, env_overrides
+        ),
+        names,
+    )
+
+
 def collect_lane_runs(
     repo: str,
     number: int,
@@ -2277,16 +2588,30 @@ def collect_lane_runs(
     creation time, bounds the listing to runs created since: GitHub labels a
     reused branch's older runs with whichever pull request is open on it now,
     so without the bound a long-lived branch reads every earlier pull
-    request's runs. A value that is not a UTC timestamp leaves it unbounded. Each kept run's attempt count comes
-    from a fresh `GET actions/runs/{id}` taken after the listing, and that
-    response stands in for its latest attempt, so only earlier attempts are
-    read from `attempts/{n}`; each attempt
+    request's runs. A value that is not a UTC timestamp leaves it unbounded.
+    A run the listing shows completed is taken from the run cache when an
+    earlier pr-merge run saved its attempts (`CARRIED_LANE_RUN_SECTION`,
+    which carry-run-cache.mjs checks and bounds; `carried_lane_attempts`: the same
+    attempt, `updated_at` and latest-attempt fields as the listing shows now);
+    the listing's record stands in for its latest attempt. Any other kept
+    run's attempt count comes from a fresh `GET actions/runs/{id}` taken after
+    the listing, and that response stands in for its latest attempt, so only
+    earlier attempts are read from `attempts/{n}`; each attempt
     carries its jobs, and each lane job its check run's annotations, as does
-    the succeeded `kill-switch` job of an attempt with no lane job. Any read
+    the succeeded `kill-switch` job of an attempt with no lane job. A run read
+    so whose latest attempt completed is saved for the next read. Any read
     failure, a deleted or expired run included, raises `RuntimeError`, which
     the caller turns into unbound evidence; so does a listing that reached
     RUN_SEARCH_CAP, which may be missing runs. `env_overrides` applies to
     every read, all of them GETs.
+
+    A completed attempt's record, jobs and annotations do not change, so a
+    saved one decides as a fresh read would. The run cache saves them only
+    within one pr-merge run; carry-run-cache.mjs carries them to the next only
+    from a scheduled or hand-started run of main's pr-merge.yml whose head is
+    on main, so writing a carried entry needs code running in that run, which
+    already holds the lanes App token. A carried entry the listing does not
+    match, or that is malformed, is read again from GitHub.
     """
     env = env_overrides
 
@@ -2333,6 +2658,21 @@ def collect_lane_runs(
             run_id = item.get("id")
             if not isinstance(run_id, int) or isinstance(run_id, bool):
                 raise RuntimeError(f"{workflow} run without an id")
+            listed = item.get("run_attempt")
+            if item.get("status") == "completed" and isinstance(listed, int):
+                # Only the section carry-run-cache.mjs checked and bounded:
+                # a lane-run section the run cache starts with is never read.
+                saved = carried_lane_attempts(
+                    item,
+                    run_cache.get(
+                        CARRIED_LANE_RUN_SECTION,
+                        lane_run_key(repo, run_id, listed, job_suffix),
+                        None,
+                    ),
+                )
+                if saved is not None:
+                    runs.append({**item, "attempts": saved})
+                    continue
             latest = json_object(read(f"repos/{repo}/actions/runs/{run_id}"))
             count = latest.get("run_attempt")
             if not isinstance(count, int) or isinstance(count, bool) or count < 1:
@@ -2363,6 +2703,12 @@ def collect_lane_runs(
                             f"job {job.get('id')} annotations",
                         )
                 attempts.append({**attempt, "jobs": jobs})
+            if latest.get("status") == "completed":
+                run_cache.put(
+                    LANE_RUN_SECTION,
+                    lane_run_key(repo, run_id, count, job_suffix),
+                    lane_run_value(latest, attempts),
+                )
             runs.append({**item, "attempts": attempts})
     return runs
 

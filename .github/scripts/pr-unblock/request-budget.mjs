@@ -28,7 +28,7 @@
 // answer reaches the above; serverFailure tells a caller it still failed.
 
 import { retryServerErrors } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { rateLimitLatch, resetLabel, SIGNALS } from "../../actions/log-api-budget/rate-guard.mjs";
+import { countsRequests, rateLimitLatch, resetLabel, SIGNALS } from "../../actions/log-api-budget/rate-guard.mjs";
 
 export function budgetedFetch({
   fetch: rawFetch = globalThis.fetch,
@@ -125,7 +125,9 @@ export function budgetedFetch({
     return [`api-calls rest=${counts.rest} not-modified=${counts.notModified} graphql=${counts.graphql}`, ...readings].join(" ");
   }
 
-  return { fetch: wrapped, counts, summary };
+  // retryServerErrors counts each attempt, so a factory handed this fetch
+  // counts nothing more (countRequests).
+  return { fetch: countsRequests(wrapped), counts, summary };
 }
 
 // Whether a thrown read error is a GitHub 5xx that outlasted retryServerErrors:

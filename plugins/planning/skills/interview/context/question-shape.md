@@ -19,26 +19,27 @@ SKILL.md "Spoke paths" defines.
 | Field | Holds |
 |---|---|
 | `id` | the ledger's `Q<N>`: one counter per topic, across rounds, lanes and sessions |
-| `text` | the question, worded so "yes" accepts the recommendation |
+| `text` | the question |
 | `short` | a label of at most 80 characters for lists |
 | `scope` | the view, screen or artifact the question is about ([Scope](#scope)) |
 | `context` | what drives the decision ([Context](#context)) |
 | `recommendation` | the one recommended answer, or the `Withheld:` text |
-| `basis` | opens `Checked against:` (see [Plain names](#plain-names)), then the `Basis:` label and the reasoning |
+| `basis` | opens `Checked against:` (see [Plain names](#plain-names)), then the basis |
 | `alternatives` | `{key, text, tradeoff}`, keys `a` to `d`; none restates the recommendation |
 | `dependsOn` | earlier question ids only |
 
-The rules in SKILL.md's Stance apply in every lane: one verdict marker, a `Basis:` on every
-recommendation, a withheld question asked open, `Commits you to:` parts listed, yes accepting the
-recommendation.
+The basis, the withheld question, wording so yes accepts, the one verdict marker and the
+`Commits you to:` parts: SKILL.md's Stance states these for every lane, in "Recommended answers"
+(the first three), "One verdict marker, at most one context line" and "A recommendation that fixes
+more than one decision lists every part".
 
 ## Per lane
 
 | Lane | Where each field goes |
 |---|---|
-| terminal | SKILL.md's per-question template: `Q<N>:` is `text`, the context line and `Source:` block are `context`, `My recommendation:`, `Basis:` and `Checked against:` are `recommendation` and `basis`, `Alternatives to consider:` lists `alternatives` |
+| terminal | SKILL.md's per-question template: `Q<N>:` is `text`, the context line and `Source:` block are `context`, `My recommendation:`, `Basis:`, `Inference:` and `Checked against:` are `recommendation` and `basis`, `Alternatives to consider:` lists `alternatives` |
 | page | the round file fields in [`surface.md`](surface.md): `title` is `text`, `facts` carries the `Checked against:` line, then `context`, then any `Source:` block; `commits` holds the `Commits you to:` parts; at least two alternatives |
-| shared | the fields above as written, plus `purpose`, `format`, `answerScope` and `references` ([`lane-shared.md`](lane-shared.md)); `scope` is required, and two or three alternatives |
+| shared | the fields above as written, plus `purpose`, `format`, `answerScope` and `references` ([`lane-shared.md`](lane-shared.md)); two or three alternatives |
 
 ## Context
 

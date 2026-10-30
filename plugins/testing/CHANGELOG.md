@@ -3,6 +3,132 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.1] - 2026-10-29
+
+### Fixed
+
+- **`resolve-config.sh` and the `test-scan` hook no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). The resolver finds an unknown adapter's line through process substitution, so under `set -o pipefail` a found line can no longer come back as a failure, which left the error without its file and line, when `grep -m1` exits before `sed` finishes writing. The hook's config-error lookup takes the same form; its captured text was already correct.
+
+## [1.6.0] - 2026-10-29
+
+### Changed
+
+- **`/testing:audit --judge` gives tests of one shape one verdict** ([#11009](https://github.com/melodic-software/claude-code-plugins/issues/11009)). Before dispatching, the judge pass computes a shape key for every block with the new `skills/audit/scripts/judge-check.sh shape`. Blocks with the same key have the same body apart from the test's name, the same lines around them in their file, and the same judge class and effort. The judge sees only the first block of each key, and the others take its verdict, reported as `same shape as <path>:<start> <name>`. Before, each file got its own judge run, so identical tests could come back FLAG in one file and PASS in another.
+- **A comment-only repair is now caught by a script.** The judge pass runs `judge-check.sh comment-only` on each FLAG's proposed diff. When every line the diff adds or removes is blank or a comment, the verdict turns UNKNOWN. This check used to be the orchestrator's own reading of the diff. It applies the comment syntax of the scanner adapters' languages, from the same `judge-lib.sh` function the calibration harness uses.
+
+## [1.5.0] - 2026-10-29
+
+### Added
+
+- **`/testing:cleanup` offers cannot-fail-only mode when the mutation run cannot gate the folder** ([#11005](https://github.com/melodic-software/claude-code-plugins/issues/11005)). Step 3 used to stop the batch when `/mutation-testing:audit` recorded `K0 empty` or ended as `no mapping: scope empty`. A suite that reaches its code through dependency injection or an interface, common in .NET, maps nothing. Cleanup now names the result and offers cannot-fail-only mode, continuing only on your yes. It does the same when the audit refuses because you declined both its install command and `tool: manual`. Any step 2 quarantines stay in the batch, and a batch with no cannot-fail candidate still reports them. Unattended, it still stops. A new `cannot_fail_only_offered_on_empty_mapping` eval covers the offer on the `cleanup-dotnet` fixture.
+
+## [1.4.4] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [1.4.3] - 2026-10-29
+
+### Fixed
+
+- **`/testing:cleanup` finds a C# test's production files** ([#11004](https://github.com/melodic-software/claude-code-plugins/issues/11004)). The gate-blind check in step 5 and the candidate changes listed under `Gate: block` in step 6 used to read the production files a test file imports. A C# `using` names a namespace, not a file, so those checks had no answer on C#. Both now read the files defining the code a test reaches: what it calls directly, through a helper, an interface or dependency injection. When no changed test reaches a newly surviving mutant's file, `Gate: block` lists every changed test, since each mutant ran against the whole test set. Step 6 now says the replay compares the two records mutant by mutant, and the classifier brief hands over the production files each test reaches.
+- A new `dotnet_gate_runs` eval runs the gated batch on the `cleanup-dotnet` fixture with `test-command: dotnet test {tests}`, and expects `Gate: pass` from the replay. The fixture gains its two `.csproj` files, a `.gitignore` for build output, and a `PriceFeedTests.cs.fixture` that calls `PriceFeed` directly. A `mutation-testing-dotnet.md` config beside it has the keys `/mutation-testing:setup apply` writes.
+
+## [1.4.2] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `parse-concern-value.sh` takes the fallback for it.
+
+## [1.4.1] - 2026-10-29
+
+### Changed
+
+- **`diagnose`, `plan`, `run-e2e` and `write` cite the gather-block convention.** The dated record
+  for why git reads stay out of the pre-compute block now links the repository's gather-block
+  convention, at the same heading, instead of a reference file inside the source-control plugin's
+  worktree skill.
+
+## [1.4.0] - 2026-10-28
+
+### Added
+
+- `/testing:run-e2e` resolves a feature id named in the scenario, either `<module>/<feature>` or a single-level `<feature>`, to its feature file in `/app-control:drive`'s order, on the drive route and on its own driving alike. The id comes from the control skill's index path, and a legacy flat `features/<feature>.md` gives `<feature>`, so the touched-feature refresh names `/app-control:map refresh cart`, never `cart.md`.
+
+## [1.3.0] - 2026-10-28
+
+### Added
+
+- `/testing:run-e2e` keeps a control skill current. After the run, each feature whose index `sources` globs match a changed file gets `/app-control:map refresh <feature id>` when app-control is installed, with `--unattended` on an unattended run. Without app-control, the report names the feature's possible drift and the refresh command in `## Next`; the run never stops or fails for it. run-e2e never edits a control skill itself, and a caller that splits one drive across several runs refreshes once over the merged report instead.
+
+## [1.2.0] - 2026-10-28
+
+### Changed
+
+- `/testing:run-e2e` chooses who drives each run. When the app-control plugin is installed and the app has a control skill, it hands launching, operating and capturing to `/app-control:drive` and judges what drive recorded; with app-control installed but no control skill it offers `/app-control:map create`; without app-control it suggests installing it. The person can decline any of these, and an unattended run asks nothing: it takes run-e2e's own driving and records the suggestion in its report. testing does not depend on app-control.
+- run-e2e's own driving (the bundled `run` launch step, prerequisites, run config, Workspace environment, session names and teardown) moved from the skill body to `context/own-driving.md`, which loads only on that route. The entry-point chooser and the per-entry-point report line are separate sections of the body.
+- `e2e_driver`, `reuse_running_instance` and `browser_driver` now apply only to run-e2e's own driving; on a run through `/app-control:drive`, the control skill supplies the tools. `recording` and `browser_mode` (`.claude/testing/e2e.md`) also apply only to own driving: drive has no headed or headless setting, and a recording on the drive route is the control skill's `video` capture.
+- On the drive route each touched feature gets its own `--out` directory, so one feature's drive report does not overwrite another's.
+
+## [1.1.5] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [1.1.4] - 2026-10-27
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
+## [1.1.3] - 2026-10-27
+
+### Changed
+
+- `/testing:audit`'s cannot-fail scan runs its per-file rule engine on every core in a whole-tree scan, or on `$CANT_FAIL_SCAN_JOBS` files at a time, then reads the results in scan order, so findings, counts, the coverage block and exit codes are those of a serial run. A `--file` scan, which the edit hooks run, is unchanged. On this repository's 1372 test files a four-job scan takes a third of the serial time (31 s against 93 s).
+
+## [1.1.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [1.1.1] - 2026-10-27
+
+### Added
+
+- A `/testing:write` invocation probe set (`probes/write.json`), weighted toward feature requests
+  that ask for tests in passing: the k36-cart-total natural-phrasing case fired the skill in 0 of
+  16 runs.
+
+### Fixed
+
+- The k36 `refactor-after-green` grader now reads a Bash command with a double quote before the
+  redirect or `sed -i`, such as `sed -i "s/a/b/" cart.py` or `printf "x" > cart.py`, with
+  samples for both and for two quoted near-misses.
+- The k36 `no-zero-assertion` grader now says why it approximates the `/testing:audit` scan: no
+  `claude plugin eval` grader type runs a script, and the scaffold runs before Claude starts.
+
+## [1.1.0] - 2026-10-27
+
+### Added
+
+- The vendored `hooks/exec-bash.mjs` launcher takes `--require-verdict`, a per-row opt-in for a blocking hook row: it names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line), because Windows Git Bash reports a crashed bash as exit 0 with empty output. This plugin's rows do not pass the flag, so they behave as before.
+
+## [1.0.3] - 2026-10-27
+
+### Changed
+
+- The judge calibration sweep (`metrics.sh --sweep`) now runs Haiku at `low`, `medium` and `high` beside the Sonnet and Opus arms, and `calibration.md` records the Claude Haiku 5.5 result: `low` and `high` are significantly less accurate, and `medium` changed its verdict on 26 of 78 rows across three runs against 7 of 78 for the shipped `sonnet` `medium` default. Haiku stays out of the judge: `judge-lib.sh` no longer walks to it or accepts it as the fallback, and tests pin that. This round's sweep files sit in `sweep-haiku-5-5/`, apart from the older-prompt arms (#6286).
+
+## [1.0.2] - 2026-10-26
+
+### Changed
+
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted, so a guard can tell a quoted body's text from the commands around it (#8949). A here-doc delimiter word now ends at `(` or `)`, as it does in bash.
+
 ## [1.0.1] - 2026-10-25
 
 ### Fixed

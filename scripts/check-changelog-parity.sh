@@ -107,7 +107,7 @@
 #     alone, and check-changelog-fragments.sh --check-required asks it for a
 #     fragment instead. This repository lists every plugin, so the per-PR rules
 #     run only on the release pull request; an unlisted plugin falls back to
-#     them. A listed convention (docs/conventions/<name>/) gets the same
+#     them. A listed convention (docs/contracts/<name>/ or docs/conventions/<name>/) gets the same
 #     added-heading check.
 #
 # Existing "versioned but changelog-less" debt is grandfathered by plugin NAME in
@@ -217,8 +217,20 @@ version_of() { jq -r '.version // empty' "$1" 2>/dev/null; }
 # stdout: --check-order keys every heading of every changelog (thousands), and a
 # `$(...)` per heading is one fork each, which costs minutes on Windows Git Bash
 # (#4608). Usage: version_sort_key <out-var> <version>.
+#
+# Every field must be digits (an empty or missing one keys as 0), and anything
+# else exits 2 before the arithmetic runs: bash arithmetic evaluates array
+# subscripts, so a field shaped `1 * a[$(cmd)]` would run cmd. Each caller
+# validates its version first; this keeps the function safe without them, since
+# the gate reads pull request content. The check runs on the whole stripped core,
+# before the split, so it also keeps a glob character out of the unquoted
+# expansion below.
 version_sort_key() {
   local _vsk_out="$1" IFS='.'
+  if [[ ! "${2%%[+-]*}" =~ ^[0-9.]*$ ]]; then
+    echo "check-changelog-parity: version '$2' has a field that is not a number; refusing to compare it." >&2
+    exit 2
+  fi
   # shellcheck disable=SC2086  # deliberate word-split of the dotted version on IFS
   set -- ${2%%[+-]*}
   printf -v "$_vsk_out" '%05d.%05d.%05d' "$((10#${1:-0}))" "$((10#${2:-0}))" "$((10#${3:-0}))"
@@ -375,7 +387,7 @@ repeated_added_bodies() {
 }
 
 if [[ "$mode" == "--check-order" ]]; then
-  changelogs=(plugins/*/CHANGELOG.md docs/conventions/*/CHANGELOG.md)
+  changelogs=(plugins/*/CHANGELOG.md docs/conventions/*/CHANGELOG.md docs/contracts/*/CHANGELOG.md)
   declare -A seen_version
   misordered=0
   duplicated=0
@@ -621,11 +633,11 @@ for path in ${diff_paths[@]+"${diff_paths[@]}"}; do
       consumed_fragment["${rest%%/*}"]=1
     fi
     ;;
-  docs/conventions/*/CHANGELOG.md)
+  docs/conventions/*/CHANGELOG.md | docs/contracts/*/CHANGELOG.md)
     # A `case` glob's `*` spans `/`, so the depth is re-checked explicitly: only
     # a changelog exactly one directory below a root is in scope, never one
     # nested deeper inside a plugin.
-    rest="${path#docs/conventions/}"
+    rest="${path#docs/*/}"
     if [[ "$rest" == "${rest%%/*}/CHANGELOG.md" && -z "${seen_changelog[$path]:-}" ]]; then
       seen_changelog["$path"]=1
       touched_changelogs+=("$path")
@@ -785,16 +797,12 @@ for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
   fi
   # A listed convention has no manifest, so its heading is its version: only
   # the release pull request may add one.
-  if [[ -n "$added_versions" && -z "$release_pr" && "$changelog" == docs/conventions/* ]]; then
-    rest="${changelog#docs/conventions/}"
-    name="${rest%%/*}"
+  if [[ -n "$added_versions" && -z "$release_pr" ]] && name="$(changelog_fragments::convention_of "$changelog")"; then
     changelog_fragments::in_mode "$name"
     case $? in
     0)
-      if [[ "$(changelog_fragments::root_of "$name")" == "docs/conventions/$name" ]]; then
-        echo "FRAGMENT-MODE RELEASE: $name is in fragment mode ($CF_LIST) but this change set adds the version heading(s) ${added_versions% } to $changelog." >&2
-        fragment_release=$((fragment_release + 1))
-      fi
+      echo "FRAGMENT-MODE RELEASE: $name is in fragment mode ($CF_LIST) but this change set adds the version heading(s) ${added_versions% } to $changelog." >&2
+      fragment_release=$((fragment_release + 1))
       ;;
     1) ;;
     *) exit 2 ;;

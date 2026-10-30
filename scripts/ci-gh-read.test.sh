@@ -27,6 +27,8 @@ WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
+# Children that call mktemp land inside the trapped root.
+export TMPDIR="$TMP_ROOT"
 
 if ! ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" budget; then
   fail "no working 'Write the rate-limit-aware read helper' step, or no GH_READ_* env, in $WORKFLOW"
@@ -66,7 +68,7 @@ if [[ "$first" == "      - name: Write the rate-limit-aware read helper" ]]; the
 else
   fail "ci-status's first step is '$first', not the helper"
 fi
-# Every step that reads through gh_read sources it first.
+# Every step that reads through gh_read or pr_read sources it first.
 while IFS= read -r name; do
   body="$(awk -v name="      - name: $name" '$0 == name { on = 1; next } on && /^      - / { exit } on { print }' <<<"$job")"
   if [[ "$body" == *$'        run: |\n          . "$RUNNER_TEMP/gh-read.sh"\n'* ]]; then
@@ -74,7 +76,7 @@ while IFS= read -r name; do
   else
     fail "'$name' calls gh_read without sourcing it first"
   fi
-done < <(awk '/^      - name: / { name = substr($0, 15) } /gh_read [-"]/ && name != "Write the rate-limit-aware read helper" { print name }' <<<"$job" | sort -u)
+done < <(awk '/^      - name: / { name = substr($0, 15) } /(gh|pr)_read [-"]/ && name != "Write the rate-limit-aware read helper" { print name }' <<<"$job" | sort -u)
 # Every other `gh api` in the job is a write, or marked gh-read-exempt on the
 # line above, so a new fail-closed read cannot skip the wait unnoticed.
 stray="$(awk '/^      - name: / { helper = ($0 == "      - name: Write the rate-limit-aware read helper") }
@@ -294,5 +296,27 @@ check "any other error returns at once, its text on the caller's stderr" 0 1 "" 
 fresh
 STUB_SCRIPT='fail 403 Resource not accessible by integration' run 'gh_read repos/o/r/pulls/1 || echo "rc=$?"'
 check "a 403 that is not a rate limit returns at once" 0 1 "" "rc=1" "::error::"
+
+# pr_read: one read per job of the same args. A later step's pr_read answers
+# the kept body with no call; other args read again; a failed read keeps
+# nothing, so the next pr_read reads again; pr_read_put keeps an answer read
+# another way; pr_read_forget drops them all.
+fresh
+STUB_SCRIPT='ok {"number":1}' run 'pr_read repos/o/r/pulls/1'
+check "pr_read reads once" 0 1 "" '{"number":1}'
+STUB_SCRIPT='ok changed' run 'pr_read repos/o/r/pulls/1'
+check "a later step's pr_read of the same args answers the kept body with no call" 0 0 "" '{"number":1}' "changed"
+STUB_SCRIPT='ok two' run 'pr_read repos/o/r/pulls/1 --paginate'
+check "other args read again" 0 1 "" "two"
+STUB_SCRIPT='fail 502 Server Error' run 'pr_read repos/o/r/pulls/3 || echo "rc=$?"'
+check "a failed pr_read returns gh's failure" 0 1 "" "rc=1"
+STUB_SCRIPT='ok three' run 'pr_read repos/o/r/pulls/3'
+check "a failed read keeps nothing, so the next pr_read reads again" 0 1 "" "three"
+STUB_SCRIPT='ok never' run 'pr_read_put "[1]" repos/o/r/issues/1/events --paginate; pr_read repos/o/r/issues/1/events --paginate'
+check "pr_read answers what pr_read_put kept" 0 0 "" "[1]"
+STUB_SCRIPT='ok live' run 'pr_read_forget; pr_read repos/o/r/pulls/1'
+check "pr_read_forget drops every kept answer" 0 1 "" "live"
+STUB_SCRIPT='ok' run 'pr_read repos/o/r/issues/2/labels; echo "[$(pr_read repos/o/r/issues/2/labels)]"'
+check "an empty answer is kept as empty" 0 1 "" "[]"
 
 test_harness::report

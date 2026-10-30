@@ -77,7 +77,10 @@ value and its unset fallback.
   depend on `git checkout <headRefName>` to reach the branch: when it is locked by a sibling
   worktree that command dead-ends (`fatal: '<branch>' is already used by worktree at ...`). Once
   the head assertion holds, push through pull-request's `push-branch.sh --dir <checkout> --pr <N>`
-  and nothing else: it pushes the checkout's `HEAD:refs/heads/<headRefName>`. Inside a lane (a
+  and nothing else: it pushes the checkout's `HEAD:refs/heads/<headRefName>`. Attended, with
+  `sync_stale_base` on, it may first add one base-merge commit whose first parent is that asserted
+  `HEAD`, or exit 4 on a conflict with nothing pushed, which stops the push like any refusal
+  ([create.md](../../pull-request/reference/create.md) §2.4.1). Inside a lane (a
   `[bot]` login) it hands the push to `lane-push.sh --pr <N>` as the target's
   `merge.agent-identity` (the loop-lane convention's "Lane write identity"), which reads the PR's
   head repository and branch from the forge and pushes to `https://github.com/<owner>/<repo>.git`,
@@ -595,6 +598,23 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   merely displaced (`isOutdated` flipped while both comment pins still match) is still resolvable by
   the script. Under `--resolve --include-human` the script still cannot merge, post replies, or
   dismiss reviews.
+- **`--own-pr-lane-logins <lane-logins>` rides on every worker `--autonomous` resolve form** when
+  `babysit_lane_logins` is set; omit it when unset. Unset, the resolver takes the lane login from
+  the repository's `merge.agent-identity` in `docs/conventions/pr-pipeline.yaml`, only when the PR's
+  base commit and the default branch head declare the same one, never from the PR head: a person
+  merges that file, so a repository value that widens what the worker resolves stays reviewed
+  ([ADR 0039](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0039-keep-babysit-identity-keys-in-userconfig-and-move-repository-keys-to-the-cascade.md)). The setting wins when set; with neither, the own-PR refusal holds. `--autonomous` refuses a PR whose author is a
+  self login, because the resolver would be the actor whose permission slip it is. This flag is
+  the one exception: on such a PR it admits a thread only when the latest reply from a lane login
+  other than the opener is address-feedback's fixed disposition (`LANE_FIXED_HEADER` in the
+  script), so the claim that the finding is handled comes from the lane. A left-open disposition
+  (`INCORRECT`, `UNCERTAIN`, `VALID (defer)`) is no answer. Every other
+  `--autonomous` guard still holds (bot opener, `isOutdated`, the severity line that keeps a
+  CRITICAL or security thread with a person, one pinned thread). A comment by a self login in the
+  thread refuses it too: on an own PR that login is the person who opened the PR. Any other thread
+  reports `skipped-own-pr-not-lane-answered`. The flag is refused outside `--autonomous`, and
+  `--independent-resolver` keeps the own-PR refusal. No permission is added: the resolve runs under
+  the PR author's own login ([GitHub](../../../reference/providers/github/babysit-prs/safety.md#resolve-identity-on-a-person-opened-pr)).
 - **`--independent-resolver` is a third mode, not a widening of `--autonomous`.** `--autonomous`
   admits only `isOutdated` threads, and `isOutdated` means the referenced code MOVED, so on a
   prose or documentation PR, where a finding is normally addressed by rewriting elsewhere in the
@@ -849,13 +869,17 @@ of these hold: the failed check is an AI review check on the pinned live head of
 PR, or of a stack layer below it that the gate evaluated; the Actions job its `details_url` names
 emitted that check (the job's own check-run id, name and workflow match the check, and the check's
 id when the rollup carries one); its check run carries a failure annotation the review evidence
-accepts a second attempt after, `class=rate-limit` or that lane's publish-review
-`failure-class=publish-failed` line on GitHub's API rate limit; its job finished at least five hours
-ago;
-and the run is on its first attempt. Five hours is the plan's session-limit window, so that window
-has reset whenever it started. A weekly limit outlasts it, and the rerun then fails again and stays
-failed, because an attempt above one is never rerun: at most one gate rerun per check per head. Any
-other failure class is never rerun, and a check-only run never reruns. The rerun only restarts the
+accepts a second attempt after and the gate reruns (`GATE_RERUN_CLASSES` in
+`babysit_review_evidence.py`): `class=rate-limit`, that lane's publish-review
+`failure-class=publish-failed` line on GitHub's API rate limit, or that lane's publish-review
+`failure-class=install-failed` line (the runner isolation or the Claude Code CLI install failed
+before the review ran); for a rate limit, its job finished at least five hours ago, while an
+install failure is rerun at once; and the run is on its first attempt. Five hours is the plan's
+session-limit window, so that window has reset whenever it started. A weekly limit outlasts it, and
+the rerun then fails again and stays failed, because an attempt above one is never rerun: at most
+one gate rerun per check per head. An install failure, often a slow package mirror, has no window to
+wait out. Any other failure class is never rerun, even beside one the gate reruns, and a check-only
+run never reruns. The rerun only restarts the
 review; the PR still merges only once the check reports SUCCESS. The review evidence also binds a
 second attempt after the lane's own `<lane>: failure-class=auth:` failure line (a rejected
 credential, which left no verdict), but the gate never starts that rerun: a person or session reruns
@@ -866,17 +890,31 @@ first: the caller's `kill-switch` job succeeded with its lane's `a kill switch s
 started. The gate never starts that rerun either, since it cannot read the switch: ci-status asks a
 person to rerun the run once the switch is off.
 
+The gate also reruns, at once and under the same head, job and attempt rules, an AI review check
+whose run an outage lost: its job and the run's first attempt concluded `cancelled` or `timed_out`
+(`LOST_CONCLUSIONS` in `babysit_review_evidence.py`, the lost-run reconciler's `LOST`, which also
+holds `startup_failure`). A run that never started leaves no job and no check, so the gate finds
+none to rerun. A lost run that already reached its side effect is left to a person: its job
+carries the lane's completion record, or the PR has that lane's reviewed-head marker for the head
+or another lane comment created since the run started. The review evidence binds a second attempt
+after a lost first attempt, of any `LOST_CONCLUSIONS`, by the same rule, between the two attempts'
+starts and reading the lane's review threads too; a lane job that ended on its own judged the head,
+so it binds none. The lost-run reconciler still reruns no review run.
+
 - **Pointer**: the `class=<token>` contract in ci-workflows
   [`.github/actions/report-lane-outcome/action.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/report-lane-outcome/action.yml),
   the publish-review failure line (`fail`) in ci-workflows
   [`.github/actions/publish-review/publish.cjs`](https://github.com/melodic-software/ci-workflows/blob/main/.github/actions/publish-review/publish.cjs),
+  the `install-failed` class a failed `Isolate the runner` step reports in ci-workflows
+  [`pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review-cli.yml)
+  (ci-workflows [#893](https://github.com/melodic-software/ci-workflows/pull/893)),
   the rate-limit messages in GitHub's
   [rate limits for the REST API](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api),
   and the session window under "What happens when you hit usage limits" in
   [Using Claude Code with your Pro or Max plan](https://support.claude.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan).
-- **As of**: 2026-10-25
-- **Recheck trigger**: a ci-workflows release that renames the `rate-limit` class token or changes
-  publish-review's failure line, a change to GitHub's rate-limit messages, or a change to the
+- **As of**: 2026-10-27
+- **Recheck trigger**: a ci-workflows release that renames the `rate-limit` or `install-failed`
+  class token or changes publish-review's failure line, a change to GitHub's rate-limit messages, or a change to the
   plan's session-limit window.
 
 Auto-merge stays off because `ci-status` is the only required check and does not wait on the
@@ -1055,11 +1093,15 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    In the pr-merge lane, eligibility admits a pull request the lanes App opened or one it adopts:
    an unheld, ready pull request of a trusted-actor-list account, matched by account id, a
    person's once idle (`adoption_refusal`; owner decisions Q22 and 2026-10-22; the pr-pipeline
-   README's "The pr-merge lane"). The decision records why as `eligibility.adoption`; its path
+   README's "The pr-merge lane"), idleness read from trusted-actor activity
+   (`trusted_activity`) and the head's arrival (`_head_last_seen`), never the raw `updated_at`
+   any commenter moves; an OWNER, MEMBER or COLLABORATOR account's changes-requested review or a
+   person's hold-phrase comment still counts. The decision records why
+   as `eligibility.adoption`; its path
    floor scores only changed paths a commit not the author's own (verified, author and, for a
    person, committer) touched (`foreign_paths`). The lane's
-   own queue entry at the current head (`lane_queued_at_head`) keeps adoption though its pin
-   comment refreshed `updated_at`, until anyone else comments or reviews after that pin.
+   own queue entry at the current head (`lane_queued_at_head`) keeps adoption though trusted
+   activity is fresh, until anyone else comments or reviews after its pin.
 4. For an eligible pull request: the review-lane evidence bound to the head, and the diff score.
    A head commit whose author or committer is linked to no account refuses
    (`head-pusher-unproven:<sha>`): its pusher cannot be shown not to be a human. So does a pull
@@ -1086,10 +1128,19 @@ any refusal is the blocker `unattended merge refused: <reason>`:
    `trust-gate:trusted-actors`. The HIGH path floor holds only the takeover set
    `babysit_risk.py`'s docstring names. A plugin or marketplace manifest change scores HIGH as
    `manifest-review-required` only when it installs or runs something new: an executable
-   `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could add or
-   raise a charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
+   `plugin.json` key, or a marketplace plugin added, removed, renamed or re-sourced. A change that could start
+   a real new charge scores HIGH as `cost-review-required` in both lanes, floor or not, until the body
    links an owner `**Decision recorded.** Cost:` comment on the closing issue or the pull request
-   (`cost_decision`); which changes count is in that docstring.
+   (`cost_decision`); subscription or prepaid spend is the reported, non-holding MED `cost-finding`,
+   and a new secrets reference or model leg holds as `secret-exposure-review` or
+   `agent-surface-review`, a workflow token that gains a write scope as
+   `permission-widening-review`, and an added `pull_request_target` or `workflow_run` trigger as
+   `privileged-trigger-review`, all of which a person clears. A pull request that changes a lane
+   source binds its review lanes only on `pr-review-main.yml`'s verdict from main
+   (`babysit_review_evidence._main_bound`); a designed stop that review recorded on the head
+   (`verdict=none reason=<reason>`) binds nothing and names the unbound reason
+   `main-review-stop:<reason>`.
+   Which changes count as which is in that docstring.
 
 Check-only (no `--merge`) writes nothing and reports the whole decision under `unattended`. With
 `--merge`, under the identity only: a kill-switch, unreadable-default-branch, post-merge or rung
@@ -1327,10 +1378,10 @@ assessment. Pin each vetted thread individually (the wrapper accepts exactly one
 per invocation; issue one pinned command per thread) with the thread-pin pair rule above:
 
 ```text
-bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --own-pr-lane-logins <lane-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
-for the unattended-worker case, or
+for the unattended-worker case (`--own-pr-lane-logins` omitted when `babysit_lane_logins` is unset), or
 
 ```text
 bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>

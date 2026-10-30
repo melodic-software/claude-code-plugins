@@ -1,0 +1,11 @@
+Result: changes applied, nothing under Action needed
+Marketplace: market1: current (autoUpdate: on)
+  source: directory <case>/mkt
+    on main, 0 behind and 0 ahead of origin/main as of its last fetch
+    fast-forwarded by this run from <from> to <to> with git pull --ff-only, before the refresh
+In-repo: 0: <case> has no project/local installs
+Divergences: 0 actionable
+Timing: <elided>
+
+Run journal: <run_dir>
+Timing: <elided>

@@ -11,14 +11,14 @@
 // 40113925144 (schedule) read pending at 17:19Z on 2026-10-24 with its merge
 // job completed at 17:14:54Z and its enable-auto-merge job pending.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { main } from "./superseded.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = "melodic-software/claude-code-plugins";
@@ -27,7 +27,7 @@ const LANES_BOT = { id: 337595936, login: "melodic-automation-lanes[bot]" };
 const QUEUE_BOT = { id: 79413782, login: "github-merge-queue[bot]" };
 const THIS_RUN = "500";
 const LISTING = `/repos/${REPO}/actions/workflows/pr-merge.yml/runs?status=pending&exclude_pull_requests=true&per_page=100`;
-const dir = mkdtempSync(join(tmpdir(), "superseded-"));
+const dir = tempDir("superseded-");
 after(() => rmSync(dir, { recursive: true, force: true }));
 
 // `actor` started the run and `rerunner` (its triggering_actor) started
@@ -115,9 +115,11 @@ test("a pending run a listed human started by hand supersedes a pull_request_tar
   assert.equal(run.superseded, true);
 });
 
-test("a pending pull_request_target run by a listed human supersedes another pull_request_target run", async () => {
+// An event run gates only its own pull request (pr-merge.yml EVENT_PR), so
+// another event's run does not do this one's work.
+test("a pending pull_request_target run supersedes no other pull_request_target run", async () => {
   const run = await check({ event: "pull_request_target", runs: [pending(600, "pull_request_target")] });
-  assert.equal(run.superseded, true);
+  assert.equal(run.superseded, false);
 });
 
 test("a pending run a bot started stops before its sweep, so it supersedes nothing", async () => {
@@ -244,9 +246,9 @@ test("a failed jobs read does the work, with a warning", async () => {
   assert.match(run.stdout, /^::warning title=superseded::.*status 502/m);
 });
 
-test("enable-auto-merge: a pending edit run a listed human started supersedes another", async () => {
+test("enable-auto-merge: a pending edit run, which reads only its own pull request, supersedes no other", async () => {
   const run = await check({ job: "enable-auto-merge", event: "pull_request_target", runs: [pending(600, "pull_request_target")] });
-  assert.equal(run.superseded, true);
+  assert.equal(run.superseded, false);
 });
 
 test("enable-auto-merge: a scheduled and a hand-started run, which both arm, supersede each other and every event run", async () => {

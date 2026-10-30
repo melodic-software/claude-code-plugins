@@ -27,6 +27,10 @@
           "round": {"type": "integer"},
           "stage": {"type": "string"},
           "at": {"type": "string"},
+          "kind": {
+            "description": "From `add-round`'s `meta.kind`: `sweep` marks a round whose questions come from the assumption sweep, which the page labels `Sweep: reconciling earlier answers`. Absent on an ordinary round.",
+            "enum": ["sweep"]
+          },
           "restate": {
             "type": "object",
             "required": ["text", "decided", "open"],
@@ -156,11 +160,13 @@
       }
     },
     "sections": {
-      "description": "Restatement sections, each markdown. `problem` holds the Brief's Problem fields and `workSize` its Work size fields. `outOfScope` lists what the interview excluded. `planningOwned` lists the decisions the interview hands to the implementation-planning stage to make.",
+      "description": "Restatement sections, each markdown. `tldr` holds the scope bullets the Brief's TLDR opens with. `problem` holds the Brief's Problem fields and `workSize` its Work size fields. `intent` is the user's goal in one paragraph, in their own words. `outOfScope` lists what the interview excluded. `planningOwned` lists the decisions the interview hands to the implementation-planning stage to make.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "tldr": {"type": "string"},
         "problem": {"type": "string"},
+        "intent": {"type": "string"},
         "goal": {"type": "string"},
         "workSize": {"type": "string"},
         "constraints": {"type": "string"},
@@ -369,6 +375,11 @@
         "alternatives": {"type": "array", "items": {"$ref": "#/$defs/alternative"}},
         "dependsOn": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/dependsOn"},
         "followUpOf": {"type": "string"},
+        "reconciles": {
+          "description": "The earlier questions whose answers this question reconciles, each already in the register when it is added; the page shows each one's decision beside the question.",
+          "type": "array",
+          "items": {"type": "string"}
+        },
         "supersedes": {"type": "string"},
         "supersededBy": {"type": "string"},
         "waiting": {"type": "boolean"},
@@ -460,6 +471,16 @@
           "type": "array",
           "items": {"type": "string"},
           "description": "Derived by the server on an upstream-changed question: the prerequisites whose counted answer changed or was reopened while it had no decision, since Claude last revised or reconfirmed it; never written"
+        },
+        "supersedesChain": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {"id": {"type": "string"}, "round": {"type": "integer"}, "stage": {"type": "string"}},
+            "required": ["id", "round"]
+          },
+          "description": "Derived by the server on a question that supersedes another: every earlier question of its supersede chain, the chain's first question first, each with its round and stage; never written"
         }
       }
     }

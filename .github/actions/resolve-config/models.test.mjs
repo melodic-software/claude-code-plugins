@@ -1,15 +1,10 @@
 // The `models` block: schema, cross-checks, resolution, the arguments and
 // settings a profile becomes, and what the live config gives every model run.
-// The live expectations are the values each run got before the block existed,
-// written by hand from the runners: no --model and 75 turns for every skill
-// activity (pr-run-activity-read.yml and pr-run-activity-write.yml inputs
-// default-model '' and default-max-turns 75, which no caller overrode), and
-// --model opus with --max-turns 60 for pr-verify.yml (merge.verifier-model
-// opus, its hard-coded --max-turns 60). No run passed --effort or a settings
-// env.
+// The live expectations are written by hand: --model opus and 75 turns for a
+// skill activity no route names, and --model opus with --max-turns 60 for
+// pr-verify.yml.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -18,6 +13,7 @@ import { parse, stringify } from "yaml";
 
 import { main } from "./resolve-config.mjs";
 import { modelArgs, modelSettings, neededFacts, Rejection, resolve, resolveRoute } from "./resolve.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, "../../..");
@@ -79,7 +75,7 @@ const liveSlot = (lane, activity) =>
     .selected;
 
 const DEFAULT_RUN = {
-  model: "default",
+  model: "opus",
   effort: null,
   "subagent-model": "inherit",
   "max-turns": 75,
@@ -636,10 +632,10 @@ test("a models block with no routes sends every skill activity to default-profil
   assert.equal(fixtureSlot(files, "pr-run-checks", "measure-coverage").models.profile, "light");
 });
 
-test("a config with no models block takes the built-in standard profile: no --model, 75 turns", () => {
+test("a config with no models block takes the built-in standard profile: opus, 75 turns", () => {
   const { models } = fixtureSlot(withModels(null));
   assert.deepEqual(models, { profile: "standard", ...DEFAULT_RUN });
-  assert.equal(modelArgs(models), "--max-turns 75");
+  assert.equal(modelArgs(models), "--model opus --max-turns 75");
 });
 
 test("a profile becomes --model, --max-turns and --effort, and its subagent model becomes settings env", () => {
@@ -657,12 +653,48 @@ for (const [why, models] of [
   ["a zero max-turns", { profiles: { p: { model: "opus", "max-turns": 0 } }, "default-profile": "p" }],
   ["a subagent model ID", { profiles: { p: { model: "opus", "subagent-model": "claude-sonnet-5", "max-turns": 5 } }, "default-profile": "p" }],
   ["an unknown profile key", { profiles: { p: { model: "opus", "max-turns": 5, advisor: "fable" } }, "default-profile": "p" }],
+  // Fable stays off until the owner sets a Fable allowance for the lanes.
+  ["a model of fable", { profiles: { p: { model: "fable", "max-turns": 5 } }, "default-profile": "p" }],
+  ["a model of best", { profiles: { p: { model: "best", "max-turns": 5 } }, "default-profile": "p" }],
+  ["a subagent model of fable", { profiles: { p: { model: "opus", "subagent-model": "fable", "max-turns": 5 } }, "default-profile": "p" }],
+  ["a subagent model of best", { profiles: { p: { model: "opus", "subagent-model": "best", "max-turns": 5 } }, "default-profile": "p" }],
+  // run-claude-cli cannot pass `default`, which sets no --model.
+  ["a model of default", { profiles: { p: { model: "default", "max-turns": 5 } }, "default-profile": "p" }],
   ["no default-profile", { profiles: { p: { model: "opus", "max-turns": 5 } } }],
   ["no profiles", { profiles: {}, "default-profile": "p" }],
   ["an unknown models key", { profiles: { p: { model: "opus", "max-turns": 5 } }, "default-profile": "p", sizes: ["S"] }],
 ]) {
   test(`the schema rejects ${why}`, () => {
     assertRejected(() => fixtureSlot(withModels(models)), "invalid-config");
+  });
+}
+
+test("the schema still admits opus and sonnet as a model, and every subagent model", () => {
+  for (const model of ["opus", "sonnet"]) {
+    for (const subagent of ["inherit", "opus", "sonnet"]) {
+      const profiles = { p: { model, "subagent-model": subagent, "max-turns": 5 } };
+      const slot = fixtureSlot(withModels({ profiles, "default-profile": "p" })).models;
+      assert.equal(slot["subagent-model"], subagent, `${model}/${subagent}`);
+    }
+  }
+});
+
+// Files whose schema admits any model and subagent model, so a value the
+// schema refuses still reaches the resolver.
+const uncheckedModels = (files) => {
+  const schema = structuredClone(files.schema);
+  delete schema.$defs.profile.properties.model.enum;
+  delete schema.$defs.profile.properties["subagent-model"].enum;
+  return { ...files, schema };
+};
+
+for (const model of ["fable", "best", "default"]) {
+  test(`with the schema check bypassed, a model profile naming ${model} resolves to opus, as a role profile does`, () => {
+    const profiles = { p: { model, "subagent-model": model, "max-turns": 5 } };
+    const { models } = fixtureSlot(uncheckedModels(withModels({ profiles, "default-profile": "p" })));
+    assert.equal(models.model, "opus");
+    assert.equal(models["subagent-model"], "opus");
+    assert.equal(modelArgs(models), "--model opus --max-turns 5");
   });
 }
 
@@ -713,7 +745,7 @@ test("a run route that is not one of the five is undefined-route, as a model-rou
 });
 
 // main() with model-route against a base holding the live config.
-const scratch = mkdtempSync(join(tmpdir(), "resolve-models-"));
+const scratch = tempDir("resolve-models-");
 after(() => rmSync(scratch, { recursive: true, force: true }));
 
 function readOutputs(path) {
@@ -774,19 +806,15 @@ test("main with model-route triage-issue writes the triage profile's outputs", a
   });
 });
 
-// A launcher caller (run-claude-cli) takes model and effort as inputs. A
-// `default` model passes no --model, which the launcher cannot express, so its
-// model output is empty and the caller fails on it.
-test("main gives a default model and an unset effort as empty model and effort outputs", async () => {
+// A launcher caller (run-claude-cli) takes model as an input, and cannot pass
+// `default`, which sets no --model, so the base's schema refuses it.
+test("main refuses a profile whose model is default", async () => {
   const env = routeEnv();
   const doc = parse(readFileSync(join(env.BASE_PATH, CONFIG_PATH), "utf8"));
   doc.models.profiles.review.model = "default";
   writeFileSync(join(env.BASE_PATH, CONFIG_PATH), stringify(doc));
-  assert.equal(await main({ env }), 0);
-  const outputs = readOutputs(env.GITHUB_OUTPUT);
-  assert.equal(outputs.model, "");
-  assert.equal(outputs.effort, "");
-  assert.equal(outputs["claude-args"], "--max-turns 60");
+  assert.equal(await main({ env }), 1);
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "");
 });
 
 // fix-ci on pr-unblock, on a labeled event; its labels-absent predicate reads

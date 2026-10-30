@@ -4,10 +4,10 @@
 //
 // It skips a pull request the human-gated label holds (awaiting-human) unless
 // another lane's escalation put the label on (gate-source.mjs prHold),
-// escalates `ci-fix-round-cap` once the lanes App has pushed
-// `loop.fix-ci-rounds` fix-ci commits to the pull request, skips a closed pull
-// request or a head with no failing check (one cancelled past its time limit
-// counts), and otherwise writes the context
+// skips a closed pull request or a head with no failing check (one cancelled
+// past its time limit counts), escalates `ci-fix-round-cap` once the lanes App
+// has pushed `loop.fix-ci-rounds` fix-ci commits to the pull request, and
+// otherwise writes the context
 // file the `source-control:pull-request ci --ci` skill reads: each failing
 // check's name, the workflow file that defines its job, its annotations and
 // the end of its log, and the review findings address-feedback would work
@@ -15,22 +15,25 @@
 // reviewer bot or a verifier note opened on a reviewed head and only it
 // wrote), so a fix the reviewer already named is not escalated. Check names,
 // annotations, logs and findings are data: they are copied into the file,
-// capped, and never logged or run.
+// capped, and never logged or run. After a weaken retry stop on the head
+// (WEAKEN_RETRY) the file also carries the runner's fixed `retry` brief.
 
 import { createHash } from "node:crypto";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, SHA } from "./address-feedback.mjs";
-import { prHold } from "./gate-source.mjs";
+import { countedFetch, createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA } from "./address-feedback.mjs";
+import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
+
+// clear-escalations reads the head the same way, so the reader lives on the
+// merge path floor in gate-source.mjs.
+export { failingChecks };
+import { ACTIONS_APP_ID, retryRung, stopSkip } from "./escalation-routes.mjs";
 
 // The trailer apply-patch.mjs writes on every fix commit, from the ci-context
 // row of patch-rules.json; a round is one.
 export const FIX_TRAILER = "Lane-Activity: pr-unblock/fix-ci";
-const FAILING = new Set(["failure", "timed_out", "startup_failure"]);
-// The aggregate of the others: fixing them fixes it.
-const AGGREGATE = "ci-status";
 const WORKFLOW_PATH = /^\.github\/workflows\/[A-Za-z0-9._-]+\.ya?ml$/;
 const MAX_CHECKS = 10;
 const MAX_ANNOTATIONS = 20;
@@ -39,6 +42,28 @@ const MAX_EXCERPT = 3000;
 const MAX_EXCERPT_LINES = 80;
 const MAX_FINDINGS = 10;
 const MAX_FINDING = 2000;
+
+// The fail-routed stop apply-patch.mjs gives a head's first weaken-required
+// escalation, as report-escalation.sh status describes it on the head's
+// pr-unblock/fix-ci status, and the runner's brief for the fresh fixer round
+// that follows: fixed text, never anything a head or a model wrote.
+export const WEAKEN_RETRY = "ci-fix-weaken-retry";
+const WEAKEN_STOPPED = `Lane stopped: ${WEAKEN_RETRY};`;
+export const WEAKEN_BRIEF =
+  "An earlier fix-ci run on this head could fix a failing check only by weakening a test, and the lane refuses that fix. " +
+  "Find a fix in the code under test that keeps every test's assertions and expected values unchanged. " +
+  "If the only way to green still weakens a check, escalate weaken-required: this round is the last before a person.";
+
+// A finished fix-ci check by the GitHub Actions app: an earlier attempt on the head.
+const earlierAttempt = (run) => run?.status === "completed" && run.app?.id === ACTIONS_APP_ID;
+
+// Whether the head carries the pr-unblock/fix-ci status a weaken retry stop
+// posted, by the GitHub Actions bot. Statuses are never removed, so a stop a
+// later run cleared still counts.
+export const weakenStopped = (statuses) =>
+  statuses.some(
+    (row) => row?.context === "pr-unblock/fix-ci" && row.creator?.login === "github-actions[bot]" && String(row.description ?? "").startsWith(WEAKEN_STOPPED),
+  );
 
 export function countFixRounds(commits, appId) {
   return commits.filter(
@@ -63,27 +88,6 @@ export function logExcerpt(text) {
     excerpt = excerpt.slice(-MAX_EXCERPT);
   }
   return excerpt;
-}
-
-// A contract-only run skips every lane, and ci-status then carries the last
-// full run's recorded verdict forward, so a skip says nothing about a check.
-const SILENT = new Set(["skipped", "neutral"]);
-const silent = (run) => run.status === "completed" && SILENT.has(run.conclusion);
-
-// The latest run of each check name that is not a skip, when it failed or was
-// cancelled; select keeps a cancelled one only past its time limit. The fix-ci
-// dispatcher reads a cancelled head through it too, so the two agree.
-export function failingChecks(checkRuns) {
-  const latest = new Map();
-  for (const run of checkRuns) {
-    const kept = latest.get(run.name);
-    if (!kept || (silent(kept) && !silent(run)) || (silent(kept) === silent(run) && run.id > kept.id)) {
-      latest.set(run.name, run);
-    }
-  }
-  return [...latest.values()]
-    .filter((run) => run.name !== AGGREGATE && run.status === "completed" && (FAILING.has(run.conclusion) || run.conclusion === "cancelled"))
-    .sort((a, b) => a.id - b.id);
 }
 
 const annotationOf = (row) => ({
@@ -122,19 +126,19 @@ async function contextOf(api, run, notes) {
 }
 
 // Each kept thread's opening comment: where it points and what it says.
-async function reviewFindings(api, pr, { appId, reviewerId }) {
+async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds }) {
   const [issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.listIssueComments(pr),
     api.listReviews(pr),
     api.listReviewComments(pr),
     api.listThreads(pr),
   ]);
-  return keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, appId })
+  return keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, reviewerIds, appId })
     .slice(0, MAX_FINDINGS)
     .map((thread) => ({ path: String(thread.path ?? ""), line: thread.line, body: String(thread.comments[0].body).slice(0, MAX_FINDING) }));
 }
 
-export async function select({ api, pr, appId, reviewerId, maxRounds, humanGatedLabel = "needs-human", log = (line) => console.log(line) }) {
+export async function select({ api, pr, appId, reviewerId, reviewerIds = [], maxRounds, humanGatedLabel = "needs-human", log = (line) => console.log(line) }) {
   const pull = await api.getPull(pr);
   const headSha = pull.head?.sha;
   if (!SHA.test(String(headSha))) {
@@ -153,16 +157,27 @@ export async function select({ api, pr, appId, reviewerId, maxRounds, humanGated
     activity: "fix-ci",
     appId,
     readTimeline: () => api.listTimeline(pr),
+    readReviews: reviewReader(api, pr),
   });
   if (held) {
     return { decision: "skip", skipReason: "awaiting-human", headSha };
+  }
+  // A whole listing of settled checks with none failing: every fix-ci stop
+  // is gone on this head, round cap included, and `resolved` lets
+  // report-stop-status clear its status. A cut-short or unsettled listing
+  // decides nothing.
+  const runs = await api.listCommitCheckRuns(headSha);
+  const failing = failingChecks(runs);
+  if (failing.length === 0) {
+    const settled = runs.complete === true && runs.every((run) => run.status === "completed");
+    return { decision: "skip", skipReason: "not-applicable", ...(settled ? { resolved: true } : {}), headSha, laneEscalated };
   }
   const rounds = countFixRounds(await api.listPullCommits(pr), appId);
   if (rounds >= maxRounds) {
     return { decision: "escalate", escalationReason: "ci-fix-round-cap", rounds, headSha, laneEscalated };
   }
   const checks = [];
-  for (const run of failingChecks(await api.listCommitCheckRuns(headSha))) {
+  for (const run of failing) {
     if (checks.length === MAX_CHECKS) {
       break;
     }
@@ -186,11 +201,22 @@ export async function select({ api, pr, appId, reviewerId, maxRounds, humanGated
   // The findings are a lead, so a failed read costs them, not the run.
   let review_findings = [];
   try {
-    review_findings = await reviewFindings(api, pr, { appId, reviewerId });
+    review_findings = await reviewFindings(api, pr, { appId, reviewerId, reviewerIds });
   } catch (error) {
     log(`::warning::the review findings could not be read (${error.message}); the context holds none`);
   }
-  return { decision: "proceed", rounds, headSha, laneEscalated, file: { pr, head_sha: headSha, checks, review_findings } };
+  // A retry after the push job stopped on this head runs one rung up. A
+  // weaken-required stop takes its fresh fixer round only on the head's first
+  // fix-ci attempt: the dispatcher retries a stopped head once per base tip
+  // (fix-ci-restarts), so a stop after an earlier attempt could leave the head
+  // red with no retry and no person.
+  const modelRung = retryRung(await api.listCheckRuns(headSha, "pr-unblock / apply-patch"));
+  const file = { pr, head_sha: headSha, checks, review_findings };
+  if (modelRung === "1" && weakenStopped(await api.listCommitStatuses(headSha))) {
+    file.retry = { after: WEAKEN_RETRY, brief: WEAKEN_BRIEF };
+  }
+  const weakenRetry = modelRung === "" && !(await api.listCheckRuns(headSha, "pr-unblock / fix-ci")).some(earlierAttempt);
+  return { decision: "proceed", rounds, headSha, laneEscalated, modelRung, weakenRetry, file };
 }
 
 // The base config's resolved loop caps, through the base checkout's
@@ -210,6 +236,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   const maxRounds = positive(env.FIX_CI_ROUNDS ?? (await loopFromBase(env))["fix-ci-rounds"], "FIX_CI_ROUNDS");
   // The base checkout's list, the one address-feedback reads.
   const reviewerId = reviewerIdFrom(env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`);
+  const reviewerIds = reviewerIdsFrom(env.REVIEWER_IDS);
   const client =
     api ??
     createGitHubApi({
@@ -217,9 +244,10 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       repository: env.GITHUB_REPOSITORY,
       apiUrl: env.GITHUB_API_URL ?? "https://api.github.com",
       graphqlUrl: env.GITHUB_GRAPHQL_URL ?? "https://api.github.com/graphql",
+      fetch: await countedFetch(),
     });
   const humanGatedLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`);
-  const result = await select({ api: client, pr, appId, reviewerId, maxRounds, humanGatedLabel, log });
+  const result = await select({ api: client, pr, appId, reviewerId, reviewerIds, maxRounds, humanGatedLabel, log });
   let sha256 = "";
   if (result.file) {
     const text = `${JSON.stringify(result.file, null, 2)}\n`;
@@ -231,10 +259,14 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   output("head-sha", result.headSha);
   output("escalation-reason", result.escalationReason ?? "");
   output("context-sha256", sha256);
-  // fix-ci-not-run's check, and whether apply-patch may push past the
-  // human-gated label a lane escalation put on.
-  output("skip-reason", result.decision === "skip" ? result.skipReason : "");
+  // fix-ci-not-run's check (a stop's own skip, so the head's fix-ci runs
+  // record it), and whether apply-patch may push past the human-gated label
+  // a lane escalation put on.
+  output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? stopSkip(result.escalationReason) : "");
   output("lane-escalated", String(result.laneEscalated === true));
+  output("model-rung", result.modelRung ?? "");
+  output("weaken-retry", String(result.weakenRetry === true));
+  output("stop-resolved", String(result.resolved === true));
   log(
     `${result.decision}: ${result.file?.checks.length ?? 0} failing check(s), ${result.file?.review_findings.length ?? 0} review finding(s), ${result.rounds ?? 0} earlier round(s)${result.escalationReason ? `, ${result.escalationReason}` : ""}`,
   );

@@ -1,23 +1,21 @@
+Result: 2 item(s) under Action needed
 Marketplace: market1: current, 1 action(s) pending (autoUpdate: on)
 In-repo: 1 project/local install(s) updated in <case>
 Updated: 1 plugin(s)
-  - delta@market1 (project): 0.1.0 → 0.2.0
+  - delta@market1 (project): 0.1.0 -> 0.2.0
 Divergences: 0 actionable
 Stale project records (market1): 3 record(s) across 2 path(s) not present on this machine
   - <case>/: 3 record(s) across 2 path(s)
   Full per-path list: <run_dir>/stale-project-records.market1.json
-  (not counted as divergences: converge cannot cd into a path that is not present. A path can also
-   be absent because a volume is unmounted or a share is offline, so this is an observation, not a
-   verdict that the directory is gone for good.)
-  2 of these are project-scope. For those left by worktrees removed under the
-  source-control worktree root, /source-control:worktree audit (if installed) classifies them
-  and gives the gated reap; local-scope records and other paths are not that audit's to reap.
-  Of these, 1 local-scope record(s); nothing reaps them yet.
+  2 project-scope record(s)
+    remedy: /source-control:worktree audit (if installed) classifies those left by worktrees removed under the source-control worktree root, and gives the gated reap
+  1 local-scope record(s), which nothing reaps yet
 Cache content: 1 user-scope install(s) whose cache files disagree with their recorded gitCommitSha
   - alpha@market1 0.1.0: 4 file(s) differ
-  (of 3 user-scope install(s): 1 match, 1 not checked (recorded at an older commit))
-  Remediation: remove that version's directory under the plugin cache, then re-run
-  `claude plugin update <id>@<marketplace>`, which recreates it from the clone.
+  3 user-scope install(s) checked
+    1 match
+    1 not checked (recorded at an older commit)
+  remedy: remove that version's directory under the plugin cache, then re-run `claude plugin update <id>@<marketplace>`, which recreates it from the clone
 Timing: <elided>
 Action needed:
   - 1 catalog plugin(s) not installed at user scope (policy none): delta@market1

@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "Run mutation testing on my changes.",
-      "expected_output": "Preflights (config present, tool available, tree clean in targets, baseline suite green with wall-clock recorded, the `git status --porcelain` Phase 0 snapshot captured, and the tool's write regime resolved from the project's config), scopes to changed lines vs the configured diff-target, applies the arid suppression record, selects covering tests ONCE and caches the selection, reports the planned scope and estimated cost before running, generates at most one mutant per changed line, executes with guaranteed revert and verifies restoration against the Phase 0 snapshot at the earliest point the resolved regime permits, delegates survivor triage to a fresh-context subagent, and reports per file ranked by oracle gap. Writes no tests, and either leaves tracked source byte-identical or ends in failure naming what it could not restore.",
+      "expected_output": "Preflights (config resolved across its layers with the contributing layer of each value named, tool available, tree clean in targets, baseline suite green with wall-clock recorded, the `git status --porcelain` Phase 0 snapshot captured, and the tool's write regime resolved from the project's config), scopes to changed lines vs the configured diff-target, applies the arid suppression record, selects covering tests ONCE and caches the selection, reports the planned scope and estimated cost before running, generates at most one mutant per changed line, executes with guaranteed revert and verifies restoration against the Phase 0 snapshot at the earliest point the resolved regime permits, delegates survivor triage to a fresh-context subagent, and reports per file ranked by oracle gap. Writes no tests, and either leaves tracked source byte-identical or ends in failure naming what it could not restore.",
       "files": []
     },
     {
@@ -28,7 +28,7 @@
     {
       "id": 5,
       "prompt": "Run it across the whole repo.",
-      "expected_output": "Recognizes --full as expensive, computes and states the estimated wall-clock from baseline-suite-ms times the mutant count, and confirms before running rather than starting silently. If a cap truncates the mutant set, reports what was dropped so a truncated run does not read as a clean one.",
+      "expected_output": "Recognizes --full as expensive, times one build plus test run of the selected tests, takes the mutant count from the tool's dry run or listing, prints the line `bash \"${CLAUDE_PLUGIN_ROOT}/scripts/estimate-run.sh\" --mutants <n> --seconds <s>` prints rather than computing the estimate itself, and confirms before running rather than starting silently. If a cap truncates the mutant set, reports what was dropped so a truncated run does not read as a clean one.",
       "files": []
     },
     {
@@ -191,6 +191,25 @@
         "evals/fixtures/exercised-scope/.claude/mutation-testing.md",
         "evals/fixtures/exercised-scope/scenarios/boundary/test_app.py"
       ]
+    },
+    {
+      "id": "no_config_fallback",
+      "prompt": "Run /mutation-testing:audit on my branch. There is no .claude/mutation-testing.md, no .local.md overlay and no user-global mutation-testing config. The test command is `python -m pytest {tests}`.",
+      "expected_output": "Does not refuse and does not send the user to /mutation-testing:setup apply. Resolves every config layer, finds none, and falls back: `tool: manual`, the diff target resolved with `git symbolic-ref --short refs/remotes/origin/HEAD` rather than a hardcoded main or master, `mutate` set to the changed source files minus test code, and the effort-derived mutant cap since no `max-mutants` is set. States `python -m pytest {tests}` as the test command to the user before the baseline run, with `{tests}` filled by test paths rather than left empty. The scope report's Config line reads `no config: fallback defaults` and lists each default, the resolved diff target included.",
+      "files": [],
+      "narration": true
+    },
+    {
+      "id": "no_config_test_command",
+      "prompt": "Run /mutation-testing:audit on this .NET repository. There is no mutation-testing config at any layer.",
+      "expected_output": "Falls back to the defaults for everything except the test command, which it never guesses. Before any baseline run it asks the user for the test command, or proposes one and waits for confirmation, and states the confirmed command before the baseline run and on the report's Config line. Never runs a bare `dotnet test` or any other whole-tree test command it inferred, because in a .NET repository that can run test projects that reset or write shared environments. Running unattended with no test command, it stops and asks for one rather than telling the user to run setup.",
+      "files": []
+    },
+    {
+      "id": "tool_unavailable",
+      "prompt": "Run /mutation-testing:audit. The config says `tool: stryker-net`, but dotnet-stryker is not installed.",
+      "expected_output": "Does not refuse outright. Names the install command for Stryker.NET, as /mutation-testing:setup check would, and offers to continue this run with `tool: manual`. Refuses only when the user declines both. Does not install the tool unasked. Running unattended, it stops with the install command and the manual offer rather than switching tools on its own.",
+      "files": []
     }
   ]
 }

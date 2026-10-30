@@ -1,5 +1,5 @@
 {
-  "description": "Runs the safety guards: secrets, hardcoded paths and Windows drive-root temp writes on Write and Edit; git hook-bypass, irreversible git operations and commit conventions on Bash and PowerShell; recursive deletes aimed at a filesystem root, an empty or bare-variable operand, or a target outside the session's git tree, temp directories and scratchpad, and commands whose output is a credential, on Bash and PowerShell; the identity domains a Bash or PowerShell command names, against a machine-local map; and an agent-posted PR-fix lane fix request, on Bash, PowerShell and the GitHub MCP write tools.",
+  "description": "Runs the safety guards: secrets, hardcoded paths and Windows drive-root temp writes on Write and Edit; git hook-bypass, irreversible git operations and commit conventions on Bash and PowerShell; recursive deletes aimed at a filesystem root, an empty or bare-variable operand, or a target outside the session's git tree, temp directories and scratchpad, and commands whose output is a credential, on Bash and PowerShell; a Bash or PowerShell command that names another identity domain's path, against a machine-local map; and an agent-posted PR-fix lane fix request, on Bash, PowerShell and the GitHub MCP write tools.",
   "hooks": {
     "SessionStart": [
       {
@@ -42,12 +42,14 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--fail-closed",
+              "--require-verdict",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "secret-pattern-detection.sh",
               "hardcoded-path-check.sh",
               "block-windows-drive-tmp.sh"
             ],
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking for secrets, hardcoded paths, and Windows drive-root /tmp writes..."
           }
         ]
@@ -61,11 +63,13 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--fail-closed",
+              "--require-verdict",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "secret-pattern-detection.sh",
               "hardcoded-path-check.sh"
             ],
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking content bound for GitHub for secrets and hardcoded paths..."
           }
         ]
@@ -79,10 +83,12 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--fail-closed",
+              "--require-verdict",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "block-unresolved-pr-merge.sh"
             ],
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking the pull request for unresolved review threads and failing checks..."
           }
         ]
@@ -96,10 +102,12 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--fail-closed",
+              "--require-verdict",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "block-fix-request-post.sh"
             ],
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking the GitHub comment for the PR-fix lane fix request..."
           }
         ]
@@ -113,6 +121,7 @@
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--fail-closed",
+              "--require-verdict",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "--lib",
               "lib/powershell/ps-command.sh",
@@ -134,6 +143,7 @@
               "block-cross-domain.sh"
             ],
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking the command against the git, hook-bypass, commit-convention, Windows path, root-delete, credential-read, PR-merge, fix-request, and identity-domain guards..."
           }
         ]

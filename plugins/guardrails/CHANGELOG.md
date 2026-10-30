@@ -3,6 +3,173 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.65.0] - 2026-10-30
+
+### Changed
+
+- Every `PreToolUse` guard row except `Workflow` sets `"onFailure": "block"`, so on Claude Code 2.1.295 or later a guard that cannot start because `node` or bash is missing, or that reaches its 60 s timeout, denies the call instead of letting it run unguarded ([#9982](https://github.com/melodic-software/claude-code-plugins/issues/9982)). An older client ignores the key and behaves as before. The hook-budget contract lists which rows set the key and why the rest do not.
+
+## [0.64.0] - 2026-10-30
+
+### Added
+
+- `block-cross-domain` denies a command that writes the machine's git identity, from every session: in a domain, from a neutral directory, and on a host with no domain map ([#9748](https://github.com/melodic-software/claude-code-plugins/issues/9748)). That covers a `git config` with `--global`, `--system` or `--file <identity file>` that sets, adds, replaces or unsets `user.email`, `user.signingkey`, `user.useConfigOnly`, `credential.helper`, `core.sshCommand`, `core.hooksPath` or an `includeIf` key, and a shell write (a redirection, `tee`, `cp`, `mv`, `sed -i` and the like, or a PowerShell writer) to `~/.gitconfig*`, a `*.gitconfig` file or a path the map's `identity_files` lists. Reads pass: `--get`, `--list`, `git config get` and `list`, and a command that only reads the file. With no map the guard now reads each command and parses one whose text holds both `git` and `config`, still starting no process. The compiled map cache moves to format 4, so each map is compiled once more after the update.
+
+### Changed
+
+- The `pre-commit-content` git hook reads and scans the staged files in batches, so a commit of many files, such as a merge of the default branch, no longer starts several processes for each file ([#10591](https://github.com/melodic-software/claude-code-plugins/issues/10591)). It reads each staged file once, finds the files a secret pattern can match with one search over all of them, and checks the files that may hold a machine path together, then one by one only where that check finds something. It still reads every line it read before and reports the same findings. A staged file the hook cannot read out, or cannot write to its temporary directory, now blocks the commit with a message instead of going unscanned.
+
+## [0.63.4] - 2026-10-29
+
+### Fixed
+
+- **`verify-cli-flag.sh` and the retirement check no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). The help-cache freshness fallback reads `find` through process substitution, and `lib/check-retirements.sh` checks each record's fields with a here-string, so under `set -o pipefail` a match can no longer read as a miss when grep exits before the producer finishes writing.
+
+## [0.63.3] - 2026-10-29
+
+### Changed
+
+- A clean Write, Edit or NotebookEdit costs the PreToolUse guard row 7 processes on Linux instead of 14. With telemetry off (the default), hardcoded-path-check decides clean content with its builtin prefilter before running `git rev-parse` or `git check-ignore`. secret-pattern-detection opens a capture subshell only when a pattern matched. No verdict changes.
+
+## [0.63.2] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.63.1] - 2026-10-29
+
+### Changed
+
+- reference-verify judges a stacked branch only on what it adds to the pushed branch below it
+
+  The pre-push reference-verify entry now moves each range's base up to the nearest of the remote's tracking refs between that base and the tip. A new branch stacked on a pushed branch no longer re-verifies every file the branches below it changed, so each push in a stack of branches verifies only its own files. The README row states that those tracking refs are trusted as verified, another author's included. The README's reference-verify row also documents the ssh `ServerAliveInterval` setting. It keeps a long push's idle connection open; a dropped connection leaves a push that reports success but creates no ref.
+
+### Fixed
+
+- `block-dangerous-git` lets a plain `git reset --hard` or `git clean -f` through on the Bash tool when git places both the work tree's top level and the common git directory under the system temp directory (`$TMPDIR`, `$TMP`, `$TEMP` or `/tmp`), the scratch repositories agents create and throw away ([#9779](https://github.com/melodic-software/claude-code-plugins/issues/9779)). `/var/tmp` persists across reboots, so a repository there still blocks unless one of those variables names it. The command has to be that one git invocation alone. It still blocks when `HOME` is under a temp root, in a linked worktree of a repository outside it, in a repository outside it, when the command carries a `-c` global, runs git through a wrapper or alias, or holds a separator, quote, escape, expansion, redirection or glob character, and on the PowerShell tool.
+- `block-root-delete-target` reads `rm -rf "$S"` as the literal `S` was set to when the command opens with `S=<literal>` and one `&&`, `;` or newline, even with other statements between the assignment and the delete (#9779). The binding still needs every `$S` to be a whole double-quoted word and the rest of the command to hold no quote, backslash, `$`, backtick, glob or brace character, and a second assignment to `S`, arithmetic, `let`, `unset`, `for`, `getopts`, a zsh setter such as `foreach`, `vared` or `print -v`, a `{S}>` redirection or any other builtin that sets a variable by name drops it, so the operand blocks as a bare variable as before.
+
+## [0.63.0] - 2026-10-29
+
+### Added
+
+- `block-cross-domain` now checks the `gh` and `az` config directory of a Bash or PowerShell call made from a session whose directory is in an identity domain ([#9747](https://github.com/melodic-software/claude-code-plugins/issues/9747)). When the domain has a `gh_config_dir`, a `gh` call that does not run with it is denied, whether the command sets `GH_CONFIG_DIR` or the hook's own environment carries it. When the domain has none, a `gh` call that runs with another domain's directory is denied. `az` is judged the same way with `AZURE_CONFIG_DIR` and `az_config_dir`. `gh --version` and `az --version` are exempt, and from a session outside every domain nothing is denied. A denied call starts no process, and the guard still exits 0 on every call.
+
+- `block-root-delete-target` judges a `find` that deletes the way it judges a recursive `rm` ([#9752](https://github.com/melodic-software/claude-code-plugins/issues/9752)): `find -delete`, or an `-exec`, `-execdir`, `-ok` or `-okdir` whose command word is `rm`, `rmdir` or `unlink`. Each start point is a target, `.` when none is given, read the way GNU and BSD find both read their leading options, and under `-H`, `-L` or `-follow` a start point that is a symlink is judged by where it points. A start point at a root, at home, outside the allowed roots or on a protected tree is refused, and one strictly inside the git toplevel, a temp root, the session scratchpad or an allowed root passes. A find delete started at the git toplevel is refused as a directory holding a `.git` whatever its filters, because find descends into `.git`.
+
+## [0.62.1] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error.
+
+## [0.62.0] - 2026-10-29
+
+### Added
+
+- `/guardrails:setup apply identity-domains` writes the `block-cross-domain` map, `identity-domains.json` in the plugin data directory, from the identity domains `/harness-ops:machine-profile` recorded ([#9749](https://github.com/melodic-software/claude-code-plugins/issues/9749)). Each domain's tree becomes its root, and a `gh` directory the profile records becomes its `gh_config_dir`. Owners, identity markers, `az_config_dir` and shared exceptions come from the operator or are left out. The map is written only after the operator confirms, and a different map already there is replaced only with `--replace`.
+
+- `block-cross-domain` now denies a Bash or PowerShell command, from a session whose directory is in one identity domain, that names a path of another domain: one of its roots, or `~/src/github.com/<owner>` or `~/worktrees/github.com/<owner>` for an owner the map lists under it. A read is denied as well as a write. The guard matches a path in any case and spelled as a Windows drive path with either slash or escaped backslashes, in its MSYS, Cygwin and WSL drive forms, or below `HOME` after `~`, `$HOME` or `%USERPROFILE%` ([#9744](https://github.com/melodic-software/claude-code-plugins/issues/9744)). The decision is a PreToolUse `deny` on stdout whose reason names the session's domain and the others, and the exit stays 0. A marker alone never denies, and from a session outside every domain's paths nothing is denied. With no map the guard still does nothing, and `block_cross_domain_enabled` turns it off.
+
+- `block-cross-domain` now denies, from a session whose directory is in one identity domain, a Bash or PowerShell command that puts another domain's `identity_markers` entry in an identity position: the URL of `git remote add` or `set-url`, the value of `git config` or `git -c` for `user.email`, `user.name`, the `author.*` and `committer.*` keys or `remote.<name>.url`, `git commit --author`, and an assignment to `GH_CONFIG_DIR`, `AZURE_CONFIG_DIR` or a `GIT_AUTHOR_*` or `GIT_COMMITTER_*` variable. The same marker in a commit message or an `echo` is allowed, as is every call from a neutral directory. The deny is a stdout decision document, and the guard still exits 0 on every call ([#9746](https://github.com/melodic-software/claude-code-plugins/issues/9746)).
+
+### Changed
+
+- The README's hook budget accounting now records the measured `Bash|PowerShell` row cost of `block-cross-domain` ([#9743](https://github.com/melodic-software/claude-code-plugins/issues/9743)) and of the `block-root-delete-target` protected trees ([#9751](https://github.com/melodic-software/claude-code-plugins/issues/9751)) on the Windows reference host: both within the ±0.3 S noise of the untouched rows.
+
+- `block-cross-domain` classifies the session directory by an owner's `~/src/github.com/<owner>` and `~/worktrees/github.com/<owner>` directories as well as by roots, the longest path winning, so a session inside an owner's clone is in that owner's domain. It also drops quotes from the command text before its prefilter, so `"$HOME"/<path>` is parsed like `$HOME/<path>`. The compiled cache now changes with `HOME` as well as with the map.
+
+### Fixed
+
+- The `reference-verify` pre-push entry reports each finding at the line that holds the flag, path or skill reference it names. Before, every finding in a file carried the file's first added line, which for a new file was line 1. When no line the push adds holds that text, the finding falls back to the first added line.
+- A declined `reference-verify` entry (`checks.guardrails.reference-verify.declined`, else `checks.git-hooks.declined`, read the way `install.mjs` reads them) now exits 0 without checking, including when the plugin's lefthook remote runs it from the fetched copy. Before, declining removed only the registrations the installer wrote, so a lefthook-remote consumer kept running the check.
+
+## [0.61.3] - 2026-10-28
+
+### Changed
+
+- The `remotes:` entry `install.mjs plan --scope remote` writes into a consumer's `lefthook.yml` now sets `refetch_frequency: 1h` instead of `24h`, so a hook fix merged to `main` reaches each clone's commits and pushes within an hour. A consumer that already committed the entry keeps `24h` until it edits the line.
+- `/guardrails:setup` and the README now say the shared lefthook remote is refetched hourly.
+
+## [0.61.2] - 2026-10-28
+
+### Fixed
+
+- `reference-verify` pre-push entry: files in a `samples/` folder below an `evals/` folder, at the repository root or nested, are no longer handed to `cli-flag-verify`, `skill-reference-verify` and `stale-path-verify`. Those files are recorded model output, so a flag, skill reference or path in them is data, and editing them to pass would corrupt the eval. An eval suite's prompts, graders and fixtures, and a `samples/` folder outside `evals/`, are still checked.
+
+## [0.61.1] - 2026-10-28
+
+### Fixed
+
+- The pre-push reference check judges a file over 128 KiB instead of skipping it: the file's text reaches jq as a file, not as one command-line argument, which the kernel refused ("Argument list too long").
+- The pre-push reference check judges a file added as a copy of a file the push also changes (a doc moved with a stub left at its old path) on the lines it adds, as it does a renamed file, so citations the doc already held are no longer reported as new.
+- `stale-path-verify` reads its deleted-path list in one pass (a rebuild took about 25 s on this repository's history, now well under a second) and lists the tracked files only for a root-level citation that has an extension.
+
+## [0.61.0] - 2026-10-28
+
+### Changed
+
+- The commit-subject and PR-title convention that `block-convention-violation` and the `commit-msg-convention` git-hook entry enforce now resolves from `docs/conventions/source-control.yaml` first, read with the shared YAML-subset parser, which ships beside the resolver and installs as a second asset of the entry. For one release, a key that file lacks is read from the legacy surfaces: the `convention_source` neutral file or the well-known folder-form `commit-convention.yml`, then `.claude/source-control.md`. The YAML counts only while git tracks it, and a tracked file that does not parse, carries a key with an empty value, declares a dialect other than `posix-ere`, or is a symlink turns enforcement off with a diagnostic instead of falling back.
+- A `commit-msg-convention` copy installed before this release keeps its old resolver, which does not read `docs/conventions/source-control.yaml`. Once the legacy surfaces are removed, such a copy enforces nothing until it is refreshed. `verify` reads it as `stale`, and the session-start notice names the refresh: run `/guardrails:setup apply install-git-hooks` before the legacy surfaces go.
+- A commit-msg rejection names the file that holds the pattern, from the resolver's new `--layer` option, instead of always naming `.claude/source-control.md`.
+
+### Fixed
+
+- A git-hook entry installed before its manifest listed an asset now reads `stale` rather than `modified` in `verify` and `plan`, so `copy` refreshes it and adds the asset without `--force`. Deleting an asset the install's stamp covers still reads `modified`.
+
+## [0.60.4] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.60.3] - 2026-10-27
+
+### Security
+
+- The `--skip-unless-marker` hook launcher no longer skips a monitor because of a launch-marker directory in the shared temp folder that another local user created, or a symlink in its place: off Windows that directory counts only when it is a real directory owned by the current user, as the disk-hygiene hook script already required.
+
+## [0.60.2] - 2026-10-27
+
+### Changed
+
+- `resolve-convention-pattern.sh` reads the neutral convention file (`docs/conventions/source-control/commit-convention.yml` or a `convention_source` pointer) once per run with shell builtins, where it ran a `grep` (and a `tr`) for every key lookup and a `dirname` for its directory check. A `git commit` judged with the well-known file tracked and no convention cache skips 12 `grep` and 2 `dirname` processes (#9526). Resolved patterns and exit codes are otherwise unchanged.
+
+### Fixed
+
+- An unreadable neutral convention file now disables enforcement (exit 1) with its own diagnostic, as a missing file or a symlinked pointer does. Before, the resolver fell back to the `.claude/source-control.md` H2 pattern the neutral file was meant to replace.
+
+## [0.60.1] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.60.0] - 2026-10-27
+
+### Added
+
+- `hooks/exec-bash.mjs` takes `--require-verdict`, a per-row opt-in for a blocking hook row: the launcher names a marker file in the script's `EXEC_BASH_VERDICT_FILE`, and a script that exits 0 without writing it is denied (exit 2, one stderr line). A row without the flag behaves as before.
+
+### Fixed
+
+- A guard row no longer lets a call through when its dispatcher dies before reaching a verdict. Windows Git Bash reports a crashed bash (a stack overflow, 0xC0000005) as exit 0 with empty output, which read as an allow. Every guardrails row now passes `--require-verdict`, and `run-guards.sh` writes the marker as its last action at each deliberate exit, so a crash denies the call. An abort in the dispatcher's own code, which used to allow the call with a notice, writes no marker either and is now denied. A `--report` process, whose parent gives the answer, never writes it.
+
+## [0.59.4] - 2026-10-26
+
+### Fixed
+
+- `block-unresolved-pr-merge` no longer refuses a command just because merge-shaped text and a backtick appear in the body of a quoted heredoc fed to a program that is not a shell, such as `python3 - <<'EOF'` or `git commit -F - <<'MSG'` (#8949). The backtick and line-continuation refusals now read the command with those bodies cut out, as the shared parser bounds them. A body is cut only when all of these hold:
+  - it ends at its own plain-word delimiter;
+  - it holds no backslash-newline and names no GraphQL merge mutation;
+  - no word of the command names a shell, `sudo`, `su`, `ssh` or `at`;
+  - the command word is not `eval`, `source`, `.` or a `.sh` script, and it can be read;
+  - no backtick, `$(`, `${`, `$[`, `((` or `[[` comes before it.
+
+  An unquoted heredoc body is never cut, because bash runs its backticks.
+- hook-utils: `hook::bash_parse_segments` leaves the byte span of each here-doc body it skips in `HOOK_HEREDOC_BODIES`, along with whether its delimiter was quoted. `run-guards.sh` replays that array along with the rest of a shared parse. A here-doc delimiter word now ends at `(` or `)`, as it does in bash, so `(cat <<'E')` no longer hides the commands after its body.
+
 ## [0.59.3] - 2026-10-26
 
 ### Added

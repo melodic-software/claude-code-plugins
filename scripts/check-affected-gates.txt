@@ -25,11 +25,11 @@ changelog-parity-order run changelog-parity
 plugin-options-docs run plugin-options-docs
 spoke-plugin-root run spoke-plugin-root
 changed-skills run changed-skills
+comment-hygiene run comment-hygiene
 
 # Not run by scripts/check-affected.sh. The reason names where the gate comes from
 # or the command that runs it by hand.
 actionlint ci-only ci-workflows composite
-comment-hygiene ci-only ci-workflows composite
 dependabot-schema ci-only ci-workflows composite: check-jsonschema
 editorconfig ci-only ci-workflows composite
 eol-renormalize ci-only ci-workflows composite
@@ -51,6 +51,7 @@ listing-budget-configured ci-only whole-repo scanner, bash plugins/skill-quality
 precompute-compose ci-only whole-repo scanner, scripts/check-skill-precompute-compose.sh --all
 adr-numbers ci-only whole-repo scanner, scripts/check-adr-numbers.sh --check
 app-key-references ci-only whole-repo scanner, scripts/check-app-key-references.sh --check
+artifact-retention ci-only whole-repo scanner, scripts/check-artifact-retention.sh --check
 code-metrics-config-reference ci-only whole-repo scanner, python3 scripts/check-code-metrics-config-reference.py
 code-metrics-skill-prose ci-only whole-repo scanner, python3 scripts/check-code-metrics-skill-prose.py
 config-cascade-semantics ci-only whole-repo scanner, python3 scripts/sync-config-cascade-semantics.py --check

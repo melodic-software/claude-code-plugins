@@ -1,0 +1,6 @@
+# Phase 6 second pass: sentinels plus a setup pilot that checks the A2-only helper allow rule.
+SENT-tarnquill A1 1
+SENT-brackenfold A1 1
+SENT-brackenfold-agentic A1 1
+T1 A2 1
+T4 A2 1

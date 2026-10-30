@@ -6,16 +6,35 @@
 # 39732992257 and refreshed 2026-10-23 from runs 39968901543, 39970209215,
 # 39971514210 and 39972824070, and the nine shell rows that had drifted 40 s or
 # more 2026-10-23 from whole-tree runs 39880676111, 39881602417, 39882556362
-# and 39884296244: a shell suite runs from the moment
+# and 39884296244, and the Python rows that had drifted 8 s or more, plus the
+# unlisted test_resume_cases.py, 2026-10-26 from whole-tree runs 40358923117,
+# 40362414991 and 40366757371, and the shell rows that had drifted 20 s or
+# more, plus the unlisted shell suites measured 20 s or more over the mean they
+# counted, 2026-10-27 from whole-tree runs 40461939547, 40462911306,
+# 40463818561, 40464773694, 40466310132, 40467313844 and 40469136785
+# (demo-video.test.sh from the three that installed its toolchain), and the
+# shell rows that had drifted 20 s or more and Python rows 8 s or more, plus
+# the unlisted shell suites 20 s or more over the mean they counted,
+# 2026-10-28 from whole-tree runs 40653674557, 40663973538 and 40674471154
+# (align.test.sh kept: its leg had no Chromium there, so it skipped), and the
+# unlisted post-merge-demotion-alert.test.sh 2026-10-29 from whole-tree run
+# 40892244877. The three ui-<part>.test.sh rows are estimates from 2026-10-29,
+# kept until a whole-tree run measures them: each part's suites scheduled
+# slowest first on 6 jobs from ui-timings.txt, a suite it does not list at
+# 53 s, the figure that brings the whole set to the 404 s measured before the
+# split. A shell
+# suite runs from the moment
 # run-plugin-tests.sh could start it (three at a time) to its result block, a
 # Python suite from its pytest command to the next one, at least 1. A suite not
-# listed counts 5 s. Wrong numbers cost leg balance, never coverage: every
-# selected suite runs on some leg whatever this file says.
+# listed counts the mean of the listed suites of its runner, rounded and at
+# least 5 s. Wrong numbers cost leg balance, never coverage: every selected
+# suite runs on some leg whatever this file says.
 .claude/hooks/cloud-bootstrap-author.test.sh 1
 .claude/hooks/cloud-bootstrap-plugins.test.sh 4
 .claude/hooks/hook-telemetry-sink.test.sh 1
+lib/docs-cache.test.sh 32
 lib/exec-bash.resolver.test.sh 1
-lib/fetch-docs.test.sh 2
+lib/fetch-docs.test.sh 25
 lib/hook-test-sink.test.sh 1
 lib/hook-utils.test.sh 48
 lib/html-escape.test.sh 1
@@ -120,7 +139,7 @@ plugins/code-metrics/skills/audit-complexity/scripts/audit-complexity.test.sh 22
 plugins/code-metrics/skills/audit-coverage/scripts/audit-coverage.test.sh 46
 plugins/code-metrics/skills/audit-coverage/scripts/test_crap.py 1
 plugins/code-metrics/skills/audit-coverage/scripts/test_join.py 4
-plugins/code-metrics/skills/audit-duplication/scripts/audit-duplication.test.sh 20
+plugins/code-metrics/skills/audit-duplication/scripts/audit-duplication.test.sh 47
 plugins/code-metrics/skills/audit-duplication/scripts/test_cluster_clones.py 1
 plugins/code-metrics/skills/audit-duplication/scripts/test_registry_filter.py 2
 plugins/code-metrics/skills/audit-size/scripts/audit-size.test.sh 13
@@ -231,7 +250,8 @@ plugins/guardrails/hooks/block-dangerous-git.test.sh 20
 plugins/guardrails/hooks/block-exported-msys-pathconv.test.sh 1
 plugins/guardrails/hooks/block-no-verify.test.sh 13
 plugins/guardrails/hooks/block-noncanonical-commit.test.sh 9
-plugins/guardrails/hooks/block-root-delete-target.test.sh 158
+plugins/guardrails/hooks/block-root-delete-target.test.sh 248
+plugins/guardrails/hooks/block-unresolved-pr-merge.test.sh 28
 plugins/guardrails/hooks/block-windows-drive-tmp.test.sh 10
 plugins/guardrails/hooks/cli-flag-verify.test.sh 5
 plugins/guardrails/hooks/coverage-manifest.test.sh 1
@@ -272,7 +292,7 @@ plugins/harness-config/skills/audit-permission-state/scripts/no-writes.test.sh 1
 plugins/harness-config/skills/audit-permission-state/scripts/permission-merge.test.sh 1
 plugins/harness-config/skills/audit-permission-state/scripts/permission-plane-lint.test.sh 1
 plugins/harness-config/skills/audit-permission-state/scripts/permission-state.test.sh 3
-plugins/harness-config/skills/audit/scripts/audit-engine.test.sh 102
+plugins/harness-config/skills/audit/scripts/audit-engine.test.sh 124
 plugins/harness-config/skills/audit/scripts/check-doc-citations.test.sh 1
 plugins/harness-config/skills/audit/scripts/check-effort-pins.test.sh 2
 plugins/harness-config/skills/audit/scripts/check-hook-coverage.test.sh 2
@@ -322,18 +342,18 @@ plugins/harness-ops/skills/inventory/scripts/test_compare_reports.py 1
 plugins/harness-ops/skills/inventory/scripts/test_fixture_parse.py 2
 plugins/harness-ops/skills/inventory/scripts/test_inventory.py 2
 plugins/harness-ops/skills/inventory/scripts/test_inventory_under_parser.py 2
-plugins/harness-ops/skills/inventory/scripts/test_parser_reader.py 28
+plugins/harness-ops/skills/inventory/scripts/test_parser_reader.py 18
 plugins/harness-ops/skills/inventory/scripts/test_reader_findings.py 2
 plugins/harness-ops/skills/known-issues/scripts/check-all.test.sh 1
 plugins/harness-ops/skills/known-issues/scripts/test_registry_manager.py 1
-plugins/harness-ops/skills/lanes/scripts/lane-launcher.test.sh 7
+plugins/harness-ops/skills/lanes/scripts/lane-launcher.test.sh 38
 plugins/harness-ops/skills/lanes/scripts/machine-behavior.test.sh 1
 plugins/harness-ops/skills/lanes/scripts/probe-lane-config.test.sh 1
-plugins/harness-ops/skills/lanes/scripts/restart-consumer.test.sh 8
+plugins/harness-ops/skills/lanes/scripts/restart-consumer.test.sh 38
 plugins/harness-ops/skills/lanes/scripts/telemetry-upsert.test.sh 7
 plugins/harness-ops/skills/machine-profile/scripts/profile.test.sh 9
 plugins/harness-ops/skills/morning-brief/morning-brief-view.test.sh 1
-plugins/harness-ops/skills/morning-brief/morning-brief.test.sh 65
+plugins/harness-ops/skills/morning-brief/morning-brief.test.sh 105
 plugins/harness-ops/skills/observability/claude-observability.test.sh 2
 plugins/harness-ops/skills/observability/otel/cc-otel.test.sh 3
 plugins/harness-ops/skills/observability/otel/net-probe.test.sh 1
@@ -347,7 +367,7 @@ plugins/harness-ops/skills/observability/scripts/session-compare.test.sh 1
 plugins/harness-ops/skills/plugins/scripts/cache-content-check.test.sh 3
 plugins/harness-ops/skills/plugins/scripts/fleet-state.test.sh 6
 plugins/harness-ops/skills/plugins/scripts/normalize-enabled-plugins.test.sh 1
-plugins/harness-ops/skills/plugins/scripts/sync-run.test.sh 25
+plugins/harness-ops/skills/plugins/scripts/sync-run.test.sh 78
 plugins/harness-ops/skills/prerequisites/scripts/check-prerequisites.test.sh 1
 plugins/implementation/scripts/agent-contract-sync.test.sh 1
 plugins/implementation/skills/implement-dispatch/reattach-slice.test.sh 1
@@ -397,6 +417,7 @@ plugins/mutation-testing/scripts/suppression-lint.test.sh 1
 plugins/performance/scripts/ab.test.sh 2
 plugins/performance/scripts/differential.test.sh 1
 plugins/performance/scripts/discriminate.test.sh 1
+plugins/performance/scripts/findings.test.sh 45
 plugins/performance/scripts/harness-lib.test.sh 1
 plugins/performance/scripts/pathfix.test.sh 1
 plugins/performance/scripts/ratchet.test.sh 3
@@ -418,7 +439,7 @@ plugins/planning/scripts/check-open-questions.test.sh 2
 plugins/planning/scripts/check-plan-outcome.test.sh 1
 plugins/planning/scripts/eval-scaffold.test.sh 1
 plugins/planning/scripts/goal-condition-length.test.sh 1
-plugins/planning/shared/tests/align.test.sh 312
+plugins/planning/shared/tests/align.test.sh 284
 plugins/planning/shared/tests/test_cfdns.py 8
 plugins/planning/shared/tests/test_load.py 10
 plugins/planning/shared/tests/test_owner_ops.py 1
@@ -427,17 +448,19 @@ plugins/planning/shared/tests/test_schema_shapes.py 1
 plugins/planning/shared/tests/test_server.py 129
 plugins/planning/shared/tests/test_server_live.py 28
 plugins/planning/shared/tests/test_session.py 30
-plugins/planning/shared/tests/test_share.py 142
+plugins/planning/shared/tests/test_share.py 158
 plugins/planning/shared/tests/test_tunnel.py 64
 plugins/planning/shared/tests/tracer-live.test.sh 1
 plugins/planning/shared/tests/tracer.test.sh 10
-plugins/planning/shared/tests/ui.test.sh 426
-plugins/planning/surface/surface-journey.test.sh 130
-plugins/planning/surface/surface-ui-c.test.sh 133
-plugins/planning/surface/surface.test.sh 172
-plugins/planning/surface/test_exporters.py 50
+plugins/planning/shared/tests/ui-a.test.sh 187
+plugins/planning/shared/tests/ui-b.test.sh 139
+plugins/planning/shared/tests/ui-c.test.sh 154
+plugins/planning/surface/surface-journey.test.sh 290
+plugins/planning/surface/surface-ui-c.test.sh 153
+plugins/planning/surface/surface.test.sh 195
+plugins/planning/surface/test_exporters.py 74
 plugins/planning/surface/test_question_shape.py 1
-plugins/planning/surface/test_round.py 33
+plugins/planning/surface/test_round.py 45
 plugins/planning/surface/test_schema.py 1
 plugins/planning/surface/test_server.py 70
 plugins/planning/surface/watch.test.sh 48
@@ -455,6 +478,7 @@ plugins/playbooks/skills/repo-sweep/scripts/skill-version.test.sh 1
 plugins/playbooks/skills/repo-sweep/scripts/state.test.sh 1
 plugins/playbooks/skills/repo-sweep/scripts/tick.test.sh 1
 plugins/playbooks/skills/skill-authoring/scripts/update.test.sh 1
+plugins/playwright/skills/demo-video/scripts/demo-video.test.sh 225
 plugins/playwright/skills/demo-video/scripts/test_demo_video.py 1
 plugins/playwright/skills/playwright/scripts/update.test.sh 1
 plugins/plugin-quality/scripts/citation-contract-drift.test.sh 1
@@ -464,6 +488,7 @@ plugins/plugin-quality/scripts/packet-seal.test.sh 2
 plugins/plugin-quality/scripts/zones-inline-drift.test.sh 1
 plugins/plugin-quality/skills/audit/scripts/collect-categories.test.sh 1
 plugins/plugin-quality/skills/audit/scripts/collect-standards.test.sh 1
+plugins/powershell-format/git-hooks/powershell-check.test.sh 28
 plugins/powershell-format/hooks/powershell-format.test.sh 3
 plugins/prototype/scripts/allowed-tools-pairing.test.sh 1
 plugins/prototype/scripts/detect-ecosystems.test.sh 1
@@ -503,10 +528,12 @@ plugins/review/tests/explain-change.test.sh 2
 plugins/review/tests/fanout-sweep.test.sh 1
 plugins/review/tests/standards-binding.test.sh 1
 plugins/ruff-format/hooks/ruff-format.test.sh 4
-plugins/session-flow/scripts/harness/hop_chain.test.sh 19
-plugins/session-flow/scripts/save_point.test.sh 38
+plugins/session-flow/scripts/harness/hop_chain.test.sh 53
+plugins/session-flow/scripts/harness/resume_eval.test.sh 89
+plugins/session-flow/scripts/harness/test_resume_cases.py 71
+plugins/session-flow/scripts/save_point.test.sh 70
 plugins/session-flow/scripts/tests/test_hop_chain_load_transcript.py 1
-plugins/session-flow/scripts/tests/test_save_point.py 26
+plugins/session-flow/scripts/tests/test_save_point.py 39
 plugins/session-flow/scripts/tests/test_tidy_work.py 5
 plugins/session-flow/scripts/tests/test_transcript_reader_first_cwd.py 1
 plugins/session-flow/scripts/tidy_work.test.sh 8
@@ -527,7 +554,7 @@ plugins/session-flow/skills/running-retro/scripts/observer.test.sh 8
 plugins/session-flow/skills/running-retro/scripts/test_observer.py 9
 plugins/skill-quality/scripts/check-evals-quality.test.sh 1
 plugins/skill-quality/scripts/check-listing-budget.test.sh 1
-plugins/skill-quality/scripts/check-skill.test.sh 40
+plugins/skill-quality/scripts/check-skill.test.sh 65
 plugins/skill-quality/scripts/measure-invocation.test.sh 6
 plugins/songwriting/context/pat-pattison/scripts/datamuse.test.sh 1
 plugins/source-control/hooks/pr-body-linkage-gate.test.sh 10
@@ -550,7 +577,7 @@ plugins/source-control/scripts/worktree-create.test.sh 11
 plugins/source-control/scripts/worktree-root-doctor.test.sh 1
 plugins/source-control/scripts/worktree-root-scan.test.sh 1
 plugins/source-control/skills/babysit-loop/scripts/resolve-promotion-evidence.test.sh 1
-plugins/source-control/skills/babysit-prs/scripts/engine.test.sh 72
+plugins/source-control/skills/babysit-prs/scripts/engine.test.sh 178
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_check_inputs.py 2
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_checks.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_classify.py 1
@@ -568,14 +595,14 @@ plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_async
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_base_freshness.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_branch_rules.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_cost.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_policy.py 42
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_policy.py 56
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_prefilter.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_rate_limit_rerun.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_report_only_state.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_review_settle.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_skip.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_unattended.py 2
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_postmerge.py 2
+plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_postmerge.py 56
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_postmerge_contains.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_postmerge_quarantine.py 5
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_repo_config.py 1
@@ -583,7 +610,6 @@ plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_resolve_thr
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_review_evidence.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_risk.py 5
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_risk_cost.py 1
-plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_risk_declared_executables.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_state.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_util.py 1
 plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_verify_evidence.py 2
@@ -619,12 +645,12 @@ plugins/testing/hooks/test-weaken.test.sh 6
 plugins/testing/scripts/gen-hook-filters.test.sh 1
 plugins/testing/scripts/resolve-config.test.sh 3
 plugins/testing/skills/audit/evals/judge-calibration/metrics.test.sh 6
-plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh 135
+plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh 170
 plugins/testing/skills/setup/scripts/setup.test.sh 2
 plugins/testing/tests/fix-until-green.test.sh 1
 plugins/typos-format/hooks/typos-format.test.sh 12
 plugins/wizard/skills/generate/template.test.sh 1
-plugins/wizard/skills/unattended/template.test.sh 92
+plugins/wizard/skills/unattended/template.test.sh 112
 plugins/work-items/scripts/backfill-capability-tier-labels.test.sh 1
 plugins/work-items/scripts/evaluate-schedule-precondition.test.sh 1
 plugins/work-items/scripts/lane-telemetry-upsert.test.sh 1
@@ -646,7 +672,7 @@ plugins/work-items/tools/work-item-tracker/adapters/github/claim.test.sh 1
 plugins/work-items/tools/work-item-tracker/adapters/github/common.test.sh 1
 plugins/work-items/tools/work-item-tracker/adapters/github/create-item.test.sh 1
 plugins/work-items/tools/work-item-tracker/adapters/github/get-item.test.sh 1
-plugins/work-items/tools/work-item-tracker/adapters/github/lease-coordination.test.sh 2
+plugins/work-items/tools/work-item-tracker/adapters/github/lease-coordination.test.sh 22
 plugins/work-items/tools/work-item-tracker/adapters/github/link-blocks.test.sh 1
 plugins/work-items/tools/work-item-tracker/adapters/github/list-items.test.sh 1
 plugins/work-items/tools/work-item-tracker/adapters/github/list-sub-items.test.sh 1
@@ -736,7 +762,7 @@ scripts/check-plugin-manifest-presence.test.sh 1
 scripts/check-publisher-token-alignment.test.sh 1
 scripts/check-purged-em-dashes.test.sh 2
 scripts/check-queue-front-matter.test.sh 1
-scripts/check-script-contract.test.sh 3
+scripts/check-script-contract.test.sh 26
 scripts/check-shell-portability.test.sh 23
 scripts/check-silent-revert.test.sh 20
 scripts/check-silent-skips.test.sh 1
@@ -750,6 +776,8 @@ scripts/check-standards-contract-bump.test.sh 2
 scripts/check-summary-reader-parity.test.sh 3
 scripts/check-test-tmp-cleanup.test.sh 1
 scripts/check-vendor-version-bump.test.sh 2
+scripts/ci-hold-cost-decision.test.sh 27
+scripts/ci-lanes-pr-hold.test.sh 36
 scripts/emit-windows-path.test.sh 1
 scripts/gen-hook-event-registry.test.sh 1
 scripts/generate-cheatsheet.test.sh 2
@@ -762,6 +790,7 @@ scripts/lib/test-harness.test.sh 1
 scripts/node-notice-rows.test.sh 8
 scripts/pilot-plugin-quality-sim.test.sh 1
 scripts/plugin-validate-report.test.sh 1
+scripts/post-merge-demotion-alert.test.sh 100
 scripts/run-outside-node-suites.test.sh 1
 scripts/run-plugin-tests.test.sh 12
 scripts/selection-audit.test.sh 1

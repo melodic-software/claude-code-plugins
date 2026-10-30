@@ -29,19 +29,58 @@ const artifact = (id, created_at, runId, extra = {}) => ({
   ...extra,
 });
 
+// GraphQL answers come from the same REST routes: the open pull request
+// list (newest update first) and each PR's comments, oldest first, as
+// GraphQL shapes them: a Bot's login without [bot], pages of 100 from the
+// newest back, a cursor being the index the page starts at.
+const GRAPHQL = "POST /graphql";
+const node = (c) => ({
+  author: c.user && { __typename: /\[bot\]$/.test(c.user.login) ? "Bot" : "User", login: c.user.login.replace(/\[bot\]$/, "") },
+  body: c.body,
+  createdAt: c.created_at,
+  updatedAt: c.updated_at ?? c.created_at,
+  url: c.html_url,
+});
+const commentPage = (all, before = all.length) => {
+  const start = Math.max(0, before - 100);
+  return { pageInfo: { hasPreviousPage: start > 0, startCursor: String(start) }, nodes: all.slice(start, before).map(node) };
+};
+
 function fakeApi(routes) {
   const calls = [];
-  const get = async (path) => {
-    calls.push(path);
+  const queries = [];
+  const resolve = (path) => {
     for (const [pattern, value] of routes) {
-      if (pattern.test(path)) {
+      if (pattern instanceof RegExp && pattern.test(path)) {
         if (value instanceof Error) throw value;
         return typeof value === "function" ? value(path) : value;
       }
     }
     throw new Error(`no route for ${path}`);
   };
-  return { get, calls };
+  const get = async (path) => {
+    calls.push(path);
+    return resolve(path);
+  };
+  const comments = (number) => resolve(`/repos/${repo}/issues/${number}/comments`);
+  const graphql = async (query, variables) => {
+    calls.push(GRAPHQL);
+    queries.push({ query, variables });
+    const value = routes.find(([pattern]) => pattern === GRAPHQL)?.[1];
+    if (value instanceof Error) throw value;
+    const first = /pullRequests\(states: OPEN, baseRefName: "main", first: (\d+)/.exec(query);
+    if (first) {
+      const pulls = resolve(`/repos/${repo}/pulls?state=open&base=main&sort=updated&direction=desc&per_page=10000&page=1`);
+      const nodes = pulls.slice(0, Number(first[1])).map((pull) => ({ number: pull.number, isDraft: pull.draft === true, headRefOid: pull.head.sha, comments: commentPage(comments(pull.number)) }));
+      return { data: { repository: { pullRequests: { totalCount: pulls.length, nodes } } } };
+    }
+    const repository = {};
+    for (const [, alias, number, before] of query.matchAll(/(a\d+): pullRequest\(number: (\d+)\) \{ comments\(last: 100, before: "(\d+)"\)/g)) {
+      repository[alias] = { comments: commentPage(comments(number), Number(before)) };
+    }
+    return { data: { repository } };
+  };
+  return { get, graphql, calls, queries };
 }
 
 const status = {
@@ -73,7 +112,35 @@ const laneComment = (id, body, extra = {}) => ({
   ...extra,
 });
 
+// report-escalation.sh's lane-stopped comment for `activity` at `head`, last
+// edited at `at`.
+const sha = (c) => c.repeat(40);
+const stopComment = (pr, head, at, { activity = "fix-ci", reason = "ci-fix-invalid", login = "melodic-automation-lanes[bot]" } = {}) => ({
+  id: pr * 10,
+  body: `<!-- pr-unblock:lane-stopped activity=${activity} -->\nThe pr-unblock lane stopped.\n\n- Reason: \`${reason}\`\n- Head: \`${head}\`\n`,
+  user: { login },
+  created_at: "2026-10-18T09:00:00Z",
+  updated_at: at,
+  html_url: `https://github.com/o/r/pull/${pr}#issuecomment-${pr * 10}`,
+});
+// Open PRs: #8301 stalled (stopped at 12:00, no attempt since); #8302 stopped
+// 20 minutes ago; #8303 stopped long ago but retried since; #8304
+// Dependabot's, stalled on resolve-conflicts; #8305's comment names an
+// older head; #8306's marker is a person's.
+const stallRoutes = () => [
+  [/\/pulls\?state=open/, [8301, 8302, 8303, 8304, 8305, 8306].map((number) => ({ number, head: { sha: sha(String(number % 10)) } }))],
+  [/\/issues\/8301\/comments/, [stopComment(8301, sha("1"), "2026-10-19T12:00:00Z")]],
+  [/\/issues\/8302\/comments/, [stopComment(8302, sha("2"), "2026-10-19T16:20:00Z")]],
+  [/\/issues\/8303\/comments/, [stopComment(8303, sha("3"), "2026-10-19T12:00:00Z")]],
+  [/\/issues\/8304\/comments/, [stopComment(8304, sha("4"), "2026-10-19T11:30:00Z", { activity: "resolve-conflicts", reason: "conflict-patch-invalid" })]],
+  [/\/issues\/8305\/comments/, [stopComment(8305, sha("9"), "2026-10-19T10:00:00Z")]],
+  [/\/issues\/8306\/comments/, [stopComment(8306, sha("6"), "2026-10-19T10:00:00Z", { login: "someone" })]],
+  [/\/commits\/3{40}\/check-runs/, { check_runs: [{ started_at: "2026-10-19T12:30:00Z" }] }],
+  [/\/commits\/[0-9a-f]{40}\/check-runs/, { check_runs: [{ started_at: "2026-10-19T11:00:00Z" }] }],
+];
+
 const routes = () => [
+  ...stallRoutes(),
   [/workflows\/pr-merge\.yml\/runs/, { workflow_runs: [run(10)] }],
   [/runs\/10\/jobs/, { jobs: [{ id: 100, name: "merge", conclusion: "success" }, { id: 101, name: "post-merge-dispatch" }] }],
   [
@@ -133,6 +200,7 @@ const routes = () => [
 
 const input = (api, extra = {}) => ({
   get: api.get,
+  graphql: api.graphql,
   getStatus: async (url) => status[url],
   readArtifact: async (id) => ({ run_id: 1000 + id, event: "schedule", live: true, started_at: "2026-10-19T16:30:00Z", candidates: 10, refusal_counts: {}, results: [] }),
   repo,
@@ -175,6 +243,14 @@ test("collect reads every source into the signals' data shape", async () => {
   assert.deepEqual(
     data.status.incidents.map((i) => [i.id, i.components]),
     [["8tzbpcnl75jp", ["Actions", "Webhooks"]]],
+  );
+  // A stop with no attempt since, past STALLED_HOURS, on any author's PR.
+  assert.deepEqual(
+    data.stalledStops.map((s) => [s.pr, s.activity, s.reason]),
+    [
+      [8301, "fix-ci", "ci-fix-invalid"],
+      [8304, "resolve-conflicts", "conflict-patch-invalid"],
+    ],
   );
   // Only the lanes App's markers created in the window, at the comment's start.
   assert.deepEqual(
@@ -425,4 +501,157 @@ test("listFiled lists only github-actions[bot]'s issues", async () => {
   const api = fakeApi([[/\/issues\?/, []]]);
   await listFiled({ get: api.get, repo });
   assert.deepEqual(api.calls.map((path) => new URL(path, "https://x").searchParams.get("creator")), ["github-actions[bot]"]);
+});
+
+// GitHub's open pull request list, honoring sort direction, page and per_page.
+const openPulls = (pulls) => (path) => {
+  const q = new URL(path, "https://x").searchParams;
+  const sorted = [...pulls].sort((a, b) => a.updated_at.localeCompare(b.updated_at) * (q.get("direction") === "desc" ? -1 : 1));
+  const per = Number(q.get("per_page") ?? 30);
+  const page = Number(q.get("page") ?? 1);
+  return sorted.slice((page - 1) * per, page * per);
+};
+const idle = (number, day) => ({ number, head: { sha: sha("e") }, updated_at: `2026-10-${String(day).padStart(2, "0")}T00:00:00Z` });
+
+test("stalled stops: more open PRs than the read covers is a gap naming the true count, and the most recently updated are read", async () => {
+  const many = Array.from({ length: 145 }, (_, i) => idle(9000 + i, 1 + (i % 17)));
+  const api = fakeApi([[/\/pulls\?state=open/, openPulls(many)], [/\/issues\/9\d{3}\/comments/, []], ...routes()]);
+  const data = await collect(input(api));
+  assert.ok(data.gaps.some((g) => g === "stalled stops: 145 open pull requests, only the 40 most recently updated read"), data.gaps.join("\n"));
+  // One query lists them, newest update first, with their comments.
+  assert.equal(api.calls.filter((p) => p === GRAPHQL).length, 1);
+  assert.match(api.queries[0].query, /pullRequests\(states: OPEN, baseRefName: "main", first: 40, orderBy: \{ field: UPDATED_AT, direction: DESC \}\)/);
+  assert.match(api.queries[0].query, /comments\(last: 100\)/);
+  assert.ok(!api.calls.some((p) => /\/pulls\?state=open|\/issues\/\d+\/comments/.test(p)));
+});
+
+// Review finding on #10252: the read spent up to 3 + 40 + 20 calls of the
+// run's CALL_BUDGET. Worst case now: 145 open PRs, every one stopped long ago
+// with no attempt, each with 350 comments so every comment round runs.
+test("stalled stops: the worst case spends at most 1 + 2 + 20 calls", async () => {
+  const many = Array.from({ length: 145 }, (_, i) => idle(9000 + i, 1 + (i % 17)));
+  const chatter = Array.from({ length: 350 }, (_, i) => ({ id: i, body: "chatter", user: { login: "someone" }, created_at: "2026-10-17T00:00:00Z" }));
+  const api = fakeApi([
+    [/\/pulls\?state=open/, openPulls(many)],
+    [/\/issues\/9\d{3}\/comments/, (path) => [...chatter, stopComment(Number(/issues\/(\d+)/.exec(path)[1]), sha("e"), "2026-10-19T10:00:00Z")]],
+    [/\/commits\/e{40}\/check-runs/, { check_runs: [] }],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  const spent = api.calls.filter((p) => p === GRAPHQL || /\/pulls\?state=open|\/issues\/\d+\/comments|check-runs\?check_name/.test(p)).length;
+  assert.ok(spent <= 1 + 2 + 20, `${spent} calls`);
+  assert.equal(data.stalledStops.length, 20);
+});
+
+// Review finding on #10252: an older head's lane-stopped comment among the
+// newest 100 hid the current head's stop in an older comment (edited in place
+// at the new stop) and recorded no gap. Only a current-head marker ends the
+// read; past the comment rounds, the PR is a gap.
+test("stalled stops: an older head's marker does not stop the read before the current head's stop", async () => {
+  const chatter = (n) => Array.from({ length: n }, (_, i) => ({ id: i, body: "chatter", user: { login: "someone" }, created_at: "2026-10-18T10:00:00Z" }));
+  const current = stopComment(8501, sha("1"), "2026-10-19T12:00:00Z");
+  const stale = { ...stopComment(8501, sha("9"), "2026-10-18T12:00:00Z", { activity: "address-feedback", reason: "feedback-partial" }), id: 2 };
+  const api = fakeApi([
+    [/\/pulls\?state=open/, [{ number: 8501, head: { sha: sha("1") } }, { number: 8502, head: { sha: sha("2") } }]],
+    [/\/issues\/8501\/comments/, [current, ...chatter(150), stale, ...chatter(20)]],
+    [/\/issues\/8502\/comments/, [stopComment(8502, sha("2"), "2026-10-19T12:00:00Z"), ...chatter(320), { ...stopComment(8502, sha("8"), "2026-10-18T12:00:00Z"), id: 3 }]],
+    [/\/commits\/[12]{40}\/check-runs/, { check_runs: [] }],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.stalledStops.map((s) => [s.pr, s.activity]), [[8501, "fix-ci"]]);
+  assert.ok(data.gaps.includes("stalled stops: #8502 has over 300 comments and none names a stop on its head; older ones not read"), data.gaps.join("\n"));
+});
+
+// A pull request stopped three hours ago sorts ahead of older idle ones, so
+// more than 20 idle pull requests no longer hide it.
+test("stalled stops: a freshly stopped PR behind more than 20 idle ones is read and listed", async () => {
+  const idlePulls = Array.from({ length: 25 }, (_, i) => idle(9100 + i, 1 + i));
+  const fresh = { number: 9200, head: { sha: sha("f") }, updated_at: "2026-10-19T13:30:00Z" };
+  const api = fakeApi([
+    [/\/pulls\?state=open/, openPulls([...idlePulls, fresh])],
+    [/\/issues\/9200\/comments/, [stopComment(9200, sha("f"), "2026-10-19T13:30:00Z")]],
+    [/\/issues\/91\d{2}\/comments/, []],
+    [/\/commits\/f+\/check-runs/, { check_runs: [] }],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.deepEqual(data.stalledStops.map((s) => s.pr), [9200]);
+  assert.ok(!data.gaps.some((g) => g.startsWith("stalled stops:")), data.gaps.join("\n"));
+});
+
+// Shapes a skip-blind attempt rule missed: a select job's lane-stopped check
+// posted after the comment's edit, and a draft's feedback skip (not-applicable
+// from the slot's draft predicate). Neither ran the activity, so both stay
+// stalled. A label clear-escalations took off for a reason now routed to a
+// failing status (#10136's shape: no stop comment on that head) is a stop too,
+// except feedback-not-landed, which clears only once its cause is gone.
+test("stalled stops: a skip is no attempt, and a cleared fail-routed label is a stop", async () => {
+  const skip = (title, at) => ({ conclusion: "neutral", output: { title }, started_at: at });
+  const cleared = (pr, head, reason) => ({
+    id: pr,
+    body: `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->\nThe pr-unblock lane escalated this pull request.`,
+    user: { login: "melodic-automation-lanes[bot]" },
+    created_at: "2026-10-19T10:00:00Z",
+    html_url: `https://github.com/o/r/pull/${pr}#c`,
+  });
+  const api = fakeApi([
+    [/\/pulls\?state=open/, [8401, 8402, 8403, 8404, 8405, 8406].map((number) => ({ number, draft: number === 8402, head: { sha: sha(String(number % 10)) } }))],
+    [/\/issues\/8401\/comments/, [stopComment(8401, sha("1"), "2026-10-19T12:00:00Z", { activity: "resolve-conflicts", reason: "repeat-cap" })]],
+    [/\/issues\/8402\/comments/, [stopComment(8402, sha("2"), "2026-10-19T12:00:00Z", { activity: "address-feedback", reason: "feedback-partial" })]],
+    [/\/issues\/8403\/comments/, [cleared(8403, sha("3"), "ci-fix-escalated")]],
+    [/\/issues\/8404\/comments/, [cleared(8404, sha("4"), "feedback-uncertain")]],
+    [/\/issues\/8405\/comments/, Array.from({ length: 350 }, (_, i) => ({ id: i, body: "chatter", user: { login: "someone" } }))],
+    [/\/issues\/8406\/comments/, [cleared(8406, sha("6"), "feedback-not-landed")]],
+    [/\/commits\/1{40}\/check-runs/, { check_runs: [skip("Skipped: lane-stopped", "2026-10-19T12:00:05Z")] }],
+    [/\/commits\/2{40}\/check-runs/, { check_runs: [skip("Skipped: not-applicable", "2026-10-19T12:40:00Z")] }],
+    [/\/commits\/3{40}\/check-runs/, { check_runs: [{ conclusion: "success", output: { title: "Fixed" }, started_at: "2026-10-19T09:00:00Z" }] }],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.deepEqual(
+    data.stalledStops.map((s) => [s.pr, s.activity, s.reason]),
+    [
+      [8401, "resolve-conflicts", "repeat-cap"],
+      [8402, "address-feedback", "feedback-partial"],
+      [8403, "fix-ci", "ci-fix-escalated"],
+    ],
+    "a held reason's clear, and a feedback-not-landed one, is no stop",
+  );
+  assert.ok(data.gaps.includes("stalled stops: #8405 has over 300 comments and none names a stop on its head; older ones not read"), data.gaps.join("\n"));
+});
+
+// Review finding on #10252: a select job that found the stop gone
+// (stop-resolved) skips not-applicable and posts success over the failing
+// status, which the monitor cannot read. address-feedback's select skips
+// not-applicable only then, so on a non-draft PR that skip ends the stop.
+// fix-ci's skips it also with no fixable failure, so it ends the stop only
+// when the head's whole listing is settled with none failing.
+test("stalled stops: a stop-resolved not-applicable skip ends an address-feedback or settled-green fix-ci stop", async () => {
+  const skip = (at) => ({ conclusion: "neutral", output: { title: "Skipped: not-applicable" }, started_at: at });
+  const done = (id, conclusion) => ({ id, name: `check ${id}`, status: "completed", conclusion });
+  const heads = { 8601: [done(1, "success")], 8603: [done(1, "success"), done(2, "skipped")], 8604: [done(1, "failure")], 8605: [done(1, "success"), { id: 2, name: "check 2", status: "in_progress", conclusion: null }] };
+  const pulls = [8601, 8602, 8603, 8604, 8605];
+  const api = fakeApi([
+    [/\/pulls\?state=open/, pulls.map((number) => ({ number, draft: false, head: { sha: sha(String(number % 10)) } }))],
+    [/\/issues\/8601\/comments/, [stopComment(8601, sha("1"), "2026-10-19T12:00:00Z", { activity: "address-feedback", reason: "feedback-partial" })]],
+    [/\/issues\/8602\/comments/, [stopComment(8602, sha("2"), "2026-10-19T12:00:00Z", { activity: "resolve-conflicts", reason: "repeat-cap" })]],
+    ...[8603, 8604, 8605].map((pr) => [new RegExp(`/issues/${pr}/comments`), [stopComment(pr, sha(String(pr % 10)), "2026-10-19T12:00:00Z", { activity: "fix-ci", reason: "ci-fix-escalated" })]]),
+    [/\/commits\/([0-9a-f])\1{39}\/check-runs/, (path) => {
+      if (path.includes("check_name=")) return { check_runs: [skip("2026-10-19T12:30:00Z")] };
+      const pr = pulls.find((number) => path.includes(sha(String(number % 10))));
+      return { check_runs: heads[pr] ?? assert.fail(`no listing expected for #${pr}`) };
+    }],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.deepEqual(
+    data.stalledStops.map((s) => [s.pr, s.activity]),
+    [
+      [8602, "resolve-conflicts"],
+      [8604, "fix-ci"],
+      [8605, "fix-ci"],
+    ],
+  );
+  assert.ok(!data.gaps.some((g) => g.startsWith("stalled stops:")), data.gaps.join("\n"));
 });

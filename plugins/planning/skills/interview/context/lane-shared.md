@@ -60,18 +60,23 @@ designer session and a product owner session), each with its own data dir and li
 3. **Start or resume:**
 
    ```bash
-   bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' ensure-running --open --defaults-file '<data_dir>/defaults.json' --tunnel-hostname '${user_config.tunnel_hostname}' --tunnel-token-file '${user_config.tunnel_token_file}'
+   bash '<plugin-root>/shared/share.sh' --dir '<data_dir>' ensure-running --open --defaults-file '<data_dir>/defaults.json' --tunnel-hostname '${user_config.tunnel_hostname}' --tunnel-token-file '${user_config.tunnel_token_file}' --tunnel-api-token-file '${user_config.tunnel_api_token_file}'
    ```
 
-   Drop `--open` when `shared_session_open_browser` resolves false. Pass the `tunnel_hostname`
-   and `tunnel_token_file` values SKILL.md "Variables" shows, or the hostname and token file path
-   the owner gives in the session. An empty `tunnel_hostname` (the key unset) means no named
-   tunnel: pass it as `''`, which runs a quick tunnel. Drop both `--tunnel-*` flags only when the
+   Drop `--open` only when `shared_session_open_browser` is `false`; an unexpanded token means
+   the default `true`, so keep `--open`. Pass the `tunnel_hostname`,
+   `tunnel_token_file` and `tunnel_api_token_file` values SKILL.md "Variables" shows, or the
+   hostname and file paths the owner gives in the session; an unexpanded `tunnel_api_token_file`
+   token goes as `''`. An empty `tunnel_hostname` (the key unset) means no named
+   tunnel: pass it as `''`, which runs a quick tunnel. Drop every `--tunnel-*` flag only when the
    `tunnel_hostname` token is still unexpanded; a left-out flag keeps whatever tunnel the session
    already runs. The output carries `guestUrl`
    (give it to the owner to share), `localUrl`, `ownerLinkFile`, `resumed`, `shareChanged`,
-   `tunnel` (`quick`, `named` or `down`) and `watch`, the command that arms the watcher. A named
-   start also prints, on stderr, that only this machine may run the tunnel: pass that line on once. `--open` opens the
+   `tunnel` (`quick`, `named` or `down`) and `watch`, the command that arms the watcher. When a
+   named tunnel was asked for and a quick one runs instead, `tunnelFallback` says why (another
+   session or machine serves the link, the link's answer is unclear, or a token file is not in place): tell the owner once. A named start
+   without `tunnel_api_token_file` prints, on stderr, the guest port the tunnel's route must name:
+   pass that line on once. `--open` opens the
    owner's own link, which is a credential: never print it, paste it or copy it out of the data
    dir. `share.sh url --owner` prints it only when the owner asks. When `shareChanged` is true, tell
    the owner the guest link changed and must be shared again.
@@ -116,11 +121,12 @@ Resolve each key once, before the first `ensure-running`, through the layers in 
 | `shared_session.prototype_tiers` | a list of `screenshot`, `snapshot`, `live`, each at most once | `[screenshot, snapshot]` | `prototypeTiers` |
 | userConfig `shared_session_open_browser` | `true`, `false` | `true` | none: adds `--open` |
 | userConfig `tunnel_hostname` | a hostname, or empty | empty | none: `--tunnel-hostname` (a named tunnel) |
-| userConfig `tunnel_token_file` | an absolute path | empty | none: `--tunnel-token-file` |
+| userConfig `tunnel_token_file` | an absolute path, or one starting with `~/` | empty | none: `--tunnel-token-file` |
+| userConfig `tunnel_api_token_file` | an absolute path, or one starting with `~/`, or empty | empty | none: `--tunnel-api-token-file` (checks the tunnel's connectors and routes it to the session's guest port) |
 
 The `shared_session.*` keys live in the repository's `docs/conventions/planning.yaml` under one
-`shared_session` object; `shared_session_open_browser`, `tunnel_hostname` and `tunnel_token_file`
-are per-user options (the named tunnel: `<plugin-root>/shared/README.md`, "A stable guest link"). `defaults.json` is
+`shared_session` object; `shared_session_open_browser`, `tunnel_hostname`, `tunnel_token_file` and
+`tunnel_api_token_file` are per-user options (the named tunnel: `<plugin-root>/shared/README.md`, "A stable guest link"). `defaults.json` is
 `{"settings": {...}}` with the fields above; the server reads it only when it creates the session's
 state, so a changed setting reaches a running session only through the owner's Host view.
 
@@ -144,6 +150,7 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 | `set-purpose` | `qid`, `purpose` | Correct a question's purpose (`decide`, `gather`, `poll`) that no longer fits it |
 | `set-for` | `qid`, `for` | Set who must answer a question (names as the session shows them); `[]` asks everyone again |
 | `add-asset` | `path`, `as`, `scale` | Copy an image or HTML file from the data dir (save captures in `<data_dir>/staging/`) into the session; returns its id |
+| `add-live` | `label`, `folder` or `port`, `note` (optional) | Record a live prototype: `folder`, the absolute path of a build folder under `<data_dir>/staging/`, or `port`, a server the owner runs on 127.0.0.1; returns `{id: L<N>, status: pending}`. It starts only on the owner's Approve on the page (**A live prototype**, below) |
 | `make-question-from` | `proposal`, `question` | The owner asked in the terminal to turn a proposal into a question |
 | `resolve-report` | `id`, `action` (`seen`, `resolved`) | The owner asked in the terminal to mark a problem report seen or resolved; the reporter is told |
 | `share-result` | `id` | The owner asked in the terminal to share an unshared answer with everyone |
@@ -153,8 +160,7 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 | `handle` | `seqs` | Mark events handled |
 
 Each question follows [`question-shape.md`](question-shape.md) plus `purpose`, `format`,
-`answerScope`, `references` and an optional `for`. Ids are `Q<N>`, one counter for the whole
-topic, shared by every session on it. Pick each new id as the larger of the interview ledger's
+`answerScope`, `references` and an optional `for`; ids follow the `id` row there. Pick each new id as the larger of the interview ledger's
 next free `Q<N>` and the highest `Q<N>` already in the session plus one, because the session can
 hold ids that moderators created. A round holds at most 8 questions; the rest go to a later round.
 An asset id exists only after its `apply`, so add assets in one apply and the round that uses them
@@ -182,15 +188,23 @@ and shows two side by side. Notes stay on the version they were pinned to, so a 
 `qid` and `variant` say which version it is about. Each variant is revised once, so name the
 newest version; a second variant naming the same one is refused (400 `bad-field`).
 
-**A prototype question.** Give its `format` a `lookAt`: one line of at most 200 characters naming
-the area the variants change and the step that shows it ("Open the chat with the round button at
-bottom right, then switch variants"). The page shows it on the question card beside Open prototype
-and above the variant tabs; an op without it is refused (400 `bad-field`). Give each variant its
+**A prototype question.** Give its `format` a `lookAt` as [`question-shape.md`](question-shape.md)
+"Purpose and format (shared lane)" says. The page shows it on the question card beside Open
+prototype and above the variant tabs; an op without it is refused (400 `bad-field`). Give each variant its
 views: `shots`, one to four pictures in the order to view them, and `snapshot`, one self-contained
-HTML file, at least one of the two; a variant may add its own `lookAt` when where to look differs
-for it. `asset` (one picture or HTML file) is still taken in place of both, never beside them. A
-note pinned on a variant's k-th screenshot reaches the digest with element `img:nth-of-type(k)`
-(`img` for the first).
+HTML file, and `live: {id, path}`, the `L<N>` an `add-live` returned and the path its link opens
+(starting with one `/`, no fragment), at least one of the three. `asset` (one picture or HTML file) is still taken in
+place of all three, never beside any of them. A note pinned on a variant's k-th screenshot
+reaches the digest with element `img:nth-of-type(k)` (`img` for the first).
+
+**A live prototype.** A variant's `live` link reaches guests only once the owner approves its
+entry on the page, which starts the prototype behind its own public link; until then guests see the
+variant's other views. `add-live` is refused 403 `live-off` while the session's `live` tier is off
+(the owner turns it on in Settings), and the owner's Stop, turning the tier off, `share.sh
+live-stop <L<N>>` or the session's end ends it: its link then shows as ended, or, while live is
+off, guests no longer see it. An ended entry never restarts; showing it again takes a new
+`add-live` and a new question. A `port` entry is a server the owner runs: name it only when the
+owner gave the port, and ending the entry leaves that server running.
 
 **In-flight work.** When a lookup or a guest's request is still running, ask the rest of the
 frontier now; hold only the questions that pending async work can change.
@@ -322,6 +336,23 @@ session right now, and say why in `why`:
 - `research`: look outside: the web, official docs, other products.
 - `design`, `prototype`: a design pass, or a throwaway variant to react to.
 
+**A prototype, for a request or a question of your own.** A prototype nobody asked for waits for
+the owner's yes in the terminal. Invoke `/prototype:explore-directions` with the shared-interview
+handoff its "For a shared interview" section names: the data dir, the tiers the session offers
+(`prototype_tiers` as resolved at Start) and the variant keys. The owner can change the tiers on
+the page; screenshots or snapshots turned off are only hidden from guests, and a `live-off`
+refusal means the owner turned live off. Then, from the `manifest.json` it writes:
+
+1. Prefix each manifest path with `<data_dir>/`, since both ops take absolute paths. Apply one
+   `add-asset` per screenshot (`scale: 2`) and snapshot, and one `add-live` per distinct live
+   `folder` or `port`, which every variant using it shares.
+2. In the next `open-round`, ask a `prototype` question with the manifest's `lookAt`. Each
+   manifest variant becomes `{id: "v-<n>", label}` in manifest order, with the returned ids as
+   `shots` and `snapshot`, `live: {id: <L<N>>, path}`, and its own `lookAt` when it has one.
+
+For a `prototype` request, answer it with `result`, saying the prototype comes as a question in
+the next round.
+
 A request with `scope: "session"` and no `qid` asks about the whole session (`from: "chat"` when a chat
 message's "@Claude" asked it): answer from the session as a whole. Its result, in a digest too, carries
 `scope: "session"` in place of `qid`; once shared, it also shows in chat. An `ask` or `research` answer can reach
@@ -343,9 +374,9 @@ A question about something visible names its scope ([`question-shape.md`](questi
 shows it as it is now: capture the view fresh at publish time at 2x with whatever capture tool this
 session has (a browser automation skill, a screenshot CLI), save it in `<data_dir>/staging/` (the
 server makes it private; `add-asset` refuses the system temp dir and any hidden folder), `add-asset`
-it with `scale: 2` in one apply, then use its id in the next. A diagram or chart is an SVG saved
-the same way and shown as a `diagram` reference with its `alt` text
-([`question-shape.md`](question-shape.md)); the page loads no chart library.
+it with `scale: 2` in one apply, then use its id in the next. Save a diagram or chart the same
+way and show it as [`question-shape.md`](question-shape.md) "Purpose and format (shared lane)"
+says; the page loads no chart library.
 
 ## Restart, status and several sessions
 

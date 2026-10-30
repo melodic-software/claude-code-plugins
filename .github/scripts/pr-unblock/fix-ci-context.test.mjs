@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import { commitMessage, loadRules, rowFor } from "../apply-patch/apply-patch.mjs";
-import { countFixRounds, logExcerpt, main, select } from "./fix-ci-context.mjs";
+import { countFixRounds, logExcerpt, main, select, WEAKEN_BRIEF } from "./fix-ci-context.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The lanes App bot's id (.github/standards/trusted-actors/trusted-actors.json).
 const APP = 337595936;
@@ -42,7 +42,16 @@ function fakeApi(overrides = {}) {
   return {
     getPull: async () => overrides.pull ?? { state: "open", head: { sha: HEAD } },
     listPullCommits: async () => overrides.commits ?? [],
-    listCommitCheckRuns: async () => overrides.checkRuns ?? [run(11, "lint-shell", "failure"), run(13, "ci-status", "failure")],
+    listCommitCheckRuns: async () => {
+      if (overrides.checkRunsError) {
+        throw overrides.checkRunsError;
+      }
+      return Object.assign([...(overrides.checkRuns ?? [run(11, "lint-shell", "failure"), run(13, "ci-status", "failure")])], { complete: overrides.complete ?? true });
+    },
+    // The head's pr-unblock / apply-patch checks: a lane stop runs the retry a rung up.
+    listCheckRuns: async (sha, name) => (name === "pr-unblock / fix-ci" ? (overrides.fixCiRuns ?? []) : (overrides.stopRuns ?? [])),
+    // The head's statuses: report-escalation.sh status names a fail-routed stop's reason.
+    listCommitStatuses: async () => overrides.statuses ?? [],
     listAnnotations: async (id) =>
       overrides.annotations?.[id] ?? [
         { path: "scripts/x.sh", start_line: 12, annotation_level: "failure", message: "SC2034: foo appears unused" },
@@ -294,6 +303,49 @@ test("a commit apply-patch writes for fix-ci counts as a round", () => {
   assert.equal(countFixRounds([{ sha: "e".repeat(40), author: { id: APP }, commit: { message } }], APP), 1);
 });
 
+// Review finding on #10252: a failing pr-unblock/fix-ci status must come off
+// a head whose CI went green with no new commit (fixed by hand, or a flaky
+// lane re-run green), including after the round cap; only a whole, settled
+// check listing with nothing failing says so.
+test("a head with no failing check resolves the fix-ci stop, at the round cap too", async () => {
+  const green = [run(11, "lint-shell", "failure"), run(14, "lint-shell", "success"), run(13, "ci-status", "failure")];
+  for (const commits of [[], [fixCommit(), fixCommit(), fixCommit()]]) {
+    const result = await selectWith(fakeApi({ checkRuns: green, commits }));
+    assert.deepEqual([result.decision, result.skipReason, result.resolved, result.headSha], ["skip", "not-applicable", true, HEAD]);
+  }
+});
+
+test("a failing, cancelled or unsettled check, a cut-short listing, a hold or a closed PR resolves nothing", async () => {
+  const cases = {
+    failing: fakeApi(),
+    "failing at the round cap": fakeApi({ commits: [fixCommit(), fixCommit(), fixCommit()] }),
+    "cancelled with no time-limit note": fakeApi({ checkRuns: [run(12, "test-bash (1)", "cancelled")], annotations: { 12: CANCEL_ONLY } }),
+    "a re-run still in progress": fakeApi({ checkRuns: [run(11, "lint-shell", null, { status: "in_progress" })] }),
+    "a cut-short listing": fakeApi({ checkRuns: [run(14, "lint-shell", "success")], complete: false }),
+    closed: fakeApi({ pull: { state: "closed", head: { sha: HEAD } }, checkRuns: [] }),
+    held: gatedApi({ login: "kyle-sexton", id: HUMAN, type: "User" }, "feedback-disputed"),
+  };
+  for (const [name, api] of Object.entries(cases)) {
+    const result = await selectWith(api);
+    assert.notEqual(result.resolved, true, name);
+  }
+});
+
+test("a check listing that fails to read throws, so main writes no outputs and resolves nothing", async () => {
+  const dir = tempDir("fix-ci-context-");
+  try {
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: join(dir, "context.json"), FIX_CI_ROUNDS: "3", TRUSTED_ACTORS, GITHUB_OUTPUT: join(dir, "out") };
+    await assert.rejects(main(env, { api: fakeApi({ checkRunsError: new Error("GET check-runs returned 502") }), log: () => {} }), /502/);
+    assert.throws(() => readFileSync(env.GITHUB_OUTPUT, "utf8"));
+    await main({ ...env, GITHUB_OUTPUT: join(dir, "green") }, { api: fakeApi({ checkRuns: [run(14, "lint-shell", "success")] }), log: () => {} });
+    assert.match(readFileSync(join(dir, "green"), "utf8"), /^stop-resolved=true$/m);
+    await main({ ...env, GITHUB_OUTPUT: join(dir, "red") }, { api: fakeApi(), log: () => {} });
+    assert.match(readFileSync(join(dir, "red"), "utf8"), /^stop-resolved=false$/m);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a closed pull request is skipped", async () => {
   const result = await selectWith(fakeApi({ pull: { state: "closed", head: { sha: HEAD } } }));
   assert.equal(result.decision, "skip");
@@ -333,8 +385,18 @@ test("needs-human from another lane's escalation proceeds and says so; fix-ci's 
   assert.equal(plain.laneEscalated, false);
 });
 
+test("a person's inline review-thread reply since another lane's escalation skips awaiting-human", async () => {
+  // GitHub's timeline has no event for a reply inside an existing review thread.
+  const api = gatedApi(APP_USER, "feedback-disputed");
+  api.listReviewComments = async () => [
+    { id: 2, in_reply_to_id: 1, user: { login: "kyle-sexton", id: HUMAN, type: "User" }, body: "Wait.", created_at: "2026-10-22T11:00:00Z", updated_at: "2026-10-22T11:00:00Z" },
+  ];
+  const result = await selectWith(api);
+  assert.deepEqual([result.decision, result.skipReason], ["skip", "awaiting-human"]);
+});
+
 test("main writes the hold's skip reason and lane-escalated", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "fix-ci-context-"));
+  const dir = tempDir("fix-ci-context-");
   try {
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: join(dir, "context.json"), FIX_CI_ROUNDS: "3", TRUSTED_ACTORS };
     await main({ ...env, GITHUB_OUTPUT: join(dir, "held") }, { api: gatedApi(APP_USER, "ci-fix-escalated"), log: () => {} });
@@ -377,7 +439,7 @@ test("a log that cannot be read leaves an empty excerpt rather than failing", as
 });
 
 test("main writes the context file and the step outputs", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "fix-ci-context-"));
+  const dir = tempDir("fix-ci-context-");
   try {
     const env = {
       GITHUB_TOKEN: "t",
@@ -402,7 +464,7 @@ test("main writes the context file and the step outputs", async () => {
 });
 
 test("main escalates the round cap with no context file", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "fix-ci-context-"));
+  const dir = tempDir("fix-ci-context-");
   try {
     const env = {
       GITHUB_TOKEN: "t",
@@ -427,4 +489,99 @@ test("main escalates the round cap with no context file", async () => {
 test("main refuses a malformed round cap", async () => {
   const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: "/dev/null", PR_NUMBER: "42", APP_SENDER_ID: String(APP), CONTEXT_FILE: "/dev/null", TRUSTED_ACTORS };
   await assert.rejects(main({ ...env, FIX_CI_ROUNDS: "0" }, { api: fakeApi() }), /FIX_CI_ROUNDS/);
+});
+
+// A retry after the push job stopped on this head runs one model rung up, so
+// apply-patch takes no second in-run rung-up.
+test("a head whose push job stopped proceeds at model rung 1; any other at its own", async () => {
+  const stop = { status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, app: { id: 15368 } };
+  assert.equal((await selectWith(fakeApi({ stopRuns: [stop] }))).modelRung, "1");
+  assert.equal((await selectWith(fakeApi())).modelRung, "");
+  assert.equal((await selectWith(fakeApi({ stopRuns: [{ ...stop, app: { id: 2 } }] }))).modelRung, "");
+});
+
+// The first weaken-required stop on a head takes one fresh fixer round:
+// apply-patch gets weakenRetry only while the head has no lane stop, and the
+// round after a weaken retry stop carries the runner's brief and the pull
+// request's stated change. A lane stop for another reason, or a status by
+// another creator or on another context, carries no brief.
+const LANE_STOP = { status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, app: { id: 15368 } };
+const weakenStatus = (extra = {}) => ({
+  context: "pr-unblock/fix-ci",
+  state: "failure",
+  description: "Lane stopped: ci-fix-weaken-retry; checked again on a new head",
+  creator: { login: "github-actions[bot]" },
+  ...extra,
+});
+
+test("a head with no lane stop gives a weaken-required stop its fresh round, with no brief yet", async () => {
+  let read = false;
+  const api = {
+    ...fakeApi(),
+    listCommitStatuses: async () => {
+      read = true;
+      return [weakenStatus()];
+    },
+  };
+  const result = await selectWith(api);
+  assert.equal(result.weakenRetry, true);
+  assert.equal(result.modelRung, "");
+  assert.equal(result.file.retry, undefined);
+  assert.equal(read, false, "no statuses read without a lane stop");
+});
+
+test("the round after a weaken retry stop carries the brief, no PR text, and has no retry left", async () => {
+  const pull = { state: "open", head: { sha: HEAD }, title: "feat: print the new banner", body: "x".repeat(5000) };
+  const result = await selectWith(fakeApi({ pull, stopRuns: [LANE_STOP], statuses: [weakenStatus({ state: "success", description: "The lane ran again on this head and did not stop" }), weakenStatus()] }));
+  assert.equal(result.weakenRetry, false);
+  assert.equal(result.modelRung, "1");
+  assert.deepEqual(result.file.retry, { after: "ci-fix-weaken-retry", brief: WEAKEN_BRIEF });
+  assert.match(result.file.retry.brief, /keeps every test's assertions and expected values unchanged/);
+  assert.doesNotMatch(result.file.retry.brief, /pr_title|pr_body/);
+  assert.equal(result.file.pr_title, undefined);
+  assert.equal(result.file.pr_body, undefined);
+});
+
+test("an earlier finished fix-ci attempt on the head leaves no weaken retry, another app's check does not count", async () => {
+  const earlier = { name: "pr-unblock / fix-ci", status: "completed", conclusion: "failure", app: { id: 15368 } };
+  assert.equal((await selectWith(fakeApi({ fixCiRuns: [earlier] }))).weakenRetry, false);
+  assert.equal((await selectWith(fakeApi({ fixCiRuns: [{ ...earlier, app: { id: 2 } }] }))).weakenRetry, true);
+  assert.equal((await selectWith(fakeApi({ fixCiRuns: [{ ...earlier, status: "in_progress" }] }))).weakenRetry, true);
+});
+
+for (const [why, statuses] of [
+  ["another fail-routed stop", [weakenStatus({ description: "Lane stopped: ci-fix-escalated; checked again on a new head" })]],
+  ["another creator", [weakenStatus({ creator: { login: "someone" } })]],
+  ["another context", [weakenStatus({ context: "pr-unblock/conflict" })]],
+  ["no status", []],
+]) {
+  test(`a lane stop with ${why} carries no brief and leaves no weaken retry`, async () => {
+    const result = await selectWith(fakeApi({ stopRuns: [LANE_STOP], statuses }));
+    assert.equal(result.weakenRetry, false);
+    assert.equal(result.file.retry, undefined);
+    assert.equal(result.file.pr_title, undefined);
+  });
+}
+
+test("main writes weaken-retry true on a head with no lane stop, false after one", async () => {
+  const dir = tempDir("fix-ci-context-");
+  try {
+    const env = {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: "o/r",
+      GITHUB_OUTPUT: join(dir, "out"),
+      PR_NUMBER: "42",
+      APP_SENDER_ID: String(APP),
+      CONTEXT_FILE: join(dir, "context.json"),
+      FIX_CI_ROUNDS: "3",
+      TRUSTED_ACTORS,
+    };
+    await main(env, { api: fakeApi(), log: () => {} });
+    assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^weaken-retry=true$/m);
+    await main({ ...env, GITHUB_OUTPUT: join(dir, "out2") }, { api: fakeApi({ stopRuns: [LANE_STOP], statuses: [weakenStatus()] }), log: () => {} });
+    assert.match(readFileSync(join(dir, "out2"), "utf8"), /^weaken-retry=false$/m);
+    assert.equal(JSON.parse(readFileSync(env.CONTEXT_FILE, "utf8")).retry.brief, WEAKEN_BRIEF);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

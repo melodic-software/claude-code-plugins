@@ -6,11 +6,11 @@
 // never change to the next run.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const text = readFileSync(join(root, ".github/workflows/pr-merge.yml"), "utf8");
@@ -51,12 +51,18 @@ test("the re-dispatch for earlier lane merges waits on neither the listing nor t
       "Check the kill switch",
       "Read report-only",
       "Read the lane records the last run kept",
+      "Read the post-merge report the last run kept",
       "Check earlier lane merges",
       "Keep the post-merge report for enable-auto-merge",
+      "Read main's full-run cover",
+      "Find lane merges no full run covers",
       "Start the full CI run on main",
       "Record the dispatched run",
       "Re-run a red lane-dispatched full run",
       "Record the re-run",
+      "Send a red full run to the demotion alert",
+      "Record the alert sent",
+      "Log the API budget at the end",
     ],
   );
   assert.doesNotMatch(early, /steps\.candidates|steps\.gate|needs\.merge/);
@@ -72,7 +78,7 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
   assert.match(condition, /\(github\.event_name == 'schedule' \|\| github\.event_name == 'workflow_dispatch'\)/);
   const list = stepsOf(early);
   const dispatch = step("Start the full CI run on main", list);
-  assert.match(dispatch, /if: steps\.post-merge\.outputs\.needs-dispatch == 'true'/);
+  assert.match(dispatch, /steps\.post-merge\.outputs\.needs-dispatch == 'true'/);
   assert.match(dispatch, /actions\/workflows\/pr-require-checks\.yml\/dispatches"[\s\S]*-f ref=main /);
   const upload = step("Record the dispatched run", list);
   assert.match(upload, /uses: actions\/upload-artifact@/);
@@ -84,22 +90,26 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
 });
 
 // Runs the listing step's script against a fake `gh` whose `gh pr list`
-// fails its first `failures` calls, with `.base` pointing at this checkout,
+// fails its first `failures` calls and then answers `prs` (by default one pull
+// request of the lanes App's), with `.base` pointing at this checkout,
 // or, given `edit`, at a copy whose pr-pipeline.yaml is `edit(text)` and whose
 // trusted-actors.json is `actors`, when given, else this checkout's.
 // `env` overrides the step's environment: merge.lane-prs is `gate` unless it
 // says otherwise, the mode that lists the lanes App's own pull requests.
-const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway") => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-listing-"));
+const listed = (number, login, isDraft = false) => ({ id: `PR_${number}`, number, headRefOid: "abc", isDraft, updatedAt: "2026-10-18T00:00:00Z", labels: [], body: "", author: { login } });
+const LANES_PR = [listed(7, "app/melodic-automation-lanes")];
+const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway", prs = LANES_PR) => {
+  const dir = tempDir("pr-merge-listing-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
+    writeFileSync(join(dir, "prs.json"), JSON.stringify(prs));
     writeFileSync(
       join(bin, "gh"),
       `#!/usr/bin/env bash\necho "$*" >>"${dir}/args"\n` +
         `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/calls"\n` +
         `if [ "$n" -le ${failures} ]; then echo "${failure}" >&2; exit 1; fi\n` +
-        `echo '[{"number":7,"headRefOid":"abc","isDraft":false,"updatedAt":"2026-10-18T00:00:00Z","labels":[],"body":""}]'\n`,
+        `cat "${dir}/prs.json"\n`,
     );
     writeFileSync(join(bin, "sleep"), "#!/usr/bin/env bash\n");
     chmodSync(join(bin, "gh"), 0o755);
@@ -132,10 +142,12 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
         REPO: "o/r",
         DEPENDABOT: "off",
         LANE_PRS: "gate",
+        EVENT_PR: "",
         ...env,
       },
     });
     const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
+    const numbers = (name) => (read(name).trim() ? JSON.parse(read(name)).map((item) => item.number) : []);
     return {
       status: result.status,
       stdout: result.stdout,
@@ -143,6 +155,8 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
       calls: Number(read("calls") || 0),
       args: read("args"),
       candidates: read("candidates.json"),
+      listed: numbers("candidates.json"),
+      draftsListed: numbers("drafts.json"),
       drafts: read("drafts.json"),
       prefiltered: existsSync(join(dir, "prefilter.json")),
       output: existsSync(output) ? readFileSync(output, "utf8") : "",
@@ -152,18 +166,28 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
   }
 };
 
-const authorsOf = (args) => [...args.matchAll(/^pr list .*--author (\S+) /gm)].map((m) => m[1]);
-
 test("the listing retries a failed gh pr list", () => {
   const run = runListing(2);
   assert.equal(run.status, 0, run.stderr);
-  // Three tries for the lane's list, then one for each other author's.
-  assert.equal(run.calls, new Set(authorsOf(run.args)).size + 2);
+  // Three tries of the one list.
+  assert.equal(run.calls, 3);
   assert.match(run.output, /^count=1$/m);
 });
 
+// GitHub Support's audit item 7: one listing of every open pull request into
+// main, filtered by author, in place of one `gh pr list --author` (a search
+// call) per author.
+const AUTHORED = [
+  listed(1, "app/melodic-automation-lanes"),
+  listed(2, "a-person"),
+  listed(3, "app/some-release"),
+  listed(4, "app/dependabot"),
+  listed(5, "a-stranger"),
+  listed(6, "app/melodic-automation-lanes", true),
+];
+
 // Owner decision 2026-10-22: every trusted actor's PR is a candidate.
-test("the listing adds each trusted actor, a person by login and an App as app/<slug>, once", () => {
+test("the listing keeps each trusted actor's pull requests, a person by login and an App as app/<slug>, from one list", () => {
   const actors = [
     { id: 1, login: "a-person", kind: "human" },
     { id: 2, login: "some-release[bot]", kind: "bot" },
@@ -171,37 +195,39 @@ test("the listing adds each trusted actor, a person by login and an App as app/<
     { id: 4, login: "dependabot[bot]", kind: "bot" },
     { id: 5, login: "bad login; rm", kind: "human" },
   ];
-  const run = runListing(0, (config) => config, actors);
+  const run = runListing(0, (config) => config, actors, {}, undefined, AUTHORED);
   assert.equal(run.status, 0, run.stderr);
-  assert.deepEqual(authorsOf(run.args), ["app/melodic-automation-lanes", "a-person", "app/some-release"]);
+  assert.equal(run.calls, 1);
+  assert.doesNotMatch(run.args, /--author/);
+  assert.deepEqual(run.listed, [1, 2, 3]);
+  assert.deepEqual(run.draftsListed, [6]);
   assert.doesNotMatch(run.args, /^api /m);
 });
 
 test("without an adoption section no trusted actor is listed", () => {
-  const run = runListing(0, (config) => config.replace(/^adoption:\n( {2}.*\n)*/m, ""));
+  const run = runListing(0, (config) => config.replace(/^adoption:\n( {2}.*\n)*/m, ""), undefined, {}, undefined, AUTHORED);
   assert.equal(run.status, 0, run.stderr);
-  assert.deepEqual(authorsOf(run.args), ["app/melodic-automation-lanes"]);
+  assert.deepEqual(run.listed, [1]);
   // Nor with a section that sets no idle-hours, which the gate adopts nothing under.
-  const noIdle = runListing(0, (config) => config.replace(/^ {2}idle-hours: 24\n/m, ""));
+  const noIdle = runListing(0, (config) => config.replace(/^ {2}idle-hours: 2\n/m, ""), undefined, {}, undefined, AUTHORED);
   assert.equal(noIdle.status, 0, noIdle.stderr);
-  assert.deepEqual(authorsOf(noIdle.args), ["app/melodic-automation-lanes"]);
+  assert.deepEqual(noIdle.listed, [1]);
 });
 
 // merge.lane-prs: native leaves the lanes App's pull requests to GitHub's
-// auto-merge: the listing never asks for them, so the gate never reads them.
+// auto-merge: the listing drops them, so the gate never reads them.
 test("under lane-prs native the listing skips the lanes App and keeps every other author", () => {
   const actors = [
     { id: 1, login: "a-person", kind: "human" },
     { id: 3, login: "melodic-automation-lanes[bot]", kind: "bot" },
   ];
-  const native = runListing(0, (config) => config, actors, { LANE_PRS: "native", DEPENDABOT: "enforce" });
+  const native = runListing(0, (config) => config, actors, { LANE_PRS: "native", DEPENDABOT: "enforce" }, undefined, AUTHORED);
   assert.equal(native.status, 0, native.stderr);
-  assert.deepEqual(authorsOf(native.args), ["a-person", "app/dependabot"]);
-  assert.match(native.output, /^count=1$/m);
-  // gate lists the lanes App first, as before the setting existed.
-  const gate = runListing(0, (config) => config, actors, { LANE_PRS: "gate", DEPENDABOT: "enforce" });
+  assert.deepEqual(native.listed, [2, 4]);
+  assert.match(native.output, /^count=2$/m);
+  const gate = runListing(0, (config) => config, actors, { LANE_PRS: "gate", DEPENDABOT: "enforce" }, undefined, AUTHORED);
   assert.equal(gate.status, 0, gate.stderr);
-  assert.deepEqual(authorsOf(gate.args), ["app/melodic-automation-lanes", "a-person", "app/dependabot"]);
+  assert.deepEqual(gate.listed, [1, 2, 4]);
 });
 
 test("under lane-prs native with no other author the listing calls nothing and lists no candidate", () => {
@@ -213,9 +239,33 @@ test("under lane-prs native with no other author the listing calls nothing and l
   assert.match(run.output, /^count=0$/m);
 });
 
+// GitHub Support's audit item 5: a pull_request_target run gates only the
+// pull request its event names, from the listing (never the payload); the
+// scheduled run keeps the whole sweep.
+test("an event run lists only its own pull request", () => {
+  const actors = [{ id: 1, login: "a-person", kind: "human" }];
+  const run = runListing(0, (config) => config, actors, { EVENT_PR: "2" }, undefined, AUTHORED);
+  assert.equal(run.status, 0, run.stderr);
+  assert.deepEqual(run.listed, [2]);
+  assert.deepEqual(run.draftsListed, []);
+  assert.match(run.output, /^count=1$/m);
+  // A pull request the listing does not hold lists nothing.
+  const absent = runListing(0, (config) => config, actors, { EVENT_PR: "5" }, undefined, AUTHORED);
+  assert.deepEqual(absent.listed, []);
+  assert.match(step("List the candidate PRs"), /\n {10}EVENT_PR: \$\{\{ github\.event\.pull_request\.number \}\}\n/);
+});
+
+test("a listing that may be cut short stops red", () => {
+  const many = Array.from({ length: 1000 }, (_, i) => listed(i + 1, "app/melodic-automation-lanes"));
+  const run = runListing(0, undefined, undefined, {}, undefined, many);
+  assert.equal(run.status, 1);
+  assert.match(run.stdout, /^::error::gh pr list returned 1000 pull requests/m);
+  assert.equal(run.prefiltered, false);
+});
+
 test("the mode step outputs merge.lane-prs as resolve-config resolved it, and the listing reads it", () => {
   for (const mode of ["native", "gate"]) {
-    const dir = mkdtempSync(join(tmpdir(), "pr-merge-mode-"));
+    const dir = tempDir("pr-merge-mode-");
     try {
       symlinkSync(root, join(dir, ".base"));
       writeFileSync(join(dir, "resolved-config.json"), JSON.stringify({ merge: { "lane-prs": mode } }));
@@ -239,7 +289,7 @@ test("a rate-limited listing stops red after one call, a bare HTTP 429 included"
     const run = runListing(3, undefined, undefined, {}, failure);
     assert.equal(run.status, 1, failure);
     assert.equal(run.calls, 1, failure);
-    assert.match(run.stdout, /^::error title=GitHub rate limit::gh pr list --author app\/[a-z0-9-]+ was rate limited \(every pool until /m, failure);
+    assert.match(run.stdout, /^::error title=GitHub rate limit::gh pr list was rate limited \(every pool until /m, failure);
     assert.equal(run.prefiltered, false);
   }
 });
@@ -248,7 +298,7 @@ test("the listing fails with one clear error after three failed tries", () => {
   const run = runListing(3);
   assert.equal(run.status, 1);
   assert.equal(run.calls, 3);
-  assert.match(run.stdout, /^::error::gh pr list --author app\/[a-z0-9-]+ failed 3 times/m);
+  assert.match(run.stdout, /^::error::gh pr list failed 3 times/m);
   assert.equal(run.prefiltered, false);
   assert.doesNotMatch(run.stderr, /jq: error|Traceback/);
 });
@@ -256,7 +306,7 @@ test("the listing fails with one clear error after three failed tries", () => {
 test("the job end logs both tokens' readings from the job's own responses, and reads no /rate_limit", () => {
   const block = step("Log the API budget at job end");
   assert.match(block, /\n {8}uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
-  assert.match(block, /\n {8}if: always\(\) && steps\.lane-token\.outputs\.token != ''\n/);
+  assert.match(block, /\n {8}if: always\(\) && needs\.post-merge-dispatch\.outputs\.rate-limited == ''\n/);
   assert.match(block, /\n {8}continue-on-error: true\n/);
   assert.match(block, /\n {10}tokens: lanes-app github-token\n/);
   assert.doesNotMatch(job, /gh api rate_limit|phase: start|\$\{\{ [^}]*token[^}]* \}\}\n {10}tokens:/);
@@ -273,7 +323,7 @@ test("the job end logs both tokens' readings from the job's own responses, and r
 // Runs the sweep-cost step with the end reading's costs and a summary of
 // `reached` gate verdicts and `skipped` carried ones beside one held candidate.
 const runSweepCost = (costs, reached, skipped = 0) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-cost-"));
+  const dir = tempDir("pr-merge-cost-");
   try {
     writeFileSync(join(dir, "held.json"), '[{"number": 9}]');
     const rows = [
@@ -482,7 +532,7 @@ test("every post-merge check reads the lane records, and only the merge job uplo
 // Runs the early job's check against a fake python3 that prints a report and
 // exits `code`.
 const runEarlyCheck = (code, needsDispatch = false, stops) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-early-"));
+  const dir = tempDir("pr-merge-early-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
@@ -501,11 +551,13 @@ const runEarlyCheck = (code, needsDispatch = false, stops) => {
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r" },
     });
     const keptCode = join(dir, "post-merge-report", "post-merge-code");
+    const keptSha = join(dir, "post-merge-report", "post-merge-code-sha");
     return {
       status: result.status,
       stdout: result.stdout,
       output: readFileSync(output, "utf8"),
       keptCode: existsSync(keptCode) ? readFileSync(keptCode, "utf8").trim() : null,
+      keptSha: existsSync(keptSha) ? readFileSync(keptSha, "utf8").trim() : null,
     };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -522,6 +574,133 @@ test("the early check fails red on a rate-limit stop, after its outputs and repo
   assert.match(run.output, /^needs-dispatch=false$/m);
   assert.match(run.output, /^code=75$/m);
   assert.equal(run.keptCode, "75");
+});
+
+// post-merge-dispatch's check, run with the last run's report in
+// post-merge-last (or none) and a fake python3: `settle` answers whether the
+// report stands (exit `settle`), any other call is the check, which marks that
+// it ran. The rule (pr-merge.yml): an idle tick reuses a report whose check
+// passed (exit 0 or 5) and that `settle --idle-tick` keeps
+// (babysit_verify_evidence.py, tested in test_babysit_lane_room.py
+// IdleRefusal and SettleCommand), keeping its code and commit so the reuse
+// ends SHARED_MAX_AGE after the check that made it; otherwise it runs the
+// check.
+const LAST_SHA = "d".repeat(40);
+const lastReport = () => ({ readable: true, ok: true, needsDispatch: false, shared: { mainSha: "a".repeat(40) } });
+const runIdleCheck = ({ last, code = "0", settle = 0, exit = 3, attempts } = {}) => {
+  const dir = tempDir("pr-merge-idle-");
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    writeFileSync(
+      join(bin, "python3"),
+      `#!/usr/bin/env bash\nif [ "$2" = settle ]; then echo "$@" >"${dir}/settled"; exit ${settle}; fi\ntouch "${dir}/ran"\necho '{"ran": true}'\nexit ${exit}\n`,
+    );
+    chmodSync(join(bin, "python3"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
+    writeFileSync(join(dir, "lane-records.json"), "read in");
+    if (last !== undefined) {
+      mkdirSync(join(dir, "post-merge-last"));
+      writeFileSync(join(dir, "post-merge-last/post-merge.json"), JSON.stringify(last));
+      writeFileSync(join(dir, "post-merge-last/post-merge-code"), `${code}\n`);
+      writeFileSync(join(dir, "post-merge-last/post-merge-code-sha"), `${LAST_SHA}\n`);
+      writeFileSync(join(dir, "post-merge-last/lane-records.json"), "the last run's");
+      if (attempts !== undefined) writeFileSync(join(dir, "post-merge-last/attempts.json"), attempts);
+    }
+    const output = join(dir, "output");
+    const result = spawnSync("bash", ["-c", runScript("Check earlier lane merges", stepsOf(jobBlock("post-merge-dispatch")))], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r" },
+    });
+    const kept = (file) => (existsSync(join(dir, "post-merge-report", file)) ? readFileSync(join(dir, "post-merge-report", file), "utf8").trim() : null);
+    return {
+      status: result.status,
+      stdout: result.stdout,
+      ran: existsSync(join(dir, "ran")),
+      settled: existsSync(join(dir, "settled")) ? readFileSync(join(dir, "settled"), "utf8").trim() : null,
+      output: existsSync(output) ? readFileSync(output, "utf8") : "",
+      report: kept("post-merge.json"),
+      keptCode: kept("post-merge-code"),
+      keptSha: kept("post-merge-code-sha"),
+      records: kept("lane-records.json"),
+      attempts: kept("attempts.json"),
+      handed: existsSync(join(dir, "post-merge-attempts.json")) ? readFileSync(join(dir, "post-merge-attempts.json"), "utf8") : null,
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("an idle tick reuses the last run's report that settle --idle-tick keeps, with its code and commit", () => {
+  for (const code of ["0", "5"]) {
+    const run = runIdleCheck({ last: lastReport(), code });
+    assert.equal(run.status, 0, run.stdout);
+    assert.equal(run.ran, false, `exit ${code}: the check ran again`);
+    assert.match(run.settled, new RegExp(`babysit_verify_evidence\\.py settle --idle-tick --repo o/r --postmerge-result \\S+/post-merge-last/post-merge\\.json --code-sha ${LAST_SHA}$`));
+    assert.match(run.stdout, /::notice::the last run's post-merge check \(exit \d\) still stands: nothing it reads has moved; reused, not run again/);
+    assert.match(run.output, new RegExp(`^code=${code}$`, "m"));
+    assert.match(run.output, /^needs-dispatch=false$/m);
+    // Kept for this run's later jobs and the next tick as it was made, with
+    // the lane records this run read, not the last run's.
+    assert.deepEqual(JSON.parse(run.report), lastReport());
+    assert.equal(run.keptCode, code);
+    assert.equal(run.keptSha, LAST_SHA);
+    assert.equal(run.records, "read in");
+  }
+});
+
+test("a tick runs the check itself for no report, a refusal, a crash or a check that did not pass", () => {
+  const head = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  for (const [why, options] of [
+    ["none", {}],
+    ["settle refuses", { last: lastReport(), settle: 1 }],
+    ["settle crashes", { last: lastReport(), settle: 2 }],
+    ...["1", "2", "3", "4", "75"].map((code) => [`exit ${code}`, { last: lastReport(), code }]),
+  ]) {
+    const run = runIdleCheck(options);
+    assert.equal(run.ran, true, why);
+    assert.match(run.output, /^code=3$/m, why);
+    assert.deepEqual(JSON.parse(run.report), { ran: true }, why);
+    assert.equal(run.keptSha, head, why);
+    if (/^exit /.test(why)) assert.equal(run.settled, null, `${why} is not offered to settle`);
+  }
+});
+
+// The attempt carry (babysit_postmerge.py ATTEMPTS_ENV): the last run's
+// attempts file is handed to the check at the path the step names, and kept
+// for the next tick whether the check runs or an idle tick reuses the report.
+test("post-merge-dispatch hands the last run's attempts to the check and keeps them", () => {
+  const file = "${{ runner.temp }}/post-merge-attempts.json";
+  assert.ok(step("Check earlier lane merges", stepsOf(jobBlock("post-merge-dispatch"))).includes(`BABYSIT_POSTMERGE_ATTEMPTS: ${file}\n`));
+  for (const options of [{}, { settle: 1 }]) {
+    const run = runIdleCheck({ last: lastReport(), attempts: "carried", ...options });
+    assert.equal(run.ran, options.settle === 1);
+    assert.equal(run.handed, "carried");
+    assert.equal(run.attempts, "carried");
+  }
+  assert.equal(runIdleCheck({ last: lastReport(), settle: 1 }).attempts, null);
+});
+
+test("post-merge-dispatch reads the last run's report before its check, from a trusted run alone", () => {
+  const list = stepsOf(jobBlock("post-merge-dispatch"));
+  const names = list.map((s) => s.name);
+  const read = step("Read the post-merge report the last run kept", list);
+  assert.equal(names.indexOf("Read the post-merge report the last run kept") + 1, names.indexOf("Check earlier lane merges"));
+  assert.match(read, /\n {8}if: steps\.mode\.outputs\.live == 'true'\n {8}continue-on-error: true\n/);
+  assert.ok(read.includes("LAST_REPORT_DIR: ${{ runner.temp }}/post-merge-last\n"));
+  assert.match(read, /\n {8}run: node \.base\/\.github\/scripts\/pr-merge\/last-report\.mjs\n/);
+});
+
+// The merge job reuses the kept report only while the check's code at its
+// own commit reads as it did here: the report keeps the commit it ran.
+test("the early check keeps the commit whose code ran it beside its report", () => {
+  const head = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+  for (const code of [0, 1, 3]) {
+    const run = runEarlyCheck(code);
+    assert.equal(run.status, 0, run.stdout);
+    assert.equal(run.keptSha, head, String(code));
+  }
 });
 
 // The stop the check recorded in the job's stop file (babysit_gh.py
@@ -549,7 +728,7 @@ test("the early check names the stopped pool and its reset in its rate-limited o
 test("the rate-stop label's time is the latest stop of every stop_files vector", () => {
   const vectors = JSON.parse(readFileSync(join(root, ".github/actions/log-api-budget/rate-guard.vectors.json"), "utf8"));
   for (const vector of vectors.stop_files) {
-    const dir = mkdtempSync(join(tmpdir(), "pr-merge-stop-label-"));
+    const dir = tempDir("pr-merge-stop-label-");
     try {
       mkdirSync(join(dir, "api-budget"));
       writeFileSync(join(dir, "api-budget", "stop"), vector.text);
@@ -726,7 +905,7 @@ test("the summary does not call a full run unneeded when only the gate's dispatc
 // Runs the gate step with a fake gate whose second candidate kills the loop,
 // as a cancelled run would stop it mid-sweep.
 const runCancelledGate = () => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-gate-"));
+  const dir = tempDir("pr-merge-gate-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", ["-p", bin, join(dir, ".base")]);
@@ -790,7 +969,7 @@ test("a failed lane merge reruns the check with --remediate under the lane token
   assert.ok(check >= 0 && record === check + 1, "the record step follows the check");
   assert.ok(record < names.indexOf("Run the merge gate on each candidate"));
   const block = step("Record a failed lane merge");
-  assert.match(block, /\n {8}if: steps\.mode\.outputs\.live == 'true' && steps\.post-merge\.outputs\.code == '1'\n/);
+  assert.match(block, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.mode\.outputs\.live == 'true' && steps\.post-merge\.outputs\.code == '1'\n/);
   assert.match(block, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
   assert.match(runScript("Check earlier lane merges"), /^echo "code=\$code" >>"\$GITHUB_OUTPUT"$/m);
 });
@@ -814,7 +993,7 @@ test("the read-only post-merge check and the gate's reads use the job's read-onl
 // Runs the record step against a fake python3 that saves its arguments,
 // prints `report` and exits `code`.
 const runRecord = (code, report = { remediation: { errors: [] } }) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-record-"));
+  const dir = tempDir("pr-merge-record-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
@@ -876,7 +1055,7 @@ const runBudgetedGate = (
     candidates = [7, 3, 5].map((number) => ({ number, head: `h${number}`, updatedAt: "u" })),
   } = {},
 ) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-budget-"));
+  const dir = tempDir("pr-merge-budget-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", ["-p", bin, join(dir, ".base")]);
@@ -999,11 +1178,13 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
     }
   }
   // The refusal count still writes its summary, with no read of the run.
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-count-"));
+  const dir = tempDir("pr-merge-count-");
   try {
     const bin = join(dir, "bin");
     mkdirSync(bin);
-    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "$*" >>"${dir}/gh"\necho 2026-10-26T00:00:00Z\n`);
+    // The step reads through the wrapped gh, which asks for the headers (-i).
+    symlinkSync(fileURLToPath(new URL("../../..", import.meta.url)), join(dir, ".base"));
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "$*" >>"${dir}/gh"\nprintf 'HTTP/2.0 200 OK\\r\\n\\r\\n'\necho 2026-10-26T00:00:00Z\n`);
     writeFileSync(join(bin, "node"), `#!/usr/bin/env bash\necho "RUN_STARTED_AT=$RUN_STARTED_AT" >"${dir}/node"\n`);
     for (const file of ["gh", "node"]) chmodSync(join(bin, file), 0o755);
     const sweep = join(dir, "sweep.json");
@@ -1013,7 +1194,7 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
       const result = spawnSync("bash", ["-c", runScript("Count the sweep's refusals")], {
         cwd: dir,
         encoding: "utf8",
-        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LIMITED: limited, REPO: "o/r", GITHUB_RUN_ID: "1", SWEEP_SUMMARY_TO: sweep },
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LIMITED: limited, REPO: "o/r", GITHUB_RUN_ID: "1", SWEEP_SUMMARY_TO: sweep, RUNNER_TEMP: dir },
       });
       assert.equal(result.status, 0, result.stderr);
       assert.equal(existsSync(join(dir, "gh")), limited !== "true", `gh with LIMITED=${limited}`);
@@ -1027,7 +1208,7 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
 // The candidates the next run's rotation.mjs orders from a cursor.
 const rotateFrom = async (cursor) => {
   const { main: rotation } = await import("./rotation.mjs");
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-rotation-"));
+  const dir = tempDir("pr-merge-rotation-");
   try {
     const path = join(dir, "candidates.json");
     writeFileSync(path, JSON.stringify([3, 5, 7].map((number) => ({ number, head: `h${number}`, updatedAt: "u" }))));
@@ -1129,7 +1310,7 @@ test("the skip step runs just before the gate and its record between the carry a
   assert.equal(at("Upload the verdict reads for the next run"), at("Keep the refusals the next run may skip") + 1);
   const filter = step("Skip refusals whose inputs have not changed");
   assert.match(filter, /\n {8}continue-on-error: true\n/);
-  assert.match(filter, /\n {8}if: steps\.candidates\.outcome == 'success'\n/);
+  assert.match(filter, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.candidates\.outcome == 'success'\n/);
   assert.match(filter, /GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}/);
   assert.match(filter, /BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}/);
   // The listing it reads is saved where the gate's first candidate looks.
@@ -1189,7 +1370,7 @@ test("each candidate's check run is written by its own job, the only one holding
   const writerSteps = stepsOf(writer);
   assert.deepEqual(
     writerSteps.map((s) => s.name),
-    ["Check out the default branch tip", "Set up Node", "Read the gate's rows", "Show each candidate's refusal as a check run"],
+    ["Check out the default branch tip", "Set up Node", "Read the gate's rows", "Show each candidate's refusal as a check run", "Log the API budget at the end"],
   );
   assert.match(writerSteps[0].block, /\n {10}ref: refs\/heads\/main\n {10}path: \.base\n {10}persist-credentials: false\n/);
   for (const { name, block } of writerSteps.slice(2)) {
@@ -1209,7 +1390,7 @@ const earlySteps = () => stepsOf(jobBlock("post-merge-dispatch"));
 
 // Runs the early job's check against a fake python3 that prints `report`.
 const runEarlyReport = (report) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-early-report-"));
+  const dir = tempDir("pr-merge-early-report-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
@@ -1255,7 +1436,7 @@ const RATE_LIMITED_STDERR =
   "gh: API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23 05:30:57 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) (HTTP 403)";
 const LIMITED_403 ='HTTP/2.0 403 Forbidden\\r\\nX-Ratelimit-Remaining: 0\\r\\nX-Ratelimit-Reset: 4102444800\\r\\nX-Ratelimit-Resource: core\\r\\n\\r\\n{"message": "API rate limit exceeded for installation ID 1."}\\n';
 const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", runId = "11" } = {}) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-rerun-"));
+  const dir = tempDir("pr-merge-rerun-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
@@ -1450,9 +1631,9 @@ test("a rate-limited first read stops the step red before the re-run, naming the
   assert.match(run.output, /^stop=the core pool until 2100-01-01T00:00:00Z$/m);
 });
 
-test("post-merge-dispatch's rate-limited output also carries the re-run step's stop", () => {
+test("post-merge-dispatch's rate-limited output also carries the cover, re-run and alert steps' stops", () => {
   const header = `${jobBlock("post-merge-dispatch").split("\n    steps:\n")[0]}\n`;
-  assert.match(header, /\n {6}rate-limited: \$\{\{ steps\.post-merge\.outputs\.rate-limited \|\| steps\.dispatch\.outputs\.stop \|\| steps\.rerun\.outputs\.stop \}\}\n/);
+  assert.match(header, /\n {6}rate-limited: \$\{\{ steps\.post-merge\.outputs\.rate-limited \|\| steps\.cover\.outputs\.stop \|\| steps\.dispatch\.outputs\.stop \|\| steps\.rerun\.outputs\.stop \|\| steps\.alert\.outputs\.stop \}\}\n/);
 });
 
 test("the re-run step refuses a run id that is not a number", () => {
@@ -1468,7 +1649,7 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
   // and nothing is sent after the dispatch stopped on a rate limit.
   assert.match(
     rerun,
-    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& contains\(fromJSON\('\["0","1","5"\]'\), steps\.post-merge\.outputs\.code\)\n {10}&& steps\.post-merge\.outputs\.lane-rerun != ''\n/,
+    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.cover\.outputs\.rate-limited != 'true'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& contains\(fromJSON\('\["0","1","5"\]'\), steps\.post-merge\.outputs\.code\)\n {10}&& steps\.post-merge\.outputs\.lane-rerun != ''\n/,
   );
   assert.match(rerun, /\n {10}GH_TOKEN: \$\{\{ github\.token \}\}\n/);
   const upload = step("Record the re-run", list);
@@ -1477,73 +1658,528 @@ test("the re-run record is named by run and attempt, uploaded only after a recor
   assert.match(upload, /\n {10}name: pr-merge-rerun-\$\{\{ steps\.post-merge\.outputs\.lane-rerun \}\}-attempt-2\n/);
 });
 
-// The merge job's check, run with this run's post-merge-dispatch report kept
-// in post-merge-kept (or none) and a fake python3 that marks it ran. The rule
-// (pr-merge.yml): reuse a report whose check judged (exit 0, 1 or 5) main at
-// this job's commit under REUSE_MINUTES ago; otherwise run the check.
-const MAIN = execFileSync("git", ["-C", root, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-const runMergeCheck = ({ kept, code = "0", records, exit = 3, report = { ran: true } } = {}) => {
-  const dir = mkdtempSync(join(tmpdir(), "pr-merge-reuse-"));
+// The alert send's step, run with .base at this checkout (the rate guard)
+// against a fake gh that answers, through the guard's -i form and the step's
+// --jq filter, a listing of pr-require-checks.yml dispatches on main (`runs`:
+// {id, attempt, status, conclusion, sha, actor}), each later attempt's
+// attempt 1 (`firsts` by id), each run's attempt-1 job count (`jobs` by id,
+// default 3) and its pr-merge-alerted-<id> record count (`sent` by id,
+// default 0). A read whose answer is "x" fails with a 502, "limited" with
+// the rate-limited 403. `post` answers each send in turn: "ok", "unsent" (a
+// TLS handshake timeout, before the request left), "502" or "limited" (a
+// 429). The send replaces dispatch-full-run's wait step (efficiency plan item
+// 7(b)): GITHUB_TOKEN started the full run, so it raises no workflow_run
+// event, and post-merge-demotion-alert.yml hears of a red one only from here.
+const ALERT_SHA = "0123456789abcdef0123456789abcdef01234567";
+// main's tip, and the run of pr-merge.yml's post-merge-dispatch on it that a
+// trusted pr-merge-alerted-<id> record comes from (babysit_postmerge.py
+// _lane_sender: this repository's pr-merge.yml, a schedule or
+// workflow_dispatch run, head_branch main, head commit on main's tip).
+const ALERT_TIP = "fedcba9876543210fedcba9876543210fedcba98";
+const ALERT_SENDER = {
+  id: 900,
+  path: ".github/workflows/pr-merge.yml",
+  event: "schedule",
+  head_branch: "main",
+  head_sha: ALERT_TIP,
+  repository: { full_name: "o/r" },
+  head_repository: { full_name: "o/r" },
+};
+const alertSend = (id, sha = ALERT_SHA) =>
+  `api -X POST repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches -f ref=main -f inputs[run-id]=${id} -f inputs[head-sha]=${sha}`;
+const runAlert = ({ runs = [], firsts = {}, jobs = {}, sent = {}, post = ["ok"], listing, python } = {}) => {
+  const dir = tempDir("pr-merge-alert-");
   try {
     const bin = join(dir, "bin");
     mkdirSync(bin);
-    writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\ntouch "${dir}/ran"\necho '${JSON.stringify(report)}'\nexit ${exit}\n`);
+    const fixture = (name, value) => writeFileSync(join(dir, name), typeof value === "string" ? value : JSON.stringify(value));
+    fixture(
+      "listing",
+      listing ??
+        {
+          workflow_runs: runs.map((r) => ({
+            id: r.id,
+            run_attempt: r.attempt ?? 1,
+            status: r.status ?? "completed",
+            conclusion: r.conclusion ?? null,
+            head_sha: r.sha ?? ALERT_SHA,
+            head_branch: "main",
+            actor: { login: r.actor ?? "github-actions[bot]" },
+          })),
+        },
+    );
+    for (const [id, a] of Object.entries(firsts)) fixture(`first.${id}`, a === "x" || a === "limited" ? a : { status: "completed", ...a });
+    for (const r of runs) {
+      const n = jobs[r.id] ?? 3;
+      fixture(`jobs.${r.id}`, n === "x" || n === "limited" ? n : { total_count: n, jobs: [] });
+      const s = sent[r.id] ?? 0;
+      const record = (sender) => ({ id: 1, name: `pr-merge-alerted-${r.id}`, workflow_run: { id: sender } });
+      if (s === "x" || s === "limited") fixture(`sent.${r.id}`, s);
+      else if (typeof s === "number") fixture(`sent.${r.id}`, { total_count: s, artifacts: Array.from({ length: s }, () => record(900)) });
+      else {
+        // One same-name record from run 901: the trusted sender with `s` over it.
+        fixture(`sent.${r.id}`, { total_count: 1, artifacts: [record(901)] });
+        fixture("run.901", { ...ALERT_SENDER, id: 901, ...s });
+      }
+    }
+    fixture("run.900", ALERT_SENDER);
+    fixture("tip", { object: { sha: ALERT_TIP } });
+    writeFileSync(
+      join(bin, "gh"),
+      `#!/usr/bin/env bash
+inc=; args=()
+for a in "$@"; do if [ "$a" = -i ]; then inc=1; else args+=("$a"); fi; done
+set -- "\${args[@]}"
+echo "$*" >>"${dir}/calls"
+filter=.; for ((i = 1; i <= $#; i++)); do if [ "\${!i}" = --jq ]; then j=$((i + 1)); filter="\${!j}"; fi; done
+endpoint=$(printf '%s\\n' "$@" | grep -m1 '^repos/')
+head() { [ -z "$inc" ] || printf "$1"; }
+if [ "$2" = -X ]; then
+  p=(${[post].flat().join(" ")}); s=$(($(cat "${dir}/posts" 2>/dev/null || echo 0) + 1)); echo "$s" >"${dir}/posts"
+  case "\${p[$((s - 1))]:-\${p[-1]}}" in
+    ok) head 'HTTP/2.0 204 No Content\\r\\n\\r\\n'; exit 0 ;;
+    unsent) echo 'Post "https://api.github.com/repos/o/r/actions/workflows/post-merge-demotion-alert.yml/dispatches": net/http: TLS handshake timeout' >&2; exit 1 ;;
+    502) head 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n{}\\n'; echo "gh: Server Error (HTTP 502)" >&2; exit 1 ;;
+    limited) head 'HTTP/2.0 429 Too Many Requests\\r\\nRetry-After: 60\\r\\n\\r\\n{"message": "Too many requests"}\\n'; echo "gh: Too Many Requests (HTTP 429)" >&2; exit 1 ;;
+  esac
+fi
+case "$endpoint" in
+  */workflows/pr-require-checks.yml/runs\\?*) f=listing ;;
+  */attempts/1/jobs*) f=jobs.$(sed -E 's#.*/runs/([0-9]+)/.*#\\1#' <<<"$endpoint") ;;
+  */attempts/1) f=first.$(sed -E 's#.*/runs/([0-9]+)/.*#\\1#' <<<"$endpoint") ;;
+  */artifacts\\?name=pr-merge-alerted-*) f=sent.$(sed -E 's#.*pr-merge-alerted-([0-9]+).*#\\1#' <<<"$endpoint") ;;
+  repos/o/r/actions/runs/90[01]) f=run.\${endpoint##*/} ;;
+  repos/o/r/git/ref/heads/main) f=tip ;;
+  *) echo "gh: Not Found (HTTP 404)" >&2; exit 1 ;;
+esac
+v=$(cat "${dir}/$f")
+if [ "$v" = x ]; then head 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n'; echo '{}'; echo "gh: Server Error (HTTP 502)" >&2; exit 1; fi
+if [ "$v" = limited ]; then head '${LIMITED_403}'; echo '${RATE_LIMITED_STDERR}' >&2; exit 1; fi
+head 'HTTP/2.0 200 OK\\r\\n\\r\\n'
+jq -r "$filter" <<<"$v"
+`,
+    );
+    writeFileSync(join(bin, "sleep"), `#!/usr/bin/env bash\necho "$1" >>"${dir}/slept"\n`);
+    chmodSync(join(bin, "gh"), 0o755);
+    chmodSync(join(bin, "sleep"), 0o755);
+    // `python`: a stand-in for babysit_postmerge.py's process, as a bash body.
+    if (python) writeFileSync(join(bin, "python3"), `#!/usr/bin/env bash\n${python}\n`, { mode: 0o755 });
+    symlinkSync(root, join(dir, ".base"));
+    const result = spawnSync("bash", ["-c", runScript("Send a red full run to the demotion alert", earlySteps())], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        RUNNER_TEMP: dir,
+        GITHUB_OUTPUT: join(dir, "output"),
+        GITHUB_RUN_ID: "700",
+        REPO: "o/r",
+        LOOKBACK_HOURS: /\n {10}LOOKBACK_HOURS: (\d+)\n/.exec(step("Send a red full run to the demotion alert", earlySteps()))[1],
+      },
+    });
+    const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
+    const calls = read("calls").split("\n").filter(Boolean);
+    return {
+      status: result.status,
+      out: result.stdout + result.stderr,
+      calls,
+      sends: calls.filter((c) => c.includes("-X POST")),
+      output: read("output"),
+      record: read("alerted.json"),
+      slept: read("slept").split("\n").filter(Boolean).map(Number),
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("a red full run is sent to post-merge-demotion-alert.yml once, by its run id and head SHA, and recorded", () => {
+  const run = runAlert({ runs: [{ id: 41, conclusion: "failure" }] });
+  assert.equal(run.status, 0, run.out);
+  assert.deepEqual(run.sends, [alertSend(41)]);
+  assert.match(run.output, /^run-id=41$/m);
+  assert.deepEqual(JSON.parse(run.record), { alerter_run_id: 700, run_id: 41 });
+  assert.ok(run.calls[0].includes("actions/workflows/pr-require-checks.yml/runs?event=workflow_dispatch&branch=main&created=%3E%3D"), run.calls[0]);
+  const upload = step("Record the alert sent", earlySteps());
+  assert.match(upload, /\n {8}if: "!cancelled\(\) && steps\.alert\.outputs\.run-id != ''"\n/);
+  assert.match(upload, /uses: actions\/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 /);
+  assert.match(upload, /\n {10}name: pr-merge-alerted-\$\{\{ steps\.alert\.outputs\.run-id \}\}\n/);
+});
+
+// babysit_postmerge.py's FAILED_CONCLUSIONS, the conclusions post-merge
+// demotion counts as red: a cancel once the jobs started is red too.
+test("every red conclusion of a full run is sent", () => {
+  for (const conclusion of ["failure", "timed_out", "cancelled", "startup_failure", "action_required"]) {
+    const run = runAlert({ runs: [{ id: 41, conclusion }] });
+    assert.equal(run.status, 0, `${conclusion}: ${run.out}`);
+    assert.deepEqual(run.sends, [alertSend(41)], conclusion);
+  }
+});
+
+test("a green, running or other actor's run, one already sent, and one the group replaced are sent nowhere", () => {
+  const run = runAlert({
+    runs: [
+      { id: 40, conclusion: "success" },
+      { id: 41, conclusion: "skipped" },
+      { id: 42, status: "in_progress" },
+      { id: 43, conclusion: "failure", actor: "maintainer" },
+      { id: 44, conclusion: "failure" },
+      { id: 45, conclusion: "cancelled" },
+    ],
+    sent: { 44: 1 },
+    jobs: { 45: 0 },
+  });
+  assert.equal(run.status, 0, run.out);
+  assert.deepEqual(run.sends, []);
+  assert.match(run.out, /run 45 was replaced before it started: no signal/);
+  assert.equal(run.record, "");
+});
+
+// The re-run step may have made attempt 2 first: attempt 1 decides.
+test("a run past attempt 1 is judged on attempt 1", () => {
+  const red = runAlert({ runs: [{ id: 41, attempt: 2, conclusion: "success" }], firsts: { 41: { conclusion: "failure" } } });
+  assert.deepEqual(red.sends, [alertSend(41)], red.out);
+  const green = runAlert({ runs: [{ id: 41, attempt: 2, conclusion: "failure" }], firsts: { 41: { conclusion: "success" } } });
+  assert.deepEqual(green.sends, [], green.out);
+});
+
+// Review finding on #10491 (claude-security-review): a run sent counts only
+// when pr-merge.yml's own post-merge-dispatch on main uploaded its record, by
+// babysit_postmerge.py's sender rule (_lane_sender), which this step runs. A
+// same-name artifact from any other run, such as a pull request run, does
+// not suppress the send.
+test("a same-name record from a run that is not pr-merge.yml's on main does not suppress the alert", () => {
+  const trusted = runAlert({ runs: [{ id: 41, conclusion: "failure" }], sent: { 41: {} } });
+  assert.equal(trusted.status, 0, trusted.out);
+  assert.deepEqual(trusted.sends, [], "control: the lane's own record is a send already made");
+  assert.ok(trusted.calls.includes("api repos/o/r/actions/runs/901"), trusted.calls.join("\n"));
+  for (const forged of [
+    { event: "pull_request" },
+    { event: "pull_request_target" },
+    { event: "push" },
+    { path: ".github/workflows/ci.yml" },
+    { head_branch: "feature" },
+    { head_repository: { full_name: "outsider/r" } },
+    { repository: { full_name: "outsider/r" } },
+  ]) {
+    const run = runAlert({ runs: [{ id: 41, conclusion: "failure" }], sent: { 41: forged } });
+    assert.equal(run.status, 0, run.out);
+    assert.deepEqual(run.sends, [alertSend(41)], JSON.stringify(forged));
+  }
+});
+
+// Review finding on #10491 (claude-review): only --lane-alerted's "not
+// recorded" code (EXIT_NOT_ALERTED, 4) sends. An uncaught exception exits 1
+// with a traceback, and any code but 0, 4 and 75 leaves the run to the next
+// run, so a crashing check never sends the same run again each tick.
+test("a record check that crashes or answers an unknown code sends nothing", () => {
+  const traceback = 'echo "Traceback (most recent call last):" >&2; echo "TypeError: unexpected" >&2; exit 1';
+  for (const python of [traceback, "exit 2", "exit 3", "exit 5"]) {
+    const run = runAlert({ runs: [{ id: 41, conclusion: "failure" }], python });
+    assert.equal(run.status, 0, run.out);
+    assert.deepEqual(run.sends, [], python);
+    assert.match(run.out, /::warning::the record read of run 41 failed \(exit \d\); the next run tries again/);
+    assert.equal(run.record, "");
+  }
+  // Control: the not-recorded code sends.
+  const missing = runAlert({ runs: [{ id: 41, conclusion: "failure" }], python: "exit 4" });
+  assert.deepEqual(missing.sends, [alertSend(41)], missing.out);
+});
+
+test("one run per job: the oldest red one unsent, the next on the next run", () => {
+  const run = runAlert({
+    runs: [
+      { id: 52, conclusion: "failure", sha: "89abcdef0123456789abcdef0123456789abcdef" },
+      { id: 51, conclusion: "failure" },
+    ],
+  });
+  assert.deepEqual(run.sends, [alertSend(51)]);
+});
+
+test("a failed read of one run's jobs or record sends nothing for it and moves on", () => {
+  const run = runAlert({
+    runs: [
+      { id: 41, conclusion: "cancelled" },
+      { id: 42, conclusion: "failure" },
+      { id: 43, conclusion: "failure" },
+    ],
+    jobs: { 41: "x" },
+    sent: { 42: "x" },
+  });
+  assert.equal(run.status, 0, run.out);
+  assert.deepEqual(run.sends, [alertSend(43)]);
+  assert.match(run.out, /::warning::the jobs read of run 41 failed/);
+  assert.match(run.out, /::warning::the record read of run 42 failed/);
+  const listing = runAlert({ listing: "x" });
+  assert.equal(listing.status, 0);
+  assert.match(listing.out, /::warning::the listing of main's full runs failed/);
+});
+
+// The owner outage rule (Q677: at most three attempts, a capped full-jitter
+// backoff), sent again only when the request never left, as the dispatch.
+test("an alert send that never left is sent again after a jittered wait, at most three times", () => {
+  const sent = runAlert({ runs: [{ id: 41, conclusion: "failure" }], post: ["unsent", "unsent", "ok"] });
+  assert.equal(sent.status, 0, sent.out);
+  assert.deepEqual(sent.sends, [alertSend(41), alertSend(41), alertSend(41)]);
+  assert.equal(sent.slept.length, 2);
+  assert.ok(sent.slept[0] >= 1 && sent.slept[0] <= 10, `${sent.slept[0]}`);
+  assert.ok(sent.slept[1] >= 1 && sent.slept[1] <= 20, `${sent.slept[1]}`);
+  const spent = runAlert({ runs: [{ id: 41, conclusion: "failure" }], post: ["unsent"] });
+  assert.equal(spent.status, 0, spent.out);
+  assert.equal(spent.sends.length, 3);
+  assert.match(spent.out, /::warning::could not send run 41 to post-merge-demotion-alert\.yml after 3 attempt\(s\); the next run tries again/);
+  assert.equal(spent.record, "");
+  // A send that may have reached GitHub is not sent again.
+  const answered = runAlert({ runs: [{ id: 41, conclusion: "failure" }], post: ["502", "ok"] });
+  assert.deepEqual(answered.sends, [alertSend(41)]);
+  assert.equal(answered.record, "");
+});
+
+test("a rate-limited read or send stops red with the stop as the job's output, sending nothing more", () => {
+  const send = runAlert({ runs: [{ id: 41, conclusion: "failure" }, { id: 42, conclusion: "failure" }], post: ["limited"] });
+  assert.equal(send.status, 1, send.out);
+  assert.deepEqual(send.sends, [alertSend(41)]);
+  assert.match(send.out, /::error title=GitHub rate limit::the send of run 41 to post-merge-demotion-alert\.yml was rate limited/);
+  assert.match(send.output, /^rate-limited=true$/m);
+  assert.match(send.output, /^stop=/m);
+  const read = runAlert({ runs: [{ id: 41, conclusion: "failure" }], sent: { 41: "limited" } });
+  assert.equal(read.status, 1, read.out);
+  assert.deepEqual(read.sends, []);
+  assert.match(read.out, /::error title=GitHub rate limit::the record read of run 41 was rate limited/);
+  assert.match(jobBlock("post-merge-dispatch"), /\n {6}rate-limited: \$\{\{ [^\n]*\|\| steps\.alert\.outputs\.stop \}\}\n/);
+});
+
+// Every merge's run is sent, as dispatch-full-run starts it, whoever merged,
+// after a dispatch or re-run that failed for any reason but a rate limit, and
+// only while the lane is live (review decision on #10491: the kill switch and
+// report-only stop everything the scheduled job spends API on).
+test("the alert send runs after the re-run while the lane is live, and stops after a rate limit", () => {
+  const list = earlySteps();
+  const alert = step("Send a red full run to the demotion alert", list);
+  assert.match(
+    alert,
+    /\n {8}if: >-\n {10}!cancelled\(\)\n {10}&& steps\.kill\.outputs\.proceed == 'true'\n {10}&& steps\.mode\.outputs\.live == 'true'\n {10}&& steps\.post-merge\.outputs\.code != '75'\n {10}&& steps\.cover\.outputs\.rate-limited != 'true'\n {10}&& steps\.dispatch\.outputs\.rate-limited != 'true'\n {10}&& steps\.rerun\.outputs\.rate-limited != 'true'\n/,
+  );
+  const names = list.map((s) => s.name);
+  assert.deepEqual(names.slice(-3), [
+    "Send a red full run to the demotion alert",
+    "Record the alert sent",
+    "Log the API budget at the end",
+  ]);
+});
+
+// The scheduled job's cover read, run with .base at this checkout (the rate
+// guard) against a fake gh whose listing answers `answer`: "limited" with the
+// rate-limited 403, "x" with a 502.
+const runPostMergeCover = (answer) => {
+  const dir = tempDir("pr-merge-pm-cover-");
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    writeFileSync(
+      join(bin, "gh"),
+      `#!/usr/bin/env bash
+inc=; args=()
+for a in "$@"; do if [ "$a" = -i ]; then inc=1; else args+=("$a"); fi; done
+echo "\${args[*]}" >>"${dir}/calls"
+if [ "${answer}" = limited ]; then [ -z "$inc" ] || printf '${LIMITED_403}'; echo '${RATE_LIMITED_STDERR}' >&2; exit 1; fi
+[ -z "$inc" ] || printf 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n'; echo '{}'; echo "gh: Server Error (HTTP 502)" >&2; exit 1
+`,
+    );
+    chmodSync(join(bin, "gh"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
+    const result = spawnSync("bash", ["-c", runScript("Read main's full-run cover", earlySteps())], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: join(dir, "output"), REPO: "o/r", TIP: ALERT_SHA, CAP_MINUTES: "30" },
+    });
+    const read = (name) => (existsSync(join(dir, name)) ? readFileSync(join(dir, name), "utf8") : "");
+    return { status: result.status, out: result.stdout + result.stderr, output: read("output"), calls: read("calls").split("\n").filter(Boolean) };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+// stop-on-limit (docs/conventions/pr-pipeline/README.md, rate-stop.bash): a
+// cover read refused for a rate limit stops the step red with the stop as the
+// job's rate-limited output, and no later step of the job calls GitHub.
+test("a rate-limited cover read stops post-merge-dispatch red, and nothing after it calls GitHub", () => {
+  const limited = runPostMergeCover("limited");
+  assert.equal(limited.status, 1, limited.out);
+  assert.equal(limited.calls.length, 1);
+  assert.match(limited.out, /::error title=GitHub rate limit::the read of main's full runs was rate limited \(the core pool until 2100-01-01T00:00:00Z\)/);
+  assert.match(limited.output, /^rate-limited=true$/m);
+  assert.match(limited.output, /^stop=the core pool until 2100-01-01T00:00:00Z$/m);
+  // Any other failed read is no stop: no cap applies, as before.
+  const other = runPostMergeCover("x");
+  assert.equal(other.status, 0, other.out);
+  assert.doesNotMatch(other.output, /rate-limited|stop=/);
+  assert.match(other.out, /::warning::the read of main's full runs failed; no cap applies to this run/);
+
+  const list = earlySteps();
+  const live = { "steps.kill.outputs.proceed": "true", "steps.mode.outputs.live": "true", "steps.post-merge.outputs.code": "0", "steps.post-merge.outputs.needs-dispatch": "true", "steps.post-merge.outputs.lane-rerun": "11", "steps.cover.outputs.uncovered": "true" };
+  const after = ["Start the full CI run on main", "Re-run a red lane-dispatched full run", "Send a red full run to the demotion alert"];
+  // Control: with the read answered, each later API step runs.
+  for (const name of after) assert.equal(stepRuns(step(name, list), (p) => live[p] ?? "", "success"), true, name);
+  const stopped = { ...live, "steps.cover.outputs.rate-limited": "true", "steps.cover.outputs.stop": "the core pool until 2100-01-01T00:00:00Z" };
+  for (const name of after) assert.equal(stepRuns(step(name, list), (p) => stopped[p] ?? "", "failure"), false, name);
+  // The merge and enable-auto-merge jobs stop on that output.
+  for (const id of ["merge", "enable-auto-merge"]) {
+    const first = stepsOf(jobBlock(id)).find((s) => s.name === "Stop on post-merge-dispatch's rate limit");
+    assert.ok(first, id);
+    assert.match(first.block, /\n {8}if: needs\.post-merge-dispatch\.outputs\.rate-limited != ''\n/);
+  }
+});
+
+// Review decision on #10491: the kill switch and report-only stop everything
+// post-merge-dispatch does that spends API or starts a run: the cover read,
+// the pr-require-checks.yml dispatch on main and the alert dispatch.
+// dispatch-full-run's push carve-out stays.
+const spending = [
+  "Read main's full-run cover",
+  "Start the full CI run on main",
+  "Record the dispatched run",
+  "Re-run a red lane-dispatched full run",
+  "Record the re-run",
+  "Send a red full run to the demotion alert",
+  "Record the alert sent",
+];
+test("the kill switch and report-only stop the scheduled job's cover read, dispatch and alert send", () => {
+  const list = earlySteps();
+  const base = { "steps.cover.outputs.uncovered": "true", "steps.post-merge.outputs.needs-dispatch": "true" };
+  const reportOnly = { ...base, "steps.kill.outputs.proceed": "true" };
+  for (const name of spending) assert.equal(stepRuns(step(name, list), (p) => reportOnly[p] ?? "", "success"), false, `${name} while report-only`);
+  const live = { ...reportOnly, "steps.mode.outputs.live": "true" };
+  for (const name of ["Read main's full-run cover", "Start the full CI run on main", "Send a red full run to the demotion alert"]) {
+    assert.equal(stepRuns(step(name, list), (p) => live[p] ?? "", "success"), true, `${name} while live`);
+  }
+});
+
+// The kill switch's own action, run with CLAUDE_LANES_DISABLED or
+// CLAUDE_LANES_REPO_DISABLED set, then every later step of the scheduled job
+// evaluated over its output: no step that starts a pr-require-checks.yml run
+// or sends to the alert runs, nor the steps those switches skip.
+test("with either kill switch set, the scheduled job starts no full run and sends no alert", () => {
+  const list = earlySteps();
+  const killAt = list.findIndex((s) => s.name === "Check the kill switch");
+  assert.match(list[killAt].block, /\n {10}value: \$\{\{ vars\.CLAUDE_LANES_DISABLED \}\}\n {10}repo-value: \$\{\{ vars\.CLAUDE_LANES_REPO_DISABLED \}\}\n/);
+  const killSwitch = (org, repo) => {
+    const dir = tempDir("pr-merge-kill-");
+    try {
+      const out = join(dir, "output");
+      writeFileSync(out, "");
+      execFileSync("node", [join(root, ".github/actions/check-kill-switch/check-kill-switch.mjs")], {
+        env: { ...process.env, KILL_SWITCH_VALUE: org, REPO_KILL_SWITCH_VALUE: repo, GITHUB_OUTPUT: out },
+      });
+      return /^proceed<<(\S+)\n(.*)\n\1$/m.exec(readFileSync(out, "utf8"))[2];
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  assert.equal(killSwitch("false", "false"), "true", "control: both off proceeds");
+  for (const [org, repo] of [["true", "false"], ["false", "true"]]) {
+    const proceed = killSwitch(org, repo);
+    assert.equal(proceed, "false", `CLAUDE_LANES_DISABLED=${org} CLAUDE_LANES_REPO_DISABLED=${repo}`);
+    const context = (p) => (p === "steps.kill.outputs.proceed" ? proceed : "");
+    for (const { name, block } of list.slice(killAt + 1)) {
+      if (["Check earlier lane merges", "Read the lane records the last run kept", "Read report-only", ...spending].includes(name)) {
+        assert.equal(stepRuns(block, context, "success"), false, `${name} with ${org}/${repo}`);
+      }
+    }
+  }
+  assert.doesNotMatch(jobBlock("dispatch-full-run"), /steps\.(kill|mode)\./, "the push carve-out stays");
+});
+
+// The merge job's check, run with this run's post-merge-dispatch report kept
+// in post-merge-kept (or none) and a fake python3: `settle` answers whether
+// the report stands (exit `settle`), any other call is the check, which marks
+// that it ran. The rule (pr-merge.yml): reuse a report whose check judged
+// (exit 0, 1 or 5) and that `settle` keeps (babysit_verify_evidence.py, the
+// lane room's rule, tested in test_babysit_lane_room.py) given the commit
+// post-merge-dispatch's check ran (`codeSha`, null for no file); otherwise
+// run the check. `yqFails` puts a yq that fails on the PATH.
+const KEPT_SHA = "b".repeat(40);
+const runMergeCheck = ({ kept, code = "0", codeSha = KEPT_SHA, records, settle = 0, exit = 3, report = { ran: true }, yqFails = false } = {}) => {
+  const dir = tempDir("pr-merge-reuse-");
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    writeFileSync(
+      join(bin, "python3"),
+      `#!/usr/bin/env bash\nif [ "$2" = settle ]; then echo "$@" >"${dir}/settled"; exit ${settle}; fi\ntouch "${dir}/ran"\necho '${JSON.stringify(report)}'\nexit ${exit}\n`,
+    );
     chmodSync(join(bin, "python3"), 0o755);
+    if (yqFails) {
+      writeFileSync(join(bin, "yq"), "#!/usr/bin/env bash\nexit 1\n");
+      chmodSync(join(bin, "yq"), 0o755);
+    }
     symlinkSync(root, join(dir, ".base"));
     writeFileSync(join(dir, "lane-records.json"), "read in");
     if (kept !== undefined) {
       mkdirSync(join(dir, "post-merge-kept"));
       writeFileSync(join(dir, "post-merge-kept/post-merge.json"), JSON.stringify(kept));
       writeFileSync(join(dir, "post-merge-kept/post-merge-code"), `${code}\n`);
+      if (codeSha !== null) writeFileSync(join(dir, "post-merge-kept/post-merge-code-sha"), `${codeSha}\n`);
       if (records !== undefined) writeFileSync(join(dir, "post-merge-kept/lane-records.json"), records);
     }
     const output = join(dir, "output");
     const result = spawnSync("bash", ["-c", runScript("Check earlier lane merges")], {
       cwd: dir,
       encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r", REUSE_MINUTES: /\n {10}REUSE_MINUTES: (\d+)\n/.exec(step("Check earlier lane merges"))[1] },
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_OUTPUT: output, REPO: "o/r" },
     });
     return {
       status: result.status,
       stdout: result.stdout,
       ran: existsSync(join(dir, "ran")),
-      output: readFileSync(output, "utf8"),
-      report: JSON.parse(readFileSync(join(dir, "post-merge.json"), "utf8")),
+      settled: existsSync(join(dir, "settled")) ? readFileSync(join(dir, "settled"), "utf8").trim() : null,
+      output: existsSync(output) ? readFileSync(output, "utf8") : "",
+      report: existsSync(join(dir, "post-merge.json")) ? JSON.parse(readFileSync(join(dir, "post-merge.json"), "utf8")) : null,
       records: readFileSync(join(dir, "lane-records.json"), "utf8"),
     };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 };
-const keptReport = ({ main = MAIN, minutesAgo = 3 } = {}) => ({
-  readable: true,
-  needsDispatch: true,
-  shared: { mainSha: main, computedAt: new Date(Date.now() - minutesAgo * 60_000).toISOString().replace("Z", "+00:00") },
-});
+const keptReport = () => ({ readable: true, needsDispatch: true, shared: { mainSha: "a".repeat(40) } });
 
-test("the merge job reuses this run's post-merge report for main at its commit, with its code and lane records", () => {
+test("the merge job reuses this run's post-merge report that settle keeps, with its code and lane records", () => {
   for (const code of ["0", "1", "5"]) {
     const run = runMergeCheck({ kept: keptReport(), code, records: "proved" });
     assert.equal(run.status, 0, run.stdout);
     assert.equal(run.ran, false, code);
     assert.match(run.output, new RegExp(`^code=${code}$`, "m"));
     assert.match(run.output, /^needs-dispatch=true$/m);
-    assert.equal(run.report.shared.mainSha, MAIN);
+    assert.equal(run.report.shared.mainSha, "a".repeat(40));
     assert.equal(run.records, "proved");
-    assert.match(run.stdout, /::notice::post-merge-dispatch's check judged main at [0-9a-f]{40} \d+s ago/);
+    assert.match(run.stdout, /::notice::post-merge-dispatch's check \(exit \d\) still stands by the lane room's reuse rule; reused, not run again/);
   }
+  // settle is given the commit whose code ran the kept check, and reads the
+  // lane's identity itself.
+  const run = runMergeCheck({ kept: keptReport() });
+  assert.match(run.settled, new RegExp(`babysit_verify_evidence\\.py settle --repo o/r --postmerge-result \\S+/post-merge-kept/post-merge\\.json --code-sha ${KEPT_SHA}$`));
+  // With no commit kept, an empty one, which settle refuses.
+  assert.match(runMergeCheck({ kept: keptReport(), codeSha: null }).settled, / --code-sha$/);
   // A report kept with no lane records leaves the ones read in.
-  assert.equal(runMergeCheck({ kept: keptReport() }).records, "read in");
+  assert.equal(run.records, "read in");
+  // The identity read (yq) is the fresh check's alone: a reused report
+  // needs none, so a failing yq fails only the check that needs it.
+  const reused = runMergeCheck({ kept: keptReport(), yqFails: true });
+  assert.equal(reused.status, 0, reused.stdout);
+  assert.equal(reused.ran, false);
+  const fresh = runMergeCheck({ kept: keptReport(), settle: 1, yqFails: true });
+  assert.notEqual(fresh.status, 0);
+  assert.equal(fresh.ran, false);
 });
 
-test("the merge job runs the check itself for no report, another main, an old report or a check that could not judge", () => {
+test("the merge job runs the check itself for no report, a report settle refuses or a check that could not judge", () => {
   for (const [why, options] of [
     ["none", {}],
-    ["another main", { kept: keptReport({ main: "f".repeat(40) }) }],
-    ["7 minutes old", { kept: keptReport({ minutesAgo: 7 }) }],
-    ["from the future", { kept: keptReport({ minutesAgo: -5 }) }],
-    ["no time", { kept: { ...keptReport(), shared: { mainSha: MAIN } } }],
+    ["settle refuses", { kept: keptReport(), settle: 1 }],
+    ["settle crashes", { kept: keptReport(), settle: 2 }],
     ["exit 3", { kept: keptReport(), code: "3" }],
+    ["exit 75", { kept: keptReport(), code: "75" }],
   ]) {
     const run = runMergeCheck({ ...options, records: "proved" });
     assert.equal(run.ran, true, why);
@@ -1551,6 +2187,8 @@ test("the merge job runs the check itself for no report, another main, an old re
     assert.deepEqual(run.report, { ran: true }, why);
     assert.equal(run.records, "read in", why);
   }
+  // A code that could not judge is not offered to settle.
+  assert.equal(runMergeCheck({ kept: keptReport(), code: "3" }).settled, null);
 });
 
 // The gate and every later step would call GitHub again while limited, so

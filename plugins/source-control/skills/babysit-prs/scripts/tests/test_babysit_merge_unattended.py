@@ -652,7 +652,7 @@ class ResolveWithoutMergeBlockIsInert(unittest.TestCase):
         sha = "a" * 40
         answers = {
             "repos/owner/repo": {"default_branch": "main"},
-            "repos/owner/repo/commits/main": {"sha": sha},
+            "repos/owner/repo/git/ref/heads/main": {"object": {"sha": sha}},
             f"repos/owner/repo/contents?ref={sha}": [],
         }
         calls: list[list[str]] = []
@@ -757,6 +757,9 @@ def entry(
     }
 
 
+_REAL_GET = policy._get
+
+
 class Unattended(unittest.TestCase):
     """`main()` over the real composition, every reader a fake set per test."""
 
@@ -784,6 +787,10 @@ class Unattended(unittest.TestCase):
         self.trusted_refs: list[str] = []
         # The repository's default branch as `repository_default_branch` reads it.
         self.repo_default: str | None = "main"
+        # Each branch's tip as `base_tip` resolves it; one absent here fails.
+        # The default branch head is `main`'s tip (`main_head`): the base, so
+        # the in-flight cap is `self.config`'s.
+        self.tips: dict[str, str] = {"main": BASE, "trunk": "f" * 40}
         self.files = ((LOW_FILE,), True)
         self.pr_view = fixtures._pr()
         self.queue = fixtures._queue_read(required=True)
@@ -835,9 +842,6 @@ class Unattended(unittest.TestCase):
         self.pr_labels: list[dict[str, Any]] = []
         self.dependabot_reads: list[policy.Eligibility] = []
         self.dependabot_kwargs: list[dict[str, Any]] = []
-        # The default branch head the in-flight cap is read at: the base, so
-        # the cap is `self.config`'s.
-        self.main_head = BASE
         # Reads of the pipeline config at `main_head` when it is not the
         # base, in order (the merge config's, the in-flight cap's, the room
         # check's): a config, or an exception to raise. Empty reads
@@ -855,6 +859,20 @@ class Unattended(unittest.TestCase):
             if len(self.dependabot_reads) > 1
             else self.dependabot_reads[0]
         )
+
+    @property
+    def main_head(self) -> str:
+        """The default branch head, read through `base_tip` like any tip."""
+        return self.tips.get("main", "")
+
+    @main_head.setter
+    def main_head(self, sha: str) -> None:
+        self.tips["main"] = sha
+
+    def _base_tip(self, owner: str, name: str, base: str) -> str:
+        if base not in self.tips:
+            raise policy.PolicyReadError(f"the base branch {base} did not resolve")
+        return self.tips[base]
 
     def _lane_evidence(self, *args: Any) -> Any:
         self.lane_args = args
@@ -900,9 +918,13 @@ class Unattended(unittest.TestCase):
         return read
 
     def _get(self, endpoint: str) -> tuple[int | None, Any]:
-        if endpoint == "repos/owner/repo/commits/main":
-            return 200, {"sha": self.main_head}
-        return self._real_get(endpoint)
+        if endpoint == "repos/owner/repo/git/ref/heads/main":
+            return 200, {"object": {"sha": self.main_head}}
+        # A test's own patch of `policy._get` answers the rest; the real reader
+        # would reach GitHub, so a read nothing answers raises instead.
+        if self._outer_get is _REAL_GET:
+            raise AssertionError(f"unexpected policy._get call: {endpoint}")
+        return self._outer_get(endpoint)
 
     def _dispatch(self, repo: str, ref: str) -> None:
         self.log.append("dispatch")
@@ -970,7 +992,7 @@ class Unattended(unittest.TestCase):
             argv += ["--merge", "--expected-head", HEAD]
         argv += list(flags)
         out = io.StringIO()
-        self._real_get = policy._get
+        self._outer_get = policy._get
         self._real_paginated = merge.fetch_paginated_api
         patches = [
             mock.patch.object(sys, "argv", argv),
@@ -1091,6 +1113,7 @@ class Unattended(unittest.TestCase):
                 "repository_default_branch",
                 side_effect=lambda repo: self.repo_default,
             ),
+            mock.patch.object(policy, "base_tip", side_effect=self._base_tip),
             mock.patch.object(merge, "read_merge_queue", return_value=self.queue),
             mock.patch.object(merge, "async_merge", self.async_merge),
             mock.patch.object(merge, "rerun_rate_limited_reviews", self.rerun),
@@ -1151,7 +1174,7 @@ class LaneMode(Unattended):
         super().setUp()
         self.config = policy.PipelineConfig(
             BASE, "C2", "pr-merge", IDENTITY, 200, (".github/**",), "c2-mechanical",
-            require_verifier_verdict=True,
+            require_verifier_verdict=True, path_holds=True,
         )  # fmt: skip
         # A passing verdict at every head (test_babysit_verify_evidence covers
         # the reader).
@@ -1208,6 +1231,56 @@ class LaneMode(Unattended):
         ):
             _, out = self.lane()
         self.assertEqual(out["unattended"]["risk"]["score"], "HIGH")
+
+    def test_a_trusted_persons_gate_path_clears_on_a_clean_security_review(
+        self,
+    ) -> None:
+        # Owner direction 2026-10-27: the gate path leaves `high-path:` for
+        # `review-path:`, which BOUND's clean security review clears; the
+        # lanes App's own pull request keeps the person's hold.
+        gate = ".github/scripts/pr-merge/who.mjs"
+        self.config = dataclasses.replace(
+            self.config, adoption_idle_hours=24, denied_paths=()
+        )
+        self.files = ((dataclasses.replace(LOW_FILE, path=gate),), True)
+        self.lane_eligible = policy.Eligibility(
+            True, None, "C2", 41, adoption="idle-owner:24h", body_is_intent=True
+        )
+        person = {"login": "owner", "id": PERSON_ID, "type": "User"}
+        for user, lanes, score in (
+            (person, BOUND, "LOW"),
+            (person, UNBOUND, "HIGH"),
+            ({"login": IDENTITY, "id": PERSON_ID, "type": "Bot"}, BOUND, "HIGH"),
+        ):
+            self.pr_user, self.lanes = user, lanes
+            with (
+                self.subTest(user=user["type"], lanes=lanes[1].bound),
+                mock.patch.object(policy, "foreign_paths", return_value=frozenset()),
+            ):
+                _, out = self.lane()
+                risk = out["unattended"]["risk"]
+                self.assertEqual(risk["score"], score, risk)
+                codes = [r["code"] for r in risk["reasons"]]
+                self.assertEqual(
+                    f"high-path:{gate}" in codes, user["type"] == "Bot", codes
+                )
+
+    def test_path_holds_off_skips_the_floor_and_reports_it(self) -> None:
+        # Owner decision Q15: off, a lanes App gate-script change scores LOW
+        # and the gate report names the hold it skipped; on, it holds.
+        gate = ".github/scripts/pr-merge/clear-escalations.mjs"
+        self.config = dataclasses.replace(self.config, denied_paths=())
+        self.files = ((dataclasses.replace(LOW_FILE, path=gate),), True)
+        for on, score, skipped in (
+            (False, "LOW", [{"code": f"high-path:{gate}", "detail": gate}]),
+            (True, "HIGH", []),
+        ):
+            self.config = dataclasses.replace(self.config, path_holds=on)
+            with self.subTest(path_holds=on):
+                _, out = self.lane()
+                risk = out["unattended"]["risk"]
+                self.assertEqual(risk["score"], score, risk)
+                self.assertEqual(risk["pathHoldsSkipped"], skipped)
 
     def test_a_model_app_own_lines_skip_the_floor_only_under_scripts(self) -> None:
         # Owner decision Q14 (c): a model-driven App's own lines skip the
@@ -1485,7 +1558,26 @@ class LaneMode(Unattended):
     def test_the_enqueue_recheck_reads_the_eligible_issue(self) -> None:
         self.lane()
         self.assertEqual(len(self.lane_recheck_kwargs), 1)
-        self.assertEqual(self.lane_recheck_kwargs[0], {"issue": 41})
+        # No `labels-absent` list in the config: the human-gated label holds.
+        self.assertEqual(
+            self.lane_recheck_kwargs[0], {"issue": 41, "holds": ("needs-human",)}
+        )
+
+    def test_a_hold_on_the_closing_issue_at_the_enqueue_refuses(self) -> None:
+        # #7783: a hold the issue gained since eligibility stops the enqueue.
+        self.closing_issue_now(["needs-human"])
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertIn(
+            "unattended merge refused: ineligible:closing-issue-held:needs-human",
+            out["blockers"],
+        )
+
+    def test_the_configured_hold_list_reaches_the_enqueue_recheck(self) -> None:
+        holds = ("needs-human", "status: needs-info")
+        self.config = dataclasses.replace(self.config, issue_holds=holds)
+        self.lane()
+        self.assertEqual(self.lane_recheck_kwargs[0], {"issue": 41, "holds": holds})
 
     def test_a_base_retargeted_before_the_enqueue_refuses(self) -> None:
         self.closing_issue_now([])
@@ -1766,6 +1858,10 @@ class DependabotLane(Unattended):
                 self.assertEqual(
                     [k["hold_majors"] for k in self.dependabot_kwargs], [hold, hold]
                 )
+                # The gate reads main's Dependabot inputs at the head its
+                # merge config came from; the recheck at the head read now.
+                self.assertEqual(self.dependabot_kwargs[0]["branch"], "main")
+                self.assertEqual(self.dependabot_kwargs[1]["main_sha"], self.main_head)
 
     def test_a_lane_authored_pr_still_reads_report_only(self) -> None:
         self.pr_user = {"login": IDENTITY, "type": "Bot"}
@@ -2374,16 +2470,27 @@ class EachRefusalMakesNoMergeCall(Unattended):
         self.assertEqual(out["unattended"]["reason"], "risk:MED")
 
     def test_a_cost_hold_holds(self) -> None:
+        # Infrastructure as code can start a real charge.
+        self.files = ((dataclasses.replace(LOW_FILE, path="infra/main.tf"),), True)
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
+        codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
+        self.assertEqual(codes, ["cost-review-required"])
+
+    def test_subscription_spend_is_reported_and_merges(self) -> None:
+        # A pipeline spend line draws on the subscription: no real charge.
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         pipeline = dataclasses.replace(
             LOW_FILE, path="plugins/foo/pr-pipeline.yaml", patch=patch
         )
         self.files = ((pipeline,), True)
         code, out = self.run_main()
-        self.assert_no_merge(code)
-        self.assertEqual(out["unattended"]["reason"], "risk:HIGH")
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertIsNone(out["unattended"]["reason"])
         codes = [r["code"] for r in out["unattended"]["risk"]["reasons"]]
-        self.assertEqual(codes, ["cost-review-required"])
+        self.assertEqual(codes, ["cost-finding"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
 
 
 class BaseConfigParseError(Unattended):
@@ -3313,7 +3420,14 @@ class CostHold(Unattended):
             with self.subTest(held=held):
                 policy._TEXT_AT.clear()
                 self.addCleanup(policy._TEXT_AT.clear)
-                with mock.patch.object(policy, "_file_at", return_value=text):
+                # Base text first, then head: the patch's 30 -> 45 at its key.
+                sides = iter(
+                    f"jobs:\n  a:\n    timeout-minutes: {m}\n    steps:\n{text}"
+                    for m in ("30", "45")
+                )
+                with mock.patch.object(
+                    policy, "_file_at", side_effect=lambda *_: next(sides, None)
+                ):
                     read, out = self.run_with_decision(None)
                 codes = [r["code"] for r in out["risk"]["reasons"]]
                 self.assertEqual("cost-review-required" in codes, held)
@@ -3607,8 +3721,8 @@ class ReasonsComment(Unattended):
             out["unattended"]["writes"]["riskEscalation"],
             {"label": "lifted", "comment": "unchanged"},
         )
-        # The trusted list is read at the default branch, never the head.
-        self.assertEqual(self.trusted_refs, ["main"])
+        # The trusted list is read at the default branch's tip, never the head.
+        self.assertEqual(self.trusted_refs, [self.tips["main"]])
 
     def test_the_trusted_list_is_read_at_the_default_branch(self) -> None:
         # The pull request's base is main; a retarget cannot pick the list.
@@ -3618,9 +3732,30 @@ class ReasonsComment(Unattended):
             self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
         ]
         _, out = self.run_main()
-        self.assertEqual(self.trusted_refs, ["trunk"])
+        self.assertEqual(self.trusted_refs, [self.tips["trunk"]])
         self.assertEqual(
             out["unattended"]["writes"]["riskEscalation"]["label"], "lifted"
+        )
+
+    def test_an_unresolved_default_branch_tip_is_no_lift(self) -> None:
+        # The list is never read by the branch's name, which a tag of the
+        # same name could answer. The run's own default branch head read
+        # resolved; only the lift's later tip read does not.
+        self.escalated_earlier()
+        head = self.main_head
+        del self.tips["main"]
+        self.timeline = [
+            self.unlabeled("owner-person", "User", self.WRITTEN + timedelta(minutes=30))
+        ]
+        with mock.patch.object(
+            policy, "_default_branch_head", return_value=("main", head)
+        ):
+            _, out = self.run_main()
+        self.assertEqual(self.log, [self.LABEL])
+        self.assertEqual(self.trusted_refs, [])
+        self.assertEqual(
+            out["unattended"]["writes"]["riskEscalation"]["liftUnread"],
+            "PolicyReadError: the base branch main did not resolve",
         )
 
     def test_an_unread_default_branch_is_no_lift(self) -> None:
@@ -4281,6 +4416,18 @@ class WholeReviewRequest(Unattended):
         self.run_main()
         self.assertNotIn("toggle", self.log)
 
+    def test_an_adopted_owner_pull_request_records_then_toggles(self) -> None:
+        self.pr_user = {"login": "maintainer", "type": "User"}
+        self.eligible = policy.Eligibility(
+            True, None, "C2", 40, adoption="idle-owner:24h"
+        )
+        with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
+            _, out = self.run_main()
+        self.assertIs(out["unattended"]["wholeReviewWanted"], True)
+        self.assertEqual(self.log, ["risk-comment:POST", "toggle"])
+        self.assertTrue(merge.whole_review.recorded(self.posted(), HEAD))
+        self.assertEqual(out["unattended"]["writes"]["wholeReview"], {"toggled": True})
+
     def test_report_only_requests_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, report_only=True)
         self.run_main()
@@ -4320,6 +4467,79 @@ class HeadFile(unittest.TestCase):
         ):
             with self.subTest(name), self.assertRaises(RuntimeError):
                 self.read(proc, files)
+
+
+class AttachEdits(unittest.TestCase):
+    """`_lane_evidence` gives each lane-author comment the edit record
+    `bind()` reads; one it cannot read gets none, which `bind()` holds."""
+
+    def comment(self, login: str, updated: str, node: str) -> dict[str, Any]:
+        return {
+            "user": {"login": login, "type": "Bot"},
+            "created_at": "2026-10-22T02:00:00Z",
+            "updated_at": updated,
+            "node_id": node,
+        }
+
+    def test_unedited_comments_need_no_read_and_edited_ones_get_graphql(self) -> None:
+        same = self.comment("github-actions[bot]", "2026-10-22T02:00:00Z", "IC_a")
+        edited = self.comment("github-actions[bot]", "2026-10-22T03:00:00Z", "IC_b")
+        other = self.comment("someone", "2026-10-22T03:00:00Z", "IC_c")
+        editor = {"__typename": "User", "login": "pusher"}
+        history = {"totalCount": 1, "nodes": [{"editedAt": "2026-10-22T03:00:00Z"}]}
+        reply = {
+            "data": {
+                "nodes": [
+                    {
+                        "id": "IC_b",
+                        "lastEditedAt": "2026-10-22T03:00:00Z",
+                        "editor": editor,
+                        "userContentEdits": history,
+                    }
+                ]
+            }
+        }
+        with mock.patch.object(merge, "gh_json_graphql", return_value=reply) as read:
+            merge._attach_edits([same, edited, other], "#1")
+        self.assertEqual(same["edit"], {"lastEditedAt": None})
+        self.assertEqual(
+            edited["edit"],
+            {
+                "lastEditedAt": "2026-10-22T03:00:00Z",
+                "editor": editor,
+                "history": history,
+            },
+        )
+        self.assertNotIn("edit", other)
+        args = read.call_args.args[0]
+        self.assertIn("ids[]=IC_b", args)
+        self.assertNotIn("ids[]=IC_a", args)
+
+    def test_a_failed_read_leaves_no_record(self) -> None:
+        edited = self.comment("claude[bot]", "2026-10-22T03:00:00Z", "IC_b")
+        with mock.patch.object(
+            merge, "gh_json_graphql", side_effect=RuntimeError("HTTP 502")
+        ):
+            merge._attach_edits([edited], "#1")
+        self.assertNotIn("edit", edited)
+        lanes = merge.review_evidence.bind(
+            evidence_tests.S,
+            [
+                evidence_tests.whole(lane, evidence_tests.S)
+                for lane in evidence_tests.LANES
+            ],
+            [
+                {**marker, "edit": edited.get("edit")}
+                if "security" in marker["body"]
+                else marker
+                for marker in evidence_tests.both_markers()
+            ],
+            [],
+            is_human=evidence_tests.is_human,
+            changed_paths=(),
+        )
+        reasons = {lane.lane: lane.unbound_reason for lane in lanes}
+        self.assertEqual(reasons["claude-security-review"], "comment-edited")
 
 
 class HeadFileFailure(unittest.TestCase):
@@ -4652,6 +4872,7 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                         "id": 300 + i,
                         "user": {"login": "github-actions[bot]", "type": "Bot"},
                         "created_at": "2026-10-22T02:00:00Z",
+                        "updated_at": "2026-10-22T02:00:00Z",
                         "body": f"<!-- claude-lane-reviewed-head lane={lane}"
                         f" sha={HEAD} -->\n{lane} has reviewed this pull request"
                         f" through {HEAD}.",
@@ -4670,6 +4891,7 @@ class LaneEvidenceReadTokenOutage(unittest.TestCase):
                     "run_attempt": 1,
                     "created_at": "2026-10-22T01:00:00Z",
                     "pull_requests": [{"number": PR}],
+                    "head_commit": {"id": HEAD, "tree_id": "7e" * 20},
                     **done,
                 }
                 return [{"workflow_runs": [item]}]
@@ -5376,6 +5598,9 @@ class DependabotMajorEscalation(unittest.TestCase):
         stack.enter_context(
             mock.patch.object(merge, "repository_default_branch", return_value="main")
         )
+        stack.enter_context(
+            mock.patch.object(policy, "base_tip", return_value="e" * 40)
+        )
         return stack
 
     def test_only_the_identitys_comment_dates_the_escalation(self) -> None:
@@ -5548,6 +5773,19 @@ class AdoptionHoldLabel(unittest.TestCase):
         label = mock.Mock(side_effect=AssertionError)
         assess = self.run_assess(policy.LOCAL_BABYSIT, label)
         self.assertIsNone(assess.call_args.kwargs["human_gated"])
+
+    def test_the_policy_proves_unchanged_runs_with_the_post_merge_reader(
+        self,
+    ) -> None:
+        # A shared answer past the unverified age is kept only on the
+        # post-merge check's own verifying-run proof, for this repository.
+        assess = self.run_assess(policy.PR_MERGE, mock.Mock(return_value=None))
+        runs_unchanged = assess.call_args.kwargs["runs_unchanged"]
+        with mock.patch.object(
+            postmerge, "pending_runs_unchanged", return_value=True
+        ) as proof:
+            self.assertTrue(runs_unchanged(mock.sentinel.answer, "main"))
+        proof.assert_called_once_with("o/r", mock.sentinel.answer, "main")
 
 
 if __name__ == "__main__":

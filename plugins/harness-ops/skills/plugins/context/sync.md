@@ -30,8 +30,10 @@ The script is bound to it, so a rule changed here is a rule changed in the scrip
 
 ```bash
 sync-run.sh [--marketplace <name> | --all] --journal-root <dir> \
-            [--install-new all|none|ask] [--allow-downgrade]
-sync-run.sh [--marketplace <name> | --all] --audit [--install-new all|none|ask]
+            [--install-new all|none|ask] [--allow-downgrade] \
+            [--source-pull ask|never] [--pull-source <names>] [--quiet-auto-update <names>]
+sync-run.sh [--marketplace <name> | --all] --audit [--install-new all|none|ask] \
+            [--source-pull ask|never] [--quiet-auto-update <names>]
 sync-run.sh --only-install <ids> --run-dir <dir> [--marketplace <name> | --all]
 ```
 
@@ -49,6 +51,11 @@ What the model still owns, because the script cannot:
   prompt; it then re-enters with `--only-install <ids> --run-dir <the digest's run_dir>`, which
   performs Step 4, Step 5, and, when this pass skipped it, Step 5b against the same run journal
   and re-emits the digest.
+- **The pull offer.** The `directory_source_pull` and `quiet_auto_update_marketplaces` values
+  render in SKILL.md the same way, and the model passes them as `--source-pull` and
+  `--quiet-auto-update`. Only the model can ask the user, so a checkout the digest marks
+  `offered` is asked about there, and a yes reruns with `--pull-source`; see Step 1's
+  "Directory-source fast-forward".
 - **The journal root.** `${CLAUDE_PLUGIN_DATA}` substitutes in SKILL.md and not here, so SKILL.md
   passes the substituted path as `--journal-root`.
 - **The reload guidance.** Step 6's report is rendered by the script too (`render-report.jq`
@@ -58,8 +65,10 @@ What the model still owns, because the script cannot:
 The digest carries, per marketplace: the refresh result, `project_root`, the marketplace's
 `auto_update` and `catalog_source`, `source_checkout` for a `directory` source (branch, upstream,
 ahead/behind as of the checkout's last fetch, modified tracked files; `null` for any other source
-kind; the script never fetches or pulls that checkout, because `claude plugin marketplace update`
-reads a directory as it is and the user owns it), the in-repo and user-scope sweep outcomes with each pair's
+kind; the script fetches or pulls that checkout only on a `--pull-source` request, because the
+user owns it), `source_pull` (what the run did or would do with a behind checkout: offered,
+skipped, refused, pulled or failed, with the reason, and the commits for a pull; see Step 1's
+"Directory-source fast-forward"), the in-repo and user-scope sweep outcomes with each pair's
 direction, withheld downgrades, the install and enable gaps, what was installed and enabled, the
 installs whose CLI output named userConfig options left unset
 (`installed_with_unset_user_config[]`, one `{id, options_unset, required}` each), the ids whose
@@ -177,7 +186,7 @@ where the rollback is what the operator actually wants.
 
 ## Version capture for the report
 
-SKILL.md's report requires `<id>@<marketplace>: <old> → <new>` for every updated plugin, so both
+SKILL.md's report requires `- <id>@<marketplace> (<scope>): <old> -> <new>` for every updated plugin, so both
 values have to be collected while the sweep runs. Neither can be reconstructed afterward.
 
 **Retain the pre-sweep `fleet-state.sh` output for the whole run.** It is the sole source of every
@@ -192,7 +201,9 @@ Three sources, in precedence order, and **never** a synthesized value:
 1. **`<old>`**: that id's `installed[].version` from the pre-mutation `fleet-state.sh` re-read the
    section above already requires. It is the pre-update value by construction.
 2. **`<new>`**: the `claude plugin update` call's own output for that id when it names a version.
-   Capture the CLI's line as it runs; it is the only source that reflects the update immediately.
+   Capture it as it runs; it is the only source that reflects the update immediately. The run
+   asks for the CLI's JSON result and falls back to its result sentence on a CLI that prints no
+   result line (`sync-run.sh`'s `cli_reported_version`).
 3. **`<new>` fallback**: that id's `installed[].version` from one `fleet-state.sh` re-read after
    the Step 2 + Step 3 sweep completes, diffed against the pre-sweep snapshot.
 
@@ -204,7 +215,19 @@ an id and the post-sweep version is unchanged, report the CLI's reported value, 
 named none. Never report `<old> → <old>`, and never count that id as not-updated. A report line
 that says nothing changed for a plugin that did change is worse than one that admits it cannot tell.
 
-The CLI's "already at the latest version (X)" line is not a source for `<new>`: this run's call
+**Two install facts are read from the result's message text.** The probe found no result field
+for unset userConfig options or a disabled-by-default install, so `sync-run.sh` classifies both
+from the message (`unset_user_config_of`, `install_disabled_notice`). The shapes it matches live
+only in the script and its probe evidence, never here.
+
+- **Pointer**: when either classifier misses, compare a fresh `claude plugin install --json`
+  result with the probe rows in `scripts/fixtures/cli-json-results.jsonl` and the `cli_json`
+  basis comment in `scripts/sync-run.sh`.
+- **As of**: 2026-10-25
+- **Recheck trigger**: a Claude Code release that adds a result field for either fact, or a sync
+  report that misses unset options `/plugin configure` shows.
+
+An up-to-date result is not a source for `<new>`: this run's call
 changed nothing. It is the cross-check the "Concurrency" section's table uses against source 3, so
 an already-current id whose post version differs from `<old>` is reported as moved during the run,
 never dropped and never filed under `Updated:`.
@@ -457,15 +480,45 @@ is current with its source, nothing else: a current catalog can still read lower
 installed, because the source itself can have moved backward. The downgrade guard applies on every
 run, refreshed or not.
 
-Say so in the report: `Marketplace: <name>, refresh failed, catalog may be stale; update sweep
-ran guarded, its already-current ids are a lower bound; install/enable maintenance deferred`,
-rather than claiming it is current. Do not
+The report says so rather than claiming the marketplace is current: its header reads `needs
+update`, a `refresh failed (exit <N>): <reason>` line sits under it, and `Action needed` carries
+the error, which says the catalog may be stale and install/enable maintenance is deferred. The
+update sweep ran guarded, so its already-current ids are a lower bound. Do not
 delete, rename, or re-clone the marketplace directory to work around it. That is cache surgery
 this skill does not do. To learn how stale the catalog actually is, compare
 `git -C <installLocation> rev-parse HEAD` against `git ls-remote origin HEAD` run in that
 directory. `ls-remote` queries the remote
 without writing `FETCH_HEAD`, remote-tracking refs, or objects, all three of which a plain
 `git fetch` writes (mutations of the marketplace's internal clone, outside this skill's boundary).
+
+### Directory-source fast-forward
+
+`claude plugin marketplace update` reads a `directory` source as it is on disk, so a checkout
+behind its upstream keeps the whole run on an old catalog. The script never pulls that checkout on
+its own. It pulls only a marketplace the model names with `--pull-source`, which the model passes
+only after the user said yes to the offer.
+
+- **The offer.** The digest's `source_pull` is `offered` when the checkout is clean (no modified
+  tracked files), on a branch with an upstream, not ahead and behind, the policy is `ask`, and the
+  action is `sync`. Every other behind checkout is `skipped` with the reason, and the report keeps
+  its pull-and-rerun bullet.
+- **The guard.** On `--pull-source` the script reads the checkout again just before Step 1's
+  refresh and refuses, with the reason and with no change to the checkout, when it is dirty,
+  detached, has no upstream, is ahead or diverged, or is not behind, or when the policy is `never`.
+  Only then does it run `git -C <path> pull --ff-only`, journaled like a CLI call, with stdin
+  closed and git's terminal and credential-manager prompts off, so a pull that needs a credential
+  fails rather than waits. A refused or failed pull is reported under `Action needed` and does not
+  stop the run: the refresh and every later step still run, against HEAD and the work tree as they
+  were.
+- **After a pull.** The refresh runs against the fast-forwarded checkout, so Steps 2 through 5b see
+  the newer catalog, and the `source:` row names the commits it moved from and to. Its time is in
+  the block's `marketplace_update` timing.
+- **Never in an autonomous or ambiguous session.** No human can answer the offer there, so a
+  session with `CLAUDE_CODE_REMOTE` set, or one invoked via `/loop` or `/schedule`, or one where it
+  is unclear a human is present, never asks and never pulls: the model passes `--source-pull
+  never`, and the script treats a set `CLAUDE_CODE_REMOTE` as `never` on its own. This is the test
+  `converge` applies before touching anything ([converge.md](converge.md)).
+- **`audit`** offers nothing and refuses `--pull-source` as a usage error: it changes nothing.
 
 ## Step 2: In-repo update (the primary value path)
 
@@ -562,7 +615,7 @@ that names no version leaves the row Updated with direction `unknown`. The same 
 opposite report: when the CLI says "already at the latest version" and the run's own project/local
 record is still below the catalog version, the id is a failed row too, never a quiet no-op. For a record
 in a linked git worktree ([scope-semantics.md](scope-semantics.md)), the row's reason carries the label
-`update ineffective; uninstall clears it` that `fleet-state.sh` puts on the record. This check covers
+`update ineffective, uninstall clears it` that `fleet-state.sh` puts on the record. This check covers
 this step only; an `--allow-downgrade` project/local rollback is not compared.
 
 ## Step 3: User-scope update sweep
@@ -776,11 +829,13 @@ very little; say so rather than leading with the match count.
 ## Step 6: Report
 
 The script renders the report from the digest (`render-report.jq`), filling each updated plugin's
-`<old> → <new>` from the sources the "Version capture for the report" section above fixes. The
+`<old> -> <new>` from the sources the "Version capture for the report" section above fixes. The
 digest carries them, resolved from the run journal rather than from memory of the run, and the run
 directory it names holds every snapshot behind them. The paragraphs below state what the render
 does with each field and why, so a reader can check a rendered row against the field it came from;
-the model's one addition is the reload guidance at the end.
+the model's one addition is the reload guidance at the end. The layout (the `Result:` verdict, one
+fact per line, a `remedy:` line under the fact it fixes) is SKILL.md's Report section. The reasons
+behind a row stay in these files and out of the render, so a clean run prints none of them.
 
 **Every `<old> -> <new>` pair reaches the report already classified by direction.** Apply the same triple
 compare the guard uses, reading each numeric segment in base 10: a pair whose new version is higher, or whose direction the compare cannot
@@ -824,17 +879,18 @@ are the per-marketplace loop body, so a three-marketplace run leaves three `pre.
 marketplace against that marketplace's own three snapshots; a cross-marketplace diff compares
 unrelated fleets.
 
-Report as
-`<N> actionable: <N-M> pre-existing, <M> newly created by this run (<a> by the in-repo update, <b>
-by the user-scope sweep)`, so each split follows the total it sums to. A new divergence on an id
-the run's snapshots show moved during the run (`moved_during_run[]`, see "Concurrency") is
-attributed to neither step: the line adds `, <c> moved during this run, cause unattributed` inside
-the parentheses when `<c>` is above zero, and the three parts sum to `<M>`. The total, the
-pre-existing count and the `converge` recommendation do not change. When a project root
-resolved, the line leads with this repo's count and then gives the same machine-wide split under
-`on this whole machine`, because `<N>` counts every repo's divergences and the here-count is a part
-of it, not a separate remainder. When a snapshot was missed the split cannot be computed, and the
-line says `not computed` rather than assigning the whole delta to one step.
+Report the split as indented lines under the count it sums to, one count per line:
+`<N-M> pre-existing`, then `<M> newly created by this run`, and under that, when `<M>` is above
+zero, `<a> by the in-repo update` and `<b> by the user-scope sweep`. A new divergence on an id the
+run's snapshots show moved during the run (`moved_during_run[]`, see "Concurrency") is attributed
+to neither step: a third line under `<M>`, `<c> moved during this run, cause unattributed`, appears
+when `<c>` is above zero, and the three parts sum to `<M>`. The total, the pre-existing count and
+the `converge` remedy do not change. For a digest written before the class split below, the row
+reads `Divergences: <N> actionable`. When a project root resolved, it reads `Divergences: <N>
+actionable on this whole machine` with `<here> behind here` as its first line, because `<N>`
+counts every repo's divergences and the here-count is a part of it, not a separate remainder. When
+a snapshot was missed the split cannot be computed, and the row says `not computed` rather than
+assigning the whole delta to one step.
 
 **Split the same count by what can be done about each row.** `converge` can act only on a pin whose
 path is present, and removing a worktree is the right fix for a pin inside one, so a single
@@ -854,11 +910,16 @@ repository: a repository's own `.git` is a directory, a submodule's names `/modu
 `--separate-git-dir` checkout names a git directory that is not under a `.git/worktrees/`, so none
 of them matches.
 
-The render names each non-zero part. Only the actionable parts point at `converge`; the worktree part
-points at `/source-control:worktree audit` (if installed); the blocked part points at the stale
-project records note below it, which says why a path can be absent. `divergences[]` is not filtered
-(`projectPathPresent` stays advisory), and a digest written before the split carries none of the four
-counts and renders the row as it did.
+The render heads the section `Divergences: <post> in all` and gives each non-zero class its own
+line with its `remedy:` lines under it. The actionable line counts here and elsewhere together,
+names each non-zero one on a line under it, and carries the one `converge` remedy. The worktree
+line has two remedies, removing the worktree and `/source-control:worktree audit` (if installed).
+The blocked line points at the stale project records section below it. Why a path can be absent is
+[stale-records-cache-content.md](stale-records-cache-content.md)'s to explain, not the render's.
+The interval lines split the same total a second way, so they follow under a `by origin:`
+heading. `divergences[]` is not filtered (`projectPathPresent` stays advisory), and a digest
+written before the split carries none of the four counts and renders the count with one
+`converge` remedy, as the paragraph above describes.
 
 **Name where the skew sits, one sub-line per project path.** A count alone tells the operator how
 much to converge but not where. The digest's `divergences.records[]` carries every diverging id as
@@ -869,9 +930,9 @@ all of its scopes are listed rather than none. `divergences.by_path[]` groups th
 a `projectPath` as `{path, class, count, ids, more}`: `class` is the path's pin class under the rule
 above (`actionable`, `worktree` or `blocked`), `ids` holds the first three distinct ids in sorted
 order and `more` the number left. The actionable paths come first, then the linked worktrees, then
-the paths that are not present, each group with the most records first, so the first sub-line under
-the `converge` pointer is a place `converge` can run from. The render keeps the count line and adds
-one sub-line per entry, `- <path>: <count> diverging record(s): <ids>, +<more> more`, with the
+the paths that are not present, each group with the most records first, so the first path listed
+is a place `converge` can run from. The render keeps the count lines and adds a `by project path:`
+line with one entry under it per path, `- <path>: <count> diverging record(s): <ids>, +<more> more`, with the
 `+<more> more` tail only when ids were left out, and `(linked worktree)` or `(not present)` after
 the path, one space from it, when `converge` cannot act on it there. Three ids per path is a judgment cap
 (`DIVERGENCE_PATH_IDS` in `sync-run.sh`); the number of paths is not capped, since each path is one

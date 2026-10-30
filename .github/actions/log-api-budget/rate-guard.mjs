@@ -20,7 +20,7 @@
 // change to a default waits for a person.
 // rate-guard.vectors.json pins classify's decisions for every port.
 
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, writeSync } from "node:fs";
 import { dirname, join } from "node:path";
 import process from "node:process";
 
@@ -53,7 +53,8 @@ const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 // belong to content-creation alone.
 const SHARE = (value) => typeof value === "number" && value >= 0 && value <= 1;
 const COUNT = (value) => Number.isInteger(value) && value >= 1;
-const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "limit-cap": COUNT };
+// pace, optional, is pace.mjs's share for timer-driven lanes.
+const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "limit-cap": COUNT, pace: SHARE };
 const CONTENT_FIELDS = { ...FIELDS, "per-minute": COUNT, "per-hour": COUNT };
 const REQUIRED = ["plan", "writer-pause", "breaker", "read-floor"];
 
@@ -153,12 +154,88 @@ export function recordReading({ token = process.env.API_BUDGET_TOKEN, dir = proc
   if (!dir || !/^[a-z][a-z0-9-]{0,39}$/.test(token ?? "")) {
     return;
   }
+  const line = readingLine(status, headers);
   try {
     mkdirSync(join(dir, "api-budget"), { recursive: true });
-    appendFileSync(join(dir, "api-budget", token), readingLine(status, headers));
+    appendFileSync(join(dir, "api-budget", token), line);
+    scriptCalls.count(token, line);
   } catch {
     // A reading is never worth failing the job.
   }
+}
+
+// This process's share of the job-end api-calls notice: the readings it
+// appended, counted as api_budget_emit_calls counts the file (N its non-304
+// lines per token, M its 304s, K its graphql-resource lines). When
+// API_BUDGET_SCRIPT names the step, the process ends with
+// `::notice title=api-calls::script=<name> github-token=N lanes-app=N
+// not-modified=M graphql=K`, so a job's total splits by step. A child
+// process's calls (babysit's Python) are its own, not in this line.
+export function createScriptCalls() {
+  const tokens = { "github-token": 0, "lanes-app": 0 };
+  let notModified = 0;
+  let graphql = 0;
+  return {
+    count(token, line) {
+      const fields = line.trim().split(" ");
+      if (fields[0] === "304") {
+        notModified += 1;
+      } else {
+        tokens[token] = (tokens[token] ?? 0) + 1;
+      }
+      graphql += fields[5] === "graphql" ? 1 : 0;
+    },
+    line: (name) =>
+      `::notice title=api-calls::script=${name} ${Object.entries(tokens)
+        .map(([token, n]) => `${token}=${n}`)
+        .join(" ")} not-modified=${notModified} graphql=${graphql}\n`,
+  };
+}
+export const scriptCalls = createScriptCalls();
+const SCRIPT = process.env.API_BUDGET_SCRIPT ?? "";
+if (/^[a-z][a-z0-9-]{0,39}$/.test(SCRIPT)) {
+  process.on("exit", () => {
+    try {
+      writeSync(1, scriptCalls.line(SCRIPT));
+    } catch {
+      // A count is never worth failing the job.
+    }
+  });
+}
+
+// The bucket a request's reading goes under: token when the client pins one;
+// else API_BUDGET_OVERRIDE_TOKEN for a request whose bearer is not the
+// step's own token (GH_TOKEN, else GITHUB_TOKEN), as babysit_gh.py buckets a
+// call carrying its own GH_TOKEN; else API_BUDGET_TOKEN.
+const bearerOf = (headers) => {
+  const value = typeof headers?.get === "function" ? headers.get("authorization") : Object.entries(headers ?? {}).find(([name]) => name.toLowerCase() === "authorization")?.[1];
+  return String(value ?? "").replace(/^(bearer|token)\s+/i, "");
+};
+export function budgetToken(init, { token, env = process.env } = {}) {
+  if (token) {
+    return token;
+  }
+  const own = env.GH_TOKEN || env.GITHUB_TOKEN;
+  const bearer = bearerOf(init?.headers);
+  return env.API_BUDGET_OVERRIDE_TOKEN && own && bearer && bearer !== own ? env.API_BUDGET_OVERRIDE_TOKEN : env.API_BUDGET_TOKEN;
+}
+
+// A fetch that keeps each answer's rate-limit reading (recordReading) under
+// budgetToken's bucket, for the job-end api-calls notice, and changes nothing
+// else. Every client factory sends its attempts through one, inside its retry
+// layer. A fetch that already counts (marked with countsRequests) comes back
+// as it is, so no request is counted twice.
+export const COUNTED = Symbol.for("api-budget.counted");
+export const countsRequests = (fetchImpl) => Object.assign(fetchImpl, { [COUNTED]: true });
+export function countRequests(fetchImpl, { token } = {}) {
+  if (fetchImpl?.[COUNTED]) {
+    return fetchImpl;
+  }
+  return countsRequests(async function counted(url, init = {}) {
+    const response = await fetchImpl(url, init);
+    recordReading({ token: budgetToken(init, { token }), status: response.status, headers: response.headers });
+    return response;
+  });
 }
 
 // Appends one content-creating write, as its epoch second, to
@@ -402,21 +479,29 @@ export function createRateLimitLatch({
     belowFloor: (url) => low.get(poolOf(url)) === true,
     // A fetch that checks the latch before each request, counts a
     // content-creating write, and reads each answer, keeping its rate-limit
-    // reading under token (API_BUDGET_TOKEN when unset, recordReading), so a
+    // reading under token (budgetToken when unset, countRequests), so a
     // second client's readings never mix with the first's.
-    guard: (fetchImpl, { token } = {}) =>
-      async function guarded(url, init = {}) {
+    guard: (fetchImpl, { token } = {}) => {
+      const send = countRequests(fetchImpl, { token });
+      return countsRequests(async function guarded(url, init = {}) {
         check(url, init.method);
         if (isContentWrite(url, init.method, init.body)) {
           recordContentWrite({ at: Math.floor(now() / 1000) });
         }
-        const response = await fetchImpl(url, init);
-        recordReading({ token, status: response.status, headers: response.headers });
+        const response = await send(url, init);
         await observe(url, response, init.method, token);
         return response;
-      },
+      });
+    },
   };
 }
 
 // The process-wide latch every helper shares by default.
 export const rateLimitLatch = createRateLimitLatch();
+
+// latch with its guard pinned to token: a client on a second token keeps its
+// readings under token and plans to token's limits.api entry (entryOf), not
+// API_BUDGET_TOKEN's, while sharing latch's stops.
+export function budgetLatch(token, latch = rateLimitLatch) {
+  return { ...latch, guard: (fetchImpl) => latch.guard(fetchImpl, { token }) };
+}

@@ -85,32 +85,35 @@ call and routes to its finding-suppression convention, not to a marker this plug
 
 ## Configuration
 
-`.claude/attribution.json` in the consuming repo, layered over the shipped defaults:
+The audit detectors read `<home>/attribution.yaml` and `<home>/attribution.local.yaml`, `<home>`
+being the bound convention home, else `docs/conventions`; each falls back to its `.claude/` JSON
+file only when the YAML is absent. In YAML, quote a glob that starts with `*` (`- "**/vendor/**"`);
+a file that does not parse is named on stderr and not read. `/attribution:setup` writes the YAML
+files. The keys, layered over the shipped defaults, with their schema in
+`schemas/attribution.schema.json`:
 
-```json
-{
-  "excluded_paths": ["docs/legacy/**"],
-  "budgets": {
-    "searches_per_candidate": 3,
-    "fetches_per_candidate": 5,
-    "corpus_fetch_ceiling": 200
-  },
-  "separation": { "min_containment": 0.3, "min_span_words": 15 },
-  "stamp_expiry_days": 180,
-  "trigger_less_stamp_check": false,
-  "judge_samples": 3,
-  "gates": {
-    "fix_precision_bar": 0.95,
-    "report_recall_floor": 0.8,
-    "min_n_per_class": 10
-  },
-  "accuracy": {
-    "nomination_passes": 2,
-    "judge_lens_diversity": true,
-    "review_agents": 1,
-    "deep_research_on_exhaustion": false
-  }
-}
+```yaml
+excluded_paths:
+  - docs/legacy/**
+budgets:
+  searches_per_candidate: 3
+  fetches_per_candidate: 5
+  corpus_fetch_ceiling: 200
+separation:
+  min_containment: 0.3
+  min_span_words: 15
+stamp_expiry_days: 180
+trigger_less_stamp_check: false
+judge_samples: 3
+gates:
+  fix_precision_bar: 0.95
+  report_recall_floor: 0.8
+  min_n_per_class: 10
+accuracy:
+  nomination_passes: 2
+  judge_lens_diversity: true
+  review_agents: 1
+  deep_research_on_exhaustion: false
 ```
 
 `gates` bind fix-mode eligibility and release readiness only. No report surface is ever filtered

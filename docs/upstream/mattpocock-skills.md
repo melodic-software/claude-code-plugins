@@ -25,7 +25,7 @@ harness finding, and gave other rows pointers to its follow-on items. No other r
 **Recheck trigger:** a change, between the pinned commit and upstream HEAD, to a path a row we took
 or rejected something from links, a unit removed or added under the scope: re-audit the affected
 rows. `scripts/check-upstream-drift.sh` detects these, and the monthly drift issue for this
-upstream lists them ([upstream-drift convention, "Pinned git upstreams"](../conventions/upstream-drift/README.md#pinned-git-upstreams)).
+upstream lists them ([upstream-drift convention, "Pinned git upstreams"](../contracts/upstream-drift/README.md#pinned-git-upstreams)).
 Re-auditing moves the pin and records the outcome per row.
 
 ## Attribution table
@@ -113,7 +113,7 @@ completion-criteria check
 follow-on.
 
 **Lane 8 closed 2026-08-17.** Gap 3, invocation, is decided: the invocation-mode rubric lives at
-`docs/conventions/invocation-mode/README.md` (model invocation by default plus three exception
+`docs/contracts/invocation-mode/README.md` (model invocation by default plus three exception
 classes). Enforcement is [#2968](https://github.com/melodic-software/claude-code-plugins/issues/2968);
 the one re-grade is [#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969).
 
@@ -123,13 +123,13 @@ the one re-grade is [#2969](https://github.com/melodic-software/claude-code-plug
 | The two loads | `write-for-agents` "Budget both loads", cross-referenced from PLUGIN-PHILOSOPHY instruction economy | ADOPTED (adapted; #2962) |
 | Information hierarchy | `write-for-agents` steps-versus-reference and co-location doctrine; the three-tier load-cost model covers the ladder | ADOPTED (adapted; #2962) |
 | Steps and completion criteria | `write-for-agents` "Give every step a completion criterion" (writing side); the audit side rides #2963 | ADOPTED (adapted; #2962; audit side pending #2963) |
-| When to split | `write-for-agents` split by sequence; the invocation axis is owned by the rubric in `docs/conventions/invocation-mode/`, linked, not restated | ADOPTED (both halves; #2962 and lane 8) |
+| When to split | `write-for-agents` split by sequence; the invocation axis is owned by the rubric in `docs/contracts/invocation-mode/`, linked, not restated | ADOPTED (both halves; #2962 and lane 8) |
 | Leading words and negation | `write-for-agents` "Prompt the positive" | ADOPTED (adapted; #2962; tracked strand retired below) |
 | Pruning: one source per fact | `docs-hygiene:extract-ssot` | PARITY+ |
 | Pruning: the environment as the source of truth | `docs-hygiene:audit-derivability` (keep-as-derivation-cache verdict with drift control) | PARITY+ (ours adds drift control) |
 | Pruning: relevance and sediment | `harness-config:audit-instructions`, `session-flow:reanchor`, `docs-hygiene:rename-references`, `review` doc-drift-detector | PARITY |
 | Pruning: no-ops | `harness-config:unhobble` (remove the text and observe) and `audit-instructions` (judgment) | PARITY+ (v1.3 `retro` carries the same idea as one of its categories) |
-| Mechanics: choosing the invocation mode | the rubric in `docs/conventions/invocation-mode/` (model invocation by default plus exception classes; the setup convention was already in PLUGIN-PHILOSOPHY); `skill-quality:check listing-budget` | ADOPTED (adapted, with the default inverted; lane 8, 2026-08-17; enforcement in #2968) |
+| Mechanics: choosing the invocation mode | the rubric in `docs/contracts/invocation-mode/` (model invocation by default plus exception classes; the setup convention was already in PLUGIN-PHILOSOPHY); `skill-quality:check listing-budget` | ADOPTED (adapted, with the default inverted; lane 8, 2026-08-17; enforcement in #2968) |
 | Mechanics: splitting by invocation | rubric section "Splitting by invocation"; #2962's when-to-split doctrine points there | ADOPTED (routed; lane 8, 2026-08-17) |
 | Mechanics: router skills | rubric section "Router-skill verdict"; for people, `docs/skill-cheat-sheet.md` and `harness-ops:inventory`; `discipline:sweep-all` as the composition-router exception | REJECTED with reason (lane 8, 2026-08-17: under model invocation by default, the always-loaded skill listing already routes) |
 | Invocation-reach invariant | tracked strand below | CONFIRMED (against the docs, 2026-08-17; lane 8 disposition below) |
@@ -145,7 +145,7 @@ Two `writing-for-agents` strands from lane 5, tracked on events, never on dates.
 - **Invocation-reach invariant** (upstream
   [`SKILL-MECHANICS.md`](https://github.com/mattpocock/skills/blob/d81f3a183412e71a5b1e84ca21bc1a35eea03a60/skills/productivity/writing-for-agents/SKILL-MECHANICS.md)):
   no skill can invoke a skill marked `disable-model-invocation: true`. Confirmed against the Claude
-  Code docs in lane 8; `docs/conventions/invocation-mode/README.md`, "The invocation-reach
+  Code docs in lane 8; `docs/contracts/invocation-mode/README.md`, "The invocation-reach
   invariant", owns the rule, so it no longer depends on upstream and the upstream-release trigger
   is retired.
   - **Pointer**: when a skill must reach another skill, fetch
@@ -216,7 +216,7 @@ Two `writing-for-agents` strands from lane 5, tracked on events, never on dates.
 | `CLAUDE.md` provided by symlinking `AGENTS.md` | `CLAUDE.md` imports `@AGENTS.md` | No action: an import works on Windows checkouts, where a symlink can arrive as a plain file |
 | Changesets with a version-sync drift gate | per-plugin semver in each CHANGELOG, `scripts/check-changelog-parity.sh` | Tool and script rejected; the changesets model adopted in ADR 0048 (see Not adopted). A drift gate over versions was noted as an idea for marketplace lint |
 | Skill buckets (promoted, in progress, misc, deprecated) | plugins as units, no beta channel | Not adopted; our CHANGELOG discipline already names what replaces a retired unit. Upstream's v1.3 removal of `resolving-merge-conflicts` named no replacement, against its own deprecation note; draft upstream PR #807 would flatten the buckets, so recheck bucket names if it merges |
-| User-invoked reachability rule | stated in `docs/conventions/invocation-mode/README.md`, "The invocation-reach invariant", and in `playbooks:skill-authoring` | Already landed; no action |
+| User-invoked reachability rule | stated in `docs/contracts/invocation-mode/README.md`, "The invocation-reach invariant", and in `playbooks:skill-authoring` | Already landed; no action |
 | Context-size figure in `ask-matt` | `context-guard` bands | Compared and rejected in the `ask-matt` row |
 | Upstream issue #693 | our user-invoked skills are affected too | Pointer record in Harness findings |
 

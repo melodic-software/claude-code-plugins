@@ -21,6 +21,12 @@
 #   shared-use         a `shared/<item>` is named by fewer than two feature files
 #   shared-why         a `shared/<item>` has no `Why shared: <reason>` line (in its README.md
 #                      for a folder, in the file for a file, after an optional comment marker)
+#   size-budget        the hub, a feature README.md at any depth or a legacy features/<f>.md has
+#                      more characters than its budget in the contract's "Size budget" section
+#   ready-listing      a command under the hub's `## Ready` (a fenced line, a code span, or a plain
+#                      line with no code span) ends in a container or resource listing, which exits
+#                      0 with no rows; the contract's "The Ready command" says to end it in grep -q.
+#                      A kubectl get that names an object exits 1 when it is missing: not a listing
 #
 # A legacy `features/<f>.md` gets the index and link rules only: the contract keeps it working as
 # written. A README.md inside a feature's folder belongs to that feature, not to a new one. Hidden
@@ -257,5 +263,79 @@ if [[ -d "$dir/shared" ]]; then
     fi
   done < <(cd "$dir" && find shared -mindepth 1 -maxdepth 1 -not -name '.*' | LC_ALL=C sort)
 fi
+
+# Size budget, in UTF-8 characters, newlines included. Every byte that is not a continuation byte
+# (0x80-0xBF) starts one character, so the count needs no UTF-8 locale on the host.
+HUB_BUDGET=16000 FEATURE_BUDGET=4000
+over_budget() { # <path relative to the control skill> <budget>
+  local chars
+  chars="$(LC_ALL=C tr -d '\200-\277' <"$dir/$1" | wc -c | tr -d ' ')"
+  ((chars <= $2)) || finding size-budget "$1" "$chars characters, budget $2"
+}
+over_budget SKILL.md "$HUB_BUDGET"
+while IFS= read -r md; do over_budget "$md" "$FEATURE_BUDGET"; done < <(
+  cd "$dir" && {
+    find features -mindepth 1 -maxdepth 1 -type f -name '*.md'
+    find features \( -name node_modules -o -name '.?*' \) -prune -o -type f -path 'features/*/*' -name README.md -print
+  } 2>/dev/null | LC_ALL=C sort
+)
+
+# Ready commands: fenced lines, code spans, and plain lines with no code span, under the hub's
+# `## Ready`.
+# shellcheck disable=SC2016 # the backticks are the Markdown code-span delimiter, not a substitution
+ready_commands() {
+  awk '
+    /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
+    !fence && /^## / { inside = ($0 ~ /^## Ready[[:space:]]*$/); next }
+    !inside || !NF { next }
+    fence || index($0, "`") == 0 { print; next }
+    {
+      line = $0
+      while (match(line, /`[^`]+`/)) {
+        print substr(line, RSTART + 1, RLENGTH - 2)
+        line = substr(line, RSTART + RLENGTH)
+      }
+    }' "$1"
+}
+LISTING_RE='^((docker|podman|nerdctl)[[:space:]]+(ps|container[[:space:]]+(ls|list|ps)|compose[[:space:]]+ps)|docker-compose[[:space:]]+ps|kubectl[[:space:]]+get|systemctl[[:space:]]+list-units)([[:space:]]|$)'
+# A `kubectl get` that names an object (`deploy/shop`, `pod shop-db-0`, `-f shop.yaml`) exits 1 when
+# the object is missing, so only a get of resource types alone is a listing. A flag below takes the
+# next word as its value, so that word is not a resource type. The answer is set in `named` (1 or
+# 0) rather than returned, so the call needs no condition that would turn errexit off inside it.
+KUBECTL_VALUE_FLAGS=' -n -l -o -L -s -v --namespace --selector --output --field-selector --label-columns
+  --sort-by --context --kubeconfig --cluster --user --server --template --chunk-size --request-timeout
+  --as --as-group --as-uid --token --cache-dir --certificate-authority --client-certificate --client-key
+  --tls-server-name --username --password --subresource --profile --profile-output --v '
+kubectl_names_object() { # <last stage>
+  local -a words
+  local w types=0 skip=0
+  named=1
+  read -r -a words <<<"$1"
+  for w in "${words[@]:2}"; do
+    if ((skip)); then
+      skip=0
+      continue
+    fi
+    case "$w" in
+    -f | -k | --filename | --filename=* | --kustomize | --kustomize=* | --raw | --raw=*) return 0 ;;
+    -*) [[ "$KUBECTL_VALUE_FLAGS" == *[[:space:]]"$w"[[:space:]]* ]] && skip=1 ;;
+    */*) return 0 ;;
+    *) types=$((types + 1)) ;;
+    esac
+  done
+  named=$((types > 1))
+}
+while IFS= read -r cmd; do
+  # Empty quoted text, so a `|` inside a --format string is not a stage, then keep the last stage.
+  # The empty quotes stay as a word, so a flag's quoted value is still one word.
+  last="$(printf '%s\n' "$cmd" | sed -E "s/'[^']*'/''/g; s/\"[^\"]*\"/\"\"/g; s/.*(&&|\|\||;|\|)//")"
+  last="$(trim "$last")"
+  [[ "$last" =~ $LISTING_RE ]] || continue
+  if [[ "$last" == kubectl* ]]; then
+    kubectl_names_object "$last"
+    if ((named)); then continue; fi
+  fi
+  finding ready-listing SKILL.md "$(trim "$cmd"): ends in a listing, which exits 0 with no rows; end it in grep -q on the expected row"
+done < <(ready_commands "$dir/SKILL.md")
 
 exit 0

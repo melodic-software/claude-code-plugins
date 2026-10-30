@@ -8,6 +8,7 @@ D/audit-sessions/
   store/v1/sessions/p-<12 hex>/<session-id>.json   one record per main session
   reports/machine/<stamp>.json, <stamp>.md          --scope machine (the default)
   reports/<state-key>/<stamp>.json, <stamp>.md      --scope project
+  correction-verdicts.json                          the correction lens's verdicts, deleted once merged
 ```
 
 ## Store
@@ -95,12 +96,32 @@ D/audit-sessions/
   Each stored path is joined onto its session's `cwd`, so one file edited from different
   directories counts once and same-named files in different directories stay apart; the evidence
   `path` is therefore the full path, and a consumer keeps churn evidence on the machine.
+- The `tools.denials` finding also carries `by_kind`, the denials per kind summed over its
+  `evidence` sessions, most first, and `dominant_kind`, the first of them. How the kinds are read:
+  that rule's `basis` in `sweep-rules.json`.
 - Each `data.metrics` row carries `p90`, this store's p90 of the metric under collect.py's
   `_percentile` rule (null for the machine-wide ratio, a degraded metric, or a metric with no
   values), the rule's `threshold`, and
   `baseline_stale`, true when that p90 exceeds `data.stale_p90_factor` times a non-null threshold
   (the recheck trigger in `sweep-rules.json`). The mark is advisory: it raises no finding and leaves
   the exit code unchanged.
+- With `--judged`, `data.judged` holds the correction lens's section: `title` (`Judged (unranked)`),
+  `note`, `agreement` (null until an agreement figure on a labeled sample exists), `counts`, and
+  `findings`, one per turn judged a correction, each with `"confidence": "judged"`, its `turn_id`,
+  `excerpt` and `reason`. These findings never enter `data.findings` or `data.suggestions` and leave
+  the exit code unchanged. `--judged` refuses `--write-report`, so a saved report never holds an
+  excerpt.
+- With `--session`, `data.window` carries `session_ids` (the ids named) and `sessions_not_found`
+  (those with no record in the store). Metrics and findings cover only the named sessions, kept
+  whatever their class, while each row's `p90` and `baseline_stale` still come from every
+  interactive session in scope and window. The machine-wide and per-ticket metrics carry
+  `"not_applicable": true` with a null `value`, raise no finding and are listed in
+  `data.unchecked`. The drift check still reads every record. `--session` refuses `--write-report`.
+- `--tickets '<regex>'` prints a separate envelope, schema `audit-sessions.tickets/v1`: `data`
+  holds `pattern`, `span_label`, `unkeyed` (interactive sessions with no match), `scope`, `window`,
+  `branch_key` with `--branch`, and `tickets`, one row per key with `sessions` (ids in start order),
+  `output_tokens`, `span_s`, `prs` (distinct linked PRs) and `gaps_s`. A gap runs from the latest
+  end so far to the next start and is 0 for overlapping sessions. It writes nothing.
 - New fields are added within v1, and a consumer treats a missing field as null and ignores one it
   does not know. Removing or renaming a field, or changing what one means, moves the schema to
   `audit-sessions.sweep/v2`.

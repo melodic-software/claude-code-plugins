@@ -1,6 +1,6 @@
 ---
-description: "Codebase scan for module-level friction (shallow modules, seam leaks, locality gaps): an HTML candidate report, then a Design-It-Twice interview on the chosen one. Use when 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality', 'check our layer boundaries', 'which references cross a boundary'. Skip when a cross-dimension ask ('what should we improve') routes to /improvement:find."
-argument-hint: "[deepening|boundaries]"
+description: "Codebase scan for module-level friction (shallow modules, seam leaks, locality gaps): an HTML candidate report, then a Design-It-Twice interview on the chosen one. Use when 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality', 'check our layer boundaries', 'which references cross a boundary', 'derive our conventions'. Skip when a cross-dimension ask ('what should we improve') routes to /improvement:find."
+argument-hint: "[deepening|boundaries|conventions]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Scan the codebase for shallow modules or boundary crossings, then design or hand on the chosen fix
 ---
 
-**Arguments.** `[deepening|boundaries]`. e.g., boundaries
+**Arguments.** `[deepening|boundaries|conventions]`. e.g., boundaries
 
 ## Repository context. Gather first
 
@@ -26,8 +26,8 @@ anything to decide about.
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
 separate body Bash calls rather than pre-compute lines: the harness runs a skill's whole pre-compute
 block as one shell invocation, and a worktree-isolated session refuses a compound command that
-contains git. The dated record for that composition claim is the `source-control` plugin's
-[worktree/reference/gather-block.md](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/source-control/skills/worktree/reference/gather-block.md),
+contains git. The dated record for that composition claim is the
+[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
 "The pre-compute block runs as one shell invocation".
 
 ## Variables
@@ -38,7 +38,7 @@ Arguments: `$ARGUMENTS`
 
 Improvement is distinct from review and planning. Review evaluates a DIFF against criteria (reactive). Planning designs NEW work (forward-looking). This skill scans EXISTING code for friction and proposes candidates for improvement (proactive).
 
-The scan-present-pick process generalizes across improvement **lenses**. Each lens (action) brings its own analysis method and vocabulary via an `actions/<lens>.md` playbook plus a `research/<lens>/` reference set, loaded only when that lens runs. The first lens, `deepening`, implements Ousterhout's deep-module concept: finding shallow modules (interface nearly as complex as implementation) and proposing how to deepen them. The aim is **testability and AI/agent-navigability (AX)**: a deep module's small interface lets a reader, human or agent, grasp its purpose without traversing the whole import graph. The `boundaries` lens checks the module boundaries a repository has recorded against the references its build manifests declare, and hands each rule the user confirms to the enforcement audit as an architecture-test proposal.
+The scan-present-pick process generalizes across improvement **lenses**. Each lens (action) brings its own analysis method and vocabulary via an `actions/<lens>.md` playbook plus a `research/<lens>/` reference set, loaded only when that lens runs. The first lens, `deepening`, implements Ousterhout's deep-module concept: finding shallow modules (interface nearly as complex as implementation) and proposing how to deepen them. The aim is **testability and AI/agent-navigability (AX)**: a deep module's small interface lets a reader, human or agent, grasp its purpose without traversing the whole import graph. The `boundaries` lens checks the module boundaries a repository has recorded against the references its build manifests declare, and hands each rule the user confirms to the enforcement audit as an architecture-test proposal. The `conventions` lens derives the building blocks, owners and feature blueprints the code already follows, proposes each as a rule, and routes each rule the user accepts to the place that records its kind.
 
 This finds existing friction. It does not plan new work, apply mechanical code-level tidyings, enforce rules on a diff, or review changes before a PR. Those are separate concerns handled by planning, tidying, rule-enforcement, and review tools respectively (see "Composition").
 
@@ -49,6 +49,7 @@ This finds existing friction. It does not plan new work, apply mechanical code-l
 | *(empty)* | Defaults to `deepening` | Runs the deepening lens |
 | `deepening` | **Deepening (Ousterhout)** | Shallow→deep module scan → HTML report → interview loop on each selected candidate (with a Design-It-Twice branch for parallel interface exploration) → hand off the agreed candidates for planning, never implementing them. Full process: `actions/deepening.md` |
 | `boundaries` | **Boundaries** | Recorded boundary rules (from the enforcement ladder's "Where boundary rules live" list) → edges from `/architecture:map-dependencies` → each edge that crosses a rule, presented for the user to pick → each confirmed rule written to a findings file for `/review:audit-enforceability`. With no rule recorded, asks which directions are forbidden. Full process: `actions/boundaries.md` |
+| `conventions` | **Conventions** | Recorded rules, paved paths and decisions → building blocks, owners and feature blueprints derived from the code and its history, each reproduced → one proposed rule per item, recorded only on the user's yes → a boundary rule to the architecture concern file, a divergence to `/corrections:codify`, a paved-path entry to `/discipline:reuse-or-replace`. Full process: `actions/conventions.md` |
 
 One lens per invocation. Lenses don't chain implicitly. Read the action's playbook for its full process.
 
@@ -70,6 +71,7 @@ A new improvement lens (e.g. `coupling`, `testability`, dependency-direction rev
 | [research/deepening/html-report.md](research/deepening/html-report.md) | Writing the HTML report: scaffold, diagram patterns, and the report's two additions to the rendered-views security baseline (which strings are repository-derived, no script inside SVG) |
 | [research/deepening/interface-design.md](research/deepening/interface-design.md) | Entering the Design-It-Twice branch, or a single proposed shape is not converging in the interview loop |
 | [research/boundaries/README.md](research/boundaries/README.md) | Running the boundaries lens: what counts as a boundary rule, mapping a rule's module names to graph nodes, what manifest edges cannot show, and the findings-row template |
+| [research/conventions/README.md](research/conventions/README.md) | Running the conventions lens: the kinds it derives and the evidence each needs, where each kind of proposal goes, and how a boundary rule is written into the architecture concern file |
 
 ## What this skill does NOT do
 
@@ -92,12 +94,14 @@ Graceful degradation: where a named step below is not available in the consuming
 | During the interview loop | Maintain resolved project vocabulary | Invoke `/domain-driven-design:curate-language` via the Skill tool when available in the current session; otherwise update an existing consumer-declared glossary in its own shape |
 | Post-improvement | Review the implemented changes with the project's review tool | Standard diff review |
 | The boundaries lens wrote a findings file | Offer `/review:audit-enforceability <file>` when that skill is among the available skills; never run it unasked | Without it, the report states each confirmed rule and the architecture test it calls for (`actions/boundaries.md`, Phase 4) |
+| The user accepts a conventions-lens proposal | Route it by kind: a boundary rule into the architecture concern file's `## Boundary rules` section; a divergence to `/corrections:codify`; a paved-path entry to `/discipline:reuse-or-replace`, which writes it after its own yes | Without the routed skill, the report carries the description or the draft (`actions/conventions.md`, Phase 4) |
 
 ## Next
 
 - A deepening candidate's shape is agreed, when available: /planning:plan
 - A finding is about coupling between modules: /coupling:reduce.
 - The boundaries lens wrote a findings file, when available: /review:audit-enforceability
+- The conventions lens recorded a boundary rule: /architecture:improve boundaries
 
 ## Gotchas
 

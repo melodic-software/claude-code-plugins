@@ -68,6 +68,11 @@ jobs:
       head-sha: ${{ steps.head.outputs.sha }}
       held: ${{ steps.hold.outputs.held }}
       lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
+    # Each guarded API call's rate-limit reading, for the job-end api-budget
+    # notice (.github/actions/log-api-budget). The head read's `gh api` runs
+    # before the checkout, outside the wrapper, and leaves none.
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Read the PR's head SHA
         id: head
@@ -101,6 +106,14 @@ jobs:
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           ACTIVITY: fix-docs
         run: node .base/.github/scripts/pr-unblock/lane-hold.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # fix-docs is four jobs, so no model ever holds a write token. The model
   # job: a read activity with no write token and no OIDC token in the job that
@@ -289,13 +302,13 @@ jobs:
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
   # fix-docs's push job: the apply-patch activity under patch-rules.json's
-  # default row (fix-docs has no prepare mode). It runs only on a written
-  # patch: no change is the common case and needs no one. The lane has no
-  # escalation job, so a refused patch posts the pr-refine / apply-patch
-  # check neutral and labels nothing. One leg answers, as for pr-unblock.yml's
-  # apply-patch: the fallback call when it ran, else the first, and every
-  # input is that leg's scan job's, never a run job's, since the run job runs
-  # head code. The head is fix-docs-head's, read by a job that ran no head
+  # docs row, which admits only markdown outside skills/ and no SKILL.md. It
+  # runs only on a written patch: no change is the common case and needs no
+  # one. The lane has no escalation job, so a refused patch posts the
+  # pr-refine / apply-patch check neutral and labels nothing. One leg answers,
+  # as for pr-unblock.yml's apply-patch: the fallback call when it ran, else
+  # the first, and every input is that leg's scan job's, never a run job's,
+  # since the run job runs head code. The head is fix-docs-head's, read by a job that ran no head
   # code; apply-patch still applies onto the head its own gate reads.
   apply-docs-patch:
     needs: [fix-docs-head, fix-docs, fix-docs-subscription, fix-docs-fallback]
@@ -323,8 +336,9 @@ jobs:
       patch-sha256: ${{ needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-patch-sha256 || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-sha256 || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-sha256 || '' }}
       patch-attempt: ${{ needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-patch-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-patch-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-patch-attempt || '' }}
       patch-activity: fix-docs
+      patch-prepare: docs
       patch-head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
-      # true drops the human-gated label from the holds: a lane escalation
-      # put it on (lane-hold.mjs).
-      patch-fix-requested: ${{ needs.fix-docs-head.outputs.lane-escalated }}
+      # lane-escalation drops the human-gated label from the holds while the
+      # write runner reads it again as a lane escalation (lane-hold.mjs).
+      patch-human-gate: ${{ needs.fix-docs-head.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}
       reply-attempt: ${{ needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-reply-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-reply-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-reply-attempt || '' }}

@@ -1,8 +1,8 @@
 # Adjudicate one disputed review finding
 
-A review lane posted a finding on a pull request. The lane that fixes findings answered that the
-finding is incorrect and cited locations in the code as its evidence. You decide which side the
-code supports. You see the whole review comment, the locations each side cited and the files at
+A review lane posted a finding on a pull request. The lane that fixes findings left it open: it
+answered that the finding is incorrect, that it could not tell, or that the fix belongs elsewhere,
+and may have cited locations in the code as its evidence. You decide which side the code supports. You see the whole review comment, the locations each side cited and the files at
 the pull request head. You do not see the fixing lane's reasoning. No one can answer a question,
 and you change nothing: your structured output is the only result, and a script acts on it.
 
@@ -28,6 +28,10 @@ a claim to check against the code, not evidence on its own. Return:
 - `verdict: reviewer`, `question: none` when the finding holds in the code: it stands.
 - `verdict: lane`, `question: none` when the code at the cited locations shows the finding does
   not hold.
+- `verdict: tests-only`, `question: none` when the finding's only ask is that tests or checks be
+  run (for example "run the suite to prove this passes") and it names no defect in the code: a
+  script settles the finding from the head's check-run results for the tests the pull request's
+  plan selects.
 - `verdict: human` when the answer turns on something the code cannot settle, with `question`
   naming it: `intent` (what the change is meant to do), `design` (a choice between workable
   approaches) or `security` (a judgment about a risk to the repository, its secrets or its

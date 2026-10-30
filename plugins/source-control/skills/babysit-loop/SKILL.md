@@ -49,13 +49,12 @@ The single-pass mechanics belong to `/source-control:babysit-prs`: the tier matr
 resolution, the guarded mutation wrappers and deterministic gates, fan-out and the worker contract,
 review discipline, and the cross-tier safety invariants. Each cycle **invokes**
 `/source-control:babysit-prs <tier> <owner/repo>` via the Skill tool with the resolved tier and
-scope; this loop
-restates none of that. Two disciplines in particular are babysit-prs's own, held here by citation:
-the head-move yield (expected-head pins and HEAD assertion; its SKILL.md "Guarded mutations" and
-its [loop reference](../babysit-prs/reference/loop.md) §5.1.2–§5.1.3), and the foreign-activity
-discipline (the `foreign_activity` dispatch suppressor, never race a foreign session for the same
-PR; its [orchestration reference](../babysit-prs/reference/orchestration.md)). The grace window
-below is an additional loop-level overlay, never a replacement for them.
+scope; this loop restates none of that. Two disciplines in particular are babysit-prs's own, held
+here by citation: the head-move yield (expected-head pins and HEAD assertion; its SKILL.md "Guarded
+mutations" and its [loop reference](../babysit-prs/reference/loop.md) §5.1.2–§5.1.3), and the
+foreign-activity discipline (the `foreign_activity` dispatch suppressor, never race a foreign
+session for the same PR; its [orchestration reference](../babysit-prs/reference/orchestration.md)).
+The grace window below is an additional loop-level overlay, never a replacement for them.
 
 ## Required argument and config resolution
 
@@ -67,7 +66,7 @@ Everything else resolves in order:
 1. **Invocation arguments**, the tier keyword (babysit-prs vocabulary) and any per-dimension or
    loop-knob override mirroring the seam keys (e.g. `--drain`, `--grace-window-minutes 45`, `--merge human-only`).
 2. **The layered config seam**, the `babysit_loop_*` keys on the `.claude/source-control.md`
-   surface (user-global → team-tracked → local overlay, merged per key; `babysit_loop_trusted_internal_bot_logins` binds only from the target repo's tracked default branch, never an argument or another layer). Key table, defaults, and layering semantics:
+   surface (user-global → team-tracked → local overlay, merged per key; `babysit_loop_trusted_internal_bot_logins` binds only from the target repo's tracked default branch, never an argument or another layer). The team-tracked value of `babysit_loop_stop_mode`, `babysit_loop_tier`, `babysit_loop_merge` and `babysit_loop_grace_window_minutes` comes from `docs/conventions/source-control.yaml`, and for one release from the legacy file's `## <key>` H2 when the YAML lacks the key. Key table, defaults, and layering semantics:
    [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md).
 3. **Tier defaults**, the resolved tier's own dimension values (`safe` when nothing resolves a tier).
 
@@ -88,18 +87,19 @@ required `<owner/repo>` argument may name a repository other than the current ch
 lane may launch from a neutral directory), and the config resolver's ambient team layer reads the
 current git root, so for every policy key that can raise behavior (the merge rung and its
 tracked-adoption activation above all), the lane reads the TARGET repository's tracked
-`.claude/source-control.md` from its default branch (the forge's contents read; provider
-reference: [GitHub](../../reference/providers/github/README.md)) whenever the current
-checkout is not that repository. Unreadable or absent = no tracked adoption = merges stay
-human-only (fail closed); a caller-side tracked file can never enable merges for a target that did
-not adopt the lane. Full precedence mechanics are owned by the config reference above. Report the
-effective config, which source supplied each value, and which repository's team layer bound the
-merge rung, at lane start.
+`docs/conventions/source-control.yaml` and `.claude/source-control.md` from its default branch (the
+forge's contents read; provider reference: [GitHub](../../reference/providers/github/README.md))
+whenever the current checkout is not that repository. For the four YAML keys, run
+`python3 ${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/babysit_repo_config.py loop-keys <owner/repo>`, which prints each value with the layer that supplied it and exits 1 when the team layer cannot be read;
+without Python, make the same two reads by hand, YAML first. Unreadable or absent = no tracked
+adoption = merges stay human-only (fail closed); a caller-side tracked file can never enable merges
+for a target that did not adopt the lane. Full precedence mechanics are owned by the config
+reference above. Report the effective config, which source supplied each value, and which repository's team layer bound the merge rung, at lane start.
 
 **Interactive ambiguity**, an interactive launch with absent or ambiguous config (no stop mode,
 no tier, or conflicting signals) runs a short `AskUserQuestion` mini-interview over exactly the
 unresolved keys, then offers to persist the answers: repo policy (stop mode, tier, merge rung) to
-the team-tracked layer, personal deviations to the local overlay. A merge-rung raise persists to the team-tracked layer only, that write is the recorded ratification.
+the team-tracked layer, `docs/conventions/source-control.yaml`, personal deviations to the local overlay. A merge-rung raise persists to the team-tracked layer only, that write is the recorded ratification. While the repository still has `.claude/source-control.md`, a merge-rung change goes into its `## babysit_loop_merge` H2 as well: the merge gate takes the lower of the two files (config reference, "The team layer of four keys is the YAML").
 
 **Headless never blocks** (headless-config floor, per the convention): take explicit or persisted
 config, else tier defaults, and log the assumption.
@@ -117,9 +117,8 @@ including the merge dimension's policy-floor exception, are owned by the config 
 
 **Dimension 6 ships safe: with no tracked adoption, every merge is human.** The convention's
 baseline rung, human merge for everything except gate-proven C2-mechanical PRs, is what a
-repository gets by *adopting* the lane in its team-tracked config: while the target repo's tracked
-`.claude/source-control.md` carries no loop-lane keys, the merge dimension resolves to
-`human-only`, and a merge-capable tier from the invocation or any other source never substitutes
+repository gets by *adopting* the lane in its team-tracked config: while neither the target repo's
+tracked `docs/conventions/source-control.yaml` nor its `.claude/source-control.md` carries a loop-lane key, the merge dimension resolves to `human-only`, and a merge-capable tier from the invocation or any other source never substitutes
 for that recorded adoption, the lane merges nothing and reports why. Once tracked adoption is in
 place, the C2-mechanical exception is a work-class test irrespective of author: a PR qualifies only
 when its work item classifies C2 mechanical, whoever authored it; bot authorship alone never
@@ -253,15 +252,14 @@ the record; the convention's
 [Background-job launch mode](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md)
 paragraph owns why. Telemetry is the report surface, never the escalation channel.
 
-Verification record for the launch advice. Claim: a background session launched inside a linked
-git worktree keeps the record Write in place. Basis: Claude Code skips its pre-edit move into an
-isolated worktree when "the session is already inside a linked git worktree, whether Claude
-created it under `.claude/worktrees/` or you created it with `git worktree add` somewhere else"
+Verification record for the launch advice. Claim: a background session launched inside a linked git
+worktree keeps the record Write in place. Basis: Claude Code skips its pre-edit move into an
+isolated worktree when "the session is already inside a linked git worktree, whether Claude created
+it under `.claude/worktrees/` or you created it with `git worktree add` somewhere else"
 (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>), and a `claude --bg`
 probe from such a worktree wrote the record there (the work-loop skill's "Background-job launch
-mode" verification record carries the probe). As of 2026-09-29. Recheck trigger: that docs
-section changes its skip rules, or a Claude Code release note changes background-session
-isolation.
+mode" verification record carries the probe). As of 2026-09-29. Recheck trigger: that docs section
+changes its skip rules, or a Claude Code release note changes background-session isolation.
 
 A non-convergence, round-cap, or pause-the-loop escalation carries one extra precondition before
 it may be raised: read the actual content of every unresolved review thread first
@@ -293,12 +291,14 @@ stalled, the threshold key, and the stall-escalation shape are owned in full by
 ## Telemetry and durable loop state
 
 The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
-config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match), created with
-the forge's issue creation when absent (announce the creation). Maintain exactly ONE status comment on it
-**per lane instance**, sentinel-identified and edited in place (the `harness-ops` lane-telemetry
-contract; one writer identity owns a marker). The upsert itself, lane-instance resolution and
-validation, the singleton lookup, the POST/PATCH, the creation-race reconcile, and the
-instance-collision check, is owned by
+config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match) whose author is
+the lane's write identity (the login the upsert script resolves), created with the forge's issue
+creation when none is left (announce the creation). Anyone can open an issue with that title, so
+skip an exact-title match by any other author and name it in the cycle report. Maintain exactly ONE
+status comment on it **per lane instance**, sentinel-identified and edited in place (the
+`harness-ops` lane-telemetry contract; one writer identity owns a marker). The upsert itself,
+lane-instance resolution and validation, the singleton lookup, the POST/PATCH, the creation-race
+reconcile, and the instance-collision check, is owned by
 [reference/telemetry-upsert.md](reference/telemetry-upsert.md).
 
 The comment carries the human-readable cycle report plus a machine-readable **durable loop state**

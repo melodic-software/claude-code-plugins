@@ -13,6 +13,11 @@ export const ACTIONS_JOB_LIMIT = 60;
 export const EJECTIONS_PER_DAY = 2;
 export const HELD_HOURS = 24;
 export const STALL_HOURS = 3;
+// pr-unblock-dispatch.yml runs every 30 minutes (cron 9,39), and the feedback
+// sweep runs off each of those ticks, so a stop the lane will retry gets a new
+// attempt within one tick; four ticks with none mean the per-head retries are
+// spent (or a dispatcher refused).
+export const STALLED_HOURS = 2;
 const SWEEP_MAX_AGE_MINUTES = 70;
 const MAX_FACTS = 25;
 
@@ -291,8 +296,9 @@ export function throughputFindings({ now, sweep = null, laneMerges = null }) {
 }
 
 // work-resolve-issue's stops that need a person to know: out of funding, the
-// usage limit, or the turn cap.
-const LANE_STOPS = new Set(["funding", "limited", "turn-cap"]);
+// usage limit, the turn cap, or a stop whose retries are spent (`failed`,
+// which adds no label, so this is where it shows).
+const LANE_STOPS = new Set(["funding", "limited", "turn-cap", "failed"]);
 
 export function laneStopFindings({ laneStops = [] }) {
   const groups = new Map();
@@ -315,6 +321,24 @@ export function laneStopFindings({ laneStops = [] }) {
   );
 }
 
+// Pull requests a pr-unblock stop left red with no retry left on their head
+// (collect.mjs, "stalled stops"): no person was asked, so this tells one.
+export function stalledFindings({ stalledStops = [] }) {
+  if (stalledStops.length === 0) return [];
+  const stops = [...stalledStops].sort((a, b) => a.pr - b.pr || a.activity.localeCompare(b.activity));
+  return [
+    finding({
+      key: "stalled-lane-stop",
+      signal: "10 stalled lane stop",
+      title: `Stalled: ${stops.length} pull request stops the PR fix lane left red for over ${STALLED_HOURS} hours`,
+      area: "PR fix lane (pr-unblock)",
+      summary: `${stops.length} pull requests carry a failing pr-unblock status the lane can no longer retry on their head; each needs a new commit or a look at its stop comment.`,
+      facts: stops.map((s) => `#${s.pr} ${s.activity} ${s.reason} since ${s.stoppedAt}: ${s.url}`),
+      evidence: ["stalled-lane-stop", stops.map((s) => [s.pr, s.head, s.activity, s.reason])],
+    }),
+  ];
+}
+
 const DETECTORS = [
   mainRedFindings,
   ceilingFindings,
@@ -325,6 +349,7 @@ const DETECTORS = [
   platformFindings,
   throughputFindings,
   laneStopFindings,
+  stalledFindings,
 ];
 
 export function detect(data) {

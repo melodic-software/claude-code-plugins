@@ -5,7 +5,7 @@ Beck's *Tidy First?* discipline agentically: small named tidyings, separated
 from behavioral changes by commit and by PR, under the shared PR scope budget
 shipped as [`reference/pr-scope-budget.md`](reference/pr-scope-budget.md).
 
-Six skills, one capability:
+Seven skills, one capability:
 
 - **`/code-tidying:dissolve-comments`**. Enforces self-describing, expressive
   code over a diff or target (a clean tree widens to the branch diff, then to
@@ -50,11 +50,18 @@ Six skills, one capability:
   sweep a repository that never had one. `in-place` (repo mode) runs on the
   current branch with no new branch or PR and leaves the edits staged, or
   `in-place=commit` makes one commit.
+- **`/code-tidying:tidy-diff`**. Tidies one change's own lines before its
+  commit, scoped by a file-and-line list the caller writes (no branch or base
+  ref, so it runs on a detached head): a behavior-preserving simplify pass and
+  proven class-A comment deletions on code, then `/docs-hygiene:write-for-agents`
+  or `write-for-humans` and `/ai-slop:audit fix` on markdown, within an
+  optional turn budget. It stages and commits nothing. The issue lane runs it
+  on a small single-area change before its one push.
 - **`/code-tidying:audit-dead-code`**, a read-only, whole-repo hunt for code
   nothing reaches any more, across four labeled lanes of deliberately unequal
   confidence (knip for TS/JS, vulture for Python, gopls for Go's unexported
   symbols, and a portable grep lane for shell and PowerShell symbols, JS/TS
-  symbols outside a `package.json` root, plus
+  symbols outside a `package.json` root, C# declarations read as text, plus
   unreferenced source files with a recognized extension). Every
   candidate is adjudicated against the dynamic-usage evidence static analyzers
   are blind to and lands as `dead`, `uncertain`, or `alive`. Reports in-session;
@@ -195,27 +202,35 @@ reads it from.
 
 Three supported routes:
 
-1. **Interactively.** Claude Code prompts for declared options when you enable the
-   plugin. To change them later: `/plugin configure code-tidying@<marketplace>`.
-2. **Headless.** Repeat `--config` for each option. Replace
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure code-tidying@<marketplace>`.
+2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+   run from the project the plugin is installed in. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin configure code-tidying@<marketplace> --values-stdin < values.json
+   ```
+
+   `values.json` holds a JSON object of strings, booleans included:
+
+   ```json
+   {"hard_exclusions": "<value>"}
+   ```
+
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
+   value, and why a session started before the change keeps the old value until a fresh
+   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
+   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+
+   The fallback the convention names, for a Claude Code release without
+   `plugin configure`, reruns the install with the new value, passing the scope
+   `claude plugin list` reports for this plugin:
 
    ```shell
    claude plugin install code-tidying@<marketplace> -s <scope> --config hard_exclusions=<value>
    ```
-
-   The same command reconfigures a plugin that is **already installed**: it prints
-   `already installed` and still writes the value. The short-circuit message is
-   about the install, not the config write. Do **not** `claude plugin uninstall` to
-   reconfigure: uninstalling drops this plugin's whole stored `pluginConfigs` entry,
-   resetting every option in the table above to its default. `-s` defaults to `user`,
-   so pass the scope `claude plugin list` reports for this plugin. The verified-version
-   record lives in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
-
-   The value is stored immediately; the session you are in does not change. Hooks are
-   handed their `CLAUDE_PLUGIN_OPTION_*` when the session starts, so start a fresh
-   Claude Code session before expecting new behavior. A check run in the old session
-   still reports the old value, and that is not a failed write.
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -232,17 +247,16 @@ Three supported routes:
    }
    ```
 
-   Plugin option values are read from **user**, `--settings`, and managed settings
-   only, **not** from a project's `.claude/settings.json`. To vary behavior per
-   repository, enable or disable the plugin in that project's `enabledPlugins`
-   instead of setting an option there.
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from.
 
-Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself. They are how Claude Code
-hands a configured value to a hook process; the value comes from the routes above.
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
 
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence

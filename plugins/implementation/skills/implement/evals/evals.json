@@ -565,6 +565,30 @@
         "Does NOT read the API-route or column-change entries, which the edited paths do not touch",
         "Builds the job through the registry and shared retry wrapper the entry names"
       ]
+    },
+    {
+      "id": 43,
+      "name": "one-line-ticket-from-a-non-engineer-follows-the-paved-path",
+      "prompt": "/implementation:implement feature can I get an email every morning with yesterday's total sales? thanks! (The repository is evals/fixtures/paved-path-repo/.)",
+      "expected_output": "Before the first edit, resolves docs/standards/README.md, finds the paved-path row and reads the scheduled-jobs and outbound-email entries, the two concerns the request touches. It adds one job module under jobs/ that computes yesterday's total with salesTotalFor, sends it with sendMail from lib/mailer.ts, wraps its run in withRetry, and lists it in jobs/registry.ts, so the module count tests/jobs-registry.test.ts checks still matches the registry. The job's schedule is the Job's own schedule field, as in jobs/cleanup-sessions.ts. It adds no second way: no crontab or deploy-config scheduler entry, scheduler package, timer loop, mail client or retry helper beside the listed ones. Asking who gets the email, or reading the recipient from configuration and saying so, is fine.",
+      "files": [
+        "evals/fixtures/paved-path-repo/docs/standards/README.md",
+        "evals/fixtures/paved-path-repo/docs/standards/paved-paths.md",
+        "evals/fixtures/paved-path-repo/jobs/registry.ts",
+        "evals/fixtures/paved-path-repo/jobs/job.ts",
+        "evals/fixtures/paved-path-repo/jobs/retry.ts",
+        "evals/fixtures/paved-path-repo/jobs/cleanup-sessions.ts",
+        "evals/fixtures/paved-path-repo/lib/db.ts",
+        "evals/fixtures/paved-path-repo/lib/mailer.ts",
+        "evals/fixtures/paved-path-repo/lib/sales.ts",
+        "evals/fixtures/paved-path-repo/tests/jobs-registry.test.ts"
+      ],
+      "expectations": [
+        "Reads the scheduled-jobs and outbound-email paved-path entries before the first edit",
+        "Adds exactly one module under jobs/ that exports a Job, with its run wrapped in withRetry, and lists it in jobs/registry.ts",
+        "Gets the total from salesTotalFor in lib/sales.ts and sends the email through sendMail from lib/mailer.ts",
+        "Adds no second way for either concern: no crontab or deploy-config scheduler entry, scheduler package, timer loop, new mail client or new retry helper"
+      ]
     }
   ]
 }

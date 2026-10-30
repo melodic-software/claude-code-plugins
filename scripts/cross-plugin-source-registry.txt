@@ -30,20 +30,20 @@ lib/rewrite-guard.sh -> plugins/*/hooks/rewrite-guard.sh
 reference/artifact-protocol.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# docs/conventions/standards/README.md.
+# docs/contracts/standards/README.md.
 reference/standards-contract.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the canonical contract and the copies.
-docs/conventions/standards/README.md -> plugins/*/reference/standards-contract.md
+docs/contracts/standards/README.md -> plugins/*/reference/standards-contract.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# docs/conventions/pr-scope-budget/README.md.
+# docs/contracts/pr-scope-budget/README.md.
 reference/pr-scope-budget.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the canonical convention and the copies.
-docs/conventions/pr-scope-budget/README.md -> plugins/*/reference/pr-scope-budget.md
+docs/contracts/pr-scope-budget/README.md -> plugins/*/reference/pr-scope-budget.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/managed-scope.sh.
@@ -90,8 +90,8 @@ lib/parse-concern-value.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line
 # for the duplication audit: the parser sits beside each reader copy, plus
-# multi-agent's own resolver copy.
-lib/yaml-subset.awk -> plugins/*/skills/*/scripts/yaml-subset.awk plugins/*/skills/*/scripts/lib/yaml-subset.awk plugins/*/lib/yaml-subset.awk plugins/*/scripts/yaml-subset.awk
+# multi-agent's own resolver copy and the guardrails convention resolver's.
+lib/yaml-subset.awk -> plugins/*/skills/*/scripts/yaml-subset.awk plugins/*/skills/*/scripts/lib/yaml-subset.awk plugins/*/lib/yaml-subset.awk plugins/*/scripts/yaml-subset.awk plugins/*/hooks/yaml-subset.awk
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/yaml-subset.awk.

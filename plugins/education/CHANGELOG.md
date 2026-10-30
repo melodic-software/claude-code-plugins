@@ -3,6 +3,56 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.7] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.20.6] - 2026-10-29
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
+## [0.20.5] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `setup-apply --check` names a key set twice as `duplicate key` at its second line, and apply refuses the file.
+
+## [0.20.4] - 2026-10-29
+
+### Added
+
+- The `non-obvious-behavior-keying-behavior-present` eval case: the original case with the non-obvious-behavior keying heuristic stated in the prompt, run with `--ablation none`, so the pair discriminates when the variant passes `not-surface-only` and the original fails it. ([#10184](https://github.com/melodic-software/claude-code-plugins/issues/10184))
+
+### Fixed
+
+- The `non-obvious-behavior-keying` eval case drops its `skill-fired` grader: the prompt invokes the skill by its slash command, so firing is not in question, and the grader failed every with-plugin run of the [#3589](https://github.com/melodic-software/claude-code-plugins/issues/3589) discrimination run.
+
+## [0.20.3] - 2026-10-29
+
+### Added
+
+- Six outcome eval cases for behavior no case covered: `te-root-declared-substitution` (a declared workspace root holding `$(…)` is refused and never run), `te-root-ask-once`, `te-root-adopt-existing` and `te-root-headless-skip` (the rung 3 root question), `te-slug-collision-guard` (the project slug and the slug collision hash), and `ex-invalid-rung-layer` (an invalid `explain_starting_rung` repository value is named and dropped). Each grader has must-pass and must-fail samples. ([#7416](https://github.com/melodic-software/claude-code-plugins/issues/7416))
+
+### Changed
+
+- The `te-primer-no-workspace` eval case grants `Write` and adds a `no-workspace-write` grader, so a primer that writes `MISSION.md`, `GLOSSARY.md` or a `learning-records/` file now fails the case.
+
+## [0.20.2] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.20.1] - 2026-10-27
+
+### Security
+
+- Shared `setup-apply.mjs` synced: it runs `git`, `bash`, `awk` and `diff` from the library's own directory and names the repository to `git` with `-C`, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a same-named `.exe` or `.com` committed to the repository is never run. Without `--root` it still resolves the repository it is run from.
+
 ## [0.20.0] - 2026-10-26
 
 ### Added
@@ -627,12 +677,12 @@ All notable changes to the `education` plugin are documented here. Format follow
   degenerating into a reference dump.** Two rules absorbed from an upstream cursor/plugins skill
   (`docs/upstream/cursor-pstack.md`, the `teach` section) into the lesson contract.
 
-  For anything with three or more moving parts, the lesson draws a short series where each picture
-  redraws the last and adds exactly one part, so the learner watches the system assemble. To teach
-  A→B→C, draw A→B, then redraw and add C, then redraw and add the return edge. Three small growing
-  diagrams beat one crowded one, and the series is the opposite of a wall: each step is small and
-  carries one idea. A single all-at-once diagram, especially one saved for the end, is a reference.
-  Verified absent fleet-wide before landing.
+  When a system has three parts or more, the lesson grows its picture in steps: every new diagram
+  repeats the one before it plus one added part. A lesson on a PreToolUse hook first shows the tool
+  call reaching the tool, next puts the hook between them, and last adds the deny result going back
+  to the model. Each step stays small and holds one idea, so a few growing diagrams teach more than
+  one busy one. A figure that shows every part at once, most of all when it closes the lesson, works
+  as reference material. A fleet-wide check found this rule missing before it landed.
 
   The second rule names the failure the first one prevents in prose: enumerating the functions,
   constants, or fields a thing has produces something shaped like a lesson that teaches nothing. Say

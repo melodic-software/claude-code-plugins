@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "# brackenfold\n\nPython 3 package `bfk` (standard library only): `bfk/cli.py` is the `bfk` command, `data/accounts.jsonl`\nis the account store, `tests/` holds `unittest` cases.\n\n## Build and test\n\n- Test: `make test` (runs `scripts/run_tests.sh`).\n- Run the CLI: `python3 -m bfk.cli <command>`.\n\n<!-- BEGIN GENERATED: plugin-conventions -->\n- Before creating, changing or cleaning up CLIs, scripts or other developer tools, read `docs/conventions/developer-experience.md`. Use /developer-experience:build-cli to create a tool or change its interface, and /developer-experience:audit-tools to take stock of or clean up tools; a bug fix inside one needs neither.\n<!-- END GENERATED: plugin-conventions -->\n",
+      "why": "the pointer line names the conventions file"
+    },
+    {
+      "answer": "# brackenfold\n\nPython 3 package `bfk` (standard library only): `bfk/cli.py` is the `bfk` command, `data/accounts.jsonl`\nis the account store, `tests/` holds `unittest` cases.\n\n## Build and test\n\n- Test: `make test` (runs `scripts/run_tests.sh`).\n- Run the CLI: `python3 -m bfk.cli <command>`.\n\n## Developer tooling conventions\n\n- `bfk release <version>` asks for confirmation; no flag skips it.\n- Run external processes through `run` in `bfk/proc.py`.\n",
+      "why": "the conventions are written into AGENTS.md under their own heading"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# brackenfold\n\nPython 3 package `bfk` (standard library only): `bfk/cli.py` is the `bfk` command, `data/accounts.jsonl`\nis the account store, `tests/` holds `unittest` cases.\n\n## Build and test\n\n- Test: `make test` (runs `scripts/run_tests.sh`).\n- Run the CLI: `python3 -m bfk.cli <command>`.\n",
+      "why": "AGENTS.md as seeded"
+    },
+    {
+      "answer": "# brackenfold\n\nPython 3 package `bfk` (standard library only): `bfk/cli.py` is the `bfk` command, `data/accounts.jsonl`\nis the account store, `tests/` holds `unittest` cases.\n\n## Build and test\n\n- Test: `make test` (runs `scripts/run_tests.sh`).\n- Run the CLI: `python3 -m bfk.cli <command>`.\n- Setup: see `README.md`.\n",
+      "why": "near miss: names only the README"
+    },
+    {
+      "answer": "# brackenfold\n\n## Build and test\n\n- Test: `make test` (runs `scripts/run_tests.sh`).\n- Scripts: see `scripts/README.md`.\n\n## Tools\n",
+      "why": "near miss: names the existing scripts README and adds an empty heading"
+    }
+  ]
+}

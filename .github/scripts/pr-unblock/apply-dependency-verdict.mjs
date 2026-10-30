@@ -37,7 +37,9 @@
 //      signature), the repository's version-bump commit changing only
 //      plugin.json `version` and CHANGELOG.md (bumpRefusal), or a
 //      single-parent commit whose files pass the fix rule above against its
-//      parent; else dependency-fix-refused, so a
+//      parent; and each commit must arrive in its own author's push, read
+//      from the branch's activity back to Dependabot's newest branch creation
+//      or force push (pushRefusal); else dependency-fix-refused, so a
 //      commit the lanes App pushed outside a fix round is never merged on.
 //      A merge on a review-only dependency whose evidence does not quote each
 //      matched entry's control (context.json `controls`) escalates
@@ -89,8 +91,10 @@ import {
   isSecurityUpdate,
   parseConfig,
   pinSwapRefusal,
+  pushRefusal,
   WEB_FLOW_ID,
 } from "./dependency-classify.mjs";
+import { stopSkip } from "./escalation-routes.mjs";
 import { FILES_CAP, roundLine, rounds, VERDICTS } from "./review-dependency.mjs";
 
 export const LIMITS = { bytes: 65536, reasons: 10, reason: 500, evidence: 20, evidenceItem: 300, config: 200 };
@@ -123,16 +127,15 @@ const exactKeys = (value, keys) =>
 // Plain prose: posted inside a fence, so no control character, fence, HTML
 // comment or user @-mention can change what the comment shows or who it pings.
 // An @ after a slash (a URL) or opening a scoped package (@scope/name) passes;
-// that also lets a team-style @org/team through, left to the fence.
+// that also lets a team-style @org/team through, left to the fence. The scan
+// job's verdict schema (collect-base-activity/action.yml) carries this same
+// pattern under `not`, which steers generation; this check enforces it. No
+// lookahead: the Claude API's structured outputs do not support one.
+export const UNPLAIN_PATTERN = String.raw`[\u0000-\u001f\u007f]|${"```"}|~~~|<!--|-->|(^|[^A-Za-z0-9${"`"}/])@[A-Za-z0-9][A-Za-z0-9._-]*([^A-Za-z0-9._/-]|$)`;
+const UNPLAIN = new RegExp(UNPLAIN_PATTERN);
+
 function plain(text, max) {
-  return (
-    typeof text === "string" &&
-    text.length >= 1 &&
-    text.length <= max &&
-    !/[\u0000-\u001f\u007f]/.test(text) &&
-    !/```|~~~|<!--|-->/.test(text) &&
-    !/(^|[^A-Za-z0-9`/])@[A-Za-z0-9](?![A-Za-z0-9._-]*\/)/.test(text)
-  );
+  return typeof text === "string" && text.length >= 1 && text.length <= max && !UNPLAIN.test(text);
 }
 
 export const CONTEXT_KEYS = Object.freeze(["version", "pr", "head_sha", "security", "config_unreadable", "files_truncated", "started_at", "controls", "config"]);
@@ -420,8 +423,10 @@ export async function apply({ api, pr, appId, modelRun, run, context = null, mis
       refusal = await commitFixRefusal(api, item, pairs);
       if (refusal) break;
     }
+    // A commit's author is text whoever creates it chooses; who pushed it is not.
+    refusal ??= pushRefusal(await api.listActivity(`refs/heads/${pull.head.ref}`), head, commits, appId);
     if (refusal) {
-      log(`#${pr}: a commit is not Dependabot's or a lane fix (${refusal}); a person decides`);
+      log(`#${pr}: a commit is not Dependabot's or a lane fix, or not its pusher's own (${refusal}); a person decides`);
       await record("escalate", { reasons, evidence });
       return { escalationReason: "dependency-fix-refused", skipReason: "" };
     }
@@ -560,7 +565,9 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   });
   if (escalationReason) {
     writeFileSync(env.ESCALATION_REASON_FILE, `${escalationReason}\n`);
-    writeFileSync(env.SKIP_REASON_FILE, "awaiting-human\n");
+    // lane-stopped for a reason routed to a failing status, which
+    // dependency-dispatch.mjs releases for a same-head retry.
+    writeFileSync(env.SKIP_REASON_FILE, `${stopSkip(escalationReason)}\n`);
   } else if (skipReason) {
     writeFileSync(env.SKIP_REASON_FILE, `${skipReason}\n`);
   }

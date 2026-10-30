@@ -82,7 +82,9 @@ mk .github/workflows/pr-test-windows.yml "name: test-windows"
 printf '%s\n' "# seconds" \
   "plugins/a/a.test.sh 100" "plugins/b/b.test.sh 30" "plugins/c/c.test.sh 90" "plugins/d/d.test.sh 60" \
   "plugins/e/e.test.sh 50" "plugins/f/f.test.sh 40" "plugins/g/g.test.sh 20" "plugins/h/h.test.sh 10" \
-  "plugins/p/test_p.py 200" "plugins/q/test_q.py 100" >"$repo/scripts/suite-seconds.txt"
+  "plugins/p/test_p.py 200" "plugins/q/test_q.py 100" \
+  "plugins/animation/anim.test.sh 5" "plugins/speech/sp.test.sh 5" \
+  "plugins/harness-ops/skills/inventory/inv.test.sh 5" >"$repo/scripts/suite-seconds.txt"
 printf '%s\n' "# job key [pattern...]" \
   "win-a plugins/a/a.test.sh" \
   "win-b plugins/ps/run.ps1 plugins/ps/*.Tests.ps1" \
@@ -122,11 +124,11 @@ is "$(key bash_legs)" "[0,1,2,3]" && is "$(suites bash | wc -l | tr -d ' ')" 8 &
   is "$(key bash_plan | jq -r '[.[][]] | unique | length' | tr -d '\r')" 8
 check "400 suite-seconds take 4 legs, and the 8 suites land on them exactly once" $?
 
-# a (100 s) cannot be split across three workers, so its leg weighs 300 and
-# takes nothing else; c (90 s, 270) and d (60 s, 180) likewise. The five
-# shortest share the fourth leg: 150 suite-seconds, 50 s of wall behind e.
-grep -q 'bash: 8 suite(s), 400 suite-seconds, 4 leg(s): 100s/1 90s/1 60s/1 150s/5' "$ERR"
-check "a leg weighs at least three times its longest suite, so the short suites fill the legs with room" $?
+# A leg weighs its suite-seconds plus two thirds of three times its longest
+# suite: a (100 s) weighs 300 and c (90 s) 270, so they take nothing else; d
+# (60 s, 180) draws b and h, e (50 s, 150) draws f and g.
+grep -q 'bash: 8 suite(s), 400 suite-seconds, 4 leg(s): 100s/1 90s/1 100s/3 110s/3' "$ERR"
+check "a leg weighs its suite-seconds plus its longest suite's share of the other workers" $?
 
 # 230 suite-seconds take 2 legs. Weighed by sum alone, a's leg (100) would draw
 # g once d and f bring the other leg level; weighed by its unsplittable 300, it
@@ -134,6 +136,24 @@ check "a leg weighs at least three times its longest suite, so the short suites 
 plan -- plugins/a/a.sh plugins/d/d.sh plugins/f/f.sh plugins/g/g.sh plugins/h/h.sh
 is "$(key bash_plan)" '{"0":["plugins/a/a.test.sh"],"1":["plugins/d/d.test.sh","plugins/f/f.test.sh","plugins/g/g.test.sh","plugins/h/h.test.sh"]}'
 check "the longest suite's leg takes no short suite that another leg can finish sooner" $?
+
+# 45 suites of 40 s beside a (100 s): 1900 suite-seconds, capped at 7 legs.
+# Weighed by the larger of its suite-seconds and three times a, a's leg would
+# draw short suites until its other two workers ran 100 s each, as long as a
+# itself: 300s/6, no room for a slow run. Weighed by its suite-seconds plus two
+# thirds of three times a, it stops at 180s/3 and the other legs take the rest.
+cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
+many=()
+for i in $(seq -w 1 45); do
+  mk "plugins/n/n$i.test.sh" "true"
+  printf 'plugins/n/n%s.test.sh 40\n' "$i" >>"$repo/scripts/suite-seconds.txt"
+  many+=("plugins/n/n$i.test.sh")
+done
+plan -- plugins/a/a.test.sh "${many[@]}"
+rm -rf "${repo:?}/plugins/n"
+cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
+grep -q 'bash: 46 suite(s), 1900 suite-seconds, 7 leg(s): 180s/3 ' "$ERR"
+check "the longest suite's leg keeps room: its other workers finish well before it" $?
 
 plan -- plugins/a/a.sh plugins/g/g.sh
 before="$(key bash_legs)"
@@ -166,10 +186,20 @@ is "$(key bash_needs)" '{"0":"visualcheck"}'
 check "a check-visual-parity suite gets the visual-compare packages" $?
 rm -rf "$repo/plugins/testing"
 
-mk plugins/planning/shared/tests/ui.test.sh
-plan -- plugins/planning/shared/tests/ui.test.sh
+for part in a b c; do
+  mk "plugins/planning/shared/tests/ui-$part.test.sh"
+  plan -- "plugins/planning/shared/tests/ui-$part.test.sh"
+  is "$(key bash_needs)" '{"0":"browser"}'
+  check "the shared-page UI suite's part $part gets Chromium on whatever leg it lands" $?
+done
+mk plugins/planning/shared/tests/ui-require-browser.test.sh
+plan -- plugins/planning/shared/tests/ui-require-browser.test.sh
+is "$(key bash_needs)" '{"0":""}'
+check "the UI runner's own suite, which runs stubs, gets no Chromium" $?
+mk plugins/planning/shared/tests/align.test.sh
+plan -- plugins/planning/shared/tests/align.test.sh
 is "$(key bash_needs)" '{"0":"browser"}'
-check "the shared-page UI suite gets Chromium on whatever leg it lands" $?
+check "the shared-page alignment suite gets Chromium on whatever leg it lands" $?
 rm -rf "$repo/plugins/planning"
 
 mk plugins/guardrails/git-hooks/lefthook-remote.test.sh
@@ -177,6 +207,17 @@ plan -- plugins/guardrails/git-hooks/lefthook-remote.test.sh
 is "$(key bash_needs)" '{"0":"lefthook"}'
 check "the guardrails remote's end-to-end suite gets lefthook on whatever leg it lands" $?
 rm -rf "$repo/plugins/guardrails"
+
+# A lock bump selects the suite through its test-scope, so the leg installs the
+# lock it bumped and ffmpeg, and the suite cannot skip green (#8780).
+mk plugins/playwright/skills/demo-video/requirements.txt "numpy==2.5.4"
+mk plugins/playwright/skills/demo-video/scripts/demo-video.test.sh \
+  "# test-scope: plugins/playwright/skills/demo-video/scripts/* plugins/playwright/skills/demo-video/requirements.txt"
+plan -- plugins/playwright/skills/demo-video/requirements.txt
+is "$(key bash_plan)" '{"0":["plugins/playwright/skills/demo-video/scripts/demo-video.test.sh"]}' &&
+  is "$(key bash_needs)" '{"0":"demovideo"}'
+check "a demo-video requirements change puts the demovideo toolchain in its leg's needs" $?
+rm -rf "$repo/plugins/playwright"
 
 plan -- plugins/p/p.py
 is "$(suites python)" "plugins/p/test_p.py" && is "$(key bash)" false && is "$(key python_legs)" "[0]"
@@ -193,6 +234,30 @@ check "another Python pin runs the Python suites but no Windows step" $?
 plan -- plugins/animation/requirements.txt
 is "$(suites python | tr '\n' ' ')" "plugins/p/test_p.py plugins/q/test_q.py "
 check "the animation lock test-python installs is a Python pin" $?
+
+# A suite suite-seconds.txt does not list weighs the mean of the listed Python
+# suites (200 and 100: 150), not 5 s, so a heavy new suite cannot hide on one leg.
+mk plugins/u/test_u.py "assert True"
+plan -- plugins/p/p.py plugins/q/test_q.py plugins/u/test_u.py
+grep -q 'python: 3 suite(s), 450 suite-seconds, 3 leg(s)' "$ERR"
+check "an unlisted Python suite counts the mean of the listed ones, so 200 + 100 + 150 take 3 legs" $?
+
+# The real file's spread: most Python suites take 1 s and a few take minutes,
+# so their median is 1 s. Twenty 1 s rows beside 200 and 100 have a mean of
+# 320/22, which rounds to 15; an unlisted suite weighs that, never under 5 s.
+cp "$repo/scripts/suite-seconds.txt" "$scratch/suite-seconds.txt"
+for i in $(seq 1 20); do printf 'plugins/one/test_one%s.py 1\n' "$i"; done >>"$repo/scripts/suite-seconds.txt"
+plan -- plugins/u/test_u.py
+grep -q 'python: 1 suite(s), 15 suite-seconds, 1 leg(s)' "$ERR"
+check "with many 1 s rows an unlisted Python suite still weighs their mean (15), above the 5 s default" $?
+# With only 1 s rows the mean is 1, and the 5 s default is the floor.
+grep -v 'test_[pq][.]py' "$repo/scripts/suite-seconds.txt" >"$scratch/light.txt"
+cp "$scratch/light.txt" "$repo/scripts/suite-seconds.txt"
+plan -- plugins/u/test_u.py
+grep -q 'python: 1 suite(s), 5 suite-seconds, 1 leg(s)' "$ERR"
+check "an unlisted Python suite never weighs less than the 5 s default" $?
+cp "$scratch/suite-seconds.txt" "$repo/scripts/suite-seconds.txt"
+rm -f "$repo/plugins/u/test_u.py"
 
 # 925 suite-seconds would take ceil(925/180) = 6 legs; test-python stops at 5.
 # Longest first onto the least-loaded leg: p, r, s, q and t open the five legs,
@@ -272,6 +337,12 @@ plan -- plugins/z/data.cfg
 is "$(key unmapped)" 1 && is "$(key bash)" false && is "$(key python)" false
 check "an unmapped data file runs no corpus and is counted" $?
 
+mk plugins/a/unread.css "p {}"
+plan -- plugins/a/unread.css plugins/z/data.cfg
+rm "$repo/plugins/a/unread.css"
+is "$(key unmapped)" 2 && is "$(key bash)" false && is "$(key windows_steps)" "[]"
+check "an unmapped file on each side of the inert list counts once each" $?
+
 plan -- plugins/z/z.sh
 is "$(key unmapped)" 1 && is "$(suites bash | wc -l | tr -d ' ')" 12 && is "$(key python)" false
 check "an unmapped shell file runs the whole shell corpus and is counted" $?
@@ -279,13 +350,13 @@ check "an unmapped shell file runs the whole shell corpus and is counted" $?
 # --- wider than the selection ------------------------------------------------
 
 plan -- .github/workflows/pr-require-checks.yml
-is "$(key bash_legs)" "[0,1,2,3,4,5]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
+is "$(key bash_legs)" "[0,1,2,3,4,5,6]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
   is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 7 &&
   is "$(key windows_jobs)" "[]"
-check "a pr-require-checks.yml change runs every pr-require-checks.yml lane whole on 6 legs, and test-windows from the selection" $?
+check "a pr-require-checks.yml change runs every pr-require-checks.yml lane whole on 7 legs, and test-windows from the selection" $?
 
 plan -- .github/actions/download-full-history/action.yml
-is "$(key bash_legs)" "[0,1,2,3,4,5]" && is "$(key windows_jobs)" '["win-a","win-b"]'
+is "$(key bash_legs)" "[0,1,2,3,4,5,6]" && is "$(key windows_jobs)" '["win-a","win-b"]'
 check "the local action every lane runs plans every lane whole" $?
 
 plan -- .github/actions/other/action.yml
@@ -298,8 +369,8 @@ check "a pr-test-windows.yml change runs every Windows step and no pr-require-ch
 
 plan
 is "$(suites bash)" "$(cd "$repo" && bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort)" &&
-  is "$(key bash_legs)" "[0,1,2,3,4,5]"
-check "the whole tree plans the runner's whole corpus on 6 legs" $?
+  is "$(key bash_legs)" "[0,1,2,3,4,5,6]"
+check "the whole tree plans the runner's whole corpus on 7 legs" $?
 
 # --- a diff base ---------------------------------------------------------------
 

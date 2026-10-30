@@ -27,9 +27,10 @@
 #                                    <sha>` line for it. While calibration.md
 #                                    carries any such line, the report and
 #                                    --table score holdout rows only
-#   metrics.sh --sweep [labels.tsv]  run the judge over every row for 7 arms,
-#                                    sonnet at low, medium, high and xhigh and
-#                                    opus at low, medium and high, through
+#   metrics.sh --sweep [labels.tsv]  run the judge over every row for 10 arms,
+#                                    sonnet at low, medium, high and xhigh,
+#                                    opus at low, medium and high, and haiku
+#                                    at low, medium and high, through
 #                                    judge::run and judge::validate (what the
 #                                    hooks relay); keep each arm's verdicts in
 #                                    sweep/<model>-<effort>.tsv and each run's
@@ -87,7 +88,7 @@ HOOKS="${SELF%/*}/../../../../hooks"
 PROMPT=plugins/testing/hooks/test-judge-prompt.md
 SKILL=plugins/testing/skills/test-value/SKILL.md
 CALMD=plugins/testing/skills/audit/evals/judge-calibration/calibration.md
-ARMS="sonnet-low sonnet-medium sonnet-high sonnet-xhigh opus-low opus-medium opus-high"
+ARMS="sonnet-low sonnet-medium sonnet-high sonnet-xhigh opus-low opus-medium opus-high haiku-low haiku-medium haiku-high"
 
 # FNR == 1 of the labels: col[] by header name, R[1..nr] the rater columns;
 # need() exits 2 naming a missing column.
@@ -381,6 +382,7 @@ table() {
       if (!($1 in known)) bad[a] = bad[a] " unknown " $1
       else if ((a, $1) in v) bad[a] = bad[a] " duplicate " $1
       v[a, $1] = $2
+      judged[a]++
     }
     function mcnemar(x, y,   i, b, c, n, m, k, t, s) {
       for (i = 1; i <= nl; i++) {
@@ -432,7 +434,8 @@ table() {
         for (j = 2; j <= n; j++) { t = w[a, j]; for (k = j - 1; k >= 1 && w[a, k] + 0 > t + 0; k--) w[a, k + 1] = w[a, k]; w[a, k + 1] = t }
         med[a] = !n ? 0 : n % 2 ? w[a, (n + 1) / 2] : (w[a, n / 2] + w[a, n / 2 + 1]) / 2
         p95[a] = n ? w[a, int((95 * n + 99) / 100)] : 0
-        cpr[a] = nl ? cost[a] / nl : 0
+        # The runs judged every row in the arm file, scored or not.
+        cpr[a] = judged[a] ? cost[a] / judged[a] : 0
       }
       top = ""
       for (i = 1; i <= na; i++) if (better(arms[i], top, 1)) top = arms[i]

@@ -3,6 +3,37 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.7] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.4.6] - 2026-10-29
+
+### Changed
+
+- The config reader now refuses a plain YAML value holding a colon and a space (such as `label: needs: triage`) and a plain key holding whitespace, `$` or `.` (such as `$schema: x` or `a.b: c`), naming the line. One such line now makes the whole file invalid, where the value used to be read as text or the key reported on its own. Quote the value or key to keep it.
+
+## [0.4.5] - 2026-10-28
+
+### Fixed
+
+- The shared config resolver now tags each layer error with the key it names (`error_keys`, null for a
+  file-level error), so a reader can tell a key-level error from a whole-file one.
+
+## [0.4.4] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.4.3] - 2026-10-27
+
+### Security
+
+- `glossary-settings.mjs` runs `git` from the plugin's own directory, so on Windows, where Node looks for a bare command in the working directory before `PATH`, a `git.exe` or `git.com` committed to the user's repository is never run.
+
 ## [0.4.2] - 2026-10-26
 
 ### Fixed

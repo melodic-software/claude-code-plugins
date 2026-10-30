@@ -3,6 +3,55 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.8] - 2026-10-29
+
+### Changed
+
+- Synced contract copies name their canonical source at `docs/contracts/<name>/`, where the plugin contracts moved from `docs/conventions/<name>/`.
+
+## [0.8.7] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.8.6] - 2026-10-29
+
+### Changed
+
+- The config reader now refuses a plain YAML value holding a colon and a space (such as `label: needs: triage`) and a plain key holding whitespace, `$` or `.` (such as `$schema: x` or `a.b: c`), naming the line. One such line now makes the whole file invalid, where the value used to be read as text or the key reported on its own. Quote the value or key to keep it.
+
+## [0.8.5] - 2026-10-28
+
+### Fixed
+
+- The shared config resolver now tags each layer error with the key it names (`error_keys`, null for a
+  file-level error), so a reader can tell a key-level error from a whole-file one.
+
+## [0.8.4] - 2026-10-27
+
+### Changed
+
+- The README's generated "How to set these" block no longer restates Claude Code CLI and settings behavior as fact. Each upstream specific is now a link to the docs section that owns it (`/plugin` in a session, what an uninstall deletes and keeps, `pluginConfigs`), and what this repository measured stays in the plugin-reconfiguration convention.
+
+## [0.8.3] - 2026-10-27
+
+### Fixed
+
+- **The findings buffer redacts bare `sk-ant-oat01-` tokens and dotted `ghs_` tokens whole ([#9026](https://github.com/melodic-software/claude-code-plugins/issues/9026)).** Its copy of `redact.py` now runs two of its own rules before the vendored gitleaks rules. Before this, a bare `sk-ant-oat01-` value reached the adapter unredacted, and the vendored `github-app-token` rule replaced only the first 36 characters of a stateless `ghs_` token containing a dot, so the rest of the token stayed in the row.
+
+## [0.8.2] - 2026-10-27
+
+### Security
+
+- Shared `prerequisites.mjs` synced: each dependency probe runs from the library's own directory, so a probed tool never starts with the user's repository as its working directory.
+
+## [0.8.1] - 2026-10-27
+
+### Fixed
+
+- The `local-file` findings buffer's `append.sh` takes perl's `flock` on `.work/buffer/.lock` where `flock` is absent and perl calls flock(2) itself, so an appender killed with SIGKILL no longer leaves a lock that fails every later append until an operator removes it. Where neither is available, the `.lockdir` lock stays as before.
+
 ## [0.8.0] - 2026-10-26
 
 ### Added
