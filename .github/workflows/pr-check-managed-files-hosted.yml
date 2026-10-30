@@ -58,6 +58,7 @@ on:
       - .github/workflows/pr-check-managed-files-hosted.yml
       - .github/workflows/pr-review-hosted.yml
       - .github/workflows/pr-review-security-hosted.yml
+      - .github/zizmor.yml
       - .gitleaks.toml
       - .golangci.yml
       - .lefthook/base.yml
@@ -110,12 +111,9 @@ jobs:
           # diff against, and the action fails closed on a diff it cannot see.
           fetch-depth: 0
       - name: Guard managed files
-        # Pinned to the ci-workflows release that carries the close of the
-        # guard's fail-open on an unreadable diff (ci-workflows#530). A release
-        # now contains that commit, so the pin-comment takes the convention's
-        # release-tag form rather than the short-SHA fallback
-        # (components/managed-files-guard/README.md).
-        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@9a886d552706ad0a626e64da0dc27be2f2d0b437 # v0.66.0
+        # The org requires actions pinned to a full commit SHA (reusable
+        # workflows may float on main); this pin moves by hand.
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
         with:
           # `main` for the soak, per the action's own input contract ("Pin to
           # a full SHA in callers once soak completes"): the guard must read
