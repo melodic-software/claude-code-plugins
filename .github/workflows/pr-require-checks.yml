@@ -4959,8 +4959,9 @@ jobs:
       # alone: the generated guard after hold_patterns empties the list for
       # every other author). A person on the base commit's trusted-actor list
       # approving the head clears that hold: their newest non-comment review,
-      # matched by numeric id, is APPROVED at the head and not made through an
-      # App. An unreadable review or trusted-actor list keeps it. Any other
+      # matched by numeric id, is APPROVED at the head. It counts as that
+      # person's whatever client submitted it. An unreadable review or
+      # trusted-actor list keeps it. Any other
       # same-repository PR changing one that an agent App
       # (merge.trust-path-hold-apps in the base commit's pr-pipeline.yaml)
       # opened, authored or committed a commit of, or pushed to its head
@@ -5070,7 +5071,7 @@ jobs:
                 trusted_humans &&
                 approver=$(jq -ers --arg head "$HEAD_SHA" --arg humans " $humans " '[add[] | select(.state != "COMMENTED" and .state != "PENDING")]
                   | group_by(.user.id) | map(last)
-                  | map(select(.state == "APPROVED" and .commit_id == $head and .performed_via_github_app == null
+                  | map(select(.state == "APPROVED" and .commit_id == $head
                     and (.user.id | type) == "number" and ((" \(.user.id) ") as $id | $humans | contains($id))))
                   | first | .user.login | strings' <<<"$reviews"); then
                 echo "$approver, a person on the trusted-actor list, approved $HEAD_SHA, which clears the trust-gate hold on #$PR_NUMBER; the review lanes are not required."

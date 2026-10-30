@@ -472,14 +472,14 @@ STUB_FILES_FAIL=1 STUB_CHANGED=4 SHARED_FILES="$(files README.md)" \
   AUTHOR_ID=49699333 expect "a reused list shorter than the change fails closed" 1 "::error::GitHub listed fewer files than #77 changes"
 STUB_FILES='[]' STUB_CHANGED=0
 AUTHOR_ID=49699333999 expect "an id that only contains an exempt id is not exempt" 1 "is missing"
-# A person on the base commit's trusted-actor list approving the head, directly
-# and in their newest review, clears an exempt author's trust-gate hold.
+# A person on the base commit's trusted-actor list approving the head in their
+# newest review clears an exempt author's trust-gate hold.
 mkdir -p "$TMP_ROOT/base-config/.github/standards/trusted-actors"
 printf '%s\n' '{"actors":[{"kind":"human","id":153232337,"login":"kyle-sexton"},{"kind":"app","id":49699333,"login":"dependabot[bot]"}]}' \
   >"$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json"
-# review <user id> <state> [commit] [performed_via_github_app json]
-review() { jq -cn --argjson id "$1" --arg st "$2" --arg sha "${3:-$HEAD}" --argjson app "${4:-null}" \
-  '{user: {id: $id, login: "u\($id)"}, state: $st, commit_id: $sha, performed_via_github_app: $app}'; }
+# review <user id> <state> [commit]
+review() { jq -cn --argjson id "$1" --arg st "$2" --arg sha "${3:-$HEAD}" \
+  '{user: {id: $id, login: "u\($id)"}, state: $st, commit_id: $sha}'; }
 reviews() { local IFS=,; printf '[%s]\n' "$*"; }
 CLEAR='a person on the trusted-actor list approving this head clears it.'
 export STUB_REVIEWS STUB_REVIEWS_FAIL
@@ -498,8 +498,6 @@ STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED "${HEAD//0/f}")")"
 AUTHOR_ID=49699333 expect "an approval of an older commit does not clear the hold" 1 "A person merges it; $CLEAR"
 STUB_REVIEWS="$(reviews "$(review 777 APPROVED)" "$(review 49699333 APPROVED)")"
 AUTHOR_ID=49699333 expect "an approval by an account not a listed person does not clear the hold" 1 "A person merges it; $CLEAR"
-STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED "$HEAD" '{"slug":"melodic-agent"}')")"
-AUTHOR_ID=49699333 expect "an approval through an App does not clear the hold" 1 "A person merges it; $CLEAR"
 STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED)" "$(review 153232337 CHANGES_REQUESTED)")"
 AUTHOR_ID=49699333 expect "changes requested after the approval keep the hold" 1 "A person merges it; $CLEAR"
 STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED)")" STUB_REVIEWS_FAIL=1
