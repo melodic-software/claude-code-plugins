@@ -955,7 +955,7 @@ always-loaded listing at all is the invocation-mode choice, owned by the rubric 
 line only if removing it would cause a mistake, and we delete or convert to a hook any instruction
 the model already follows unaided. Pointer: for pruning standing instructions, see
 <https://code.claude.com/docs/en/best-practices#keep-claude-md-short> and
-<https://code.claude.com/docs/en/best-practices>. As of: 2026-10-30.
+<https://code.claude.com/docs/en/best-practices#what-you-can-stop-doing>. As of: 2026-10-30.
 Recheck trigger: either section moves or stops recommending pruning. Anthropic reports applying
 the same doctrine to Claude Code's own system prompt for the Claude 5 generation; no docs page
 covers that as of 2026-08-08

@@ -390,8 +390,9 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   the hold and its class; propose compression in place instead. The register is non-exhaustive, so
   a candidate absent from it is judged on this criterion's normal terms, never deleted *because* it
   is absent.
-- **Source:** best-practices, "Keep CLAUDE.md short", the include/exclude table (its exclude
-  column).
+- **Source:** best-practices, "Keep CLAUDE.md short" (its test that the file holds only what
+  Claude cannot work out from the code), and "What you can stop doing" (the architecture and
+  file-layout row).
 
 ### I5: Rule-to-hook or delete
 

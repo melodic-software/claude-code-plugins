@@ -234,16 +234,21 @@ live in [official-guidance.md](official-guidance.md), not here.
 4. WARN per instance
 
 **Provenance**: the KEEP branch is a **repo extension, not doc-derived**: we found no navigation
-posture in the docs' include/exclude table (checked 2026-08-17), so the `update` action must not
+posture in the docs' include list (checked 2026-10-30), so the `update` action must not
 overwrite it.
 
-**Why**: Steps 1-3 apply the exclude side of the docs' include/exclude table, in our words.
+**Why**: Step 1 applies, in our words, the docs' test that CLAUDE.md holds only what Claude cannot
+work out from the code, and the stop-doing row on describing architecture and file layout. Steps 2
+and 3 are our judgment: no docs section lists them.
 
-- **Pointer**: for the include/exclude table, see
-  [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short).
+- **Pointer**: for the test and the include list, see
+  [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short); for
+  the architecture and file-layout row, see
+  [What you can stop doing](https://code.claude.com/docs/en/best-practices#what-you-can-stop-doing).
 - **As of**: 2026-10-30
-- **Recheck trigger**: the table gains a navigation-pointer row, or drops an exclude row steps 1-3
-  apply.
+- **Recheck trigger**: the include list gains a navigation-pointer entry, the section drops its
+  only-what-Claude-cannot-work-out test, or the stop-doing table drops the architecture and
+  file-layout row.
 
 ### C6: Consistency [FAIL]
 

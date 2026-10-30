@@ -160,7 +160,6 @@ anything carries over and clears when nothing does, work that leaves the session
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>; for managing
   context, see <https://code.claude.com/docs/en/best-practices#keep-cost-and-context-down>; for
   the stage boundaries, see
-  <https://code.claude.com/docs/en/best-practices>,
   <https://code.claude.com/docs/en/best-practices#brainstorm-with-claude-first>,
   <https://code.claude.com/docs/en/best-practices#run-sessions-in-parallel>,
   <https://code.claude.com/docs/en/best-practices#review-against-your-spec> and

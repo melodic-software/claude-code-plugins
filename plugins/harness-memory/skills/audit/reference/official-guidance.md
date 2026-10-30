@@ -78,7 +78,7 @@ removal candidates what Claude can infer from the code or that changes often:
 | Setup quirks of the dev environment, such as env vars it needs | A file-by-file tour of the codebase |
 | Traps and surprising behavior | Advice any engineer already follows |
 
-- **Pointer**: the include and exclude table in
+- **Pointer**: the include list, and its test of what Claude cannot work out from the code, in
   [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short).
 
 ## Build and test commands
