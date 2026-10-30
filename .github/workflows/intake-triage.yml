@@ -459,9 +459,13 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/intake-triage/apply-verdict.mjs --check
 
+      # Its reads go through the job token, counted under github-token for
+      # the job-end api-calls notice.
       - name: Resolve the config
         id: config
         if: steps.who.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: intake-triage
@@ -536,7 +540,7 @@ jobs:
         timeout-minutes: 1
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
-          tokens: lanes-app
+          tokens: lanes-app github-token
 
   # Refines a thin issue (#9215): one whose verdict flags intent (no exact
   # outcome) or whose body has no task list (no checkable criteria). It also
