@@ -223,6 +223,9 @@ GREEN, FLAKE, RED, RERUN, PENDING = "green", "flake", "red", "rerun", "pending"
 # A red attempt 1 a newer green full run on the branch descends from: main
 # already recovered, so it is neither re-run nor pending (`_Context.superseded`).
 SETTLED = "settled"
+# The newer passed runs `_Context.superseded` reads ancestry for, per red run;
+# past them the run is not settled and waits for its re-run as before.
+SETTLE_COMPARE_CAP = 5
 
 EXIT_FAILURE, EXIT_UNREADABLE, EXIT_WRITE_FAILED, EXIT_UNVERIFIED = 1, 3, 4, 5
 # `--lane-alerted`'s "not recorded": a code no crash (1), argparse refusal (2),
@@ -1440,7 +1443,8 @@ class _Context:
         """The newest full run already listed (`held_full_runs`) that passed
         after `run`, on a commit that has `run`'s head in its history and is
         on the branch, or None. Newest first, it stops at the first passed run
-        that descends, as the demotion alert's newer-green.bash does; it lists
+        that descends, as the demotion alert's newer-green.bash does, and
+        reads ancestry for at most SETTLE_COMPARE_CAP of them. It lists
         nothing, and each ancestry read is cached."""
         newer = sorted(
             (
@@ -1454,7 +1458,7 @@ class _Context:
             key=lambda r: r.created_at,
             reverse=True,
         )
-        for r in newer:
+        for r in newer[:SETTLE_COMPARE_CAP]:
             if self.contains(run.head_sha, r.head_sha) and self.on_branch(r):
                 return r
         return None

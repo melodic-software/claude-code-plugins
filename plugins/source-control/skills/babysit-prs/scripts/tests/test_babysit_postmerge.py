@@ -2676,6 +2676,46 @@ class ReplacedRuns(CheckCase):
             2,
         )
 
+    def test_a_red_run_past_the_compare_cap_is_not_settled(self) -> None:
+        # Six newer green runs on the branch, none a descendant of run 10,
+        # ahead of run 11, which is: the cap stops at five compares and run
+        # 10 still waits for its re-run.
+        shas = [f"{n:040x}" for n in range(1, 7)]
+        self.gh.on_main.update(shas)
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            *(
+                dispatch_run(30 + n, head_sha=sha, created_at=f"2026-10-12T10:{6 + n:02d}:00Z")
+                for n, sha in enumerate(shas)
+            ),
+        )
+        compared: list[str] = []
+        inside = [False]
+        superseded, contains = pm._Context.superseded, pm._Context.contains
+
+        def counting_superseded(ctx: Any, run: Any) -> Any:
+            inside[0] = True
+            try:
+                return superseded(ctx, run)
+            finally:
+                inside[0] = False
+
+        def counting_contains(ctx: Any, ancestor: str, sha: str) -> bool:
+            if inside[0] and ancestor == MERGE_SHA:
+                compared.append(sha)
+            return contains(ctx, ancestor, sha)
+
+        with (
+            mock.patch.object(pm._Context, "superseded", counting_superseded),
+            mock.patch.object(pm._Context, "contains", counting_contains),
+        ):
+            verdict = self.check()
+        self.assertEqual([r.run_id for r in verdict.reruns], [self.REPLACED])
+        self.assertIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
+        self.assertLessEqual(len(set(compared)), pm.SETTLE_COMPARE_CAP)
+        self.assertEqual(pm.SETTLE_COMPARE_CAP, 5)
+
     def test_a_replaced_run_is_no_baseline(self) -> None:
         # Before the merge: a red run, then a replaced one. The red run is the
         # baseline, so its failing check is no regression of the merge's run.
