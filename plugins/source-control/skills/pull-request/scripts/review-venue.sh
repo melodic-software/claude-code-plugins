@@ -13,6 +13,10 @@
 # design. A disabled workflow, any other failed run (a usage-limit stop
 # included), a timed-out one, or none in the window is not healthy.
 #
+# A run listing page is whole when its workflow_runs array holds every run its
+# total_count leaves for that page. A page still not whole after three reads
+# reads unreadable for each lane it leaves undecided, never absent or stale.
+#
 # With --head, a last `tests` line says whether CI's test lanes covered that
 # commit: the GitHub Actions check runs on it whose name is `test` or starts
 # `test-`, `test ` or `test(`, taking per name the newest run that did not
@@ -25,7 +29,7 @@
 #
 # Output, one line per lane, code-review first, then tests with --head:
 #   <lane> ci healthy: <detail>
-#   <lane> local absent|failing|stale: <detail>
+#   <lane> local absent|failing|stale|unreadable: <detail>
 #   tests ci healthy: <detail>
 #   tests local absent|failing|pending: <detail>
 #
@@ -93,6 +97,27 @@ WORKFLOW_ID=("" "") WORKFLOW_PATH=("" "")
 PAGES=3
 # Skipped-validation reds passed over per lane before it reads stale.
 MAX_PASSED=10
+READ_ATTEMPTS=3
+
+# read_runs <endpoint> <offset>: print one page of a run listing that starts
+# <offset> runs in. Returns 0 when the page is whole, 1 when no read of
+# READ_ATTEMPTS was, and 2 when gh failed or returned something unparsable.
+read_runs() {
+  local out whole attempt
+  for ((attempt = 1; attempt <= READ_ATTEMPTS; attempt++)); do
+    ((attempt == 1)) || sleep "$attempt"
+    out=$(gh api "$1") || return 2
+    whole=$(jq --argjson off "$2" 'if type != "object" then error("not an object") else
+      (.workflow_runs | type) == "array" and (.total_count | type) == "number"
+      and (.workflow_runs | length) == ([.total_count - $off, 100] | min | [., 0] | max) end' <<<"$out") || return 2
+    [[ -n "$whole" ]] || return 2
+    if [[ "$whole" == true ]]; then
+      printf '%s\n' "$out"
+      return 0
+    fi
+  done
+  return 1
+}
 
 # skipped_validation <run-id>: true when the run failed only because the pull
 # request edits the caller workflow. A run with no failed job keeps its verdict.
@@ -114,9 +139,17 @@ skipped_validation() {
 # Find each lane's caller workflow among the newest pull_request runs. Every PR
 # event starts each lane, a draft's run included (it concludes skipped), so a
 # repository with lanes shows them in the first pages.
+UNREAD=""
 for ((page = 1; page <= PAGES; page++)); do
-  runs=$(gh api "repos/$REPO/actions/runs?event=pull_request&per_page=100&page=$page") ||
-    die 2 "cannot list the workflow runs of $REPO"
+  runs=$(read_runs "repos/$REPO/actions/runs?event=pull_request&per_page=100&page=$page" $(((page - 1) * 100)))
+  case $? in
+  0) ;;
+  1)
+    UNREAD="page $page of the pull_request run listing came back incomplete in $READ_ATTEMPTS reads"
+    break
+    ;;
+  *) die 2 "cannot list the workflow runs of $REPO" ;;
+  esac
   for i in "${!LANES[@]}"; do
     [[ -n "${WORKFLOW_ID[i]}" ]] && continue
     hit=$(jq -r --arg re "${REUSABLE[i]}" --arg cli "$CLI" --argjson sec "${CLI_SECURITY[i]}" '
@@ -136,7 +169,10 @@ done
 
 for i in "${!LANES[@]}"; do
   lane="${LANES[i]}" id="${WORKFLOW_ID[i]}" path="${WORKFLOW_PATH[i]}"
-  if [[ -z "$id" ]]; then
+  if [[ -z "$id" && -n "$UNREAD" ]]; then
+    printf '%s local unreadable: %s\n' "$lane" "$UNREAD"
+    continue
+  elif [[ -z "$id" ]]; then
     printf '%s local absent: no recent pull_request run calls the %s lane\n' "$lane" "$lane"
     continue
   fi
@@ -148,8 +184,15 @@ for i in "${!LANES[@]}"; do
     printf '%s local absent: %s is %s\n' "$lane" "$path" "$state"
     continue
   fi
-  lane_runs=$(gh api "repos/$REPO/actions/workflows/$id/runs?event=pull_request&per_page=100") ||
-    die 2 "cannot list the runs of $path"
+  lane_runs=$(read_runs "repos/$REPO/actions/workflows/$id/runs?event=pull_request&per_page=100" 0)
+  case $? in
+  0) ;;
+  1)
+    printf '%s local unreadable: the pull_request runs of %s came back incomplete in %s reads\n' "$lane" "$path" "$READ_ATTEMPTS"
+    continue
+    ;;
+  *) die 2 "cannot list the runs of $path" ;;
+  esac
   verdicts=$(jq -r '.workflow_runs[]? | select(.status == "completed" and (.conclusion | IN("skipped", "cancelled") | not))
     | "\(.id)\t\(.conclusion)\t\(.created_at)"' <<<"$lane_runs") || die 2 "cannot parse the runs of $path"
   rid="" passed=0

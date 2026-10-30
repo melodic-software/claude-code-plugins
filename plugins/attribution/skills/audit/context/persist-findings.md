@@ -20,7 +20,7 @@ Resolve it in this order:
    goes**, read `review/skills/fanout/SKILL.md` "Shared inputs"; the detector-findings contract
    points there and `findings-file-shape.md` does not restate it. This rung works offline, which is the point of putting it first.
 2. **The publisher's raw URL**, when `review` is not installed:
-   <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md>.
+   <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md>.
 3. **Neither reachable → do not write.** Report that the destination and the guard could not be
    resolved from their owner, and say the run is report-only. Inventing a destination reports
    success while the consumer never scans that path.

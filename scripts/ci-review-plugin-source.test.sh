@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Structure test: each review caller runs melodic-software/ci-workflows'
-# pr-review-cli.yml pinned to a commit SHA and passes it no input naming a
+# pr-review-cli.yml at main and passes it no input naming a
 # plugin path. That reusable stages the review plugin from claude-code-plugins'
 # default-branch tip, never the pull request's head, so the review-evidence
 # binder (babysit_review_evidence.py) does not list plugins/review/ as lane
@@ -34,8 +34,8 @@ function problems(jobs) {
   if (calls.length !== 1) return [`${calls.length} jobs call pr-review-cli.yml, want 1`];
   const [id, job] = calls[0];
   const found = [];
-  if (!job.uses.startsWith(REUSABLE) || !/^[0-9a-f]{40}$/.test(job.uses.slice(REUSABLE.length))) {
-    found.push(`job ${id} uses '${job.uses}', not ${REUSABLE}<40-hex SHA>`);
+  if (job.uses !== `${REUSABLE}main`) {
+    found.push(`job ${id} uses '${job.uses}', not ${REUSABLE}main`);
   }
   for (const [key, value] of Object.entries(job.with ?? {})) {
     if (/plugin/i.test(key) || (!GLOB_INPUTS.has(key) && /plugins?\//i.test(String(value)))) {
@@ -49,26 +49,29 @@ for (const file of ["pr-review-hosted.yml", "pr-review-security-hosted.yml"]) {
   const wf = YAML.parse(readFileSync(`.github/workflows/${file}`, "utf8"));
   const found = problems(wf.jobs);
   say(found.length === 0,
-    `${file} calls pr-review-cli.yml at a commit SHA with no plugin path${found.length ? `: ${found.join("; ")}` : ""}`);
+    `${file} calls pr-review-cli.yml at main with no plugin path${found.length ? `: ${found.join("; ")}` : ""}`);
 }
 
 // The check itself rejects each shape it guards against.
 const sha = "0123456789abcdef0123456789abcdef01234567";
+const MAIN = `${REUSABLE}main`;
 const call = (uses, inputs) => ({ review: { uses, with: inputs } });
 for (const [name, jobs] of [
   ["a tag ref", call(`${REUSABLE}v0.65.12`, {})],
   ["a short SHA", call(`${REUSABLE}${sha.slice(0, 12)}`, {})],
-  ["another repository's copy", call(`someone/ci-workflows/.github/workflows/pr-review-cli.yml@${sha}`, {})],
-  ["a plugin-dirs input", call(`${REUSABLE}${sha}`, { "plugin-dirs": "plugins/review" })],
-  ["a plugin path in another input", call(`${REUSABLE}${sha}`, { extra: "./plugins/review" })],
+  ["a full SHA", call(`${REUSABLE}${sha}`, {})],
+  ["another branch", call(`${REUSABLE}feature`, {})],
+  ["another repository's copy", call("someone/ci-workflows/.github/workflows/pr-review-cli.yml@main", {})],
+  ["a plugin-dirs input", call(MAIN, { "plugin-dirs": "plugins/review" })],
+  ["a plugin path in another input", call(MAIN, { extra: "./plugins/review" })],
   ["no call to the reusable", { review: { "runs-on": "ubuntu-latest" } }],
-  ["two calls to the reusable", { ...call(`${REUSABLE}${sha}`, {}), again: { uses: `${REUSABLE}${sha}` } }],
+  ["two calls to the reusable", { ...call(MAIN, {}), again: { uses: MAIN } }],
 ]) {
   say(problems(jobs).length > 0, `the check rejects ${name}`);
 }
-say(problems(call(`${REUSABLE}${sha}`, { lane: "code", "hold-label": "needs-human" })).length === 0,
-  "the check accepts a SHA-pinned call with no plugin path");
-say(problems(call(`${REUSABLE}${sha}`, { "hold-paths": "plugins/*/hooks/**\nplugins/review/**" })).length === 0,
+say(problems(call(MAIN, { lane: "code", "hold-label": "needs-human" })).length === 0,
+  "the check accepts a call at main with no plugin path");
+say(problems(call(MAIN, { "hold-paths": "plugins/*/hooks/**\nplugins/review/**" })).length === 0,
   "the check accepts plugins/ globs in hold-paths, which only the prompt reads");
 EOF
 )

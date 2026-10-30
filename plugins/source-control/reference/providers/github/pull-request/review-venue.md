@@ -30,6 +30,19 @@ As of: 2026-10-17, read from live responses on `melodic-software/claude-code-plu
 `melodic-software/standards`. Recheck trigger: a run response stops carrying
 `referenced_workflows`, or the lanes move to a reusable workflow at another path.
 
+### A whole page
+
+Both run listings return a required `total_count` and a required `workflow_runs` array. The script
+takes a page only when it is whole: `workflow_runs` holds exactly as many runs as `total_count`
+leaves for that page, 100 or what remains past the earlier pages. A page that parses but is not
+whole (no `workflow_runs`, fewer runs, or more) is read up to three times, pausing 2 and then 3
+seconds. When it is still not whole, each lane it leaves undecided reads `local unreadable`: a
+partial page is never taken as the end of the listing, so it cannot read `absent` or `stale`. A
+failed `gh` call or unparsable JSON still exits 2. Pointer: both fields are read at
+[REST API: list workflow runs for a repository](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-repository).
+As of: 2026-10-30. Recheck trigger: that section drops `total_count` or makes either field
+optional.
+
 ## The lane's newest verdict
 
 ```bash

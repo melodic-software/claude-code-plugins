@@ -133,7 +133,7 @@ HTML file → published Artifact**. Selection layers, first hit wins:
    all. Name the winning layer when reporting the
    choice; on a malformed layer, say so and resolve as if that layer were
    absent. All layers absent simply falls through (per
-   `docs/conventions/rendered-views/README.md` in the marketplace repository).
+   `docs/contracts/rendered-views/README.md` in the marketplace repository).
 4. **Auto**. Decide by the form and its weight: terminal for small, static,
    text-representable output (tables, ASCII, short code, a `mermaid` source fence);
    a rich page for a composite, interactive, large, or truly graphical result

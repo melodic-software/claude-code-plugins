@@ -33,7 +33,7 @@
 # vacuous without it.
 #
 # Self-contained assertion helpers, per
-# docs/conventions/shell-test-helpers/README.md: per-plugin duplication of this
+# docs/contracts/shell-test-helpers/README.md: per-plugin duplication of this
 # shape is the accepted default, not an opt-in.
 
 set -uo pipefail

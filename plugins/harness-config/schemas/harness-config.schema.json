@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/harness-config/schemas/harness-config.schema.json",
   "title": "harness-config team config",
-  "description": "Schema for a repository's docs/conventions/harness-config.yaml, the team layer of the harness-config plugin's settings. The suppressions mapping is read by plugins/harness-config/skills/audit/scripts/audit-engine.sh and by /harness-config:audit-pass; only this layer enacts a suppression. Entry keys follow the finding-suppression convention: docs/conventions/finding-suppression/README.md.",
+  "description": "Schema for a repository's docs/conventions/harness-config.yaml, the team layer of the harness-config plugin's settings. The suppressions mapping is read by plugins/harness-config/skills/audit/scripts/audit-engine.sh and by /harness-config:audit-pass; only this layer enacts a suppression. Entry keys follow the finding-suppression convention: docs/contracts/finding-suppression/README.md.",
   "type": "object",
   "additionalProperties": false,
   "$defs": {

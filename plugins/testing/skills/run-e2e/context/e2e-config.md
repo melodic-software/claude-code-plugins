@@ -22,7 +22,7 @@ recording there is the control skill's `video` capture (SKILL.md, Drive route).
 
 This file owns the keys: their meaning, allowed values, defaults, and precedence. How the layers
 merge is owned by the layering contract; see the
-[config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md).
+[config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/config-cascade/README.md).
 The two compose: this doc declares the keys and points there for layer mechanics.
 
 ## Keys

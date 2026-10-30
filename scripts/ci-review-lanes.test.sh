@@ -79,10 +79,10 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   caller="$ROOT/.github/workflows/$file"
   if grep -qxF "  $job" "$caller" && grep -qxF '      publish: comments' "$caller" &&
     grep -qxF '      hold-label: needs-human' "$caller" &&
-    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@[0-9a-f]{40} # v[0-9]+\.[0-9]+\.[0-9]+$' "$caller"; then
+    grep -qE '^    uses: melodic-software/ci-workflows/\.github/workflows/pr-review-cli\.yml@main$' "$caller"; then
     ok "$file calls pr-review-cli as job ${job%:} with publish: comments and hold-label: needs-human"
   else
-    fail "$file lost its job id, publish: comments, hold-label or SHA pin with a version comment"
+    fail "$file lost its job id, publish: comments, hold-label or @main ref"
   fi
   # pr-review-cli's check-key-credit job requests actions: read; a caller that
   # does not grant it fails at startup.
@@ -104,12 +104,12 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   fi
 done
 
-# Both callers pin the same pr-review-cli commit.
-pins="$(sed -nE 's/^    uses: .*pr-review-cli\.yml@([0-9a-f]{40}) .*/\1/p' "$ROOT/.github/workflows/pr-review-hosted.yml" "$ROOT/.github/workflows/pr-review-security-hosted.yml" | sort -u)"
+# Both callers run pr-review-cli at the same ref.
+pins="$(sed -nE 's/^    uses: .*pr-review-cli\.yml@([^ ]+).*/\1/p' "$ROOT/.github/workflows/pr-review-hosted.yml" "$ROOT/.github/workflows/pr-review-security-hosted.yml" | sort -u)"
 if [[ -n "$pins" && "$pins" != *$'\n'* ]]; then
-  ok "both review callers pin one pr-review-cli commit"
+  ok "both review callers run pr-review-cli at one ref"
 else
-  fail "the review callers pin different or no pr-review-cli commits: ${pins//$'\n'/ }"
+  fail "the review callers run pr-review-cli at different or no refs: ${pins//$'\n'/ }"
 fi
 
 # The trust-gate paths in bash form, as sync-hold-floor.py writes them:

@@ -217,6 +217,6 @@ separate plugin, skill, catalog, or config-file family carries it.
    ([binding seam](binding-seam.md#layout-convention): "Each capability … lands exactly one
    contract document"; setup skill "capability slices").
 3. **Verification-topology model-capability labels**: rejected vocabulary.
-4. **Loop-lane capability tiers**: model selection (`docs/conventions/loop-lane/`).
+4. **Loop-lane capability tiers**: model selection (`docs/contracts/loop-lane/`).
 5. **Tracker adapter `capabilities.json`**: declared adapter verb support; a composed input
    here, not a synonym.

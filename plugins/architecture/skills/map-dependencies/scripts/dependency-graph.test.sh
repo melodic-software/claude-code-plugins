@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Self-contained tests for dependency-graph.sh and render-dependencies.sh
-# (skill-script shape, per docs/conventions/shell-test-helpers/README.md:
+# (skill-script shape, per docs/contracts/shell-test-helpers/README.md:
 # per-plugin assertion primitives are duplicated on purpose, never shared
 # across plugins).
 #

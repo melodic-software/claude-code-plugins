@@ -4,7 +4,7 @@ Phase D persists its report to
 `${CLAUDE_PLUGIN_DATA}/audit-instructions/<state-key>/last-audit.md`.
 
 The keying scheme, its retention shape, and the overwrite rules are the marketplace's
-`plugin-data-report-keying` convention (`docs/conventions/plugin-data-report-keying/README.md`).
+`plugin-data-report-keying` convention (`docs/contracts/plugin-data-report-keying/README.md`).
 This file records only what an `audit-instructions` run does with it.
 
 ## Deriving the key

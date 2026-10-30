@@ -43,7 +43,7 @@ This artifact declares `type: overengineering-findings` and **must never be made
 The reasoning is structural, not stylistic. The `review:fanout` fix relay locates its input purely
 by frontmatter, matching files that declare `type: review-findings` and whose `branch:` matches the
 current branch, and never by provenance; nothing authenticates the writer
-(`docs/conventions/detector-findings/README.md`). A findings file of that type is therefore
+(`docs/contracts/detector-findings/README.md`). A findings file of that type is therefore
 **auto-applicable by construction**. Realignment is consent-gated *per item*: routing it through the
 relay would launder exactly the human gate that makes this plugin safe to run. That is the same
 reasoning that convention states for a rule whose only remediation is a consent-gated write.
@@ -212,7 +212,7 @@ the sort key, so the five are appended rather than interleaved.
 ## Finding ids
 
 Ids are **content-hashed and stable across runs**, derived exactly as the finding-suppression
-convention derives a `finding_id` (`docs/conventions/finding-suppression/`), so an id in this
+convention derives a `finding_id` (`docs/contracts/finding-suppression/`), so an id in this
 artifact and an id in the consumer's suppression record are the same value by construction rather
 than by a mapping someone has to maintain.
 
@@ -640,7 +640,7 @@ unwalked layers only.
 
 The artifact is memory-tier and ephemeral; an operator's judgment must outlive it. So a judgment is
 **offered** persistence as a suppression entry in the consuming repository's **tracked**
-`.claude/overengineering.md`, per `docs/conventions/finding-suppression/`, written by realign behind
+`.claude/overengineering.md`, per `docs/contracts/finding-suppression/`, written by realign behind
 the **same per-item gate** that authorized the remediation.
 
 - **Offered, never taken.** A producer that wrote a suppression entry unprompted would record an
@@ -689,11 +689,11 @@ therefore belongs to that mechanic, and the artifact's own writes stay in `audit
 
 - `docs/plugin-artifact-protocol.md`: the lifecycle profile this artifact conforms to, covering
   memory-tier placement and the missing-prerequisite stop.
-- `docs/conventions/finding-suppression/`: the `finding_id` derivation, the required entry keys,
+- `docs/contracts/finding-suppression/`: the `finding_id` derivation, the required entry keys,
   the constituents-are-authoritative rule, and the policy-floor precedence inversion.
-- `docs/conventions/detector-findings/README.md`: the fix relay's type-only selection, which is why
+- `docs/contracts/detector-findings/README.md`: the fix relay's type-only selection, which is why
   this artifact's type is deliberately not `review-findings`.
-- `docs/conventions/config-cascade/README.md`: the layering axis the consumer's tracked concern
+- `docs/contracts/config-cascade/README.md`: the layering axis the consumer's tracked concern
   file resolves through.
 - `context/scrutiny-method.md`: the verdict ladder, evidence taxonomy, protected-class cap,
   thresholds, and rollback ladder whose output every field above records.

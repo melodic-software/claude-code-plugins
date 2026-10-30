@@ -236,7 +236,7 @@ elif len(rows) > CAP:
 
 [[ "$FINDINGS" -eq 1 ]] || exit 0
 
-# The findings file, under docs/conventions/detector-findings/README.md: rule
+# The findings file, under docs/contracts/detector-findings/README.md: rule
 # ids, tiers and auto-applicability are that file's crosswalk rows, looked up
 # here, never chosen per finding. Every value read from a source file (path,
 # tool, rule ids, reason) is data: it is escaped into a table cell and never

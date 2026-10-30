@@ -137,7 +137,7 @@ shape_case() { # shape_case <label> <refuse|replace> <warning text> <file conten
     fail "apply replaces $label with the given value"
   fi
 }
-shape_case 'a duplicate key' refuse 'duplicate key `lever_scope`' $'lever_scope: deterministic\nlever_scope: non-trivial\n'
+shape_case 'a duplicate key' refuse 'duplicate key "lever_scope"' $'lever_scope: deterministic\nlever_scope: non-trivial\n'
 shape_case 'a duplicate key that differs only by spaces' refuse 'set more than once' $'lever_scope: deterministic\n"lever_scope ": non-trivial\n'
 shape_case 'a key with spaces around its name' refuse 'spaces around its name' $'" lever_scope": deterministic\n'
 shape_case 'a block map' refuse 'map or a list' $'lever_scope:\n  mode: deterministic\n'
@@ -153,11 +153,11 @@ shape_case 'an empty single-quoted value' refuse 'empty string' $'lever_scope: \
 shape_case 'a null value' replace 'lever_scope=null is not one of' $'lever_scope: null\n'
 shape_case 'a ~ value' replace 'lever_scope=~ is not one of' $'lever_scope: ~\n'
 shape_case 'an out-of-list value' replace 'lever_scope=always is not one of' $'lever_scope: always\n'
-shape_case 'an anchor on the target line' refuse 'not part of the subset' $'lever_scope: &a deterministic\n'
-shape_case 'an unclosed quote on the target line' refuse 'unclosed quote' $'lever_scope: "deterministic\n'
-shape_case 'an unknown key set twice' refuse 'duplicate key `stray`' $'stray: a\nstray: b\n'
+shape_case 'an anchor on the target line' refuse 'anchors and aliases are outside the subset' $'lever_scope: &a deterministic\n'
+shape_case 'an unclosed quote on the target line' refuse 'unterminated quoted string' $'lever_scope: "deterministic\n'
+shape_case 'an unknown key set twice' refuse 'duplicate key "stray"' $'stray: a\nstray: b\n'
 shape_case 'an unknown key holding a map' refuse 'stray is not in the schema and holds a map or a list' $'stray:\n  a: 1\n'
-shape_case 'a parse error on another line' refuse 'unclosed quote' $'lever_scope: deterministic\nnote: "open\n'
+shape_case 'a parse error on another line' refuse 'line 2: unterminated quoted string' $'lever_scope: deterministic\nnote: "open\n'
 shape_case 'a $schema flow map' refuse 'flow mapping ({...}) is outside the subset; use block style' $'"$schema": {a: 1}\nlever_scope: deterministic\n'
 shape_case 'an empty $schema flow list' refuse '$schema holds a map or a list' $'"$schema": []\nlever_scope: deterministic\n'
 shape_case 'a one-item $schema flow list' refuse '$schema holds a map or a list' $'"$schema": [x]\nlever_scope: deterministic\n'

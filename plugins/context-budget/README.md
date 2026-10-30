@@ -139,7 +139,7 @@ and this plugin does not register it.
 
 **Decision (#3864): the claim is narrowed, and the hook is not widened.** Adding the shell lane
 would put an always-on `Bash|PowerShell` hook under the
-[hook-budget](../../docs/conventions/hook-budget/README.md) ceiling on every shell call in every
+[hook-budget](../../docs/contracts/hook-budget/README.md) ceiling on every shell call in every
 consumer. It would recognize a settings write only by guessing from the command string, and it
 would still miss the render-into-place route. So even after paying that cost, the checkpoint could
 not honestly claim every settings write. The `/context-budget:audit fix` path edits project

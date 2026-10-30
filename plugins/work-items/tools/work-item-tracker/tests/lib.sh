@@ -10,7 +10,7 @@
 #   [[ $FAILED -eq 0 ]] || exit 1
 #
 # Duplicated across plugins by design, not drift — see
-# docs/conventions/shell-test-helpers/README.md at the repo root.
+# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 [[ -n "${_WIT_TESTS_LIB_LOADED:-}" ]] && return 0
 readonly _WIT_TESTS_LIB_LOADED=1

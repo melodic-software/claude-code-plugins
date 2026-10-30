@@ -73,7 +73,7 @@ anything.
      route; this skill never writes `pluginConfigs`.
    - **Headless:** rerun the install with the new value, per the marketplace's
      plugin-reconfiguration convention
-     (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+     (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
      which owns the verified-version record): `claude plugin install ai-briefing@<marketplace>
      -s <scope> --config active_profile=<name>` (repeatable per key). Against an
      already-installed plugin it prints `already installed` **and still writes the value**. Do

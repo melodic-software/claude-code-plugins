@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { withRetry } from "../../scripts/pr-merge/enable-auto-merge.mjs";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../log-api-budget/rate-guard.mjs";
-import { commitPulls as readCommitPulls, createGitHub, GitHubError, isTrustedClose, loadTrustedActors, main } from "./check-trusted-trigger.mjs";
+import { appCloseKind, commitPulls as readCommitPulls, createGitHub, GitHubError, isTrustedClose, loadTrustedActors, main } from "./check-trusted-trigger.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -3066,4 +3066,26 @@ test("isTrustedClose: a read that fails leaves the lanes App's close untrusted",
   ]) {
     assert.equal(await isTrustedClose(routeClient(appCloseRoutes(), failOn), "o/r", APP_CLOSED, new Set(), isLanesApp), false, failOn);
   }
+});
+
+// appCloseKind says what kind of close the lanes App made, never that the
+// work is done: admission routes a report-delivered blocker's dependent to
+// re-triage from it, and only isTrustedClose counts a close as completion.
+test("appCloseKind: reads the lanes App's report-delivered close and its comment, and isTrustedClose still counts it for nothing", async () => {
+  const report = { ...closeComment("report-delivered", "the report"), html_url: "https://github.com/o/r/issues/77#issuecomment-1", created_at: "2026-10-28T00:00:00Z" };
+  const routes = appCloseRoutes({ comments: [report] });
+  assert.deepEqual(await appCloseKind(routeClient(routes), "o/r", 77, isLanesApp), {
+    stop: "report-delivered",
+    reason: "the report",
+    url: "https://github.com/o/r/issues/77#issuecomment-1",
+    at: "2026-10-28T00:00:00Z",
+  });
+  assert.equal(await isTrustedClose(routeClient(routes), "o/r", APP_CLOSED, new Set(), isLanesApp), false);
+});
+
+test("appCloseKind: an outsider's close comment or an unreadable comment list reads as no close kind", async () => {
+  const forged = appCloseRoutes({ comments: [closeComment("report-delivered", "the report", STRANGER)] });
+  assert.equal(await appCloseKind(routeClient(forged), "o/r", 77, isLanesApp), null);
+  const routes = appCloseRoutes();
+  assert.equal(await appCloseKind(routeClient(routes, "GET /repos/o/r/issues/77/comments?per_page=100&page=1"), "o/r", 77, isLanesApp), null);
 });

@@ -169,5 +169,5 @@ so the abort report lists which waves' edits are in the tree.
   routes a whole-repo opt-in here
 - `actions/identify.md`: the single-survey inventory this mode retains
 - `actions/batch.md`: wave grouping and dispatch policy (Step 6)
-- `docs/conventions/loop-lane/README.md` §6 (marketplace repository)
+- `docs/contracts/loop-lane/README.md` §6 (marketplace repository)
   owns the inline-floor rule the block above follows

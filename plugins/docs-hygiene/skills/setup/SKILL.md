@@ -70,7 +70,7 @@ plugin needs the binary.
 
 To change the `userConfig` value, reconfigure through Claude Code's native flow per the
 plugin-reconfiguration convention
-(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
 which owns the verified-version record): `/plugin configure docs-hygiene@<marketplace>`
 interactively, or headless `claude plugin install docs-hygiene@<marketplace> -s <scope> --config
 compress_articles=<value>`. Never uninstall to reconfigure. Rendered values are injected at skill
