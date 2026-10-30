@@ -2202,7 +2202,9 @@ head:
   App's capped-close record on the issue (`<!-- verify-capped-close pr=<n> ... -->` as its first
   line, written by the App and edited by no one else, so a forged one excuses nothing), counts no
   more once it is closed (a close that failed after the record leaves its FAILs
-  counted), so the fresh attempt it started starts its own count. Past that many the lane parks the
+  counted), so the fresh attempt it started starts its own count. Only the oldest
+  `merge.verify-cap-attempts` records per issue that started an attempt excuse their pull requests;
+  a parked or attempt-less record, or one past that many, excuses nothing. Past that many the lane parks the
   issue instead of starting another, so the re-rolls stay bounded. Closing a newly filed duplicate issue
   instead starts the count of other pull requests again; a pass then needs that issue written by a
   trusted human, as below;
@@ -2337,7 +2339,8 @@ pull requests) is parked instead: its record says so, and before the close it ge
 `status: confirmed` with `status: ready` and `agent-ready` taken off, so neither the readmit sweep
 nor triage starts it again.
 `label-unblocked.mjs` hands no issue to triage for a lane pull request its capped-close record
-names with an attempt, since the lane already restarted or parked it. An armed pull request is disarmed first.
+names with an attempt, since the lane already restarted or parked it. An armed pull request is disarmed first. One the close leaves open, or fails on, keeps
+the lane's refusal note and its `pr-merge/unarmed` status, with no person's label.
 `pr-feedback-dispatch.yml` and `pr-unblock-dispatch.yml` start no address-feedback or fix-ci round,
 and post nothing, on a pull request the gate's reader refuses `verify:repeated-fail`
 (`.github/scripts/pr-unblock/verify-cap.mjs`, reading `babysit_verify_evidence.py` with the

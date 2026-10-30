@@ -1851,6 +1851,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
           console.log(`enable-auto-merge: #${pull.number} would close for a fresh attempt (report-only): ${escapeCommand(reason)}`);
           continue;
         }
+        let closed = false;
         try {
           // An armed one is disarmed first, so a close that fails leaves it unarmed.
           if (pull.autoMergeRequest != null) {
@@ -1859,14 +1860,20 @@ export async function main({ env = process.env, github, actions, verify, room, c
           }
           close ??= pythonClose(env);
           const result = await close(pull, ["do-not-merge", humanGated]);
+          closed = result?.closed === true;
           console.log(
-            result?.closed
+            closed
               ? `enable-auto-merge: #${pull.number} closed for a fresh attempt (${escapeCommand(reason)}); restarted ${JSON.stringify(result.restarted ?? [])}, parked ${JSON.stringify(result.parked ?? [])}`
               : `enable-auto-merge: #${pull.number} left open: ${escapeCommand(result?.reason ?? "the close answered nothing")}`,
           );
         } catch (error) {
           failed += 1;
           console.log(`::error title=enable-auto-merge::#${pull.number} capped close: ${describe(error)}`);
+        }
+        // Left open, it sits unarmed: the lane's refusal note and its
+        // pr-merge/unarmed status, never a person's label.
+        if (!closed) {
+          await note(pull, detail, { clears: "lane", reason, cached, partial, answered });
         }
         continue;
       }

@@ -658,15 +658,26 @@ test("only a verifier refusal the gate marks needsHuman is a person's; the cap a
 
 // A close the reader left undone (a hold label, a head that moved) or that
 // failed writes no note and no label: the next run judges it again.
-test("a capped pull request the close leaves open or fails on gets no note and no label", async () => {
+// Left open, it keeps the lane's refusal note (and its pr-merge/unarmed
+// status), as before the close existed; never a person's label.
+test("a capped pull request the close leaves open or fails on gets the lane's note and no label", async () => {
   const capped = { refusal: "verify:repeated-fail", needsHuman: false, detail: null, head: HEAD, ineligible: null, reviews: null };
+  const laneOnly = (notes) => {
+    assert.equal(notes.length, 1, JSON.stringify(notes));
+    assert.equal(notes[0].method, "POST");
+    assert.equal(notes[0].path, `${ISSUES}/3/comments`);
+    assert.ok(!notes.some(({ path }) => path.includes("/labels")));
+  };
   const open = await run([pull(3, { verdict: capped })], {}, { closeAnswer: () => ({ closed: false, reason: "it carries do-not-merge" }) });
-  assert.deepEqual(open.notes, []);
+  laneOnly(open.notes);
   assert.equal(open.code, 0);
   assert.ok(open.lines.some((line) => line.includes("#3 left open: it carries do-not-merge")));
   const failing = await run([pull(3, { verdict: capped })], {}, { closeAnswer: () => { throw new Error("close: HTTP 500"); } });
-  assert.deepEqual(failing.notes, []);
+  laneOnly(failing.notes);
   assert.notEqual(failing.code, 0);
+  // A close that went through notes nothing.
+  const closed = await run([pull(3, { verdict: capped })], {}, { closeAnswer: () => ({ closed: true, restarted: [7], parked: [] }) });
+  assert.deepEqual(closed.notes, []);
 });
 
 // Report-only closes nothing.

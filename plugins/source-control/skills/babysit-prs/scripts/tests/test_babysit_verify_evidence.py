@@ -1384,28 +1384,63 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
 
     @staticmethod
     def capped_record(
-        number: int, author: dict[str, Any], **extra: Any
+        number: int,
+        author: dict[str, Any],
+        tail: str = " attempt=1 of=1",
+        **extra: Any,
     ) -> dict[str, Any]:
         """A capped-close record on issue 7 naming pull request `number`."""
         return {
             "databaseId": 900 + number,
             "updatedAt": "2026-10-20T00:00:00Z",
             "lastEditedAt": None,
-            "body": f"<!-- verify-capped-close pr={number} heads={SIBLING_HEADS[0]} attempt=1 of=1 -->\nclosed",
+            "body": f"<!-- verify-capped-close pr={number} heads={SIBLING_HEADS[0]}{tail} -->\nclosed",
             "author": author,
             "editor": None,
             **extra,
         }
 
-    def read_as_lane(self, fake: FakeGitHub) -> ve.Evidence:
+    def read_as_lane(self, fake: FakeGitHub, attempts: int = 1) -> ve.Evidence:
         with (
             mock.patch.object(postmerge, "gh_capture", side_effect=fake),
             mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
             mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
         ):
             return ve.Reader(
-                REPO, "main", now=NOW, agent_identity="melodic-automation-lanes[bot]"
+                REPO,
+                "main",
+                now=NOW,
+                agent_identity="melodic-automation-lanes[bot]",
+                cap_attempts=attempts,
             ).evidence(PR, HEAD, pull())
+
+    def test_records_past_the_attempts_excuse_nothing(self) -> None:
+        # merge.verify-cap-attempts bounds the re-rolls here too, not only
+        # when a record is written: the oldest that many attempt records
+        # excuse their pull requests, and a further one's FAILs count.
+        fake = self.sibling_fails(*SIBLING_HEADS)
+        fake.closers[7] = [(SIBLING + 1, REPO), (SIBLING, REPO), (PR, REPO)]
+        fake.closing_comments[7] = [
+            self.capped_record(SIBLING + 1, LANES_APP_ACTOR),
+            self.capped_record(SIBLING, LANES_APP_ACTOR),
+        ]
+        self.assertEqual(self.read_as_lane(fake).refusal, "verify:repeated-fail")
+        self.assertIsNone(self.read_as_lane(fake, attempts=2).refusal)
+        self.assertEqual(
+            self.read_as_lane(fake, attempts=0).refusal, "verify:repeated-fail"
+        )
+
+    def test_a_parked_or_attemptless_record_excuses_nothing(self) -> None:
+        # Neither started a fresh attempt.
+        for tail in (" attempt=1 of=1 parked", ""):
+            with self.subTest(tail):
+                fake = self.sibling_fails(*SIBLING_HEADS)
+                fake.closing_comments[7] = [
+                    self.capped_record(SIBLING, LANES_APP_ACTOR, tail)
+                ]
+                self.assertEqual(
+                    self.read_as_lane(fake).refusal, "verify:repeated-fail"
+                )
 
     def test_a_pull_request_the_lane_closed_at_the_cap_counts_no_more(self) -> None:
         # Owner decision 2026-10-29: each fresh attempt starts its own count;

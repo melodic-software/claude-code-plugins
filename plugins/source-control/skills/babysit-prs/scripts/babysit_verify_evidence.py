@@ -725,16 +725,23 @@ def _bot_login(identity: str | None) -> str:
     return (identity or "").strip().lower().removesuffix("[bot]")
 
 
-def capped_closed(live: dict[Any, Any], identity: str | None) -> set[int]:
+def capped_closed(
+    live: dict[Any, Any], identity: str | None, attempts: int
+) -> set[int]:
     """The pull requests a capped-close record on one of the `live` issues
     names (`CAPPED_CLOSE_RE`, first line), counting only a comment the lanes
     App (`identity`) wrote and nobody else edited: anyone can write the
-    marker, and one that excused FAILs would buy re-rolls. No identity, none."""
+    marker, and one that excused FAILs would buy re-rolls. Per issue only the
+    oldest `attempts` (`merge.verify-cap-attempts`) records that started a
+    fresh attempt count (one naming an attempt, not parked), so a further
+    one, or one written before the setting was lowered, excuses nothing. No
+    identity, none."""
     bot = _bot_login(identity)
     if not bot:
         return set()
     named: set[int] = set()
     for issue in live.values():
+        started: list[int] = []
         for node in map(
             json_object,
             json_object(json_object(issue).get("comments")).get("nodes") or [],
@@ -755,8 +762,13 @@ def capped_closed(live: dict[Any, Any], identity: str | None) -> set[int]:
                     )
                 )
                 and (match := CAPPED_CLOSE_RE.fullmatch(first))
+                and match[3] is not None
+                and not match[5]
+                and int(match[1]) not in started
             ):
-                named.add(int(match[1]))
+                # The comments are read oldest first.
+                started.append(int(match[1]))
+        named.update(started[: max(attempts, 0)])
     return named
 
 
@@ -958,6 +970,9 @@ class Reader:
     # the author a size split's sub-issue needs (`_split_child`); unset, no
     # sub-issue counts.
     agent_identity: str | None = None
+    # `merge.verify-cap-attempts`: the capped-close records per issue whose
+    # pull requests the cross-pull-request cap excuses (`capped_closed`).
+    cap_attempts: int = merge_policy.VERIFY_CAP_ATTEMPTS
     # The oldest listing a judgment uses; None (`evidence --shared-listing`)
     # takes the run's saved listing at any age.
     listing_max_age: timedelta | None = LISTING_MAX_AGE
@@ -2219,7 +2234,9 @@ class Reader:
         `merge.verify-cap-attempts` bounds how many there are. A FAIL among those whose run cannot be
         read raises `_Unreadable` (`SIBLING_UNREADABLE`)."""
         live = self._closing_issues(number)
-        named = capped_closed(live, self.agent_identity) - {number}
+        named = capped_closed(live, self.agent_identity, self.cap_attempts) - {
+            number
+        }
         listed = self._closers(live)
         capped = named & self._closers(live, closed=True)
         # A `Refs:` pull request is in no closing list: its own state decides.
@@ -3755,6 +3772,7 @@ def _capped_close_main(args: argparse.Namespace, now: datetime | None) -> int:
             now=now,
             max_fails=config.max_verify_fails,
             agent_identity=config.agent_identity,
+            cap_attempts=config.verify_cap_attempts,
         )
         reader.listing_max_age = None
         holds = tuple(h for h in args.hold_label if h)
@@ -3956,6 +3974,7 @@ def _evidence_report(args: argparse.Namespace, reader: Reader) -> dict[str, Any]
             return refusal.report() | link
         reader.max_fails = config.max_verify_fails
         reader.agent_identity = config.agent_identity
+        reader.cap_attempts = config.verify_cap_attempts
     pr = None
     if args.lane_reviews:
         try:
