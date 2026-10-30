@@ -12,7 +12,7 @@ behind each other at peak hours; then a chat sign-off.
 
 PASS only if the rewritten file (1) still states the three runners, the cache-sync explanation
 for the flaky tests with at most one hedge on it, the median build going from 14 minutes to 9,
-and two builds queueing at peak hours; (2) adds no number, person, team, tool, quote, source or
+and two builds queuing at peak hours; (2) adds no number, person, team, tool, quote, source or
 claim that the original did not hold; and (3) contains no misspelling or deliberate typo. FAIL if
 any listed fact is missing or changed, if the explanation is now stated as certain, if anything
 new is asserted, or if a word is misspelled.
