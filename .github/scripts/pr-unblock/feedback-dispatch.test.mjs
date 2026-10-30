@@ -248,6 +248,79 @@ test("a PR the reader does not find at the cap dispatches as before", async () =
   assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
 });
 
+// undici's error for a request sent on a socket the peer had reset, as a
+// local reproduction of runs 41078771801 and 41085939386 threw it:
+// TypeError "fetch failed", cause "read ECONNRESET".
+const connectionLost = (code = "ECONNRESET") => Object.assign(new TypeError("fetch failed"), { cause: Object.assign(new Error(`read ${code}`), { code }) });
+const failingOnce = (api, error) => {
+  const send = api.dispatchWorkflow;
+  let failed = false;
+  api.dispatchWorkflow = async (request) => {
+    if (!failed) {
+      failed = true;
+      api.calls.dispatch.push(request);
+      throw error;
+    }
+    return send(request);
+  };
+  return api;
+};
+
+for (const code of ["ECONNRESET", "UND_ERR_SOCKET"]) {
+  test(`a dispatch whose connection broke (${code}) before any answer is sent once more`, async () => {
+    const api = failingOnce(fakeApi(), connectionLost(code));
+    api.listRecentRuns = async () => [];
+    const { result, lines } = await decide(api);
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+    assert.equal(api.calls.dispatch.length, 2);
+    assert.deepEqual(api.calls.dispatch[0], api.calls.dispatch[1]);
+    assert.match(lines.join("\n"), new RegExp(`^::warning::#42: .*no answer \\(TypeError ${code}\\); sending it once more$`, "m"));
+  });
+}
+
+test("a dispatch whose connection broke is not sent again when the run it started is listed", async () => {
+  const api = failingOnce(fakeApi({ run: { run_started_at: "2026-10-30T15:30:00Z" } }), connectionLost());
+  const since = [];
+  api.listRecentRuns = async (workflow, from) => {
+    since.push([workflow, from]);
+    return [{ id: 38779200077, status: "queued", display_title: TITLE_42, created_at: "2026-10-30T15:35:03Z" }];
+  };
+  const { result } = await decide(api, resolvedLane(), { now: Date.parse("2026-10-30T15:32:38Z") });
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200077" });
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.deepEqual(since, [["pr-unblock.yml", "2026-10-30T15:31:38Z"]]);
+});
+
+test("a dispatch is sent at most twice, and an HTTP error answer never again", async () => {
+  const twice = fakeApi();
+  twice.listRecentRuns = async () => [];
+  twice.dispatchWorkflow = async (request) => {
+    twice.calls.dispatch.push(request);
+    throw connectionLost();
+  };
+  await assert.rejects(decide(twice), /fetch failed/);
+  assert.equal(twice.calls.dispatch.length, 2);
+
+  for (const status of [422, 500]) {
+    const sent = [];
+    const github = createGitHubApi({
+      token: "t",
+      repository: REPOSITORY,
+      apiUrl: "https://api.example.test",
+      graphqlUrl: "https://api.example.test/graphql",
+      fetch: async (url, init) => {
+        sent.push([init.method, url]);
+        return new Response("{}", { status, headers: { "content-type": "application/json" } });
+      },
+    });
+    const api = fakeApi();
+    api.listRecentRuns = async () => assert.fail("an HTTP answer reads no runs");
+    api.dispatchWorkflow = github.dispatchWorkflow;
+    await assert.rejects(decide(api), new RegExp(`returned ${status}`));
+    assert.deepEqual(sent, [["POST", `https://api.example.test/repos/${REPOSITORY}/actions/workflows/pr-unblock.yml/dispatches`]]);
+  }
+});
+
 test("a reviewed lanes App PR with a reviewer-bot thread dispatches address-feedback on main", async () => {
   const api = fakeApi();
   const { result } = await decide(api);
