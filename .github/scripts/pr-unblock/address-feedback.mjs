@@ -577,9 +577,10 @@ export function humanGatedLabelFrom(path) {
 // `reviewerIds`, pr-pipeline.yaml review-threads.reviewer-ids, matched on the
 // account id GitHub records; its comments count as the reviewer bot's
 // throughout), a lane comment (isLaneComment, which counts as the reviewer
-// bot's throughout), or a verifier note
-// (github-actions[bot]'s, its first line VERIFY_NOTE_MARKER), and one of these
-// holds:
+// bot's throughout), a verifier note
+// (github-actions[bot]'s, its first line VERIFY_NOTE_MARKER), or a trusted
+// person's (a thread they opened, worked only under the fix-request or
+// escalation rule below), and one of these holds:
 // - every comment is the reviewer bot's, but a verifier note's own;
 // - the lanes App never commented, every later comment is the reviewer bot's
 //   or a trusted person's, and one is a fix request (isFixRequest) by one of
@@ -601,15 +602,15 @@ export function humanGatedLabelFrom(path) {
 export function threadAuthors(comments, { reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
   const verifier = comments.length > 0 && comments[0].authorId === MARKER_AUTHOR_ID && firstLine(comments[0].body) === VERIFY_NOTE_MARKER;
   const reviewer = (comment) => comment.authorId === reviewerId || reviewerIds.includes(comment.authorId) || isLaneComment(comment);
-  if (comments.length === 0 || (!reviewer(comments[0]) && !verifier)) {
+  const isHuman = (comment) =>
+    trustedHumans.has(comment.authorId) && (comment.lastEditedAt == null || trustedHumans.has(comment.editorId));
+  if (comments.length === 0 || (!reviewer(comments[0]) && !verifier && !isHuman(comments[0]))) {
     return null;
   }
   const finder = (comment, i) => (i === 0 && verifier ? { author: "verifier" } : reviewer(comment) ? { author: "reviewer" } : null);
   if (comments.every((comment, i) => finder(comment, i) !== null)) {
     return requesters ? null : comments.map(finder);
   }
-  const isHuman = (comment) =>
-    trustedHumans.has(comment.authorId) && (comment.lastEditedAt == null || trustedHumans.has(comment.editorId));
   const asks = (ids, comment) => ids.has(comment.authorId) && isFixRequest(comment.body);
   const last = comments.findLastIndex((comment) => comment.authorId === appId);
   if (last === -1) {
@@ -660,8 +661,9 @@ export function threadAuthors(comments, { reviewerId, reviewerIds = [], appId, t
 }
 
 // Whether a thread threadAuthors accepted (`authors`) sits on a review its
-// finder submitted on a marker-confirmed head: the reviewer bot's, a listed review bot's, or
-// github-actions[bot]'s for a verifier note or a lane comment. A trusted
+// finder submitted on a marker-confirmed head: the reviewer bot's, a listed review bot's,
+// github-actions[bot]'s for a verifier note or a lane comment, or the trusted
+// person's who opened it (always directed, so any head). A trusted
 // person's direction (a fix request, or a reply to the lane's escalation)
 // asks for the thread, so its review may be on an earlier head. `review` is
 // { user: { id }, commit_id }. keepThreads and the dispatcher
@@ -675,8 +677,9 @@ export function onReviewedHead({ authors, firstAuthorId, review, heads }) {
 }
 
 // A thread is kept when it is unresolved, its first comment belongs to a
-// review its own author (the reviewer bot, a listed review bot, or
-// github-actions[bot] for a lane comment or a verifier note) submitted on a
+// review its own author (the reviewer bot, a listed review bot,
+// github-actions[bot] for a lane comment or a verifier note, or the trusted
+// person who opened it) submitted on a
 // marker-confirmed head (any head for a thread carrying
 // a trusted person's direction), and threadAuthors accepts its comments.
 // A thread with more comments than one page reads is left alone. A listed

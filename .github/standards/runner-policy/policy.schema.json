@@ -18,7 +18,7 @@
     "localCredentialActions"
   ],
   "properties": {
-    "schemaVersion": { "const": 4 },
+    "schemaVersion": { "const": 5 },
     "approvedReusableWorkflowContracts": {
       "type": "object",
       "propertyNames": { "$ref": "#/$defs/reusableWorkflowReference" },
@@ -67,7 +67,7 @@
     },
     "reusableWorkflowReference": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/\\.github/workflows/[A-Za-z0-9_.-]+\\.ya?ml@[0-9a-fA-F]{40}$"
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/\\.github/workflows/[A-Za-z0-9_.-]+\\.ya?ml$"
     },
     "inputName": {
       "type": "string",
@@ -137,6 +137,7 @@
         "allowedSecrets": { "$ref": "#/$defs/stringMap" },
         "allowedCallerPermissions": { "$ref": "#/$defs/githubPermissionMap" },
         "minimumCallerPermissions": { "$ref": "#/$defs/githubMinimumPermissionMap" },
+        "approvedShas": { "$ref": "#/$defs/approvedShas" },
         "autoApproved": { "$ref": "#/$defs/autoApprovalProvenance" }
       }
     },
@@ -149,8 +150,15 @@
         "allowedInputs": { "$ref": "#/$defs/uniqueStringArray" },
         "allowedSecrets": { "$ref": "#/$defs/stringMap" },
         "fixedRunsOn": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
+        "approvedShas": { "$ref": "#/$defs/approvedShas" },
         "autoApproved": { "$ref": "#/$defs/autoApprovalProvenance" }
       }
+    },
+    "approvedShas": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
     },
     "autoApprovalProvenance": {
       "type": "object",

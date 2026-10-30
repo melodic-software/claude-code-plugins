@@ -492,9 +492,46 @@ test("trustedHumansFrom reads only the people on the list", (t) => {
   assert.deepEqual([...trustedHumansFrom(actors)], [HUMAN]);
 });
 
-test("a thread a human opened is never kept", async () => {
+test("a thread a human opened with no fix request is never kept", async () => {
   const result = await run(fakeApi({ reviewComments: [comment(100, HUMAN)] }));
   assert.equal(result.decision, "escalate");
+});
+
+// A maintainer asks the lane to fix a failing check on a PR no review bot
+// commented on: the thread is their own, opened on their own review.
+const opened = (rows, overrides = {}) => ({
+  reviewComments: rows.map(([id, user, body], i) => comment(id, user, { body, created_at: at(i) })),
+  reviews: [{ id: 10, user: { id: rows[0][1] }, commit_id: OLD_HEAD }],
+  threads: [thread("PRRT_1", rows.map(([id]) => id))],
+  ...overrides,
+});
+
+test("a thread a write-access trusted person opened with a fix request is kept as direction, on any head", async () => {
+  const api = fakeApi(opened([[100, HUMAN, REQUEST]]));
+  const result = await run(api);
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.threads[0].comments, [{ id: 100, author: "trusted-human", direction: true, body: REQUEST }]);
+  assert.deepEqual(api.permissionReads, ["kyle-sexton"]);
+  const later = await run(fakeApi(opened([[100, HUMAN, DECISION], [101, HUMAN, REQUEST]])));
+  assert.deepEqual(
+    later.file.threads[0].comments.map((row) => [row.id, row.author, row.direction ?? false]),
+    [[100, "trusted-human", false], [101, "trusted-human", true]],
+    "a later fix request by the opener",
+  );
+  const gated = await run(fakeApi({ ...opened([[100, HUMAN, REQUEST]]), labels: ["needs-human"] }));
+  assert.deepEqual([gated.decision, gated.humanGate], ["proceed", "fix-request"], "on a needs-human PR");
+});
+
+test("a thread opened with a fix request by an untrusted, read-only or outside-edited author is never kept", async () => {
+  const stranger = await run(fakeApi(opened([[100, STRANGER, REQUEST]])));
+  assert.deepEqual([stranger.decision, stranger.escalationReason], ["escalate", "feedback-untaken-threads"], "an account on no trusted list");
+  const reader = await run(fakeApi({ ...opened([[100, HUMAN, REQUEST]]), permissions: { "kyle-sexton": "read" } }));
+  assert.equal(reader.decision, "escalate", "a trusted person without write access");
+  const joined = await run(fakeApi(opened([[100, HUMAN, REQUEST], [101, STRANGER, "me too"]])));
+  assert.equal(joined.decision, "escalate", "a stranger's reply on the thread");
+  const edited = opened([[100, HUMAN, REQUEST]]);
+  edited.threads[0].comments.nodes[0] = { databaseId: 100, lastEditedAt: at(5), editor: { databaseId: STRANGER } };
+  assert.equal((await run(fakeApi(edited))).decision, "escalate", "a request a stranger last edited");
 });
 
 test("resolved threads are dropped", async () => {

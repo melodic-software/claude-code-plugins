@@ -62,12 +62,14 @@ if [[ -n "$alert_job" ]] && grep -q '^permissions: {}$' "$WORKFLOW" &&
 else
   fail "the alert job's permissions are not exactly issues: write, actions: write, checks: read, contents: read, pull-requests: read"
 fi
-uses="$(grep -E '^[[:space:]]*-?[[:space:]]*uses:' <<<"$alert_job" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//; s/@.*//')"
+# Beside the checkout, only the job-end log-api-budget action, run from that
+# checkout of main's tip.
+uses="$(grep -E '^[[:space:]]*-?[[:space:]]*uses:' <<<"$alert_job" | sed -E 's/^[[:space:]]*-?[[:space:]]*uses:[[:space:]]*//; s/@.*//; s/[[:space:]]+#.*//')"
 checkout="$(awk '/- name: Check out the default branch tip/ { on = 1 } on && /^      - name: Read/ { exit } on' <<<"$alert_job")"
-if [[ "$uses" == actions/checkout && "$checkout" == *"ref: refs/heads/main"* && "$checkout" == *"persist-credentials: false"* ]]; then
-  ok "the alert job's one action checks out main's tip without credentials"
+if [[ "$uses" == $'actions/checkout\n./.base/.github/actions/log-api-budget' && "$checkout" == *"ref: refs/heads/main"* && "$checkout" == *"persist-credentials: false"* ]]; then
+  ok "the alert job checks out main's tip without credentials and runs no other action but that checkout's log-api-budget"
 else
-  fail "the alert job runs an action other than one credential-less checkout of main: '$uses'"
+  fail "the alert job runs an action other than one credential-less checkout of main and its log-api-budget: '$uses'"
 fi
 if grep -qF "\${{" "$TMP_ROOT/body.sh"; then
   fail "the step body interpolates an expression; pass it through env"
