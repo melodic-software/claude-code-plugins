@@ -380,7 +380,7 @@ activities:
       # No `work-class:` label admits or refuses it. A person decides an
       # issue carrying one of these labels, or, for attended, takes its step
       # present, so it starts nothing.
-      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info", attended]
+      labels-absent: [needs-human, needs-owner-decision, "status: needs-decision", "status: needs-info", attended, "security: outside-actor"]
       # Read now, so removing agent-ready while a run waits stops it.
       labels: [agent-ready]
   apply-issue-patch:
@@ -407,6 +407,7 @@ activities:
         - "status: needs-decision"
         - "status: needs-info"
         - attended
+        - "security: outside-actor"
       labels:
         - agent-ready
   report-outcome:
