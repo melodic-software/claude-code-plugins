@@ -294,6 +294,19 @@
         "Reports it as PR lookup incomplete rather than as stale, merged or healthy",
         "Does not remove or clean up that worktree"
       ]
+    },
+    {
+      "id": 24,
+      "name": "cleanup-outside-a-repository-acts-per-owning-repository",
+      "prompt": "/worktree cleanup, run from my home directory, which is not a git repository. Two repositories, alpha and beta, share one worktree root. Each has one worktree whose PR merged with nothing unpushed, and one worktree holding two unpushed commits that are not on the base. I answer yes.",
+      "expected_output": "Cleanup runs worktree-discover.sh, then Step 1 and Step 2 once per owning repository, and shows one table with an alpha heading and a beta heading followed by one confirm covering both. On yes it runs every Step 4a guard and removes the two merged worktrees, each with git -C on its own repository (alpha's through alpha, beta's through beta). It stops on both stranded worktrees exactly as a single-repository run does: each is reported in its repository's group as stranded, never proposed, with git -C <path> push -u origin HEAD offered, and neither is removed. No command changes the caller's working directory: any step that needs one runs in a subshell. Step 5's prune runs once per repository.",
+      "files": [],
+      "expectations": [
+        "Shows the candidates of both repositories in one grouped table with a single confirm, not one confirm per repository and not a message to rerun cleanup from each repository",
+        "Removes only the two merged worktrees, each through git -C on its owning repository",
+        "Reports both stranded worktrees as stranded, does not propose them, and removes neither",
+        "Never runs a bare cd that persists; the caller's working directory is unchanged at the end"
+      ]
     }
   ]
 }
