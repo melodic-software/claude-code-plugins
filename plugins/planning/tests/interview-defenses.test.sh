@@ -662,11 +662,12 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
 # verbatim, with `--changed` after the first confirmation (#6136); the recap stays sourced
 # from the register on disk, and the gate, the procedure check and its halt are unchanged.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
+# Step 3 gains the active closing request (confirm or name Q<N>, never yes/no) and the no-Bash restatement-with-gap rule (#11188); the confirmation gate still requires explicit confirmation and a non-zero procedure check still halts
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "1d7690bb3c9d2c928dc547f97e1aa32fb6acc8f6b1535f27e28ac0ace4d2aa7c"
+  "db3a9ec42b6b48739965251b879a32c285d38b2d3972104c6503dd3acbc34bff"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
