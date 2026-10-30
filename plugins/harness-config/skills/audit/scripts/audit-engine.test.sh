@@ -25,6 +25,9 @@ unset CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT
 # Most cases read stdout and stderr together, so the progress lines stay off
 # except in the case that checks them.
 export SETTINGS_AUDIT_ENGINE_PROGRESS=0
+# Suppression ages are judged against a fixed day, so a fixture date never
+# crosses exceptions.max_days as the calendar moves.
+export SETTINGS_AUDIT_ENGINE_TODAY=2026-10-30
 mkdir -p "$TEST_TMPDIR/home/.claude"
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_CONFIG_DIR="$TEST_TMPDIR/home/.claude"
@@ -583,6 +586,46 @@ out=$(run "$m" --json 2>&1) || rc=$?
 assert_eq "case 5b: the finding stands, the old file is not read instead" "1" "$(jq '[.findings[] | select(.identity.claim=="missing-pattern:Bash(git push *)")] | length' <<<"$out")"
 assert_contains "case 5b: the parse failure names the file" "$(jq -r '.suppressions.malformed | join("\n")' <<<"$out")" "team:docs/conventions/harness-config.yaml does not parse (line "
 assert_contains "case 5b: the team layer is reported dropped" "$(jq -r '.suppressions.layers[] | select(.source=="docs/conventions/harness-config.yaml") | .state' <<<"$out")" "dropped: does not parse"
+
+# --- Case 5c: a suppression older than exceptions.max_days is a finding --------
+allow_anchor="$(bash "$SCRIPT" anchor --excerpt "/permissions/allow")"
+allow_id="$(bash "$SCRIPT" finding-id --check "harness-config/audit/B/allow-completeness" --claim "missing-allow:git commit" --site ".claude/settings.json" "$allow_anchor")"
+# write_aged_yaml <exceptions block or empty> <include the old entry: 1|0>
+write_aged_yaml() {
+  {
+    printf '%s' "$1"
+    printf 'suppressions:\n'
+    if [[ "$2" == 1 ]]; then
+      printf '  %s:\n    check: harness-config/audit/B/baseline-ask-rules\n    claim: "missing-pattern:Bash(git push *)"\n    sites:\n      - surface: .claude/settings.json\n        "anchor/v1": "%s"\n    reason: "Planted past the limit."\n    date: "2026-07-01"\n' "$good_id" "$anchor"
+    fi
+    printf '  %s:\n    check: harness-config/audit/B/allow-completeness\n    claim: "missing-allow:git commit"\n    sites:\n      - surface: .claude/settings.json\n        "anchor/v1": "%s"\n    reason: "Planted inside the limit."\n    date: "2026-10-01"\n' "$allow_id" "$allow_anchor"
+  } >"$m/project/docs/conventions/harness-config.yaml"
+}
+aged() { jq -c --arg c "suppression-age:$1" '[.findings[] | select(.identity.claim==$c and .identity.sites[0].surface=="docs/conventions/harness-config.yaml")]' <<<"$out"; }
+write_aged_yaml "" 1
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_exit "case 5c: an aged suppression is a warning, not an error" 0 "$rc"
+assert_eq "case 5c: the entry past 90 days is a finding" "warning" "$(aged "$good_id" | jq -r '.[0].severity')"
+assert_contains "case 5c: the finding names the reason" "$(aged "$good_id" | jq -r '.[0].detail')" "reason: Planted past the limit."
+assert_contains "case 5c: the finding names the age" "$(aged "$good_id" | jq -r '.[0].detail')" "is 121 days old (dated 2026-07-01), past exceptions.max_days 90"
+assert_eq "case 5c: the entry inside 90 days is no finding" "0" "$(aged "$allow_id" | jq 'length')"
+assert_eq "case 5c: the entry inside 90 days is an ok row" "ok" "$(jq -r --arg c "suppression-age:$allow_id" '.rows[] | select(.claim==$c and .surface=="docs/conventions/harness-config.yaml") | .status' <<<"$out")"
+assert_eq "case 5c: the aged entry still suppresses" "suppressed" "$(jq -r '.rows[] | select(.claim=="missing-pattern:Bash(git push *)") | .status' <<<"$out")"
+write_aged_yaml $'exceptions:\n  max_days: 20\n' 1
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 5c: the team's max_days is read" "1" "$(aged "$allow_id" | jq 'length')"
+assert_contains "case 5c: the finding names the team's limit" "$(aged "$allow_id" | jq -r '.[0].detail')" "past exceptions.max_days 20"
+write_aged_yaml $'exceptions:\n  max_days: 0\n' 1
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 5c: a max_days below 1 is reported" "1" "$(jq '[.findings[] | select(.identity.claim=="max-days-invalid")] | length' <<<"$out")"
+assert_eq "case 5c: with a bad max_days the default applies" "0" "$(aged "$allow_id" | jq 'length')"
+write_aged_yaml "" 0
+rc=0
+out=$(run "$m" --json 2>&1) || rc=$?
+assert_eq "case 5c: with the planted entry removed no suppression-age finding remains" "0" "$(jq '[.findings[] | select(.identity.claim | startswith("suppression-age:"))] | length' <<<"$out")"
 
 # --- Case 6: structure rows (schema, misplaced keys, local deny) ---------------
 m="$(make_machine structure)"
@@ -1898,7 +1941,7 @@ quiet_out="$(run "$small" --json --docs-dir "$DOCS" 2>/dev/null)"
 loud_out="$(SETTINGS_AUDIT_ENGINE_PROGRESS=1 run "$small" --json --docs-dir "$DOCS" 2>"$TEST_TMPDIR/progress.err")"
 assert_eq "case 55: progress leaves stdout unchanged" "$quiet_out" "$loud_out"
 missing=""
-for c in A B C D E F G H I J; do
+for c in A B C D E F G H I J K; do
   grep -qE "^audit-engine: $c " "$TEST_TMPDIR/progress.err" || missing+="$c"
 done
 assert_eq "case 55: stderr carries a progress line for every category" "" "$missing"

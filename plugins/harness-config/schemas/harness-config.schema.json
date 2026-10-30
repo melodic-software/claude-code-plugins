@@ -35,6 +35,14 @@
     }
   },
   "properties": {
+    "exceptions": {
+      "type": "object",
+      "description": "How long a suppression stays current before the audit reports it.",
+      "additionalProperties": false,
+      "properties": {
+        "max_days": { "type": "integer", "minimum": 1, "maximum": 999999, "description": "Days after its date that a suppression entry is reported for reconfirmation; it is reported, never removed. Default 90, per docs/adr/0080-set-check-precision-defaults-at-zero-false-positives-blocking-and-under-10-percent-advisory.md." }
+      }
+    },
     "suppressions": {
       "type": "object",
       "description": "Deliberately kept findings of /harness-config:audit and /harness-config:audit-pass, keyed by finding_id.",
