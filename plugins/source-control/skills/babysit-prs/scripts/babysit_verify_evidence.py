@@ -616,14 +616,15 @@ def split_child_body(
 # admit.mjs SCOPE_PREFIX and scopeTarget: a target-subset split's last child
 # line, and whether `name` can be one of its targets over the task lines.
 SCOPE_PREFIX = "Scope: "
-SCOPE_BANNED = re.compile(r"[,<>`\r\n]")
+SCOPE_BANNED = re.compile(r"[,<>`@#\r\n]")
 
 
 def scope_target(name: str, lines: set[str]) -> bool:
-    """2 to 100 characters, no comma, angle bracket, backtick or line
-    break, no outer space, and verbatim text of one of `lines`. Length and
-    outer space are JavaScript's (UTF-16 code units, and the JS_SPACE String.prototype.trim strips),
-    since admit.mjs scopeTarget is the rule's one home."""
+    """2 to 100 characters, no comma, angle bracket, backtick, at sign,
+    number sign or line break, no outer space, and verbatim text of one of
+    `lines`. Length and outer space are JavaScript's (UTF-16 code units,
+    and the JS_SPACE String.prototype.trim strips), since admit.mjs
+    scopeTarget is the rule's one home."""
     units = len(name.encode("utf-16-le", "surrogatepass")) // 2
     return (
         2 <= units <= 100

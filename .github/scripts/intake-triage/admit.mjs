@@ -1523,10 +1523,11 @@ export function splitChildBody(spec, humans, taskList) {
 export const SCOPE_PREFIX = "Scope: ";
 
 // Whether `name` can be a Scope target over the task lines `lines`: 2 to
-// 100 characters with no comma, angle bracket, backtick or line break, no
+// 100 characters with no comma, angle bracket, backtick, at sign, number
+// sign or line break (a new mention or issue link in the child), no
 // outer space, and a verbatim substring of one of `lines`. Pure.
 export const scopeTarget = (name, lines) =>
-  typeof name === "string" && name.length >= 2 && name.length <= 100 && name.trim() === name && !/[,<>`\r\n]/.test(name) && lines.some((line) => line.includes(name));
+  typeof name === "string" && name.length >= 2 && name.length <= 100 && name.trim() === name && !/[,<>`@#\r\n]/.test(name) && lines.some((line) => line.includes(name));
 
 // The targets the Scope line of `body`, a size-split sub-issue's body that
 // splitChildBody returned, names, or null when it has none: every done-when
