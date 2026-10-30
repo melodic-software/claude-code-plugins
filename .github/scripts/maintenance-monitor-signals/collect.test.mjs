@@ -201,7 +201,8 @@ const routes = () => [
 
 // A pr-merge-post-merge-report artifact's two files, as post-merge-dispatch
 // writes them: the exit code with a newline, and the check's JSON.
-const CAP = "workflow runs: total_count 1734, 1000 returned, at the 1000-run search cap";
+// The reason a real exit-3 report carried (pr-merge run 41067582241, 2026-10-30).
+const CAP = "unreadable: post-merge-detect-silent-revert.yml push runs: total_count 1239, 1000 returned, at the 1000-run search cap";
 const reportFiles = (code, reason = code === "3" ? CAP : null) => ({
   "post-merge-code": `${code}\n`,
   "post-merge.json": JSON.stringify({ ok: code === "0", readable: code !== "3", reason }),

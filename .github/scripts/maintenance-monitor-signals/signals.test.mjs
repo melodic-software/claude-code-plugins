@@ -460,7 +460,8 @@ test("stalled stops are one finding, a fact per PR, whose fingerprint moves with
 
 // collect.mjs hands on the newest reports, newest first, stopping at the first
 // readable one: code is the post-merge-code file's text.
-const CAP = "workflow runs: total_count 1734, 1000 returned, at the 1000-run search cap";
+// The reason a real exit-3 report carried (pr-merge run 41067582241, 2026-10-30).
+const CAP = "unreadable: post-merge-detect-silent-revert.yml push runs: total_count 1239, 1000 returned, at the 1000-run search cap";
 const report = (runId, code = "3", reason = CAP) => ({
   runId,
   url: `https://github.com/o/r/actions/runs/${runId}`,
@@ -493,7 +494,7 @@ test("signal 11: a readable sweep among the newest 4 clears it, whatever its cod
 
 test("signal 11: the fingerprint holds while the cause holds, through new runs and counts", () => {
   const fp = (reports) => postMergeUnreadableFindings({ postMergeReports: reports })[0].fingerprint;
-  const later = [5, 4, 3, 2].map((id) => report(id, "3", CAP.replace("1734", "1802")));
+  const later = [5, 4, 3, 2].map((id) => report(id, "3", CAP.replace("1239", "1302")));
   assert.equal(fp([report(4), report(3), report(2), report(1)]), fp(later));
   assert.notEqual(fp(later), fp([report(5, "3", "pull requests: HTTP 502"), report(4), report(3), report(2)]));
 });
