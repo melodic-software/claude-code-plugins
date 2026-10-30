@@ -2044,6 +2044,7 @@ jobs:
         if: steps.kill.outputs.proceed == 'true'
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: who
           # The lane token holds no Actions permission.
           ACTIONS_TOKEN: ${{ github.token }}
           ACTOR_ID: ${{ github.actor_id }}
@@ -2065,6 +2066,7 @@ jobs:
         timeout-minutes: 2
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: superseded
           ACTIONS_TOKEN: ${{ github.token }}
           SUPERSEDED_JOB: enable-auto-merge
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
@@ -2105,6 +2107,7 @@ jobs:
         continue-on-error: true
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: head-ref-map
           ACTIONS_TOKEN: ${{ github.token }}
           HEAD_REFS_PATH: ${{ runner.temp }}/head-refs-in.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -2115,6 +2118,7 @@ jobs:
         continue-on-error: true
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: listing-carry
           ACTIONS_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -2126,6 +2130,7 @@ jobs:
         timeout-minutes: 2
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: carry-run-cache
           ACTIONS_TOKEN: ${{ github.token }}
           CARRY_TO: ${{ runner.temp }}/pr-merge-carried.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -2152,6 +2157,7 @@ jobs:
         timeout-minutes: 2
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: verify-answers
           ACTIONS_TOKEN: ${{ github.token }}
           VERIFY_ANSWERS_PATH: ${{ runner.temp }}/verify-answers-in.json
           # The arm step's skip records, from the same artifact.
@@ -2191,6 +2197,7 @@ jobs:
         timeout-minutes: 2
         env:
           API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: lane-records
           ACTIONS_TOKEN: ${{ github.token }}
           LANE_RECORDS_PATH: ${{ runner.temp }}/lane-records.json
           PR_MERGE_READS_PATH: ${{ runner.temp }}/pr-merge-reads.json
@@ -2235,6 +2242,7 @@ jobs:
           # the Actions reads that carry it.
           API_BUDGET_TOKEN: lanes-app
           API_BUDGET_OVERRIDE_TOKEN: github-token
+          API_BUDGET_SCRIPT: enable-auto-merge
         run: |
           set -euo pipefail
           config=.base/docs/conventions/pr-pipeline.yaml

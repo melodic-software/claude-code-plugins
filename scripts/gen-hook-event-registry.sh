@@ -18,8 +18,8 @@
 # (https://code.claude.com/docs/en/hooks, the lifecycle table under "Hook
 # lifecycle"), and a hardcoded list drifts silently as events are added or
 # renamed. Every registry entry is a four-part record per
-# docs/conventions/upstream-drift (claim, basis, as-of date, recheck trigger),
-# and per docs/conventions/native-references it states what the reference
+# docs/contracts/upstream-drift (claim, basis, as-of date, recheck trigger),
+# and per docs/contracts/native-references it states what the reference
 # documented on the as-of date, never that the running binary fires the event.
 #
 # The log is a mod (plugins/harness-ops/hooks/register.ts; ADR 0065). It hooks

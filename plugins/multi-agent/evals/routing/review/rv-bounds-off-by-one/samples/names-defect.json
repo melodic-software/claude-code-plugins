@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": "finding: scripts/check_fields.py bound_problem - `value <= low` reports a value equal to the inclusive minimum, so runs: 1 is called below the minimum 1\n",
+      "why": "the requested form, naming the new helper"
+    },
+    {
+      "answer": "- **finding:** `scripts/check_fields.py` `check_bounds` (via `bound_problem`) - off by one at the lower bound: `max_turns: 1` is rejected\n",
+      "why": "bold label, naming the caller"
+    },
+    {
+      "answer": "One defect.\n\n1) finding: scripts/check_fields.py bound_problem() - `<=` should be `<`; timeout_seconds 1 now fails\n",
+      "why": "a numbered line with a parenthesis"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "finding: none\n",
+      "why": "missed the defect"
+    },
+    {
+      "answer": "finding: scripts/check_fields.py check_env - str.format changes the message text\n",
+      "why": "flags the decoy instead"
+    },
+    {
+      "answer": "bound_problem uses `<=` where it needs `<`, so runs: 1 is rejected.\n",
+      "why": "right defect, not on a finding line"
+    },
+    {
+      "answer": "finding: scripts/check_fields.py validate - env keys are checked after the bounds\nThe bound_problem refactor is fine.\n",
+      "why": "the function named only on another line"
+    }
+  ]
+}
