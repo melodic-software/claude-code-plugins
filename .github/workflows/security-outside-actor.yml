@@ -1,0 +1,98 @@
+name: security-outside-actor
+
+# Flags an issue or pull request when someone outside the organization opens
+# or edits it, or comments or reviews on it. Outside actors are the security
+# boundary the owner keeps: such an item goes to a person (`needs-human`).
+# The rules are in .github/scripts/security-outside-actor/flag.mjs.
+#
+# Two skips run in the job's `if`, before a runner starts, so most events
+# cost nothing:
+# - the content's author has `author_association` OWNER or MEMBER;
+# - the event's sender is a Bot. Only a GitHub App installed on this
+#   repository acts as a Bot, which here means one of ours, so lane traffic
+#   starts no job. Machine-user accounts are type User and are still checked.
+# Everything that runs is judged by the default branch's trusted-actor list,
+# matched by numeric id: a listed id is trusted, any other author is flagged,
+# and an unreadable list flags too.
+#
+# No model, no secret and no App token: the job's GITHUB_TOKEN adds the
+# `security: outside-actor` and `needs-human` labels and posts one comment per
+# outside actor, naming their login without a mention and quoting none of
+# their text. The script reads the event payload itself; no event text
+# reaches a shell. The lanes kill switch does not stop this check: it would
+# silence the boundary it guards.
+#
+# Accepted exposure: `issues`, `issue_comment` and `pull_request_target` run
+# this file from the default branch with a write token. `pull_request_review`
+# and `pull_request_review_comment` run from the pull request's merge ref, and
+# on a pull request from a fork GitHub gives them a read-only token, so a
+# review or diff comment on a fork pull request is logged as a failed run, not
+# flagged. Every fork pull request is an outsider's, and its opening is
+# flagged through `pull_request_target`; the review and comment triggers catch
+# an outsider writing on one of this repository's own pull requests.
+on:
+  # Runs from the default branch; checks out main only and passes no event
+  # text to a shell.
+  issues: # zizmor: ignore[dangerous-triggers]
+    types: [opened, edited]
+  issue_comment: # zizmor: ignore[dangerous-triggers]
+    types: [created, edited]
+  pull_request_review:
+    types: [submitted, edited]
+  pull_request_review_comment:
+    types: [created, edited]
+  # Never checks out the pull request head.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
+    types: [opened, edited]
+
+permissions: {}
+
+jobs:
+  flag:
+    # The author is the comment's, else the review's, else the pull
+    # request's, else the issue's, the order flag.mjs reads them in.
+    if: >-
+      github.event.sender.type != 'Bot'
+      && !contains(fromJSON('["OWNER", "MEMBER"]'),
+           github.event.comment.author_association
+           || github.event.review.author_association
+           || github.event.pull_request.author_association
+           || github.event.issue.author_association)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out main
+      issues: write # label and comment on an issue
+      pull-requests: write # label and comment on a pull request
+    # Runs on one item wait in line (`queue: max`) so none is dropped.
+    concurrency:
+      group: security-outside-actor-${{ github.event.issue.number || github.event.pull_request.number }}
+      queue: max
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          path: .base
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Flag an outside actor
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: node .base/.github/scripts/security-outside-actor/flag.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

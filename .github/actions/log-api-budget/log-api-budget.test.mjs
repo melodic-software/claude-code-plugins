@@ -794,6 +794,7 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "work-unblock.yml": { "wip-state": "github-token", "label-unblocked": ["lanes-app", "lanes-app github-token"] },
     "pr-merge.yml": { "post-merge-dispatch": "github-token" },
     "intake-reenter.yml": { reenter: "github-token" },
+    "security-outside-actor.yml": { flag: "github-token" },
     "pr-feedback-dispatch.yml": { "post-verify-notes": "github-token", dispatch: "github-token", "rerun-ci-status": "github-token" },
     "post-merge-test-mutation.yml": { report: "github-token" },
     "pr-refine.yml": { "fix-docs-head": "github-token" },

@@ -90,6 +90,19 @@ cannot start a model run with each reply. A dispatch skips the born-triaged chec
 claim, so a second answer dispatches nothing. It never adds `agent-ready`, and it holds the job's
 own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
 
+Anyone outside the organization who writes on an issue or pull request is flagged for a person by
+[`security-outside-actor.yml`](../../../.github/workflows/security-outside-actor.yml), a scripted
+workflow with no model, secret or kill switch. It runs on an issue or pull request opened or edited
+(`pull_request_target` for a pull request), and on a comment, review or diff comment created,
+submitted or edited. Its job starts only when the content's author is neither `OWNER` nor `MEMBER`
+and the sender is not a Bot (an App installed here). The run then trusts the author only by
+numeric id on the default branch's trusted-actor list, and an unreadable list flags. An outside
+actor's item gets `security: outside-actor` and `needs-human`, and one comment per actor names the
+login, without a mention, and the event, quoting none of their text. It holds the job's own
+`GITHUB_TOKEN` (`contents: read`, `issues: write`, `pull-requests: write`). A review or diff
+comment on a fork pull request gets a read-only token and is not flagged; the fork pull request
+itself is flagged when it opens.
+
 Pipeline lanes skip draft PRs; `ci-status` still reports on them, and passes the skipped lanes.
 The `ready_for_review` run tests the head, and the merge queue re-runs every lane before a merge.
 Converting a PR back to draft
