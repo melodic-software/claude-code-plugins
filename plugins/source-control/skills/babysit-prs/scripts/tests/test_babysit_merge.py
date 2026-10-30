@@ -2578,10 +2578,21 @@ class LaneRunsReadTests(unittest.TestCase):
             "head": {"ref": "feat", "sha": HEAD},
             "base": {"sha": "b" * 40},
             "user": {"login": "someone"},
-            "commits": 0,
+            "commits": 1,
         }
+        someone = {"login": "someone"}
+
+        def paginated(endpoint: str, label: str, **_: Any) -> list[dict[str, Any]]:
+            # The head's pushers are proven: the list holds the pinned head
+            # and the branch's newest push brought it.
+            if endpoint.endswith("/commits?per_page=100"):
+                return [{"sha": HEAD, "author": someone, "committer": someone}]
+            if "/activity?" in endpoint:
+                return [{"activity_type": "push", "after": HEAD, "actor": someone}]
+            return []
+
         with (
-            mock.patch.object(merge, "fetch_paginated_api", return_value=[]),
+            mock.patch.object(merge, "fetch_paginated_api", side_effect=paginated),
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
             mock.patch.object(
                 merge,
