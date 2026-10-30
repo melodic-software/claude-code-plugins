@@ -1184,6 +1184,46 @@ test("issue target: a credential shape outranks a SHA-256 mismatch, and a mismat
   assert.equal(select({ ...at(leaky), row: row("default") }).escalationReason, "patch-invalid", "a row without patch-credential");
 });
 
+// The credential scan runs before every patch-invalid refusal, so a fault
+// beside a credential cannot turn the hold into a retry: here a credential
+// seen only in a binary hunk's blob, in a patch over max-files.
+test("issue target: a blob-only credential in a patch over max-files escalates patch-credential", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "blob.bin"), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])]));
+    writeFileSync(join(repo, "README.md"), "# changed\n");
+  });
+  assert.doesNotMatch(readFileSync(fix.patchFile, "latin1"), /ghp_/);
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api, { row: { ...issueRow(), "max-files": 1 } }), { outcome: "escalate", escalationReason: "patch-credential" });
+  assert.deepEqual(api.calls, []);
+});
+
+// A blob over MAX_BLOB_BYTES is still scanned up to that many bytes, so its
+// size fault does not hide a credential near its start.
+test("issue target: a credential in a patched blob over the size cap escalates patch-credential", async (t) => {
+  const big = Buffer.alloc(6 * 1024 * 1024, 7);
+  big[0] = 0;
+  const fix = repoWithPatch(t, (repo) => {
+    const changed = Buffer.from(big);
+    changed.write(GITHUB_TOKENS[0], 16, "latin1");
+    writeFileSync(join(repo, "big.bin"), changed);
+  }, { head: (repo) => writeFileSync(join(repo, "big.bin"), big) });
+  assert.doesNotMatch(readFileSync(fix.patchFile, "latin1"), /ghp_/);
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-credential" });
+});
+
+// select scans patch.diff for a credential even when another file sits beside it.
+test("select: a credential in patch.diff outranks an extra file beside it", (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), `# changed\ntoken=${GITHUB_TOKENS[0]}\n`));
+  writeFileSync(join(dirname(fix.patchFile), "extra.txt"), "x\n");
+  const at = { row: issueRow(), patchState: "written", patchSha256: fix.sum, patchHeadSha: fix.head, headSha: fix.head, patchDir: dirname(fix.patchFile) };
+  assert.equal(select(at).escalationReason, "patch-credential");
+  rmSync(fix.patchFile);
+  writeFileSync(fix.patchFile, "diff --git a/x b/x\n");
+  assert.equal(select(at).escalationReason, "patch-invalid", "no credential, an extra file is invalid");
+});
+
 // --- a head that moved since the model job ---
 
 test("a moved tip takes the patch with --3way when the moved commits touch no patched path", async (t) => {
