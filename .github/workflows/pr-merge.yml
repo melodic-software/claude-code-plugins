@@ -1307,6 +1307,14 @@ jobs:
             python3 "$scripts/babysit_postmerge.py" \
               --repo "$REPO" --agent-identity "$identity" --lane-merges-only \
               </dev/null >"$RUNNER_TEMP/post-merge.json" || code=$?
+            # This job's own check, for the lane room, which refused the
+            # same report and awaits this one instead of running its own.
+            gate=$RUNNER_TEMP/gate-post-merge
+            mkdir -p "$gate"
+            cp "$RUNNER_TEMP/post-merge.json" "$gate/post-merge.json"
+            echo "$code" >"$gate/post-merge-code"
+            git -C .base rev-parse HEAD >"$gate/post-merge-code-sha" || true
+            echo "ran=true" >>"$GITHUB_OUTPUT"
           fi
           echo "::group::post-merge check: exit $code"
           cat "$RUNNER_TEMP/post-merge.json"
@@ -1360,6 +1368,24 @@ jobs:
           elif [ "$code" -eq 4 ]; then
             echo "::warning::the post-merge remediation exited $code (re-run or dispatch refused: the lane token has no Actions permission)"
           fi
+
+      # The check this job ran itself, when it refused post-merge-dispatch's
+      # report, for enable-auto-merge's lane room: the room refuses that
+      # report at the same moment and, by this step's name, waits for this
+      # upload and settles the answer by its own rule before it runs the
+      # check a second time (babysit_verify_evidence.py gate_answer). Named
+      # by the run attempt, as the room asks for it. After the record step,
+      # which follows the check, so only a failed lane merge waits on it.
+      - name: Keep the merge job's post-merge answer
+        if: steps.post-merge.outputs.ran == 'true' && contains(fromJSON('["0","1","5"]'), steps.post-merge.outputs.code)
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pr-merge-gate-post-merge-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/gate-post-merge/
+          retention-days: 1
+          if-no-files-found: error
 
       # A whole-review request (babysit_whole_review.py) converts a lane or
       # adopted PR to a draft and marks it ready again; a run that ended
@@ -2251,6 +2277,9 @@ jobs:
           # rung cap as the merge job passes it, empty meaning no cap.
           POSTMERGE_RESULT: ${{ runner.temp }}/post-merge/post-merge.json
           RUNG_CAP: ${{ vars.CLAUDE_LANES_MERGE_RUNG_CAP }}
+          # The merge job's own post-merge check of this attempt, which the
+          # room awaits before it runs one itself.
+          POSTMERGE_AWAIT_ARTIFACT: pr-merge-gate-post-merge-${{ github.run_attempt }}
           # The lane records read above, for the room's post-merge check.
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
           # Name the two tokens' rate-limit readings for the reader's gh calls

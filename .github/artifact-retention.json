@@ -69,6 +69,13 @@
       ],
       "reason": "Read by its own run and the next run; 1 day is the minimum."
     },
+    "pr-merge-gate-post-merge-*": {
+      "retention-days": 1,
+      "readers": [
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py gate_answer, enable-auto-merge's lane room in the same run attempt"
+      ],
+      "reason": "Read only by its own run attempt; 1 day is the minimum."
+    },
     "pr-merge-gate-cursor": {
       "retention-days": 1,
       "readers": [

@@ -3355,6 +3355,121 @@ def _answered(
         return report | {"cache": failed}
 
 
+# The merge job's own post-merge check, kept for the lane room
+# (pr-merge.yml "Keep the merge job's post-merge answer"): the job and the
+# step that uploads it, and how often and how many times the room asks
+# whether that step is done. Both jobs start when post-merge-dispatch ends
+# and refuse its report at the same moment; the merge job's check took 71 s
+# in run 41136705292 and a median 126 s in the 2026-10-30 sample (#9646), so
+# 15 polls 10 s apart cover the median and leave the room's own check its
+# time inside the reader's limit (enable-auto-merge.mjs LANE_ROOM_TIMEOUT_MS).
+GATE_ANSWER_JOB = "merge"
+GATE_ANSWER_STEP = "Keep the merge job's post-merge answer"
+GATE_ANSWER_POLLS = 15
+GATE_ANSWER_POLL_SECONDS = 10
+GATE_ANSWER_CODES = frozenset({"0", "1", "5"})
+
+
+def gate_answer(
+    repo: str,
+    artifact: str,
+    *,
+    run_id: str,
+    attempt: str,
+    sleep: Callable[[float], None] = time.sleep,
+) -> Callable[[], merge_policy.SharedPostMerge | None]:
+    """`settle_shared`'s `awaited`: the merge job's own post-merge check of
+    this run attempt, once its upload step is done, or None at once when
+    that job has not started, skipped or failed the step, or ended without
+    it, and None after `GATE_ANSWER_POLLS` reads of the attempt's jobs.
+    Taken only from a check that judged (exit 0, 1 or 5) with this
+    checkout's check code. One jobs read per poll, then the artifact listing
+    and its archive. Raises `PostMergeReadError` on a failed read."""
+
+    def jobs() -> list[dict[str, Any]]:
+        return [
+            json_object(job)
+            for job in json_array(
+                json_object(
+                    postmerge._read(
+                        [
+                            "api",
+                            f"repos/{repo}/actions/runs/{run_id}/attempts/{attempt}"
+                            "/jobs?per_page=100",
+                        ],
+                        "this run's jobs",
+                    )
+                ).get("jobs")
+            )
+        ]
+
+    def done() -> bool:
+        for poll in range(GATE_ANSWER_POLLS):
+            if poll:
+                sleep(GATE_ANSWER_POLL_SECONDS)
+            job = next((j for j in jobs() if j.get("name") == GATE_ANSWER_JOB), {})
+            if job.get("status") not in ("in_progress", "completed"):
+                return False
+            step = next(
+                (
+                    json_object(s)
+                    for s in json_array(job.get("steps"))
+                    if json_object(s).get("name") == GATE_ANSWER_STEP
+                ),
+                {},
+            )
+            if step.get("status") == "completed":
+                return step.get("conclusion") == "success"
+            if job.get("status") == "completed":
+                return False
+        return False
+
+    def read() -> merge_policy.SharedPostMerge | None:
+        if not done():
+            return None
+        listed = json_array(
+            json_object(
+                postmerge._read(
+                    [
+                        "api",
+                        f"repos/{repo}/actions/runs/{run_id}/artifacts"
+                        f"?name={urllib.parse.quote(artifact, safe='')}",
+                    ],
+                    "this run's artifacts",
+                )
+            ).get("artifacts")
+        )
+        found = [
+            json_object(a) for a in listed if json_object(a).get("name") == artifact
+        ]
+        if len(found) != 1 or not _is_artifact_id(found[0].get("id")):
+            return None
+        proc = postmerge.gh_capture(
+            ["api", f"repos/{repo}/actions/artifacts/{found[0]['id']}/zip"],
+            binary=True,
+        )
+        if proc.returncode != 0:
+            return None
+        try:
+            with (
+                zipfile.ZipFile(io.BytesIO(proc.stdout)) as archive,
+                tempfile.TemporaryDirectory() as tmp,
+            ):
+                code = archive.read("post-merge-code").decode("utf-8").strip()
+                sha = archive.read("post-merge-code-sha").decode("utf-8").strip()
+                path = Path(tmp) / "post-merge.json"
+                path.write_bytes(archive.read("post-merge.json"))
+                if code not in GATE_ANSWER_CODES:
+                    return None
+                if not merge_policy.check_code_unchanged(sha):
+                    return None
+                return postmerge.read_shared(str(path))
+        except Exception:  # noqa: BLE001 - a bad archive is no answer: the room reads again
+            return None
+
+    return read
+
+
 def _settle(repo: str, path: str, code_sha: str, *, idle: bool = False) -> int:
     """`settle`: whether this run's post-merge report at `path`, its check
     run by the code at commit `code_sha`, stands for the check at the default
@@ -3959,6 +4074,7 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
     room.add_argument("--postmerge-result", required=True)
     room.add_argument("--rung-cap", default=None)
     room.add_argument("--code-sha", required=True)
+    room.add_argument("--await-artifact", default=None)
     close = sub.add_parser("capped-close", allow_abbrev=False)
     close.add_argument("--repo", required=True)
     close.add_argument("--branch", default="main")
@@ -3996,6 +4112,18 @@ def main(argv: list[str] | None = None, *, now: datetime | None = None) -> int:
             runs_unchanged=lambda answer, branch: postmerge.pending_runs_unchanged(
                 args.repo, answer, branch
             ),
+            # Before that recompute, the merge job's own check of this run,
+            # which refused the same report at the same moment.
+            awaited=gate_answer(
+                args.repo,
+                args.await_artifact,
+                run_id=os.environ.get("GITHUB_RUN_ID", ""),
+                attempt=os.environ.get("GITHUB_RUN_ATTEMPT", ""),
+            )
+            if args.await_artifact
+            and os.environ.get("GITHUB_RUN_ID", "").isdigit()
+            and os.environ.get("GITHUB_RUN_ATTEMPT", "").isdigit()
+            else None,
         )
         print(json.dumps(answer.report()))
         return 0

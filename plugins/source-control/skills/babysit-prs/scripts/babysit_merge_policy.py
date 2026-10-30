@@ -6596,6 +6596,7 @@ def settle_shared(
     keep: bool = True,
     post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
     outcome: dict[str, str | None] | None = None,
+    awaited: Callable[[], SharedPostMerge | None] | None = None,
 ) -> tuple[SharedPostMerge | None, str | None]:
     """The answer to use for the run's post-merge check in place of
     `shared`, or None and why not (`post-merge answer <refusal>`): the gate's
@@ -6610,10 +6611,17 @@ def settle_shared(
     the lane room and the merge job's reuse of post-merge-dispatch's report.
 
     `outcome`, when given, is filled with how it settled: `answer` is
-    `reused`, `kept`, `recomputed` or `refused`, `reason` the
+    `reused`, `kept`, `awaited`, `recomputed` or `refused`, `reason` the
     `shared_refusal` (or `code-changed`) behind any but `reused`, and `moved`
     what `_moved` found for an `unverified-stale` answer not kept (or
-    `unreadable`)."""
+    `unreadable`).
+
+    `awaited`, before a read again with `post_merge`, answers with the same
+    check another job of the run ran later (None when it has none), from
+    this checkout's check code. It stands in for the read, as `awaited`,
+    only when computed after `shared` and this rule, with `keep` and no
+    `post_merge`, reuses or keeps it: one full check per run, not one per
+    job. Anything else, a failed read included, reads again."""
     note = outcome if outcome is not None else {}
     note.update(answer="refused", reason=None, moved=None)
     unusable = (
@@ -6665,6 +6673,25 @@ def settle_shared(
     if post_merge is None:
         return None, f"post-merge answer {unusable}"
     try:
+        later = awaited() if awaited is not None else None
+    except (RuntimeError, ValueError, OSError):
+        later = None
+    if later is not None and later.computed_at > shared.computed_at:
+        taken, _ = settle_shared(
+            repo,
+            later,
+            default=default,
+            base_sha=base_sha,
+            identity=identity,
+            code_unchanged=True,
+            now=now,
+            runs_unchanged=runs_unchanged,
+            keep=keep,
+        )
+        if taken is not None:
+            note["answer"] = "awaited"
+            return taken, None
+    try:
         fresh = _recompute_shared(repo, default, identity, frozenset(), post_merge, now)
     except (RuntimeError, ValueError, OSError) as exc:
         return None, f"post-merge answer {unusable}: {exc}"
@@ -6683,6 +6710,7 @@ def lane_room(
     now: datetime | None = None,
     post_merge: Callable[[datetime, str], PostMergeGate] | None = None,
     runs_unchanged: Callable[[SharedPostMerge, str], bool] | None = None,
+    awaited: Callable[[], SharedPostMerge | None] | None = None,
 ) -> LaneRoom:
     """Whether the pr-merge lane may merge one more of its own pull requests
     now, for native auto-merge, which skips `assess`: the run-level refusals
@@ -6698,7 +6726,9 @@ def lane_room(
     (`_moved`, with `runs_unchanged(shared, branch)` for its
     unverified merges' runs and the demotion read again when its probe
     trips), and one refused only as `demotion-changed`
-    when `read_demotion` alone reads the shared demotion again.
+    when `read_demotion` alone reads the shared demotion again. Before that
+    read, `awaited` (`settle_shared`) may answer with the merge job's later
+    check.
 
     - A config naming another authority stops (`enabled_authority`).
     - A post-merge refusal stops (`post-merge:<refusal>`).
@@ -6738,6 +6768,7 @@ def lane_room(
         keep=post_merge is not None,
         post_merge=post_merge,
         outcome=note,
+        awaited=awaited,
     )
     room = partial(LaneRoom, post_merge=note)
     if settled is None:

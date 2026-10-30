@@ -175,6 +175,9 @@
 //   POSTMERGE_RESULT     this run's babysit_postmerge.py report, for lane-room
 //   POSTMERGE_CODE_SHA   the commit whose code ran that report's check (empty
 //                        when unknown: lane-room reads the report again)
+//   POSTMERGE_AWAIT_ARTIFACT  the merge job's own post-merge check of this run
+//                        attempt, which lane-room awaits before it reads the
+//                        report again itself (empty: it does not wait)
 //   RUNG_CAP             vars.CLAUDE_LANES_MERGE_RUNG_CAP (empty is no cap;
 //                        unset holds the lane off, as the gate reads it)
 //   RISK_ESCALATION_MINUTES  merge.risk-escalation-minutes (empty is
@@ -1207,6 +1210,9 @@ export function pythonRoom(env, spawn = spawnSync) {
     ];
     if (env.RUNG_CAP !== undefined) {
       args.push("--rung-cap", env.RUNG_CAP);
+    }
+    if (env.POSTMERGE_AWAIT_ARTIFACT) {
+      args.push("--await-artifact", env.POSTMERGE_AWAIT_ARTIFACT);
     }
     const token = env.BABYSIT_VERIFY_GH_TOKEN;
     const roomEnv = token ? { ...env, GH_TOKEN: token, API_BUDGET_TOKEN: "github-token" } : env;

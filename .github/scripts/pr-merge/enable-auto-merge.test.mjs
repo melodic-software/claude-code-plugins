@@ -2875,6 +2875,19 @@ print(json.dumps({"argv": sys.argv[1:], "token": os.environ.get("GH_TOKEN"), "bu
   // No commit kept is an empty one, which reads the report again.
   const { POSTMERGE_CODE_SHA: _, ...unset } = env;
   assert.deepEqual((await pythonRoom(unset)()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json", "--code-sha", ""]);
+  // The merge job's own check, awaited before the room's: passed only when named.
+  assert.deepEqual((await pythonRoom({ ...env, POSTMERGE_AWAIT_ARTIFACT: "gate-answer-1" })()).argv, [
+    "lane-room",
+    "--repo",
+    REPO,
+    "--postmerge-result",
+    "/tmp/post-merge.json",
+    "--code-sha",
+    sha,
+    "--await-artifact",
+    "gate-answer-1",
+  ]);
+  assert.deepEqual((await pythonRoom({ ...env, POSTMERGE_AWAIT_ARTIFACT: "" })()).argv, ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/post-merge.json", "--code-sha", sha]);
 });
 
 // The calls line as babysit_gh.py itself prints it, for three Actions-token

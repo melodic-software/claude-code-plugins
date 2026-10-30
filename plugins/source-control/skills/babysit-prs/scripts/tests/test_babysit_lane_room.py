@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import zipfile
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from unittest import mock
@@ -145,6 +146,8 @@ class LaneRoom(unittest.TestCase):
         head_error: Exception | None = None,
         fresh_demotion: policy.Demotion | None = None,
         code_unchanged: bool = True,
+        awaited: object = None,
+        tip: str = MAIN,
     ) -> policy.LaneRoom:
         seen: dict[str, object] = {}
         reads = mock.Mock(
@@ -176,7 +179,7 @@ class LaneRoom(unittest.TestCase):
                 policy, "newest_config_commit", return_value=config_commit
             ),
             mock.patch.object(
-                policy, "_get", return_value=(200, {"object": {"sha": MAIN}})
+                policy, "_get", return_value=(200, {"object": {"sha": tip}})
             ),
             # The recompute's reads at the default branch head: a newer head,
             # no demotion record, and a later floor than the old answer's.
@@ -193,6 +196,8 @@ class LaneRoom(unittest.TestCase):
             kwargs = {"post_merge": post_merge} if post_merge is not None else {}
             if runs_unchanged is not None:
                 kwargs["runs_unchanged"] = runs_unchanged
+            if awaited is not None:
+                kwargs["awaited"] = awaited
             result = policy.lane_room(
                 REPO,
                 answer if answer is not None else shared(),
@@ -760,6 +765,86 @@ class LaneRoom(unittest.TestCase):
                     room = self.room(answer, **kwargs)  # type: ignore[arg-type]
                 self.assertIsNone(room.refusal)
                 self.assertTrue(room.unreadable)
+
+    # The merge job's own check, computed after the report both jobs refused:
+    # a minute old when the room reads it, so the gate reuses it on age.
+    LATER = FLOOR + timedelta(minutes=2)
+
+    def later(self, **overrides: object) -> policy.SharedPostMerge:
+        fields = {"computed_at": self.LATER, "floor": NEW_FLOOR, **overrides}
+        return replace(shared(report=PENDING), **fields)  # type: ignore[arg-type]
+
+    def test_a_moved_answer_takes_the_merge_jobs_later_check_not_a_second(
+        self,
+    ) -> None:
+        # Run 41136705292: the merge job and the room refused the same report
+        # at the same moment (runs-moved); the room ran a second full check.
+        for moved, kwargs in {
+            "runs-moved": dict(runs=False),
+            # The merge job read the head the room's config read sees.
+            "head-moved": dict(
+                head=NEW_MAIN, tip=NEW_MAIN, cfg=config(base_sha=NEW_MAIN)
+            ),
+        }.items():
+            with self.subTest(moved):
+                later = self.later(main_sha=kwargs.get("head", MAIN))
+                asked: list[None] = []
+
+                def awaited(later: policy.SharedPostMerge = later) -> object:
+                    asked.append(None)
+                    return later
+
+                room, recheck, _ = self.current(awaited=awaited, **kwargs)
+                self.assertEqual(recheck.asked, [], "no second full check")
+                self.assertEqual(len(asked), 1)
+                self.assertEqual((room.refusal, room.unreadable), (None, None))
+                self.assertEqual(
+                    room.report()["postMerge"],
+                    {"answer": "awaited", "reason": "unverified-stale", "moved": moved},
+                )
+                # Counted from the merge job's answer: its floor.
+                self.assertEqual(self.seen["merged_since"], NEW_FLOOR)
+
+    def test_a_later_check_the_rule_refuses_is_never_taken(self) -> None:
+        # The awaited answer is settled by the same rule as the report: one
+        # bound to another head, as old as the report, or itself past two
+        # minutes with its runs moved, falls back to the room's own check.
+        cases = {
+            "another head": self.later(main_sha="f" * 40),
+            "not later": self.later(computed_at=FLOOR),
+            "past two minutes, runs moved": self.later(
+                computed_at=FLOOR + timedelta(seconds=30)
+            ),
+            "another identity": self.later(identity="someone-else[bot]"),
+        }
+        for name, later in cases.items():
+            with self.subTest(name):
+                room, recheck, _ = self.current(
+                    awaited=lambda later=later: later, runs=False
+                )
+                self.assertEqual(len(recheck.asked), 1, "the room's own check")
+                self.assertEqual(room.report()["postMerge"]["answer"], "recomputed")
+
+    def test_no_later_check_or_a_failed_read_runs_the_rooms_own(self) -> None:
+        def fails() -> object:
+            raise ve.postmerge.PostMergeReadError("jobs 502")
+
+        for name, awaited in {"none": lambda: None, "raises": fails}.items():
+            with self.subTest(name):
+                room, recheck, _ = self.current(awaited=awaited, runs=False)
+                self.assertEqual(len(recheck.asked), 1)
+                self.assertEqual(room.report()["postMerge"]["answer"], "recomputed")
+
+    def test_a_reused_or_kept_report_never_waits(self) -> None:
+        waited = mock.Mock(return_value=None)
+        self.assertEqual(
+            self.room(awaited=waited).report()["postMerge"]["answer"], "reused"
+        )
+        room, _, _ = self.current(awaited=waited)
+        self.assertEqual(room.report()["postMerge"]["answer"], "kept")
+        # With no check to read it again, nothing is awaited either.
+        self.room(shared(report=PENDING), now=STALE_NOW, awaited=waited)
+        waited.assert_not_called()
 
 
 class PendingRunsUnchanged(unittest.TestCase):
@@ -1509,6 +1594,134 @@ class SettleCommand(unittest.TestCase):
         self.idle.assert_not_called()
 
 
+def archive(code: str = "5", sha: str = MAIN) -> bytes:
+    """The merge job's kept check, as the artifact zip holds it."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zipped:
+        zipped.writestr("post-merge.json", json.dumps({"readable": True}))
+        zipped.writestr("post-merge-code", f"{code}\n")
+        zipped.writestr("post-merge-code-sha", f"{sha}\n")
+    return buffer.getvalue()
+
+
+class GateAnswer(unittest.TestCase):
+    """`gate_answer`: the merge job's own check of this run attempt, awaited
+    by its upload step's state in the jobs listing, never past the bound."""
+
+    def answer(
+        self,
+        polls: list[dict[str, object]],
+        *,
+        zipped: bytes | None = None,
+        code_unchanged: bool = True,
+    ) -> object:
+        """`gate_answer`'s read with the merge job as `polls` lists it, one
+        job record per jobs read (the last repeats)."""
+        self.calls: list[str] = []
+        self.sleeps: list[float] = []
+        reads = iter(polls)
+        last: list[dict[str, object]] = [polls[-1]]
+
+        def read(args: list[str], label: str) -> object:
+            self.calls.append(args[1])
+            if "/jobs" in args[1]:
+                job = next(reads, last[0])
+                return {"jobs": [{"name": "enable-auto-merge"}, job]}
+            return {"artifacts": [{"name": "gate-1", "id": 77}]}
+
+        def capture(args: list[str], **kwargs: object) -> object:
+            self.calls.append(args[1])
+            return subprocess.CompletedProcess(args, 0, zipped or archive(), b"")
+
+        with (
+            mock.patch.object(ve.postmerge, "_read", side_effect=read),
+            mock.patch.object(ve.postmerge, "gh_capture", side_effect=capture),
+            mock.patch.object(
+                ve.postmerge,
+                "read_shared",
+                side_effect=lambda path: json.loads(pathlib.Path(path).read_text()),
+            ),
+            mock.patch.object(
+                policy, "check_code_unchanged", return_value=code_unchanged
+            ) as checked,
+        ):
+            got = ve.gate_answer(
+                REPO, "gate-1", run_id="41", attempt="2", sleep=self.sleeps.append
+            )()
+        self.checked = checked
+        return got
+
+    @staticmethod
+    def job(
+        status: str = "in_progress",
+        step: str | None = None,
+        conclusion: str | None = None,
+    ) -> dict[str, object]:
+        steps = (
+            []
+            if step is None
+            else [
+                {"name": ve.GATE_ANSWER_STEP, "status": step, "conclusion": conclusion}
+            ]
+        )
+        return {"name": "merge", "status": status, "steps": steps}
+
+    def test_it_waits_for_the_upload_and_reads_the_answer_once(self) -> None:
+        got = self.answer(
+            [
+                self.job(step="queued"),
+                self.job(step="in_progress"),
+                self.job(step="completed", conclusion="success"),
+            ]
+        )
+        self.assertEqual(got, {"readable": True})
+        self.assertEqual(self.sleeps, [ve.GATE_ANSWER_POLL_SECONDS] * 2)
+        # Three jobs reads of this attempt, then the listing and the archive.
+        self.assertEqual(
+            self.calls,
+            [
+                "repos/example-org/example-repo/actions/runs/41/attempts/2/jobs?per_page=100"
+            ]
+            * 3
+            + [
+                "repos/example-org/example-repo/actions/runs/41/artifacts?name=gate-1",
+                "repos/example-org/example-repo/actions/artifacts/77/zip",
+            ],
+        )
+        self.checked.assert_called_once_with(MAIN)
+
+    def test_no_upload_to_wait_for_answers_none_at_once(self) -> None:
+        cases = {
+            "the job has not started": self.job(status="queued"),
+            "the step was skipped": self.job(step="completed", conclusion="skipped"),
+            "the step failed": self.job(step="completed", conclusion="failure"),
+            "the job ended without it": self.job(status="completed"),
+        }
+        for name, job in cases.items():
+            with self.subTest(name):
+                self.assertIsNone(self.answer([job]))
+                self.assertEqual(len(self.calls), 1, "one jobs read, no download")
+                self.assertEqual(self.sleeps, [])
+
+    def test_the_wait_is_bounded(self) -> None:
+        self.assertIsNone(self.answer([self.job(step="in_progress")]))
+        self.assertEqual(len(self.calls), ve.GATE_ANSWER_POLLS)
+        self.assertEqual(len(self.sleeps), ve.GATE_ANSWER_POLLS - 1)
+        # Inside the room's eight minutes with its own check still to run.
+        self.assertLessEqual(ve.GATE_ANSWER_POLLS * ve.GATE_ANSWER_POLL_SECONDS, 150)
+
+    def test_a_check_that_did_not_judge_or_ran_other_code_is_not_taken(self) -> None:
+        done = [self.job(step="completed", conclusion="success")]
+        for name, kwargs in {
+            "rate limited": dict(zipped=archive(code="75")),
+            "refused": dict(zipped=archive(code="2")),
+            "other check code": dict(code_unchanged=False),
+            "not an archive": dict(zipped=b"not a zip"),
+        }.items():
+            with self.subTest(name):
+                self.assertIsNone(self.answer(done, **kwargs))  # type: ignore[arg-type]
+
+
 class LaneRoomCommand(unittest.TestCase):
     def test_it_prints_the_room_from_the_post_merge_report(self) -> None:
         seen: list[object] = []
@@ -1523,12 +1736,14 @@ class LaneRoomCommand(unittest.TestCase):
             post_merge: object,
             runs_unchanged: object,
             code_unchanged: bool,
+            awaited: object,
         ) -> policy.LaneRoom:
             seen.append((repo, answer, lane_rung_cap))
             hooks.update(
                 post_merge=post_merge,
                 runs_unchanged=runs_unchanged,
                 code_unchanged=code_unchanged,
+                awaited=awaited,
             )
             return policy.LaneRoom(
                 count=1,
@@ -1582,6 +1797,24 @@ class LaneRoomCommand(unittest.TestCase):
         )
         self.assertTrue(callable(hooks["post_merge"]))
         self.assertTrue(callable(hooks["runs_unchanged"]))
+        # Not named: the room awaits nothing.
+        self.assertIsNone(hooks["awaited"])
+        # Named, in a run attempt: the merge job's check is awaited.
+        argv = ["lane-room", "--repo", REPO, "--postmerge-result", "/tmp/x.json"]
+        argv += ["--code-sha", MAIN, "--await-artifact", "gate-1"]
+        for run_env, expected in (
+            ({"GITHUB_RUN_ID": "41", "GITHUB_RUN_ATTEMPT": "1"}, True),
+            ({"GITHUB_RUN_ID": "", "GITHUB_RUN_ATTEMPT": "1"}, False),
+        ):
+            with (
+                mock.patch.dict(os.environ, run_env),
+                mock.patch.object(ve.postmerge, "read_shared", return_value="answer"),
+                mock.patch.object(policy, "lane_room", side_effect=room),
+                mock.patch.object(policy, "check_code_unchanged", return_value=True),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                ve.main(argv)
+            self.assertIs(callable(hooks["awaited"]), expected, run_env)
 
     def test_a_missing_report_is_unreadable(self) -> None:
         out = io.StringIO()

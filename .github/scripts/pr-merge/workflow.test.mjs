@@ -737,6 +737,33 @@ for (const jobId of ["merge", "enable-auto-merge"]) {
   });
 }
 
+// When the merge job refuses post-merge-dispatch's report and runs the check
+// itself, the room, which refused the same report, awaits that answer by the
+// upload step's name and the artifact named by the run attempt
+// (babysit_verify_evidence.py gate_answer) instead of a second full check.
+test("the room awaits the merge job's own post-merge check by the names it uploads under", () => {
+  const python = readFileSync(
+    new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url),
+    "utf8",
+  );
+  const constant = (name) => new RegExp(`^${name} = "([^"]+)"$`, "m").exec(python)?.[1];
+  const gate = job("merge");
+  const start = gate.indexOf(`\n      - name: ${constant("GATE_ANSWER_STEP")}\n`);
+  const keep = start < 0 ? undefined : gate.slice(start + 1, gate.indexOf("\n      - name: ", start + 1));
+  assert.ok(keep, "the merge job uploads its check under the step name the room polls");
+  assert.equal(constant("GATE_ANSWER_JOB"), "merge");
+  assert.match(keep, /\n {8}if: steps\.post-merge\.outputs\.ran == 'true' && contains\(fromJSON\('\["0","1","5"\]'\), steps\.post-merge\.outputs\.code\)\n/);
+  assert.match(keep, /\n {10}name: pr-merge-gate-post-merge-\$\{\{ github\.run_attempt \}\}\n {10}path: \$\{\{ runner\.temp \}\}\/gate-post-merge\/\n/);
+  // Only a check this job ran: a reused report is the one the room refused.
+  const check = /- name: Check earlier lane merges\n([\s\S]*?)(?=\n {6}- name: )/.exec(gate)[1];
+  const ran = check.slice(check.indexOf('if [ -z "$code" ]; then'));
+  assert.match(ran.slice(0, ran.indexOf("\n          fi\n")), /echo "ran=true" >>"\$GITHUB_OUTPUT"/);
+  const arm = /- name: Arm and disarm auto-merge\n([\s\S]*?)(?=\n {6}- name: )/.exec(job("enable-auto-merge"))[1];
+  assert.match(arm, /\n {10}POSTMERGE_AWAIT_ARTIFACT: pr-merge-gate-post-merge-\$\{\{ github\.run_attempt \}\}\n/);
+  // No needs: edge on the merge job: arming never waits for the gate loop.
+  assert.match(job("enable-auto-merge"), /\n {4}needs: \[post-merge-dispatch\]\n/);
+});
+
 // The lane's room (lane-room) reads this run's post-merge report, which
 // post-merge-dispatch keeps, rather than running the check a third time per
 // scheduled run, and the rung cap as the merge job passes it: an unset cap
