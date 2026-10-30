@@ -523,8 +523,8 @@ jobs:
       pull-requests: read
       id-token: write
     # The report job trusts only these, all computed by runner steps. Every
-    # one but act-outcome and escalation-reason is a step outcome or an
-    # output of a step that ran before any PR head code. act-outcome reads
+    # one but act-outcome, escalation-reason and api-failures is a step
+    # outcome or an output of a step that ran before any PR head code. act-outcome reads
     # steps that run after the skill: for a gate skill the verdict step, so a
     # gate skill must not execute head code; its promote and turn terms only
     # turn a success into a failure. The act-result step turns a failed skill
