@@ -624,7 +624,7 @@ def scope_target(name: str, lines: set[str]) -> bool:
     break, no outer space, and verbatim text of one of `lines`. Length and
     outer space are JavaScript's (UTF-16 code units, and the JS_SPACE String.prototype.trim strips),
     since admit.mjs scopeTarget is the rule's one home."""
-    units = len(name.encode("utf-16-le")) // 2
+    units = len(name.encode("utf-16-le", "surrogatepass")) // 2
     return (
         2 <= units <= 100
         and name.strip(JS_SPACE) == name
