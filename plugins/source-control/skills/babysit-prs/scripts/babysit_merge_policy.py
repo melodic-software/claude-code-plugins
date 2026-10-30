@@ -3016,6 +3016,7 @@ CARRY_REFUSES: tuple[str, ...] = (
     "plugins/evals/skills/validate/scripts/**",
     "plugins/testing/evals/browser-probe/**",
     "plugins/work-items/scripts/**",
+    "plugins/work-items/tools/work-item-tracker/**",
 )
 
 
