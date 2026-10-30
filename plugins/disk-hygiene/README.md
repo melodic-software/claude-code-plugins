@@ -217,17 +217,20 @@ itself, the same way the guard's watchdog answers "could not decide":
 | No Python resolves: skill-scoped belt, any Bash or PowerShell call | Denied (exit 2), reason on stderr |
 | No Python resolves: plugin-level gate, command naming `hygiene.py` (or an empty payload) | Denied (exit 2), reason on stderr |
 | No Python resolves: plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` notice to the user once per session |
-| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch and the guard is not enforced; what the user and the model see then is in the record below the table. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure there; the shell-form `SessionStart` row warns the user at session start, and the guard stays unenforced. The Stop detector launches the same way and reports neither |
+| `node` missing or no bash found: plugin-level gate, command naming `hygiene.py` | Denied on Claude Code 2.1.295 or later: the two `hygiene.py` rows set `"onFailure": "block"`, so a hook that cannot launch, crashes or times out blocks the call. An older client ignores the key, and the call proceeds unchecked as in the next row |
+| `node` missing or no bash found: every other hook | **Proceeds unchecked.** The hook fails to launch and the guard is not enforced; what the user and the model see then is in the record below the table. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure there; the shell-form `SessionStart` row warns the user at session start, and the guard stays unenforced. The Stop detector launches the same way and reports neither |
 
-No registration in this plugin sets a hook failure option, so the last row's outcome is the
-platform's default for a hook that cannot start.
+Only the two `hygiene.py` rows set a hook failure option. Every other row, the skill-scoped belt
+included, takes the platform's default for a hook that cannot start, which is the last row's
+outcome. Which rows set the key and why:
+[hook budget](../../docs/contracts/hook-budget/README.md#which-rows-set-onfailure-block).
 
 - **Pointer**: when deciding what a hook's exit code, empty output or failed launch does to the
   tool call, fetch [Exit code output](https://code.claude.com/docs/en/hooks#exit-code-output) and
   [Block the action when a hook fails](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails)
-  live. **As of**: 2026-10-11. **Recheck trigger**: either section changes the outcome of a
+  live. **As of**: 2026-10-30. **Recheck trigger**: either section changes the outcome of a
   `PreToolUse` hook that exits 0 with no decision or fails to start, or a registration in
-  `hooks/hooks.json` or the `clean` skill's frontmatter starts setting a failure option.
+  `hooks/hooks.json` or the `clean` skill's frontmatter starts or stops setting a failure option.
 
 Of the no-Python rows, the plugin-level gate row is the only fail-open. Those are the commands the guard would
 have deferred on had it run; the watchdog asks on them because a missed deadline is transient, but a

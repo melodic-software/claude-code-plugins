@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: mt-loneliness-one-labeled
+graders:
+  - name: family-distance-label
+    type: regex
+    pattern: '\b(?:family\s+)?distance\b(?:\*\*)?[^\n]{0,40}?\b(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\|'
+    flags: 'i'
+    target: last_message
+  - name: one-labeled-candidate
+    type: regex
+    pattern: '(?:\bdistance\b(?:\*\*)?[ \t]*[:=(–—-][ \t]*(?:\*\*)?[ \t]*(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\|)[\s\S]*(?:\bdistance\b(?:\*\*)?[ \t]*[:=(–—-][ \t]*(?:\*\*)?[ \t]*(?:close|medium|far)\b|\|[ \t]*(?:\*\*)?(?:close|medium|far)(?:\*\*)?[ \t]*\|)'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+  - name: no-second-candidate
+    type: regex
+    pattern: '^[ \t>]*(?:\*\*)?2[.)][ \t]*[*_"“]|\b(?:backup|runner-up)(?:\*\*)?[ \t]*:'
+    flags: 'im'
+    match: not_contains
+    target: last_message

@@ -67,7 +67,7 @@ non-sensitive option; whether that holds for a `sensitive` option such as
 uninstall to rotate: that drops this plugin's entire stored `pluginConfigs` entry,
 resetting every option in the Options reference table below to its manifest default.
 The verified-version record lives in the
-[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 ## Using vault-exec (opt-in)
 
@@ -144,7 +144,7 @@ client; the request/response and error-shaping logic lives in `server/src/`.
 
 The TypeScript in `server/src/` is what runs: Node strips the types at load, so there is no
 build step and no committed build output. The repo follows the
-[on-demand dependencies convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/on-demand-dependencies/README.md):
+[on-demand dependencies convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/on-demand-dependencies/README.md):
 no third-party code is committed. `server/src/launch.ts` installs the runtime dependencies on
 first launch and then starts `index.ts`:
 

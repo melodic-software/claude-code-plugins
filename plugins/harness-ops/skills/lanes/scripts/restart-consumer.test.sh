@@ -24,6 +24,8 @@
 #   - a `run` holds a cross-process lock: a second concurrent run skips cleanly
 #     (exit 0, `lock-held`), relaunches nothing, and the lock is released on exit
 #   - a telemetry read that ERRORS is `api-error`, never `no-state`
+#   - a title-resolved issue is one the write identity (or the lane's
+#     `telemetry.author`) opened; any other author's match is skipped and named
 #   - the consumer's own telemetry upsert: pinned issue, the morning-brief search
 #     hit, the exact-title fallback, and the no-issue-found warn + ledger-only
 #   - the morning-brief issue-discovery literals are byte-identical in both files
@@ -607,6 +609,41 @@ assert_contains "the title lookup reads REST search" "$(cat "$TMP/gh-unbound.log
 OUT="$(GH_LOG="$TMP/gh-unbound-ok.log" run_unbound)"
 assert_contains "a complete empty title search is no-telemetry" "$OUT" "| work | no-telemetry |"
 
+# Anyone can open an issue with a lane's title: only one the write identity
+# opened is selected, however low another author's issue number is.
+title_issue() { # $1 number, $2 title, $3 author login
+  jq -cn --argjson n "$1" --arg t "$2" --arg a "$3" '{number: $n, title: $t, user: {login: $a}}'
+}
+FOREIGN_WORK="$(title_issue 10 'Lane telemetry: work' intruder)"
+OWN_WORK="$(title_issue 20 'Lane telemetry: work' stub-user)"
+GH_OWN="$TMP/gh-unbound-own.log"
+OUT="$(GH_LOG="$GH_OWN" GH_TITLE_RESULT="[$FOREIGN_WORK,$OWN_WORK]" run_unbound)"
+assert_contains "the write identity's title match is selected" "$(cat "$GH_OWN")" "issues/20/comments"
+assert_not_contains "a lower-numbered foreign title match is never selected" "$(cat "$GH_OWN")" "issues/10/comments"
+assert_contains "the skipped foreign match is named in the output" "$OUT" "#10 by intruder"
+GH_FOREIGN="$TMP/gh-unbound-foreign.log"
+OUT="$(GH_LOG="$GH_FOREIGN" GH_TITLE_RESULT="[$FOREIGN_WORK]" run_unbound)"
+assert_contains "only a foreign title match resolves to no issue" "$OUT" "| work | no-telemetry |"
+assert_not_contains "the foreign issue's comments are never read" "$(cat "$GH_FOREIGN")" "issues/10/comments"
+
+# A lane's `telemetry.author` may open its issue too; a bot account may not.
+AUTHORED="$TMP/lanes-authored.json"
+printf '{"prompt_dir": ".work/lanes", "lanes": [{"name": "work", "prompt": "work.md", "telemetry": {"author": "%s"}}]}\n' operator >"$AUTHORED"
+GH_AUTHOR="$TMP/gh-authored.log"
+OUT="$(GH_LOG="$GH_AUTHOR" GH_TITLE_RESULT="[$FOREIGN_WORK,$(title_issue 15 'Lane telemetry: work' operator),$OWN_WORK]" \
+  bash "$SCRIPT" check --config "$AUTHORED" --repo "$REPO" --data-dir "$TMP/data-unbound" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --agents-json "$AGENTS_NONE" 2>&1)"
+assert_contains "telemetry.author's title match is selected" "$(cat "$GH_AUTHOR")" "issues/15/comments"
+printf '{"prompt_dir": ".work/lanes", "lanes": [{"name": "work", "prompt": "work.md", "telemetry": {"author": "%s"}}]}\n' 'lane-app[bot]' >"$AUTHORED"
+OUT="$(GH_LOG="$TMP/gh-authored-bot.log" GH_TITLE_RESULT="[$OWN_WORK]" \
+  bash "$SCRIPT" check --config "$AUTHORED" --repo "$REPO" --data-dir "$TMP/data-unbound" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --agents-json "$AGENTS_NONE" 2>&1)"
+RC=$?
+assert_contains "a bot telemetry.author is a config error" "$OUT" "| work | error |"
+assert_eq "a bot telemetry.author exits 3" "3" "$RC"
+
 # --- 19. The consumer's own telemetry upsert ---------------------------------
 # All four issue-resolution paths of upsert_own_telemetry, which every case above
 # suppresses with --no-telemetry.
@@ -631,10 +668,11 @@ assert_contains "the search hit selects the lowest-numbered issue" "$(cat "$GH_S
 
 GH_FB="$TMP/gh-fallback.log"
 OUT="$(GH_LOG="$GH_FB" GH_SEARCH_RESULT='[]' \
-  GH_TITLE_RESULT='[{"number":63,"title":"Lane telemetry: restart-consumer"},{"number":64,"title":"Lane telemetry: work"}]' \
+  GH_TITLE_RESULT="[$(title_issue 62 'Lane telemetry: restart-consumer' intruder),$(title_issue 63 'Lane telemetry: restart-consumer' stub-user),$(title_issue 64 'Lane telemetry: work' stub-user)]" \
   run_telemetry)"
 assert_contains "an empty search falls back to the exact-title lookup" "$(cat "$GH_FB")" "Lane telemetry in:title"
 assert_contains "the fallback matches the title EXACTLY, not fuzzily" "$(cat "$GH_FB")" "issues/63/comments"
+assert_not_contains "the fallback skips a title match the write identity did not open" "$(cat "$GH_FB")" "issues/62/comments"
 
 GH_NONE="$TMP/gh-none.log"
 OUT="$(GH_LOG="$GH_NONE" GH_SEARCH_RESULT='[]' GH_TITLE_RESULT='[]' run_telemetry)"

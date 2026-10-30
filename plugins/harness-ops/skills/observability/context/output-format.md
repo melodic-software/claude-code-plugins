@@ -208,7 +208,7 @@ bash "<skill-dir>/scripts/report-path.sh" --mkdir
 
 That prints `${CLAUDE_PLUGIN_DATA}/reports/<state-key>/claude-observability-<date>.md` and creates the parent directory. Same content. After write, print that path on stdout (only) for the user to pick up.
 
-`<state-key>` is `<repo-identity>/<worktree-discriminator>` from `lib/state-key.sh`. The report is project-local (its source is the hook event log inside the checkout), and `${CLAUDE_PLUGIN_DATA}` carries no project segment, so without the key every project sharing a date shares one file. See `SKILL.md` "Reporting scopes" and [`docs/conventions/plugin-data-report-keying/`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-data-report-keying/README.md).
+`<state-key>` is `<repo-identity>/<worktree-discriminator>` from `lib/state-key.sh`. The report is project-local (its source is the hook event log inside the checkout), and `${CLAUDE_PLUGIN_DATA}` carries no project segment, so without the key every project sharing a date shares one file. See `SKILL.md` "Reporting scopes" and [`docs/contracts/plugin-data-report-keying/`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-data-report-keying/README.md).
 
 One file per project per date is the deliberate retention shape: a same-day rerun of the same project replaces its own earlier report. Any `claude-observability-<date>.md` sitting directly under `reports/` is an unkeyed leftover from the older layout. The script names it on stderr: offer it to the operator as a file they may delete, and do not read it.
 

@@ -75,7 +75,7 @@ if command -v duckdb >/dev/null 2>&1; then
   assert_contains "rising Stop row is slope-flagged" "$(flagged)" "Stop"
   assert_contains "the flag names the slope reason" "$(flagged)" "slope"
   assert_not_contains "rising Stop p95 is within the default budget" "$out" "p95>budget"
-  assert_contains "budgets are labeled as judgment" "$out" "judgment, derived from docs/conventions/hook-budget/README.md"
+  assert_contains "budgets are labeled as judgment" "$out" "judgment, derived from docs/contracts/hook-budget/README.md"
 
   run "$rising" --budget Stop=99999
   assert_eq "a loose budget does not hide the slope" 1 "$rc"

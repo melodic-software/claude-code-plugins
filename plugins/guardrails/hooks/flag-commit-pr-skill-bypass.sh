@@ -18,7 +18,7 @@
 # value at any scope) never flags a `gh pr create` call — an advisory firing on
 # unknown state is noise, not signal. A missing jq specifically still surfaces a
 # one-time systemMessage that the guard is disabled
-# (docs/conventions/hook-observability/) — that notice is about the guard's own
+# (docs/contracts/hook-observability/) — that notice is about the guard's own
 # health, not the advisory content it would otherwise flag.
 #
 # WHAT IT FLAGS:
@@ -95,7 +95,7 @@ hook::buffer_stdin_to INPUT || exit 0
 # jq is required both to parse the tool payload and to read enabledPlugins.
 # hook::require jq fails OPEN (this hook never blocks either way) but makes
 # the degraded state visible to both the user (systemMessage) and the agent
-# (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
+# (additionalContext), once per session and agent — see docs/contracts/hook-observability/.
 hook::require jq "PreToolUse" guardrails "$INPUT"
 
 # Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is

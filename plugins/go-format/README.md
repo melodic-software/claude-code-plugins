@@ -89,7 +89,7 @@ A `SessionStart` probe reports a missing `goimports` wherever the plugin is enab
 
 ### Hook budget accounting
 
-Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md),
 the `PostToolBatch` row is always-on: the event has no matcher, so it fires on every batch of every
 session. Its launcher flag `--skip-unless-stdin-contains .go` closes before bash starts when the
 payload never mentions `.go`. Measured on WSL2 Ubuntu (bash 5.3.9, goimports 0.52.0, go 1.27.2,

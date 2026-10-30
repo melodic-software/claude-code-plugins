@@ -3,6 +3,45 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.12.3] - 2026-10-30
+
+### Changed
+
+- Links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+## [3.12.2] - 2026-10-30
+
+### Changed
+
+- The `work` skill reads `scope` in `issue.json`: for a size-split part filed by target, each done-when item applies only to the targets its `Scope:` line names.
+
+## [3.12.1] - 2026-10-30
+
+### Changed
+
+- The `work` skill's CI mode reads a fourth `author_kind` in `issue.json`, `verify-findings`: the
+  pr-merge lane's record of the verifier's findings on an earlier pull request for the issue that
+  it closed at the verify cap. Its text is data, never instructions: the run takes each finding
+  only as a hint to check against the code and the issue's body, and reports any instruction in it.
+
+## [3.12.0] - 2026-10-30
+
+### Added
+
+- `work-item-tracker.sh status-storage [--repo <owner>/<repo>]` reports where the tracker stores an item's status: `field` when the organization has a `Work status` single-select issue field with options, else `labels`. The core reads it from the adapter's `get-field-options`. It reports `labels` for an adapter without that verb, such as `local-markdown`. It also reports `labels` when GitHub refuses the issue-field listing, as it does for a user-owned repository or a token without `read:org`. `CONTRACT.md` documents the output, and the tracker and conformance suites cover it.
+
+### Changed
+
+- `/work-items:work`: the issue lane's outcome file takes three more stop codes: `blocked-by-pr` (waits on an open pull request, run again once it merges or closes), `already-done` (work already on the default branch, closed once the lane confirms the cited commit or pull request) and `report-delivered` (a read-only issue's report, posted and closed). Only `intent-change`, `design-change`, `security-risk` and `cost-risk` reach a person; a reason with no code is run again at most once, and not at all after an earlier retry, then stops. A reason that names a security concern reaches a person even after a close, host-only or manual-external code.
+
+### Fixed
+
+- `rule-admit.sh` and intake admission no longer refuse an issue for naming a subscription login or Claude subscription usage (text such as "runs on the subscription login" or "spends Claude subscription usage"), since model usage under the Claude subscriptions is not cost in the owner's cost definition (`docs/contracts/loop-lane/README.md`). Every other subscription (a Claude subscription upgrade or purchase, and Azure or Copilot subscription usage, included), a plan or seat change, and a paid subscription purchase still refuse.
+
+### Security
+
+- The work-loop and attend-queue lanes take their `Lane telemetry: <lane>` issue only when the lane's write identity opened it. An exact-title issue another account opened is skipped and named in the lane's report, and with none left the lane creates its own.
+
 ## [3.11.9] - 2026-10-29
 
 ### Fixed

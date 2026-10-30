@@ -16,6 +16,7 @@ import { test } from "node:test";
 
 import {
   ARM_MUTATION,
+  AUTO_MERGE_STATE_QUERY,
   BODY_HOLD,
   DETAIL_QUERY,
   DISARM_MUTATION,
@@ -38,6 +39,7 @@ import {
   refusalReasons,
   refusalWrites,
   main,
+  pythonClose,
   pythonRoom,
   pythonVerify,
   pythonWholeReview,
@@ -131,12 +133,16 @@ const ROOM = { refusal: null, unreadable: null, count: 0, cap: 5, queued: [], ru
 const room = (answer = ROOM) => async () => answer;
 const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name) => ({ name })) });
 
-// armErrors: per pull request id, the errors its arm sends throw, in order.
+// armErrors and disarmErrors: per pull request id, the errors its arm or
+// disarm sends throw, in order.
 // filesError: what every changed-files GET throws.
-function world(pulls, { failArm = false, armErrors = {}, filesError = null, noteErrors = [], disarmError = null, pinError = null } = {}) {
+// A pull request's `after` is its auto-merge state as the read-back sees it
+// (AUTO_MERGE_STATE_QUERY), else its listed state; `after: "error"` fails the read.
+function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, filesError = null, noteErrors = [], disarmError = null, pinError = null } = {}) {
   const pins = [];
   const noteThrows = [...noteErrors];
   const armThrows = Object.fromEntries(Object.entries(armErrors).map(([id, errors]) => [id, [...errors]]));
+  const disarmThrows = Object.fromEntries(Object.entries(disarmErrors).map(([id, errors]) => [id, [...errors]]));
   const calls = [];
   const notes = [];
   const github = async (method, path, body, headers) => {
@@ -303,6 +309,16 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (body.query === ARM_MUTATION && armThrows[body.variables.id]?.length > 0) {
       throw armThrows[body.variables.id].shift();
     }
+    if (body.query === AUTO_MERGE_STATE_QUERY) {
+      const found = pulls.find((candidate) => candidate.id === body.variables.id);
+      if (found?.after === "error") {
+        throw new GitHubError(502, "POST /graphql");
+      }
+      return { data: { node: found?.after ?? { state: "OPEN", headRefOid: found?.headRefOid, autoMergeRequest: found?.autoMergeRequest ?? null } } };
+    }
+    if (body.query === DISARM_MUTATION && disarmThrows[body.variables.id]?.length > 0) {
+      throw disarmThrows[body.variables.id].shift();
+    }
     if (body.query === DISARM_MUTATION && disarmError) {
       throw disarmError;
     }
@@ -328,7 +344,7 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
   };
   const writes = () =>
     calls
-      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY].includes(body.query) && !String(body.query).startsWith(SKIP_STATE_PREFIX))
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY, AUTO_MERGE_STATE_QUERY].includes(body.query) && !String(body.query).startsWith(SKIP_STATE_PREFIX))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
   return { github, writes, verify, verified, calls, notes, pins };
 }
@@ -369,11 +385,16 @@ async function run(pulls, env = {}, options = {}, lane = ROOM) {
   console.log = (line) => lines.push(line);
   try {
     const actions = options.jobToken ? options.jobToken(github) : undefined;
-    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, actions, verify, room: room(lane), whole, sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)), mainInputs: options.mainInputs });
+    const closed = [];
+    const close = async (pull, holds) => {
+      closed.push({ number: pull.number, holds });
+      return options.closeAnswer ? options.closeAnswer(pull) : { closed: true, restarted: [], parked: [] };
+    };
+    const code = await main({ env: { ...ENV, GITHUB_OUTPUT: output, ...env }, github, actions, verify, room: room(lane), close, whole, sleep: async (ms) => slept.push(ms), random: options.random, now: options.now ?? (() => Date.parse(NOW)), mainInputs: options.mainInputs });
     // The `pr-merge/unarmed` statuses the run hands the status job.
     const line = readFileSync(output, "utf8").split("\n").find((text) => text.startsWith(`${UNARMED_OUTPUT}=`));
     const statuses = line === undefined ? [] : JSON.parse(line.slice(UNARMED_OUTPUT.length + 1));
-    return { code, writes: writes(), lines, verified, slept, calls, notes, pins, statuses, asked: whole.asked };
+    return { code, writes: writes(), lines, verified, slept, calls, notes, pins, statuses, closed, asked: whole.asked };
   } finally {
     console.log = log;
   }
@@ -683,14 +704,17 @@ test("a floor path no configured glob names is commented on and labeled human-ga
 // Owner rules 2026-10-26 and 2026-10-27: a person only for intent, design or
 // a CRITICAL security issue, trust holds kept. The gate's `needsHuman`
 // (babysit_verify_evidence NEEDS_HUMAN: an untrusted spec) decides, so a
-// changed spec, the repeated-FAIL cap and an old pull request are the lanes'.
-test("only a verifier refusal the gate marks needsHuman is a person's; the cap and an old pull request are the lanes'", async () => {
-  const refused = (refusal, needsHuman) => ({ refusal, needsHuman, head: HEAD, ineligible: null, reviews: null });
-  const { notes } = await run([
+// changed spec is the lanes'. Owner decision 2026-10-29: the repeated-FAIL
+// cap and an old pull request, which never clear for it, close it for a
+// fresh attempt at its issue, with no note and no person's label.
+test("only a verifier refusal the gate marks needsHuman is a person's; the cap and an old pull request close for a fresh attempt", async () => {
+  const refused = (refusal, needsHuman, detail = null) => ({ refusal, needsHuman, detail, head: HEAD, ineligible: null, reviews: null });
+  const failed = `fails at 3 heads (${"1".repeat(40)}, ${"2".repeat(40)}, ${"3".repeat(40)}), the cap is 3`;
+  const { notes, closed, lines } = await run([
     pull(1, { verdict: refused("verify:untrusted-spec", true) }),
     pull(2, { verdict: refused("verify:spec-changed", false) }),
-    pull(3, { verdict: refused("verify:repeated-fail", false) }),
-    pull(4, { verdict: refused("verify:too-old", false) }),
+    pull(3, { verdict: refused("verify:repeated-fail", false, failed) }),
+    pull(4, { verdict: refused("verify:too-old", false, "created 2026-07-27T23:00:00+00:00") }),
     pull(5, { verdict: { ...MISSING, refusal: "verify:ineligible", ineligible: "it closes 2 issues" } }),
   ]);
   const refusing = (code) => `pr-merge's gate refuses its verifier verdict (${code})`;
@@ -698,10 +722,55 @@ test("only a verifier refusal the gate marks needsHuman is a person's; the cap a
     { method: "POST", path: `${ISSUES}/1/comments`, body: { body: personNote(refusing("verify:untrusted-spec")) } },
     { method: "POST", path: `${ISSUES}/1/labels`, body: { labels: ["needs-human"] } },
     { method: "POST", path: `${ISSUES}/2/comments`, body: { body: laneNote(refusing("verify:spec-changed")) } },
-    { method: "POST", path: `${ISSUES}/3/comments`, body: { body: laneNote(refusing("verify:repeated-fail")) } },
-    { method: "POST", path: `${ISSUES}/4/comments`, body: { body: laneNote(refusing("verify:too-old")) } },
     { method: "POST", path: `${ISSUES}/5/comments`, body: { body: laneNote("pr-merge's lane does not take its issue link (it closes 2 issues)") } },
   ]);
+  assert.deepEqual(closed, [
+    { number: 3, holds: ["do-not-merge", "needs-human"] },
+    { number: 4, holds: ["do-not-merge", "needs-human"] },
+  ]);
+  assert.ok(lines.some((line) => line.includes(`#3 closed for a fresh attempt (${refusing(`verify:repeated-fail: ${failed}`)})`)));
+});
+
+// A close the reader left undone (a hold label, a head that moved) or that
+// failed writes no note and no label: the next run judges it again.
+// Left open, it keeps the lane's refusal note (and its pr-merge/unarmed
+// status), as before the close existed; never a person's label.
+test("a capped pull request the close leaves open or fails on gets the lane's note and no label", async () => {
+  const capped = { refusal: "verify:repeated-fail", needsHuman: false, detail: null, head: HEAD, ineligible: null, reviews: null };
+  const laneOnly = (notes) => {
+    assert.equal(notes.length, 1, JSON.stringify(notes));
+    assert.equal(notes[0].method, "POST");
+    assert.equal(notes[0].path, `${ISSUES}/3/comments`);
+    assert.ok(!notes.some(({ path }) => path.includes("/labels")));
+  };
+  const open = await run([pull(3, { verdict: capped })], {}, { closeAnswer: () => ({ closed: false, reason: "it carries do-not-merge" }) });
+  laneOnly(open.notes);
+  assert.equal(open.code, 0);
+  assert.ok(open.lines.some((line) => line.includes("#3 left open: it carries do-not-merge")));
+  const failing = await run([pull(3, { verdict: capped })], {}, { closeAnswer: () => { throw new Error("close: HTTP 500"); } });
+  laneOnly(failing.notes);
+  assert.notEqual(failing.code, 0);
+  // A close that went through notes nothing.
+  const closed = await run([pull(3, { verdict: capped })], {}, { closeAnswer: () => ({ closed: true, restarted: [7], parked: [] }) });
+  assert.deepEqual(closed.notes, []);
+  // Its lane refusal, standing merge.risk-escalation-minutes at the head,
+  // gets the failing pr-merge/unarmed status either way.
+  const reason = verifyHold(capped, HEAD);
+  const standing = pull(3, { verdict: capped, discussion: { comments: [lanesSaid(laneNote(reason, "2026-10-23T10:00:00.000Z"))] } });
+  const now = () => Date.parse("2026-10-23T11:00:00Z");
+  const failingStatus = [{ sha: HEAD, state: "failure", description: reason }];
+  for (const closeAnswer of [() => ({ closed: false, reason: "it carries do-not-merge" }), () => { throw new Error("close: HTTP 500"); }]) {
+    assert.deepEqual((await run([standing], {}, { closeAnswer, now })).statuses, failingStatus);
+  }
+  assert.deepEqual((await run([standing], {}, { closeAnswer: () => ({ closed: true, restarted: [], parked: [] }), now })).statuses, []);
+});
+
+// Report-only closes nothing.
+test("report-only names the close it would make and closes nothing", async () => {
+  const capped = { refusal: "verify:too-old", needsHuman: false, detail: "created x", head: HEAD, ineligible: null, reviews: null };
+  const { closed, lines } = await run([pull(4, { verdict: capped })], { REPORT_ONLY: "true" });
+  assert.deepEqual(closed, []);
+  assert.ok(lines.some((line) => line.includes("#4 would close for a fresh attempt (report-only)")));
 });
 
 test("verifyClears reads the gate's needsHuman and reviewsPerson, not the refusal text", () => {
@@ -1410,6 +1479,61 @@ test("an arm GitHub answers with a rate limit is never sent again", async () => 
   }
 });
 
+const unanswered = () => new GitHubError(502, "POST /graphql");
+const readBacks = (calls) => calls.filter(({ body }) => body?.query === AUTO_MERGE_STATE_QUERY).length;
+
+test("a resent arm that errors with the pull request already armed at its head reads it back once and counts it armed", async () => {
+  const { code, writes, lines, calls, statuses } = await run([pull(1, { after: { state: "OPEN", headRefOid: HEAD, autoMergeRequest: { enabledAt: NOW } } })], {}, { armErrors: { PR_1: [reset(), unanswered()] } });
+  assert.equal(code, 0);
+  assert.equal(writes.length, 2);
+  assert.equal(readBacks(calls), 1);
+  assert.ok(lines.includes(`enable-auto-merge: #1 arm failed after a resend (POST /graphql failed with status 502), but it is already armed at ${HEAD}, so an earlier send landed`));
+  assert.ok(lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
+  assert.deepEqual(statuses, [{ sha: HEAD, state: "success", description: "armed for native auto-merge" }]);
+  assert.ok(!lines.some((line) => line.startsWith("::error")));
+});
+
+test("a resent arm that errors while the pull request is unarmed or armed at another head still fails, naming it and the cause", async () => {
+  for (const after of [undefined, { state: "OPEN", headRefOid: "c".repeat(40), autoMergeRequest: { enabledAt: NOW } }, { state: "MERGED", headRefOid: HEAD, autoMergeRequest: { enabledAt: NOW } }, "error"]) {
+    const { code, lines, calls } = await run([pull(1, { after })], {}, { armErrors: { PR_1: [reset(), unanswered()] } });
+    assert.equal(code, 1);
+    assert.equal(readBacks(calls), 1);
+    assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: POST /graphql failed with status 502"), String(after));
+    assert.ok(!lines.some((line) => line.startsWith("enable-auto-merge: #1 armed")));
+  }
+});
+
+test("an arm that errors on its first send, or with a rate limit, is not read back", async () => {
+  const after = { state: "OPEN", headRefOid: HEAD, autoMergeRequest: { enabledAt: NOW } };
+  for (const errors of [[unanswered()], [reset(), new GitHubError(403, "POST /graphql")]]) {
+    const { code, calls } = await run([pull(1, { after })], {}, { armErrors: { PR_1: errors } });
+    assert.equal(code, 1);
+    assert.equal(readBacks(calls), 0);
+  }
+});
+
+test("a resent disarm that errors with the pull request already unarmed counts it disarmed and writes the note", async () => {
+  const armed = pull(1, { autoMergeRequest: {}, verdict: MISSING, after: { state: "OPEN", headRefOid: HEAD, autoMergeRequest: null } });
+  const { code, writes, notes, lines, calls } = await run([armed], {}, { disarmErrors: { PR_1: [reset(), new GitHubError(200, "POST /graphql (GraphQL errors)")] } });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, Array(2).fill({ mutation: "disarm", id: "PR_1" }));
+  assert.equal(readBacks(calls), 1);
+  assert.ok(lines.includes("enable-auto-merge: #1 disarm failed after a resend (POST /graphql (GraphQL errors) failed with status 200), but it is already unarmed, so an earlier send landed"));
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
+  assert.ok(!lines.some((line) => line.startsWith("::error")));
+});
+
+test("a resent disarm that errors while the pull request is still armed, merged, or not read as a pull request fails, naming it and the cause, and writes no note", async () => {
+  for (const after of [undefined, { state: "MERGED", headRefOid: HEAD, autoMergeRequest: null }, {}]) {
+    const armed = pull(1, { autoMergeRequest: {}, verdict: MISSING, after });
+    const { code, notes, lines, calls } = await run([armed], {}, { disarmErrors: { PR_1: [reset(), new GitHubError(200, "POST /graphql (GraphQL errors)")] } });
+    assert.equal(code, 1, JSON.stringify(after));
+    assert.equal(readBacks(calls), 1);
+    assert.deepEqual(notes, []);
+    assert.ok(lines.includes("::error title=enable-auto-merge::#1 disarm: POST /graphql (GraphQL errors) failed with status 200"));
+  }
+});
+
 test("the resend warning names the arm and its pull request", async () => {
   const { lines } = await run([pull(1)], {}, { armErrors: { PR_1: [closed()] } });
   assert.ok(lines.some((line) => line.startsWith("::warning::enable-auto-merge: POST /graphql (arm) for PR_1 failed (TypeError UND_ERR_SOCKET)")));
@@ -1676,7 +1800,7 @@ test("auto-merge a person turned off stays off; one the lanes App turned off is 
 });
 
 test("the comment veto agrees with the gate's HUMAN_MERGE_VETO_RE", () => {
-  const bodies = ["do not merge", "Don't merge", "don’t merge", "dont-merge", "do-not merge", "Do NOT\nmerge", "donut merge", "merge it", "doesn't merge", ""];
+  const bodies = ["do not merge", "Don't merge", "don’t merge", "dont-merge", "do-not merge", "Do NOT\nmerge", "donut merge", "merge it", "doesn't merge", "", "do-not-merge", "ci-status, gitleaks, do-not-merge, cost holds", "the `do-not-merge` label", "removed the do-not-merge label", "Not ready, do-not-merge until Friday.", "Sorry, do-not-merge this.", "`do-not-merge` label please", "a, b, do-not-merge", "Hold on, do-not-merge, I'm still reviewing."];
   const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
   const python = spawnSync(
     "python3",
@@ -2168,7 +2292,7 @@ test("no pass at the head, a FAIL or the repeated-FAIL cap arms nothing", async 
 
 test("an armed pull request whose head lost its pass, or passed the cap, is disarmed", async () => {
   const armed = { enabledAt: "2026-10-23T10:00:00Z" };
-  const { writes, lines } = await run([
+  const { writes, lines, closed } = await run([
     // Armed on a passing head, then pushed: the gate finds no verdict at the new head.
     pull(1, { autoMergeRequest: armed, verdict: { refusal: "verify:missing", head: HEAD } }),
     pull(2, { autoMergeRequest: armed, verdict: { refusal: "verify:repeated-fail", head: HEAD } }),
@@ -2180,7 +2304,8 @@ test("an armed pull request whose head lost its pass, or passed the cap, is disa
     { mutation: "disarm", id: "PR_2" },
     { mutation: "disarm", id: "PR_3" },
   ]);
-  assert.ok(lines.some((line) => /#2 disarmed: pr-merge's gate refuses its verifier verdict \(verify:repeated-fail\)/.test(line)));
+  assert.ok(lines.some((line) => /#2 disarmed: pr-merge's gate refuses its verifier verdict \(verify:repeated-fail\)/.test(line)));  // Past the cap it is also closed for a fresh attempt, after the disarm.
+  assert.deepEqual(closed.map((c) => c.number), [2]);
 });
 
 test("the verdict is read only for a lanes App pull request nothing else holds", async () => {
@@ -3525,6 +3650,25 @@ test("an approved hold-path escalation keeps its label while anything else stand
   const edited = { ...note, updated_at: after };
   const lifted = await run([held({ timeline: [edited, label, approval, restSaid(claude, "Review done, no findings.", after)], restReviews: [{ user: KYLE, state: "APPROVED", submitted_at: after }] })], trustedKyle());
   assert.deepEqual(lifted.notes, [{ method: "DELETE", path: `${ISSUES}/2/labels/needs-human` }]);
+});
+
+test("pythonClose runs the reader's capped-close at the base with the hold labels, and throws on a failed exit", () => {
+  const seen = [];
+  const spawn = (cmd, args, options) => {
+    seen.push({ cmd, args, token: options.env.GH_TOKEN });
+    return { status: 0, stdout: '{"closed": true, "restarted": [7], "parked": []}\n' };
+  };
+  const base = "b".repeat(40);
+  const env = { GITHUB_REPOSITORY: "o/r", GH_TOKEN: "app" };
+  const answer = pythonClose(env, spawn)({ number: 5, headRefOid: HEAD, baseRefOid: base }, ["do-not-merge", "needs-human"]);
+  assert.deepEqual(answer, { closed: true, restarted: [7], parked: [] });
+  assert.equal(seen[0].cmd, "python3");
+  assert.deepEqual(seen[0].args.slice(1), ["capped-close", "--repo", "o/r", "--base-sha", base, "--hold-label", "do-not-merge", "--hold-label", "needs-human", "5", HEAD]);
+  // Its writes keep the lanes App token.
+  assert.equal(seen[0].token, "app");
+  const failing = () => ({ status: 1, stdout: '{"closed": false, "error": "close: HTTP 403"}\n', stderr: "" });
+  assert.throws(() => pythonClose(env, failing)({ number: 5, headRefOid: HEAD, baseRefOid: base }, []), /capped-close exited 1: close: HTTP 403/);
+  assert.throws(() => pythonClose(env, spawn)({ number: 5, headRefOid: HEAD, baseRefOid: "main" }, []), /not a commit SHA/);
 });
 
 // merge.diff-check.path-holds (owner decision Q15): off, a gate script or a

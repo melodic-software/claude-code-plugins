@@ -43,7 +43,7 @@ hooks do, so the reader lands on the store they wrote rather than refusing it.
 
 The `data-dir` root is the one input with no default. A skill subprocess can inherit an
 unrelated plugin's `CLAUDE_PLUGIN_DATA`
-([plugin-data keying convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-data-report-keying/README.md)
+([plugin-data keying convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-data-report-keying/README.md)
 rule 2), so this script never reads that variable and the sibling pruner
 `skills/observability/scripts/clean.sh` refuses to either. Pass the harness-ops plugin data
 directory through `--data-root`; without it the `data-dir` scope exits `2` rather than reading a

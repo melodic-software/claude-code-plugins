@@ -16,7 +16,7 @@ test("a change under a plugin's evals selects that plugin only", () => {
 });
 
 test("a change only under docs selects nothing", () => {
-  assert.deepEqual(selectPlugins(["docs/adr/0001-x.md", "docs/conventions/loop-lane/README.md"]), []);
+  assert.deepEqual(selectPlugins(["docs/adr/0001-x.md", "docs/contracts/loop-lane/README.md"]), []);
 });
 
 test("skills and agents select their plugin once, sorted", () => {

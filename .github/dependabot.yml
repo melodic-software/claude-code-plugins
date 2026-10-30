@@ -49,12 +49,10 @@ updates:
       github-actions:
         patterns:
           - "*"
-    # Every melodic-software/ci-workflows ref (reusable workflows AND composite
-    # actions) moves only through deliberate reviewed PRs per the standards
-    # runner-policy selector-revision lockstep. Reusable-workflow bumps to
-    # unreviewed commits fail the Runner policy lane; ungoverned composite-action
-    # bumps drifted pin-provenance comments org-wide
-    # (melodic-software/github-iac#89), so both are ignored here.
+    # Reusable ci-workflows workflows float on `main`. ci-workflows composite
+    # actions stay SHA-pinned (the org requires it) and move only through
+    # reviewed PRs: ungoverned composite-action bumps drifted pin-provenance
+    # comments org-wide (melodic-software/github-iac#89), so they are ignored.
     ignore:
       - dependency-name: "melodic-software/ci-workflows/*"
   # Biome and Claude Code are executable CI dependencies locked at the root.
@@ -124,7 +122,7 @@ updates:
           - "patch"
   # The harness-ops inventory's parser packages (acorn, eslint-scope). Nothing is
   # vendored: the committed lockfile is what `npm ci` installs on first use
-  # (docs/conventions/on-demand-dependencies/), so a bump here is the release.
+  # (docs/contracts/on-demand-dependencies/), so a bump here is the release.
   - package-ecosystem: npm
     directory: /plugins/harness-ops/skills/inventory/scripts/js
     labels:
@@ -143,7 +141,7 @@ updates:
           - "patch"
   # The harness-ops control-claude-code driver's terminal engine (@microsoft/tui-test).
   # Nothing is vendored: the committed lockfile is what `npm ci` installs on first use
-  # (docs/conventions/on-demand-dependencies/), so a bump here is the release.
+  # (docs/contracts/on-demand-dependencies/), so a bump here is the release.
   - package-ecosystem: npm
     directory: /plugins/harness-ops/skills/control-claude-code/driver
     labels:
@@ -162,7 +160,7 @@ updates:
           - "patch"
   # The testing check-visual-parity skill's pixelmatch and pngjs. Nothing is
   # vendored: the committed lockfile is what `npm ci` installs on first use
-  # (docs/conventions/on-demand-dependencies/), so a bump here is the release.
+  # (docs/contracts/on-demand-dependencies/), so a bump here is the release.
   - package-ecosystem: npm
     directory: /plugins/testing/skills/check-visual-parity/scripts
     labels:
@@ -267,7 +265,7 @@ updates:
           - "patch"
   # The animation plugin's hash-locked Python packages (numpy, opencv). Nothing is vendored:
   # the SessionStart hook installs requirements.txt on demand
-  # (docs/conventions/on-demand-dependencies/), so a bump here is the release.
+  # (docs/contracts/on-demand-dependencies/), so a bump here is the release.
   - package-ecosystem: pip
     directory: /plugins/animation
     labels:
@@ -286,7 +284,7 @@ updates:
           - "patch"
   # The explainer-video plugin's hash-locked Python packages (ManimCE). Nothing is vendored:
   # the SessionStart hook installs requirements.txt on demand
-  # (docs/conventions/on-demand-dependencies/), so a bump here is the release.
+  # (docs/contracts/on-demand-dependencies/), so a bump here is the release.
   - package-ecosystem: pip
     directory: /plugins/explainer-video
     labels:

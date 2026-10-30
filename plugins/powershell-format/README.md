@@ -96,7 +96,7 @@ run stays skipped. A settings file without
 
 ### Hook budget accounting
 
-Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md),
 the plugin's always-on hook is the Stop row. With `powershell_format_end_of_turn` at its
 default (false) the `--require-true` gate closes inside the `node` launcher, so a turn end
 costs one process (`.performance/ratchets.json` holds that at 1 spawn).

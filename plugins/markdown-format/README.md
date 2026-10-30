@@ -10,7 +10,7 @@ commits and no finding reaches Claude per edit.
 
 It uses **your repository's own markdownlint configuration**. It ships none and imposes
 no rules of its own. A repository with no discoverable markdownlint config has chosen no
-Markdown style, so nothing runs there: carrying a config **is** the opt-in.
+Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
 
 ## Behavior
 
@@ -127,7 +127,7 @@ markdownlint config, so it can report in a repository that has none.
 
 ### Hook budget accounting
 
-Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md),
 the `PostToolBatch` row is always-on: the event has no matcher, so it fires on every batch
 of every session. Its launcher flag `--skip-unless-stdin-contains .md` closes before bash
 starts when the payload never mentions `.md`. Measured on WSL2 Ubuntu (bash 5.3.9,

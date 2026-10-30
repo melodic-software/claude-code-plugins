@@ -68,7 +68,7 @@ The hook itself runs on Bash 3.2+.
 
 ### Hook budget accounting
 
-Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md),
 the `PostToolBatch` row is always-on: the event has no matcher, so it fires on every batch of every
 session. Its launcher flag `--skip-unless-stdin-contains file_path` closes before bash starts when no
 tool call in the batch names a file path. The flag takes one text and the row must cover `Write`,

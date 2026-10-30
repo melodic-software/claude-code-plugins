@@ -99,7 +99,7 @@ return saved results is in
    reported as judgment with its reason and needs no source. Done when you hold
    the list of distinct sources to read.
 2. Read each URL pointer's anchored section by the
-   [fetch-route rungs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs)
+   [fetch-route rungs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#the-rungs)
    (rung 1, fresh bytes; WebFetch is rung 2, degraded because it truncates
    long pages silently). Read the `/workflow-authoring`
    pointer as in step 5 above. Done when every source is marked read or unread.

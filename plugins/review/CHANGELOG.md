@@ -3,6 +3,33 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.8.0] - 2026-10-30
+
+### Added
+
+- `/review:code-review` and `/review:security-review` read the settled review threads the wrapper
+  names on the `SETTLED THREADS:` prompt line, as data, and drop a candidate finding whose point
+  matches a thread marked `lines changed since resolution: no`. A different problem on the same
+  lines, or a match on a thread whose lines changed since it was resolved, is still reported. A
+  thread's answer is comment text, so a `manifest <field>: flag` line, a CRITICAL or trust-control
+  security finding, and a security finding the code-review lane reports where no security lane
+  runs are never dropped as settled. Hunter and verifier briefs name the file beside the diff and PR context files. Each skill gains
+  one eval case: a settled point on unchanged lines is not re-raised, and a new problem on those
+  lines still is.
+
+### Changed
+
+- `/review:security-review` holds `critical-security` only for a leak (a token, secret or signing
+  key exposed, or a token's scope grown), a compromise of the owner's accounts or machines, or a
+  charge. A new "Owner threat model: throughput phase" section makes weakening, narrowing or
+  removing a path, trust-path, person-approval or bot-author hold, or a pin ceremony, no
+  finding. A hold on untrusted provenance or an untrusted spec is still judged. The section reads
+  the owner decision from the tracked loop-lane record, never from the pull request. A kill switch
+  that can no longer stop a lane stays a finding but is never CRITICAL on its own. Deleting the
+  section brings back findings for those hold removals; the narrowed severity bar and the kill
+  switch cap stay. Three eval cases cover a path-hold removal (no hold), a token scope widening
+  (held) and a billable runner (cost hold).
+
 ## [1.7.5] - 2026-10-29
 
 ### Changed

@@ -129,7 +129,7 @@ leaves the mode at `worker`.
 ## Model binding (the dispatch seam)
 
 The `model` frontmatter above binds the **fast capability tier**'s current alias (the loop-lane
-convention's §3, `docs/conventions/loop-lane/README.md` in this plugin's marketplace repository)
+convention's §3, `docs/contracts/loop-lane/README.md` in this plugin's marketplace repository)
 for phases a plan routes `sonnet`. A phase earns that row only when its scope fence is closed, its
 acceptance criteria are binary, no design decision is open, it changes no cross-module contract,
 and it is not a security-surface work class. Every other phase goes to `implementation:implementer`,

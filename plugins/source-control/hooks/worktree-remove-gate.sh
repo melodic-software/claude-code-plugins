@@ -42,7 +42,7 @@
 # compared (`/source-control:pull-request create` owns that sync), and the
 # Workspace environment `down` never runs here.
 #
-# ── Verification stamp (docs/conventions/upstream-drift) ────────────────────────
+# ── Verification stamp (docs/contracts/upstream-drift) ────────────────────────
 # Claim: the contract bullets above.
 # Basis: <https://code.claude.com/docs/en/hooks#worktreeremove> and
 #   <https://code.claude.com/docs/en/hooks#worktreeremove-input>.

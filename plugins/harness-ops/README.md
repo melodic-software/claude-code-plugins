@@ -56,7 +56,7 @@ Claude Code's native OTEL cannot see.
 
 Eight advisory `*-audit` hooks, registered as nine rows because
 `skill-usage-audit` has two producers, emit the marketplace
-[hook-telemetry envelope](../../docs/conventions/hook-telemetry/README.md). One
+[hook-telemetry envelope](../../docs/contracts/hook-telemetry/README.md). One
 JSON event per run carrying that hook's own `duration_ms`, outcome, and a
 privacy-safe subject. Each is independently toggleable via its own `userConfig`
 boolean (default **on**; see [Per-hook kill switches](#per-hook-kill-switches)).
@@ -72,7 +72,7 @@ of their own keep their files: `skill-usage-audit.sh`, whose kill switch is
 inlined above its library `source` because it sits on the hot `PostToolUse`
 path, and `hook-failure-audit.sh` (below).
 
-The [hook budget](../../docs/conventions/hook-budget/README.md) is accounted per
+The [hook budget](../../docs/contracts/hook-budget/README.md) is accounted per
 `hooks.json` entry, and the collapse changes no entry: the same nine audit rows,
 on the same events, with the same matchers, and one event still spawns exactly
 one process. Per-entry cost is unchanged for an enabled row (the same library,
@@ -134,7 +134,7 @@ class its own diagnosis and remedy:
 
 Its budget share is stated as a **process count**, not a duration, and the host
 is the reason. The [hook-budget
-convention](../../docs/conventions/hook-budget/README.md) states each
+convention](../../docs/contracts/hook-budget/README.md) states each
 always-on hook's budget as k x S plus measured work (k = fewest spawns, S = one no-op spawn's time), not a fixed millisecond figure, and on the host in #3508 one
 process creation costs 180-2,841 ms (median 1,108 ms at 501 concurrent
 processes), so the count is what decides whether the set fits and a duration
