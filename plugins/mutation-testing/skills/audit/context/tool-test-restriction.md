@@ -44,10 +44,11 @@ When the configured tool is Stryker.NET, the exercised scope runs `scripts/dotne
 over the test set from the directory Stryker runs in. A non-zero exit refuses. From its lines it
 builds two values: `test-projects`, each line's project; and `test-case-filter`, the lines'
 `--filter` expressions joined with `|`, wrapped as `(<existing>)&(<built>)` when the project's
-config already sets one. One filter spans every listed project, and each term is a contains match,
-so it can take in more tests than the set: a test in another listed project whose full name contains
-a term, and, for a generic class, whose term has no trailing `.`, any class whose name starts with
-it (`~Ns.Foo` also matches `Ns.FooBar`). Each extra test counts toward coverage and kills, so a
+config already sets one. One filter spans every listed project, and each term uses the `~`
+operator (its matching rule: https://learn.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests#syntax,
+read 2026-10-26; recheck with the .NET row above), so it can take in more tests than the set: a test
+in another listed project that a term matches, and, for a generic class, whose term has no trailing
+`.`, any class whose name the term also matches. Each extra test counts toward coverage and kills, so a
 mutant the set does not reach can report Survived or Killed instead of NoCoverage. It writes both
 values into an untracked copy of the project's Stryker config file (default `stryker-config.json`;
 with none, a file holding only a `stryker-config` section) in the same directory as that file, or
