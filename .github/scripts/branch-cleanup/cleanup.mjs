@@ -206,8 +206,13 @@ export async function plan(env, { call, loadConfig, log = console.log }) {
   // starts at a point the run number moves by about a quarter of what one run
   // can read (a branch takes up to about four reads), wrapping around: kept
   // branches early in the listing cannot hide the later ones from every run.
+  // The step is the stride moved up to the nearest value coprime with the
+  // branch count, so successive runs start at every branch in turn.
   const stride = Number.isFinite(evalLimit) ? Math.max(1, Math.floor(evalLimit / 4)) : 0;
-  const start = branches.length === 0 ? 0 : ((Number.parseInt(env.GITHUB_RUN_NUMBER ?? "", 10) || 0) * stride) % branches.length;
+  const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+  let step = branches.length === 0 ? 0 : stride % branches.length;
+  while (stride > 0 && branches.length > 1 && gcd(step, branches.length) !== 1) step += 1;
+  const start = branches.length === 0 ? 0 : ((Number.parseInt(env.GITHUB_RUN_NUMBER ?? "", 10) || 0) * step) % branches.length;
   const ordered = [...branches.slice(start), ...branches.slice(0, start)];
   const results = [];
   let unevaluated = 0;
