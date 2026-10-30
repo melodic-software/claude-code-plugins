@@ -4,4 +4,4 @@ bump: patch
 
 ### Changed
 
-- Links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+- The generated plugin-options block in this plugin's docs now links `docs/contracts/<name>/` instead of the old `docs/conventions/<name>/` stub.
