@@ -34,7 +34,7 @@ and `pr-unblock` never merges
    `issues: read`, no `workflows`. Its verdict is the skill's structured output under a fixed JSON
    schema, which the runner, not the model, writes to an artifact beside the gated head. The skill
    frames the PR body, the release notes and every fetched page as data
-   ([`untrusted-content`](../conventions/untrusted-content/README.md)). Basis:
+   ([`untrusted-content`](../contracts/untrusted-content/README.md)). Basis:
    [`pr-pipeline.yaml`](../conventions/pr-pipeline.yaml) `review-dependency`;
    [`dependency-ci.md`](../../plugins/source-control/skills/pull-request/reference/dependency-ci.md).
 2. **A fix stays outside `.github/` and lets Dependabot rebase.** The promote step moves the PR

@@ -99,7 +99,7 @@ call() {
     GUARDRAILS_CROSS_DOMAIN_TRACE=1 "HOME=$HOME_DIR" "$@"
 }
 
-# --- No map: nothing is read or parsed --------------------------------------
+# --- No map: no domain, and a command that writes no identity is not parsed ---
 NO_MAP="$TEST_TMPDIR/no-map"
 mkdir -p "$NO_MAP"
 for via in direct dispatched; do
@@ -107,7 +107,7 @@ for via in direct dispatched; do
     "CLAUDE_PLUGIN_DATA=$NO_MAP" GUARDRAILS_CROSS_DOMAIN_TRACE=1 "HOME=$HOME_DIR"
   assert_exit "no map ($via): exit 0" 0 "$GUARD_RC"
   assert_silent "no map ($via): stdout is empty" "$GUARD_OUT"
-  assert_silent "no map ($via): no step traced, so nothing read or parsed" "$GUARD_ERR"
+  assert_silent "no map ($via): no step traced, so no map read and nothing parsed" "$GUARD_ERR"
 done
 assert_file_absent "no map: no cache is written" "$NO_MAP/identity-domains.cache"
 guard_invoke --cwd "$A_ROOT/repo" --command "ls $B_ROOT" -- GUARDRAILS_CROSS_DOMAIN_TRACE=1
@@ -449,6 +449,124 @@ else
   bad "config deny telemetry: no telemetry envelope"
 fi
 
+# --- Git identity writes (rule 6) ---------------------------------------------
+# idw <label> <deny|allow> <cwd> <command> [data dir] [tool]: the call, denied
+# as an identity write or not denied at all.
+idw() {
+  guard_invoke --tool "${6:-Bash}" --cwd "$3" --command "$4" -- "CLAUDE_PLUGIN_DATA=${5:-$DATA}" \
+    GUARDRAILS_CROSS_DOMAIN_TRACE=1 "HOME=$HOME_DIR"
+  assert_exit "$1: exit 0" 0 "$GUARD_RC"
+  if [[ "$2" == allow ]]; then
+    assert_absent "$1: not denied" "$GUARD_OUT" permissionDecision
+    return 0
+  fi
+  assert_eq "$1: denied" deny "$(jq -r '.hookSpecificOutput.permissionDecision // empty' <<<"$GUARD_OUT")"
+  IDW_REASON=$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")
+  assert_contains "$1: the reason names an identity write" "$IDW_REASON" "writes this machine's git identity"
+  assert_contains "$1: the reason names the way off" "$IDW_REASON" block_cross_domain_enabled
+}
+# Each cwd: a neutral one and one in a domain, both with the map, and a neutral
+# one on a host with no map.
+IDW_WHERE=("neutral cwd|$NEUTRAL|$DATA" "domain cwd|$A_ROOT/repo|$DATA" "no map|$NEUTRAL|$NO_MAP")
+idw_each() { # <deny|allow> <label> <command> [tool]
+  local where label cwd data
+  for where in "${IDW_WHERE[@]}"; do
+    IFS='|' read -r label cwd data <<<"$where"
+    idw "$2, $label" "$1" "$cwd" "$3" "$data" "${4:-Bash}"
+  done
+}
+for key in user.email user.signingkey credential.helper core.sshCommand core.hooksPath user.useConfigOnly \
+  'includeIf.gitdir:~/work/.path'; do
+  for form in "--global $key v" "--system $key v" "--file ~/.gitconfig-work $key v" "-f ~/work.gitconfig $key v" \
+    "set --global $key v" "--global --unset $key" "--global --add $key v" "unset --global $key"; do
+    idw_each deny "git config $form" "git config $form"
+  done
+done
+idw_each deny "credential.<url>.helper" 'git config --global credential.https://example.invalid.helper store'
+idw_each deny "a key in another case" 'git config --global USER.EMAIL dev@example.invalid'
+idw_each deny "git -C <dir> config --global" 'git -C sub config --global user.email dev@example.invalid'
+idw_each deny "git config --global in a later segment" 'cd sub && git config --global core.hooksPath .hooks'
+idw_each deny "git config --global --remove-section user" 'git config --global --remove-section user'
+idw_each deny "git config rename-section includeIf" \
+  'git config rename-section --global includeIf.gitdir:~/a/ includeIf.gitdir:~/b/'
+idw_each deny "git config --global --edit" 'git config --global --edit'
+idw_each deny "an append redirection to ~/.gitconfig" 'echo "[user]" >> ~/.gitconfig'
+idw_each deny 'a redirection to $HOME/.gitconfig-work' 'printf x > "$HOME/.gitconfig-work"'
+idw_each deny "a redirection to a *.gitconfig file" 'cat <<<x >/placeholder/work.gitconfig'
+idw_each deny "tee -a ~/.gitconfig" 'printf x | tee -a ~/.gitconfig'
+idw_each deny "touch a *.gitconfig file" 'touch ~/identities/work.gitconfig'
+idw_each deny "cp to ~/.gitconfig" 'cp /placeholder/template ~/.gitconfig'
+idw_each deny "cp -t naming a *.gitconfig destination" 'cp -t ~/.gitconfig.d/x.gitconfig /placeholder/template'
+idw_each deny "ln -sf onto ~/.gitconfig" 'ln -sf /placeholder/dotfiles/gitconfig ~/.gitconfig'
+idw_each deny "cp -T is --no-target-directory, the last operand is the destination" 'cp -T /placeholder/template ~/.gitconfig'
+idw_each deny "ln -T onto ~/.gitconfig" 'ln -T /placeholder/dotfiles/gitconfig ~/.gitconfig'
+idw_each deny "mv ~/.gitconfig away" 'mv ~/.gitconfig ~/.gitconfig.bak'
+idw_each deny "rm ~/.gitconfig" 'rm -f ~/.gitconfig'
+idw_each deny "sed -i on ~/.gitconfig" "sed -i 's/a/b/' ~/.gitconfig" # portability-ok: command text the guard reads, never run
+idw_each deny "perl -pi -e on a *.gitconfig file" "perl -pi -e 's/a/b/' /placeholder/work.gitconfig"
+idw_each deny "dd of=~/.gitconfig" 'dd if=/placeholder/template of=~/.gitconfig'
+idw_each deny "sudo tee" 'sudo tee ~/.gitconfig'
+idw_each deny "an &> redirection, which the parse splits" 'echo x &> ~/.gitconfig'
+idw_each deny "an &>> redirection" 'echo x &>>~/.gitconfig'
+idw_each deny "a >| redirection" 'echo x >| ~/.gitconfig'
+idw_each deny "perl -pi.bak" "perl -pi.bak -e 's/a/b/' ~/.gitconfig"
+idw_each deny "sed -Ei.bak" "sed -Ei.bak 's/a/b/' ~/.gitconfig" # portability-ok: command text the guard reads, never run
+idw_each deny "rsync -t is --times, the last operand is the destination" 'rsync -t /placeholder/template ~/.gitconfig'
+idw_each deny "PowerShell: Copy-Item -Dest" 'Copy-Item C:\placeholder\template -Dest ~\.gitconfig' PowerShell
+idw_each deny "PowerShell: Copy-Item -Destination:<path>" 'Copy-Item C:\placeholder\template -Destination:~\.gitconfig' PowerShell
+idw_each deny "PowerShell: Set-Content to ~/.gitconfig" 'Set-Content -Path $env:USERPROFILE\.gitconfig -Value x' PowerShell
+idw_each deny "PowerShell: git config --global" 'git config --global user.email dev@example.invalid' PowerShell
+idw_each deny "PowerShell: Copy-Item -Destination ~/.gitconfig" \
+  'Copy-Item -Path C:\placeholder\template -Destination ~\.gitconfig' PowerShell
+for form in "--global --get user.email" "--global user.email" "--global --list" "-l --global" "get --global user.email" \
+  "list --global" "--global --get-regexp includeIf" "--global --get-all credential.helper" \
+  "--global --get-urlmatch credential.helper https://example.invalid" "--file ~/.gitconfig --get user.email"; do
+  idw_each allow "git config $form reads" "git config $form"
+done
+idw_each allow "git config --local user.email" 'git config --local user.email dev@example.invalid'
+idw_each allow "git config user.email, the repository's own" 'git config user.email dev@example.invalid'
+idw_each allow "git config --global user.name, no identity key" 'git config --global user.name Dev'
+idw_each allow "git config --file <a file that is no identity file>" 'git config --file .gitmodules user.email x'
+idw_each allow "git -c user.email= sets no file" 'git -c user.email=dev@example.invalid commit -m wip'
+idw_each allow "the write in a commit message" 'git commit -m "git config --global user.email dev@example.invalid"'
+idw_each allow "cat ~/.gitconfig" 'cat ~/.gitconfig'
+idw_each allow "cp from ~/.gitconfig" 'cp ~/.gitconfig /placeholder/backup'
+idw_each allow "cp -T from ~/.gitconfig" 'cp -T ~/.gitconfig /placeholder/backup'
+idw_each allow "Copy-Item from ~/.gitconfig" 'Copy-Item -Path ~\.gitconfig -Destination C:\placeholder\kept' PowerShell
+idw_each allow "an echo of ~/.gitconfig" 'echo ~/.gitconfig'
+idw_each allow "sed without -i on ~/.gitconfig" "sed -n '1p' ~/.gitconfig" # portability-ok: command text the guard reads, never run
+idw_each allow "a .gitconfig file below a directory other than HOME's" 'touch /placeholder/.gitconfig-x'
+idw_each allow "a bare .gitconfig outside HOME" 'touch /placeholder/repo/.gitconfig'
+idw_each allow "perl -M and -n read" "perl -Mstrict -ne 'print' ~/.gitconfig"
+idw_each allow "rsync -t from ~/.gitconfig" 'rsync -t ~/.gitconfig /placeholder/kept'
+idw_each allow "scp to another host's ~/.gitconfig" 'scp ~/.gitconfig host.example.invalid:~/.gitconfig'
+idw_each allow "a redirection from ~/.gitconfig" 'grep email < ~/.gitconfig'
+# The map's identity_files: a path in the list, or below it, is an identity
+# file only where there is a map.
+idw "touch below a listed identity file, neutral cwd" deny "$NEUTRAL" 'touch /placeholder/identity/work'
+idw "touch below a listed identity file, domain cwd" deny "$A_ROOT/repo" 'touch /placeholder/identity/work'
+assert_contains "a listed identity file's name hits the prefilter" "$GUARD_ERR" "trace write-hit"
+idw "git config --file <a listed identity file>" deny "$NEUTRAL" \
+  'git config --file /placeholder/identity user.email dev@example.invalid'
+idw "touch below a listed identity file, no map" allow "$NEUTRAL" 'touch /placeholder/identity/work' "$NO_MAP"
+idw "a listed identity file's longer name" allow "$NEUTRAL" 'touch /placeholder/identityx'
+# The trace and the dispatcher.
+idw "no map, an identity write" deny "$NEUTRAL" 'git config --global user.email dev@example.invalid' "$NO_MAP"
+assert_contains "no map, an identity write: the write prefilter hits" "$GUARD_ERR" "trace write-hit"
+assert_contains "no map, an identity write: the parser runs" "$GUARD_ERR" "trace parse"
+assert_absent "no map, an identity write: no map is compiled" "$GUARD_ERR" "trace map-"
+assert_contains "the reason names the write" "$IDW_REASON" "git config --global user.email"
+for data in "$DATA" "$NO_MAP"; do
+  guard_invoke --via dispatched --cwd "$NEUTRAL" --command 'git config --global user.email dev@example.invalid' -- \
+    "CLAUDE_PLUGIN_DATA=$data" "HOME=$HOME_DIR"
+  assert_exit "dispatched, an identity write ($data): exit 0" 0 "$GUARD_RC"
+  assert_contains "dispatched, an identity write ($data): denied" "$GUARD_OUT" '"permissionDecision":"deny"'
+done
+tel "an identity write from a neutral cwd" "$NEUTRAL" 'git config --global user.email dev@example.invalid' \
+  identity-write-deny neutral blocked
+tel "an identity write from a domain cwd" "$A_ROOT/repo" 'echo x >> ~/.gitconfig' identity-write-deny domain blocked
+tel "an identity read" "$NEUTRAL" 'git config --global --get user.email' not-named neutral ok
+
 # --- A malformed map: no deny, the user told once -----------------------------
 BAD_N=0
 # malformed <label> <map text> <start of the reason>
@@ -523,6 +641,12 @@ guard_invoke --cwd "$A_ROOT/repo" --command "ls $B_ROOT" -- "CLAUDE_PLUGIN_DATA=
   "BASH_ENV=$HIDE_JQ" "CLAUDE_PLUGIN_ROOT=$HOOK_DIR/.."
 assert_exit "jq hidden, no map: exit 0" 0 "$GUARD_RC"
 assert_silent "jq hidden, no map: silent" "$GUARD_OUT$GUARD_ERR"
+guard_invoke --cwd "$NEUTRAL" --command 'git config --global user.email dev@example.invalid' -- \
+  "CLAUDE_PLUGIN_DATA=$NO_MAP" "BASH_ENV=$HIDE_JQ" "CLAUDE_PLUGIN_ROOT=$HOOK_DIR/.."
+assert_exit "jq hidden, no map, an identity write: exit 0" 0 "$GUARD_RC"
+assert_absent "jq hidden, no map, an identity write: no deny" "$GUARD_OUT" permissionDecision
+assert_contains "jq hidden, no map, an identity write: the user is told jq is missing" \
+  "$(jq -r '.systemMessage // empty' <<<"$GUARD_OUT")" "jq not on the hook PATH"
 
 # --- The cache follows the map ----------------------------------------------
 EDIT="$TEST_TMPDIR/edit"
@@ -643,6 +767,13 @@ if command -v strace >/dev/null 2>&1 && strace -o /dev/null -e trace=execve true
   assert_exit "strace: compiled map, gh without its directory denied: exit 0" 0 "$SHARE_RC"
   assert_eq "strace: compiled map, gh without its directory denied: the guard's process creations" 0 "$SHARE_CREATIONS"
   assert_eq "strace: compiled map, gh without its directory denied: the guard's execve count" 0 "$SHARE_EXECVE"
+
+  for data in "$NO_MAP" "$CENSUS"; do
+    census_share "git config --global user.email dev@example.invalid" "$data"
+    assert_exit "strace: an identity write denied ($data): exit 0" 0 "$SHARE_RC"
+    assert_eq "strace: an identity write denied ($data): the guard's process creations" 0 "$SHARE_CREATIONS"
+    assert_eq "strace: an identity write denied ($data): the guard's execve count" 0 "$SHARE_EXECVE"
+  done
 else
   echo "ok: process-creation pins skipped (no working strace on this host)"
 fi

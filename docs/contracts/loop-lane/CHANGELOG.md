@@ -5,13 +5,23 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
-## [12.10.1] - 2026-10-30
+## [12.11.1] - 2026-10-30
 
 Patch. Corrects a posting-lanes row; no topology, escalation-contract, capability-tier or §4
 invariant changed.
 
 - **intake-reenter.** The posting-lanes row no longer says re-entry removes `needs-human`: only a
   listed human removes it, and that removal re-enters an issue at `status: needs-decision`.
+
+## [12.11.0] - 2026-10-29
+
+Minor. Guidance only; no topology, escalation-contract mechanism, capability-tier or §4 invariant changed.
+
+- **Owner threat model.** §2 "When work stops for the owner" quotes section 10 of the owner's
+  standing direction (2026-10-29) verbatim: the only actors are the owner's own, holds that guard
+  against them come off, the high/critical boundary is a leak, an account compromise or a charge,
+  and hardening waits until open issues and pull requests reach zero. `/review:security-review`
+  reads its threat model from this record.
 
 ## [12.10.0] - 2026-10-28
 

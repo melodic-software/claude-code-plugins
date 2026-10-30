@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/tool-failure-audit.schema.json",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/hook-telemetry/data/tool-failure-audit.schema.json",
   "title": "tool-failure-audit telemetry data",
   "description": "Per-hook `data` payload for the tool-failure-audit PostToolUseFailure emitter. Discovered from the envelope `hook` value \"tool-failure-audit\". Evolves additive-only. Privacy-safe: never carries the full command, error message, file path, or stdin.",
   "type": "object",

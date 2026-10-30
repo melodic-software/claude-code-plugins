@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/stale-path-verify.schema.json",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/hook-telemetry/data/stale-path-verify.schema.json",
   "title": "stale-path-verify telemetry data",
   "description": "Per-hook `data` payload for the stale-path-verify advisory hook. Discovered from the envelope `hook` value \"stale-path-verify\". Evolves additive-only.",
   "type": "object",

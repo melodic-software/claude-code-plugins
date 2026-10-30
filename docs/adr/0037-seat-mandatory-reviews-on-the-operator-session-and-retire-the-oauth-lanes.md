@@ -29,7 +29,7 @@ pull request, and the operator cannot use API keys, so every review in CI drew o
 subscription window the interactive sessions use.
 
 The repository already had the pieces of a different posture: a fixed pre-PR order
-(`docs/conventions/pre-pr-ordering/README.md`) whose steps are implemented by installed skills,
+(`docs/contracts/pre-pr-ordering/README.md`) whose steps are implemented by installed skills,
 a hook-written ledger of every Skill tool call (harness-ops `skill-usage.jsonl`), a pull-request
 skill that owns creation and merge, a required `ci-status` check that already carries the body
 contract as advisory steps, and a babysit merge gate that reads pull-request state over REST.
