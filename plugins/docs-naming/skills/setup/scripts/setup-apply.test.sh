@@ -175,6 +175,15 @@ assert_eq "the old file is left alone" "^old$" "$(jq -r '.file_names.regex' "$ro
 mkdir -p "$TEST_TMPDIR/nohome"
 assert_eq "the resolver now reads the YAML" "^old$" "$(bash "$SCRIPT_DIR/../../../scripts/resolve-config.sh" resolve --root "$root" --home "$TEST_TMPDIR/nohome" 2>/dev/null | jq -r '.file_names.regex')"
 
+# 11d. A multi-line legacy _comment stays comment lines: no later line parses as a key.
+root="$(new_repo)"
+mkdir -p "$root/.claude"
+printf '{"schema": 1, "_comment": "why\\nregex: foo", "file_names": {}}\n' >"$root/.claude/docs-naming.json"
+bash "$SUT" --root "$root" --defaults >/dev/null
+assert_eq "no comment line escapes the header" "0" "$(grep -c '^regex: foo' "$(target "$root")")"
+assert_contains "the second comment line is commented" "$(head -n 4 "$(target "$root")")" "# regex: foo"
+assert_eq "the migrated layer still resolves" "$(jq -r '.file_names.regex' "$TEMPLATE")" "$(bash "$SCRIPT_DIR/../../../scripts/resolve-config.sh" resolve --root "$root" --home "$TEST_TMPDIR/nohome" 2>/dev/null | jq -r '.file_names.regex')"
+
 # 12. The bundled template itself is valid and carries every documented key.
 missing="$(jq -r '
   ["roots","rule","regex","exempt_basenames","exempt_paths","exempt_extensions",

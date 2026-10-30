@@ -115,8 +115,9 @@ elif [[ -f "$LEGACY" ]]; then
   current="$(jqr -e . "$LEGACY" 2>/dev/null)" || die "the JSON team layer is not valid JSON: $LEGACY"
   note="$(jqr -r '._comment // empty' <<<"$current")"
   header="# Migrated from $LEGACY_REL by /docs-naming:setup apply."
+  # Prefix every line: a multi-line _comment must not leave a bare line that parses as a key.
   [[ -z "$note" ]] || header="$header
-# $note"
+$(tr -d '\r' <<<"$note" | sed 's/^/# /')"
   current="$(jqr -c 'del(._comment) | .file_names |= (. // {})' <<<"$current")" || die "cannot read the pre-YAML team layer"
 else
   current="$(jqr -e . "$TEMPLATE" 2>/dev/null)" || die "bundled defaults are not valid JSON: $TEMPLATE"
