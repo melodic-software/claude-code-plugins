@@ -179,8 +179,10 @@ READ_YML="$ROOT/.github/workflows/pr-run-activity-read.yml"
 CALLER_YML="$ROOT/.github/workflows/work-resolve-issue.yml"
 holds "the read runner takes caller-releases-lease, a boolean defaulting to false" "$READ_YML" \
   'const i = d.on.workflow_call.inputs["caller-releases-lease"]; i?.type === "boolean" && i.default === false'
+# shellcheck disable=SC2016 # the ${{ }} text is a literal the workflow must hold, compared as a string
 holds "the read runner hands its lease handle to the caller" "$READ_YML" \
   'const o = d.on.workflow_call.outputs; o.lease?.value === "${{ jobs.broker-check.outputs.lease }}" && o["lease-comment-id"]?.value === "${{ jobs.broker-check.outputs.lease-comment-id }}"'
+# portability-ok: \s is in a JavaScript regex run by node, not a shell tool
 holds "lease-release skips in caller-releases mode unless the call handed off (scan skipped)" "$READ_YML" \
   'const c = d.jobs["lease-release"].if.replace(/\s+/g, " "); c.includes("(!inputs.caller-releases-lease || needs.scan.result == '"'skipped'"')")'
 holds "every read call of work-resolve-issue.yml runs in caller-releases mode" "$CALLER_YML" \
