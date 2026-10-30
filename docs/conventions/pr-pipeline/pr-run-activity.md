@@ -687,8 +687,9 @@ with backoff for about five minutes while the jobs listing returns it empty, the
 one error line. A failed read runs the fallback too, except for `fix-docs`.
 `fix-docs-subscription` also needs the first call's `<call> / broker-allowed` job to show the
 broker's allow (the broker step, when that job is absent): `fix-docs` posts nothing on a
-decline, so a kill switch or a refusal starts no second leg, and a failed read starts none either,
-since with no check posted `fix-docs-dispatch.mjs` dispatches the PR again. These fallback calls
+decline, so a kill switch or a refusal starts no second leg, and a failed read starts none either.
+`fix-docs-dispatch.mjs` dispatches no PR again once a run for it completed, check or not, unless
+that run is its only one and was lost (`cancelled`, `timed_out` or `startup_failure`). These fallback calls
 pass `fallback: handoff`, so the lane record says the key posted no check, not why: only the run
 job, which head code can forge, knows whether it was a credit stop or an empty key.
 
@@ -1738,7 +1739,7 @@ outputs are sent), so the report job differs:
   babysit reads as a merge blocker. After the kill switch, which the report job reads from its
   variables, or the broker-check job's refusal, it posts what it did before (the event's head on
   `pull_request`, otherwise nothing), so the owner's switch blocks no merge and the head is
-  dispatched again once the switch is off. Otherwise it posts neutral `not-assessed` on the
+  dispatched again once the switch is off (fix-docs excepted: its completed run ends the PR). Otherwise it posts neutral `not-assessed` on the
   caller's or the event's head: babysit counts a neutral check as passing, and fix-ci-dispatch
   reads it as that head's run and dispatches it no more, without counting a restart. A trigger
   decline cannot be told from a forged empty head in the report job, so both take this neutral.
@@ -1748,7 +1749,7 @@ outputs are sent), so the report job differs:
   head `fix-docs-head` reads, a job that runs no head code, as `head-sha`, so a push while the run
   goes posts its check on the head it ran on, not failure on the new head. They also pass
   `post-decline: false`: fix-docs is dispatched once per PR, so a run that stops before its
-  trigger gate posts no `not-assessed` neutral and the PR is dispatched again; and
+  trigger gate posts no `not-assessed` neutral, and its completed run counts as the PR's one run; and
   `apply-docs-patch` passes `fix-docs-head`'s head as `patch-head-sha`, never the read runner's
   run-job `head-sha` output; apply-patch still applies onto the head its own gate reads and measures the
   `docs` row's refusals from there.
