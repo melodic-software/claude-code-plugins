@@ -5,6 +5,14 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [12.11.1] - 2026-10-30
+
+Patch. Corrects a posting-lanes row; no topology, escalation-contract, capability-tier or §4
+invariant changed.
+
+- **intake-reenter.** The posting-lanes row no longer says re-entry removes `needs-human`: only a
+  listed human removes it, and that removal re-enters an issue at `status: needs-decision`.
+
 ## [12.11.0] - 2026-10-29
 
 Minor. Guidance only; no topology, escalation-contract mechanism, capability-tier or §4 invariant changed.
