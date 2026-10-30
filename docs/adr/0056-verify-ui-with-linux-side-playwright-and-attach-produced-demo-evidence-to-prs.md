@@ -161,8 +161,8 @@ produced video and screenshots on the PR from the user's own gh login.
    `produced` by default (zoom, cursor, ripple, captions, title card) or `plain` (the same replay
    and cursor, without zoom, captions or title). Each layer (title, camera and zoom, cursor, ripple,
    captions, narration) can be switched on or off through the
-   [plugin option naming](../conventions/plugin-option-naming/README.md) and
-   [config cascade](../conventions/config-cascade/README.md) conventions. Narration is off by
+   [plugin option naming](../contracts/plugin-option-naming/README.md) and
+   [config cascade](../contracts/config-cascade/README.md) conventions. Narration is off by
    default; with it on, the narration text goes through `/speech:narrate` (kokoro by default,
    ElevenLabs only behind that skill's cost gate), which already writes per-word timings. Basis:
    user decisions 5 and 12; `/speech:narrate`'s current behavior.

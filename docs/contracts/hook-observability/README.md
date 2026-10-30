@@ -215,7 +215,7 @@ Three cap decisions, each with the section that owns the figure.
 
 Every wired producer hook emits one envelope per meaningful-outcome run via `hook::emit_telemetry`
 (`lib/hook-utils.sh`) to the consumer-opted-in `HOOK_TELEMETRY_SINK`. Full schema and adoption
-list: [`docs/conventions/hook-telemetry/`](../hook-telemetry/README.md). This doc does not
+list: [`docs/contracts/hook-telemetry/`](../hook-telemetry/README.md). This doc does not
 restate that shape, only the adoption requirement: **every hook wired in a plugin's `hooks.json`
 emits it for each meaningful outcome it produces** (a check that ran and returned ok / blocked /
 skipped-for-cause). A pure inapplicability short-circuit before any check logic runs (wrong tool

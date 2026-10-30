@@ -7,7 +7,7 @@
 
 Three general-purpose surfaces in the harvest-source repo (`melodic-software/medley`) are held out of this
 wave's plugin migration deliberately, each with an explicit
-[recheck trigger](../conventions/upstream-drift/README.md), recorded here so the deferral
+[recheck trigger](../contracts/upstream-drift/README.md), recorded here so the deferral
 is a decision, not a silent omission. The medley side carries a thin pointer back to this record at each
 surface (the workflow-engine authoring rule, the `onboard` skill, and the `gh-bot.sh` bot-identity
 convention), so a contributor who touches a deferred surface finds the trigger without leaving that repo.

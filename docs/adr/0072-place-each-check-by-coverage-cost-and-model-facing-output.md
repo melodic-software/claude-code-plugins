@@ -6,7 +6,7 @@
   defaults by measured precision), [ADR 0019](0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)
   (vendored shared code), [ADR 0048](0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md) (changelog
   fragments). The rubric, the registration contract and the duration budgets are in
-  [`docs/conventions/check-placement/README.md`](../conventions/check-placement/README.md).
+  [`docs/contracts/check-placement/README.md`](../contracts/check-placement/README.md).
 
 ## Context
 
@@ -37,7 +37,7 @@ docs show per-edit lint and test hooks as well.
 ## Decision
 
 1. **Placement by rubric.** Each check runs where the rubric in
-   [check-placement](../conventions/check-placement/README.md#the-rubric) puts it: a Claude Code
+   [check-placement](../contracts/check-placement/README.md#the-rubric) puts it: a Claude Code
    hook to act before a tool call or change files in session; a git hook to cover every author;
    `pre-commit` within the commit budget, `pre-push` up to 60 s, CI beyond. Report-only findings
    never reach the model per edit. Each report-only check runs in exactly one local place
@@ -48,7 +48,7 @@ docs show per-edit lint and test hooks as well.
    output, while the median per fire stays at or under 1 s, and again at `pre-commit`, rewriting
    and re-staging. A slower formatter runs at `pre-commit` only.
 3. **Durations live in the convention**, one row per hook with the host that measured it. Other
-   hosts re-measure; CI enforces counts ([hook-budget](../conventions/hook-budget/README.md)), not
+   hosts re-measure; CI enforces counts ([hook-budget](../contracts/hook-budget/README.md)), not
    durations.
 4. **One skip, defined once.** `git -c checks.skipmissing=<tool>[,<tool>]`, honored only for a tool
    the check finds absent and printed on stderr. An agent commit with a missing tool fails with the
@@ -66,7 +66,7 @@ copies live in the repository, not the plugin cache: git hooks run outside Claud
 committed entry cannot name a versioned per-user cache path. Plain shared hooks are a committed
 `.githooks/`, activated per clone with `git config core.hooksPath .githooks`; for teams with
 non-Claude authors the convention recommends lefthook or husky. The convention's
-[registration contract](../conventions/check-placement/README.md#the-registration-contract) holds
+[registration contract](../contracts/check-placement/README.md#the-registration-contract) holds
 the manifest schema, the runtime contract and the port.
 
 ### The content-hash stamp

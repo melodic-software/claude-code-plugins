@@ -62,7 +62,7 @@ A policy-floor key may only be tightened. The team layer sets the floor and the 
 T10-7, D96, D88, D100, Q131, the C13 intent gate) may only be tightened.
 
 **`Floor direction` values.** The direction is a machine-readable column in the Implementers table of
-[the config-cascade contract](../conventions/config-cascade/README.md), the one source of each
+[the config-cascade contract](../contracts/config-cascade/README.md), the one source of each
 surface's direction. The shared resolver ships inside plugins and cannot read that README in a
 consumer repository, so each caller passes its row's directions to the resolver as an option, as
 `teamOnly` is passed today (resolver slice). The closed set of values, one per direction found on
@@ -175,7 +175,7 @@ The owner decided on 2026-10-24 (Q98, [#6594](https://github.com/melodic-softwar
 that a plugin's setup may add one trigger line to the always-loaded root `AGENTS.md`, only with
 stumble evidence that the plugin needs it. This replaces "nothing is always-loaded" in the convention
 home section, and the same wording in the
-[config-cascade contract](../conventions/config-cascade/README.md).
+[config-cascade contract](../contracts/config-cascade/README.md).
 
 - **Where.** One line per plugin, inside the shared
   `<!-- BEGIN GENERATED: plugin-conventions -->` block of the root `AGENTS.md`. A plugin's setup owns
@@ -190,7 +190,7 @@ home section, and the same wording in the
 - **Shipped form.** The `developer-experience` block
   (`plugins/developer-experience/skills/setup/scripts/pointer-line.sh`) is kept as the form
   that ships, and the owner doc
-  ([setup lifecycle](../conventions/setup-lifecycle/README.md)) records the rule.
+  ([setup lifecycle](../contracts/setup-lifecycle/README.md)) records the rule.
 
 The rest of the convention home section stands: topic conventions still live at the home and load on
 demand, and the user-global file layer stays retired (fix 9).

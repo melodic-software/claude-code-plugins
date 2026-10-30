@@ -5,7 +5,7 @@
 
 ## Context
 
-The [config-cascade convention](../conventions/config-cascade/README.md) says no plugin writes
+The [config-cascade convention](../contracts/config-cascade/README.md) says no plugin writes
 the consumer's `.gitignore`: a setup skill recommends the ignore line and leaves the edit to the
 consumer. That is the recommend posture, the default.
 
