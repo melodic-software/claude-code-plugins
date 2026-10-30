@@ -951,8 +951,6 @@ describe("size split", () => {
     const fits = [long.slice(0, 2), long.slice(2, 4)];
     assert.equal(subsetProblem({ groups: fits, order: [] }, wide.slice(0, 4), 10, rules["task-list"]), null);
     assert.match(subsetProblem({ groups: [long.slice(0, 40), long.slice(40)], order: [] }, wide, 10, rules["task-list"]) ?? "", /split record/);
-    {
-    }
   });
 
   test("applySizeDecline posts the reason once per reason and body version, and nothing on a changed body", async () => {
