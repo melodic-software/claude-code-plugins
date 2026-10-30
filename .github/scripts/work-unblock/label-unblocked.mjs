@@ -867,7 +867,8 @@ async function readmitReady({ github, repo, humans, bot, gate, appId, admission,
   const waiting = (item) => item.issue_dependencies_summary?.blocked_by > 0 || (item.sub_issues_summary?.total ?? 0) > (item.sub_issues_summary?.completed ?? 0);
   let failed = 0;
   const hour = new Date(now).getUTCHours();
-  for (const item of listed.filter((entry) => Number(entry.number) % 24 === hour && entry.issue_dependencies_summary?.blocked_by === 0 && waiting(entry))) {
+  const rotated = (entry) => Number(entry.number) % 24 === hour && entry.issue_dependencies_summary?.blocked_by === 0 && lower(entry).includes(READY) && !queued(lower(entry));
+  for (const item of listed.filter((entry) => rotated(entry) && waiting(entry))) {
     const base = `/repos/${repo}/issues/${item.number}`;
     try {
       const open = async () => (await paginate(github, `${base}/sub_issues`)).filter((child) => child?.state !== "closed");
@@ -1900,8 +1901,14 @@ async function closeSplitParent({ github, repo, number, humans, closes, bot, swe
   const base = `/repos/${repo}/issues/${parent.number}`;
   const comments = await paginate(github, `${base}/comments`);
   const children = await paginate(github, `${base}/sub_issues`);
-  if (await refreshSplitWait({ github, repo, parent, comments, open: async () => children.filter((child) => child?.state !== "closed"), bot })) {
-    console.log(`label-unblocked: #${parent.number} admission comment now names its open sub-issues`);
+  // A failed refresh never holds back the close below; the sweep's rotation
+  // tries the comment again.
+  try {
+    if (await refreshSplitWait({ github, repo, parent, comments, open: async () => children.filter((child) => child?.state !== "closed"), bot })) {
+      console.log(`label-unblocked: #${parent.number} admission comment now names its open sub-issues`);
+    }
+  } catch (error) {
+    console.log(`::warning::label-unblocked: #${parent.number} admission comment not refreshed: ${String(error?.message ?? error).replaceAll(/[\r\n%]/g, " ")}`);
   }
   if (!(await isSplitParent({ github, repository: repo, issue: parent, comments, children, isApp: (actor) => actor?.login === bot, humans }))) {
     return;

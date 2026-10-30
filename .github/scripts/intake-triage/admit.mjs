@@ -1729,7 +1729,10 @@ export async function isSplitParent({ github, repository, issue, comments, child
     return false;
   }
   const filed = new Set(children.filter((child) => here(child?.repository_url, repository)).map((child) => Number(child?.number)));
-  const cites = (item) => [...item.text.matchAll(/(?<![\w/#])#(\d+)\b/g)].some((match) => filed.has(Number(match[1])));
+  // Only a `#N` that opens or ends the item cites it: "after #12 lands, ..." is
+  // the parent's own work.
+  const cites = (item) =>
+    [/^\s*(?:\*\*)?\(?#(\d+)\b/, /(?<![\w/#])#(\d+)\)?[.;]?\s*$/].some((pattern) => filed.has(Number(pattern.exec(item.text)?.[1])));
   if (!taskItems(issue.body, baseTaskList()).every(cites)) {
     return false;
   }

@@ -2463,6 +2463,10 @@ describe("isSplitParent, split by hand", () => {
     assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer (#99)"), false);
     assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer (other/repo#32)"), false);
   });
+  test("a sub-issue named mid-item, or only in a link, does not cover the item", async () => {
+    assert.equal(await splitParent("- [ ] #31 the parser\n- [ ] after #32 lands, update the README"), false);
+    assert.equal(await splitParent("- [ ] #31 the parser\n- [ ] see [#32](https://github.com/other/repo/issues/32) for context"), false);
+  });
   test("a recurring issue is never a split parent, even with every item cited", async () => {
     assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer (#32)", [{ name: "recurring" }]), false);
   });
