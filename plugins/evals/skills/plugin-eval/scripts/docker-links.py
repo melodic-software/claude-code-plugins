@@ -16,10 +16,11 @@ manifest $HOME/.docker-link-swap.json, which also lists the live runs holding
 the copies, each by its wrapper's pid and its command's. Every change to it
 happens under an exclusive lock on $HOME/.docker-link-swap.lock. Overlapping
 runs share one swap: the first swaps, later ones join, and the last to leave
-restores. A holder whose wrapper and command are both gone (SIGKILL, a forced
-stop) is pruned, so the next run's start, or `restore`, puts back what a
-killed run left. `restore` refuses while a live run holds the
-copies.
+restores. The command is held at a pipe until its pid is in the manifest, and
+exits unrun if the wrapper dies first, so no command runs untracked. A holder
+whose wrapper and command are both gone (SIGKILL, a forced stop) is pruned, so
+the next run's start, or `restore`, puts back what a killed run left. `restore`
+refuses while a live run holds the copies.
 
 The copies are throwaway: anything written into them is discarded at restore,
 and the link targets are only read. A path that is a link again at restore time
@@ -45,6 +46,21 @@ from pathlib import Path
 MIN_PYTHON = (3, 8)
 TMP_SUFFIX = ".link-swap-tmp"
 SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+
+# Runs as the command's process: waits for the wrapper's go byte, which comes
+# only after the wrapper has recorded this pid, then execs the command in place.
+# EOF instead of the byte means the wrapper died or stopped first.
+GATE = """import os, sys
+go = int(sys.argv[1])
+if os.read(go, 1) != b"x":
+    sys.exit(1)
+os.close(go)
+try:
+    os.execvp(sys.argv[2], sys.argv[2:])
+except OSError as error:
+    print(f"docker-links: could not start {sys.argv[2]}: {error}", file=sys.stderr)
+    sys.exit(127)
+"""
 
 
 def store_path():
@@ -278,11 +294,32 @@ def run(command):
             return code
         try:
             if not received:
-                children.append(subprocess.Popen(command))
-                pid = children[0].pid
-                me["child"] = {"pid": pid, "start": start_time(pid)}
-                with locked():
-                    track(me)
+                ready, go = os.pipe()
+                try:
+                    try:
+                        children.append(
+                            subprocess.Popen(
+                                [
+                                    sys.executable,
+                                    "-I",
+                                    "-c",
+                                    GATE,
+                                    str(ready),
+                                    *command,
+                                ],
+                                pass_fds=(ready,),
+                            )
+                        )
+                    finally:
+                        os.close(ready)
+                    pid = children[0].pid
+                    me["child"] = {"pid": pid, "start": start_time(pid)}
+                    with locked():
+                        track(me)
+                    if not received:
+                        os.write(go, b"x")
+                finally:
+                    os.close(go)
                 code = children[0].wait()
         except OSError as error:
             say(f"could not start {command[0]}: {error}")

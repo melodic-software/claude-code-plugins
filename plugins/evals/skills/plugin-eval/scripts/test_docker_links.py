@@ -106,6 +106,12 @@ class DockerLinksTest(unittest.TestCase):
         self.assertEqual(self.links_during_run(), "")
         self.assert_restored()
 
+    def test_missing_command_exits_127_and_restores_the_links(self):
+        result = self.cli("run", "--", "docker-links-no-such-command")
+        self.assertEqual(result.returncode, 127, result.stderr)
+        self.assertIn("could not start docker-links-no-such-command", result.stderr)
+        self.assert_restored()
+
     def start(self, name):
         """Start a wrapped run whose child records the links it sees, writes its
         pid to started-<name>, and exits once release-<name> exists."""
