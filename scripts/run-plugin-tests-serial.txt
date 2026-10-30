@@ -35,7 +35,7 @@ plugins/guardrails/hooks/skill-reference-verify.test.sh
 # A/B timing harness; its verdicts are elapsed-time comparisons.
 plugins/performance/scripts/ab.test.sh
 
-# Always-on hooks assert the marketplace latency budget (docs/conventions/hook-budget/README.md).
+# Always-on hooks assert the marketplace latency budget (docs/contracts/hook-budget/README.md).
 plugins/desktop-notification/hooks/desktop-notification.test.sh
 plugins/markdown-format/hooks/markdown-format.test.sh
 plugins/source-control/hooks/pr-body-linkage-gate.test.sh
@@ -50,3 +50,7 @@ plugins/skill-quality/scripts/check-listing-budget.test.sh
 plugins/context-budget/skills/audit/scripts/measure.test.sh
 # Two-second watchdog asserted to finish inside four seconds (audit-fleet.test.sh:1928-1936).
 plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.test.sh
+
+# Part c of the shared page's browser suites holds ui_snappy's millisecond limits and
+# ui_telemetry's one-second dead-tap wait, which other suites' browsers slow past their windows.
+plugins/planning/shared/tests/ui-c.test.sh

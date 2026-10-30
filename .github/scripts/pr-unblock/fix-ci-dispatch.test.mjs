@@ -1266,6 +1266,25 @@ test("a fix-ci run its push job stopped is retried on the same head once, then l
   assert.ok(capped.lines.some((line) => line.includes("head already has a pr-unblock / fix-ci check run")), capped.lines.join("\n"));
 });
 
+// A kill switch turned on after the fix-ci model run stops its push job at
+// the broker (request-lane-token kill-switch-ok): the apply-patch check skips
+// kill-switch, so the attempt did no work. It is retried like a held skip,
+// spending no fix-ci restart, and so is a kill-switch stop of fix-ci itself.
+test("a fix-ci run the kill switch stopped is retried on the same head without spending a restart", async () => {
+  const head = "7".padStart(40, "a");
+  const at = (time) => `2026-10-22T${time}:00Z`;
+  const fixCi = (time) => ({ name: "pr-unblock / fix-ci", status: "completed", conclusion: "success", output: { title: "Fixed" }, started_at: at(time), completed_at: at(time) });
+  const killed = (name, time) => ({ name, status: "completed", conclusion: "neutral", output: { title: "Skipped: kill-switch" }, started_at: at(time), completed_at: at(time) });
+  const twice = await run({
+    pages: [[pr(7)]],
+    history: new Map([[head, [fixCi("10:00"), fixCi("10:30")]]]),
+    stops: new Map([[head, [killed("pr-unblock / apply-patch", "10:05"), killed("pr-unblock / apply-patch", "10:35")]]]),
+  });
+  assert.ok(twice.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), twice.lines.join("\n"));
+  const own = await run({ pages: [[pr(7)]], history: new Map([[head, [killed("pr-unblock / fix-ci", "10:00")]]]) });
+  assert.ok(own.lines.some((line) => line.startsWith("dispatched fix-ci #7 ")), own.lines.join("\n"));
+});
+
 // fix-ci and the in-run fix-ci-rung-up each post a fix-ci check in one
 // workflow run (the run id in each check's external_id; the API returns each
 // check's details_url as the check run's own page). When the rung-up's
@@ -1297,6 +1316,28 @@ test("a fix-ci run whose rung-up push job stopped is one failed attempt, retried
     stops: new Map([[head, [stop("10:15", 1), stop("11:15", 3)]]]),
   });
   assert.ok(twice.lines.some((line) => line.includes("ran 4 time(s), the most one head gets")), twice.lines.join("\n"));
+});
+
+// #10902's escalated head: the rollup holds only the newest fix-ci check, the
+// rung-up's SUCCESS "Passed: no changes", which reads as a run that handled
+// the head. The rollup's newest apply-patch check is a lane stop, so the
+// listing pass leaves the head to the REST read, which ties that stop to the
+// fix-ci check's run attempt, and the head gets its one same-head retry.
+test("an escalated head whose rollup shows a passed fix-ci check is retried once from the REST lane stop", async () => {
+  const head = "7".padStart(40, "a");
+  const passed = { title: "Passed: no changes", completedAt: "2026-10-22T08:50:00Z" };
+  const rollup = [lanes("FAILURE"), check("pr-unblock / fix-ci", "SUCCESS", passed), check("pr-unblock / apply-patch", "NEUTRAL", { title: "Skipped: lane-stopped" })];
+  const fixCi = { ...toRest(check("pr-unblock / fix-ci", "SUCCESS", passed)), started_at: "2026-10-22T08:40:00Z", external_id: "pr-unblock:fix-ci:40843021992:1" };
+  const stop = { ...toRest(check("pr-unblock / apply-patch", "NEUTRAL", { title: "Skipped: lane-stopped" })), started_at: "2026-10-22T08:50:00Z", external_id: "pr-unblock:apply-patch:40843021992:1" };
+  const { api, lines } = await run({ pages: [[pr(7, { checks: rollup })]], history: new Map([[head, [fixCi]]]), stops: new Map([[head, [stop]]]) });
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["7"], lines.join("\n"));
+  // With no lane stop, the passed check handles the head.
+  const handled = await run({ pages: [[pr(7, { checks: rollup })]], history: new Map([[head, [fixCi]]]) });
+  assert.deepEqual(handled.api.calls.dispatch, []);
+  assert.ok(handled.lines.includes("skip fix-ci #7: head already has a pr-unblock / fix-ci check run"), handled.lines.join("\n"));
+  // With no stop in the rollup, the listing pass skips the head unread.
+  const unread = await run({ pages: [[pr(7, { checks: rollup.slice(0, 2) })]], history: new Map([[head, [fixCi]]]) });
+  assert.deepEqual([unread.api.calls.dispatch, unread.api.calls.history], [[], []]);
 });
 
 // A re-run is the same run id at its next attempt (external_id

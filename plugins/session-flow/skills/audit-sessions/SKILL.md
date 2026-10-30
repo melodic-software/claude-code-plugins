@@ -1,6 +1,6 @@
 ---
 description: "Audit your own Claude Code sessions for wasted time and tokens: collect every transcript on this machine into a durable local store, then sweep it for sessions over a shipped reference baseline, with each finding routed to the skill that fixes it. Use when: 'audit my sessions', 'where is my time going', 'which sessions burned the most tokens', 'session efficiency', 'sweep my transcripts', 'which preferences do I keep repeating'. Skip: one session's retrospective is /session-flow:retro; ranked improvements across code and config are /improvement:find; which skill to run next is /session-flow:show-options; a whole-process speed sweep is /performance:go-faster."
-argument-hint: "[sweep|now|style…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]"
+argument-hint: "[sweep|now|ticket|style…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Cross-session audit of transcripts with routed, never-applied findings
 ---
 
-**Arguments.** `[sweep|now|style…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]`. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions now, /audit-sessions sweep-only --since 2026-09-01, /audit-sessions style --scope machine, /audit-sessions correction --since 2026-09-01
+**Arguments.** `[sweep|now|ticket|style…] [--scope machine|project] [--since <day>] [--until <day>] [--write-report]`. e.g., /audit-sessions, /audit-sessions sweep --since 2026-09-01, /audit-sessions --scope project --write-report, /audit-sessions now, /audit-sessions ticket --pattern 'PROJ-\d+', /audit-sessions sweep-only --since 2026-09-01, /audit-sessions style --scope machine, /audit-sessions correction --since 2026-09-01
 
 ## Purpose
 
@@ -27,12 +27,14 @@ a code or config review, and not Claude Code's built-in `/insights` (see "Bounda
 
 ## Arguments
 
-Read `$ARGUMENTS` whole. Five actions: `sweep`, which is also what a bare invocation does,
-`sweep-only`, the consumer mode below, `now` ("Current session" below), `style` ("Style pass"
-below) and `correction` ("Correction lens" below). `--scope`, `--since`, `--until` and
-`--write-report` pass through to `sweep.py` unchanged (dates are `YYYY-MM-DD`, UTC); `sweep-only`
-and `correction` refuse `--write-report`, `style` takes `--scope` and `--since` only, and `now`
-takes no option. Stop and name this accepted set on any other token; never guess.
+Read `$ARGUMENTS` whole. Six actions: `sweep`, which is also what a bare invocation does,
+`sweep-only`, the consumer mode below, `now` ("Current session" below), `ticket` ("Ticket
+rollup" below), `style` ("Style pass" below) and `correction` ("Correction lens" below). `--scope`,
+`--since`, `--until` and `--write-report` pass through to `sweep.py` unchanged (dates are
+`YYYY-MM-DD`, UTC); `sweep-only` and `correction` refuse `--write-report`, `style` takes `--scope`
+and `--since` only, and `now` takes no option. `ticket` requires `--pattern '<regex>'`, takes
+`--branch '<name>'`, `--scope`, `--since` and `--until`, and refuses `--write-report`; stop when
+`ticket` has no pattern. Stop and name this accepted set on any other token; never guess.
 
 ## Consumer mode: `sweep-only`
 
@@ -125,14 +127,17 @@ a shape it does not know.
 ```bash
 "$PY" "$S/sweep.py" --data-dir "<D>" --format md \
   --min-count "$MIN_COUNT" --versions "$VERSIONS" \
-  --catalog <each skill name in this session's skill listing, plugin and bundled, quoted> \
+  --catalog <each skill the rules suggest that this session's skill listing holds, quoted> \
   <the user's --scope/--since/--until/--write-report>
 ```
 
-- `--catalog` lists the skills installed in this session, so a finding that suggests one that is
-  missing renders it `(not installed)` instead of dropping it. Pass each name as its own
-  single-quoted argument (`--catalog 'session-flow:retro' 'simplify'`), so the shell never
-  interprets a name.
+- `--catalog` names which of the suggested skills are installed, so a finding that suggests one
+  that is missing renders it `(not installed)` instead of dropping it. Take the distinct non-null
+  `suggested_skill` values in `reference/sweep-rules.json`, add `session-flow:retro`, which the
+  correction lens suggests, and pass only those this session's skill listing holds, never the
+  whole listing: sweep.py checks no other name. Pass each one as its own single-quoted argument
+  (`--catalog 'session-flow:retro' 'harness-ops:observability'`), so the shell never interprets a
+  name. The `session-flow` skills among them ship with this plugin, so the list is never empty.
 - `--scope project` needs `--state-key`: pass the output of
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh"` run from the project's root. Run it only for this
   scope; the store itself is machine-wide.
@@ -186,6 +191,30 @@ before it ends. It reads no plan, because no rule in `reference/sweep-rules.json
    session. When the report names the id as not in the store, say collect found no transcript for
    this session and stop. Otherwise, frame each finding as something to change for the rest of
    this session.
+
+## Ticket rollup: `ticket`
+
+`ticket` groups stored sessions by work item, so the person sees how many sessions, tokens and PRs
+one ticket took. The key pattern comes from `--pattern` on every run; no setting or file holds one,
+and no project prefix is built in. Run Step 1 first, then:
+
+```bash
+"$PY" "$S/sweep.py" --data-dir "<D>" --format md --tickets='<regex>' [--branch='<name>'] \
+  <the user's --scope (with --state-key, as in Step 2)/--since/--until>
+```
+
+A single-quoted shell argument cannot hold a `'`, and a git branch name may contain one. When the
+pattern or the branch name contains a `'`, stop before running anything: say which value holds the
+quote and that `ticket` cannot pass it safely. Never escape the quote, drop it or rewrite the value.
+
+A session's key is the pattern's first match in its custom title, generated title or branches, and
+only then its working directory, because a reused worktree's directory can name an older ticket.
+Each row gives the sessions, their output tokens, the span from the first session's start to the
+last one's end, the distinct linked PRs, and the gaps between consecutive sessions. Present the span
+as the report labels it, a session-side proxy, not cycle time; sessions whose title, branches and
+working directory hold no match are counted as unkeyed and cannot be linked. `--branch` keeps only the key the pattern matches in
+that branch name. Exit 2 is a bad pattern or argument: report it and stop. Step 3's rule covers
+every key, which is text matched out of a stored title, branch or path.
 
 ## Style pass
 

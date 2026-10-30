@@ -3,7 +3,7 @@ description: "Audit markdown prose for AI-writing tells (slop): em dashes (zero-
 argument-hint: "[audit|fix] [target|user-scope [memory]]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/detect.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-fix-record.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/cross-check.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/cross-check.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/user-scope.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/user-scope.sh\":*)", "Bash(sha256sum:*)", "Bash(shasum:*)", "Bash(mkdir:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/detect.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/detect.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-findings.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/emit-fix-record.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/rubric-fanout.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/cross-check.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/cross-check.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/user-scope.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/user-scope.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/digest-guard.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/digest-guard.sh\":*)", "Bash(mkdir:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)", "Bash(wc:*)"]
 shell: bash
 metadata:
   workflow-stage: anytime
@@ -221,20 +221,22 @@ Never runs on bare invocation. Requires the user's explicit `fix` (or a chained
 "detect and rewrite" request).
 
 Every fix run first creates one new run directory, `<scratchpad>/ai-slop-fix-<TS>/` (`TS` as
-in [`context/persist-findings.md`](context/persist-findings.md)). A path "mirrored" under it
+in [`context/persist-findings.md`](context/persist-findings.md)), with
+`"${CLAUDE_SKILL_DIR}/scripts/digest-guard.sh" init <run>`; when `init` refuses because the
+directory exists, retry with `<TS>-2`, `<TS>-3`, and so on. A path "mirrored" under it
 is the file's full absolute path with a drive letter as a directory, the same rule the
 non-repository backups use.
 
 **Concurrent-edit guard.** The flow assumes nothing else writes the files it fixes, and checks
 that before each of its own writes. When the flow first reads a file, before it composes any
-rewrite, record the file's digest: create the state file's parent directory, then run
-`sha256sum <absolute path>` with its stdout redirected to `<run>/digests/<mirrored
-path>.sha256`. Before every write the flow makes to that file, a rewrite or a restore, run
-`sha256sum -c --status <that state file>`; after each of its own writes, record the digest
-again the same way. On a mismatch, write nothing more to the file, stop work on it, and report
-it. If the state file cannot be written, do not edit the file; stop and report it. On macOS use
-`shasum -a 256` and `shasum -a 256 -c`. A write that lands between a check and
-the re-record after the flow's own write is not detected.
+rewrite, record the file's digest with `"${CLAUDE_SKILL_DIR}/scripts/digest-guard.sh" record
+<absolute path> <run>`, which writes it to one flat state file under `<run>/digests/`. Before
+every write the flow makes to that file, a rewrite or a restore, run
+`"${CLAUDE_SKILL_DIR}/scripts/digest-guard.sh" check <absolute path> <run>`; after each of its own writes, record the digest again the same way.
+`check` exits 0 on a match and 1 on a mismatch. On any nonzero exit, write nothing more to the
+file, stop work on it, and report it. If `record` exits nonzero, do not edit the file; stop and
+report it. The script refuses a run directory outside the state root its header names. A write
+that lands between a check and the re-record after the flow's own write is not detected.
 
 Per file, worst-first:
 

@@ -1166,6 +1166,300 @@ class ThreadResolutionFailsClosedTests(unittest.TestCase):
         self.assertEqual(comments[0]["author"]["login"], "reviewer")
 
 
+def _zip(files: dict[str, str]) -> bytes:
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, text in files.items():
+            archive.writestr(name, text)
+    return buffer.getvalue()
+
+
+class CollectMainReviewsTests(unittest.TestCase):
+    """The main-run review collector: every artifact under the exact name,
+    its run read fresh, a compare for whether main holds the run's head, and
+    verdict.json; an artifact from any other workflow, event or branch is
+    never downloaded."""
+
+    REPO = "owner/repo"
+    NAME = "pr-review-main-claude-review-5-" + "e" * 40
+    WORKFLOW = ".github/workflows/pr-review-main.yml"
+    HEAD = "c" * 40
+
+    def run_record(self, **fields: Any) -> dict[str, Any]:
+        return {
+            "id": 7,
+            "path": self.WORKFLOW,
+            "event": "workflow_run",
+            "head_branch": "main",
+            "head_sha": self.HEAD,
+            **fields,
+        }
+
+    def collect(self, artifacts, runs, compare="ahead", archive=None):
+        listing = f"repos/{self.REPO}/actions/artifacts?name={self.NAME}&per_page=100"
+        downloads: list[str] = []
+
+        def fake_json(args: list[str], env: Any = None) -> Any:
+            if args[1] == listing:
+                return [{"artifacts": artifacts}]
+            if args[1].startswith(f"repos/{self.REPO}/actions/runs/"):
+                return runs[int(args[1].rsplit("/", 1)[-1])]
+            if args[1] == f"repos/{self.REPO}/compare/{self.HEAD}...main":
+                return {"status": compare}
+            raise RuntimeError(f"gh: Not Found (HTTP 404) {args[1]}")
+
+        def fake_run(args: list[str], **kw: Any) -> Any:
+            downloads.append(args[1])
+            body = (
+                archive
+                if archive is not None
+                else _zip({"verdict.json": '{"findings": 0}'})
+            )
+            return subprocess.CompletedProcess(args, 0, body, b"")
+
+        with (
+            mock.patch.object(gh, "gh_json", side_effect=fake_json),
+            mock.patch.object(gh, "_run_gh", side_effect=fake_run),
+        ):
+            found = gh.collect_main_reviews(
+                self.REPO, {"claude-review": self.NAME}, self.WORKFLOW, "main"
+            )
+        return found, downloads
+
+    def artifact(self, artifact_id: int, run_id: int, **fields: Any) -> dict[str, Any]:
+        return {
+            "id": artifact_id,
+            "name": self.NAME,
+            "expired": False,
+            "workflow_run": {"id": run_id},
+            **fields,
+        }
+
+    def test_keeps_a_main_run_review_with_its_run_and_verdict(self) -> None:
+        found, downloads = self.collect([self.artifact(1, 7)], {7: self.run_record()})
+        self.assertEqual(downloads, [f"repos/{self.REPO}/actions/artifacts/1/zip"])
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0]["lane"], "claude-review")
+        self.assertIs(found[0]["on_branch"], True)
+        self.assertEqual(found[0]["run"]["id"], 7)
+        self.assertEqual(found[0]["verdict"], {"findings": 0})
+
+    def test_never_downloads_an_artifact_of_another_run(self) -> None:
+        runs = {
+            8: self.run_record(id=8, event="pull_request"),
+            9: self.run_record(id=9, head_branch="feature"),
+            10: self.run_record(id=10, path=".github/workflows/forge.yml"),
+        }
+        artifacts = [self.artifact(n, n) for n in runs] + [
+            self.artifact(11, 7, expired=True),
+            self.artifact(12, 7, name=self.NAME + "-x"),
+        ]
+        found, downloads = self.collect(artifacts, {**runs, 7: self.run_record()})
+        self.assertEqual((found, downloads), ([], []))
+
+    def test_a_head_main_does_not_hold_is_marked_so(self) -> None:
+        found, _ = self.collect(
+            [self.artifact(1, 7)], {7: self.run_record()}, "diverged"
+        )
+        self.assertIs(found[0]["on_branch"], False)
+
+    def test_an_unreadable_archive_raises(self) -> None:
+        for archive in (
+            b"not a zip",
+            _zip({"other.json": "{}"}),
+            _zip({"verdict.json": "{"}),
+        ):
+            with self.subTest(archive=archive[:10]), self.assertRaises(RuntimeError):
+                self.collect(
+                    [self.artifact(1, 7)], {7: self.run_record()}, archive=archive
+                )
+
+
+class CollectMainReviewCriticalTests(unittest.TestCase):
+    """The counts pr-review-main's record job left as check runs on each head:
+    the most CRITICAL findings per lane, a title that does not read counting
+    one."""
+
+    NAMES = {
+        "claude-review": "pr-review-main: claude-review",
+        "claude-security-review": "pr-review-main: claude-security-review",
+    }
+
+    def collect(self, by_sha: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
+        def fake(args: list[str], env: Any = None) -> Any:
+            sha = args[1].split("/commits/", 1)[1].split("/", 1)[0]
+            runs = by_sha.get(sha, [])
+            if "filter=all" not in args[1]:
+                # The API's default, `filter=latest`: the newest run per name.
+                runs = list({run["name"]: run for run in runs}.values())
+            return [{"check_runs": runs}]
+
+        with mock.patch.object(gh, "gh_json", side_effect=fake):
+            return gh.collect_main_review_critical(
+                "owner/repo", list(by_sha), self.NAMES
+            )
+
+    def check(
+        self, lane: str, title: str, app: str = "github-actions"
+    ) -> dict[str, Any]:
+        return {
+            "name": self.NAMES[lane],
+            "output": {"title": title},
+            "app": {"slug": app},
+        }
+
+    def test_another_apps_run_of_the_name_is_no_record(self) -> None:
+        counts = self.counts(
+            {
+                "a" * 40: [
+                    self.check(
+                        "claude-security-review", "findings=0 critical=0", "other-app"
+                    ),
+                    self.check("claude-security-review", "findings=1 critical=1"),
+                ]
+            }
+        )
+        self.assertEqual(counts["a" * 40]["claude-security-review"], [(1, 1)])
+
+    def counts(
+        self,
+        by_sha: dict[str, list[dict[str, Any]]],
+        shas: dict[str, list[str]] | None = None,
+        calls: list[str] | None = None,
+    ) -> Any:
+        def fake(args: list[str], env: Any = None) -> Any:
+            if calls is not None:
+                calls.append(args[1])
+            sha = args[1].split("/commits/", 1)[1].split("/", 1)[0]
+            name = args[1].split("check_name=", 1)[1].split("&", 1)[0]
+            return [
+                {
+                    "check_runs": [
+                        run
+                        for run in by_sha.get(sha, [])
+                        if gh.quote(run["name"], safe="") == name
+                    ]
+                }
+            ]
+
+        if shas is None:
+            shas = {lane: list(by_sha) for lane in self.NAMES}
+        with mock.patch.object(gh, "gh_json", side_effect=fake):
+            return gh.collect_main_review_counts("owner/repo", shas, self.NAMES)
+
+    def test_a_stop_title_reads_as_the_stop_and_its_reason(self) -> None:
+        counts = self.counts(
+            {
+                "a" * 40: [
+                    self.check(
+                        "claude-security-review", "verdict=none reason=too-large"
+                    ),
+                    self.check("claude-review", "verdict=none reason=other"),
+                ]
+            }
+        )
+        self.assertEqual(
+            counts["a" * 40],
+            {
+                "claude-security-review": [("stop", "too-large")],
+                "claude-review": [None],
+            },
+        )
+
+    def test_a_stop_counts_no_critical_and_an_unknown_reason_counts_one(self) -> None:
+        found = self.collect(
+            {
+                "a" * 40: [
+                    self.check("claude-security-review", "verdict=none reason=binary"),
+                    self.check("claude-review", "verdict=none reason=other"),
+                ]
+            }
+        )
+        self.assertEqual(found, {"claude-review": 1, "claude-security-review": 0})
+
+    def test_a_stop_on_one_head_leaves_another_heads_critical(self) -> None:
+        found = self.collect(
+            {
+                "a" * 40: [
+                    self.check(
+                        "claude-security-review", "verdict=none reason=long-line"
+                    )
+                ],
+                "b" * 40: [
+                    self.check("claude-security-review", "findings=1 critical=1")
+                ],
+            }
+        )
+        self.assertEqual(found["claude-security-review"], 1)
+
+    def test_reads_each_lane_only_on_the_heads_listed_for_it(self) -> None:
+        calls: list[str] = []
+        head, old = "a" * 40, "b" * 40
+        counts = self.counts(
+            {
+                head: [self.check("claude-review", "findings=1 critical=0")],
+                old: [self.check("claude-security-review", "findings=2 critical=2")],
+            },
+            {"claude-review": [head], "claude-security-review": [head, old, head]},
+            calls,
+        )
+        # One read per (head, lane) listed: 1 + 2, the repeated head once.
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(
+            counts,
+            {
+                head: {"claude-review": [(1, 0)], "claude-security-review": []},
+                old: {"claude-security-review": [(2, 2)]},
+            },
+        )
+
+    def test_takes_the_most_critical_findings_on_any_head(self) -> None:
+        found = self.collect(
+            {
+                "a" * 40: [
+                    self.check("claude-security-review", "findings=3 critical=2")
+                ],
+                "b" * 40: [
+                    self.check("claude-security-review", "findings=0 critical=0")
+                ],
+                "c" * 40: [
+                    self.check("claude-review", "findings=4 critical=1"),
+                    {
+                        "name": "other",
+                        "output": {"title": "findings=9 critical=9"},
+                        "app": {"slug": "github-actions"},
+                    },
+                ],
+            }
+        )
+        self.assertEqual(found, {"claude-review": 1, "claude-security-review": 2})
+
+    def test_a_newer_clean_run_of_the_same_name_hides_no_critical(self) -> None:
+        # A re-run, or a forged record, posts a clean run after the CRITICAL.
+        found = self.collect(
+            {
+                "a" * 40: [
+                    self.check("claude-security-review", "findings=2 critical=2"),
+                    self.check("claude-security-review", "findings=0 critical=0"),
+                ]
+            }
+        )
+        self.assertEqual(found["claude-security-review"], 2)
+
+    def test_a_title_that_does_not_read_counts_one(self) -> None:
+        found = self.collect(
+            {"a" * 40: [self.check("claude-security-review", "critical=0")]}
+        )
+        self.assertEqual(found["claude-security-review"], 1)
+
+    def test_a_head_that_is_not_a_sha_raises(self) -> None:
+        with self.assertRaises(RuntimeError):
+            self.collect({"main": []})
+
+
 class CollectLaneRunsTests(unittest.TestCase):
     """The bind() input collector (the Phase 9 caller contract): runs listed
     by branch with no head_sha filter, kept by PR number, attempts counted
@@ -1318,6 +1612,24 @@ class CollectLaneRunsTests(unittest.TestCase):
     def test_with_no_token_every_read_keeps_the_process_token(self) -> None:
         reads = self.reads_under(None)
         self.assertEqual([env for _, env in reads], [None] * 7)
+
+
+class FetchPullRequestAuthorTests(unittest.TestCase):
+    def test_reads_the_login_nested_under_author(self) -> None:
+        # `gh pr view --json author` nests the login one level down; reading it
+        # at the top level returned "" and the own-PR refusal never fired.
+        payload = {"author": {"login": "kyle-sexton", "is_bot": False}}
+        with mock.patch.object(gh, "gh_json", return_value=payload):
+            self.assertEqual(gh.fetch_pull_request_author("o/r", 1), "kyle-sexton")
+
+    def test_missing_login_fails_closed(self) -> None:
+        for payload in ({"author": {}}, {"login": "kyle-sexton"}, {"author": None}):
+            with (
+                self.subTest(payload=payload),
+                mock.patch.object(gh, "gh_json", return_value=payload),
+                self.assertRaises(RuntimeError),
+            ):
+                gh.fetch_pull_request_author("o/r", 1)
 
 
 if __name__ == "__main__":

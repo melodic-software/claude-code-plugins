@@ -281,7 +281,7 @@ what it replaces.
 ### Recorded gate runs
 
 Platform surfaces the gate has been run against, recorded in the
-[upstream-drift](conventions/upstream-drift/README.md#required-parts) record shape: each row holds
+[upstream-drift](contracts/upstream-drift/README.md#required-parts) record shape: each row holds
 our verdict and reason in our words, the surface link (to the section the reason rests on) as the
 pointer, the as-of date, and the recheck trigger. No row restates the page. Defer and decline are
 results, not omissions; the trigger, never the date, is what obliges re-deriving a row.
@@ -307,7 +307,7 @@ results, not omissions; the trigger, never the date, is what obliges re-deriving
 > from that page. Always re-fetch the current page before acting on a row; never trust this table
 > alone. A fetch that diverges from a row is that row's recheck trigger: re-derive the row and
 > refresh its as-of date with the outcome. The
-> [upstream-drift convention](conventions/upstream-drift/README.md) owns this record discipline.
+> [upstream-drift convention](contracts/upstream-drift/README.md) owns this record discipline.
 
 | Component (pointer) | Stance | Rationale and constraints | As of |
 |---|---|---|---|
@@ -315,7 +315,7 @@ results, not omissions; the trigger, never the date, is what obliges re-deriving
 | [`commands/`](https://code.claude.com/docs/en/plugins/components#commands) | Prohibited | Superseded by skills upstream; every new capability goes in `skills/`. Existing flat commands migrate to skill directories. | 2026-07-17 |
 | [Agents](https://code.claude.com/docs/en/plugins/components#frontmatter-fields-in-plugin-agents) | Adopt on need | Plugin agents do not support `hooks`, `mcpServers`, or `permissionMode` (security restriction). Design within that limit rather than working around it. | 2026-07-17 |
 | [Workflows](https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin) | Adopt on need | Native and not experimental: a script in `workflows/`, or wherever the `workflows` manifest field points (that field replaces the default scan), runs as a plugin-namespaced `/plugin:name` command. Availability, not maturity, is the constraint: plan gating and the user and organization off switches are upstream's, listed at [Turn workflows off](https://code.claude.com/docs/en/workflows#turn-workflows-off) (recheck when a switch or plan gate changes); so, as with `bin/`, never make a workflow the only path to a capability. Not "Wait": the [deferred workflow engines](adr/0020-defer-three-medley-surfaces-with-explicit-recheck-triggers.md) are a named candidate carrying a live trigger, so the gap is identified rather than hypothetical. One ships: review's `fanout-sweep`, which `/review:fanout run-everything` launches and which keeps a main-thread fallback. Scripts follow the [workflow authoring convention](#workflow-authoring-convention). | 2026-10-02 |
-| [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | A plugin hook config carries no `${user_config.*}` token: an unset defaulted token drops the whole hook entry, so `scripts/check-hook-userconfig-argv.sh` rejects it. Read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror instead ([hook-config-delivery](conventions/hook-config-delivery/)). On Windows, exec form launches an executable file (a `.exe`, for example) directly with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing). Shell form with `"shell": "bash"` stays legal; every plugin hook row uses exec form, `"command": "node"` with the script path in `args`, except the node-notice SessionStart row every hook plugin carries (shell form with no `shell` field, so it runs under bash, or under PowerShell on Windows without Git Bash; [prerequisites convention](conventions/prerequisites/README.md#hook-notices)) and the harness-ops hook-failure-audit Stop row (shell form with `"shell": "bash"`), because they must work when `node` is missing. `node` must be on `PATH`, and we do not assume a Claude Code install brings it (pointers: [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form), [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)). We treat a hook that cannot start as a guard that enforced nothing, with the transcript notice as the only signal (pointer: [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The record is [Windows exec-form probe](#windows-exec-form-probe). Mods, the in-process hook form, are adopted in [ADR 0052](adr/0052-adopt-claude-code-mods.md): a guard may move into a mod when the mod matches every behavior of the hook it replaces, and a settings hook stays where it must run with mods off. See the mods row under [Recorded gate runs](#recorded-gate-runs). Text a hook or mod sends Claude or the user follows [hook-observability](conventions/hook-observability/README.md#text-a-hook-adds-for-the-model-frequency-and-phrasing). | 2026-10-03 |
+| [Hooks](https://code.claude.com/docs/en/hooks) | Adopt on need | A plugin hook config carries no `${user_config.*}` token: an unset defaulted token drops the whole hook entry, so `scripts/check-hook-userconfig-argv.sh` rejects it. Read the `CLAUDE_PLUGIN_OPTION_<KEY>` mirror instead ([hook-config-delivery](contracts/hook-config-delivery/)). On Windows, exec form launches an executable file (a `.exe`, for example) directly with the `args` array and no shell, so a shebang script or a `.cmd`/`.bat` shim is not a `command`, and neither is a bare `bash`, `sh`, `python`, or `python3` (a failed launch is non-blocking, so a guard then enforces nothing). Shell form with `"shell": "bash"` stays legal; every plugin hook row uses exec form, `"command": "node"` with the script path in `args`, except the node-notice SessionStart row every hook plugin carries (shell form with no `shell` field, so it runs under bash, or under PowerShell on Windows without Git Bash; [prerequisites convention](contracts/prerequisites/README.md#hook-notices)) and the harness-ops hook-failure-audit Stop row (shell form with `"shell": "bash"`), because they must work when `node` is missing. `node` must be on `PATH`, and we do not assume a Claude Code install brings it (pointers: [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form), [Install with npm](https://code.claude.com/docs/en/setup#install-with-npm)). We treat a hook that cannot start as a guard that enforced nothing, with the transcript notice as the only signal (pointer: [Other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes)). `scripts/check-hook-exec-form.sh` rejects a bare name other than `node`. `scripts/check-exec-form-windows-probe.sh` rejects a script path used as `command`; its non-Windows skip does not authorize converting `.sh` rows. The record is [Windows exec-form probe](#windows-exec-form-probe). Mods, the in-process hook form, are adopted in [ADR 0052](adr/0052-adopt-claude-code-mods.md): a guard may move into a mod when the mod matches every behavior of the hook it replaces, and a settings hook stays where it must run with mods off. See the mods row under [Recorded gate runs](#recorded-gate-runs). Text a hook or mod sends Claude or the user follows [hook-observability](contracts/hook-observability/README.md#text-a-hook-adds-for-the-model-frequency-and-phrasing). | 2026-10-03 |
 | [MCP servers](https://code.claude.com/docs/en/mcp) | Adopt on need | Clears the plugin-acceptance security review for egress and trust delegation. Also the only component type that can cost a consumer their prompt cache: every other kind only appends to the request, while enabling or disabling a plugin that provides an MCP server forces a full re-read whenever the server's tools load into the prefix instead of being deferred by tool search (pointer: [actions that invalidate the cache](https://code.claude.com/docs/en/prompt-caching#actions-that-invalidate-the-cache)). | 2026-08-10 |
 | [LSP servers](https://code.claude.com/docs/en/plugins/components#lsp-servers) | Adopt on need | Consumer must have the language-server binary; declare the prerequisite per the failure-behavior rules. | 2026-07-17 |
 | [Output styles](https://code.claude.com/docs/en/plugins/components#themes-and-output-styles) | Adopt on need | No additional constraints. | 2026-07-17 |
@@ -414,7 +414,7 @@ documented hand-edit, migrates to `userConfig` with the schema used honestly:
   a secret; and
 - `claude plugin install --config` documented in the plugin's setup skill for headless use,
   following the short form in the
-  [plugin-reconfiguration convention](conventions/plugin-reconfiguration/README.md), which owns
+  [plugin-reconfiguration convention](contracts/plugin-reconfiguration/README.md), which owns
   the rerun behavior, its caveats, and the verified-version record; and
 - for any `sensitive: true` option, the plugin's README documents `/plugin configure
   <plugin>@<marketplace>` as the rotation/clear path (see
@@ -497,7 +497,7 @@ a consumer sets a value through; this rule settles where the plugin's own values
 - Measurement records keep their numbers: a recorded result is data about one run, not a restatement.
 - A skill body never restates a volatile external specific. It states our decision and carries the
   pointer, as-of date, and recheck trigger of the
-  [upstream-drift convention](conventions/upstream-drift/README.md#required-parts).
+  [upstream-drift convention](contracts/upstream-drift/README.md#required-parts).
 - A value read from two languages lives in a JSON file both read.
 
 Worked example: `animation`'s brush defaults live in `skills/rotoscope/scripts/brush.json`, read by
@@ -553,7 +553,7 @@ setup has side effects a person should trigger by hand (Pointer:
 <https://code.claude.com/docs/en/best-practices#create-skills>. As of: 2026-08-10. Recheck trigger:
 that section stops tying the flag to manually triggered side effects), and offers `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. This
 contract is exception class (ii) of the fleet's invocation-mode rubric
-([`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md)), which owns the
+([`docs/contracts/invocation-mode/`](contracts/invocation-mode/README.md)), which owns the
 default and the other reasons a skill may set the flag. The
 rest of the shape is house doctrine, and says so: upstream documents native *initialization*
 surfaces (below) but takes no position on a consumer-facing `setup` skill, so the `check`/`apply`
@@ -647,7 +647,7 @@ window is bounded by that surface's retirement record. `reset` decomposes to tea
 a file it no longer reads, a gitignore line it no longer recommends, or a directory it renamed, appends
 a record to its `retirements.yaml` in the same PR, so setup `check` detects the leftover in every
 consumer repo and `apply` offers the gated cleanup (owner:
-`docs/conventions/retired-conventions/README.md`; the migration playbook names the contract).
+`docs/contracts/retired-conventions/README.md`; the migration playbook names the contract).
 Bespoke detection prose in a setup skill is the drift this replaces; a retirement without a record
 is a defect.
 
@@ -679,7 +679,7 @@ is nothing it could conformingly write. Three kinds of surface qualify, in any c
 - **External prerequisites setup can only verify**: a system tool, service, or credential, per the
   prerequisites section. `check` probes and reports the remediation; installing is the operator's
   decision, and the agent runs the fix only on the operator's yes
-  ([When a check fails](conventions/prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes)).
+  ([When a check fails](contracts/prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes)).
 
 Check-only is therefore a consequence of having nothing conforming to write, never a preference and
 never a shortcut. A plugin with even one writable owned artifact takes the narrow-write shape
@@ -790,9 +790,9 @@ current refusals. They stay; they are not defects against a missing subaction.
 
 Declare every required runtime, shell, CLI, service, credential, and platform constraint at the point
 of use and in the plugin README. Never download or execute an undeclared tool as an incidental fallback.
-The [prerequisites convention](conventions/prerequisites/README.md) owns the machine-readable
+The [prerequisites convention](contracts/prerequisites/README.md) owns the machine-readable
 declaration and its checker, and the rule for running a declared fix: the agent offers it and runs
-it only on the user's yes ([When a check fails](conventions/prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes)).
+it only on the user's yes ([When a check fails](contracts/prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes)).
 
 Classify absence deliberately:
 
@@ -812,7 +812,7 @@ crash. Absence is surfaced to both the agent and the user; a candidate channel f
 visibility is the hook-telemetry convention's OTel surface. A silently skipped
 feature is a defect. The broader false-green class, healthy-while-dead and green-with-hidden-
 findings on health, status, advisory, and gate surfaces, is owned by the
-[liveness-assertion convention](conventions/liveness-assertion/README.md); this section's
+[liveness-assertion convention](contracts/liveness-assertion/README.md); this section's
 prerequisite-absence rules are one slice of that contract, specialized here for runtime absence.
 
 Hooks follow the event's official control contract. Use a blocking result only when the event can still
@@ -830,58 +830,58 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Lifecycle artifact protocol | [`docs/plugin-artifact-protocol.md`](plugin-artifact-protocol.md) |
 | Shared hook utility library | `lib/hook-utils.sh`, generated by `scripts/sync-shared-copies.sh` |
 | Cross-plugin shared-source clusters | `scripts/cross-plugin-source-registry.txt` |
-| Config cascade: consumer-config layering, precedence, overlay naming, and expression form | [`docs/conventions/config-cascade/`](conventions/config-cascade/README.md) |
-| Setup lifecycle: the shared `plugin-conventions` block in the root `AGENTS.md`, its evidence gate, and the `check`/`apply` verbs | [`docs/conventions/setup-lifecycle/`](conventions/setup-lifecycle/README.md) |
+| Config cascade: consumer-config layering, precedence, overlay naming, and expression form | [`docs/contracts/config-cascade/`](contracts/config-cascade/README.md) |
+| Setup lifecycle: the shared `plugin-conventions` block in the root `AGENTS.md`, its evidence gate, and the `check`/`apply` verbs | [`docs/contracts/setup-lifecycle/`](contracts/setup-lifecycle/README.md) |
 | Worktree placement root (`worktreeroot.path` git config vendor section) | [`plugins/source-control/reference/worktree-root-convention.md`](../plugins/source-control/reference/worktree-root-convention.md) |
-| Plugin reconfiguration: native `/plugin configure` and headless `--config` routes, plus the verified-version record | [`docs/conventions/plugin-reconfiguration/`](conventions/plugin-reconfiguration/README.md) |
-| Commit-convention enforcement seam | [`docs/conventions/commit-convention/`](conventions/commit-convention/README.md) |
-| PR-body required-sections convention | [`docs/conventions/pr-body-convention/`](conventions/pr-body-convention/README.md) |
-| Ecosystem command resolution | [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md) |
-| Hook telemetry | [`docs/conventions/hook-telemetry/`](conventions/hook-telemetry/README.md) |
-| Hook observability (status/failure surfaces) | [`docs/conventions/hook-observability/`](conventions/hook-observability/README.md) |
-| Hook precision (false-positive discipline) | [`docs/conventions/hook-precision/`](conventions/hook-precision/README.md) |
-| Hook input rewriting (deny-or-ask, never a silent `updatedInput`) | [`docs/conventions/hook-input-rewriting/`](conventions/hook-input-rewriting/README.md) |
-| Hook config delivery (userConfig→hook channel matrix) | [`docs/conventions/hook-config-delivery/`](conventions/hook-config-delivery/README.md) |
-| Permission-rule hygiene | [`docs/conventions/permission-rule-hygiene/`](conventions/permission-rule-hygiene/README.md) |
-| Plugin-data report keying, retention, and overwrite | [`docs/conventions/plugin-data-report-keying/`](conventions/plugin-data-report-keying/README.md) |
-| On-demand dependencies (pinned lockfile, `npm ci` into the plugin data directory, no vendored bundles) | [`docs/conventions/on-demand-dependencies/`](conventions/on-demand-dependencies/README.md) |
-| Prerequisites: the `prerequisites.json` schema, the `lib/prerequisites.mjs` checker, and the undeclared-tool gate | [`docs/conventions/prerequisites/`](conventions/prerequisites/README.md) |
-| Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
-| Enforcement ladder: the rung order, each reader's selection rule, and where boundary rules live | [`docs/conventions/enforcement-ladder/`](conventions/enforcement-ladder/README.md), with generated plugin copies |
-| PR scope budget for agent-authored improvement PRs | [`docs/conventions/pr-scope-budget/`](conventions/pr-scope-budget/README.md) |
+| Plugin reconfiguration: native `/plugin configure` and headless `--config` routes, plus the verified-version record | [`docs/contracts/plugin-reconfiguration/`](contracts/plugin-reconfiguration/README.md) |
+| Commit-convention enforcement seam | [`docs/contracts/commit-convention/`](contracts/commit-convention/README.md) |
+| PR-body required-sections convention | [`docs/contracts/pr-body-convention/`](contracts/pr-body-convention/README.md) |
+| Ecosystem command resolution | [`docs/contracts/ecosystem-commands/`](contracts/ecosystem-commands/README.md) |
+| Hook telemetry | [`docs/contracts/hook-telemetry/`](contracts/hook-telemetry/README.md) |
+| Hook observability (status/failure surfaces) | [`docs/contracts/hook-observability/`](contracts/hook-observability/README.md) |
+| Hook precision (false-positive discipline) | [`docs/contracts/hook-precision/`](contracts/hook-precision/README.md) |
+| Hook input rewriting (deny-or-ask, never a silent `updatedInput`) | [`docs/contracts/hook-input-rewriting/`](contracts/hook-input-rewriting/README.md) |
+| Hook config delivery (userConfig→hook channel matrix) | [`docs/contracts/hook-config-delivery/`](contracts/hook-config-delivery/README.md) |
+| Permission-rule hygiene | [`docs/contracts/permission-rule-hygiene/`](contracts/permission-rule-hygiene/README.md) |
+| Plugin-data report keying, retention, and overwrite | [`docs/contracts/plugin-data-report-keying/`](contracts/plugin-data-report-keying/README.md) |
+| On-demand dependencies (pinned lockfile, `npm ci` into the plugin data directory, no vendored bundles) | [`docs/contracts/on-demand-dependencies/`](contracts/on-demand-dependencies/README.md) |
+| Prerequisites: the `prerequisites.json` schema, the `lib/prerequisites.mjs` checker, and the undeclared-tool gate | [`docs/contracts/prerequisites/`](contracts/prerequisites/README.md) |
+| Repository standards index | [`docs/contracts/standards/`](contracts/standards/README.md) |
+| Enforcement ladder: the rung order, each reader's selection rule, and where boundary rules live | [`docs/contracts/enforcement-ladder/`](contracts/enforcement-ladder/README.md), with generated plugin copies |
+| PR scope budget for agent-authored improvement PRs | [`docs/contracts/pr-scope-budget/`](contracts/pr-scope-budget/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
 | Dynamic-context (`!`) precompute: when to inject, fallback binding, `shell:` declaration | `/playbooks:skill-authoring`, which owns and states the precompute contract |
-| Skill invocation-mode rubric | [`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md) |
-| Skill invocation-context rubric (`context: fork`, background posture) | [`docs/conventions/invocation-context/`](conventions/invocation-context/README.md) |
-| Skill argument shape: action, earned `--flag` modifiers, and subject | [`docs/conventions/skill-argument-shape/`](conventions/skill-argument-shape/README.md) |
-| Skill `argument-hint` string style | [`docs/conventions/argument-hint/`](conventions/argument-hint/README.md) |
-| Plugin names and `userConfig` option text (titles, descriptions, types) | [`docs/conventions/plugin-option-naming/`](conventions/plugin-option-naming/README.md) |
-| Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
-| Native-surface reference phrasing (presence-gated native routing) | [`docs/conventions/native-references/`](conventions/native-references/README.md) |
-| Routing as data: route rows, detection by name, team routing layer, degradation | [`docs/conventions/routing-as-data/`](conventions/routing-as-data/README.md) |
-| Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
+| Skill invocation-mode rubric | [`docs/contracts/invocation-mode/`](contracts/invocation-mode/README.md) |
+| Skill invocation-context rubric (`context: fork`, background posture) | [`docs/contracts/invocation-context/`](contracts/invocation-context/README.md) |
+| Skill argument shape: action, earned `--flag` modifiers, and subject | [`docs/contracts/skill-argument-shape/`](contracts/skill-argument-shape/README.md) |
+| Skill `argument-hint` string style | [`docs/contracts/argument-hint/`](contracts/argument-hint/README.md) |
+| Plugin names and `userConfig` option text (titles, descriptions, types) | [`docs/contracts/plugin-option-naming/`](contracts/plugin-option-naming/README.md) |
+| Seam phrasing (presence-gated fallbacks) | [`docs/contracts/seam-phrasing/`](contracts/seam-phrasing/README.md) |
+| Native-surface reference phrasing (presence-gated native routing) | [`docs/contracts/native-references/`](contracts/native-references/README.md) |
+| Routing as data: route rows, detection by name, team routing layer, degradation | [`docs/contracts/routing-as-data/`](contracts/routing-as-data/README.md) |
+| Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/contracts/loop-lane/`](contracts/loop-lane/README.md) |
 | PR pipeline: stages, CI lane boundaries, activity contract, merge rungs, config schema | [`docs/conventions/pr-pipeline/`](conventions/pr-pipeline/README.md) |
-| Execution target: which host runs each local-lane stage, the cloud launch rule, the stage-start probe and fallback | [`docs/conventions/execution-target/`](conventions/execution-target/README.md) |
-| Workspace environment: the `setup`, `up`, `info` and `down` commands a consumer declares per worktree, read from the default branch | [`docs/conventions/workspace-environment/`](conventions/workspace-environment/README.md) |
-| Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
-| Finding suppression (deliberately-kept audit findings) | [`docs/conventions/finding-suppression/`](conventions/finding-suppression/README.md) |
-| Liveness assertion (false-green / healthy-while-dead surfaces) | [`docs/conventions/liveness-assertion/`](conventions/liveness-assertion/README.md) |
-| Detector findings (non-fanout producers reaching the apply relay) | [`docs/conventions/detector-findings/`](conventions/detector-findings/README.md) |
+| Execution target: which host runs each local-lane stage, the cloud launch rule, the stage-start probe and fallback | [`docs/contracts/execution-target/`](contracts/execution-target/README.md) |
+| Workspace environment: the `setup`, `up`, `info` and `down` commands a consumer declares per worktree, read from the default branch | [`docs/contracts/workspace-environment/`](contracts/workspace-environment/README.md) |
+| Shell test-helper duplication and exit-code divergence | [`docs/contracts/shell-test-helpers/`](contracts/shell-test-helpers/README.md) |
+| Finding suppression (deliberately-kept audit findings) | [`docs/contracts/finding-suppression/`](contracts/finding-suppression/README.md) |
+| Liveness assertion (false-green / healthy-while-dead surfaces) | [`docs/contracts/liveness-assertion/`](contracts/liveness-assertion/README.md) |
+| Detector findings (non-fanout producers reaching the apply relay) | [`docs/contracts/detector-findings/`](contracts/detector-findings/README.md) |
 | Fresh-eyes declaration pattern contract | `/skill-quality:check`, which owns and enforces the declaration spec |
-| Upstream-drift verification stamps and recheck triggers | [`docs/conventions/upstream-drift/`](conventions/upstream-drift/README.md) |
-| Windows path emission across the Git Bash → native boundary | [`docs/conventions/windows-path-emit/`](conventions/windows-path-emit/README.md) |
-| Pre-PR step order (where outcome verification sits) | [`docs/conventions/pre-pr-ordering/`](conventions/pre-pr-ordering/README.md) |
-| Mod authoring: pointers at the upstream mods pages, mod versus settings hook, packaging, version floor, facts upstream does not state | [`docs/conventions/mod-authoring/`](conventions/mod-authoring/README.md) |
-| Always-on hook cost ceiling | [`docs/conventions/hook-budget/`](conventions/hook-budget/README.md) |
-| Tracker reference form inside a code comment | [`docs/conventions/tracker-reference-form/`](conventions/tracker-reference-form/README.md) |
-| Untrusted-content framing contract | [`docs/conventions/untrusted-content/`](conventions/untrusted-content/README.md) |
-| Record bundle: a markdown record with its diagrams and media, views kept outside | [`docs/conventions/record-bundle/`](conventions/record-bundle/README.md) |
+| Upstream-drift verification stamps and recheck triggers | [`docs/contracts/upstream-drift/`](contracts/upstream-drift/README.md) |
+| Windows path emission across the Git Bash → native boundary | [`docs/contracts/windows-path-emit/`](contracts/windows-path-emit/README.md) |
+| Pre-PR step order (where outcome verification sits) | [`docs/contracts/pre-pr-ordering/`](contracts/pre-pr-ordering/README.md) |
+| Mod authoring: pointers at the upstream mods pages, mod versus settings hook, packaging, version floor, facts upstream does not state | [`docs/contracts/mod-authoring/`](contracts/mod-authoring/README.md) |
+| Always-on hook cost ceiling | [`docs/contracts/hook-budget/`](contracts/hook-budget/README.md) |
+| Tracker reference form inside a code comment | [`docs/contracts/tracker-reference-form/`](contracts/tracker-reference-form/README.md) |
+| Untrusted-content framing contract | [`docs/contracts/untrusted-content/`](contracts/untrusted-content/README.md) |
+| Record bundle: a markdown record with its diagrams and media, views kept outside | [`docs/contracts/record-bundle/`](contracts/record-bundle/README.md) |
 | Reply affordance on decision-collecting artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#reply-affordance-convention) |
 | Export button on interactive HTML artifacts | [`docs/finding-your-unknowns.md`](finding-your-unknowns.md#export-button-rule) |
-| Retired-convention detection and cleanup (manifest + shared helper) | [`docs/conventions/retired-conventions/`](conventions/retired-conventions/README.md) |
-| Recommendation basis: grounding bar, `Basis:` label, and old → new → why re-statement | [`docs/conventions/recommendation-basis/`](conventions/recommendation-basis/README.md) |
-| Authoring formats: acceptance-criteria format and diagram dialect by artifact kind, read by `/planning:interview`, `/planning:prd`, and `/planning:design` | [`docs/conventions/authoring-formats/`](conventions/authoring-formats/README.md) |
+| Retired-convention detection and cleanup (manifest + shared helper) | [`docs/contracts/retired-conventions/`](contracts/retired-conventions/README.md) |
+| Recommendation basis: grounding bar, `Basis:` label, and old → new → why re-statement | [`docs/contracts/recommendation-basis/`](contracts/recommendation-basis/README.md) |
+| Authoring formats: acceptance-criteria format and diagram dialect by artifact kind, read by `/planning:interview`, `/planning:prd`, and `/planning:design` | [`docs/contracts/authoring-formats/`](contracts/authoring-formats/README.md) |
 
 ## Cross-platform contract
 
@@ -951,7 +951,7 @@ Every standing instruction this marketplace ships costs every consumer context i
 whether or not the instruction ever fires: a CLAUDE.md line, a hook that corrects model behavior, a
 skill's always-loaded listing text. (Whether a skill's description enters that
 always-loaded listing at all is the invocation-mode choice, owned by the rubric at
-[`docs/conventions/invocation-mode/`](conventions/invocation-mode/README.md).) We keep a standing
+[`docs/contracts/invocation-mode/`](contracts/invocation-mode/README.md).) We keep a standing
 line only if removing it would cause a mistake, and we delete or convert to a hook any instruction
 the model already follows unaided. Pointer: for pruning standing instructions, see
 <https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md> and
@@ -1070,7 +1070,7 @@ the verdict is high-stakes and correlated blind spots are the risk, a checkpoint
 cross-vendor advisor **when one is installed and set up**, for example the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor subagent as the
 stated fallback, never a route to a command that may not resolve. That reference is optional
 collaboration, so it carries the presence-gate-plus-fallback shape
-([seam phrasing](conventions/seam-phrasing/README.md)) at each site that instructs it; an advisor
+([seam phrasing](contracts/seam-phrasing/README.md)) at each site that instructs it; an advisor
 plugin external to this marketplace is never a manifest dependency. Invocation mechanics such as
 synchronous waiting, diff-base selection, and which artifacts a surface can judge are the advisor
 plugin's own documentation's concern: a checkpoint site names the capability and the fallback,
@@ -1139,7 +1139,7 @@ subagent starts without the parent conversation (Pointer:
 2026-08-10. Recheck trigger: a non-fork subagent starts receiving the parent conversation), which
 is exactly the independence the checkpoint buys. A skill may prefer an installed **named agent** on the next rung,
 but only when the named-agent bar below is met, and the site always states the generic fallback
-(presence-gate-plus-fallback, [seam phrasing](conventions/seam-phrasing/README.md)). The top rung, for
+(presence-gate-plus-fallback, [seam phrasing](contracts/seam-phrasing/README.md)). The top rung, for
 high-stakes verdicts where correlated model blind spots are the risk, is a **cross-vendor advisor**
 when one is installed, on the same presence-gate shape with the same generic fallback.
 
@@ -1562,7 +1562,7 @@ writes unless the user overrides the level for a run; a passed value would overr
   level, which the [effort floor](#effort-floor) rules out for a code-changing lane. We pin the
   implementer `medium` and its verifier `high`, the rows we read model config as giving each. Model
   config is the source we follow, because a docs section outranks a blog post under the
-  [upstream-drift convention](conventions/upstream-drift/README.md#required-parts). As of:
+  [upstream-drift convention](contracts/upstream-drift/README.md#required-parts). As of:
   2026-10-10. Recheck trigger: next model release, or either page is revised on that point.
 
 **Per-pin rows.** Each pinned agent outside `plugins/implementation` follows one row of model

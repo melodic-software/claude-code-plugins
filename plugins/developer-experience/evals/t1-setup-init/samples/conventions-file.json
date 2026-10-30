@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {"answer": ["docs/conventions/developer-experience.md"], "why": "the default path"},
+    {
+      "answer": ["docs/conventions/developer-experience.md", "CLAUDE.md"],
+      "why": "created beside another file"
+    }
+  ],
+  "fail": [
+    {"answer": []},
+    {"answer": ["docs/developer-experience.md"], "why": "near miss: one directory up"},
+    {"answer": [".claude/developer-experience.md"], "why": "the old location setup never writes"}
+  ]
+}

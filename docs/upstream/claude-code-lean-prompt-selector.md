@@ -4,7 +4,7 @@ No docs page says which models Claude Code gives the lean system prompt by defau
 context-budget `simple-system-prompt` lever needs that answer to explain a measured zero:
 `CLAUDE_CODE_SIMPLE_SYSTEM_PROMPT=1` changes nothing on a model that is already lean. This record
 is the probe the lever points at, in the probed-behavior form of the
-[upstream-drift convention](../conventions/upstream-drift/README.md#required-parts).
+[upstream-drift convention](../contracts/upstream-drift/README.md#required-parts).
 
 ## Decision
 

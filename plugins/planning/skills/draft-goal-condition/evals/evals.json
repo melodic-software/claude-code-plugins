@@ -75,6 +75,69 @@
         "Output does NOT emit a paste-ready /goal invocation for this intent",
         "Output does NOT route to the /performance chain as a hill-climb loop"
       ]
+    },
+    {
+      "id": 7,
+      "name": "waivable-verifier-pass-gets-user-exit",
+      "prompt": "/planning:draft-goal-condition keep working until the phase verifier passes phase 3 of the migration plan. I may decide to waive phase 3 if it turns out to be too costly.",
+      "expected_output": "Step 2 spots that the only end state, a verifier PASS on phase 3, depends on a decision the user may make the other way (a waiver). The skill either refuses that draft or ends the condition with an OR exit: each unmet item is recorded in a named file as waiting on the user, with the exact reply or command they must give, and that file's contents are shown in the conversation. The exit covers only the user-gated item and does not loosen the PASS requirement for work that is merely hard.",
+      "files": [],
+      "expectations": [
+        "Output identifies the phase 3 verifier PASS as an end state the user can waive",
+        "Output either refuses the draft or adds an OR exit that records the waiting item in a named file whose contents are shown in the conversation",
+        "Any added exit names the exact reply or command the user must give",
+        "Output does NOT drop or weaken the verifier PASS for items that are not waiting on the user",
+        "Any drafted condition, the OR exit included, passes the length counter"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "pull-request-number-flagged-as-replaceable",
+      "prompt": "/planning:draft-goal-condition keep going until pull request #123 is merged.",
+      "expected_output": "Step 2 flags the pull request number as an identifier the user can invalidate by replacing the pull request, and suggests a more stable reference such as the branch name, or the waiting-on-the-user OR exit. It does not emit, without that flag, a condition whose only end state names #123.",
+      "files": [],
+      "expectations": [
+        "Output flags the pull request number as an identifier the user can replace, which would make the condition false",
+        "Output suggests the branch name or the waiting-on-the-user OR exit",
+        "Output does NOT emit, without that flag, a condition whose only end state is pull request #123 being merged"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "artifact-url-flagged-as-able-to-die",
+      "prompt": "/planning:draft-goal-condition keep working until the status report is republished at https://example.com/artifacts/abc123 with the new numbers.",
+      "expected_output": "Step 2 flags the artifact URL as an identifier that can die, for example when the account changes or the artifact is recreated under a new URL, and suggests a stable reference such as the artifact's title, or the waiting-on-the-user OR exit.",
+      "files": [],
+      "expectations": [
+        "Output flags the artifact URL as an identifier that an account switch or a recreation can kill",
+        "Output suggests a stable reference (for example the artifact's title) or the waiting-on-the-user OR exit",
+        "Output does NOT emit, without that flag, a condition whose only end state is republishing at that exact URL"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "fixed-work-order-offers-user-exit",
+      "prompt": "/planning:draft-goal-condition keep this one session going, resumed after each break, until work items W0 through W11 are finished in order, then run the audit.",
+      "expected_output": "Step 2 notices the condition fixes an order of work the user may reorder or defer, and offers the waiting-on-the-user OR exit for those items: each one the user reorders or defers is recorded in a named file as waiting on the user, with the reply they must give, and the file's contents are shown in the conversation.",
+      "files": [],
+      "expectations": [
+        "Output names the fixed order (W0 to W11, then the audit) as something the user may reorder or defer",
+        "Output offers the waiting-on-the-user OR exit for items the user may reorder or defer",
+        "Output does NOT accept the fixed order as the only end state without that offer",
+        "Any drafted condition, the OR exit included, passes the length counter"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "no-user-gated-step-adds-no-exit",
+      "prompt": "/planning:draft-goal-condition keep working until all tests in test/payments pass at commit a1b2c3d.",
+      "expected_output": "The intent has no step only the user can decide, so the skill drafts the condition with no waiting-on-the-user OR exit, and the draft passes the length counter.",
+      "files": [],
+      "expectations": [
+        "Output emits a paste-ready /goal invocation about all tests in test/payments passing at the named commit",
+        "The drafted condition does NOT carry a waiting-on-the-user OR exit",
+        "Output runs the length counter on the drafted condition"
+      ]
     }
   ]
 }

@@ -15,6 +15,7 @@ const { loadPlaywright, suite, recorder, until, snap, joinAs } = require("./brow
 
 const q = (id, text) => ({ id, text, alternatives: [], dependsOn: [], purpose: "decide", format: { kind: "text" } });
 const HELD = "Withheld: the team calendar would settle it."; // a withheld recommendation: asked open, never on a card
+const BASIS = "Checked against: the venue list. Basis: Verified: the venue list."; // question-shape.md's basis, its own labels inside
 
 async function post(base, route, body, headers = {}) {
   const r = await fetch(new URL(route, base), { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
@@ -29,7 +30,9 @@ async function main() {
   const s = suite("ui_claude_proposals"), { ok } = s, rec = recorder(browser);
   try {
     const A = await s.start("proposals");
-    s.apply(A.dir, [{ op: "set-title", title: "Offsite" }, { op: "open-round", questions: [q("Q1", "Where should we go?"), { ...q("Q2", "Which week suits?"), recommendation: HELD, alternatives: [{ key: "a", text: "The first week" }, { key: "b", text: "The last week" }] }] }]);
+    s.apply(A.dir, [{ op: "set-title", title: "Offsite" }, { op: "open-round", questions: [q("Q1", "Where should we go?"), { ...q("Q2", "Which week suits?"), recommendation: HELD, alternatives: [{ key: "a", text: "The first week" }, { key: "b", text: "The last week" }] },
+      { ...q("Q3", "Which venue should we book?"), recommendation: "The lake house.", basis: BASIS,
+        alternatives: [{ key: "a", text: "The city hotel." }, { key: "b", text: "The mountain lodge." }] }] }]);
     const owner = await rec.open(A.ownerUrl);
     await until(owner, () => window.Core.snapshot()?.me?.role === "owner");
 
@@ -100,6 +103,23 @@ async function main() {
     await guest.locator(".vf-q", { hasText: "Which week suits?" }).first().click();
     ok("  and a guest sees the same open note", await until(guest, t => { const n = document.querySelector(".vf-qopen"); return !!n && !n.hidden && n.textContent === t; }, HELD),
       await guest.evaluate(() => document.querySelector(".vf-qopen")?.textContent));
+
+    // The recommendation's basis shows as written, folded behind "Why", with no page-added "Basis: " before its own labels.
+    await held.locator(".vf-q", { hasText: "Which venue should we book?" }).first().click();
+    await until(held, () => !!document.querySelector(".vf-claudebar")?.offsetParent || [...document.querySelectorAll(".vf-alist .vf-card.vf-bot")].some(c => c.offsetParent));
+    if (await held.evaluate(() => !!document.querySelector(".vf-claudebar")?.offsetParent)) await held.click(".vf-claudebar");
+    const recBasis = () => held.evaluate(() => {
+      const card = [...document.querySelectorAll(".vf-alist .vf-card.vf-bot")].find(c => c.offsetParent && c.querySelector(".vf-tag")?.textContent === "Claude recommends");
+      const b = card?.querySelector(".vf-basis");
+      return b ? { tag: b.tagName, hidden: b.hidden, open: b.open, sum: b.querySelector("summary")?.textContent, body: b.querySelector(".vf-basis-body")?.textContent, card: card.textContent } : null;
+    });
+    ok("the recommendation card folds its basis behind Why", await until(held, () => {
+      const b = [...document.querySelectorAll(".vf-alist .vf-card.vf-bot .vf-basis")].find(x => x.closest(".vf-card").offsetParent && !x.hidden);
+      return !!b && b.tagName === "DETAILS" && !b.open && b.querySelector("summary")?.textContent === "Why";
+    }), JSON.stringify(await recBasis()));
+    const shown = await recBasis();
+    ok("  and its basis reads as written, through the markdown renderer", shown?.body === BASIS, JSON.stringify(shown));
+    ok("  with no doubled Basis: label", !!shown && !/Basis:\s*Checked against:/.test(shown.card) && shown.card.split("Basis:").length === 2, shown?.card);
 
     ok("no page broke the server's CSP", (await rec.cspViolations()).length === 0);
     const errs = rec.errors.filter(m => !/Failed to load resource/.test(m));

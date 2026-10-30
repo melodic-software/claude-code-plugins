@@ -31,3 +31,10 @@ graders:
     flags: 'im'
     match: 'not_contains'
     target: last_message
+  - name: no-workspace-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*(?:MISSION\.md|learning-records[/\\]|GLOSSARY\.md)'
+    min: 0
+    max: 0
+    arm: both

@@ -672,6 +672,37 @@ else
   bad "trailing-slash project dir: no envelope written"
 fi
 
+# --- Clean-content early exit: taken only when telemetry is off -------------
+# Telemetry on: clean content still reaches the clean scan and its one `ok`
+# envelope, so the prefilter exit must not fire.
+TELOK="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
+SINKOK="$(make_sink "cat >>\"$TELOK\"")"
+env HOOK_TELEMETRY_SINK="$SINKOK" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
+  bash "$HOOK" <<<"$(write_json "$FIXTURE" 'echo "hello world"')" >/dev/null 2>&1 || true
+if wait_for_sink "$TELOK"; then
+  sleep 0.2
+  assert_eq "telemetry on, clean content: exactly one envelope" "1" "$(jq -s 'length' "$TELOK")"
+  assert_eq "telemetry on, clean content: status ok" "ok" "$(jq -rs '.[0].status' "$TELOK")"
+else
+  bad "telemetry on, clean content: no envelope written"
+fi
+
+# Telemetry off: clean content exits before any git probe. A git shim first on
+# PATH records any call and fails, so reaching the probes shows up here.
+GITSHIM="$(mktemp -d "$TEST_TMPDIR/gitshim.XXXXXX")"
+printf '#!/usr/bin/env bash\ntouch "%s/called"\nexit 1\n' "$GITSHIM" >"$GITSHIM/git"
+chmod +x "$GITSHIM/git"
+OUT=$(env -u HOOK_TELEMETRY_SINK PATH="$GITSHIM:$PATH" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
+  bash "$HOOK" <<<"$(write_json "$FIXTURE" 'echo "hello world"')" 2>&1)
+RC=$?
+assert_exit "telemetry off, clean content, git unreachable → exit 0" 0 "$RC"
+assert_silent "telemetry off, clean content → no stderr" "$OUT"
+if [[ -e "$GITSHIM/called" ]]; then
+  bad "telemetry off, clean content: git was called (early exit not taken)"
+else
+  ok "telemetry off, clean content: no git call"
+fi
+
 # ===================== PAYLOAD-SIZE BOUNDARY (regression) ====================
 # Guards the here-string deadlock. Bash delivers `<<<` through a pipe it fills
 # ITSELF before the reader is exec'd, and it appends a newline — so a payload of

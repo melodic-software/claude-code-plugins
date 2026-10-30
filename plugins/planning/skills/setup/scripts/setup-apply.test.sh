@@ -142,7 +142,7 @@ shape_case() { # shape_case <label> <refuse|replace> <warning text> <file conten
     fail "apply replaces $label with the given value"
   fi
 }
-shape_case 'a duplicate key' refuse 'set more than once' $'phase_order: composed\nphase_order: riskiest-first\n'
+shape_case 'a duplicate key' refuse 'duplicate key `phase_order`' $'phase_order: composed\nphase_order: riskiest-first\n'
 shape_case 'a duplicate key that differs only by spaces' refuse 'set more than once' $'phase_order: composed\n"phase_order ": riskiest-first\n'
 shape_case 'a key with spaces around its name' refuse 'spaces around its name' $'" phase_order": composed\n'
 shape_case 'a block map' refuse 'map or a list' $'phase_order:\n  mode: composed\n'
@@ -158,7 +158,7 @@ shape_case 'a ~ value' replace 'phase_order=~ is not one of' $'phase_order: ~\n'
 shape_case 'an out-of-list value' replace 'phase_order=risky-first is not one of' $'phase_order: risky-first\n'
 shape_case 'an anchor on the target line' refuse 'not part of the subset' $'phase_order: &a composed\n'
 shape_case 'an unclosed quote on the target line' refuse 'unclosed quote' $'phase_order: "composed\n'
-shape_case 'an unknown key set twice' refuse 'key stray is set more than once' $'stray: a\nstray: b\n'
+shape_case 'an unknown key set twice' refuse 'duplicate key `stray`' $'stray: a\nstray: b\n'
 shape_case 'an unknown key holding a map' refuse 'stray is not in the schema and holds a map or a list' $'stray:\n  a: 1\n'
 shape_case 'an out-of-list value on a key not being written' refuse 'plan_store=bogus is not one of' $'plan_store: bogus\n'
 

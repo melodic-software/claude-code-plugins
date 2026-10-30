@@ -11,7 +11,7 @@
 This is the provenance record for acting on the claude.com article about folding subagents into
 one agent loop. It follows the record shape of
 [claude-dev-spending-your-effort-blog.md](claude-dev-spending-your-effort-blog.md) and the
-[upstream-drift](../conventions/upstream-drift/README.md#required-parts) convention. Each row is
+[upstream-drift](../contracts/upstream-drift/README.md#required-parts) convention. Each row is
 our decision in our own words; no row restates the article or a docs page, and this record lists
 no figure from either.
 

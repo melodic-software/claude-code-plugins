@@ -14,7 +14,8 @@
 // request changes (`path` or `path:line`, backticks allowed) goes on that
 // file; the summary and every other note go on the first such file, or on the
 // pull request's first changed file when no note names one. Model text is
-// quoted as data in a text fence, never interpolated into a command.
+// quoted as data in a text fence, wrapped to fit the page (quote), never
+// interpolated into a command.
 //
 // On a pull request the lanes App did not open, a person's, the FAIL is no
 // review thread: GitHub lets only its author or a writer resolve one, which
@@ -49,11 +50,7 @@ import { pathToFileURL } from "node:url";
 
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { headRefDigest, isVerdictName, NAME } from "../pr-verify/write-verdict.mjs";
-import { createGitHubApi, MARKER_AUTHOR_ID, need, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
-
-// GitHub refuses a comment body over 65536 characters; leave room for the
-// framing (judgment).
-const BODY_MAX = 60000;
+import { createGitHubApi, MARKER_AUTHOR_ID, need, quote, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
 // The label that holds a person's pull request after a FAIL (ci-status's
 // merge-queue label step reads the same name).
@@ -76,13 +73,6 @@ export function notePath(note, files) {
     .replace(/[`'")\]*.,;:]+$/, "")
     .replace(/:[0-9]+(-[0-9]+)?$/, "");
   return files.includes(path) ? path : null;
-}
-
-// One fenced quote, with no fence inside it and no control character.
-function quote(lines) {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it removes
-  const text = lines.join("\n").replace(/\r\n/g, "\n").replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''");
-  return ["```text", text.length > BODY_MAX ? `${text.slice(0, BODY_MAX)} [cut]` : text, "```"].join("\n");
 }
 
 // The comments to post, each { path, body }, in the pull request's file order.

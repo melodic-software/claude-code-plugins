@@ -160,7 +160,11 @@ through the Skill tool, with no `--paths`. Then read its report:
 - A red baseline stops the batch. List the failing tests so the user can name the flaky ones for
   step 2 or fix them. Quarantine nothing on your own. A test that fails the same way on every run is
   not flaky: report it as a possible product bug whose fix is its own change, never a quarantine.
-- `K0 empty`, or `no mapping: scope empty`: stop. Nothing the tests kill can be gated.
+- `K0 empty`, `no mapping: scope empty`, or a refusal after the user declines both the audit's
+  install command and its `tool: manual` offer: the gated batch stops, since nothing the tests
+  kill can be gated. Name the result, then offer [Cannot-fail-only mode](#cannot-fail-only-mode)
+  and continue in it only on the user's yes, keeping the step 2 quarantines in the batch.
+  Unattended, or on a no, stop.
 - Mutants dropped by the cap: state how many, and continue only on the user's yes or with a larger
   `--max`.
 
@@ -199,8 +203,11 @@ statement, action, gate-blind, approved-by.
   merge it, or checks inside it.
 - When `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh"` prints `rules.test-weaken-block`
   `error`, each deletion carries a `test-change: cleanup row <n>: <reason>` comment at the edit.
-- Gate-blind: a changed or deleted test none of whose imported production files holds a
-  `before.tsv` row is marked gate-blind and needs the user's yes, even for a rewrite.
+- Gate-blind: a changed or deleted test none of whose production files holds a `before.tsv` row is
+  marked gate-blind and needs the user's yes, even for a rewrite. A test's production files are
+  the files defining the code it reaches: what it calls directly, through a helper, an interface
+  or dependency injection, read from the code. Read the calls, not the imports: a C# `using` names
+  a namespace, never a file, and a test in a child namespace of its subject needs no `using`.
 
 Unattended, apply only the row 2 and 3 rewrites that are not gate-blind, and leave every yes-gated
 item listed and unapplied.
@@ -214,13 +221,16 @@ sees only the scanner's rules; the judgment-only shapes in `test-value` §5 stay
 each rewrite's row.
 
 Then invoke `/mutation-testing:audit --exercised <folder> --replay-mutants <work>/before.tsv
---record-mutants <work>/after.tsv` through the Skill tool and read its `Gate:` line.
+--record-mutants <work>/after.tsv` through the Skill tool and read its `Gate:` line. The replay
+applies each `before.tsv` mutant again and compares the two records mutant by mutant: one detected
+before and not after is newly surviving.
 
 - A red replay baseline (a changed test fails on unmutated code) stops the batch and names the
   failing tests.
 - `Gate: block`: the batch stops. For each `newly-surviving <path>:<line> <operator>` line, list the
-  candidate changes: the batch's changed tests that import `<path>`. The user reverts the ones they
-  choose; then replay again. Cleanup reverts nothing itself.
+  candidate changes: the batch's changed tests whose production files (step 5) include `<path>`,
+  or every changed test when none does, since each mutant ran against the whole test set. The
+  user reverts the ones they choose; then replay again. Cleanup reverts nothing itself.
 - `Gate: pass`: go on.
 - Any other outcome (no `Gate:` line, a refusal, a compare that could not run) stops the batch the
   same way. Only `Gate: pass` reaches step 7.
@@ -263,7 +273,8 @@ these steps replace steps 1 to 6, and step 7 follows unchanged.
    duplicate: list each in `decisions.md` as `not in this mode` and leave it. So is a test in a
    `block_model: file` adapter's file, and a test holding a `catch ... when (...)` guard, such as a
    trial-license check: neither is deleted or edited. List expired quarantines found by the sweep,
-   and change none. No candidate: report `nothing to clean in <folder>` and stop.
+   and change none. No candidate: report `nothing to clean in <folder>` and stop, unless step 2
+   quarantined or re-enabled a test in this batch; then go to step 7 with those alone.
 2. **Skeptic.** Per test file holding a candidate, write `<work>/skeptic-brief-<n>.md` from
    [`context/skeptic-brief.md`](context/skeptic-brief.md), with `<plugin-root>` rendered as
    `${CLAUDE_PLUGIN_ROOT}`, and dispatch a fresh-context `general-purpose` subagent with
@@ -288,10 +299,11 @@ these steps replace steps 1 to 6, and step 7 follows unchanged.
    `decisions.md` recorded in step 1 minus the approved deletions, and `git status --porcelain` must list only files under the
    folder. Any other result stops the batch and names the difference.
 
-Step 7's report states that the batch ran in this mode, which step 0 check led to it, if any, and that no
-mutation gate ran; it has no K0 or K1. Every deletion here is gate-blind by construction. It also
-states that nothing was built or linted: a helper the deleted test alone used can trip an
-unused-code check, so ask the user to build and lint the test project before approving the batch.
+Step 7's report states that the batch ran in this mode, which step 0 check or step 3 result led to
+it, if any, and that no mutation gate ran; it has no K1, and no K0 beyond that step 3 result.
+Every deletion here is gate-blind by construction. It also states that nothing was built or
+linted: a helper the deleted test alone used can trip an unused-code check, so ask the user to
+build and lint the test project before approving the batch.
 
 ## What this skill does NOT do
 

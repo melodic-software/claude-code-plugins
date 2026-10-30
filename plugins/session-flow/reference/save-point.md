@@ -390,7 +390,8 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   Commentary sits above the top rail or below the bottom rail, never between.
 - One plain-language instruction sits directly ABOVE each region's top rail. The resume region's is
   "`/clear`, then copy everything between the dashed lines:". A goal region has its own, below.
-- **Goal region:** when a goal applies, the prompt holds a second railed region for it. A goal
+- **Goal region:** when a goal applies, the prompt holds a second railed region for it, unless
+  the condition check below omits it. A goal
   applies when the user asked for a fresh goal, or when a `/goal` is active in the producing
   session. Active means a `/goal` establishing or re-arming call earlier in this conversation with
   no later stop/completion, not "infer from conversation" prose; `/clear` destroys an active goal,
@@ -423,6 +424,37 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   `◎ /goal active` indicator); as of 2026-10-18; recheck when either section changes the limit,
   the start-a-turn behavior, or the indicator text. This is the one place the limit is stated.
 
+  **Check the condition before emitting the region.** The goal evaluator does not call tools, so
+  it judges only what the conversation shows, and the next session's conversation holds none of
+  this one's output. Two checks follow, on both paths:
+
+  1. **Conversation-bound wording.** When the condition ties its proof to the producing
+     conversation ("in the transcript", "in this conversation", "shown by output you produced",
+     "output you produced", or a close variant), put a warning line above the goal region's
+     instruction line; on the full path it goes in the `goal-first` or `goal-after` slot value
+     directly above the fixed goal instruction line, so `emit` prints it. In `goal-first` it is
+     the value's first line; in `goal-after` it comes after the value's leading newline, so the
+     blank line below the resume region's bottom rail stays. It says the next session must re-produce every earlier proof before the
+     goal can be met, and suggests rewording the proof as "at commit `<sha>` or in
+     `<evidence file>`, shown in the conversation", with this session's commit or evidence file
+     filled in. The condition between the rails stays verbatim; a rewrite goes in only when the
+     user approves it, since only the person arms a goal.
+  2. **Nothing left but the user's decisions.** When every criterion in the condition is met,
+     each at a commit SHA or file path this save-point records, and every remaining action is a
+     decision only the user can make, omit the goal region. Below the resume region's bottom rail,
+     say the goal region was left out because its criteria are met at the recorded commit or file,
+     and list the pending decisions. A criterion met only by this session's say-so, or one that
+     still needs a command run, keeps the region.
+
+  Record for the evaluator claim: basis
+  <https://code.claude.com/docs/en/goal#evaluation-model-and-cost> ("It
+  does not call tools, so it can only judge what Claude has already surfaced in the
+  conversation"); as of 2026-10-29; recheck when that section says the evaluator reads files or
+  runs commands. Observed stumble: a condition requiring every proof "shown by output you
+  produced" was carried word for word into a goal region; pasted after `/clear`, with the proofs
+  already at a recorded commit and only the user's decisions left, the Stop hook blocked about 30
+  turns in a row.
+
   **Order follows what the user asked for.** The region for the payload the user asked for comes
   first, so a fresh-goal request puts the goal region above the resume region. When the user asked
   only for a handoff and the goal is merely carried over from an active `/goal`, the resume region
@@ -431,8 +463,9 @@ Where the panel sits in the response belongs to the citing skill, which owns its
   the goal region arms the goal and starts the continuation in one message, the resume region
   continues without a goal. Each has its own instruction line, and a blank line separates the two.
 
-  **Prompt-only emits the same two regions.** The goal region carries the condition and the inline
-  goal quote and no `Read @` line; the resume region is the prompt-only prompt as before.
+  **Prompt-only emits the same two regions**, and runs the same condition check. The goal region
+  carries the condition and the inline goal quote and no `Read @` line; the resume region is the
+  prompt-only prompt as before.
 
   On the full path the file's `## Resume prompt` section stores both regions in the emitted order,
   through the optional slots `goal-first` (above the resume region) and `goal-after` (below it).
