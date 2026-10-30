@@ -65,9 +65,11 @@
 //   kill-switch stop (VERDICT_STOP_STEP): a pr-verify verdict finished while
 //   the switch was on, so its notes, or its pr-verify-failed label added or
 //   removed, never reached the PR. Its failed jobs are re-run once, over the
-//   whole lookback, taking no place under MAX_IN_FLIGHT; the re-run's
+//   whole lookback, taking no place under MAX_IN_FLIGHT. The re-run's
 //   dispatch job sends no address-feedback round, which the lanes trust only
-//   from an attempt-1 dispatcher.
+//   from an attempt-1 dispatcher; it records the head instead, and the next
+//   pr-unblock-dispatch tick sends the round (feedback-dispatch.mjs
+//   recoverDeferred).
 // Other lost lane runs (the pull_request review lanes, refine) are listed in the summary for
 // a person: their gates or the lanes token broker refuse a re-run
 // github-actions[bot] starts. Their own paths recover them instead: the babysit

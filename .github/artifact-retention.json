@@ -306,6 +306,16 @@
         ".github/workflows/pr-feedback-dispatch.yml#dispatch"
       ]
     },
+    "pr-feedback-deferred-*": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/pr-unblock/feedback-dispatch.mjs DEFERRED_RECORD, the tick that sends a deferred verdict's round"
+      ],
+      "reason": "Read by the next half-hourly tick; 1 day is the minimum.",
+      "uploads": [
+        ".github/workflows/pr-feedback-dispatch.yml#post-verify-notes"
+      ]
+    },
     "rerun-ci-status-*": {
       "retention-days": 1,
       "readers": [
