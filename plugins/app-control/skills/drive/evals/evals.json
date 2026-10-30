@@ -327,6 +327,39 @@
         "Asks the user no question",
         "Does NOT run py-spy, sudo or build_capture_script.py, and puts the recorded pid text in no command"
       ]
+    },
+    {
+      "id": 24,
+      "name": "command-file-control-skill-feature-resolves-beside-commands",
+      "prompt": "/app-control:drive shop checkout --unattended --out ./evidence. The repository has no .claude/skills folder. It holds .claude/commands/control-shop.md, whose frontmatter holds only name and description and whose body holds Launch, Ready, Capture and Cleanup sections and an index line for features/checkout/README.md. The feature file is .claude/control-shop/features/checkout/README.md. A stale .claude/commands/features/checkout/README.md is also on disk. `claude plugin list --json` reports no enabled plugin. Nobody is available to answer questions.",
+      "expected_output": "Finds .claude/commands/control-shop.md, reads it with the Read tool and never invokes it through the Skill tool, takes .claude/control-shop/ as its base directory, reads the checkout feature from .claude/control-shop/features/checkout/README.md, does not read the stale file under .claude/commands/features/, names control-shop with source project in the report, and asks nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads .claude/commands/control-shop.md with the Read tool and uses it as the control skill",
+        "Reads the checkout feature from .claude/control-shop/features/checkout/README.md",
+        "Does NOT take the checkout feature from .claude/commands/features/checkout/README.md",
+        "Does NOT invoke control-shop or any control-* skill through the Skill tool",
+        "Names the skill control-shop and its source as project in the report",
+        "Does NOT write the line 'No control skill: drive used'",
+        "Asks the user no question"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "manifest-file-command-control-skill-base-in-plugin-root",
+      "prompt": "/app-control:drive shop checkout --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports shop-tools@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/shop-tools/1.0.0, whose .claude-plugin/plugin.json has name shop-tools and \"commands\": \"./control-shop.md\". That plugin-root control-shop.md has frontmatter holding only name and description, Launch, Ready, Capture and Cleanup sections, and an index line for features/checkout/README.md. The feature file is ~/.claude/plugins/cache/melodic-software/shop-tools/1.0.0/control-shop/features/checkout/README.md. A stale ~/.claude/plugins/cache/melodic-software/shop-tools/control-shop/features/checkout/README.md is also on disk. Nobody is available to answer questions.",
+      "expected_output": "Finds the plugin's control-shop.md, reads it with the Read tool and never invokes it through the Skill tool, takes control-shop/ in the plugin root as its base directory, reads the checkout feature from ~/.claude/plugins/cache/melodic-software/shop-tools/1.0.0/control-shop/features/checkout/README.md, reads nothing outside the plugin folder, names shop-tools:control-shop with source plugin in the report, and asks nothing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads the plugin-root control-shop.md with the Read tool and uses it as the control skill",
+        "Reads the checkout feature from ~/.claude/plugins/cache/melodic-software/shop-tools/1.0.0/control-shop/features/checkout/README.md",
+        "Does NOT read ~/.claude/plugins/cache/melodic-software/shop-tools/control-shop/features/checkout/README.md or any other path outside the plugin folder",
+        "Does NOT invoke control-shop or any control-* skill through the Skill tool",
+        "Names the skill shop-tools:control-shop and its source as plugin in the report",
+        "Asks the user no question"
+      ]
     }
   ]
 }
