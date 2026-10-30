@@ -157,25 +157,27 @@ for (const [eventName, action, number] of [
   });
 }
 
-test("an item already labeled and already commented for the actor is logged unchanged, with no write", async () => {
+// The payload's labels can be stale (a person may have removed one since),
+// so the label write always runs; adding a label already present is a no-op.
+test("an item whose payload shows both labels and a comment for the actor still gets the label write, and no second comment", async () => {
   const payload = events.issue_comment(OUTSIDER, "NONE");
   payload.issue.labels = [{ name: NEEDS_HUMAN }, { name: LABEL }];
   const own = { user: ACTIONS_BOT, body: `${markerFor({ id: OUTSIDER.id })}\n**Outside actor.**` };
   const { code, calls, lines } = await run("issue_comment", payload, { comments: [own] });
   assert.equal(code, 0);
-  assert.deepEqual(posts(calls), []);
-  assert.ok(lines.some((line) => /outside actor id 777 unchanged$/.test(line)), lines.join("\n"));
+  assert.deepEqual(
+    posts(calls).map((call) => call.apiPath),
+    [`/repos/${REPO}/issues/5/labels`],
+  );
+  assert.ok(lines.some((line) => /outside actor id 777 labeled$/.test(line)), lines.join("\n"));
 });
 
-test("an item already carrying both labels gets no label write, but a new actor still gets a comment", async () => {
+test("an item whose payload shows both labels gets the label write, and a new actor gets a comment", async () => {
   const payload = events.issue_comment(OUTSIDER, "NONE");
   payload.issue.labels = [{ name: NEEDS_HUMAN }, { name: LABEL }, { name: "bug" }];
   const { code, calls } = await run("issue_comment", payload);
   assert.equal(code, 0);
-  assert.deepEqual(
-    posts(calls).map((call) => call.apiPath),
-    [`/repos/${REPO}/issues/5/comments`],
-  );
+  assert.deepEqual(posts(calls).map((call) => call.apiPath).sort(), [`/repos/${REPO}/issues/5/comments`, `/repos/${REPO}/issues/5/labels`]);
 });
 
 test("an item carrying only one of the two labels is labeled again", async () => {
