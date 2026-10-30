@@ -141,8 +141,7 @@ page with synthetic data and an in-page switcher. Assemble one per task:
 
 Constraints:
 
-- **Synthetic data only.** A throwaway prototype binds synthetic data, never real or captured
-  values.
+- **Synthetic data only.** A throwaway prototype binds synthetic data, never real or captured values.
 - **Same data across variants.** All variants bind one identical data set; the data is the
   control variable, so the only thing that differs between variants is the design. On the real
   stack, sub-shape A's shared fetching above the switcher already enforces this; on the mockup
@@ -169,12 +168,11 @@ Constraints:
   calls: the directory name is random, so an unechoed path is unrecoverable in the call that writes
   the file. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable.
   That is why the page takes a fixed name inside the generated directory rather than an
-  `explore-directions-XXXXXX.html` template, which macOS cannot create at all. On Windows,
-  a user-scoped temp under
-  `%LOCALAPPDATA%\Temp`. One file per run (one per screen when the run covers several), or one
-  per variant when the person asks for separate files. The path is handed to the user to open
-  from `file://`, so do not delete it. It must still be readable when they open it. A shared
-  interview places its output elsewhere: [For a shared interview](#for-a-shared-interview).
+  `explore-directions-XXXXXX.html` template, which macOS cannot create at all. On Windows, a
+  user-scoped temp under `%LOCALAPPDATA%\Temp`. One file per run (one per screen when the run
+  covers several), or one per variant when the person asks for separate files. The path is
+  handed to the user to open from `file://`, so do not delete it. It must still be readable when
+  they open it. A shared interview places its output elsewhere: [For a shared interview](#for-a-shared-interview).
 - **Markdown captures the answer.** Copy the winning-variant key, notes and test ids into your
   durable answer (per the shared discipline); the HTML is throwaway.
 - **An existing app keeps its look.** When the variants change part of an app that exists, build
@@ -187,15 +185,14 @@ Constraints:
   and differs structurally. The per-variant direction below applies only when no app exists yet
   or the person asked to change the app's design.
 - **Otherwise each variant declares its visual direction.** With no app look to keep, and no
-  declared direction, every variant renders in one default house aesthetic.
-  Before writing a variant, state its direction. Background hex, accent hex, typeface, one-line
-  rationale, and make it differ from its siblings on that axis as well as structurally. Generic
-  steering ("make it clean") only swaps one fixed palette for another; a concrete per-variant
-  declaration is what produces variety. Also name the defaults no variant may fall back on:
-  italic accent words in headings, numbered "01 / 02 / 03"
-  section labels, monospace labels, and pill-shaped buttons, plus any the user names. When a
-  `skip:` line in the handover rejects a visual choice, add it to that list before the next
-  round.
+  declared direction, every variant renders in one default house aesthetic. Before writing a
+  variant, state its direction. Background hex, accent hex, typeface, one-line rationale, and
+  make it differ from its siblings on that axis as well as structurally. Generic steering ("make
+  it clean") only swaps one fixed palette for another; a concrete per-variant declaration is what
+  produces variety. Also name the defaults no variant may fall back on: italic accent words in
+  headings, numbered "01 / 02 / 03" section labels, monospace labels, and pill-shaped buttons,
+  plus any the user names. When a `skip:` line in the handover rejects a visual choice, add it to
+  that list before the next round.
 
 ### Design-canvas alternative (bundled `design` skill, run by the person)
 
@@ -210,7 +207,9 @@ never invokes it and never switches silently. This skill builds the HTML mockup 
   the canvas is a published, persistent Artifact. Default-private, shareable with teammates at
   the user's choice. Unlike the throwaway local mockup, losing variants persist on it unless the
   user deletes or re-seeds the canvas. The user edits artboard elements in a desktop browser,
-  edits save automatically, and each artboard exports as PNG or PDF.
+  edits save automatically, and each artboard exports as PNG or PDF. These user-run, hand-editable
+  artboards have no structured decision capture; [review mode](#review-mode) collects per-screen
+  decisions from several reviewers and reads back a compiled report.
 
 The capture discipline is unchanged either way: record the winning-variant key and notes in
 your durable answer; the canvas may live on under the user's account, but nothing tracked in
@@ -260,6 +259,15 @@ environment.
   tradeoffs table. People answer through the interview's question, so the reply template and the
   copy-out terminator are not needed; step 5 reads the test ids from each snapshot's markup.
 
+## Review mode
+
+When more than one person will decide, offer review mode once, in one line: each screen goes on
+`/planning:interview`'s shared page, every reviewer records a decision on it, and the round's digest
+comes back as the report. Nothing is published to claude.ai. Run it only when the user asks or says
+yes, by [context/review-mode.md](context/review-mode.md), which also draws its boundaries with the
+`/design` canvas, a playground and the bundled `prototype` skill. When it cannot start, say so and
+hand over the local mockup.
+
 ## Process
 
 ### 1. Write the plan
@@ -271,16 +279,15 @@ as empty, loading, populated, error, validation and permission-limited; every va
 every listed state. For a single screen the count is **3 variants** unless the user asks for
 another number, and never more than 5: past five, new variants repeat earlier ones instead of
 disagreeing with them. When the run covers several screens, build 2 or 3 variants per screen: the
-person reviews every state of every variant of every screen, so each added screen multiplies the
-review.
+person reviews every state of every variant of every screen, so each added screen multiplies the review.
 
 **Optional reference pass.** Two to four candidate directions, each described by its layout and
 density, plus color and type only when no app exists or a redesign was asked, can seed step 2 in
-place of a blank page. They are distilled from a small
-set of comparable screens: other products that do the same job, and the app's own closest screens.
-Offer the pass before step 2, and only while the look is still open, meaning the user has given no
-direction and no existing page fixes the look, on either host. If the user accepts, the step 2
-variants follow whichever directions the user keeps; if not, step 2 begins as it normally would.
+place of a blank page. They are distilled from a small set of comparable screens: other products
+that do the same job, and the app's own closest screens. Offer the pass before step 2, and only
+while the look is still open, meaning the user has given no direction and no existing page fixes
+the look, on either host. If the user accepts, the step 2 variants follow whichever directions the
+user keeps; if not, step 2 begins as it normally would.
 
 Before building, give each variant a name that describes its direction ("Quiet", "Dense",
 "Editorial", never "Option A") and the axis it diverges on (layout, density, personality, motion,
@@ -385,8 +392,7 @@ screen: /shipments
 
 Then carry out the "When the exercise ends" column of the intent selector for the host you used.
 Those deletions are irreversible: whatever is not written down first is gone. On the real stack,
-delete the switcher and every variant file in the same change that merges the winner; code left behind gets imported by
-mistake and falls out of date.
+delete the switcher and every variant file in the same change that merges the winner; code left behind gets imported by mistake and falls out of date.
 
 ## Boundary, the bundled `design` skill
 
@@ -395,23 +401,21 @@ the intent selector lands on the HTML mockup substrate:
 
 - **`design` (bundled skill)**: drafts artboards on one canvas and publishes the canvas as a
   Claude Design Artifact: persistent, shareable, edited in a desktop browser with edits saved
-  automatically. It is reserved for the person
-  to run as `/design`; the model does not invoke it.
+  automatically. It is reserved for the person to run as `/design`; the model does not invoke it.
 - **This skill (marketplace plugin).** Throwaway variants as a local HTML mockup by default, or on
   the real stack on request, switchable from a control bar; only the winning-variant key survives.
 
 **Routing.** On the mockup host, this skill builds the mockup whether or not the user runs
-`/design`. Before building, tell the
-user: If /design is available in your session (gate basis: the verification record below), you
-can run `/design <scope>` instead of or alongside this skill for a hand-editable design canvas.
-State the lifecycle difference with it; the design-canvas subsection above carries the offer
-shape. A local skill named `design` at any level silently shadows the bundled command, and the
-bundled one never appears in your skill listing, so a `design` entry in that listing is a
-shadowing local skill: do not make the offer, and tell the user a local `design` skill shadows the
-bundled canvas command. A local `design` skill that disables model invocation shadows it too and
-is hidden from you, so every offer adds that `/design`'s description should read "Make a new
-Design artifact from a brief"; anything else is a local skill, not the canvas, and not to be run
-for it.
+`/design`. Before building, tell the user: If /design is available in your session (gate basis:
+the verification record below), you can run `/design <scope>` instead of or alongside this skill
+for a hand-editable design canvas. State the lifecycle difference with it; the design-canvas
+subsection above carries the offer shape. A local skill named `design` at any level silently
+shadows the bundled command, and the bundled one never appears in your skill listing, so a
+`design` entry in that listing is a shadowing local skill: do not make the offer, and tell the
+user a local `design` skill shadows the bundled canvas command. A local `design` skill that
+disables model invocation shadows it too and is hidden from you, so every offer adds that
+`/design`'s description should read "Make a new Design artifact from a brief"; anything else is
+a local skill, not the canvas, and not to be run for it.
 
 **Mutation gate.** The canvas persists under the user's account. This skill never runs it, never
 publishes on its own initiative, and never references the canvas from anything tracked in the
