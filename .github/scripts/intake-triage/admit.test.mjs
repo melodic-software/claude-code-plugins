@@ -2470,10 +2470,13 @@ describe("isSplitParent, split by hand", () => {
     assert.equal(await splitParent("- [ ] #31\n- [ ] see https://example.com/?q=#32"), false);
   });
   test("an item whose text is not its sub-issue's title is the parent's own work, wherever the citation sits", async () => {
-    for (const item of ["Update the README after #32", "Write migration guide, blocked by #32", "#32 must land first, then update the README"]) {
+    for (const item of ["Update the README after #32", "Write migration guide, blocked by #32", "#32 must land first, then update the README", "Test #32", "the #32", "Writer #32"]) {
       assert.equal(await splitParent(`- [ ] #31\n- [ ] ${item}`), false, item);
     }
     assert.equal(await splitParent("- [ ] **#31** The parser.\n- [ ] #32"), true);
+  });
+  test("a line under a cited item is more work", async () => {
+    assert.equal(await splitParent("- [ ] #31\n- [ ] #32 The writer\n  - also update the README"), false);
   });
   test("a recurring issue is never a split parent, even with every item cited", async () => {
     assert.equal(await splitParent("- [ ] The parser (#31)\n- [ ] The writer (#32)", [{ name: "recurring" }]), false);

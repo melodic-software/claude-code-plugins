@@ -196,7 +196,8 @@
 // it as completed. Only a split parent counts (admit.mjs isSplitParent): one
 // whose split record the App posted, or one split by hand whose every
 // sub-issue the App or a listed human linked, not `recurring`, each open
-// task-list item in its body citing one of those sub-issues as `#N`.
+// task-list item in its body being one of those sub-issues: its `#N` alone
+// or with that sub-issue's title.
 //
 // The App's admission comment on an open parent in no queue that waits on its
 // sub-issues alone (no blocker) is rewritten when it says only that the split
