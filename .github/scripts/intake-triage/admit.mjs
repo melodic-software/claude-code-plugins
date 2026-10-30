@@ -846,29 +846,37 @@ const before = (events, a, b) => {
   return Number.isFinite(at) && Number.isFinite(bt) && at !== bt ? at < bt : a < b;
 };
 
+const isLabeling = (event, kind, names) => event?.event === kind && names.includes(String(event.label?.name).toLowerCase());
+const isReadyAdd = (event) => isLabeling(event, "labeled", [READY]);
+
 // Whether an agent-ready removal still stands: the newest event `isRemoval`
-// accepts has no `status: ready` add after it that `isMark` accepts (by
-// default, any). A lane's escalation or a person's removal keeps the issue out
-// until triage or a person marks it ready again. Pure.
-export function removalStands(events, isRemoval, isMark = () => true) {
+// accepts has no re-mark after it (by default a `status: ready` add) that
+// `isMark` accepts (by default, any). A lane's escalation or a person's
+// removal keeps the issue out until triage or a person marks it ready again.
+// Pure.
+export function removalStands(events, isRemoval, isMark = () => true, isReMark = isReadyAdd) {
   const removals = events.flatMap((event, index) => (isRemoval(event, index) ? [index] : []));
   if (removals.length === 0) {
     return false;
   }
   const newest = removals.reduce((a, b) => (before(events, a, b) ? b : a));
-  return !events.some(
-    (event, index) => event?.event === "labeled" && String(event.label?.name).toLowerCase() === READY && isMark(event) && before(events, newest, index),
-  );
+  return !events.some((event, index) => isReMark(event) && isMark(event) && before(events, newest, index));
 }
 
+// The holds a lane stop adds beside its agent-ready removal. Lifting one
+// releases the issue, and no `status: ready` add follows a lift.
+const STOP_HOLDS = ["needs-human", NEEDS_DECISION];
+
 // Why admission leaves an issue alone whatever its verdict, or null: it is
-// already agent-ready, or its agent-ready was removed and no `status: ready`
-// `isMark` accepts was added since (removalStands). Pure.
+// already agent-ready, or its agent-ready was removed and neither a
+// `status: ready` add nor a STOP_HOLDS removal that `isMark` accepts came
+// since (removalStands). Pure.
 export function admissionSettled(labels, events, isMark) {
   if (labels.includes(AGENT_READY)) {
     return `already ${AGENT_READY}`;
   }
-  if (removalStands(events, (event) => event?.event === "unlabeled" && event.label?.name === AGENT_READY, isMark)) {
+  const reMark = (event) => isReadyAdd(event) || isLabeling(event, "unlabeled", STOP_HOLDS);
+  if (removalStands(events, (event) => event?.event === "unlabeled" && event.label?.name === AGENT_READY, isMark, reMark)) {
     return `${AGENT_READY} was removed and ${READY} not added since`;
   }
   return null;
@@ -897,8 +905,8 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
   }
-  // Only the App's or a listed human's status: ready lifts a removal: the
-  // App's agent-ready starts a credentialed run.
+  // Only the App's or a listed human's status: ready or hold lift lifts a
+  // removal: the App's agent-ready starts a credentialed run.
   const settled = admissionSettled(labels, events, (event) => humans.has(event.actor?.id) || (appId !== undefined && event.actor?.id === appId));
   if (settled) {
     return { verdict: "skip", reasons: [settled] };
