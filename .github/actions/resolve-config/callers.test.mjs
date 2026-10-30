@@ -2648,7 +2648,8 @@ test("pr-unblock.yml and pr-refine.yml: a read activity whose PR head moved mid-
     assert.deepEqual(choose(callerHead, "3".repeat(40)), { post: "true", sha: old, forged: "true" }, `${id}: a foreign run head still fails`);
     // A run that declines before its trigger gate leaves an empty head:
     // fix-ci posts neutral not-assessed so fix-ci-dispatch moves on; fix-docs,
-    // dispatched once per PR, posts nothing so it is dispatched again.
+    // dispatched once per PR, posts nothing: its completed run counts as the
+    // PR's one dispatch.
     const postDecline = job.with["post-decline"] ?? true;
     assert.equal(postDecline, !id.startsWith("fix-docs"), `${id} post-decline`);
     assert.deepEqual(
@@ -6225,8 +6226,8 @@ test("pr-unblock.yml: each fix-ci fallback call starts on a base job's jobs-API 
 // fallback call starts on fix-docs-handoff's jobs-API read, the same step
 // fix-ci-handoff runs, never on a fix-docs output. fix-docs posts nothing on a
 // decline (post-decline: false), so the fallback also needs the broker's allow:
-// a kill switch or a refusal starts no second leg, and a failed read leaves
-// no check, so fix-docs-dispatch.mjs dispatches the PR again.
+// a kill switch or a refusal starts no second leg, and neither does a failed
+// read.
 test("pr-refine.yml: fix-docs-subscription starts on a base job's jobs-API read of fix-docs's report, never on a fix-docs output", (t) => {
   const { jobs } = workflow("pr-refine.yml");
   const sub = jobs["fix-docs-subscription"];
