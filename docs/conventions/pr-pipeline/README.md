@@ -2838,7 +2838,10 @@ events) is neither a listed human on the trusted-actor list nor the lanes App, r
 those keys, and `small` must run. An option no entry maps fails the resolve with
 `unmapped-dimension`. Before any model turn the activity skips with its Uncertainty's
 mode when that is not `run` (`research-first` or `probe-first`), then with `split-required` when
-its Size is `split`. Otherwise its `max-turns` is the size's `base-turns` times the complexity
+its Size is `split`, except a sub-issue intake's size split filed whose body counts as its parent's
+text (`admit.mjs` `trustedSplitChild`, the resolve's `splitChild` fact): admission takes such a
+sub-issue whatever its Size, so when `split-child-size` names a size that runs, a split size reads
+as that size and the pin carries it. Otherwise its `max-turns` is the size's `base-turns` times the complexity
 factor, rounded up, replacing the profile's, and the size's `timeout-minutes` is the run job's
 timeout; a skip takes the shortest size timeout. resolve-config outputs `issue-dimensions`
 (`<size>/<complexity>/<uncertainty>`) and `timeout-minutes`;
@@ -2850,7 +2853,24 @@ timeout is 40 minutes. The launcher's leg gets the timeout less 15 minutes, for 
 is `split`, and Uncertainty Known and Knowable map to `run` and Unknown to `probe-first`. `complexity-profiles` (optional) maps a complexity to the profile the run starts on,
 in place of its route's; the dimensions' turn cap still replaces that profile's `max-turns`. A
 complexity with no entry keeps the route's profile. The config
-reader rejects a key that is not a complexity and a value that is not a profile.
+reader rejects a key that is not a complexity and a value that is not a profile, and a
+`split-child-size` that names no size that runs.
+
+Intake splits an issue admission parks as Size Large into native sub-issues before any run
+(owner Q93; `.github/scripts/intake-triage/refine.mjs`). The model returns either `parts`, groups
+of the issue's trusted task-list line numbers, or, when each line repeats over named targets,
+`groups` of target names it copies verbatim from those lines (a target-subset split). A
+target-subset sub-issue holds every trusted line and one last `Scope:` line naming its targets,
+under a header that says so; it counts as its parent's text only when every target is verbatim
+text of a trusted parent line. `size-split` in `.github/actions/resolve-config/admission-rules.json`
+holds `on-decline` (`subset` allows the target-subset split, `park` does not) and `max-parts`. An
+issue with fewer than 2 trusted task-list lines gets the thin refinement first and splits on its
+lines at the next triage. A split that cannot be made leaves the issue parked at `status: ready`
+with no hold label, and the lanes App posts one comment naming the reason, once per reason and
+body version (marker `<!-- intake-triage size-split-decline reason=<code> -->`): `not-human`
+(a listed human did not file it), `few-lines` (fewer than 2 trusted lines even with the
+refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target), or
+`no-type` (an Issue Type admission does not take).
 
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
 triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh

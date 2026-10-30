@@ -1376,6 +1376,16 @@ for (const vector of VECTORS.cases) {
   });
 }
 
+// A trusted target-subset part carries its Scope line's targets as `scope`,
+// which narrows its criteria; any other entry carries none.
+test("a trusted target-subset child's spec entry carries its scope", async () => {
+  const scoped = VECTORS.cases.find((item) => item.name === "a target-subset child with one Scope line of verbatim targets");
+  const plain = VECTORS.cases.find((item) => item.name === "the trusted child");
+  const scopeOf = async (vector) => (await resolveChild(childNode(vector), parentNode(vector))).specText.map(({ scope }) => scope);
+  assert.deepEqual(await scopeOf(scoped), [["nineteen", "Line 4"]]);
+  assert.deepEqual(await scopeOf(plain), [undefined]);
+});
+
 // A parent read short of its comments, or not read at all, stops the run:
 // judging without the child's criteria leaves a pass the gate would count
 // once the parent reads whole again (an outsider deleting padding comments).

@@ -66,6 +66,14 @@ inputs:
       them instead of reading the issue's fields again.
     required: false
     default: ""
+  split-child:
+    description: >
+      `true` or `false`: whether the issue is a trusted size-split sub-issue
+      (admit.mjs trustedSplitChild, as work-resolve-issue's admit job reads
+      it). Required when the run reads the issue's dimensions; a Large child
+      then takes models.issue-dimensions.split-child-size.
+    required: false
+    default: ""
   model-rung:
     description: >
       The model rung of a skill activity's run: empty or 0 takes its profile,
@@ -214,6 +222,7 @@ runs:
         APPLIED_BY_SUPPORTED: ${{ inputs.applied-by-supported }}
         ISSUE_DIMENSIONS: ${{ inputs.issue-dimensions }}
         MODEL_RUNG: ${{ inputs.model-rung }}
+        SPLIT_CHILD: ${{ inputs.split-child }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}
       run: |
