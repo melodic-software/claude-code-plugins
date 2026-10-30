@@ -55,7 +55,10 @@ export const DISPUTED = Object.freeze(["INCORRECT", "UNCERTAIN", "VALID-defer"])
 // What a resolveAfterReply stand-in returns when the lanes App answered a
 // thread it cannot resolve (a PR it did not open): handled, and still open.
 export const LEFT_OPEN = "left-open";
-export const VERDICTS = ["lane", "reviewer", "human"];
+// tests-only: the finding asks only that tests or checks CI runs be run;
+// settleDisputes decides it from the head's covering check runs (run.json's
+// `ci`, address-feedback.mjs ciSnapshot), with no model text.
+export const VERDICTS = ["lane", "reviewer", "human", "tests-only"];
 export const QUESTIONS = ["intent", "design", "security"];
 // The questions a quoted contract line may settle: never security, so a
 // security judgment always reaches a person.
@@ -602,6 +605,19 @@ export function adjudicationReply(verdict, evidence, headSha, settled) {
       ].join("\n");
 }
 
+// The fixed reply for a tests-only finding whose covering check runs all
+// passed at `headSha`; no model text.
+export function testsReply(runs, headSha) {
+  return [
+    FINDING_ANSWERED,
+    "**pr-unblock / adjudicate-feedback: every check the plan selected passed, resolved**",
+    "",
+    `A fresh-context adjudicator found that this finding asks only for tests or checks CI runs. Every check the plan selected (\`scripts/plan-test-lanes.sh\`) passed at \`${headSha}\`, and no test check on that commit failed:`,
+    "",
+    ...runs.map((run) => `- [${run.name}](${run.url})`),
+  ].join("\n");
+}
+
 // The fixed reply for a dependencies flag hardRequire settled; no model text.
 export function hardRequireReply(path, sites, headSha) {
   return [
@@ -672,12 +688,20 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   or agreed the finding holds) no reply, the thread stays open (the
 //   ruleset's thread resolution still holds the merge), and
 //   feedback-unadjudicated;
+// - tests-only, on an UNCERTAIN reply, from `ci` (run.json's, read at the
+//   select job's head), only when this round pushed nothing (`pushed`
+//   false; else feedback-unadjudicated): green, the fixed testsReply, then the thread is
+//   resolved; red, no reply and no escalation, since fix-ci-dispatch.mjs
+//   already starts fix-ci for a head whose lanes failed; anything else (a
+//   covering check pending, missing or skipped, or no record) leaves the
+//   thread open, feedback-unadjudicated; on any other reply,
+//   feedback-unadjudicated;
 // - reviewer: the fixed FINDING_STANDS reply, which the next round reads as
 //   a finding to fix; when the head did not move this round (`pushed`
 //   false) and nothing escalates, the round skips FINDING_STANDS_SKIP.
 // A thread that changed, a moved head or a failed write stops here as
 // feedback-partial. Returns {escalationReason, skipReason}.
-export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudicatedSha, posted, replies, shown, now, verdicts, pushed, headMoved, resolveAfterReply, escalationReason, log }) {
+export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudicatedSha, posted, replies, shown, now, verdicts, ci, pushed, headMoved, resolveAfterReply, escalationReason, log }) {
   let stands = false;
   // A listed bot's dispute the security-review lane has not rated yet: like a
   // finding that stood, it is left for the next round at this head.
@@ -806,6 +830,37 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       }
       log(`${thread}: the adjudicator found a ${verdict.question} question`);
       raise(`feedback-question-${verdict.question}`);
+      continue;
+    }
+    if (verdict.verdict === "tests-only") {
+      const runs = Array.isArray(ci?.runs) ? ci.runs : [];
+      if (disposition !== "UNCERTAIN") {
+        log(`${thread}: a tests-only verdict settles only an UNCERTAIN reply, not ${disposition}; left open`);
+        raise("feedback-unadjudicated");
+      } else if (minorSecurity(comments)) {
+        // Green CI says nothing about whether a security finding holds.
+        log(`${thread}: a tests-only verdict does not settle a security-review finding; left open`);
+        raise("feedback-unadjudicated");
+      } else if (pushed) {
+        // ci is the select job's read of the head before this round's fix
+        // commit, so it proves nothing about the head the thread now sits on.
+        log(`${thread}: tests-only, but this round pushed past ${adjudicatedSha}, whose checks were read; left open`);
+        raise("feedback-unadjudicated");
+      } else if (ci?.state === "red") {
+        log(`${thread}: tests-only, and a covering check failed at ${adjudicatedSha}; left open for fix-ci`);
+      } else if (ci?.state !== "green" || runs.length === 0) {
+        log(`${thread}: tests-only, but the covering checks at ${adjudicatedSha} have not all passed; left open`);
+        raise("feedback-unadjudicated");
+      } else {
+        const outcome = await answer(thread, testsReply(runs, adjudicatedSha), true);
+        if (outcome === "failed") {
+          raise("feedback-partial");
+          break;
+        }
+        if (outcome === "resolved" || outcome === LEFT_OPEN) {
+          log(`${thread}: tests-only, and every covering check passed; ${outcome === LEFT_OPEN ? "left open for the person" : "resolved"}`);
+        }
+      }
       continue;
     }
     // Only an INCORRECT reply is the lane disputing the finding with
