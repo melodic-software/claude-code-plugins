@@ -233,7 +233,7 @@ UNPINNED="$TEST_TMPDIR/unpinned-sort.sh"
 sed 's/LC_ALL=C sort/sort/' "$SCRIPT" >"$UNPINNED"
 LOCALE_NAME=""
 for cand in en_US.UTF-8 en_US.utf8 C.UTF-8; do
-  if locale -a 2>/dev/null | grep -qxF "$cand"; then
+  if grep -qxF "$cand" < <(locale -a 2>/dev/null); then
     LOCALE_NAME="$cand"
     break
   fi

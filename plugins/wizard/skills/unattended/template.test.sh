@@ -86,7 +86,7 @@ else
 fi
 
 # shellcheck disable=SC2016 # backticks quote literal SKILL.md text
-if head -n 1 "$TEMPLATE" | grep -Fxq '#requires -Version 7.0' \
+if grep -Fxq '#requires -Version 7.0' < <(head -n 1 "$TEMPLATE") \
   && [[ "$SKILL_FLAT" == *'requires PowerShell 7 (`pwsh`)'* && "$SKILL_FLAT" == *'`pwsh -File <script>` (Windows PowerShell 5.1 fails at `#requires`)'* ]] \
   && grep -Fq 'winget install --id Microsoft.PowerShell' "$README_MD" \
   && grep -Fq 'Needs PowerShell 7' "$README_MD"; then

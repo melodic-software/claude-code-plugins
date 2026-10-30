@@ -10462,6 +10462,7 @@ class GuardTests(unittest.TestCase):
         tool_name: str = "Bash",
         enabled: bool = True,
         data_root: Path | None = None,
+        env: dict[str, str] | None = None,
     ) -> dict[str, object] | None:
         """Drive the guard as the plugin-level engine-gate deployment would.
 
@@ -10470,8 +10471,9 @@ class GuardTests(unittest.TestCase):
         shipped ``hooks/hooks.json`` exec-form registration. ``--plugin-root``
         points at the hermetic fake cache layout so the kill switch resolves from
         the owned settings.json — the sole post-C′ channel — while the explicit
-        ``--authorized-data-root`` still drives data-root authority. Returns None
-        when the guard deferred with no output.
+        ``--authorized-data-root`` still drives data-root authority. ``env`` is
+        the guard's whole environment. Returns None when the guard deferred with
+        no output.
         """
         self._set_kill_switch(enabled)
         argv = [
@@ -10491,7 +10493,7 @@ class GuardTests(unittest.TestCase):
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
             mock.patch.object(guard.sys, "argv", argv),
-            mock.patch.dict("os.environ", {}, clear=True),
+            mock.patch.dict("os.environ", env or {}, clear=True),
             mock.patch.object(
                 guard.killswitch_config,
                 "managed_settings_path",
@@ -10501,6 +10503,34 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(0, guard.main())
         text = stdout.getvalue().strip()
         return json.loads(text) if text else None
+
+    # --- an unwritten guard-launch marker -----------------------------------
+    #
+    # run-python-hook.sh names the monitor marker it could neither clear nor
+    # write, since a stale `.seen` there could skip the Stop monitor. Every
+    # output of the guard then carries a systemMessage naming it, and the
+    # decision and exit status (pinned to 0 by both helpers) do not change.
+
+    _UNWRITTEN_MARKER = "/data/guard-launch-monitor/s-1.launched"
+
+    def test_an_unwritten_marker_rides_beside_an_unchanged_decision(self) -> None:
+        plain = self.run_guard("rm -rf /tmp/example")
+        with mock.patch.dict(
+            os.environ, {guard._UNWRITTEN_MARKER_ENV_VAR: self._UNWRITTEN_MARKER}
+        ):
+            noticed = self.run_guard("rm -rf /tmp/example")
+        self.assertNotIn("systemMessage", plain)
+        self.assertEqual(plain["hookSpecificOutput"], noticed["hookSpecificOutput"])
+        self.assertIn(self._UNWRITTEN_MARKER, noticed["systemMessage"])
+
+    def test_an_unwritten_marker_is_named_on_a_defer(self) -> None:
+        self.assertIsNone(self.run_guard_engine_gate("git status --short"))
+        noticed = self.run_guard_engine_gate(
+            "git status --short",
+            env={guard._UNWRITTEN_MARKER_ENV_VAR: self._UNWRITTEN_MARKER},
+        )
+        self.assertEqual({"systemMessage"}, set(noticed or {}))
+        self.assertIn(self._UNWRITTEN_MARKER, noticed["systemMessage"])
 
     # --- the local decision record (#3862) ---------------------------------
     #
