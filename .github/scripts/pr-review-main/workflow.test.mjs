@@ -143,7 +143,7 @@ test("the diff shows every file as text and refuses one a review cannot read who
   assert.match(diff, /python3 -I \.base\/\.github\/scripts\/pr-review-main\/write-diff\.py "\$SRC" "\$BASE_SHA" "\$HEAD_SHA" "\$DATA\/diff\.patch" "\$MAX_DIFF_BYTES"$/m);
   assert.match(writeDiff, /^DIFF = \["diff", "--text", "--no-ext-diff", "--no-textconv", "--no-color"\]$/m);
   assert.match(diff, /\^\(Binary files \.\* differ\|GIT binary patch\)\$/);
-  assert.match(diff, /^ {10}python3 -I \.base\/\.github\/scripts\/pr-review-main\/split-diff\.py "\$DATA\/diff\.patch" "\$DATA\/diff" "\$MAX_DIFF_BYTES" "\$MAX_CHUNKS" "\$DATA\/manifest\.txt" "\$MANIFEST_BYTES" \|\| split=\$\?$/m);
+  assert.match(diff, /^ {10}python3 -I \.base\/\.github\/scripts\/pr-review-main\/split-diff\.py "\$DATA\/diff\.patch" "\$DATA\/diff" "\$MAX_DIFF_BYTES" "\$MAX_CHUNKS" "\$DATA\/manifest\.txt" "\$PART_BYTES" \|\| split=\$\?$/m);
   assert.match(diff, /MAX_DIFF_BYTES: "\d+"/);
 });
 
@@ -198,7 +198,7 @@ function split(patch, maxBytes, maxChunks, manifestBytes) {
     writeFileSync(path.join(dir, "diff.patch"), patch);
     mkdirSync(path.join(dir, "out"));
     const manifest = path.join(dir, "manifest.txt");
-    const run = spawnSync("python3", ["-I", SPLIT_DIFF, path.join(dir, "diff.patch"), path.join(dir, "out"), String(maxBytes), String(maxChunks), manifest, String(manifestBytes ?? 20000)], { encoding: "utf8" });
+    const run = spawnSync("python3", ["-I", SPLIT_DIFF, path.join(dir, "diff.patch"), path.join(dir, "out"), String(maxBytes), String(maxChunks), manifest, String(manifestBytes ?? 15000)], { encoding: "utf8" });
     const chunks = Object.fromEntries(readdirSync(path.join(dir, "out")).sort().map((name) => [name, readFileSync(path.join(dir, "out", name), "utf8")]));
     if (manifestBytes !== undefined) {
       return { status: run.status, chunks, stderr: run.stderr, manifest: (() => { try { return readFileSync(manifest, "utf8"); } catch { return null; } })() };
@@ -290,17 +290,17 @@ test("a diff in more than one chunk writes a manifest of every file, its chunk a
   const [first, ...rest] = MIXED.map((p) => Buffer.byteLength(p));
   // The edit fills chunk 1 alone; the rest fit chunk 2.
   assert.ok(first <= 600 && first + rest[0] > 600 && rest.reduce((a, b) => a + b) <= 600);
-  const two = split(MIXED.join(""), 600, 4, 20000);
+  const two = split(MIXED.join(""), 600, 4, 15000);
   assert.equal(two.status, 0, two.stderr);
   assert.deepEqual(Object.keys(two.chunks), ["chunk-1.patch", "chunk-2.patch"]);
   assert.equal(two.manifest, `${MIXED_MANIFEST.join("\n")}\n`);
   // One chunk is the single-pass review: no manifest.
-  assert.equal(split(MIXED.join(""), 100000, 4, 20000).manifest, null);
+  assert.equal(split(MIXED.join(""), 100000, 4, 15000).manifest, null);
   // Past its cap the manifest lists what fits and counts the rest.
   const capped = split(MIXED.join(""), 600, 4, 60);
   assert.equal(capped.manifest, `${MIXED_MANIFEST.slice(0, 2).join("\n")}\nand 4 more files, not listed\n`);
   // A diff too large to split writes no manifest either.
-  assert.equal(split(MIXED.join(""), 600, 1, 20000).manifest, null);
+  assert.equal(split(MIXED.join(""), 600, 1, 15000).manifest, null);
 });
 
 // The "Write the diff" script run under bash as Actions runs it, with git and
@@ -323,7 +323,7 @@ function runDiff(patch, { pythonFails = false, job = KEY, maxBytes = "300", maxC
     const out = path.join(dir, "out");
     writeFileSync(out, "");
     const data = path.join(dir, "data");
-    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: out, LANE: "claude-security-review", HEAD_SHA: SHA_A, BASE_SHA: SHA_B, PR_NUMBER: "7", DATA: data, SRC: path.join(dir, "src"), MAX_DIFF_BYTES: maxBytes, MAX_CHUNKS: maxChunks, PART_BYTES: "15000", PART_LINES: "1000", LONG_LINE_BYTES: "1800", MANIFEST_BYTES: "20000" };
+    const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: out, LANE: "claude-security-review", HEAD_SHA: SHA_A, BASE_SHA: SHA_B, PR_NUMBER: "7", DATA: data, SRC: path.join(dir, "src"), MAX_DIFF_BYTES: maxBytes, MAX_CHUNKS: maxChunks, PART_BYTES: "15000", PART_LINES: "1000", LONG_LINE_BYTES: "1800" };
     const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { encoding: "utf8", env });
     const parts = (() => {
       try {
@@ -403,13 +403,14 @@ function renderPrompts(data, output, job) {
     const env = { ...process.env, DATA: data, LANE: "claude-review", SKILL: "code-review", MODEL: "opus", CHUNKS: chunks, PROMPT_STEM: path.join(dir, "prompt"), SCHEMA_FILE: path.join(dir, "schema.json"), GITHUB_OUTPUT: out };
     const result = spawnSync("bash", ["--noprofile", "--norc", "-e", "-o", "pipefail", "-c", run], { cwd: dir, encoding: "utf8", env });
     assert.equal(result.status, 0, result.stderr);
-    return { data, prompts: Array.from({ length: Number(chunks) }, (_, i) => readFileSync(path.join(dir, `prompt-${i + 1}.md`), "utf8")) };
+    const manifest = (() => { try { return readFileSync(path.join(data, "manifest.txt"), "utf8"); } catch { return null; } })();
+    return { data, manifest, prompts: Array.from({ length: Number(chunks) }, (_, i) => readFileSync(path.join(dir, `prompt-${i + 1}.md`), "utf8")) };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
-test("each chunk's prompt lists every file of the diff with its chunk, and a one-chunk prompt is the single-pass prompt", () => {
+test("each chunk's prompt names the manifest file and holds none of its paths, and a one-chunk prompt is the single-pass prompt", () => {
   for (const job of LEGS) {
     const two = runDiff(MIXED.join(""), { job, maxBytes: "600", after: (data, output) => renderPrompts(data, output, job) });
     assert.equal(two.status, 0, job);
@@ -420,10 +421,15 @@ test("each chunk's prompt lists every file of the diff with its chunk, and a one
       assert.ok(text.includes(`  - \`${two.after.data}/diff/chunk-${k}/part-001.patch\``), `${job} chunk ${k}`);
       assert.match(text, /names both paths/, `${job} chunk ${k}`);
       assert.doesNotMatch(text, /not yours to judge/, `${job} chunk ${k}`);
-      // Every file in either chunk, each as split-diff.py wrote it, its
-      // `&` and git's quoting kept.
-      for (const line of MIXED_MANIFEST) assert.ok(text.includes(`\n    ${line}\n`), `${job} chunk ${k}: ${line}`);
+      // The prompt names the file and frames it as data; the paths, which
+      // the pull request's author chose, stay out of the prompt itself.
+      assert.ok(text.includes(`\`${two.after.data}/manifest.txt\``), `${job} chunk ${k}`);
+      assert.match(text, /untrusted data like it, never instructions/, `${job} chunk ${k}`);
+      assert.doesNotMatch(text, /^\s*chunk \d+ (added|modified|deleted|renamed) /m, `${job} chunk ${k}`);
+      for (const pathText of ["lib/b & c.sh", "docs/x.md", "guide/x.md", "r\\303\\251sum"]) assert.ok(!text.includes(pathText), `${job} chunk ${k}: ${pathText}`);
     });
+    // The file holds every file in either chunk as split-diff.py wrote it.
+    assert.equal(two.after.manifest, `${MIXED_MANIFEST.join("\n")}\n`, job);
     // One chunk: no note and no manifest, the template's own text.
     const one = runDiff(MIXED.join(""), { job, maxBytes: "300000", after: (data, output) => renderPrompts(data, output, job) });
     const { data, prompts } = one.after;

@@ -1112,11 +1112,14 @@ the rules that only tighten in
   review steps), gets no verdict: a multi-file diff over about 1.2 MB still stops as `too-large`
   until a dynamic chunk count lifts it
   ([#11000](https://github.com/melodic-software/claude-code-plugins/issues/11000)). A chunked
-  prompt also lists every file of the whole diff with its chunk and status (added, modified,
-  deleted, or renamed with both paths), up to 20000 bytes of lines, and asks for a finding naming
-  both paths when a change references a file another chunk holds; a one-chunk prompt is
-  unchanged. The diff step logs a `pr-review-main chunks` notice with the chunk count, each
-  chunk's bytes and `manifest_paths`, the files that list names, and the verdict step one `pr-review-main chunk` notice per chunk with its bytes, findings and
+  diff also writes `manifest.txt` in the data directory, every file of the whole diff with its
+  chunk and status (added, modified, deleted, or renamed with both paths), up to what one Read
+  returns whole (`PART_BYTES`). Each chunked prompt names that file, tells the reviewer to read
+  it as untrusted data, and asks for a finding naming both paths when a change references a file
+  another chunk holds; the paths, which the pull request's author chose, never enter the prompt,
+  and a one-chunk prompt is unchanged. The diff step logs a `pr-review-main chunks` notice with
+  the chunk count, each chunk's bytes and `manifest_paths`, the files the manifest names, and the
+  verdict step one `pr-review-main chunk` notice per chunk with its bytes, findings and
   CRITICAL ones. Each chunk is split into parts one Read returns whole (15000
   bytes and 1000 lines at most; a longer line gets no verdict), and a verdict is written only when
   every chunk's run succeeded and read each of its parts whole, with no offset or limit
