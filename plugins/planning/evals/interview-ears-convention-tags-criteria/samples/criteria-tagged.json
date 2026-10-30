@@ -7,6 +7,10 @@
     {
       "answer": "### Acceptance criteria\n* AC1: [event-driven] WHEN an upload succeeds, the local CSV is deleted\n",
       "why": "an asterisk bullet"
+    },
+    {
+      "answer": "### Acceptance criteria\n- AC1:  [event-driven] WHEN an upload succeeds, the local CSV is deleted\n- `AC2`: `[ubiquitous]` the export writes one CSV per night\n\n### Captured assumptions\n- The bucket client raises on a failed upload\n",
+      "why": "a double space before a tag, a backticked id and tag, and a later section"
     }
   ],
   "fail": [
@@ -21,6 +25,14 @@
     {
       "answer": "### Acceptance criteria\n- AC1: [unwanted_behavior] IF an upload fails, THEN the export retries it\n",
       "why": "a misspelled pattern name reads as no tag"
+    },
+    {
+      "answer": "### Acceptance criteria\n- AC1: [unwanted-behavior] IF an upload fails, THEN the export retries it up to three times, 30 seconds apart\n- AC2: WHILE a retry is pending, the export does not start the next file\n- AC3: [event-driven] WHEN an upload succeeds, the local CSV is deleted\n",
+      "why": "mixed: one criterion of three is untagged"
+    },
+    {
+      "answer": "### Acceptance criteria\n- AC1: [unwanted-behavior] IF an upload fails, THEN the export retries it\n- AC2: a successful upload deletes the local CSV",
+      "why": "mixed: the untagged criterion is the last line, with no trailing newline"
     }
   ]
 }
