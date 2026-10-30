@@ -2060,6 +2060,138 @@ class KillSwitchRerunTests(Base):
             self.assertUnbound(result[lane], "lane-source-changed")
 
 
+# The caller workflows' `Stop on upstream status` error (pr-review-hosted.yml,
+# pr-review-security-hosted.yml), which fails the kill-switch job.
+UPSTREAM_STOP = {
+    "claude-review": "an upstream outage stops this review"
+    " (Actions major_outage); the lost-run reconciler re-runs it",
+    "claude-security-review": "an upstream outage stops this security review"
+    " (Package installation partial_outage); the lost-run reconciler re-runs it",
+}
+
+
+def upstream_stopped(
+    lane: str,
+    sha: str = S,
+    *,
+    message: str | None = None,
+    level: str = "failure",
+    kill_conclusion: str = "failure",
+) -> dict[str, Any]:
+    """Attempt 1 when the upstream gate stopped it: the kill-switch job
+    failed at `Stop on upstream status` with its error, the run failed, and
+    the reusable's caller job was skipped, so no lane job exists."""
+    first = kill_switched(
+        lane,
+        sha,
+        message=UPSTREAM_STOP[lane] if message is None else message,
+        level=level,
+        kill_conclusion=kill_conclusion,
+    )
+    first["conclusion"] = "failure"
+    return first
+
+
+class UpstreamDegradedRerunTests(Base):
+    """A re-run after the upstream gate stopped attempt 1: the review never
+    started, so attempt 2 is the first review of the head."""
+
+    def lane_run(self, lane: str, *attempts: dict[str, Any]) -> dict[str, Any]:
+        return run(lane, S, attempts=list(attempts))
+
+    def ok(self, lane: str, n: int = 2) -> dict[str, Any]:
+        return attempt(lane, S, n, [record(lane, S, "findings=0 inline=0 scope=whole")])
+
+    def test_second_attempt_after_an_upstream_stop_binds(self) -> None:
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                result = self.bind(
+                    [self.lane_run(lane, upstream_stopped(lane), self.ok(lane))]
+                )
+                self.assertTrue(result[lane].bound)
+                self.assertEqual(result[lane].open_findings, 0)
+
+    def test_the_class_is_named(self) -> None:
+        self.assertEqual(ev.UPSTREAM_DEGRADED, "upstream-degraded")
+
+    def test_an_unrelated_kill_switch_failure_does_not_bind(self) -> None:
+        for message in (
+            "Process completed with exit code 1.",
+            UPSTREAM_STOP["claude-security-review"],
+            "the log says: an upstream outage stops this review (x)",
+            KILL_NOTICE["claude-review"],
+        ):
+            with self.subTest(message=message):
+                first = upstream_stopped("claude-review", message=message)
+                result = self.bind(
+                    [self.lane_run("claude-review", first, self.ok("claude-review"))]
+                )
+                self.assertUnbound(result["claude-review"], "no-lane-job")
+
+    def test_the_error_at_another_level_does_not_bind(self) -> None:
+        for level in ("notice", "warning"):
+            with self.subTest(level=level):
+                first = upstream_stopped("claude-review", level=level)
+                result = self.bind(
+                    [self.lane_run("claude-review", first, self.ok("claude-review"))]
+                )
+                self.assertUnbound(result["claude-review"], "no-lane-job")
+
+    def test_the_error_on_a_kill_switch_job_that_succeeded_does_not_bind(self) -> None:
+        first = upstream_stopped("claude-review", kill_conclusion="success")
+        result = self.bind(
+            [self.lane_run("claude-review", first, self.ok("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "no-lane-job")
+
+    def test_a_lane_job_failure_of_another_class_does_not_bind(self) -> None:
+        failed = attempt("claude-review", S, 1, [])
+        failed["conclusion"] = "failure"
+        failed["jobs"][0]["conclusion"] = "failure"
+        failed["jobs"][0]["annotations"] = [
+            {
+                "path": ".github",
+                "annotation_level": "failure",
+                "title": "",
+                "message": UPSTREAM_STOP["claude-review"],
+            }
+        ]
+        result = self.bind(
+            [self.lane_run("claude-review", failed, self.ok("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_the_error_beside_a_lane_job_does_not_bind(self) -> None:
+        first = upstream_stopped("claude-review")
+        first["jobs"].append(self.ok("claude-review", 1)["jobs"][0])
+        result = self.bind(
+            [self.lane_run("claude-review", first, self.ok("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_unread_kill_switch_annotations_are_missing_evidence(self) -> None:
+        first = upstream_stopped("claude-review")
+        del first["jobs"][0]["annotations"]
+        result = self.bind(
+            [self.lane_run("claude-review", first, self.ok("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "evidence-missing")
+
+    def test_an_upstream_stopped_head_alone_does_not_bind(self) -> None:
+        result = self.bind(
+            [self.lane_run("claude-review", upstream_stopped("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "run-not-success")
+
+    def test_a_changed_caller_workflow_still_binds_no_lane(self) -> None:
+        runs = [
+            self.lane_run(lane, upstream_stopped(lane), self.ok(lane)) for lane in LANES
+        ]
+        result = self.bind(runs, changed_paths=[FILES["claude-review"]])
+        for lane in LANES:
+            self.assertUnbound(result[lane], "lane-source-changed")
+
+
 class RecordTests(Base):
     def test_no_completion_record(self) -> None:
         result = self.bind([run("claude-review", S)])

@@ -231,6 +231,22 @@ KILL_SWITCH_NOTICE_RE = {
         r"a kill switch stops this security review \("
     ),
 }
+# Or when the upstream-status gate stopped attempt 1 before the review
+# started: the caller's `kill-switch` job failed at its `Stop on upstream
+# status` step, which wrote this lane's error while GitHub Actions or npm
+# listed an outage (.github/actions/check-upstream-status), and attempt 1 has
+# no lane job. Attempt 1 then left no verdict. The step's text comes from the
+# status pages only, and a head that edits a caller to forge it unbinds
+# through `lane_source`. The lost-run reconciler re-runs such a run once
+# (reconcile.mjs `upstream`); like the kill switch, the merge gate starts no
+# re-run of its own.
+UPSTREAM_DEGRADED = "upstream-degraded"
+UPSTREAM_STOP_RE = {
+    "claude-review": re.compile(r"an upstream outage stops this review \("),
+    "claude-security-review": re.compile(
+        r"an upstream outage stops this security review \("
+    ),
+}
 MARKER_AUTHOR = "github-actions[bot]"
 MARKER_RE = re.compile(
     rf"^<!-- claude-lane-reviewed-head lane=([\w-]+) sha=({_SHA}) -->$"
@@ -1112,8 +1128,9 @@ def rerun_binds(
     posted: Poster | None = None,
 ) -> bool:
     """Whether attempt 1 (`first`) left no verdict, so attempt 2 (`second`, at
-    `sha`) binds: it failed on one of `RERUN_CLASSES`, a kill switch stopped it
-    (`_kill_switch_stopped`), or an outage lost it before its lane posted
+    `sha`) binds: it failed on one of `RERUN_CLASSES`, a kill switch or the
+    upstream-status gate stopped it (`_kill_switch_stopped`,
+    `_upstream_stopped`), or an outage lost it before its lane posted
     (`_lost_unposted`)."""
     if first.get("conclusion") == "success":
         return _kill_switch_stopped(lane, run_id, first)
@@ -1121,6 +1138,8 @@ def rerun_binds(
         return _lost_unposted(lane, run_id, first, sha, second, posted)
     if first.get("conclusion") != "failure":
         return False
+    if _upstream_stopped(lane, run_id, first):
+        return True
     return bool(rerun_classes(lane, _lane_job(lane, run_id, first)))
 
 
@@ -1234,6 +1253,27 @@ def _poster(comments: Any, threads: Any) -> Poster:
 
 def _kill_switch_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
     """Whether a kill switch stopped this attempt before its lane job existed."""
+    return _gate_stopped(
+        lane, run_id, attempt, "success", "notice", KILL_SWITCH_NOTICE_RE
+    )
+
+
+def _upstream_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
+    """Whether the upstream-status gate stopped this attempt before its lane
+    job existed (`UPSTREAM_DEGRADED`)."""
+    return _gate_stopped(lane, run_id, attempt, "failure", "failure", UPSTREAM_STOP_RE)
+
+
+def _gate_stopped(
+    lane: str,
+    run_id: int,
+    attempt: Mapping[str, Any],
+    conclusion: str,
+    level: str,
+    patterns: Mapping[str, re.Pattern[str]],
+) -> bool:
+    """Whether the caller's one `kill-switch` job, ended `conclusion`, wrote
+    this lane's `patterns` annotation at `level` while no lane job exists."""
     jobs = attempt.get("jobs")
     if not isinstance(jobs, list | tuple) or not all(
         isinstance(job, Mapping) for job in jobs
@@ -1243,7 +1283,7 @@ def _kill_switch_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> 
     if any(str(job.get("name") or "").rsplit(" / ", 1)[-1] == suffix for job in jobs):
         return False
     kills = [job for job in jobs if job.get("name") == KILL_SWITCH_JOB]
-    if len(kills) != 1 or kills[0].get("conclusion") != "success":
+    if len(kills) != 1 or kills[0].get("conclusion") != conclusion:
         return False
     kill = kills[0]
     if kill.get("run_id") != run_id or kill.get("run_attempt") != attempt.get(
@@ -1254,8 +1294,8 @@ def _kill_switch_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> 
         raise Unbound("evidence-missing")
     return any(
         isinstance(a, Mapping)
-        and a.get("annotation_level") == "notice"
-        and KILL_SWITCH_NOTICE_RE[lane].match(str(a.get("message") or ""))
+        and a.get("annotation_level") == level
+        and patterns[lane].match(str(a.get("message") or ""))
         for a in kill["annotations"]
     )
 
@@ -1524,12 +1564,16 @@ def _open_findings(
     spent: set[str] = set()
     for item in lane_runs:
         for attempt in _attempts(item).values():
-            # A draft-skipped or kill-switched run reviewed nothing, nor did a
-            # lost one that never reached its lane job.
+            # A draft-skipped, kill-switched or upstream-stopped run reviewed
+            # nothing, nor did a lost one that never reached its lane job.
             if (
                 attempt.get("status") != "completed"
                 or attempt.get("conclusion") == "skipped"
                 or _kill_switch_stopped(lane, item["id"], attempt)
+                or (
+                    attempt.get("conclusion") == "failure"
+                    and _upstream_stopped(lane, item["id"], attempt)
+                )
                 or _lost_before_lane_job(lane, attempt)
             ):
                 continue
