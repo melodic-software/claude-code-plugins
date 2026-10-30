@@ -319,6 +319,13 @@ def resolve_bash(
     return next((c for c in candidates if _accept_bash(c, windows, exists)), None)
 
 
+# The shared reader's answers by document, keys, reader script, command
+# runner and environment, of which it is a pure function: `read_config_at`
+# reads the same few config texts at hundreds of commits per gate run, and
+# one reader process per key made that most of a candidate's time.
+_CONCERN_ANSWERS: dict[Any, dict[str, list[str]] | None] = {}
+
+
 def _concern_values(
     text: str,
     keys: list[tuple[str, bool]],
@@ -328,8 +335,32 @@ def _concern_values(
     run through `run` (default `run_command`).
 
     None when the reader rejects the document (`--strict` exit 3). Any other
-    failure raises.
+    failure raises. With the default runner an answer is read once per
+    process (`_CONCERN_ANSWERS`); a rejection or failure is read again, so a
+    one-off reader failure never sticks.
     """
+    if run is not None:
+        return _read_concern_values(text, keys, run)
+    key = (
+        text,
+        tuple(keys),
+        str(PARSER),
+        run_command,
+        tuple(sorted(os.environ.items())),
+    )
+    found = _CONCERN_ANSWERS.get(key)
+    if found is None:
+        found = _read_concern_values(text, keys, run_command)
+        if found is None:
+            return None
+        _CONCERN_ANSWERS[key] = found
+    return {k: list(v) for k, v in found.items()}
+
+
+def _read_concern_values(
+    text: str, keys: list[tuple[str, bool]], run: Callable[..., Any]
+) -> dict[str, list[str]] | None:
+    """`_concern_values`, read through the shared reader every time."""
     platform = "win32" if os.name == "nt" else sys.platform
     bash = resolve_bash(os.environ, platform, os.path.isfile)
     if bash is None:
@@ -341,7 +372,7 @@ def _concern_values(
         for key, as_list in keys:
             argv = [bash, str(PARSER), "--strict", *(["--list"] if as_list else [])]
             try:
-                proc = (run or run_command)(
+                proc = run(
                     [*argv, str(document), key],
                     allowed_executables=(bash,),
                     check=False,
