@@ -13,7 +13,7 @@ metadata:
 
 Run the read-only check. Do not install Node.js, do not download anything, and do not edit `hooks/hooks.json`.
 
-This plugin treats a failed row as the fetch gate not enforcing: the drift checker's fetches are then held to first-party docs hosts only by the workflow's source filter and the agent's prompt. How Claude Code handles a hook that cannot start or times out: [hooks: other exit codes](https://code.claude.com/docs/en/hooks#other-exit-codes) and [hooks: timeouts](https://code.claude.com/docs/en/hooks#timeouts). **As of:** 2026-10-11. **Recheck:** either section changes how a `PreToolUse` hook that cannot start or times out is treated.
+This plugin treats a failed row as the fetch gate not judging fetches. The gate's row sets `"onFailure": "block"`, so on Claude Code 2.1.295 or later a gate that cannot start or times out denies every `WebFetch`; an older client ignores the key, and the drift checker's fetches are then held to first-party docs hosts only by the workflow's source filter and the agent's prompt. How Claude Code handles a hook that fails: [hooks: block the action when a hook fails](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails). **As of:** 2026-10-30. **Recheck:** that section changes what counts as a failure or what `"block"` does on `PreToolUse`.
 
 This skill is model-invocable while `setup` stays manual. Field semantics: the `disable-model-invocation` row of [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference). **As of:** 2026-10-11. **Recheck:** a Claude Code release adds a per-action invocation flag.
 
@@ -25,7 +25,7 @@ Run `${CLAUDE_SKILL_DIR}/scripts/check.sh` through Bash, with no arguments; it r
 - **registration**: one `PreToolUse` entry in `hooks/hooks.json` matches `WebFetch` and runs `node` on `hooks/drift-checker-fetch-gate.mjs`, and that file exists. Without `node` this row is a text match and says so.
 - **gate**: the hook denies a sample drift-checker fetch of an off-host URL. It runs only when `node` resolves.
 
-Report the rows as a PASS/FAIL table. On a node FAIL, give the install route from `${CLAUDE_PLUGIN_ROOT}/prerequisites.json`. When any row fails, say that the fetch gate is not enforcing in this session. Stop.
+Report the rows as a PASS/FAIL table. On a node FAIL, give the install route from `${CLAUDE_PLUGIN_ROOT}/prerequisites.json`. When any row fails, say that the fetch gate is not judging fetches in this session: on Claude Code 2.1.295 or later a gate that cannot start denies every `WebFetch`, and on an older client it lets every fetch through. Stop.
 
 ## Next
 
