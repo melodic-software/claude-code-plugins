@@ -2730,6 +2730,28 @@ class ReplacedRuns(CheckCase):
         self.assertEqual(verdict.reruns, ())
         self.assertIn(f"{RUN_URL}/{self.REPLACED}", verdict.flakes)
 
+    def test_a_persons_newer_green_dispatch_does_not_settle(self) -> None:
+        # A person dispatching full runs until one passes cannot clear a red
+        # attempt 1, as their re-run cannot (`_outcome`).
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")][1] = dispatch_run(
+            11, actor=by("octocat"), triggering_actor=by("octocat")
+        )
+        verdict = self.check()
+        self.assertIn(self.REPLACED, [r.run_id for r in verdict.reruns])
+        self.assertIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
+
+    def test_a_newer_green_schedule_run_settles_whoever_started_it(self) -> None:
+        self.gh.runs[("pr-require-checks.yml", "workflow_dispatch")].pop(1)
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "schedule",
+            schedule_run(12, "success", actor=by("octocat"), triggering_actor=by("octocat"),
+                         created_at="2026-10-12T10:05:00Z"),
+        )
+        verdict = self.check()
+        self.assertEqual(verdict.reruns, ())
+        self.assertNotIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
+
     def test_a_replaced_run_is_no_baseline(self) -> None:
         # Before the merge: a red run, then a replaced one. The red run is the
         # baseline, so its failing check is no regression of the merge's run.

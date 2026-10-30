@@ -364,9 +364,7 @@ jobs:
             # job's.
             # A dispatched red files nothing, and the report job skips it,
             # once a newer full run on this repository's main has passed: main
-            # already recovered (newer-green.bash says which run counts). A
-            # red attempt 1 of any full run is checked first too, so a run
-            # main already recovered from is neither re-run nor waited on.
+            # already recovered (newer-green.bash says which run counts).
             . .base/.github/scripts/post-merge-demotion-alert/newer-green.bash
             newer_green() {
               newer_green_of "$GITHUB_REPOSITORY" "$RUN_WORKFLOW_ID" "$RUN_ID" "$RUN_CREATED" "$RUN_SHA"
@@ -379,9 +377,6 @@ jobs:
               exit 0
             }
             if [[ "$RUN_ATTEMPT" -eq 1 && ("$RUN_TRIGGERING_ACTOR" != 'github-actions[bot]' || "$EVENT_NAME" == workflow_dispatch) ]]; then
-              if newer="$(newer_green)" && [[ -n "$newer" ]]; then
-                main_recovered "$newer"
-              fi
               polls=20
               if [[ "$RUN_TRIGGERING_ACTOR" == 'github-actions[bot]' ]]; then
                 polls=40

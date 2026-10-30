@@ -228,7 +228,8 @@ commit() {
 # green_run <sha> [event] [created_at] -> one successful run on main before the failing one
 green_run() {
   jq -n --arg sha "$1" --arg e "${2:-workflow_dispatch}" --arg t "${3:-2026-10-17T14:00:00Z}" \
-    '{id: 4000, run_attempt: 1, event: $e, conclusion: "success", head_branch: "main", head_sha: $sha, created_at: $t}'
+    '{id: 4000, run_attempt: 1, event: $e, conclusion: "success", head_branch: "main", head_sha: $sha, created_at: $t,
+      actor: {login: "github-actions[bot]"}, triggering_actor: {login: "github-actions[bot]"}}'
 }
 
 # Fixtures a test sets before run_step: JOBS (this attempt), BASE_JOBS (run
@@ -715,7 +716,7 @@ fi
 
 # --- Re-run, baseline and the gitleaks gate ------------------------------------
 RERUN=success ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(head -2 <<<"$LOG")" == $'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10\nPOST repos/o/r/actions/runs/4242/rerun-failed-jobs' &&
+if [[ "$RC" -eq 0 && "$(head -1 <<<"$LOG")" == 'POST repos/o/r/actions/runs/4242/rerun-failed-jobs' &&
   "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 2 && "$(posts)" -eq 1 ]]; then
   ok "a full run's first failed attempt re-runs its failed jobs and a passing re-run files nothing"
 else
@@ -1267,15 +1268,16 @@ fi
 newer_run() {
   jq -n --argjson id "$1" --arg t "$2" --arg b "${3:-main}" --arg r "${4:-o/r}" --arg e "${5:-workflow_dispatch}" \
     '{id: $id, run_attempt: 1, event: $e, conclusion: "success", head_branch: $b,
+      actor: {login: "github-actions[bot]"}, triggering_actor: {login: "github-actions[bot]"},
       head_repository: {full_name: $r}, head_sha: "fedcba9876543210fedcba9876543210fedcba98", created_at: $t}'
 }
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" VIA=workflow_dispatch STARTER='github-actions[bot]' \
   ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$OUT" == *"main already recovered: run 4300"*"nothing filed"* ]] &&
-  [[ "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 0 ]] &&
+  [[ "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 1 ]] &&
   ! grep -qv '^GET ' <<<"$LOG" && grep -qx 'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10' <<<"$LOG" &&
   grep -qx 'recovered=true' "$TMP_ROOT/stub/output"; then
-  ok "a dispatched run whose head a newer green run on main descends from is not waited on and files nothing"
+  ok "a dispatched run ends its wait at the first poll and files nothing when a newer run on main passed"
 else
   fail "dispatched run, main recovered: rc=$RC log='$LOG' out='$OUT' output='$(cat "$TMP_ROOT/stub/output")'"
 fi
@@ -1292,7 +1294,7 @@ fi
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" FAIL_NEWER_READ=1 VIA=workflow_dispatch \
   STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq "$confirm_wait" && "$(posts)" -eq 1 ]] &&
-  [[ "$(grep -c '^GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10$' <<<"$LOG")" -eq $((confirm_wait + 2)) ]] &&
+  [[ "$(grep -c '^GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10$' <<<"$LOG")" -eq $((confirm_wait + 1)) ]] &&
   ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
   ok "a failing newer-run lookup keeps the dispatched run waiting the full $confirm_wait polls, then files"
 else
@@ -1322,14 +1324,12 @@ fi
 
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ATTEMPT=1 RERUN=never \
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-# Run 41005510323: red on ad7cbfa1 and re-run after 41030741557 had passed
-# on its descendant 3a01401f, which raised a stale MAIN-RED.
-if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"main already recovered: run 4300"* ]] &&
-  [[ "$LOG" == $'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10\nGET repos/o/r/compare/'"$SHA...fedcba9876543210fedcba9876543210fedcba98"$'\nGET repos/o/r/git/ref/heads/main\nGET repos/o/r/compare/fedcba9876543210fedcba9876543210fedcba98...abcdefabcdefabcdefabcdefabcdefabcdefabcd' ]] &&
-  grep -qx 'recovered=true' "$TMP_ROOT/stub/output"; then
-  ok "a red run a newer green run on main descends from is not re-run or waited on, in four reads, and is settled"
+if [[ "$RC" -eq 0 && "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 20 ]] &&
+  grep -qx 'POST repos/o/r/issues' <<<"$LOG" && ! grep -q 'status=success&per_page=10$' <<<"$LOG" &&
+  ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
+  ok "a workflow_run event waits its full 20 polls without the newer-run lookup, then files"
 else
-  fail "red run with a newer green descendant: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
+  fail "workflow_run event, newer run on main: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
 fi
 
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" NEWER_FROM=2 VIA=workflow_dispatch STARTER='github-actions[bot]' \
@@ -1342,24 +1342,31 @@ else
 fi
 
 # A listed run shows its latest attempt: a newer run green only on its re-run
-# is not a recovery of main, so the red run is still re-run and judged.
-GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z | jq -c '.run_attempt = 2')" ATTEMPT=1 RERUN=failure \
-  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(head -2 <<<"$LOG")" == $'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10\nPOST repos/o/r/actions/runs/4242/rerun-failed-jobs' &&
-  "$OUT" != *"already recovered"* ]] && ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
-  ok "a newer run green only at attempt 2 does not settle a red run"
+# is not a recovery of main.
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z | jq -c '.run_attempt = 2')" VIA=workflow_dispatch \
+  STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$OUT" != *"already recovered"* ]] && ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
+  ok "a newer run green only at attempt 2 is not a recovery of main"
 else
-  fail "newer run green at attempt 2: rc=$RC log='$LOG' out='$OUT'"
+  fail "newer run green at attempt 2: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
 fi
-
-# main moved on (a newer run on a descendant is still red or running) but no
-# newer run passed: the red run is still re-run and judged.
-GREEN="$(green_run "$OTHER")" ATTEMPT=1 RERUN=failure run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(head -2 <<<"$LOG")" == $'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10\nPOST repos/o/r/actions/runs/4242/rerun-failed-jobs' &&
-  "$(posts)" -ge 1 ]] && ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
-  ok "a red run with no newer green run is still re-run and judged when main has moved"
+# Only a schedule run or the lane's github-actions[bot] dispatch shows main
+# recovered: a person dispatching full runs until one passes does not.
+for who in actor triggering_actor; do
+  GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z | jq -c --arg k "$who" '.[$k].login = "octocat"')" VIA=workflow_dispatch \
+    STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+  if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$OUT" != *"already recovered"* ]] && ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
+    ok "a person's green dispatch ($who octocat) is not a recovery of main"
+  else
+    fail "person's green dispatch ($who): rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
+  fi
+done
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z main o/r schedule | jq -c '.actor.login = "octocat" | .triggering_actor.login = "octocat"')" \
+  VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$OUT" == *"main already recovered: run 4300"* ]]; then
+  ok "a newer green schedule run is a recovery of main whoever its actor"
 else
-  fail "no newer green run: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
+  fail "newer green schedule run: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
 fi
 
 # A newer green run shows main recovered only when its head descends from the

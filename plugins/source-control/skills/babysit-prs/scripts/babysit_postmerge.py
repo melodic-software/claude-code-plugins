@@ -1172,7 +1172,7 @@ class _Context:
     green_cache: dict[int, Run | None] = field(default_factory=dict)
     # The full runs the check already listed, which `superseded` reads
     # instead of a listing of its own.
-    held_full_runs: dict[int, Run] = field(default_factory=dict)
+    held_full_runs: dict[int, tuple[str, Run]] = field(default_factory=dict)
     settle_compares_left: int = SETTLE_COMPARE_BUDGET
     compare_reads: int = 0
     # `red-main.confirm-wait-minutes` plus FULL_RUN_ALLOWANCE (None: read at
@@ -1445,7 +1445,8 @@ class _Context:
         return self.green_cache[run.id]
 
     def superseded(self, run: Run) -> Run | None:
-        """A full run already listed (`held_full_runs`) whose attempt 1
+        """A full run already listed (`held_full_runs`), a schedule run or a
+        dispatch the check counts as the identity's (`_own`), whose attempt 1
         passed after `run`, on a commit that has `run`'s head in its history
         and is on the branch, or None. It reads the newest SETTLE_COMPARE_CAP
         such candidates, newest first, and stops at the first that descends
@@ -1455,19 +1456,25 @@ class _Context:
         `contains` caches each answer by commit pair, `on_branch`'s included."""
         newer = sorted(
             (
-                r
-                for r in self.held_full_runs.values()
+                (signal, r)
+                for signal, r in self.held_full_runs.values()
                 if r.conclusion == "success"
+                and (
+                    signal == SIGNAL_SCHEDULE
+                    or r.actor in (self.identity, LANE_DISPATCH_ACTOR)
+                )
                 and r.attempt == 1
                 and r.id != run.id
                 and r.created_at > run.created_at
                 and _FULL_SHA.fullmatch(r.head_sha or "")
             ),
-            key=lambda r: r.created_at,
+            key=lambda item: item[1].created_at,
             reverse=True,
         )
         try:
-            for r in newer[:SETTLE_COMPARE_CAP]:
+            for signal, r in newer[:SETTLE_COMPARE_CAP]:
+                if not self._own(signal, r):
+                    continue
                 if not self._settle_read(run.head_sha, r.head_sha):
                     return None
                 if self.contains(run.head_sha, r.head_sha):
@@ -1478,6 +1485,20 @@ class _Context:
         except PostMergeReadError:
             return None
         return None
+
+    def _own(self, signal: str, run: Run) -> bool:
+        """Whether `superseded` may count `run` as main's recovery: a schedule
+        run, or a dispatch `_judge` treats as the identity's (its own, or one
+        the lane sent). A person dispatching until a run passes cannot clear
+        a red attempt 1, as their re-run cannot (`_outcome`). An unread lane
+        record is read from the budget, one compare's worth."""
+        if signal == SIGNAL_SCHEDULE or run.actor == self.identity:
+            return True
+        if f"{LANE_DISPATCH_ARTIFACT}{run.id}" not in self.lane_cache:
+            if self.settle_compares_left <= 0:
+                return False
+            self.settle_compares_left -= 1
+        return self.lane_dispatched(run)
 
     def _settle_read(self, ancestor: str, sha: str) -> bool:
         """Whether `superseded` may read `contains(ancestor, sha)`: a cached
@@ -2414,7 +2435,7 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
             ctx.branch,
             now - ctx.lane_rerun_lookback(),
         )
-        ctx.held_full_runs.update((r.id, r) for r in runs)
+        ctx.held_full_runs.update((r.id, (SIGNAL_DISPATCH, r)) for r in runs)
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
             if (
                 run.id not in tally.reruns
@@ -2554,7 +2575,7 @@ def check(
             ),
             key=lambda item: item[1].created_at,
         )
-        ctx.held_full_runs.update((r.id, r) for _, r in full_runs)
+        ctx.held_full_runs.update((r.id, (signal, r)) for signal, r in full_runs)
         canary_runs = sorted(
             (
                 r
