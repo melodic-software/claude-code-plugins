@@ -172,15 +172,18 @@ times out after 10 minutes. In order:
    tracker's `claim --lease-only --holder <vars.AUTOMATION_LANES_APP_SENDER_ID>` on its own
    `GITHUB_TOKEN`, with a TTL longer than the run job's timeout. When a live lease older than its
    own exists (a local session's claim), it outputs `lease=already-leased`, ends green, and the run
-   job's `go` step runs no model; any other claim failure fails the job. The read file's
-   `lease-release` job, with `contents: read` and `issues: write`, releases a `held` lease after
-   every other job of the run ends, whatever their result, reading the lease handle only from this
-   job's outputs. A caller passing `caller-releases-lease: true` gets the handle as the `lease` and
-   `lease-comment-id` outputs and releases it itself; `lease-release` then runs only for a call
-   whose scan job skipped (a handoff), since the next call's claim backs off from any older live
-   lease. `work-resolve-issue.yml` does this on all three read calls: its `release-lease` job
-   releases every `held` handle after `apply-issue-patch` and `report-outcome`, on `always()`, so
-   the issue keeps its lease until its PR is open.
+   job's `go` step runs no model and the step comments the back-off on the issue; any other claim
+   failure fails the job. The read file's `report` job, which already holds `issues: write`, releases a
+   `held` lease in issue mode after every other job of the run ends, whatever their result, reading
+   the handle only from this job's outputs. A caller passing `caller-releases-lease: true` gets the
+   handle as the `lease-comment-id` output and passes it to the write file's `lease-comment-id`
+   input; the read `report` job then skips the release for a call that did not hand off and set
+   `scan-issue-run-started` or `scan-reuse-branch`, the outputs the caller's report-outcome runs on.
+   The write file's `report` job releases it after the run job ends, whatever its result: always for
+   `report-outcome`, so the issue keeps its lease until its PR is open, and for any other activity
+   only on a kill-switch stop, which skips report-outcome. `work-resolve-issue.yml` passes the
+   selected read call's handle to `apply-issue-patch` and `report-outcome`. A caller cancelled after
+   the read call leaves the lease to its TTL.
 
 Any answer but an allow, or no answer, fails the job, which skips the run job. The report job
 passes the broker-check job's result as `run-result` whenever it is not `success`, so a failure
