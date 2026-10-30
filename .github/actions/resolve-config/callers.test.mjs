@@ -502,11 +502,14 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(selects("success", ""), true);
   assert.equal(selects("failure", ""), false);
   assert.equal(selects("success", "kill-switch"), false, "a kill-switch stop of apply-verdict refines nothing");
-  assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "true" }), true);
-  assert.equal(evaluate(model.if, { "needs.refine-select.outputs.refine": "false" }), false);
+  const picked = (refine, mode = "refine") => ({ "needs.refine-select.outputs.refine": refine, "needs.refine-select.outputs.mode": mode });
+  assert.equal(evaluate(model.if, picked("true")), true);
+  assert.equal(evaluate(model.if, picked("true", "size-split")), true);
+  assert.equal(evaluate(model.if, picked("false")), false);
+  assert.equal(evaluate(model.if, picked("true", "size-decline")), false, "a size-split decline runs no model");
   // The subscription leg runs only after the key leg handed off or found no key.
-  const leg = (refine, handoff, present) => ({
-    "needs.refine-select.outputs.refine": refine,
+  const leg = (refine, handoff, present, mode = "refine") => ({
+    ...picked(refine, mode),
     "needs.refine-issue.outputs.handoff": handoff,
     "needs.refine-issue.outputs.credential-present": present,
   });
@@ -515,8 +518,10 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(evaluate(sub.if, leg("true", "false", "true")), false);
   assert.equal(evaluate(sub.if, leg("true", "", "")), false);
   assert.equal(evaluate(sub.if, leg("false", "true", "true")), false);
+  assert.equal(evaluate(sub.if, leg("true", "", "false", "size-decline")), false);
   // apply-refinement reads whichever leg uploaded the refinement.
-  const refined = (key, subscription) => ({
+  const refined = (key, subscription, mode = "refine") => ({
+    ...picked("true", mode),
     "needs.refine-issue.outputs.refined": key,
     "needs.refine-issue-subscription.outputs.refined": subscription,
   });
@@ -524,6 +529,10 @@ test("intake-triage.yml: a thin issue's refinement runs its model with no write 
   assert.equal(evaluate(apply.if, refined("false", "true")), true);
   assert.equal(evaluate(apply.if, refined("false", "")), false);
   assert.equal(evaluate(apply.if, refined("", "false")), false);
+  // A size-split decline posts its reason through apply-refinement, with no refinement to download.
+  assert.equal(evaluate(apply.if, refined("", "", "size-decline")), true);
+  assert.equal(evaluate(apply.if, { ...refined("", "", "size-decline"), "needs.refine-select.outputs.refine": "false" }), false);
+  assert.match(apply.steps.find((step) => step.name === "Download the refinement").if, /needs\.refine-select\.outputs\.mode != 'size-decline'/);
   assert.equal(evaluate(again.if, { "needs.apply-refinement.outputs.redispatch": "true" }), true);
   assert.equal(evaluate(again.if, { "needs.apply-refinement.outputs.redispatch": "" }), false);
 
