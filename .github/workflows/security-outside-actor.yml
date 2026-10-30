@@ -5,8 +5,11 @@ name: security-outside-actor
 # boundary the owner keeps: such an item goes to a person (`needs-human`).
 # The rules are in .github/scripts/security-outside-actor/flag.mjs.
 #
-# Two skips run in the job's `if`, before a runner starts, so most events
-# cost nothing:
+# A removal of `security: outside-actor` always starts the job, whoever sent
+# it: flag.mjs puts the label back unless the sender is a person on the
+# trusted-actor list. Removing any other label starts none. For every other
+# event, two skips run in the job's `if`, before a runner starts, so most
+# events cost nothing:
 # - the content's author has `author_association` OWNER or MEMBER, unless the
 #   event is an edit, a push to a pull request or a reopen by someone other
 #   than that author: flag.mjs then judges the sender, so a collaborator who
@@ -30,7 +33,8 @@ name: security-outside-actor
 # their text. `security: outside-actor` is a hold of its own (merge-holds.mjs
 # OUTSIDE_ACTOR_LABEL): the merge queue, auto-merge arming, babysit,
 # intake triage, the work-unblock sweep and each activity whose
-# labels-absent lists needs-human skip it, and only a person removes it. The script reads the event payload itself; no event text
+# labels-absent lists needs-human skip it, and only a listed person removes it:
+# any other removal is undone. The script reads the event payload itself; no event text
 # reaches a shell. The lanes kill switch does not stop this check: it would
 # silence the boundary it guards.
 #
@@ -46,7 +50,7 @@ on:
   # Runs from the default branch; checks out main only and passes no event
   # text to a shell.
   issues: # zizmor: ignore[dangerous-triggers]
-    types: [opened, edited, reopened]
+    types: [opened, edited, reopened, unlabeled]
   issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created, edited]
   pull_request_review:
@@ -55,7 +59,7 @@ on:
     types: [created, edited]
   # Never checks out the pull request head.
   pull_request_target: # zizmor: ignore[dangerous-triggers]
-    types: [opened, edited, synchronize, reopened]
+    types: [opened, edited, synchronize, reopened, unlabeled]
 
 permissions: {}
 
@@ -64,19 +68,22 @@ jobs:
     # The author is the comment's, else the review's, else the pull
     # request's, else the issue's, the order flag.mjs reads them in.
     if: >-
-      (github.event.sender.type != 'Bot'
-        || (github.event_name == 'pull_request_target'
-          && github.event.pull_request.head.repo.full_name != github.repository))
-      && ((contains(fromJSON('["edited", "synchronize", "reopened"]'), github.event.action)
-           && github.event.sender.id != (github.event.comment.user.id
-             || github.event.review.user.id
-             || github.event.pull_request.user.id
-             || github.event.issue.user.id))
-        || !contains(fromJSON('["OWNER", "MEMBER"]'),
-             github.event.comment.author_association
-             || github.event.review.author_association
-             || github.event.pull_request.author_association
-             || github.event.issue.author_association))
+      (github.event.action == 'unlabeled'
+        && github.event.label.name == 'security: outside-actor')
+      || (github.event.action != 'unlabeled'
+        && (github.event.sender.type != 'Bot'
+          || (github.event_name == 'pull_request_target'
+            && github.event.pull_request.head.repo.full_name != github.repository))
+        && ((contains(fromJSON('["edited", "synchronize", "reopened"]'), github.event.action)
+             && github.event.sender.id != (github.event.comment.user.id
+               || github.event.review.user.id
+               || github.event.pull_request.user.id
+               || github.event.issue.user.id))
+          || !contains(fromJSON('["OWNER", "MEMBER"]'),
+               github.event.comment.author_association
+               || github.event.review.author_association
+               || github.event.pull_request.author_association
+               || github.event.issue.author_association)))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

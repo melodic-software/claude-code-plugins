@@ -297,3 +297,69 @@ test("readEvent takes the comment's author before the issue's and the review's b
   assert.equal(readEvent("pull_request_review", events.pull_request_review(OUTSIDER, "NONE")).id, OUTSIDER.id);
   assert.equal(readEvent("pull_request_review_comment", events.pull_request_review_comment(OUTSIDER, "NONE")).number, 9);
 });
+
+// Only a listed person removes security: outside-actor; any other removal is
+// undone and named once.
+const unlabel = (sender, { name = LABEL, item = "pull_request", author = OUTSIDER, association = "NONE" } = {}) => ({
+  action: "unlabeled",
+  label: { name },
+  sender,
+  [item]: item === "issue" ? issue(author, association) : pull(author, association),
+});
+const restoreMarker = (id) => `<!-- security-outside-actor removed-by=${id} -->`;
+
+test("an outsider removing the label from their own pull request gets it and needs-human back, and one comment naming them", async () => {
+  const { code, calls } = await run("pull_request_target", unlabel(OUTSIDER));
+  assert.equal(code, 0);
+  const labelPost = posts(calls).find((call) => call.apiPath.endsWith("/labels"));
+  assert.deepEqual(labelPost?.body, { labels: [LABEL, NEEDS_HUMAN] });
+  const comment = posts(calls).find((call) => call.apiPath.endsWith("/comments"));
+  assert.ok(comment.body.body.startsWith(restoreMarker(OUTSIDER.id)), comment.body.body);
+  assert.match(comment.body.body, /`stranger` \(id 777\)/);
+  assert.doesNotMatch(comment.body.body, /@stranger/);
+});
+
+test("a member not on the list, a listed Bot, or anyone under an unreadable list gets the label re-added", async () => {
+  const member = { id: 4242, login: "teammate", type: "User" };
+  for (const [sender, list, association] of [
+    [member, "valid", "MEMBER"],
+    [LISTED_BOT, "valid", "NONE"],
+    [{ ...LISTED, type: "Bot" }, "valid", "NONE"],
+    [LISTED, "malformed", "NONE"],
+    [LISTED, "missing", "OWNER"],
+  ]) {
+    const { code, calls } = await run("issues", unlabel(sender, { item: "issue", author: LISTED, association }), { list });
+    assert.equal(code, 0, `${sender.login} ${list}`);
+    assert.deepEqual(
+      posts(calls).map((call) => call.apiPath.split("/").pop()),
+      ["labels", "comments"],
+      `${sender.login} ${list}`,
+    );
+  }
+});
+
+test("a listed human removing the label writes nothing", async () => {
+  for (const item of ["issue", "pull_request"]) {
+    const { code, calls } = await run(item === "issue" ? "issues" : "pull_request_target", unlabel(LISTED, { item }));
+    assert.equal(code, 0);
+    assert.deepEqual(calls, [], item);
+  }
+});
+
+test("removing any other label writes nothing", async () => {
+  for (const name of [NEEDS_HUMAN, "bug"]) {
+    const { code, calls } = await run("pull_request_target", unlabel(OUTSIDER, { name }));
+    assert.equal(code, 0);
+    assert.deepEqual(calls, [], name);
+  }
+});
+
+test("a second removal by the same account re-adds the label and posts no second comment", async () => {
+  const own = { user: ACTIONS_BOT, body: `${restoreMarker(OUTSIDER.id)}\n**Outside-actor label restored.**` };
+  const { code, calls } = await run("pull_request_target", unlabel(OUTSIDER), { comments: [own] });
+  assert.equal(code, 0);
+  assert.deepEqual(
+    posts(calls).map((call) => call.apiPath),
+    [`/repos/${REPO}/issues/9/labels`],
+  );
+});

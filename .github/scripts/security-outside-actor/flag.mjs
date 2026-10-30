@@ -16,6 +16,11 @@
 // once per actor, found again by its marker, which counts only on a comment
 // github-actions[bot] wrote.
 //
+// Only a person on the trusted-actor list (kind human, matched by id, never a
+// Bot) removes `security: outside-actor`. Any other removal, a member's not on
+// the list included, puts both labels back and posts one comment per remover
+// naming their login without a mention; an unreadable list puts them back too.
+//
 // Environment:
 //   GITHUB_TOKEN          the job's token: issues write, pull-requests write
 //   GITHUB_REPOSITORY     owner/repo
@@ -125,12 +130,92 @@ export async function flag({ github, repository, author }) {
   return commented.value;
 }
 
+// Who removed which label, from an `unlabeled` event's payload.
+export function readRemoval(payload) {
+  const number = payload.issue?.number ?? payload.pull_request?.number;
+  if (!Number.isInteger(number) || number < 1) {
+    return null;
+  }
+  const sender = payload.sender ?? {};
+  return {
+    number,
+    label: payload.label?.name,
+    id: Number.isInteger(sender.id) ? sender.id : null,
+    login: typeof sender.login === "string" && LOGIN.test(sender.login) ? sender.login : null,
+    bot: sender.type !== "User",
+  };
+}
+
+// `humans` is null when the trusted-actor list could not be read.
+export const mayRemove = (remover, humans) => !remover.bot && humans !== null && remover.id !== null && humans.has(remover.id);
+
+export const removalMarkerFor = (remover) => `${MARKER} removed-by=${remover.id ?? "unknown"} -->`;
+
+export function removalBody(remover) {
+  const who = remover.login ? `\`${remover.login}\`` : "an account whose login could not be read";
+  return [
+    removalMarkerFor(remover),
+    `**Outside-actor label restored.** ${who} (id ${remover.id ?? "unknown"}) removed \`${LABEL}\` and is not a person on the trusted-actor list, so it and \`${NEEDS_HUMAN}\` are back.`,
+    "",
+    "Only a person on the trusted-actor list removes it.",
+  ].join("\n");
+}
+
+export async function restore({ github, repository, remover }) {
+  const base = `/repos/${repository}/issues/${remover.number}`;
+  const marker = removalMarkerFor(remover);
+  const [labeled, commented] = await Promise.allSettled([
+    github("POST", `${base}/labels`, { labels: [LABEL, NEEDS_HUMAN] }),
+    paginate(github, `${base}/comments`).then(async (comments) => {
+      if (comments.some((comment) => isOwnMarker(comment, marker))) {
+        return "restored";
+      }
+      await github("POST", `${base}/comments`, { body: removalBody(remover) });
+      return "restored and commented";
+    }),
+  ]);
+  const failed = [labeled, commented].filter((result) => result.status === "rejected");
+  if (failed.length > 0) {
+    throw new Error(`restoring ${LABEL} on #${remover.number} failed: ${failed.map((result) => result.reason?.message ?? result.reason).join("; ")}`);
+  }
+  return commented.value;
+}
+
+async function handleRemoval({ env, github, log, payload }) {
+  const remover = readRemoval(payload);
+  if (!remover) {
+    throw new Error("the event names no issue or pull request this workflow handles");
+  }
+  if (remover.label !== LABEL) {
+    log(`security-outside-actor: #${remover.number} a label other than ${LABEL} was removed; nothing changed`);
+    return 0;
+  }
+  let humans = null;
+  try {
+    ({ humans } = loadTrustedList(env.TRUSTED_ACTORS_PATH));
+  } catch (error) {
+    log(`::warning::security-outside-actor: the trusted-actor list is unreadable (${error.message}); restoring the label`);
+  }
+  if (mayRemove(remover, humans)) {
+    log(`security-outside-actor: #${remover.number} listed person id ${remover.id} removed ${LABEL}; nothing changed`);
+    return 0;
+  }
+  const client = github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
+  const outcome = await restore({ github: client, repository: env.GITHUB_REPOSITORY, remover });
+  log(`::warning::security-outside-actor: #${remover.number} id ${remover.id ?? "unknown"} is not a listed person; ${LABEL} ${outcome}`);
+  return 0;
+}
+
 export async function main({ env = process.env, github, log = console.log } = {}) {
   try {
     if (!REPOSITORY.test(env.GITHUB_REPOSITORY ?? "")) {
       throw new Error("GITHUB_REPOSITORY is malformed");
     }
-    const author = readEvent(env.GITHUB_EVENT_NAME, JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")));
+    const payload = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
+    if (payload.action === "unlabeled") {
+      return await handleRemoval({ env, github, log, payload });
+    }
+    const author = readEvent(env.GITHUB_EVENT_NAME, payload);
     if (!author) {
       throw new Error("the event names no issue or pull request this workflow handles");
     }

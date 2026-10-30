@@ -5,6 +5,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
+
 const text = readFileSync(new URL("../../workflows/security-outside-actor.yml", import.meta.url), "utf8");
 // The job's folded `if: >-` scalar, joined as YAML folds it.
 const condition = /\n {4}if: >-\n((?: {6,}.*\n)+)/.exec(text)[1].split("\n").map((line) => line.trim()).filter(Boolean).join(" ");
@@ -27,15 +29,15 @@ function runs(event, repository = "melodic-software/claude-code-plugins", eventN
 
 const user = { type: "User", login: "stranger" };
 
-test("the five triggers and their types", () => {
+test("the five triggers and their types, unlabeled included where the label can be removed", () => {
   const on = text.slice(text.indexOf("\non:\n"), text.indexOf("\npermissions: {}\n"));
   const triggers = [...on.matchAll(/\n {2}([a-z_]+):.*\n {4}types: \[([a-z, ]+)\]/g)].map((m) => `${m[1]} ${m[2]}`);
   assert.deepEqual(triggers, [
-    "issues opened, edited, reopened",
+    "issues opened, edited, reopened, unlabeled",
     "issue_comment created, edited",
     "pull_request_review submitted, edited",
     "pull_request_review_comment created, edited",
-    "pull_request_target opened, edited, synchronize, reopened",
+    "pull_request_target opened, edited, synchronize, reopened, unlabeled",
   ]);
 });
 
@@ -106,6 +108,24 @@ test("a Bot on a fork pull request starts the job on any action; on this reposit
   assert.equal(runsIn({ ...event("synchronize", null, "NONE"), pull_request: { user: author, author_association: "NONE", head: { repo: null } } }), true, "a deleted fork fails closed");
   for (const eventName of ["issues", "issue_comment"]) {
     assert.equal(runs({ action: "opened", sender: app, issue: { user: author, author_association: "NONE" } }, repository, eventName), false, `a Bot on ${eventName}`);
+  }
+});
+
+// Only a listed person removes security: outside-actor: every removal starts
+// the job, whoever sent it and whoever wrote the item; flag.mjs judges it.
+test("removing security: outside-actor starts the job for any sender; removing another label starts none", () => {
+  assert.ok(condition.includes(`github.event.label.name == '${OUTSIDE_ACTOR_LABEL}'`), "the gate names the label from merge-holds.mjs");
+  const repository = "melodic-software/claude-code-plugins";
+  const ownPull = (association) => ({ user: { id: 1 }, author_association: association, head: { repo: { full_name: repository } } });
+  for (const sender of [{ id: 1, type: "User" }, { id: 2, type: "User" }, { id: 9, type: "Bot" }]) {
+    for (const association of ["OWNER", "MEMBER", "NONE"]) {
+      const label = { name: OUTSIDE_ACTOR_LABEL };
+      assert.equal(runs({ action: "unlabeled", label, sender, pull_request: ownPull(association) }), true, `${sender.type} ${sender.id} on a ${association} pull request`);
+      assert.equal(runs({ action: "unlabeled", label, sender, issue: { user: { id: 1 }, author_association: association } }), true, `${sender.type} ${sender.id} on a ${association} issue`);
+      for (const other of ["needs-human", "bug"]) {
+        assert.equal(runs({ action: "unlabeled", label: { name: other }, sender, issue: { user: { id: 1 }, author_association: association } }), false, `${other} removed`);
+      }
+    }
   }
 });
 
