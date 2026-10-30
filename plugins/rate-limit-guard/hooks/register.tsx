@@ -458,7 +458,7 @@ async function statusText($: EngineInterface, st: State, cfg: Config) {
   await refresh($, st, cfg)
   const windows = WINDOWS.map(({ kind, name }) => {
     const limit = st.reading?.get(kind)
-    if (limit === undefined) return `${name} window: ${st.reading?.size ? 'not reported' : 'no reading'}`
+    if (limit === undefined) return `${name} window: ${st.reading?.size ? 'not in the last response' : 'no reading'}`
     const reset = limit.resetsAt === undefined ? '' : `, resets at ${resetLabel(limit.resetsAt)}`
     return `${name} window: ${limit.percentUsed}% used, ${modelVerdict(levelOf(limit.percentUsed, cfg), cfg)}${reset}`
   })

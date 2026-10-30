@@ -648,7 +648,7 @@ test('command: the status says when a window has no reading and when snapshot wr
   expect((await command($, '')).text).toContain('5-hour window: no reading\n')
   w.limits = limits(undefined)
   const text = (await command($, '')).text
-  expect(text).toContain('5-hour window: not reported\n')
+  expect(text).toContain('5-hour window: not in the last response\n')
   expect(text).toContain('window-change toast off')
   expect(text).toContain('Snapshot: off (rate_limit_guard_enabled is false)')
 })
