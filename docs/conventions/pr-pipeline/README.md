@@ -1111,9 +1111,12 @@ the rules that only tighten in
   over 300000 bytes, or needs more than 4 chunks (the diff step's `MAX_CHUNKS`, at most the leg's
   review steps), gets no verdict: a multi-file diff over about 1.2 MB still stops as `too-large`
   until a dynamic chunk count lifts it
-  ([#11000](https://github.com/melodic-software/claude-code-plugins/issues/11000)). The
-  diff step logs a `pr-review-main chunks` notice with the chunk count and each chunk's bytes,
-  and the verdict step one `pr-review-main chunk` notice per chunk with its bytes, findings and
+  ([#11000](https://github.com/melodic-software/claude-code-plugins/issues/11000)). A chunked
+  prompt also lists every file of the whole diff with its chunk and status (added, modified,
+  deleted, or renamed with both paths), up to 20000 bytes of lines, and asks for a finding naming
+  both paths when a change references a file another chunk holds; a one-chunk prompt is
+  unchanged. The diff step logs a `pr-review-main chunks` notice with the chunk count, each
+  chunk's bytes and `manifest_paths`, the files that list names, and the verdict step one `pr-review-main chunk` notice per chunk with its bytes, findings and
   CRITICAL ones. Each chunk is split into parts one Read returns whole (15000
   bytes and 1000 lines at most; a longer line gets no verdict), and a verdict is written only when
   every chunk's run succeeded and read each of its parts whole, with no offset or limit

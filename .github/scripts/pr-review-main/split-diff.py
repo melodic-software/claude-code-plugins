@@ -1,12 +1,18 @@
 """Split the main-run review's patch into chunks one review reads whole.
 
-usage: split-diff.py <patch> <out-dir> <max-bytes> <max-chunks>
+usage: split-diff.py <patch> <out-dir> <max-bytes> <max-chunks> <manifest> <manifest-bytes>
 
 Writes <out-dir>/chunk-<k>.patch, k from 1, each at most max-bytes, the
 patch's bytes in order and nothing else. A chunk ends at a file boundary (a
 `diff --git` line), and a file is never split: a file over max-bytes, or a
 patch that needs more than max-chunks chunks, is too large: nothing is
 written and the exit status is 3. An empty patch writes no chunk.
+
+With more than one chunk it also writes <manifest>, each file of the patch
+in order as `chunk <k> <status> <path>`, status added, deleted, renamed (the
+path `old -> new`) or modified, so each chunk's reviewer sees what the other
+chunks hold. Each path is git's own, quoted as git quotes it, so a path never
+breaks a line. Lines past manifest-bytes are counted, not listed.
 """
 
 import sys
@@ -27,14 +33,18 @@ def lines_of(data: bytes) -> list[bytes]:
     return [line for line in lines if line]
 
 
-def split(data: bytes, max_bytes: int, max_chunks: int) -> list[bytes]:
+def files_of(data: bytes) -> list[list[bytes]]:
     files: list[list[bytes]] = []
     for line in lines_of(data):
         if not files or line.startswith(b"diff --git "):
             files.append([])
         files[-1].append(line)
+    return files
+
+
+def split(data: bytes, max_bytes: int, max_chunks: int) -> list[bytes]:
     chunks: list[bytes] = []
-    for unit in (b"".join(lines) for lines in files):
+    for unit in (b"".join(lines) for lines in files_of(data)):
         if len(unit) > max_bytes:
             raise TooLarge("a file is larger than one chunk")
         if not chunks or len(chunks[-1]) + len(unit) > max_bytes:
@@ -45,8 +55,46 @@ def split(data: bytes, max_bytes: int, max_chunks: int) -> list[bytes]:
     return chunks
 
 
+def entry(lines: list[bytes]) -> bytes:
+    """A file's `<status> <path>` from its header lines. Content lines start
+    with a prefix byte, so none matches; without a rename the header's a and
+    b paths are the same, each half of it."""
+    rest = lines[0][len(b"diff --git ") :].rstrip(b"\n")
+    path = rest[: (len(rest) - 1) // 2]
+    path = b'"' + path[3:] if path.startswith(b'"') else path[2:]
+    status = b"modified"
+    renamed = {}
+    for line in lines[1:]:
+        if line.startswith((b"--- ", b"@@ ")):
+            break
+        for key in (b"rename from ", b"rename to "):
+            if line.startswith(key):
+                renamed[key] = line[len(key) :].rstrip(b"\n")
+        if line.startswith(b"new file mode "):
+            status = b"added"
+        elif line.startswith(b"deleted file mode "):
+            status = b"deleted"
+    if len(renamed) == 2:
+        return b"renamed " + renamed[b"rename from "] + b" -> " + renamed[b"rename to "]
+    return status + b" " + path
+
+
+def manifest(chunks: list[bytes], max_bytes: int) -> bytes:
+    lines = [
+        b"chunk %d " % k + entry(lines)
+        for k, chunk in enumerate(chunks, 1)
+        for lines in files_of(chunk)
+    ]
+    out = b""
+    for n, line in enumerate(lines):
+        if len(out) + len(line) + 1 > max_bytes:
+            return out + b"and %d more files, not listed\n" % (len(lines) - n)
+        out += line + b"\n"
+    return out
+
+
 if __name__ == "__main__":
-    patch, out, max_bytes, max_chunks = sys.argv[1:5]
+    patch, out, max_bytes, max_chunks, manifest_file, manifest_bytes = sys.argv[1:7]
     try:
         chunks = split(Path(patch).read_bytes(), int(max_bytes), int(max_chunks))
     except TooLarge as error:
@@ -54,3 +102,5 @@ if __name__ == "__main__":
         sys.exit(TOO_LARGE)
     for k, chunk in enumerate(chunks, 1):
         (Path(out) / f"chunk-{k}.patch").write_bytes(chunk)
+    if len(chunks) > 1:
+        Path(manifest_file).write_bytes(manifest(chunks, int(manifest_bytes)))
