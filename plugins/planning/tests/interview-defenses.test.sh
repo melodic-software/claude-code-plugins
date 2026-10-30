@@ -542,11 +542,12 @@ pin_section "SKILL.md interview-loop preamble is unchanged (it governs every ste
 # question, so it always writes a register the gate grades; an unattended pre-confirmed item
 # writes that row `answered` citing the label (problem-framing.md "Pre-confirmed").
 # gate reads only the Restatement stamp (#9912); no defense weakened
+# Re-pinned for #11039: an own answer now withdraws a replaced recommendation's parts like an alternative; an accepted or hedged row with an unticked part still exports open, so the register gate still holds it.
 pin_section "loop.md open-question register section is unchanged (it binds gaps and blockers to the gate)" \
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "f90cc6c8121e2568b49ab8c7a9984112c47060c636200732e6981a64fe8ad35f"
+  "3846e71a258465ee2a4848256cb6aaabc3066d0525d12b0112756025b2cd4ae0"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate `lock` line ("`lock` confirms the problem … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -890,8 +891,8 @@ pin "SKILL.md: an accept-shorthand that resolved commitment rows names them" "$S
   "When an accept-shorthand resolves commitment rows, name their \`Q<N>\` ids in one line."
 pin "SKILL.md: a page accept resolves only ticked parts" "$SKILL" \
   "(on the page, only the parts the user ticks)"
-pin "loop.md: parts of a page question answered with an alternative are withdrawn" "$LOOP" \
-  "An alternative withdraws the parts, so they do not reach the Brief"
+pin "loop.md: parts of a page question answered with an alternative or an own answer are withdrawn" "$LOOP" \
+  "An alternative or an \`own\` answer replaces the recommendation and withdraws the parts, so they do not reach the Brief"
 pin "loop.md defines commitment rows" "$LOOP" \
   "**Commitment rows.**"
 pin "loop.md: an alternative or rejection withdraws the commitment rows" "$LOOP" \
