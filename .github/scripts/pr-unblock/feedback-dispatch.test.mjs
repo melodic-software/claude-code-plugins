@@ -133,6 +133,7 @@ function fakeApi({
     // A run that names no check is the address-feedback one.
     listCheckRuns: async ({ checkName }) => checkRuns.filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName),
     listWorkflowRuns: async () => workflowRuns,
+    listArtifactsNamed: async () => [],
     async dispatchWorkflow(request) {
       calls.dispatch.push(request);
       return { workflowRunId };
@@ -1626,34 +1627,61 @@ test("a lost run whose dispatch job never started or was not lost, or this run i
 
 // A verdict the kill switch deferred: the reconciler re-ran post-verify-notes
 // (attempt 2, github-actions[bot]), which posted the notes or found the stale
-// ones, and named the head, the verdict and the pr-verify run's creation time
-// in a record, since the gate trusts no round from that attempt. The tick,
-// an attempt-1 dispatcher, sends the round an on-time verdict would have.
-const DEFERRED_VERIFY_CREATED = Date.parse("2026-10-17T12:30:00Z");
-const deferredRun = (overrides = {}) => lostRun({ id: 610, conclusion: "success", run_attempt: 2, triggering_actor: ACTIONS_BOT, ...overrides });
-const deferredRecord = (verdict, head = HEAD) => ({ name: `pr-feedback-deferred-${head}-${verdict}-${DEFERRED_VERIFY_CREATED}`, expired: false, created_at: "2026-10-17T13:10:00Z" });
-function deferredApi({ verdict = "fail", runs = [deferredRun()], records, ...options } = {}) {
-  const api = recoveryApi({ runs, checksAt: { [HEAD]: [answeredRound] }, ...options });
-  api.artifactReads = [];
-  api.listRunArtifacts = async (id) => {
-    api.artifactReads.push(id);
-    return id === 610 ? (records ?? [deferredRecord(verdict)]) : [];
+// ones and uploaded pr-feedback-deferred-<head>-<verdict>, since the gate
+// trusts no round from that attempt. The tick, an attempt-1 dispatcher, looks
+// the record up by name for each open lanes App head and sends the round an
+// on-time verdict would have.
+const RECORDED_AT = "2026-10-17T13:10:00Z";
+const deferredRerun = (overrides = {}) => ({
+  id: 610,
+  path: ".github/workflows/pr-feedback-dispatch.yml",
+  event: "workflow_run",
+  head_branch: "main",
+  repository: { full_name: REPOSITORY },
+  status: "completed",
+  conclusion: "success",
+  run_attempt: 2,
+  triggering_actor: ACTIONS_BOT,
+  created_at: "2026-10-17T12:31:00Z",
+  ...overrides,
+});
+const deferredRecord = (verdict, head = HEAD, overrides = {}) => ({
+  name: `pr-feedback-deferred-${head}-${verdict}`,
+  expired: false,
+  created_at: RECORDED_AT,
+  workflow_run: { id: 610 },
+  ...overrides,
+});
+function deferredApi({ records = [deferredRecord("fail")], rerun = deferredRerun(), checks = [answeredRound], ...options } = {}) {
+  const api = recoveryApi({ runs: [], checksAt: { [HEAD]: checks }, ...options });
+  api.nameReads = [];
+  api.listArtifactsNamed = async (name) => {
+    api.nameReads.push(name);
+    return records.filter((record) => record.name === name);
   };
+  api.getWorkflowRun = async (id) => (id === rerun.id ? rerun : { id });
   return api;
 }
 
-test("a FAIL the kill switch deferred gets its round from the tick, though the head had a round before the verdict", async (t) => {
-  const api = deferredApi();
+test("a FAIL the kill switch deferred gets its round from the tick, though a round ran before its notes", async (t) => {
+  // A round that started after the pr-verify run but before the late notes
+  // never saw them, so it does not hold the dispatch: the record's own time does.
+  const api = deferredApi({ checks: [roundRun("address-feedback", "success", "Passed", "2026-10-17T13:00:00Z")] });
   const { output } = await sweepMain(t, api, TICK, NOW);
-  assert.deepEqual(api.artifactReads, [610]);
   assert.deepEqual(api.calls.dispatch, [
     { workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID } },
   ]);
   assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
 });
 
+test("a deferred FAIL whose round ran after its record is not sent again", async (t) => {
+  const api = deferredApi({ checks: [roundRun("address-feedback", "success", "Passed", "2026-10-17T13:20:00Z")] });
+  await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.calls.dispatch, []);
+});
+
 test("a PASS the kill switch deferred gets its pass-only round from the tick", async (t) => {
-  const api = deferredApi({ verdict: "pass" });
+  const api = deferredApi({ records: [deferredRecord("pass")] });
   await sweepMain(t, api, TICK, NOW);
   assert.deepEqual(api.calls.dispatch.map((call) => call.inputs), [
     { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID, "verify-pass-head": HEAD },
@@ -1662,26 +1690,50 @@ test("a PASS the kill switch deferred gets its pass-only round from the tick", a
 
 test("a deferred verdict is sent once: a round created after its record holds it", async (t) => {
   for (const verdict of ["fail", "pass"]) {
-    const api = deferredApi({ verdict });
+    const api = deferredApi({ records: [deferredRecord(verdict)] });
     api.listWorkflowRuns = async () => [{ id: 7, status: "completed", display_title: TITLE_42, created_at: "2026-10-17T13:20:00Z" }];
     await sweepMain(t, api, TICK, NOW);
     assert.deepEqual(api.calls.dispatch, [], verdict);
   }
 });
 
-test("only a github-actions[bot] re-run's unexpired record of a current head is a deferred verdict", async (t) => {
-  for (const [label, options, reads] of [
-    ["a first attempt", { runs: [deferredRun({ run_attempt: 1 })] }, []],
-    ["a person's re-run", { runs: [deferredRun({ triggering_actor: { login: "kyle-sexton", id: 153232337 } })] }, []],
-    ["an expired record", { records: [{ ...deferredRecord("fail"), expired: true }] }, [610]],
-    ["a moved head", { records: [deferredRecord("fail", OLD_HEAD)] }, [610]],
-    ["another name", { records: [{ ...deferredRecord("fail"), name: `pr-feedback-dispatched-13-${RUN_ID}` }] }, [610]],
+test("a deferred record is found by name, however many runs the window holds", async (t) => {
+  const many = Array.from({ length: 100 }, (_, i) => lostRun({ id: 1000 + i, conclusion: "success", created_at: "2026-10-17T13:50:00Z" }));
+  const api = deferredApi();
+  api.listRecentRuns = async () => many;
+  await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.nameReads, [`pr-feedback-deferred-${HEAD}-fail`]);
+  assert.equal(api.calls.dispatch.length, 1);
+});
+
+test("a deferred record any other run uploaded, or an expired one, sends nothing", async (t) => {
+  for (const [label, rerun, record] of [
+    ["another workflow's run", deferredRerun({ path: ".github/workflows/pr-test-windows.yml" }), deferredRecord("fail")],
+    ["a pull_request run", deferredRerun({ event: "pull_request", head_branch: "work-resolve-issue/issue-1-2-3" }), deferredRecord("fail")],
+    ["a first attempt", deferredRerun({ run_attempt: 1 }), deferredRecord("fail")],
+    ["a person's re-run", deferredRerun({ triggering_actor: { login: "kyle-sexton", id: 153232337 } }), deferredRecord("fail")],
+    ["another repository's run", deferredRerun({ repository: { full_name: "someone/fork" } }), deferredRecord("fail")],
+    ["an expired record", deferredRerun(), deferredRecord("fail", HEAD, { expired: true })],
   ]) {
-    const api = deferredApi(options);
+    const api = deferredApi({ rerun, records: [record] });
     await sweepMain(t, api, TICK, NOW);
-    assert.deepEqual(api.artifactReads, reads, label);
     assert.deepEqual(api.calls.dispatch, [], label);
   }
+});
+
+test("a deferred record that cannot be read is skipped, and the next head and lost-run recovery still run", async (t) => {
+  const second = { ...pull()[0], number: 43, head: { sha: SECOND_HEAD, repo: { full_name: REPOSITORY } } };
+  const api = deferredApi({ openPulls: [...pull(), second], records: [deferredRecord("fail", SECOND_HEAD)], reviewRuns: { [HEAD]: [upstreamRun({ id: 13 })], [SECOND_HEAD]: [upstreamRun({ id: 14, head_sha: SECOND_HEAD })] } });
+  const listNamed = api.listArtifactsNamed;
+  api.listArtifactsNamed = async (name) => {
+    if (name.includes(HEAD)) {
+      throw Object.assign(new Error("rate limited"), { rateLimited: true });
+    }
+    return listNamed(name);
+  };
+  const { lines } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), ["43"]);
+  assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes(HEAD)), lines.join("\n"));
 });
 
 test("a lost run that already dispatched is not dispatched again", async (t) => {

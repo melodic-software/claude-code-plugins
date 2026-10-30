@@ -151,9 +151,13 @@ jobs:
       # A verdict the switch stops is deferred, not dropped: this failed
       # first attempt records it, and the lost-run reconciler's first pass
       # after the switch lifts re-runs this job (reconcile.mjs
-      # VERDICT_STOP_STEP), which posts what is not on the PR yet.
+      # VERDICT_STOP_STEP), which posts what is not on the PR yet. Only a
+      # pr-verify run that succeeded can hold a verdict here: one that failed
+      # (every run while the switch is on fails at its own kill step) is the
+      # reconciler's Lane kind, which re-runs it, whose completion starts this
+      # file again, or holds it for a person.
       - name: Stop on the kill switch
-        if: steps.kill.outputs.proceed != 'true'
+        if: steps.kill.outputs.proceed != 'true' && github.event.workflow_run.conclusion == 'success'
         env:
           REASON: ${{ steps.kill.outputs.reason }}
         run: |
@@ -206,10 +210,10 @@ jobs:
         run: node .base/.github/scripts/pr-unblock/verify-notes.mjs
 
       # The reconciler's re-run of a verdict the kill switch deferred sends no
-      # round (the dispatch job's gate), so it names the head, the verdict and
-      # the pr-verify run's creation time for the next tick, an attempt-1
-      # dispatcher, which sends the round (feedback-dispatch.mjs
-      # recoverDeferred). The name is the record; the file is a placeholder.
+      # round (the dispatch job's gate), so it names the head and the verdict
+      # for the next tick, an attempt-1 dispatcher, which finds the record by
+      # name and sends the round (feedback-dispatch.mjs recoverDeferred). The
+      # name and upload time are the record; the file is a placeholder.
       - name: Name the deferred verdict
         id: deferred
         if: >-
@@ -218,16 +222,15 @@ jobs:
         env:
           FAIL_HEAD: ${{ steps.post.outputs.head-sha }}
           PASS_HEAD: ${{ steps.post.outputs.pass-head-sha }}
-          VERIFY_CREATED_AT: ${{ github.event.workflow_run.created_at }}
         run: |
           head=${FAIL_HEAD:-$PASS_HEAD} verdict=fail
           [ -n "$FAIL_HEAD" ] || verdict=pass
-          if [[ ! $head =~ ^[0-9a-f]{40}$ || ! $VERIFY_CREATED_AT =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]; then
-            echo "::error::the posted head or the pr-verify run's creation time is malformed"
+          if [[ ! $head =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the posted head is not a commit SHA"
             exit 1
           fi
           echo "$head" >"$RUNNER_TEMP/pr-feedback-deferred.txt"
-          echo "name=pr-feedback-deferred-$head-$verdict-$(($(date -u -d "$VERIFY_CREATED_AT" +%s) * 1000))" >>"$GITHUB_OUTPUT"
+          echo "name=pr-feedback-deferred-$head-$verdict" >>"$GITHUB_OUTPUT"
 
       - name: Record the deferred verdict
         if: steps.deferred.outputs.name != ''

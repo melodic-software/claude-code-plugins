@@ -309,7 +309,7 @@
     "pr-feedback-deferred-*": {
       "retention-days": 1,
       "readers": [
-        ".github/scripts/pr-unblock/feedback-dispatch.mjs DEFERRED_RECORD, the tick that sends a deferred verdict's round"
+        ".github/scripts/pr-unblock/feedback-dispatch.mjs recoverDeferred reads it by exact name (DEFERRED_RECORD) and sends the deferred verdict's round"
       ],
       "reason": "Read by the next half-hourly tick; 1 day is the minimum.",
       "uploads": [

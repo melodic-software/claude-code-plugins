@@ -5,12 +5,15 @@
 // skipped subscription call or a forged model-call output must not turn.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 
 import { isVerdictName } from "../pr-verify/write-verdict.mjs";
 import { laneBranchIssue } from "../work-resolve-issue/report-outcome.mjs";
 import { MAX_THREADS } from "./adjudicate-feedback.mjs";
+import { DEFERRED_RECORD } from "./feedback-dispatch.mjs";
 
 // A job's folded `if: >-` scalar, joined the way YAML folds it.
 function jobIf(file, job) {
@@ -898,4 +901,53 @@ test("pr-feedback-dispatch.yml: a newer completion at a head queues behind a pen
   assert.ok(block, "the workflow sets top-level concurrency");
   assert.match(block[1], /^ {2}cancel-in-progress: false$/m);
   assert.match(block[1], /^ {2}queue: max$/m);
+});
+
+// A step of a job, as its lines from `- name:` to the next step.
+function stepBlock(file, job, name) {
+  const block = jobBlock(file, job);
+  const start = block.indexOf(`      - name: ${name}`);
+  assert.notEqual(start, -1, `${file}: ${job} has a step ${name}`);
+  const end = block.findIndex((line, i) => i > start && /^ {6}- name: /.test(line));
+  return block.slice(start, end === -1 ? undefined : end);
+}
+
+// While the switch is on, every pr-verify run fails at its own kill step and
+// carries no verdict; the reconciler re-runs that run itself. Only a run that
+// finished, and so may hold a verdict, is recorded by failing this job.
+test("post-verify-notes fails at the kill switch only for a pr-verify run that succeeded", () => {
+  const step = stepBlock("pr-feedback-dispatch.yml", "post-verify-notes", "Stop on the kill switch");
+  const gate = ifAt(step, step.findIndex((line) => /^ {8}if: /.test(line)), 8);
+  const fails = (proceed, conclusion) => evaluate(gate, { "steps.kill.outputs.proceed": proceed, "github.event.workflow_run.conclusion": conclusion });
+  assert.equal(fails("false", "success"), true);
+  assert.equal(fails("", "success"), true, "an unreadable switch stops it too");
+  assert.equal(fails("false", "failure"), false, "a pr-verify run its own kill switch stopped");
+  assert.equal(fails("true", "success"), false);
+});
+
+test("post-verify-notes names a deferred verdict exactly as recoverDeferred reads it", () => {
+  const step = stepBlock("pr-feedback-dispatch.yml", "post-verify-notes", "Name the deferred verdict");
+  const at = step.findIndex((line) => line === "        run: |");
+  const script = step
+    .slice(at + 1)
+    .filter((line) => line.startsWith("          ") || line === "")
+    .map((line) => line.slice(10))
+    .join("\n");
+  const dir = mkdtempSync(join(tmpdir(), "deferred-name-"));
+  try {
+    for (const [fail, pass, verdict] of [["a".repeat(40), "", "fail"], ["", "b".repeat(40), "pass"]]) {
+      const output = join(dir, `output-${verdict}`);
+      writeFileSync(output, "");
+      const run = spawnSync("bash", ["-e", "-c", script], { env: { PATH: process.env.PATH, FAIL_HEAD: fail, PASS_HEAD: pass, GITHUB_OUTPUT: output, RUNNER_TEMP: dir }, encoding: "utf8" });
+      assert.equal(run.status, 0, run.stdout + run.stderr);
+      const name = /^name=(.*)$/m.exec(readFileSync(output, "utf8"))?.[1] ?? "";
+      const match = DEFERRED_RECORD.exec(name);
+      assert.ok(match, name);
+      assert.deepEqual([match[1], match[2]], [fail || pass, verdict]);
+    }
+    const bad = spawnSync("bash", ["-e", "-c", script], { env: { PATH: process.env.PATH, FAIL_HEAD: "x", PASS_HEAD: "", GITHUB_OUTPUT: join(dir, "bad"), RUNNER_TEMP: dir }, encoding: "utf8" });
+    assert.notEqual(bad.status, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

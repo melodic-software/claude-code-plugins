@@ -1255,7 +1255,7 @@ test("post-verify-notes still fails at the kill-switch step the reconciler match
   const stop = steps.findIndex((s) => s.startsWith(`      - name: ${VERDICT_STOP_STEP}\n`));
   assert.ok(stop > 0, "the kill-switch stop step is in the job");
   assert.match(steps[stop - 1], /^ {6}- name: Check the kill switch\n/);
-  assert.match(steps[stop], /if: steps\.kill\.outputs\.proceed != 'true'\n/);
+  assert.match(steps[stop], /if: steps\.kill\.outputs\.proceed != 'true' && github\.event\.workflow_run\.conclusion == 'success'\n/);
   assert.match(steps[stop], /\n {10}exit 1\n/);
   assert.match(steps[stop + 1], /^ {6}- name: Download the verdict\n/);
 });

@@ -593,8 +593,13 @@ async function sweepIdleOwner(context) {
 // Each open lanes App PR into the base, and each adopted owner PR
 // (dispatchFeedback applies its idle test); only the idle pass takes the
 // owner PRs.
+// One listing per client: a tick's sweeps and recoveries share it.
+const listed = new WeakMap();
 async function openPulls({ api, repository, appSenderId, settings, rest }) {
-  return (await api.listOpenPulls(settings.base)).filter(
+  if (!listed.has(api)) {
+    listed.set(api, api.listOpenPulls(settings.base));
+  }
+  return (await listed.get(api)).filter(
     (pull) =>
       (pull.user?.id === appSenderId || ownerAuthored(pull, rest?.adoption)) &&
       pull.draft === false &&
@@ -738,10 +743,13 @@ const dispatchLost = (job) => job?.name === DISPATCH_JOB && LOST.has(job.conclus
 // started; null when none, or when the listing cannot be read. One listing
 // call when none ended in LOST; then one jobs read per such run, newest
 // first, until one matches.
-export async function lostDispatchRun({ api, runId, log, now = Date.now(), runs: listed }) {
+export async function lostDispatchRun({ api, runId, log, now = Date.now() }) {
   const since = now - LOOKBACK_HOURS * 3_600_000;
-  const runs = listed ?? (await recentDispatchRuns({ api, log, now }));
-  if (runs === null) {
+  let runs;
+  try {
+    runs = await api.listRecentRuns(DISPATCH_WORKFLOW, new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z"));
+  } catch (error) {
+    log(`::warning::${DISPATCH_WORKFLOW} run listing failed (${error.message}); no lost run is recovered this tick`);
     return null;
   }
   const lost = runs
@@ -759,91 +767,17 @@ export async function lostDispatchRun({ api, runId, log, now = Date.now(), runs:
   return null;
 }
 
-// This workflow's runs created within LOOKBACK_HOURS, or null when the
-// listing cannot be read.
-async function recentDispatchRuns({ api, log, now }) {
-  const since = now - LOOKBACK_HOURS * 3_600_000;
-  try {
-    return await api.listRecentRuns(DISPATCH_WORKFLOW, new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z"));
-  } catch (error) {
-    log(`::warning::${DISPATCH_WORKFLOW} run listing failed (${error.message}); no lost run is recovered this tick`);
-    return null;
-  }
-}
-
-// The record post-verify-notes uploads when the lost-run reconciler re-ran it
-// to apply a verdict the kill switch deferred (reconcile.mjs, the Verdict
-// kind): the head, the verdict, and the pr-verify run's creation time in ms.
-// The re-run sends no round itself, since check-trusted-trigger trusts a
-// dispatcher only at attempt 1 or re-run by a listed human; this tick, an
-// attempt-1 run, sends it as main() would have for that pr-verify run.
-export const DEFERRED_RECORD = /^pr-feedback-deferred-([0-9a-f]{40})-(fail|pass)-([1-9][0-9]{0,15})$/;
-const ACTIONS_BOT = "github-actions[bot]";
-
-// The first deferred verdict, in `runs` newest first, that dispatchFeedback
-// sends for its head's newest completed review run: a FAIL with notesSince
-// its pr-verify run's creation, so a round before the verdict does not hold
-// it; a PASS as a pass-only round. A run of the activity for the PR created
-// after the record holds it, so each verdict is sent once. Reads one artifact
-// listing per github-actions[bot] re-run in the window.
-export async function recoverDeferred({ api, repository, log, settings = DEFAULTS, runs, ...rest }) {
-  const reruns = runs
-    .filter((run) => String(run.id) !== String(rest.runId) && run.status === "completed" && run.run_attempt > 1 && run.triggering_actor?.login === ACTIONS_BOT)
-    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
-  for (const run of reruns) {
-    let records;
-    try {
-      records = (await api.listRunArtifacts(run.id)).filter((artifact) => artifact?.expired === false && DEFERRED_RECORD.test(artifact.name ?? ""));
-    } catch (error) {
-      log(`::warning::run ${run.id}'s artifacts could not be read (${error.message}); the next tick reads them again`);
-      continue;
-    }
-    for (const artifact of records) {
-      const [, head, verdict, at] = DEFERRED_RECORD.exec(artifact.name);
-      const pulls = (await api.pullsForCommit(head)).filter((pull) => pull.state === "open" && pull.head?.sha === head);
-      if (pulls.length !== 1) {
-        log(`skip: deferred ${verdict} at ${head}: not the current head of one open PR`);
-        continue;
-      }
-      const recorded = Date.parse(artifact.created_at ?? "");
-      const sent = (await api.listWorkflowRuns(settings.workflow)).find(
-        (row) => row.display_title === runTitle(settings.activity, pulls[0].number) && !(Date.parse(row.created_at ?? "") < recorded),
-      );
-      if (sent) {
-        log(`skip: #${pulls[0].number}: ${settings.workflow} run ${sent.id} started after the deferred ${verdict} at ${head}`);
-        continue;
-      }
-      const upstream = await reviewRunAt({ api, head, repository, settings });
-      if (upstream === null) {
-        log(`skip: #${pulls[0].number}: head ${head} has no completed review run`);
-        continue;
-      }
-      const passOnly = verdict === "pass";
-      const dispatched = await dispatchFeedback({ ...rest, api, repository, log, settings, upstream, notesSince: passOnly ? null : Number(at), passOnly });
-      if (dispatched !== null) {
-        log(`recover: sent the ${verdict} verdict run ${run.id} applied late at ${head}`);
-        return { ...dispatched, upstreamRunId: upstream.id };
-      }
-    }
-  }
-  return null;
-}
-
 // The recovery: when a lost run of this workflow is in the window
 // (lostDispatchRun), the first open lanes App PR into main, short of the
 // sweep's cap, that dispatchFeedback dispatches for its head's newest
 // completed review run. Returns dispatchFeedback's result with that run's id,
 // or null.
-export async function recoverLost({ api, repository, appSenderId, log, settings = DEFAULTS, now = Date.now(), ...rest }) {
-  const runs = await recentDispatchRuns({ api, log, now });
-  if (runs === null) {
-    return null;
-  }
-  const deferred = await recoverDeferred({ ...rest, api, repository, appSenderId, log, settings, now, runs });
+export async function recoverLost({ api, repository, appSenderId, log, settings = DEFAULTS, now, ...rest }) {
+  const deferred = await recoverDeferred({ ...rest, api, repository, appSenderId, log, settings, now });
   if (deferred !== null) {
     return deferred;
   }
-  const lost = await lostDispatchRun({ api, runId: rest.runId, log, now, runs });
+  const lost = await lostDispatchRun({ api, runId: rest.runId, log, now });
   if (lost === null) {
     return null;
   }
@@ -856,6 +790,78 @@ export async function recoverLost({ api, repository, appSenderId, log, settings 
     log("recover: no head left to dispatch");
   }
   return dispatched;
+}
+
+// The record post-verify-notes uploads when the lost-run reconciler re-ran it
+// to apply a verdict the kill switch deferred (reconcile.mjs, the Verdict
+// kind), named for the head and the verdict. The re-run sends no round
+// itself, since check-trusted-trigger trusts a dispatcher only at attempt 1
+// or re-run by a listed human; this tick, an attempt-1 run, sends it.
+export const DEFERRED_RECORD = /^pr-feedback-deferred-([0-9a-f]{40})-(fail|pass)$/;
+const ACTIONS_BOT = "github-actions[bot]";
+
+// Whether `run`, the run that uploaded a deferred record, is a
+// github-actions[bot] re-run of this workflow on main: any workflow can
+// upload that name to its own run.
+const deferringRun = (run, repository) =>
+  run?.path === DISPATCH_WORKFLOW &&
+  run.event === "workflow_run" &&
+  run.head_branch === "main" &&
+  run.repository?.full_name === repository &&
+  run.run_attempt > 1 &&
+  run.triggering_actor?.login === ACTIONS_BOT;
+
+// The first deferred verdict at an open lanes App PR's head that
+// dispatchFeedback sends for the head's newest completed review run, as
+// main() would have for an on-time verdict: a FAIL with notesSince the
+// record's upload, when its notes reached the PR, so a round before then
+// does not hold it; a PASS as a pass-only round. A run of the activity for
+// the PR created after the record holds it, so each record is sent once.
+// Each head costs two exact-name artifact reads, fail then pass; a record
+// whose read fails is logged and left to the next tick.
+export async function recoverDeferred({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
+  const pulls = (await openPulls({ api, repository, appSenderId, settings, rest })).filter((pull) => pull.user?.id === appSenderId);
+  for (const pull of pulls) {
+    const head = pull.head.sha;
+    for (const verdict of ["fail", "pass"]) {
+      const name = `pr-feedback-deferred-${head}-${verdict}`;
+      try {
+        const [artifact] = (await api.listArtifactsNamed(name))
+          .filter((row) => row?.name === name && row.expired === false)
+          .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+        if (!artifact) {
+          continue;
+        }
+        const run = await api.getWorkflowRun(artifact.workflow_run?.id);
+        if (!deferringRun(run, repository)) {
+          log(`skip: #${pull.number}: ${name} was uploaded by run ${run?.id}, not a github-actions[bot] re-run of ${DISPATCH_WORKFLOW} on main`);
+          continue;
+        }
+        const recorded = Date.parse(artifact.created_at ?? "");
+        const sent = (await api.listWorkflowRuns(settings.workflow)).find(
+          (row) => row.display_title === runTitle(settings.activity, pull.number) && !(Date.parse(row.created_at ?? "") < recorded),
+        );
+        if (sent) {
+          log(`skip: #${pull.number}: ${settings.workflow} run ${sent.id} started after the deferred ${verdict} at ${head}`);
+          continue;
+        }
+        const upstream = await reviewRunAt({ api, head, repository, settings });
+        if (upstream === null) {
+          log(`skip: #${pull.number}: head ${head} has no completed review run`);
+          continue;
+        }
+        const passOnly = verdict === "pass";
+        const dispatched = await dispatchFeedback({ ...rest, api, repository, appSenderId, log, settings, upstream, notesSince: passOnly ? null : recorded, passOnly });
+        if (dispatched !== null) {
+          log(`recover: sent the ${verdict} verdict deferred at ${head} (run ${run.id})`);
+          return { ...dispatched, upstreamRunId: upstream.id };
+        }
+      } catch (error) {
+        log(`::warning::#${pull.number}: the deferred ${verdict} at ${head} could not be decided (${error.message}); the next tick reads it again`);
+      }
+    }
+  }
+  return null;
 }
 
 const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
@@ -1026,9 +1032,10 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       const query = new URLSearchParams({ created: `>=${since}`, per_page: "100" });
       return (await request(`${repo}/actions/workflows/${path.split("/").at(-1)}/runs?${query}`)).workflow_runs ?? [];
     },
-    // A run's artifacts (one page: a run uploads few).
-    async listRunArtifacts(id) {
-      return (await request(`${repo}/actions/runs/${encodeURIComponent(id)}/artifacts?per_page=100`)).artifacts ?? [];
+    // The repository's artifacts with exactly this name, newest first.
+    async listArtifactsNamed(name) {
+      const query = new URLSearchParams({ name, per_page: "10" });
+      return (await request(`${repo}/actions/artifacts?${query}`)).artifacts ?? [];
     },
     // A run's latest attempt's jobs, with their steps.
     async listRunJobs(id) {
