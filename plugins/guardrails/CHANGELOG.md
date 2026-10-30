@@ -3,6 +3,16 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.64.0] - 2026-10-30
+
+### Added
+
+- `block-cross-domain` denies a command that writes the machine's git identity, from every session: in a domain, from a neutral directory, and on a host with no domain map ([#9748](https://github.com/melodic-software/claude-code-plugins/issues/9748)). That covers a `git config` with `--global`, `--system` or `--file <identity file>` that sets, adds, replaces or unsets `user.email`, `user.signingkey`, `user.useConfigOnly`, `credential.helper`, `core.sshCommand`, `core.hooksPath` or an `includeIf` key, and a shell write (a redirection, `tee`, `cp`, `mv`, `sed -i` and the like, or a PowerShell writer) to `~/.gitconfig*`, a `*.gitconfig` file or a path the map's `identity_files` lists. Reads pass: `--get`, `--list`, `git config get` and `list`, and a command that only reads the file. With no map the guard now reads each command and parses one whose text holds both `git` and `config`, still starting no process. The compiled map cache moves to format 4, so each map is compiled once more after the update.
+
+### Changed
+
+- The `pre-commit-content` git hook reads and scans the staged files in batches, so a commit of many files, such as a merge of the default branch, no longer starts several processes for each file ([#10591](https://github.com/melodic-software/claude-code-plugins/issues/10591)). It reads each staged file once, finds the files a secret pattern can match with one search over all of them, and checks the files that may hold a machine path together, then one by one only where that check finds something. It still reads every line it read before and reports the same findings. A staged file the hook cannot read out, or cannot write to its temporary directory, now blocks the commit with a message instead of going unscanned.
+
 ## [0.63.4] - 2026-10-29
 
 ### Fixed

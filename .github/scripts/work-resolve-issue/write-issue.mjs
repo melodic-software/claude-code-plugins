@@ -9,7 +9,13 @@
 // edited by a human, is marked `decision: true` with `decided_at`, its latest
 // create or edit time. The lanes App's own comments never go in, since its
 // pushback quotes the issue body, except its intake refinement (REFINE_MARKER,
-// refine.mjs), tagged `refinement`: admission may have counted its criteria.
+// refine.mjs), tagged `refinement`: admission may have counted its criteria,
+// and the pr-merge lane's capped-close record (CAPPED_CLOSE_MARKER,
+// babysit_verify_evidence.py capped_close), tagged `verify-findings`: the
+// verifier's findings on the pull request it closed for this fresh attempt,
+// quoted as data. That record is posted just before the restart's re-add,
+// which anchors at the label it restarted, so it is kept whenever it was
+// posted, only while no one but the lanes App edited it.
 // `person_checks` lists, as written, the body's done-when items intake's split
 // refinement names as checks a person runs, only under admission's guards
 // (admit.mjs personChecks, over the comments posted before the label, with the
@@ -68,6 +74,9 @@ import { RESUMABLE } from "./report-outcome.mjs";
 // Comments other than decisions, newest kept, so a pile of them cannot crowd
 // out the body.
 export const MAX_OTHER_COMMENTS = 20;
+
+// The first line of the pr-merge lane's capped-close record.
+export const CAPPED_CLOSE_MARKER = "<!-- verify-capped-close pr=";
 
 const timeOf = (value) => (typeof value === "string" ? Date.parse(value) : Number.NaN);
 const firstLine = (body) => (body ?? "").trimStart().split("\n", 1)[0].trimEnd();
@@ -263,6 +272,19 @@ export async function main({ env = process.env, github, log = console.log, write
     const comments = [];
     for (const { comment, lastEditedAt, lastEditorId } of kept) {
       const refinement = comment.user.id === lanesAppId && String(comment.body ?? "").startsWith(REFINE_MARKER);
+      const findings =
+        comment.user.id === lanesAppId && String(comment.body ?? "").startsWith(CAPPED_CLOSE_MARKER) && (lastEditorId == null || lastEditorId === lanesAppId);
+      if (findings) {
+        comments.push({
+          author_login: comment.user.login,
+          author_kind: "verify-findings",
+          created_at: comment.created_at,
+          url: comment.html_url,
+          body: comment.body ?? "",
+          decision: false,
+        });
+        continue;
+      }
       if (comment.user.id === lanesAppId && !refinement) {
         dropped["lanes-app"] += 1;
         continue;

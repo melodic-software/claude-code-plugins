@@ -50,7 +50,7 @@ readonly EX_SPEC=3
 SHEBANG='#!/usr/bin/env bash'
 
 # The adapter verb surface (CONTRACT.md "Adapter contract"): the core public set
-# minus list-frontier (core-derived), plus list-items.
+# minus list-frontier and status-storage (core-derived), plus list-items.
 readonly ADAPTER_VERBS=(
   create-item get-item claim renew-lease release reclaim link-blocks
   add-sub-item list-items list-sub-items label-provenance set-fields get-field-options change-link capabilities
