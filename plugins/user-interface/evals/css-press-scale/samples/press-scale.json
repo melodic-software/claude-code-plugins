@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": ".button:active { transform: scale(0.97); }",
+      "why": "transform scale 0.97"
+    },
+    {
+      "answer": ".pay:active,\n.cancel:active { scale: 0.96; }",
+      "why": "the scale property"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".button:active { background: #1e40af; }",
+      "why": "no press scale"
+    },
+    {
+      "answer": ".button:active { transform: scale(0.9); }",
+      "why": "near miss: 0.9, under the floor"
+    },
+    {
+      "answer": ".button:active { transform: scale(0.99); }",
+      "why": "near miss: 0.99, over the ceiling"
+    }
+  ]
+}

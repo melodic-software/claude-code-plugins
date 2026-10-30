@@ -6,7 +6,7 @@ tags: [web, generic-defaults, happy-path]
 runs: 5
 max_turns: 15
 allowed_tools: [Read, Glob, Grep, Skill]
-expected_outcome: "The revised page removes the invented user count, testimonial and logo wall (or leaves them out and asks for real ones) instead of rewording them, and no feature marker is an emoji"
+expected_outcome: "The revised page removes the invented user count, testimonial and logo wall (or leaves them out and asks for real ones) instead of rewording them, and no feature marker is an emoji The revised page sets a deliberate typeface for its text, or keeps the default font stack and states why."
 ---
 
 This landing page looks vibe-coded, fix it. It's for Ledgerly, a bookkeeping app for farms that

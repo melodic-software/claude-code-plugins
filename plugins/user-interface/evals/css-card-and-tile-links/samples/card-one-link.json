@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "<article class=\"card\"><h3>Q3 report</h3><p>Revenue grew.</p><a class=\"card-cta\" href=\"/reports/q3\">Read the Q3 report</a><button type=\"button\">Save</button></article>",
+      "why": "a distinct link, the button separate"
+    },
+    {
+      "answer": "<article class=\"card\"><h3><a class=\"card-link\" href=\"/reports/q3\">Q3 report</a></h3><p>Revenue grew.</p><button type=\"button\">Save</button></article>\n<style>.card{position:relative}.card-link::after{content:\"\";position:absolute;inset:0}.card button{position:relative;z-index:1}</style>",
+      "why": "a stretched heading link with the button raised"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "<a href=\"/reports/q3\" class=\"card\"><h3>Q3 report</h3><p>Revenue grew.</p><button>Save</button></a>",
+      "why": "the whole card wrapped in <a>, the button inside it"
+    },
+    {
+      "answer": "<article class=\"card\"><h3><a class=\"card-link\" href=\"/reports/q3\">Q3 report</a></h3><p>Revenue grew.</p><button type=\"button\">Save</button></article>\n<style>.card{position:relative}.card-link::after{content:\"\";position:absolute;inset:0}</style>",
+      "why": "near miss: the overlay covers the Save button, which is never raised"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Suggestion\n\n- `src/menu.css:5`: the exit runs 150ms against a 200ms entrance, an asymmetric exit. Exit mirrors entry, so match it to 200ms. Verified from code.",
+      "why": "flagged at Suggestion"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No issues: the transitions name their properties, scale from 0.96, and reduced motion keeps only the fade.",
+      "why": "asymmetry not mentioned"
+    },
+    {
+      "answer": "## Important\n\n- `src/menu.css:5`: the exit (150ms) does not mirror the entrance (200ms).",
+      "why": "near miss: flagged, but at Important"
+    },
+    {
+      "answer": "The exit is shorter than the entrance, which is right: exits should be quicker. No findings.",
+      "why": "the shorter exit called correct"
+    }
+  ]
+}
