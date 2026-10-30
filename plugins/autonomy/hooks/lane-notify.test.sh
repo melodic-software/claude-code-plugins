@@ -84,8 +84,8 @@ if grep -qx 'ARGC=3' "$OSA_LOG" 2>/dev/null; then ok "os_toast → 3 argv items 
 if grep -qxF 'ARG=[Autonomy lane stopped]' "$OSA_LOG" 2>/dev/null; then ok "title passed as argv item"; else fail "title not argv: $(cat "$OSA_LOG" 2>/dev/null)"; fi
 if grep -qxF 'ARG=[Lane foo (main) stopped]' "$OSA_LOG" 2>/dev/null; then ok "body passed as argv item"; else fail "body not argv: $(cat "$OSA_LOG" 2>/dev/null)"; fi
 PROG="$(sed -n '/^PROG<</,/^>>PROG/p' "$OSA_LOG" 2>/dev/null)"
-if printf '%s' "$PROG" | grep -q 'display notification (item 2 of argv)'; then ok "program reads body from argv (no interpolation)"; else fail "program shape unexpected: $PROG"; fi
-if printf '%s' "$PROG" | grep -q 'stopped'; then fail "body text interpolated into program"; else ok "body text absent from program"; fi
+if grep -q 'display notification (item 2 of argv)' <<<"$PROG"; then ok "program reads body from argv (no interpolation)"; else fail "program shape unexpected: $PROG"; fi
+if grep -q 'stopped' <<<"$PROG"; then fail "body text interpolated into program"; else ok "body text absent from program"; fi
 
 # --- Case 4: untrusted C0 bytes stripped before the sink -------------------
 EVIL="$(printf 'lane\033]9;INJECT\007mid\nline2')"
@@ -95,7 +95,7 @@ BODY_LINE="$(grep -m1 '^ARG=\[lane' "$OSA_LOG" 2>/dev/null)"
 if [[ -n "$BODY_LINE" ]]; then ok "sanitized body delivered as argv item"; else fail "body argv missing: $(cat "$OSA_LOG" 2>/dev/null)"; fi
 CTL="$(printf '%s' "$BODY_LINE" | tr -cd '\000-\037' | wc -c | tr -d ' \r')"
 if [[ "$CTL" == "0" ]]; then ok "body argv item has zero control bytes"; else fail "body carries $CTL control bytes"; fi
-if printf '%s' "$BODY_LINE" | grep -q 'INJECT'; then ok "printable text preserved (stripped bytes, not content)"; else fail "over-stripped: $BODY_LINE"; fi
+if grep -q 'INJECT' <<<"$BODY_LINE"; then ok "printable text preserved (stripped bytes, not content)"; else fail "over-stripped: $BODY_LINE"; fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

@@ -228,7 +228,7 @@ assert_contains "the refusal names the order source" "PERF_AB_ORDER_SOURCE" "$RU
 # The default source is the OS random device; only the shape is checkable.
 run_ab --a "$NOOP" --b "$NOOP" --iterations 6 --warmup 0 --min-pairs 6
 assert_eq "a run with the default order source exits 0" "0" "$RUN_RC"
-if printf '%s\n' "$RUN_OUT" | grep -Eq '^arm_order=(AB|BA)( (AB|BA)){5}$'; then
+if grep -Eq '^arm_order=(AB|BA)( (AB|BA)){5}$' <<<"$RUN_OUT"; then
   pass "the default source records one AB or BA per iteration"
 else
   fail "the default source records one AB or BA per iteration" "arm_order= with 6 tokens" "$RUN_OUT"
