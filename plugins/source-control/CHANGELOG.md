@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.3.0] - 2026-10-30
+
+### Changed
+
+- The babysit merge gate trusts a target-subset size-split sub-issue whose last line is one `Scope:` line naming targets that are verbatim text of the parent's trusted task lines, matching intake admission and pr-verify.
+
 ## [4.2.4] - 2026-10-30
 
 ### Changed
