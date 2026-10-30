@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "TodoWrite", "input": {"todos": [{"content": "Cap retry delay at 30 seconds", "status": "pending"}, {"content": "Run ./test.sh", "status": "pending"}]}},
+        {"tool": "Skill", "input": {"skill": "session-flow:handoff"}}
+      ],
+      "why": "the list is kept in TodoWrite"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "TaskCreate", "input": {"subject": "Run ./test.sh", "description": "x"}}
+      ],
+      "why": "the Task tools branch: CLAUDE_CODE_ENABLE_TASKS=0 was not exported"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "session-flow:handoff"}}
+      ],
+      "why": "no list kept at all"
+    }
+  ]
+}

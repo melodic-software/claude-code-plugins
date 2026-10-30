@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## [8.15.1] - 2026-10-30
+
+### Fixed
+
+- **The README now says how a held Dependabot pull request is released.** ci-status's trust-path hold on a Dependabot pull request clears when a person on the trusted-actor `human` list approves the current head; a new push needs a new approval, and `ci-status` is then re-run, since a review does not re-run it. The README no longer calls the admin bypass a break-glass, since the ruleset requires ci-status and the merge queue even for an admin merge.
+
+- A Size Large issue whose sub-issues are all closed but which is still open is refused at admission (`status: confirmed`) instead of parked as "split pending" on every hourly sweep. work-unblock now closes finished split parents before it re-runs admission, so a parent whose last sub-issue just closed is closed rather than refused.
+- A split parent's admission comment no longer keeps saying the split is pending once sub-issues exist. When a sub-issue closes, work-unblock rewrites that comment to name the open sub-issues. The hourly sweep also rewrites it for one twenty-fourth of the waiting parents, chosen by issue number, so each is checked once a day.
+- A parent split by hand now closes as completed once its sub-issues are done, when each unticked task-list item in its body cites one of its sub-issues as `#N`. An uncited item still keeps it open.
+
+## [8.15.0] - 2026-10-30
+
+### Changed
+
+- **pr-verify PASS and PASS-NOTES artifacts now expire after 7 days instead of 30, unless the pull request's body or issue links changed since its head commit.** Such a pass is read only at an open pull request's current head, so outliving that head is dead weight in the repository-wide artifact listing; a pass that expires on a held head fails closed as `verify:missing` and the next push, edit or label has pr-verify judge it again. A pass judged after a body edit or link change may supersede a FAIL at its head, which the merge gate still reads at a later merge-only head, so it keeps 90 days like the FAIL. FAIL verdicts keep 90 days for the 80-day look-back. The `pr-review-main-*` row records why its 90 days stay for now.
+
+- The read runner's `broker-check` job holds `issues: write`. In issue mode, after the broker's allow, it claims the issue with a lease comment held by the lanes App identity before any model turn; a live older lease makes the run exit `already-leased` with no model turn. A new `lease-release` job releases the lease once every other job of the run ends, unless the caller passes `caller-releases-lease: true`. `work-resolve-issue.yml` does, and its `release-lease` job releases the lease after the PR opens and the outcome is reported, so no local loop takes the issue in between.
+
 ## [8.14.0] - 2026-10-30
 
 ### Added

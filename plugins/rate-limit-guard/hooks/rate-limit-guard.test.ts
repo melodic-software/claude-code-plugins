@@ -13,6 +13,9 @@ const SEVEN_RESET = '2026-10-08T09:00:00Z'
 const HOME = '/srv/u'
 const TARGET = '/srv/u/.claude/rate-limit-guard/rate-limits.json'
 const STATE_FILE = '/srv/u/.claude.json'
+// The engine hands fs hooks the resolved path, which on Windows gains a drive and backslashes
+// (D:\srv\u\.claude.json); the fake fs keys files by the POSIX path the mod built.
+const key = (path: string) => path.replace(/^[A-Za-z]:/, '').replaceAll('\\', '/')
 
 type Limit = { kind: string; percentUsed: number; resetsAt?: string }
 type World = {
@@ -61,12 +64,12 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
   on('session.surfaces', () => ({ value: w.surfaces }))
   on('session.turns', () => ({ value: w.turns }))
   on('fs.read', ($: unknown, e: { path: string }) => {
-    const file = w.files[e.path]
+    const file = w.files[key(e.path)]
     if (file === undefined) throw new Error(`ENOENT: ${e.path}`)
     return { value: file.text }
   })
   on('fs.stat', ($: unknown, e: { path: string }) => {
-    const file = w.files[e.path]
+    const file = w.files[key(e.path)]
     if (file === undefined) throw new Error(`ENOENT: ${e.path}`)
     return { value: { kind: 'file', size: file.text.length, mtimeMs: file.mtimeMs, isLink: false } }
   })
@@ -637,10 +640,18 @@ test('command: no argument returns the status and details', async ($, on) => {
   )
 })
 
+test('band: a window the account does not report is left out once another window has a reading', BAND_ON, async ($, on) => {
+  world(on, { limits: limits(undefined, 41) })
+  await bash($)
+  expect(await drawn($, 'terminal')).toEqual(['rate-limit-guard: 7d 41%', 'drawn beneath'])
+})
+
 test('command: the status says when a window has no reading and when snapshot writes are off', { options: { rate_limit_guard_enabled: false, rate_limit_guard_toast: false } }, async ($, on) => {
-  world(on, { limits: limits(undefined) })
+  const { w } = world(on, { limits: [] })
+  expect((await command($, '')).text).toContain('5-hour window: no reading\n')
+  w.limits = limits(undefined)
   const text = (await command($, '')).text
-  expect(text).toContain('5-hour window: no reading\n')
+  expect(text).toContain('5-hour window: not in the last response\n')
   expect(text).toContain('window-change toast off')
   expect(text).toContain('Snapshot: off (rate_limit_guard_enabled is false)')
 })
@@ -1121,8 +1132,8 @@ test('account: an unchanged state file is read once, and read again when its mti
   const reads: string[] = []
   const { w } = world(on, { files: { [STATE_FILE]: stateFile('me@example.com', T0 - 1) } }, { HOME }, ['fs.read'])
   on('fs.read', ($: unknown, e: { path: string }) => {
-    reads.push(e.path)
-    const file = w.files[e.path]
+    reads.push(key(e.path))
+    const file = w.files[key(e.path)]
     if (file === undefined) throw new Error(`ENOENT: ${e.path}`)
     return { value: file.text }
   })
@@ -1501,8 +1512,8 @@ test('account: a state file rewritten at the same size with another identity and
   const reads: string[] = []
   const { w } = world(on, { files: { [STATE_FILE]: stateFile('me@example.com', T0 - 1) } }, { HOME }, ['fs.read'])
   on('fs.read', ($: unknown, e: { path: string }) => {
-    reads.push(e.path)
-    const file = w.files[e.path]
+    reads.push(key(e.path))
+    const file = w.files[key(e.path)]
     if (file === undefined) throw new Error(`ENOENT: ${e.path}`)
     return { value: file.text }
   })

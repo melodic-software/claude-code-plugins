@@ -151,8 +151,11 @@ from the scopes a repo cannot forge:
 2026-10-11; recheck when that section changes which scopes the key is read from), register
 unconditionally, and fail closed to enabled.
 
-Hook lifetime: the belt keeps denying after a clean run ends, for the rest of the process. Start a
-new session to clear it. A resumed session does not get it back: after `--resume` the belt is gone, so
+Hook lifetime: the belt stays registered for the rest of the process, but it denies only while a
+clean run is open: from an engine preview until the run's apply or handoff-apply writes its report
+or the preview ends in `manual-handoff-lane` or `blocked`, and from each manual-lane verify, until
+an hour passes with no engine call. A scan-only run leaves it off, but with the kill switch off (audit-only mode)
+the belt keeps denying on every lane, run or no run. A resumed session does not get it back: after `--resume` the belt is gone, so
 a `SessionStart` notice tells the model to make no delete or overwrite until the user types
 `/disk-hygiene:clean` again (#9853). That notice keys on a marker written both when the typed command
 expands and when Claude loads `clean` through the Skill tool. The

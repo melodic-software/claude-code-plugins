@@ -7,6 +7,10 @@
     {
       "answer": "{\"content\":\"Recreate:\\nTaskCreate(subject=\\\"Run ./test.sh\\\", description=\\\"x\\\")\"}",
       "why": "same call inside a JSON-escaped trace line"
+    },
+    {
+      "answer": "{\"input\":{\"command\":\"save_point.py --json '{\\\"environment\\\":\\\"TaskCreate(subject=\\\\\\\"Cap retry delay at 30 seconds\\\\\\\")\\\"}'\"}}",
+      "why": "call nested two JSON levels deep in a trace line"
     }
   ],
   "fail": [

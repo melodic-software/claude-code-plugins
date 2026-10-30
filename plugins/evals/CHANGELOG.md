@@ -1,5 +1,23 @@
 # Changelog: evals
 
+## [0.11.1] - 2026-10-30
+
+### Fixed
+
+- `plugin-eval`'s `run-validity.py` has a `scaffold` check: a case whose `case.yaml` sets `context.scaffold_script` fails the run unless `--scaffolded` records that the eval ran with `--scaffold`, because without it both arms ran in an empty workspace and the result still read VALID. A `case.yaml` it cannot locate or read leaves the check UNCHECKED ([#10504](https://github.com/melodic-software/claude-code-plugins/issues/10504)).
+
+## [0.11.0] - 2026-10-30
+
+### Added
+
+- `/evals:plugin-eval`: on WSL2 with Docker Desktop's links in `~/.docker`, preflight now offers to run the eval through `scripts/docker-links.py run`, which swaps every link under the store (or the store itself when it is a link) for a copy of its target (a dangling link is removed for the run), and puts the links back when the run exits, fails or is interrupted. Overlapping runs share one swap and the last to exit restores; a killed run is put back by the next run's start or by `docker-links.py restore`. `DOCKER_CONFIG` stays untouched (#8378).
+
+## [0.10.19] - 2026-10-30
+
+### Fixed
+
+- `/evals:methodology`: the "Rewrite this criterion" template now takes one threshold per block, each with its own `basis:`, and a `baseline-relative` block holds only a fraction of the current rate. An absolute bar such as zero misses is written relative too, so it can no longer ride on another target's basis.
+
 ## [0.10.18] - 2026-10-30
 
 ### Fixed

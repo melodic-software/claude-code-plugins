@@ -104,17 +104,25 @@ Close by pointing at each resolution. A rerun after everything passes changes no
 - **Toggle off (or on):** reconfigure through Claude Code's native flow, per the
   [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md),
   which owns the verified-version record: interactive
-  `/plugin configure context-budget@<marketplace>`, or headless
+  `/plugin configure context-budget@<marketplace>`. Headless, preferred on Claude Code 2.1.285 or
+  later: `claude plugin configure context-budget@<marketplace> --values-stdin < values.json`, where
+  `values.json` holds `{"settings_write_ask_enabled": "true"}` (every value a string, booleans
+  included; keys left out keep their saved values). Headless fallback, before 2.1.285:
   `claude plugin install context-budget@<marketplace> -s <scope> --config settings_write_ask_enabled=true`
-  (repeatable per key). Print that command; never run it, because it writes `pluginConfigs`.
-  - Against an installed plugin it prints `already installed` **and still writes the value**.
+  (repeatable per key). Print these commands; never run either, because both write `pluginConfigs`.
+  - Against an installed plugin the `--config` rerun prints `already installed` **and still writes
+    the value**.
   - Do **not** uninstall to reconfigure: that drops the plugin's whole `pluginConfigs` entry,
     resetting every option in the README's Options reference to its manifest default.
-  - Pass the scope `claude plugin list` reports for this install (`user`, `project` or `local`).
-    `-s` places `enabledPlugins`; the value lands in user settings either way. A different scope
-    adds an install record and enables the plugin there. From the home directory the list can
-    label one settings file as both `user` and `project`; pass `user`.
-  - A rejected value prints a warning yet exits 0, so read the output.
+  - The value lands in user settings whichever route writes it. `claude plugin configure` has no
+    scope flag, so run it from the project the plugin is installed in. For the rerun, pass the
+    scope `claude plugin list` reports for this install (`user`, `project` or `local`). `-s`
+    places `enabledPlugins`; a different scope adds an install record and enables the plugin
+    there. From the home directory the list can label one settings file as both `user` and
+    `project`; pass `user`.
+  - Check each route's own failure signal: `--values-stdin` rejects a bad value with exit 1 and
+    saves nothing, but stores an empty string as `""`; the `--config` rerun prints a warning for a
+    rejected value yet exits 0, so read its output.
   - Afterwards rerun `check` in a **fresh session**: a same-session `check` still reports the old
     value. Report the observed value, never an unobserved change.
 

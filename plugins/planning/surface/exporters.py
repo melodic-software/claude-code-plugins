@@ -42,9 +42,10 @@ else 1; import warns, naming the row, when the leading form is missing, and keep
 is not the bare `round <N>` in meta.seededFrom.roundCells, which export writes back while the
 question's round still equals the cell's number, so an imported ledger round-trips byte for byte.
 
-Register ids: surface ids that are already Q1..Qn stay as they are; any other set is renumbered
-Q1..Qn in natural id order (letters, then number) and each row's resolution leads with `[<id>]`,
-which import_ledger reads back so a re-export numbers the same way.
+Register ids: surface ids that are already Q1..Qn stay as they are, and so do gapped Q<N> ids
+when the ledger merged into already has a gap in its register; any other set is renumbered Q1..Qn
+in natural id order (letters, then number) and each row's resolution leads with `[<id>]`, which
+import_ledger reads back so a re-export numbers the same way.
 
 Every row export_ledger writes has one resolution grammar: named fields in this fixed order, each
 present only when it has a value, each value escaped on its own (esc_field), joined with `; `:
@@ -608,21 +609,29 @@ def settle(q, responses, events, seed_rows):
     return "open", fields, "", False
 
 
-def numbering(ids):
-    """({id: register number}, contiguous): ids that are already Q1..Qn keep their number; any
-    other set is numbered from 1 in natural id order."""
-    contiguous = all(QN.match(i) for i in ids) and sorted(
-        int(i[1:]) for i in ids
-    ) == list(range(1, len(ids) + 1))
-    return {i: n for n, i in enumerate(sorted(ids, key=natural), start=1)}, contiguous
+def numbering(ids, gaps=False):
+    """({id: register number}, kept): ids that are already Q1..Qn keep their number, and so do
+    gapped Q<N> ids when `gaps` (the ledger being written already has a gap), so a record citing
+    one still names the same question; any other set is numbered from 1 in natural id order."""
+    if all(QN.match(i) for i in ids):
+        nums = sorted(int(i[1:]) for i in ids)
+        if gaps or nums == list(range(1, len(ids) + 1)):
+            return {i: int(i[1:]) for i in ids}, True
+    return {i: n for n, i in enumerate(sorted(ids, key=natural), start=1)}, False
 
 
-def register(doc, resp, extra=()):
+def ledger_gapped(text):
+    """True when a ledger's register row numbers are not Q1..Qn."""
+    ns = sorted(row[0] for row in parse_register(text or ""))
+    return ns != list(range(1, len(ns) + 1))
+
+
+def register(doc, resp, extra=(), gaps=False):
     """One dict per question, in register order, with its Q<N> and settled status; `extra`
-    names ledger-only ids that share the numbering."""
+    names ledger-only ids that share the numbering, and `gaps` is numbering's."""
     qs = sorted(doc.get("questions") or [], key=lambda q: natural(q["id"]))
     held = list(doc.get("pendingProposals") or [])
-    pos, contiguous = numbering([q["id"] for q in qs] + held + list(extra))
+    pos, kept = numbering([q["id"] for q in qs] + held + list(extra), gaps)
     events = resp.get("events") or []
     responses = resp.get("responses") or {}
     seed_rows = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
@@ -630,7 +639,7 @@ def register(doc, resp, extra=()):
     for q in qs:
         status, fields, note, reserved = settle(q, responses, events, seed_rows)
         marked = marked_commits(q, events)
-        lead = "" if contiguous else f"[{clean(q['id'])}] "
+        lead = "" if kept else f"[{clean(q['id'])}] "
         res = lead + encode(fields, marked)
         confirmed, unconfirmed = commitments(q, events)
         decided = latest_decision(q, responses) or {}
@@ -705,7 +714,8 @@ def merged_register(d, text=None):
     old = ledger_register(text) if text is not None else {}
     page_ids = {q["id"] for q in doc.get("questions") or []}
     extra = [i for i in old if i not in page_ids]
-    pos, contiguous = numbering(sorted(page_ids) + doc["pendingProposals"] + extra)
+    gaps = ledger_gapped(text)
+    pos, kept = numbering(sorted(page_ids) + doc["pendingProposals"] + extra, gaps)
     seeded = (doc.get("meta") or {}).get("seededFrom") or {}
     cells = seeded.get("roundCells") or {}
     responses = resp.get("responses") or {}
@@ -723,7 +733,7 @@ def merged_register(d, text=None):
         )
 
     rows = []
-    for r in register(doc, resp, extra):
+    for r in register(doc, resp, extra, gaps):
         q = r["q"]
         rnd, added = q.get("round") or 1, q.get("addedInRound")
         page = {
@@ -746,7 +756,7 @@ def merged_register(d, text=None):
         rows.append(row)
     for i in extra:
         status, cell, title, res = old[i]
-        if not contiguous and not LEAD.match(res):
+        if not kept and not LEAD.match(res):
             res = f"[{clean(i)}] {res}".rstrip()
         rows.append(
             {
@@ -1174,8 +1184,9 @@ def export_brief(d, text=None):
     old = ledger_register(text) if text is not None else {}
     page_ids = {q["id"] for q in doc.get("questions") or []}
     extra = [i for i in old if i not in page_ids]
-    rows = register(doc, resp, extra)
-    pos, _ = numbering(sorted(page_ids) + doc["pendingProposals"] + extra)
+    gaps = ledger_gapped(text)
+    rows = register(doc, resp, extra, gaps)
+    pos, _ = numbering(sorted(page_ids) + doc["pendingProposals"] + extra, gaps)
     for i in extra:
         status, _, title, res = old[i]
         rows.append(ledger_row(f"Q{pos[i]}", i, status, title, res))

@@ -92,16 +92,13 @@
       "id": 6,
       "name": "work-loop-argv-shard-ordering-and-rejected-merge",
       "prompt": "/work-items:work-loop melodic-software/example-repo --standing --shard 0/2 --ordering newest-first --instance worker-a autopilot --merge c3-this-run\n\nHeadless launch under /loop. The checkout's origin remote resolves to melodic-software/example-repo. The frontier snapshot after scope filtering holds six autonomous candidates with numbers 101, 102, 103, 104, 105, 106 and distinct created_at timestamps. Three items are admitted this cycle.",
-      "expected_output": "The lane parses the invocation surface: validates the optional owner/repo against the checkout (match \u2014 proceed), applies shard 0/2 so only even-numbered items (102, 104, 106) remain in the snapshot, orders admitted cap slots newest-first, and binds lane_instance worker-a for telemetry (overriding userConfig). It rejects autopilot and --merge c3-this-run with a clear message \u2014 merge authority and babysit tier tokens belong to the merge lane, not this worker lane \u2014 and does not silently ignore them. It loads reference/mode-standing.md only (the explicit --standing a headless launch must carry) and does not load reference/mode-drain.md. The cycle report states which source supplied each effective value.",
+      "expected_output": "The lane parses and validates every invocation token before any telemetry lookup or cycle work, per reference/invocation-argv.md. owner/repo matches the checkout remote, and --standing, --shard 0/2, --ordering newest-first and --instance worker-a are valid. autopilot and --merge c3-this-run are fail-closed rejections: the lane stops with an explicit message naming /source-control:babysit-loop, the merge lane, as their owner, and never silently ignores them. Because it stops at argument validation, it reads no telemetry, takes no frontier snapshot, admits and dispatches nothing, and schedules no next cycle; the described admissions do not happen.",
       "files": [],
       "expectations": [
-        "Validates owner/repo against the checkout remote when present and refuses on mismatch rather than guessing",
-        "Applies --shard 0/2 before admission and exit evaluation so only item numbers where number % 2 == 0 remain in the lane's snapshot",
-        "Fills execute cap slots in newest-first order when multiple items are admitted",
-        "Binds --instance worker-a to the durable-state lane_instance and passes it to scripts/lane-telemetry-upsert.sh --instance, which owns the ^[a-z0-9][a-z0-9-]{0,31}$ gate and marker construction, rather than hand-transcribing the upsert",
-        "Rejects autopilot and --merge c3-this-run with an explicit message naming the merge lane as the owning surface \u2014 never silently ignores inert merge/tier tokens",
-        "Loads reference/mode-standing.md for the explicit --standing stop mode and does not load reference/mode-drain.md",
-        "Reports the effective shard, ordering, instance, and stop_mode and which invocation tokens supplied each"
+        "Validates owner/repo against the checkout remote and finds it matches, so the stop is not a repository mismatch",
+        "Rejects autopilot and --merge c3-this-run with an explicit message naming /source-control:babysit-loop, the merge lane, as the owning surface, never silently ignoring them",
+        "Stops at argument validation, before any telemetry read or upsert, frontier snapshot, admission or dispatch",
+        "Does not report any of #101 to #106 as admitted or dispatched in this run, and schedules no next cycle"
       ]
     },
     {

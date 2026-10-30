@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -63,6 +64,7 @@ describe("parseVerdict", () => {
       escalated: false,
       workClass: "work-class: scoped",
       untrusted: false,
+      cost: false,
       dimensions: { size: "small", complexity: "low", uncertainty: "known" },
       flags: [],
       blockedBy: [],
@@ -188,7 +190,7 @@ describe("parseVerdict", () => {
 });
 
 describe("planWrites", () => {
-  const plan = (body, { labels = [], fields = {}, classSetters = {}, holdSetters = {}, earlierFlags = [] } = {}) =>
+  const plan = (body, { labels = [], fields = {}, classSetters = {}, holdSetters = {}, earlierFlags = [], triageLabels = [] } = {}) =>
     planWrites(parseVerdict(body, DIMS, CLASSES), {
       labels,
       fields,
@@ -198,6 +200,7 @@ describe("planWrites", () => {
       classSetters,
       holdSetters,
       earlierFlags,
+      triageLabels,
     });
 
   test("a clean verdict adds the class and status: ready and writes the three fields", () => {
@@ -299,7 +302,10 @@ describe("planWrites", () => {
     assert.deepEqual(result.reasons, []);
   });
 
-  // Owner decision on #9799's review: a clean verdict never lifts needs-human, whoever set it.
+  // Owner decision on #9799's review: a clean verdict never lifts needs-human,
+  // whoever set it, except a same-run, no-flag needs-human on an otherwise
+  // ready plan (the owner's standing direction: a capability limit routes to
+  // host-run, never to a person).
   test("needs-human the lanes App set stays on a clean verdict", () => {
     const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": LANES_APP } });
     assert.equal(result.ready, false);
@@ -307,6 +313,222 @@ describe("planWrites", () => {
     assert.ok(!result.add.includes(READY));
     assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
   });
+
+  // Run 41064812826 (#9953): the triage run applied needs-human for a host-run
+  // step. A capability limit is admission's to route (host-run), never a
+  // person's: needs-human this run's triage applied holds only beside a flag.
+  test("needs-human this run's triage applied with no flag is refused and the verdict reaches ready", () => {
+    const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"] });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.add, ["work-class: scoped", READY]);
+    assert.deepEqual(result.remove, ["needs-human"]);
+    assert.deepEqual(result.refused, ["needs-human"]);
+    assert.deepEqual(result.reasons, []);
+  });
+
+  // An earlier verdict's flag still needs a person: refusing the only hold
+  // would drop it, so the hold stays and the flag is carried.
+  for (const flag of ["intent", "security"]) {
+    test(`needs-human this run's triage applied after an earlier ${flag} flag stays and carries the flag`, () => {
+      const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"], earlierFlags: [flag] });
+      assert.equal(result.ready, false);
+      assert.deepEqual(result.refused, []);
+      assert.ok(!result.remove.includes("needs-human"));
+      assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
+      assert.ok(result.reasons.includes(`flagged: ${flag} (an earlier verdict)`), result.reasons.join("; "));
+    });
+  }
+
+  test("needs-human this run's triage applied with no readable earlier verdict is still refused", () => {
+    const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"], earlierFlags: null });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.refused, ["needs-human"]);
+  });
+
+  for (const [name, lines] of [
+    ["no Flags line", ["Size: Small", "Complexity: Low", "Uncertainty: Known"]],
+    ["two Flags lines", ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Flags: none"]],
+  ]) {
+    test(`needs-human this run's triage applied with ${name} holds`, () => {
+      const result = plan(laneBody({ lines }), { labels: ["needs-human"], triageLabels: ["needs-human"] });
+      assert.equal(result.ready, false);
+      assert.deepEqual(result.remove, []);
+      assert.deepEqual(result.refused, []);
+      assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
+    });
+  }
+
+  // Only an otherwise ready plan reaches admission, which routes the capability
+  // limit; a plan held for another reason keeps needs-human and says so.
+  test("needs-human this run's triage applied with no flag holds when another hold keeps the plan from ready", () => {
+    const result = plan(laneBody(), { labels: ["needs-human", "status: needs-info"], triageLabels: ["needs-human"] });
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.remove, []);
+    assert.deepEqual(result.refused, []);
+    assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
+  });
+
+  for (const label of ["security: outside-actor", "work-class: untrusted-provenance"]) {
+    test(`needs-human this run's triage applied with no flag holds beside ${label}`, () => {
+      const result = plan(laneBody(), { labels: ["needs-human", label], triageLabels: ["needs-human"] });
+      assert.equal(result.ready, false);
+      assert.deepEqual(result.remove, []);
+      assert.deepEqual(result.refused, []);
+      assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
+    });
+  }
+
+  for (const flag of ["intent", "security", "cost"]) {
+    test(`needs-human this run's triage applied beside a ${flag} flag holds`, () => {
+      const result = plan(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", `Flags: ${flag}`] }), {
+        labels: ["needs-human"],
+        triageLabels: ["needs-human"],
+      });
+      assert.equal(result.ready, false);
+      assert.deepEqual(result.remove, []);
+      assert.deepEqual(result.refused, []);
+      assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
+    });
+  }
+
+  test("needs-human on an escalated run holds even when this run's triage applied it", () => {
+    const result = plan(ESCALATED_BODY, { labels: ["needs-human"], triageLabels: ["needs-human"] });
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.remove, []);
+    assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
+  });
+
+  // Run 41064812826 (#9953) also applied status: needs-decision with no flag.
+  // Owner's standing direction §2: only a flag (intent, security, cost) stops
+  // for a person, so this run's flagless needs-decision gives way like needs-human.
+  test("status: needs-decision this run's triage applied with no flag is refused on an otherwise ready plan", () => {
+    const result = plan(laneBody(), { labels: [NEEDS_DECISION], triageLabels: [NEEDS_DECISION] });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.add, ["work-class: scoped", READY]);
+    assert.deepEqual(result.remove, [NEEDS_DECISION]);
+    assert.deepEqual(result.refused, [NEEDS_DECISION]);
+  });
+
+  test("needs-human and status: needs-decision this run's triage applied with no flag are both refused", () => {
+    const result = plan(laneBody(), { labels: ["needs-human", NEEDS_DECISION], triageLabels: ["needs-human", NEEDS_DECISION] });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.refused, ["needs-human", NEEDS_DECISION]);
+    assert.deepEqual(result.remove, ["needs-human", NEEDS_DECISION]);
+  });
+
+  for (const [name, options] of [
+    ["beside an intent flag", { body: laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: intent"] }) }],
+    ["with an unreadable Flags line", { body: laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known"] }) }],
+    ["beside security: outside-actor", { labels: ["security: outside-actor"] }],
+    ["beside work-class: untrusted-provenance", { labels: ["work-class: untrusted-provenance"] }],
+    ["beside status: needs-info", { labels: ["status: needs-info"] }],
+  ]) {
+    test(`status: needs-decision this run's triage applied holds ${name}`, () => {
+      const result = plan(options.body ?? laneBody(), { labels: [NEEDS_DECISION, ...(options.labels ?? [])], triageLabels: [NEEDS_DECISION] });
+      assert.equal(result.ready, false);
+      assert.deepEqual(result.refused, []);
+      assert.ok(!result.remove.includes(NEEDS_DECISION));
+    });
+  }
+
+  // The COST rule pairs a Cost line with the cost flag; a Cost line beside
+  // `Flags: none` still names a charge an owner decides.
+  test("a needs-human this run's triage applied stays when the comment carries a Cost line, even with Flags: none", () => {
+    const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Cost: a paid plan upgrade; no owner decision"] });
+    const result = plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] });
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.refused, []);
+    assert.ok(!result.remove.includes("needs-human"));
+  });
+
+  // The COST rule writes a charge a person's recorded decision covers as
+  // `Cost decided: `, which needs no owner.
+  test("a Cost decided line beside Flags: none still refuses a needs-human this run's triage applied", () => {
+    const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Cost decided: a paid plan upgrade; the owner's recorded decision"] });
+    const result = plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] });
+    assert.deepEqual(result.refused, ["needs-human"]);
+    assert.equal(result.ready, true);
+  });
+
+  test("a Cost line beside a Cost decided line keeps the needs-human", () => {
+    const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Cost decided: a plan upgrade; decided", "Cost: a new paid service; no owner decision"] });
+    const result = plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] });
+    assert.deepEqual(result.refused, []);
+    assert.equal(result.ready, false);
+  });
+
+  // The strict Cost parse: a canonical `Cost: ` line holds, a no-charge or
+  // `Cost decided: ` one or quoted issue text refuses, and any other cost label
+  // is a problem that holds unless it reads no charge.
+  const COST_CASES = [
+    ["Cost: x", "hold"],
+    ["**Cost:** x", "hold"],
+    ["- Cost: x", "hold"],
+    ["1. Cost: x", "hold"],
+    ["COST: x", "hold"],
+    [" Cost: a paid plan upgrade", "hold"],
+    ["Cost: none", "refuse"],
+    ["- **Cost:** none", "refuse"],
+    ["- **Cost:** none (prepaid keys)", "hold"],
+    ["Cost: none (except the Pro plan upgrade the owner must approve)", "hold"],
+    ["## Cost: paid plan", "problem"],
+    ["| Cost: | paid plan |", "problem"],
+    ["- [ ] Cost: paid plan", "problem"],
+    ["- - Cost: paid plan", "problem"],
+    ["\u2022 Cost: paid plan", "problem"],
+    ["\u200bCost: paid plan", "problem"],
+    ["Cost: n/a", "refuse"],
+    ["Cost: No charge", "refuse"],
+    ["Cost: no cost", "refuse"],
+    ["Cost decided: x", "refuse"],
+    ["**Cost decided:** x", "refuse"],
+    ["> Cost: q", "refuse"],
+    ["- > Cost: q", "refuse"],
+    ["  > COST: quoted", "refuse"],
+    ["Costing: x", "refuse"],
+    ["Cost/benefit: x", "refuse"],
+    ["Estimated cost: x", "refuse"],
+    ["**Cost**: x", "problem"],
+    ["*Cost*: x", "problem"],
+    ["_Cost:_ x", "problem"],
+    ["Costs: x", "problem"],
+    ["Cost \u2014 x", "problem"],
+    ["Cost \u2013 x", "problem"],
+    ["Cost - x", "problem"],
+    ["Cost (estimate): x", "problem"],
+    ["Cost:x", "problem"],
+  ];
+  for (const [line, outcome] of COST_CASES) {
+    test(`a ${JSON.stringify(line)} line ${outcome === "refuse" ? "refuses" : "keeps"} a needs-human this run's triage applied (${outcome})`, () => {
+      const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", line] });
+      const verdict = parseVerdict(body, DIMS, CLASSES);
+      const result = plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] });
+      assert.equal(verdict.cost, outcome === "hold");
+      assert.equal(verdict.problems.includes("a Cost line is not in the `Cost: ` / `Cost decided: ` form"), outcome === "problem");
+      assert.deepEqual(result.refused, outcome === "refuse" ? ["needs-human"] : []);
+      assert.equal(result.ready, outcome === "refuse");
+      assert.equal(result.remove.includes("needs-human"), outcome === "refuse");
+    });
+  }
+
+  // On a verdict with no triage hold, a non-canonical cost line that names a
+  // charge still stops it; a no-charge one or a `Cost-` compound does not.
+  for (const [line, ready] of [
+    ["Costs: none", true],
+    ["Cost (est.): none", true],
+    ["Cost-benefit: low", true],
+    ["Cost-effective: yes", true],
+    ["Costs: a paid Azure plan", false],
+    ["Cost - minimal, one-line change", false],
+    ["Cost (hours): small", false],
+    ["Cost-estimate: a paid Azure plan", false],
+    ["Cost-per-month: $40", false],
+  ]) {
+    test(`a ${JSON.stringify(line)} line ${ready ? "does not stop" : "stops"} a verdict with no hold`, () => {
+      const result = plan(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", line] }), { labels: [] });
+      assert.equal(result.ready, ready, result.reasons.join("; "));
+    });
+  }
 
   // Only a person lifts the outside-actor flag: a clean verdict neither removes it nor reaches ready.
   test("security: outside-actor the lanes App set stays on a clean verdict and holds", () => {
@@ -1060,6 +1282,260 @@ describe("run", () => {
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
   });
 
+  test("a needs-human this run's triage applied with no flag comes off before admission, which then routes the host work", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [{ event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" }],
+    });
+    const result = await run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => {
+        assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === "/repos/o/r/issues/7/labels/needs-human"));
+        return { outcome: "refused", reasons: ["host work"], status: "status: confirmed" };
+      },
+      log: () => {},
+    });
+    assert.equal(result.outcome, "ready");
+    assert.match(result.summary, /- Refused: `needs-human` came off/);
+  });
+
+  test("the ready comment says why a refused needs-human came off", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [{ event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" }],
+    });
+    const result = await run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => ({ outcome: "refused", reasons: ["host work"], status: "status: confirmed" }),
+      log: () => {},
+    });
+    assert.equal(result.outcome, "ready");
+    const posted = writes(fake.calls).find(({ method, path }) => method === "POST" && path === "/repos/o/r/issues/7/comments");
+    assert.match(posted.body.body, /`needs-human` came off: this run's triage applied it with no intent, security or cost flag/);
+  });
+
+  // The refused needs-human comes off before a ready verdict's comment posts,
+  // so a failed post leaves the removal with no comment: the run fails red
+  // (the entry point exits 1 on reasonsError) and the summary keeps the record.
+  test("a failed reasons comment after a refused needs-human came off fails the run and keeps the record in the summary", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [{ event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" }],
+    });
+    const github = async (method, path, body) => {
+      if (method === "POST" && path === "/repos/o/r/issues/7/comments") {
+        fake.calls.push({ method, path, body });
+        throw new GitHubError(403, "POST comments");
+      }
+      return fake.github(method, path, body);
+    };
+    const result = await run({ env: ENV, github, dimensionsConfig: DIMS, fieldSetters: noSetters, log: () => {} });
+    assert.equal(result.outcome, "ready");
+    assert.deepEqual(result.plan.refused, ["needs-human"]);
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === "/repos/o/r/issues/7/labels/needs-human"));
+    assert.ok(result.reasonsError, "the run fails");
+    assert.match(result.summary, /- Refused: `needs-human` came off/);
+    assert.match(result.summary, /- Reasons comment: not written \(/);
+  });
+
+  // security-outside-actor/flag.mjs adds needs-human as github-actions[bot] on
+  // GITHUB_TOKEN, so its label can land inside this run's window.
+  test("the outside-actor flag's needs-human, landing after this run started, keeps the hold", async () => {
+    const at = "2026-10-22T12:04:00Z";
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }, { name: "security: outside-actor" }] },
+      comments: [laneComment()],
+      events: [
+        { event: "labeled", label: { name: "security: outside-actor" }, actor: { id: ACTIONS_BOT }, created_at: at },
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: at },
+      ],
+    });
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+  });
+
+  test("#9953's shape: needs-human and status: needs-decision this run's triage applied with no flag both come off before admission", async () => {
+    const at = "2026-10-22T12:04:00Z";
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }, { name: NEEDS_DECISION }] },
+      comments: [laneComment()],
+      events: [
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: at },
+        { event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: ACTIONS_BOT }, created_at: at },
+      ],
+    });
+    const deleted = (name) => writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === `/repos/o/r/issues/7/labels/${encodeURIComponent(name)}`);
+    const result = await run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => {
+        assert.ok(deleted("needs-human") && deleted(NEEDS_DECISION));
+        return { outcome: "refused", reasons: ["host work"], status: "status: confirmed" };
+      },
+      log: () => {},
+    });
+    assert.equal(result.outcome, "ready");
+    assert.match(result.summary, /- Refused: `needs-human`, `status: needs-decision` came off/);
+  });
+
+  test("a needs-human a person set before this run started keeps the hold when the bot labels it again after", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T11:00:00Z" },
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" },
+      ],
+    });
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+  });
+
+  // Only github-actions[bot] adds after STARTED_AT count as this run's triage.
+  test("a needs-human a person takes off and puts back after the bot applied it in this run keeps the hold", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" },
+        { event: "unlabeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T12:05:00Z" },
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T12:06:00Z" },
+      ],
+    });
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+  });
+
+  for (const [who, id] of [
+    ["the lanes App", LANES_APP],
+    ["a person", HUMAN],
+  ]) {
+    test(`a needs-human ${who} also applied after this run started keeps the hold beside the bot's`, async () => {
+      const fake = fakeGitHub({
+        issue: { labels: [{ name: "needs-human" }] },
+        comments: [laneComment()],
+        events: [
+          { event: "labeled", label: { name: "needs-human" }, actor: { id }, created_at: "2026-10-22T12:03:00Z" },
+          { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" },
+        ],
+      });
+      assert.equal((await go(fake)).outcome, "needs-decision");
+      assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+    });
+  }
+
+  // A removal whose time cannot be read lifts nothing that held before.
+  test("a person's needs-human before this run, removed at an unreadable time, keeps the hold when the bot adds it again", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T11:00:00Z" },
+        { event: "unlabeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "not a time" },
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" },
+      ],
+    });
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+  });
+
+  test("a needs-human the bot applied at exactly STARTED_AT is this run's and is refused", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [{ event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: ENV.STARTED_AT }],
+    });
+    assert.equal((await go(fake)).outcome, "ready");
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === "/repos/o/r/issues/7/labels/needs-human"));
+  });
+
+  test("events replay by time and id, not API order", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [
+        { id: 3, event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" },
+        { id: 2, event: "unlabeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T11:30:00Z" },
+        { id: 1, event: "labeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T11:30:00Z" },
+      ],
+    });
+    assert.equal((await go(fake)).outcome, "ready");
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === "/repos/o/r/issues/7/labels/needs-human"));
+  });
+
+  test("a needs-human taken off before this run started and applied by its triage is refused", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T11:00:00Z" },
+        { event: "unlabeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T11:30:00Z" },
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" },
+      ],
+    });
+    assert.equal((await go(fake)).outcome, "ready");
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === "/repos/o/r/issues/7/labels/needs-human"));
+  });
+
+  // flag.mjs can add the outside-actor label and needs-human after the first
+  // read; admission never reads outside-actor, so needs-human must stay.
+  for (const late of ["security: outside-actor", "work-class: untrusted-provenance"]) {
+    test(`${late} landing after the first read keeps a refused needs-human`, async () => {
+      const fake = fakeGitHub({
+        issue: { labels: [{ name: "needs-human" }] },
+        comments: [laneComment()],
+        events: [{ event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" }],
+      });
+      let reads = 0;
+      const github = async (method, path, body) => {
+        const answer = await fake.github(method, path, body);
+        if (method === "GET" && path === "/repos/o/r/issues/7" && ++reads > 1) {
+          return { ...answer, labels: [{ name: "needs-human" }, { name: late }] };
+        }
+        return answer;
+      };
+      let admitted = false;
+      const result = await run({
+        env: ENV,
+        github,
+        dimensionsConfig: DIMS,
+        fieldSetters: noSetters,
+        admitIssue: async () => {
+          admitted = true;
+          return { outcome: "admitted", reasons: [] };
+        },
+        log: () => {},
+      });
+      assert.ok(reads > 1, "the labels were not read again");
+      assert.equal(result.outcome, "needs-decision");
+      assert.equal(admitted, false);
+      assert.deepEqual(result.plan.refused, []);
+      assert.ok(!writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === "/repos/o/r/issues/7/labels/needs-human"));
+      assert.ok(!writes(fake.calls).some(({ method, body: sent }) => method === "POST" && sent?.labels?.includes(READY)));
+    });
+  }
+
+  test("a needs-human github-actions[bot] applied before this run started keeps the hold", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [{ event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T11:59:00Z" }],
+    });
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+  });
+
   test("a hold the lanes App set after its earlier verdict comment listed a flag stays on a clean verdict", async () => {
     const fake = fakeGitHub({
       issue: { labels: [{ name: NEEDS_DECISION }] },
@@ -1562,5 +2038,43 @@ describe("run", () => {
     const fake = fakeGitHub({ comments: [laneComment(`${ESCALATED_BODY}\nBlocked by: #12`)] });
     await go(fake);
     assert.ok(!fake.calls.some(({ path }) => path.includes("dependencies")));
+  });
+});
+
+// The prompt's paragraphs as flowing text, keyed by their capitalized lead.
+const PROMPT = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8")
+  .split("\n")
+  .map((line) => line.trim())
+  .join(" ");
+
+// Owner's standing direction §2: a choice of implementation means is never a person stop.
+describe("the triage prompt", () => {
+  test("an intent question is an open outcome, done-when or unpicked primary design, never a choice of implementation means", () => {
+    assert.doesNotMatch(PROMPT, /lists options and picks none/);
+    assert.doesNotMatch(PROMPT, /intent when the intended outcome is not exact or needs the owner's decision/);
+    assert.doesNotMatch(PROMPT, /A choice among means the issue lists, or of how to do the work, is not an intent question/);
+    assert.match(PROMPT, /Flags: intent when the intended outcome or done-when is not exact, or the issue lists primary-design alternatives and picks none/);
+    assert.match(
+      PROMPT,
+      /A choice among implementation means that leaves the primary design \(architecture, cross-module contracts, data ownership, public interfaces\) unchanged is not an intent question: the issue lane decides it on evidence/,
+    );
+    assert.match(
+      PROMPT,
+      /A primary-design choice the issue lists and leaves unpicked \(two architectures, a new shared store or an existing one\) is an intent question: set `Flags: intent`, apply `status: needs-decision`, and ask it as a numbered question with a `RECOMMENDED:` answer/,
+    );
+  });
+
+  test("every status: needs-decision the prompt asks for comes with a flag, and a flagless one is said to come off", () => {
+    assert.match(PROMPT, /c\. When one or more stay open, set `Flags: intent`, apply `status: needs-decision`/);
+    assert.match(PROMPT, /A `status: needs-decision` or `needs-human` label you apply holds only beside a flag on the Flags line/);
+  });
+
+  test("a charge a recorded decision covers goes on a Cost decided line, never a Cost line", () => {
+    assert.match(PROMPT, /already covers that charge; then name it on one `Cost decided: <what bills; the decision that covers it>` line instead, never a `Cost: ` line/);
+  });
+
+  test("a Cost line is written exactly in its form, and work with no charge gets none", () => {
+    assert.match(PROMPT, /Write a Cost line exactly as `Cost: <what bills, where; the owner decision it lacks>` or `Cost decided: <what bills; the decision that covers it>`/);
+    assert.match(PROMPT, /Work with no charge gets no Cost line/);
   });
 });
