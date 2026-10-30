@@ -50,6 +50,24 @@ Below them, an index with one line per feature file, in this form:
 the files that implement the feature, relative to the project directory that holds `.claude/`. A feature with no module drops that folder:
 `features/<feature>/README.md`.
 
+A control skill can instead be a command file named `control-<app>`. The command file is the hub:
+it holds the sections and the index. Its commands folder is the top-level folder it loads from: a
+project's `.claude/commands/`, a skills-folder plugin's or a plugin's `commands/`, or the folder a
+plugin manifest's `commands` key names. Its base
+directory is `control-<app>/` in that commands folder's parent, whatever subfolder or file name
+the command file has: a command file under `<base>/commands/` keeps its features at
+`<base>/control-<app>/features/<id>/README.md`, where `<base>` is, for example, `.claude`,
+the skills-folder plugin's folder or the plugin root. A command file the manifest's `commands` key
+names as a file, directly or as a map entry's `source`, has no commands folder: its base directory
+is `control-<app>/` in the plugin root wherever the file sits, so a plugin-root
+`./control-shop.md` keeps its features at `<plugin root>/control-shop/features/<id>/README.md`,
+inside the plugin. The base directory stands in for the skill
+folder everywhere this contract names one, so `features/`, `shared/`, `cli/`, `config/` and steps
+files sit there and the index paths resolve there. Every Markdown file under a commands folder,
+in a subfolder too, loads as a command, so a feature file there would be one a model or a person
+could invoke; one folder per command also keeps two commands in one commands folder from sharing
+one `features/` tree.
+
 ## The Ready command
 
 Drive and `/testing:run-e2e` read the Ready command's exit status as the verdict, so each check in
@@ -170,7 +188,7 @@ cost every run pays. Counted in characters, newlines included, the way
 
 | File | Budget | About |
 |---|---|---|
-| Hub `SKILL.md` | 16,000 characters | 4,000 tokens |
+| Hub `SKILL.md` or command file | 16,000 characters | 4,000 tokens |
 | Each feature file: a `README.md` under `features/` at any depth, module ones included, or a legacy `features/<feature>.md` | 4,000 characters | 1,000 tokens |
 
 `/app-control:map check` reports a file over its budget, and create reports one it wrote. Over
