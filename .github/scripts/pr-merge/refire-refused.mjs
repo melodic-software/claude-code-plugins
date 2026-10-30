@@ -31,8 +31,8 @@
 // new workflow version.
 //
 // A run of an activity no dispatcher tick re-dispatches (the lane's
-// `transientActivities`; pr-unblock-dispatch already retries the others on
-// the same head, so no head gets two retry paths) also gets the empty commit
+// `transientActivities`; the pr-unblock-dispatch tick dispatches the others,
+// so no head gets two retry paths) also gets the empty commit
 // when its token step failed transiently: `broker-unreachable`, or
 // `lane-token-denied` with a 5xx status. No 403 reason is transient, so a 403
 // other than workflow-modified is never re-fired. The new head starts the
@@ -103,10 +103,11 @@ const LANES = Object.freeze({
       "apply-patch-rung-up",
       "report-escalation",
     ],
-    // The activities no dispatcher tick re-dispatches on the same head:
-    // pr-unblock-dispatch retries resolve-conflicts, review-dependency and
-    // fix-ci itself (pr-unblock/dispatch.mjs), while address-feedback starts
-    // only when the review lanes finish a head (pr-unblock/feedback-dispatch.mjs).
+    // The activities the pr-unblock-dispatch tick does not dispatch: it
+    // dispatches resolve-conflicts, review-dependency and fix-ci itself
+    // (pr-unblock/dispatch.mjs), while address-feedback starts only when the
+    // review lanes finish a head, and a failed check run there holds the head
+    // (pr-unblock/feedback-dispatch.mjs).
     transientActivities: ["address-feedback"],
     transientStarts:
       " The push starts no run itself: both review lanes review the new head, and an address-feedback run starts after them if an unresolved thread is left for it.",
