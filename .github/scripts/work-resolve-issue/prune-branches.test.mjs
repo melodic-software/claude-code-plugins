@@ -13,7 +13,7 @@ const ENV = { ISSUE_NUMBER: "77", RUN_ID: "500", REPOSITORY: "o/r", REUSE_BRANCH
 
 // A fake client: the read answers each aliased ref from `refs` (name -> ref
 // node or null); a delete is recorded and answered by `refuse`.
-function fake(refs, { readError = null, refuse = () => false } = {}) {
+function fake(refs, { readError = null, refuse = () => false, into = {} } = {}) {
   const calls = [];
   const call = async (method, path, body) => {
     calls.push({ method, path, body });
@@ -25,6 +25,7 @@ function fake(refs, { readError = null, refuse = () => false } = {}) {
     const repository = { id: "R_1" };
     for (const [key, value] of Object.entries(body.variables)) {
       if (/^b\d+$/.test(key)) repository[key] = refs[value.replace(/^refs\/heads\//, "")] ?? null;
+      if (/^n\d+$/.test(key)) repository[`p${key.slice(1)}`] = { totalCount: into[value] ?? 0 };
     }
     return { data: { repository } };
   };
@@ -78,6 +79,21 @@ test("a branch that backs a pull request, is gone, or reads oddly is kept", asyn
   const result = await prune({ ...ENV, PRUNE_BRANCHES: [400, 401, 402, 403, 404].map((run) => lane(run)).join(" ") }, { call, log: () => {} });
   assert.deepEqual(result.deleted, []);
   assert.deepEqual(deletes(calls), []);
+});
+
+test("a branch an open pull request targets is kept", async () => {
+  const { call, calls } = fake({ [lane(400)]: ref(), [lane(401)]: ref() }, { into: { [lane(400)]: 1 } });
+  const result = await prune({ ...ENV, PRUNE_BRANCHES: `${lane(400)} ${lane(401)}` }, { call, log: () => {} });
+  assert.deepEqual(result.deleted, [lane(401)]);
+  assert.match(calls[0].body.query, /pullRequests\(baseRefName: \$n0, states: \[OPEN\]\)/);
+  assert.equal(calls[0].body.variables.n0, lane(400));
+});
+
+test("a deleted branch's log line names a restore that works from GitHub's copy", async () => {
+  const lines = [];
+  const { call } = fake({ [lane(400)]: ref() });
+  await prune({ ...ENV, PRUNE_BRANCHES: lane(400) }, { call, log: (line) => lines.push(line) });
+  assert.ok(lines.some((line) => line.includes(`gh api repos/o/r/git/refs -f ref=refs/heads/${lane(400)} -f sha=${SHA}`)), lines.join("\n"));
 });
 
 test("a failed read deletes nothing", async () => {

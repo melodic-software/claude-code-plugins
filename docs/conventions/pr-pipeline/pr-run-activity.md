@@ -1629,12 +1629,14 @@ report gate. It checks the run job's pre-model issue fields from `env`, each in 
    The combination is one the run job's steps make: a reuse branch comes with `false` and no
    resume; a resume branch comes with its tip and `true`; a started run has a base. The
    space-separated `prune-branches` holds at most 20 distinct lane branches of the issue, none of
-   them the reuse or resume branch; it is not re-derived, since the prune job re-checks each.
+   them the reuse or resume branch.
 2. A branch claim is re-derived: `report-outcome.mjs --find-prior`, from the default branch tip
    with this job's read-only token, must choose the same reuse branch, resume branch and tip, so the
    branch also meets that check's rules (its commits the lanes App's, not handed back). The run job
    chose before the model ran, so the re-derivation sets `FIND_PRIOR_KEEP_BEHIND`: a resume branch
-   the default branch has moved past since then still resumes.
+   the default branch has moved past since then still resumes. A non-empty `prune-branches` is
+   re-derived the same way, and only the branches the re-derived check also names are published;
+   a failed re-derive publishes none.
 3. Only then does it set `checked` and the read file's `scan-base-sha`, `scan-resume-tip`,
    `scan-reuse-branch`, `scan-resume-branch` and `scan-prune-branches` outputs, and the start commit (the resume tip, else
    the base) the scan job applies the patch to. A refusal leaves them empty: the scan job then
@@ -2308,7 +2310,7 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `contents: write` (with `pull-requests: read`, on its own `GITHUB_TOKEN`), runs
   `prune-branches.mjs` from the default branch tip: it drops any name that is not this issue's
   lane branch, is this run's own, or is the reuse or resume branch, reads every remaining branch in
-  one GraphQL request, and deletes only one with no pull request, one `updateRefs` per branch whose
+  one GraphQL request, and deletes only one with no pull request from it and no open one into it, one `updateRefs` per branch whose
   `beforeOid` is the tip it read. A failed read deletes nothing, a refused delete is logged, and
   neither fails the run. The log line of each delete gives the tip to restore it from.
 - No check run is posted: there is no PR head. The lane's `report-statuses` job (in

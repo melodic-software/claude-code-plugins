@@ -4063,11 +4063,18 @@ test("issue-fields: a branch claim is published only when the re-derived earlier
   assert.equal(reuse.status, 1, "a reuse the check does not choose");
   const fresh = publish({ CLAIMED: "false" }, "");
   assert.deepEqual([fresh.status, fresh.outputs["start-sha"]], [0, base]);
-  // The prune list is passed on as checked, never re-derived: the prune job
-  // re-checks each branch against GitHub.
+  // A branch to prune is published only when the re-derived check names it
+  // too: a forged name, or a re-derive that wrote nothing, publishes none.
   const older = "work-resolve-issue/issue-7-100-1";
-  const pruning = publish({ CLAIMED: "false", PRUNE_BRANCHES: older }, "");
+  const forged = "work-resolve-issue/issue-7-101-1";
+  const pruning = publish({ CLAIMED: "false", PRUNE_BRANCHES: `${older} ${forged}` }, `proceed=true\nreuse-branch=\nprune-branches=${older} work-resolve-issue/issue-7-99-1\n`);
   assert.deepEqual([pruning.status, pruning.outputs["prune-branches"]], [0, older]);
+  const underived = publish({ CLAIMED: "false", PRUNE_BRANCHES: older }, "");
+  assert.deepEqual([underived.status, underived.outputs.checked, underived.outputs["prune-branches"]], [0, "true", ""]);
+  const baseStep = job.steps.find((s) => s.id === "base");
+  const ctx = (claimed, prune) => ({ "steps.issue.outcome": "success", "steps.issue.outputs.claimed": claimed, "steps.issue.outputs.prune-branches": prune, "github.event.repository.default_branch": "main" });
+  assert.equal(evaluate(baseStep.if, ctx("false", older)), true, "a prune list is re-derived");
+  assert.equal(evaluate(baseStep.if, ctx("false", "")), false, "nothing to re-derive");
 });
 
 // lane.json is the runner's record: an issue run that started carries it,

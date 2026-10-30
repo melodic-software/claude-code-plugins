@@ -2111,7 +2111,9 @@ jobs:
 
       - name: Check out the default branch tip
         id: base
-        if: steps.issue.outcome == 'success' && steps.issue.outputs.claimed == 'true' && github.event.repository.default_branch != ''
+        if: >-
+          steps.issue.outcome == 'success' && github.event.repository.default_branch != ''
+          && (steps.issue.outputs.claimed == 'true' || steps.issue.outputs.prune-branches != '')
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -2146,7 +2148,10 @@ jobs:
           GITHUB_OUTPUT=$PRIOR_OUT node .base/.github/scripts/work-resolve-issue/report-outcome.mjs --find-prior
 
       # A branch claim must be what the re-derived check chose, field for
-      # field; with no claim there is nothing to re-derive.
+      # field; with no claim there is nothing to re-derive. A branch to prune
+      # is published only when the re-derived check names it too, so a forged
+      # list deletes nothing the check would spare; a failed re-derive
+      # publishes none.
       - name: Publish the checked issue fields
         id: checked
         if: >-
@@ -2162,14 +2167,19 @@ jobs:
           PRUNE_BRANCHES: ${{ steps.issue.outputs.prune-branches }}
           PRIOR_OUT: ${{ runner.temp }}/issue-prior
         run: |
+          prior() { [ -f "$PRIOR_OUT" ] && sed -n "s/^$1=//p" "$PRIOR_OUT" | tail -n 1; }
           if [ "$CLAIMED" = true ]; then
-            prior() { sed -n "s/^$1=//p" "$PRIOR_OUT" | tail -n 1; }
             if [ "$(prior reuse-branch)" != "$REUSE_BRANCH" ] || [ "$(prior resume-branch)" != "$RESUME_BRANCH" ] ||
               [ "$(prior resume-tip)" != "$RESUME_TIP" ]; then
               echo "::error::bad-output: the run job's lane branch is not the one the earlier-work check chooses; nothing is published"
               exit 1
             fi
           fi
+          prune=""
+          derived=" $(prior prune-branches) "
+          for name in $PRUNE_BRANCHES; do
+            [[ $derived == *" $name "* ]] && prune="${prune:+$prune }$name"
+          done
           {
             echo "checked=true"
             echo "reuse-branch=$REUSE_BRANCH"
@@ -2177,7 +2187,7 @@ jobs:
             echo "resume-tip=$RESUME_TIP"
             echo "base-sha=$BASE_SHA"
             echo "start-sha=${RESUME_TIP:-$BASE_SHA}"
-            echo "prune-branches=$PRUNE_BRANCHES"
+            echo "prune-branches=$prune"
           } >>"$GITHUB_OUTPUT"
 
   # Everything the run job hands on leaves here, on a fresh VM that ran no

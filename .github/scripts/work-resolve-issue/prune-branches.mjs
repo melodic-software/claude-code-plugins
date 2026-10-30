@@ -5,7 +5,7 @@
 // this script drops any name that is not this issue's lane branch, is this
 // run's own (any attempt), or is the reuse or resume branch, then reads every
 // remaining branch in one GraphQL request and keeps any that backs a pull
-// request in any state, is gone, or reads oddly. Each delete is one GraphQL
+// request in any state, is the base of an open one, is gone, or reads oddly. Each delete is one GraphQL
 // updateRefs whose beforeOid is the tip read, so a push after the read makes
 // GitHub refuse it. A failed read deletes nothing; a refused delete is logged
 // and the next branch still goes. Nothing here fails the run.
@@ -32,10 +32,12 @@ export function claimed(env) {
 }
 
 const readQuery = (count) => {
-  const vars = Array.from({ length: count }, (_, i) => `, $b${i}: String!`).join("");
+  const vars = Array.from({ length: count }, (_, i) => `, $b${i}: String!, $n${i}: String!`).join("");
   const refs = Array.from(
     { length: count },
-    (_, i) => `b${i}: ref(qualifiedName: $b${i}) { target { oid } associatedPullRequests(states: [OPEN, CLOSED, MERGED]) { totalCount } }`,
+    (_, i) =>
+      `b${i}: ref(qualifiedName: $b${i}) { target { oid } associatedPullRequests(states: [OPEN, CLOSED, MERGED]) { totalCount } }\n    ` +
+      `p${i}: pullRequests(baseRefName: $n${i}, states: [OPEN]) { totalCount }`,
   ).join("\n    ");
   return `query($owner: String!, $name: String!${vars}) {\n  repository(owner: $owner, name: $name) {\n    id\n    ${refs}\n  }\n}`;
 };
@@ -50,7 +52,11 @@ export async function prune(env, { call, log = console.log }) {
   const [owner, name] = env.REPOSITORY.split("/");
   let repository;
   try {
-    const variables = { owner, name, ...Object.fromEntries(names.map((branch, i) => [`b${i}`, `refs/heads/${branch}`])) };
+    const variables = {
+      owner,
+      name,
+      ...Object.fromEntries(names.flatMap((branch, i) => [[`b${i}`, `refs/heads/${branch}`], [`n${i}`, branch]])),
+    };
     repository = (await call("POST", "/graphql", { query: readQuery(names.length), variables }))?.data?.repository;
     if (typeof repository?.id !== "string" || repository.id === "") throw new Error("no repository id");
   } catch (error) {
@@ -60,8 +66,10 @@ export async function prune(env, { call, log = console.log }) {
   for (const [i, branch] of names.entries()) {
     const ref = repository[`b${i}`];
     const oid = ref?.target?.oid;
-    if (ref?.associatedPullRequests?.totalCount !== 0 || !SHA.test(oid ?? "")) {
-      log(`prune-branches: kept ${branch}: ${ref ? "it backs a pull request or reads oddly" : "it is gone"}`);
+    // Kept when a pull request from it in any state, or an open one into it,
+    // exists, or a count does not read.
+    if (ref?.associatedPullRequests?.totalCount !== 0 || repository[`p${i}`]?.totalCount !== 0 || !SHA.test(oid ?? "")) {
+      log(`prune-branches: kept ${branch}: ${ref ? "a pull request uses it, or it reads oddly" : "it is gone"}`);
       continue;
     }
     try {
@@ -70,7 +78,7 @@ export async function prune(env, { call, log = console.log }) {
         variables: { repositoryId: repository.id, name: `refs/heads/${branch}`, beforeOid: oid, afterOid: ZERO_OID },
       });
       deleted.push(branch);
-      log(`prune-branches: deleted ${branch} at ${oid}; restore with git push origin ${oid}:refs/heads/${branch}`);
+      log(`prune-branches: deleted ${branch} at ${oid}; restore with gh api repos/${env.REPOSITORY}/git/refs -f ref=refs/heads/${branch} -f sha=${oid}`);
     } catch (error) {
       log(`::warning::prune-branches: could not delete ${branch}: ${error.message}`);
     }
