@@ -39,9 +39,12 @@
 //   LANES_BOT_LOGIN      the lanes App bot login, the only marker author this
 //                        trusts (default melodic-automation-lanes[bot])
 //   LANES_APP_SENDER_ID  the lanes App sender id; a run it started never counts
-//   GITHUB_STEP_SUMMARY  each push is listed there when set
+//   RESOLVED_CONFIG_PATH resolve-config's output; its merge.refire-skip-branches
+//                        lists the branches a workflow owns and rebuilds, whose
+//                        PRs this never comments on or pushes to
+//   GITHUB_STEP_SUMMARY  each push and the outcome are listed there when set
 //   GITHUB_API_URL
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
@@ -108,6 +111,24 @@ export const REFIRES_PER_RUN = 5;
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (what, error) =>
   console.log(`::error title=refire-refused::${what}: ${escapeCommand(error?.message ?? error)}`);
+// A failure that concerns one run or PR warns and leaves the others to go on:
+// a branch a workflow rebuilds under it (run 41065454536, a 422 on
+// release/plugins) must not fail the merge job.
+const reportWarning = (what, error) =>
+  console.log(`::warning title=refire-refused::${what}: ${escapeCommand(error?.message ?? error)}`);
+
+// merge.refire-skip-branches from resolve-config's output: the head refs a
+// workflow owns and rebuilds, where an empty commit would race its rebuild.
+export function skipBranches(path) {
+  if (!path) {
+    throw new Error("RESOLVED_CONFIG_PATH is not set");
+  }
+  const skip = JSON.parse(readFileSync(path, "utf8"))?.merge?.["refire-skip-branches"];
+  if (!Array.isArray(skip) || !skip.every((ref) => typeof ref === "string" && ref !== "")) {
+    throw new Error("merge.refire-skip-branches in the resolved config is not a list of branch names");
+  }
+  return new Set(skip);
+}
 
 // Whether check-trusted-trigger would trust this PR's head, and the lane may
 // push to it.
@@ -290,6 +311,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     if (appId === null) {
       throw new Error("LANES_APP_SENDER_ID is not a positive integer");
     }
+    const owned = skipBranches(env.RESOLVED_CONFIG_PATH);
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     actions ??= actionsClient(env);
 
@@ -311,9 +333,22 @@ export async function main({ env = process.env, github, actions, now = Date.now(
       throw new Error("main's tip has no commit SHA");
     }
 
-    const open = (await paginate(github, `/repos/${repo}/pulls?state=open&base=main`)).filter((pull) => qualifies(pull, repo, ids));
+    const listed = (await paginate(github, `/repos/${repo}/pulls?state=open&base=main`)).filter((pull) => qualifies(pull, repo, ids));
+    const open = [];
+    let skippedOwned = 0;
+    for (const pull of listed) {
+      if (owned.has(pull.head.ref)) {
+        skippedOwned += 1;
+        console.log(`refire-refused: #${pull.number} not re-fired: its branch ${pull.head.ref} is owned by a workflow that rebuilds it`);
+      } else {
+        open.push(pull);
+      }
+    }
     const byNumber = new Map(open.map((pull) => [pull.number, pull]));
+    // Failures of one run or PR; a lane's run listing failing fails the step.
     let failed = 0;
+    let listingFailed = false;
+    let refired = 0;
     // One refused file per PR, the first found.
     const refused = new Map();
     for (const [file, lane] of Object.entries(LANES)) {
@@ -321,7 +356,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
       try {
         runs = await failedRuns(actions, repo, file, now);
       } catch (error) {
-        failed += 1;
+        listingFailed = true;
         reportError(file, error);
         continue;
       }
@@ -337,7 +372,7 @@ export async function main({ env = process.env, github, actions, now = Date.now(
           }
         } catch (error) {
           failed += 1;
-          reportError(`run ${run.id}`, error);
+          reportWarning(`run ${run.id}`, error);
         }
       }
     }
@@ -365,10 +400,11 @@ export async function main({ env = process.env, github, actions, now = Date.now(
         ready.push({ pull, path, file, blob, recorded, run });
       } catch (error) {
         failed += 1;
-        reportError(`#${number}`, error);
+        reportWarning(`#${number}`, error);
       }
     }
-    for (const { pull } of ready.slice(REFIRES_PER_RUN)) {
+    const deferred = ready.slice(REFIRES_PER_RUN);
+    for (const { pull } of deferred) {
       console.log(`refire-refused: #${pull.number} deferred: ${REFIRES_PER_RUN} re-fires this run`);
     }
     for (const { pull, path, file, blob, recorded, run } of ready.slice(0, REFIRES_PER_RUN)) {
@@ -381,16 +417,22 @@ export async function main({ env = process.env, github, actions, now = Date.now(
         }
         const sha = await pushEmptyCommit(github, repo, pull, path, tree);
         const line = `#${pull.number} moved from ${pull.head.sha} to ${sha} after run ${run} was refused for ${path} at ${blob}`;
+        refired += 1;
         console.log(`refire-refused: ${line}`);
         if (env.GITHUB_STEP_SUMMARY) {
           appendFileSync(env.GITHUB_STEP_SUMMARY, `- refire-refused: ${line}\n`);
         }
       } catch (error) {
         failed += 1;
-        reportError(`#${pull.number}`, error);
+        reportWarning(`#${pull.number}`, error);
       }
     }
-    return failed === 0 ? 0 : 1;
+    const outcome = `outcome re-fired=${refired} failed=${failed} skipped-owned=${skippedOwned} deferred=${deferred.length}`;
+    console.log(`refire-refused: ${outcome}`);
+    if (env.GITHUB_STEP_SUMMARY) {
+      appendFileSync(env.GITHUB_STEP_SUMMARY, `- refire-refused: ${outcome}\n`);
+    }
+    return listingFailed ? 1 : 0;
   } catch (error) {
     console.log(`::error title=refire-refused::${escapeCommand(error?.message ?? error)}`);
     return 1;

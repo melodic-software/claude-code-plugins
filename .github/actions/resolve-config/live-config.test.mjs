@@ -640,3 +640,10 @@ test("live config: no live slot resolves an actions permission", () => {
     undefined,
   );
 });
+
+// release-publish-plugins.yml owns and rebuilds release/plugins; run
+// 41065454536's re-fire push there answered 422 and failed the merge job.
+test("live config: pr-merge's re-fire step skips the release branch release-publish-plugins.yml rebuilds", () => {
+  const { merge } = resolve(FILES, { lane: "pr-merge", activity: "merge-pr", configPath: CONFIG_PATH, basePath: ".base", facts: FACTS });
+  assert.ok(merge["refire-skip-branches"].includes("release/plugins"), JSON.stringify(merge["refire-skip-branches"]));
+});

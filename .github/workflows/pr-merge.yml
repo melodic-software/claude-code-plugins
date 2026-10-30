@@ -1801,7 +1801,10 @@ jobs:
       # most five a run, and once per PR per version of the file the
       # broker named, recorded in a marker comment first. It runs after the
       # gate, which refuses a PR with a failing check, and not while the lane
-      # is report-only or after the gate's rate-limit stop. Rules:
+      # is report-only or after the gate's rate-limit stop. A PR from a branch
+      # merge.refire-skip-branches names (one a workflow rebuilds) is left
+      # alone. One PR's failure is a warning, counted in the closing
+      # `outcome` line, and fails nothing. Rules:
       # .github/scripts/pr-merge/refire-refused.mjs.
       - name: Re-fire lane runs refused as workflow-modified
         if: >-
@@ -1819,6 +1822,7 @@ jobs:
           API_BUDGET_OVERRIDE_TOKEN: github-token
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+          RESOLVED_CONFIG_PATH: ${{ runner.temp }}/resolved-config.json
         run: node .base/.github/scripts/pr-merge/refire-refused.mjs
 
       # A pr-unblock escalation adds the human-gated label with a reason. On
