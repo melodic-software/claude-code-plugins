@@ -126,8 +126,8 @@ const LIST_MARKER = /^\s*(?:[-*+]|\d+[.)])\s+/;
 const QUOTED = /^\s*(?:(?:[-*+]|\d+[.)])\s*)?>/;
 // The two canonical shapes, bare or in `**Label:**` bold.
 const COST_CANONICAL = /^(\*\*)?cost( decided)?:\1 (.+)$/i;
-const NO_CHARGE = /^(?:none|n\/a|no charge|no cost)\s*(?:\(.*\))?$/i;
-const COST_LABEL = /^costs?\s*[:\u2014\u2013(-]/i;
+const NO_CHARGE = /^(?:none|n\/a|no charge|no cost)\.?$/i;
+const COST_LABEL = /^\W*costs?\s*[:\u2014\u2013(-]/i;
 // The reusable's wording the verdict makes untrue once the class is applied.
 export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
 export const NEW_BASIS = "Basis: automated intake triage; the lanes App applied this class.";
@@ -214,8 +214,8 @@ export function parseVerdict(body, dimensionsConfig, classes) {
   const { numbers, problem } = escalated || untrusted ? { numbers: [], problem: null } : parseBlockedBy(lines);
   // A verdict line, any case, past one list marker and with `*`, `_` and
   // backticks dropped: `Cost: <text>` names a charge an owner decides, whatever
-  // Flags reads, unless <text> is only none, n/a, no charge or no cost (a
-  // trailing parenthetical allowed); `Cost decided: <text>` names one a recorded
+  // Flags reads, unless <text> is only none, n/a, no charge or no cost
+  // (any other text after it holds); `Cost decided: <text>` names one a recorded
   // decision covers and holds nothing. Only bare or `**Cost:**` dress counts as
   // that form: any other cost label (`**Cost**:`, `_Cost:_`, `Costs:`, `Cost —`,
   // `Cost (estimate):`) is a problem, which holds. A `>` quote, alone or after a
