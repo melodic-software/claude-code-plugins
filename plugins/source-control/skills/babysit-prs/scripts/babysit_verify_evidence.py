@@ -442,16 +442,26 @@ JS_SPACE = "\t\n\v\f\r                  　﻿"
 
 
 def split_child_header(
-    parent: int, part: int, parts: int, source: tuple[int, str] | None = None
+    parent: int,
+    part: int,
+    parts: int,
+    source: tuple[int, str] | None = None,
+    scoped: bool = False,
 ) -> str:
     """admit.mjs splitChildHeader: the fixed header of part `part` of
     `parts` a size split files from issue `parent`, with admit.mjs
-    splitSourceLine when `source` (id, updated_at) is given."""
+    splitSourceLine when `source` (id, updated_at) is given, and the
+    target-subset wording when `scoped`."""
     also = " and intake's refinement comment on it" if source else ""
+    copied = (
+        f"The done-when lines below are copied from #{parent}{also} as written, "
+        "and the Scope line names the targets this part covers."
+        if scoped
+        else f"The done-when below is copied from #{parent}{also} as written."
+    )
     rows = [
         SPLIT_CHILD_MARKER,
-        f"Part {part} of {parts} of #{parent}, split at intake (owner Q93). "
-        f"The done-when below is copied from #{parent}{also} as written.",
+        f"Part {part} of {parts} of #{parent}, split at intake (owner Q93). {copied}",
     ]
     if source:
         rows.append(
@@ -550,7 +560,8 @@ def split_child_body(
     source = (
         (int(tag[1]), tag[2]) if tag and int(float(tag[1])) == int(tag[1]) else None
     )
-    header = f"{split_child_header(number, int(part[1]), int(part[2]), source)}\n"
+    scoped = rows[-1].startswith(SCOPE_PREFIX)
+    header = f"{split_child_header(number, int(part[1]), int(part[2]), source, scoped)}\n"
     if not body.startswith(header):
         return None
     refinement: list[str] = []

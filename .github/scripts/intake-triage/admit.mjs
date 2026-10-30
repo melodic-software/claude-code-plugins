@@ -1444,11 +1444,12 @@ const SOURCE = /^<!-- size-split refinement=([1-9][0-9]{0,15}) updated_at=([0-9A
 
 // The fixed header of part `part` of `parts` that a size split files from
 // issue `parent`, with splitSourceLine when `source` is given; the copied
-// task lines follow it, one per line.
-export const splitChildHeader = (parent, part, parts, source = null) =>
+// task lines follow it, one per line. A `scoped` part (a target-subset
+// split) says its last line, the Scope line, names its targets.
+export const splitChildHeader = (parent, part, parts, source = null, scoped = false) =>
   [
     SPLIT_CHILD_MARKER,
-    `Part ${part} of ${parts} of #${parent}, split at intake (owner Q93). The done-when below is copied from #${parent}${source ? " and intake's refinement comment on it" : ""} as written.`,
+    `Part ${part} of ${parts} of #${parent}, split at intake (owner Q93). ${scoped ? "The done-when lines below are" : "The done-when below is"} copied from #${parent}${source ? " and intake's refinement comment on it" : ""} as written${scoped ? ", and the Scope line names the targets this part covers" : ""}.`,
     ...(source ? [splitSourceLine(source)] : []),
     "",
     "## Done when",
@@ -1494,7 +1495,8 @@ export function splitChildBody(spec, humans, taskList) {
   const part = /^Part ([1-9][0-9]?) of ([1-9][0-9]?) of #/.exec(rows[1] ?? "");
   const tag = SOURCE.exec(rows[2] ?? "");
   const source = tag ? { id: Number(tag[1]), updatedAt: tag[2] } : null;
-  const header = part ? `${splitChildHeader(parent.number, Number(part[1]), Number(part[2]), source)}\n` : null;
+  const scoped = rows.at(-1).startsWith(SCOPE_PREFIX);
+  const header = part ? `${splitChildHeader(parent.number, Number(part[1]), Number(part[2]), source, scoped)}\n` : null;
   if (header === null || !body.startsWith(header)) {
     return null;
   }

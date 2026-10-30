@@ -953,7 +953,7 @@ export async function applySizeSplit({ github, repository, number, appId, humans
     // a target-subset part holds every line and its Scope line.
     const source = items.some((n) => n > split.human) ? split.source : null;
     const scope = record.groups ? `\n${SCOPE_PREFIX}${record.groups[index].join(", ")}` : "";
-    const body = `${splitChildHeader(number, index + 1, record.parts.length, source)}\n${items.map((n) => lines[n - 1]).join("\n")}${scope}`;
+    const body = `${splitChildHeader(number, index + 1, record.parts.length, source, scope !== "")}\n${items.map((n) => lines[n - 1]).join("\n")}${scope}`;
     let child = filed.find((item) => item.body === body);
     if (child === undefined) {
       child = await github("POST", `/repos/${repository}/issues`, { title: `${line(issue.title).slice(0, 230)} - part ${index + 1} of ${record.parts.length}`, body, type });

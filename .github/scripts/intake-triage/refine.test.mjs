@@ -1112,7 +1112,7 @@ describe("size split", () => {
     assert.deepEqual(result, { outcome: "split", children: [71, 72] });
     const w = writes(fake.calls);
     const bodies = w.filter(({ method, path }) => method === "POST" && path === "/repos/o/r/issues").map(({ body }) => body.body);
-    const header = CHILD_1.split("\n").slice(0, 5).join("\n");
+    const header = CHILD_1.split("\n").slice(0, 5).join("\n").replace("The done-when below is copied from #7 as written.", "The done-when lines below are copied from #7 as written, and the Scope line names the targets this part covers.");
     assert.deepEqual(bodies, [`${header}\n${LINES.join("\n")}\n${SCOPE_PREFIX}L1`, `${header.replace("Part 1 of 2", "Part 2 of 2")}\n${LINES.join("\n")}\n${SCOPE_PREFIX}L2, L3`]);
     assert.deepEqual(splitRecord(w.at(-1).body.body).groups, [["L1"], ["L2", "L3"]]);
     const parent = { number: 7, spec: { ...specOf(BODY), comments: [] }, appId: APP };
