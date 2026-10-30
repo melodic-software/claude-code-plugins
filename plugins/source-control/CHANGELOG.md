@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.2.2] - 2026-10-30
+
+### Fixed
+
+- `babysit_merge.py` no longer reads a person writing "the `do-not-merge` label" as a "do not merge" veto. Any other `do-not-merge`, a comma list included, and a sentence that says not to merge still hold the merge.
+
 ## [4.2.1] - 2026-10-30
 
 ### Fixed

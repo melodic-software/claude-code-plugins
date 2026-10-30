@@ -193,7 +193,7 @@ import {
   spoken,
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
-import { LANES_APP_LOGIN as DEFAULT_BOT, laneChange, OUTSIDE_ACTOR_LABEL as OUTSIDE_ACTOR, REVIEW_LANES } from "./merge-holds.mjs";
+import { branchActivity, LANES_APP_LOGIN as DEFAULT_BOT, laneChange, OUTSIDE_ACTOR_LABEL as OUTSIDE_ACTOR, REVIEW_LANES } from "./merge-holds.mjs";
 import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalReasons, rotated, verifyHold } from "./enable-auto-merge.mjs";
 
 const REASON = /^- Reason: `([a-z-]+)`$/m;
@@ -918,15 +918,16 @@ function findingsHeld({ head, timeline, threads }, reviews, heldLanes) {
 // fork push), its newest push since `since` landed the head, and every push
 // or other activity on the branch since then is by an id `trusted` holds (a
 // `human` of trusted-actors.json; never the lanes App, whose own push would
-// lift its own stop). The page must
-// reach back past `since`, or the move stays unread. A description, or null.
+// lift its own stop). The branch's activity, read by cursor to its end
+// (branchActivity), must reach back past `since`, or the move stays unread. A
+// description, or null.
 export async function trustedMove({ read, repo, pull, keys, since, trusted }) {
   const head = pull.head.sha;
   const ref = String(pull.head?.ref ?? "");
   if (trusted === null || keys.includes(head) || pull.head?.repo?.full_name !== repo || ref === "") {
     return null;
   }
-  const activity = await read((reader) => reader("GET", `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${ref}`)}&per_page=100`));
+  const activity = await read((reader) => branchActivity(reader, repo, ref));
   if (!Array.isArray(activity)) {
     return null;
   }
@@ -1076,7 +1077,7 @@ export async function staleHoldEvidence({ github, checks, reader, repo, number, 
   let activity = null;
   if (reader !== null && ref !== "") {
     try {
-      activity = await reader("GET", `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${ref}`)}&per_page=100`);
+      activity = await branchActivity(reader, repo, ref);
     } catch {
       activity = null;
     }
@@ -1084,10 +1085,10 @@ export async function staleHoldEvidence({ github, checks, reader, repo, number, 
   activity = Array.isArray(activity) ? activity.filter((item) => !(Date.parse(String(item?.timestamp)) > until)) : null;
   const landed = (activity ?? []).filter((item) => shas.includes(item?.after)).map((item) => Date.parse(String(item.timestamp)));
   if (landed.length === 0 || !landed.every(Number.isFinite)) {
-    return { reason: "the push that landed the held head is not on the branch's activity page" };
+    return { reason: "the push that landed the held head is not in the branch's activity" };
   }
   const judged = { ...pull, head: { ...pull.head, sha: head } };
-  const moved = await trustedMove({ read: (fn) => fn(async () => activity), repo, pull: judged, keys: shas, since: Math.max(...landed), trusted });
+  const moved = await trustedMove({ read: async () => activity, repo, pull: judged, keys: shas, since: Math.max(...landed), trusted });
   if (moved === null) {
     return { reason: "no trusted push alone moved the head off the held head" };
   }

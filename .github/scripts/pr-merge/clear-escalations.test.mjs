@@ -1149,6 +1149,8 @@ const pushedBy = (actor, after = HEAD, at = "2026-10-18T11:00:00Z") => ({ actor,
 const run_ = (name, conclusion, id, status = "completed") => ({ id, name, status, conclusion, app: { slug: "github-actions" } });
 const GREEN = [run_("ci-status", "failure", 1), run_("test-node", "success", 2), run_("lint-repo", "skipped", 3)];
 
+const ACTIVITY = `/repos/${REPO}/activity?ref=${encodeURIComponent("refs/heads/feat/x")}&direction=desc&per_page=100`;
+
 // The job-token reads: branch activity, main's tip when the lane escalated,
 // whether the head contains it, and the head's check runs.
 function readerFor({ pushes = [pushedBy(PERSON)], contains = true, checkRuns = GREEN, calls = [] } = {}) {
@@ -1157,7 +1159,7 @@ function readerFor({ pushes = [pushedBy(PERSON)], contains = true, checkRuns = G
     if (method !== "GET") {
       throw new Error(`the reader writes nothing: ${method} ${path}`);
     }
-    if (path === `/repos/${REPO}/activity?ref=${encodeURIComponent("refs/heads/feat/x")}&per_page=100`) {
+    if (path === ACTIVITY) {
       return activityOf(pushes);
     }
     if (path === `/repos/${REPO}/commits?sha=main&until=${encodeURIComponent("2026-10-18T10:00:05.000Z")}&per_page=1`) {
@@ -1348,6 +1350,60 @@ test("workflow-staged stays when the activity page does not reach back to the la
   const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader });
   await run(w, TRUST_ENV);
   assert.deepEqual(w.writes(), []);
+});
+
+// The activity API ignores `page`: each next page is the Link rel="next"
+// cursor (merge-holds.mjs branchActivity). `rows` split into pages of 100;
+// `link` decides whether page n names page n + 1.
+const pagedReader = (rows, link = (n, pages) => n + 1 < pages.length) => {
+  const pages = Array.from({ length: Math.max(1, Math.ceil(rows.length / 100)) }, (_, n) => rows.slice(n * 100, n * 100 + 100));
+  return async (method, path) => {
+    if (!path.startsWith(ACTIVITY)) {
+      return readerFor()(method, path);
+    }
+    const n = Number(/&after=c(\d+)$/.exec(path)?.[1] ?? 0);
+    const page = [...(pages[n] ?? [])];
+    return Object.defineProperty(page, Symbol.for("github.link"), { value: link(n, pages) ? `<https://api.github.com/repositories/1/activity?after=c${n + 1}>; rel="next"` : null });
+  };
+};
+// `count` trusted pushes since the label, the newest landing the head, then the branch's creation.
+const longHistory = (count) => activityOf(Array.from({ length: count }, (_, i) => pushedBy(PERSON, i === count - 1 ? HEAD : "e".repeat(40), new Date(Date.parse("2026-10-18T11:00:00Z") + i * 1000).toISOString())));
+
+test("workflow-staged comes off when the trusted move reads past the first activity page, or ends on an empty one", async () => {
+  for (const [label, reader] of [
+    ["the branch creation on page 2", pagedReader(longHistory(100))],
+    ["an empty page after a full one", pagedReader(longHistory(99), (n) => n === 0)],
+  ]) {
+    const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader });
+    await run(w, TRUST_ENV);
+    assert.equal(w.writes().at(-1)?.method, "DELETE", label);
+  }
+});
+
+test("workflow-staged stays at the activity cursor's end: a full page with no next link, or more than 20 pages", async () => {
+  for (const [label, reader] of [
+    ["no next link", pagedReader(longHistory(100), () => false)],
+    ["past 20 pages", pagedReader(longHistory(2000))],
+  ]) {
+    const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader });
+    await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], label);
+  }
+});
+
+// Page 1 alone would clear the hold (the empty-page case above), so only a
+// read that stops at the failed page 2 keeps it.
+test("workflow-staged stays when a later activity page fails to read or is not a list", async () => {
+  const pages = pagedReader(longHistory(99), (n) => n === 0);
+  for (const [label, page2] of [
+    ["page 2 throws", () => Promise.reject(new Error("GET activity returned 500"))],
+    ["page 2 is not a list", async () => ({ message: "Not Found" })],
+  ]) {
+    const reader = (method, path) => (path.startsWith(ACTIVITY) && path.endsWith("&after=c1") ? page2() : pages(method, path));
+    const w = world({ timeline: stagedTimeline(), mainFiles: WORKFLOW_MAIN, reader });
+    await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], label);
+  }
 });
 
 test("workflow-staged stays at the resume key, on a fork head, and without the trusted list or the job token", async () => {
