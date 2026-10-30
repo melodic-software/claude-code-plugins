@@ -157,8 +157,8 @@ The caller must:
 
 ## The broker-check job
 
-Read file only, before the run job, which `needs` it. It holds `contents: read` and
-`id-token: write`, runs only actions from the default branch tip, never checks out the PR head, and
+Read file only, before the run job, which `needs` it. It holds `contents: read`,
+`id-token: write` and `issues: write` (for step 5 alone), runs only actions from the default branch tip, never checks out the PR head, and
 times out after 10 minutes. In order:
 
 1. Fails red when the event names no default branch.
@@ -168,6 +168,26 @@ times out after 10 minutes. In order:
 4. [`request-lane-token`](../../../.github/actions/request-lane-token/README.md) in `check` mode
    asks the broker's check endpoint whether the lane may run
    ([below](#the-check-endpoint)). The check mints nothing.
+5. In issue mode, after an allow, claims the issue with a lease comment through the work-items
+   tracker's `claim --lease-only --holder <vars.AUTOMATION_LANES_APP_SENDER_ID>` on its own
+   `GITHUB_TOKEN`, with a TTL longer than the run job's timeout. When a live lease older than its
+   own exists (a local session's claim), it outputs `lease=already-leased`, ends green, and the run
+   job's `go` step runs no model and the step comments the back-off on the issue; any other claim
+   failure fails the job. The read file's `report` job, which already holds `issues: write`, releases a
+   `held` lease in issue mode after every other job of the run ends, whatever their result, reading
+   the handle only from this job's outputs. A caller passing `caller-releases-lease: true` gets the
+   handle as the `lease-comment-id` output and passes it to the write file's `lease-comment-id`
+   input; the read `report` job then skips the release for a call that did not hand off and set
+   `scan-issue-run-started` or `scan-reuse-branch`, the outputs the caller's report-outcome runs on.
+   The write file's `report` job releases it after the run job ends, whatever its result: always for
+   `report-outcome`, so the issue keeps its lease until its PR is open, and for any other activity
+   only on a kill-switch stop, which skips report-outcome. `work-resolve-issue.yml` passes the
+   selected read call's handle to `apply-issue-patch` and `report-outcome`. A caller cancelled by
+   hand after a call that started or reused a branch leaves the lease to its TTL: accepted, since the
+   TTL ends it and no job runs to release it. A failed release (an API error, or exit 7 when another
+   session claimed after expiry) warns, leaves the job green, and also falls back to the TTL. A run
+   that backed off as `already-leased` skips the earlier-work check, so it names no `reuse-branch`
+   and the caller's report-outcome does not run on it.
 
 Any answer but an allow, or no answer, fails the job, which skips the run job. The report job
 passes the broker-check job's result as `run-result` whenever it is not `success`, so a failure

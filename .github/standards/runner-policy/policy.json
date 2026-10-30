@@ -21,6 +21,7 @@
     "melodic-software/ci-workflows/.github/workflows/intake-triage.yml": {
       "routing": "runner-input",
       "runnerInput": "runner",
+      "fixedRunsOn": ["ubuntu-24.04"],
       "role": "intake",
       "allowedInputs": [
         "runner",
@@ -307,7 +308,8 @@
         "check-jsonschema-files",
         "check-jsonschema-builtin-schema",
         "machine-specific-paths-exclude",
-        "comment-hygiene-exclude"
+        "comment-hygiene-exclude",
+        "lychee-offline-exclude"
       ],
       "allowedSecrets": {},
       "minimumCallerPermissions": {

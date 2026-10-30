@@ -265,7 +265,12 @@ sources, each read at its link.
   `sha256:ac8229699555d38eb0dfe6c80dd2e85353f30471a7abff0894d342b5107aad26`)
 - **S2**: "Using Claude Code: The Unreasonable Effectiveness of HTML", X article by the
   same author. `https://x.com/trq212/status/2052809885763747935` (retrieved 2026-09-01,
-  `sha256:07dc71b1a7fabe264b9a80ee003edbcd1e74013895372a8ffe13ee4bb178e63c`)
+  `sha256:07dc71b1a7fabe264b9a80ee003edbcd1e74013895372a8ffe13ee4bb178e63c`). Canonical web
+  copy: "Using Claude Code: The unreasonable effectiveness of HTML", Thariq Shihipar, Anthropic
+  blog, published 2026-05-20
+  (correlate with `https://claude.dev/blog/using-claude-code-the-unreasonable-effectiveness-of-html/`)
+  (read 2026-10-30 through a summarizing fetch, so no hash is recorded). Recheck trigger: a raw
+  retrieval, which records its date and hash here.
 - **S3**: HTML-effectiveness examples index (20 demos, 9 categories, plus the 11-demo
   "Know your unknowns" sub-collection). `https://thariqs.github.io/html-effectiveness`
   (retrieved 2026-08-31,

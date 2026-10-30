@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.6] - 2026-10-30
+
+### Changed
+
+- The setup skill's personal-configuration section names `claude plugin configure code-tidying@<marketplace> --values-stdin` as the preferred headless route and the `claude plugin install --config` rerun as its fallback before Claude Code 2.1.285, and carries the scope and failure-signal caveats for both routes, per the plugin-reconfiguration convention.
+
 ## [0.32.5] - 2026-10-30
 
 ### Changed

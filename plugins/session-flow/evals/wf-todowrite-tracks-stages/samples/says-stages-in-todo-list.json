@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Current position: nothing done yet.\nProgress: the stage list is in the todo list via TodoWrite; Explore is in_progress.",
+      "why": "names TodoWrite and the todo list"
+    },
+    {
+      "answer": "I put one entry per applicable stage on the todo list, so the stages stay tracked through the next turns.",
+      "why": "names the todo list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty answer"
+    },
+    {
+      "answer": "Next stage: 4. Contract. Lock the goal, constraints and acceptance criteria first.",
+      "why": "answers a different question: no tracking mentioned"
+    },
+    {
+      "answer": "I created a task for each stage with TaskCreate.",
+      "why": "the Task tools branch's wording"
+    },
+    {
+      "answer": "I did not use TodoWrite; progress is in .work/report/workflow-checklist.md.",
+      "why": "negated"
+    }
+  ]
+}

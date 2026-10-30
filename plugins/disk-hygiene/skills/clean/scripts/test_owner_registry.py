@@ -358,7 +358,8 @@ LABEL_ONLY = {SCRIPTS / "deep_inventory.py"}
 # `purge_directory_contents` beneath it, are the removers both lanes share; the
 # handoff lane reaches it through `unlink_handoff_path`, and recycles through
 # `recycle_handoff_path` and `windows_recycle` on Windows.
-# `write_text_atomic` and `run_inventory` remove only the temporary file they wrote themselves.
+# `write_text_atomic` and `run_inventory` remove only the temporary file they wrote themselves,
+# and `close_clean_runs` only the clean belt's run markers under the data root.
 DELETERS = {
     "apply_plan",
     "handoff_apply",
@@ -366,6 +367,7 @@ DELETERS = {
     "purge_directory_contents",
     "write_text_atomic",
     "run_inventory",
+    "close_clean_runs",
 }
 # The only function that may name a registry command or tool: `apply_plan` carries
 # the plan's owner claim, which `handoff_apply` has no parameter to receive.
@@ -684,6 +686,19 @@ class EngineSourceTest(unittest.TestCase):
                 and ast.unparse(node.func).rpartition(".")[2] in DELETIONS | {"remove"}
             ]
             self.assertEqual([temporary], removals, writer)
+
+    def test_the_run_closer_removes_only_clean_run_markers(self) -> None:
+        closer = self.function("close_clean_runs")
+        removals = [
+            ast.unparse(node.func)
+            for node in ast.walk(closer)
+            if isinstance(node, ast.Call)
+            and ast.unparse(node.func).rpartition(".")[2] in DELETIONS | {"remove"}
+        ]
+        self.assertEqual(["marker.unlink"], removals)
+        source = ast.unparse(closer)
+        self.assertIn("engine_grammar.RUN_MARKER_DIRNAME", source)
+        self.assertIn("glob('*.json')", source)
 
 
 class BaselinePolicyUnchangedTest(unittest.TestCase):

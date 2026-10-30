@@ -3,6 +3,22 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.68.1] - 2026-10-30
+
+### Changed
+
+- The setup skill's reconfiguration short form names `claude plugin configure guardrails@<marketplace> --values-stdin` as the preferred headless route and the `claude plugin install --config` rerun as its fallback before Claude Code 2.1.285, and carries the scope and failure-signal caveats for both routes, per the plugin-reconfiguration convention. The `apply` eval expects that order.
+
+## [0.68.0] - 2026-10-30
+
+### Added
+
+- `block-root-delete-target` judges rsync deletes the way it judges a recursive `rm`. With `--del`, `--delete` or a `--delete-<mode>` option the destination, the last operand, is a target; with `--remove-source-files` every source before it is. So `rsync -a --delete src/ /`, a delete into `$HOME` and one outside the allowed roots are refused, and a delete strictly inside the git toplevel, the scratchpad or an allowed root passes. A remote operand (`host:path`, `rsync://`) is left alone.
+
+### Changed
+
+- Shared `exec-bash.mjs` synced: `--skip-unless-marker` also skips when every `<session>.launched` it finds holds a launch token that `<session>.seen` beside it repeats. No hook in this plugin uses that flag; no other change to this plugin.
+
 ## [0.67.2] - 2026-10-30
 
 ### Changed

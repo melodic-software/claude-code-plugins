@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "session-flow:workflow"}},
+        {"tool": "TodoWrite", "input": {"todos": [{"content": "1. Explore", "status": "in_progress"}, {"content": "6. Plan", "status": "pending"}, {"content": "8. Implement", "status": "pending"}, {"content": "12. Pull request", "status": "pending"}]}}
+      ],
+      "why": "one TodoWrite call with four stages"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool calls"
+    },
+    {
+      "answer": [
+        {"tool": "TodoWrite", "input": {"todos": [{"content": "Explore", "status": "in_progress"}, {"content": "Plan", "status": "pending"}]}}
+      ],
+      "why": "two stages is below the three-stage minimum"
+    },
+    {
+      "answer": [
+        {"tool": "TaskCreate", "input": {"subject": "Explore"}},
+        {"tool": "TaskCreate", "input": {"subject": "Plan"}},
+        {"tool": "TaskCreate", "input": {"subject": "Implement"}}
+      ],
+      "why": "the Task tools branch, not TodoWrite"
+    }
+  ]
+}

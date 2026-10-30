@@ -42,6 +42,20 @@ packages.lock.json  -diff
 *.lock              -diff
 
 ###############################################################################
+# Append-only lists: one entry per line, order carries no meaning, and each
+# list's checker compares sets (keyed lists fail on a key listed twice). A union
+# merge keeps both sides' appended lines instead of conflicting. These paths
+# exist only in claude-code-plugins; in other repositories they match nothing.
+###############################################################################
+
+scripts/affected-tests-no-suite.txt   merge=union
+scripts/em-dash-purged-paths.txt      merge=union
+scripts/fragment-plugins.txt          merge=union
+scripts/outside-node-packages.txt     merge=union
+scripts/shared-copies.txt             merge=union
+scripts/skill-leaf-name-registry.txt  merge=union
+
+###############################################################################
 # Binary: no line-ending conversion, no diff.
 ###############################################################################
 
