@@ -9,8 +9,8 @@
       "why": "the query function is named but not shown, so the ok check does not apply; says what happened and offers a retry that refetches"
     },
     {
-      "answer": "async function load() {\n  setStatus(\"loading\");\n  const res = await fetch(\"/api/projects\");\n  if (!res.ok) { setStatus(\"error\"); return; }\n  setProjects(await res.json());\n  setStatus(\"done\");\n}\n\nif (status === \"error\") {\n  return (\n    <div>\n      <p>Projects failed to load.</p>\n      <button onClick={load}>Retry</button>\n    </div>\n  );\n}",
-      "why": "checks res.ok and the retry calls the fetch again"
+      "answer": "async function load() {\n  setStatus(\"loading\");\n  try {\n    const res = await fetch(\"/api/projects\");\n    if (!res.ok) { setStatus(\"error\"); return; }\n    setProjects(await res.json());\n    setStatus(\"done\");\n  } catch {\n    setStatus(\"error\");\n  }\n}\n\nif (status === \"error\") {\n  return (\n    <div>\n      <p>Projects failed to load.</p>\n      <button onClick={load}>Retry</button>\n    </div>\n  );\n}",
+      "why": "checks res.ok, catches a rejected fetch, and the retry calls the fetch again"
     },
     {
       "answer": "useEffect(() => {\n  fetch(\"/api/projects\")\n    .then((res) => {\n      if (!res.ok) throw new Error(String(res.status));\n      return res.json();\n    })\n    .then(setProjects)\n    .catch(setError);\n}, []);\n\nif (error) {\n  return (\n    <div role=\"alert\">\n      <p>We couldn't load this team's projects.</p>\n      <Link href=\"/dashboard\">Go to your dashboard</Link>\n    </div>\n  );\n}",

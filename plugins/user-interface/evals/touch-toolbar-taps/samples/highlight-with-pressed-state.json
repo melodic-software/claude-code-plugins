@@ -1,8 +1,8 @@
 {
   "pass": [
     {
-      "answer": ".icon-btn { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }\n.icon-btn:active { transform: scale(0.96); }",
-      "why": "highlight off, :active on the shared class that covers the link"
+      "answer": ".toolbar button, .toolbar a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }\n.toolbar button:active, .toolbar a:active { transform: scale(0.96); }",
+      "why": "highlight off, :active on every button and on the Profile link"
     }
   ],
   "fail": [
