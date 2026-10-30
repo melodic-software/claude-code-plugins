@@ -163,8 +163,96 @@ class RunValidityTest(unittest.TestCase):
         )
         self.assertIn("the delta over the other 1 case is +0.00", proc.stdout)
         self.assertIn(
+            "check scaffold: PASS (no case sets context.scaffold_script)", proc.stdout
+        )
+        self.assertIn(
             "verdict: VALID (warnings: models, judge votes, ceiling)", proc.stdout
         )
+
+    def with_case_yaml(self, text, *args):
+        """Run the clean result with measurable-criterion's case.yaml holding
+        text, under a suite root beside the result."""
+        result = self.clean()
+        result["suite"]["root"] = "suite"
+        case_yaml = self.dir / "suite" / result["cases"][1]["dir"] / "case.yaml"
+        case_yaml.parent.mkdir(parents=True, exist_ok=True)
+        case_yaml.write_text(text, encoding="utf-8")
+        return self.run_script(self.write(result), "--runs", "1", *args)
+
+    SCAFFOLDED = (
+        'schema_version: "1.1"\nname: m\ncontext:\n  scaffold_script: fixture.sh\n'
+    )
+
+    def test_a_scaffold_case_without_scaffolded_is_invalid_and_named(self):
+        for text in (
+            self.SCAFFOLDED,
+            "name: m\ncontext:  # seeded\n  add_dirs:\n    - resources\n"
+            "  scaffold_script: 'fixture.sh'\ntags: [x]\n",
+            "name: m\ncontext: {add_dirs: [resources], scaffold_script: fixture.sh}\n",
+        ):
+            proc = self.with_case_yaml(text)
+            self.assertVerdict(proc, "INVALID", 1)
+            self.assertIn("check scaffold: FAIL (1 case set", proc.stdout, text)
+            self.assertIn(
+                "  case measurable-criterion: scaffold_script fixture.sh", proc.stdout
+            )
+            self.assertIn(
+                "case measurable-criterion never scaffolded",
+                proc.stdout.splitlines()[-1],
+            )
+
+    def test_a_scaffold_case_with_scaffolded_passes(self):
+        proc = self.with_case_yaml(self.SCAFFOLDED, "--scaffolded")
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn(
+            "check scaffold: PASS (1 case set context.scaffold_script, and"
+            " --scaffolded records the pass ran with --scaffold)",
+            proc.stdout,
+        )
+
+    def test_a_case_yaml_with_no_scaffold_script_is_unaffected(self):
+        for text in (
+            "name: m\ncontext:\n  add_dirs: [resources]\n",
+            "name: m\n# scaffold_script: fixture.sh\n",
+            "name: m\ncontext:\n  scaffold_script: null\n",
+        ):
+            proc = self.with_case_yaml(text)
+            self.assertVerdict(proc, "VALID", 0)
+            self.assertIn(
+                "check scaffold: PASS (no case sets context.scaffold_script)",
+                proc.stdout,
+                text,
+            )
+
+    def test_an_unreadable_case_yaml_is_unchecked(self):
+        proc = self.with_case_yaml(
+            "name: m\nscaffold_script: fixture.sh\n", "--scaffolded"
+        )
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check scaffold: UNCHECKED (1 case whose case.yaml", proc.stdout)
+        self.assertIn("names scaffold_script outside a context block", proc.stdout)
+
+    def test_a_case_yaml_that_cannot_be_opened_is_unchecked(self):
+        result = self.clean()
+        result["suite"]["root"] = "suite"
+        (self.dir / "suite" / result["cases"][0]["dir"] / "case.yaml").mkdir(
+            parents=True
+        )
+        proc = self.run_script(self.write(result), "--runs", "1", "--scaffolded")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check scaffold: UNCHECKED", proc.stdout)
+        self.assertIn("  case control-no-trigger: cannot read", proc.stdout)
+        self.assertIn("scaffold scripts unchecked in 1 case", proc.stdout)
+
+    def test_a_result_with_no_suite_root_leaves_scaffold_unchecked(self):
+        result = self.clean()
+        del result["suite"]["root"]
+        proc = self.run_script(self.write(result), "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn(
+            "check scaffold: UNCHECKED (3 cases whose case.yaml", proc.stdout
+        )
+        self.assertNotIn("check scaffold: PASS", proc.stdout)
 
     def test_unresolved_traces_leave_denials_unchecked_and_invalid(self):
         path = self.write(self.clean(), absolute_traces=False)
@@ -456,8 +544,9 @@ class RunValidityTest(unittest.TestCase):
         `score`; with first_denied, its first run of that arm is denied too; with
         also_with, the second with-arm run of the case at that index is denied as
         well; with missing, a (case index, arm, run index) whose tracePath does
-        not resolve; with root, the suite.root the plugin's directory is; with
-        command, the denied call is a Bash call running it instead."""
+        not resolve; with root, the suite.root the plugin's directory is in
+        place of the fixture's ("" for none); with command, the denied call is
+        a Bash call running it instead."""
         tool, tool_input = "Grep", {"pattern": "judge"}
         if command is not None:
             tool, tool_input = "Bash", {"command": command}
@@ -495,7 +584,7 @@ class RunValidityTest(unittest.TestCase):
     def test_a_with_arm_denial_with_no_plugin_root_is_a_fail_even_when_its_score_matches(
         self,
     ):
-        proc = self.denied_second_run("with", 1)
+        proc = self.denied_second_run("with", 1, root="")
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("check permission denials: FAIL (1 denial in 1 run)", proc.stdout)
 
@@ -649,7 +738,7 @@ class RunValidityTest(unittest.TestCase):
         )
 
     def test_an_invalid_verdict_still_names_the_warned_case(self):
-        proc = self.denied_second_run("without", 1, also_with=2)
+        proc = self.denied_second_run("without", 1, also_with=2, root="")
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn(
             "check permission denials: FAIL (2 denials in 2 runs", proc.stdout
