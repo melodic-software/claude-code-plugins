@@ -10,9 +10,10 @@
 # nothing of its own. That status is not a block, so the tool call went ahead;
 # bash's one-line error went to the debug log, and the transcript recorded
 # "exit 1, stderr: (none)". How Claude Code treats each exit status is the
-# hooks page's to state; our hooks.json rows set no failure-handling field, so
-# they take its default. Pointer:
-# https://code.claude.com/docs/en/hooks#exit-code-output. As of: 2026-10-11.
+# hooks page's to state. The guard rows set "onFailure": "block", but this
+# boundary turns every status it did not choose into 0 or 2 first, so that key
+# never sees one. Pointer:
+# https://code.claude.com/docs/en/hooks#exit-code-output. As of: 2026-10-30.
 # Recheck trigger: that section changes what a status other than 0 or 2 does
 # to the tool call, or is renamed. A blocking
 # guard enforced nothing and nobody was told. The boundary makes that outcome a
@@ -30,7 +31,7 @@
 #
 #   open    exit 0, after emitting the same text as a `systemMessage` on
 #           stdout, for the user (stderr on exit 0 reaches only the debug log,
-#           see docs/conventions/hook-observability/). The tool call proceeds,
+#           see docs/contracts/hook-observability/). The tool call proceeds,
 #           as it did before, and the notice says it was not checked. The
 #           model gets nothing: it cannot fix a hook.
 #   closed  exit 2 with the notice on stderr, the channel a blocking exit feeds

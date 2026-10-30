@@ -24,6 +24,7 @@ import {
   main,
   mustHold,
   parseOutcomeMarker,
+  pruneBranches,
   heldPaths,
   readHoldPaths,
   readFunding,
@@ -987,6 +988,8 @@ test("main names lane.json's stale branch on the issue once, and deletes no bran
     assert.equal(named.length, 1);
     assert.equal(named[0].body.body.split("\n")[0], `<!-- work-resolve-issue stale-branch=${stale} -->`);
     assert.ok(named[0].body.body.includes(`\`${stale}\``), named[0].body.body);
+    assert.doesNotMatch(named[0].body.body, /no lane deletes it/, "the next run on the issue deletes it");
+    assert.match(named[0].body.body, /next run on this issue deletes it/);
     assert.equal(parseOutcomeMarker(named[0].body.body), null, "the stale comment is no outcome marker");
     assert.ok(!calls.some((c) => c.path.includes("/git/refs")), "no branch is deleted");
   });
@@ -2343,6 +2346,67 @@ test("another issue's lane branches are never this issue's", () => {
 
 test("with no lane branch and no closing PR the run goes ahead as before", () => {
   assert.deepEqual(prior({}), { action: "run" });
+});
+
+// The issue's lane branches a run deletes (#7948): a stopped run's branch,
+// one whose run posted an outcome marker and whose tip is the lanes App's,
+// with no pull request in any state. The branch the run reuses, resumes or
+// starts fresh past, an unreported branch and this run's own are spared.
+const prune = (facts) => {
+  const all = { issueNumber: 77, repo: "o/r", bot: BOT, humans: HUMANS, branches: [], closing: [], markers: [], ...facts };
+  return pruneBranches({ ...all, prior: findPrior(all) });
+};
+
+test("a stopped run's lane branch with no pull request is pruned", () => {
+  const markers = [marked("pushback", "400")];
+  assert.deepEqual(prune({ branches: [branchFact(lane(400))], markers }), [lane(400)]);
+  // Every attempt of a stopped run that is not resumed goes.
+  assert.deepEqual(prune({ branches: [branchFact(lane(400, 1)), branchFact(lane(400, 2))], markers }), [lane(400, 2), lane(400, 1)]);
+});
+
+test("a lane branch that backs a pull request in any state, by anyone, is kept", () => {
+  for (const pull of [pullBy(BOT, "closed"), pullBy("stranger", "open"), pullBy("kyle-sexton", "closed")]) {
+    assert.deepEqual(prune({ branches: [branchFact(lane(400), { pulls: [pull] })], markers: [marked("pushback", "400")] }), [], JSON.stringify(pull));
+  }
+});
+
+test("an unreported lane branch, or one whose tip is not the lanes App's, is kept", () => {
+  assert.deepEqual(prune({ branches: [branchFact(lane(400))] }), [], "unreported: the reuse branch");
+  assert.deepEqual(prune({ branches: [branchFact(lane(401)), branchFact(lane(400))] }), [], "an older unreported branch");
+  const tip = { ...LANE_TIP, author: { login: "stranger", type: "User" } };
+  assert.deepEqual(prune({ branches: [branchFact(lane(400), { tip })], markers: [marked("pushback", "400")] }), [], "another author's tip");
+  const commits = [LANE_TIP, tip];
+  assert.deepEqual(prune({ branches: [branchFact(lane(400), { commits })], markers: [marked("pushback", "400")] }), [], "another author's commit");
+  assert.deepEqual(prune({ branches: [branchFact(lane(400), { commits: null })], markers: [marked("pushback", "400")] }), [], "a listing cut short");
+});
+
+test("the branch the run resumes or starts fresh past is kept, and an older stopped run's goes", () => {
+  const branches = [branchFact(lane(401), { sha: SHA_400 }), branchFact(lane(400))];
+  const markers = [marked("stopped", "400", "2026-10-16T10:30:00Z"), marked("turn-cap", "401")];
+  assert.equal(findPrior({ issueNumber: 77, repo: "o/r", bot: BOT, humans: HUMANS, branches, closing: [], markers }).branch, lane(401));
+  assert.deepEqual(prune({ branches, markers }), [lane(400)]);
+  const behind = [branchFact(lane(401), { sha: SHA_400, behindBy: 3 }), branchFact(lane(400))];
+  assert.deepEqual(prune({ branches: behind, markers }), [lane(400)], "the stale branch is this run's data");
+});
+
+test("no branch of the run itself is pruned, whatever its attempt", () => {
+  const branches = [branchFact(lane(400, 1)), branchFact(lane(400, 2)), branchFact(lane(399))];
+  const markers = [marked("pushback", "399"), marked("pushback", "400")];
+  const all = { issueNumber: 77, repo: "o/r", bot: BOT, humans: HUMANS, branches, closing: [], markers };
+  assert.deepEqual(pruneBranches({ ...all, prior: findPrior(all), runId: "400" }), [lane(399)]);
+});
+
+test("--find-prior names a stopped run's branch with no pull request to prune, and none of this run's", async () => {
+  const comments = [{ user: { login: BOT }, body: "<!-- work-resolve-issue outcome=pushback run=400 -->", created_at: "2026-10-16T11:00:00Z" }];
+  const comparison = { ahead_by: 1, behind_by: 0, total_commits: 1, commits: [LANE_TIP] };
+  const { code, calls, output } = await runPrior({ comments, refs: [refOf(lane(400))], comparison });
+  assert.equal(code, 0);
+  assert.equal(output, `proceed=true\nskip-reason=\nreuse-branch=\nprune-branches=${lane(400)}\n`);
+  assert.deepEqual(writesToGitHub(calls), [], "the read job deletes nothing");
+  const own = await runPrior({ comments, refs: [refOf(lane(400))], comparison, env: { GITHUB_RUN_ID: "400" } });
+  assert.equal(own.output, "proceed=true\nskip-reason=\nreuse-branch=\n");
+  const kept = await runPrior({ comments, refs: [refOf(lane(400))], comparison, pulls: [pullBy(BOT, "closed")] });
+  assert.equal(kept.output, "proceed=true\nskip-reason=\nreuse-branch=\n");
 });
 
 // findPriorMain against a fake GitHub API: its only effect is the step

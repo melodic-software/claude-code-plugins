@@ -2476,9 +2476,12 @@ def collect_main_reviews(
 
 # The check run pr-review-main.yml's record job posts per lane on each head it
 # reviewed, titled with its counts, or with the designed stop that left that
-# head without a verdict (a diff the review cannot read whole).
+# head without a verdict (a diff the review cannot read whole, or a chunked
+# review one of whose chunks left no verdict).
 MAIN_REVIEW_CHECK_TITLE = re.compile(r"findings=(\d{1,6}) critical=(\d{1,6})")
-MAIN_REVIEW_STOP_TITLE = re.compile(r"verdict=none reason=(too-large|binary|long-line)")
+MAIN_REVIEW_STOP_TITLE = re.compile(
+    r"verdict=none reason=(too-large|binary|long-line|chunk-failed)"
+)
 
 # One record: (findings, CRITICAL), ("stop", reason), or None when unread.
 MainReviewRecord = tuple[int, int] | tuple[str, str] | None

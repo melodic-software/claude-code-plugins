@@ -1,14 +1,18 @@
-// Checks one main-run review's structured output, the last result message of
-// run-claude-cli's execution file, and writes the verdict file that
+// Checks each chunk's main-run review structured output, the last result
+// message of that chunk's run-claude-cli execution file, and writes the one
+// verdict file that
 // pr-review-main.yml uploads as pr-review-main-<lane>-<pr>-<tree>
 // (babysit_review_evidence.main_review_name). The gate counts only its
-// numbers: `findings`, every finding the model returned, and `critical`, the
-// CRITICAL ones. The pull request, head, base and tree come from the job's
-// own reads, never from the model. A run with any permission denial, output
+// numbers: `findings`, every finding the model returned, summed over the
+// chunks, and `critical`, the CRITICAL ones, the most in any one chunk
+// (`items` lists them all, each chunked one with its `chunk`). The
+// pull request, head, base and tree come from the job's own reads, never from
+// the model. A run with any permission denial, output
 // that is not {findings, summary}, a finding that is not
 // {severity, path, line, title, body}, or model text a credential pattern
 // matches (lib/publish-gate.mjs findSecret) writes nothing and throws, so the
-// job fails and uploads no verdict. Model text is cut to fixed lengths and
+// job fails and uploads no verdict; so does any one chunk that ran no review,
+// left no result or did not read its own parts whole. Model text is cut to fixed lengths and
 // never reaches a shell.
 
 import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -161,42 +165,103 @@ export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId, 
   };
 }
 
+// One verdict over the chunks a diff over one review's size cap was split
+// into, in chunk order: each chunk's output is checked as a whole review's;
+// `findings` is the sum and `critical` the most any one chunk found. `items`
+// lists every chunk's findings, each with its 1-based `chunk`, so it can hold
+// more CRITICAL items than `critical`; the gate reads only the counts.
+// One chunk is the single-pass verdict.
+export function buildChunkedVerdict({ outputs, ...rest }) {
+  if (!Array.isArray(outputs) || outputs.length === 0) {
+    throw new Error("there is no chunk output");
+  }
+  const chunks = outputs.map((output, i) => {
+    try {
+      return buildVerdict({ ...rest, output });
+    } catch (error) {
+      throw new Error(`chunk ${i + 1} of ${outputs.length}: ${error.message}`);
+    }
+  });
+  if (chunks.length === 1) {
+    return chunks[0];
+  }
+  return {
+    ...chunks[0],
+    findings: chunks.reduce((sum, c) => sum + c.findings, 0),
+    critical: Math.max(...chunks.map((c) => c.critical)),
+    summary: chunks.map((c, i) => `Chunk ${i + 1} of ${chunks.length}: ${c.summary}`).join("\n\n"),
+    items: chunks.flatMap((c, i) => c.items.map((item) => ({ ...item, chunk: i + 1 }))),
+  };
+}
+
+// The diff is DIFF_DIR/chunk-<k>/part-<n>.patch; EXECUTION_FILES names each
+// chunk's execution file, one per line in chunk order.
 export function main(env = process.env) {
-  for (const key of ["EXECUTION_FILE", "LANE", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "TREE_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "DIFF_DIR", "GITHUB_OUTPUT"]) {
+  for (const key of ["EXECUTION_FILES", "CHUNKS", "LANE", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "TREE_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "DIFF_DIR", "GITHUB_OUTPUT"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
   }
-  let messages;
-  try {
-    messages = JSON.parse(readFileSync(env.EXECUTION_FILE, "utf8"));
-  } catch {
-    throw new Error("the execution file is unreadable");
+  if (!/^[1-9][0-9]?$/.test(env.CHUNKS)) {
+    throw new Error("the chunk count is malformed");
   }
-  let parts;
+  const count = Number(env.CHUNKS);
+  let dirs;
   try {
-    parts = readdirSync(env.DIFF_DIR)
-      .filter((name) => /^part-\d{3}\.patch$/.test(name))
-      .map((name) => path.join(env.DIFF_DIR, name));
+    dirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-\d+$/.test(name));
   } catch {
-    throw new Error("the diff parts are unreadable");
+    throw new Error("the diff chunks are unreadable");
   }
-  readCoverage(messages, parts);
-  const maxLineBytes = longestLine(parts.map((part) => readFileSync(part, "utf8")));
-  const verdict = buildVerdict({
-    maxLineBytes,
-    output: structuredOutput(messages),
+  const want = Array.from({ length: count }, (_, i) => `chunk-${i + 1}`);
+  if (dirs.length !== count || !want.every((name) => dirs.includes(name))) {
+    throw new Error(`the diff holds ${dirs.length} chunk directories, not the ${count} the diff step wrote`);
+  }
+  const files = env.EXECUTION_FILES.split("\n");
+  const chunks = want.map((name, i) => {
+    const label = `chunk ${i + 1} of ${count}`;
+    let parts;
+    try {
+      parts = readdirSync(path.join(env.DIFF_DIR, name))
+        .filter((part) => /^part-\d{3}\.patch$/.test(part))
+        .map((part) => path.join(env.DIFF_DIR, name, part));
+    } catch {
+      throw new Error(`${label}: the diff parts are unreadable`);
+    }
+    try {
+      if (!files[i]) {
+        throw new Error("no review ran");
+      }
+      let messages;
+      try {
+        messages = JSON.parse(readFileSync(files[i], "utf8"));
+      } catch {
+        throw new Error("the execution file is unreadable");
+      }
+      readCoverage(messages, parts);
+      const texts = parts.map((part) => readFileSync(part, "utf8"));
+      return { texts, output: structuredOutput(messages), bytes: texts.reduce((sum, t) => sum + Buffer.byteLength(t, "utf8"), 0) };
+    } catch (error) {
+      throw new Error(`${label}: ${error.message}`);
+    }
+  });
+  const rest = {
+    maxLineBytes: longestLine(chunks.flatMap((c) => c.texts)),
     lane: env.LANE,
     pr: env.PR_NUMBER,
     headSha: env.HEAD_SHA,
     baseSha: env.BASE_SHA,
     tree: env.TREE_SHA,
     runId: env.GITHUB_RUN_ID,
-  });
+  };
+  const verdict = buildChunkedVerdict({ ...rest, outputs: chunks.map((c) => c.output) });
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
   const name = artifactName(verdict.lane, verdict.pr, verdict.tree);
   appendFileSync(env.GITHUB_OUTPUT, `name=${name}\nfindings=${verdict.findings}\ncritical=${verdict.critical}\n`);
+  chunks.forEach((c, i) => {
+    const one = buildVerdict({ ...rest, output: c.output });
+    console.log(`::notice title=pr-review-main chunk::lane=${verdict.lane} chunk=${i + 1}/${count} bytes=${c.bytes} findings=${one.findings} critical=${one.critical}`);
+  });
   console.log(`write-verdict: ${name} findings=${verdict.findings} critical=${verdict.critical}`);
 }
 

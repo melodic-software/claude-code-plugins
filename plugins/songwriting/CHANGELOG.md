@@ -3,6 +3,18 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.4] - 2026-10-30
+
+### Changed
+
+- Links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+## [1.7.3] - 2026-10-30
+
+### Changed
+
+- The `metaphor` eval cases now split by what the user asks for. `mt-loneliness-labeled-menu` asks for options and expects the labeled menu. The new `mt-loneliness-one-labeled` asks for one metaphor and expects one candidate labeled with its family distance.
+
 ## [1.7.2] - 2026-10-27
 
 ### Security

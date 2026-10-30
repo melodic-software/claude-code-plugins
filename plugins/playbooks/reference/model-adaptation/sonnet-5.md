@@ -184,7 +184,7 @@ Our reads, recorded so a re-read can tell whether a page moved:
 - The guide, raw `.md` fetched 2026-07-29 and re-fetched 2026-08-04, byte-identical (15,864 bytes,
   MD5 `6d23959f0ed226feb06bf20c314029e3`).
 - <https://code.claude.com/docs/en/env-vars>, read end to end 2026-08-10 through the
-  [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route).
+  [`.md` fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route).
 - <https://code.claude.com/docs/en/model-config>, read 2026-08-04 and re-read 2026-10-01 for the
   fallback and thinking sections.
 

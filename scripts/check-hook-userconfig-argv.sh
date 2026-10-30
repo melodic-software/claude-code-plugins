@@ -8,7 +8,7 @@
 # closed not-planned), so an unset-but-defaulted ${user_config.*} argv token
 # silently drops the ENTIRE hook entry instead of substituting. On a default
 # install the hook never fires. The channel decision matrix
-# (docs/conventions/hook-config-delivery/) rules argv out for hooks until
+# (docs/contracts/hook-config-delivery/) rules argv out for hooks until
 # upstream implements `default`; this gate pins that rule.
 #
 # Scope: hook configurations only — the default hooks/hooks.json, any
@@ -193,7 +193,7 @@ if ((errors > 0)); then
     echo "A \${user_config.*} token in a plugin hook config silently drops the"
     echo "whole hook entry whenever the key is unset (declared defaults are not"
     echo "implemented upstream). Deliver the value per the channel decision"
-    echo "matrix instead: docs/conventions/hook-config-delivery/README.md."
+    echo "matrix instead: docs/contracts/hook-config-delivery/README.md."
   } >&2
   exit 1
 fi

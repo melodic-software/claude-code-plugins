@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "---\nscope: data\ndialect: dbml\n---\n\n# Entity relationships\n\n```dbml\nTable book {\n  id int [pk]\n}\n```\n",
+      "why": "the label and a dbml fence"
+    },
+    {
+      "answer": "---\ndialect: dbml\nscope: data\n---\n\nProse first.\n\n```dbml\nTable copy {\n  id int [pk]\n}\n```\n",
+      "why": "label keys in the other order, prose before the fence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no artifact written"
+    },
+    {
+      "answer": "---\nscope: data\ndialect: mermaid\n---\n\n```mermaid\nerDiagram\n  BOOK ||--o{ COPY : has\n```\n",
+      "why": "the mermaid default, convention not applied"
+    },
+    {
+      "answer": "---\nscope: data\ndialect: dbml\n---\n\n```mermaid\nerDiagram\n  BOOK ||--o{ COPY : has\n```\n",
+      "why": "labeled dbml but drawn in mermaid"
+    },
+    {
+      "answer": "---\nscope: system\ndialect: dbml\n---\n\n```dbml\nTable book {\n  id int [pk]\n}\n```\n",
+      "why": "wrong scope: labeled system, not data"
+    },
+    {
+      "answer": "---\ndialect: dbml\n---\n\nscope: data\n\n```dbml\nTable book {\n  id int [pk]\n}\n```\n",
+      "why": "scope: data appears only in the body, not the frontmatter"
+    },
+    {
+      "answer": "---\nscope: data\n---\n\ndialect: dbml\n\n```dbml\nTable book {\n  id int [pk]\n}\n```\n",
+      "why": "dialect: dbml appears only in the body, not the frontmatter"
+    }
+  ]
+}

@@ -112,7 +112,7 @@ Pool: in-context listing only (harness-ops:inventory not enabled). Manual-only s
 visible here, and descriptions for rarely-invoked skills may be missing.
 ```
 
-This conforms to the consuming marketplace's `docs/conventions/liveness-assertion/`, the owner doc
+This conforms to the consuming marketplace's `docs/contracts/liveness-assertion/`, the owner doc
 for whether a status or advisory surface may report success while its findings are invisible: a
 conforming surface **fails loud or routes its findings into a visible channel, never both green and
 silent**. A menu that looks complete while silently missing a quarter of the catalog is that

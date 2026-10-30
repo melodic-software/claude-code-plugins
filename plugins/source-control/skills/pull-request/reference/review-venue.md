@@ -29,6 +29,8 @@ Refuse a `--repo` value holding a character outside `A-Za-z0-9._/-`. It prints o
 - **`<lane> local failing: <detail>`**: that newest run failed, timed out or did not start. A
   usage-limit stop is a failed run, so it lands here.
 - **`<lane> local stale: <detail>`**: no run with a verdict inside the window.
+- **`<lane> local unreadable: <detail>`**: a page of the run listing the lane depends on was still
+  incomplete after three reads, so the script cannot tell whether CI covers the lane.
 
 The `tests` line reads that one commit, not the repository's recent runs. Its lanes are CI's test
 jobs, the GitHub Actions check runs on the head whose name is `test` or starts with `test` followed
@@ -62,7 +64,7 @@ An unread venue never skips a review.
 - **`ci`**, for a review lane: skip the local step. Report it as `skipped, the CI <lane> lane
   covers it: <detail>`.
 - **`local`**, for a review lane: run the local step. Report it as `ran locally in place of the CI <lane> lane
-  (<absent|failing|stale>)`, or `ran locally, no CI <lane> lane` for `absent`.
+  (<absent|failing|stale|unreadable>)`, or `ran locally, no CI <lane> lane` for `absent`.
 - **`tests`**: [ready-for-review.md](ready-for-review.md) §2.5.3 owns the skip, its
   `--verify-local` override and its report line.
 

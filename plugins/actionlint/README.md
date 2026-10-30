@@ -59,7 +59,7 @@ marketplace repository.
 
 ### Hook budget accounting
 
-Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md),
 the plugin registers no `PostToolUse` or `PostToolBatch` row, so an edit or a batch of tool calls
 costs nothing. The Stop row fires on every turn end; with `actionlint_end_of_turn` off (its
 default) the launcher's `--require-true` gate closes before bash starts, so it costs one `node`

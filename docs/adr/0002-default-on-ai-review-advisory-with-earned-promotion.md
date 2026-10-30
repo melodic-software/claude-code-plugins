@@ -11,17 +11,18 @@
 - [Addendum (2026-08-04): operator decision: Branch A ratified, four actors](#addendum-2026-08-04-operator-decision-branch-a-ratified-four-actors)
 - [Addendum (2026-09-07): once per pull request, drafts filtered, reviews queued](#addendum-2026-09-07-once-per-pull-request-drafts-filtered-reviews-queued)
 - [Addendum (2026-09-24): skip-actors list file and evidence guards removed](#addendum-2026-09-24-skip-actors-list-file-and-evidence-guards-removed)
+- [Addendum (2026-10-30): the review lanes gate merges through ci-status](#addendum-2026-10-30-the-review-lanes-gate-merges-through-ci-status)
 - [Revisit triggers](#revisit-triggers)
 
 - Status: accepted. The required-check addenda (2026-07-21 onward) are superseded as of
   2026-10-04: melodic-software/github-iac#614 retired the `security-review-gate` org ruleset and
-  the `requires-security-review` custom property, so `ci-status` is the only required check. The
-  advisory-before-blocking posture and earned promotion still apply.
+  the `requires-security-review` custom property, so `ci-status` is the only required check.
+  Decision 2 (earned promotion) and the advisory posture are superseded by the 2026-10-30
+  addendum: the review lanes gate merges through `ci-status`.
 - Date: 2026-07-20
 - Superseded in part for this repository by ADR 0038 (2026-09-24): the once-per-PR trigger set
   below no longer applies here; both lanes run on every push. The lane wiring and the skip-actor
-  exception, which ADR 0037 (2026-09-19) had retired, are restored by ADR 0038. The
-  advisory-before-blocking posture and earned promotion still apply. The skip-actors list file and
+  exception, which ADR 0037 (2026-09-19) had retired, are restored by ADR 0038. The skip-actors list file and
   the repo-owned evidence guards are removed by the 2026-09-24 addendum below.
   Decision 1's security-lane path filter: superseded by [ADR 0038](0038-restore-the-claude-review-lanes-on-every-push.md#addendum-2026-09-24-the-security-lane-runs-on-every-pull-request).
 
@@ -73,7 +74,7 @@ always-running workflow, never workflow-level `paths` filtering, which would lea
 check **Pending** forever and wedge every prose PR. The required check proves the pass ran; it
 does not gate on the verdict.
 
-Implementation ordering is load-bearing: as of this addendum the caller still uses
+The implementation order must be followed: as of this addendum the caller still uses
 workflow-level `paths` filtering, so the ruleset must NOT mark this check required until the
 caller restructure (always-running workflow, job-level conditional) has landed, flipping the
 requirement first would wedge every prose PR exactly as described above. Sequence: caller
@@ -106,7 +107,7 @@ execution check to required. A caller-side job-level `if:` on the `uses:` job is
 skipped `uses:` job registers a *different* check name, so the child context stays "Expected"
 and wedges prose PRs (community discussion 72708); the gate must live inside the reusable
 workflow. Caller-first against the old pin was also rejected: it would run a full security pass
-on every prose PR in the interim. The load-bearing constraint is unchanged: the ruleset flip
+on every prose PR in the interim. The ordering constraint is unchanged: the ruleset flip
 stays LAST, after this caller restructure is verified
 ([troubleshooting-required-status-checks](https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks)).
 
@@ -358,7 +359,7 @@ it from.
 **The draft filter.** A draft is work in progress and does not spend a review; the
 `ready_for_review` trigger is what delivers one when it is ready. The code-review job's condition is
 `github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false`, and the
-`event_name` clause is load-bearing: a dispatched run has no `github.event.pull_request` at all, so
+`event_name` clause is necessary: a dispatched run has no `github.event.pull_request` at all, so
 a bare draft comparison would never run the review an operator asked for.
 
 **Queued, not cancelled.** The code-review job takes a second, repository-wide concurrency group
@@ -387,7 +388,8 @@ request while one runs is queued until the in-progress review completes
 
 The organization-wide statement of this posture, with its evidence, is in github-iac
 `docs/topics/ci-perf/POSTURE.md` under "Advisory AI review", and the org record that the lanes are
-advisory at all is github-iac ADR 0011.
+advisory at all is github-iac ADR 0011. This repository departs from that posture; see the
+2026-10-30 addendum.
 
 ## Addendum (2026-09-24): skip-actors list file and evidence guards removed
 
@@ -410,17 +412,44 @@ the skip-actor exception is stated, not which actors it covers.
 
 The `skip-actors` revisit trigger below still applies to the inline list while it exists.
 
+## Addendum (2026-10-30): the review lanes gate merges through ci-status
+
+The owner's [2026-10-24 direction](https://github.com/melodic-software/claude-code-plugins/pull/9595#issuecomment-6380383362) makes the review lanes the gate: "the review process should be the gate that
+flags this stuff (central place to flag something as mergeable or not)", "meaning the REVIEW lanes
+(code review + security review) are what determine if a PR requires a human". The [2026-10-25 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6402548080) amends
+this ADR to match what `ci-status` already does.
+
+- **Decision 2 and the advisory posture are superseded.** No ruleset requires a lane's own check;
+  `ci-status`, the one required check, requires the lanes. In
+  `.github/workflows/pr-require-checks.yml`, the `Require both review lanes on this head` step
+  fails a non-draft pull request unless, for each lane, the newest run on the head finished with
+  its status job and its `Apply the hold` step succeeded. A pending, failed, cancelled or skipped
+  review fails, and so does a run the kill switch stopped. Dependabot, the release App and the
+  standards-sync App are exempt by author id. While `merge.diff-check.path-holds` is false, only a
+  Dependabot change to a trust-gate path still fails; the two Apps' trust-gate changes pass. The `Fail a pull request carrying the human-gated label` step fails while a lane's
+  hold label stands, and `Fail a review-lane hold an untrusted account lifted` fails unless a person
+  on the trusted-actor list removed it, with the exceptions that step's comment lists. The first revisit trigger below, which opened a promotion
+  change, is superseded with Decision 2.
+- **The merge-queue trigger fired; its consequence does not apply.** Every commit reaches main
+  through the merge queue (`pr-require-checks.yml`, the `NO PUSH TRIGGER` comment in its `on:`
+  block). The security check is no longer required (github-iac#614 retired the
+  `security-review-gate` ruleset), so the security caller's missing `merge_group` trigger
+  (`.github/workflows/pr-review-security-hosted.yml`) leaves no required check unreported. The
+  review requirement runs on the `pull_request` event only; in the queue, the `Fail a queued pull
+  request carrying a hold label` step reads the hold labels again.
+
 ## Revisit triggers
 
-- The security lane's findings prove precise over a sustained window → open the promotion
-  change (blocking on CRITICAL) citing the evidence.
+- Superseded by the 2026-10-30 addendum: the security lane's findings proving precise no longer
+  opens a promotion change, because both lanes already gate merges through `ci-status`.
 - The general lane's advisory threads measurably gate merges again (#618's class) → tune
   scope before considering demotion.
 - ci-workflows ships a release changing either reusable workflow's contract → re-pin the
   callers through the ordinary Dependabot/SHA-bump path.
-- A merge queue is enabled on the base → the security workflow must add the `merge_group`
-  trigger, or its required check is never reported for queued PRs (a required check that never
-  runs blocks the merge).
+- A merge queue is enabled on the base → fired; resolved by the 2026-10-30 addendum, since no
+  lane check is required. Recheck when a ruleset makes a lane's own check required again: the
+  security workflow would then need the `merge_group` trigger, or that check is never reported
+  for queued pull requests.
 - An actor is added to the caller's `skip-actors` list → the step-3 skip-actor exception
   widens; re-deliberate before landing, and record the rationale beside the addendum above.
   This trigger also fires when a caller STOPS stating the list: an inherited default is an

@@ -79,7 +79,7 @@ if [[ "${1:-}" == "--default-root" ]]; then
     ;;
   MINGW* | MSYS* | CYGWIN*)
     # Resolve the Documents KNOWN FOLDER native-side (it may be OneDrive-redirected), then
-    # convert to POSIX form for Git Bash — fail-loud, per docs/conventions/windows-path-emit/.
+    # convert to POSIX form for Git Bash — fail-loud, per docs/contracts/windows-path-emit/.
     win="$(powershell.exe -NoProfile -Command "[Environment]::GetFolderPath('MyDocuments')" 2>/dev/null | tr -d '\r')"
     [[ -n "$win" ]] || exit 1
     docs="$(cygpath -u "$win" 2>/dev/null)" || exit 1

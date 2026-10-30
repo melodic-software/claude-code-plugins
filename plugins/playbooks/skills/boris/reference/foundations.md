@@ -209,7 +209,7 @@ Keep it only while it stays fast (this marketplace's line is a 1 s median per fi
 > `PostToolBatch` fires and what it receives, see
 > [hooks: PostToolBatch](https://code.claude.com/docs/en/hooks#posttoolbatch); for this
 > marketplace's placement rules, see
-> [check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/check-placement/README.md#formatters).
+> [check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#formatters).
 > As of 2026-10-15; recheck when that hooks section adds a matcher or stops firing once per batch.
 
 ### Stop Hooks for Long-Running Tasks

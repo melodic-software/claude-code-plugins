@@ -474,6 +474,14 @@ lib/setup-apply.mjs plugins/planning/lib/setup-apply.mjs
 lib/setup-apply.mjs plugins/review/lib/setup-apply.mjs
 lib/setup-apply.mjs plugins/session-flow/lib/setup-apply.mjs
 lib/setup-apply.mjs plugins/verification/lib/setup-apply.mjs
+lib/yaml-subset.mjs plugins/discipline/lib/yaml-subset.mjs
+lib/yaml-subset.mjs plugins/discovery/lib/yaml-subset.mjs
+lib/yaml-subset.mjs plugins/docs-hygiene/lib/yaml-subset.mjs
+lib/yaml-subset.mjs plugins/education/lib/yaml-subset.mjs
+lib/yaml-subset.mjs plugins/planning/lib/yaml-subset.mjs
+lib/yaml-subset.mjs plugins/review/lib/yaml-subset.mjs
+lib/yaml-subset.mjs plugins/session-flow/lib/yaml-subset.mjs
+lib/yaml-subset.mjs plugins/verification/lib/yaml-subset.mjs
 lib/resolve-convention-home.sh plugins/discipline/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/discovery/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/docs-hygiene/lib/resolve-convention-home.sh
@@ -497,6 +505,8 @@ lib/plugin-options.mjs plugins/source-control/skills/babysit-loop/scripts/operat
 lib/plugin-options.mjs plugins/corrections/scripts/lib/plugin-options.mjs
 lib/resolve-convention-home.sh plugins/user-interface/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/multi-agent/lib/resolve-convention-home.sh
+lib/resolve-convention-home.sh plugins/docs-naming/lib/resolve-convention-home.sh
+lib/yaml-subset.awk plugins/docs-naming/lib/yaml-subset.awk
 lib/lane-push.sh plugins/source-control/scripts/lane-push.sh
 lib/lane-push.sh plugins/work-items/scripts/lane-push.sh
 lib/git-hooks/install.mjs plugins/typos-format/lib/git-hooks/install.mjs

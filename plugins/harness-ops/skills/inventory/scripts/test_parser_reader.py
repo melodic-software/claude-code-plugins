@@ -756,8 +756,12 @@ class TestFlowQuery(unittest.TestCase):
             ("var A=Array;A.prototype.includes=f;", ["write"]),
             ("(0,Array).prototype.includes=f;", ["write"]),
             ("globalThis.Array.prototype.includes=f;", ["write"]),
-            # A computed read whose key may be `require` may load node:vm.
-            ('Array["proto"+"type"].includes=f;', ["write", "unknown-load"]),
+            # A computed read whose key may be `require` may load node:vm,
+            # and one whose key may be `constructor` reaches `Function`.
+            (
+                'Array["proto"+"type"].includes=f;',
+                ["write", "function-constructor", "unknown-load"],
+            ),
             ('Reflect.get(Array,"prototype").includes=f;', ["write"]),
             (
                 "var e={hasOwnProperty(o){o.includes=f}};e.hasOwnProperty.call(null,[].__proto__);",
@@ -813,11 +817,21 @@ class TestFlowQuery(unittest.TestCase):
                 "typeof eval;x instanceof Function;Function.prototype.toString.call(f);",
                 [],
             ),
-            ("Function.prototype.constructor(s)();", ["function-constructor"]),
+            # The `constructor` read is a sink of its own beside the global `Function`.
+            (
+                "Function.prototype.constructor(s)();",
+                ["function-constructor", "function-constructor"],
+            ),
             # `k` may also spell `require`, as with `Array["proto"+"type"]` above.
-            ("Function.prototype[k](s)();", ["unknown-load", "function-constructor"]),
+            (
+                "Function.prototype[k](s)();",
+                ["function-constructor", "unknown-load", "function-constructor"],
+            ),
             ("var P=Function.prototype;", ["function-constructor"]),
-            ("Function.prototype.valueOf().constructor(s)();", ["function-constructor"]),
+            (
+                "Function.prototype.valueOf().constructor(s)();",
+                ["function-constructor", "function-constructor"],
+            ),
             ("Function.prototype instanceof H;", ["function-constructor"]),
             # #9990: a loop head, `arguments` or a block function declaration
             # can hand a fresh-looking target any object; a destructured
@@ -923,6 +937,62 @@ class TestFlowQuery(unittest.TestCase):
                 self.assertEqual(
                     [(kind, needs) for kind, _, _, needs in found["pending"]], pending
                 )
+
+    def test_a_loader_or_function_reached_without_its_name_is_a_sink(self) -> None:
+        """A fresh object whose prototype is swapped stays clear for its own
+        writes, but a computed read on it may still reach the loader, and a
+        `constructor` read reaches `Function` without that name. A
+        `constructor` read whose value is only tested, compared by identity
+        or named stays clear."""
+        for src, kinds in (
+            # A computed read on the swapped object is an unknown load too.
+            (
+                'var o={};Object.setPrototypeOf(o,module);o[k]("/a.js");',
+                ["function-constructor", "unknown-load"],
+            ),
+            (
+                'var o={};Object.assign(o,globalThis);o[k]("/a.js");',
+                ["function-constructor", "unknown-load"],
+            ),
+            (
+                'var o={};o.__proto__=globalThis;o[k]("/a.js");',
+                ["function-constructor", "unknown-load"],
+            ),
+            ("var o={};Object.setPrototypeOf(o,P);o.includes=f;o.__proto__=Q;", []),
+            ("(()=>1).constructor(s)();", ["function-constructor"]),
+            (
+                "({}).constructor.constructor(s)();",
+                ["function-constructor", "function-constructor"],
+            ),
+            ('f["constructor"](s)();', ["function-constructor"]),
+            # A key the scan cannot know (a parameter, a `for in` key) may
+            # spell `constructor`; such a read is a load it cannot name too.
+            (
+                "function get(o,k){return o[k]}",
+                ["function-constructor", "unknown-load"],
+            ),
+            # A loop counter is a number, which spells neither.
+            ("for(let i=0;i<n;i++)f(a[i]);", []),
+            ("var{constructor:C}=f;C(s)();", ["function-constructor"]),
+            # A method can be called with a function as `this`.
+            ("new this.constructor(s);", ["function-constructor"]),
+            # Coercion calls a `toString` or `valueOf` with it as `this`, and
+            # a write of a key it lacks calls an inherited setter the same way.
+            ('""+(()=>1).constructor;', ["function-constructor"]),
+            ("x.constructor+=s;", ["function-constructor"]),
+            ("(()=>1).constructor.y=s;", ["function-constructor"]),
+            (
+                "x.constructor===Object;x.constructor&&x.constructor.name;"
+                "typeof x.constructor;a instanceof x.constructor;",
+                [],
+            ),
+            # A branch or right operand whose whole value is thrown away.
+            ("r?x.constructor:null;a&&x.constructor;a??x.constructor;", []),
+            ("(r?x.constructor:g)(s)();", ["function-constructor"]),
+            ("var C=a&&x.constructor;", ["function-constructor"]),
+        ):
+            with self.subTest(src=src):
+                self.assertEqual(self._sinks(src), kinds)
 
     def test_a_flow_reports_the_names_it_trusted(self) -> None:
         got = self._flow(

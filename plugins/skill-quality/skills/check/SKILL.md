@@ -377,7 +377,7 @@ and review against the invariant.
   `"false"` fails as the YAML string it is, while a trailing `# comment` naming the exception class
   is fine. The rubric that owns the decision, the
   model-invoked default and the only three exception classes a `true` may claim, is
-  [`docs/conventions/invocation-mode/README.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/invocation-mode/README.md).
+  [`docs/contracts/invocation-mode/README.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/invocation-mode/README.md).
   Class attribution is NOT machine-checkable: only a `setup` skill's `true` is deterministic (class
   (ii), the plugin-philosophy setup contract), so every other `true` emits a note to hand-verify
   rather than a warning no scan could clear.

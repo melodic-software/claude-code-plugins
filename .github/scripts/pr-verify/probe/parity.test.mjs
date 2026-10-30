@@ -129,7 +129,7 @@ for (const job of JOBS) {
       ["Apply the Claude managed settings", "apply-claude-managed-settings"],
     ]) {
       const uses = /^ {8}uses: (.*)$/m.exec(step(job, name))?.[1];
-      assert.match(uses, new RegExp(`^melodic-software/ci-workflows/\\.github/actions/${action}@${RUN_CLAUDE_CLI_PIN} # v`));
+      assert.match(uses, new RegExp(`^melodic-software/ci-workflows/\\.github/actions/${action}@${RUN_CLAUDE_CLI_PIN} # `));
       // No `settings` input: the action's default JSON, which MANAGED_SETTINGS holds.
       if (action === "apply-claude-managed-settings") {
         assert.doesNotMatch(step(job, name), /\n {8}with:/);

@@ -4,6 +4,26 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.24.13] - 2026-10-30
+
+### Changed
+
+- Links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+## [0.24.12] - 2026-10-30
+
+### Added
+
+- The seven delegation cases from `skills/fable-5/evals/evals.json` as `claude plugin eval` cases under `evals/`, so the before and after runs can measure them.
+
+### Changed
+
+- The `fable-5` orchestration chapter's "When to delegate, when to stay inline" section no longer restates the delegate-or-inline verdict that `/multi-agent:assess` and its subagent docs pointer own. It points at assess and keeps only what assess does not decide: the file-overlap and detail-needed-later stay-inline conditions, the fan-out cost weighing, and the isolation and consistency reasons.
+
+### Fixed
+
+- The `fable-5` hub names its chapters under `${CLAUDE_SKILL_DIR}/context/`. A bare `context/` was resolved against the plugin root, so the chapter read was denied and the chapter never loaded.
+
 ## [0.24.11] - 2026-10-29
 
 ### Fixed

@@ -132,7 +132,7 @@ session-start drift line then stays silent until `verify` runs by hand, and `--u
 Add `--global` (with or without `--undo`) to decline the entry in every clone;
 `git config --global checks.git-hooks.declined true` declines every entry of every plugin, and an
 entry's own key set to `false` in a clone opts that entry back in. The [adoption
-path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/check-placement/adopting-git-hooks.md) explains to the user each scope and why a formatter's cleanup PR comes first.
+path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md) explains to the user each scope and why a formatter's cleanup PR comes first.
 
 ## `apply` (idempotent)
 
@@ -154,7 +154,7 @@ re-verifying. For everything else `apply` only points:
 - toggle off: the marketplace's plugin-reconfiguration convention owns the routes, the caveats,
   the measured CLI behavior (including that a rerun against an already-installed plugin still
   writes the value) and its verification record
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>).
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>).
   Two consumer-run routes: interactive `/plugin configure go-format@<marketplace>`, or headless
   `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=false`
   (`go_format_lint_gitignored` is set the same way). Print these four caveats with it:

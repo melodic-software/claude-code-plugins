@@ -121,7 +121,7 @@ resolve; it is read-only and installs nothing.
 
 ### Hook budget accounting
 
-Per [`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md),
+Per [`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md),
 the `PostToolBatch` row is always-on: the event has no matcher, so it fires on every batch of every
 session. Its launcher flag `--skip-unless-stdin-contains 'sh"'` closes before bash starts when the
 payload holds no string ending in `sh`. Measured on WSL2 Ubuntu (bash 5.3.9, shfmt v3.14.1,

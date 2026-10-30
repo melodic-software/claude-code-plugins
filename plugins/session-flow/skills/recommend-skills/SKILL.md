@@ -75,7 +75,7 @@ a thin catalog without breaking rule 1.
 
 **Disclose a degraded pool.** When the pool came from rung 3, or enrichment was unavailable, say so
 in the output. Presenting a truncated pool as complete is the green-with-hidden-findings failure
-`docs/conventions/liveness-assertion/` (in the consuming marketplace) forbids.
+`docs/contracts/liveness-assertion/` (in the consuming marketplace) forbids.
 
 ## Read the trajectory
 

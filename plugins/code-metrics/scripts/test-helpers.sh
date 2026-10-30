@@ -14,7 +14,7 @@
 # failure sets DOC_EXCERPT_BYTES before sourcing.
 #
 # Duplicated per plugin by design, not drift; see
-# docs/conventions/shell-test-helpers/README.md at the repo root.
+# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 PY=python3
 command -v python3 >/dev/null 2>&1 || PY=python

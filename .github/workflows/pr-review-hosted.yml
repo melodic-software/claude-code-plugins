@@ -110,7 +110,7 @@ jobs:
             exit 1
           fi
 
-  # The pinned reusable reads no kill switch, so this caller does. The org
+  # The reusable reads no kill switch, so this caller does. The org
   # and repository switches fail closed (check-kill-switch); the lane's own
   # CLAUDE_REVIEW_DISABLED stops it only at `true`, as github-iac's README
   # documents for the review-lane switches. A failed job leaves proceed empty,
@@ -122,7 +122,7 @@ jobs:
     permissions:
       contents: read # check out the default branch for the kill-switch action
     outputs:
-      proceed: ${{ steps.kill.outputs.proceed == 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true' && 'true' || 'false' }}
+      proceed: ${{ steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true' && vars.CLAUDE_REVIEW_DISABLED != 'true' && 'true' || 'false' }}
     steps:
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -132,6 +132,8 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/actions/check-kill-switch/
+            /.github/actions/check-upstream-status/
+            /.github/scripts/maintenance-reconcile-lost-runs/component-status.mjs
             /.github/actions/setup-pinned-node/
             /.node-version
           sparse-checkout-cone-mode: false
@@ -147,6 +149,15 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
+
+      # Skips the run while Actions or npm installs report a degraded component,
+      # with a logged reason; fails open (.github/actions/check-upstream-status).
+      - name: Check upstream status
+        id: upstream
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
 
       - name: Report the kill switch
         if: steps.kill.outputs.proceed != 'true' || vars.CLAUDE_REVIEW_DISABLED == 'true'
@@ -172,7 +183,7 @@ jobs:
       contents: read
       pull-requests: write   # the review, its inline comments and the lane's
                              # reviewed-head marker comment
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@20a822d73b6e2d7e21d48e609a01b427e0e161e7 # v0.66.1
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main
     with:
       lane: code
       publish: comments
@@ -275,6 +286,7 @@ jobs:
         .github/scripts/pr-unblock/verify-notes.mjs
         .github/scripts/pr-unblock/limit-stop.mjs
         .github/scripts/pr-unblock/dispatch-record.mjs
+        .github/scripts/pr-unblock/verify-cap.mjs
         .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs
         .github/scripts/work-resolve-issue/stop-routes.json
         .github/scripts/work-resolve-issue/stop-routes.mjs

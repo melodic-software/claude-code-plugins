@@ -2,7 +2,7 @@
 # Self-contained tests for lib/resolve-convention-home.sh (no external test lib — ships with the plugin).
 #
 # Per-plugin assertion helpers are deliberately duplicated, not shared:
-# docs/conventions/shell-test-helpers/README.md.
+# docs/contracts/shell-test-helpers/README.md.
 #
 # shellcheck disable=SC2016 # single-quoted backticks are the grammar under test
 set -uo pipefail

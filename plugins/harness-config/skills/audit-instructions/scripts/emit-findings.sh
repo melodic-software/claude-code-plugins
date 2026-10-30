@@ -38,7 +38,7 @@
 # without one.
 #
 # The per-rule Tier/Action cells MIRROR the severity crosswalk in
-# docs/conventions/detector-findings/README.md ("The severity crosswalk"); that
+# docs/contracts/detector-findings/README.md ("The severity crosswalk"); that
 # table is the source of truth — a tier change lands there first and is copied
 # here, never the reverse.
 #

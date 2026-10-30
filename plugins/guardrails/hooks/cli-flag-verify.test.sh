@@ -366,7 +366,7 @@ RC=$?
 assert_exit "empty stdin → exit 0" 0 "$RC"
 assert_silent "empty stdin → no output" "$OUT"
 
-# Bundled verifier missing (docs/conventions/hook-observability/): a fake
+# Bundled verifier missing (docs/contracts/hook-observability/): a fake
 # CLAUDE_PLUGIN_ROOT with no lib/verification/verify-cli-flag.sh reproduces
 # install corruption. CLAUDE_PLUGIN_DATA isolated to a fresh dir per case
 # (hook::notice_once persists a marker there; an unisolated real machine path

@@ -86,7 +86,6 @@ run(${JSON.stringify({
       plugin: "fixture",
       schema: `${dir}/fixture.schema.json`,
       reader: `${lib}/parse-concern-value.sh`,
-      parser: `${lib}/yaml-subset.awk`,
       ref,
     })});
 `);
@@ -373,7 +372,7 @@ check_warn "a quoted boolean in an object" $'session:\n  uploads: "true"\n' 'ses
 check_warn "an enum leaf outside its list" $'session:\n  names: someone\n' 'session.names=someone is not one of full, initials'
 check_warn "an unknown key in an object" $'session:\n  extra: 1\n' 'session.extra is not in the schema'
 refused "a nested key set twice" $'mode: fast\nsession:\n  uploads: true\n  uploads: false\n' mode=slow
-assert_contains "a nested key set twice: names the parse error" "$OUT" "line 4: duplicate key \`session.uploads\` (first at line 3)"
+assert_contains "a nested key set twice: names the parse error" "$OUT" 'line 4: duplicate key "uploads"'
 check_warn "a scalar on an object key" $'session: on\n' 'session=on is not a map'
 check_warn "a list on an object key" $'session:\n  - uploads\n' 'session holds a list'
 check_warn "an unknown key at the outer level of a two-level object" $'sizes:\n  huge:\n    label: x\n' 'sizes.huge is not in the schema'

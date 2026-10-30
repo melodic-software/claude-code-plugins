@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Self-contained tests for python-references.sh, the Python manifest reader
 # map-dependencies uses (assertion primitives are duplicated on purpose, per
-# docs/conventions/shell-test-helpers/README.md).
+# docs/contracts/shell-test-helpers/README.md).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

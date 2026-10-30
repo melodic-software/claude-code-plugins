@@ -111,7 +111,7 @@ flows. Neither emits mermaid C4.
 `landscape_dialect` keeps its mermaid default: it predates this decision, and the convention gives
 a landscape no key. The mermaid-C4 experimental fact and its recheck trigger live in the
 authoring-formats convention
-([Why mermaid is not offered for the system key](../../../docs/conventions/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key)).
+([Why mermaid is not offered for the system key](../../../docs/contracts/authoring-formats/README.md#why-mermaid-is-not-offered-for-the-system-key)).
 This document does not carry a second stamp. That trigger fires when the experimental banner
 drops or when mermaid documents a dedicated landscape type. On firing, re-derive whether this
 key's mermaid default should change and whether `/architecture:map-landscape`'s mermaid output
@@ -134,8 +134,10 @@ the session is working in.
 
 ## What writes this surface
 
-Only `/architecture:setup apply`, and only two artifacts: the marked `convention-home` pointer
-region in the root instruction file, and `<home>/architecture/README.md`. Every `map-*` skill
+`/architecture:setup apply` writes two artifacts: the marked `convention-home` pointer region in
+the root instruction file, and `<home>/architecture/README.md`. `/architecture:improve conventions`
+writes one section of that topic doc, `## Boundary rules`, one entry per rule the user accepts, and
+no key. Every `map-*` skill
 reads this surface and never writes it. `map-data` also reads `<home>/authoring-formats/README.md`
 for `diagram_dialect.data`, and `map-components`, `map-context`, `map-containers`, and
 `map-deployment` read it for `diagram_dialect.system`; none of them writes that file. None of
