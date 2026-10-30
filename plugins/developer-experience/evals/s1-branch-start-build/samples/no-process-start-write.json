@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {"answer": [], "why": "no Write call"},
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "content": "var fetch = ProcessRunner.Run(\"git\", \"fetch\", \"origin\", \"main\");\n"}}],
+      "why": "the new command uses the shared helper"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "/tmp/run-1/work/src/Tarnquill.Cli/Infrastructure/ProcessRunner.cs", "content": "var startInfo = new ProcessStartInfo(file);\nusing var process = Process.Start(startInfo);\n"}}],
+      "why": "rewrites the helper itself, the one file allowed to start a process"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "content": "using var p = Process.Start(\"git\", \"push -u origin \" + branch);\n"}}],
+      "why": "starts git directly in the new command"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "src/Tarnquill.Cli/Infrastructure/GitRunner.cs", "content": "var psi = new ProcessStartInfo(\"git\");\n"}}],
+      "why": "near miss: a second process helper beside ProcessRunner.cs"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "src/Tarnquill.Cli/Infrastructure/ProcessRunnerExtensions.cs", "content": "var psi = new ProcessStartInfo(file) { RedirectStandardInput = true };\n"}}],
+      "why": "near miss: a file whose name only starts like the helper's"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "src/Tarnquill.Core/ProcessRunner.cs", "content": "namespace Tarnquill.Core;\n\npublic static class ProcessRunner\n{\n\tpublic static void Run(string f) {\n\t\tvar psi = new ProcessStartInfo(f);\n\t}\n}\n"}}],
+      "why": "near miss: a second helper of the same name outside Infrastructure/"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "content": "using static System.Diagnostics.Process;\n\nclass X { int Run() {\nProcess.Start(\"git\", \"push\");\n\tProcessStartInfo s = null;\nreturn 0; } }\n"}}],
+      "why": "near miss: process code at column 0 and after a tab"
+    }
+  ]
+}
