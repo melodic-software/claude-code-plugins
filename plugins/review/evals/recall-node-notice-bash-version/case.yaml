@@ -1,0 +1,16 @@
+# Recall case: a bug that merged past the review lanes, rebuilt offline.
+# pr: melodic-software/claude-code-plugins#5997 (merged as bb6da9540105a9f04736312ccada742094d4179b)
+# base: b3691e5e67d2dbbf25af68b92d41fdc331213870
+# bug: plugins/eol-normalizer/hooks/hooks.json:9 at bb6da9540105 (same line in the scaffold).
+#   The POSIX half ends with ${BASH_VERSION:+exit}; hooks run under /bin/sh,
+#   which is dash on Debian and Ubuntu and sets no BASH_VERSION, so the row
+#   falls through to powershell and fails with "powershell: not found".
+# source: fix-forward #6131 (b4ea81d1f9073a4d436a323a839daba2b6191863), which
+#   changes this line to ${PPID:+exit}
+# confirmed-by: verifier-agent (owner spot-check pending)
+# rebuilt: this one hooks.json at base and merge; the other 24 hooks.json files
+#   with the same line, and the PR's other files, are left out.
+schema_version: "1.1"
+name: recall-node-notice-bash-version
+context:
+  scaffold_script: scaffold.sh

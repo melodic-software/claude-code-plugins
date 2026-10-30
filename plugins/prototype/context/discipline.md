@@ -41,6 +41,12 @@ That persistence is opted into knowingly at the offer site, not a rule violation
 stays clean either way (nothing tracked references the canvas, and the durable answer is still
 captured in markdown before the prototype is closed out).
 
+A second exception to rules 3 and 6, scoped to `/prototype:explore-directions`'s review mode: the
+variants and the reviewers' answers live in `/planning:interview`'s shared session, and stay in its
+untracked data dir after the session ends. The user opts in knowingly when saying yes to review
+mode, nothing tracked references the session, its data dir or its link, and the durable answer is
+still captured in markdown before the prototype is closed out.
+
 ## When done
 
 Capture what the prototype taught somewhere durable: wherever your project keeps design

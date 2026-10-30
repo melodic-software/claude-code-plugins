@@ -77,7 +77,7 @@ if [[ -z "$REMOTE" ]]; then
   if [[ ${#REMOTES[@]} -eq 0 ]]; then
     echo "error: cannot resolve a remote for branch '${BRANCH}': no branch.${BRANCH}.remote is set and no remotes are configured." >&2
     exit 1
-  elif printf '%s\n' "${REMOTES[@]}" | grep -qx origin; then
+  elif grep -qx origin < <(printf '%s\n' "${REMOTES[@]}"); then
     REMOTE=origin
   elif [[ ${#REMOTES[@]} -eq 1 ]]; then
     REMOTE="${REMOTES[0]}"

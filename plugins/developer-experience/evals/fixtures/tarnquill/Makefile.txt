@@ -1,0 +1,10 @@
+.PHONY: build check tq
+
+build:
+	bash scripts/build.sh
+
+check:
+	dotnet run --project tests/Tarnquill.Core.Checks
+
+tq:
+	dotnet run --project src/Tarnquill.Cli -- $(ARGS)

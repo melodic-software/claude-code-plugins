@@ -16,7 +16,7 @@ import { SIGNED_COMMITS_HOLD } from "../pr-unblock/gate-source.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const BOT = { login: "melodic-automation-lanes[bot]", type: "Bot" };
-const OWNER = { login: "kyle-sexton", type: "User" };
+const OWNER = { login: "kyle-sexton", id: 153232337, type: "User" };
 const CLAUDE_BOT = { login: "claude[bot]", type: "Bot" };
 const CODEX_BOT = { login: "chatgpt-codex-connector[bot]", type: "Bot" };
 const ACTIONS_BOT = { login: "github-actions[bot]", type: "Bot" };
@@ -40,7 +40,9 @@ const REQUIRED_SUITES = [500, 501];
 const check = (name, conclusion, { id = 1, slug = "github-actions", suite = 500 } = {}) => ({ id, name, status: "completed", conclusion, app: { slug }, check_suite: { id: suite } });
 const RED = [check("test-node", "failure")];
 // `evidence` is what the gate's reader (enable-auto-merge pythonVerify) answers.
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader }) {
+// `reviewThreads` is the GraphQL reviewThreads page answered for a cursor.
+const threadPage = (nodes, hasNextPage = false) => ({ nodes, pageInfo: { hasNextPage, endCursor: hasNextPage ? "next" : null } });
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader }) {
   const calls = [];
   const checks = async (method, path) => {
     calls.push({ method, path, token: "checks" });
@@ -88,12 +90,16 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       const page = Number(/page=(\d+)$/.exec(path)[1]);
       return (kindOf === "comments" ? reviewComments : reviews).slice((page - 1) * 100, page * 100);
     }
+    if (method === "POST" && path === "/graphql") {
+      assert.deepEqual({ ...body.variables, after: undefined }, { owner: "melodic-software", name: "claude-code-plugins", number: 7, after: undefined });
+      return { data: { repository: { pullRequest: { reviewThreads: reviewThreads(body.variables.after) } } } };
+    }
     if (method === "POST" || method === "DELETE") {
       return null;
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
-  return { github, checks, verify, reader, reads, calls, writes: () => calls.filter((call) => call.method !== "GET") };
+  return { github, checks, verify, reader, reads, calls, writes: () => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql") };
 }
 
 const run = async (w, env = {}) => {
@@ -261,7 +267,8 @@ test("a reason a person decides is never cleared", async () => {
 // stopped on and on a new one alike: a lane posts a pr-unblock/* status on a
 // head only when it stops there or clears its own failure, so a new head
 // carries nothing that proves the cause gone or fails it in the label's place.
-// unresolved-conflict and workflow-staged keep their own repository-state check.
+// unresolved-conflict, workflow-staged and feedback-not-landed keep their own
+// check.
 test("a label for a reason now routed to a failing status: fix-ci comes off on a red head, others stay after the head moves", async () => {
   for (const reason of ["ci-fix-escalated", "ci-fix-round-cap"]) {
     const atHead = commented(BOT, escalationBody(reason).replaceAll(KEY, HEAD), "2026-10-18T10:00:05Z");
@@ -270,9 +277,15 @@ test("a label for a reason now routed to a failing status: fix-ci comes off on a
     assert.equal(w.writes().at(-1)?.method, "DELETE", reason);
     assert.match(w.writes()[0].body.body, new RegExp(`\`${reason}\``));
   }
-  const others = Object.keys(ROUTES).filter((reason) => escalationRoute(reason) === "fail" && escalationActivity(reason) !== "fix-ci" && !["unresolved-conflict", "workflow-staged"].includes(reason));
-  assert.ok(others.includes("feedback-not-landed") && others.includes("unexpected-path-staged"));
-  assert.ok(!others.some((reason) => escalationActivity(reason) === "review-dependency"), "every review-dependency stop holds for a person");
+  const others = Object.keys(ROUTES).filter(
+    (reason) => escalationRoute(reason) === "fail" && escalationActivity(reason) !== "fix-ci" && !["unresolved-conflict", "workflow-staged", "feedback-not-landed"].includes(reason),
+  );
+  assert.ok(others.includes("feedback-untaken-threads") && others.includes("unexpected-path-staged"));
+  assert.deepEqual(
+    others.filter((reason) => escalationActivity(reason) === "review-dependency"),
+    ["dependency-invalid"],
+    "every review-dependency stop but dependency-invalid holds for a person",
+  );
   for (const reason of others) {
     const atHead = commented(BOT, escalationBody(reason).replaceAll(KEY, HEAD), "2026-10-18T10:00:05Z");
     const same = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), atHead], headChecks: RED });
@@ -282,6 +295,62 @@ test("a label for a reason now routed to a failing status: fix-ci comes off on a
     const { logs } = await run(moved);
     assert.deepEqual(moved.writes(), [], `${reason} after the head moved`);
     assert.ok(logs.some((line) => line.includes("one a person decides")), reason);
+  }
+});
+
+// Per the owner decision of 2026-10-25, feedback-not-landed needs no person
+// once the head moved off its resume key and no review thread the lane
+// replied to is left unresolved, and, per the owner's later direction on the
+// security finding, a trusted push moved it or both review lanes read the new
+// head clean: a lanes App push alone never clears it (tests below the trusted
+// move). GraphQL names the lanes App bot without the `[bot]` REST adds.
+const LANE_AUTHOR = { __typename: "Bot", login: "melodic-automation-lanes" };
+const PERSON_AUTHOR = { __typename: "User", login: "kyle-sexton" };
+const reviewThread = (isResolved, authors, totalCount = authors.length) => ({ isResolved, comments: { totalCount, nodes: authors.map((author) => ({ author })) } });
+const notLanded = (head = KEY) => commented(BOT, escalationBody("feedback-not-landed").replaceAll(KEY, head), "2026-10-18T10:00:05Z");
+
+test("feedback-not-landed stays on the head the lane's fix did not reach", async () => {
+  // Any feedback-not-landed key on the head keeps it, beside one that moved.
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded(), notLanded(HEAD)] });
+  const { logs } = await run(w);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.some((line) => line.includes("feedback-not-landed still holds") && line.includes("did not reach")), logs.join("\n"));
+  assert.ok(!w.calls.some((call) => call.path === "/graphql"));
+});
+
+test("feedback-not-landed stays while a review thread the lane replied to is unresolved", async () => {
+  const w = world({
+    timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded()],
+    reviewThreads: (after) => (after === null ? threadPage([reviewThread(true, [LANE_AUTHOR])], true) : threadPage([reviewThread(false, [PERSON_AUTHOR, LANE_AUTHOR])])),
+  });
+  const { logs } = await run(w);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.some((line) => line.includes("1 unresolved review thread(s) carry a lanes App comment")), logs.join("\n"));
+});
+
+test("feedback-not-landed stays when its review thread listing may be cut short", async () => {
+  for (const [label, reviewThreads] of [
+    ["more pages than are read", () => threadPage([], true)],
+    ["an open thread with more comments than listed", () => threadPage([reviewThread(false, [PERSON_AUTHOR], 101)])],
+    ["a thread whose state did not read", () => threadPage([reviewThread(null, [PERSON_AUTHOR])])],
+    ["no thread connection", () => null],
+  ]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded()], reviewThreads });
+    const { logs } = await run(w);
+    assert.deepEqual(w.writes(), [], label);
+    assert.ok(logs.some((line) => line.includes("may be cut short")), label);
+  }
+});
+
+test("feedback-not-landed stays when a person spoke after the label, on the timeline or in a review thread", async () => {
+  for (const [label, extra] of [
+    ["timeline comment", { timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded(), commented(OWNER, "Leave this for me.", "2026-10-18T12:00:00Z")] }],
+    ["thread reply", { timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded()], reviewComments: [BOT_THREAD, reply(OWNER, "2026-10-18T12:00:00Z")] }],
+  ]) {
+    const w = world(extra);
+    const { logs } = await run(w);
+    assert.deepEqual(w.writes(), [], label);
+    assert.ok(logs.includes("clear-escalations: #7 kept: kyle-sexton commented or reviewed after needs-human went on"), label);
   }
 });
 
@@ -332,6 +401,18 @@ test("report-escalation.sh's lane-stopped comment since the label is the lane's 
   });
   await run(w);
   assert.equal(w.writes().at(-1)?.method, "DELETE");
+});
+
+// publish-feedback.mjs posts the round record and the model-run line after
+// each address-feedback round on an escalated PR (gate-source.mjs knows both).
+test("address-feedback's round record since the label is pr-unblock's own, not another marker", async () => {
+  const round = commented(BOT, "<!-- pr-unblock:address-feedback-round -->\n<!-- pr-unblock:address-feedback-model-run 5000-1 -->\nRound 1.", "2026-10-18T10:30:00Z");
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), round] });
+  await run(w);
+  assert.equal(w.writes().at(-1)?.method, "DELETE");
+  const odd = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), commented(BOT, "<!-- pr-unblock:address-feedback-model-run -->", "2026-10-18T10:30:00Z")] });
+  await run(odd);
+  assert.deepEqual(odd.writes(), [], "a model-run line with no run id");
 });
 
 test("a conflict reason clears only once GitHub reports the PR mergeable", async () => {
@@ -610,8 +691,32 @@ test("a review-lane hold a person approved by unlabeling no longer keeps a later
       escalated(),
     ],
   });
-  await run(w);
+  await run(w, { TRUSTED_ACTORS_PATH: TRUSTED });
   assert.equal(w.writes().at(-1)?.method, "DELETE");
+});
+
+// ci-status (pr-require-checks.yml, "Fail a review-lane hold an untrusted
+// account lifted") accepts a lift only from a `human` of trusted-actors.json,
+// and counts a review lane's own `labeled` event as a hold.
+test("a review-lane hold an account off the trusted list unlabeled, or that the list does not read, keeps a later escalation", async () => {
+  const timeline = [laneHold(ACTIONS_BOT, "2026-10-18T08:00:00Z"), unlabeled(STRANGER, "2026-10-18T09:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()];
+  const w = world({ timeline });
+  const { logs } = await run(w, { TRUSTED_ACTORS_PATH: TRUSTED });
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.some((line) => line.includes("a review lane holds it: <!-- claude-lane-hold")), logs.join("\n"));
+  const unread = world({ timeline: timeline.map((item) => (item.event === "unlabeled" ? unlabeled(OWNER, item.created_at) : item)) });
+  await run(unread, { TRUSTED_ACTORS_PATH: "/nonexistent/trusted-actors.json" });
+  assert.deepEqual(unread.writes(), [], "no trusted list");
+});
+
+test("a review lane's labeled event is a hold until a trusted person unlabels it", async () => {
+  const held = world({ timeline: [labeled(ACTIONS_BOT, "2026-10-18T08:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()] });
+  const { logs } = await run(held, { TRUSTED_ACTORS_PATH: TRUSTED });
+  assert.deepEqual(held.writes(), []);
+  assert.ok(logs.some((line) => line.includes("a review lane holds it: needs-human added by github-actions[bot]")), logs.join("\n"));
+  const lifted = world({ timeline: [labeled(ACTIONS_BOT, "2026-10-18T08:00:00Z"), unlabeled(OWNER, "2026-10-18T09:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()] });
+  await run(lifted, { TRUSTED_ACTORS_PATH: TRUSTED });
+  assert.equal(lifted.writes().at(-1)?.method, "DELETE");
 });
 
 test("a review-lane hold edited after the unlabel keeps it", async () => {
@@ -668,7 +773,7 @@ test("an unmarked bot comment, or the marker from another account, does not keep
 test("check-signed-commits' hold a person lifted by unlabeling no longer keeps a later escalation", async () => {
   const lifted = [signedHold(ACTIONS_BOT, "2026-10-18T08:00:00Z"), unlabeled(OWNER, "2026-10-18T09:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()];
   const w = world({ timeline: lifted });
-  await run(w);
+  await run(w, { TRUSTED_ACTORS_PATH: TRUSTED });
   assert.equal(w.writes().at(-1)?.method, "DELETE");
   const edited = world({ timeline: [signedHold(ACTIONS_BOT, "2026-10-18T08:00:00Z", "2026-10-18T09:30:00Z"), ...lifted.slice(1)] });
   await run(edited);
@@ -709,6 +814,39 @@ test("enable-auto-merge's label at the current head comes off once the gate's re
   assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=refusal-cleared head=${HEAD} -->`);
   assert.match(comment.body.body, new RegExp(`\`${HEAD}\``));
   assert.deepEqual(removal, DELETE);
+});
+
+// The person refusal written out by hand, its reason lines as given: one line
+// per reason before reasons wrapped, or a reason wrapped at 100 columns with
+// two-space continuations. LONG_UNBOUND's ";" is its 99th column (the risk
+// prefix is 44, then 17 + 37 + 1), so the wrap cuts right after "; " and the
+// lane code after it is on the next line.
+const handRefusal = (reasonLines, head = HEAD) =>
+  [
+    "<!-- work-items:escalation lane=pr-merge kind=escalated -->",
+    "<!-- babysit-merge-risk -->",
+    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${head}\`. A person must clear this reason, so the pr-merge lane added the \`needs-human\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`,
+    "",
+    "```text",
+    ...reasonLines,
+    "```",
+  ].join("\n");
+const LONG_UNBOUND = `pr-merge's gate holds it on its risk score (evidence-unbound:${"a".repeat(37)}; files-incomplete)`;
+const LONG_SECURITY = `pr-merge's gate holds it on its risk score (evidence-unbound:${"a".repeat(37)}; security-finding: 1 open CRITICAL finding)`;
+const wrapAfterSemicolon = (reason) => [reason.slice(0, 99), `  ${reason.slice(100)}`];
+
+test("enable-auto-merge's long refusal comes off in the old one-line format and the wrapped one", async () => {
+  for (const body of [handRefusal([LONG_UNBOUND]), handRefusal(wrapAfterSemicolon(LONG_UNBOUND))]) {
+    const w = world({ timeline: mergeEscalated(body), author: BOT, evidence: clean });
+    const { logs } = await run(w, NATIVE);
+    assert.deepEqual(w.writes().at(-1), DELETE, `${body}\n${logs.join("\n")}`);
+  }
+  // A person's code on the wrapped line still keeps the label.
+  for (const body of [handRefusal([LONG_SECURITY]), handRefusal(wrapAfterSemicolon(LONG_SECURITY))]) {
+    const w = world({ timeline: mergeEscalated(body), author: BOT, evidence: clean });
+    await run(w, NATIVE);
+    assert.deepEqual(w.writes(), [], body);
+  }
 });
 
 test("enable-auto-merge's label comes off when the reader now reads a refusal the lanes clear for the same cause", async () => {
@@ -1045,6 +1183,123 @@ test("a lanes App push is not a trusted move: the App never lifts its own stop w
   }
 });
 
+// feedback-not-landed after a push no trusted person made: the review lanes'
+// runs, status jobs and completion records at the head, read with the job
+// token (`scopes` names each lane's record scope; a lane left out has no run),
+// and the security lane's reviewed-head marker carrying its summary.
+const REVIEW_FILES = { "claude-review": ["pr-review-hosted.yml", "pr-review / claude-review-status"], "claude-security-review": ["pr-review-security-hosted.yml", "pr-review-security / security-review"] };
+function laneReader({ pushes = [pushedBy(APP_ACTOR)], scopes = { "claude-review": "incremental since=" + KEY, "claude-security-review": "whole" }, runStatus = "completed" } = {}) {
+  const fallback = readerFor({ pushes });
+  return async (method, path) => {
+    for (const [index, [lane, [file, job]]] of Object.entries(REVIEW_FILES).entries()) {
+      const runId = 800 + index;
+      const jobId = 900 + index;
+      if (path === `/repos/${REPO}/actions/workflows/${file}/runs?head_sha=${HEAD}&event=pull_request&per_page=100`) {
+        const runs = lane in scopes ? [{ id: runId, path: `.github/workflows/${file}`, head_sha: HEAD, event: "pull_request", head_repository: { full_name: REPO }, status: runStatus, conclusion: runStatus === "completed" ? "success" : null }] : [];
+        return { workflow_runs: runs };
+      }
+      if (path === `/repos/${REPO}/actions/runs/${runId}/jobs?filter=latest&per_page=100`) {
+        return { jobs: [{ id: jobId, name: job, status: "completed", conclusion: "success" }] };
+      }
+      if (path === `/repos/${REPO}/check-runs/${jobId}/annotations?per_page=100`) {
+        return [{ title: "claude-lane-review-complete", annotation_level: "notice", message: `claude-lane-review-complete lane=${lane} sha=${HEAD} findings=1 inline=1 scope=${scopes[lane]}` }];
+      }
+    }
+    return fallback(method, path);
+  };
+}
+const securitySummary = (critical = 0, head = HEAD) =>
+  commented(ACTIONS_BOT, `<!-- claude-lane-reviewed-head lane=claude-security-review sha=${head} -->\nSummary.\n\ncritical-findings: ${critical}\n\nclaude-lane: claude-security-review`, "2026-10-18T11:30:00Z");
+const notLandedTimeline = (summary = securitySummary()) => [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded(), summary];
+const REVIEWER_AUTHOR = { __typename: "Bot", login: "github-actions" };
+const severityThread = (severity) => ({ ...reviewThread(false, [REVIEWER_AUTHOR]), opening: { nodes: [{ body: `Finding.\n\n${severity}\n\nclaude-lane: claude-security-review` }] } });
+const WAITING = `a push no trusted person made moved the head; waiting for clean review lanes at ${HEAD}`;
+
+test("feedback-not-landed comes off after a lanes App push once both review lanes read the new head clean", async () => {
+  const w = world({ timeline: notLandedTimeline(), reader: laneReader(), reviewThreads: () => threadPage([reviewThread(true, [LANE_AUTHOR]), severityThread("severity: SUGGESTION")]) });
+  const { code } = await run(w, TRUST_ENV);
+  assert.equal(code, 0);
+  const [comment, removal] = w.writes();
+  assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=feedback-not-landed head=${HEAD} -->`);
+  assert.match(comment.body.body, /both review lanes completed a review of it/);
+  assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("feedback-not-landed stays after a lanes App push while the review lanes have not reviewed the new head", async () => {
+  for (const [label, reader, timeline] of [
+    ["no lane run", laneReader({ scopes: {} }), notLandedTimeline()],
+    ["only one lane ran", laneReader({ scopes: { "claude-security-review": "whole" } }), notLandedTimeline()],
+    ["runs still in progress", laneReader({ runStatus: "in_progress" }), notLandedTimeline()],
+    ["an incremental security review", laneReader({ scopes: { "claude-review": "whole", "claude-security-review": `incremental since=${KEY}` } }), notLandedTimeline()],
+    ["no security summary", laneReader(), notLandedTimeline(commented(ACTIONS_BOT, "CI summary.", "2026-10-18T11:30:00Z"))],
+    ["a summary of an earlier head", laneReader(), notLandedTimeline(securitySummary(0, KEY))],
+    ["no job token", undefined, notLandedTimeline()],
+  ]) {
+    const w = world({ timeline, reader });
+    const { logs } = await run(w, reader === undefined ? { TRUSTED_ACTORS_PATH: TRUSTED } : TRUST_ENV);
+    assert.deepEqual(w.writes(), [], label);
+    assert.ok(logs.some((line) => line.includes(WAITING)), `${label}: ${logs.join("\n")}`);
+  }
+});
+
+test("feedback-not-landed stays after a lanes App push while an unresolved review thread carries a CRITICAL, IMPORTANT or unreadable severity", async () => {
+  for (const severity of ["severity: IMPORTANT", "severity: CRITICAL", "", "severity: SUGGESTION\nseverity: IMPORTANT"]) {
+    const w = world({ timeline: notLandedTimeline(), reader: laneReader(), reviewThreads: () => threadPage([severityThread(severity)]) });
+    const { logs } = await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], severity);
+    assert.ok(logs.some((line) => line.includes(WAITING)), severity);
+  }
+});
+
+test("feedback-not-landed stays after a lanes App push when the security review reports a CRITICAL finding", async () => {
+  for (const timeline of [notLandedTimeline(securitySummary(1)), notLandedTimeline({ ...securitySummary(0), updated_at: "2026-10-18T12:00:00Z" })]) {
+    const w = world({ timeline, reader: laneReader() });
+    const { logs } = await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), []);
+    assert.ok(logs.some((line) => line.includes(WAITING)), logs.join("\n"));
+  }
+});
+
+test("feedback-not-landed comes off after a trusted person's push, as before, with no review lane read", async () => {
+  const calls = [];
+  const w = world({
+    timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded()],
+    reader: readerFor({ calls }),
+    reviewThreads: () => threadPage([reviewThread(true, [PERSON_AUTHOR, LANE_AUTHOR]), reviewThread(false, [PERSON_AUTHOR])]),
+  });
+  const { code } = await run(w, TRUST_ENV);
+  assert.equal(code, 0);
+  const [comment, removal] = w.writes();
+  assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=feedback-not-landed head=${HEAD} -->`);
+  assert.match(comment.body.body, /kyle-sexton moved the head/);
+  assert.match(comment.body.body, /no review thread the lane replied to is unresolved/);
+  assert.equal(removal.method, "DELETE");
+  assert.ok(!calls.some((path) => path.includes("/actions/")), calls.join("\n"));
+});
+
+// Per the owner's direction on the security finding: clean review lanes stand
+// in for a person only when every escalation recorded against the label since
+// it was last removed is a lane-only one.
+test("feedback-not-landed stays after a lanes App push when another escalation is recorded against the label", async () => {
+  for (const [label, earlier, named] of [
+    ["a pr-merge risk hold", commented(BOT, riskBody(OLD), "2026-10-18T09:00:00Z"), "<!-- babysit-merge-risk -->"],
+    ["a security escalation", escalated("feedback-question-security", { at: "2026-10-18T09:00:00Z" }), "feedback-question-security"],
+    ["an unknown reason", escalated("some-future-reason", { at: "2026-10-18T09:00:00Z" }), "some-future-reason"],
+  ]) {
+    const w = world({ timeline: [earlier, ...notLandedTimeline()], reader: laneReader() });
+    const { logs } = await run(w, TRUST_ENV);
+    assert.deepEqual(w.writes(), [], label);
+    assert.ok(logs.some((line) => line.includes("feedback-not-landed still holds") && line.includes(`${named} is recorded against the label`)), `${label}: ${logs.join("\n")}`);
+  }
+});
+
+test("feedback-not-landed comes off after a lanes App push when another escalation came before a person removed the label", async () => {
+  const lifted = [commented(BOT, riskBody(OLD), "2026-10-18T08:00:00Z"), { event: "unlabeled", actor: OWNER, label: { name: "needs-human" }, created_at: "2026-10-18T09:00:00Z" }];
+  const w = world({ timeline: [...lifted, ...notLandedTimeline()], reader: laneReader() });
+  await run(w, TRUST_ENV);
+  assert.deepEqual(w.writes().at(-1), { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
 test("workflow-staged stays when any push since the label is by an account off the trusted list", async () => {
   for (const pushes of [
     [pushedBy(STRANGER)],
@@ -1277,11 +1532,47 @@ test("a person's inline reply keeps enable-auto-merge's label without spending a
   assert.ok(logs.includes("clear-escalations: #7 kept: kyle-sexton commented or reviewed after needs-human went on"), logs.join("\n"));
 });
 
-test("a refusal cleared by the reader reads the review threads once", async () => {
+test("a refusal cleared by the reader reads the review threads again right before the removal", async () => {
   const w = world({ timeline: nativeEscalated(UNBOUND), author: BOT, evidence: clean });
   await run(w, NATIVE);
   assert.deepEqual(w.writes().at(-1), DELETE);
-  assert.equal(threadReads(w).length, 2);
+  assert.equal(threadReads(w).length, 4);
+});
+
+test("a thread opened, or a person's reply, while the gate's reader runs keeps enable-auto-merge's label", async () => {
+  for (const [label, landed, kept] of [
+    ["a thread opened", () => ({ ...BOT_THREAD, id: 103, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }), "a review thread was opened by github-actions[bot] while its reads ran"],
+    ["a person's reply", () => reply(OWNER, "2026-10-18T12:00:00Z"), "kyle-sexton commented or reviewed after needs-human went on"],
+  ]) {
+    const reviewComments = [BOT_THREAD];
+    const evidence = (pull) => {
+      reviewComments.push(landed());
+      return clean(pull);
+    };
+    const w = world({ timeline: nativeEscalated(UNBOUND), author: BOT, evidence, reviewComments });
+    const { logs } = await run(w, NATIVE);
+    assert.deepEqual(w.writes(), [], label);
+    assert.equal(w.reads.length, 1, label);
+    assert.ok(logs.includes(`clear-escalations: #7 kept: ${kept}`), `${label}: ${logs.join("\n")}`);
+  }
+});
+
+test("a person's reply inside an existing thread after feedback-not-landed's own thread read keeps the label", async () => {
+  // The reply lands while the check reads the trusted move with the job
+  // token, after its thread read saw none.
+  const reviewComments = [BOT_THREAD];
+  const trusted = readerFor();
+  const reader = async (method, path) => {
+    if (reviewComments.length === 1) {
+      reviewComments.push(reply(OWNER, "2026-10-18T12:00:00Z"));
+    }
+    return trusted(method, path);
+  };
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), notLanded()], reviewComments, reader });
+  const { logs } = await run(w, TRUST_ENV);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.includes("clear-escalations: #7 kept: kyle-sexton commented or reviewed after needs-human went on"), logs.join("\n"));
+  assert.equal(threadReads(w).filter((call) => call.path.includes("/comments?")).length, 2);
 });
 
 test("a person's comment written before the label and edited after it, or in the label's own second, keeps it", async () => {

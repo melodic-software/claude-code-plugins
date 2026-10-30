@@ -1,7 +1,8 @@
 name: Collect base activity
 description: >
   Copy what an activity runs out of the base checkout before the PR head
-  replaces it: a script's whole directory to $RUNNER_TEMP/base-script, or for
+  replaces it: a script's whole directory to $RUNNER_TEMP/base-script, with
+  the base .github/scripts/lib/ to $RUNNER_TEMP/lib for its ../lib/ imports, or for
   a skill the base plugins/ and .claude-plugin/ to
   $RUNNER_TEMP/base-marketplace, plus the plugins to install, prompt (with its
   changed-paths) and claude_args (with read access to the marketplace copy,
@@ -146,6 +147,11 @@ runs:
         esac
         mkdir -p "$SCRIPT_DIR"
         cp -R "$BASE_PATH/$(dirname "$SCRIPT")/." "$SCRIPT_DIR/"
+        # The lanes' shared modules, which a script imports as ../lib/.
+        if [[ -d $BASE_PATH/.github/scripts/lib ]]; then
+          mkdir -p "$RUNNER_TEMP/lib"
+          cp -R "$BASE_PATH/.github/scripts/lib/." "$RUNNER_TEMP/lib/"
+        fi
 
     - name: Stage the base marketplace and the skill prompt
       id: skill
@@ -329,12 +335,11 @@ runs:
           case "$1" in
             ai-slop:audit)
               scripts=$lane/plugins/ai-slop/skills/audit/scripts
-              for script in detect.sh rubric-fanout.sh emit-findings.sh emit-fix-record.sh cross-check.sh; do
+              # digest-guard.sh is the fix flow's concurrent-edit guard; from
+              # this staged copy it writes only under $lane/scratch.
+              for script in detect.sh rubric-fanout.sh emit-findings.sh emit-fix-record.sh cross-check.sh digest-guard.sh; do
                 allowed+=("Bash($scripts/$script *)" "Bash(\"$scripts/$script\" *)")
               done
-              # The fix flow's concurrent-edit guard digests each file into
-              # a state file under the scratch directory.
-              allowed+=("Bash(sha256sum *)" "Bash(mkdir -p $lane/scratch/*)")
               # The user-scope target reads the runner's own config.
               denied+=("Bash($scripts/user-scope.sh *)" "Bash(\"$scripts/user-scope.sh\" *)")
               ;;
@@ -620,11 +625,19 @@ runs:
               printf '#!/usr/bin/env bash\nexport FEEDBACK_THREADS=%q FEEDBACK_LOG=%q FEEDBACK_SCRATCH=%q FEEDBACK_WORKSPACE=%q\nexec bash %q "$@"\n' \
                 "$lane/feedback/threads.json" "$lane/feedback/state/replies.jsonl" "$lane/scratch" "$WORKSPACE" "$lane/feedback/feedback-thread.sh" >"$STAGE/feedback/bin/feedback-thread"
               chmod +x "$STAGE/feedback/bin/feedback-thread"
-              allowed+=("Bash($tool *)" "Bash(\"$tool\" *)")
+              # chmod -x only removes a bit; apply-patch's review-threads row
+              # refuses a new executable bit and admits a mode change only
+              # back to the merge base's (new-exec-bit, pr-mode-revert).
+              allowed+=("Bash($tool *)" "Bash(\"$tool\" *)" "Bash(chmod -x *)")
               for file in threads.json run.json feedback-thread.sh "bin/**" "state/**"; do
                 denied+=("Edit(./.lane/feedback/$file)" "Write(./.lane/feedback/$file)" "NotebookEdit(./.lane/feedback/$file)")
               done
-              preamble="$preamble The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $lane/scratch. The tool posts and commits nothing: a later job pushes your uncommitted fix and posts what you record."
+              preamble="$preamble The review-thread tool is $tool: run it by exactly this path as $tool list, $tool check-paths <path>... and $tool record <thread-id> <file>, with each disposition file in $lane/scratch. The tool posts and commits nothing: a later job pushes your uncommitted fix and posts what you record. To revert an executable bit the pull request added, run chmod -x on that file: the fix carries the mode, and only a mode back to the base's is pushed."
+              # The fresh fixer round past the round cap: the select job's
+              # fixed brief (address-feedback.mjs FRESH_ROUND_BRIEF), never
+              # text a head, a finding or a model wrote.
+              retry=$(jq -r '.retry.brief // empty' "$FEEDBACK_DIR/threads.json")
+              [ -z "$retry" ] || preamble="$preamble $retry"
             fi
             # tidy: an issue lane's skill tidies its own change before its
             # last check run, with the entry skill and its passes and no other

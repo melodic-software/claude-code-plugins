@@ -1,0 +1,91 @@
+{
+  "pass": [
+    {
+      "answer": "#!/usr/bin/env bash\n# Build the whole solution.\nset -euo pipefail\nroot=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")/..\" && pwd)\"\ndotnet build \"$root/Tarnquill.sln\" --nologo\necho \"Build finished.\"\n",
+      "why": "errexit before the build"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\nset -o errexit\ndotnet build \"$root/Tarnquill.sln\" --nologo\n",
+      "why": "errexit by its long name"
+    },
+    {
+      "answer": "dotnet build \"$root/Tarnquill.sln\" --nologo || exit 1\necho \"Build finished.\"\n",
+      "why": "exits on a failed build"
+    },
+    {
+      "answer": "dotnet build \"$root/Tarnquill.sln\" --nologo || { echo \"Build failed.\" >&2; exit 1; }\necho \"Build finished.\"\n",
+      "why": "reports, then exits"
+    },
+    {
+      "answer": "dotnet build \"$root/Tarnquill.sln\" --nologo && echo \"Build finished.\"\n",
+      "why": "the echo runs only on success, so the script ends with the build's status"
+    },
+    {
+      "answer": "if ! dotnet build \"$root/Tarnquill.sln\" --nologo; then\n  echo \"Build failed.\" >&2\n  exit 1\nfi\necho \"Build finished.\"\n",
+      "why": "negated if"
+    },
+    {
+      "answer": "dotnet build \"$root/Tarnquill.sln\" --nologo\nstatus=$?\necho \"Build finished.\"\nexit \"$status\"\n",
+      "why": "keeps the build's status and exits with it"
+    },
+    {
+      "answer": "dotnet build \"$root/Tarnquill.sln\" --nologo\nrc=$?\nif [ $rc -ne 0 ]; then\n  echo \"Build failed.\" >&2\n  exit 1\nfi\necho \"Build finished.\"\n",
+      "why": "keeps the status, then tests it"
+    },
+    {
+      "answer": "dotnet build \"$root/Tarnquill.sln\" --nologo\nif (( $? != 0 )); then\n  exit 1\nfi\n",
+      "why": "arithmetic test on the build's status"
+    },
+    {
+      "answer": "dotnet build \"$root/Tarnquill.sln\" --nologo\n[ $? -eq 0 ] || exit 1\necho \"Build finished.\"\n",
+      "why": "test-or-exit on the build's status"
+    },
+    {
+      "answer": "dotnet build \"$root/Tarnquill.sln\" --nologo || {\n  echo \"Build of ${root} failed.\" >&2\n  exit 1\n}\n",
+      "why": "a braced block that names a variable before it exits"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\nset -x -e\ndotnet build \"$root/Tarnquill.sln\" --nologo\n",
+      "why": "errexit as the second option"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "#!/usr/bin/env bash\n# Build the whole solution.\nroot=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")/..\" && pwd)\"\ndotnet build \"$root/Tarnquill.sln\" --nologo\necho \"Build finished.\"\n",
+      "why": "the seeded script, unchanged"
+    },
+    {
+      "answer": "dotnet build \"$root/Tarnquill.sln\" --nologo\necho \"Build finished.\"\nexit $?\n",
+      "why": "near miss: exits with the echo's status, which is 0"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\nset -x\ndotnet build \"$root/Tarnquill.sln\" --nologo\n",
+      "why": "near miss: tracing on, errexit off"
+    },
+    {
+      "answer": "dotnet build \"$root/Tarnquill.sln\" --nologo\necho \"Build finished.\"\nset -e\n",
+      "why": "errexit set after the build has already run"
+    },
+    {
+      "answer": "if dotnet build \"$root/Tarnquill.sln\" --nologo; then\n  echo \"Build finished.\"\nfi\n",
+      "why": "near miss: an if with no else exits 0 on a failed build"
+    },
+    {
+      "answer": "dotnet build \"$root/Tarnquill.sln\" --nologo && echo ok\necho \"Build finished.\"\n",
+      "why": "near miss: the && chain is not last, so the final echo exits 0"
+    },
+    {
+      "answer": "dotnet build \"$root/Tarnquill.sln\" --nologo\nif [ $? -ne 0 ]; then\n  echo \"Build failed.\" >&2\nfi\n",
+      "why": "near miss: reports the failure but never exits non-zero"
+    },
+    {
+      "answer": "dotnet build \"$root/Tarnquill.sln\" --nologo || return 1\necho \"Build finished.\"\n",
+      "why": "return outside a function in an executed script does not stop it"
+    },
+    {
+      "answer": "#!/usr/bin/env bash\nset +e\ndotnet build \"$root/Tarnquill.sln\" --nologo\n",
+      "why": "errexit turned off"
+    }
+  ]
+}

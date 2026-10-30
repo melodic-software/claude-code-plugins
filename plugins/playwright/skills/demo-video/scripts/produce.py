@@ -23,6 +23,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 from demo_common import font, smooth
+from ripple_geometry import HALO, ring
 
 ACCENT = (45, 140, 255)
 OK_GREEN = (36, 163, 92)
@@ -155,31 +156,27 @@ class Renderer:
 
     def ripple(self, img, box, age, z):
         """A rounded ring growing outward from the clicked element's box, never over its label,
-        kept inside the frame. Returns its outer box in output px, or None."""
+        clipped to the frame (geometry in ripple_geometry.ring). Returns its outer box in output px, or None."""
         if not (0 <= age <= RIPPLE):
             return None
         u = age / RIPPLE
-        stroke = 3.0 * z
-        gap = (3 + 9 * smooth(u)) * z
-        room = min(box[0], box[1], self.W - box[0] - box[2], self.H - box[1] - box[3]) - stroke - 1
-        gap = max(min(gap, room), 1.0)
+        g = ring(box, smooth(u), z, self.W, self.H)
+        if g is None:
+            return None
+        stroke, (x0, y0, x1, y1), (ox0, oy0, ox1, oy1) = g.stroke, g.line, g.outer
         alpha = int(230 * (1 - u) ** 0.8)
-        x0, y0, x1, y1 = box[0] - gap, box[1] - gap, box[0] + box[2] + gap, box[1] + box[3] + gap
-        ox0, oy0 = max(x0 - stroke, 1), max(y0 - stroke, 1)
-        ox1, oy1 = min(x1 + stroke, self.W - 1), min(y1 + stroke, self.H - 1)
         S = 3
         w, h = int(ox1 - ox0) + 2, int(oy1 - oy0) + 2
-        if w <= 2 or h <= 2:
-            return None
+        ox0, oy0 = int(ox0), int(oy0)   # the paste offset, so the ring lands at its exact position
         layer = Image.new('RGBA', (w * S, h * S), (0, 0, 0, 0))
         d = ImageDraw.Draw(layer)
-        rad = (min(box[3], box[2]) / 2 + gap) * S
+        rad = (min(box[3], box[2]) / 2 + min(g.gaps)) * S
         rect = [(x0 - ox0 - stroke / 2) * S, (y0 - oy0 - stroke / 2) * S, (x1 - ox0 + stroke / 2) * S, (y1 - oy0 + stroke / 2) * S]
-        d.rounded_rectangle(rect, radius=rad, outline=(255, 255, 255, alpha), width=int(stroke * 1.8 * S))
+        d.rounded_rectangle(rect, radius=rad, outline=(255, 255, 255, alpha), width=int(stroke * HALO * S))
         d.rounded_rectangle(rect, radius=rad, outline=ACCENT + (alpha,), width=int(stroke * S))
         layer = layer.resize((w, h), Image.LANCZOS)
         img.paste(layer, (int(ox0), int(oy0)), layer)
-        return [round(x0 - stroke, 1), round(y0 - stroke, 1), round(x1 + stroke, 1), round(y1 + stroke, 1)]
+        return g.bbox
 
     def caption_layer(self, ci):
         """Solid ink pill with a step badge (number) or outcome badge (check) and white text (~18:1)."""

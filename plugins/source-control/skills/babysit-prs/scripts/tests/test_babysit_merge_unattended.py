@@ -1174,7 +1174,7 @@ class LaneMode(Unattended):
         super().setUp()
         self.config = policy.PipelineConfig(
             BASE, "C2", "pr-merge", IDENTITY, 200, (".github/**",), "c2-mechanical",
-            require_verifier_verdict=True,
+            require_verifier_verdict=True, path_holds=True,
         )  # fmt: skip
         # A passing verdict at every head (test_babysit_verify_evidence covers
         # the reader).
@@ -1231,6 +1231,56 @@ class LaneMode(Unattended):
         ):
             _, out = self.lane()
         self.assertEqual(out["unattended"]["risk"]["score"], "HIGH")
+
+    def test_a_trusted_persons_gate_path_clears_on_a_clean_security_review(
+        self,
+    ) -> None:
+        # Owner direction 2026-10-27: the gate path leaves `high-path:` for
+        # `review-path:`, which BOUND's clean security review clears; the
+        # lanes App's own pull request keeps the person's hold.
+        gate = ".github/scripts/pr-merge/who.mjs"
+        self.config = dataclasses.replace(
+            self.config, adoption_idle_hours=24, denied_paths=()
+        )
+        self.files = ((dataclasses.replace(LOW_FILE, path=gate),), True)
+        self.lane_eligible = policy.Eligibility(
+            True, None, "C2", 41, adoption="idle-owner:24h", body_is_intent=True
+        )
+        person = {"login": "owner", "id": PERSON_ID, "type": "User"}
+        for user, lanes, score in (
+            (person, BOUND, "LOW"),
+            (person, UNBOUND, "HIGH"),
+            ({"login": IDENTITY, "id": PERSON_ID, "type": "Bot"}, BOUND, "HIGH"),
+        ):
+            self.pr_user, self.lanes = user, lanes
+            with (
+                self.subTest(user=user["type"], lanes=lanes[1].bound),
+                mock.patch.object(policy, "foreign_paths", return_value=frozenset()),
+            ):
+                _, out = self.lane()
+                risk = out["unattended"]["risk"]
+                self.assertEqual(risk["score"], score, risk)
+                codes = [r["code"] for r in risk["reasons"]]
+                self.assertEqual(
+                    f"high-path:{gate}" in codes, user["type"] == "Bot", codes
+                )
+
+    def test_path_holds_off_skips_the_floor_and_reports_it(self) -> None:
+        # Owner decision Q15: off, a lanes App gate-script change scores LOW
+        # and the gate report names the hold it skipped; on, it holds.
+        gate = ".github/scripts/pr-merge/clear-escalations.mjs"
+        self.config = dataclasses.replace(self.config, denied_paths=())
+        self.files = ((dataclasses.replace(LOW_FILE, path=gate),), True)
+        for on, score, skipped in (
+            (False, "LOW", [{"code": f"high-path:{gate}", "detail": gate}]),
+            (True, "HIGH", []),
+        ):
+            self.config = dataclasses.replace(self.config, path_holds=on)
+            with self.subTest(path_holds=on):
+                _, out = self.lane()
+                risk = out["unattended"]["risk"]
+                self.assertEqual(risk["score"], score, risk)
+                self.assertEqual(risk["pathHoldsSkipped"], skipped)
 
     def test_a_model_app_own_lines_skip_the_floor_only_under_scripts(self) -> None:
         # Owner decision Q14 (c): a model-driven App's own lines skip the
@@ -3370,7 +3420,14 @@ class CostHold(Unattended):
             with self.subTest(held=held):
                 policy._TEXT_AT.clear()
                 self.addCleanup(policy._TEXT_AT.clear)
-                with mock.patch.object(policy, "_file_at", return_value=text):
+                # Base text first, then head: the patch's 30 -> 45 at its key.
+                sides = iter(
+                    f"jobs:\n  a:\n    timeout-minutes: {m}\n    steps:\n{text}"
+                    for m in ("30", "45")
+                )
+                with mock.patch.object(
+                    policy, "_file_at", side_effect=lambda *_: next(sides, None)
+                ):
                     read, out = self.run_with_decision(None)
                 codes = [r["code"] for r in out["risk"]["reasons"]]
                 self.assertEqual("cost-review-required" in codes, held)
@@ -4429,6 +4486,7 @@ class AttachEdits(unittest.TestCase):
         edited = self.comment("github-actions[bot]", "2026-10-22T03:00:00Z", "IC_b")
         other = self.comment("someone", "2026-10-22T03:00:00Z", "IC_c")
         editor = {"__typename": "User", "login": "pusher"}
+        history = {"totalCount": 1, "nodes": [{"editedAt": "2026-10-22T03:00:00Z"}]}
         reply = {
             "data": {
                 "nodes": [
@@ -4436,6 +4494,7 @@ class AttachEdits(unittest.TestCase):
                         "id": "IC_b",
                         "lastEditedAt": "2026-10-22T03:00:00Z",
                         "editor": editor,
+                        "userContentEdits": history,
                     }
                 ]
             }
@@ -4444,7 +4503,12 @@ class AttachEdits(unittest.TestCase):
             merge._attach_edits([same, edited, other], "#1")
         self.assertEqual(same["edit"], {"lastEditedAt": None})
         self.assertEqual(
-            edited["edit"], {"lastEditedAt": "2026-10-22T03:00:00Z", "editor": editor}
+            edited["edit"],
+            {
+                "lastEditedAt": "2026-10-22T03:00:00Z",
+                "editor": editor,
+                "history": history,
+            },
         )
         self.assertNotIn("edit", other)
         args = read.call_args.args[0]
@@ -5534,7 +5598,9 @@ class DependabotMajorEscalation(unittest.TestCase):
         stack.enter_context(
             mock.patch.object(merge, "repository_default_branch", return_value="main")
         )
-        stack.enter_context(mock.patch.object(policy, "base_tip", return_value="e" * 40))
+        stack.enter_context(
+            mock.patch.object(policy, "base_tip", return_value="e" * 40)
+        )
         return stack
 
     def test_only_the_identitys_comment_dates_the_escalation(self) -> None:

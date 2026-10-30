@@ -1,0 +1,19 @@
+## Developer tooling conventions
+
+### Tools
+- `tq commit`: interactive; prompts for type and message. No flags bypass the prompts.
+- `tq item comment <id> --body <text>`: posts a tracker comment (offline outbox in this repo).
+- `tq env check`: checks required tools.
+- `scripts/build.sh`, `scripts/build.ps1`: build on bash and pwsh.
+
+### Shared helpers
+- Run external processes through `ProcessRunner.Run` in `src/Tarnquill.Cli/Infrastructure/`.
+
+### CLI contract
+- New commands: `--help`, distinct exit codes (0 ok, 1 failure, 2 usage), `--json`, `--dry-run` for anything that writes.
+
+### Secrets
+- Tokens come from the environment (`TARNQUILL_FORGE_TOKEN`), never from a flag.
+
+### Platforms
+- Linux and macOS (bash), Windows (pwsh).

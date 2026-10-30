@@ -3,7 +3,13 @@
 // would otherwise skip, in the admit job before any model run. No model, no
 // write; it never fails the job or hands the issue to a person.
 //
-// - Provenance first, by admission's rule (admit.mjs untrustedHold): an issue
+// - Authorship first, by admission's rule (admit.mjs authorAdmitted): an
+//   issue neither a listed human nor the lanes App wrote does not run, for
+//   good, whoever added agent-ready, since the run would work from an
+//   outsider's text: `untrusted` and `outsider` are true, and
+//   work-resolve-issue.yml's report-skip removes agent-ready and comments that
+//   a listed human re-files the work as a new issue. No read past the issue's own.
+// - Then provenance, by admission's rule (admit.mjs untrustedHold): an issue
 //   carrying `work-class: untrusted-provenance`, or whose newest removal of it
 //   was by neither a listed human nor the lanes App, does not run, for good:
 //   `untrusted` is true, and work-unblock's sweep never re-fires the run.
@@ -29,14 +35,15 @@
 //   ISSUE_NUMBER         the issue agent-ready was added to
 //   TRUSTED_ACTORS_PATH  the default branch's trusted-actor list
 //   LANES_APP_ID         the lanes App bot's numeric user id
-//   GITHUB_OUTPUT        receives proceed=true|false and untrusted=true|false
+//   GITHUB_OUTPUT        receives proceed=true|false and untrusted=true|false,
+//                        and outsider=true on the outside-author stop
 //   GITHUB_API_URL
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { blockersOf, closedByTrusted, openSubIssues, stillBlocking, trustedElsewhere, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { authorAdmitted, blockersOf, closedByTrusted, openSubIssues, stillBlocking, trustedElsewhere, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -50,6 +57,7 @@ const named = (blocker, repository) => {
 export async function main({ env = process.env, github, log = console.log, write = (outputs) => writeOutputs(outputs, env.GITHUB_OUTPUT) } = {}) {
   const repository = env.GITHUB_REPOSITORY ?? "";
   const number = env.ISSUE_NUMBER ?? "";
+  let outsider;
   let held;
   let pending;
   let subs;
@@ -62,8 +70,9 @@ export async function main({ env = process.env, github, log = console.log, write
     const client = github ?? createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const base = `/repos/${repository}/issues/${number}`;
     const issue = await client("GET", base);
-    held = untrustedHold({ labels: issue?.labels, events: await paginate(client, `${base}/events`), humans, isApp: (actor) => actor?.id === appId });
-    if (!held) {
+    outsider = !authorAdmitted(issue, humans, appId);
+    held = !outsider && untrustedHold({ labels: issue?.labels, events: await paginate(client, `${base}/events`), humans, isApp: (actor) => actor?.id === appId });
+    if (!outsider && !held) {
       // The same close admission counts (admit.mjs closedByTrusted), so a split
       // parent the lanes App closed does not hold an issue admission let through.
       const trusted = closedByTrusted({ github: client, repository, humans, appId });
@@ -73,6 +82,11 @@ export async function main({ env = process.env, github, log = console.log, write
   } catch (error) {
     log(`::warning title=admission unread::the run is skipped and agent-ready kept: its labels, events, blockers or sub-issues could not be read (${String(error?.message ?? error).replace(/[\r\n%]/g, " ")}); work-unblock's sweep re-fires it`);
     write({ proceed: "false", untrusted: "false" });
+    return 0;
+  }
+  if (outsider) {
+    log("::notice title=outside author::the run is stopped: the issue's author is neither a listed human nor the lanes App, so the lane will not work from its text; report-skip removes agent-ready and asks a listed human to re-file the work as a new issue; work-unblock never re-fires this run");
+    write({ proceed: "false", untrusted: "true", outsider: "true" });
     return 0;
   }
   if (held) {

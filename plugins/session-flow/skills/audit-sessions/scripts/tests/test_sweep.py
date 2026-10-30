@@ -18,7 +18,7 @@ from conftest import SCRIPTS, envelope, run_cli
 RULES = json.loads((SCRIPTS.parent / "reference" / "sweep-rules.json").read_text(encoding="utf-8"))
 RULE = {rule["metric"]: rule for rule in RULES["rules"]}
 LENSES = {"cost", "cache", "context", "interruption", "permission", "delegation", "hooks", "churn"}
-ROUTES = {"retro-codify", "work-item", "unhobble-experiment", "config-change"}
+ROUTES = {"retro-codify", "config-change"}
 UNITS = {"tokens", "s", "ms", "count", "ratio", "usd"}
 
 
@@ -78,6 +78,39 @@ def test_rules_are_well_formed():
             assert (rule["route"] is None) == (rule["suggested_skill"] is None), metric
         else:
             assert rule["route"] in ROUTES and rule["suggested_skill"].startswith("/"), metric
+    assert {rule["route"] for rule in RULE.values()} - {None} == ROUTES
+
+
+def test_subagent_count_routes_to_observability():
+    rule = RULE["subagents.count"]
+    assert (rule["route"], rule["suggested_skill"]) == ("retro-codify", "/harness-ops:observability")
+    assert "2026-10-11" in rule["basis"]
+
+
+def test_denials_finding_counts_each_kind_and_names_the_dominant_one(data_dir):
+    def denied(session_id: str, kinds: dict) -> dict:
+        rec = record(session_id)
+        rec["tools"]["denials"] = kinds
+        return rec
+
+    write_store(
+        data_dir,
+        denied("over-a", {"automode-blocked": 20, "permission-rule": 10}),
+        denied("over-b", {"permission-rule": 15, "user-rejected": 15}),
+        denied("under", {"user-rejected": 27}),
+    )
+    finding = findings_by_metric(envelope(sweep(data_dir)))["tools.denials"]
+    assert finding["evidence"] == [{"session_id": "over-a"}, {"session_id": "over-b"}]
+    assert finding["by_kind"] == {"permission-rule": 25, "automode-blocked": 20, "user-rejected": 15}
+    assert list(finding["by_kind"]) == ["permission-rule", "automode-blocked", "user-rejected"]
+    assert finding["dominant_kind"] == "permission-rule"
+    assert "As of" in RULE["tools.denials"]["basis"] and "Recheck trigger" in RULE["tools.denials"]["basis"]
+    md = sweep(data_dir, "--format", "md").stdout.split("## Findings", 1)[1].split("## Drift", 1)[0]
+    assert (
+        "`tools.denials` by kind over those sessions: `permission-rule` 25, `automode-blocked` 20, `user-rejected` 15;"
+        " dominant: `permission-rule`."
+    ) in md
+    assert md.count("by kind over those sessions") == 1
 
 
 def test_store_round_trip_yields_per_session_medians(data_dir):
@@ -304,8 +337,8 @@ def test_report_only_reasons_attribute_basis_numbers_to_the_reference_machine(da
 def test_metrics_without_a_canary_are_listed_unchecked(data_dir):
     write_store(data_dir, record("s1"))
     unchecked = {row["what"]: row["reason"] for row in envelope(sweep(data_dir))["data"]["unchecked"]}
-    assert "canary" in unchecked["tools.denials"] and "canary" in unchecked["subagents.count"]
-    assert "tokens.main" not in unchecked
+    assert "canary" in unchecked["tools.denials"]
+    assert "tokens.main" not in unchecked and "subagents.count" not in unchecked
 
 
 def test_suggested_skill_absent_from_catalog_renders_not_installed(data_dir):
@@ -849,6 +882,90 @@ def test_churn_joins_each_path_onto_its_sessions_working_directory(data_dir):
     assert findings_by_metric(env)["edits.churn_per_pr"]["evidence"] == [
         {"repo": "o/r", "number": 12, "path": "/w/sub/a.py", "edits": 6, "sessions": ["s1", "s2"]},
     ]
+
+
+def keyed(session_id: str, start: str, end: str, *, title=None, branches=(), cwd=None, prs=(), output=0) -> dict:
+    """A store record carrying the fields the ticket rollup reads."""
+    rec = record(session_id, start=start, **{"tokens.main": output})
+    rec["time"]["end"] = end
+    rec["link_keys"] = {"custom_title": title, "ai_title": None}
+    rec["branches"] = list(branches)
+    rec["prs"] = [{"repo": repo, "number": number} for repo, number in prs]
+    if cwd is not None:
+        rec["cwd"] = cwd
+    return rec
+
+
+def test_tickets_count_eight_links_to_one_pr_as_one(data_dir):
+    write_store(
+        data_dir,
+        *[keyed(f"s{n}", f"2026-09-0{n + 1}T10:00:00Z", f"2026-09-0{n + 1}T11:00:00Z", branches=["feat/PROJ-7-x"], prs=[("o/r", 12)], output=100) for n in range(8)],
+    )
+    result = sweep(data_dir, "--tickets", r"[A-Z][A-Z0-9]+-\d+")
+    assert result.returncode == 0, result.stdout + result.stderr
+    env = envelope(result)
+    assert env["schema"] == "audit-sessions.tickets/v1"
+    [row] = env["data"]["tickets"]
+    assert (row["key"], len(row["sessions"]), row["prs"], row["output_tokens"]) == ("PROJ-7", 8, 1, 800)
+    assert row["span_s"] == 7 * 86400 + 3600 and row["gaps_s"] == [23 * 3600] * 7
+    assert env["data"]["span_label"] == "session-side proxy, not cycle time"
+
+
+def test_tickets_pattern_that_excludes_non_ticket_tokens_groups_none(data_dir):
+    write_store(
+        data_dir,
+        keyed("utf", "2026-09-01T10:00:00Z", "2026-09-01T11:00:00Z", title="fix UTF-8 decoding"),
+        keyed("sha", "2026-09-02T10:00:00Z", "2026-09-02T11:00:00Z", branches=["fix/SHA-256-digest"]),
+    )
+    loose = envelope(sweep(data_dir, "--tickets", r"[A-Z][A-Z0-9]+-\d+"))["data"]
+    assert sorted(t["key"] for t in loose["tickets"]) == ["SHA-256", "UTF-8"]
+    strict = envelope(sweep(data_dir, "--tickets", r"\b(?!(?:UTF|SHA)-)[A-Z][A-Z0-9]+-\d+"))["data"]
+    assert (strict["tickets"], strict["unkeyed"]) == ([], 2)
+
+
+def test_tickets_prefer_title_and_branches_over_cwd(data_dir):
+    write_store(
+        data_dir,
+        keyed("reused", "2026-09-01T10:00:00Z", "2026-09-01T11:00:00Z", branches=["feat/AB-2"], cwd="/w/AB-1"),
+        keyed("titled", "2026-09-02T10:00:00Z", "2026-09-02T11:00:00Z", title="AB-3 work", branches=["feat/AB-2"]),
+        keyed("cwd-only", "2026-09-03T10:00:00Z", "2026-09-03T11:00:00Z", cwd="/w/AB-1"),
+    )
+    tickets = envelope(sweep(data_dir, "--tickets", r"AB-\d+"))["data"]["tickets"]
+    assert {t["key"]: t["sessions"] for t in tickets} == {"AB-1": ["cwd-only"], "AB-2": ["reused"], "AB-3": ["titled"]}
+
+
+def test_tickets_gaps_never_go_below_zero_for_overlapping_sessions(data_dir):
+    write_store(
+        data_dir,
+        keyed("a", "2026-09-01T10:00:00Z", "2026-09-01T14:00:00Z", branches=["AB-1"]),
+        keyed("b", "2026-09-01T12:00:00Z", "2026-09-01T13:00:00Z", branches=["AB-1"]),
+        keyed("c", "2026-09-01T16:00:00Z", "2026-09-01T17:00:00Z", branches=["AB-1"]),
+    )
+    [row] = envelope(sweep(data_dir, "--tickets", r"AB-\d+"))["data"]["tickets"]
+    assert (row["sessions"], row["gaps_s"], row["span_s"]) == (["a", "b", "c"], [0, 7200], 7 * 3600)
+
+
+def test_tickets_branch_keeps_only_its_key_and_md_renders_the_label(data_dir):
+    write_store(
+        data_dir,
+        keyed("one", "2026-09-01T10:00:00Z", "2026-09-01T11:00:00Z", branches=["AB-1"]),
+        keyed("two", "2026-09-02T10:00:00Z", "2026-09-02T11:00:00Z", branches=["AB-2"]),
+    )
+    data = envelope(sweep(data_dir, "--tickets", r"AB-\d+", "--branch", "feat/AB-2-thing"))["data"]
+    assert data["branch_key"] == "AB-2" and [t["key"] for t in data["tickets"]] == ["AB-2"]
+    assert envelope(sweep(data_dir, "--tickets", r"AB-\d+", "--branch", "main"))["data"]["tickets"] == []
+    md = sweep(data_dir, "--tickets", r"AB-\d+", "--format", "md")
+    assert md.returncode == 0, md.stderr
+    assert "session-side proxy, not cycle time" in md.stdout and "| `AB-1` | 1 |" in md.stdout
+
+
+def test_tickets_refuse_a_bad_pattern_and_the_kept_or_session_modes(data_dir):
+    write_store(data_dir, keyed("s1", "2026-09-01T10:00:00Z", "2026-09-01T11:00:00Z", branches=["AB-1"]))
+    assert sweep(data_dir, "--tickets", "(").returncode == 2
+    assert sweep(data_dir, "--tickets", r"AB-\d+", "--write-report").returncode == 2
+    assert sweep(data_dir, "--tickets", r"AB-\d+", "--session", "s1").returncode == 2
+    assert sweep(data_dir, "--branch", "AB-1").returncode == 2
+    assert not (data_dir / "audit-sessions" / "reports").exists()
 
 
 def test_records_without_prs_or_edits_sweep_cleanly(data_dir):

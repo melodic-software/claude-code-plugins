@@ -113,11 +113,16 @@ export const REFUSALS = {
   codeowners: PROTECTED_REFUSALS.codeowners,
   gitmodules: PROTECTED_REFUSALS.gitmodules,
   settings: PROTECTED_REFUSALS.settings,
+  "lane-grants": PROTECTED_REFUSALS["lane-grants"],
   symlink: { kind: "invalid", test: (entry) => entry.oldMode === SYMLINK || entry.newMode === SYMLINK },
   gitlink: { kind: "invalid", test: (entry) => entry.oldMode === GITLINK || entry.newMode === GITLINK },
   "rename-into-refused": PROTECTED_REFUSALS["rename-into-refused"],
   skills: { kind: "protected-path", optional: true, test: rowPathRule("skills") },
   "skill-md": { kind: "protected-path", optional: true, test: rowPathRule("skill-md") },
+  // A mode that gains the executable bit: a new file at 100755, or a change
+  // to it. Optional, so the issue row's script-exec-bit and the ci-context
+  // row's script fixes keep working.
+  "new-exec-bit": { kind: "protected-path", optional: true, test: (entry) => entry.newMode === EXECUTABLE && entry.oldMode !== EXECUTABLE },
 };
 
 // The names of the refusals that match one changed entry; by default all but
@@ -164,7 +169,8 @@ export function rungUpEscalation(text) {
 
 // An escalation only a person settles, and the reason it stops with: a fix
 // that needs a path the lane token may not push, or one that would weaken a
-// required check (escalation-routes.json holds both).
+// required check after its fresh fixer round (weakenStop; escalation-routes.json
+// holds both).
 const HELD_ESCALATIONS = [
   ["protected-path", "ci-fix-protected-path"],
   ["weaken-required", "ci-fix-weaken-required"],
@@ -175,6 +181,13 @@ export function heldEscalation(text) {
   const reasons = reportLines(text).flatMap((line) => ESCALATED_REASON.exec(line)?.[1] ?? []);
   return HELD_ESCALATIONS.find(([reason]) => reasons.includes(reason))?.[1] ?? "";
 }
+
+// The first weaken-required stop on a head stops for one fresh fixer round
+// instead of a person: a fail-routed reason, whose lane-stopped check the
+// fix-ci dispatcher retries on the same head with the no-weaken brief
+// (fix-ci-context.mjs). The guard itself stays: the round still may not weaken.
+export const WEAKEN_RETRY = "ci-fix-weaken-retry";
+const weakenStop = (held, weakenRetry) => (held === "ci-fix-weaken-required" && weakenRetry ? WEAKEN_RETRY : held);
 
 const reportText = (reportDir) => {
   const file = reportDir ? join(reportDir, "reply.txt") : "";
@@ -199,9 +212,52 @@ const REQUIREMENTS = {
 // git's raw status letter as the REST file listing names it.
 const STATUS = { M: "modified", A: "added", D: "removed", T: "changed" };
 
+// The mode of `path` in the tree `treeSha`, walked one directory at a time
+// through the Git trees API; null when it is absent.
+async function modeAt(api, treeSha, path) {
+  const parts = path.split("/");
+  let sha = treeSha;
+  for (const [i, name] of parts.entries()) {
+    const item = ((await api.getTree(sha))?.tree ?? []).find((row) => row?.path === name);
+    if (!item || (i < parts.length - 1 && item.type !== "tree")) {
+      return null;
+    }
+    if (i === parts.length - 1) {
+      return item.type === "blob" ? item.mode : null;
+    }
+    sha = item.sha;
+  }
+  return null;
+}
+
 // A row's content rule: what each changed file's bytes must also meet, read
 // from the local objects. It returns the first refusal, or null.
 export const CONTENT_RULES = {
+  // A file mode changes only back to the one the path has at the merge base
+  // of the PR head and its base: a mode the PR itself introduced is reverted,
+  // and no other is changed; a file the PR added may drop to 100644, the
+  // default mode. Content-only changes read nothing.
+  "pr-mode-revert": async ({ entries, api, pr, headSha }) => {
+    const changed = entries.filter((entry) => [REGULAR, EXECUTABLE].includes(entry.oldMode) && [REGULAR, EXECUTABLE].includes(entry.newMode) && entry.oldMode !== entry.newMode);
+    if (changed.length === 0) {
+      return null;
+    }
+    const baseSha = (await api.getPull(pr))?.base?.sha;
+    if (!SHA.test(String(baseSha ?? ""))) {
+      return "the pull request's base commit is unknown";
+    }
+    const tree = (await api.compare(baseSha, headSha))?.merge_base_commit?.commit?.tree?.sha;
+    if (!SHA.test(String(tree ?? ""))) {
+      return "the merge base of the head and the base is unknown";
+    }
+    for (const entry of changed) {
+      const mode = await modeAt(api, tree, entry.path);
+      if (mode !== entry.newMode && !(mode === null && entry.newMode === REGULAR)) {
+        return `${entry.path} changes mode ${entry.oldMode} to ${entry.newMode}, but the merge base holds it ${mode === null ? "not at all" : `at ${mode}`}`;
+      }
+    }
+    return null;
+  },
   // A version change of a regular npm or pip manifest or lock file modified in
   // place, as dependency-classify.mjs's fixRefusal decides; the verdict job
   // runs the same rule again on what landed.
@@ -410,7 +466,9 @@ export function patchProblem(file, expected) {
 // `rung` is the producer's model rung (0 or 1): at 0, an empty patch whose
 // report escalated only checks a stronger model may answer skips rung-up, and
 // the caller runs the producer once more at rung 1, instead of escalating.
-export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0, mergeState = "" }) {
+// `weakenRetry` is true when the head has had no lane stop yet, so a
+// weaken-required stop there takes its one fresh fixer round (weakenStop).
+export function select({ row, patchState, patchSha256, patchHeadSha, headSha, patchDir, reportDir, rung = 0, weakenRetry = false, mergeState = "" }) {
   checkRow(row);
   // A stop routed to a failing status skips lane-stopped (escalation-routes.mjs).
   const decide = (proceed, skipReason, escalationReason) => ({
@@ -446,7 +504,7 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
     if (escalated && rung === 0 && report.rungUp(reportDir)) {
       return decide(false, "rung-up", "");
     }
-    const held = escalated ? report.held(reportDir) : "";
+    const held = escalated ? weakenStop(report.held(reportDir), weakenRetry) : "";
     return decide(false, "awaiting-human", held || reasonFor(row, escalated ? "escalated" : "empty"));
   }
   let names = [];
@@ -890,7 +948,7 @@ export async function push({
   }
   // Before any tree or commit is built: each file's change must also meet the
   // row's content rule.
-  const contentRefusal = row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries, git, context });
+  const contentRefusal = row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries, git, context, api, pr, headSha });
   if (contentRefusal) {
     return escalate("protected-path", `refused by the ${row["content-rule"]} rule (${String(contentRefusal).slice(0, 200)})`);
   }
@@ -961,6 +1019,9 @@ export function createGitHubApi({ token, repository, apiUrl, fetch: rawFetch = g
   const refPath = (ref) => ref.split("/").map(encodeURIComponent).join("/");
   return {
     getPull: async (pr) => (await request(`pulls/${pr}`)).data,
+    // The merge base and a tree, for the pr-mode-revert content rule (contents read).
+    compare: async (base, head) => (await request(`compare/${base}...${head}`)).data,
+    getTree: async (sha) => (await request(`git/trees/${sha}`)).data,
     async listLabels(pr) {
       const { data, link } = await request(`issues/${pr}/labels?per_page=100`);
       if (/rel="next"/.test(link)) {
@@ -1094,6 +1155,15 @@ function modelRung(value = "") {
   return value === "1" ? 1 : 0;
 }
 
+// WEAKEN_RETRY from fix-ci-context's weaken-retry output: `true`, or empty or
+// `false`; anything else is refused.
+function weakenRetryFrom(value = "") {
+  if (!["", "true", "false"].includes(value)) {
+    throw new Error("WEAKEN_RETRY must be empty, true or false");
+  }
+  return value === "true";
+}
+
 export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = (line) => console.log(line) } = {}) {
   const row = rowFor(loadRules(env.BASE_DIR), { prepare: env.PATCH_PREPARE ?? "", target: env.PATCH_TARGET || "pr" });
   const target = TARGETS[row.target];
@@ -1108,6 +1178,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
       patchDir: env.PATCH_DIR ?? "",
       reportDir: env.REPORT_DIR ?? "",
       rung: modelRung(env.MODEL_RUNG),
+      weakenRetry: weakenRetryFrom(env.WEAKEN_RETRY),
       mergeState: env.MERGE_STATE ?? "",
     });
     appendFileSync(env.GITHUB_OUTPUT, `proceed=${result.proceed}\nskip-reason=${result.skipReason}\nescalation-reason=${result.escalationReason}\n`);

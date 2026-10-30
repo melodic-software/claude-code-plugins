@@ -1,10 +1,11 @@
 ---
-description: "A variations request comes back as three or four labeled full-section blocks with the changed line marked, not a list of bare one-line candidates"
+description: "A variations request comes back as three or four labeled full-section blocks with the changed line marked, not a list of bare one-line candidates, with the rubric's syllable counts run as datamuse.sh commands. A stand-in curl keeps datamuse.sh offline. Needs --scaffold --allow-tools Bash."
 tags: [songwriting, diagnose, outcome, group-a]
-max_turns: 14
-timeout_seconds: 480
-allowed_tools: [Skill, Read, Glob, Grep]
-expected_outcome: "Three or four labeled variations of line 3, each shown as the full four-line verse with the changed line marked with the ► glyph and the unchanged lines kept in context; no more than four variations in the chat menu."
+plugins: ["../..", "datamuse-path"]
+max_turns: 24
+timeout_seconds: 600
+allowed_tools: [Skill, Read, Glob, Grep, Bash]
+expected_outcome: "Three or four labeled variations of line 3, each shown as the full four-line verse with the changed line marked with the ► glyph and the unchanged lines kept in context; no more than four variations in the chat menu; the candidates' syllables counted with datamuse.sh syllables."
 ---
 
 /songwriting:diagnose variations Line 3 of this verse feels flat. Give me a bunch of versions of it:

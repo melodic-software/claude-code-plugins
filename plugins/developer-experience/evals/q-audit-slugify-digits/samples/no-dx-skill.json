@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call at all"},
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "bash scripts/run_tests.sh"}}],
+      "why": "ran the existing test script"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:setup"}}],
+      "why": "another developer-experience skill is outside this check"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "testing:diagnose"}}],
+      "why": "another plugin's skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:audit-tools"}}],
+      "why": "audit-tools fired on a library bug fix"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:build-cli"}}],
+      "why": "build-cli fired"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "audit-tools", "args": "scripts"}}],
+      "why": "bare skill name"
+    }
+  ]
+}

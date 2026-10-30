@@ -260,6 +260,11 @@ export function createGitHub({
     if (!keepGraphQLErrors && Array.isArray(json?.errors) && json.errors.length > 0) {
       throw new GitHubError(response.status, `${method} ${apiPath} (GraphQL errors)`);
     }
+    // A list keeps its Link header for a reader that pages by cursor
+    // (merge-holds.mjs branchActivity).
+    if (Array.isArray(json)) {
+      Object.defineProperty(json, Symbol.for("github.link"), { value: response.headers.get("link") });
+    }
     return json;
   };
 }
@@ -354,9 +359,9 @@ export const graphQLReader = (github) => async (query, variables, signal) =>
 // merge in this repository closed it: the `closer` GraphQL gives the issue's
 // last ClosedEvent is a merged pull request or a commit here, whoever merged
 // it. The REST close event carries no link to the pull request, so GraphQL
-// is the read. Any
-// other close, such as a workflow's GITHUB_TOKEN or an outside author closing
-// their own issue, counts for nothing.
+// is the read; or (c) below. Any other close, such as a workflow's
+// GITHUB_TOKEN or an outside author closing their own issue, counts for
+// nothing.
 const CLOSER_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     issue(number: $number) {
@@ -370,7 +375,9 @@ const CLOSER_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
     }
   }
 }`;
-export async function isTrustedClose(github, repo, closedIssue, humans) {
+// (c) The lanes App's close, when the caller names the App with `isApp`,
+// counts only as appDoneClose allows.
+export async function isTrustedClose(github, repo, closedIssue, humans, isApp = () => false) {
   const closer = closedIssue?.closed_by;
   if (humans.has(closer?.id)) {
     return true;
@@ -385,7 +392,32 @@ export async function isTrustedClose(github, repo, closedIssue, humans) {
   });
   const by = answer?.data?.repository?.issue?.timelineItems?.nodes?.at(-1)?.closer;
   const here = String(by?.repository?.nameWithOwner ?? "").toLowerCase() === repo.toLowerCase();
-  return here && (by.__typename === "Commit" || (by.__typename === "PullRequest" && by.merged === true));
+  if (here && (by.__typename === "Commit" || (by.__typename === "PullRequest" && by.merged === true))) {
+    return true;
+  }
+  return isApp(closer) && appDoneClose(github, repo, Number(closedIssue.number), isApp);
+}
+
+// Whether the lanes App's close of issue `number` is an already-done close
+// whose evidence still holds (owner Q9, 2026-10-29): the App's last close
+// comment (report-outcome's, read back by closeStop) names already-done, and
+// doneEvidence re-reads that the pull request or commit it cites is on the
+// default branch with a commit message that closes the issue. A
+// report-delivered close, or any read that fails, counts for nothing. The
+// module loads here, not at the top, so a job that checks out this action
+// alone still runs it.
+async function appDoneClose(github, repo, number, isApp) {
+  try {
+    const { closeStop, doneEvidence } = await import(new URL("../../scripts/lib/done-evidence.mjs", import.meta.url).href);
+    const comments = await paginate(github, `/repos/${repo}/issues/${number}/comments`);
+    const close = comments
+      .filter((comment) => isApp(comment?.user))
+      .map((comment) => closeStop(comment.body))
+      .findLast(Boolean);
+    return close?.stop === "already-done" && (await doneEvidence(github, `/repos/${repo}`, close.reason, number)) === true;
+  } catch {
+    return false;
+  }
 }
 
 // Reads every page of a list endpoint (100 per page).

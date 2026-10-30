@@ -27,9 +27,11 @@ there is anything to decide about. Treat a failure (not a repository, git unavai
 value and carry on. Keep these as separate body calls rather than pre-compute: the harness composes
 a pre-computed block into one shell invocation, and a worktree-isolated agent refuses a git-bearing
 compound command, which would make this skill uninvocable from inside a worktree. The dated record
-for the composition half is
-[reference/gather-block.md](reference/gather-block.md), "The pre-compute block runs as one shell
-invocation".
+for the composition half is the
+[gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
+"The pre-compute block runs as one shell invocation". The Bash shapes an isolated session accepts at
+body time and in subagents are recorded in [reference/gather-block.md](reference/gather-block.md),
+"Accepted command shapes for body-time and subagent Bash".
 
 That refusal is documented behavior, not a quirk of one release, so the constraint is durable. Per
 [worktrees](https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation) (fetched

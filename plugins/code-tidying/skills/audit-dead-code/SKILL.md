@@ -1,5 +1,5 @@
 ---
-description: "Read-only hunt for dead and unused code across four labeled lanes (Knip for TS/JS, vulture for Python, gopls for Go, grep for shell and files no lane owns), each candidate adjudicated dead, uncertain or alive. Use when asked to 'find dead code', to find what is unused in a repository (exports, functions, orphaned files), or whether anything still calls a symbol. Deleting what it finds is /code-tidying:tidy."
+description: "Read-only hunt for dead and unused code across four labeled lanes (Knip for TS/JS, vulture for Python, gopls for Go, grep for shell, C# and files no lane owns), each candidate adjudicated dead, uncertain or alive. Use when asked to 'find dead code', to find what is unused in a repository (exports, functions, orphaned files), or whether anything still calls a symbol. Deleting what it finds is /code-tidying:tidy."
 argument-hint: "[--max N] [--lane knip|vulture|gopls|grep] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -26,14 +26,15 @@ is wrong even when every finding in it is right.
 | **knip** | TS/JS: unused files, exports, types, enum members. **Not** class members (Knip 6 rejects `--include classMembers`) | **60% precision / 100% recall** on trap fixtures | Unrestored, it **manufactures false positives** (a failed config load produced 2 phantom "unused files"); its `ERROR:` line goes to stderr, which the JSON reporter discards |
 | **vulture** | Python: unused function, class, method, variable, attribute, plus unreachable code | **16.7% precision / 100% recall**; all five trap classes false-positived at 100% | Low precision by construction. Its output is a worklist, never a verdict |
 | **gopls** | Go: **unexported symbols only** (`gopls check -severity=hint`), the lane's declared coverage | Correct on every measured symbol; 2.1s | An unresolved module graph **suppresses hints**: false **negatives**, the opposite of knip. Never describe the two degradations with one phrase |
-| **grep** | Shell and PowerShell functions; `function`/`class`/`const`/`let`/`var` declarations in JS/TS no `package.json` root owns (`ts-unreferenced-symbol`); unreferenced source files (`unreferenced-file`) | Shell symbols: **4/4 true positives, 0 false** over 546 `.sh` files (shellcheck found 0 of the 4). JS/TS symbols: **66.7% precision / 66.7% recall** (as recorded 2026-09-29). `unreferenced-file` precision unmeasured | Low recall: `$`, `-`, `.` are non-word characters, so an adjacent hit reads as a reference and saves a possibly dead symbol. A JS/TS export only an entry point or outside consumer calls is a false candidate; a name in a comment saves a dead one |
+| **grep** | Shell and PowerShell functions; `function`/`class`/`const`/`let`/`var` declarations in JS/TS no `package.json` root owns (`ts-unreferenced-symbol`); C# type declarations and members with an access modifier, read as text and never built (`cs-unreferenced-private`, `cs-unreferenced-symbol`); unreferenced source files (`unreferenced-file`) | Shell symbols: **4/4 true positives, 0 false** over 546 `.sh` files (shellcheck found 0 of the 4). JS/TS symbols: **66.7% precision / 66.7% recall** (as recorded 2026-09-29). C# private: **66.7% / 66.7%**; other C#: **33.3% / 100%** (2026-10-29). `unreferenced-file` precision unmeasured | Low recall: `$`, `-`, `.` are non-word characters, so an adjacent hit reads as a reference and saves a possibly dead symbol. A JS/TS export only an entry point or outside consumer calls is a false candidate; a name in a comment saves a dead one. A C# member reached by a computed reflection name, assembly scanning or a serializer is a false candidate |
 
 Every figure comes from this plugin's trap fixtures under `evals/fixtures/`, as recorded on
-2026-08-23 (JS/TS symbol figures 2026-09-29). Recheck trigger: a major version bump in any lane's
-detector, or a change to the fixture corpus. Re-measure before quoting one to a user.
+2026-08-23 (JS/TS symbol figures 2026-09-29, C# figures 2026-10-29). Recheck trigger: a major
+version bump in any lane's detector, or a change to the fixture corpus. Re-measure before quoting
+one to a user.
 
 **Orphaned files.** The grep lane emits `unreferenced-file` (tier 2) for a source file no other
-tracked file names, including languages with no lane, Rust and .NET among them. A reference in a CI
+tracked file names, C# and languages with no lane (Rust, F# and VB among them) included. A reference in a CI
 workflow, settings file, manifest or doc saves the file; a computed path or glob does not, so the
 candidate is **uncertain, not dead**. Its input set, the no-lane extension list, per-lane
 invocation, coverage accounting and degradation detail: [context/lanes.md](context/lanes.md)
@@ -55,12 +56,15 @@ measured precision of the lane that produced it.
 | `go-unused-unexported` | gopls | 1 |
 | `unreferenced-symbol` | grep | 1 |
 | `ts-unreferenced-symbol` | grep | 2 |
+| `cs-unreferenced-private` | grep | 2 |
+| `cs-unreferenced-symbol` | grep | 2 |
 | `unreferenced-file` | grep | 2 |
 | `detector-drift` | any | 3 |
 
 `ts-unreferenced-symbol` is tier 2, unlike the shell `unreferenced-symbol`, because its measured
 precision is 2 of 3 and an entry point or public export nothing in the repository calls reads as
-unreferenced. A consumer's own `CLAUDE.md` or rules may refine these defaults.
+unreferenced. Both C# shapes are tier 2 because each yields a false dead on the trap fixtures.
+A consumer's own `CLAUDE.md` or rules may refine these defaults.
 
 ## Running the detector
 
@@ -150,8 +154,9 @@ are gaps, not a clean bill. After presenting the lane roster:
 
 1. **Name each gap** from `Summary coverage:` and each `Note: uncovered` line: the path and the
    reason (`no lane for the language`, `no manifest root`, `tool not installed`, `lane degraded`,
-   `tool could not parse it`, or `lane not selected`). Rust and .NET are a policy exclusion (`no
-   lane for the language`), not a forgotten detector.
+   `tool could not parse it`, or `lane not selected`). Rust, F# and VB are a policy exclusion (`no
+   lane for the language`), not a forgotten detector. C# gets the grep lane's text-only pass, never
+   a build.
 2. **Offer to file an issue** against this plugin with the file count and language, pre-filled for
    the operator to edit and submit. Do nothing unless they agree.
 3. **Offer research and install**: with consent, run `/discovery:research` to pick a detector for
@@ -200,10 +205,10 @@ formats"), and the next run reaches new code. Each step is done when the operato
 verdicts and suppression text, has declined them, or the batch is explicitly deferred; the loop ends when a follow-up scan is
 scheduled or the operator stops after one batch.
 
-Only knip and vulture converge. **Go and shell have no native suppression** (measured: `gopls
-check -severity=hint` reports through every candidate directive; `//lint:ignore` is staticcheck's),
-so those verdicts live in the report and in a comment at the declaration, and the same candidates
-return. Say so rather than emitting a directive that does nothing.
+Only knip and vulture converge. **Go and the grep lane have no native suppression** (measured:
+`gopls check -severity=hint` reports through every candidate directive; `//lint:ignore` is
+staticcheck's), so those verdicts live in the report and in a comment at the declaration, and the
+same candidates return. Say so rather than emitting a directive that does nothing.
 
 `dead` and `uncertain` verdicts are session-scoped: an un-suppressed `uncertain` returns next run.
 A committed vulture whitelist raises `F821` under a consumer's ruff config; say so when you emit

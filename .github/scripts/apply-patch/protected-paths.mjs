@@ -16,6 +16,8 @@ export function segments(path) {
   return out;
 }
 
+const LANE_GRANT_FILES = Object.freeze([".github/actions/resolve-config/lane-grants.json", ".github/standards/trusted-actors/trusted-actors.json"]);
+
 export const PATH_RULES = {
   // The lane token has no workflows permission, so GitHub refuses the push.
   "github-workflows": (s) => s[0] === ".github" && s[1] === "workflows",
@@ -26,6 +28,10 @@ export const PATH_RULES = {
   gitmodules: (s) => s.at(-1) === ".gitmodules",
   // A settings file outside plugins/, whose files are this repository's product.
   settings: (s) => s[0] !== "plugins" && /^settings[^/]*\.json$/.test(s.at(-1) ?? ""),
+  // The central lane grant file and the trusted-actor list, which decide what
+  // every admitted repository's lanes may mint and who may start them (ADR 0085
+  // Decision 6).
+  "lane-grants": (s) => LANE_GRANT_FILES.includes(s.join("/")),
 };
 const pathRule = (name) => (entry) => PATH_RULES[name](segments(entry.path));
 const pathRefused = (path) => Object.values(PATH_RULES).some((rule) => rule(segments(path))) || path.includes("\\");
@@ -38,5 +44,6 @@ export const PROTECTED_REFUSALS = {
   codeowners: { kind: "protected-path", test: pathRule("codeowners") },
   gitmodules: { kind: "protected-path", test: pathRule("gitmodules") },
   settings: { kind: "protected-path", test: pathRule("settings") },
+  "lane-grants": { kind: "protected-path", test: pathRule("lane-grants") },
   "rename-into-refused": { kind: "protected-path", test: (entry) => entry.renamedFrom !== undefined && pathRefused(entry.path) },
 };

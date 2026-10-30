@@ -104,7 +104,8 @@ else
   while IFS= read -r pg_arg; do
     # shellcheck disable=SC2016  # the placeholder is matched literally, as Claude Code substitutes it
     PG_ARGS+=("${pg_arg//\$\{CLAUDE_PLUGIN_ROOT\}/$PLUGIN_ROOT}")
-  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON")
+  # tr: a Windows jq.exe ends each line with CRLF, and read keeps the CR.
+  done < <(jq -r '.hooks.SessionStart[0].hooks[0].args[]' "$HOOKS_JSON" | tr -d '\r')
 
   # run_probe <value|__unset__> -> run the row with bash_format_enabled set to <value> (or unset).
   run_probe() {
@@ -131,7 +132,7 @@ else
     pg_ok=1
     while IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL; do
       [[ "$OUT_PG" == *"$PG_NAME"* && "$OUT_PG" == *"$PG_CHECK"* && "$OUT_PG" == *"$PG_INSTALL"* ]] || pg_ok=0
-    done < <(jq -r '.requires[] | select(.id != "node") | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
+    done < <(jq -r '.requires[] | select(.id != "node") | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST" | tr -d '\r')
     if [[ $RC_PG -eq 0 && $pg_ok -eq 1 ]]; then
       ok "probe-gate: $label -> notices name each tool, its check and the install line"
     else
@@ -436,13 +437,14 @@ expect "unclassified probe failure prints nothing from the batch row" "" "$OUT"
 # PostToolBatch has no matcher, so the row fires on every batch of every session.
 # A batch that holds no string ending in "sh" costs only the node launcher.
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1; then
+# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
+if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" bash-format PostToolBatch bash-format.sh \
     '{"session_id":"census","hook_event_name":"PostToolBatch","cwd":"@DIR@","tool_calls":[{"tool_name":"Read","tool_input":{"file_path":"@DIR@/README.md"},"tool_use_id":"toolu_census","tool_response":"# readme"}]}' \
     --check 'test ! -s "$HOOK_STDOUT"')"
   expect "spawn budget: a batch with no shell file costs only the node launcher" "spawns=1" "${out%% *}"
 else
-  echo "NOTE: strace or scripts/hook-census.sh absent; the spawn budget case did not run."
+  echo "NOTE: a working strace or scripts/hook-census.sh is absent; the spawn budget case did not run."
 fi
 
 echo

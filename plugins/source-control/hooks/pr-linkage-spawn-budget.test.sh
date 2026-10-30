@@ -123,7 +123,7 @@ v
 ## Related
 r
 '
-BAD_BODY='no linkage and no sections'
+BAD_BODY='This does not close #1.'
 
 bash_payload() {
   jq -n --arg cwd "$REPO" --arg c "$1" \

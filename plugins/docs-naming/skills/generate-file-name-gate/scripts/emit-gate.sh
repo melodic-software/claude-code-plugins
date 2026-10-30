@@ -144,7 +144,7 @@ RULE="$(cfg '.file_names.rule')"
 # The regex is validated here as well as by `setup check`: emission is the last
 # point at which a rule that cannot compile is still a refusal rather than a
 # gate that reports every tracked file as an offender.
-printf 'probe-name.md\n' | grep -Eq "$REGEX" >/dev/null 2>&1
+grep -Eq "$REGEX" <<<'probe-name.md' >/dev/null 2>&1
 [[ "$?" -le 1 ]] || die "file_names.regex does not compile under grep -E: $REGEX"
 
 # `list <jq-path>` prints one entry per line; `quoted` turns those into a shell
@@ -268,7 +268,7 @@ probe_names() {
 
 probe_ok() {
   for cand in $(probe_names conforming-name.md conformingname.md conforming.md c1.md name.txt n.md n.txt); do
-    printf '%s\n' "$cand" | grep -Eq "$REGEX" || continue
+    grep -Eq "$REGEX" <<<"$cand" || continue
     exempt_by_list "$cand" "$(list '.file_names.exempt_basenames[]')" && continue
     exempt_by_list "${cand##*.}" "$(list '.file_names.exempt_extensions[]')" && continue
     in_primary_root "$cand" || continue
@@ -300,7 +300,7 @@ PROBE_OK="$(probe_ok)" ||
 
 PROBE_BAD_ARRAY="$(
   for cand in $(probe_names UPPER-KEBAB.md snake_case.md Mixed.md double..dot.md BadName.txt); do
-    printf '%s\n' "$cand" | grep -Eq "$REGEX" && continue
+    grep -Eq "$REGEX" <<<"$cand" && continue
     exempt_by_list "$cand" "$(list '.file_names.exempt_basenames[]')" && continue
     exempt_by_list "${cand##*.}" "$(list '.file_names.exempt_extensions[]')" && continue
     in_primary_root "$cand" || continue

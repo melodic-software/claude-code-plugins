@@ -1,0 +1,13 @@
+"""Tag a release after an interactive confirmation."""
+
+from bfk import proc
+
+
+def run(version):
+    answer = input(f"Tag release v{version} on the current commit? [y/N] ")
+    if answer.strip().lower() != "y":
+        print("Release cancelled.")
+        return 1
+    proc.run(["git", "tag", "-a", f"v{version}", "-m", f"Release {version}"])
+    print(f"Tagged v{version}.")
+    return 0

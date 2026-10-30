@@ -147,10 +147,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       # The off switch, checked before anything else.
       - name: Check the kill switch
@@ -181,6 +180,7 @@ jobs:
           ACTOR_ID: ${{ github.actor_id }}
           # The job's own read-only token, to read this run's record.
           ACTIONS_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/work-unblock/label-unblocked.mjs --check-closer
 

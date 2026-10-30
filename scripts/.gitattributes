@@ -1,0 +1,11 @@
+# Line-list registries: git's built-in union driver keeps both sides' lines
+# instead of conflicting. Only lists whose order carries no meaning and whose
+# gate fails what a bad union can leave behind, such as a line one side removed.
+# This file, not the root .gitattributes, holds them: the root one syncs from
+# melodic-software/standards.
+
+# Gate: check-purged-em-dashes.sh fails a stale entry.
+em-dash-purged-paths.txt  merge=union
+# Gate: sync-shared-copies.sh --check fails a duplicate, a missing canonical,
+# or a registered copy that is missing.
+shared-copies.txt         merge=union

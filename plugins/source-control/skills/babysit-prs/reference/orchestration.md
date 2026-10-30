@@ -884,7 +884,7 @@ Each worker must:
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
   through `bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
-  --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --autonomous --resolve` pinned with `--thread-id`, `--expected-comment-count`, and
+  --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --own-pr-lane-logins <lane-logins> --autonomous --resolve` pinned with `--thread-id`, `--expected-comment-count`, and
   `--expected-last-updated` taken from that same snapshot (`safety.md`, thread-pin pair rule). A
   thread that became outdated only because of the worker's own push has not thereby been addressed,
   so it is never auto-resolved on that basis. The push moving the diff under a finding does not
@@ -977,7 +977,7 @@ GitHub settings, or auto-fix human-authored feedback. Classify, reply with evide
 surface human items instead. You may resolve a review thread only if it appears in the pre-push
 outdated-thread list above, via bash "<plugin-root>/scripts/source-control-babysit-resolve-thread"
 owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins
-@me,<self-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>, with the pins
+@me,<self-logins> --own-pr-lane-logins <lane-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>, with the pins
 taken from that list; a
 thread that becomes outdated only because of your own push is not addressed by that push. Leave
 it. If you address a finding on a CURRENT bot thread, whether with counter-evidence for an INCORRECT, a grounded
