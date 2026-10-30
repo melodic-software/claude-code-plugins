@@ -370,7 +370,7 @@ Three labels take work off the unattended path, and each means one thing (owner 
 lane cannot make (a protected path, a weakened required check, a check the `fix-ci` rung-up could
 not fix, an unfinished dependency review)
 goes to an agent session, which removes the label once it has made the change
-([routing table](../pr-pipeline/README.md#activities)).
+([routing table](../../conventions/pr-pipeline/README.md#activities)).
 
 Intake admission refuses `attended` and `host-run` alike, parked at `status: confirmed`, and adds
 `host-run` itself when every done-when item is one an unattended lane run cannot perform, none is a
