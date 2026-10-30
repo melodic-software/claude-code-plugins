@@ -702,7 +702,7 @@ test("a merge verdict on a lanes App commit with a plain version bump in package
   const api = mergeWith([modified("package.json"), modified("package-lock.json")]);
   assert.deepEqual(await go(api, mergeRun()), { escalationReason: "", skipReason: "" });
   assert.match(api.calls.comments[0], /verdict=merge/);
-  assert.deepEqual(api.calls.activity, ["refs/heads/dependabot/npm_and_yarn/x-2.0.0"]);
+  assert.deepEqual(api.calls.activity, ["dependabot/npm_and_yarn/x-2.0.0"]);
 });
 
 test("a merge verdict on a lanes App push carrying a Dependabot-authored commit under its tip is refused", async () => {

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { ciSnapshot, coveringLanes, createGitHubApi, currentThreads, main, maxRoundsFrom, needsPerson, planLanes, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
@@ -1152,6 +1153,50 @@ test("createGitHubApi follows rel=next pages and sends the token", async () => {
     calls.map((call) => call.auth),
     ["Bearer tok", "Bearer tok"],
   );
+});
+
+// The activity API ignores `page`: page n answers `after=c<n>` and links the
+// next one, so the fixtures serve by cursor as GitHub does (#11016).
+const activityFetch = (pages, urls = []) => async (url) => {
+  urls.push(url);
+  const at = Number(/[?&]after=c(\d+)/.exec(url)?.[1] ?? 0);
+  const link = at + 1 < pages.length ? `<https://api/repositories/1/activity?per_page=100&after=c${at + 1}>; rel="next"` : "";
+  return { ok: true, status: 200, json: async () => pages[at], headers: { get: () => link } };
+};
+const rows = (n) => Array.from({ length: n }, (_, id) => ({ id }));
+const activityApi = (pages, urls) => createGitHubApi({ token: "tok", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://gql", fetch: activityFetch(pages, urls) });
+
+test("listActivity reads a branch's activity by cursor across a page boundary and an empty last page", async () => {
+  const urls = [];
+  assert.equal((await activityApi([rows(100), rows(1)], urls).listActivity("dependabot/x")).length, 101);
+  assert.deepEqual(urls, [
+    "https://api/repos/o/r/activity?ref=refs%2Fheads%2Fdependabot%2Fx&direction=desc&per_page=100",
+    "https://api/repos/o/r/activity?ref=refs%2Fheads%2Fdependabot%2Fx&direction=desc&per_page=100&after=c1",
+  ]);
+  assert.equal((await activityApi([rows(100), []]).listActivity("dependabot/x")).length, 100);
+});
+
+test("listActivity fails closed at the cursor's end: a full page with no next link, more than 20 pages, or a page that is no list", async () => {
+  await assert.rejects(activityApi([rows(100)]).listActivity("b"), /full page with no next link/);
+  await assert.rejects(activityApi([...Array.from({ length: 20 }, () => rows(100)), rows(1)]).listActivity("b"), /past 20 pages/);
+  assert.equal(await activityApi([{ message: "Not Found" }]).listActivity("b"), null);
+});
+
+// apply-dependency-verdict.mjs runs from $RUNNER_TEMP/base-script, a copy of
+// this directory, with merge-holds.mjs staged beside it in $RUNNER_TEMP/pr-merge
+// (collect-base-activity).
+test("listActivity loads its cursor reader from the staged layout a script activity runs in", async () => {
+  const root = tempDir("base-activity-");
+  try {
+    cpSync(dirname(fileURLToPath(import.meta.url)), join(root, "base-script"), { recursive: true });
+    mkdirSync(join(root, "pr-merge"));
+    cpSync(fileURLToPath(new URL("../pr-merge/merge-holds.mjs", import.meta.url)), join(root, "pr-merge", "merge-holds.mjs"));
+    const { createGitHubApi: staged } = await import(pathToFileURL(join(root, "base-script", "address-feedback.mjs")).href);
+    const api = staged({ token: "tok", repository: "o/r", apiUrl: "https://api", graphqlUrl: "https://gql", fetch: activityFetch([rows(100), rows(1)]) });
+    assert.equal((await api.listActivity("b")).length, 101);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("createGitHubApi lists review comments since a time when given one, and all of them otherwise", async () => {
