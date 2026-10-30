@@ -211,6 +211,7 @@ FACTS_TABLE = re.compile(r"^\s*\|.*\|\s*$", re.MULTILINE)
 BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
 CODE_SPAN = re.compile(r"`[^`\n]+`")
 REPO_SLUG = re.compile(r"[\w.-]+/[\w.-]+", re.ASCII)
+COMMIT_SHA = re.compile(r"[0-9a-f]{40}")  # a full commit SHA, which page links pin; also in shared/session.py
 BRANCH_SOURCE_LINK = re.compile(
     r"https?://github\.com/[\w.-]+/[\w.-]+/blob/(?![0-9a-f]{7,40}/)[^/\s)]+/", re.ASCII
 )
@@ -893,18 +894,21 @@ def put_group(doc, g):
 # The CLI commands and `apply` share them; only the caller loads, locks and saves.
 
 
-META_KEYS = ("title", "eyebrow", "stages", "next", "repo")
+META_KEYS = ("title", "eyebrow", "stages", "next", "repo", "commit")
 # add-round's meta may also carry `kind`, stored on the round: a sweep round reconciles earlier answers.
 ROUND_KINDS = ("sweep",)
 
 
 def set_meta(doc, m):
-    """Merge title, eyebrow, stages, next and repo into questions.json meta; any other key is refused."""
+    """Merge title, eyebrow, stages, next, repo and commit into questions.json meta; any other key, or a commit that is neither empty nor a full SHA, is refused."""
     if not isinstance(m, dict):
         sys.exit("refused: meta is an object")
     extra = sorted(set(m) - set(META_KEYS))
     if extra:
         sys.exit(f"refused: unknown meta keys {extra} (known: {', '.join(META_KEYS)})")
+    commit = m.get("commit")
+    if commit and not (isinstance(commit, str) and COMMIT_SHA.fullmatch(commit)):
+        sys.exit(f"refused: meta.commit is a full 40-character commit SHA or empty, got {commit!r}")
     doc["meta"].update(m)
 
 
