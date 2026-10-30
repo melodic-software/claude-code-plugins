@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/prerequisites/prerequisites.schema.json",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/prerequisites/prerequisites.schema.json",
   "title": "Plugin prerequisites",
-  "description": "The external dependencies one plugin needs, in prerequisites.json at the plugin root. lib/prerequisites.mjs reads it and enforces the same rules. docs/conventions/prerequisites/README.md owns the contract.",
+  "description": "The external dependencies one plugin needs, in prerequisites.json at the plugin root. lib/prerequisites.mjs reads it and enforces the same rules. docs/contracts/prerequisites/README.md owns the contract.",
   "type": "object",
   "additionalProperties": false,
   "required": ["requires"],

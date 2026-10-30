@@ -5,7 +5,7 @@
 
 ## Context
 
-The [config-cascade convention](../conventions/config-cascade/README.md) places a surface's layers
+The [config-cascade convention](../contracts/config-cascade/README.md) places a surface's layers
 at `${CLAUDE_PROJECT_DIR}/.claude/<name>`, with a gitignored `*.local.*` overlay beside the team
 file. Four consumer-facing surfaces put their config elsewhere:
 

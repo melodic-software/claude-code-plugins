@@ -11,7 +11,7 @@ it trusts, and how a repository merges and reviews. The plugin's other `userConf
 thresholds, tiers, caps) are outside it. `userConfig` values live in `pluginConfigs`, which
 Claude Code reads from user settings, the `--settings` flag, and managed settings only; a project's
 `.claude/settings.json` is ignored
-([hook-config-delivery](../conventions/hook-config-delivery/README.md), fact 5). A sandbox probe on
+([hook-config-delivery](../contracts/hook-config-delivery/README.md), fact 5). A sandbox probe on
 Claude Code 2.1.283 (2026-09-27) also showed that `claude plugin install --config` writes the value
 to user settings whatever `-s` says (fact 9). So each of these keys has one value per machine.
 

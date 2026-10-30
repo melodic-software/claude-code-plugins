@@ -104,7 +104,7 @@ Probe behavior, not help text.
 - A performance argument for mods does not survive this repository's hook budget, which is
   max-shaped: Claude Code runs matching hooks in parallel, so removing cost from every hook except
   the slowest moves the budgeted wall by zero
-  ([docs/conventions/hook-budget/README.md](../conventions/hook-budget/README.md)). Only replacing
+  ([docs/contracts/hook-budget/README.md](../contracts/hook-budget/README.md)). Only replacing
   the `guardrails` dispatcher would move it, and `guardrails` is Class A under
   [0028-classify-a-plugin-s-hooks-by-packaging-before-proposing-a-split.md](0028-classify-a-plugin-s-hooks-by-packaging-before-proposing-a-split.md),
   which never splits.

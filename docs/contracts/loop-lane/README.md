@@ -58,7 +58,7 @@ evidence predicate exists for them"
 ([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#suggested-default-predicates)).
 The pr-merge lane reads no class: it merges a pull request the lanes App opened for one closing
 issue on the verifier verdict at its head, and refuses fork pull requests, so C5 stays human there
-too ([the pr-merge lane](../pr-pipeline/README.md#the-pr-merge-lane),
+too ([the pr-merge lane](../../conventions/pr-pipeline/README.md#the-pr-merge-lane),
 [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#merge-authorities-that-read-no-class)).
 The unattended merge gate (`/source-control:babysit-prs`, `--unattended`) reads no class either,
 by [owner decision](https://github.com/melodic-software/claude-code-plugins/issues/9668#issuecomment-6386299330):
@@ -326,7 +326,7 @@ The owner's rule, 2026-10-27, verbatim, with reason 3 as the owner reworded it o
 | Reason | Label | Lane that decides |
 |---|---|---|
 | Original intent or vision changes, or the item cannot answer an intent question | `status: needs-decision`, `Flags: intent` | Intake triage ([`intake-triage.yml`](../../../.github/workflows/intake-triage.yml)) |
-| A finding during implementation alters intent, vision or the primary design | human-gated role label (`needs-human` by default) | The lane doing the work: `work-loop`, `work-resolve-issue`, or pr-verify once address-feedback's [round cap](../pr-pipeline/README.md#loop-caps) is spent |
+| A finding during implementation alters intent, vision or the primary design | human-gated role label (`needs-human` by default) | The lane doing the work: `work-loop`, `work-resolve-issue`, or pr-verify once address-feedback's [round cap](../../conventions/pr-pipeline/README.md#loop-caps) is spent |
 | A HIGH or CRITICAL security issue, such as leaked tokens or secrets, an account compromise, or real money at risk (the repository is public) | human-gated role label for an existing weakness; `status: needs-decision`, `Flags: security` for work whose result would carry one | Intake triage for issues; the security review lane for pull requests |
 | Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests |
 
@@ -350,7 +350,7 @@ Three labels take work off the unattended path, and each means one thing (owner 
 | Label | Meaning | Who lifts it |
 |---|---|---|
 | human-gated role label (`needs-human`) | An owner decision: one of the reasons above | A listed human, by answering |
-| `attended` | The owner must be present: a manual step on external state an agent cannot safely run or test, of a class [`pr-pipeline.yaml`](../pr-pipeline.yaml) `attended.classes` lists, such as a DNS or registrar change, a cloud resource outside an IaC repository's preview and deploy flow, a new key or secret, an elevated pass, or a network registration. It asks no decision | Only a listed human, once the step is done |
+| `attended` | The owner must be present: a manual step on external state an agent cannot safely run or test, of a class [`pr-pipeline.yaml`](../../conventions/pr-pipeline.yaml) `attended.classes` lists, such as a DNS or registrar change, a cloud resource outside an IaC repository's preview and deploy flow, a new key or secret, an elevated pass, or a network registration. It asks no decision | Only a listed human, once the step is done |
 | `host-run` | An unattended agent run on a host, which the issue lane cannot make | Removed, with `agent-ready` added again, to hand the work back to the lane |
 
 Intake admission refuses `attended` and `host-run` alike, parked at `status: confirmed`, and adds
@@ -358,7 +358,7 @@ Intake admission refuses `attended` and `host-run` alike, parked at `status: con
 paid eval, and nothing else refuses, waits or holds the issue. It maps a
 refinement's `External state: manual (...)` line to `attended`; a resolve-issue run that reaches
 such a step stops with the `manual-external` code, which routes to `attended`
-([Attended work](../pr-pipeline/README.md#attended-work)).
+([Attended work](../../conventions/pr-pipeline/README.md#attended-work)).
 
 A session does not hold a pull request that a lane already judges (a Dependabot tier, the security
 review lane's verdict), or ask the owner about it, on its own concern. It routes the concern to that lane's owner as an issue,
@@ -1380,7 +1380,7 @@ a checklist of its own:
 |---|---|
 | Bookmark per source | `/harness-ops:morning-brief`'s per-repo bookmark ("What each section reports"); for ai-briefing, the mechanism tracked in #7678; for state a cloud routine keeps between runs, a tracker comment read back on the next run (the §4 "Telemetry comment" carrier) as the interim store, until the probe tracked in #8991 reports |
 | Failed read reported as unreadable | `/harness-ops:morning-brief` "Degraded sections"; for ai-briefing and a headless lane's MCP load check, the mechanism tracked in #7678 |
-| Live re-check before posting | [`pr-run-activity.md`](../pr-pipeline/pr-run-activity.md) "prepare: review-threads" |
+| Live re-check before posting | [`pr-run-activity.md`](../../conventions/pr-pipeline/pr-run-activity.md) "prepare: review-threads" |
 | Post confirmed before it is recorded | §2 "Escalation record write" (record first, marker second); §4 "Telemetry comment" (post-write read-back); for overlapping runs, [`posting-lanes.md`](posting-lanes.md) |
 | Config re-read each run from a store the lane cannot edit | §4 "Headless-config floor"; base-SHA config in `.github/workflows/pr-run-activity-read.yml`; [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) decision 4, with the review and intake lanes tracked in #7234. Not met for local lanes: each reads config it can edit, and §4 "Lane-editable config and the four sandbox conditions" names what makes a deny rule hold |
 | Read-only access, and a cap on each run | Not met for read-only access: CI lanes hold the write token their job needs and every tool, the gap [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md) accepts and bounds with short-lived, scoped tokens (decision 3); for run limits per task class, the mechanism tracked in #7677 |

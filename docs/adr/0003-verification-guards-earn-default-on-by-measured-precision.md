@@ -136,14 +136,14 @@ sufficient one. Specifically:
   the lifecycle. That ADR governs promoting an advisory gate to blocking on demonstrated
   precision; this one governs whether an advisory gate ships default-on at all, on the same
   evidentiary basis.
-- `docs/conventions/hook-precision/README.md` owns the over-fire discipline for a guard
+- `docs/contracts/hook-precision/README.md` owns the over-fire discipline for a guard
   already in the tree. This ADR is the pre-ship counterpart and defers to it thereafter.
 
 ## Sources
 
 - #1270 (scoping, amended twice), #1284 (the two-guard PR, closed), #1319 (the shipped
   guard), #1314 (the withdrawn guard's measurement and rescope)
-- `docs/conventions/hook-precision/README.md`: over-fire discipline
+- `docs/contracts/hook-precision/README.md`: over-fire discipline
 - `docs/plugin-philosophy.md`: one mechanism per concern (validation section)
 - `melodic-software/standards`, `conventions/engineering/enforceability-tiers.md`:
   classify the tier first, justify automation second
