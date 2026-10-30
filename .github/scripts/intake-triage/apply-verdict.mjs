@@ -127,7 +127,8 @@ const QUOTED = /^\s*(?:(?:[-*+]|\d+[.)])\s*)?>/;
 // The two canonical shapes, bare or in `**Label:**` bold.
 const COST_CANONICAL = /^(\*\*)?cost( decided)?:\1 (.+)$/i;
 const NO_CHARGE = /^(?:none|n\/a|no charge|no cost)\.?$/i;
-const COST_LABEL = /^\W*costs?\s*[:\u2014\u2013(-]/i;
+const COST_LABEL = /^\W*costs?(?!-\w)\s*[:\u2014\u2013(-]/i;
+const COST_LABEL_TEXT = /^\W*costs?\s*(?:\([^)]*\))?\s*[:\u2014\u2013-]?\s*/i;
 // The reusable's wording the verdict makes untrue once the class is applied.
 export const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
 export const NEW_BASIS = "Basis: automated intake triage; the lanes App applied this class.";
@@ -218,11 +219,11 @@ export function parseVerdict(body, dimensionsConfig, classes) {
   // (any other text after it holds); `Cost decided: <text>` names one a recorded
   // decision covers and holds nothing. Only bare or `**Cost:**` dress counts as
   // that form: any other cost label (`**Cost**:`, `_Cost:_`, `Costs:`, `Cost —`,
-  // `Cost (estimate):`) is unreadable, which keeps a triage hold but does not
-  // stop a verdict with nothing to refuse. A `>` quote, alone or after a list
-  // marker, is issue text; `Costing:` or `Estimated cost:` is not a label.
+  // `Cost (estimate):`) is a problem, which holds, unless its text is only a
+  // no-charge phrase. A `>` quote, alone or after a list marker, is issue text;
+  // `Costing:`, `Cost-benefit:` or `Estimated cost:` is not a label.
   let cost = false;
-  let costUnreadable = false;
+  let costProblem = false;
   for (const line of lines) {
     if (QUOTED.test(line)) {
       continue;
@@ -232,11 +233,15 @@ export function parseVerdict(body, dimensionsConfig, classes) {
     const text = canonical?.[3].replaceAll(/[*_`]/g, "").trim();
     if (canonical && text) {
       cost ||= canonical[2] === undefined && !NO_CHARGE.test(text);
-    } else if (COST_LABEL.test(unlisted.replaceAll(/[*_`]/g, ""))) {
-      costUnreadable = true;
+    } else {
+      const bare = unlisted.replaceAll(/[*_`]/g, "");
+      costProblem ||= COST_LABEL.test(bare) && !NO_CHARGE.test(bare.replace(COST_LABEL_TEXT, "").trim());
     }
   }
-  return { escalated, workClass, untrusted, cost, costUnreadable, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
+  if (costProblem) {
+    problems.push("a Cost line is not in the `Cost: ` / `Cost decided: ` form");
+  }
+  return { escalated, workClass, untrusted, cost, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
 }
 
 // The writes the verdict calls for, given the issue's labels and its current
@@ -336,7 +341,7 @@ export function planWrites(
   // verdict whose Flags line reads none is refused when the rest of the plan
   // is ready: only a flag names a person reason, so admission routes the
   // capability limit or the agent decides the means. An unreadable Flags line,
-  // a `Cost: ` line (not `Cost decided: `) or an unreadable cost label, an earlier verdict's flag, an outside-actor or
+  // a `Cost: ` line (not `Cost decided: `), an earlier verdict's flag, an outside-actor or
   // untrusted-provenance hold (flag.mjs adds needs-human as the same
   // github-actions[bot]), or any other reason keeps both.
   const holds = labels.filter((label) => HOLDS.has(label));
@@ -344,7 +349,6 @@ export function planWrites(
     !verdict.escalated &&
     !verdict.untrusted &&
     !verdict.cost &&
-    !verdict.costUnreadable &&
     Array.isArray(verdict.flags) &&
     verdict.flags.length === 0 &&
     !(Array.isArray(earlierFlags) && earlierFlags.length > 0) &&

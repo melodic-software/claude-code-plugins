@@ -65,7 +65,6 @@ describe("parseVerdict", () => {
       workClass: "work-class: scoped",
       untrusted: false,
       cost: false,
-      costUnreadable: false,
       dimensions: { size: "small", complexity: "low", uncertainty: "known" },
       flags: [],
       blockedBy: [],
@@ -460,7 +459,7 @@ describe("planWrites", () => {
 
   // The strict Cost parse: a canonical `Cost: ` line holds, a no-charge or
   // `Cost decided: ` one or quoted issue text refuses, and any other cost label
-  // is unreadable and holds.
+  // is a problem that holds unless it reads no charge.
   const COST_CASES = [
     ["Cost: x", "hold"],
     ["**Cost:** x", "hold"],
@@ -505,19 +504,27 @@ describe("planWrites", () => {
       const verdict = parseVerdict(body, DIMS, CLASSES);
       const result = plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] });
       assert.equal(verdict.cost, outcome === "hold");
-      assert.equal(verdict.costUnreadable, outcome === "problem");
-      assert.deepEqual(verdict.problems, []);
+      assert.equal(verdict.problems.includes("a Cost line is not in the `Cost: ` / `Cost decided: ` form"), outcome === "problem");
       assert.deepEqual(result.refused, outcome === "refuse" ? ["needs-human"] : []);
       assert.equal(result.ready, outcome === "refuse");
       assert.equal(result.remove.includes("needs-human"), outcome === "refuse");
     });
   }
 
-  // An unreadable cost label has nothing to refuse on a verdict without a triage hold.
-  for (const line of ["Costs: none", "Cost-benefit: low", "Cost (est.): none"]) {
-    test(`a ${JSON.stringify(line)} line does not stop a clean verdict with no hold`, () => {
+  // On a verdict with no triage hold, a non-canonical cost line that names a
+  // charge still stops it; a no-charge one or a `Cost-` compound does not.
+  for (const [line, ready] of [
+    ["Costs: none", true],
+    ["Cost (est.): none", true],
+    ["Cost-benefit: low", true],
+    ["Cost-effective: yes", true],
+    ["Costs: a paid Azure plan", false],
+    ["Cost - minimal, one-line change", false],
+    ["Cost (hours): small", false],
+  ]) {
+    test(`a ${JSON.stringify(line)} line ${ready ? "does not stop" : "stops"} a verdict with no hold`, () => {
       const result = plan(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", line] }), { labels: [] });
-      assert.equal(result.ready, true, result.reasons.join("; "));
+      assert.equal(result.ready, ready, result.reasons.join("; "));
     });
   }
 
