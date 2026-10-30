@@ -122,7 +122,7 @@ esac
 new=$(cat "$tmp/new")
 printf '%s' "$(cat "$tmp/body")" | gh pr edit --body-file - >/dev/null
 # shellcheck disable=SC2310 # jq may be the one-command -b wrapper above; errexit inside it changes nothing
-if ! gh pr view --json body | jq -r .body | tr -d '\r' | grep -Fqx -- "$new"; then
+if ! grep -Fqx -- "$new" < <(gh pr view --json body | jq -r .body | tr -d '\r'); then
   printf 'tick.sh: edit did not land: %s\n' "$new" >&2
   exit 1
 fi

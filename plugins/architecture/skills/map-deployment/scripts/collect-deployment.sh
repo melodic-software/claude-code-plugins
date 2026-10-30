@@ -367,8 +367,8 @@ while IFS= read -r rel || [[ -n "$rel" ]]; do
     add_tool terraform yes "$rel"
     shipped=1
     # A Helm release declared in Terraform is Helm, which this skill does not read.
-    if awk 'BEGIN { RS = "\001" } { gsub(/\/\*([^*]|\*+[^*\/])*\*+\//, ""); print }' "$repo/$rel" |
-      grep -E -q '^[[:space:]]*resource[[:space:]]+"?helm_release"?[[:space:]]|"helm_release"[[:space:]]*:'; then
+    if grep -E -q '^[[:space:]]*resource[[:space:]]+"?helm_release"?[[:space:]]|"helm_release"[[:space:]]*:' \
+      < <(awk 'BEGIN { RS = "\001" } { gsub(/\/\*([^*]|\*+[^*\/])*\*+\//, ""); print }' "$repo/$rel"); then
       add_tool helm no "$rel (helm_release)"
       unshipped=1
     fi
@@ -495,7 +495,7 @@ while IFS= read -r dir || [[ -n "$dir" ]]; do
   fi
   if [[ ${#layers[@]} -gt 0 ]]; then
     for rel in "${files[@]}"; do
-      printf '%s\n' "${layers[@]}" | grep -q -x -F -- "$rel" || refuse "compose-not-mergeable:$rel"
+      grep -q -x -F -- "$rel" < <(printf '%s\n' "${layers[@]}") || refuse "compose-not-mergeable:$rel"
     done
     if [[ "$dir" == "." ]]; then layer_env=default; else layer_env="$(basename "$dir")"; fi
     for rel in "${layers[@]}"; do
