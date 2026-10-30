@@ -1,19 +1,20 @@
 # shellcheck shell=bash
 # newer_green_of REPO WORKFLOW_ID RUN_ID RUN_CREATED RUN_SHA prints, as
 # <id>\t<sha>, the newest full run of WORKFLOW_ID on REPO's main, newer than
-# run RUN_ID, that passed, or nothing when there is none. It counts only when
-# its head descends from RUN_SHA and is on main's history (a ref named main, a
+# run RUN_ID, whose attempt 1 passed (a listed run shows its latest
+# attempt), or nothing when there is none. It counts only when its head descends from RUN_SHA and is on main's history (a ref named main, a
 # tag included, can sit anywhere): compare RUN_SHA...newer and newer...<main's
 # tip, read by heads/main> must each read ahead or identical. A failed listing
 # returns 1; any other failed read or status prints nothing. At most four
 # reads: one listing (newest ten), two compares and the ref.
-# post-merge-demotion-alert.yml and pr-merge.yml's re-run step source it, so
-# a red run main already recovered from is neither re-run nor waited on.
+# post-merge-demotion-alert.yml sources it, so a red run main already
+# recovered from is neither re-run nor waited on; babysit_postmerge.py's
+# `_Context.superseded` holds the same rule for what pr-merge re-runs.
 newer_green_of() {
   local found newer_id newer_sha ancestry main_tip on_main
   found="$(NG_REPO="$1" NG_RUN_ID="$3" NG_CREATED="$4" gh api \
     "repos/$1/actions/workflows/$2/runs?branch=main&status=success&per_page=10" \
-    --jq '[.workflow_runs[] | select(.conclusion == "success" and .head_branch == "main"
+    --jq '[.workflow_runs[] | select(.conclusion == "success" and .run_attempt == 1 and .head_branch == "main"
       and (.event | IN("schedule", "workflow_dispatch"))
       and (.head_repository.full_name // "") == env.NG_REPO
       and (.id > (env.NG_RUN_ID | tonumber) or .created_at > env.NG_CREATED))]

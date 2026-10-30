@@ -1445,18 +1445,20 @@ class _Context:
         return self.green_cache[run.id]
 
     def superseded(self, run: Run) -> Run | None:
-        """The newest full run already listed (`held_full_runs`) that passed
-        after `run`, on a commit that has `run`'s head in its history and is
-        on the branch, or None. Newest first, it stops at the first passed run
-        that descends, as the demotion alert's newer-green.bash does, and
-        reads ancestry for at most SETTLE_COMPARE_CAP of them, from the
-        check's SETTLE_COMPARE_BUDGET. It lists nothing; `contains` caches
-        each answer by commit pair, `on_branch`'s included."""
+        """A full run already listed (`held_full_runs`) whose attempt 1
+        passed after `run`, on a commit that has `run`'s head in its history
+        and is on the branch, or None. It reads the newest SETTLE_COMPARE_CAP
+        such candidates, newest first, and stops at the first that descends
+        (newer-green.bash reads only the newest), spending uncached compares
+        from the check's SETTLE_COMPARE_BUDGET. A failed read, or a spent
+        budget, is None: the run waits for its re-run. It lists nothing, and
+        `contains` caches each answer by commit pair, `on_branch`'s included."""
         newer = sorted(
             (
                 r
                 for r in self.held_full_runs.values()
                 if r.conclusion == "success"
+                and r.attempt == 1
                 and r.id != run.id
                 and r.created_at > run.created_at
                 and _FULL_SHA.fullmatch(r.head_sha or "")
@@ -1464,28 +1466,33 @@ class _Context:
             key=lambda r: r.created_at,
             reverse=True,
         )
-        for r in newer[:SETTLE_COMPARE_CAP]:
-            if not self._settle_read(run.head_sha, r.head_sha):
-                return None
-            if self.contains(run.head_sha, r.head_sha):
-                tip = self._branch_tip()
-                if not self._settle_read(r.head_sha, tip):
+        try:
+            for r in newer[:SETTLE_COMPARE_CAP]:
+                if not self._settle_read(run.head_sha, r.head_sha):
                     return None
-                if self.on_branch(r):
-                    return r
+                if self.contains(run.head_sha, r.head_sha):
+                    if not self._settle_read(r.head_sha, self._branch_tip()):
+                        return None
+                    if self.on_branch(r):
+                        return r
+        except PostMergeReadError:
+            return None
         return None
 
     def _settle_read(self, ancestor: str, sha: str) -> bool:
         """Whether `superseded` may read `contains(ancestor, sha)`: a cached
         answer is free; otherwise SETTLE_COMPARE_BUDGET must have a compare
-        left, and the compares the read sends are spent from it."""
+        left, and the compares the read sends are spent from it, never
+        below zero."""
         if (ancestor, sha) in self.contains_cache:
             return True
         if self.settle_compares_left <= 0:
             return False
         before = self.compare_reads
         self.contains(ancestor, sha)
-        self.settle_compares_left -= self.compare_reads - before
+        self.settle_compares_left = max(
+            0, self.settle_compares_left - (self.compare_reads - before)
+        )
         return True
 
     def on_branch(self, run: Run) -> bool:
@@ -2135,6 +2142,12 @@ class _Context:
         second = self._attempt(run, 2) if run.attempt >= 2 else None
         if second is None:
             if (newer := self.superseded(run)) is not None:
+                if newer.head_sha == run.head_sha:
+                    return (
+                        FLAKE,
+                        f"attempt 1 {first.conclusion}; run {newer.id} passed "
+                        "on the same commit after it",
+                    )
                 return (
                     SETTLED,
                     f"attempt 1 {first.conclusion}; run {newer.id} passed on "

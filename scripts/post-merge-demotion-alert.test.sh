@@ -228,7 +228,7 @@ commit() {
 # green_run <sha> [event] [created_at] -> one successful run on main before the failing one
 green_run() {
   jq -n --arg sha "$1" --arg e "${2:-workflow_dispatch}" --arg t "${3:-2026-10-17T14:00:00Z}" \
-    '{id: 4000, event: $e, conclusion: "success", head_branch: "main", head_sha: $sha, created_at: $t}'
+    '{id: 4000, run_attempt: 1, event: $e, conclusion: "success", head_branch: "main", head_sha: $sha, created_at: $t}'
 }
 
 # Fixtures a test sets before run_step: JOBS (this attempt), BASE_JOBS (run
@@ -1266,7 +1266,7 @@ fi
 # newer_run <id> <created_at> [branch] [head-repo] [event] -> one successful run
 newer_run() {
   jq -n --argjson id "$1" --arg t "$2" --arg b "${3:-main}" --arg r "${4:-o/r}" --arg e "${5:-workflow_dispatch}" \
-    '{id: $id, event: $e, conclusion: "success", head_branch: $b,
+    '{id: $id, run_attempt: 1, event: $e, conclusion: "success", head_branch: $b,
       head_repository: {full_name: $r}, head_sha: "fedcba9876543210fedcba9876543210fedcba98", created_at: $t}'
 }
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" VIA=workflow_dispatch STARTER='github-actions[bot]' \
@@ -1339,6 +1339,17 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$(fixes)" -eq 0 && "$OUT" == *"at atte
   ok "a dispatched run whose re-run also failed files nothing when a newer run on main passed"
 else
   fail "dispatched run, re-run failed, main recovered: rc=$RC posts=$(posts) fixes=$(fixes) log='$LOG' out='$OUT'"
+fi
+
+# A listed run shows its latest attempt: a newer run green only on its re-run
+# is not a recovery of main, so the red run is still re-run and judged.
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z | jq -c '.run_attempt = 2')" ATTEMPT=1 RERUN=failure \
+  run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(head -2 <<<"$LOG")" == $'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10\nPOST repos/o/r/actions/runs/4242/rerun-failed-jobs' &&
+  "$OUT" != *"already recovered"* ]] && ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
+  ok "a newer run green only at attempt 2 does not settle a red run"
+else
+  fail "newer run green at attempt 2: rc=$RC log='$LOG' out='$OUT'"
 fi
 
 # main moved on (a newer run on a descendant is still red or running) but no

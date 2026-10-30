@@ -1435,10 +1435,7 @@ test("the early check names only a lane-dispatched run awaiting its re-run", () 
 const RATE_LIMITED_STDERR =
   "gh: API rate limit exceeded for installation. If you reach out to GitHub Support for help, please include the request ID 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23 05:30:57 UTC. For more on scraping GitHub and how it may affect your rights, please review our Terms of Service (https://docs.github.com/en/site-policy/github-terms/github-terms-of-service) (HTTP 403)";
 const LIMITED_403 ='HTTP/2.0 403 Forbidden\\r\\nX-Ratelimit-Remaining: 0\\r\\nX-Ratelimit-Reset: 4102444800\\r\\nX-Ratelimit-Resource: core\\r\\n\\r\\n{"message": "API rate limit exceeded for installation ID 1."}\\n';
-const RUN_HEAD = "c".repeat(40);
-const NEWER_HEAD = "d".repeat(40);
-// newer: what the listing of newer green full runs on main prints (`<id>\t<sha>`, or nothing).
-const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", runId = "11", newer = "" } = {}) => {
+const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", runId = "11" } = {}) => {
   const dir = tempDir("pr-merge-rerun-");
   try {
     const bin = join(dir, "bin");
@@ -1446,7 +1443,7 @@ const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", r
     writeFileSync(
       join(bin, "gh"),
       `#!/usr/bin/env bash\ninc=; if [ "$2" = -i ]; then inc=1; set -- "$1" "\${@:3}"; fi\n` +
-        `echo "\${*%%$'\\n'*}" >>"${dir}/calls"\n` +
+        `echo "$*" >>"${dir}/calls"\n` +
         `say() { if [ -n "$inc" ]; then printf "$1"; else printf "$1" | sed '1,/^\\r\\?$/d'; fi; }\n` +
         `if [ "$3" = POST ]; then p=(${[post].flat().join(" ")}); s=$(($(cat "${dir}/posts" 2>/dev/null || echo 0) + 1)); echo "$s" >"${dir}/posts"\n` +
         `case "\${p[$((s - 1))]:-\${p[-1]}}" in\n` +
@@ -1455,18 +1452,12 @@ const runRerun = (attempts, { refuse = false, post = refuse ? "refuse" : "ok", r
         `  refuse) say 'HTTP/2.0 403 Forbidden\\r\\n\\r\\n{"message": "Resource not accessible by integration"}\\n'; echo "HTTP 403" >&2; exit 1 ;;\n` +
         `  limited) say 'HTTP/2.0 429 Too Many Requests\\r\\nRetry-After: 60\\r\\n\\r\\n{"message": "Too many requests"}\\n'; echo "HTTP 429" >&2; exit 1 ;;\n` +
         `esac; fi\n` +
-        `case "$*" in\n` +
-        `  *status=success*) say "HTTP/2.0 200 OK\\r\\n\\r\\n${newer}\\n"; exit 0 ;;\n` +
-        `  *compare/*) say 'HTTP/2.0 200 OK\\r\\n\\r\\nahead\\n'; exit 0 ;;\n` +
-        `  *git/ref/heads/main*) say "HTTP/2.0 200 OK\\r\\n\\r\\n${"e".repeat(40)}\\n"; exit 0 ;;\n` +
-        `esac\n` +
-        `sfx=; case "$*" in *head_sha*) sfx=" ${RUN_HEAD} 2026-10-30T09:00:00Z 77" ;; esac\n` +
         `n=$(($(cat "${dir}/reads" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/reads"\n` +
         `a=(${attempts.join(" ")})\nv="\${a[$((n - 1))]:-\${a[-1]}}"\n` +
         `if [ "$v" = x ]; then say 'HTTP/2.0 502 Bad Gateway\\r\\n\\r\\n{}\\n'; echo "HTTP 502" >&2; exit 1; fi\n` +
         `if [ "$v" = limited ]; then say '${LIMITED_403}'; echo '${RATE_LIMITED_STDERR}' >&2; exit 1; fi\n` +
         `if [ "$v" = bare429 ]; then echo "gh: Too Many Requests (HTTP 429)" >&2; exit 1; fi\n` +
-        `say "HTTP/2.0 200 OK\\r\\n\\r\\n$v$sfx\\n"\n`,
+        `say "HTTP/2.0 200 OK\\r\\n\\r\\n$v\\n"\n`,
     );
     writeFileSync(join(bin, "sleep"), `#!/usr/bin/env bash\necho "$1" >>"${dir}/slept"\n`);
     chmodSync(join(bin, "gh"), 0o755);
@@ -1513,32 +1504,13 @@ test("the re-run step re-runs attempt 1 once and records attempt 2", () => {
   assert.match(run.output, /^recorded=true$/m);
 });
 
-// Run 41005510323: red on ad7cbfa1 and re-run at 09:12Z on 2026-10-30 after
-// 41030741557 had passed on its descendant 3a01401f, which raised a stale MAIN-RED.
-test("the re-run step settles a red run a newer green full run on main descends from, in five reads", () => {
-  const run = runRerun([1], { newer: `4300\\t${NEWER_HEAD}` });
-  assert.equal(run.status, 0, run.stdout);
-  assert.deepEqual(run.calls.filter((c) => c.includes("POST")), []);
-  assert.equal(run.record, "");
-  assert.doesNotMatch(run.output, /recorded=true/);
-  assert.match(run.stdout, new RegExp(`::notice::run 11 is settled: run 4300 passed on main at ${NEWER_HEAD} after it`));
-  assert.deepEqual(run.calls.map((c) => c.replace(/ --jq .*/, "")), [
-    "api repos/o/r/actions/runs/11",
-    "api repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10",
-    `api repos/o/r/compare/${RUN_HEAD}...${NEWER_HEAD}`,
-    "api repos/o/r/git/ref/heads/main",
-    `api repos/o/r/compare/${NEWER_HEAD}...${"e".repeat(40)}`,
-  ]);
-});
-
-test("the re-run step still re-runs a red run with no newer green full run on main, in two reads before the POST", () => {
+// babysit_postmerge.py names in `reruns` only runs no newer green run
+// settles, so the step re-runs the run it is given and reads nothing else
+// first: a second rule here could skip a run the check still holds pending.
+test("the re-run step re-runs the named run after reading only that run", () => {
   const run = runRerun([1, 2]);
   assert.equal(run.status, 0, run.stdout);
-  assert.deepEqual(run.calls.slice(0, 3).map((c) => c.replace(/ --jq .*/, "")), [
-    "api repos/o/r/actions/runs/11",
-    "api repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10",
-    POST,
-  ]);
+  assert.deepEqual(run.calls.slice(0, 2).map((c) => c.replace(/ --jq .*/, "")), ["api repos/o/r/actions/runs/11", POST]);
   assert.match(run.output, /^recorded=true$/m);
 });
 
@@ -1621,7 +1593,7 @@ test("the re-run step fails visibly when it cannot confirm attempt 2 after the r
       run.calls.filter((c) => c.includes("POST")),
       [POST],
     );
-    assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 2 + 7);
+    assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 1 + 7);
   }
 });
 
@@ -1630,7 +1602,7 @@ test("a rate-limited read-back stops the re-run step red after one read", () => 
   assert.equal(run.status, 1, run.stdout);
   assert.equal(run.record, "");
   assert.match(run.stdout, /::error title=GitHub rate limit::the read-back of run 11's re-run was rate limited/);
-  assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 3);
+  assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 2);
   assert.match(run.output, /^rate-limited=true$/m);
   assert.match(run.output, /^stop=the core pool until 2100-01-01T00:00:00Z$/m);
 });
@@ -1643,7 +1615,7 @@ test("a rate-limited re-run POST stops the step red, sends it once, and names th
   const run = runRerun([1], { post: "limited" });
   assert.equal(run.status, 1, run.stdout);
   assert.deepEqual(run.calls.filter((c) => c.includes("POST")), [POST]);
-  assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 2);
+  assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 1);
   assert.equal(run.record, "");
   assert.match(run.stdout, /::error title=GitHub rate limit::the re-run of run 11 was rate limited \(every pool until \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\)/);
   assert.match(run.output, /^rate-limited=true$/m);
@@ -1656,7 +1628,7 @@ test("a bare HTTP 429 on the read-back stops the re-run step red after one read"
   const run = runRerun([1, "bare429", 2]);
   assert.equal(run.status, 1, run.stdout);
   assert.equal(run.record, "");
-  assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 3);
+  assert.equal(run.calls.filter((c) => !c.includes("POST")).length, 2);
   assert.match(run.stdout, /::error title=GitHub rate limit::the read-back of run 11's re-run was rate limited \(every pool until /);
   assert.match(run.output, /^stop=every pool until \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/m);
 });
