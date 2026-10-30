@@ -1,4 +1,4 @@
-# test-scope: scripts/sync-hold-floor.py .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs .github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml .github/workflows/pr-require-checks.yml .github/trust-path-hold.json .github/workflows/pr-require-checks-trust-paths.yml docs/conventions/pr-pipeline.yaml
+# test-scope: scripts/sync-hold-floor.py .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-merge/enable-auto-merge.mjs .github/workflows/pr-review-hosted.yml .github/workflows/pr-review-security-hosted.yml .github/workflows/pr-require-checks.yml docs/conventions/pr-pipeline.yaml
 """The native auto-merge holds (`.github/scripts/pr-merge/merge-holds.mjs`,
 run here under node) cover the merge gate's cost paths, so a lane pull
 request native auto-merge merges cannot skip them. The gate's other cost
@@ -10,9 +10,9 @@ lanes App pushes only: another identity with write access can still push a
 workflow change after auto-merge is armed.
 
 - The copies: `scripts/sync-hold-floor.py --check` finds `HOLD_PATH_CLASSES`,
-  `COST_PATHS`, the review callers' `hold-paths`, ci-status's
-  `hold_patterns` and `.github/trust-path-hold.json` as it writes them from
-  `babysit_risk.FLOOR_CLASSES`, `COST_PATHS` and `merge.trust-path-hold-apps`.
+  `COST_PATHS`, the review callers' `hold-paths` and ci-status's
+  `hold_patterns` as it writes them from `babysit_risk.FLOOR_CLASSES` and
+  `COST_PATHS`.
 - The floor (owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B):
   `pathHold` holds, with no configured glob, exactly the paths `glob_match`
   matches over `babysit_risk.HIGH_FLOOR` (its `trust` and `gate` globs), case
@@ -563,48 +563,10 @@ def _hold_patterns() -> list[str]:
     return shlex.split(found[1])
 
 
-def _shared_glob(glob: str, path: str) -> bool:
-    """ci-workflows' check-trust-paths matcher (globToRegExp): whole path,
-    case-insensitive, `*` and `**` cross `/`, `?` is one character."""
-    parts = re.split(r"(\*+|\?)", glob)
-    body = "".join(
-        ".*" if p.startswith("*") else "." if p == "?" else re.escape(p) for p in parts
-    )
-    return re.fullmatch(body, path, re.IGNORECASE | re.DOTALL) is not None
-
-
-def _trust_path_hold() -> dict[str, list[str]]:
-    return json.loads(
-        (ROOT / ".github/trust-path-hold.json").read_text(encoding="utf-8")
-    )
-
-
 class TheScrutinyListsNameTheFloor(unittest.TestCase):
-    """The review callers' `hold-paths` (prompt globs), ci-status's
-    exempt-author `hold_patterns` (bash patterns, `*` crossing `/`) and the
-    base-branch hold's `.github/trust-path-hold.json` (the same, case-folded)
-    each match every floor entry."""
-
-    def test_the_base_branch_hold_holds_github_and_the_configured_apps(self) -> None:
-        config = _trust_path_hold()
-        self.assertEqual(sorted(config), ["apps", "paths"])
-        self.assertEqual(config["paths"][0], ".github/**")
-        # ci-workflows' shared hold fails on an empty `apps`.
-        self.assertTrue(config["apps"])
-        pipeline = (ROOT / "docs/conventions/pr-pipeline.yaml").read_text(
-            encoding="utf-8"
-        )
-        for app in config["apps"]:
-            self.assertIn(f"    - {app}\n", pipeline)
-        for path in (
-            "CODEOWNERS",
-            "a/codeowners",
-            ".GitHub/workflows/x.yml",
-            "AGENTS.md",
-        ):
-            with self.subTest(path=path):
-                self.assertTrue(any(_shared_glob(g, path) for g in config["paths"]))
-        self.assertFalse(any(_shared_glob(g, "README.md") for g in config["paths"]))
+    """The review callers' `hold-paths` (prompt globs) and ci-status's
+    exempt-author `hold_patterns` (bash patterns, `*` crossing `/`) each match
+    every floor entry."""
 
     def test_the_workflow_list_follows_the_path_holds_switch(self) -> None:
         # Owner decisions Q21 and Q24 (2026-10-29): with
@@ -652,7 +614,6 @@ class TheScrutinyListsNameTheFloor(unittest.TestCase):
             _hold_patterns(),
             lambda pattern, entry: fnmatch.fnmatchcase(entry, pattern),
         )
-        lists["trust-path-hold.json"] = (_trust_path_hold()["paths"], _shared_glob)
         for name, (patterns, match) in lists.items():
             self.assertTrue(patterns, name)
             for entry in risk.FLOOR:
