@@ -53,7 +53,8 @@ const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 // belong to content-creation alone.
 const SHARE = (value) => typeof value === "number" && value >= 0 && value <= 1;
 const COUNT = (value) => Number.isInteger(value) && value >= 1;
-const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "limit-cap": COUNT };
+// pace, optional, is pace.mjs's share for timer-driven lanes.
+const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "limit-cap": COUNT, pace: SHARE };
 const CONTENT_FIELDS = { ...FIELDS, "per-minute": COUNT, "per-hour": COUNT };
 const REQUIRED = ["plan", "writer-pause", "breaker", "read-floor"];
 

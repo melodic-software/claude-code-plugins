@@ -87,7 +87,7 @@ menu that confidently routes to a nonexistent skill is worse than a short menu. 
 reaches **rank and annotations**; it never reaches **presence**. A skill believed to have run is
 ranked normally and annotated.
 
-**A truncated pool must be disclosed**, per `docs/conventions/liveness-assertion/`: a status or
+**A truncated pool must be disclosed**, per `docs/contracts/liveness-assertion/`: a status or
 advisory surface fails loud or routes its findings into a visible channel, never both green and
 silent. A menu that looks complete while missing a quarter of the catalog is that violation exactly.
 
@@ -100,7 +100,7 @@ contradictory routing doctrines in one plugin is a defect regardless of which sk
 
 > **Revised 2026-08-21 ([#3024](https://github.com/melodic-software/claude-code-plugins/issues/3024)):**
 > the skill now ships `disable-model-invocation: false`. Graded against
-> [`docs/conventions/invocation-mode/`](../conventions/invocation-mode/README.md): the owner doc
+> [`docs/contracts/invocation-mode/`](../contracts/invocation-mode/README.md): the owner doc
 > for this choice; no exception class fits it, and neither of the two reasons above survives that
 > rubric: the listing-budget saving is the move the rubric names as *not* a sufficient reason to
 > hide a skill, and the `workflow` trigger collision is already fixed by the reciprocal amendment

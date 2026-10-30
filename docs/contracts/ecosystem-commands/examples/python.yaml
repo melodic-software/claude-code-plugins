@@ -1,5 +1,5 @@
 # Example .claude/ecosystems/python.yaml — a consuming repo's Python command surface.
-# Contract: docs/conventions/ecosystem-commands/README.md (schema: ecosystem.schema.json).
+# Contract: docs/contracts/ecosystem-commands/README.md (schema: ecosystem.schema.json).
 globs: ["*.py", "pyproject.toml", "uv.lock"]
 project-discovery: ["pyproject.toml"]
 build-cmd: null # no separate build step; lint/test cover verification
