@@ -907,7 +907,7 @@ const fieldEvent = (type, field, actor) => ({
   actor: { databaseId: actor },
   issueField: { fullDatabaseId: String(field) },
 });
-async function mainOnIssue(events) {
+async function mainOnIssue(events, splitChild = "false") {
   const env = routeEnv({
     MODEL_ROUTE: "",
     LANE: "work-resolve-issue",
@@ -927,19 +927,26 @@ async function mainOnIssue(events) {
     }
     if (path === "/graphql") {
       assert.deepEqual(body.variables, { owner: "o", name: "r", number: 7 });
-      // The splitChild fact's read: an issue a listed human wrote is no split child.
-      if (!body.query.includes("timelineItems")) {
-        return { data: { repository: { issue: { body: "Plain issue.", lastEditedAt: null, author: { __typename: "User", databaseId: LISTED }, editor: null, comments: { totalCount: 0, nodes: [] } } } } };
-      }
       return { data: { repository: { issue: { timelineItems: { nodes: events } } } } };
     }
     assert.equal(`${method} ${path}`, "GET /repos/o/r/issues/7");
     return { labels: [{ name: "agent-ready" }] };
   };
   writeFileSync(join(env.BASE_PATH, "event.json"), JSON.stringify({ action: "labeled", issue }));
-  const code = await main({ env: { ...env, EVENT_PATH: join(env.BASE_PATH, "event.json") }, github });
+  const code = await main({ env: { ...env, SPLIT_CHILD: splitChild, EVENT_PATH: join(env.BASE_PATH, "event.json") }, github });
   return { code, outputs: readOutputs(env.GITHUB_OUTPUT), calls };
 }
+
+// The caller reads whether the issue is a trusted split child (check-blockers.mjs)
+// and passes it; a resolve that reads the dimensions without it fails rather
+// than rating a trusted Large child split-required.
+test("main on an issue fails when split-child is neither true nor false", async () => {
+  for (const value of ["", "yes"]) {
+    const { code } = await mainOnIssue([], value);
+    assert.equal(code, 1, JSON.stringify(value));
+  }
+  assert.equal((await mainOnIssue([], "true")).code, 0);
+});
 
 test("main on an issue set Medium, High, Known writes its turn cap, dimensions and timeout", async () => {
   const { code, outputs, calls } = await mainOnIssue([

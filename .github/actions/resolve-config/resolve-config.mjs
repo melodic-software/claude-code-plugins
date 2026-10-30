@@ -5,7 +5,7 @@
 import { readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import process from "node:process";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 import {
@@ -113,7 +113,7 @@ export async function fieldSetters(github, repository, number) {
 
 async function gatherFacts(
   needed,
-  { eventName, event, prNumber, headSha, repository, github, sleep, trustedActors },
+  { eventName, event, prNumber, headSha, repository, github, sleep, splitChild },
 ) {
   const facts = { event: pipelineEvent(eventName, event) };
   let pull;
@@ -170,15 +170,14 @@ async function gatherFacts(
       facts.fieldSetters = await fieldSetters(github, repository, Number(issue.number));
     }
     if (needed.includes("splitChild")) {
-      // A trusted size-split sub-issue takes split-child-size (admit.mjs
-      // trustedSplitChild, under the split-child rule's one home). Loaded only
-      // here, so no other resolve reads intake's module.
-      const { loadRules, trustedSplitChild } = await import(new URL("../../scripts/intake-triage/admit.mjs", import.meta.url).href);
-      const actors = Array.isArray(trustedActors?.actors) ? trustedActors.actors : [];
-      const humans = new Set(actors.filter((actor) => actor?.kind === "human").map((actor) => actor.id));
-      const appId = actors.find((actor) => String(actor?.login).toLowerCase() === "melodic-automation-lanes[bot]")?.id;
-      const taskList = loadRules(fileURLToPath(new URL("./admission-rules.json", import.meta.url)))["task-list"];
-      facts.splitChild = await trustedSplitChild(github, repository, Number(issue.number), humans, appId, taskList);
+      // Whether the issue is a trusted size-split sub-issue, which takes
+      // split-child-size: the caller reads it (admit.mjs trustedSplitChild,
+      // in work-resolve-issue's check-blockers.mjs) and passes it as
+      // SPLIT_CHILD, so this floored module never loads intake's.
+      if (splitChild !== "true" && splitChild !== "false") {
+        throw new Error("split-child must be `true` or `false` when the issue's dimensions are read");
+      }
+      facts.splitChild = splitChild === "true";
     }
     if (needed.includes("labels")) {
       const labels = needed.includes("freshLabels")
@@ -332,7 +331,7 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
     return null;
   }
   const facts = await gatherFacts(neededFacts(files, request), {
-    trustedActors: files.trustedActors,
+    splitChild: env.SPLIT_CHILD,
     eventName: env.EVENT_NAME,
     event: event ?? JSON.parse(readFileSync(env.EVENT_PATH, "utf8")),
     prNumber: env.PR_NUMBER,

@@ -2339,7 +2339,7 @@ describe("authorAdmitted", () => {
   });
 });
 
-// resolve-config's splitChild fact: the issue lane's budget for a trusted
+// resolve-config's splitChild fact (read by check-blockers.mjs): the issue lane's budget for a trusted
 // size-split sub-issue rated Large (pr-pipeline.yaml split-child-size).
 test("trustedSplitChild reads the issue and its native parent and applies splitChildBody", async () => {
   const LANES = 337595936;
