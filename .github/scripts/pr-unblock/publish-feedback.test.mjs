@@ -1673,6 +1673,52 @@ test("on a lanes App PR the same round still resolves both threads", async () =>
   assert.deepEqual(api.resolved(), ["PRRT_a", "PRRT_b"]);
 });
 
+// A tests-only finding (#10075): run.json carries the select job's CI
+// snapshot of the gated head, and the reply job settles from it alone.
+const CI_RUNS = [{ name: "test-node", url: "https://github.com/o/r/actions/runs/1/job/3" }];
+const ciRun = (ci, threads = [RUN.threads[0]]) => JSON.stringify({ ...RUN, threads, ci });
+// A round that pushed nothing: the select job read the head the reply job sees.
+const ciRunAtNow = (ci, threads = [RUN.threads[0]]) => JSON.stringify({ ...RUN, head_sha: NOW, threads, ci });
+const testsVerdict = () => verdictsAt(NOW, judged("PRRT_a", "tests-only"));
+
+test("an UNCERTAIN tests-only finding on a green head is resolved citing the runs, with no feedback-uncertain", async () => {
+  const api = fakeApi();
+  const result = await run(api, lines(reply({ disposition: "UNCERTAIN" })), ciRunAtNow({ state: "green", runs: CI_RUNS }), testsVerdict());
+  assert.equal(result.escalationReason, "");
+  assert.deepEqual(api.resolved(), ["PRRT_a"]);
+  assert.match(api.posted()[1][3], /\[test-node\]\(https:\/\/github\.com\/o\/r\/actions\/runs\/1\/job\/3\)/);
+  // Red leaves it open with no person; no snapshot leaves it as today.
+  const red = fakeApi();
+  assert.equal((await run(red, lines(reply({ disposition: "UNCERTAIN" })), ciRunAtNow({ state: "red", runs: CI_RUNS }), testsVerdict())).escalationReason, "");
+  assert.deepEqual(red.resolved(), []);
+  assert.equal(red.posted().length, 1);
+  const none = fakeApi();
+  assert.equal((await run(none, lines(reply({ disposition: "UNCERTAIN" })), ciRunAtNow(undefined), testsVerdict())).escalationReason, "feedback-unadjudicated");
+});
+
+test("a tests-only finding stays open when the round pushed a fix past the head whose checks were read", async () => {
+  const api = fakeApi();
+  const result = await run(api, lines(reply({ disposition: "UNCERTAIN" })), ciRun({ state: "green", runs: CI_RUNS }), verdicts(judged("PRRT_a", "tests-only")));
+  assert.equal(result.escalationReason, "feedback-unadjudicated");
+  assert.deepEqual(api.resolved(), []);
+});
+
+test("a run.json whose ci snapshot is malformed posts nothing", async () => {
+  for (const ci of [
+    { state: "passed", runs: [] },
+    { state: "green" },
+    { state: "green", runs: [{ name: "test-node", url: "https://evil.example/x" }] },
+    { state: "green", runs: [{ name: "test-node\n- [x](y)", url: "https://github.com/o/r/actions/runs/1/job/3" }] },
+    { state: "green", runs: Array.from({ length: 101 }, () => CI_RUNS[0]) },
+    { state: "green", runs: CI_RUNS, extra: 1 },
+  ]) {
+    const api = fakeApi();
+    const result = await run(api, lines(reply({ disposition: "UNCERTAIN" })), ciRun(ci), verdicts(judged("PRRT_a", "tests-only")));
+    assert.equal(result.escalationReason, "feedback-invalid", JSON.stringify(ci));
+    assert.equal(api.posted().length, 0);
+  }
+});
+
 // A mode-only fix (#10080): GitHub lists the file with no patch and no
 // changed lines, and the lane's commit still credits the thread.
 test("a VALID reply whose fix commit only changes the file's mode is posted and resolved", async () => {

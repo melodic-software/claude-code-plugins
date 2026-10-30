@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/desktop-notification.schema.json",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/hook-telemetry/data/desktop-notification.schema.json",
   "title": "desktop-notification telemetry data",
   "description": "Per-hook `data` payload for the desktop-notification hook. Discovered from the envelope `hook` value \"desktop-notification\". Evolves additive-only.",
   "type": "object",

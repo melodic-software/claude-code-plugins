@@ -1,0 +1,7 @@
+{
+  "name": "lane-lib",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

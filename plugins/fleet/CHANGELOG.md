@@ -3,6 +3,12 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.12] - 2026-10-30
+
+### Added
+
+- The three `reach` outcome eval cases seed a fixture `~/.config/fleet/FLEET.md` through `context.scaffold_script` when a run passes `--scaffold` ([#8550](https://github.com/melodic-software/claude-code-plugins/issues/8550)), so the skill's first step finds a manifest. The fixture names only made-up hosts and accounts, and its script refuses to run against the account's real home or to overwrite a file.
+
 ## [0.2.11] - 2026-10-29
 
 ### Fixed

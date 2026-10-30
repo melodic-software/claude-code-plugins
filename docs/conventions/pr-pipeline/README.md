@@ -39,7 +39,7 @@ rest and a human steps in only where a lane escalates or a rung requires it. Thi
 shape every PR-side lane builds on. Each lane's mechanics live in its workflow and the skills it
 calls, not here.
 
-The loop-lane convention ([`loop-lane`](../loop-lane/README.md)) governs local loop sessions; this
+The loop-lane convention ([`loop-lane`](../../contracts/loop-lane/README.md)) governs local loop sessions; this
 convention governs CI lanes. Holds, escalation and work classes stay owned by loop-lane and the
 autonomy plugin, and this doc points at them.
 
@@ -77,18 +77,18 @@ no renumbering.
 `maintenance` and `upstream` are scheduled producers, not steps in a PR's path. They file work
 into `intake`.
 
-An answered issue re-enters `intake` through
-[`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
+An answered issue re-enters `intake` through [`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
 model. On a new comment on an open issue, not a pull request, it acts on a `status: needs-decision`
 issue whose comment is a decision (first line `**Decision recorded.**`, by a human on the
 trusted-actors list, not posted through an App, unedited or last edited by a listed human), or on a
 `status: needs-info` issue whose comment is by the issue's author or a listed human. It removes that
-status label, and `needs-human` for a decision, and adds `needs-triage`. It dispatches
+status label and adds `needs-triage`. A decision on an issue that carries `needs-human` changes
+nothing; a listed human's removal of `needs-human` re-enters an issue with no `status:` label or
+at `status: needs-decision`, removing that label the same way. It dispatches
 `intake-triage.yml` once only when the issue's author is one intake admits on open (a listed human
 or the lanes App); any other issue waits in `needs-triage` for a person, so an outside author
 cannot start a model run with each reply. A dispatch skips the born-triaged check. Removing the status label is the
-claim, so a second answer dispatches nothing. It never adds `agent-ready`, and it holds the job's
-own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
+claim, so a second answer dispatches nothing. It never adds `agent-ready`, and it holds the job's own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
 
 Pipeline lanes skip draft PRs; `ci-status` still reports on them, and passes the skipped lanes.
 The `ready_for_review` run tests the head, and the merge queue re-runs every lane before a merge.
@@ -501,7 +501,7 @@ Every lane:
 - Works each layer of a stack but touches only the lowest unmerged layer when fixing, and never
   rebases a stack.
 - Respects the cross-lane hold, the `do-not-merge` label
-  ([loop-lane](../loop-lane/README.md#cross-lane-pr-hold)), and the merge rule in AGENTS.md. A lane
+  ([loop-lane](../../contracts/loop-lane/README.md#cross-lane-pr-hold)), and the merge rule in AGENTS.md. A lane
   escalates through the `needs-human` role in the same section's escalation contract.
 
 ## Activities
@@ -615,7 +615,7 @@ Each leaf declares:
   activity or under a separate design.
 - `reads-untrusted`: whether it reads issue, PR, comment, web or CI-log text, or PR head files,
   which can quote such text. Ingested text is data, never instructions
-  ([`untrusted-content`](../untrusted-content/README.md)).
+  ([`untrusted-content`](../../contracts/untrusted-content/README.md)).
 - `inputs`: typed, from a closed set (`base-sha`, `head-sha`, `changed-paths`, `pr`, `issue`,
   `baseline`, `findings`). An activity reads nothing from a session. `changed-paths` is computed
   by the base-SHA config reader from the PR's file list, never from head text. It names what the
@@ -841,10 +841,10 @@ The write group sits on each caller job, behind an `if:` that leaves out the lan
 Each leaf reports:
 
 - A verdict: `pass`, `fail`, `neutral` or `skipped`.
-- Findings in the detector-findings shape ([`detector-findings`](../detector-findings/README.md)),
+- Findings in the detector-findings shape ([`detector-findings`](../../contracts/detector-findings/README.md)),
   for the commit the leaf judged. A new commit gets a new verdict, even when its content is
   unchanged.
-- An artifact bundle per [`record-bundle`](../record-bundle/README.md).
+- An artifact bundle per [`record-bundle`](../../contracts/record-bundle/README.md).
 - A check run named `<lane> / <leaf>`, for example `pr-refine / simplify`; a composite gets none.
 
 A skip reports as a neutral check with one reason from the schema's `$defs/skip-reason`:
@@ -870,8 +870,9 @@ job, which ran no model and only resolved fail-note threads a pr-verify pass sup
 dispatcher's release reads skip it), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
-on the issue instead: `needs-human`, no `agent-ready`, and a comment naming the next step
-([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
+on the issue instead: `research-first` and `probe-first` get `needs-human`, no `agent-ready`, and
+a comment naming the next step, and `split-required` goes back through intake, whose split files
+its sub-issues ([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 
@@ -1186,7 +1187,7 @@ the rules that only tighten in
   merge, as `security-finding`. Its inline comments and summary carry the severity lines
   `/review:security-review` defines, and a finding whose severity the gate cannot read counts as
   CRITICAL. Its other open findings are reported as `findings:claude-security-review`.
-- **Cost hold.** Cost is not a stop; only a real new charge is ([when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner)). A change
+- **Cost hold.** Cost is not a stop; only a real new charge is ([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner)). A change
   that could start one (billed infrastructure or billed runner minutes) scores HIGH as
   `cost-review-required` in both lanes, whatever `high-path-floor` says and whatever an adopted
   author's own paths leave off the floor, and waits for a human like any other HIGH reason. It
@@ -1469,10 +1470,10 @@ lane identity's reasons comment from an earlier run unchanged (same score, reaso
 least `merge.risk-escalation-minutes` (default 60, timed from the comment's last change; 0 is no
 minimum) escalates the refusal when a holding reason is one only a person clears
 (`babysit_risk.person_reasons`: a CRITICAL security finding, bound or not, a high path, a
-trusted-actor widening, a cost hold, or a listing past the files API's cap; [when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner));
+trusted-actor widening, a cost hold, or a listing past the files API's cap; [when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner));
 any other reason, such as review evidence not bound to the head, keeps its comment and is judged
 again each run. An escalation
-([loop-lane §2](../loop-lane/README.md#2-escalation-contract))
+([loop-lane §2](../../contracts/loop-lane/README.md#2-escalation-contract))
 posts a new comment, that comment's text ending with a line saying the refusal persisted and needs a
 person, then adds the tracker's human-gated role label when no label matches it ignoring case, so
 the pull request leaves the WIP count and reaches the attended queue. A new comment notifies and is
@@ -1640,7 +1641,7 @@ any of those, and does not turn it back on once a person has turned it off. A sc
 hand-started run that leaves a lanes App pull request unarmed on report-outcome's own
 `Hold: a human merges this` line, a hold path, a cost hold, the gate's verdict or its risk score
 says why in one `<!-- babysit-merge-risk -->` comment, edited in place, and adds the human-gated
-label only for a cause a person must clear ([when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner), with cost and trust holds
+label only for a cause a person must clear ([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner), with cost and trust holds
 kept): that hold
 line (owner decision Q-HOLDLINE), a configured denied path or a [path floor](#merge-authority) path,
 a cost hold, untrusted provenance, an issue whose labels cannot be read whole, an untrusted spec, a
@@ -2181,6 +2182,11 @@ is re-run this way once (attempt 2 is never re-run; a later edit or label starts
 run), and a changed closing set or a removed spec comment leaves no time to
 compare, so those heads still wait for a person.
 
+Each pr-verify job runs the resolver before the trigger gate. The resolver only reads, and it skips on
+its own reads every run it would not judge: a head already judged or moved past, a draft, a run red
+for anything an approval does not lift, an author it does not judge. So the gate's reads go only to
+a run the resolver would judge, and nothing either writes reaches the model before both pass.
+
 With `merge.require-verifier-verdict: true` the pr-merge lane reads the artifacts through their
 run records, since only steps of a run can upload its artifacts. A run is of verifier origin when
 it is `pr-verify.yml`, event `workflow_run`, on main, in this repository with a head on main. A
@@ -2316,11 +2322,11 @@ exists (#7711).
 round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
 Only `verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary.
 `verify:spec-changed`, `verify:repeated-fail` and `verify:too-old` hold for the lanes
-([when work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner)): each still refuses the merge, with no label. The last two never clear,
+([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner)): each still refuses the merge, with no label. The last two never clear,
 so such a pull request never merges unattended, and address-feedback's own round cap bounds the
 fix rounds on it. While `merge.report-only` is
 false the lane escalates `verify:untrusted-spec`
-on the pull request ([loop-lane §2](../loop-lane/README.md#2-escalation-contract)): it
+on the pull request ([loop-lane §2](../../contracts/loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,
 rewritten only when either changes. Then the lane adds the tracker's human-gated role label (`needs-human` unless
 `.work-item-tracker.json` maps it) when no label matches it ignoring case. The comment goes first,
@@ -2867,13 +2873,13 @@ with its default.
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock stops restarting the issue: it comments with `outcome=failed` (signal 9 reports it), removes `agent-ready` and adds no label. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
 | `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `turn-cap-spent` route; at most 5, and 0 never restarts. |
-| `stop-retries` | 2 | Restarts after a stop the issue lane's `stop-routes.json` routes to `retry`, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `retry-spent` route; at most 5, and 0 never retries. |
+| `stop-retries` | 2 | Restarts after a stop the issue lane's `stop-routes.json` routes to `retry` (or fewer, a row's own `retries`), and, counted apart, restarts after a `wait`, each since a listed human last added `agent-ready`, before report-outcome stops the issue on the `retry-spent` route; at most 5, and 0 never retries. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `admission-factor` | 0.8 | Share of the lane's hourly merge rate admitted per hour for the queued cap ([WIP cap](#wip-cap)); greater than 0, at most 1. |
 | `admission-min-per-hour` | 1 | Admissions per hour the queued cap never falls below, so a day with no lane merges cannot hold admissions shut; 0 to 100, and 0 removes the floor. |
-| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause` and `breaker` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads only `read-floor` and `limit-cap`, to warn once while calls continue, and stops only on the header's remaining and GitHub's refusals; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
+| `api` | schema | GitHub API margins per pool (`github-token`, `lanes-app`, `graphql`, `owner-token`, `content-creation`). `limit-cap` sets the pool's planned budget: planned = min(header limit, `limit-cap`), used = header limit - header remaining, left = planned - used. `github-token` defaults it to GitHub's documented GITHUB_TOKEN limit, so a higher header limit is headroom, never a target; the other pools have no cap and plan to their header limit. `plan` and `read-floor` are shares of the planned budget; `writer-pause` and `breaker` are shares of the header's limit, by its remaining; `content-creation` adds `per-minute` and `per-hour`. Their defaults are in `.github/actions/log-api-budget/rate-limits.json`, the only copy, which every merge hold list floors, so a change to a default waits for a person. The rate guard (`.github/actions/log-api-budget/rate-guard.mjs`, `planOf`) reads only `read-floor` and `limit-cap`, to warn once while calls continue, and stops only on the header's remaining and GitHub's refusals; `pace` (github-token, default 0.2) is the share of the header's limit, projected left at the window's reset from the burn rate so far, under which a timer-driven lane skips its even-numbered scheduled ticks, halving its cadence (`.github/actions/log-api-budget/pace.mjs`; the lost-run reconciler and pr-unblock-dispatch read it), so the timer lanes slow down before the breaker stops every lane; `0` turns pacing off; the others are thresholds meant for the hub's limits sampler, and nothing in this repository enforces them. resolve-config passes the block through as set. |
 
 report-outcome and the work-unblock sweep read them from resolve-config's output;
 pr-feedback-dispatch, pr-unblock-dispatch and work-resolve-issue's WIP cap check resolve the base
@@ -2981,12 +2987,23 @@ group, queued, never cancelled), so a burst of closes or a close run beside the 
 each admit the full room. The search index can still lag an `agent-ready` label added moments
 before, so a run right after another may read the room as one admission too wide.
 
-The queued cap paces only work-unblock's new `agent-ready` labels. Every other writer is exempt by
-design (owner decision 2026-10-22, #8966), and the issues it labels still count as queued work:
+Intake's own admission (apply-verdict) runs once per issue, so runs for different issues can read
+the same room at once. Under a room it first claims a place with a fresh `admission-deferred`, then
+adds `agent-ready` only while fewer issues than the room count ahead of it. Those are the open
+issues the issues listing (not the search) shows with `agent-ready` or `admission-deferred`, each
+placed by its newest `admission-deferred` add (else its first `agent-ready` add) since 10 minutes
+before the status read; a tie, or an issue whose add its events do not show yet, counts as ahead.
+Otherwise, or when that read fails, the issue stays deferred for work-unblock's sweep. An issue
+counted both there and in the search's count only makes the check stricter.
+
+The queued cap paces only work-unblock's and intake admission's new `agent-ready` labels. Every
+other writer is exempt by design (owner decision 2026-10-22, #8966), and the issues it labels still
+count as queued work:
 
 | Writer | Paced |
 |---|---|
 | work-unblock adding `agent-ready` to an unblocked or deferred issue | Yes |
+| Intake admission (apply-verdict) adding `agent-ready` to a newly triaged issue | Yes |
 | work-unblock's restarts, re-fires and relabels (remove and re-add on an admitted issue) | No: they re-run work already admitted |
 | A person adding the label by hand | No |
 | A person-run skill: `/work-items:triage`, `/work-items:decompose`, `/work-items:attend-queue`, `/work-items:track` | No: a person's account, their call |
