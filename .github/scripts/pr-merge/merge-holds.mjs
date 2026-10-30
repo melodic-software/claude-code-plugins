@@ -71,7 +71,8 @@
 // line; the files file one changed file per line, its path, renamed-from
 // path and status (changeOf); the denied-paths file the config's
 // merge.diff-check.denied-paths as JSON; the trusted-actors file
-// trusted-actors.json. Each hold prints as an ::error:: and exits 1; no hold
+// trusted-actors.json. PATH_HOLDS "false" turns the hold paths off
+// (pathHoldsOf). Each hold prints as an ::error:: and exits 1; no hold
 // exits 0. Who wrote a body that holds, a changed trusted-actor list, a
 // cost path with a decision link in the body, and the approvals of earlier
 // heads when no approval of the head lifts a hold path, are read with
@@ -385,11 +386,27 @@ export const REVIEW_FLOOR = Object.freeze(HOLD_PATH_CLASSES.filter(([, kind]) =>
 
 // Why the head's changed `files` hold it, or null: one matching `holdPaths`
 // or HOLD_PATH_FLOOR. Null `holdPaths` or `files` (unreadable) holds it.
-export const pathHold = (files, holdPaths) => pathHoldKind(files, holdPaths)?.reason ?? null;
+// `on` false (pathHoldsOf) matches no hold path.
+export const pathHold = (files, holdPaths, on = true) => pathHoldKind(files, holdPaths, on)?.reason ?? null;
+
+// merge.diff-check.path-holds (owner decision Q15): absent or false, no
+// changed path holds for its path alone; any other value keeps every hold
+// path, as babysit_merge_policy's switch() reads it.
+export const pathHoldsOf = (value) => ![undefined, null, false, "false"].includes(value);
+
+// The switch from a resolve-config output file; unreadable keeps the holds.
+export function readPathHolds(path) {
+  try {
+    return pathHoldsOf(JSON.parse(readFileSync(path, "utf8"))?.merge?.["diff-check"]?.["path-holds"]);
+  } catch {
+    return true;
+  }
+}
 
 // pathHold's answer with its kind: `hold-path` for a changed file a hold
 // path matches, `unread` for a list that could not be read or checked.
-export function pathHoldKind(files, holdPaths) {
+// With `on` false a readable list matches nothing.
+export function pathHoldKind(files, holdPaths, on = true) {
   if (!Array.isArray(holdPaths)) {
     return { kind: "unread", reason: "the hold paths could not be read" };
   }
@@ -398,6 +415,9 @@ export function pathHoldKind(files, holdPaths) {
   }
   if (typeof posix.matchesGlob !== "function") {
     return { kind: "unread", reason: "this Node has no path.matchesGlob, so its hold paths cannot be checked" };
+  }
+  if (on === false) {
+    return null;
   }
   const globs = [...holdPaths, ...HOLD_PATH_FLOOR];
   const held = files.find((path) => globs.some((glob) => matchesHoldPath(path, glob)));
@@ -645,19 +665,16 @@ export function decidedHead(notices, at) {
 
 // Why the head branch's push history shows a lane run missing before a
 // decision made at `at`, else null (babysit_merge_policy.unran_head, and
-// ci-status's cost-hold step). `activity` is one page of the repository
-// activity API for the branch, newest first, which deleting a run leaves;
-// `ran` lists, per REVIEW_LANES entry, the heads of its runs started before
-// `at`. Every head the branch moved to after its last push of `decided`
-// before `at` needs a run of every lane: with one deleted, an older notice
-// would become the decided head (#10437). No push of `decided` before `at`
-// or a full page, which may not reach it, keeps the hold too.
+// ci-status's cost-hold step). `activity` is the repository activity API for
+// the branch read to its end (branchActivity), newest first, which deleting a
+// run leaves; `ran` lists, per REVIEW_LANES entry, the heads of its runs
+// started before `at`. Every head the branch moved to after its last push of
+// `decided` before `at` needs a run of every lane: with one deleted, an older
+// notice would become the decided head (#10437). No push of `decided` before
+// `at` keeps the hold too.
 export function unranHead(activity, ran, decided, at) {
   if (!Array.isArray(activity)) {
     return "the branch's push history is unreadable";
-  }
-  if (activity.length >= 100) {
-    return "the branch's push history fills a page";
   }
   if (!Array.isArray(ran) || ran.length !== REVIEW_LANES.length || !ran.every(Array.isArray)) {
     return "the lane runs do not cover every review lane";
@@ -748,8 +765,47 @@ async function noticedHead(read, repo, branch, base, at) {
   if (decided === null) {
     return null;
   }
-  const activity = await read("GET", `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${branch}`)}&direction=desc&per_page=100`);
-  return unranHead(activity, ran, decided, at) === null ? decided : null;
+  return unranHead(await branchActivity(read, repo, branch), ran, decided, at) === null ? decided : null;
+}
+
+// The Link header a reader (fetchGitHub, check-trusted-trigger's
+// createGitHub) keeps on a list answer, under a registered symbol so this
+// file imports no repository file.
+export const LINK = Symbol.for("github.link");
+export const ACTIVITY_PAGES = 20;
+
+// The head `branch`'s activity in `repo`, newest first, read to its end: the
+// API keeps a branch name's history across deletions, so a name recreated
+// for each sync fills any one page. It ignores `page`, so each next page is
+// the `after` cursor of the answer's Link rel="next"; only a short page ends
+// it. A page that is no list gives null (unranHead's unreadable); a full page
+// with no next link, a next link with no new cursor, or more than
+// ACTIVITY_PAGES pages throws, as a failed read does.
+export async function branchActivity(read, repo, branch) {
+  const path = `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${branch}`)}&direction=desc&per_page=100`;
+  const rows = [];
+  const cursors = new Set();
+  for (let after = null; cursors.size < ACTIVITY_PAGES; ) {
+    const page = await read("GET", after === null ? path : `${path}&after=${after}`);
+    if (!Array.isArray(page)) {
+      return null;
+    }
+    rows.push(...page);
+    if (page.length < 100) {
+      return rows;
+    }
+    const next = /<([^>]*)>;\s*rel="next"/.exec(String(page[LINK] ?? ""));
+    if (!next) {
+      throw new Error("the branch's push history has a full page with no next link");
+    }
+    // The cursor as the link spells it, encoded: decoding would read a `+` as a space.
+    after = /[?&]after=([^&#]+)/.exec(next[1])?.[1];
+    if (!after || cursors.has(after)) {
+      throw new Error("the branch's push history names no new page");
+    }
+    cursors.add(after);
+  }
+  throw new Error(`the branch's push history runs past ${ACTIVITY_PAGES} pages`);
 }
 
 // Whether a COMMENT_EDITED_QUERY answer's node was never edited.
@@ -1214,6 +1270,9 @@ const fetchGitHub = (env) => async (method, path, body) => {
   if (json === null || json.errors?.length) {
     throw new Error(`${method} ${path} failed with status ${response.status}`);
   }
+  if (Array.isArray(json)) {
+    Object.defineProperty(json, LINK, { value: response.headers.get("link") });
+  }
   return json;
 };
 
@@ -1250,13 +1309,13 @@ export function pathLifters(items, humans, head) {
 // hold path but not an unreadable file list or hold-path list, nor a cost
 // path, which only the owner's `decision` lifts. It lifts `widened`
 // (actorsHold's reason) too. `byPerson` (personWrote) says whether the body
-// can hold.
-export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true, widened = null) {
+// can hold; `pathHolds` false (pathHoldsOf) holds no hold path.
+export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true, widened = null, pathHolds = true) {
   const reasons = [];
   if (widened && !lifters.length) {
     reasons.push(`${widened}; an approving review of this head by a person on the trusted-actor list lifts it, and the approval carries over later merges that bring only the base's changes; then re-run ci-status`);
   }
-  const pathReason = pathHold(files, holdPaths);
+  const pathReason = pathHold(files, holdPaths, pathHolds);
   const readable = Array.isArray(files) && Array.isArray(holdPaths);
   if (pathReason && !(readable && lifters.length)) {
     reasons.push(
@@ -1438,8 +1497,13 @@ export function humanGatedLabel(tracker) {
   return typeof label === "string" && label.trim() ? label.trim() : "needs-human";
 }
 
+// The label report-outcome puts on a lanes App pull request that holds for a
+// person (report-outcome.mjs HUMAN_MERGE_HOLD). Only a listed person's own
+// removal lifts it (ci-status's `Fail a human-merge hold` step).
+export const HUMAN_MERGE_HOLD = "human-merge-hold";
+
 // The hold labels on pull request `number`: `do-not-merge`, the tracker's
-// human-gated label and `pr-verify-failed`, one reason each. `labels` are
+// human-gated label, `pr-verify-failed` and HUMAN_MERGE_HOLD, one reason each. `labels` are
 // names or label objects; a list that is not an array throws.
 export function labelHolds(labels, tracker, number) {
   if (!Array.isArray(labels)) {
@@ -1452,6 +1516,8 @@ export function labelHolds(labels, tracker, number) {
     names.has(gated) && `#${number} carries '${gated}'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge.`,
     names.has("pr-verify-failed") &&
       `#${number} carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off.`,
+    names.has(HUMAN_MERGE_HOLD) &&
+      `#${number} carries '${HUMAN_MERGE_HOLD}': a person merges it. The merge queue removes it; a person on the trusted-actor list removing the label approves it, then re-queue it to merge.`,
   ].filter(Boolean);
 }
 
@@ -1543,13 +1609,20 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       console.log(`#${number}: its body's hold text is the lanes App's own, which holds nothing.`);
     }
     const widened = actorsHold(await withActorContents(github, repo, changes, env.BASE_SHA, head));
-    const held = pathHold(files, holdPaths);
+    // PATH_HOLDS, merge.diff-check.path-holds as the base has it: only
+    // "false" turns the hold paths off.
+    const pathHolds = env.PATH_HOLDS !== "false";
+    const skipped = pathHolds ? null : pathHoldKind(files, holdPaths);
+    if (skipped?.kind === "hold-path") {
+      console.log(`#${number}: path holds are off (merge.diff-check.path-holds), so nothing holds it for this: ${escape(skipped.reason)}.`);
+    }
+    const held = pathHold(files, holdPaths, pathHolds);
     let lifted = { lifters: [] };
     if (!approved.length && ((held && Array.isArray(holdPaths)) || widened) && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
       lifted = await liftersOf(github, repo, Number(number), head, humans, holdPaths);
     }
     const lifters = approved.length ? approved : lifted.lifters;
-    const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson, widened);
+    const reasons = holds(body, items, files, holdPaths, lifters, decision, byPerson, widened, pathHolds);
     const how = approved.length ? "approved this head" : "approved an earlier head whose every change since is a base merge";
     if (held && lifters.length && Array.isArray(holdPaths)) {
       console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its hold path (${escape(held)}).`);

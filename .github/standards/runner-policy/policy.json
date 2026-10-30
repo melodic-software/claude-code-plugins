@@ -1778,6 +1778,39 @@
         "id-token": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/pr-require-checks-trust-paths.yml@f31f7f9a133d17dab5c64da2602f8d107cf2204b": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "config-path"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "read",
+        "statuses": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-require-checks-trust-paths.yml@4ad14b4f1b4868aa5362590299c93d9117b629f1": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "config-path"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "read",
+        "statuses": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-require-checks-trust-paths.yml@2097e798cf050506383e1df8d8c0d8c436d9b44c": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "config-path"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "read",
+        "statuses": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/maintenance-sync-standards.yml@9a886d552706ad0a626e64da0dc27be2f2d0b437": {
       "routing": "runner-input",
       "runnerInput": "runner",

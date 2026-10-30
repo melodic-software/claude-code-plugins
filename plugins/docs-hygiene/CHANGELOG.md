@@ -1,5 +1,23 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.13] - 2026-10-29
+
+### Fixed
+
+- **`audit-progressive-disclosure`'s detector no longer pipes into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `detect.sh` checks a rule file's frontmatter for `paths:` with a here-string, so under `set -o pipefail` a path-scoped rule can no longer be graded always-loaded when grep exits before printf finishes writing.
+
+## [2.0.12] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [2.0.11] - 2026-10-29
+
+### Changed
+
+- `setup-apply.mjs` no longer has its own `is a flow map` warning for an object key. The YAML parser already refuses a flow mapping with a parse error, so that warning never printed (#10130).
+
 ## [2.0.10] - 2026-10-29
 
 ### Changed

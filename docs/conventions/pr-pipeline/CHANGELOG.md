@@ -1,5 +1,297 @@
 # Changelog for the PR pipeline convention
 
+## [8.3.0] - 2026-10-30
+
+### Changed
+
+- enable-auto-merge leaves an unarmed lanes App pull request on its lane refusal (a risk-score hold
+  or a pr-unblock stop) with no read when nothing it reads has changed since the last reader run:
+  head, `updatedAt`, labels, check and status rollup, reviews, comments, review threads, rung and
+  main's code and config. It reuses `merge.skip-unchanged` (max-minutes, max-skips), never skips
+  past the refusal's escalation to a failing status, never skips an armed one, and logs
+  `enable-auto-merge: skip-unchanged skipped=N recorded=M keyed=K of L`. The records ride in the
+  `pr-merge-verify-answers` artifact.
+- enable-auto-merge's discussion read lists the changed files, so a head with no rename reads no
+  REST files page.
+- A `pull_request_target` run of pr-merge handles only the pull request its event names; the
+  15-minute schedule keeps the full sweep. A pending event run no longer supersedes another one.
+- The merge job lists its candidates with one `gh pr list` and a jq author filter in place of one
+  `gh pr list --author` call per author.
+
+## [8.2.0] - 2026-10-30
+
+### Added
+
+- pr-merge's scheduled `clear-escalations` removes a human-gated label a review lane added when every hold comment since the label was last removed names an earlier head, as `stale-review-hold`. At the current head it needs a trusted move (every push since the one that landed the newest held head is by a `human` of the base trusted-actor list, never the lanes App), a whole review from both lanes that passed (each caller's newest run's status job succeeded with a review-complete notice and no hold notice for the head, on a head that changes neither review caller), no HIGH or CRITICAL finding: `critical-findings: 0` from the security lane, every finding inline for the security lane and any lane a hold names, and no unresolved lane thread at `CRITICAL` or `IMPORTANT` (for those strict lanes, none with no readable severity either), one of the pull request's own commits since each held head (not reachable from `main`) that is not a merge, and for a `critical-security` hold at least one `CRITICAL` inline finding of its lane at the held head, each in a file one of those commits changed. A label it keeps on the re-read gets no clear comment. It reads the head and the hold comments again just before the removal. A lane that still finds the cause holds the new head again.
+- `ci-status`'s review-lane lift check counts the lanes App's removal only after its own newest `stale-review-hold` comment since the hold names a head no hold comment since the label's last removal names, while none names the event's head, and only when the base commit's `clear-escalations.mjs` `recheckStaleHold`, the same predicate, passes again with the job's own token at the head that comment names, as it was when the App removed the label, including the check-signed-commits hold, other lanes App markers and a person speaking up to the removal. A later head is judged by its own review lanes, so a clean push after the clear stays green before they run. The App's comment only points at the hold; ci-status does not take its judgment on trust.
+
+### Fixed
+
+- A hand dispatch of `pr-unblock.yml` with `activity: resolve-conflicts` on a mergeable pull
+  request now merges the default branch tip into its head when the head is behind, through the
+  same no-model clean-merge push a conflicting pull request gets, instead of skipping it as
+  `not-applicable`. A head that already holds the tip is skipped as `up-to-date` and gets no
+  check run. The draft, hold, protected-path, repeat-cap and lanes App identity gates are
+  unchanged, and the dispatcher still sends only conflicting pull requests.
+- `resolve-conflicts` skips a pull request whose base is not the default branch, such as a stacked
+  layer, as `not-applicable`, so a hand dispatch never merges the default branch into it.
+
+### Security
+
+- The issue lane no longer works from an outsider's issue text once a listed human applies
+  `agent-ready`: the admit job's `check-blockers.mjs` stops the run for good, through the existing
+  `Stop on untrusted provenance` step, when the issue's author is neither a listed human nor the
+  lanes App. `report-skip` then runs `report-outcome` with `dimension-skip: outside-author`, which
+  removes `agent-ready` and comments that a listed human re-files the work as a new issue, adding
+  no label. `write-issue.mjs` also fails the run on such an issue. Admission, intake refinement and
+  verdicts, the issue lane and intake re-entry now share one author check, `admit.mjs`
+  `authorAdmitted`, which also refuses an issue with no author.
+
+## [8.1.1] - 2026-10-30
+
+### Fixed
+
+- address-feedback can now revert an executable bit the pull request itself added, so such a
+  finding no longer escalates `feedback-uncertain`. The review-threads skill may run `chmod -x`,
+  and its patch carries the mode. apply-patch's `review-threads` row refuses any new file at
+  mode `100755` or a change to that mode (the new optional `new-exec-bit` refusal). Its new
+  `pr-mode-revert` content rule admits a mode change only back to the mode the path has at the
+  merge base of the PR head and its base, or to `100644` for a file the PR added, read through
+  the GitHub API, with no workflow change.
+  The refusal stays off the other rows, so `ci-context` and the `issue` row's `script-exec-bit`
+  still set script bits, and `babysit_risk.py` still rates a mode change `high-path`.
+
+## [8.1.0] - 2026-10-29
+
+### Added
+
+- A work-resolve-issue run that starts fresh because the earlier run's lane branch is behind the
+  default branch now gives the model that branch's work. `report-outcome --find-prior` outputs
+  `stale-branch` and `stale-tip` (the tip it checked every commit of), and `write-issue.mjs` adds
+  `stale_branch` to `issue.json`: the branch, the tip, each commit's subject and the files it
+  changed, from the same capped `GET /compare` a resume uses, as data. report-outcome names the
+  branch on the issue once, in a comment opening with
+  `<!-- work-resolve-issue stale-branch=<branch> -->`, and deletes no branch
+  ([#9468](https://github.com/melodic-software/claude-code-plugins/issues/9468)).
+
+### Changed
+
+- pr-review-main records a designed stop instead of failing. A diff that holds a binary file, is
+  over the 300000-byte cap, or has a line over 1800 bytes leaves the leg green with no verdict.
+  The record job then posts the check run `pr-review-main: <lane>` on the head, titled
+  `verdict=none reason=<too-large|binary|long-line>` with conclusion neutral, and logs a
+  `pr-review-main stop` notice. Each stop is one countable record, and a real failure (a failed
+  fetch or diff write, an empty diff) still fails the run.
+
+### Fixed
+
+- A `work-resolve-issue` reuse PR whose runner check failed no longer carries `Hold: a human merges
+  this` or the `human-merge-hold` label. A failed check is not a reason for a person: the PR opens,
+  its Verification section lists the failure, and `ci-status` reruns the check on the head, where
+  the fix lanes take it. A `done` run with a failed runner check still opens no PR and retries
+  (`check-failed`). `merge: human`, untrusted provenance, an unreadable denied-path or changed-file
+  list, path holds and a reuse leak scan that is not `clean` still hold (`mustHold` in
+  `report-outcome.mjs`).
+
+- `clear-escalations.mjs` takes off a `needs-human` the lanes App set for `feedback-not-landed` once the head is none of that escalation's resume keys and no unresolved review thread carries a lanes App comment. It pages the PR's review threads over GraphQL, and a listing that may be cut short keeps the label. A person who commented or reviewed since the label went on still keeps it. The monitor's stalled-stop signal does not count that clear as a stop standing on the head.
+
+## [8.0.0] - 2026-10-29
+
+### Changed
+
+- `merge.diff-check.path-holds` turns off every path-based merge hold with one switch. Absent or
+  false (the default, and this repository's setting by owner decision Q15), a changed path no
+  longer holds a pull request for its path alone. This covers the risk scorer's path floor,
+  denied-paths and `review-path:` holds, enable-auto-merge's hold paths and ci-status's
+  merge-holds step. A standing refusal that names only hold paths comes off without an approval.
+  Set it to true to bring every one back. Cost paths, unsafe or aliasing paths, the manifest
+  review, the trusted-actor widening, body holds, vetoes and `do-not-merge` still hold. The gate
+  report (`risk.pathHoldsSkipped`), enable-auto-merge's log and merge-holds.mjs name each hold
+  the switch skipped.
+- Breaking: a config that lists `denied-paths` or `review-path:` globs and has no `path-holds` key
+  no longer holds on them. Set `merge.diff-check.path-holds: true` to keep the old behavior.
+
+## [7.7.0] - 2026-10-29
+
+### Added
+
+- A lanes App pull request that holds for a person carries the `human-merge-hold` label as well as
+  the `Hold: a human merges this` body line, which the App can edit
+  ([#9437](https://github.com/melodic-software/claude-code-plugins/issues/9437)). report-outcome
+  adds the label right after it opens the pull request, or when it reuses its open one; a pull
+  request the label cannot reach is closed and the issue retried (`hold-label-failed`). ci-status's
+  new `Fail a human-merge hold a listed person has not lifted` step fails while the label is on,
+  and once it is off unless the first removal at or after its newest add was by a `human` of the
+  base's trusted-actor list acting directly, not through an App. `enable-auto-merge.mjs`
+  (`HOLD_LABELS`) never arms a pull request carrying it, and merge-holds.mjs `labelHolds` holds it
+  in the merge queue, so deleting the hold line or rewriting `Refs: #N` to `Closes #N` no longer
+  lets a held pull request merge.
+
+## [7.6.2] - 2026-10-29
+
+### Fixed
+
+- The cost decision's push-history check reads the head branch's whole activity, not one page
+  of 100. The activity API keeps a branch name's history across deletions, so a branch recreated
+  for each sync filled the page for good, and the full-page refusal held its pull request with no
+  way to clear. pr-merge (`merge-holds.mjs`), the babysit merge policy and ci-status's cost-hold
+  step follow the Link header's `rel="next"` cursor until a page of fewer than 100 entries. The
+  hold stays on a read that fails on any page, an empty or non-list page, a full page with no
+  next link, more than 20 pages (2000 entries; the busiest reused name had 564) or, in pr-merge,
+  a next link with no new cursor.
+
+## [7.6.1] - 2026-10-29
+
+### Fixed
+
+- At the address-feedback round cap, a finding from a review bot listed in
+  `review-threads.reviewer-ids` (such as `chatgpt-codex-connector[bot]`) is a bot finding: it goes
+  to the fresh fixer round instead of a person. It still goes to a person when a trusted person
+  directed it, or when the security-review lane held its head as `CRITICAL`.
+- A security-review finding rated `IMPORTANT` at the round cap is a code fix first: it gets the
+  fresh fixer round, and goes to a person only when that round was given it and left it open. A
+  `CRITICAL` or unrated security finding still goes to a person at once.
+- The fresh fixer round's thread file carries a fixed `retry.brief` (fix each finding in code;
+  never weaken a test or check to close one), which the read runner adds to the skill's preamble.
+
+## [7.6.0] - 2026-10-29
+
+### Changed
+
+- pr-unblock settles a security-review `manifest dependencies: flag` rated below `CRITICAL` without a person when the lane's `INCORRECT` reply holds up. `hardRequire` in `adjudicate-feedback.mjs` reads the flagged `plugins/<p>/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` at the PR head. It checks that the plugin is a marketplace entry, that each `dependencies` entry is a bare name of another entry with a `./` source in this repository, that the dependency adds nothing Claude Code runs at the PR's base and head (a manifest of metadata and `userConfig` only, a marketplace entry of listing fields only, and no `hooks/`, `.mcp.json`, `.lsp.json`, `monitors/`, `bin/`, `workflows/` or `settings.json`), and that the lane cited a line of the plugin's skills, agents or commands, outside a `## Next` section, where `/<entry>:` starts a token with no gate, condition, fallback or negation word within two lines, in a file that already holds such an unguarded call at the PR's base, so the call-site evidence is read at both the base and the head. The reply job then posts a fixed reply naming those lines and resolves the thread. Such a flag takes no adjudicator slot, and one the check does not settle escalates `feedback-disputed`: a cross-marketplace, object-form (versioned) or externally sourced entry, a dependency that ships hooks, servers, monitors, executables or dependencies of its own, an optional collaborator or a failed read. A `CRITICAL` or unrated flag, an `UNCERTAIN` or `VALID-defer` reply and every other security-review finding route as before.
+
+### Fixed
+
+- A pr-review-main run whose first attempt failed before any lane's verdict write started (every
+  credential leg stopped) is now re-run once, recorded, by the lost-run reconciler, as a lost
+  pr-verify run is, so a lane-source pull request no longer waits for its next push to be
+  reviewed from main.
+
+## [7.5.3] - 2026-10-29
+
+### Added
+
+- A "Write identities" section lists which workflows write as `GITHUB_TOKEN`, the lanes App, the
+  release App or the owner token, and why each split exists.
+
+### Fixed
+
+- The pr-verify fail note no longer scrolls sideways. Each line of the verifier's quoted summary
+  and notes is wrapped at a space within 100 columns, continuations indented two spaces, with a
+  word longer than that (a URL or path) kept whole; a quote over 20 lines folds into a
+  `<details>` block. The text stays in its `text` fence, so a mention, reference, link or HTML in
+  it stays inert.
+
+## [7.5.2] - 2026-10-29
+
+### Fixed
+
+- work-unblock's hourly sweep no longer re-admits an `admission-deferred` issue on fewer checks than intake's admission. A deferred issue that now carries `do-not-merge`, or whose `work-class: untrusted-provenance` label someone unlisted removed, stays deferred, as one with `needs-human` or the untrusted-provenance label already did. One that lost `status: ready` loses `admission-deferred`. One that gained `area: security`, or whose body was edited, after its newest `admission-deferred` add gets the admission comment and loses `status: ready` and `admission-deferred`. It parks at `status: needs-decision` for the security area, else at `status: confirmed`. Before, the sweep added `agent-ready` to any of these issues once its blockers were closed. `decide()`, which judges a person's mark on a deferred issue, refuses an issue that carries `do-not-merge` or `needs-human`, or that changed in the same ways, whatever `admission-rules.json` lists. A mark refused that way parks at `status: needs-decision`, as any refused mark does ([#10733](https://github.com/melodic-software/claude-code-plugins/issues/10733)).
+
+## [7.5.1] - 2026-10-29
+
+### Fixed
+
+- The main-run review (`pr-review-main.yml`) runs on the review lanes' credential chain instead of the API key alone: a lane whose key leg credit-stops, is refused with a 401 or 402, or has no key is reviewed on the reviews role's subscription token, and a lane that leg hands off (a limit stop, a credit stop, a 401 or 402, or no token) on `FALLBACK_CLAUDE_CODE_OAUTH_TOKEN`. Each leg is its own job holding one credential, writes the same verdict, and stays green when it hands off, so an exhausted key no longer leaves every lane-source pull request unbound.
+- When the main-run review's whole-file diff is over its size cap, a file moved unchanged shows as its rename lines alone, so a pull request of pure moves fits. A move into or out of a lane source, a mode change, a moved symlink or submodule, a move that may run or load (an executable, a skills, agents, commands or hooks path, or a file a tool reads by name), and a move an added line names still show whole, and the reviewer is told a rename-only entry is unseen.
+
+## [7.5.0] - 2026-10-29
+
+### Added
+
+- A base-branch trust-path hold: `pr-require-checks-trust-paths.yml` runs ci-workflows' shared hold from `pull_request_target`, which posts a failing `ci-status` status when an agent App touched a pull request that changes a path in `.github/trust-path-hold.json`. `scripts/sync-hold-floor.py` generates that file from the same floor and `merge.trust-path-hold-apps` as the inline hold, which stays.
+
+### Fixed
+
+- Intake admission no longer parks host work at `status: needs-decision`. An issue whose done-when items are all ones an unattended lane run cannot perform now parks at `status: confirmed`, with `host-run` added, the host queue's label, when nothing else refuses or waits, and an issue that already carries `host-run` parks at `status: confirmed` whatever its items. A `host-run` label counts only when a listed human or the lanes App added it last. Only an issue without such a label that mixes such items with items the lane can do still holds at needs-decision, where refine.mjs splits it, and so does any issue with a paid-eval item, since a paid eval can bill the owner; the admission comment now names the host queue, or the owner for a paid eval, instead of a person. An issue held for a person, or with any other refusal, wait or pending split, gets no `host-run`, since that label starts an unattended host run. Before, the owner's release of [#9293](https://github.com/melodic-software/claude-code-plugins/issues/9293) with `host-run` added was re-held for a person.
+- The issue lane's `issue.json` carries `split_parent`, the body of the native parent a size split filed the issue from, when the issue counts as that parent's text (admit.mjs `splitChildBody`) and a listed human wrote, and last edited before the label if ever, that body. The split copies only the parent's task-list lines, so a part lost the parent's notes and plan, and the lane pushed back on missing text ([#10176](https://github.com/melodic-software/claude-code-plugins/issues/10176), [#10205](https://github.com/melodic-software/claude-code-plugins/issues/10205)). The split-child trust rule is unchanged: the part's body still holds only copied task-list lines.
+
+## [7.4.1] - 2026-10-29
+
+### Fixed
+
+- The post-merge mutation lane comments on the merged pull request only when the result has a
+  surviving or uncovered mutant. A refused, scope-empty, stopped, errored or all-killed run no
+  longer notifies the author; the job summary still has every outcome, and a refusal or an
+  all-not-run result is a `::warning::` annotation. A refused run that still reports a survivor
+  both comments and warns. A comment from an earlier run of the same head stays in place.
+
+- On an adopted owner PR, the `address-feedback` select job skips `awaiting-human` when the body gained a `Hold:` line after the round was dispatched, so a hold the owner adds while the round is queued stops it before any model turn. Lanes App PRs, whose `Hold: a human merges this` holds only the merge, are unchanged.
+- On an adopted owner PR, a lane escalation's human-gated label lets an `address-feedback` round dispatch and run only as it lets fix-ci work the PR (`gate-source.mjs` `prHold`): it holds after an `address-feedback` escalation, or once a person commented or reviewed after the label went on, and then only a thread a trusted person with write access asked the lane to fix is worked. On a lanes App PR a lane escalation's label still lets the round work, as before.
+
+## [7.4.0] - 2026-10-29
+
+### Added
+
+- central lane grant file, and a refusal that keeps lane patches off it and the trusted-actor list
+
+  `.github/actions/resolve-config/lane-grants.json` holds one row per repository the lanes token broker admits, keyed by repository id ([ADR 0085](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md) Decision 2): the lanes and activities it may run with each activity's effect, its trusted-actor additions and the ci-workflows commits whose reusables may mint. The rows for claude-code-plugins and pr-pipeline-sandbox reproduce what each repository's own configuration grants today. Nothing reads the file yet; the broker reads it after its one-time change (Decision 7). Every `patch-rules.json` row must now refuse the new `lane-grants` class, which covers that file and `.github/standards/trusted-actors/trusted-actors.json` in any case and through any `..` segment, a rename into either included, so no lane patch can change who may start a lane or what it may mint (Decision 6). The issue lane's model is denied `Edit` on both paths. A patch-rules row without the class fails `checkPatchRules`. ([#7656](https://github.com/melodic-software/claude-code-plugins/issues/7656))
+
+- `address-feedback` also serves an adopted owner PR: one a `kind: human` account on the base's trusted-actors list opened, under an `adoption` section, with no `Hold:` body line, once the PR and its head commit are `adoption.idle-hours` old, the rule fix-ci adopts by. Its replies post as the lanes App, so the owner's babysit worker tier can tell a lane answer from the person's and resolve the outdated threads the lane answered ([#10763](https://github.com/melodic-software/claude-code-plugins/issues/10763)). The half-hourly sweep sends one such idle PR per tick whose reviewed head has no round yet, since its review usually finishes while the session is still active; it decides such a head only within two hours of the PR turning idle, and clears a failing address-feedback stop once the owner has resolved every thread. Lanes App PRs, and every other author's PRs, are dispatched as before.
+- On an owner PR, `publish-feedback` posts each answer and leaves the thread open, since the lanes App cannot resolve a thread on a PR it did not open, and the select job skips a thread the person wrote or answered with no stop instead of escalating `feedback-untaken-threads`.
+
+- `pr-review-main.yml` runs both review lanes from main, through `workflow_run` on `pr-require-checks`, for a pull request that changes a lane source (a workflow, Claude Code configuration or the review criteria). It reviews the head's diff as data with each lane's criteria copied from main, on a read-only token and a Read-only model leg, posts only its counts as a check run, and uploads each lane's verdict as `pr-review-main-<lane>-<pr>-<tree>`. The merge gate binds such a pull request's lanes only on that verdict, authenticated by its run's record (the file, event `workflow_run`, the default branch, completed success), never on a comment; with none they stay unbound as before.
+- A workflow change that gains a write scope (or leaves a job on the repository-default token) holds for a person as `permission-widening-review`, and one that adds a `pull_request_target`, `workflow_run`, issue, comment, review, discussion or `repository_dispatch` trigger as `privileged-trigger-review`.
+- A file the files API sends no patch for holds for a person as `unreviewed-patch:<path>` unless it is an image, font or PDF. The main-run review diffs with `--text` and writes no verdict for a binary or over-size patch.
+- The main-run review records each lane's counts as a `pr-review-main: <lane>` check run, which no token can delete; the gate holds on the most CRITICAL findings any head of the pull request recorded, so a whitespace push cannot re-roll one away.
+
+### Changed
+
+- A new `skip-reason`, `kill-switch`: a lanes kill switch stopped the run. Every lane's gate stop by
+  its own kill-switch step now posts neutral `kill-switch` instead of `prerequisite-missing`
+  (`report-check-run`'s `gate-skip-reasons.json`), in every lane check it posts.
+
+- The cost hold section says cost means only what can bill: a `--model` or `--max-turns` flag, and on a public repository a `cron:` key, a raised timeout or a raised `retention-days`, report nothing. A `pr-pipeline.yaml` change is still the reported `cost-finding`.
+
+- This repository's `merge.max-in-flight` rises from 5 to 10. One full run of main's tip verifies every lane merge it contains, so the lane arms up to twice as many pull requests per verification cycle with no extra full runs. A red run now charges up to 10 unverified lane merges, and any charge still demotes the rung.
+
+- Every workflow that holds a credential beyond its job's `GITHUB_TOKEN` (a secret other than `GITHUB_TOKEN`, a lane token, an OIDC token), and the review workflows with the main-run review's scripts, is a `gate` floor path, held for a person; `scripts/sync-hold-floor.py` derives the workflow rows from the files. Claude Code settings, `.mcp.json`, `CLAUDE.md`, `AGENTS.md`, `REVIEW.md` and `docs/standards/**` are `gate` too. `pr-merge.yml` and `pr-unblock.yml` move from `enforcement`. `review-path-unbindable` is gone: an enforcement path beside a lane source waits for the main-run security review.
+- `pr-require-checks.yml` (ci-status, which posts the required status and runs the hold step) moves from `enforcement` to a `gate` floor path, named by file, and so is every workflow whose job token has `actions: write` (or `write-all`), since it can dispatch a gated credentialed workflow: `intake-reenter.yml`, `pr-feedback-dispatch.yml`, `pr-unblock-dispatch.yml`, `maintenance-reconcile-lost-runs.yml` and `post-merge-demotion-alert.yml` join. Each holds for a person outside the author lift; 23 workflows are gated.
+- Those review-surface `gate` rows (the gated workflows, the main-run review's scripts, the agent settings and instruction files) never take a trusted author's gate-path lift; a person approves them.
+- The main-run review reads its diff in parts one Read returns whole, and writes a verdict only when every part was read whole.
+- Without PyYAML, a mapping-form `issues:` trigger under `on:` holds as `privileged-trigger-review`.
+- `**/.claude/hooks/**` is a `gate` floor path outside the author lift: a hook that settings already registers changes what lanes run.
+- `**/.claude/*.sh`, `**/.claude/skills/**`, `**/.claude/agents/**`, `**/.claude/commands/**` and the instruction-exception register and untrusted-content conventions are `gate` floor paths outside the author lift too.
+- The pull-request merge gate reads every `pr-review-main: <lane>` check run on a head (`filter=all`), so a newer clean run hides no recorded CRITICAL.
+- A pull request only the main-run review binds (`needs_main_review`, as the binder decides) whose patch holds a line over 1800 bytes holds for a person as `long-line-review:<path>`; a read-only workflow, which the pull_request lanes bind on the whole diff, does not; the main-run review writes no verdict for it, and the binder counts no verdict past that line length.
+- `**/.claude/rules/**`, `**/.claude/*.json`, `**/.claude/*.md` and `.claude-lane/**` are `gate` floor paths outside the author lift (owner decision Q11: agent settings and instruction files stay gated).
+- A main-run verdict binds only beside the record job's matching check run on the head; the review diff uses `--no-renames`.
+- A workflow that reads the secrets context in any form (`secrets.*`, `toJSON(secrets)`) or sets `permissions: write-all` is a credentialed `gate` workflow, and an added object-form reference holds as `secret-exposure-review`.
+- `**/.claude/**` and `**/.claude-lane/**` are held whole in place of the per-file globs, and the merge gate's, merge-holds.mjs's and ci-status's matchers are tested to hold the same paths. The record check run counts only when the github-actions app posted it.
+
+- The cost hold's documentation names the billed timeout, composite-action model-leg, secret and runner-expression shapes it now catches, the accepted move of a `secrets` reference within one file, and the shapes left to the review lanes' cost hold: new triggers, removed guards, matrix growth, a non-Claude model action and paths outside the ones it reads (#9241).
+
+### Fixed
+
+- A pr-unblock or pr-refine write job that the token broker refuses with reason `kill-switch` (a
+  switch turned on after the run's own kill-switch step read it) no longer ends red.
+  `pr-run-activity-write.yml` now passes `kill-switch-ok` on a pull request run, so the token step
+  ends green with no token, every later step skips, and the check is neutral `kill-switch`. An
+  issue run (work-resolve-issue) stays red, since work-unblock re-fires its issue from the failed
+  mint step, and so does pr-unblock's `report-escalation`, which nothing re-fires. Before, a reply job stopped this way ended `feedback-publish-failed`, routed to a
+  failing status.
+
+- The pr-unblock dispatchers dispatch a head again once the kill switch lifts. A `kill-switch`
+  check never handles a head (`limit-stop.mjs` `killSwitchStop`), and on a push, reply or verdict
+  job's check it releases the head's earlier activity checks as a lane stop does: in
+  `stopRelease` (resolve-conflicts), the address-feedback reply releases and half-hourly sweep,
+  the review-dependency verdict release, and fix-ci, where it spends no restart. Such stops count
+  toward `limits.limit-stops-per-head` (`SWEEP_HEAD_CAP` for address-feedback), so a switch that
+  keeps flipping mid-run still ends the head. Before, a head whose activity check had run stayed
+  handled until a new push.
+
+- A fix-ci run whose only fix weakened a test no longer hands the pull request to a person on the
+  head's first fix-ci attempt. apply-patch stops it as `ci-fix-weaken-retry`, a failing status,
+  and the fix-ci dispatcher retries the head once at `model-rung` 1. That fresh fixer round's
+  `context.json` carries a fixed `retry` brief (fix the code under test and keep every test's
+  assertions and expected values). `fix-ci-context` decides the round
+  (`weaken-retry`: no finished fix-ci check and no lane stop on the head) and finds it again from
+  the head's `Lane stopped: ci-fix-weaken-retry` status. A `weaken-required` in that round, or
+  after any earlier attempt on the head, still goes to a person as `ci-fix-weaken-required`, and a
+  `protected-path` escalation beside it still wins.
+
+- intake-triage's split of a held issue no longer edits the issue body. The lanes App's refinement comment now records the done-when items a person runs and the body they number (`<!-- split items=N -->` beside the body hash), and admission and pr-verify read that record (admit.mjs `personChecks`): admission leaves those items out of its unrunnable and unpushable checks while they are exactly the items the lane cannot perform, a size split leaves them out of its parts, pr-verify passes them to the verifier as `person_checks` beside the body, which stays as its author wrote it, and the issue lane's `issue.json` carries them the same way. Each reader honors the record only under admission's guards (the refinement counts as spec, names the body's hash, and lists exactly the items the lane cannot perform under the issue lane's configured web hosts); a split refinement whose record does not stand reaches neither the verifier nor the lane, so its prose excuses nothing. Before, the App's body edit made it the body's last editor, so pr-verify no longer trusted the body and the issue lost its spec ([#9372](https://github.com/melodic-software/claude-code-plugins/issues/9372)). pr-verify's trust rule is unchanged.
+
 ## [7.3.1] - 2026-10-29
 
 ### Fixed

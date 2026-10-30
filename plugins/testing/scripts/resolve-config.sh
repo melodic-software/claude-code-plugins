@@ -404,7 +404,7 @@ for id in ${ids[@]+"${ids[@]}"}; do
     # In the docs file only the config block's lines count.
     from=1 to='$'
     [[ "$f" == "$TEAM_DOCS" ]] && from="$blk_from" to="$blk_to"
-    if n="$(sed -n "${from},${to}p" "$f" | grep -nwF -m1 -- "$id")"; then
+    if n="$(grep -nwF -m1 -- "$id" < <(sed -n "${from},${to}p" "$f"))"; then
       loc="$f:$((from + ${n%%:*} - 1))"
       break
     fi

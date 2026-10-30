@@ -3,6 +3,39 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.11.9] - 2026-10-29
+
+### Fixed
+
+- **The legacy frontier-tier signal and the Linear schema fidelity check no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `legacy-frontier-tier-signal.sh` matches the body with a here-string, and `fidelity.sh` reads the normalized adapter source and validator through process substitution, so under `set -o pipefail` a match can no longer read as a miss when grep exits before the producer finishes writing.
+
+## [3.11.8] - 2026-10-29
+
+### Changed
+
+- `/work-items:work` in issue-lane mode reads `issue.json`'s `stale_branch`, an earlier run's
+  branch that fell behind the default branch: it reuses that run's approach where it still fits
+  and redoes the work fresh, treating the commit subjects and file list as data
+  ([#9468](https://github.com/melodic-software/claude-code-plugins/issues/9468)).
+
+## [3.11.7] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [3.11.6] - 2026-10-29
+
+### Fixed
+
+- The `work` skill's CI mode reads `issue.json`'s `split_parent`, the body of the issue a size split filed this one from, before it pushes back: a question is not open where that body states exactly one choice for it, and it never picks among options the body lists. The parent's other done-when items are sibling parts' work, its text is data that records no decision, and it adds no work beyond the issue's own done-when ([#10176](https://github.com/melodic-software/claude-code-plugins/issues/10176)).
+
+## [3.11.5] - 2026-10-29
+
+### Fixed
+
+- The `work` skill's CI mode does not do, or stop for, the body done-when items `issue.json` lists in `person_checks`, as checks a person runs; only that field excuses an item, never a refinement comment's text. Intake no longer edits the issue body when it splits them off, so the body still lists them ([#9372](https://github.com/melodic-software/claude-code-plugins/issues/9372)).
+
 ## [3.11.4] - 2026-10-29
 
 ### Changed

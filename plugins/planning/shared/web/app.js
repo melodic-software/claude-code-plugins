@@ -5583,7 +5583,9 @@
       pickImg.alt = ""; pickImg.loading = "lazy"; pickThumb.append(pickImg); pickChip.append(pickThumb, pickTxt);
       pickThumb.onclick = () => { const q = qById(k.qid); openLb("choice", k.qid, optionsOf(q).filter(o => o.image).findIndex(o => o.id === k.pick), pickThumb); };
       const why = E("p", "vf-why vf-shownwhy");
-      const basis = E("p", "vf-basis");
+      // The basis carries its own labels (Checked against:, Basis:), folded behind "Why" as the 1:1 page folds it.
+      const basis = E("details", "vf-basis"), basisBody = E("div", "vf-rich vf-basis-body");
+      basis.append(E("summary", "vf-basis-sum", "Why"), basisBody);
       const edited = E("p", "vf-edited");
       const citeRow = E("ul", "vf-citechips vf-card-cites"); citeRow.setAttribute("aria-label", "Cites");
       const foot = E("div", "vf-card-foot");
@@ -5603,7 +5605,7 @@
       li.append(head, pickChip, text, why, basis, edited, modNote, citeRow, foot);
       const attRow = E("ul", "vf-reflist vf-attlist"); attRow.setAttribute("aria-label", "Attachments");
       li.insertBefore(attRow, citeRow);
-      const k = { li, head, ctxB, text, basis, edited, modNote, voters, vote, reacts, reactBtns, pickChip, pickThumb, pickImg, pickTxt, why, citeRow, attRow, avKey: "", vKey: "", cKey: "" };
+      const k = { li, head, ctxB, text, basis, basisBody, edited, modNote, voters, vote, reacts, reactBtns, pickChip, pickThumb, pickImg, pickTxt, why, citeRow, attRow, avKey: "", vKey: "", cKey: "" };
       if (!compact) {
         k.modHide = btn("vf-btn vf-btn-ghost vf-btn-sm vf-mod-hide"); k.modEdit = btn("vf-btn vf-btn-ghost vf-btn-sm vf-mod-edit", "Edit");
         k.modHide.onclick = () => toggleHidden(k.qid, k.a);
@@ -5688,7 +5690,8 @@
       tm.textContent = since(a.ts);
       const q = qById(qid);
       fillClamp(k.text, (compact ? "c:" : "a:") + qid + ":" + a.cid, a.text, `Answer from ${who}`, q ? `${q.id}: ${q.text}` : "");
-      k.basis.textContent = a.basis ? `Basis: ${a.basis}` : ""; k.basis.hidden = !a.basis || compact;
+      k.basis.hidden = !a.basis || compact;
+      if (!k.basis.hidden) setRich(k.basisBody, a.basis);
       k.edited.textContent = a.editedAfter ? `Edited after ${a.editedAfter} vote${a.editedAfter > 1 ? "s" : ""}` : ""; k.edited.hidden = !a.editedAfter;
       const opt = a.pick && optionsOf(q).find(o => o.id === a.pick && !o.other);
       k.pick = a.pick;
