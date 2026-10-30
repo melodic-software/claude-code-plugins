@@ -130,16 +130,19 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     }
   };
 
-  // pr-merge's completed runs on main, listed once for the sources that read them.
+  // pr-merge's runs on main, any status, listed once for the sources that
+  // read them: post-merge-dispatch keeps its report while the run's merge
+  // jobs still run, so the report source needs runs in progress too; the
+  // budget source keeps completed ones only.
   let prMergeList = null;
   const prMergeRuns = async () =>
-    (prMergeList ??= (await get(`/repos/${repo}/actions/workflows/pr-merge.yml/runs?branch=main&status=completed&created=${created}&per_page=50`))
+    (prMergeList ??= (await get(`/repos/${repo}/actions/workflows/pr-merge.yml/runs?branch=main&created=${created}&per_page=50`))
       .workflow_runs);
 
   await source("pr-merge api budget", async () => {
     const runs = await prMergeRuns();
     data.budgetReadings = [];
-    for (const run of runs.filter((r) => trustedPrMerge(r) && completedInWindow(r)).slice(0, LIMITS.prMergeRuns)) {
+    for (const run of runs.filter((r) => r.status === "completed" && trustedPrMerge(r) && completedInWindow(r)).slice(0, LIMITS.prMergeRuns)) {
       const merge = (await jobsOf(run.id)).find((j) => j.name === "merge");
       if (!merge) continue;
       for (const a of await annotationsOf(merge.id)) {
@@ -290,7 +293,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
 
   // The report post-merge-dispatch keeps per sweep (pr-merge-post-merge-report:
   // the post-merge check's exit code and JSON), from trusted pr-merge runs
-  // only, newest first, stopping at the first that is not exit 3 or at
+  // only, a run still in progress included, newest first, stopping at the first that is not exit 3 or at
   // POST_MERGE_UNREADABLE_SWEEPS. A run that kept no report (not live, a rate
   // stop) neither counts nor resets. No report within SWEEP_MAX_AGE_MINUTES
   // is a gap, so an open issue is not cleared without a readable sweep. Calls:

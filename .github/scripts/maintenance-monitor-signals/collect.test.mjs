@@ -16,6 +16,7 @@ const run = (id, extra = {}) => ({
   event: "schedule",
   head_branch: "main",
   head_repository: { full_name: repo },
+  status: "completed",
   created_at: "2026-10-19T15:50:00Z",
   updated_at: "2026-10-19T16:00:00Z",
   ...extra,
@@ -750,4 +751,27 @@ test("post-merge reports: none from the last 70 minutes is a gap, not a clear", 
     assert.deepEqual(data.gaps, ["post-merge reports: no report from a trusted pr-merge run in the last 70 minutes"]);
     assert.deepEqual(data.postMergeReports, []);
   }
+});
+
+// post-merge-dispatch keeps its report before the merge and enable-auto-merge
+// jobs that need it finish, so the newest report usually comes from a run
+// still in progress (#11382 review).
+test("post-merge reports: a still-running sweep's report is read first; the budget source waits for it to complete", async () => {
+  const routes = reportRoutes([reportArtifact(9, 2), ...[10, 11, 12, 13].map((id, i) => reportArtifact(id, 10 + 15 * i))]);
+  const list = routes[0][1].workflow_runs;
+  list.unshift(run(9, { status: "in_progress", conclusion: null, updated_at: "2026-10-19T16:40:00Z" }));
+  const api = fakeApi(routes);
+  const downloads = [];
+  const codes = { 69: "0" };
+  const data = await collect(
+    input(api, { readArtifact: async (id, files) => (files ? (downloads.push(id), reportFiles(codes[id] ?? "3")) : { run_id: 1001, live: true, candidates: 1, results: [] }) }),
+  );
+  assert.deepEqual(data.gaps, []);
+  assert.deepEqual(downloads, [69]);
+  assert.deepEqual(
+    data.postMergeReports.map((r) => [r.runId, r.code]),
+    [[9, "0"]],
+  );
+  assert.ok(!api.calls.some((p) => p.includes("runs/9/jobs")));
+  assert.ok(api.calls.some((p) => p.includes("pr-merge.yml/runs") && !p.includes("status=")));
 });
