@@ -101,6 +101,7 @@ gh() {
     *)
       n=$(($(cat "$d/lease-comments.count" 2>/dev/null || printf '0') + 1))
       printf '%s\n' "$n" >"$d/lease-comments.count"
+      [[ ! -f "$d/list-fails-$n" ]] || exit 1
       if [[ -f "$d/lease-comments-$n" ]]; then cat "$d/lease-comments-$n"; else cat "$d/lease-comments"; fi
       ;;
     esac
@@ -475,5 +476,18 @@ author_case "an outsider-planted lease is ignored: the local claim succeeds (0)"
 author_case "a github-actions[bot] lease wins: the local claim backs off (7)" NONE "github-actions[bot]" 7
 author_case "a member's lease wins: the local claim backs off (7)" MEMBER bob 7
 author_case "a collaborator's lease wins: the local claim backs off (7)" COLLABORATOR bob 7
+
+# [lease-only failure after the POST] a failed re-list supersedes the comment just
+# posted, so no lease nobody holds a handle to blocks the item for its TTL.
+new_scenario
+: >"$GH_STUB_DIR/stateful"
+printf '[]\n' >"$GH_STUB_DIR/lease-comments"
+: >"$GH_STUB_DIR/list-fails-1"
+rc=0
+bash "$CLAIM" "$ID" --ttl-hours 2 --lease-only --holder "$LANE" >/dev/null 2>&1 || rc=$?
+assert_eq "a lease-only claim whose re-list fails exits non-zero" "true" "$([[ $rc -ne 0 ]] && echo true || echo false)"
+assert_eq "the lease-only claim supersedes its own comment on that failure" "true" \
+  "$(jq -r '.[0].body | ltrimstr("<!-- work-item-lease v1 ") | rtrimstr(" -->") | fromjson | has("superseded_at")' "$GH_STUB_DIR/lease-comments")"
+cleanup_scenario
 
 [[ $FAILED -eq 0 ]] || exit 1

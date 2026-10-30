@@ -111,6 +111,15 @@ lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$login" --arg now "
 wit_run_gh write api "repos/$owner/$repo/issues/$number/comments" \
   -f body="${WIT_LEASE_MARKER}${lease} -->" --jq '.id'
 our_comment_id="$WIT_GH_OUT"
+# A lease-only claim that fails before its emit supersedes its own comment, so a
+# lease whose handle never reached the caller does not block the item for its TTL.
+if [[ "$lease_only" == true ]]; then
+  _wit_claim_rollback() {
+    gh_write api --method PATCH "repos/$owner/$repo/issues/comments/$our_comment_id" \
+      -f body="${WIT_LEASE_MARKER}$(jq -c --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '. + {superseded_at: $ts}' <<<"$lease") -->" >/dev/null 2>&1 || true
+  }
+  trap _wit_claim_rollback EXIT
+fi
 
 # 4. Re-read all lease comments; the EARLIEST live lease wins. The rollback
 # guard STAYS armed through arbitration: a read failure here (exit "$?" below)
@@ -147,7 +156,7 @@ if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
   # would also catch this on exit; the explicit call keeps the disarm/removal
   # decision made in this block, not left implicit to the trap).
   if [[ "$lease_only" == true ]]; then
-    : # nothing assigned, nothing to keep or drop
+    trap - EXIT # nothing assigned; our comment is already superseded
   elif [[ "$winner_holder" != "$login" ]]; then
     wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
   else

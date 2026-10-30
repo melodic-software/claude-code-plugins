@@ -534,6 +534,7 @@ issue comment with a machine marker. The GitHub adapter's `claim` has two modes:
   (steps 1 to 5 below). Local sessions use this mode.
 - **Lease-only (`--lease-only`):** the claim posts the lease comment and assigns no one. It skips
   steps 1 and 2, and on a lost arbitration it supersedes its own comment and touches no assignee.
+  A failure after the comment is posted and before the emit also supersedes it.
   `--holder <h>` names the holder instead of the authenticated login, for a caller whose token
   cannot read `GET /user` (a GitHub App installation token, which a CI job holds). The issue lane
   claims this way, holding `vars.AUTOMATION_LANES_APP_SENDER_ID`, before its model starts.

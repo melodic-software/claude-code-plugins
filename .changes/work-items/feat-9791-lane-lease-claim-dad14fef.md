@@ -9,3 +9,4 @@ bump: minor
 ### Fixed
 
 - A lease comment from outside the repository's owners, members and collaborators (other than `github-actions[bot]`) no longer counts, and a lease renewed more than 300 s ahead or with a TTL over 168 h is not live, so a planted comment cannot block an issue.
+- A lease-only `claim` that fails after posting its lease comment supersedes that comment, so the issue is not blocked for the lease TTL.
