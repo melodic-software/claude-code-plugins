@@ -143,7 +143,7 @@ Question shapes that recur, in priority order:
 | Users | "Who is the primary user. One persona or many? Walk me through their day before and after." |
 | User stories | "Pick the one most-important journey: as a `<role>` I want to `<action>` so that `<outcome>`." |
 | Success metrics | "How will we know it worked? Name the metric and the threshold. Adoption %, conversion %, time saved, error rate." Then: "Which repeated task that brings users back does this improve, and does the metric measure that task?" |
-| Quality requirements | "Which of these does the feature touch, and where would a wrong guess change the design or a check grade it?", over the prompts in [`${CLAUDE_PLUGIN_ROOT}/skills/interview/context/nfr-prompts.md`](../interview/context/nfr-prompts.md) at the tier's depth (Step 5). Ask for a measurable target only there. |
+| Quality requirements | "Which of these does the feature touch, and where would a wrong guess change the design or a check grade it?", over Step 5's prompt list at the tier's depth. Ask for a measurable target only there. |
 | Acceptance-criteria coverage | Asked once, per "Acceptance-criteria capture" below. Never one question per criterion. |
 | Dependencies / risks | "What outside this team must exist or change for this to ship? What's the biggest risk?" |
 | Assumptions | "What are we taking as true without proof, and what would show it false?" |
@@ -175,14 +175,14 @@ Required sections (every tier; verbosity varies):
 3. **Non-goals**. Explicit out-of-scope items, including any setting, control or option with no stated reason. Asking for a reason never cuts an option the consuming project keeps configurable on purpose: there the option stays and its reason is recorded
 4. **Users**. Primary persona(s) + 1-2 user stories in `as a <role>, I want <action>, so that <outcome>` form
 5. **Success metrics**. Named metric + threshold + measurement window, tied to the repeated task users come back for; when the metric does not measure that task, say so
-6. **Quality requirements**. Non-functional requirements (NFRs): how well the product must do what it does. One line per requirement in the `Quality requirement:` format of [`${CLAUDE_PLUGIN_ROOT}/skills/interview/context/nfr-prompts.md`](../interview/context/nfr-prompts.md), which owns the prompt list and when a measurable target is owed; it is the format the Brief's `### Constraints` uses
+6. **Quality requirements**. Non-functional requirements (NFRs): how well the product must do what it does, one line each in the `Quality requirement:` format of [`${CLAUDE_PLUGIN_ROOT}/skills/interview/context/nfr-prompts.md`](../interview/context/nfr-prompts.md), which owns the prompts and when a target is owed
 7. **Dependencies / risks**. Outside-team dependencies + top 1-3 risks with mitigations
 8. **Assumptions**. What the PRD takes as true without proof, each with what would show it false; `/planning:interview` carries them into the Brief's Captured assumptions
 9. **Open questions**. Anything genuinely undecided that `/planning:plan` needs answered
 
 Tier-3 (B2B) adds: **Stakeholders**, **Rollout**, **Compliance / integration**.
 
-Quality requirements scale with the tier: a one-pager records only the prompts where the feature moves the product's current bar, or one `None beyond the product's current bar` line; a consumer-feature covers every prompt the feature touches, including one that keeps the current bar; a B2B-internal covers every prompt, each asked or stated as not applying. Under `synthesize` or an unattended run, a target nobody stated goes under **Assumptions** in that file's `target assumed` form, never into the requirement line.
+Each tier's template in [`context/templates.md`](context/templates.md) sets which quality prompts it covers: one-pager, only where the feature moves the current bar; consumer-feature, every prompt it touches; B2B-internal, all. Under `synthesize` or an unattended run, an unstated target goes under **Assumptions** in the `target assumed` form, never the requirement line.
 
 **Durability over precision.** Describe the product through its interfaces, types, and behavior contracts, not file paths or line numbers; the PRD should still be accurate after a refactor.
 
@@ -190,9 +190,9 @@ Quality requirements scale with the tier: a one-pager records only the prompts w
 
 **Non-goals graduation edge.** A non-goal that is a permanent, deliberate rejection, not a deferral, graduates to the consuming repo's rejected-concept ledger at `docs/out-of-scope/<concept>.md`, one file per concept, accreting a "Prior requests" log entry each time the concept resurfaces, so future proposals are answered by the ledger instead of relitigated. Create the file lazily on first permanent rejection; when the consumer keeps no ledger, the plain Non-goals list suffices.
 
-Test-seam sketching (where the feature will be tested, and at how few seams) is not a PRD concern; `/planning:design` sketches it as a design thread and `/planning:plan`'s Test strategy decides the boundaries.
+Test-seam sketching (where, and at how few seams, the feature is tested) is not a PRD concern; `/planning:design` sketches it as a design thread and `/planning:plan`'s Test strategy decides the boundaries.
 
-Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`; placement and rules: [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md).
+Optionally offer to render the finalized PRD as a self-contained HTML pitch view for non-engineer stakeholders: a static generated view, never an editor with real data bound in. PRD.md stays the record. Write the view to the OS temp directory, never beside `PRD.md`, per the artifact protocol linked above.
 
 ### Step 6. Hand off
 
@@ -209,7 +209,7 @@ Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
 ## Acceptance-criteria capture
 
-Two behaviors apply when this PRD turns product intent into verifiable statements (the Step 4 success-metrics and user-story rows and any acceptance criterion the run writes down). The first is always on; the second fires only when the consuming team's convention selects it.
+Two behaviors apply when this PRD turns product intent into verifiable statements (the Step 4 success-metrics and user-story rows and any acceptance criterion the run writes down).
 
 ### Coverage prompt. Always on, asked once
 
