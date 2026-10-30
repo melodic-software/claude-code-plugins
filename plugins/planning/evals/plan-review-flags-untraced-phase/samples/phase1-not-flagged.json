@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Phase 1 covers both criteria. Phase 2 serves no criterion: cut it.\n",
+      "why": "flags only Phase 2"
+    },
+    {
+      "answer": "Every criterion maps to Phase 1.\n",
+      "why": "Phase 1 cleared"
+    },
+    {
+      "answer": "",
+      "why": "empty reply has no Phase 1 flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "- Phase 1 serves no criterion and should be cut.\n",
+      "why": "flags Phase 1"
+    },
+    {
+      "answer": "Phase 1 doesn't trace to any acceptance criterion.\n",
+      "why": "flags Phase 1 with n't"
+    },
+    {
+      "answer": "| 2 | IMPORTANT | Plan mechanics | Phase 1 is untraced | Cut it |\n",
+      "why": "table row flags Phase 1"
+    }
+  ]
+}
