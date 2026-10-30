@@ -129,6 +129,7 @@ Nearest wins, per key, and each Settings row names its layer: this browser's loc
 | `leaseTimeout` | `600` | 5 to 3600 seconds a silent watcher keeps its lease; read on every poll |
 | `settleQuiet` | `10` | 0.5 to 60 seconds a found event waits for more before the watcher wakes; read on every poll |
 | `settleBurst` | `30` | 1 to 120 seconds, the longest a reply is held in all; never past the watcher's wait deadline. A `settleQuiet` above `settleBurst` puts both back to the defaults |
+| `readingWindow` | `180` | 5 to 600 seconds after an event is delivered until which the page shows Claude working once no watcher waits; the 10 s after a watcher's wait ends still read as listening, so a window of 10 or less never shows working; read on every state frame |
 | `frontierLock` | `confirm` | `confirm`, `hard`, `off`: a decision on a question whose prerequisite is still open asks first (Answer anyway records it out of order), is refused, or saves as before; a decision on an `upstream-changed` question is refused under `confirm` and `hard` and saves under `off`; the server reads it on every save, and the page shows it read-only |
 | `requireDepends` | `false` | `true` turns `add` and `add-round`'s warnings on a question with no `dependsOn`, or one naming a question open in its own round, into refusals |
 
@@ -151,7 +152,7 @@ Both interview pages load `question-shape.js` and `question-shape.css`: the comp
 
 ## Known gaps
 
-- The browser suites run only where `playwright-cli` resolves; elsewhere `surface.test.sh`, `surface-ui-c.test.sh` and `surface-journey.test.sh` each print a SKIP with the count not run. CI gets `playwright-cli` from the root `package.json` (`@playwright/cli`), so the browser checks run there, and the test planner can give each part its own leg.
+- The browser suites run only where `playwright-cli` resolves; elsewhere each `surface*.test.sh` suite prints a SKIP with the count not run. CI gets `playwright-cli` from the root `package.json` (`@playwright/cli`), so the browser checks run there, and the test planner can give each part its own leg.
 - Browsers cap HTTP/1.1 connections at six per origin and each tab holds one SSE stream, so keep to one or two tabs.
 - Chromium logs a network error line for an intended 409; the page itself logs nothing.
 - Mermaid visuals show their source with a "rendering not available" line.

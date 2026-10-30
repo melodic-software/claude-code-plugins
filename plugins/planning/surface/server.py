@@ -28,6 +28,7 @@ from question_shape import restates, withheld
 from session_bridge import (
     MAX_STREAMS,  # noqa: F401  # the stream limits, read through this module by its tests
     PING_SECONDS,  # noqa: F401
+    READING_WINDOW,
     Conflict,
     LoopbackHandler,
     LoopbackWatcher,
@@ -127,6 +128,7 @@ DEFAULT_SETTINGS = {
     "leaseTimeout": 600,
     "settleQuiet": QUIET_SECONDS,
     "settleBurst": BURST_SECONDS,
+    "readingWindow": READING_WINDOW,
     "frontierLock": "confirm",
     "requireDepends": False,
 }
@@ -145,6 +147,7 @@ SETTING_RULES = {
     "leaseTimeout": ("int", 5, 3600),
     "settleQuiet": ("num", 0.5, 60),
     "settleBurst": ("num", 1, 120),
+    "readingWindow": ("int", 5, 600),
     "frontierLock": ("enum", ("confirm", "hard", "off")),
     "requireDepends": ("bool",),
 }
@@ -1041,6 +1044,11 @@ class Hub(LoopbackWatcher):
 
     def lease_timeout(self):
         return self.layers.resolve(self.dir, self.user_settings())[0]["leaseTimeout"][
+            "value"
+        ]
+
+    def reading_window(self):
+        return self.layers.resolve(self.dir, self.user_settings())[0]["readingWindow"][
             "value"
         ]
 

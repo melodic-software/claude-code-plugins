@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Hygiene checks, then the browser groups, for the interview surface. The suites run it:
 #   bash surface-checks.sh                 the hygiene checks and the main part (surface.test.sh)
-#   bash surface-checks.sh --part <part>   one part's browser groups (surface-<part>.test.sh)
+#   bash surface-checks.sh --part <part>   one part's browser groups (surface-<part>.test.sh): page,
+#                                          ui-c, ui-c-listen, ui-c-ledger or journey
 #   bash surface-checks.sh --part all      the hygiene checks and every browser group
 # Each browser group runs against its own server, so the parts are independent and the test
 # planner can give each suite its own leg.
@@ -23,8 +24,8 @@ ok() { echo "ok: $1"; pass=$((pass + 1)); }
 bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 # The browser groups of each part, and each group's check count for the SKIP line.
-declare -A PARTS=([main]="ab e live page" [ui-c]="c" [journey]="journey")
-declare -A CHECKS=([ab]=97 [c]=207 [e]=22 [journey]=235 [live]=18 [page]=118)
+declare -A PARTS=([main]="ab e live" [page]="page" [ui-c]="c" [ui-c-listen]="c_listen" [ui-c-ledger]="c_ledger" [journey]="journey")
+declare -A CHECKS=([ab]=97 [c]=176 [c_listen]=21 [c_ledger]=10 [e]=22 [journey]=235 [live]=18 [page]=118)
 part=main
 case "$#:${1:-}" in
   0:) ;;
@@ -232,8 +233,11 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     handler=$!
     run_code "$tmp/ui_c3.js" "$tmp/ui_c3.out"
     wait "$handler" 2>/dev/null
+    for n in 1 2 3; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
+  }
 
-    # ui_c phase 4 runs against a fourth server whose one event was delivered in 2020 and never
+  group_c_listen() {
+    # ui_c phase 4 runs against its own server, whose one event was delivered in 2020 and never
     # handled, with no watcher ever polling.
     mkdir -p "$e"
     cp tests/fixtures/ui_d/questions.json tests/fixtures/ui_d/responses.json "$e/"
@@ -250,7 +254,7 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     sed "s/__PORT__/$eport/; s/__PHASE__/5/" tests/ui_c.js >"$tmp/ui_c5.js"
     run_code "$tmp/ui_c5.js" "$tmp/ui_c5.out"
 
-    # ui_c phase 6 runs against a fifth server with one question and no events. A background
+    # ui_c phase 6 runs against another server, with one question and no events. A background
     # handler waits for the page to arm a watcher (the lease shows in /api/state), then handles
     # the answer as a handle-only apply while the page stays open.
     f="$tmp/f3"
@@ -274,8 +278,11 @@ if command -v playwright-cli >/dev/null 2>&1; then # prereq-ok: test-only, run b
     run_code "$tmp/ui_c6.js" "$tmp/ui_c6.out"
     wait "$handler" 2>/dev/null
     bash "$here/round.sh" --dir "$f" stop >/dev/null 2>&1
+    for n in 4 5 6; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
+  }
 
-    # ui_c phases 7 and 8 (#9715) run against a sixth server holding only D1: phase 7 answers it,
+  group_c_ledger() {
+    # ui_c phases 7 and 8 (#9715) run against their own server holding only D1: phase 7 answers it,
     # the shell supersedes it with D2 and reads export-ledger, and phase 8 checks the page meter
     # agrees with the ledger's live and answered rows.
     sd="$tmp/s3"
@@ -313,7 +320,7 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
       run_code "$tmp/ui_c$n.js" "$tmp/ui_c$n.out"
       bash "$here/round.sh" --dir "$x" stop >/dev/null 2>&1
     done
-    for n in 1 2 3 4 5 6 7 8 9 10; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
+    for n in 7 8 9 10; do grade "ui_c.$n" "$tmp/ui_c$n.out"; done
   }
 
   group_e() {
@@ -330,9 +337,11 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
 
   group_journey() {
     # The journey runs against a fifth server seeded with an empty interview. It walks the whole
-    # flow on one page in twenty phases; the shell writes as Claude between them.
+    # flow on one page in twenty phases; the shell writes as Claude between them. Its short
+    # readingWindow lets phase 7 see Idle without waiting out the default 180 s after phase 1's delivery.
     mkdir -p "$j/ops"
     cp tests/fixtures/journey/questions.json tests/fixtures/journey/responses.json "$j/"
+    printf '%s' '{"readingWindow": 5}' >"$j/settings.json"
     bash "$here/round.sh" --dir "$j" add-round --file tests/fixtures/journey/round1.json --round 1 >/dev/null
     bash "$here/round.sh" --dir "$j" ensure-running --port 0 >/dev/null
     jport=$(sed -n 's/^PORT=//p' "$j/.interview-session.env" | tr -d '\r')

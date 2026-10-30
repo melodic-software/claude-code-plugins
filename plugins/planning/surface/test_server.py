@@ -3135,6 +3135,7 @@ class TestSettingsLayers(ServerCase):
             "leaseTimeout": 600,
             "settleQuiet": 10.0,
             "settleBurst": 30.0,
+            "readingWindow": 180,
             "frontierLock": "confirm",
             "requireDepends": False,
         }
@@ -3761,6 +3762,40 @@ class TestLease(WaitCase):
         self.assertEqual(code, 200, body)
         self.assertEqual(seqs(body["events"]), [posted["seq"]])
         self.assertEqual(self.lease()["watcher"], "C")
+
+
+class TestReadingWindow(unittest.TestCase):
+    """readingWindow sets how long after a delivery the listener reports the session reading."""
+
+    def setUp(self):
+        import server
+
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-reading-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.hub = server.Hub(0, self.tmp)
+        self.hub.last_deliver = time.time() - 30
+
+    def write_settings(self, data):
+        (self.tmp / "settings.json").write_text(json.dumps(data), encoding="utf-8")
+
+    def test_the_default_window_still_reads_thirty_seconds_after_a_delivery(self):
+        self.assertEqual(self.hub.reading_window(), 180)
+        self.assertEqual(self.hub.listener()["state"], "reading")
+
+    def test_a_configured_window_ends_the_reading_state(self):
+        self.write_settings({"readingWindow": 20})
+        self.assertEqual(self.hub.listener()["state"], "idle")
+
+    def test_an_invalid_window_falls_back_to_the_default(self):
+        for bad in (
+            {"readingWindow": 4},
+            {"readingWindow": 601},
+            {"readingWindow": 2.5},
+        ):
+            with self.subTest(bad=bad):
+                self.write_settings(bad)
+                with contextlib.redirect_stderr(io.StringIO()):
+                    self.assertEqual(self.hub.reading_window(), 180)
 
 
 class TestSettleBurstCap(unittest.TestCase):

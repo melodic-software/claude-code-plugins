@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The ui_c part of the interview surface's browser groups (ui_c); surface.test.sh and surface-journey.test.sh run the rest.
+# Phases 1 to 3 of the interview surface's ui_c browser group; the other surface-*.test.sh suites run the rest.
 #   bash surface-ui-c.test.sh
 # test-scope: plugins/planning/surface/schema/* plugins/planning/surface/tests/fixtures/*
 # test-scope: plugins/planning/.claude-plugin/plugin.json
