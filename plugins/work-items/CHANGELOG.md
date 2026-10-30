@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.11.9] - 2026-10-29
+
+### Fixed
+
+- **The legacy frontier-tier signal and the Linear schema fidelity check no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `legacy-frontier-tier-signal.sh` matches the body with a here-string, and `fidelity.sh` reads the normalized adapter source and validator through process substitution, so under `set -o pipefail` a match can no longer read as a miss when grep exits before the producer finishes writing.
+
 ## [3.11.8] - 2026-10-29
 
 ### Changed
