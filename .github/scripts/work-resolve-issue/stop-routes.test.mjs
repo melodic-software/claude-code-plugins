@@ -174,6 +174,31 @@ test("a close, host-run or attended reason that names security holds as security
   assert.equal(runCode("host-only: needs the desktop's GPU"), "host-only", "a host-run that names no security");
 });
 
+// Owner rule: a capability limit routes to host-run or fail, never to a
+// person. Run 41012431399 held #10022 as security because its host-only reason
+// said "tokens" and "model credentials". After an ending code, a secret noun
+// holds only beside a risk word; a security concern still always holds.
+test("an ending reason that names a secret noun as a capability keeps its route", () => {
+  for (const reason of [
+    "host-only: the work runs the eval suites against prepaid credit and records pass rate, tokens, advisor call rate and wall time. That needs `claude` eval runs on a host with model credentials; this lane cannot invoke `claude` or spend credit.",
+    "host-only: needs an API key the lane does not hold",
+    "host-only: tokens per completed task need a live run",
+  ]) {
+    assert.equal(runCode(reason), "host-only", reason);
+    assert.equal(stopRoute(runCode(reason)), "host-run", reason);
+  }
+  for (const reason of [
+    "host-only: the eval would print the API key",
+    "host-only: a token leaks to the run output",
+    "attended: rotate the compromised password",
+    "host-only: the secret is exposed in the fixture",
+    "host-only: needs credentials, and the run found a backdoor",
+  ]) {
+    assert.equal(runCode(reason), "security-risk", reason);
+    assert.equal(stopRoute(runCode(reason)), "hold", reason);
+  }
+});
+
 test("a reason with no code that names a security word holds", () => {
   for (const reason of ["credential printed to the log", "a malicious dependency", "the prompt could inject commands", "the TOKEN is in the URL", "a secret in the fixture"]) {
     assert.equal(runCode(reason), "security-risk", reason);
