@@ -2206,7 +2206,8 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   or `intent-change` (any case, an underscore or space for the hyphen), an intent question; else
   a `cause` that names a hold code takes that hold row; else a `reason` that opens with a
   `host-run` or `attended` code (`host-only`, `patch-protected-path`, `manual-external`) takes
-  that row. Any other pushback, one that only mentions a security word included, is
+  that row, unless the security reading below for a `stopped` reason after such a code holds it.
+  Any other pushback, one that only mentions a security word included, is
   `pushback-means`, which goes back through intake triage once (`intake` route, `retries: 1`):
   intake decides it again on evidence and admits it, unless its own intent, security or cost
   rules stop it, and then takes `retry-spent`'s route.

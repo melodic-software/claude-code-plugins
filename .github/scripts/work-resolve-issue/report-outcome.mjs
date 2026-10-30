@@ -41,7 +41,8 @@
 //             cause intent or intent-change (any case, `_` or space for `-`)
 //             comments why, adds the human-gated label, removes agent-ready;
 //             else a cause naming a hold code takes that row; else a reason
-//             opening with a host-run or attended code takes that row; else
+//             opening with a host-run or attended code takes that row,
+//             unless runCode reads a security risk after it; else
 //             pushback-means (stop-routes.json). A security word without the
 //             security-risk code holds nothing: intake judges it.
 //             When a listed human's newest comment, posted since the lane's
@@ -169,7 +170,8 @@ const PUSHBACK_CAUSES = new Set(["intent", "intent-change"]);
 // A pushback's stop: the hold row its reason explicitly opens with
 // (security-risk, cost-risk, design-change, intent-change); else pushback for
 // cause intent; else the hold row its cause names; else the host-run or
-// attended row its reason opens with; else pushback-means, so intake's own
+// attended row its reason opens with, unless runCode reads a security risk
+// after that code; else pushback-means, so intake's own
 // intent, security and cost rules judge it. A security word with no code
 // reaches no person here.
 const PUSHBACK_LANE_ROUTES = new Set(["host-run", "attended"]);
@@ -179,7 +181,7 @@ const pushbackStop = (outcome) => {
   const cause = String(outcome.cause ?? "").trim().toLowerCase().replace(/[\s_]+/g, "-");
   if (PUSHBACK_CAUSES.has(cause)) return "pushback";
   if (Object.hasOwn(STOP_ROUTES, cause) && STOP_ROUTES[cause].code === true && stopRoute(cause) === "hold") return cause;
-  return PUSHBACK_LANE_ROUTES.has(stopRoute(code)) ? code : "pushback-means";
+  return PUSHBACK_LANE_ROUTES.has(stopRoute(code)) && runCode(outcome.reason) === code ? code : "pushback-means";
 };
 // The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title
 // cannot name an issue to close.

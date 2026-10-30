@@ -803,6 +803,10 @@ test("a pushback holds only for an explicit hold code, never for a security word
   const host = run("host-only: needs the GPU desktop.");
   assert.equal(host.stop, "host-only");
   assert.equal(host.action, "host-run");
+  // One that names a security risk after the code goes to intake, not the host queue.
+  const risky = run("host-only: needs the deploy token printed in the log.");
+  assert.equal(risky.stop, "pushback-means");
+  assert.equal(risky.action, "intake");
 });
 
 // An explicit security-risk code outranks an intent cause.
