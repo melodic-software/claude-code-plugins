@@ -123,6 +123,16 @@ class UnreadableReuseTest(unittest.TestCase):
             self.candidate()
         self.assertEqual(self.check.runs, 2)
 
+    def test_a_stored_answer_marked_ok_is_never_reused(self) -> None:
+        # Unreadable never reads as a pass: a stored report claiming `ok`
+        # beside `readable: false` is not reused, so the check runs.
+        report = self.step_report(HEAD, datetime.now(UTC))
+        report["ok"] = True
+        self.write(report)
+        answer = self.candidate()
+        self.assertEqual(self.check.runs, 1)
+        self.assertEqual(answer.refusal, REASON)
+
     def test_a_readable_answer_is_never_recorded_as_unreadable(self) -> None:
         passing = {"ok": True, "readable": True, "reason": None, "autoMerges": []}
         checks = 0

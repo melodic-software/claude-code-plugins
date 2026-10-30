@@ -3901,9 +3901,11 @@ UNREADABLE_KEY = "unreadableRecompute"
 
 
 def _unreadable(report: Mapping[str, Any]) -> bool:
-    return report.get("readable") is False and str(
-        report.get("reason") or ""
-    ).startswith("unreadable")
+    return (
+        report.get("ok") is not True
+        and report.get("readable") is False
+        and str(report.get("reason") or "").startswith("unreadable")
+    )
 
 
 def _unreadable_at(
@@ -3928,7 +3930,11 @@ def _unreadable_at(
         "identity": shared.get("identity"),
         "laneMergesOnly": shared.get("laneMergesOnly"),
         "computedAt": shared.get("computedAt"),
-        "report": {k: v for k, v in payload.items() if k not in ("since", "shared")},
+        "report": {
+            k: v
+            for k, v in payload.items()
+            if k not in ("since", "shared", UNREADABLE_KEY)
+        },
     }
     now = datetime.now(UTC)
     for record in (json_object(payload.get(UNREADABLE_KEY)), job):
