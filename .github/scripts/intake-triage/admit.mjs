@@ -747,6 +747,15 @@ export function untrustedHold({ labels, events, humans, isApp }) {
   return names(labels).includes(UNTRUSTED) || removedByOther;
 }
 
+// Whether the issue's author (`issue.user`) is one intake admits: a listed
+// human (`humans`, ids) or the lanes App (`appId`, a number when set). An
+// issue with no author is neither. Admission, the issue lane's gate and
+// intake re-entry all judge the author here. Pure.
+export function authorAdmitted(issue, humans, appId) {
+  const author = issue?.user?.id;
+  return author !== undefined && (humans.has(author) || (Number.isInteger(appId) && author === appId));
+}
+
 // Whether the newest add of `label` (a `labeled` event) is a listed human's
 // (`humans`, ids) or the lanes App's (`appId`), as attendedHold judges
 // `attended`. Pure.
@@ -891,8 +900,7 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   if (splitChildBody(spec, humans, rules["task-list"]) !== null && !rules.sizes.includes("large")) {
     rules = { ...rules, sizes: [...rules.sizes, "large"] };
   }
-  const author = issue.user?.id;
-  if (!(humans.has(author) || (appId !== undefined && author === appId))) {
+  if (!authorAdmitted(issue, humans, appId)) {
     refuse.push("the author is neither a listed human nor the lanes App");
     hold = true;
   }

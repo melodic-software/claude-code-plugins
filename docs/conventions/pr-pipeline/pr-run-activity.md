@@ -58,7 +58,7 @@ permissions, and passes no App key.
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-feedback-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
-| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting; any other value, or one outside issue mode, fails step 1 |
+| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, or `outside-author`, the admit job's stop on an issue neither a listed human nor the lanes App wrote; any other value, or one outside issue mode, fails step 1 |
 | `collect-refused` | `''` | Write file, issue mode, `report-outcome`: the model run's `scan-collect-refused`; only `true` counts, and stops the issue on the `collect-refused` route, which holds it for a person |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
@@ -964,8 +964,11 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    over it under `feedback/` with an empty `feedback/state/`; after the head checkout the run job
    copies them to `.lane/feedback/` and makes the files, the wrapper and the directory read-only,
    all but `state/`. Edit, Write and NotebookEdit are denied on each staged file. The skill gets
-   the tool set of a read skill that hands on a patch and one Bash rule, the wrapper's absolute
-   path, bare and double-quoted, and the preamble names that path and its three subcommands. The
+   the tool set of a read skill that hands on a patch and two Bash rules, the wrapper's absolute
+   path, bare and double-quoted, and `chmod -x`, and the preamble names that path and its three
+   subcommands and says `chmod -x` reverts an executable bit the pull request added. The patch
+   carries the mode, and the `review-threads` row pushes no new executable bit (`new-exec-bit`) and
+   a mode change only back to the merge base's (`pr-mode-revert`). The
    tool lists the kept threads, checks paths, and records a reply in `state/replies.jsonl`: it
    refuses a disposition file outside the scratch directory or off the template (`fix_sha`
    empty), and a `VALID` reply while the working tree changes, against the gated head (renames
@@ -2032,7 +2035,10 @@ which needs `admit` and `pick-slot` only, runs `report-outcome` in the write fil
 `dimension-skip`, and the reason takes its route: `research-first` and `probe-first` label the
 issue `needs-human`, remove `agent-ready`, and comment the next step under the escalation marker
 and an `outcome=<reason>` marker; `split-required` takes the `intake` route, so intake's split
-files its sub-issues (owner Q93). What changes from the PR flow:
+files its sub-issues (owner Q93). When the admit job stops the run because the issue's author is
+neither a listed human nor the lanes App, `report-skip` runs with `dimension-skip: outside-author`:
+it removes `agent-ready` and comments, under an `outcome=outside-author` marker and with no label,
+that a listed human re-files the work as a new issue. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty; in the read

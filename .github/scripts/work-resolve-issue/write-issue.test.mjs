@@ -42,6 +42,7 @@ const comment = (n, user, body, extra = {}) => ({
 
 const ISSUE = {
   number: 6825,
+  user: OWNER,
   title: "Add a targeted frame",
   body: "Readiness: needs-decision. Option 1 or option 2.",
   labels: [{ name: "agent-ready" }, "work-class: mechanical"],
@@ -603,6 +604,21 @@ test("a resume with a malformed tip, branch or cause, or an unreadable compariso
   const { code, issue } = await run(fakeGitHub({ comments: [] }), { extraEnv: RESUME_ENV });
   assert.equal(code, 1);
   assert.equal(issue, null);
+});
+
+// Defense in depth behind the admit job's outside-author stop: an issue
+// neither a listed human nor the lanes App wrote never reaches the model.
+test("an issue neither a listed human nor the lanes App wrote fails the run and writes no file", async () => {
+  for (const user of [{ id: 999, login: "stranger" }, undefined]) {
+    const { code, issue, logged } = await run(fakeGitHub({ comments: [], issue: { ...ISSUE, user } }));
+    assert.equal(code, 1, JSON.stringify(user));
+    assert.equal(issue, null);
+    assert.ok(logged.some((line) => line.includes("neither a listed human nor the lanes App")), logged.join("\n"));
+  }
+  for (const user of [OWNER, LANES_BOT]) {
+    const { code } = await run(fakeGitHub({ comments: [], issue: { ...ISSUE, user } }));
+    assert.equal(code, 0, user.login);
+  }
 });
 
 // A fresh start past a stale lane branch (report-outcome --find-prior's

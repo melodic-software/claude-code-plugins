@@ -77,7 +77,7 @@ docs/contracts/hook-input-rewriting/*.md
 docs/contracts/hook-observability/*.md
 docs/contracts/hook-precision/*.md
 docs/contracts/hook-telemetry/*.md
-docs/conventions/instruction-exception-register/*.md
+docs/contracts/instruction-exception-register/*.md
 docs/contracts/invocation-mode/*.md
 docs/contracts/liveness-assertion/*.md
 docs/contracts/loop-lane/*.md
@@ -87,14 +87,14 @@ docs/contracts/plugin-data-report-keying/*.md
 docs/contracts/plugin-reconfiguration/*.md
 docs/contracts/pr-body-convention/*.md
 docs/contracts/pre-pr-ordering/*.md
-docs/conventions/rendered-views/*.md
+docs/contracts/rendered-views/*.md
 docs/contracts/retired-conventions/*.md
 docs/contracts/seam-phrasing/*.md
 docs/contracts/shell-test-helpers/*.md
 docs/contracts/standards/*.md
 docs/contracts/standards/examples/*.md
 docs/contracts/tracker-reference-form/*.md
-docs/conventions/untrusted-content/*.md
+docs/contracts/untrusted-content/*.md
 docs/contracts/upstream-drift/*.md
 docs/contracts/windows-path-emit/*.md
 # The out-of-scope records were purged whole.

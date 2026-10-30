@@ -1,5 +1,39 @@
 # Changelog for the PR pipeline convention
 
+## [8.1.0] - 2026-10-29
+
+### Added
+
+- A work-resolve-issue run that starts fresh because the earlier run's lane branch is behind the
+  default branch now gives the model that branch's work. `report-outcome --find-prior` outputs
+  `stale-branch` and `stale-tip` (the tip it checked every commit of), and `write-issue.mjs` adds
+  `stale_branch` to `issue.json`: the branch, the tip, each commit's subject and the files it
+  changed, from the same capped `GET /compare` a resume uses, as data. report-outcome names the
+  branch on the issue once, in a comment opening with
+  `<!-- work-resolve-issue stale-branch=<branch> -->`, and deletes no branch
+  ([#9468](https://github.com/melodic-software/claude-code-plugins/issues/9468)).
+
+### Changed
+
+- pr-review-main records a designed stop instead of failing. A diff that holds a binary file, is
+  over the 300000-byte cap, or has a line over 1800 bytes leaves the leg green with no verdict.
+  The record job then posts the check run `pr-review-main: <lane>` on the head, titled
+  `verdict=none reason=<too-large|binary|long-line>` with conclusion neutral, and logs a
+  `pr-review-main stop` notice. Each stop is one countable record, and a real failure (a failed
+  fetch or diff write, an empty diff) still fails the run.
+
+### Fixed
+
+- A `work-resolve-issue` reuse PR whose runner check failed no longer carries `Hold: a human merges
+  this` or the `human-merge-hold` label. A failed check is not a reason for a person: the PR opens,
+  its Verification section lists the failure, and `ci-status` reruns the check on the head, where
+  the fix lanes take it. A `done` run with a failed runner check still opens no PR and retries
+  (`check-failed`). `merge: human`, untrusted provenance, an unreadable denied-path or changed-file
+  list, path holds and a reuse leak scan that is not `clean` still hold (`mustHold` in
+  `report-outcome.mjs`).
+
+- `clear-escalations.mjs` takes off a `needs-human` the lanes App set for `feedback-not-landed` once the head is none of that escalation's resume keys and no unresolved review thread carries a lanes App comment. It pages the PR's review threads over GraphQL, and a listing that may be cut short keeps the label. A person who commented or reviewed since the label went on still keeps it. The monitor's stalled-stop signal does not count that clear as a stop standing on the head.
+
 ## [8.0.0] - 2026-10-29
 
 ### Changed

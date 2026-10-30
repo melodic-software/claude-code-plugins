@@ -148,9 +148,10 @@ const inertLine = (text) => inertTitle(String(text ?? "").replace(/`/g, ""));
 
 export const droppedLine = (d) => `- dropped (${d.unit}) ${inertLine(d.title)}: ${inertLine(d.reason)}`;
 
-// A rewrite replaces text a person may have vetted for agent-ready, so
-// agent-ready comes off before the PATCH (a 404 means it was not on the
-// issue). The PATCH runs last and carries the entry-set fingerprint, so a
+// The digest's author is github-actions[bot], outside the trusted list, so
+// the issue lane never works from it: a person who wants an entry worked
+// re-files it as a new issue. A stray agent-ready still comes off before the
+// PATCH (a 404 means it was not on the issue). The PATCH runs last and carries the entry-set fingerprint, so a
 // failed call before it leaves the old state and is retried on the next run.
 export async function writeDigest({ plan, call, repo, labels, runUrl, wait = () => delay(1000) }) {
   const done = { filed: [], updated: [], reopened: [], failed: [] };

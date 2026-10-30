@@ -945,6 +945,31 @@ test("main fails a split-required skip that intake already sent back once, to no
   });
 });
 
+// An issue whose author is outside the trusted list stops at the admit job;
+// report-skip says so on the issue and takes agent-ready off, with no
+// needs-human: a listed human re-files the work, and a retry stops again.
+test("main on an outside-author stop removes agent-ready and posts one comment telling a listed human to re-file", async () => {
+  await withDir({}, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77\/comments$/, 200, []],
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch }), 0);
+    assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")));
+    assert.deepEqual(calls.filter((c) => c.method === "DELETE").map((c) => c.path.split("/labels/")[1]), ["agent-ready"]);
+    const comments = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments"));
+    assert.equal(comments.length, 1);
+    const comment = comments[0].body.body;
+    assert.equal(parseOutcomeMarker(comment).outcome, "outside-author");
+    assert.match(comment, /trusted/);
+    assert.match(comment, /re-file/);
+    assert.ok(!comment.includes("add `agent-ready` again"), comment);
+  });
+});
+
 // lane.json's `stale`: the stale lane branch the run started fresh past,
 // which issue-prior found no comment naming. report-outcome names it once on
 // the issue, beside its usual report, and never deletes it.
@@ -978,6 +1003,29 @@ test("main names no stale branch when lane.json has none, or one of another shap
       ]);
       assert.equal(await main({ env: { ...env(dir), ESCALATION_REASON: "patch-protected-path" }, fetch }), 0);
       assert.ok(!calls.some((c) => c.method === "POST" && c.body?.body?.includes("stale-branch=")), JSON.stringify(stale));
+    });
+  }
+});
+
+// A re-run of report-skip finds the lanes App's own outside-author comment and
+// posts no second one; the same marker from anyone else (the outside author
+// can write it) does not count.
+test("main on an outside-author stop posts no second comment when the lanes App already posted one", async () => {
+  const marker = "<!-- work-resolve-issue outcome=outside-author run=99 -->\nThe lane did not start this issue.";
+  for (const [login, posts] of [
+    ["melodic-automation-lanes[bot]", 0],
+    ["stranger", 1],
+  ]) {
+    await withDir({}, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77\/comments$/, 200, [{ id: 5, user: { login }, body: marker }]],
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "outside-author" }, fetch }), 0);
+      assert.equal(calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments")).length, posts, login);
+      assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")), login);
     });
   }
 });
