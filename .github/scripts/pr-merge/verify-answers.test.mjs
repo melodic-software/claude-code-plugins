@@ -11,7 +11,7 @@ import { after, test } from "node:test";
 
 import { forgetMainTip } from "./head-ref-map.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
-import { ANSWERS_ARTIFACT, main } from "./verify-answers.mjs";
+import { ANSWERS_ARTIFACT, ANSWERS_FILE, SKIP_FILE, main } from "./verify-answers.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -22,11 +22,13 @@ const sha = (id) => String(id).padStart(40, "a");
 const wf = (id, event, branch = "main") => ({ id, event, head_branch: branch, path: ".github/workflows/pr-merge.yml", head_sha: sha(id) });
 
 let n = 0;
-async function readRun({ pages = [[]], files = {}, offMain = [], fail, before } = {}) {
+async function readRun({ pages = [[]], files = {}, skips = {}, offMain = [], fail, before, beforeSkips } = {}) {
   forgetMainTip();
   n += 1;
   const path = join(dir, `in-${n}.json`);
+  const skipPath = join(dir, `skip-${n}.json`);
   if (before !== undefined) writeFileSync(path, before);
+  if (beforeSkips !== undefined) writeFileSync(skipPath, beforeSkips);
   const downloads = [];
   const actions = async (method, url) => {
     if (fail) throw fail;
@@ -36,22 +38,32 @@ async function readRun({ pages = [[]], files = {}, offMain = [], fail, before } 
     if (onMain !== undefined) return onMain;
     const id = /\/actions\/runs\/(\d+)\/artifacts\?per_page=100$/.exec(url)?.[1];
     assert.ok(id, `unexpected call ${url}`);
-    const artifacts = id in files ? [{ name: ANSWERS_ARTIFACT, expired: false }] : [{ name: "pr-merge-head-refs", expired: false }];
+    const artifacts = id in files || id in skips ? [{ name: ANSWERS_ARTIFACT, expired: false }] : [{ name: "pr-merge-head-refs", expired: false }];
     return { total_count: artifacts.length, artifacts };
   };
-  const download = (id) => {
-    downloads.push(id);
+  // The run's artifact holds the answers file and, in `skips`, its skip records.
+  // A file the artifact lacks fails as readFileSync does; "download-fails" fails
+  // as `gh run download` does.
+  const missing = (file) => Object.assign(new Error(`ENOENT: no such file, open '${file}'`), { code: "ENOENT", syscall: "open" });
+  const download = (id, file = ANSWERS_FILE) => {
+    downloads.push(file === ANSWERS_FILE ? id : `${id}:${file}`);
+    if (files[id] === "download-fails") throw new Error("Command failed: gh run download");
+    if (file === SKIP_FILE) {
+      if (!(id in skips)) throw missing(file);
+      return skips[id];
+    }
+    if (files[id] === null) throw missing(file);
     return files[id];
   };
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(String(line));
   try {
-    assert.equal(await main({ env: { GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: "999", VERIFY_ANSWERS_PATH: path }, actions, download }), 0);
+    assert.equal(await main({ env: { GITHUB_REPOSITORY: REPO, GITHUB_RUN_ID: "999", VERIFY_ANSWERS_PATH: path, EAM_SKIP_PATH: skipPath }, actions, download }), 0);
   } finally {
     console.log = log;
   }
-  return { written: existsSync(path) ? readFileSync(path, "utf8") : undefined, downloads, lines };
+  return { written: existsSync(path) ? readFileSync(path, "utf8") : undefined, skipsWritten: existsSync(skipPath) ? readFileSync(skipPath, "utf8") : undefined, downloads, lines };
 }
 
 test("the newest trusted run on main's answers are written as they were kept", async () => {
@@ -62,8 +74,8 @@ test("the newest trusted run on main's answers are written as they were kept", a
     offMain: [sha(8)],
   });
   // This run is skipped, a pull_request_target run is never asked, and run 8
-  // is not on main.
-  assert.deepEqual(result.downloads, [7]);
+  // is not on main. Its skip records are read from the same download.
+  assert.deepEqual(result.downloads, [`7:${SKIP_FILE}`, 7]);
   assert.equal(result.written, kept);
   assert.ok(result.lines.includes("verifier answers of run 7: 1 pull requests"), result.lines.join("\n"));
 });
@@ -77,6 +89,7 @@ test("no earlier answers write nothing, and remove a file left at the path", asy
 test("an unreadable or foreign answers file writes nothing and warns", async () => {
   for (const options of [
     { fail: new Error("HTTP 502") },
+    { pages: [[wf(1, "schedule")]], files: { 1: "download-fails" } },
     { pages: [[wf(1, "schedule")]], files: { 1: "not json" } },
     { pages: [[wf(1, "schedule")]], files: { 1: answersOf({}, { repo: "someone/else" }) } },
     { pages: [[wf(1, "schedule")]], files: { 1: answersOf([]) } },
@@ -85,4 +98,28 @@ test("an unreadable or foreign answers file writes nothing and warns", async () 
     assert.equal(result.written, undefined);
     assert.ok(result.lines.some((line) => line.startsWith("::warning title=verifier answers::")), result.lines.join("\n"));
   }
+});
+
+// enable-auto-merge's skip records (EAM_SKIP_IN) ride in the same artifact,
+// so they cost no call of their own; a run without them hands on none.
+test("the answers run's skip records are written beside its answers, and none is left planted", async () => {
+  const kept = JSON.stringify({ v: 1, repo: REPO, entries: {} });
+  const found = await readRun({ pages: [[wf(7, "schedule")]], files: { 7: answersOf({}) }, skips: { 7: kept }, beforeSkips: "planted" });
+  assert.equal(found.skipsWritten, kept);
+  assert.deepEqual(found.downloads, [`7:${SKIP_FILE}`, 7]);
+  const none = await readRun({ pages: [[wf(7, "schedule")]], files: { 7: answersOf({}) }, beforeSkips: "planted" });
+  assert.equal(none.skipsWritten, undefined);
+  assert.ok(none.written !== undefined);
+  const noAnswers = await readRun({ pages: [[wf(5, "schedule")]], beforeSkips: "planted" });
+  assert.equal(noAnswers.skipsWritten, undefined);
+});
+
+// A run whose reader read nothing (every pull request skipped or held) keeps
+// no answers file; its skip records still reach the next run.
+test("a run that kept only skip records hands them on, with no answers and no warning", async () => {
+  const kept = JSON.stringify({ v: 1, repo: REPO, entries: {} });
+  const found = await readRun({ pages: [[wf(7, "schedule")]], files: { 7: null }, skips: { 7: kept } });
+  assert.equal(found.skipsWritten, kept);
+  assert.equal(found.written, undefined);
+  assert.ok(!found.lines.some((line) => line.startsWith("::warning")), found.lines.join("\n"));
 });

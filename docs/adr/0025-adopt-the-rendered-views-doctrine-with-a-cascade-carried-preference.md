@@ -15,7 +15,7 @@ user's global preference while staying user-configurable and repo-agnostic.
 
 ## Decision
 
-Codify the doctrine as `docs/conventions/rendered-views/` (the boundary rule, genre
+Codify the doctrine as `docs/contracts/rendered-views/` (the boundary rule, genre
 rubric, reachability matrix, security skeleton, accessibility floor) rather than any
 generic HTML-generating skill. Carry the cross-plugin format preference as a
 config-cascade concern (`.claude/rendered-views.md`, per-key override, no policy-floor

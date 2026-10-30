@@ -87,7 +87,7 @@ every confirmation gate apply exactly as before. Removing anything the inventory
   withheld), and deletion stays gated by the preview and per-tier approval;
 - the audit root itself is never a removal candidate; no protected shell-folder root, OS
   registry/profile hive, VCS metadata or tracked file, except that the read-only manual-handoff
-  verifier, and the Linux `handoff-apply` that runs it, may classify a whole standalone Git
+  verifier, and the `handoff-apply` that runs it, may classify a whole standalone Git
   checkout `clear` under the complete evidence bundle below;
 - no symlink, Windows reparse traversal, non-root mount target, nested mount, or Linux bind mount
   (a volume root is itself a mount point and is governed by the OS-managed/confirmation reasoning
@@ -218,14 +218,20 @@ device/inode/type identity, proves it empty through that descriptor, rechecks th
 identity, and only then calls descriptor-relative `rmdir`. Windows and macOS return
 `execution-platform-unsupported`; their audit and report behavior is unchanged.
 
-Windows and macOS execution stays declined by design. A descriptor-anchored Windows apply would
-be a large new trust surface, while the manual lane's per-item revalidation rules and the
-`handoff-verify` revalidation keep the residual approval-to-execution window small. A near-miss
-recurrence in the manual lane reopens this as a design question with full security review.
+Windows and macOS `apply` stays declined by design: a descriptor-anchored Windows apply would be a
+large new trust surface. Windows removal is `handoff-apply` instead, which re-verifies each approved
+path immediately before sending it whole to the Recycle Bin and refuses a path the shell reports
+it cannot recycle ([the Windows lane](unsupported-platform-handoff.md#the-windows-lane-one-handoff-apply-per-tier)).
+On macOS the manual lane's per-item revalidation rules and the `handoff-verify` revalidation keep
+the residual approval-to-execution window small. A near-miss recurrence in the manual lane reopens
+this as a design question with full security review.
 
-**Claim:** the reversal trigger has not fired; Windows and macOS stay behind the platform-name
-execution gate (`os_key() != "linux"`); per-primitive re-gating of macOS is a new design
-question, not this trigger firing. **Basis:** the trigger quoted from the
+**Claim:** the reversal trigger has not fired; `apply` on Windows and macOS stays behind the
+platform-name execution gate (`os_key() != "linux"`). Windows `handoff-apply` goes around that gate
+only to the Recycle Bin lane, built on the owner's
+[decision](https://github.com/melodic-software/claude-code-plugins/issues/4224#issuecomment-5895177254)
+of 2026-09-29. Per-primitive re-gating of macOS is a new design question, not this trigger firing.
+**Basis:** the trigger quoted from the
 [#1116](https://github.com/melodic-software/claude-code-plugins/issues/1116) maintainer
 affirmation (2026-07-23): "if handoff-verify proves insufficient in practice (a post-#1109
 near-miss recurrence), reopen as a design issue with full security review." No post-#1109
@@ -302,22 +308,24 @@ lost.
 
 Passing this bundle does not relax any non-Git protected name, non-Git VCS marker, mount,
 link/reparse, consumer protection, identity/descendant, or live-handle check. `handoff-verify` with
-evidence is read-only. On Windows and macOS, deletion remains a per-path manual handoff under the
-existing hook-issued `ask`. On Linux, `handoff-apply` consumes the same evidence file for one
-approved path, runs the `handoff-verify` checks in the same process, and deletes only on `clear`,
-under the same `ask`. It deletes on any `clear` verdict, with or without `accept_unpublished` on
-the entry; preview and token apply never evaluate the acknowledgement. The verdict still expires
-immediately.
+evidence is read-only. On macOS, deletion remains a per-path manual handoff under the existing
+hook-issued `ask`. On Linux and Windows, `handoff-apply` consumes the same evidence file, runs the
+`handoff-verify` checks for each approved path in the same process immediately before removing it,
+and removes it only on `clear`, under the same `ask`: Linux deletes it, Windows recycles it. It
+removes on any `clear` verdict, with or without `accept_unpublished` on the entry; preview and
+token apply never evaluate the acknowledgement. The verdict still expires immediately.
 
-The Linux command, one approved standalone checkout per call (`<skill-dir>` is the directory whose
-`scripts/` path `SKILL.md`'s engine commands give). Any verdict but `clear` removes nothing;
-confirm the guard's `ask` only for that path.
+The command for an approved standalone checkout (`<skill-dir>` is the directory whose `scripts/`
+path `SKILL.md`'s engine commands give). `--tier` may not rank above the lowest
+`confidence_ceiling` among the checkout's hints, and a checkout with no hint is refused, removing
+nothing. Any verdict but `clear` removes nothing; confirm the guard's `ask` only for the tier and
+paths it lists.
 
 ```text
 "<hook-python>" "<skill-dir>/scripts/hygiene.py" handoff-apply --execute \
-  --snapshot "<run-dir>/snapshot.json" --path "relative/checkout" \
-  --vcs-evidence "<run-dir>/vcs-evidence.json" --report "<run-dir>/report-handoff.json" \
-  --data-root "${CLAUDE_PLUGIN_DATA}"
+  --snapshot "<run-dir>/snapshot.json" --tier "<tier>" \
+  --report "<run-dir>/report-handoff.json" --path "relative/checkout" \
+  --vcs-evidence "<run-dir>/vcs-evidence.json" --data-root "${CLAUDE_PLUGIN_DATA}"
 ```
 
 | Verdict | Meaning | Manual-lane action |
@@ -336,9 +344,11 @@ always was in the manual lane, with model judgment plus human review of the audi
 snapshot entries carry no owner claim for the engine to check.
 
 `handoff-apply` is the one lane where the engine removes entries outside the snapshot. The snapshot
-records a repository's `.git` directory without its descendants, so after the working tree is
-removed the engine empties the uninventoried Git metadata contents through descriptor-relative calls
-and then removes the directory. These checks bound that purge:
+records a repository's `.git` directory without its descendants. On Windows the Git metadata goes
+to the Recycle Bin with the checkout, after its contents pass the consumer-glob and readability
+checks below. On Linux, after the working tree is removed, the engine empties the uninventoried Git
+metadata contents through descriptor-relative calls and then removes the directory. These checks
+bound that purge:
 
 - A mount point at or under the metadata directory refuses it.
 - A consumer protection glob is matched against every path of a live `os.walk` of the metadata

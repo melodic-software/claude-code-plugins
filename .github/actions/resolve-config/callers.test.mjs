@@ -1178,6 +1178,26 @@ test("pr-run-activity-read.yml: an issue run on stale workflow files stops green
   proceeds(runCheck(run, ""));
 });
 
+// A fresh start past a stale lane branch (report-outcome --find-prior): the
+// issue file gets that branch's work at the tip issue-prior checked, and
+// lane.json names the branch for report-outcome's once-per-branch comment
+// only while no lanes App comment names it (stale-noted).
+test("pr-run-activity-read.yml: issue-prior's stale branch reaches write-issue, and lane.json only while unnoted", () => {
+  const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
+  const write = steps.find((step) => step.id === "write-issue");
+  assert.equal(write.env.STALE_BRANCH, "${{ steps.issue-prior.outputs.stale-branch }}");
+  assert.equal(write.env.STALE_TIP, "${{ steps.issue-prior.outputs.stale-tip }}");
+  const collect = steps.find((step) => step.name === "Collect the issue outcome");
+  const stale = (noted) =>
+    evaluate(collect.env.LANE_STALE, { "steps.issue-prior.outputs.stale-noted": noted, "steps.issue-prior.outputs.stale-branch": "work-resolve-issue/issue-7-1-1" });
+  assert.equal(stale("false"), "work-resolve-issue/issue-7-1-1");
+  assert.equal(stale("true"), "");
+  assert.equal(stale(""), "");
+  const out = tempDir("lane-json-");
+  spawnSync("bash", ["-c", collect.run], { encoding: "utf8", env: { ...process.env, OUT_DIR: out, SCRATCH_OUTCOME: join(out, "absent"), LANE_STALE: "work-resolve-issue/issue-7-1-1", LANE_RESUME: "" } });
+  assert.equal(JSON.parse(readFileSync(join(out, "lane.json"), "utf8")).stale, "work-resolve-issue/issue-7-1-1");
+});
+
 // The issue lane's model jobs hold no write token. resolve-issue and its
 // subscription call run on the read runner, whose run job (the one that runs
 // the model) gets only the job's read-only GITHUB_TOKEN; the App token is
@@ -2573,7 +2593,7 @@ test("pr-refine.yml: fix-docs runs only on a fix-docs dispatch with a PR number,
   const hold = jobs["fix-docs-head"].steps.find((step) => step.id === "hold");
   assert.equal(hold.run, "node .base/.github/scripts/pr-unblock/lane-hold.mjs");
   assert.equal(hold.env.ACTIVITY, "fix-docs");
-  assert.equal(jobs["apply-docs-patch"].with["patch-fix-requested"], "${{ needs.fix-docs-head.outputs.lane-escalated }}");
+  assert.equal(jobs["apply-docs-patch"].with["patch-human-gate"], "${{ needs.fix-docs-head.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}");
   assert.equal(jobs["apply-docs-patch"].with["patch-prepare"], "docs", "the markdown-only patch-rules.json row");
   assert.equal(starts({ activity: "fix-ci" }), false);
   assert.equal(starts({ activity: "resolve-conflicts" }), false);
@@ -5001,7 +5021,8 @@ test("pr-unblock.yml: no job takes a gate, head or reply input from an address-f
   assert.equal(apply["patch-prepare"], "review-threads");
   assert.equal(apply["patch-threads-attempt"], "${{ needs.address-feedback-select.outputs.context-attempt }}");
   assert.equal(apply["patch-threads-sha256"], "${{ needs.address-feedback-select.outputs.threads-sha256 }}");
-  assert.equal(apply["patch-fix-requested"], "${{ needs.address-feedback-select.outputs.fix-requested }}");
+  assert.equal(apply["patch-human-gate"], "${{ needs.address-feedback-select.outputs.human-gate }}");
+  assert.equal(jobs["address-feedback-select"].outputs["human-gate"], "${{ steps.select.outputs.human-gate }}");
   // The push names the threads the same leg's scanned replies fix, the replies the reply job reads.
   assert.equal(apply["patch-replies-attempt"], "${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}");
   assert.equal(apply["patch-replies-sha256"], "${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}");
@@ -5442,13 +5463,16 @@ test("pr-run-activity-write.yml: the verdict job reads context.json from the sel
 // of the holds.
 test("pr-run-activity-write.yml: apply-patch drops the human-gated hold only on its caller's base-code verdict", () => {
   const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "hold-label");
-  const requested = (prepare, fixRequested) =>
-    evaluate(step.env.FIX_REQUESTED, { "steps.config.outputs.prepare": prepare, "inputs.patch-fix-requested": fixRequested });
-  assert.equal(requested("apply-patch", "true"), "true");
-  assert.equal(requested("apply-patch", "false"), "false");
-  assert.equal(requested("apply-patch", ""), "", "a caller that passes nothing keeps every hold");
-  assert.equal(requested("ci-context", "true"), "", "a skill run never drops it");
-  // scripts/write-runner-promote-holds.test.sh runs the step's jq on these values.
+  const gate = (prepare, kind) => evaluate(step.env.HUMAN_GATE, { "steps.config.outputs.prepare": prepare, "inputs.patch-human-gate": kind });
+  assert.equal(gate("apply-patch", "fix-request"), "fix-request");
+  assert.equal(gate("apply-patch", "lane-escalation"), "lane-escalation");
+  assert.equal(gate("apply-patch", ""), "", "a caller that passes nothing keeps every hold");
+  assert.equal(gate("ci-context", "fix-request"), "", "a skill run never drops it");
+  // gate-recheck.mjs reads the PR the gate step read, with the job's read token.
+  assert.equal(step.env.PR_NUMBER, "${{ steps.gate.outputs.pr-number }}");
+  assert.equal(step.env.HEAD_SHA, "${{ steps.gate.outputs.head-sha }}");
+  assert.equal(step.env.GITHUB_TOKEN, "${{ github.token }}");
+  // scripts/write-runner-promote-holds.test.sh runs the step's body on these values.
 });
 
 test("pr-run-activity-write.yml: the reply job reads run.json from the select job's artifact and the replies from the scan job's", () => {
@@ -5671,6 +5695,10 @@ test("pr-unblock.yml: resolve-conflicts is reported neutral when the select job 
   assert.equal(evaluate(notRun.if, context("false", head, { state: "clean" })), true);
   assert.equal(evaluate(notRun.if, context("false", "")), false, "a stop before the head read names no head to post on");
   assert.equal(evaluate(notRun.if, context("false", head, { activity: "fix-ci" })), false);
+  // A neutral check handles its head for good in dispatch.mjs, so a hand
+  // dispatch on an up-to-date head posts none: a later conflict on the same
+  // head stays the dispatcher's.
+  assert.equal(evaluate(notRun.if, context("false", head, { skip: "up-to-date" })), false);
   for (const [given, summary] of [
     [{ skip: "not-applicable" }, "Skip reason: not-applicable"],
     [{ skip: "awaiting-human" }, "Skip reason: awaiting-human"],
@@ -5708,8 +5736,8 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   assert.match(step("base-sha").run, /git -C \.base rev-parse HEAD/);
   // proceed: true only for a conflicted merge, false for a skip, a clean merge
   // or an escalation, empty for a stop before the merge.
-  const proceed = (applies, state, held = applies === "true" ? "false" : "") =>
-    evaluate(select.outputs.proceed, { "steps.slot.outputs.applies": applies, "steps.hold.outputs.held": held, "steps.prepare.outputs.merge-state": state });
+  const proceed = (applies, state, held = applies === "true" ? "false" : "", behind = held === "false" ? "true" : "") =>
+    evaluate(select.outputs.proceed, { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": applies, "steps.hold.outputs.held": held, "steps.behind.outputs.behind": behind, "steps.prepare.outputs.merge-state": state });
   assert.equal(proceed("true", "conflicted"), "true");
   assert.equal(proceed("true", "clean"), "false");
   assert.equal(proceed("true", "escalate"), "false");
@@ -5720,16 +5748,65 @@ test("pr-unblock.yml: resolve-conflicts-select merges with the base's scripts, p
   // merge: held skips awaiting-human; a failed read stops it.
   assert.equal(proceed("true", "", "true"), "false");
   assert.equal(proceed("true", "", ""), "", "a hold read that failed");
-  const skip = evaluate(select.outputs["skip-reason"], { "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "true" });
+  const skip = evaluate(select.outputs["skip-reason"], { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "true", "steps.behind.outputs.behind": "" });
   assert.equal(skip, "awaiting-human");
   assert.equal(step("hold").if, "steps.slot.outputs.applies == 'true'");
   assert.equal(step("hold").env.ACTIVITY, "resolve-conflicts");
   assert.equal(step("hold").run, "node .base/.github/scripts/pr-unblock/lane-hold.mjs");
-  for (const id of ["base-sha", "merge-bin", "prepare"]) {
+  for (const id of ["base-sha", "merge-bin", "behind"]) {
     assert.equal(step(id).if, "steps.hold.outputs.held == 'false'", id);
   }
+  // A clean PR passes the slot so a hand dispatch can refresh a stale base;
+  // a head that already holds the base has nothing to merge, so prepare.sh
+  // (whose --no-ff merge would leave no MERGE_HEAD) never runs on it.
+  const ran = (behind) => evaluate(`\${{ ${step("prepare").if} }}`, { "steps.hold.outputs.held": "false", "steps.behind.outputs.behind": behind });
+  assert.equal(ran("true"), true);
+  assert.equal(ran("false"), false);
+  assert.equal(ran(""), false, "a behind check that failed");
+  const outputs = (behind) => {
+    const values = { "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": "true", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "false", "steps.behind.outputs.behind": behind, "steps.prepare.outputs.merge-state": "" };
+    return [evaluate(select.outputs.proceed, values), evaluate(select.outputs["skip-reason"], values).trim()];
+  };
+  assert.deepEqual(outputs("false"), ["false", "up-to-date"]);
+  assert.deepEqual(outputs(""), ["", ""], "a behind check that failed stops before deciding");
+  assert.equal(step("behind")["working-directory"], "head");
+  assert.equal(step("behind").env.BASE_SHA, "${{ steps.base-sha.outputs.sha }}");
+  assert.equal(step("behind").env.HEAD_SHA, "${{ steps.head.outputs.sha }}");
+  const order = select.steps.map((s) => s.id ?? s.name);
+  assert.ok(order.indexOf("Check out the PR head") < order.indexOf("behind") && order.indexOf("behind") < order.indexOf("prepare"));
   const apply = workflow("pr-unblock.yml").jobs["apply-conflict-patch"];
-  assert.equal(apply.with["patch-fix-requested"], "${{ needs.resolve-conflicts-select.outputs.lane-escalated }}");
+  assert.equal(apply.with["patch-human-gate"], "${{ needs.resolve-conflicts-select.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}");
+});
+
+// Every job merges the default branch tip, so a PR stacked on another branch
+// (its base is not the default branch) skips not-applicable before the slot,
+// clean or conflicting, as the dispatcher's baseRefName filter does.
+test("pr-unblock.yml: resolve-conflicts-select skips a PR whose base is not the default branch", () => {
+  const select = workflow("pr-unblock.yml").jobs["resolve-conflicts-select"];
+  const step = (id) => select.steps.find((s) => s.id === id);
+  const dir = tempDir("pr-unblock-base-");
+  // A stand-in gh answering the pulls read's --jq with the head SHA and base ref.
+  writeFileSync(join(dir, "gh"), `#!/usr/bin/env bash\nprintf '%s\\n' "${"d".repeat(40)}" "$FAKE_BASE"\n`, { mode: 0o755 });
+  const head = (base) => {
+    const out = join(dir, `out-${base.replaceAll("/", "-")}`);
+    writeFileSync(out, "");
+    const run = spawnSync("bash", ["-c", step("head").run], {
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, FAKE_BASE: base, PR_NUMBER: "10981", GITHUB_REPOSITORY: "o/r", DEFAULT_BRANCH: "main", GITHUB_OUTPUT: out },
+    });
+    assert.equal(run.status, 0, run.stderr);
+    return readFileSync(out, "utf8");
+  };
+  assert.equal(head("main"), `sha=${"d".repeat(40)}\ndefault-base=true\n`);
+  assert.equal(head("feat/layer-1"), `sha=${"d".repeat(40)}\ndefault-base=false\n`);
+  assert.equal(step("head").env.DEFAULT_BRANCH, "${{ github.event.repository.default_branch }}");
+  assert.equal(step("slot").if, "steps.head.outcome == 'success' && steps.head.outputs.default-base == 'true'");
+  const values = { "steps.head.outputs.default-base": "false", "steps.slot.outputs.applies": "", "steps.slot.outputs.skip-reason": "", "steps.hold.outputs.held": "", "steps.behind.outputs.behind": "", "steps.prepare.outputs.merge-state": "" };
+  assert.equal(evaluate(select.outputs.proceed, values), "false");
+  assert.equal(evaluate(select.outputs["skip-reason"], values).trim(), "not-applicable");
+  // The default branch's PR goes on to the slot as before.
+  const onMain = { ...values, "steps.head.outputs.default-base": "true", "steps.slot.outputs.applies": "true", "steps.hold.outputs.held": "false", "steps.behind.outputs.behind": "true", "steps.prepare.outputs.merge-state": "clean" };
+  assert.deepEqual([evaluate(select.outputs.proceed, onMain), evaluate(select.outputs["skip-reason"], onMain).trim()], ["false", ""]);
 });
 
 // merge-base: the patch is measured from a conflict tree GitHub does not

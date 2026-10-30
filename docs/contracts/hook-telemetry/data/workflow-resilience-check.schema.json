@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/workflow-resilience-check.schema.json",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/hook-telemetry/data/workflow-resilience-check.schema.json",
   "title": "workflow-resilience-check telemetry data",
   "description": "Per-hook `data` payload for the workflow-resilience-check advisory. Discovered from the envelope `hook` value \"workflow-resilience-check\". Evolves additive-only. Status is always \"ok\" — this hook never blocks. Emitted for every meaningful outcome (no fan-out / already-throttled / advisory finding), not for a pure inapplicability short-circuit (no script content at all).",
   "type": "object",

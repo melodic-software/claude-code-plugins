@@ -49,8 +49,11 @@ activities:
     reads-untrusted: true
     inputs: [pr, base-sha, head-sha]
     applies-when:
-      # A PR that is only behind stays with the merge queue.
-      mergeable: [conflicting]
+      # clean lets a hand dispatch merge the default branch into a PR that is
+      # only behind (a required check that reads the base can fail on a stale
+      # one); the select job skips a head already up to date. The dispatcher
+      # still sends only conflicting PRs (dispatch.mjs isCandidate).
+      mergeable: [conflicting, clean]
       # The human-gated label holds it in the select job unless another
       # lane's escalation put it on (lane-hold.mjs).
       labels-absent: [do-not-merge]
@@ -834,8 +837,9 @@ limits:
   # GitHub's documented GITHUB_TOKEN limit); plan and read-floor are shares of
   # it, writer-pause and breaker shares of the header's limit; content-creation
   # adds per-minute and per-hour. The rate guard reads only read-floor and
-  # limit-cap, to warn; the others are thresholds meant for
-  # the hub's limits sampler, which nothing here enforces. Their
+  # limit-cap, to warn; github-token's pace (projected share left at reset)
+  # paces timer-driven lanes (log-api-budget/pace.mjs); the others are
+  # thresholds meant for the hub's limits sampler, which nothing here enforces. Their
   # defaults live in .github/actions/log-api-budget/rate-limits.json, held
   # for a person like this file; add an `api:` entry here only to override one.
 
@@ -1033,7 +1037,8 @@ merge:
   # figures come from serve's order. Any other value fails the schema.
   verify-cache: shadow
   # A candidate the last run refused on unchanged inputs is reported with that
-  # refusal instead of gated again (babysit_merge_skip.py); it is gated again
+  # refusal instead of gated again (babysit_merge_skip.py, and for a lanes
+  # App pull request's lane refusal enable-auto-merge.mjs); it is gated again
   # once its refusal is max-minutes old or has been skipped max-skips runs in
   # a row. 3 skips at the 15-minute schedule gate it about hourly; 60 caps
   # the wait whatever else starts runs (judgment). 0 in either: no skips.
@@ -1076,7 +1081,8 @@ merge:
   # (pr-merge.yml and pr-require-checks.yml, by owner direction 2026-10-27;
   # the other modules the floored scripts import; the rest of the Python that
   # decides the holds) wait for a clean security review bound to the head.
-  # It holds whatever `high-path-floor` says. `high-path-floor:
+  # It holds whatever `high-path-floor` says, while `path-holds` (below) is
+  # true. `high-path-floor:
   # false` turns off the manifest review, which the security lane flags
   # instead. The trusted-actor widening and cost holds stay on either way. The
   # verifier verdict, both AI review lanes, ci-status and the post-merge
@@ -1089,6 +1095,12 @@ merge:
   # Owner decision 2026-10-17: the lane hold covers structural and untrusted-
   # provenance work only; scoped lane PRs off the HIGH floor merge on the
   # verifier verdict.
+  # `path-holds: false`: no changed path holds a pull request for its path
+  # alone, not the floor above, denied-paths nor `review-path:` (owner
+  # decision Q15, 2026-10-29: "We shouldn't really have any path
+  # restrictions at all"). True brings every one back. The gate report and
+  # enable-auto-merge's log name each hold it skipped.
   diff-check:
     denied-paths: []
     high-path-floor: false
+    path-holds: false

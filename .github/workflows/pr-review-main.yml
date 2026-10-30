@@ -97,6 +97,10 @@ jobs:
       claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
       claude-review-base-sha: ${{ steps.base.outputs.claude-review-base-sha }}
       claude-security-review-base-sha: ${{ steps.base.outputs.claude-security-review-base-sha }}
+      claude-review-stop: ${{ steps.diff.outputs.claude-review-stop }}
+      claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop }}
+      claude-review-head: ${{ steps.diff.outputs.claude-review-head }}
+      claude-security-review-head: ${{ steps.diff.outputs.claude-security-review-head }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -117,10 +121,9 @@ jobs:
         run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -191,13 +194,17 @@ jobs:
       # a move that may run or load (an executable, a skills, agents,
       # commands or hooks path, a file a tool reads by name), and a move an
       # added line names still print whole. A patch that still
-      # shows a binary file, or is larger than one review can read whole,
-      # gets no verdict: the step fails and the lanes stay unbound. The tree
-      # the verdict is keyed on comes from git, never from the model.
+      # shows a binary file, is larger than one review can read whole, or
+      # holds a line longer than Read returns whole gets no verdict: the step
+      # stops green with the reason as an output, the record job posts it as
+      # `verdict=none reason=<reason>` on the head, and the lanes stay unbound
+      # under that reason. Any other failure fails the step. The tree the
+      # verdict is keyed on comes from git, never from the model.
       - name: Write the diff
         id: diff
         if: steps.select.outputs.review == 'true'
         env:
+          LANE: ${{ matrix.lane }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           BASE_SHA: ${{ steps.gate.outputs.base-sha }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
@@ -217,6 +224,13 @@ jobs:
           # (babysit_risk LONG_LINE_BYTES, `long-line-review:`).
           LONG_LINE_BYTES: "1800"
         run: |
+          # A designed stop: the reason, from this script's own literals, and
+          # the head, as the lane's outputs for the record job.
+          stop() {
+            echo "::notice title=pr-review-main stop::reason=$1 lane=$LANE pr=$PR_NUMBER; $2; no verdict, so the lanes stay unbound"
+            { echo "stop=$1"; echo "$LANE-stop=$1"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
+            exit 0
+          }
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
           git init -q "$SRC"
@@ -224,17 +238,14 @@ jobs:
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
           python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch" "$MAX_DIFF_BYTES"
           if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
-            echo "::error::the diff holds a binary file the review cannot read; no verdict, so the lanes stay unbound"
-            exit 1
+            stop binary "the diff holds a binary file the review cannot read"
           fi
           if [ "$(wc -c <"$DATA/diff.patch")" -gt "$MAX_DIFF_BYTES" ]; then
-            echo "::error::the diff is over $MAX_DIFF_BYTES bytes, more than one review reads whole; no verdict, so the lanes stay unbound"
-            exit 1
+            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes, over the $MAX_DIFF_BYTES one review reads whole"
           fi
           # A diff line's text, past its +, - or space, longer than the cap.
           if ! LC_ALL=C awk -v max="$LONG_LINE_BYTES" 'length($0) - 1 > max { exit 3 }' "$DATA/diff.patch"; then
-            echo "::error::a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole; no verdict, so the lanes stay unbound and the merge gate holds it for a person"
-            exit 1
+            stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
           fi
           # Parts the reviewer reads whole, each named in the prompt; the
           # verdict counts only when every part was read whole
@@ -261,7 +272,7 @@ jobs:
           echo "diff: $(cat "$DATA"/diff/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
       - name: Select the trusted PR text
-        if: steps.diff.outcome == 'success'
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
@@ -276,7 +287,7 @@ jobs:
       # in it (`../../reference/...`) resolves inside the data directory; the
       # rules the code lane names go beside the standards.
       - name: Copy the review criteria
-        if: steps.diff.outcome == 'success'
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
           SKILL: ${{ matrix.skill }}
           DATA: ${{ github.workspace }}/pr-review-main-data
@@ -291,7 +302,7 @@ jobs:
 
       - name: Resolve the review's model
         id: models
-        if: steps.diff.outcome == 'success'
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           model-route: ${{ matrix.route }}
@@ -302,7 +313,7 @@ jobs:
       # set, nothing reviews and the lane stays unbound.
       - name: Check the credential
         id: credential
-        if: steps.diff.outcome == 'success'
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
           PRESENT: ${{ secrets.REVIEWS_CLAUDE_API_KEY != '' }}
           SECRET_NAME: REVIEWS_CLAUDE_API_KEY
@@ -504,7 +515,7 @@ jobs:
       # A reviewed pull request that left no verdict and handed nothing on
       # fails here, so the run shows it; the lane stays unbound either way.
       - name: Fail without a verdict
-        if: always() && steps.diff.outcome == 'success' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success' && steps.handoff.outcome != 'success'
+        if: always() && steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success' && steps.handoff.outcome != 'success'
         run: |
           echo "::error::the review left no verdict for this head"
           exit 1
@@ -576,6 +587,10 @@ jobs:
       claude-security-review: ${{ steps.handoff.outputs.claude-security-review }}
       claude-review-base-sha: ${{ steps.base.outputs.claude-review-base-sha }}
       claude-security-review-base-sha: ${{ steps.base.outputs.claude-security-review-base-sha }}
+      claude-review-stop: ${{ steps.diff.outputs.claude-review-stop }}
+      claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop }}
+      claude-review-head: ${{ steps.diff.outputs.claude-review-head }}
+      claude-security-review-head: ${{ steps.diff.outputs.claude-security-review-head }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -595,10 +610,9 @@ jobs:
         run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -669,13 +683,17 @@ jobs:
       # a move that may run or load (an executable, a skills, agents,
       # commands or hooks path, a file a tool reads by name), and a move an
       # added line names still print whole. A patch that still
-      # shows a binary file, or is larger than one review can read whole,
-      # gets no verdict: the step fails and the lanes stay unbound. The tree
-      # the verdict is keyed on comes from git, never from the model.
+      # shows a binary file, is larger than one review can read whole, or
+      # holds a line longer than Read returns whole gets no verdict: the step
+      # stops green with the reason as an output, the record job posts it as
+      # `verdict=none reason=<reason>` on the head, and the lanes stay unbound
+      # under that reason. Any other failure fails the step. The tree the
+      # verdict is keyed on comes from git, never from the model.
       - name: Write the diff
         id: diff
         if: steps.select.outputs.review == 'true'
         env:
+          LANE: ${{ matrix.lane }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           BASE_SHA: ${{ steps.gate.outputs.base-sha }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
@@ -695,6 +713,13 @@ jobs:
           # (babysit_risk LONG_LINE_BYTES, `long-line-review:`).
           LONG_LINE_BYTES: "1800"
         run: |
+          # A designed stop: the reason, from this script's own literals, and
+          # the head, as the lane's outputs for the record job.
+          stop() {
+            echo "::notice title=pr-review-main stop::reason=$1 lane=$LANE pr=$PR_NUMBER; $2; no verdict, so the lanes stay unbound"
+            { echo "stop=$1"; echo "$LANE-stop=$1"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
+            exit 0
+          }
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
           git init -q "$SRC"
@@ -702,17 +727,14 @@ jobs:
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
           python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch" "$MAX_DIFF_BYTES"
           if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
-            echo "::error::the diff holds a binary file the review cannot read; no verdict, so the lanes stay unbound"
-            exit 1
+            stop binary "the diff holds a binary file the review cannot read"
           fi
           if [ "$(wc -c <"$DATA/diff.patch")" -gt "$MAX_DIFF_BYTES" ]; then
-            echo "::error::the diff is over $MAX_DIFF_BYTES bytes, more than one review reads whole; no verdict, so the lanes stay unbound"
-            exit 1
+            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes, over the $MAX_DIFF_BYTES one review reads whole"
           fi
           # A diff line's text, past its +, - or space, longer than the cap.
           if ! LC_ALL=C awk -v max="$LONG_LINE_BYTES" 'length($0) - 1 > max { exit 3 }' "$DATA/diff.patch"; then
-            echo "::error::a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole; no verdict, so the lanes stay unbound and the merge gate holds it for a person"
-            exit 1
+            stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
           fi
           # Parts the reviewer reads whole, each named in the prompt; the
           # verdict counts only when every part was read whole
@@ -739,7 +761,7 @@ jobs:
           echo "diff: $(cat "$DATA"/diff/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
       - name: Select the trusted PR text
-        if: steps.diff.outcome == 'success'
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
@@ -754,7 +776,7 @@ jobs:
       # in it (`../../reference/...`) resolves inside the data directory; the
       # rules the code lane names go beside the standards.
       - name: Copy the review criteria
-        if: steps.diff.outcome == 'success'
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
           SKILL: ${{ matrix.skill }}
           DATA: ${{ github.workspace }}/pr-review-main-data
@@ -769,7 +791,7 @@ jobs:
 
       - name: Resolve the review's model
         id: models
-        if: steps.diff.outcome == 'success'
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           model-route: ${{ matrix.route }}
@@ -780,7 +802,7 @@ jobs:
       # set, nothing reviews and the lane stays unbound.
       - name: Check the credential
         id: credential
-        if: steps.diff.outcome == 'success'
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
           PRESENT: ${{ secrets.REVIEWS_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           SECRET_NAME: REVIEWS_CLAUDE_CODE_OAUTH_TOKEN
@@ -985,7 +1007,7 @@ jobs:
       # A reviewed pull request that left no verdict and handed nothing on
       # fails here, so the run shows it; the lane stays unbound either way.
       - name: Fail without a verdict
-        if: always() && steps.diff.outcome == 'success' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success' && steps.handoff.outcome != 'success'
+        if: always() && steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success' && steps.handoff.outcome != 'success'
         run: |
           echo "::error::the review left no verdict for this head"
           exit 1
@@ -1046,6 +1068,13 @@ jobs:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its files, comments and reviews
       actions: read # the upstream run the trigger gate reads
+    # One output per lane, since a matrix job's outputs merge: the designed
+    # stop that left the lane without a verdict, and the head it names.
+    outputs:
+      claude-review-stop: ${{ steps.diff.outputs.claude-review-stop }}
+      claude-security-review-stop: ${{ steps.diff.outputs.claude-security-review-stop }}
+      claude-review-head: ${{ steps.diff.outputs.claude-review-head }}
+      claude-security-review-head: ${{ steps.diff.outputs.claude-security-review-head }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1065,10 +1094,9 @@ jobs:
         run: echo "$LANE-base-sha=$(git -C .base rev-parse --verify HEAD)" >>"$GITHUB_OUTPUT"
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -1139,13 +1167,17 @@ jobs:
       # a move that may run or load (an executable, a skills, agents,
       # commands or hooks path, a file a tool reads by name), and a move an
       # added line names still print whole. A patch that still
-      # shows a binary file, or is larger than one review can read whole,
-      # gets no verdict: the step fails and the lanes stay unbound. The tree
-      # the verdict is keyed on comes from git, never from the model.
+      # shows a binary file, is larger than one review can read whole, or
+      # holds a line longer than Read returns whole gets no verdict: the step
+      # stops green with the reason as an output, the record job posts it as
+      # `verdict=none reason=<reason>` on the head, and the lanes stay unbound
+      # under that reason. Any other failure fails the step. The tree the
+      # verdict is keyed on comes from git, never from the model.
       - name: Write the diff
         id: diff
         if: steps.select.outputs.review == 'true'
         env:
+          LANE: ${{ matrix.lane }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           BASE_SHA: ${{ steps.gate.outputs.base-sha }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
@@ -1165,6 +1197,13 @@ jobs:
           # (babysit_risk LONG_LINE_BYTES, `long-line-review:`).
           LONG_LINE_BYTES: "1800"
         run: |
+          # A designed stop: the reason, from this script's own literals, and
+          # the head, as the lane's outputs for the record job.
+          stop() {
+            echo "::notice title=pr-review-main stop::reason=$1 lane=$LANE pr=$PR_NUMBER; $2; no verdict, so the lanes stay unbound"
+            { echo "stop=$1"; echo "$LANE-stop=$1"; echo "$LANE-head=$HEAD_SHA"; } >>"$GITHUB_OUTPUT"
+            exit 0
+          }
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
           git init -q "$SRC"
@@ -1172,17 +1211,14 @@ jobs:
           git -C "$SRC" fetch -q --no-tags --filter=blob:none origin "$BASE_SHA" "$HEAD_SHA"
           python3 -I .base/.github/scripts/pr-review-main/write-diff.py "$SRC" "$BASE_SHA" "$HEAD_SHA" "$DATA/diff.patch" "$MAX_DIFF_BYTES"
           if grep -aqE '^(Binary files .* differ|GIT binary patch)$' "$DATA/diff.patch"; then
-            echo "::error::the diff holds a binary file the review cannot read; no verdict, so the lanes stay unbound"
-            exit 1
+            stop binary "the diff holds a binary file the review cannot read"
           fi
           if [ "$(wc -c <"$DATA/diff.patch")" -gt "$MAX_DIFF_BYTES" ]; then
-            echo "::error::the diff is over $MAX_DIFF_BYTES bytes, more than one review reads whole; no verdict, so the lanes stay unbound"
-            exit 1
+            stop too-large "the diff is $(wc -c <"$DATA/diff.patch") bytes, over the $MAX_DIFF_BYTES one review reads whole"
           fi
           # A diff line's text, past its +, - or space, longer than the cap.
           if ! LC_ALL=C awk -v max="$LONG_LINE_BYTES" 'length($0) - 1 > max { exit 3 }' "$DATA/diff.patch"; then
-            echo "::error::a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole; no verdict, so the lanes stay unbound and the merge gate holds it for a person"
-            exit 1
+            stop long-line "a diff line is over $LONG_LINE_BYTES bytes, more than the review reads whole"
           fi
           # Parts the reviewer reads whole, each named in the prompt; the
           # verdict counts only when every part was read whole
@@ -1209,7 +1245,7 @@ jobs:
           echo "diff: $(cat "$DATA"/diff/part-*.patch | wc -l) lines in $(find "$DATA/diff" -type f | wc -l) parts"
 
       - name: Select the trusted PR text
-        if: steps.diff.outcome == 'success'
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
           API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
@@ -1224,7 +1260,7 @@ jobs:
       # in it (`../../reference/...`) resolves inside the data directory; the
       # rules the code lane names go beside the standards.
       - name: Copy the review criteria
-        if: steps.diff.outcome == 'success'
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
           SKILL: ${{ matrix.skill }}
           DATA: ${{ github.workspace }}/pr-review-main-data
@@ -1239,7 +1275,7 @@ jobs:
 
       - name: Resolve the review's model
         id: models
-        if: steps.diff.outcome == 'success'
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           model-route: ${{ matrix.route }}
@@ -1250,7 +1286,7 @@ jobs:
       # set, nothing reviews and the lane stays unbound.
       - name: Check the credential
         id: credential
-        if: steps.diff.outcome == 'success'
+        if: steps.diff.outcome == 'success' && steps.diff.outputs.stop == ''
         env:
           PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
           SECRET_NAME: FALLBACK_CLAUDE_CODE_OAUTH_TOKEN
@@ -1437,7 +1473,7 @@ jobs:
 
       # A reviewed pull request that left no verdict fails here, so the run shows it; the lane stays unbound either way.
       - name: Fail without a verdict
-        if: always() && steps.diff.outcome == 'success' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success'
+        if: always() && steps.diff.outcome == 'success' && steps.diff.outputs.stop == '' && steps.credential.outputs.present == 'true' && steps.verdict.outcome != 'success'
         run: |
           echo "::error::the review left no verdict for this head"
           exit 1
@@ -1457,6 +1493,30 @@ jobs:
     permissions:
       checks: write # the per-lane count check run on the reviewed head
     steps:
+      # A designed stop (a diff the review cannot read whole) leaves no
+      # verdict and no artifact; its record names the reason on the head,
+      # neutral like the counts. Only the leg that stopped sets a lane's pair.
+      - name: Record the stops
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE_STOP: ${{ needs.review.outputs.claude-review-stop || needs.review-subscription.outputs.claude-review-stop || needs.review-fallback.outputs.claude-review-stop }}
+          CODE_HEAD: ${{ needs.review.outputs.claude-review-head || needs.review-subscription.outputs.claude-review-head || needs.review-fallback.outputs.claude-review-head }}
+          SECURITY_STOP: ${{ needs.review.outputs.claude-security-review-stop || needs.review-subscription.outputs.claude-security-review-stop || needs.review-fallback.outputs.claude-security-review-stop }}
+          SECURITY_HEAD: ${{ needs.review.outputs.claude-security-review-head || needs.review-subscription.outputs.claude-security-review-head || needs.review-fallback.outputs.claude-security-review-head }}
+        run: |
+          for lane in claude-review claude-security-review; do
+            if [ "$lane" = claude-review ]; then reason=$CODE_STOP head=$CODE_HEAD; else reason=$SECURITY_STOP head=$SECURITY_HEAD; fi
+            [ -z "$reason" ] && continue
+            [[ $reason =~ ^(too-large|binary|long-line)$ && $head =~ ^[0-9a-f]{40}$ ]] || {
+              echo "::error::a stop output is malformed for $lane"; exit 1; }
+            gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
+              -f name="pr-review-main: $lane" -f head_sha="$head" -f status=completed \
+              -f conclusion=neutral \
+              -f "output[title]=verdict=none reason=$reason" \
+              -f "output[summary]=pr-review-main did not review $head from main: the diff stopped the review ($reason), so it left no verdict." >/dev/null
+            echo "recorded $lane $head stop=$reason"
+          done
+
       - name: Download this run's verdicts
         id: download
         continue-on-error: true
@@ -1472,6 +1532,8 @@ jobs:
           VERDICTS: ${{ runner.temp }}/pr-review-main-verdicts
         run: |
           shopt -s nullglob
+          calls=0
+          trap 'echo "$calls" >"$RUNNER_TEMP/pr-review-main-calls"' EXIT
           for file in "$VERDICTS"/*/verdict.json; do
             lane=$(jq -r '.lane' "$file"); head=$(jq -r '.head_sha' "$file")
             critical=$(jq -r '.critical' "$file"); findings=$(jq -r '.findings' "$file")
@@ -1480,6 +1542,7 @@ jobs:
             # Neutral either way: the gate reads the title, and a red check would
             # send the fix-ci lane after a review finding.
             conclusion=neutral
+            calls=$((calls + 1))
             gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
               -f name="pr-review-main: $lane" -f head_sha="$head" -f status=completed \
               -f conclusion="$conclusion" \
@@ -1487,3 +1550,15 @@ jobs:
               -f "output[summary]=pr-review-main reviewed $head from main: $findings finding(s), $critical CRITICAL. The run's summary lists them." >/dev/null
             echo "recorded $lane $head findings=$findings critical=$critical"
           done
+
+      # The hub's api-calls notice, in log-api-budget's api_budget_emit_calls
+      # shape: this job has no checkout of that action, and its only calls
+      # are the check-run POSTs above, counted as they are sent.
+      - name: Log the API calls at the end
+        if: always()
+        run: |
+          # No file: the record step did not run (its download failed), so 0.
+          calls=0
+          [[ -f $RUNNER_TEMP/pr-review-main-calls ]] && calls=$(<"$RUNNER_TEMP/pr-review-main-calls")
+          [[ $calls =~ ^[0-9]{1,6}$ ]] || calls=0
+          echo "::notice title=api-calls::github-token=$calls not-modified=0 graphql=0"

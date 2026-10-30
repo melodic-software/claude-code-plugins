@@ -178,7 +178,7 @@ given, and one disposal venue does not exist.
   vocabulary: the plan names the public interfaces the tests will drive, each marked existing or
   newly-introduced, and Step 5's approval is what settles them. Two corrections over the course's
   version. (1) **Not phrased as "seams."** `seam` is fleet-registered vocabulary —
-  `docs/conventions/seam-phrasing/` owns it for presence-gated cross-plugin references, and
+  `docs/contracts/seam-phrasing/` owns it for presence-gated cross-plugin references, and
   `architecture:improve` enforces its own sense as controlled vocabulary that explicitly forbids
   substitution; a third sense landing in `planning` would overload a registered term. (2) **Not
   hosted by `implementation:phase-verifier`**, the site originally proposed: that agent grades
@@ -238,7 +238,7 @@ given, and one disposal venue does not exist.
   "review gate passes" → suggest `confirm`, then PR after CONFIRMED. The skill that renders the
   verdict, the skill that lists the sequence, and the plugin that opens the PR all agreed;
   `implement`'s handoff step was the lone dissenter. Landed: a new owner doc
-  `docs/conventions/pre-pr-ordering/` with a registry row in `plugin-philosophy.md` (the registry's
+  `docs/contracts/pre-pr-ordering/` with a registry row in `plugin-philosophy.md` (the registry's
   own trigger — "a new cross-plugin convention lands in an owner doc before a second plugin adopts
   it" — had already fired); `pre-pr.md` cites the owner for the order and keeps ownership of what
   each step does; its override-boundary paragraph corrected from "fixed plugin identity" to fleet

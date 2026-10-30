@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admit, chargeHits, chargePattern, decide, deferralLapsed, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admit, authorAdmitted, chargeHits, chargePattern, decide, deferralLapsed, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -679,6 +679,28 @@ describe("decide", () => {
       ]) {
         const result = decide(facts({ issue }));
         assert.equal(result.verdict, "refuse");
+        assert.equal(result.hold, true);
+        assert.equal(CHARGE.exec(result.reasons.join("; "))?.[1], words);
+      }
+    });
+
+    // docs/contracts/loop-lane/README.md: model usage under the
+    // Claude subscriptions is not cost; a plan or seat change and a paid
+    // purchase are.
+    test("holds only for a charge the owner's cost list names", () => {
+      assert.deepEqual(decide(facts({ issue: issueOf({ body: `${BODY}\n\nThe lane runs on the subscription login.` }) })), { verdict: "admit", reasons: [] });
+      assert.deepEqual(chargeHits("Each lane signs in with its subscription logins.", chargePattern()), []);
+      assert.deepEqual(chargeHits("The lane spends Claude subscription usage.", chargePattern()), []);
+      for (const [body, words] of [
+        ["This needs a plan or seat change.", "seat"],
+        ["This needs a paid subscription purchase.", "subscription"],
+        ["Create a new Azure subscription for the lane.", "subscription"],
+        ["Reduce the Azure subscription usage.", "subscription"],
+        ["Upgrade the Claude subscription to a higher plan.", "subscription"],
+        ["Buy a new Claude subscription for the lane.", "subscription"],
+        ["The lane raises Copilot subscription usage-based pricing.", "subscription"],
+      ]) {
+        const result = decide(facts({ issue: issueOf({ body: `${BODY}\n\n${body}` }) }));
         assert.equal(result.hold, true);
         assert.equal(CHARGE.exec(result.reasons.join("; "))?.[1], words);
       }
@@ -2120,5 +2142,20 @@ describe("attended", () => {
     const before = decide(facts({ issue: thin, spec: humanSpec(thin, [manual]), events: [label("unlabeled", HUMAN, "2026-10-19T00:00:00Z")] }));
     assert.equal(before.verdict, "refuse");
     assert.equal(before.attended, true);
+  });
+});
+
+describe("authorAdmitted", () => {
+  const humans = new Set([101]);
+  test("admits a listed human's or the lanes App's issue, nobody else's", () => {
+    assert.equal(authorAdmitted({ user: { id: 101 } }, humans, 303), true);
+    assert.equal(authorAdmitted({ user: { id: 303 } }, humans, 303), true);
+    assert.equal(authorAdmitted({ user: { id: 202 } }, humans, 303), false);
+  });
+  test("refuses an issue with no author, whatever App id is unset", () => {
+    for (const appId of [undefined, null, 303]) {
+      assert.equal(authorAdmitted({}, humans, appId), false, String(appId));
+      assert.equal(authorAdmitted({ user: { id: 303 } }, humans, appId === 303 ? undefined : appId), false, String(appId));
+    }
   });
 });
