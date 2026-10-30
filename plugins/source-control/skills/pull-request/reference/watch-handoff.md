@@ -15,7 +15,8 @@ under the rate-limit floor below and act on what it says:
   the recommendation, with the options: start the route anyway, switch accounts
   (https://github.com/melodic-software/claude-code-account-rotation), or check the PR after the
   reset. Say which routes run until stopped. The person decides.
-- **Both windows below it:** put both percentages and reset times beside the recommendation, and
+- **Every window in the file below it** (one window alone counts, as on a plan with no 5-hour
+  limit): put each one's percentage and reset time beside the recommendation, and
   say which routes run until stopped (`/autofix-pr`, a background agent, the babysit loop). The
   person decides.
 - **Unknown** (no file, a stale snapshot, no `rate_limits`, as in a cloud session or under API-key
