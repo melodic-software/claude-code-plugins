@@ -71,8 +71,13 @@ block every cycle as a report; run config is never read back from it (that file 
 ## Telemetry and durable loop state
 
 The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
-config; default: the open issue titled `Lane telemetry: work-loop` (exact match), created through
-the seam `create-item` verb when absent (announce the creation). Maintain exactly ONE status
+config; default: the open issue titled `Lane telemetry: work-loop` (exact match) whose author is
+the lane's write identity, the login the upsert script resolves (`gh api user` first, then
+`<app-slug>[bot]`, in the order [reference/telemetry-upsert.md](reference/telemetry-upsert.md)
+gives), created through
+the seam `create-item` verb when none is left (announce the creation). Anyone can open an issue
+with that title, so skip an exact-title match by any other author and name it in the cycle report.
+Maintain exactly ONE status
 comment on it **per lane instance**, sentinel-identified and edited in place (the `harness-ops`
 lane-telemetry contract; one writer identity owns a marker). The upsert itself, lane-instance
 validation, the singleton lookup, the body gate, the write-status check and read-back, the

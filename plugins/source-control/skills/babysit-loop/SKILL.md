@@ -293,8 +293,13 @@ stalled, the threshold key, and the stall-escalation shape are owned in full by
 ## Telemetry and durable loop state
 
 The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
-config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match), created with
-the forge's issue creation when absent (announce the creation). Maintain exactly ONE status comment on it
+config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match) whose author
+is the lane's write identity, the login the upsert script resolves (`gh api user` first, then
+`<app-slug>[bot]`, in the order [reference/telemetry-upsert.md](reference/telemetry-upsert.md)
+gives), created with
+the forge's issue creation when none is left (announce the creation). Anyone can open an issue
+with that title, so skip an exact-title match by any other author and name it in the cycle report.
+Maintain exactly ONE status comment on it
 **per lane instance**, sentinel-identified and edited in place (the `harness-ops` lane-telemetry
 contract; one writer identity owns a marker). The upsert itself, lane-instance resolution and
 validation, the singleton lookup, the POST/PATCH, the creation-race reconcile, and the
