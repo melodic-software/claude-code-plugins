@@ -715,6 +715,15 @@ class IsHuman(unittest.TestCase):
         )
 
 
+FAILED_HEAD = "b" * 40
+GREEN_HEAD = "c" * 40
+MAIN_TIP = "d" * 40
+GREEN_RUNS = (
+    f"repos/{REPO}/actions/workflows/pr-require-checks.yml/runs"
+    "?branch=main&status=success&per_page=10"
+)
+
+
 def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
     """One demotion record, #9, filed by the identity, with `issue` overrides."""
     record = {
@@ -756,6 +765,8 @@ def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
     # Before the single read's name, which the batch query's name extends.
     gh.graphql["PolicyDemotionRecords"] = {"repository": {"i9": record}}
     gh.graphql["PolicyDemotionRecord"] = {"repository": {"issue": record}}
+    # No green full run since: an open red-main record keeps holding.
+    gh.rest[GREEN_RUNS] = {"workflow_runs": []}
     return gh
 
 
@@ -1030,6 +1041,204 @@ class ReadDemotion(unittest.TestCase):
         self.assertTrue(result.reason.startswith("demotion-unreadable"), result.reason)
 
 
+def green_run(**fields: Any) -> dict[str, Any]:
+    """An attempt-1 green full run the lane's github-actions[bot] dispatched
+    on main after the record, at `GREEN_HEAD`."""
+    return {
+        "id": 500,
+        "conclusion": "success",
+        "run_attempt": 1,
+        "head_branch": "main",
+        "head_sha": GREEN_HEAD,
+        "head_repository": {"full_name": REPO},
+        "event": "workflow_dispatch",
+        "actor": {"login": "github-actions[bot]"},
+        "triggering_actor": {"login": "github-actions[bot]"},
+        "created_at": "2026-10-12T11:00:00Z",
+    } | fields
+
+
+class AutoClearOnGreen(unittest.TestCase):
+    """An open `schedule` or `dispatch` record clears once a newer attempt-1
+    green full run on main sits at a later commit (owner decision,
+    2026-10-30); any other record stays human-close."""
+
+    def fake(self, body: str = DEMOTION_BODY, runs: Any = None, **issue: Any) -> GhFake:
+        issue = {"state": "OPEN", "timelineItems": {"nodes": []}} | issue
+        gh = demotion_fake(self, body=body, **issue)
+        gh.rest[GREEN_RUNS] = {"workflow_runs": [green_run()]} if runs is None else runs
+        gh.rest[f"repos/{REPO}/compare/{FAILED_HEAD}...{GREEN_HEAD}"] = {
+            "status": "ahead"
+        }
+        gh.rest[f"repos/{REPO}/git/ref/heads/main"] = {"object": {"sha": MAIN_TIP}}
+        gh.rest[f"repos/{REPO}/compare/{GREEN_HEAD}...{MAIN_TIP}"] = {"status": "ahead"}
+        return gh
+
+    def test_a_newer_descendant_green_clears_and_sets_the_floor(self) -> None:
+        for signal in ("dispatch", "schedule"):
+            with self.subTest(signal):
+                self.fake(body=DEMOTION_BODY.replace("dispatch", signal))
+                result = read_demotion()
+                self.assertFalse(result.active, result.reason)
+                self.assertEqual(result.records, (9,))
+                self.assertEqual(
+                    (result.newest_created, result.cleared_at),
+                    (
+                        policy.datetime.fromisoformat("2026-10-12T10:00:00Z"),
+                        policy.datetime.fromisoformat("2026-10-12T11:00:00Z"),
+                    ),
+                )
+
+    def test_the_earliest_qualifying_listed_run_is_the_floor(self) -> None:
+        later = green_run(id=501, created_at="2026-10-12T13:00:00Z")
+        self.fake(runs={"workflow_runs": [later, green_run()]})
+        self.assertEqual(
+            read_demotion().cleared_at,
+            policy.datetime.fromisoformat("2026-10-12T11:00:00Z"),
+        )
+
+    def test_a_schedule_run_counts(self) -> None:
+        self.fake(
+            runs={
+                "workflow_runs": [
+                    green_run(
+                        event="schedule",
+                        actor={"login": OPERATOR},
+                        triggering_actor={"login": OPERATOR},
+                    )
+                ]
+            }
+        )
+        self.assertFalse(read_demotion().active)
+
+    def test_without_a_qualifying_green_it_stays(self) -> None:
+        for name, run in (
+            ("none", None),
+            ("before the record", green_run(created_at="2026-10-12T09:00:00Z")),
+            ("attempt 2", green_run(run_attempt=2)),
+            ("failed", green_run(conclusion="failure")),
+            ("off main", green_run(head_branch="feature")),
+            ("a fork", green_run(head_repository={"full_name": "fork/repo"})),
+            (
+                "a person's dispatch",
+                green_run(
+                    actor={"login": OPERATOR}, triggering_actor={"login": OPERATOR}
+                ),
+            ),
+            ("a person's re-run", green_run(triggering_actor={"login": OPERATOR})),
+            ("a push", green_run(event="push")),
+            ("no head", green_run(head_sha="nope")),
+        ):
+            with self.subTest(name):
+                self.fake(runs={"workflow_runs": [run] if run else []})
+                result = read_demotion()
+                self.assertEqual((result.active, result.reason), (True, "#9 open"))
+
+    def test_a_green_at_the_failed_head_or_off_its_history_stays(self) -> None:
+        for status in ("identical", "behind", "diverged"):
+            with self.subTest(status):
+                gh = self.fake()
+                gh.rest[f"repos/{REPO}/compare/{FAILED_HEAD}...{GREEN_HEAD}"] = {
+                    "status": status
+                }
+                self.assertTrue(read_demotion().active)
+
+    def test_a_green_not_on_main_stays(self) -> None:
+        for status in ("behind", "diverged"):
+            with self.subTest(status):
+                gh = self.fake()
+                gh.rest[f"repos/{REPO}/compare/{GREEN_HEAD}...{MAIN_TIP}"] = {
+                    "status": status
+                }
+                self.assertTrue(read_demotion().active)
+
+    def test_a_green_at_main_tip_needs_no_on_main_compare(self) -> None:
+        gh = self.fake()
+        gh.rest[f"repos/{REPO}/git/ref/heads/main"] = {"object": {"sha": GREEN_HEAD}}
+        del gh.rest[f"repos/{REPO}/compare/{GREEN_HEAD}...{MAIN_TIP}"]
+        self.assertFalse(read_demotion().active)
+
+    def test_any_failed_read_stays(self) -> None:
+        for endpoint in (
+            GREEN_RUNS,
+            f"repos/{REPO}/compare/{FAILED_HEAD}...{GREEN_HEAD}",
+            f"repos/{REPO}/git/ref/heads/main",
+            f"repos/{REPO}/compare/{GREEN_HEAD}...{MAIN_TIP}",
+        ):
+            with self.subTest(endpoint):
+                gh = self.fake()
+                gh.rest[endpoint] = 502
+                result = read_demotion()
+                self.assertEqual((result.active, result.reason), (True, "#9 open"))
+
+    def test_other_records_stay_human_close_and_read_no_runs(self) -> None:
+        for name, body in (
+            ("canary", DEMOTION_BODY.replace("dispatch", "canary")),
+            ("read-back", DEMOTION_BODY.replace("dispatch", "read-back")),
+            ("marker not first", "note\n" + DEMOTION_BODY),
+            ("short sha", DEMOTION_BODY.replace("b" * 40, "b" * 12)),
+        ):
+            with self.subTest(name):
+                gh = self.fake(body=body)
+                self.assertTrue(read_demotion().active)
+                self.assertFalse([c for c in gh.calls if c[:2] != ["api", "graphql"]])
+
+    def test_a_record_a_non_human_edited_stays(self) -> None:
+        edits = {
+            "totalCount": 2,
+            "nodes": [
+                {
+                    "editedAt": "2026-10-12T10:30:00Z",
+                    "deletedAt": None,
+                    "editor": bot("renovate"),
+                    "diff": DEMOTION_BODY,
+                },
+                {
+                    "editedAt": "2026-10-12T10:00:00Z",
+                    "deletedAt": None,
+                    "editor": bot("agent-lanes"),
+                    "diff": DEMOTION_BODY.replace("b" * 40, "e" * 40),
+                },
+            ],
+        }
+        self.fake(lastEditedAt="2026-10-12T10:30:00Z", userContentEdits=edits)
+        result = read_demotion()
+        self.assertEqual((result.active, result.reason), (True, "#9 open"))
+
+    def test_a_bot_closed_record_clears_on_the_same_evidence(self) -> None:
+        self.fake(
+            state="CLOSED",
+            timelineItems={
+                "nodes": [
+                    {
+                        "createdAt": "2026-10-12T10:30:00Z",
+                        "actor": bot("github-actions"),
+                        "closer": None,
+                    }
+                ]
+            },
+        )
+        result = read_demotion()
+        self.assertFalse(result.active, result.reason)
+        self.assertEqual(
+            result.cleared_at, policy.datetime.fromisoformat("2026-10-12T11:00:00Z")
+        )
+
+    def test_a_clear_costs_one_listing_one_tip_read_and_two_compares(self) -> None:
+        gh = self.fake()
+        read_demotion()
+        rest = [c[1] for c in gh.calls if c[:2] != ["api", "graphql"]]
+        self.assertEqual(
+            rest,
+            [
+                GREEN_RUNS,
+                f"repos/{REPO}/compare/{FAILED_HEAD}...{GREEN_HEAD}",
+                f"repos/{REPO}/git/ref/heads/main",
+                f"repos/{REPO}/compare/{GREEN_HEAD}...{MAIN_TIP}",
+            ],
+        )
+
+
 class RecordsFake:
     """`read_demotion`'s reads over many records: the identity's listing names
     each of `records`; the batch query answers each alias it asks for, less
@@ -1045,6 +1254,9 @@ class RecordsFake:
         self.queries: list[str] = []
 
     def __call__(self, args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        if args[1] == GREEN_RUNS:
+            # No green full run since: an open red-main record keeps holding.
+            return ok({"workflow_runs": []})
         query = next(a for a in args if a.startswith("query="))
         variables = dict(a.split("=", 1) for a in args if "=" in a and a[0] != "q")
         self.queries.append(query.split("(", 1)[0].removeprefix("query=query "))

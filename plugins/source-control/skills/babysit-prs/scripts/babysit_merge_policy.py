@@ -1552,6 +1552,18 @@ DEMOTION_RECORD = (
 )
 # `read_demotion`: records per query, as `babysit_postmerge.read_pins` batches pins.
 DEMOTION_BATCH = 20
+# A record of a red full run on main, the one kind a later green clears
+# (`_recovered_at`); canary and read-back records stay human-close.
+RED_MAIN_RECORD = re.compile(
+    r"<!-- babysit-merge-demotion sha=([0-9a-f]{40}) signal=(?:schedule|dispatch) -->"
+)
+# The holds a red-main record's later green lifts: how it was closed, never
+# what its edit history or a failed read says.
+RECOVERABLE_HOLDS = ("open", "closed-by-non-human", "closed-by-reference")
+GREEN_RUNS = (
+    "repos/{}/{}/actions/workflows/pr-require-checks.yml/runs"
+    "?branch=main&status=success&per_page=10"
+)
 
 
 @dataclass(frozen=True)
@@ -1560,8 +1572,9 @@ class Demotion:
     reason: str | None
     records: tuple[int, ...]
     # The newest record's creation, which restarts the promotion evidence
-    # window, and the newest human close among cleared records, which restarts
-    # the post-merge floor. Read only while no record holds.
+    # window, and the newest clear among cleared records (a human close, or
+    # main's recovery from a red-main record), which restarts the post-merge
+    # floor. Read only while no record holds.
     newest_created: datetime | None = None
     cleared_at: datetime | None = None
 
@@ -1669,6 +1682,102 @@ def _edits_refusal(issue: dict[str, Any], human: Callable[[Any], bool]) -> str |
     return None
 
 
+class _GreenMain:
+    """`_recovered_at`'s reads, shared by the records of one `read_demotion`:
+    one listing, one read of main's tip, and each compare once."""
+
+    def __init__(self, owner: str, name: str) -> None:
+        self.owner, self.name = owner, name
+        self.runs: list[dict[str, Any]] | None = None
+        self.tip: str | None = None
+        self.compares: dict[tuple[str, str], str | None] = {}
+
+    def _read(self, endpoint: str) -> Any:
+        status, answer = _get(endpoint)
+        if status != 200:
+            raise PolicyReadError(f"{endpoint}: {status}")
+        return answer
+
+    def listed(self) -> list[dict[str, Any]]:
+        """The newest ten green full runs on main, oldest first, kept as
+        newer-green.bash and `babysit_postmerge._Context.superseded` keep
+        them: attempt 1, this repository's main, and a schedule or the lane's
+        github-actions[bot] dispatch (a person dispatching until a run
+        passes is no recovery)."""
+        if self.runs is None:
+            repo = f"{self.owner}/{self.name}"
+            answer = self._read(GREEN_RUNS.format(self.owner, self.name))
+            self.runs = sorted(
+                (
+                    run
+                    for run in map(
+                        json_object,
+                        json_array(json_object(answer).get("workflow_runs")),
+                    )
+                    if run.get("conclusion") == "success"
+                    and run.get("run_attempt") == 1
+                    and run.get("head_branch") == "main"
+                    and json_object(run.get("head_repository")).get("full_name") == repo
+                    and SHA_RE.fullmatch(str(run.get("head_sha") or ""))
+                    and (
+                        run.get("event") == "schedule"
+                        or (
+                            run.get("event") == "workflow_dispatch"
+                            and json_object(run.get("actor")).get("login")
+                            == DEMOTION_FILER
+                            and json_object(run.get("triggering_actor")).get("login")
+                            == DEMOTION_FILER
+                        )
+                    )
+                ),
+                key=lambda run: _time(run.get("created_at")),
+            )
+        return self.runs
+
+    def ahead(self, base: str, head: str) -> bool:
+        """Whether `head` has `base` in its history and is a later commit."""
+        if (base, head) not in self.compares:
+            answer = self._read(
+                f"repos/{self.owner}/{self.name}/compare/{base}...{head}"
+            )
+            self.compares[base, head] = json_object(answer).get("status")
+        return self.compares[base, head] == "ahead"
+
+    def on_main(self, sha: str) -> bool:
+        """Whether `sha` is on main's history, read by heads/main: a ref named
+        main, a tag included, can sit anywhere."""
+        if self.tip is None:
+            answer = self._read(f"repos/{self.owner}/{self.name}/git/ref/heads/main")
+            tip = str(json_object(json_object(answer).get("object")).get("sha") or "")
+            if not SHA_RE.fullmatch(tip):
+                raise PolicyReadError("main's tip names no commit")
+            self.tip = tip
+        return sha == self.tip or self.ahead(sha, self.tip)
+
+
+def _recovered_at(
+    issue: dict[str, Any], human: Callable[[Any], bool], green: _GreenMain
+) -> datetime | None:
+    """When main went green again past a red-main record (owner decision,
+    2026-10-30): the creation of the earliest listed green full run
+    (`_GreenMain.listed`) created after the record, at a commit after the
+    record's SHA and on main's history. None for any other record, one a
+    non-human edited (the SHA comes from its body), or no such run; a failed
+    read raises."""
+    first = str(issue.get("body") or "").lstrip().split("\n", 1)[0].rstrip()
+    marker = RED_MAIN_RECORD.fullmatch(first)
+    if marker is None or _edits_refusal(issue, human):
+        return None
+    created = _time(issue.get("createdAt"))
+    for run in green.listed():
+        if _time(run.get("created_at")) <= created:
+            continue
+        head = str(run["head_sha"])
+        if green.ahead(marker[1], head) and green.on_main(head):
+            return _time(run.get("created_at"))
+    return None
+
+
 def read_demotion(
     repo: str,
     *,
@@ -1682,7 +1791,9 @@ def read_demotion(
     body carries the demotion marker now or in any revision, so stripping the
     marker or the label hides none. A record holds the rung off unless its
     latest `ClosedEvent` has no `closer` and a human actor, and no non-human
-    ever edited it. Any read failure holds it off. Records are read
+    ever edited it, or, for a red-main record however it stands, main went
+    green past it (`_recovered_at`), whose time clears it. Any read failure
+    holds it off. Records are read
     `DEMOTION_BATCH` to a query (`_demotion_records`), and one the batch did
     not return is read on its own, so the answer is the per-issue read's.
     """
@@ -1699,6 +1810,7 @@ def read_demotion(
     records: list[int] = []
     created: list[datetime] = []
     cleared: list[datetime] = []
+    green = _GreenMain(owner, name)
     try:
         candidates = sorted(
             {n for f in filers for n in _candidate_issues(owner, name, f)}
@@ -1734,9 +1846,18 @@ def read_demotion(
                 continue
             records.append(number)
             hold = _record_hold(issue, human)
-            if hold:
+            recovered = None
+            if hold in RECOVERABLE_HOLDS:
+                try:
+                    recovered = _recovered_at(issue, human, green)
+                except PolicyReadError:
+                    recovered = None
+            if hold and recovered is None:
                 return Demotion(True, f"#{number} {hold}", tuple(records))
             created.append(_time(issue.get("createdAt")))
+            if recovered is not None:
+                cleared.append(recovered)
+                continue
             closes = json_array(json_object(issue.get("timelineItems")).get("nodes"))
             cleared.append(_time(json_object(closes[-1]).get("createdAt")))
     except PolicyReadError as exc:
@@ -5047,9 +5168,9 @@ def merged_since_floor(
     repo: str, base_sha: str, demotion: Demotion, authority: str | None = None
 ) -> datetime:
     """The post-merge floor: the later of the enabling commit of `authority`
-    (`enabled_since`) and the newest human close of a demotion record, so a
-    human clear restarts the window and a deleted or transferred record moves
-    nothing. Raises `PolicyReadError` when the enabling commit cannot be
+    (`enabled_since`) and the newest clear of a demotion record (a human
+    close, or main's recovery from a red-main record), so a clear restarts
+    the window and a deleted or transferred record moves nothing. Raises `PolicyReadError` when the enabling commit cannot be
     read."""
     floor = enabled_since(repo, base_sha, authority)
     if demotion.cleared_at is not None:
