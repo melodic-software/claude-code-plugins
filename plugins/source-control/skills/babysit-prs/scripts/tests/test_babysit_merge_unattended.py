@@ -465,16 +465,23 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
                 )
                 self.assertEqual(self._vetoes(result), [], result["blockers"])
 
-    def test_a_bare_do_not_merge_token_still_holds(self) -> None:
-        result = _evaluate(
-            fixtures._pr(),
-            HEAD,
-            None,
-            self.PR_MERGE,
-            issue_comments=[_comment("maintainer", "do-not-merge: waiting on #10954")],
-        )
-        self.assertFalse(result["ready"])
-        self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
+    def test_a_do_not_merge_veto_still_holds(self) -> None:
+        for body in (
+            "do-not-merge: waiting on #10954",
+            "Not ready, do-not-merge until Friday.",
+            "The checks are failing, do-not-merge until they pass.",
+            "`do-not-merge` label please",
+        ):
+            with self.subTest(body):
+                result = _evaluate(
+                    fixtures._pr(),
+                    HEAD,
+                    None,
+                    self.PR_MERGE,
+                    issue_comments=[_comment("maintainer", body)],
+                )
+                self.assertFalse(result["ready"])
+                self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
 
     def test_a_bare_wait_holds_nothing(self) -> None:
         result = _evaluate(

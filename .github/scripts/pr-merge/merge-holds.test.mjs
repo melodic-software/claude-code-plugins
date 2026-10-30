@@ -1600,7 +1600,15 @@ test("a member naming the do-not-merge label is no veto; saying not to merge is"
   ]) {
     assert.deepEqual(holdsModule.vetoers(said(body)), [], body);
   }
-  for (const body of ["Do not merge this yet.", "don't merge", "do-not-merge", "do-not-merge: waiting on #10954"]) {
+  for (const body of [
+    "Do not merge this yet.",
+    "don't merge",
+    "do-not-merge",
+    "do-not-merge: waiting on #10954",
+    "Not ready, do-not-merge until Friday.",
+    "The checks are failing, do-not-merge until they pass.",
+    "`do-not-merge` label please",
+  ]) {
     assert.deepEqual(holdsModule.vetoers(said(body)), ["kyle-sexton"], body);
   }
 });
