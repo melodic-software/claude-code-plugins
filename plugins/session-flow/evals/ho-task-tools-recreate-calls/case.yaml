@@ -14,7 +14,7 @@ execution:
 graders:
   - name: recreate-calls-written
     type: regex
-    pattern: 'TaskCreate\(subject=\\?"[^"\n]*(?:30|test)'
+    pattern: 'TaskCreate\(subject=\\*"[^"\n]*(?:30|test)'
     flags: 'i'
     target: trace
     arm: both
