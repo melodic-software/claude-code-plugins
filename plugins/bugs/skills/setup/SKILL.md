@@ -51,7 +51,7 @@ Modify nothing. Report both surfaces, then one remediation line per gap.
    for a `project`/`local` scope, or the rerun adds a second install record at the scope passed and
    enables the plugin there; the value itself always lands in user settings. Then rerun `check` in a
    fresh session and report the observed destination. Convention:
-   <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>.
+   <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>.
 
 ### B. `docs/conventions/bugs.yaml` (tracked lane config)
 

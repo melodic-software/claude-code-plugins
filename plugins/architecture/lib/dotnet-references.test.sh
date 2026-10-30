@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Self-contained tests for dotnet-references.sh, the reader map-dependencies and
 # map-landscape share (assertion primitives are duplicated on purpose, per
-# docs/conventions/shell-test-helpers/README.md).
+# docs/contracts/shell-test-helpers/README.md).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
