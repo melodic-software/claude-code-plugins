@@ -223,7 +223,7 @@ assert_doc "unavailable lists both typed lanes" "$out" \
 # 5. Usage.
 (cd "$BARE" && PATH="$EMPTY_PATH" bash "$SCRIPT" "$SOURCES/does-not-exist.ts" >/dev/null 2>&1)
 assert_eq "a missing explicit path exits 2" 2 "$?"
-bash "$SCRIPT" --help 2>&1 | grep -q 'audit-type-debt.sh \[--json\]'
+grep -q 'audit-type-debt.sh \[--json\]' < <(bash "$SCRIPT" --help 2>&1)
 assert_eq "--help prints usage" 0 "$?"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"

@@ -150,6 +150,10 @@ test's first call on `$`, so a test registers its hooks before it.
 - `mock` covers **three nouns only**: `mock.clock`, `mock.store`, `mock.env`.
   `$.fs`, `$.process`, `$.http`, `$.settings`, `$.session` and the rest are
   stubbed by hand with `on(...)`. `SOURCE` · HIGH · `.d.ts:L11702`.
+  **Drifted since the pin:** the live docs list a fourth, `mock.session(on)`,
+  which needs Claude Code v2.1.293 or later. Read the current list at
+  [test: Stub what Claude Code would answer](https://code.claude.com/docs/en/plugins/mods/test#stub-what-claude-code-would-answer)
+  (as of 2026-10-30; recheck when that section adds or drops a `mock` export).
 - `mock.clock` answers from an in-memory clock that moves only when the test
   moves it; a held wait *"past a hook's budget (ten seconds of real time) is let
   go, as a hook that overran."* `await clock.settle()` lets fire-and-forget work

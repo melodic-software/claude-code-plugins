@@ -49,11 +49,11 @@
 # guard keyed on PATH SHAPE across every Bash command fired on 45.7% of 14,234
 # real commands and was rejected on that measurement. This guard does not
 # inherit that objection: it reads a cheap substring first, so a command whose
-# text holds none of `rm`, `-delete` and `unlink` never reaches the parse at
-# all. The prefilter is a SUBSTRING match, not a token one, so `npm run format`
-# does reach the tokenizer and is allowed there on its command word. The path
-# question is asked only once a recursive `rm` or a deleting find, run
-# directly or by xargs or parallel, is established.
+# text holds none of `rm`, `-delete`, `unlink` and `rsync` never reaches the
+# parse at all. The prefilter is a SUBSTRING match, not a token one, so `npm
+# run format` does reach the tokenizer and is allowed there on its command
+# word. The path question is asked only once a recursive `rm`, a deleting find
+# or a deleting rsync, run directly or by xargs or parallel, is established.
 #
 # FIND DELETES. `find -delete`, and a find whose expression runs `rm`, `rmdir`
 # or `unlink` as the command word of an -exec, -execdir, -ok or -okdir action,
@@ -76,6 +76,25 @@
 # which leaves -prune ineffective (find(1)), and find descends into `.git`, so
 # a find delete started at the git toplevel is refused as a directory holding
 # a `.git` whatever its filters.
+#
+# RSYNC DELETES. `rsync --del`, `--delete` and every `--delete-<mode>` remove
+# extraneous files from the destination, the last operand, and
+# `--remove-source-files` has the sender remove the files it synchronized from
+# the sources, every operand before it (rsync(1), samba.org, read 2026-10-30).
+# Those targets are judged as operands of a recursive rm, through every arm
+# below; an rsync with neither option, or with one operand (which lists it),
+# deletes nothing and is not judged. When an operand holds an unquoted brace
+# or glob, which can expand to more words or to none, every operand is judged
+# instead, one alone included. Options are read wherever they stand up to a
+# `--`, and the word after an option that takes an argument (-e, -f, -T, -B,
+# -M, -@ ending a cluster, or a long option of the man page or one of its
+# aliases such as --cc, --zl and --time-limit, written without `=`) is not an
+# operand. --remove-sent-files and --log-format, spellings the current man
+# page does not list, are read as --remove-source-files and --out-format. An
+# operand rsync reads as remote (`host:path`, two or more characters before a
+# `:` that no `/` precedes, none of them a `$`, a backtick or a `{`, or
+# rsync://) names another host and is left alone; a drive path such as `C:/`
+# is judged.
 #
 # PIPELINE-FED DELETES. `xargs` and `parallel` run a command on the items they
 # read, so when that command is a recursive rm or a deleting find (named
@@ -231,7 +250,10 @@
 # holds a quoted paren (`find build '(' -name a ')' | xargs rm -rf`), a
 # BSD leading option ahead of a start point run from the toplevel (`find -E
 # build -regex '.*\.o' -delete`: the GNU reading then has no start point and
-# judges `.`), and the three launcher lines decided below.
+# judges `.`), an rsync delete run with -n or --dry-run (judged as if it ran),
+# an rsync delete whose sources glob outside the allowed roots (`rsync -a
+# --delete /opt/x/* build/`: with a glob every operand is judged), and the
+# three launcher lines decided below.
 #
 # LAUNCHER LINES REFUSED BY DECISION (#4681). Each is refused although the
 # launcher does not delete the host root, and each stays refused on purpose:
@@ -301,8 +323,12 @@
 #     and a here-string, which is read as ordinary quoting: its body is not
 #     judged, and a quote character inside it ends the span early, so the code
 #     after it is not judged either.
-#   * Other delete verbs: `rsync --delete`, `shred`, and a delete performed
-#     from inside an interpreter.
+#   * Other delete verbs: `shred`, and a delete performed from inside an
+#     interpreter.
+#   * In an rsync: a long option written as an abbreviation, a remote operand
+#     (`host:/`), the paths a --files-from list names below a source
+#     (the source operand itself is judged), and rsync on the PowerShell tool,
+#     which is not read.
 #   * In a pipeline-fed delete: a `;`, `&&` or `||` between a listing and
 #     xargs, read as a pipe (`find build; xargs rm -rf` reads the shell's own
 #     stdin); xargs splitting a listed path at a blank or a quote, so a
@@ -321,9 +347,9 @@
 #     tool, which is not read.
 #   * From the Bash tool, a delete run by a Windows program instead of rm:
 #     `cmd /c rd /s /q <dir>` (or `cmd //c`, `rmdir`) and `powershell -Command
-#     Remove-Item -Recurse <dir>`. The Bash lane matches the rm and find
-#     command words only, and its prefilter passes only text holding `rm`,
-#     `-delete` or `unlink`; cmd rd /s and Remove-Item are judged in the
+#     Remove-Item -Recurse <dir>`. The Bash lane matches the rm, find and
+#     rsync command words only, and its prefilter passes only text holding
+#     `rm`, `-delete`, `unlink` or `rsync`; cmd rd /s and Remove-Item are judged in the
 #     PowerShell lane (#6626).
 #   * Expansion-built targets AND an expansion-built command word. Detection
 #     never evaluates a shell expansion. A bare variable operand is refused
@@ -731,9 +757,9 @@ fi
 # A case-SENSITIVE prefilter here would have exited allow first, a bypass of
 # the whole guard rather than a missed spelling.
 #
-# Bash: a substring `rm`, `-delete` or `unlink`, the text a recursive rm or a
-# deleting find must hold (`npm run format` still reaches the tokenizer and is
-# allowed on its command word). PowerShell: Remove-Item,
+# Bash: a substring `rm`, `-delete`, `unlink` or `rsync`, the text a recursive
+# rm, a deleting find or a deleting rsync must hold (`npm run format` still
+# reaches the tokenizer and is allowed on its command word). PowerShell: Remove-Item,
 # rmdir, erase, cmd, rd, del, rm, and `ri` as a command word (not the `ri`
 # inside Write/string). Over-inclusive on purpose; the tokenizer decides.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
@@ -749,7 +775,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   ((rdt_ps_hit)) || exit 0
 else
   case "${COMMAND,,}" in
-  *rm* | *-delete* | *unlink*) ;;
+  *rm* | *-delete* | *unlink* | *rsync*) ;;
   *) exit 0 ;;
   esac
 fi
@@ -3103,11 +3129,16 @@ rdt_check_segment() {
   fi
 
   # A find whose expression deletes removes what its start points hold (FIND
-  # DELETES in the header), and xargs and parallel run their command on the
+  # DELETES in the header), an rsync removes from its destination or its
+  # sources (RSYNC DELETES), and xargs and parallel run their command on the
   # items they read (PIPELINE-FED DELETES).
   case "$base" in
   find)
     rdt_find_check "$i"
+    return 0
+    ;;
+  rsync)
+    rdt_rsync_check "$i"
     return 0
     ;;
   xargs)
@@ -3245,6 +3276,111 @@ rdt_find_check() {
   local -a sw=(${RDT_FIND_SW[@]+"${RDT_FIND_SW[@]}"}) sq=(${RDT_FIND_SQ[@]+"${RDT_FIND_SQ[@]}"})
   for ((k = 0; k < ${#sw[@]}; k++)); do
     rdt_delete_operand "${sw[k]}" "${sq[k]}"
+  done
+  return 0
+}
+
+# rdt_rsync_check <index of the rsync word>: an rsync carrying --del, --delete
+# or a --delete-<mode> has its destination, the last operand, judged as an
+# operand of a recursive rm, and one carrying --remove-source-files has each
+# operand before it judged so (RSYNC DELETES in the header). An operand rsync
+# reads as remote is left alone. Reads words, n and HOOK_SEG_WORD_QUOTED from
+# rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_rsync_check() {
+  local k c w pre del=0 rsf=0 eoo=0 last
+  local -a op=() tg=()
+  for ((k = $1 + 1; k < n; k++)); do
+    w="${words[k]}"
+    if ((eoo == 0)); then
+      case "$w" in
+      --)
+        eoo=1
+        continue
+        ;;
+      --del | --delete | --delete-*)
+        del=1
+        continue
+        ;;
+      --remove-source-files | --remove-sent-files)
+        rsf=1
+        continue
+        ;;
+      --*=*) continue ;;
+      --?*)
+        case "${w#--}" in
+        info | debug | stderr | checksum-choice | chmod | chown | rsh | rsync-path | backup-dir | suffix | \
+          partial-dir | temp-dir | compare-dest | copy-dest | link-dest | filter | exclude | exclude-from | \
+          include | include-from | files-from | log-file | log-file-format | password-file | early-input | \
+          max-delete | max-size | min-size | max-alloc | usermap | groupmap | timeout | contimeout | \
+          compress-choice | compress-level | compress-threads | skip-compress | copy-as | address | port | \
+          sockopts | outbuf | out-format | bwlimit | stop-after | stop-at | write-batch | only-write-batch | \
+          read-batch | protocol | iconv | checksum-seed | block-size | remote-option | modify-window | \
+          config | dparam | log-format | time-limit | cc | zc | zl | zt)
+          k=$((k + 1))
+          ;;
+        *) ;;
+        esac
+        continue
+        ;;
+      -?*)
+        # A cluster letter that takes an argument takes the rest of the word,
+        # or the next word when it ends the cluster.
+        for ((c = 1; c < ${#w}; c++)); do
+          case "${w:c:1}" in
+          [efTBM@])
+            ((c + 1 < ${#w})) || k=$((k + 1))
+            break
+            ;;
+          *) ;;
+          esac
+        done
+        continue
+        ;;
+      *) ;;
+      esac
+    fi
+    op+=("$k")
+  done
+  ((del || rsf)) || return 0
+  # Under xargs or parallel the items read are appended as operands, so they
+  # are judged as this rsync's targets whatever it names itself.
+  rdt_deleter=1
+  # A brace or a glob can expand to more words or to none, so which word is
+  # last is not known: every operand is then judged, the one-operand listing
+  # included.
+  for k in ${op[@]+"${op[@]}"}; do
+    w="${words[k]}"
+    ((${HOOK_SEG_WORD_QUOTED[k]:-0} == 2)) && continue
+    if [[ "$w" == *['{*?[']* ]]; then
+      tg=("${op[@]}")
+      break
+    fi
+  done
+  if ((${#tg[@]} == 0)); then
+    # One operand only lists it; nothing is copied or removed.
+    ((${#op[@]} > 1)) || return 0
+    last="${op[${#op[@]} - 1]}"
+    ((del)) && tg+=("$last")
+    if ((rsf)); then
+      for k in "${op[@]}"; do
+        ((k == last)) || tg+=("$k")
+      done
+    fi
+  fi
+  for k in "${tg[@]}"; do
+    w="${words[k]}"
+    # rsync reads a `:` after a host as a remote shell path and rsync:// as a
+    # daemon, so the delete runs on another machine. One letter before the
+    # `:` is judged as a drive path, as block-cross-domain reads it, and so is
+    # a host spelled with an expansion or a brace (`"${HOME:-/}"`).
+    pre="${w%%:*}"
+    if [[ "$w" == rsync://* ]] ||
+      [[ "$pre" != "$w" && "$pre" != */* && ${#pre} -ge 2 &&
+        "$pre" != *'$'* && "$pre" != *'`'* && "$pre" != *'{'* ]]; then
+      continue
+    fi
+    rdt_delete_operand "$w" "${HOOK_SEG_WORD_QUOTED[k]:-0}"
   done
   return 0
 }
@@ -3669,7 +3805,7 @@ rdt_parallel_check() {
   for ((k = e + 1; k < n; k++)); do
     case "${words[k],,}" in
     ::: | :::+ | :::: | ::::+) ;;
-    *rm* | *-delete* | *unlink*) rdt_parse "${words[k]}" ;;
+    *rm* | *-delete* | *unlink* | *rsync*) rdt_parse "${words[k]}" ;;
     *) ;;
     esac
   done
@@ -3945,7 +4081,7 @@ rdt_scan_body() {
   local b="$1" rdt_seg_feed=open
   [[ -n "$b" ]] || return 0
   case "${b,,}" in
-  *rm* | *-delete* | *unlink*) ;;
+  *rm* | *-delete* | *unlink* | *rsync*) ;;
   *) return 0 ;;
   esac
   rdt_scanned=$((rdt_scanned + ${#b}))
