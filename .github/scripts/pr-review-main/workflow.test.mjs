@@ -275,7 +275,7 @@ const MIXED = [
   "diff --git a/old.txt b/old.txt\ndeleted file mode 100644\nindex e69de29..0000000\n",
   "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n",
   "diff --git a/docs/x.md b/guide/x.md\nsimilarity index 100%\nrename from docs/x.md\nrename to guide/x.md\n",
-  'diff --git "a/caf\\303\\251.md" "b/caf\\303\\251.md"\nnew file mode 100644\nindex 0000000..4444444\n--- /dev/null\n+++ "b/caf\\303\\251.md"\n@@ -0,0 +1 @@\n+hi\n',
+  'diff --git "a/r\\303\\251sum\\303\\251.md" "b/r\\303\\251sum\\303\\251.md"\nnew file mode 100644\nindex 0000000..4444444\n--- /dev/null\n+++ "b/r\\303\\251sum\\303\\251.md"\n@@ -0,0 +1 @@\n+hi\n',
 ];
 const MIXED_MANIFEST = [
   "chunk 1 modified src/a.sh",
@@ -283,7 +283,7 @@ const MIXED_MANIFEST = [
   "chunk 2 deleted old.txt",
   "chunk 2 modified run.sh",
   "chunk 2 renamed docs/x.md -> guide/x.md",
-  'chunk 2 added "caf\\303\\251.md"',
+  'chunk 2 added "r\\303\\251sum\\303\\251.md"',
 ];
 
 test("a diff in more than one chunk writes a manifest of every file, its chunk and its status", () => {
