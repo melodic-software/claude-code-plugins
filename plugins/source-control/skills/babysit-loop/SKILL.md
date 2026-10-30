@@ -49,13 +49,12 @@ The single-pass mechanics belong to `/source-control:babysit-prs`: the tier matr
 resolution, the guarded mutation wrappers and deterministic gates, fan-out and the worker contract,
 review discipline, and the cross-tier safety invariants. Each cycle **invokes**
 `/source-control:babysit-prs <tier> <owner/repo>` via the Skill tool with the resolved tier and
-scope; this loop
-restates none of that. Two disciplines in particular are babysit-prs's own, held here by citation:
-the head-move yield (expected-head pins and HEAD assertion; its SKILL.md "Guarded mutations" and
-its [loop reference](../babysit-prs/reference/loop.md) §5.1.2–§5.1.3), and the foreign-activity
-discipline (the `foreign_activity` dispatch suppressor, never race a foreign session for the same
-PR; its [orchestration reference](../babysit-prs/reference/orchestration.md)). The grace window
-below is an additional loop-level overlay, never a replacement for them.
+scope; this loop restates none of that. Two disciplines in particular are babysit-prs's own, held
+here by citation: the head-move yield (expected-head pins and HEAD assertion; its SKILL.md "Guarded
+mutations" and its [loop reference](../babysit-prs/reference/loop.md) §5.1.2–§5.1.3), and the
+foreign-activity discipline (the `foreign_activity` dispatch suppressor, never race a foreign
+session for the same PR; its [orchestration reference](../babysit-prs/reference/orchestration.md)).
+The grace window below is an additional loop-level overlay, never a replacement for them.
 
 ## Required argument and config resolution
 
@@ -253,15 +252,14 @@ the record; the convention's
 [Background-job launch mode](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/loop-lane/README.md)
 paragraph owns why. Telemetry is the report surface, never the escalation channel.
 
-Verification record for the launch advice. Claim: a background session launched inside a linked
-git worktree keeps the record Write in place. Basis: Claude Code skips its pre-edit move into an
-isolated worktree when "the session is already inside a linked git worktree, whether Claude
-created it under `.claude/worktrees/` or you created it with `git worktree add` somewhere else"
+Verification record for the launch advice. Claim: a background session launched inside a linked git
+worktree keeps the record Write in place. Basis: Claude Code skips its pre-edit move into an
+isolated worktree when "the session is already inside a linked git worktree, whether Claude created
+it under `.claude/worktrees/` or you created it with `git worktree add` somewhere else"
 (<https://code.claude.com/docs/en/agent-view#how-file-edits-are-isolated>), and a `claude --bg`
 probe from such a worktree wrote the record there (the work-loop skill's "Background-job launch
-mode" verification record carries the probe). As of 2026-09-29. Recheck trigger: that docs
-section changes its skip rules, or a Claude Code release note changes background-session
-isolation.
+mode" verification record carries the probe). As of 2026-09-29. Recheck trigger: that docs section
+changes its skip rules, or a Claude Code release note changes background-session isolation.
 
 A non-convergence, round-cap, or pause-the-loop escalation carries one extra precondition before
 it may be raised: read the actual content of every unresolved review thread first
@@ -293,17 +291,14 @@ stalled, the threshold key, and the stall-escalation shape are owned in full by
 ## Telemetry and durable loop state
 
 The telemetry home is a **per-lane tracking issue in the target repository**, resolved from launch
-config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match) whose author
-is the lane's write identity, the login the upsert script resolves (`gh api user` first, then
-`<app-slug>[bot]`, in the order [reference/telemetry-upsert.md](reference/telemetry-upsert.md)
-gives), created with
-the forge's issue creation when none is left (announce the creation). Anyone can open an issue
-with that title, so skip an exact-title match by any other author and name it in the cycle report.
-Maintain exactly ONE status comment on it
-**per lane instance**, sentinel-identified and edited in place (the `harness-ops` lane-telemetry
-contract; one writer identity owns a marker). The upsert itself, lane-instance resolution and
-validation, the singleton lookup, the POST/PATCH, the creation-race reconcile, and the
-instance-collision check, is owned by
+config; default: the open issue titled `Lane telemetry: babysit-loop` (exact match) whose author is
+the lane's write identity (the login the upsert script resolves), created with the forge's issue
+creation when none is left (announce the creation). Anyone can open an issue with that title, so
+skip an exact-title match by any other author and name it in the cycle report. Maintain exactly ONE
+status comment on it **per lane instance**, sentinel-identified and edited in place (the
+`harness-ops` lane-telemetry contract; one writer identity owns a marker). The upsert itself,
+lane-instance resolution and validation, the singleton lookup, the POST/PATCH, the creation-race
+reconcile, and the instance-collision check, is owned by
 [reference/telemetry-upsert.md](reference/telemetry-upsert.md).
 
 The comment carries the human-readable cycle report plus a machine-readable **durable loop state**
