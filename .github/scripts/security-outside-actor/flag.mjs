@@ -45,6 +45,9 @@ const KINDS = {
   pull_request_target: "pull request",
 };
 const ACTION = /^[a-z_]{1,32}$/;
+// Actions the sender takes on content another may have written: an edit, a
+// push to a pull request, a reopen.
+const SENDER_ACTIONS = new Set(["edited", "synchronize", "reopened"]);
 
 // The content's author and where it lives, from the event payload. Returns
 // null when the payload names no issue or pull request number.
@@ -54,19 +57,19 @@ export function readEvent(eventName, payload) {
   if (!Number.isInteger(number) || number < 1 || !Object.hasOwn(KINDS, eventName)) {
     return null;
   }
-  // An edit by someone other than the author (a person retitling an
-  // outsider's issue, or a collaborator who is not a member editing a
-  // member's comment) is the editor's act, so the editor is judged, by id
-  // alone.
+  // An edit, push or reopen by someone other than the author (a person
+  // retitling an outsider's issue, or a collaborator who is not a member
+  // editing a member's comment or pushing to a member's pull request) is the
+  // sender's act, so the sender is judged, by id alone.
   const sender = payload.sender ?? {};
-  const byEditor = payload.action === "edited" && Number.isInteger(sender.id) && sender.id !== content.user?.id;
-  const user = (byEditor ? sender : content.user) ?? {};
+  const bySender = SENDER_ACTIONS.has(payload.action) && Number.isInteger(sender.id) && sender.id !== content.user?.id;
+  const user = (bySender ? sender : content.user) ?? {};
   const labels = (payload.issue ?? payload.pull_request)?.labels;
   const names = new Set(Array.isArray(labels) ? labels.map((item) => item?.name) : []);
   return {
     number,
     kind: ACTION.test(payload.action ?? "") ? `${KINDS[eventName]} ${payload.action}` : KINDS[eventName],
-    association: byEditor ? undefined : content.author_association,
+    association: bySender ? undefined : content.author_association,
     id: Number.isInteger(user.id) ? user.id : null,
     login: typeof user.login === "string" && LOGIN.test(user.login) ? user.login : null,
     labeled: names.has(LABEL) && names.has(NEEDS_HUMAN),
@@ -108,7 +111,7 @@ export async function flag({ github, repository, author }) {
     author.labeled ? null : github("POST", `${base}/labels`, { labels: [LABEL, NEEDS_HUMAN] }),
     paginate(github, `${base}/comments`).then(async (comments) => {
       if (comments.some((comment) => isOwnMarker(comment, marker))) {
-        return "labeled";
+        return author.labeled ? "unchanged" : "labeled";
       }
       await github("POST", `${base}/comments`, { body: commentBody(author) });
       return "commented";

@@ -96,9 +96,9 @@ workflow with no model, secret or kill switch. It runs on an issue or pull reque
 or reopened, a pull request synchronized (`pull_request_target` for a pull request), and on a
 comment, review or diff comment created, submitted or edited. Its job starts only when the sender
 is not a Bot (an App installed here) and either the content's author is neither `OWNER` nor
-`MEMBER` or the event is an edit by someone other than the author, which judges the editor. The
-run then trusts the actor only by numeric id on the default branch's trusted-actor list, and an
-unreadable list flags. An outside actor's item gets `security: outside-actor` and `needs-human`
+`MEMBER` or the event is an edit, push or reopen by someone other than the author, which
+judges the sender. The run then trusts the actor only by numeric id on the default branch's
+trusted-actor list, and an unreadable list flags. An outside actor's item gets `security: outside-actor` and `needs-human`
 (no label write when the payload shows both already on), and one comment per actor names the
 login, without a mention, and the event, quoting none of their text. `clear-escalations.mjs`
 never removes `needs-human` from an item carrying `security: outside-actor`. It holds the job's own

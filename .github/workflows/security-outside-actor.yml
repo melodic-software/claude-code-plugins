@@ -8,9 +8,10 @@ name: security-outside-actor
 # Two skips run in the job's `if`, before a runner starts, so most events
 # cost nothing:
 # - the content's author has `author_association` OWNER or MEMBER, unless the
-#   event is an edit by someone other than that author: flag.mjs then judges
-#   the editor, so a collaborator who is not a member editing a member's text
-#   is checked;
+#   event is an edit, a push to a pull request or a reopen by someone other
+#   than that author: flag.mjs then judges the sender, so a collaborator who
+#   is not a member editing a member's text or pushing to a member's pull
+#   request is checked;
 # - the event's sender is a Bot. Only a GitHub App installed on this
 #   repository acts as a Bot, which here means one of ours, so lane traffic
 #   starts no job. Machine-user accounts are type User and are still checked.
@@ -56,7 +57,7 @@ jobs:
     # request's, else the issue's, the order flag.mjs reads them in.
     if: >-
       github.event.sender.type != 'Bot'
-      && ((github.event.action == 'edited'
+      && ((contains(fromJSON('["edited", "synchronize", "reopened"]'), github.event.action)
            && github.event.sender.id != (github.event.comment.user.id
              || github.event.review.user.id
              || github.event.pull_request.user.id

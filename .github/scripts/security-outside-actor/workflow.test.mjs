@@ -67,6 +67,18 @@ test("an edit by someone other than the content's author starts the job, whateve
   assert.equal(runs({ action: "edited", sender: { id: 2, type: "Bot" }, issue: { user: { id: 1 }, author_association: "MEMBER" } }), false, "a Bot editor");
 });
 
+test("a reopen or push by someone other than the content's author starts the job; a member's own does not", () => {
+  const member = { id: 1, type: "User" };
+  const helper = { id: 2, type: "User" };
+  for (const action of ["synchronize", "reopened"]) {
+    assert.equal(runs({ action, sender: helper, pull_request: { user: member, author_association: "MEMBER" } }), true, action);
+    assert.equal(runs({ action, sender: member, pull_request: { user: member, author_association: "MEMBER" } }), false, action);
+  }
+  assert.equal(runs({ action: "reopened", sender: helper, issue: { user: member, author_association: "OWNER" } }), true);
+  assert.equal(runs({ action: "reopened", sender: member, issue: { user: member, author_association: "OWNER" } }), false);
+  assert.equal(runs({ action: "opened", sender: helper, issue: { user: member, author_association: "OWNER" } }), false, "only edit, push and reopen judge the sender");
+});
+
 test("a Bot sender starts no job: only Apps installed here send as Bot, so lane traffic costs nothing", () => {
   assert.equal(runs({ sender: { type: "Bot" }, issue: { author_association: "NONE" } }), false);
   assert.equal(runs({ sender: { type: "User" }, issue: { author_association: "NONE" } }), true, "a machine user is still checked");

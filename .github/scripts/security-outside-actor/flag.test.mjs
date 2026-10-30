@@ -134,6 +134,39 @@ for (const [eventName, action, number, kind] of [
   });
 }
 
+for (const [eventName, action, number] of [
+  ["issues", "reopened", 5],
+  ["pull_request_target", "synchronize", 9],
+  ["pull_request_target", "reopened", 9],
+]) {
+  test(`a non-member ${eventName} ${action} on a member's item is judged as the sender and flagged`, async () => {
+    const helper = { id: 4242, login: "helper", type: "User" };
+    const payload = { ...events[eventName](LISTED, "OWNER"), action, sender: helper };
+    const { code, calls } = await run(eventName, payload);
+    assert.equal(code, 0);
+    const [label, comment] = posts(calls);
+    assert.equal(label.apiPath, `/repos/${REPO}/issues/${number}/labels`);
+    assert.ok(comment.body.body.startsWith(markerFor({ id: 4242 })));
+  });
+
+  test(`a member's ${eventName} ${action} on their own item writes nothing`, async () => {
+    const payload = { ...events[eventName](LISTED, "OWNER"), action, sender: LISTED };
+    const { code, calls } = await run(eventName, payload);
+    assert.equal(code, 0);
+    assert.deepEqual(calls, []);
+  });
+}
+
+test("an item already labeled and already commented for the actor is logged unchanged, with no write", async () => {
+  const payload = events.issue_comment(OUTSIDER, "NONE");
+  payload.issue.labels = [{ name: NEEDS_HUMAN }, { name: LABEL }];
+  const own = { user: ACTIONS_BOT, body: `${markerFor({ id: OUTSIDER.id })}\n**Outside actor.**` };
+  const { code, calls, lines } = await run("issue_comment", payload, { comments: [own] });
+  assert.equal(code, 0);
+  assert.deepEqual(posts(calls), []);
+  assert.ok(lines.some((line) => /outside actor id 777 unchanged$/.test(line)), lines.join("\n"));
+});
+
 test("an item already carrying both labels gets no label write, but a new actor still gets a comment", async () => {
   const payload = events.issue_comment(OUTSIDER, "NONE");
   payload.issue.labels = [{ name: NEEDS_HUMAN }, { name: LABEL }, { name: "bug" }];
