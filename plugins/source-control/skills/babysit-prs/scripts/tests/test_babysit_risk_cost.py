@@ -31,7 +31,7 @@ from babysit_risk import (
     person_reasons,
     score,
 )
-from test_babysit_risk import _codes, _file, _input
+from test_babysit_risk import _codes, _edit, _file, _input
 
 WORKFLOW = ".github/workflows/nightly.yml"
 PIPELINE = "conventions/pr-pipeline.yaml"
@@ -80,11 +80,17 @@ class CostHold(_Finding):
     def test_infrastructure_as_code_holds_floor_or_not(self):
         for path in (
             "infra/Pulumi.yaml",
+            "infra/Pulumi.yml",
             "infra/Pulumi.prod.yaml",
             "infra/main.tf",
+            "infra/main.tf.json",
             "infra/prod.tfvars",
+            "infra/prod.auto.tfvars.json",
             "infra/main.bicep",
             "infra/main.bicepparam",
+            "infra/azuredeploy.json",
+            "infra/azuredeploy.parameters.json",
+            "infra/mainTemplate.json",
         ):
             with self.subTest(path=path):
                 result = _cost([_file(path)])
@@ -100,6 +106,9 @@ class CostHold(_Finding):
         self.assertEqual(score(_input()).reasons, ())
         docs = _file("docs/guide.md", patch=_patch("+runs-on: macos-26", "+cron: x"))
         self.assertNotIn(COST_CODE, _codes(_cost([docs])))
+        for path in ("infra/settings.json", "infra/main.tf.md", "infra/deploy.json"):
+            with self.subTest(path=path):
+                self.assertNotIn(COST_CODE, _codes(_cost([_file(path)])))
 
     def test_a_new_schedule_holds_unless_public(self):
         # A schedule runs hosted minutes, billed off a public repository.
@@ -955,6 +964,14 @@ class LowRatedShapes(_Finding):
                 codes = _codes(_cost([wf], public=True))
                 self.assertNotIn(SECRET_EXPOSURE_CODE, codes)
                 self.assertNotIn(COST_CODE, codes)
+
+    def test_a_secret_reference_moved_to_another_file_holds(self):
+        # Each file nets on its own, so only a move within one file is zero.
+        ref = "K: ${{ secrets.LANE_TOKEN }}\n"
+        source = _edit(WORKFLOW, "jobs: {}\n" + ref, "jobs: {}\n")
+        target = _edit(".github/workflows/other.yml", "jobs: {}\n", "jobs: {}\n" + ref)
+        result = _cost([source, target], public=True)
+        self.assertSecurityHold(result, SECRET_EXPOSURE_CODE)
 
     def test_a_runner_expression_gaining_a_larger_runner_holds(self):
         matrix = (

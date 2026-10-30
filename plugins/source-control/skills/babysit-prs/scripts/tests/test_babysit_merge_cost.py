@@ -949,10 +949,13 @@ class PulumiDirs(unittest.TestCase):
         tree = {
             "Pulumi.yaml": "100644",
             "infra/x/pulumi.YAML": "100644",
+            "web/Pulumi.yml": "100644",
             "a.md": "100644",
         }
         with mock.patch.object(policy, "_tree_modes", return_value=tree):
-            self.assertEqual(policy.pulumi_dirs_at(REPO, self.PR), ("", "infra/x"))
+            self.assertEqual(
+                policy.pulumi_dirs_at(REPO, self.PR), ("", "infra/x", "web")
+            )
 
     def test_an_unlisted_tree_is_unknown(self) -> None:
         with mock.patch.object(policy, "_tree_modes", return_value=None):

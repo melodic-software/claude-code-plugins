@@ -1262,9 +1262,11 @@ the rules that only tighten in
   `cost-review-required` in both lanes, whatever `high-path-floor` says and whatever an adopted
   author's own paths leave off the floor, and waits for a human like any other HIGH reason. It
   catches:
-  - any changed `Pulumi.yaml`, `Pulumi.*.yaml`, `*.tf`, `*.tfvars`, `*.bicep` or `*.bicepparam`
-    file, and any file under a directory that holds a `Pulumi.yaml` at the base. A base tree the gate cannot
-    list whole holds every file;
+  - any changed `Pulumi.yaml`, `Pulumi.yml`, `Pulumi.*.yaml`, `*.tf`, `*.tf.json`, `*.tfvars`,
+    `*.tfvars.json`, `*.bicep` or `*.bicepparam` file, an ARM template under the quickstart or
+    Marketplace name (`azuredeploy*.json`, `mainTemplate.json`), and any file under a directory
+    that holds a `Pulumi.yaml` or `Pulumi.yml` at the base. A base tree the gate cannot list whole
+    holds every file;
   - a file renamed or copied into `.github/workflows/` or a `pr-pipeline.yaml` path from outside;
   - a runner value the workflow's head text gains over its base text, or an added inline
     `runs-on:` value: on a public repository only one that is not a free literal (GitHub's
@@ -1325,11 +1327,13 @@ the rules that only tighten in
   credential, an agent or a write token can reach, not only spend, so a person clears them and no
   cost decision does.
 
-  Accepted: a `secrets` reference moved within one file is net zero and does not hold. Other new
-  triggers, a removed `concurrency` or job `if:` guard, matrix growth and `max-parallel`, a
-  non-Claude model action, and paths outside the ones above (a workflow in a subdirectory of
-  `.github/workflows/`, `Pulumi.yml`, ARM templates, `*.tf.json`) are left to the review lanes'
-  cost hold, which holds for a real charge (`pr-review-hosted.yml`).
+  Accepted: a `secrets` reference moved within one file is net zero and does not hold, since
+  each file is counted on its own: the file already held that reference, and one moved into
+  another file is new there and holds. Other new triggers, a removed `concurrency` or job `if:`
+  guard, matrix growth and `max-parallel`, a non-Claude model action, and paths outside the ones
+  above (a workflow in a subdirectory of `.github/workflows/`, an ARM template under another
+  name) are left to the review lanes' cost hold, which holds for a real charge
+  (`pr-review-hosted.yml`).
 
   The hold clears only when the pull request body links an owner decision that covers it: a
   comment on the pull request's linked issue (its closing issue, or its `Refs:` issue as
@@ -1344,7 +1348,7 @@ the rules that only tighten in
   to merge it. Cite the decision before the
   human-gated label lands; a body edit does not remove that label (only a new head or a person
   does). Not detected: budgets, billing settings and new paid services outside these files, and
-  the shapes [#9241](https://github.com/melodic-software/claude-code-plugins/issues/9241) lists.
+  the shapes left to the review lanes above.
   azure-iac's Pulumi program is C#, and its deploy gate
   ([azure-iac#75](https://github.com/melodic-software/azure-iac/issues/75)) stops any Azure change
   for the owner at deploy time. The review lanes and the verifier judge the rest. Dependabot pull
@@ -1852,7 +1856,7 @@ approval lifts no aliasing path, symlink, submodule or mode change (`high-path:*
 trust-gate, manifest, file-cap or review-lane hold, and a review list or trusted-actor list that
 does not read lifts nothing.
 Both also hold a pull request that changes one of the merge gate's cost paths
-(`babysit_risk.COST_PATHS`: Pulumi, Terraform and Bicep files). An
+(`babysit_risk.COST_PATHS`: Pulumi, Terraform, Bicep and ARM template files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
 `cost_decision` reads it: an unedited comment by a person on the trusted-actor list whose first
 line opens `**Decision recorded.** Cost:`, on the pull request or on its one closing issue after
