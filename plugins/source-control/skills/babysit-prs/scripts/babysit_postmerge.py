@@ -3941,6 +3941,13 @@ def write_shared(path: str, shared: policy.SharedPostMerge) -> bool:
             "computedAt": shared.computed_at.isoformat(),
         },
     }
+    return _replace_json(path, payload)
+
+
+def _replace_json(path: str, payload: Mapping[str, Any]) -> bool:
+    """Write `payload` to a temp file beside `path`, then `os.replace` it,
+    so a reader sees the old file or the new one, never part of one. Best
+    effort: a failure is logged and the old file stays."""
     tmp: Path | None = None
     try:
         target = Path(path)
@@ -3954,6 +3961,109 @@ def write_shared(path: str, shared: policy.SharedPostMerge) -> bool:
                 tmp.unlink(missing_ok=True)
         return False
     return True
+
+
+# The run report's record of a gate's own check that came back unreadable.
+UNREADABLE_KEY = "unreadableRecompute"
+
+
+def _unreadable(report: Mapping[str, Any]) -> bool:
+    return (
+        report.get("ok") is not True
+        and report.get("readable") is False
+        and str(report.get("reason") or "").startswith("unreadable")
+    )
+
+
+def _unreadable_at(
+    path: str,
+    head: str,
+    floor: datetime,
+    identity: str,
+    lane_merges_only: bool,
+) -> dict[str, Any] | None:
+    """The report of an unreadable check at `path` made at main's `head` from
+    `floor` for this identity and lane within `SHARED_MAX_AGE`, or None: the
+    gate's own (`UNREADABLE_KEY`), else the job's check the file holds."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            payload = json_object(json.load(handle))
+    except (OSError, ValueError):
+        return None
+    shared = json_object(payload.get("shared"))
+    job = {
+        "mainSha": shared.get("mainSha"),
+        "since": payload.get("since"),
+        "identity": shared.get("identity"),
+        "laneMergesOnly": shared.get("laneMergesOnly"),
+        "computedAt": shared.get("computedAt"),
+        "report": {
+            k: v
+            for k, v in payload.items()
+            if k not in ("since", "shared", UNREADABLE_KEY)
+        },
+    }
+    now = datetime.now(UTC)
+    for record in (json_object(payload.get(UNREADABLE_KEY)), job):
+        report = json_object(record.get("report"))
+        try:
+            age = now - policy._time(record.get("computedAt"))
+            if (
+                record.get("mainSha") == head
+                and policy._time(record.get("since")) == floor
+                and _login_key(record.get("identity")) == _login_key(identity)
+                and record.get("laneMergesOnly") is lane_merges_only
+                and timedelta(0) <= age <= policy.SHARED_MAX_AGE
+                and _unreadable(report)
+            ):
+                return report
+        except policy.PolicyReadError:
+            continue
+    return None
+
+
+def reuse_unreadable(
+    path: str,
+    post_merge: Callable[[datetime, str], policy.PostMergeGate],
+    head: Callable[[], str | None],
+    *,
+    lane_merges_only: bool,
+) -> Callable[[datetime, str], policy.PostMergeGate]:
+    """`post_merge` for one gate candidate of a run whose report is at
+    `path`. A check this run already made at main's head now (`head()`),
+    from the same floor, identity and lane, that came back unreadable is
+    refused again with its reason and not run again: the same reads at the
+    same head answer the same, and each run costs minutes of the gate's
+    budget. A head that cannot be read runs the check. A check that comes
+    back unreadable is recorded in the file for the next candidate."""
+
+    def gate(floor: datetime, identity: str) -> policy.PostMergeGate:
+        sha = head()
+        if not (isinstance(sha, str) and policy.SHA_RE.fullmatch(sha)):
+            return post_merge(floor, identity)
+        known = _unreadable_at(path, sha, floor, identity, lane_merges_only)
+        if known is not None:
+            return gate_from_report({**known, "unreadableReusedAt": sha})
+        computed_at = datetime.now(UTC)
+        answer = post_merge(floor, identity)
+        if _unreadable(answer.report):
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    payload = json_object(json.load(handle))
+            except (OSError, ValueError):
+                payload = {}
+            payload[UNREADABLE_KEY] = {
+                "mainSha": sha,
+                "since": floor.isoformat(),
+                "identity": identity,
+                "laneMergesOnly": lane_merges_only,
+                "computedAt": computed_at.isoformat(),
+                "report": dict(answer.report),
+            }
+            _replace_json(path, payload)
+        return answer
+
+    return gate
 
 
 def _since(value: str) -> datetime:
