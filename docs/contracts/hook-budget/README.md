@@ -164,7 +164,9 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
 - **Prerequisite.** Node on PATH is now required for every exec-form hook (`command` is `node`). The launcher
   cannot detect a missing node, because the launcher is a node process; a failed launch is
   non-blocking, so the guard then enforces nothing (the
-  [philosophy Hooks row](../../plugin-philosophy.md#component-stances)). With node present and bash
+  [philosophy Hooks row](../../plugin-philosophy.md#component-stances)), unless the row sets
+  `"onFailure": "block"` on Claude Code 2.1.295 or later
+  ([`onFailure` probes](#onfailure-probes-melo-desk-001-2026-10-29)). With node present and bash
   unresolvable, the launcher exits 1: a non-blocking hook error and not a guard block, and the guard
   script does not run (the header of
   [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
@@ -224,6 +226,31 @@ form.
 The absolute times come from a one-plugin config with the harness's synthetic payloads, so they
 cannot be compared with the reference figures above. The difference between the arms is the
 measurement.
+
+### `onFailure` probes (melo-desk-001, 2026-10-29)
+
+These probes answer [#6755](https://github.com/melodic-software/claude-code-plugins/issues/6755)'s
+older-client question and its missing-interpreter question
+([#9967](https://github.com/melodic-software/claude-code-plugins/issues/9967)). Two throwaway
+plugins each carry one PreToolUse `Bash` row, `node ${CLAUDE_PLUGIN_ROOT}/hooks/h.mjs`, whose
+script exits 1. The `block` fixture sets `"onFailure": "block"` and the control fixture omits it.
+Each session (`claude -p --plugin-dir <fixture> --permission-mode auto`) asks for one Bash
+`touch` of a marker file, so a marker on disk shows the call ran. Host: WSL2 Linux, Node 24.21.0.
+
+| Probe | Client | Command | Observed |
+| --- | --- | --- | --- |
+| Older client, validator | 2.1.294 | `plugin validate --json <fixture>` | `success: true`, exit 0, no error or warning on `onFailure`; output matches the control's apart from names |
+| CI's validator (`package.json` pin) | 2.1.312 | same | Same as 2.1.294: accepted silently |
+| Older client, session | 2.1.294 | session, `block` fixture | No load error. The hook ran and failed, and the Bash call ran: the key is ignored |
+| Older client, session control | 2.1.294 | session, control fixture | Hook ran and failed, and the Bash call ran |
+| Current client, session | 2.1.314 | session, `block` fixture | Bash call denied: `failed; blocking because onFailure is "block"` |
+| Missing interpreter, `onFailure` set | 2.1.314 | session, `block` fixture, no `node` on PATH | Bash call denied: `Executable not found in $PATH: "node"`, then the same blocking message |
+| Missing interpreter, control | 2.1.314 | session, control fixture, no `node` on PATH | Bash call ran, and no hook error reached the model |
+
+So `plugin validate` gives no signal on `onFailure` in either version, and a pre-2.1.295 client
+loads the row and ignores the key, so a row that relies on `"block"` fails open there. On a current
+client, `"block"` also closes the missing-`node` gap the **Prerequisite** bullet names: the matched
+call is denied instead of running unguarded. Each session made one matched call.
 
 ## Gated Stop rows at the exec-form floor
 
