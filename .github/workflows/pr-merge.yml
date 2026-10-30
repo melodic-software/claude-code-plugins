@@ -1893,29 +1893,29 @@ jobs:
         with:
           tokens: lanes-app github-token
 
-      # One line per sweep, in the log and the summary: the two tokens' core
-      # spend across the job's own calls, from their rate-limit headers
-      # (`unknown` without two readings in one window), the candidates
-      # listed, how many the gate reached before it ended, and how many it
-      # skipped as unchanged.
+      # One line per sweep, in the log and the summary: each token's requests
+      # this job sent (the api-calls count; the rise in a pool's shared
+      # counter is not this job's cost), `unknown` when the job-end step
+      # wrote none, the candidates listed, how many the gate reached before
+      # it ended, and how many it skipped as unchanged.
       - name: Write the sweep cost
         if: always() && steps.gate.outcome != 'skipped'
         continue-on-error: true
         env:
-          COSTS: ${{ steps.budget-end.outputs.costs }}
+          CALLS: ${{ steps.budget-end.outputs.calls }}
           CANDIDATES: ${{ steps.candidates.outputs.count }}
         run: |
           lane=unknown github_token=unknown
-          for cost in $COSTS; do
-            case $cost in
-              lanes-app-cost=*) lane=${cost#*=} ;;
-              github-token-cost=*) github_token=${cost#*=} ;;
+          for count in $CALLS; do
+            case $count in
+              lanes-app-calls=*) lane=${count#*=} ;;
+              github-token-calls=*) github_token=${count#*=} ;;
             esac
           done
           reached=$(jq -n --slurpfile s "$RUNNER_TEMP/pr-merge-summary.json" --slurpfile h "$RUNNER_TEMP/held.json" \
             '($s[0] | map(select(has("carried") | not)) | length) - ($h[0] | length)' 2>/dev/null) || reached=unknown
           skipped=$(jq '[.[] | select(has("carried"))] | length' "$RUNNER_TEMP/pr-merge-summary.json" 2>/dev/null) || skipped=unknown
-          line="sweep-cost=$lane github-token-cost=$github_token candidates=${CANDIDATES:-unknown} reached=$reached skipped=$skipped"
+          line="sweep-calls=$lane github-token-calls=$github_token candidates=${CANDIDATES:-unknown} reached=$reached skipped=$skipped"
           echo "$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
 

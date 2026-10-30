@@ -156,7 +156,7 @@ test("recordReading appends the same line shape, na for a missing or malformed v
     assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
   }));
 
-test("the action emits each named token, the call count as an api-calls notice the hub reads (0 with no reading), the summary and the costs output, and reads no /rate_limit", () =>
+test("the action emits each named token, the call count as an api-calls notice the hub reads (0 with no reading), the summary and the calls and costs outputs, and reads no /rate_limit", () =>
   withDir((dir) => {
     // Two calls GitHub counted, then a conditional GET answered 304.
     readEach(dir, "github-token", head({ used: 13 }), head({ used: 41 }), head({ status: 304, used: 41 }));
@@ -187,7 +187,8 @@ test("the action emits each named token, the call count as an api-calls notice t
         `api-budget: token=github-token ${WHERE} limit=5000 remaining=4959 used=41 reset=1792748042 resource=core cost=28\n` +
         "api-calls github-token=2 not-modified=1 graphql=0\ngithub-token-cost=28\n",
     );
-    assert.equal(readFileSync(join(dir, "output"), "utf8"), "costs=github-token-cost=28\n");
+    // calls: each token's own requests (2 counted plus a 304 is 2), not the counter's rise (28).
+    assert.equal(readFileSync(join(dir, "output"), "utf8"), "calls=lanes-app-calls=0 github-token-calls=2\ncosts=github-token-cost=28\n");
     assert.doesNotMatch(ACTION + readFileSync(LIB, "utf8"), /gh api[^\n]*rate_limit/);
   }));
 
@@ -799,6 +800,15 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "post-merge-test-mutation.yml": { report: "github-token" },
     "pr-refine.yml": { "fix-docs-head": "github-token" },
     "post-merge-demotion-alert.yml": { alert: "github-token", "report-red-main": "github-token" },
+    // Every step job but the handoff jobs, whose shape callers.test.mjs pins.
+    "pr-unblock.yml": Object.fromEntries(
+      ["resolve-conflicts-not-run", "conflict-scan-refusal", "address-feedback-not-run", "review-dependency-not-run", "fix-ci-not-run", "fix-ci-unreported", "report-stop-status"].map((job) => [job, "github-token"]),
+    ),
+    "pr-review-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token" },
+    "pr-review-security-hosted.yml": { "resolve-model": "github-token", "kill-switch": "github-token" },
+    // Not run (head code) or scan (a key, and no other action from a checkout).
+    "pr-run-activity-read.yml": { "broker-check": "github-token", "issue-fields": "github-token", summary: "github-token", report: "github-token" },
+    "pr-run-activity-write.yml": { report: "github-token" },
   };
   for (const [file, tokens] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
