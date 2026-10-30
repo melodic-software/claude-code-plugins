@@ -2491,6 +2491,28 @@ class EntryHold(unittest.TestCase):
         self.fake(timelineItems={"nodes": []})
         self.assertEqual(self.hold(), "unreadable")
 
+    def test_a_pull_request_never_queued_is_judged_without_queue_events(self) -> None:
+        # The gate's capped close (babysit_merge.close_capped): a capped lane
+        # pull request was never enqueued, so no queue event and no opt-in
+        # comparison; its labels, body and people still hold it.
+        self.fake(timelineItems={"nodes": []})
+        self.assertIsNone(policy.entry_hold(REPO, 5, IDENTITY, queued=False))
+        self.fake(
+            timelineItems={"nodes": []},
+            labels={"totalCount": 1, "nodes": [{"name": "do-not-merge"}]},
+        )
+        self.assertEqual(
+            policy.entry_hold(REPO, 5, IDENTITY, queued=False), "do-not-merge"
+        )
+        self.fake(timelineItems={"nodes": []}, body="Hold: waiting on a decision")
+        self.assertEqual(
+            policy.entry_hold(REPO, 5, IDENTITY, queued=False), "body-hold"
+        )
+        self.fake(timelineItems={"nodes": []}, labels={"totalCount": 2, "nodes": []})
+        self.assertEqual(
+            policy.entry_hold(REPO, 5, IDENTITY, queued=False), "unreadable"
+        )
+
 
 def queue_fake(
     case: unittest.TestCase, entries: list[dict[str, Any]], merges: list[dict[str, Any]]

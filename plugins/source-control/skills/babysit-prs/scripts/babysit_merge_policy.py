@@ -4701,11 +4701,14 @@ def entry_hold(
     *,
     self_logins: Collection[str] = frozenset(),
     permission: Permission | None = None,
+    queued: bool = True,
 ) -> str | None:
     """Why a queued entry of the agent identity must leave the queue (D3): the
     `do-not-merge` or human-gated label, a body hold, a human blocking comment, or the opt-in
     label removed since the enqueue or put back by a non-human. An unreadable
-    entry is a hold."""
+    entry is a hold. Not `queued` (a pull request never enqueued, as the
+    gate's capped close reads it), no queue event is needed and the opt-in
+    label is not compared; a failed read still holds."""
     from babysit_merge import (  # noqa: PLC0415
         BODY_MERGE_HOLD_RE,
         human_gated_label,
@@ -4727,7 +4730,7 @@ def entry_hold(
         pr = json_object(json_object(data.get("repository")).get("pullRequest"))
         labels = _label_names(pr)
         events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
-        if labels is None or not events:
+        if labels is None or (queued and not events):
             return "unreadable"
         # Only unattended runs judge queued entries.
         if held_by := merge_hold_label(labels, human_gated=human_gated_label(repo)):
@@ -4737,6 +4740,8 @@ def entry_hold(
         blockers = _human_blockers(owner, name, number, identity)
         if blockers:
             return f"human-blocking-comment:{','.join(blockers)}"
+        if not queued:
+            return None
         opt_in = _opt_in_hold(
             owner, name, pr, json_object(events[-1]).get("createdAt"), human
         )

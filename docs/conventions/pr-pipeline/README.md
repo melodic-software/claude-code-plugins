@@ -2313,9 +2313,9 @@ a fresh attempt at its issue (`babysit_verify_evidence.py` `capped_close`, run b
 `merge.lane-prs: gate`). It judges the head again and leaves alone a pull request that is not the
 lanes App's, not open at that head, or carries `do-not-merge` or the human-gated label, and one
 whose issue link the arm path refuses (one closing issue or the `Refs:` one, clearing the trust
-hold) or whose issue carries an issue hold label. The gate also leaves open one any queued-entry
-hold names (a hold label, a body hold, a member's blocking comment), and one whose human-gated label
-it cannot read. A pull request reopened after its record stays open: it closes at the cap once. In
+hold) or whose issue carries an issue hold label. The gate also leaves open one its entry-hold
+check names, read as a pull request never enqueued (a hold label, a body hold, a member's blocking
+comment, or a failed read), and one whose human-gated label it cannot read. A pull request reopened after its record stays open: it closes at the cap once. In
 order,
 so a failed write leaves the pull request open for the next run, which finds its records and
 writes the rest: a comment on the pull request opening with
@@ -2327,7 +2327,9 @@ then the close, so a closed pull request never leaves its issue without `agent-r
 that did not carry `agent-ready` when read (a person may have taken it off) is recorded with no
 attempt and not restarted, since the App's re-add would override that person. A rerun after a
 failed close writes no issue label, except putting back an `agent-ready` whose newest removal was
-the App's own after its record. Findings are quoted only from pr-verify runs of verified origin; any
+the App's own at or after its record, or toggling one the issue still carries with no such removal
+(the run stopped before taking it off); a record with no attempt writes none, and a parked one only
+finishes an unfinished park. Findings are quoted only from pr-verify runs of verified origin; any
 other is named as not verified. `write-issue.mjs` passes that record to the next attempt as
 `author_kind: verify-findings`, the one lanes App comment it keeps besides intake's refinement. An
 issue that already had `merge.verify-cap-attempts` fresh attempts (lanes App records naming other

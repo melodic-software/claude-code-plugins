@@ -3459,26 +3459,30 @@ def _capped_record(
     return None
 
 
-def _undone_by_lane(
+def _lane_removals(
     events: list[dict[str, Any]], identity: str, since: datetime
-) -> bool:
-    """Whether the newest `agent-ready` removal among the issue's REST
-    `events` is the lanes App's own, made after its record (`since`): the one
-    an earlier run made for the fresh attempt and could not undo."""
-    removals = [
-        e
-        for e in map(json_object, events)
-        if e.get("event") == "unlabeled"
-        and str(json_object(e.get("label")).get("name") or "").lower() == AGENT_READY
-    ]
-    if not removals:
-        return False
-    newest = max(removals, key=lambda e: postmerge._time(e.get("created_at")))
-    return (
-        str(json_object(newest.get("actor")).get("login") or "").lower()
-        == identity.lower()
-        and postmerge._time(newest.get("created_at")) > since
+) -> tuple[bool, bool]:
+    """Among the issue's REST `events`, whether the lanes App removed
+    `agent-ready` at or after its record (`since`; times have one-second
+    resolution, and the record and the removal land in the same second), and
+    whether the newest removal is such a one: the removal an earlier run made
+    for the fresh attempt and could not undo."""
+    removals = sorted(
+        (
+            e
+            for e in map(json_object, events)
+            if e.get("event") == "unlabeled"
+            and str(json_object(e.get("label")).get("name") or "").lower()
+            == AGENT_READY
+        ),
+        key=lambda e: postmerge._time(e.get("created_at")),
     )
+    ours = [
+        str(json_object(e.get("actor")).get("login") or "").lower() == identity.lower()
+        and postmerge._time(e.get("created_at")) >= since
+        for e in removals
+    ]
+    return any(ours), bool(ours) and ours[-1]
 
 
 def _spent(comments: list[dict[str, Any]], identity: str, number: int) -> int:
@@ -3522,7 +3526,9 @@ def capped_close(
     resolved refuses). A pull request is closed at the cap once: one reopened
     after its record stays open, and a rerun after a failed close writes no
     issue label, except putting back an `agent-ready` the newest removal of
-    which was the lanes App's own after its record (`_undone_by_lane`).
+    which was the lanes App's own at or after its record (`_lane_removals`);
+    one carrying it with no such removal is toggled, since the run that
+    wrote the record stopped before the label came off.
     FAIL findings come only from runs of verified origin. Raises
     `RuntimeError` on a failed
     write or a failed issue read, `PostMergeReadError` on a failed comments
@@ -3582,10 +3588,12 @@ def capped_close(
         return {"closed": False, "reason": "reopened after its capped-close record"}
     # `attempt` None: the issue did not carry agent-ready when read (a person
     # may have taken it off), so it is recorded without an attempt and not
-    # restarted. `readd`: whether its labels are written. A record naming an
-    # attempt means an earlier run started it: a rerun writes no label unless
-    # the newest removal of agent-ready is that run's own (`_undone_by_lane`),
-    # which it puts back without a second toggle.
+    # restarted. `labels`: which label writes it gets (park, toggle, add or
+    # none). On a rerun, a record with no attempt writes none; a parked one
+    # writes the park labels only while unfinished; one naming an attempt
+    # toggles only when no lanes App removal followed the record, and puts
+    # agent-ready back only when the newest removal is that one
+    # (`_lane_removals`).
     plan: list[
         tuple[int, list[dict[str, Any]], tuple[int, int] | None, bool, str]
     ] = []
@@ -3600,16 +3608,35 @@ def capped_close(
         if found is not None and found[0][3] is not None:
             prior, since = found
             attempt, parked = (int(prior[3]), int(prior[4])), bool(prior[5])
+            names = {
+                label.lower() for label in merge_policy._label_names(live[issue]) or []
+            }
             if parked:
-                labels = "park"
-            elif carried:
-                labels = "none"
+                # Written once: the park labels go on again only while unfinished.
+                done = STATUS_CONFIRMED in names and not names & {
+                    STATUS_READY,
+                    AGENT_READY,
+                }
+                labels = "none" if done else "park"
             else:
-                events = postmerge._paginated(
-                    f"repos/{repo}/issues/{issue}/events?per_page=100",
-                    f"#{issue} events",
+                removed, newest = _lane_removals(
+                    postmerge._paginated(
+                        f"repos/{repo}/issues/{issue}/events?per_page=100",
+                        f"#{issue} events",
+                    ),
+                    identity,
+                    since,
                 )
-                labels = "add" if _undone_by_lane(events, identity, since) else "none"
+                if carried:
+                    # No removal since the record: the run stopped before it,
+                    # so no labeled event ever started the attempt.
+                    labels = "none" if removed else "toggle"
+                else:
+                    labels = "add" if newest else "none"
+        elif found is not None:
+            # Recorded with no attempt: nothing is restarted, whatever a
+            # person did since.
+            attempt, parked, labels = None, False, "none"
         else:
             spent = _spent(comments, identity, number)
             parked = spent >= attempts
@@ -3667,7 +3694,7 @@ def capped_close(
                 f"#{issue} record",
             )
         base = f"repos/{repo}/issues/{issue}/labels"
-        if parked:
+        if labels == "park":
             _gh_write(
                 ["api", "-X", "POST", base, "-f", f"labels[]={STATUS_CONFIRMED}"],
                 f"#{issue} {STATUS_CONFIRMED}",

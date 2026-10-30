@@ -254,12 +254,79 @@ class ClosesForAFreshAttempt(unittest.TestCase):
         # The next run finds both records (the reads return what was posted).
         world.comments[PR] = [comment(world.body(0))]
         world.comments[ISSUE] = [comment(world.body(1))]
+        # Its removal landed in the record's second (1 s resolution).
+        world.events[ISSUE] = [event("unlabeled", BOT, RECORDED)]
         world.writes.clear()
         result = world.run()
         # The issue still carries the agent-ready the first run put back, so
         # the rerun only closes: no second toggle starts a second work run.
         self.assertEqual(result["restarted"], [])
         self.assertEqual(world.calls(), [f"PATCH repos/{REPO}/pulls/{PR}"])
+
+    def test_a_rerun_after_a_record_with_no_removal_toggles(self) -> None:
+        # The record went on but the run stopped before agent-ready came off:
+        # no labeled event ever started the attempt, so the rerun toggles.
+        for name, events in (
+            ("no removal", []),
+            ("only a person's", [event("unlabeled", "kyle-sexton", LATER)]),
+            ("the App's before the record", [event("unlabeled", BOT, EARLIER)]),
+        ):
+            with self.subTest(name):
+                world = World()
+                world.comments[PR] = [
+                    comment(f"<!-- verify-capped-close pr={PR} heads= -->")
+                ]
+                world.comments[ISSUE] = [
+                    comment(
+                        f"<!-- verify-capped-close pr={PR} heads= attempt=1 of=1 -->"
+                    )
+                ]
+                world.events[ISSUE] = events
+                result = world.run()
+                self.assertEqual(result["restarted"], [ISSUE])
+                self.assertEqual(
+                    world.calls(),
+                    [
+                        f"DELETE repos/{REPO}/issues/{ISSUE}/labels/agent-ready",
+                        f"POST repos/{REPO}/issues/{ISSUE}/labels",
+                        f"PATCH repos/{REPO}/pulls/{PR}",
+                    ],
+                )
+
+    def test_a_rerun_after_a_record_with_no_attempt_writes_no_label(self) -> None:
+        # A person may have added agent-ready since: that started its run.
+        world = World()
+        world.comments[PR] = [comment(f"<!-- verify-capped-close pr={PR} heads= -->")]
+        world.comments[ISSUE] = [
+            comment(f"<!-- verify-capped-close pr={PR} heads= -->")
+        ]
+        result = world.run()
+        self.assertEqual(result["unrestarted"], [ISSUE])
+        self.assertEqual(world.calls(), [f"PATCH repos/{REPO}/pulls/{PR}"])
+
+    def test_a_parked_rerun_writes_park_labels_only_while_unfinished(self) -> None:
+        parked = f"<!-- verify-capped-close pr={PR} heads= attempt=1 of=1 parked -->"
+        for labels, writes in (
+            (("status: confirmed",), [f"PATCH repos/{REPO}/pulls/{PR}"]),
+            (
+                ("status: confirmed", "agent-ready"),
+                [
+                    f"POST repos/{REPO}/issues/{ISSUE}/labels",
+                    f"DELETE repos/{REPO}/issues/{ISSUE}/labels/status%3A%20ready",
+                    f"DELETE repos/{REPO}/issues/{ISSUE}/labels/agent-ready",
+                    f"PATCH repos/{REPO}/pulls/{PR}",
+                ],
+            ),
+        ):
+            with self.subTest(labels):
+                world = World()
+                world.comments[PR] = [
+                    comment(f"<!-- verify-capped-close pr={PR} heads= -->")
+                ]
+                world.comments[ISSUE] = [comment(parked)]
+                result = world.run(StubReader(issue_labels=labels))
+                self.assertEqual(result["parked"], [ISSUE])
+                self.assertEqual(world.calls(), writes)
 
     def test_a_pull_request_reopened_after_its_record_is_left_alone(self) -> None:
         world = World()
@@ -373,8 +440,8 @@ class ClosesForAFreshAttempt(unittest.TestCase):
             world.run()
         world.comments[PR] = [comment(world.body(0))]
         world.comments[ISSUE] = [comment(world.body(1))]
-        # Its own removal, after its record, is the one the rerun undoes.
-        world.events[ISSUE] = [event("unlabeled", BOT, LATER)]
+        # Its own removal, in its record's second, is the one the rerun undoes.
+        world.events[ISSUE] = [event("unlabeled", BOT, RECORDED)]
         del world.gh
         world.writes.clear()
         result = world.run(StubReader(issue_labels=()))

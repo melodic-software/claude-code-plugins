@@ -4224,9 +4224,13 @@ class LaneRequiresAVerdict(unattended.Unattended):
             with self.subTest(hold):
                 self.verdicts[unattended.PR] = evidence("verify:repeated-fail")
                 self.holds[unattended.PR] = hold
+                seen: list[dict[str, Any]] = []
+                self.hold_hook = lambda kw: seen.append(kw)  # type: ignore[assignment]
                 with mock.patch.object(ve, "capped_close") as close:
                     _, out = self.lane()
                 close.assert_not_called()
+                # Read as a pull request never enqueued.
+                self.assertIn(False, [kw.get("queued") for kw in seen])
                 self.assertEqual(
                     out["unattended"]["writes"]["cappedClose"],
                     {"closed": False, "reason": f"held: {hold}"},

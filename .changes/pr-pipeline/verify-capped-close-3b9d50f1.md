@@ -18,9 +18,10 @@ bump: patch
   names once it is closed, so a fresh attempt starts its own count. A record anyone
   else wrote or edited excuses nothing.
 - A pull request reopened after its capped-close record stays open, a rerun after a failed close
-  toggles no issue label again, the gate path leaves open a pull request any queued-entry hold
-  names or whose human-gated label is unreadable, and findings come only from runs of verified
-  origin.
+  toggles no issue label again unless the run that wrote the record stopped before taking
+  `agent-ready` off, the gate path leaves open a pull request a hold label, body hold, member's
+  blocking comment or failed read holds (read as never enqueued) or whose human-gated label is
+  unreadable, and findings come only from runs of verified origin.
 - `label-unblocked.mjs` hands no issue to triage for a lane pull request closed at the cap whose
   record names an attempt, and
   `write-issue.mjs` passes the capped-close record to the next attempt as

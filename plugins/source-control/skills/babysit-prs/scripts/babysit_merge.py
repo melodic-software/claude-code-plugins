@@ -3963,6 +3963,7 @@ def close_capped(
         identity,
         self_logins=inputs.get("self_logins") or frozenset(),
         permission=inputs.get("permission"),
+        queued=False,
     ):
         return {"closed": False, "reason": f"held: {hold}"}
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
