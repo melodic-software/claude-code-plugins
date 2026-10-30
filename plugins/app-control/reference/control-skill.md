@@ -161,11 +161,20 @@ sections in this order:
 | Section | Holds |
 |---|---|
 | `## Parts` | The distinct behaviors inside the feature, one short line each |
-| `## Sub-features` | The features nested inside this one, each a pointer to its own feature file, or `none` |
-| `## Entry points` | Where a user starts the feature, one line each. Each line ends `driven` or `not driven: <reason>` |
+| `## Sub-features` | The states or branches inside this feature that have their own feature file, each a pointer to it, or `none` |
+| `## Entry points` | Where a user starts the feature, one line each. Each line ends `driven` or `not driven: <reason>`, the reason naming what would make it drivable, such as a test account, a seeded record or a `cli/` command |
 | `## Reset` | How to return the app's own data to a known state |
 | `## Drive` | The steps a user takes, one action per step |
 | `## Gotchas` | What has made a run lie or fail before |
+
+A feature is a goal a user comes to the app to reach, such as placing an order. A sub-feature is a
+state or branch inside that goal, such as an order paid with a saved card, never a separate goal.
+A state or branch with no feature file of its own is a line in `## Parts`.
+
+UI that differs by tenant or configuration, such as a control a setting turns off or a role
+hides, is a named precondition in `## Drive`, stating the tenant, setting or role the steps need,
+or a step whose selector matches every variant. A selector written against one tenant's UI fails
+on the next tenant.
 
 A feature's id is `<feature>`, or `<module>/<feature>` when it sits in a module folder. Drive
 resolves an id, relative to the skill's base directory, to `features/<id>/README.md`, then to the
@@ -179,6 +188,20 @@ Each direct child of `shared/`, a folder or a file, is one item. A feature uses 
 feature file names `shared/<item>`; an item fewer than two features use belongs in that feature's
 own folder, and `/app-control:map check` reports it. Each item says why it is shared on a line
 `Why shared: <reason>`, in its `README.md` for a folder or in the file itself.
+
+When the project signs in once and saves the session for the features that follow (an auth
+bootstrap, such as a test harness's setup step or a `cli/` command; drive runs none), that
+bootstrap runs the mapped sign-in steps, from `shared/` or by reference from the integrated app
+that owns sign-in, and never copies their selectors, so the sign-in selectors live in one place.
+Each feature that runs on the saved session names that sign-in item in its feature file, which is
+how Shared items counts its users.
+
+A feature that signs out runs in a throwaway browser session, never in the session the bootstrap
+saved: signing out there can end the saved session for every feature that runs after it. The
+throwaway session signs in with an account no other feature in the run signs in with, or with a
+second attempt committed config allows for that account under the Sign-in floor. When the driving
+tool drives the person's own signed-in browser, a feature that signs out is
+`not driven: needs a driving tool that opens its own browser session`.
 
 ## Size budget
 
