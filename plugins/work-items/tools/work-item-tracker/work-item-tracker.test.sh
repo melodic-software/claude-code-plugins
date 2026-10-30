@@ -3,6 +3,7 @@
 # list-frontier derivation — all against a fake adapter (no network, no gh).
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/* plugins/work-items/tools/work-item-tracker/adapters/*/capabilities.json
 # test-scope: plugins/work-items/tools/work-item-tracker/lib/id.sh plugins/work-items/tools/work-item-tracker/lib/lease.sh
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/get-field-options.sh plugins/work-items/tools/work-item-tracker/adapters/github/common.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -373,6 +374,80 @@ for m in "$SCRIPT_DIR"/adapters/*/capabilities.json; do
     pass "$a grammar needs a delimiter after the ref"
   fi
 done
+
+# --- status-storage: the bundled adapters over fixtures (no network) ---
+# github reads the org issue-field listing through a gh stub; local-markdown declares no
+# get-field-options, so it reports labels without any read.
+STATUS_STUB="$TEST_TMPDIR/status-stub-bin"
+mkdir -p "$STATUS_STUB"
+cat >"$STATUS_STUB/gh" <<'EOF'
+#!/usr/bin/env bash
+for a in "$@"; do
+  case "$a" in
+  orgs/*/issue-fields)
+    case "$STATUS_FIELDS" in
+    present) printf '%s\n' '[{"data_type":"single_select","id":15462270,"name":"Size","options":[{"id":1,"name":"Small"}]},{"data_type":"single_select","id":48625799,"name":"Work status","options":[{"id":2,"name":"needs-triage"},{"id":3,"name":"agent-ready"}]}]' ;;
+    absent) printf '%s\n' '[{"data_type":"single_select","id":15462270,"name":"Size","options":[{"id":1,"name":"Small"}]}]' ;;
+    *) printf '%s\n' "$STATUS_FIELDS" >&2; exit 1 ;;
+    esac
+    exit 0
+    ;;
+  esac
+done
+exit 90
+EOF
+chmod +x "$STATUS_STUB/gh"
+STATUS_GH_BINDING="$TEST_TMPDIR/status-github.json"
+printf '%s\n' '{"schema_version":"1.0","provider":"github","config":{"lease_ttl_hours":24}}' >"$STATUS_GH_BINDING"
+
+# run_status_github <fixture>: status-storage on the bundled github adapter; stdout to OUT.
+run_status_github() {
+  OUT="$(STATUS_FIELDS="$1" PATH="$STATUS_STUB:$PATH" WORK_ITEM_TRACKER_BINDING="$STATUS_GH_BINDING" \
+    WIT_ADAPTERS_DIR="$SCRIPT_DIR/adapters" bash "$DISPATCHER" status-storage --repo o/r 2>/dev/null)"
+  RC=$?
+}
+
+run_status_github present
+assert_eq "status-storage github, field present → exit 0" "0" "$RC"
+assert_eq "status-storage github, field present → field" "field" "$(jq -r '.storage' <<<"$OUT")"
+assert_eq "status-storage github, field present names the field" "Work status" "$(jq -r '.field' <<<"$OUT")"
+
+run_status_github absent
+assert_eq "status-storage github, field absent → exit 0" "0" "$RC"
+assert_eq "status-storage github, field absent → labels" "labels" "$(jq -r '.storage' <<<"$OUT")"
+assert_eq "status-storage github, labels names no field" "null" "$(jq -r '.field' <<<"$OUT")"
+
+run_status_github "gh: Not Found (HTTP 404)"
+assert_eq "status-storage github, user-owned repo listing → exit 0" "0" "$RC"
+assert_eq "status-storage github, user-owned repo listing → labels" "labels" "$(jq -r '.storage' <<<"$OUT")"
+
+run_status_github "gh: Forbidden (HTTP 403)"
+assert_eq "status-storage github, listing without read:org → exit 0" "0" "$RC"
+assert_eq "status-storage github, listing without read:org → labels" "labels" "$(jq -r '.storage' <<<"$OUT")"
+
+run_status_github "gh: API rate limit exceeded for user ID 1. (HTTP 403)"
+assert_eq "status-storage github, rate-limited 403 → adapter's exit 4" "4" "$RC"
+assert_eq "status-storage github, rate-limited 403 → no answer" "" "$OUT"
+
+run_status_github "To get started with GitHub CLI, please run: gh auth login (not logged in)"
+assert_eq "status-storage github, gh not logged in → adapter's exit 4" "4" "$RC"
+
+run_status_github "dial tcp: connection refused"
+assert_eq "status-storage github, provider unreachable → adapter's exit 8" "8" "$RC"
+assert_eq "status-storage github, provider unreachable → no answer" "" "$OUT"
+
+STATUS_LM_BINDING="$TEST_TMPDIR/status-local-markdown.json"
+jq -n --arg dir "$TEST_TMPDIR/status-lm-items" \
+  '{schema_version:"1.0",provider:"local-markdown",config:{lease_ttl_hours:24,storage_dir:$dir}}' \
+  >"$STATUS_LM_BINDING"
+OUT="$(WORK_ITEM_TRACKER_BINDING="$STATUS_LM_BINDING" WIT_ADAPTERS_DIR="$SCRIPT_DIR/adapters" \
+  bash "$DISPATCHER" status-storage 2>/dev/null)"
+assert_eq "status-storage local-markdown → exit 0" "0" "$?"
+assert_eq "status-storage local-markdown → labels" "labels" "$(jq -r '.storage' <<<"$OUT")"
+assert_eq "status-storage local-markdown schema_version" "1.0" "$(jq -r '.schema_version' <<<"$OUT")"
+
+run_dispatcher status-storage --bogus >/dev/null 2>&1
+assert_eq "status-storage bad flag → exit 2" "2" "$?"
 
 # --- gh version gate is scoped to the native sub-issue/dependency surface ---
 # Provider "github" applies the gate while WIT_ADAPTERS_DIR points at stub verbs:

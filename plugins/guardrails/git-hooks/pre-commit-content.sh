@@ -93,19 +93,17 @@ if [[ -n "$home" ]]; then
   esac
 fi
 
-# index_mode <path>: the staged mode, empty when the path is not staged.
-index_mode() {
-  local entry
-  entry="$(git ls-files -s -- ":(literal)$1" 2>/dev/null)"
-  printf '%s' "${entry%% *}"
+# src_has_nul <file>: checks_has_nul's test, on content already read out.
+src_has_nul() {
+  local LC_ALL=C chunk
+  IFS= read -r -d '' -n 8000 chunk <"$1" && ((${#chunk} < 8000))
 }
 
-file_size() {
-  if [[ "$CHECKS_MODE" == worktree ]]; then
-    wc -c <"$1" | tr -d ' '
-  else
-    git cat-file -s ":$1" 2>/dev/null || echo 0
-  fi
+# ascii_text <text>: 0 when every byte is ASCII. A case pattern, as in
+# hpp::prefilter, since Git Bash's regex decodes UTF-8 even under C.
+ascii_text() {
+  local LC_ALL=C non_ascii=$'[!\x01-\x7f]'
+  [[ $1 != *$non_ascii* ]]
 }
 
 checks_changed_lines
@@ -118,39 +116,145 @@ added_only() {
     { keep = 0; for (i = 1; i <= n; i++) if (NR >= s[i] && NR <= e[i]) { keep = 1; break } print (keep ? $0 : "") }'
 }
 
-# secret_findings <path>: secrets::scan_text output on stdin, as findings.
+# scan_failed <path>: a file this check could not read out or write down
+# blocks the commit, since the scan would otherwise skip it.
+scan_failed() {
+  printf 'guardrails: %s: could not be scanned (is %s full?); free space there, then commit again.\n' "$1" "$CHECKS_TMP" >&2
+  exit 1
+}
+
+# Each finding is written behind "<file index><TAB><0 secret, 1 path><TAB>",
+# and untag puts a sink back in file order, secrets first, as the final sort -u
+# keeps the first of findings that share a path and line.
+tab=$'\t'
+untag() {
+  sort -s -t "$tab" -k1,1n -k2,2n "$1" | cut -f3-
+}
+
+# secret_findings <path> <file index>: secrets::scan_text output on stdin, as
+# findings.
 secret_findings() {
   sed -n 's/^\(.*\) (line \([0-9,]*\))$/\2 \1/p' |
     while read -r nums label; do
       for n in ${nums//,/ }; do
-        printf '%s:%s: secret or credential pattern: %s\n' "$1" "$n" "$label"
+        printf '%s\t0\t%s:%s: secret or credential pattern: %s\n' "$2" "$1" "$n" "$label"
       done
     done
 }
 
+# hpp_judge <i>: hpp::scan_text on one file, its findings to the file's sink.
+hpp_judge() {
+  hpp::scan_text "${texts[$1]}" "$scan_root" "$PWD/${names[$1]}" |
+    awk -v f="${names[$1]}" -v tag="${order[$1]}" '
+      /^[^ \t].*:$/ && !/^[0-9]+:/ { label = substr($0, 1, length($0) - 1); next }
+      match($0, /^[0-9]+:/) { printf "%s\t1\t%s:%s: machine-specific path (%s)\n", tag, f, substr($0, 1, RLENGTH - 1), label }' >>"${sinks[$1]}"
+}
+
+# hpp_sweep <from> <to>: judge the files pool[from..to). Their texts joined
+# scan clean only when each one does: every check is per line, and a joined
+# scan names no file, so no OS context turns a check off. A group that does
+# not scan clean is halved down to single files, each judged on its own. The
+# pool holds ASCII text only, so no grep reads an encoding error in one file
+# as binary and stays quiet about a match in another. A group over
+# JOIN_MAX bytes is split unprobed: the scan hands awk its matched line
+# numbers in one argument, and a joined text past that size could outgrow the
+# argument limit (32 KiB on Windows), fail the awk and scan clean.
+JOIN_MAX=32768
+hpp_sweep() {
+  local from=$1 to=$2 i t joined="" mid
+  if ((to - from == 1)); then
+    hpp_judge "${pool[from]}"
+    return
+  fi
+  for ((i = from; i < to && ${#joined} <= JOIN_MAX; i++)); do
+    t="${texts[pool[i]]}"
+    joined+="$t"
+    [[ "${t: -1}" == $'\n' ]] || joined+=$'\n'
+  done
+  if ((${#joined} <= JOIN_MAX)); then
+    hpp::scan_text "$joined" "$scan_root" >/dev/null && return
+  fi
+  mid=$(((from + to) / 2))
+  hpp_sweep "$from" "$mid"
+  hpp_sweep "$mid" "$to"
+}
+
+# The files to judge: paths[i] names one and, in pre-commit, keeps[i] is its
+# staged object id. Pre-commit takes the staged modes and object ids from one
+# raw diff, which lists the files checks_files does, and the sizes from one
+# batch query, so each file costs one git process, the one that reads it out.
+paths=()
+keeps=()
+mkdir "$CHECKS_TMP/scan" || scan_failed .
+if [[ "$CHECKS_MODE" == worktree ]]; then
+  while IFS= read -r -d '' f; do
+    [[ -f "$f" && ! -L "$f" ]] || continue
+    (($(wc -c <"$f" | tr -d ' ') <= MAX_BYTES)) || continue
+    paths+=("$f")
+  done < <(checks_files)
+else
+  staged=()
+  blobs=()
+  # ":<mode> <mode> <id> <id> <status>", then the path; a rename or copy
+  # names its source first.
+  while IFS= read -r -d '' meta && IFS= read -r -d '' f; do
+    case "${meta##* }" in
+    R* | C*) IFS= read -r -d '' f || break ;;
+    *) ;;
+    esac
+    rest="${meta#* }"
+    case "${rest%% *}" in
+    100644 | 100755) ;;
+    *) continue ;;
+    esac
+    rest="${rest#* }"
+    rest="${rest#* }"
+    staged+=("$f")
+    blobs+=("${rest%% *}")
+  done < <(checks_diff --raw --no-abbrev -z --diff-filter=ACMR)
+  sizes=()
+  if ((${#blobs[@]})); then
+    while read -r s; do
+      sizes+=("$s")
+    done < <(printf '%s\n' "${blobs[@]}" | git cat-file --batch-check='%(objectsize)' 2>/dev/null)
+  fi
+  for ((i = 0; i < ${#staged[@]}; i++)); do
+    s="${sizes[i]:-0}"
+    [[ "$s" =~ ^[0-9]+$ ]] || s=0
+    ((s <= MAX_BYTES)) || continue
+    paths+=("${staged[i]}")
+    keeps+=("${blobs[i]}")
+  done
+fi
+
+# names[i], texts[i], sinks[i] and order[i]: each file the scans read, its
+# text, where its findings go and its index in paths; $CHECKS_TMP/scan/<i>
+# holds the same text for a grep that reads every file in one process.
 out="$CHECKS_TMP/findings"
 whole="$CHECKS_TMP/findings-whole"
 : >"$out"
 : >"$whole"
-while IFS= read -r -d '' f; do
-  if [[ "$CHECKS_MODE" == worktree ]]; then
-    [[ -f "$f" && ! -L "$f" ]] || continue
-  else
-    case "$(index_mode "$f")" in
-    100644 | 100755) ;;
-    *) continue ;;
-    esac
+names=()
+texts=()
+sinks=()
+order=()
+scanned=0
+for ((i = 0; i < ${#paths[@]}; i++)); do
+  f="${paths[i]}"
+  src="$f"
+  if [[ "$CHECKS_MODE" != worktree ]]; then
+    src="$CHECKS_TMP/blob"
+    git cat-file blob "${keeps[i]}" >"$src" 2>/dev/null || scan_failed "$f"
   fi
-  (($(file_size "$f") <= MAX_BYTES)) || continue
-  if checks_has_nul "$f"; then
+  if src_has_nul "$src"; then
     # A NUL byte must not hide a secret: scan the whole raw content for the
     # secret patterns twice, each NUL read as a space, then each NUL deleted
     # (UTF-16LE text puts one after every ASCII byte). Both keep newlines, so
     # line numbers hold; the second pass reports only labels the first missed.
     # Path patterns are not judged here, so an ordinary binary still commits.
     secret_exempt "$f" && continue
-    text="$(checks_file_text "$f" | tr '\0' ' '; printf x)"
-    packed="$(checks_file_text "$f" | tr -d '\0'; printf x)"
+    text="$(tr '\0' ' ' <"$src"; printf x)"
+    packed="$(tr -d '\0' <"$src"; printf x)"
     {
       secrets::scan_text "${text%x}"
       echo --
@@ -158,35 +262,74 @@ while IFS= read -r -d '' f; do
     } | awk '$0 == "--" { p2 = 1; next }
       { l = $0; sub(/ \(line [0-9,]*\)$/, "", l) }
       p2 && (l in seen) { next }
-      !p2 { seen[l] } { print }' | secret_findings "$f" >>"$whole"
+      !p2 { seen[l] } { print }' | secret_findings "$f" "$i" >>"$whole"
     continue
   fi
   sink="$out"
   if [[ "$f" == *[\"\\[:cntrl:]]* ]]; then
     # Git quotes such a name whatever core.quotePath says, so the range table
     # holds no entry for it: the file is judged whole, past the range filter.
-    text="$(checks_file_text "$f"; printf x)"
+    text="$(cat -- "$src"; printf x)"
     sink="$whole"
   else
-    text="$(checks_file_text "$f" | added_only "$f"; printf x)"
+    text="$(added_only "$f" <"$src"; printf x)"
   fi
   text="${text%x}"
   [[ -n "${text//[[:space:]]/}" ]] || continue
+  names[scanned]="$f"
+  texts[scanned]="$text"
+  sinks[scanned]="$sink"
+  order[scanned]="$i"
+  printf '%s' "$text" >"$CHECKS_TMP/scan/$scanned" || scan_failed "$f"
+  scanned=$((scanned + 1))
+done
 
-  if ! secret_exempt "$f"; then
-    secrets::scan_text "$text" | secret_findings "$f" >>"$sink"
+# One grep lists the files a secret pattern matches, the test
+# secrets::any_match makes on each, and only those are scanned. When the grep
+# fails, every file is.
+secret_args=()
+for p in "${SECRET_PATTERNS[@]}"; do
+  secret_args+=(-e "$p")
+done
+hits=()
+if ((scanned)); then
+  : >"$CHECKS_TMP/secret-hits" || scan_failed .
+  LC_ALL=C grep -rlE "${secret_args[@]}" -- "$CHECKS_TMP/scan" >"$CHECKS_TMP/secret-hits" 2>/dev/null
+  if (($? > 1)); then
+    for ((i = 0; i < scanned; i++)); do
+      hits[i]=1
+    done
+  else
+    while IFS= read -r p; do
+      p="${p##*/}"
+      [[ "$p" =~ ^[0-9]+$ ]] && hits[p]=1
+    done <"$CHECKS_TMP/secret-hits"
   fi
-  if ! path_exempt "$f"; then
-    hpp::scan_text "$text" "$scan_root" "$PWD/$f" |
-      awk -v f="$f" '
-        /^[^ \t].*:$/ && !/^[0-9]+:/ { label = substr($0, 1, length($0) - 1); next }
-        match($0, /^[0-9]+:/) { printf "%s:%s: machine-specific path (%s)\n", f, substr($0, 1, RLENGTH - 1), label }' >>"$sink"
+fi
+for ((i = 0; i < scanned; i++)); do
+  [[ -n "${hits[i]:-}" ]] || continue
+  secret_exempt "${names[i]}" && continue
+  secrets::scan_text "${texts[i]}" | secret_findings "${names[i]}" "${order[i]}" >>"${sinks[i]}"
+done
+
+# hpp::prefilter clears most files with no process. Of the rest, ASCII text
+# goes to hpp_sweep and other text is judged file by file.
+pool=()
+for ((i = 0; i < scanned; i++)); do
+  path_exempt "${names[i]}" && continue
+  hpp::prefilter "${texts[i]}" "$scan_root"
+  [[ $HPP_GATE == clean ]] && continue
+  if ascii_text "${texts[i]}"; then
+    pool+=("$i")
+  else
+    hpp_judge "$i"
   fi
-done < <(checks_files)
+done
+((${#pool[@]} == 0)) || hpp_sweep 0 "${#pool[@]}"
 
 {
-  checks_filter_findings <"$out"
-  cat "$whole"
+  untag "$out" | checks_filter_findings
+  untag "$whole"
 } | sort -u -t: -k1,1 -k2,2n >"$CHECKS_TMP/blocking"
 [[ -s "$CHECKS_TMP/blocking" ]] || exit 0
 cat "$CHECKS_TMP/blocking" >&2

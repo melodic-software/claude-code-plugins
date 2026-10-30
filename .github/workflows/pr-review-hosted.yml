@@ -275,9 +275,12 @@ jobs:
         .github/scripts/pr-unblock/verify-notes.mjs
         .github/scripts/pr-unblock/limit-stop.mjs
         .github/scripts/pr-unblock/dispatch-record.mjs
+        .github/scripts/pr-unblock/verify-cap.mjs
         .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs
         .github/scripts/work-resolve-issue/stop-routes.json
         .github/scripts/work-resolve-issue/stop-routes.mjs
+        .github/scripts/lib/stop-reason.mjs
+        .github/scripts/lib/done-evidence.mjs
         .github/scripts/pr-review-main/**
         **/.claude/**
         **/.claude-lane/**

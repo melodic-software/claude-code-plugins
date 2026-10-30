@@ -98,7 +98,10 @@
 // is `turn-cap` or `retry` (report-outcome kept agent-ready, so a restart is
 // left) is restarted the same way at once, while its markers of that outcome
 // since a person last added agent-ready are within limits.turn-cap-restarts
-// or limits.stop-retries. A funding stop (the lane's Claude capacity: a spend
+// or limits.stop-retries. One whose newest marker is `wait` names the pull
+// request it waits on (`pr=`): it waits while that pull request is open and
+// is then restarted like a retry, its waits counted against
+// limits.stop-retries apart from its retries. A funding stop (the lane's Claude capacity: a spend
 // limit, no credit or a disabled key) is restarted like a limit stop, after
 // its regain date or, with none, limits.fallback-reset hours after the stop.
 // At most
@@ -171,6 +174,10 @@
 // issue of a Refs PR, and this lifts that hold once that PR merges or closes
 // unmerged, only while its refs-hold marker and the App's needs-human label
 // are the newest. Each hand-off also counts against limits.restarts-per-run.
+// A lane PR the pr-merge lane closed at the verify cap, which its
+// capped-close record on the issue names with an attempt, is no hand-off:
+// that lane already restarted the issue for a fresh attempt or parked it.
+// The issues this path reads carry agent-ready.
 //
 // It relabels a red-main fix issue post-merge-demotion-alert.yml reopened on
 // a repeat failure: the reopen keeps agent-ready but ran on that workflow's
@@ -280,6 +287,11 @@ const SWEEP_JOB = "label-unblocked";
 const SWEEP_STEP = "Label the unblocked issues";
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40})( breaker)? -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
+// The pr-merge lane's capped-close record on the issue
+// (babysit_verify_evidence.py CAPPED_CLOSE_RE) naming an attempt: it closed
+// the lane PR it names at the verify cap and restarted or parked the issue
+// itself. One with no attempt started nothing.
+const CAPPED_CLOSE = /^<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=[0-9a-f,]* attempt=[0-9]+ of=[0-9]+(?: parked)? -->/;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 // The lane never starts on these: a person decides the first five, and
 // `attended` waits on a step the owner takes present (admit.mjs ATTENDED).
@@ -364,13 +376,13 @@ const appMarkers = (comments, bot) =>
     .sort((a, b) => a.at - b.at);
 
 // The App's markers after which its removal of agent-ready is a restart.
-const RESTARTS = new Set(["limited", "refired", "turn-cap", "funding", "retry"]);
+const RESTARTS = new Set(["limited", "refired", "turn-cap", "funding", "retry", "wait"]);
 
 // The outcomes restarted at once, each bounded by its `limits` leaf.
-const CAPPED_RESTARTS = { "turn-cap": "turn-cap-restarts", retry: "stop-retries" };
+const CAPPED_RESTARTS = { "turn-cap": "turn-cap-restarts", retry: "stop-retries", wait: "stop-retries" };
 
 // A removal of agent-ready is a restart, not a stop, only when the App made
-// it, the App's newest marker before it is `limited`, `turn-cap`, `retry` or a re-fire, and the next agent-ready
+// it, the App's newest marker before it is `limited`, `turn-cap`, `retry`, `wait` or a re-fire, and the next agent-ready
 // event after it is the App adding the label back. Any other removal stops the
 // lane, a pushback after a restart included.
 function isRestart(events, index, markers, bot) {
@@ -1306,6 +1318,9 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
   if (pull.state === "open") {
     return { reason: `its lane PR #${pull.number} is open` };
   }
+  if (!merged && comments.some((comment) => comment.user?.login === bot && Number(CAPPED_CLOSE.exec(String(comment.body ?? ""))?.[1]) === pull.number)) {
+    return { reason: `its lane PR #${pull.number} closed at the verify cap, and pr-merge restarted or parked the issue` };
+  }
   if (merged && !refs) {
     return { reason: `its lane PR #${pull.number} merged` };
   }
@@ -1535,8 +1550,17 @@ async function restartRefusal({ github, actions, jobLog, repo, issue, bot, human
   const since = events
     .filter((event) => isLabel(event, "labeled") && event.actor?.login !== bot)
     .reduce((latest, event) => Math.max(latest, Date.parse(event.created_at)), Number.NEGATIVE_INFINITY);
+  // A stop routed to wait names the pull request it waits on (`pr=`): while
+  // that pull request is open the issue waits, and once it merges or closes
+  // it restarts like a retry, under its own count of waits.
+  if (marker?.outcome === "wait" && marker.pr) {
+    const pull = await github("GET", `/repos/${repo}/pulls/${marker.pr}`);
+    if (pull?.state === "open") {
+      return { reason: `waiting on pull request #${marker.pr}` };
+    }
+  }
   // report-outcome keeps agent-ready after a turn cap or a stop routed to
-  // retry only while a restart is left, and stops the issue otherwise; the
+  // retry or wait only while a restart is left, and stops the issue otherwise; the
   // count here bounds a forged or stale marker the same way.
   const bound = CAPPED_RESTARTS[marker?.outcome];
   if (bound) {
@@ -1721,12 +1745,14 @@ async function restartLimited({ github, actions, jobLog, repo, bot, humans, now,
 
 const SPLIT_CLOSED = "<!-- work-unblock split parent closed -->";
 
-// A close that counts as done: by a listed human or a merge, or the lanes
+// A close that counts as done: by a listed human or a merge, the lanes App's
+// already-done close whose evidence still holds (owner Q9), or the lanes
 // App's close of a size split's parent once each sub-issue's close counts
 // (admit.mjs splitParentClosed, owner Q93).
 async function isTrustedClose(github, repo, issue, humans, bot) {
   const trusted = async (number) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans, bot);
-  return (await closedByHumanOrMerge(github, repo, issue, humans)) || splitParentClosed({ github, repository: repo, issue, isApp: (actor) => actor?.login === bot, humans, trusted });
+  const isApp = (actor) => actor?.login === bot;
+  return (await closedByHumanOrMerge(github, repo, issue, humans, isApp)) || splitParentClosed({ github, repository: repo, issue, isApp, humans, trusted });
 }
 
 // For each issue in `closed` (on the sweep, only one a listed human or a

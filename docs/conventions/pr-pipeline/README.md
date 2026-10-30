@@ -870,8 +870,9 @@ job, which ran no model and only resolved fail-note threads a pr-verify pass sup
 dispatcher's release reads skip it), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
-on the issue instead: `needs-human`, no `agent-ready`, and a comment naming the next step
-([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
+on the issue instead: `research-first` and `probe-first` get `needs-human`, no `agent-ready`, and
+a comment naming the next step, and `split-required` goes back through intake, whose split files
+its sub-issues ([Issue mode](pr-run-activity.md#issue-mode)). Silence is not a skip, with three exceptions that
 post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
 by the lanes App; and a run on any other event whose run job gated no head SHA.
 
@@ -944,9 +945,12 @@ the rules that only tighten in
   reason is a size or reported-finding reason (`lines-over`, `files-over`, `no-patch:*`,
   `findings:claude-review`, `findings:claude-security-review`, `cost-finding`). Every other MEDIUM reason
   (unbound or missing review evidence, an unread file listing) and every HIGH one refuse.
-  `no-patch:` is only an image, font or PDF; any other file the files API sends no patch for (a
-  script with a NUL byte that git calls binary, an over-size patch) no review read, so it holds for
-  a person as `unreviewed-patch:<path>`.
+  `no-patch:` is an image, font or PDF, or a file whose blob ids show no unread content: a rename,
+  mode change or modification that keeps its blob and does not gain execute, or an empty file added
+  or removed.
+  Any other file the files API sends no patch for (a script with a NUL byte that git calls binary,
+  an over-size patch, a copy, an unread blob id) no review read, so it holds for a person as
+  `unreviewed-patch:<path>`.
 - **Review flags.** A review flag holds only for a real new charge (`cost-review-required`), a
   trusted-actor widening (`trust-gate:trusted-actors`) or a CRITICAL security finding
   (`security-finding`), owner decisions Q25, Q33 and Q693. Every other open finding, from
@@ -2210,7 +2214,16 @@ head:
   counted. More than 50 pull requests that claim to close one issue make every pull request for
   that issue refuse `verify:unreadable`: a hold, not a way past the cap. This cap is what bounds
   pushing until the verifier passes once: the carry-forward below stops only a head that changes
-  nothing of its own, and a one-line edit gives a new change. Closing a newly filed duplicate issue
+  nothing of its own, and a one-line edit gives a new change. One exception, which relaxes that
+  bound by exactly `merge.verify-cap-attempts` (default 1) fresh attempts per issue (owner decision
+  2026-10-29): a pull request the pr-merge lane closed at the cap or as too old, named by the lanes
+  App's capped-close record on the issue (`<!-- verify-capped-close pr=<n> ... -->` as its first
+  line, written by the App and edited by no one else, so a forged one excuses nothing), counts no
+  more once it is closed (a close that failed after the record leaves its FAILs
+  counted), so the fresh attempt it started starts its own count. Only the oldest
+  `merge.verify-cap-attempts` records per issue that started an attempt excuse their pull requests;
+  a parked or attempt-less record, or one past that many, excuses nothing. Past that many the lane parks the
+  issue instead of starting another, so the re-rolls stay bounded. Closing a newly filed duplicate issue
   instead starts the count of other pull requests again; a pass then needs that issue written by a
   trusted human, as below;
 - a counted `fail` at the head, under any pull request number, refuses (`verify:fail`), unless a
@@ -2309,11 +2322,51 @@ exists (#7711).
 
 `verify:fail` and `verify:earlier-fail` only wait: the fail's notes go to an `address-feedback`
 round (`pr-feedback-dispatch.yml`, above), whose push the verifier judges again.
+`verify:spec-changed` holds for the lanes
+([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner)): it still refuses the merge, with no label.
 Only `verify:untrusted-spec` needs a human, since the spec's provenance is a trust boundary.
-`verify:spec-changed`, `verify:repeated-fail` and `verify:too-old` hold for the lanes
-([when work stops for the owner](../../contracts/loop-lane/README.md#when-work-stops-for-the-owner)): each still refuses the merge, with no label. The last two never clear,
-so such a pull request never merges unattended, and address-feedback's own round cap bounds the
-fix rounds on it. While `merge.report-only` is
+`verify:repeated-fail` and `verify:too-old` never clear for the pull request, so it never merges
+unattended, and no person's label goes on for either (owner decision 2026-10-29). Instead, while
+`merge.report-only` is false, the pr-merge lane closes a lanes App pull request at either one for
+a fresh attempt at its issue (`babysit_verify_evidence.py` `capped_close`, run by
+`enable-auto-merge.mjs` through the reader's `capped-close` command, or by the gate under
+`merge.lane-prs: gate`). It judges the head again and leaves alone a pull request that is not the
+lanes App's, not open at that head, or carries `do-not-merge` or the human-gated label, and one
+whose issue link the arm path refuses (one closing issue or the `Refs:` one, clearing the trust
+hold) or whose issue carries an issue hold label. The gate also leaves open one its entry-hold
+check names, read as a pull request never enqueued (a hold label, a body hold, a member's blocking
+comment, or a failed read), and one whose human-gated label it cannot read. A pull request reopened after its record stays open: it closes at the cap once. In
+order,
+so a failed write leaves the pull request open for the next run, which finds its records and
+writes the rest: a comment on the pull request opening with
+`<!-- verify-capped-close pr=<n> heads=<shas> -->`, quoting each FAILed head's verdict summary and
+notes (read from its `verdict.json`; an expired one is named by its run) as data in one text
+fence; the same record on each linked issue (closing, or the `Refs:` one), its marker naming the
+attempt; `agent-ready` off the issue and back on, tried twice, which starts the fresh attempt;
+then the close, so a closed pull request never leaves its issue without `agent-ready`. An issue
+that did not carry `agent-ready` when read (a person may have taken it off) is recorded with no
+attempt and not restarted, since the App's re-add would override that person. A rerun after a
+failed close writes no issue label, except putting back an `agent-ready` whose newest removal was
+the App's own at or after its record, or toggling one the issue still carries with no such removal
+(the run stopped before taking it off); a record with no attempt writes none, and a parked one only
+finishes an unfinished park. Findings are quoted only from pr-verify runs of verified origin; any
+other is named as not verified. `write-issue.mjs` passes that record to the next attempt as
+`author_kind: verify-findings`, the one lanes App comment it keeps besides intake's refinement. An
+issue that already had `merge.verify-cap-attempts` fresh attempts (lanes App records naming other
+pull requests) is parked instead: its record says so, and before the close it gets
+`status: confirmed` with `status: ready` and `agent-ready` taken off, so neither the readmit sweep
+nor triage starts it again.
+`label-unblocked.mjs` hands no issue to triage for a lane pull request its capped-close record
+names with an attempt, since the lane already restarted or parked it. An armed pull request is disarmed first. One the close leaves open, or fails on, keeps
+the lane's refusal note and its `pr-merge/unarmed` status, with no person's label.
+`pr-feedback-dispatch.yml` and `pr-unblock-dispatch.yml` start no address-feedback or fix-ci round,
+and post nothing, on a lanes App pull request (the only kind the close takes; an adopted owner's is
+not read) the gate's reader refuses `verify:repeated-fail`
+(`.github/scripts/pr-unblock/verify-cap.mjs`, reading `babysit_verify_evidence.py` with the
+dispatcher job's read token, last before each dispatch), or `verify:unreadable` because another
+pull request's FAIL run for the same issue cannot be read, which may hide the cap; that one is
+read again next run. A read that fails or times out lets the round run under its own caps, which
+costs at most one round before the lane closes the pull request. While `merge.report-only` is
 false the lane escalates `verify:untrusted-spec`
 on the pull request ([loop-lane §2](../../contracts/loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,
@@ -2862,7 +2915,7 @@ with its default.
 | `limit-stops-per-issue` | 3 | Limit and funding stops since a person last added `agent-ready` before work-unblock stops restarting the issue: it comments with `outcome=failed` (signal 9 reports it), removes `agent-ready` and adds no label. |
 | `wip-cap` | 60 | The issue lane's WIP cap when the lane merge rate cannot be read ([WIP cap](#wip-cap)); at most 500. |
 | `turn-cap-restarts` | 0 | Restarts after a run reaches its turn cap, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `turn-cap-spent` route; at most 5, and 0 never restarts. |
-| `stop-retries` | 2 | Restarts after a stop the issue lane's `stop-routes.json` routes to `retry`, since a listed human last added `agent-ready`, before report-outcome stops the issue on the `retry-spent` route; at most 5, and 0 never retries. |
+| `stop-retries` | 2 | Restarts after a stop the issue lane's `stop-routes.json` routes to `retry` (or fewer, a row's own `retries`), and, counted apart, restarts after a `wait`, each since a listed human last added `agent-ready`, before report-outcome stops the issue on the `retry-spent` route; at most 5, and 0 never retries. |
 | `fix-ci-per-run` | 2 | fix-ci dispatches one pr-unblock-dispatch run sends; at most 20. |
 | `fix-ci-restarts` | 1 | Further fix-ci dispatches on one PR head after its first fix-ci run failed; 0 to 5. |
 | `fix-docs-per-run` | 2 | fix-docs dispatches one pr-unblock-dispatch run sends; at most 20. |

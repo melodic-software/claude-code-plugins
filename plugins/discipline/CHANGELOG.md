@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.22.7] - 2026-10-30
+
+### Changed
+
+- `/discipline:wait-what` has a shorter body. The one-shot-repair section and the boundary list are now five short boundary lines that keep each rule and each sibling's when-to-use. On its five eval cases, the shorter body scored the same as the old one.
+
 ## [0.22.6] - 2026-10-29
 
 ### Changed
