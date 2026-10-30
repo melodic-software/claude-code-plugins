@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": "Prerequisites: course-extraction deps MISSING, Playwright Chromium MISSING, ffmpeg ok, ImageMagick ok, Phase 1 browser tool: the Playwright CLI. Stopping."},
+    {"answer": "Frame extraction needs no browser tool; no claude-in-chrome needed. The node deps are missing, so I stopped.", "why": "head hub wording, not the MCP prerequisite"}
+  ],
+  "fail": [
+    {"answer": "5. claude-in-chrome MCP: not available (tabs_context_mcp preflight failed).", "why": "base prerequisite 5"},
+    {"answer": "Running tabs_context_mcp as the browser preflight.", "why": "cut preflight"},
+    {"answer": "The mcp__claude-in-chrome__navigate tool is not connected.", "why": "MCP tool named"}
+  ]
+}

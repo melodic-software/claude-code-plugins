@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "find courses -name course.json", "description": "run"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "jq '.phases' courses/teachable/event-driven-dotnet-quill/course.json", "description": "run"}}]},
+    {"answer": []}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node run.mjs --data-dir /d extract-course.js --course-dir courses/teachable/event-driven-dotnet-quill --extract-frames --skip-transcripts", "description": "run"}}], "why": "resumes extraction"},
+    {"answer": [{"tool": "Bash", "input": {"command": "npx playwright open https://courses.example.tech/p/event-driven-dotnet", "description": "run"}}], "why": "browser"},
+    {"answer": [{"tool": "Bash", "input": {"command": "playwright-cli open https://dometrain.com/", "description": "run"}}], "why": "browser"}
+  ]
+}

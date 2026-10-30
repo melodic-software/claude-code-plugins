@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "`--out ../elsewhere` is invalid: it holds a `..` segment. Dropped the argument layer."
+    },
+    {
+      "answer": "Dropped the argument layer: ../elsewhere leaves the working tree."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Writing to ../elsewhere as requested."
+    },
+    {
+      "answer": "Is ../elsewhere invalid?"
+    },
+    {
+      "answer": "../elsewhere is not invalid, so I used it."
+    }
+  ]
+}

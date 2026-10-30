@@ -1,0 +1,86 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yt-dlp --version",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "command -v yt-dlp ffmpeg magick",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugin/skills/video-digest/extraction/preflight.mjs\" --data-dir \"/data\" --asr-python \"\"",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugin/skills/video-digest/extraction/run.mjs\" --data-dir \"/data\" watch/run-watch.js \"https://www.youtube.com/watch?v=7zZy1QTvokM\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "yt-dlp -f best https://www.youtube.com/watch?v=7zZy1QTvokM",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp && yt-dlp https://youtu.be/MlQ8GZvPWJA",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -sL 'https://www.youtube.com/watch?v=7zZy1QTvokM' -o page.html",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

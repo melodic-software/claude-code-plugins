@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/eval-home/.claude/plugins/data/knowledge-mkt/ws-a1b2c3d4/testing/unit-testing-progress.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/eval-home/.claude/plugins/data/knowledge-mkt/ws-a1b2c3d4/testing/unit-testing-progress.md",
+            "old_string": "a",
+            "new_string": "Progress file: <plugin-data>/x"
+          }
+        }
+      ],
+      "why": "placeholder in content only, not the path"
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "<plugin-data>/ws-a1b2c3d4/testing/unit-testing-progress.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/eval-home/.claude/plugins/data/knowledge-mkt/{project-slug}/testing/unit-testing-progress.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/eval-home/.claude/plugins/data/knowledge-mkt/ws-a1b2c3d4/{target-skill-slug}/unit-testing-progress.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "<plugin-root>/skills/distill/templates/checklist.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ]
+    }
+  ]
+}

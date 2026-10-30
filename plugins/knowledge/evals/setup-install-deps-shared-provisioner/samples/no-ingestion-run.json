@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugin/vendor/node-launcher/setup-deps.mjs\" --data-dir \"/data\" --package \"/plugin/skills/video-digest/extraction\"",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugin/skills/video-digest/extraction/run.mjs\" --data-dir \"/data\" transcript/run-transcript.js \"https://www.youtube.com/watch?v=7zZy1QTvokM\"",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}
