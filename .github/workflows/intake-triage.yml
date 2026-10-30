@@ -568,7 +568,9 @@ jobs:
       pull-requests: read # search merged pull requests
     outputs:
       refine: ${{ steps.select.outputs.refine }}
-      # `size-split` for a Size Large issue to split into sub-issues, else `refine`.
+      # `size-split` for a Size Large issue to split into sub-issues,
+      # `size-decline` for one whose split is declined (no model runs;
+      # apply-refinement posts the reason), else `refine`.
       mode: ${{ steps.select.outputs.mode }}
       context-sha256: ${{ steps.hash.outputs.sha256 }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
@@ -669,7 +671,7 @@ jobs:
   # result; it posts nothing.
   refine-issue:
     needs: [refine-select]
-    if: ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' }}
+    if: ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     concurrency:
@@ -820,7 +822,8 @@ jobs:
           prompt=${prompt//DOMAINS/${domains// /, }}
           schema='{"type":"object","properties":{"exact":{"type":"boolean"},"outcome":{"type":"string"},"criteria":{"type":"array","maxItems":12,"items":{"type":"string"}},"dependencies":{"type":"array","maxItems":10,"items":{"type":"string"}},"related":{"type":"array","maxItems":10,"items":{"type":"object","properties":{"number":{"type":"integer"},"relation":{"enum":["duplicate","fixed-by","related"]},"note":{"type":"string"}},"required":["number","relation","note"],"additionalProperties":false}},"questions":{"type":"array","maxItems":5,"items":{"type":"object","properties":{"question":{"type":"string"},"recommended":{"type":"string"},"basis":{"type":"string"}},"required":["question","recommended","basis"],"additionalProperties":false}},"sources":{"type":"array","maxItems":15,"items":{"type":"string"}},"split":{"type":"array","maxItems":12,"items":{"type":"integer"}},"external":{"type":"object","properties":{"state":{"enum":["none","iac","manual"]},"repo":{"type":"string"},"class":{"type":"string"},"what":{"type":"string"}},"required":["state","repo","class","what"],"additionalProperties":false}},"required":["exact","outcome","criteria","dependencies","related","questions","sources","split","external"],"additionalProperties":false}'
           # A Size Large issue admission parked (owner Q93): the output is
-          # numbers only, which refine.mjs checks as a partition.
+          # item numbers, or target names copied from the items, which
+          # refine.mjs checks as a partition or a target-subset split.
           if [ "$MODE" = size-split ]; then
             prompt=$(
               cat <<'PROMPT'
@@ -838,17 +841,25 @@ jobs:
 
           1. Read CONTEXT_FILE. Then explore the repository checkout at REPO_DIR with Read, Grep and Glob
              to see which files each item touches and which items depend on others.
-          2. Set `parts` to between 2 and `size_split.max_parts` lists of item numbers. Every item number
-             is in exactly one part; items that change the same files or must land together share a part.
+          2. Set `parts` to between 2 and `size_split.max_parts` lists of item numbers, and `groups` to
+             an empty list. Every item number is in exactly one part; items that change the same files or
+             must land together share a part.
           3. Set `order` to pairs [a, b], 1-based part numbers, meaning part b cannot start until part a
              is merged. Leave out a pair when the two parts can run at the same time; never make a cycle.
-          4. When the items cannot be split into whole changes, return an empty `parts`: the issue then
-             waits for a person to split it.
+          4. When the items cannot be split into whole changes because each one repeats over many named
+             targets (plugins, skills, files), set `parts` to an empty list and `groups` to between 2 and
+             `size_split.max_parts` lists of target names instead. Copy each name exactly as it appears
+             inside one item's text after its checkbox, name each target once, never one that sits inside
+             another target's text or holds `@` or `#`, make every item name at least one target, and put one
+             target plus anything every target shares in the first group; `order` then pairs group numbers. Each sub-issue gets every item
+             and a line naming its group's targets.
+          5. When neither fits, set both `parts` and `groups` to empty lists: the script then posts the
+             reason on the issue.
           PROMPT
             )
             prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
             prompt=${prompt//REPO_DIR/$REPO_DIR}
-            schema='{"type":"object","properties":{"parts":{"type":"array","maxItems":10,"items":{"type":"array","minItems":1,"items":{"type":"integer"}}},"order":{"type":"array","maxItems":45,"items":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"integer"}}}},"required":["parts","order"],"additionalProperties":false}'
+            schema='{"type":"object","properties":{"parts":{"type":"array","items":{"type":"array","minItems":1,"items":{"type":"integer"}}},"groups":{"type":"array","items":{"type":"array","minItems":1,"items":{"type":"string","minLength":2,"maxLength":100}}},"order":{"type":"array","items":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"integer"}}}},"required":["parts","groups","order"],"additionalProperties":false}'
           fi
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
           printf '%s\n' "$schema" >"$SCHEMA_FILE"
@@ -987,7 +998,7 @@ jobs:
   refine-issue-subscription:
     needs: [refine-select, refine-issue]
     if: >-
-      ${{ !cancelled() && needs.refine-select.outputs.refine == 'true'
+      ${{ !cancelled() && needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode != 'size-decline'
       && (needs.refine-issue.outputs.handoff == 'true' || needs.refine-issue.outputs.credential-present == 'false') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -1129,7 +1140,8 @@ jobs:
           prompt=${prompt//DOMAINS/${domains// /, }}
           schema='{"type":"object","properties":{"exact":{"type":"boolean"},"outcome":{"type":"string"},"criteria":{"type":"array","maxItems":12,"items":{"type":"string"}},"dependencies":{"type":"array","maxItems":10,"items":{"type":"string"}},"related":{"type":"array","maxItems":10,"items":{"type":"object","properties":{"number":{"type":"integer"},"relation":{"enum":["duplicate","fixed-by","related"]},"note":{"type":"string"}},"required":["number","relation","note"],"additionalProperties":false}},"questions":{"type":"array","maxItems":5,"items":{"type":"object","properties":{"question":{"type":"string"},"recommended":{"type":"string"},"basis":{"type":"string"}},"required":["question","recommended","basis"],"additionalProperties":false}},"sources":{"type":"array","maxItems":15,"items":{"type":"string"}},"split":{"type":"array","maxItems":12,"items":{"type":"integer"}},"external":{"type":"object","properties":{"state":{"enum":["none","iac","manual"]},"repo":{"type":"string"},"class":{"type":"string"},"what":{"type":"string"}},"required":["state","repo","class","what"],"additionalProperties":false}},"required":["exact","outcome","criteria","dependencies","related","questions","sources","split","external"],"additionalProperties":false}'
           # A Size Large issue admission parked (owner Q93): the output is
-          # numbers only, which refine.mjs checks as a partition.
+          # item numbers, or target names copied from the items, which
+          # refine.mjs checks as a partition or a target-subset split.
           if [ "$MODE" = size-split ]; then
             prompt=$(
               cat <<'PROMPT'
@@ -1147,17 +1159,25 @@ jobs:
 
           1. Read CONTEXT_FILE. Then explore the repository checkout at REPO_DIR with Read, Grep and Glob
              to see which files each item touches and which items depend on others.
-          2. Set `parts` to between 2 and `size_split.max_parts` lists of item numbers. Every item number
-             is in exactly one part; items that change the same files or must land together share a part.
+          2. Set `parts` to between 2 and `size_split.max_parts` lists of item numbers, and `groups` to
+             an empty list. Every item number is in exactly one part; items that change the same files or
+             must land together share a part.
           3. Set `order` to pairs [a, b], 1-based part numbers, meaning part b cannot start until part a
              is merged. Leave out a pair when the two parts can run at the same time; never make a cycle.
-          4. When the items cannot be split into whole changes, return an empty `parts`: the issue then
-             waits for a person to split it.
+          4. When the items cannot be split into whole changes because each one repeats over many named
+             targets (plugins, skills, files), set `parts` to an empty list and `groups` to between 2 and
+             `size_split.max_parts` lists of target names instead. Copy each name exactly as it appears
+             inside one item's text after its checkbox, name each target once, never one that sits inside
+             another target's text or holds `@` or `#`, make every item name at least one target, and put one
+             target plus anything every target shares in the first group; `order` then pairs group numbers. Each sub-issue gets every item
+             and a line naming its group's targets.
+          5. When neither fits, set both `parts` and `groups` to empty lists: the script then posts the
+             reason on the issue.
           PROMPT
             )
             prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
             prompt=${prompt//REPO_DIR/$REPO_DIR}
-            schema='{"type":"object","properties":{"parts":{"type":"array","maxItems":10,"items":{"type":"array","minItems":1,"items":{"type":"integer"}}},"order":{"type":"array","maxItems":45,"items":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"integer"}}}},"required":["parts","order"],"additionalProperties":false}'
+            schema='{"type":"object","properties":{"parts":{"type":"array","items":{"type":"array","minItems":1,"items":{"type":"integer"}}},"groups":{"type":"array","items":{"type":"array","minItems":1,"items":{"type":"string","minLength":2,"maxLength":100}}},"order":{"type":"array","items":{"type":"array","minItems":2,"maxItems":2,"items":{"type":"integer"}}}},"required":["parts","groups","order"],"additionalProperties":false}'
           fi
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
           printf '%s\n' "$schema" >"$SCHEMA_FILE"
@@ -1268,7 +1288,8 @@ jobs:
     needs: [born-triaged, refine-select, refine-issue, refine-issue-subscription]
     if: >-
       ${{ !cancelled() && (needs.refine-issue.outputs.refined == 'true'
-      || needs.refine-issue-subscription.outputs.refined == 'true') }}
+      || needs.refine-issue-subscription.outputs.refined == 'true'
+      || (needs.refine-select.outputs.refine == 'true' && needs.refine-select.outputs.mode == 'size-decline')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
@@ -1319,8 +1340,9 @@ jobs:
           name: refine-context-${{ github.run_attempt }}
           path: ${{ runner.temp }}/refine-data
 
+      # A size-split decline ran no model, so it has no refinement.
       - name: Download the refinement
-        if: steps.who.outputs.proceed == 'true'
+        if: steps.who.outputs.proceed == 'true' && needs.refine-select.outputs.mode != 'size-decline'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: refinement-${{ github.run_attempt }}

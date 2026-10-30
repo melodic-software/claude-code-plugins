@@ -32,7 +32,10 @@ denied, and a denied read voids the verdict:
   `fail` when no issue has any. An issue's `person_checks` lists done-when items of its `body`
   that the refinement records as checks a person runs: no pull request delivers them, so judge
   the diff without them. Only `person_checks` excuses an item; a refinement comment's Split
-  section never does.
+  section never does. An issue's `scope`, when present, lists the targets its body's `Scope:`
+  line names: a size split filed it as one part of its parent, so each done-when item applies
+  only to those targets, and the diff need not deliver it for any other. With no `scope`, every
+  item applies in full.
 
 Judge in this order:
 

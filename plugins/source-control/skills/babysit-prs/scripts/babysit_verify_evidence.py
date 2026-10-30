@@ -465,16 +465,26 @@ JS_SPACE = "\t\n\v\f\r                  　﻿"
 
 
 def split_child_header(
-    parent: int, part: int, parts: int, source: tuple[int, str] | None = None
+    parent: int,
+    part: int,
+    parts: int,
+    source: tuple[int, str] | None = None,
+    scoped: bool = False,
 ) -> str:
     """admit.mjs splitChildHeader: the fixed header of part `part` of
     `parts` a size split files from issue `parent`, with admit.mjs
-    splitSourceLine when `source` (id, updated_at) is given."""
+    splitSourceLine when `source` (id, updated_at) is given, and the
+    target-subset wording when `scoped`."""
     also = " and intake's refinement comment on it" if source else ""
+    copied = (
+        f"The done-when lines below are copied from #{parent}{also} as written, "
+        "and the Scope line names the targets this part covers."
+        if scoped
+        else f"The done-when below is copied from #{parent}{also} as written."
+    )
     rows = [
         SPLIT_CHILD_MARKER,
-        f"Part {part} of {parts} of #{parent}, split at intake (owner Q93). "
-        f"The done-when below is copied from #{parent}{also} as written.",
+        f"Part {part} of {parts} of #{parent}, split at intake (owner Q93). {copied}",
     ]
     if source:
         rows.append(
@@ -573,7 +583,8 @@ def split_child_body(
     source = (
         (int(tag[1]), tag[2]) if tag and int(float(tag[1])) == int(tag[1]) else None
     )
-    header = f"{split_child_header(number, int(part[1]), int(part[2]), source)}\n"
+    scoped = rows[-1].startswith(SCOPE_PREFIX)
+    header = f"{split_child_header(number, int(part[1]), int(part[2]), source, scoped)}\n"
     if not body.startswith(header):
         return None
     refinement: list[str] = []
@@ -616,7 +627,40 @@ def split_child_body(
         else exact
     )
     lines = body[len(header) :].split("\n")
-    return body if all(line in allowed for line in lines) else None
+    if lines[-1].startswith(SCOPE_PREFIX):
+        names = lines.pop()[len(SCOPE_PREFIX) :].split(", ")
+        texts = {task_text(line, task_list) for line in exact}
+        if len(set(names)) != len(names) or not all(
+            scope_target(name, texts) for name in names
+        ):
+            return None
+    return body if lines and all(line in allowed for line in lines) else None
+
+
+# admit.mjs SCOPE_PREFIX and scopeTarget: a target-subset split's last child
+# line, and whether `name` can be one of its targets over the task lines.
+SCOPE_PREFIX = "Scope: "
+SCOPE_BANNED = re.compile(r"[,<>`@#\r\n]")
+
+
+def task_text(line: str, task_list: str) -> str:
+    """admit.mjs taskText: `line` without its indent and task-list marker."""
+    return line.lstrip(JS_SPACE)[len(task_list) :]
+
+
+def scope_target(name: str, texts: set[str]) -> bool:
+    """2 to 100 characters, no comma, angle bracket, backtick, at sign,
+    number sign or line break, no outer space, and verbatim text of one of
+    `texts` (task_text). Length and outer space are JavaScript's (UTF-16 code units,
+    and the JS_SPACE String.prototype.trim strips), since admit.mjs
+    scopeTarget is the rule's one home."""
+    units = len(name.encode("utf-16-le", "surrogatepass")) // 2
+    return (
+        2 <= units <= 100
+        and name.strip(JS_SPACE) == name
+        and not SCOPE_BANNED.search(name)
+        and any(name in text for text in texts)
+    )
 
 
 # A run's standing: unreadable, foreign (not of verifier origin), origin (of
