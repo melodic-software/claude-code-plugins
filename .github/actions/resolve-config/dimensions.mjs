@@ -77,6 +77,14 @@ export function dimensionBudget(dims, config) {
   };
 }
 
+// `dims` for a trusted size-split sub-issue (`splitChild`): a size that
+// splits becomes `split-child-size`, since admission takes such a child
+// whatever its Size (owner Q93). Anything else is returned as is. Pure.
+export function splitChildDims(dims, config, splitChild) {
+  const size = config["split-child-size"];
+  return splitChild === true && size !== undefined && config.sizes[dims.size] === "split" ? { ...dims, size } : dims;
+}
+
 // The dimensions a pin (dimensionBudget's `pin`) names.
 export function parsePin(pin, config) {
   if (pin === NOT_ASSESSED) {
@@ -113,6 +121,10 @@ export function checkDimensions(config) {
   }
   if (new Set(DIMENSIONS.map((name) => config.fields[name]["field-id"])).size !== DIMENSIONS.length) {
     throw new Rejection("undefined-dimension", "models.issue-dimensions names one field id for two dimensions");
+  }
+  const child = config["split-child-size"];
+  if (child !== undefined && (!Object.hasOwn(config.sizes, child) || config.sizes[child] === "split")) {
+    throw new Rejection("undefined-dimension", `models.issue-dimensions.split-child-size \`${child}\` names no size that runs`);
   }
   if (config.sizes[UNSET.size] === "split") {
     throw new Rejection("undefined-dimension", `models.issue-dimensions.sizes.${UNSET.size}, which an unset size reads as, does not run`);

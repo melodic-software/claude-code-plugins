@@ -64,6 +64,8 @@ jobs:
     outputs:
       proceed: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' }}
       outsider: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.outsider == 'true' }}
+      # Whether the issue is a trusted size-split sub-issue, for resolve-config.
+      split-child: ${{ steps.blockers.outputs.split-child }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -203,6 +205,7 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           # What the read runner hands on for resolve-issue.
           applied-by-supported: patch work-outcome
+          split-child: ${{ needs.admit.outputs.split-child }}
 
       - name: Pick the slot
         id: slot
@@ -604,7 +607,7 @@ jobs:
   # them only when this job succeeded, and stops a done run whose checks
   # failed, did not run, or ran on another tip.
   run-checks:
-    needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback, apply-issue-patch]
+    needs: [admit, resolve-issue, resolve-issue-subscription, resolve-issue-fallback, apply-issue-patch]
     if: >-
       ${{ !cancelled() && ((needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-issue-run-started || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-issue-run-started || '') == 'true'
       && (needs.resolve-issue-fallback.result != 'skipped' && needs.resolve-issue-fallback.outputs.scan-outcome-uploaded || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result != 'skipped' && needs.resolve-issue-subscription.outputs.scan-outcome-uploaded || needs.resolve-issue-fallback.result == 'skipped' && needs.resolve-issue-subscription.result == 'skipped' && needs.resolve-issue.outputs.scan-outcome-uploaded || '') == 'true'
@@ -637,6 +640,7 @@ jobs:
         with:
           lane: work-resolve-issue
           base-path: .base
+          split-child: ${{ needs.admit.outputs.split-child }}
           output-path: ${{ runner.temp }}/resolved-config.json
 
       # For lane.json, which names the branch. A skill run reaches this job
