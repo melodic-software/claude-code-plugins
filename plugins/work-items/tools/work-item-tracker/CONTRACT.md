@@ -553,7 +553,7 @@ backs off, and a lane run that finds a live local lease backs off without starti
   `config.lease_ttl_hours`; `ttl_minutes` defaults to `0` and may be set per claim via
   `--ttl-minutes` or binding `config.lease_ttl_minutes`.
 - A lease with `renewed_at` more than 300 s after now is not live.
-- A lease whose TTL exceeds 168 h is not live.
+- A lease whose TTL exceeds 168 h is not live, so `claim` refuses such a TTL (exit 2) before any write.
 - The GitHub adapter counts a lease comment only from an `OWNER`, `MEMBER` or `COLLABORATOR`
   author, or from a bot (an App installed on the repository: the issue lane's `github-actions[bot]`
   or a `gh-bot.sh` App).

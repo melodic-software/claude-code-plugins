@@ -50,6 +50,7 @@ done
 wit_require_github_id "$id" || wit_usage_error "malformed or non-github id: $id"
 [[ "$ttl" =~ ^[0-9]+$ ]] || wit_usage_error "--ttl-hours must be a non-negative integer (binding config.lease_ttl_hours supplies the default)"
 [[ "$ttl_minutes" =~ ^[0-9]+$ && "$ttl_minutes" -le 59 ]] || wit_usage_error "--ttl-minutes must be 0-59 (binding config.lease_ttl_minutes defaults to 0)"
+wit_lease_ttl_within_cap "$ttl" "$ttl_minutes" || wit_usage_error "--ttl-hours plus --ttl-minutes must not exceed the ${WIT_LEASE_MAX_TTL_HOURS} h lease cap; a longer lease is never live"
 
 owner="$WIT_ID_OWNER" repo="$WIT_ID_REPO" number="$WIT_ID_NUMBER"
 

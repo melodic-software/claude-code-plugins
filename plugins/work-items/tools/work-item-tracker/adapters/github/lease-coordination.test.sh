@@ -504,4 +504,21 @@ assert_eq "the backed-off claim prints no line break from the holder" "false" \
 assert_contains "the backed-off claim still names the holder" "$err" "bob::error::forged"
 cleanup_scenario
 
+# [TTL cap] a TTL over the lease cap is refused before any write, since every
+# reader treats such a lease as not live; the cap itself is accepted.
+ttl_case() {
+  local label="$1" want_rc="$2" want_posts="$3" rc=0
+  shift 3
+  new_scenario
+  : >"$GH_STUB_DIR/stateful"
+  printf '[]\n' >"$GH_STUB_DIR/lease-comments"
+  bash "$CLAIM" "$ID" --lease-only --holder "$LANE" "$@" >/dev/null 2>&1 || rc=$?
+  assert_eq "$label: exit" "$want_rc" "$rc"
+  assert_eq "$label: lease comments posted" "$want_posts" "$(grep -c POST_COMMENT "$GH_STUB_DIR/calls.log" 2>/dev/null)"
+  cleanup_scenario
+}
+ttl_case "a 169 h claim is refused" 2 0 --ttl-hours 169
+ttl_case "a 168 h 1 m claim is refused" 2 0 --ttl-hours 168 --ttl-minutes 1
+ttl_case "a 168 h claim is accepted" 0 1 --ttl-hours 168
+
 [[ $FAILED -eq 0 ]] || exit 1
