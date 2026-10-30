@@ -3533,6 +3533,7 @@ def score_unattended(
             str(inputs["branch"]),
             max_fails=config.max_verify_fails,
             agent_identity=config.agent_identity,
+            cap_attempts=config.verify_cap_attempts,
         )
         # Provisional: an allow is judged again on a listing of this gate
         # run's own below, once nothing else refuses.
@@ -3947,6 +3948,50 @@ def escalate_verify(
     return escalate(repo, number, identity, body, VERIFY_ESCALATION_MARKER, inputs)
 
 
+def close_capped(
+    repo: str,
+    number: int,
+    identity: str,
+    branch: str,
+    config: merge_policy.PipelineConfig,
+    inputs: Mapping[str, Any],
+) -> dict[str, Any]:
+    """`verify_evidence.capped_close` for the gate's pull request at its
+    head, under `merge.verify-cap-attempts`; do-not-merge and the human-gated
+    label hold it open, and the issue's hold labels
+    (`merge_policy.issue_hold_labels`) keep it so. Any hold the gate reads on
+    a queued entry (`merge_policy.entry_hold`: a hold label, a body hold, a
+    member's blocking comment; an unreadable one holds) keeps it open first,
+    as enable-auto-merge.mjs decide() does. An unreadable human-gated label
+    raises `PostMergeReadError`: a default could miss the mapped one."""
+    if hold := merge_policy.entry_hold(
+        repo,
+        number,
+        identity,
+        self_logins=inputs.get("self_logins") or frozenset(),
+        permission=inputs.get("permission"),
+        queued=False,
+    ):
+        return {"closed": False, "reason": f"held: {hold}"}
+    head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
+    label = human_gated_label(repo)
+    reader = verify_evidence.Reader(
+        repo,
+        branch,
+        max_fails=config.max_verify_fails,
+        agent_identity=identity,
+        cap_attempts=config.verify_cap_attempts,
+    )
+    return verify_evidence.capped_close(
+        reader,
+        number,
+        head,
+        attempts=config.verify_cap_attempts,
+        holds=("do-not-merge", label),
+        issue_holds=merge_policy.issue_hold_labels(config, label),
+    )
+
+
 def escalate(
     repo: str,
     number: int,
@@ -4226,6 +4271,7 @@ def unattended_writes(
                     branch,
                     max_fails=config.max_verify_fails,
                     agent_identity=config.agent_identity,
+                    cap_attempts=config.verify_cap_attempts,
                 )
                 if inputs.get("authority") == merge_policy.PR_MERGE
                 and config is not None
@@ -4390,6 +4436,26 @@ def unattended_writes(
             )
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             report["errors"].append(f"escalation: {exc}")
+    # A lanes App pull request the verifier refuses for good closes for a
+    # fresh attempt at its issue (`verify_evidence.capped_close`, which judges
+    # it again and leaves a held one alone); no person's label.
+    config = inputs.get("config")
+    if (
+        not stopped
+        and verify.get("refusal") in verify_evidence.VERIFY_FINAL
+        and config is not None
+    ):
+        try:
+            report["cappedClose"] = close_capped(
+                repo, number, identity, branch, config, inputs
+            )
+        except (
+            RuntimeError,
+            ValueError,
+            json.JSONDecodeError,
+            postmerge.PostMergeReadError,
+        ) as exc:
+            report["errors"].append(f"capped close: {exc}")
     # A held major Dependabot update gets the same signal, so it reaches the
     # human queue, whatever refusal tops it (an `in-flight:` one included).
     held = f"{merge_policy.MAJOR_HELD}:"

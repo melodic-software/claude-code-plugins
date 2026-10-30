@@ -49,6 +49,7 @@ import { DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, humanGatedLabel, LIST_QUE
 import { DEFAULTS as DOCS_FIX_DEFAULTS, dispatchDocsFixes, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY, LIST_QUERY as DOCS_FIX_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, cappedAt, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { budgetedFetch, serverFailure } from "./request-budget.mjs";
+import { verifyCapReader } from "./verify-cap.mjs";
 import { readConfig, readPolicy } from "./review-dependency.mjs";
 
 export const DEFAULTS = Object.freeze({
@@ -579,6 +580,9 @@ export async function main(
     log = (line) => console.log(line),
     loadLimits = loadBaseLimits,
     loadAdoption = loadBaseAdoption,
+    // The gate's reader for fix-ci's FAIL-cap skip (verify-cap.mjs), when the
+    // workflow names it in VERIFY_EVIDENCE_SCRIPT.
+    verifyCapped = env.VERIFY_EVIDENCE_SCRIPT ? verifyCapReader(env, { log }) : undefined,
     now,
   } = {},
 ) {
@@ -598,7 +602,7 @@ export async function main(
       fetch: budget.fetch,
     });
   try {
-    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, now });
+    return await dispatchAll(env, { client: shareWorkflowRuns(shareTimeline(wrapRunIds(base, env))), sleep, log, loadLimits, loadAdoption, verifyCapped, now });
   } finally {
     if (budget) {
       log(budget.summary());
@@ -606,7 +610,7 @@ export async function main(
   }
 }
 
-async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, now }) {
+async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, verifyCapped, now }) {
   const limits = await loadLimits(env);
   const adoption = await loadAdoption(env);
   const listed = await listAll(client, DEFAULTS.base);
@@ -667,6 +671,7 @@ async function dispatchAll(env, { client, sleep, log, loadLimits, loadAdoption, 
       adoption: { ownerIds, idleHours: adoption["idle-hours"], held: ownersHeld },
       holdLabels,
       gateLabel,
+      verifyCapped,
       now,
     });
     fixes.failed += ownersHeld === "" ? 0 : 1;

@@ -1,5 +1,53 @@
 # Changelog for the PR pipeline convention
 
+## [8.5.0] - 2026-10-30
+
+### Added
+
+- **`blocked-by-pr` stop code and `wait` route.** A run that waits on an open pull request names it; the lane keeps `agent-ready` with an `outcome=wait pr=<n>` marker, and the work-unblock sweep restarts the issue once that pull request merges or closes, its waits counted against `limits.stop-retries` apart from its retries. A pull request that is not open retries instead.
+- **`already-done` and `report-delivered` stop codes and `close` route.** The lane closes the issue as completed: `already-done` only once a cited merged pull request or commit is on the default branch and its commit message closes the issue, and `report-delivered` only on a `work-class: read-only` issue the run committed nothing for, posting the run's summary as the report. Either retries otherwise. A dependent or split parent counts the lanes App's `already-done` close as trusted only while its evidence re-checks true at read time; a `report-delivered` close, or a failed read, counts for nothing. The evidence check now lives in `.github/scripts/lib/done-evidence.mjs`, shared by report-outcome and check-trusted-trigger.
+- **Stop-reason marker on every comment that reaches a person.** The issue lane's hand-back and dimension-skip comments carry `<!-- stop-reason lane=work-resolve-issue reason=<code> -->` and a visible ``Reason: `<code>` `` line, the code one of `intent`, `design`, `security` or `cost`. The shared module `.github/scripts/lib/stop-reason.mjs` writes and validates both and refuses `none` on a comment that reaches a person; collect-base-activity copies `.github/scripts/lib/` beside a script's base copy. A stop reason the route table does not list now fails instead of holding.
+
+### Changed
+
+- Intake admission refuses an issue whose body has a line opening with `Hold:`, and holds it at `status: needs-decision` for a person.
+- Intake admission admits a lanes App issue only as a trusted size-split sub-issue (`splitChildBody`). Any other issue the App filed holds at `status: needs-decision` for a listed human to file as their own, even when a listed human's comment carries the criteria.
+- Intake admission under a room claims the issue's place with a fresh `admission-deferred` before it adds `agent-ready`. It adds `agent-ready` only while fewer issues than the room count ahead of it: issues the issues listing shows with either label, placed by their newest claim (else first `agent-ready` add) since 10 minutes before its status read, with a tie or an unread add counted ahead. Parallel apply-verdict runs for different issues no longer each take the same room. A loser, or a run whose read fails, stays deferred for work-unblock's sweep.
+- intake-reenter no longer removes `needs-human`: a decision on an issue that carries it changes nothing. A listed human's removal of `needs-human` now re-enters an issue at `status: needs-decision` as well as one with no `status:` label.
+
+- **The issue lane sends only intent, design, security and cost stops to a person.** Every `hold` row in `stop-routes.json` now names its `class`, and a test fails any hold row whose class is not one of those four. A stop with no code retries at most once, its cap counting every retry the issue has had since a listed human last added `agent-ready`, and then fails; `split-required` takes a new `intake` route that removes `agent-ready`, `status: ready` and `admission-deferred`, so the triage sweep sends the issue back through intake, whose split files its sub-issues (owner Q93). A security mention always reaches a person: a reason with no code, or one whose code closes the issue or sends it to a host run or an attended step, that names `security`, `vuln`, `inject`, `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API or private key, a backdoor, an exploit, branch protection, XSS, RCE, a CVE or an ignore-instructions phrase holds as `security-risk`. The triage sweep counts the lane's `outcome=intake` comment as a hand-back that starts a new dispatch cycle.
+
+### Fixed
+
+- The write runner's apply-patch push reads a lane escalation again right before it pushes past
+  the human-gated label. Callers pass `patch-human-gate` (`fix-request` or `lane-escalation`) in
+  place of `patch-fix-requested`; on `lane-escalation` the hold step runs `gate-recheck.mjs`, which
+  re-runs for `patch-activity` the check its select job ran, on the same reads (`prHold`, or
+  `gateSource` for address-feedback on a PR no owner opened), so a review-lane hold, a person's
+  comment, review or label, or a new escalation posted during the model turn stops the push
+  ([#9419](https://github.com/melodic-software/claude-code-plugins/issues/9419)).
+- `gateSource` and clear-escalations read a review-lane hold as ci-status does: only a removal of
+  the label by a person on `trusted-actors.json`, not through an App, lifts it, and a `labeled`
+  event by `github-actions[bot]` or `claude[bot]` is a hold. `labelHistory` picks the newest label
+  event by its time, not its place in the list, and GraphQL label events carry REST's `[bot]`
+  login.
+- A malformed review-lane hold marker that a trusted person lifted and that names an older head no
+  longer stops address-feedback, fix-ci, resolve-conflicts and fix-docs on that PR for good; one
+  that is open or names the current head still does.
+- clear-escalations accepts address-feedback's round record and model-run line as pr-unblock's
+  own, so a lane escalation's label comes off after an address-feedback round.
+
+- A review finding whose only ask is to run tests CI runs no longer stops the address-feedback
+  round. The adjudicator gains a `tests-only` verdict. On an `UNCERTAIN` reply to a non-security finding in a round that
+  pushed no fix, the reply job settles it from the head's CI, which the select job records in
+  `run.json`'s `ci`. The select job runs `scripts/plan-test-lanes.sh` over the pull request's
+  files and reads the latest real run of each covering check: every planned `test-bash` and
+  `test-python` leg, `test-node` and each `pr-test-windows` job. If every one passed and no
+  unplanned test lane ran, a fixed reply says every check the plan selected passed and resolves the
+  thread. If any test run on the head failed, the thread stays open with no escalation, and fix-ci
+  takes the red head. If a check is pending, cancelled, missing or skipped, the round
+  ends `feedback-unadjudicated` as before. No job gains a permission.
+
 ## [8.4.0] - 2026-10-30
 
 ### Added

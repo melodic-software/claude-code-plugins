@@ -287,11 +287,36 @@ jobs:
           key: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: pr-feedback-dispatch-record-${{ needs.post-verify-notes.outputs.head-sha || needs.post-verify-notes.outputs.pass-head-sha || github.event.workflow_run.head_sha }}-
 
+      # The gate's verifier reader (babysit_verify_evidence.py), which the
+      # dispatch reads for a pull request whose pr-verify FAILs are at the cap
+      # (verify-cap.mjs): the repository's pinned interpreter and PyYAML entry.
+      # A failed install warns; the reader then fails and the round runs.
+      - name: Set up Python
+        if: steps.kill.outputs.proceed == 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .base/.python-version
+
+      - name: Install the pinned YAML reader
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        run: |
+          awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \
+            .base/.github/requirements-ci.txt >"$RUNNER_TEMP/pyyaml-requirements.txt"
+          python3 -m pip install --disable-pip-version-check --only-binary=:all: \
+            --require-hashes --requirement "$RUNNER_TEMP/pyyaml-requirements.txt" || {
+            echo "::warning::PyYAML did not install; the FAIL-cap read fails and rounds run under their own caps"
+            exit 1
+          }
+
       - name: Dispatch address-feedback
         id: dispatch
         if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
+          # The reader's gh calls, with this job's read scopes.
+          GH_TOKEN: ${{ github.token }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
           DISPATCH_RECORD: ${{ runner.temp }}/pr-feedback-dispatch-record.json
