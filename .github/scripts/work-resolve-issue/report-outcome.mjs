@@ -1799,7 +1799,9 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // for an intake round that is a pushbackSecurity stop), so an issue intake
 // keeps sending back cannot loop. Any plan that would then fail (retry-spent,
 // turn-cap-spent) holds as security-risk instead when a counted intake marker
-// carries `security`, so a security reading never ends without a person. A
+// carries `security`, so a security reading never ends without a person; so
+// does a report-delivered close, whose only evidence is the run's own claim
+// (already-done keeps closing: its close needs a merged commit on main). A
 // retry or wait under the cap posts its comment once per run (a rerun of this
 // report finds its own marker) and keeps agent-ready. A close comments,
 // removes agent-ready, then closes the issue as completed.
@@ -1831,7 +1833,8 @@ async function finishStop(github, repo, plan, { bot, humans, runId, limits }) {
     const counted = { ...(await read()), outcome: plan.exit };
     plan = capRetries(plan, countRestarts(counted), limits);
   }
-  if (plan.action === "fail" && priorSecurityIntake(await read())) {
+  const delivered = plan.action === "close" && plan.stop === "report-delivered";
+  if ((plan.action === "fail" || delivered) && priorSecurityIntake(await read())) {
     plan = routeStop("security-risk", plan.stopArgs, { spentSecurity: true });
   }
   if (KEPT.has(plan.action)) {

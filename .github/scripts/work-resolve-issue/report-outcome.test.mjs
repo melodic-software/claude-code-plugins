@@ -1242,6 +1242,39 @@ test("main holds a spent retry as security-risk when an earlier intake marker ca
   }
 });
 
+// A report-delivered close rests only on the run's own claim, so after a
+// security intake it holds for a person instead of closing; after a plain
+// intake it closes as before.
+test("main holds a report-delivered close as security-risk when an earlier intake marker carries security", async () => {
+  const bot = { login: "melodic-automation-lanes[bot]" };
+  const report = JSON.stringify({ exit: "stopped", reason: "report-delivered: the report is below", summary: "Rows 4 and 9 are stale." });
+  for (const [first, held] of [["intake security", true], ["intake", false]]) {
+    const prior = [{ user: bot, body: `<!-- work-resolve-issue outcome=${first} run=97 -->\nWhy.`, created_at: "2026-10-29T10:00:00Z" }];
+    await withAsyncDir({ "work-outcome.json": report }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["GET", /\/issues\/77\/comments$/, 200, prior],
+        ["GET", /\/issues\/77\/events$/, 200, []],
+        ["POST", /\/issues\/77\/labels$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+        ["PATCH", /\/issues\/77$/, 200, {}],
+      ]);
+      assert.equal(await main({ env: env(dir), fetch }), 0, first);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      const closed = calls.some((c) => c.method === "PATCH" && c.body?.state === "closed");
+      if (held) {
+        assert.ok(!closed, first);
+        assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body.labels, ["needs-human"]);
+        assert.equal(parseReason(comment).reason, "security", comment);
+      } else {
+        assert.ok(closed, first);
+        assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), first);
+      }
+    });
+  }
+});
+
 // An issue whose author is outside the trusted list stops at the admit job;
 // report-skip says so on the issue and takes agent-ready off, with no
 // needs-human: a listed human re-files the work, and a retry stops again.

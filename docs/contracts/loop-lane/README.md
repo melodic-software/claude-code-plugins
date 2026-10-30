@@ -342,7 +342,9 @@ triage once, whose own intent, security and cost rules decide whether it stops
 summary or a not-done item) or cause name a security risk marks its intake comment `security`,
 and that mark is sticky: any later round that would fail (a spent intake, retry or wait, or a
 spent turn cap) holds for the owner as `security-risk` instead, whatever stops it, so a real
-security risk never ends without a person.
+security risk never ends without a person. A `report-delivered` close holds the same way, since
+its only evidence is the run's own claim; an `already-done` close still closes, since it needs a
+merged commit on the default branch.
 
 The owner's standing direction on cost and other stops (the owner's section 3), 2026-10-27, verbatim:
 
