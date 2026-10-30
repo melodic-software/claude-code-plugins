@@ -117,11 +117,13 @@ sys.stdout.buffer.write(os.fsencode(sys.executable) + b"\n")
 #
 #   --marker-root <dir>            root the marker tree lives under, spelled
 #                                  `"${CLAUDE_PLUGIN_DATA}"` by every caller;
-#   --launch-marker <subdir>       write `<root>/<subdir>/<session>.launched`
-#                                  BEFORE exec'ing the target;
+#   --launch-marker <subdir>       remove `<root>/<subdir>/<session>.seen`, then
+#                                  write a launch token to `<session>.launched`
+#                                  beside it, BEFORE exec'ing the target;
 #   --skip-unless-marker <subdir>  exit 0 without exec'ing anything when at
 #                                  least one candidate directory exists and
-#                                  none of them holds that file.
+#                                  none of them holds that file, or when every
+#                                  `.launched` found is seen (`_launch_seen`).
 #
 # Together they let a `Stop` hook cost nothing in a session where the hook it
 # watches never ran. `guard_launch_monitor.py` reports failures of the
@@ -129,6 +131,18 @@ sys.stdout.buffer.write(os.fsencode(sys.executable) + b"\n")
 # name, so most sessions never launch the guard at all — yet the monitor still
 # started a whole Python on every turn to discover that. `Stop` rows accept
 # neither `matcher` nor `if`, so the only place that gate can live is here.
+#
+# A marker alone would keep the monitor running on every later Stop of a
+# session that launched one guard. So each launch writes a token unique to it
+# (epoch seconds, this bash's PID and `$RANDOM`, all builtins), the monitor
+# copies a token it has processed into `<session>.seen`, and a Stop skips when
+# every `.launched` holds a token its `.seen` repeats: it runs only after a new
+# launch. The launch writes in the order that degrades toward running: it
+# removes `.seen`, truncates `.launched`, then writes the token. A failed open
+# leaves no `.seen` and a failed write an empty `.launched`, and both run the
+# monitor. When the `.seen` removal and the `.launched` open both fail, the old
+# pair could still skip, so the launcher names that marker to the guard in
+# `DISK_HYGIENE_UNWRITTEN_MARKER` and the guard adds a `systemMessage` naming it.
 #
 # The root is passed EXPLICITLY rather than read from `CLAUDE_PLUGIN_DATA` in
 # the environment: a hook subprocess can inherit that variable naming a
@@ -141,9 +155,12 @@ sys.stdout.buffer.write(os.fsencode(sys.executable) + b"\n")
 #
 # Failure modes, stated rather than implied:
 #   * a marker is per session and is never removed. Under the tmp fallback the
-#     OS clears it; under `--marker-root` it is one empty file per session that
-#     launched a guard, and neither the clean engine nor `lib/guard_decision_log.py`
-#     runs a retention sweep over the plugin data root that could collect them.
+#     OS clears it; under `--marker-root` it is one small file per session that
+#     launched a guard, plus the monitor's `.seen`, and neither the clean engine
+#     nor `lib/guard_decision_log.py` runs a retention sweep over the plugin data
+#     root that could collect them.
+#   * an empty `.launched` holds no token, so it runs the monitor on every Stop
+#     until the next launch writes one.
 #   * a session whose guard rows never fired is skipped BY DESIGN: there is no
 #     guard invocation for the monitor to have found a failure of.
 #   * a hook that failed before this script ran leaves no marker and is not this
@@ -200,6 +217,8 @@ MARKER_ROOT=""
 LAUNCH_MARKER_SUBDIR=""
 SKIP_MARKER_SUBDIR=""
 ONLY_SKILL=""
+# Only this launch's own marker write may set it for the guard.
+unset DISK_HYGIENE_UNWRITTEN_MARKER
 while (($#)); do
   case "$1" in
   --marker-root)
@@ -264,9 +283,11 @@ _read_payload() {
 # first, mirroring `guard_launch_monitor.py`'s own `_marker_path_candidates`:
 # the data root when one resolved, then a tmp fallback whose directory name is
 # built from the subdir, so a `.launched` marker sits beside the `.warned` one
-# the monitor writes. Only bash reads and writes `.launched`, so the tmp
-# directory need not be the one Python's `tempfile.gettempdir()` picks; what
-# matters is that both flags resolve it identically, which they do.
+# the monitor writes. Both flags resolve the tmp directory identically, which
+# is what the skip needs. The monitor writes `.seen` only beside a `.launched`
+# it finds through `tempfile.gettempdir()`; where that differs from
+# `${TMPDIR:-/tmp}`, a tmp-fallback launch is never seen and the Stop keeps
+# running the monitor.
 _marker_candidates() {
   local subdir="$1" session="$2" suffix="${3:-launched}"
   local safe="${session//[^a-zA-Z0-9_-]/_}"
@@ -294,25 +315,41 @@ _trusted_marker_dir() {
   [[ "$1" != "$_TMP_MARKER_DIR" ]] || _owned_marker_dir "$1"
 }
 
+_LAUNCH_TOKEN_PATTERN=$'^[0-9]{1,15}-[0-9]{1,10}-[0-9]{1,5}\n?$'
+
+# True when `<base>.launched` holds a launch token and `<base>.seen` holds the
+# same bytes: the monitor ran after the last launch. An empty, unreadable or
+# malformed `.launched`, or a missing or unreadable `.seen`, is not seen.
+# `exec-bash.mjs`'s `launchSeen` makes the same test before bash starts. `read`
+# from a redirect is a builtin, so this spawns nothing.
+_launch_seen() {
+  local launched="" seen=""
+  [[ -f "$1.launched" && -r "$1.launched" && -f "$1.seen" && -r "$1.seen" ]] || return 1
+  IFS= read -r -d '' launched 2>/dev/null <"$1.launched"
+  [[ "$launched" =~ $_LAUNCH_TOKEN_PATTERN ]] || return 1
+  IFS= read -r -d '' seen 2>/dev/null <"$1.seen"
+  [[ "$seen" == "$launched" ]]
+}
+
 if [[ -n "$SKIP_MARKER_SUBDIR" ]]; then
   _read_payload
   if [[ -n "$_SESSION_ID" ]] && _marker_candidates "$SKIP_MARKER_SUBDIR" "$_SESSION_ID"; then
-    _marker_found=0
+    _marker_unseen=0
     # Skipping requires POSITIVE evidence that the launch side got as far as a
     # marker tree. No candidate directory at all is the shape a launch whose
     # `mkdir` failed for every root leaves behind, and silencing the monitor on
     # it would be a silent failure in the detector that exists to catch silent
-    # failures. Both tests are builtins, so the skip path still spawns nothing.
+    # failures. Every test is a builtin, so the skip path still spawns nothing.
     _marker_dir_seen=0
     for _marker_path in "${_MARKER_PATHS[@]}"; do
       _trusted_marker_dir "${_marker_path%/*}" || continue
       [[ -d "${_marker_path%/*}" ]] && _marker_dir_seen=1
-      if [[ -f "$_marker_path" ]]; then
-        _marker_found=1
+      if [[ -f "$_marker_path" ]] && ! _launch_seen "${_marker_path%.launched}"; then
+        _marker_unseen=1
         break
       fi
     done
-    if ((_marker_dir_seen && !_marker_found)); then
+    if ((_marker_dir_seen && !_marker_unseen)); then
       exit 0
     fi
   fi
@@ -332,17 +369,35 @@ if [[ -n "$LAUNCH_MARKER_SUBDIR" ]]; then
   ((_BUFFERED_STDIN)) || _read_payload
   if [[ -n "$_SESSION_ID" ]] && _skill_selected &&
     _marker_candidates "$LAUNCH_MARKER_SUBDIR" "$_SESSION_ID"; then
+    printf -v _launch_token '%(%s)T' -1
+    _launch_token+="-$$-$RANDOM"
+    _unwritten_marker=""
     for _marker_path in "${_MARKER_PATHS[@]}"; do
       _marker_dir="${_marker_path%/*}"
-      # `mkdir` is the one spawn on this path and `[[ -e ]]` is a builtin, so it
-      # is paid once per root rather than once per launch. Only the marker
+      _seen_path="${_marker_path%.launched}.seen"
+      # `mkdir` and the `.seen` removal are the only spawns on this path, each
+      # behind a builtin `[[ -e ]]`: `mkdir` once per root, the removal once per
+      # launch that follows a Stop the monitor recorded. Only the marker
       # directory itself needs mode 700; its parent is `$TMPDIR` or the data root.
       # shellcheck disable=SC2174
       [[ -e "$_marker_dir" || -L "$_marker_dir" ]] ||
         mkdir -p -m 700 "$_marker_dir" 2>/dev/null || continue
       _trusted_marker_dir "$_marker_dir" || continue
-      : >"$_marker_path" 2>/dev/null && break
+      if [[ -e "$_seen_path" || -L "$_seen_path" ]]; then
+        rm -f -- "$_seen_path" 2>/dev/null
+      fi
+      if : >"$_marker_path" 2>/dev/null; then
+        printf '%s\n' "$_launch_token" >>"$_marker_path" 2>/dev/null
+        _unwritten_marker=""
+        break
+      fi
+      if [[ -z "$_unwritten_marker" ]] && [[ -e "$_seen_path" || -L "$_seen_path" ]]; then
+        _unwritten_marker="$_marker_path"
+      fi
     done
+    if [[ -n "$_unwritten_marker" ]]; then
+      export DISK_HYGIENE_UNWRITTEN_MARKER="$_unwritten_marker"
+    fi
   fi
 fi
 
@@ -579,18 +634,16 @@ _store_python3() {
   chmod 700 "$dir" 2>/dev/null || true
   printf -v now '%(%s)T' -1
   temp="$file.$$.tmp"
+  # Concurrent hooks race to publish; `mv` is atomic within a filesystem, so the
+  # loser's record is replaced rather than interleaved with the winner's. A
+  # failed write never reaches `mv`, and it or a failed `mv` removes the temp.
   {
     printf 'schema=%s\n' "$_CACHE_SCHEMA"
     printf 'written=%s\n' "$now"
     printf 'interpreter=%s\n' "$interp"
     printf 'lookup=%s\n' "${_LOOKUPS[@]}"
-  } >"$temp" 2>/dev/null || {
+  } >"$temp" 2>/dev/null && mv -f "$temp" "$file" 2>/dev/null ||
     rm -f "$temp" 2>/dev/null || true
-    return 0
-  }
-  # Concurrent hooks race to publish; `mv` is atomic within a filesystem, so the
-  # loser's record is replaced rather than interleaved with the winner's.
-  mv -f "$temp" "$file" 2>/dev/null || rm -f "$temp" 2>/dev/null || true
   return 0
 }
 

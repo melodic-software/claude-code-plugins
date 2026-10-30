@@ -41,7 +41,7 @@ source "$LIB"
 assert_eq "P1 body defined" "0" "$([[ -n "${CCPERM_P1_ERE:-}" ]] && echo 0 || echo 1)"
 assert_eq "tool-token body defined" "0" "$([[ -n "${CCPERM_TOOL_TOKEN_ERE:-}" ]] && echo 0 || echo 1)"
 
-matches() { printf '%s\n' "$1" | grep -qE "$CCPERM_P1_ERE" && echo yes || echo no; }
+matches() { grep -qE "$CCPERM_P1_ERE" <<<"$1" && echo yes || echo no; }
 
 # One rule per documented drop class, and one narrow rule that must carry over.
 assert_eq "blanket Bash(*) is a drop class" "yes" "$(matches 'Bash(*)')"
