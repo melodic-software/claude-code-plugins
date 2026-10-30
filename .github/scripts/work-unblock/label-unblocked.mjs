@@ -174,6 +174,10 @@
 // issue of a Refs PR, and this lifts that hold once that PR merges or closes
 // unmerged, only while its refs-hold marker and the App's needs-human label
 // are the newest. Each hand-off also counts against limits.restarts-per-run.
+// A lane PR the pr-merge lane closed at the verify cap, which its
+// capped-close record on the issue names with an attempt, is no hand-off:
+// that lane already restarted the issue for a fresh attempt or parked it.
+// The issues this path reads carry agent-ready.
 //
 // It relabels a red-main fix issue post-merge-demotion-alert.yml reopened on
 // a repeat failure: the reopen keeps agent-ready but ran on that workflow's
@@ -284,6 +288,11 @@ const SWEEP_JOB = "label-unblocked";
 const SWEEP_STEP = "Label the unblocked issues";
 const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40})( breaker)? -->/;
 const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
+// The pr-merge lane's capped-close record on the issue
+// (babysit_verify_evidence.py CAPPED_CLOSE_RE) naming an attempt: it closed
+// the lane PR it names at the verify cap and restarted or parked the issue
+// itself. One with no attempt started nothing.
+const CAPPED_CLOSE = /^<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=[0-9a-f,]* attempt=[0-9]+ of=[0-9]+(?: parked)? -->/;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
 // The lane never starts on these: a person decides each but `attended`,
 // which waits on a step the owner takes present (admit.mjs ATTENDED). Only a
@@ -1310,6 +1319,9 @@ function pullRefusal({ pull, number, comments, events, bot, held }) {
   }
   if (pull.state === "open") {
     return { reason: `its lane PR #${pull.number} is open` };
+  }
+  if (!merged && comments.some((comment) => comment.user?.login === bot && Number(CAPPED_CLOSE.exec(String(comment.body ?? ""))?.[1]) === pull.number)) {
+    return { reason: `its lane PR #${pull.number} closed at the verify cap, and pr-merge restarted or parked the issue` };
   }
   if (merged && !refs) {
     return { reason: `its lane PR #${pull.number} merged` };

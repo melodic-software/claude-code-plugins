@@ -601,6 +601,10 @@ MAX_CONFIRM_WAIT_MINUTES = 45
 # the verifier keeps refusing, not one noisy verdict (owner decision
 # 2026-10-21).
 MAX_VERIFY_FAILS = 3
+# The default `merge.verify-cap-attempts`, the schema's default: one fresh
+# attempt per issue after the pr-merge lane closes its pull request at the
+# FAIL cap (owner decision 2026-10-29).
+VERIFY_CAP_ATTEMPTS = 1
 
 
 @dataclass(frozen=True)
@@ -667,6 +671,12 @@ class PipelineConfig:
     # a later pass says (`babysit_verify_evidence`). Absent is `MAX_VERIFY_FAILS`; anything
     # but a whole number of at least 1 is 1, so any earlier FAIL holds.
     max_verify_fails: int = MAX_VERIFY_FAILS
+    # `merge.verify-cap-attempts`: fresh attempts one issue gets after the
+    # pr-merge lane closes its pull request at the FAIL cap or as too old
+    # (`babysit_verify_evidence.capped_close`); past them it parks the issue.
+    # Absent is `VERIFY_CAP_ATTEMPTS`; anything but a whole number is 0, so
+    # a bad value starts no attempt.
+    verify_cap_attempts: int = VERIFY_CAP_ATTEMPTS
     # `merge.check-inputs`: git pathspecs of what the pull request checks
     # read. When the base changed one since a pull request's merge base, the
     # pr-merge lane updates its branch from the base instead of enqueuing it
@@ -901,6 +911,7 @@ def read_config_at(
             ("merge.max-queue-ejections", False),
             ("merge.risk-escalation-minutes", False),
             ("merge.max-verify-fails", False),
+            ("merge.verify-cap-attempts", False),
             ("merge.check-inputs", True),
             ("adoption.idle-hours", False),
             ("adoption.spec-from-body-apps", True),
@@ -997,6 +1008,14 @@ def read_config_at(
             f"merge.max-verify-fails {verify_fails!r} is not a count of 1 or more"
         )
         verify_fails = "1"
+    cap_attempts = scalar("merge.verify-cap-attempts")
+    if cap_attempts is None and _merge_names(text, "verify-cap-attempts"):
+        cap_attempts = ""
+    if cap_attempts is not None and not re.fullmatch(r"0|[1-9][0-9]*", cap_attempts):
+        notes.append(
+            f"merge.verify-cap-attempts {cap_attempts!r} is not a whole number"
+        )
+        cap_attempts = "0"
     idle_text = scalar("adoption.idle-hours")
     idle_hours: int | None = None
     if idle_text is not None:
@@ -1062,6 +1081,9 @@ def read_config_at(
         if escalation_minutes is not None
         else RISK_ESCALATION_MINUTES,
         max_verify_fails=int(verify_fails) if verify_fails else MAX_VERIFY_FAILS,
+        verify_cap_attempts=int(cap_attempts)
+        if cap_attempts is not None
+        else VERIFY_CAP_ATTEMPTS,
         check_inputs=tuple(values["merge.check-inputs"]),
         adoption_idle_hours=idle_hours,
         spec_from_body_apps=tuple(int(i) for i in body_apps),
@@ -1134,6 +1156,7 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
         max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
         max_verify_fails=min(base.max_verify_fails, main.max_verify_fails),
+        verify_cap_attempts=min(base.verify_cap_attempts, main.verify_cap_attempts),
         # Main's own list, read in a `git diff` of its own, so an exclude or a
         # bad entry on either side cannot cancel the other's paths.
         head_check_inputs=tuple(
@@ -1210,6 +1233,7 @@ def _cached_config(value: Any) -> PipelineConfig | None:
             and count(c.max_queue_ejections, 1)
             and count(c.risk_escalation_minutes, 0)
             and count(c.max_verify_fails, 1)
+            and count(c.verify_cap_attempts, 0)
             and (
                 c.adoption_idle_hours is None
                 or count(c.adoption_idle_hours, 1)
@@ -4684,11 +4708,14 @@ def entry_hold(
     *,
     self_logins: Collection[str] = frozenset(),
     permission: Permission | None = None,
+    queued: bool = True,
 ) -> str | None:
     """Why a queued entry of the agent identity must leave the queue (D3): the
     `do-not-merge` or human-gated label, a body hold, a human blocking comment, or the opt-in
     label removed since the enqueue or put back by a non-human. An unreadable
-    entry is a hold."""
+    entry is a hold. Not `queued` (a pull request never enqueued, as the
+    gate's capped close reads it), no queue event is needed and the opt-in
+    label is not compared; a failed read still holds."""
     from babysit_merge import (  # noqa: PLC0415
         BODY_MERGE_HOLD_RE,
         human_gated_label,
@@ -4710,7 +4737,7 @@ def entry_hold(
         pr = json_object(json_object(data.get("repository")).get("pullRequest"))
         labels = _label_names(pr)
         events = json_array(json_object(pr.get("timelineItems")).get("nodes"))
-        if labels is None or not events:
+        if labels is None or (queued and not events):
             return "unreadable"
         # Only unattended runs judge queued entries.
         if held_by := merge_hold_label(labels, human_gated=human_gated_label(repo)):
@@ -4720,6 +4747,8 @@ def entry_hold(
         blockers = _human_blockers(owner, name, number, identity)
         if blockers:
             return f"human-blocking-comment:{','.join(blockers)}"
+        if not queued:
+            return None
         opt_in = _opt_in_hold(
             owner, name, pr, json_object(events[-1]).get("createdAt"), human
         )

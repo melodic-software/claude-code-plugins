@@ -293,13 +293,13 @@ out of scope until such a signal exists.
 - **The Bash row fails open on a guard's crash.** An internal script error
   exits 0 so a defect on this hottest-path row cannot freeze the session, with
   the user notice so the allow is not silent. Stdin timeout and a NUL payload
-  still fail closed. The 60s `hooks.json`
-  `timeout` on this handler is a harness-level fail-open the plugin does not
-  override: we treat a guard killed at that bound as letting the tool call
-  proceed. Pointer: <https://code.claude.com/docs/en/hooks#timeouts>. As of:
-  2026-10-01. Recheck trigger: that section changes what a timed-out
-  `PreToolUse` command hook does to the tool call. What the
-  plugin does instead is keep the row far from that bound: the command
+  still fail closed. The row sets `"onFailure": "block"`, so on Claude Code
+  2.1.295 or later a handler killed at its 60s `hooks.json` `timeout` denies
+  the call; an older client lets it proceed. Pointer:
+  <https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails>.
+  As of: 2026-10-30. Recheck trigger: that section changes what a timed-out
+  `PreToolUse` command hook does to the tool call. The plugin also keeps the
+  row far from that bound, so a slow command gets the guard's own reason: the command
   tokenizer is linear in the command's length, one parse serves every guard,
   and a command over `MAX_COMMAND_LEN` is refused by the first guard that
   carries the ceiling before anything tokenizes it (#4528).
@@ -457,11 +457,23 @@ out of scope until such a signal exists.
 ### Hook budget accounting
 
 **block-root-delete-target find deletes (#9752).** The arm starts no process of its own, so the
-row's k is unchanged: it reads find's argv from the parse the guard already makes, and each start
-point takes the path a recursive `rm` operand takes, through the same one `realpath` (and, on
-Windows, the one `cygpath`). The Bash prefilter now also passes a command whose text holds
-`-delete` or `unlink`, and such a command pays the tokenizer the way one holding `rm` already did.
-Every other Bash call, and every PowerShell call, takes the same path as before.
+common call's k is unchanged: it reads find's argv from the parse the guard already makes, and
+each start point takes the path a recursive `rm` operand takes, through the same one `realpath`
+(and, on Windows, the one `cygpath`). The Bash prefilter now also passes a command whose text holds
+`-delete` or `unlink`, and a find delete pays the whole recursive-delete judgment a recursive
+`rm` already paid: the strace census of `find ./build -name x -delete` goes from 2 processes
+(`node`, `bash`) to 6, adding `git`, `realpath` and two `timeout`, the same 6 `rm -rf ./build`
+starts at both commits. Every other Bash call, and every PowerShell call, takes the same path as
+before. Measured on a WSL2 host (Linux 6.18, bash 5.3.9, Node 24.21.0, 24 cores; the Windows
+reference host was not re-measured), guardrails at `3d3b1b15d` against its parent, with no
+telemetry sink: with the fan-out harness above, 21 interleaved rounds of `--runs 15`, the `Bash`
+row's paired median moved +0 ms and the `$(…)` sample +2 ms, against +0 and +1 ms for the
+untouched `Write` and `Edit` rows. With `hyperfine` (300 runs, S = 0.76 ms), the row's median on
+`find ./build -name x -delete` went from 43.5 to 115.7 ms, and on `rm -rf ./build` stayed at
+119.9 and 119.1 ms. The common call stays inside its k × S budget. A find delete is a new
+judged shape: its k goes from 0 to 4 and it costs +72 ms (about 95 S), the cost a recursive `rm`
+already pays. Taking that recursive-delete cost as the budget for a find delete is a judgment,
+not a k × S result.
 
 **block-root-delete-target protected trees (#9751).** The arm starts no process of its own, so
 the row's k is unchanged: it reads the worktree registry from the files git keeps with bash
@@ -498,6 +510,21 @@ document is built with builtins, and the owner directories come from the same `j
 that compiles the map, so k stays 0 and the strace census pins 0 creations for a call
 that names another domain's root. A map with owners gives each call more paths to test:
 two per owner, each in up to twelve spellings, the same count a root below `HOME` has.
+Measured on the WSL2 host of the find-delete entry, guardrails at the #10870 merge against its parent,
+with a placeholder map holding the cwd's domain and one other: with the fan-out harness, 21
+interleaved rounds of `--runs 15`, the `Bash` row's paired median moved +1 ms and the `$(…)`
+sample +1 ms, against +0 ms for the untouched `Write` and `Edit` rows. With `hyperfine` (300
+runs, S = 0.76 ms), the row's median on `cat /x/b/notes.txt`, which the new code denies, went
+from 43.0 to 44.9 ms (+1.9 ms, 2.5 S), at k = 0 on both sides of the census. The added work is
+builtins only, inside the k × S plus measured-work budget.
+
+**block-cross-domain identity positions (#9746).** k stays 0: the strace census of a denied
+`git config user.email <other domain's marker>` counts `node` and `bash` alone, and the markers
+come from the same `jq` run that compiles the map. Only a command whose prefilter named a marker
+is checked for identity positions. Measured as the #9744 entry, guardrails at `1f9718c1d`
+against its parent: the harness's `Bash` row and `$(…)` sample moved +0 ms, as did the `Write`
+and `Edit` rows, and `hyperfine` put the denied `git config` call at 44.7 ms before and 45.9 ms
+after (+1.2 ms, 1.6 S), inside the same budget.
 
 **block-cross-domain config directories (#9747).** k stays 0: a domain's `gh` and `az`
 directories come from the same `jq` run that compiles the map, and the check reads the
@@ -1275,9 +1302,11 @@ guards behave exactly as before.
   notice per session, never a silent disable.
 - **Node.js** on `PATH`. Every guard row starts through `hooks/exec-bash.mjs`, which finds bash
   and runs the guard; the script declares no minimum Node version. The exec-form row needs `node`
-  resolvable on `PATH`, and we treat a row that cannot start because `node` is missing as a guard
-  that enforced nothing, with no documented error to rely on. `/guardrails:check` reports a missing
-  `node` or `jq`. A `SessionStart` row in shell form
+  resolvable on `PATH`. Every `PreToolUse` guard row except `Workflow` sets `"onFailure": "block"`,
+  so on Claude Code 2.1.295 or later a row that cannot start, because `node` or bash is missing, or
+  that times out, denies the call. An older client ignores the key, and such a row enforces nothing
+  ([hook budget](../../docs/contracts/hook-budget/README.md#which-rows-set-onfailure-block)).
+  `/guardrails:check` reports a missing `node` or `jq`. A `SessionStart` row in shell form
   (no `shell` field and no `args`) runs `lib/prerequisites.sh node-notice`, or
   `lib/prerequisites.ps1` where there is no `sh`, and needs no node itself. When node is
   absent it exits 0 with a `systemMessage` that shows the user a warning once per session across
