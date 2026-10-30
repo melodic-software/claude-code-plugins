@@ -155,22 +155,32 @@ re-verifying. For everything else `apply` only points:
   the measured CLI behavior (including that a rerun against an already-installed plugin still
   writes the value) and its verification record
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>).
-  Two consumer-run routes: interactive `/plugin configure go-format@<marketplace>`, or headless
-  `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=false`
-  (`go_format_lint_gitignored` is set the same way). Print these four caveats with it:
+  Consumer-run routes, `go_format_lint_gitignored` set the same way:
+  - Interactive: `/plugin configure go-format@<marketplace>`.
+  - Headless, preferred on Claude Code 2.1.285 or later:
+    `claude plugin configure go-format@<marketplace> --values-stdin < values.json`, where
+    `values.json` holds `{"go_format_enabled": "false"}` (every value a string, booleans included;
+    keys left out keep their saved values).
+  - Headless fallback, before 2.1.285:
+    `claude plugin install go-format@<marketplace> -s <scope> --config go_format_enabled=false`.
+
+  Print these four caveats with them:
   - Never uninstall to reconfigure: it drops this plugin's entire stored `pluginConfigs` entry and
     resets every option to its manifest default.
-  - Scope. Pass the scope `claude plugin list` reports for this plugin, and for a `project` or
-    `local` scope run from that project's directory, so the rerun matches the existing install
-    record. `-s` places the install record and `enabledPlugins`; the option value always lands in
-    user settings, and a rerun at another scope adds an install record at that scope and enables
-    the plugin there. When the working directory is the home directory, project scope and user
-    scope are the same settings file, so the list can label that one file as both `user` and
-    `project`: pass `user`.
+  - Scope. The option value always lands in user settings, whichever route writes it.
+    `claude plugin configure` has no scope flag, so run it from the project the plugin is
+    installed in. For the rerun, pass the scope `claude plugin list` reports for this plugin, and
+    for a `project` or `local` scope run from that project's directory, so the rerun matches the
+    existing install record. `-s` places the install record and `enabledPlugins`, and a rerun at
+    another scope adds an install record at that scope and enables the plugin there. When the
+    working directory is the home directory, project scope and user scope are the same settings
+    file, so the list can label that one file as both `user` and `project`: pass `user`.
   - Observation is next-session: a same-session `check` still reports the OLD value, so rerun
     `check` in a **fresh session** and report the observed effective value, never an unobserved
     change.
-  - Read the command's output, not its exit code: a rejected value prints a warning yet exits 0.
+  - Check each route's own failure signal: `--values-stdin` rejects a bad value with exit 1 and
+    saves nothing, but stores an empty string as `""`; the `--config` rerun prints a warning for a
+    rejected value yet exits 0, so read its output, not its exit code.
 
   This skill never writes user settings or `pluginConfigs`.
 

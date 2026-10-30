@@ -1,83 +1,106 @@
 #!/usr/bin/env bash
-# claim <id> [--ttl-hours <n>] [--session-id <s>] — CONTRACT.md "Lease protocol".
-# Assignment is bare gh (@me = session identity); the lease comment goes through the
-# bot. Race arbitration is by lease-comment identity, not session_id.
+# claim <id> [--ttl-hours <n>] [--session-id <s>] [--holder <h>] [--lease-only] —
+# CONTRACT.md "Lease protocol". Assignment is bare gh (@me = session identity); the
+# lease comment goes through the bot. Race arbitration is by lease-comment identity,
+# not session_id. --holder names the lease holder instead of `gh api user`, which an
+# installation token cannot call; --lease-only posts the lease with no assignment.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-usage='usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>]
-  --ttl-minutes (0-59) adds to --ttl-hours; for a sub-hour lease pass --ttl-hours 0'
+usage='usage: claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only]
+  --ttl-minutes (0-59) adds to --ttl-hours; for a sub-hour lease pass --ttl-hours 0
+  --holder names the lease holder instead of the authenticated login
+  --lease-only posts the lease comment and assigns no one'
 wit_help_if_requested "$usage" "$@"
 
-ttl="${WIT_LEASE_TTL_HOURS:-}" ttl_minutes="${WIT_LEASE_TTL_MINUTES:-0}" session_id=""
+ttl="${WIT_LEASE_TTL_HOURS:-}" ttl_minutes="${WIT_LEASE_TTL_MINUTES:-0}" session_id="" holder="" lease_only=false
 id="${1:-}"
 [[ -n "$id" ]] || wit_usage_error "$usage"
 shift
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --ttl-hours)
-    [[ $# -ge 2 ]] || wit_usage_error "--ttl-hours needs a value"
-    ttl="$2"
-    shift 2
-    ;;
-  --ttl-minutes)
-    [[ $# -ge 2 ]] || wit_usage_error "--ttl-minutes needs a value"
-    ttl_minutes="$2"
-    shift 2
-    ;;
-  --session-id)
-    [[ $# -ge 2 ]] || wit_usage_error "--session-id needs a value"
-    session_id="$2"
-    shift 2
-    ;;
-  *) wit_usage_error "unknown argument: $1" ;;
+    --ttl-hours)
+      [[ $# -ge 2 ]] || wit_usage_error "--ttl-hours needs a value"
+      ttl="$2"
+      shift 2
+      ;;
+    --ttl-minutes)
+      [[ $# -ge 2 ]] || wit_usage_error "--ttl-minutes needs a value"
+      ttl_minutes="$2"
+      shift 2
+      ;;
+    --session-id)
+      [[ $# -ge 2 ]] || wit_usage_error "--session-id needs a value"
+      session_id="$2"
+      shift 2
+      ;;
+    --holder)
+      [[ $# -ge 2 && -n "$2" ]] || wit_usage_error "--holder needs a value"
+      holder="$2"
+      shift 2
+      ;;
+    --lease-only)
+      lease_only=true
+      shift
+      ;;
+    *) wit_usage_error "unknown argument: $1" ;;
   esac
 done
 wit_require_github_id "$id" || wit_usage_error "malformed or non-github id: $id"
 [[ "$ttl" =~ ^[0-9]+$ ]] || wit_usage_error "--ttl-hours must be a non-negative integer (binding config.lease_ttl_hours supplies the default)"
-[[ "$ttl_minutes" =~ ^[0-9]+$ && "$ttl_minutes" -le 59 ]] || wit_usage_error "--ttl-minutes must be 0-59 (binding config.lease_ttl_minutes defaults to 0)"
+if ! [[ "$ttl_minutes" =~ ^[0-9]{1,2}$ ]] || ((10#$ttl_minutes > 59)); then
+  wit_usage_error "--ttl-minutes must be 0-59 (binding config.lease_ttl_minutes defaults to 0)"
+fi
+wit_lease_ttl_within_cap "$ttl" "$ttl_minutes" || wit_usage_error "--ttl-hours plus --ttl-minutes must not exceed the ${WIT_LEASE_MAX_TTL_HOURS} h lease cap; a longer lease is never live"
 
 owner="$WIT_ID_OWNER" repo="$WIT_ID_REPO" number="$WIT_ID_NUMBER"
 
-wit_run_gh read api user --jq .login
-login="$WIT_GH_OUT"
-
-# 1. Assign the session identity. `read` routes to bare gh, so the assignee is
-# the session user, not the bot (README "Edit labels / assignees" carve-out);
-# `@me` is resolved to $login explicitly because REST takes a literal login.
-wit_add_assignee read "$owner" "$repo" "$number" "$login"
-
-# Guard the partial-claim window: any failure between this successful
-# assignment and a successful lease-comment write (step 3) would otherwise
-# strand the issue assigned with no lease record (list-frontier excludes
-# assigned items; reclaim ignores items with no lease). wit_run_gh's failure
-# path calls `exit` directly rather than returning, and an explicit `exit`
-# inside a function does not run the caller's ERR trap (only its EXIT trap) —
-# verified empirically — so this must be an EXIT trap, not ERR.
-_wit_claim_rollback() {
-  wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
-}
-trap _wit_claim_rollback EXIT
-
-# 2. Sole-assignee check — a different login present means an established claim.
-wit_read_assignees "$owner" "$repo" "$number"
-assignees="$WIT_GH_OUT"
-# Confirm our own assignment actually landed. REST POST /assignees returns 201
-# and silently drops a login that cannot be assigned (no push access). Without
-# this check a silently-dropped assignment would report a held claim while
-# list-frontier still saw the item unassigned — two workers on one item, the
-# exact race the lease exists to prevent.
-if ! jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$assignees" >/dev/null; then
-  printf 'claim: assignment of %s did not take effect (insufficient permission to self-assign on %s/%s)\n' \
-    "$login" "$owner" "$repo" >&2
-  exit "$EX_AUTH"
+if [[ -n "$holder" ]]; then
+  login="$holder"
+else
+  wit_run_gh read api user --jq .login
+  login="$WIT_GH_OUT"
 fi
-other="$(jq -r --arg me "$login" '[.[] | select(. != $me)] | first // empty' <<<"$assignees")"
-if [[ -n "$other" ]]; then
-  wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
-  printf 'claim: item already claimed by %s\n' "$other" >&2
-  exit "$EX_CONFLICT"
+
+# A lease-only claim assigns no one, so steps 1-2 and their rollback do not apply.
+if [[ "$lease_only" == false ]]; then
+  # 1. Assign the session identity. `read` routes to bare gh, so the assignee is
+  # the session user, not the bot (README "Edit labels / assignees" carve-out);
+  # `@me` is resolved to $login explicitly because REST takes a literal login.
+  wit_add_assignee read "$owner" "$repo" "$number" "$login"
+
+  # Guard the partial-claim window: any failure between this successful
+  # assignment and a successful lease-comment write (step 3) would otherwise
+  # strand the issue assigned with no lease record (list-frontier excludes
+  # assigned items; reclaim ignores items with no lease). wit_run_gh's failure
+  # path calls `exit` directly rather than returning, and an explicit `exit`
+  # inside a function does not run the caller's ERR trap (only its EXIT trap) —
+  # verified empirically — so this must be an EXIT trap, not ERR.
+  _wit_claim_rollback() {
+    wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
+  }
+  trap _wit_claim_rollback EXIT
+
+  # 2. Sole-assignee check — a different login present means an established claim.
+  wit_read_assignees "$owner" "$repo" "$number"
+  assignees="$WIT_GH_OUT"
+  # Confirm our own assignment actually landed. REST POST /assignees returns 201
+  # and silently drops a login that cannot be assigned (no push access). Without
+  # this check a silently-dropped assignment would report a held claim while
+  # list-frontier still saw the item unassigned — two workers on one item, the
+  # exact race the lease exists to prevent.
+  if ! jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$assignees" >/dev/null; then
+    printf 'claim: assignment of %s did not take effect (insufficient permission to self-assign on %s/%s)\n' \
+      "$login" "$owner" "$repo" >&2
+    exit "$EX_AUTH"
+  fi
+  other="$(jq -r --arg me "$login" '[.[] | select(. != $me)] | first // empty' <<<"$assignees")"
+  if [[ -n "$other" ]]; then
+    wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
+    printf 'claim: item already claimed by %s\n' "$other" >&2
+    exit "$EX_CONFLICT"
+  fi
 fi
 
 # 3. Post our lease comment.
@@ -91,6 +114,15 @@ lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$login" --arg now "
 wit_run_gh write api "repos/$owner/$repo/issues/$number/comments" \
   -f body="${WIT_LEASE_MARKER}${lease} -->" --jq '.id'
 our_comment_id="$WIT_GH_OUT"
+# A lease-only claim that fails before its emit supersedes its own comment, so a
+# lease whose handle never reached the caller does not block the item for its TTL.
+if [[ "$lease_only" == true ]]; then
+  _wit_claim_rollback() {
+    gh_write api --method PATCH "repos/$owner/$repo/issues/comments/$our_comment_id" \
+      -f body="${WIT_LEASE_MARKER}$(jq -c --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '. + {superseded_at: $ts}' <<<"$lease") -->" >/dev/null 2>&1 || true
+  }
+  trap _wit_claim_rollback EXIT
+fi
 
 # 4. Re-read all lease comments; the EARLIEST live lease wins. The rollback
 # guard STAYS armed through arbitration: a read failure here (exit "$?" below)
@@ -126,13 +158,15 @@ if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
   # loser while the holder no longer matches — drop it (the rollback trap
   # would also catch this on exit; the explicit call keeps the disarm/removal
   # decision made in this block, not left implicit to the trap).
-  if [[ "$winner_holder" != "$login" ]]; then
+  if [[ "$lease_only" == true ]]; then
+    trap - EXIT # nothing assigned; our comment is already superseded
+  elif [[ "$winner_holder" != "$login" ]]; then
     wit_try_remove_assignee "$owner" "$repo" "$number" "$login"
   else
     trap - EXIT # same-login race — @me legitimately stays assigned
   fi
   printf 'claim: live lease (comment %s, holder %s) wins — backing off\n' \
-    "$winner_id" "${winner_holder:-unknown}" >&2
+    "$winner_id" "$(tr -d '[:cntrl:]' <<<"${winner_holder:-unknown}")" >&2
   exit "$EX_CONFLICT"
 fi
 

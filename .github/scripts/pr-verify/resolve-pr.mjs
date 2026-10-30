@@ -39,6 +39,9 @@
 // trusted people edited its body or connected or disconnected an issue, at
 // least once (relinkedByPeople): reason `relinked`. The gate weighs the pass that
 // judgment writes by the same rule (babysit_verify_evidence `_superseded`).
+// A judgment also reports relink-since-head: whether the PR's body or links
+// changed since the head commit (relinkedSince), which sets how long its pass
+// lasts (write-verdict.mjs retentionDays).
 
 import { appendFileSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
@@ -131,28 +134,42 @@ const trustedHuman = (actor, humans) => actor?.__typename === "User" && humans.h
 // see. A failed read, a list cut short, or an act with no readable time is false.
 export async function relinkedByPeople(github, repository, number, humans, since) {
   const start = Date.parse(since ?? "");
-  if (Number.isNaN(start)) {
-    return false;
-  }
+  const acts = Number.isNaN(start) ? null : await relinkActs(github, repository, number);
+  const inside = (acts ?? []).filter(([at]) => Date.parse(at) >= start);
+  return inside.length > 0 && inside.every(([, actor]) => trustedHuman(actor, humans));
+}
+
+// Every body edit and issue connect or disconnect on the pull request, each
+// [time, actor], read whole (RELINK_QUERY); null for a failed read, a list
+// cut short, or an act with no readable time.
+async function relinkActs(github, repository, number) {
   const [o, r] = repository.split("/");
   let pull;
   try {
     pull = (await github("POST", "/graphql", { query: RELINK_QUERY, variables: { o, r, n: number } }))?.data?.repository?.pullRequest;
   } catch {
-    return false;
+    return null;
   }
   const edits = pull?.userContentEdits;
   // totalCount counts every timeline item; filteredCount the kinds asked.
   const events = pull?.timelineItems;
   if (!Array.isArray(edits?.nodes) || edits.totalCount !== edits.nodes.length || !Array.isArray(events?.nodes) || events.filteredCount !== events.nodes.length) {
-    return false;
+    return null;
   }
   const acts = [...edits.nodes.map((node) => [node?.editedAt, node?.editor]), ...events.nodes.map((node) => [node?.createdAt, node?.actor])];
-  if (acts.some(([at]) => Number.isNaN(Date.parse(at ?? "")))) {
-    return false;
-  }
-  const inside = acts.filter(([at]) => Date.parse(at) >= start);
-  return inside.length > 0 && inside.every(([, actor]) => trustedHuman(actor, humans));
+  return acts.some(([at]) => Number.isNaN(Date.parse(at ?? ""))) ? null : acts;
+}
+
+// Whether anyone edited the pull request's body or connected or disconnected
+// an issue from `since`, the head commit's time, on. Only then can a pass
+// judged at the head supersede a FAIL there (babysit_verify_evidence
+// `_superseded` needs such an act after the FAIL, which comes after the
+// commit), so write-verdict.mjs keeps such a pass as long as a FAIL. A time
+// or read that fails answers true.
+export async function relinkedSince(github, repository, number, since) {
+  const start = Date.parse(since ?? "");
+  const acts = Number.isNaN(start) ? null : await relinkActs(github, repository, number);
+  return acts === null || acts.some(([at]) => Date.parse(at) >= start);
 }
 
 // babysit_merge_policy.names_nothing: whether a GraphQL answer says only that
@@ -651,6 +668,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   return {
     proceed: true,
     reason: ownFail !== undefined ? "relinked" : passes.length > 0 ? "spec-changed" : "ok",
+    relinkSinceHead: ownFail !== undefined || (await relinkedSince(github, repository, pull.number, run.head_commit?.timestamp)),
     prNumber: pull.number,
     headSha: head,
     baseSha: pull.base.sha,
@@ -830,6 +848,7 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
     `head-sha=${result.headSha ?? ""}`,
     `base-sha=${result.baseSha ?? ""}`,
     `head-ref=${result.headRef ?? ""}`,
+    `relink-since-head=${result.relinkSinceHead ?? ""}`,
   ];
   appendFileSync(env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
   const summary = {

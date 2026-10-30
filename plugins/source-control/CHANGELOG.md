@@ -3,6 +3,27 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.4.2] - 2026-10-30
+
+### Changed
+
+- Shared `exec-bash.mjs` synced: `--skip-unless-marker` also skips when every `<session>.launched` it finds holds a launch token that `<session>.seen` beside it repeats. No hook in this plugin uses that flag; no other change to this plugin.
+
+- **The verify rules sync suite pins verdict lifetimes against the gate.** A new case runs `write-verdict.mjs` `retentionDays` and fails when a FAIL would expire before `babysit_verify_evidence.TOO_OLD_DAYS`, or when a pass lasts anything but its recorded 7 days.
+
+### Fixed
+
+- A push that touches `plugins/work-items/tools/work-item-tracker/**` stops an approval carrying, since the read runner's issue-mode lease and `work-resolve-issue.yml` now run the tracker.
+
+## [4.4.1] - 2026-10-30
+
+### Added
+
+- `babysit_verify_evidence.py` honors `BABYSIT_VERIFY_NO_INCREMENTAL_WAITS=1`. When it is set, an
+  incremental read of a carried listing that misses GitHub's live artifact count goes straight to a
+  whole listing, with no wait. The count check is unchanged. Any other value keeps
+  `INCREMENTAL_WAITS`.
+
 ## [4.4.0] - 2026-10-30
 
 ### Changed

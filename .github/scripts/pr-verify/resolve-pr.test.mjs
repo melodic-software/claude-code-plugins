@@ -166,6 +166,8 @@ test("a passing same-repository run resolves its one PR at the run's head", asyn
     linkedIssues: [LINKED],
     specKind: "closes",
     specText: [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }],
+    // The fixture's run names no head commit time, so a relink cannot be ruled out.
+    relinkSinceHead: true,
   });
 });
 
@@ -870,6 +872,41 @@ test("a FAIL named without issues stands while the PR links no issue a FAIL name
   }
 });
 
+// The head commit, after ORIGINAL and before FAILED_AT.
+const COMMITTED_AT = "2026-10-19T12:00:00Z";
+const committed = (overrides = {}) => ({ run: upstream({ head_commit: { id: HEAD, timestamp: COMMITTED_AT } }), ...overrides });
+
+test("a judgment after an edit or link change since the head commit reports a relink, so its pass keeps a FAIL's retention", async () => {
+  // This PR's FAIL at the head, named with an issue it no longer links, so
+  // the head is judged again with reason ok, and the gate may find its pass
+  // superseding the FAIL (babysit_verify_evidence `_superseded`).
+  const fail = { artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i5`, 77)], runs: { 77: verifyRun(77, { created_at: FAILED_AT }) } };
+  const linked = await resolve(committed({ ...fail, relink: relinkAnswer({ events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }] }) }));
+  assert.equal(linked.reason, "ok");
+  assert.equal(linked.relinkSinceHead, true);
+  for (const [label, setup] of [
+    ["a failed read", committed(fail)],
+    ["no head commit time", { ...fail, relink: relinkAnswer() }],
+    ["edits cut short", committed({ ...fail, relink: relinkAnswer({ editsTotal: 101 }) })],
+  ]) {
+    assert.equal((await resolve(setup)).relinkSinceHead, true, label);
+  }
+});
+
+test("a judgment with no edit or link change since the head commit reports none", async () => {
+  // Only the original text, stamped before the head commit.
+  const resolved = await resolve(committed({ relink: relinkAnswer() }));
+  assert.equal(resolved.proceed, true);
+  assert.equal(resolved.relinkSinceHead, false);
+});
+
+test("a relinked judgment reports a relink", async () => {
+  const relink = relinkAnswer({ events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }] });
+  const resolved = await resolve(relinked(relink));
+  assert.equal(resolved.reason, "relinked");
+  assert.equal(resolved.relinkSinceHead, true);
+});
+
 test("after a trusted relink, another PR's FAIL or one named with the new issues still stops the judgment", async () => {
   const relink = relinkAnswer({ events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }] });
   for (const name of [`pr-verify-99-${HEAD}-fail`, `pr-verify-41-${HEAD}-fail-i7`]) {
@@ -1283,7 +1320,7 @@ test("main writes the outputs, the linked issues and the spec text the workflow 
   );
   assert.equal(
     readFileSync(output, "utf8"),
-    `proceed=true\nreason=ok\npr-number=41\nhead-sha=${HEAD}\nbase-sha=${BASE}\nhead-ref=feat/x\n`,
+    `proceed=true\nreason=ok\npr-number=41\nhead-sha=${HEAD}\nbase-sha=${BASE}\nhead-ref=feat/x\nrelink-since-head=true\n`,
   );
   assert.deepEqual(JSON.parse(readFileSync(spec, "utf8")), [LINKED]);
   assert.deepEqual(JSON.parse(readFileSync(specText, "utf8")), [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }]);

@@ -758,6 +758,105 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         self.append("\n".join(failures) + "\n")
         self.assertEqual(expected, self.run_monitor(session_id="warm"))
 
+    # -- seen launches: what lets the Stop row skip until the next launch ----
+
+    def launch_path(self, session_id: str = "session-1") -> Path:
+        return self.data_root / "guard-launch-monitor" / f"{session_id}.launched"
+
+    def write_launch(self, age_seconds: int, session_id: str = "session-1") -> bytes:
+        """Write a launch token as run-python-hook.sh does, ``age_seconds`` old."""
+        token = f"{int(time.time()) - age_seconds}-4242-17\n".encode()
+        path = self.launch_path(session_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(token)
+        return token
+
+    def seen(self, session_id: str = "session-1") -> bytes | None:
+        path = self.launch_path(session_id).with_suffix(".seen")
+        return path.read_bytes() if path.is_file() else None
+
+    def test_a_clean_run_records_the_launch_it_processed_as_seen(self) -> None:
+        token = self.write_launch(age_seconds=120)
+        self.write_transcript([_filler_line(200)])
+        self.assertIsNone(self.run_monitor())
+        self.assertEqual(token, self.seen())
+
+    def test_a_launch_younger_than_the_hook_timeout_and_margin_is_not_seen(self) -> None:
+        self.write_transcript([_filler_line(200)])
+        for age in (5, 65):
+            with self.subTest(age=age):
+                self.write_launch(age_seconds=age)
+                self.assertIsNone(self.run_monitor())
+                self.assertIsNone(self.seen())
+
+    def test_a_run_that_warns_records_seen_only_on_the_next_stop(self) -> None:
+        token = self.write_launch(age_seconds=120)
+        self.write_transcript([_record(exit_code=1, duration_ms=17054)])
+        self.assertIsNotNone(self.run_monitor())
+        self.assertIsNone(self.seen())
+        self.assertIsNone(self.run_monitor())
+        self.assertEqual(token, self.seen())
+
+    def test_an_empty_or_malformed_launch_marker_is_never_seen(self) -> None:
+        self.write_transcript([_filler_line(200)])
+        markers = (b"", b"garbage\n", b"1-2\n", b"1-2-3\nx", b"1-2-3\n\n", b"a1-2-3\n")
+        for index, content in enumerate(markers):
+            with self.subTest(marker=content):
+                session = f"malformed-{index}"
+                path = self.launch_path(session)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+                self.assertIsNone(self.run_monitor(session_id=session))
+                self.assertIsNone(self.seen(session))
+
+    def test_a_partial_final_line_records_no_seen(self) -> None:
+        self.write_launch(age_seconds=120)
+        self.write_transcript([_filler_line(200)])
+        self.append(_record(exit_code=7, duration_ms=77)[:40])
+        self.assertIsNone(self.run_monitor())
+        self.assertIsNone(self.seen())
+
+    def test_a_launch_during_the_run_is_left_unseen(self) -> None:
+        """The token is read before the scan, so a later launch stays unseen."""
+        before = self.write_launch(age_seconds=120)
+        self.write_transcript([_filler_line(200)])
+        real = monitor._read_new
+
+        def launch_mid_run(path: str, cursor: int):
+            self.write_launch(age_seconds=90)
+            return real(path, cursor)
+
+        with mock.patch.object(monitor, "_read_new", side_effect=launch_mid_run):
+            self.assertIsNone(self.run_monitor())
+        self.assertEqual(before, self.seen())
+        self.assertNotEqual(self.launch_path().read_bytes(), self.seen())
+
+    def tmp_marker_dir(self) -> Path:
+        return Path(monitor.tempfile.gettempdir()) / "disk-hygiene-guard-launch-monitor"
+
+    def test_an_own_tmp_marker_directory_records_seen(self) -> None:
+        self.tmp_marker_dir().mkdir()
+        (self.tmp_marker_dir() / "session-1.launched").write_bytes(b"1-2-3\n")
+        self.write_transcript([_filler_line(200)])
+        with mock.patch.object(monitor, "_resolve_data_root", return_value=None):
+            self.assertIsNone(self.run_monitor())
+        self.assertEqual(
+            b"1-2-3\n", (self.tmp_marker_dir() / "session-1.seen").read_bytes()
+        )
+
+    def test_a_symlinked_tmp_marker_directory_is_not_written_through(self) -> None:
+        elsewhere = Path(self.tmp.name) / "elsewhere"
+        elsewhere.mkdir()
+        (elsewhere / "session-1.launched").write_bytes(b"1-2-3\n")
+        try:
+            self.tmp_marker_dir().symlink_to(elsewhere, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("this host cannot create a directory symlink")
+        self.write_transcript([_filler_line(200)])
+        with mock.patch.object(monitor, "_resolve_data_root", return_value=None):
+            self.assertIsNone(self.run_monitor())
+        self.assertFalse((elsewhere / "session-1.seen").exists())
+
     def test_empty_stdin_exits_0_silently(self) -> None:
         stderr = io.StringIO()
         with mock.patch.object(monitor.sys, "stdin", io.StringIO("")):

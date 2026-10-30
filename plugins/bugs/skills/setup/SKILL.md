@@ -45,12 +45,19 @@ Modify nothing. Report both surfaces, then one remediation line per gap.
    Never recommend a machine-absolute team path.
 4. If the recommended value differs, reconfigure through Claude Code's native flow per the marketplace's
    plugin-reconfiguration convention, which owns the verified-version record: interactive
-   `/plugin configure bugs@<marketplace>` any time, or headless `claude plugin install bugs@<marketplace>
-   -s <scope> --config output_dir=<path>` — it prints `already installed` and still writes the value.
-   `-s` defaults to `user`; pass the scope `claude plugin list` reports, from that project's directory
-   for a `project`/`local` scope, or the rerun adds a second install record at the scope passed and
-   enables the plugin there; the value itself always lands in user settings. Then rerun `check` in a
-   fresh session and report the observed destination. Convention:
+   `/plugin configure bugs@<marketplace>` any time. Headless, preferred on Claude Code 2.1.285 or
+   later: `claude plugin configure bugs@<marketplace> --values-stdin < values.json`, run from the
+   project the plugin is installed in (it has no scope flag), where `values.json` holds
+   `{"output_dir": "<path>"}`; it rejects a bad value with exit 1 and saves nothing, but stores an
+   empty string as `""`. Headless fallback, before 2.1.285: `claude plugin install bugs@<marketplace>
+   -s <scope> --config output_dir=<path>`, which prints `already installed` and still writes the
+   value. `-s` defaults to `user`; pass the scope `claude plugin list` reports, from that project's
+   directory for a `project`/`local` scope, or the rerun adds a second install record at the scope
+   passed and enables the plugin there; from the home directory pass `user`. A rejected `--config`
+   value prints a warning yet exits 0, so read the output. Either route stores the value in user settings. Never uninstall to reconfigure:
+   that drops the stored `pluginConfigs` entry, resetting every option to its manifest default.
+   Then rerun `check` in a fresh session (a same-session `check` still reports the old value) and
+   report the observed destination. Convention:
    <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>.
 
 ### B. `docs/conventions/bugs.yaml` (tracked lane config)
@@ -154,7 +161,8 @@ by re-reading it, for `output_dir` by a rerun in a fresh session.
   load, so verify a reconfiguration only in a fresh session.
 - **Never uninstall to reconfigure.** It drops the whole stored `pluginConfigs` entry, resetting
   every option to its manifest default.
-- **A rejected `--config` value prints a warning yet exits 0.** Read the output.
+- **A rejected `--config` value prints a warning yet exits 0.** Read the output. A bad
+  `--values-stdin` value instead exits 1 and saves nothing, but an empty string is stored as `""`.
 - **The ignore probe alone blesses an unshared file.** An untracked, unignored file returns the same
   empty `check-ignore` output as a healthy tracked one; the `ls-files` probe is what catches it.
 - **A file `apply` just scaffolded is untracked until staged.** `git ls-files --error-unmatch` will

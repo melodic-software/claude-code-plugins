@@ -97,7 +97,7 @@ rather than measuring anything, and the route.
   live and applying the matching table row.
 - `not-ready`: the backend is present and the packages resolve; the cause is the named links, and
   the route is to resolve them or run on a host without them. Never suggest repointing
-  `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check.
+  `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check. On `platform: wsl2` with `DOCKER_CONFIG` unset (the swap changes only `~/.docker`) and every link (or `~/.docker` itself) pointing under `/mnt/`, also offer, asking first, to run the CLI through the link swap (`<skill-dir>` there is `${CLAUDE_SKILL_DIR}`), so the run sees no links: [sandboxes.md, Docker link swap](reference/sandboxes.md#docker-link-swap).
 
 Read-only suites run anywhere: `Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `AskUserQuestion`,
 `Agent`, `TodoWrite`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `TaskStop` (the

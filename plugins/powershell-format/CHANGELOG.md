@@ -3,6 +3,18 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.11] - 2026-10-30
+
+### Changed
+
+- `/powershell-format:setup apply` names `claude plugin configure powershell-format@<marketplace> --values-stdin` as the preferred headless way to toggle the plugin, and keeps the `claude plugin install --config` rerun as the fallback for a Claude Code release without `plugin configure`, with each route's scope rule and failure signal, per the plugin-reconfiguration convention. The headless-toggle eval asserts both routes in that order.
+
+## [0.13.10] - 2026-10-30
+
+### Changed
+
+- Shared `exec-bash.mjs` synced: `--skip-unless-marker` also skips when every `<session>.launched` it finds holds a launch token that `<session>.seen` beside it repeats. No hook in this plugin uses that flag; no other change to this plugin.
+
 ## [0.13.9] - 2026-10-30
 
 ### Changed

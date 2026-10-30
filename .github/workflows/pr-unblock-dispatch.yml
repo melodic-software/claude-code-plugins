@@ -220,6 +220,27 @@ jobs:
             exit 1
           }
 
+      # The artifact listing pr-merge's last scheduled or hand-started run on
+      # main saved (the pr-merge-verify-listing artifact): the FAIL-cap reader
+      # lists only the pages uploaded since and keeps the result only when it
+      # holds GitHub's live artifact count, else lists every page. Any error
+      # leaves no file, and the reader lists every page. Rules:
+      # .github/scripts/pr-merge/listing-carry.mjs and
+      # babysit_verify_evidence.py `Reader._incremental`.
+      - name: Read the artifact listing pr-merge last kept
+        if: >-
+          steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
+          && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
+          && steps.pace.outputs.paced != 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          API_BUDGET_TOKEN: github-token
+          API_BUDGET_SCRIPT: listing-carry
+          ACTIONS_TOKEN: ${{ github.token }}
+          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
+        run: node .base/.github/scripts/pr-merge/listing-carry.mjs
+
       - name: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs
         id: dispatch
         if: >-
@@ -231,6 +252,11 @@ jobs:
           API_BUDGET_TOKEN: github-token
           # fix-ci skips a PR whose pr-verify FAILs are at the cap (verify-cap.mjs).
           VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
+          # Each pull request's FAIL-cap read saves its listing here, and the
+          # next one reads it (or lists only the pages since it) instead of
+          # every page; the first starts from pr-merge's carried listing.
+          BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
+          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
           # The reader's gh calls, with this job's read scopes.
           GH_TOKEN: ${{ github.token }}
           # fix-ci starts on PRs the lanes App opened, matched by this id, and
