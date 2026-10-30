@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.2.0] - 2026-10-30
+
+### Changed
+
+- `/source-control:babysit-prs`: the merge hold floor lists `.github/scripts/lib/stop-reason.mjs`, which the issue lane's report-outcome now imports, as enforcement, so a pull request that changes it holds for a person as one changing report-outcome does, and `.github/scripts/lib/done-evidence.mjs`, which now decides whether the lanes App's already-done close is trusted, as trust.
+
+- `/source-control:worktree cleanup` run outside a repository now removes worktrees across repositories ([#11120](https://github.com/melodic-software/claude-code-plugins/issues/11120)). It finds the repositories `audit` finds, shows the candidates grouped by owning repository behind one confirm, and runs every guard and each removal with `git -C` on the owning repository, leaving the caller's working directory unchanged. Stranded, superseded and unknown rows stop as they do in a single-repository run, and `--dry-run` removes nothing.
+
+### Security
+
+- The babysit-loop lane takes its `Lane telemetry: babysit-loop` issue only when the lane's write identity opened it. An exact-title issue another account opened is skipped and named in the cycle report, and with none left the lane creates its own.
+
 ## [4.1.2] - 2026-10-30
 
 ### Changed

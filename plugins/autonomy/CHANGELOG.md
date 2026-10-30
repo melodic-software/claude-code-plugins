@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.7] - 2026-10-30
+
+### Changed
+
+- The admission policy's cost hit no longer refuses a subscription login or usage of the subscribed model vendor's subscription, which are model usage and not cost; any other subscription, a change to or purchase of that one and another vendor's subscription usage included, a seat and a paid plan still refuse.
+
 ## [0.32.6] - 2026-10-29
 
 ### Changed
