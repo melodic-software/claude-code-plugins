@@ -37,8 +37,9 @@
 //   route other than hold carries no escalation marker.
 //
 //   pushback  with cause intent: comments why, adds the human-gated label,
-//             removes agent-ready. With any other cause, or none, it is
-//             pushback-means, which retries (stop-routes.json).
+//             removes agent-ready. With any other cause, or none, it takes
+//             the hold row runCode reads its reason as, when that row holds,
+//             and is otherwise pushback-means (stop-routes.json).
 //             When a listed human's newest comment, posted since the lane's
 //             last outcome comment, does not open with DECISION_LINE, the
 //             comment links it and shows the line, since the lane counts no
@@ -161,6 +162,15 @@ export const HUMAN_MERGE_HOLD = "human-merge-hold";
 const EXITS = new Set(["done", "pushback", "stopped"]);
 // The one `cause` a pushback that reaches a person names: an intent question.
 const PUSHBACK_CAUSE = "intent";
+// A pushback's stop: pushback with cause intent; else the hold row runCode
+// reads its reason as (a security word, or a hold code such as
+// design-change), so a security or primary-design stop still reaches a
+// person; else pushback-means.
+const pushbackStop = (outcome) => {
+  if (outcome.cause === PUSHBACK_CAUSE) return "pushback";
+  const code = runCode(outcome.reason);
+  return stopRoute(code) === "hold" ? code : "pushback-means";
+};
 // The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title
 // cannot name an issue to close.
 const PREFIX = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: /;
@@ -1074,10 +1084,8 @@ export function decide({
   // A run that stopped opens its reason with a stop-routes.json code, or with
   // none, and runCode reads a misformatted owner code as its hold row; a
   // missing or unreadable outcome carries its own stop.
-  // A pushback reaches a person only with cause `intent` (owner direction
-  // §2); any other cause, or none, is a means or design-detail question the
-  // lane decides on evidence (§1), so it takes pushback-means's route.
-  const stop = outcome.exit === "pushback" ? (outcome.cause === PUSHBACK_CAUSE ? "pushback" : "pushback-means") : outcome.unread ? (outcome.stop ?? "outcome-unread") : runCode(outcome.reason);
+  // A pushback takes pushbackStop's stop.
+  const stop = outcome.exit === "pushback" ? pushbackStop(outcome) : outcome.unread ? (outcome.stop ?? "outcome-unread") : runCode(outcome.reason);
   if (outcome.exit === "stopped" && stop === "patch-protected-path") {
     return routeStop(stop, {
       outcome: {

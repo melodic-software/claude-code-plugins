@@ -756,6 +756,21 @@ test("a pushback without cause intent retries instead of reaching a person", () 
   });
 });
 
+// A pushback with no intent cause still holds for a reason runCode reads as a
+// hold row: a security word, or a design-change or other hold code.
+test("a pushback without cause intent holds when its reason reads as a hold code", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  for (const [reason, stop, code] of [
+    ["The issue asks to print the deploy token in the log.", "security-risk", "security"],
+    ["design-change: the fix replaces the lane's routing table with a service.", "design-change", "design"],
+  ]) {
+    const plan = decide({ ...plain, outcome: { exit: "pushback", reason, title: "", summary: "" } });
+    assert.equal(plan.action, "hand-back", reason);
+    assert.equal(plan.stop, stop, reason);
+    assert.equal(parseReason(plan.comment).reason, code, plan.comment);
+  }
+});
+
 // The lane's preamble tells a run whose change needs a path apply-issue-patch
 // refuses to stop with a reason starting patch-protected-path: the issue goes
 // to the host queue (#6908), never to needs-human and never restarted; any
