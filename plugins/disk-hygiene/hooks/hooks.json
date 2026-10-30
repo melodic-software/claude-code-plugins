@@ -49,6 +49,7 @@
             ],
             "if": "Bash(*hygiene.py*)",
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking the disk-hygiene delete against its authorized roots..."
           }
         ]
@@ -76,6 +77,7 @@
             ],
             "if": "PowerShell(*hygiene.py*)",
             "timeout": 60,
+            "onFailure": "block",
             "statusMessage": "Checking the disk-hygiene delete against its authorized roots..."
           },
           {
