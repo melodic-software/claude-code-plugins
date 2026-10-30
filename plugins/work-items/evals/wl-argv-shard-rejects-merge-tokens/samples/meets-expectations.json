@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped during argument validation; no cycle ran.\n\nmelodic-software/example-repo matches the origin remote, and --standing, --shard 0/2, --ordering newest-first and --instance worker-a are valid.\n\nRejected: `autopilot` and `--merge c3-this-run` belong to /source-control:babysit-loop, the merge lane, not this worker lane. Relaunch without them.\n\nNothing else happened: no telemetry read or upsert, no frontier snapshot, no admission or dispatch of #101 to #106, and no ScheduleWakeup.",
+      "why": "stops at validation and names the owner"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rejected autopilot and --merge c3-this-run (they belong to the merge lane). Shard 0/2 kept 102, 104 and 106; the three admitted items were dispatched newest-first under instance worker-a, and the next cycle is scheduled.",
+      "why": "rejects but carries on with the cycle"
+    },
+    {
+      "answer": "Ignoring autopilot and --merge c3-this-run, which this lane does not use. Shard 0/2 kept 102, 104 and 106 and the cycle ran.",
+      "why": "silently ignores the tokens"
+    }
+  ]
+}
