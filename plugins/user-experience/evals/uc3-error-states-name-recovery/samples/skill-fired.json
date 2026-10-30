@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:shape"
+          }
+        }
+      ],
+      "why": "the front door fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:evaluate"
+          }
+        }
+      ],
+      "why": "a job skill fired"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "adhd:shape"
+          }
+        }
+      ],
+      "why": "the same leaf name from another plugin"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-experience:setup"
+          }
+        }
+      ],
+      "why": "setup is not a UX job"
+    }
+  ]
+}
