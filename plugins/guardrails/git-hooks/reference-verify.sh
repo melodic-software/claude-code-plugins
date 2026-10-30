@@ -283,8 +283,15 @@ check_range() {
       jq -n --arg p "$PWD/$f" --rawfile c "$text" \
         '{hook_event_name: "PostToolUse", tool_name: "Edit", tool_input: {file_path: $p, old_string: "", new_string: $c}}' >"$payload"
     fi
-    ctx="$(CLAUDE_PLUGIN_ROOT="$root" checks_bash_run "$run_guards" cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <"$payload" 2>/dev/null |
-      jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)"
+    # git exports GIT_DIR (a linked worktree's git dir) to its hooks; under it
+    # `git -C <dir> rev-parse --show-toplevel` answers <dir>, so the verifiers
+    # would take the file's own folder for the repository root. They find the
+    # repository from the file, as an edit hook does.
+    ctx="$(
+      unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY
+      CLAUDE_PLUGIN_ROOT="$root" checks_bash_run "$run_guards" cli-flag-verify.sh skill-reference-verify.sh stale-path-verify.sh <"$payload" 2>/dev/null |
+        jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null
+    )"
     [[ -n "$ctx" ]] || continue
     report "$f" "$whole" <<<"$ctx" >>"$out"
   done < <(checks_files)
