@@ -935,7 +935,8 @@ class TestOpenFindings(unittest.TestCase):
         """`Ce` and `$r` define only on fresh objects here, but the verbatim
         chunk's getters read by a computed key: `this[a]` in `n`, `b[c]` in
         `$r` and in `ovi`. Each key may spell `require`, so each read is a
-        load the parser cannot name, and the list reads partial."""
+        load the parser cannot name, and may spell `constructor`, so each is
+        a function-constructor sink too; the list reads partial."""
         importer = 'import{$r,Ce}from"/b.js";var X={};$r(X,{q:()=>y});var y=Ce(X,1);'
         self.assert_across_modules(True, self.HELPERS, importer, self.INCLUDES)
         h = self.HELPERS
@@ -946,7 +947,12 @@ class TestOpenFindings(unittest.TestCase):
         ]
         found = type(self).reader.sinks(h, 0, len(h), ["includes"])
         self.assertEqual(
-            sorted(found["hits"]), [("unknown-load", None, at) for at in reads]
+            sorted(found["hits"]),
+            sorted(
+                (kind, None, at)
+                for kind in ("function-constructor", "unknown-load")
+                for at in reads
+            ),
         )
 
     def test_a_named_import_passing_a_fresh_object_clears_a_helper(self) -> None:
@@ -1262,6 +1268,24 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, module)
         self.assert_across_modules(False, named, "Function.prototype.toString.call(f);")
+
+    def test_a_constructor_read_is_a_sink(self) -> None:
+        """A function's `constructor` is the Function constructor, and any
+        object's `constructor.constructor` is too, so either builds code
+        from a string without the name `Function`. A read that is only
+        compared or named stays clear."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        code = "\"Array.prototype.includes=function(){this.push('B')}\""
+        for module in (
+            f"(()=>1).constructor({code})();",
+            f"({{}}).constructor.constructor({code})();",
+            f"var{{constructor:C}}=function(){{}};C({code})();",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+        self.assert_across_modules(
+            False, named, "var o={};o.constructor===Object&&o.constructor.name;"
+        )
 
     def test_an_importer_with_a_comment_before_from_is_followed(self) -> None:
         """Importers come from the parsed import and re-export declarations,
