@@ -58,7 +58,7 @@ permissions, and passes no App key.
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-feedback-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
-| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting; any other value, or one outside issue mode, fails step 1 |
+| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, or `outside-author`, the admit job's stop on an issue neither a listed human nor the lanes App wrote; any other value, or one outside issue mode, fails step 1 |
 | `collect-refused` | `''` | Write file, issue mode, `report-outcome`: the model run's `scan-collect-refused`; only `true` counts, and stops the issue on the `collect-refused` route, which holds it for a person |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
@@ -2033,7 +2033,11 @@ listing and re-fires the issue on main's files, once per version of the two file
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
 `dimension-skip`: it labels the issue `needs-human`, removes `agent-ready`, and comments the next
-step under the escalation marker and an `outcome=<reason>` marker. What changes from the PR flow:
+step under the escalation marker and an `outcome=<reason>` marker. When the admit job stops the
+run because the issue's author is neither a listed human nor the lanes App, `report-skip` runs
+with `dimension-skip: outside-author`: it removes `agent-ready` and comments, under an
+`outcome=outside-author` marker and with no label, that a listed human re-files the work as a new
+issue. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty; in the read
