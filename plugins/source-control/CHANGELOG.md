@@ -3,6 +3,15 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.4.1] - 2026-10-30
+
+### Added
+
+- `babysit_verify_evidence.py` honors `BABYSIT_VERIFY_NO_INCREMENTAL_WAITS=1`. When it is set, an
+  incremental read of a carried listing that misses GitHub's live artifact count goes straight to a
+  whole listing, with no wait. The count check is unchanged. Any other value keeps
+  `INCREMENTAL_WAITS`.
+
 ## [4.4.0] - 2026-10-30
 
 ### Changed

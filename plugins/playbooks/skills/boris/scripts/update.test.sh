@@ -177,7 +177,7 @@ for bucket in "$SCRIPT_DIR"/../reference/*.md; do
 done
 
 # Open-ended ranges re-introduce the same defect: "78+" swallows every later thread.
-if printf '%s' "$map_text" | grep -qE 'sections [0-9]+\+'; then
+if grep -qE 'sections [0-9]+\+' <<<"$map_text"; then
   fail "sync map has no open-ended section range" "closed ranges" "found 'sections N+'"
 else
   pass "sync map has no open-ended section range"

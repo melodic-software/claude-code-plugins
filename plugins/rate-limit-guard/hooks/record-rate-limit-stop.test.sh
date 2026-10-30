@@ -84,7 +84,7 @@ if jq -e . <"$EVENTS" >/dev/null 2>&1; then ok "record is valid JSON"; else fail
 if [[ "$(jq -r '.session_id' <"$EVENTS")" == "s-abc-123" ]]; then ok "session_id recorded"; else fail "session_id = $(jq -r '.session_id' <"$EVENTS")"; fi
 if [[ "$(jq -r '.matcher' <"$EVENTS")" == "rate_limit" ]]; then ok "matcher recorded"; else fail "matcher = $(jq -r '.matcher' <"$EVENTS")"; fi
 if [[ "$(jq -r '.hook_event_name' <"$EVENTS")" == "StopFailure" ]]; then ok "hook_event_name recorded"; else fail "hook_event_name = $(jq -r '.hook_event_name' <"$EVENTS")"; fi
-if jq -r '.detected_at' <"$EVENTS" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'; then
+if grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$' < <(jq -r '.detected_at' <"$EVENTS"); then
   ok "detected_at is ISO-8601 UTC"
 else
   fail "detected_at = $(jq -r '.detected_at' <"$EVENTS")"

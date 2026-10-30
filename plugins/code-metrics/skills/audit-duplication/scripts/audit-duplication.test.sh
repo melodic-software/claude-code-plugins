@@ -190,7 +190,7 @@ assert_doc "a partial third copy stays a second clone group" "$out" \
   'd["summary"]["clone_groups"] == 2 and d["summary"]["duplicated_lines"] == 58 and all(len(r["instances"]) == 2 and "clustered" not in r["labels"] for r in d["measures"])'
 
 # 9. --help prints the usage without running anything.
-bash "$SCRIPT" --help 2>&1 | grep -q 'audit-duplication.sh \[--json\]'
+grep -q 'audit-duplication.sh \[--json\]' < <(bash "$SCRIPT" --help 2>&1)
 assert_eq "--help prints usage" 0 "$?"
 
 # 10. The Brief's case: this repository's own vendored hook-utils cluster.
