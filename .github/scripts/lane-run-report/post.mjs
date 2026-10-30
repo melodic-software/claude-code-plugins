@@ -1,13 +1,15 @@
 // The report jobs of pr-run-activity-read.yml and -write.yml: one comment per
 // lane run on the pull request, naming the activity, its outcome, the commits
 // it pushed and each GitHub API call that failed, edited in place when the
-// run is re-run. The marker names the activity and the run id, not the
-// attempt. No model runs here, but the run job that carried the failure rows
+// run is re-run. The marker names the activity, the run id and the model
+// rung (pr-unblock calls the read runner more than once per run, its rung-up
+// leg at rung 1), not the attempt; a first attempt posts without a lookup. No model runs here, but the run job that carried the failure rows
 // shared RUNNER_TEMP with one, so every row is checked again, and a forged
-// outcome or commit renders as unknown or none. A failure to post warns and
+// outcome or commit renders as unknown or none, and no count the run job
+// carried is shown. A failure to post warns and
 // never fails the job.
 //
-// Env: LANE, ACTIVITY, RUN_ID, PULL, REPOSITORY, GITHUB_SERVER_URL,
+// Env: LANE, ACTIVITY, RUN_ID, GITHUB_RUN_ATTEMPT, MODEL_RUNG, PULL, REPOSITORY, GITHUB_SERVER_URL,
 // RUN_RESULT, ACT_OUTCOME, PUSHED_COMMIT, READ_LANE, API_FAILURES (the run
 // job's api-failures output), GITHUB_TOKEN (issues: write).
 import process from "node:process";
@@ -20,9 +22,9 @@ export const MAX_ROWS = 50;
 const METHODS = new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]);
 const PATH = /^\/[A-Za-z0-9/_.-]{1,200}$/;
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
-const OUTCOME = /^[a-z_-]{1,32}$/;
+const OUTCOMES = new Set(["success", "failure", "cancelled", "skipped"]);
 
-export const marker = ({ lane, activity, runId }) => `<!-- lane-run-report activity=${lane}/${activity} run=${runId} -->`;
+export const marker = ({ lane, activity, runId, rung = "0" }) => `<!-- lane-run-report activity=${lane}/${activity} run=${runId} rung=${rung} -->`;
 
 // GitHub REST path words that may appear in the comment. The model shares
 // RUNNER_TEMP, so any other segment could be planted text (a key split across
@@ -81,12 +83,12 @@ export function failureRows(text) {
 const ENTITIES = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
 export const escapeCell = (value) => String(value).replace(/[&<>|`*_[\]\\~]/g, (c) => ENTITIES[c] ?? `&#${c.codePointAt(0)};`);
 
-const outcome = (value) => (OUTCOME.test(value ?? "") ? value : "unknown");
+const outcome = (value) => (OUTCOMES.has(value) ? value : "unknown");
 
-export function render({ lane, activity, runId, runUrl, runResult, actOutcome, commit, readLane, failures }) {
+export function render({ lane, activity, runId, rung, runUrl, runResult, actOutcome, commit, readLane, failures }) {
   const commits = readLane ? "none (read lane)" : /^[0-9a-f]{40}$/.test(commit ?? "") ? commit : "none recorded";
   const lines = [
-    marker({ lane, activity, runId }),
+    marker({ lane, activity, runId, rung }),
     "## Lane run report",
     "",
     "| Field | Value |",
@@ -99,12 +101,12 @@ export function render({ lane, activity, runId, runUrl, runResult, actOutcome, c
   if (runUrl) lines.push(`| Run | [${escapeCell(runId)}](${runUrl}) |`);
   lines.push("", "### Failed GitHub API calls", "");
   if (failures.rows.length === 0) {
-    lines.push("No GitHub API call failed.");
+    lines.push("No failed call recorded by the run job's scripts.");
   } else {
     lines.push("| Method | Path | Status |", "| --- | --- | --- |");
     for (const row of failures.rows) lines.push(`| ${escapeCell(row.method)} | ${escapeCell(row.path)} | ${escapeCell(row.status === 0 ? "0 (network)" : row.status)} |`);
   }
-  if (failures.dropped > 0) lines.push("", `${failures.dropped} more not shown: repeated, malformed, or past the cap of ${MAX_ROWS}.`);
+  if (failures.dropped > 0) lines.push("", `More rows not shown: repeated, malformed, or past the cap of ${MAX_ROWS}.`);
   return `${lines.join("\n")}\n`;
 }
 
@@ -113,12 +115,12 @@ export async function main(env = process.env, { github } = {}) {
     console.log("::notice::no pull request to put the lane run report on");
     return 0;
   }
-  if (!NAME.test(env.LANE ?? "") || !NAME.test(env.ACTIVITY ?? "") || !/^[1-9][0-9]{0,19}$/.test(env.RUN_ID ?? "") || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.REPOSITORY ?? "")) {
-    console.log("::warning::the lane, activity, run id or repository is not of its shape; no lane run report is posted");
+  if (!NAME.test(env.LANE ?? "") || !NAME.test(env.ACTIVITY ?? "") || !/^[1-9][0-9]{0,19}$/.test(env.RUN_ID ?? "") || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(env.REPOSITORY ?? "") || !/^[01]?$/.test(env.MODEL_RUNG ?? "")) {
+    console.log("::warning::the lane, activity, run id, model rung or repository is not of its shape; no lane run report is posted");
     return 0;
   }
   const server = /^https:\/\/[A-Za-z0-9.-]+$/.test(env.GITHUB_SERVER_URL ?? "") ? env.GITHUB_SERVER_URL : "";
-  const args = { lane: env.LANE, activity: env.ACTIVITY, runId: env.RUN_ID };
+  const args = { lane: env.LANE, activity: env.ACTIVITY, runId: env.RUN_ID, rung: env.MODEL_RUNG || "0" };
   const body = render({
     ...args,
     runUrl: server && `${server}/${env.REPOSITORY}/actions/runs/${env.RUN_ID}`,
@@ -130,7 +132,10 @@ export async function main(env = process.env, { github } = {}) {
   });
   try {
     const client = github ?? createGitHub({ token: env.GITHUB_TOKEN });
-    const done = await upsert({ github: client, repository: env.REPOSITORY, pull: env.PULL, marker: marker(args), body });
+    // A first attempt's run id is new, so no comment can carry its marker yet.
+    let done = "posted";
+    if (env.GITHUB_RUN_ATTEMPT === "1") await client("POST", `/repos/${env.REPOSITORY}/issues/${env.PULL}/comments`, { body });
+    else done = await upsert({ github: client, repository: env.REPOSITORY, pull: env.PULL, marker: marker(args), body });
     console.log(`::notice::${done} the lane run report on #${env.PULL}`);
   } catch (error) {
     console.log(`::warning::could not post the lane run report on #${env.PULL}: ${error?.message ?? error}`);

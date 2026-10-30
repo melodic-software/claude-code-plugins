@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { escapeCell, failureRows, main, MAX_ROWS, render, templatePath } from "./post.mjs";
+import { escapeCell, failureRows, main, marker, MAX_ROWS, render, templatePath } from "./post.mjs";
 
 const BOT = { login: "github-actions[bot]" };
 const ENV = {
@@ -18,7 +18,7 @@ const ENV = {
   READ_LANE: "true",
   API_FAILURES: JSON.stringify({ rows: [{ method: "GET", path: "/repos/o/r/pulls/42", status: 502 }], dropped: 0 }),
 };
-const MARKER = "<!-- lane-run-report activity=read/fix-ci run=123 -->";
+const MARKER = "<!-- lane-run-report activity=read/fix-ci run=123 rung=0 -->";
 
 function fakeGitHub(comments = [], { fail = false } = {}) {
   const calls = [];
@@ -95,23 +95,24 @@ test("the body opens with the marker and lists the activity, outcome, commits an
     readLane: false,
     failures: failureRows(JSON.stringify({ rows: [{ method: "PATCH", path: "/repos/o/r/git/refs/heads/my_branch", status: 422 }], dropped: 2 })),
   });
-  assert.ok(body.startsWith("<!-- lane-run-report activity=write/fix-docs run=9 -->\n"));
+  assert.ok(body.startsWith("<!-- lane-run-report activity=write/fix-docs run=9 rung=0 -->\n"));
   assert.match(body, /\| Activity \| write\/fix-docs \|/);
   assert.match(body, /\| Run job \| success \|/);
   assert.match(body, /\| Activity step \| failure \|/);
   assert.match(body, new RegExp(`\\| Commits pushed \\| ${"a".repeat(40)} \\|`));
   assert.match(body, /\| PATCH \| \/repos\/\{repo\}\/git\/refs\/heads\/&#42; \| 422 \|/);
-  assert.match(body, /2 more not shown/);
+  assert.match(body, /more rows not shown/i);
+  assert.doesNotMatch(body, /\b2 more/);
 });
 
 test("a read lane pushes no commits, and a run with no failures says so", () => {
   const body = render({ lane: "read", activity: "fix-ci", runId: "1", runResult: "success", actOutcome: "success", readLane: true, failures: { rows: [], dropped: 0 } });
   assert.match(body, /\| Commits pushed \| none \(read lane\) \|/);
-  assert.match(body, /No GitHub API call failed\./);
+  assert.match(body, /No failed call recorded by the run job's scripts\./);
 });
 
 test("a forged outcome or commit renders as unknown or none, never as given", () => {
-  const body = render({ lane: "write", activity: "x", runId: "1", runResult: "<img>", actOutcome: "a|b", commit: "zz", readLane: false, failures: { rows: [], dropped: 0 } });
+  const body = render({ lane: "write", activity: "x", runId: "1", runResult: "neutral", actOutcome: "pwned", commit: "zz", readLane: false, failures: { rows: [], dropped: 0 } });
   assert.match(body, /\| Run job \| unknown \|/);
   assert.match(body, /\| Activity step \| unknown \|/);
   assert.match(body, /\| Commits pushed \| none recorded \|/);
@@ -179,4 +180,29 @@ test("rows that template alike fold into one before the cap", () => {
     { method: "GET", path: "/repos/{repo}/issues/*", status: 500 },
   ]);
   assert.equal(out.dropped, MAX_ROWS + 19);
+});
+
+test("each model rung of one run has its own marker; an unknown rung posts nothing", async () => {
+  assert.equal(marker({ lane: "read", activity: "fix-ci", runId: "5", rung: "1" }), "<!-- lane-run-report activity=read/fix-ci run=5 rung=1 -->");
+  const rung0 = `${MARKER}\nold`;
+  const api = fakeGitHub([{ id: 5, user: BOT, body: rung0 }]);
+  assert.equal((await run({ MODEL_RUNG: "1" }, api.github)).code, 0);
+  const [write] = api.writes();
+  assert.equal(write.method, "POST");
+  assert.ok(write.body.body.startsWith("<!-- lane-run-report activity=read/fix-ci run=123 rung=1 -->\n"));
+  const empty = fakeGitHub([{ id: 5, user: BOT, body: rung0 }]);
+  await run({ MODEL_RUNG: "" }, empty.github);
+  assert.deepEqual(empty.writes().map((c) => c.method), ["PATCH"]);
+  const bad = fakeGitHub();
+  assert.equal((await run({ MODEL_RUNG: "2" }, bad.github)).code, 0);
+  assert.deepEqual(bad.calls, []);
+});
+
+test("a first attempt posts without listing comments; a re-run attempt lists them", async () => {
+  const first = fakeGitHub();
+  await run({ GITHUB_RUN_ATTEMPT: "1" }, first.github);
+  assert.deepEqual(first.calls.map((c) => c.method), ["POST"]);
+  const rerun = fakeGitHub([{ id: 5, user: BOT, body: `${MARKER}\nold` }]);
+  await run({ GITHUB_RUN_ATTEMPT: "2" }, rerun.github);
+  assert.deepEqual(rerun.calls.map((c) => c.method), ["GET", "PATCH"]);
 });

@@ -2046,8 +2046,8 @@ jobs:
               [inputs | select(length > 0)] as $lines
               | ([$lines[] | (try fromjson catch null)
                 | select(type == "object"
-                  and (.method | type) == "string" and (.method | test("^(GET|POST|PATCH|PUT|DELETE)$"))
-                  and (.path | type) == "string" and (.path | test("^/[A-Za-z0-9/_.-]{1,200}$"))
+                  and (.method | type) == "string" and (.method | test("\\A(GET|POST|PATCH|PUT|DELETE)\\z"))
+                  and (.path | type) == "string" and (.path | test("\\A/[A-Za-z0-9/_.-]{1,200}\\z"))
                   and (.status | type) == "number" and .status == (.status | floor)
                   and .status >= 0 and .status <= 599)
                 | {method, path, status}]
@@ -3393,7 +3393,8 @@ jobs:
           github-token: ${{ github.token }}
 
       # One comment per lane run on the PR (lane-run-report/post.mjs), found
-      # by a marker naming the activity and run id, so a re-run edits it. A
+      # by a marker naming the activity, run id and model rung, so a re-run
+      # edits it. A
       # checked-out base without the script, or a failed post, warns and
       # leaves the job green.
       - name: Post the lane run report comment
@@ -3403,6 +3404,7 @@ jobs:
           LANE: ${{ inputs.lane }}
           ACTIVITY: ${{ inputs.activity }}
           RUN_ID: ${{ github.run_id }}
+          MODEL_RUNG: ${{ inputs.model-rung }}
           PULL: ${{ steps.pr-head.outputs.number }}
           REPOSITORY: ${{ github.repository }}
           RUN_RESULT: ${{ needs.run.result }}
