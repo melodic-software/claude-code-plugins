@@ -1705,9 +1705,9 @@ head-ref map and run cache and one artifact listing for the run, which its first
 and every later one uses at any age, an allow included (`evidence --shared-listing`), since the
 merge queue runs the reader again at the head it merges; an event run reads no link or verdict,
 never arms, and
-only disarms on a hold, so a pull request waits up to one scheduled interval to be armed. `ci-status`
-turns an armed lanes App pull request's auto-merge off on each push to its head, so a new head is
-armed only after the reader judges it. It turns auto-merge off on an armed one that now fails
+only disarms on a hold, so a pull request waits up to one scheduled interval to be armed. An arm
+survives a push to its head (`ci-status` holds `contents: read` and cannot disarm); the merge queue's
+`ci-status` holds a new head until a pr-verify pass stands at the exact head it merges. `enable-auto-merge` turns auto-merge off on an armed one that now fails
 any of those, and does not turn it back on once a person has turned it off. A scheduled or
 hand-started run that leaves a lanes App pull request unarmed on report-outcome's own
 `Hold: a human merges this` line, a hold path, a cost hold, the gate's verdict or its risk score
@@ -2602,9 +2602,10 @@ them on every `pull_request` run, contract-only runs included:
   merges it. Such a PR still needs both lanes when no trust-gate path changed. ci-status reads the
   App list, the PR's commits and the branch's push history only once a trust-gate path matched,
   and an unreadable one, a commit list shorter than the PR, or a full page of pushes fails closed.
-  A draft is exempt. Restoring the App hold takes three steps: list `melodic-agent[bot]` again, set
-  `merge.diff-check.path-holds` true and run `scripts/sync-hold-floor.py`, because ci-status's inline hold runs only while `path-holds` is
-  true; listing the App alone restores only ci-workflows' `pr-require-checks-trust-paths` hold.
+  A draft is exempt. Restoring the App hold takes four steps: list `melodic-agent[bot]` again, set
+  `merge.diff-check.path-holds` true, run `scripts/sync-hold-floor.py`, and set the repository variable
+  `TRUST_PATH_HOLD` to `on`, because ci-status's inline hold runs only while `path-holds` is true and
+  ci-workflows' `pr-require-checks-trust-paths` runs here only while that variable is `on`.
 - **A stopped lane holds its head.** ci-status fails while the newest `pr-unblock/*` commit status
   on the head by `github-actions[bot]` is `failure` or `error`, naming each such context; a later
   `success` on the same head (`report-escalation.sh clear`) supersedes it, and another account's

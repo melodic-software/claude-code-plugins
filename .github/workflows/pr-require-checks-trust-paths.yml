@@ -16,6 +16,13 @@ concurrency:
 permissions: {}
 jobs:
   pr-require-checks-trust-paths:
+    # Off while the trust-path hold is off (docs/conventions/pr-pipeline.yaml
+    # merge.trust-path-hold-apps names no App): its success `ci-status`
+    # commit status met the required check before the ci-status check run
+    # existed, so the merge queue took an unchecked head. To restore the hold,
+    # list the App in merge.trust-path-hold-apps, run scripts/sync-hold-floor.py
+    # and set the repository variable TRUST_PATH_HOLD to `on`.
+    if: vars.TRUST_PATH_HOLD == 'on'
     permissions:
       contents: read
       pull-requests: read

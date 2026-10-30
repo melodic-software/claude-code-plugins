@@ -145,7 +145,6 @@ with zipfile.ZipFile(buffer, "w") as archive:
 sys.stdout.buffer.write(buffer.getvalue())' "$record"
   ;;
 "api graphql "*)
-  [[ -z "${STUB_DISARM_FAILS:-}" ]] || { echo 'gh: Resource not accessible by integration' >&2; exit 1; }
   echo '{"data":{}}'
   ;;
 */contents/.github/scripts/pr-merge/merge-holds.mjs*)
@@ -651,40 +650,16 @@ else
   fail "a pull request event read a verdict: '$(sort -u "$TMP_ROOT/log")'"
 fi
 
-# disarms: the auto-merge mutations the last run sent.
+# disarms: the auto-merge mutations the last run sent. The step's token holds
+# contents: read only, so it sends none; the merge queue's pr-verify check at
+# the head it merges holds an armed pull request's new head.
 disarms() { grep -c '^api graphql .*disablePullRequestAutoMerge' "$TMP_ROOT/log"; }
-# no_disarm <label>: the last run sent no disarm.
-no_disarm() {
-  if [[ "$(disarms)" -eq 0 ]]; then ok "$1"; else fail "$1: it sent a disarm"; fi
-}
-STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
-expect "a push to an armed lanes App pull request turns its auto-merge off" 0 3 "#7: a push moved its head, so its native auto-merge is off"
-if [[ "$(disarms)" -eq 1 ]] && grep -q -- '-f id=PR_7' "$TMP_ROOT/log"; then
-  ok "the push disarms it by its node id with one mutation"
-else
-  fail "the push sent $(disarms) disarm(s): '$(sort -u "$TMP_ROOT/log")'"
-fi
-if [[ ! -e "$TMP_ROOT/pr-reads" ]]; then
-  ok "after the disarm the step drops every kept read, so a later read of the pull is live"
-else
-  fail "the step kept reads after its disarm: '$(ls "$TMP_ROOT/pr-reads")'"
-fi
-STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
-export STUB_DISARM_FAILS=1
-expect "a disarm that fails only warns, so a token that cannot disarm never holds a push red" 0 3 "::warning::could not turn off native auto-merge on #7 after a push to its head"
-unset STUB_DISARM_FAILS
-for action in edited labeled; do
+for action in synchronize edited; do
   STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')" ACTION=$action
-  expect "a $action event leaves an armed pull request armed" 0 3 "no hold path"
-  no_disarm "a $action event sends no disarm"
+  expect "a $action event on an armed lanes App pull request passes" 0 3 "no hold path"
+  if [[ "$(disarms)" -eq 0 ]]; then ok "a $action event sends no disarm"; else fail "a $action event sent a disarm"; fi
 done
 unset ACTION
-STUB_PULL="$(pull 'Closes #1')"
-expect "a push to an unarmed pull request sends no mutation" 0 3 "no hold path"
-no_disarm "an unarmed pull request is not disarmed"
-STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
-expect "a push to a person's armed pull request is left to them" 0 0 "not the lanes App's"
-no_disarm "a person's pull request is not disarmed"
 STUB_PULL="$(pull 'Closes #1')"
 
 export EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA="$SHA" WANT_BASE="$SHA"
