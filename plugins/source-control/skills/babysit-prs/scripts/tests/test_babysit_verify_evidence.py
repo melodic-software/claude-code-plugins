@@ -262,6 +262,9 @@ class FakeGitHub:
         # Ids each whole listing leaves out in turn, as one that pages while
         # an earlier artifact expires skips the one at a page boundary.
         self.full_skips: list[set[int]] = []
+        # The count reads before whole listings, and a gh error for each.
+        self.count_reads: list[list[str]] = []
+        self.count_fail: str | None = None
         # The pull request's RELINK_QUERY answer (its `pullRequest`), or
         # "error" for a failed read; None answers as the closing read does.
         self.relink: Any = None
@@ -283,14 +286,29 @@ class FakeGitHub:
             for c in self.calls
         )
 
+    def probes(self) -> int:
+        """Reads of the live artifact count before whole listings, kept out
+        of `calls` so the listing counts above stay the listings'."""
+        return len(self.count_reads)
+
     def __call__(
         self, args: list[str], **kwargs: Any
     ) -> subprocess.CompletedProcess[str]:
-        self.calls.append(args)
-        self.envs.append((args, kwargs.get("env_overrides")))
-
         def ok(payload: Any) -> subprocess.CompletedProcess[str]:
             return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
+
+        probe = f"repos/{REPO}/actions/artifacts?per_page=1"
+        if args == ["api", probe]:
+            self.count_reads.append(args)
+            failed = any(k in probe for k in self.fail)
+            if self.count_fail or failed:
+                error = self.count_fail or f"gh: boom (HTTP {self.fail_status})"
+                return subprocess.CompletedProcess(args, 1, "", error)
+            live = len({a.get("id") for a in self.artifacts})
+            total = live if self.live_total is None else self.live_total
+            return ok({"total_count": total})
+        self.calls.append(args)
+        self.envs.append((args, kwargs.get("env_overrides")))
 
         def missing() -> subprocess.CompletedProcess[str]:
             return subprocess.CompletedProcess(args, 1, "", "gh: Not Found (HTTP 404)")
@@ -2597,8 +2615,11 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
             reader = ve.Reader(REPO, "main", now=NOW)
             holds = [reader.queued_hold(n) for n in (PR, PR, PR)]
         self.assertEqual(holds, ["verify:unreadable"] * 3)
+        # The count read before the whole listing fails first, and is read
+        # again after each wait only: no listing starts.
         listings = [c for c in fake.calls if any("actions/artifacts" in a for a in c)]
-        self.assertEqual(len(listings), len(ve.LISTING_WAITS) + 1)
+        self.assertEqual(listings, [])
+        self.assertEqual(fake.probes(), len(ve.LISTING_WAITS) + 1)
 
 
 def listings(fake: FakeGitHub) -> int:
@@ -3305,8 +3326,10 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         self.assertEqual(sleeps, [2.0])
 
     def timed(self, clock: list[float]) -> FlakyListing:
-        """Three 502s, the clock reading `clock` in turn, a 60s listing timeout."""
+        """Three 502s, the clock reading `clock` in turn, a 60s listing timeout
+        (a live count of 10,000 artifacts sizes it past that cap)."""
         fake = FlakyListing(["gh: Bad Gateway (HTTP 502)"] * 3)
+        fake.live_total = 10_000
         with (
             mock.patch.object(ve, "_listing_clock", side_effect=clock),
             mock.patch.object(ve, "LISTING_TIMEOUT_SECONDS", 60.0),
@@ -3377,6 +3400,69 @@ class AListingOfManyPagesReadsWhole(unittest.TestCase):
             pages = ve.Reader(REPO, "main", now=NOW)._read_listing()
         self.assertEqual(len(pages), self.PAGES)
         self.assertEqual(len(sent), self.PAGES)
+
+
+class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
+    """The whole listings' shared timeout comes from GitHub's live
+    `total_count`, read from one page before them: every whole listing and
+    its top-up at 1 s a page (`LISTING_PAGE_SECONDS`), up to the 300 s cap.
+    A listing too long for one whole read and its top-up inside the cap
+    refuses before paging, with the reason in the detail, rather than
+    running into a reader's step timeout as a bare `verify:unreadable`."""
+
+    def first_timeout(self, total: int) -> float | None:
+        fake = FlakyListing([])
+        fake.live_total = total
+        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+            ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
+        return fake.timeouts[0] if fake.timeouts else None
+
+    def test_the_timeout_is_three_whole_listings_and_top_ups_at_a_second_a_page(
+        self,
+    ) -> None:
+        # 2,000 artifacts: 20 pages, and 7 top-up pages, for each of 3 reads.
+        self.assertEqual(self.first_timeout(2_000), 81.0)
+        # 2,001 artifacts start a 21st page.
+        self.assertEqual(self.first_timeout(2_001), 84.0)
+
+    def test_the_timeout_stops_at_the_cap(self) -> None:
+        # 10,450 artifacts, 105 pages, as on 2026-10-30: 336 s, capped.
+        self.assertEqual(self.first_timeout(10_450), 300.0)
+        # 293 pages and a 7-page top-up read in exactly the cap.
+        self.assertEqual(self.first_timeout(29_300), 300.0)
+
+    def test_a_listing_past_the_cap_refuses_before_paging_with_its_reason(
+        self,
+    ) -> None:
+        fake = passing()
+        fake.live_total = 29_301
+        out = io.StringIO()
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull()),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            contextlib.redirect_stdout(out),
+        ):
+            ve.main(["evidence", "--repo", REPO, str(PR), HEAD], now=NOW)
+        report = json.loads(out.getvalue())
+        self.assertEqual(report["refusal"], "verify:unreadable")
+        self.assertIn(
+            "29301 artifacts in 294 pages, past the 293 pages", report["detail"]
+        )
+        self.assertEqual((fake.probes(), fake.full_listings(), fake.pages()), (1, 0, 0))
+
+    def test_a_count_that_does_not_read_refuses_without_paging(self) -> None:
+        for error, reads in (
+            ("gh: Not Found (HTTP 404)", 1),
+            ("gh: Service Unavailable (HTTP 503)", 1 + len(ve.LISTING_WAITS)),
+        ):
+            with self.subTest(error):
+                fake = passing()
+                fake.count_fail = error
+                with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+                    result = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
+                self.assertEqual(result.refusal, "verify:unreadable")
+                self.assertIn(error, result.detail or "")
+                self.assertEqual((fake.probes(), fake.full_listings()), (reads, 0))
 
 
 # The runner's clock while these tests list, and GitHub's `Date` a few seconds
@@ -3988,26 +4074,53 @@ class AWholeListingMustHoldTheLiveCount(unittest.TestCase):
 
 class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
     """ci-status holds a cold reader unless GITHUB_TOKEN's pool has one cold
-    read's worst case per queue entry (pr-require-checks.yml). That figure
-    must cover the reader's listing caps, so raising `INCREMENTAL_READS`,
-    `LISTING_READS` or `LISTING_WAITS` without it fails here. The other terms
-    are the figures the workflow comment derives: 793 per-FAIL reads (860
-    measured 2026-10-25 less its 67-page listing), at most 13 pages an
-    incremental read, 77 pages a whole listing and a top-up of at most 7."""
+    read's worst case per queue entry (pr-require-checks.yml), which it works
+    out from the live listing: its `total_count` and the FAILs it lists. The
+    workflow's figure must cover the reader's listing caps at any listing
+    size, so raising `INCREMENTAL_READS`, `LISTING_READS`, `LISTING_WAITS`
+    or `LISTING_TOP_UP_PAGES` without it fails here. The other terms are the
+    workflow comment's: 3 reads a FAIL (its run, a compare and a download),
+    at most 13 pages an incremental read, the count read before the whole
+    listings, and one page more than the live count fills."""
 
-    def test_the_workflow_constant_is_the_capped_worst_case(self) -> None:
+    def cold_cost(self, total: int, fails: int) -> int:
+        """The workflow's own `pages=` and `cold_cost=` lines, run by bash."""
         workflow = (
             pathlib.Path(__file__).resolve().parents[6]
             / ".github/workflows/pr-require-checks.yml"
         ).read_text(encoding="utf-8")
-        found = re.findall(r"^ *cold_cost=(\d+)$", workflow, re.MULTILINE)
-        self.assertEqual(len(found), 1, found)
-        self.assertEqual(
-            len(re.findall(r'printf "%d\\n", cost \* entries', workflow)), 1
+        lines = [
+            re.findall(rf"^ *({name}=\$\(\(.*\)\))$", workflow, re.MULTILINE)
+            for name in ("listing_pages", "cold_cost")
+        ]
+        self.assertEqual([len(found) for found in lines], [1, 1], lines)
+        script = f"total={total} fails={fails}\n{lines[0][0]}\n{lines[1][0]}\n"
+        out = subprocess.run(
+            ["bash", "-c", script + 'echo "$cold_cost"'],
+            capture_output=True,
+            text=True,
+            check=True,
         )
+        return int(out.stdout)
+
+    def test_the_workflow_cost_is_the_capped_worst_case_at_any_size(self) -> None:
         attempts = 1 + len(ve.LISTING_WAITS)
-        worst = 793 + ve.INCREMENTAL_READS * 13 + ve.LISTING_READS * (attempts * 77 + 7)
-        self.assertEqual(int(found[0]), worst)
+        for total, fails in ((7_522, 264), (10_450, 300), (150, 10), (0, 0)):
+            with self.subTest(total=total, fails=fails):
+                pages = ve.listing_pages(total) + 1
+                worst = (
+                    3 * fails
+                    + ve.INCREMENTAL_READS * 13
+                    + 1
+                    + ve.LISTING_READS * (attempts * pages + ve.LISTING_TOP_UP_PAGES)
+                )
+                self.assertEqual(self.cold_cost(total, fails), worst)
+
+    def test_the_cost_of_two_listings_differs_by_hand(self) -> None:
+        # 10,450 artifacts (106 pages) and 300 FAILs against 7,522 (77) and
+        # 264: 1,915 against 1,546, worked by hand in ci-lanes-pr-hold.test.sh.
+        self.assertEqual(self.cold_cost(10_450, 300), 1_915)
+        self.assertEqual(self.cold_cost(7_522, 264), 1_546)
 
 
 # --- The --authority pr-merge path ------------------------------------------------

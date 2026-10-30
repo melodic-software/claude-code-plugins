@@ -178,6 +178,17 @@ sys.stdout.buffer.write(buffer.getvalue())' "$record"
     + [{name: $name, id: 110, expired: true, workflow_run: {id: 11}}, {name: ($name + "-i1"), id: 110, expired: false, workflow_run: {id: 11}}])}' \
     <<<"${STUB_ARTIFACTS:-{\}}" | jq -r "${*: -1}"
   ;;
+*/actions/artifacts\?per_page=100*)
+  # The whole listing, as two pages of STUB_TOTAL's total_count holding
+  # STUB_LISTED_FAILS FAILs between them, a pass and a name that only starts like a
+  # FAIL, through the step's own --jq filter.
+  [[ -n "${STUB_TOTAL-x}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
+  jq -nc --argjson total "${STUB_TOTAL:-7522}" --argjson fails "${STUB_LISTED_FAILS:-264}" '
+    def fail: {name: "pr-verify-\(.)-0123456789abcdef0123456789abcdef01234567-fail-i\(.)"};
+    {total_count: $total, artifacts: ([range(0; $fails / 2 | floor) | fail] + [{name: "pr-verify-7-0123456789abcdef0123456789abcdef01234567-pass"}])},
+    {total_count: $total, artifacts: ([range($fails / 2 | floor; $fails) | fail] + [{name: "pr-verify-7-0123456789abcdef-fail"}])}' |
+    jq -r "${*: -1}"
+  ;;
 */actions/runs/*)
   all="$*" id=${all##*actions/runs/}
   jq -ce --arg id "$id" '.[$id] // error' <<<"${STUB_RUNS:-{\}}" 2>/dev/null || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
@@ -735,7 +746,12 @@ STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, hea
 # A cold reader (no carried run cache) runs only when GITHUB_TOKEN's core
 # pool has the cold read's cost for every entry the queue builds at once
 # (the merge_queue rule's max_entries_to_build, STUB_RULES, 1 by default)
-# plus the read floor left: 1546 x 1 + 0.1 x min(limit, 1000) = 1646 here.
+# plus the read floor left. A cold read's cost comes from the live listing
+# (STUB_TOTAL artifacts, STUB_LISTED_FAILS FAILs): 3 reads a FAIL, 3 incremental
+# reads of 13 pages, the count read, and 3 whole listings of 3 attempts of
+# ceil(total / 100) + 1 pages, each with a 7-page top-up. By default 7,522
+# artifacts (77 pages) and 264 FAILs: 792 + 39 + 1 + 3 x (3 x 77 + 7) = 1546,
+# so 1546 x 1 + 0.1 x min(limit, 1000) = 1646 here.
 rate() { jq -nc --argjson remaining "$1" '{resources: {core: {limit: 5000, remaining: $remaining, reset: 1793030000}}}'; }
 STUB_COLD=1 STUB_RATE="$(rate 1646)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
 if [[ "$(readers)" -eq 1 ]]; then ok "a cold reader with headroom is started"; else fail "a cold reader with headroom ran $(readers) times"; fi
@@ -744,6 +760,14 @@ if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader without headroom is never st
 STUB_COLD=1 STUB_RATE='' expect "in the merge queue, a cold reader whose rate limit does not read holds" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread rate limit is never started"; else fail "a cold reader with an unread rate limit ran"; fi
 STUB_COLD=1 STUB_RATE='{"resources":{"core":{"limit":5000}}}' expect "in the merge queue, a rate limit with no remaining count holds a cold reader" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
+# 10,450 artifacts (105 pages, as on 2026-10-30, so 106) and 300 FAILs:
+# 900 + 39 + 1 + 3 x (3 x 106 + 7) = 1915, plus the floor's 100.
+STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2015)" expect "in the merge queue, a cold read's cost grows with the live listing" 0 3 "cold reads for 1 queue entries need 2015"
+STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2014)" expect "in the merge queue, a larger live listing holds a cold reader the old cost would start" 1 3 "GITHUB_TOKEN has 2014 requests left, under the 2015 a cold read needs (1915 for each of the 1 entries"
+# 150 artifacts (2 pages, so 3) and 10 FAILs: 30 + 39 + 1 + 3 x (3 x 3 + 7) = 118.
+STUB_COLD=1 STUB_TOTAL=150 STUB_LISTED_FAILS=10 STUB_RATE="$(rate 218)" expect "in the merge queue, a small live listing needs only its own cost" 0 3 "cold reads for 1 queue entries need 218"
+STUB_COLD=1 STUB_TOTAL='' STUB_RATE="$(rate 9999)" expect "in the merge queue, a live listing that does not read holds a cold reader" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and the artifact listing could not be read"
+if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread listing is never started"; else fail "a cold reader with an unread listing ran"; fi
 # Every entry the queue builds at once goes cold together on a missing cache,
 # so the need scales with max_entries_to_build: 1546 x 5 + 100 = 7830.
 STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 7830)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
@@ -755,7 +779,7 @@ STUB_CARRIED='{"carried-run-record":{},"carried-fail-head-ref":{},"carried-on-br
 STUB_CARRIED='not json' expect "in the merge queue, a carried cache that does not parse is cold" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
 STUB_MAP_FAILS=1 expect "in the merge queue, a head-ref map that does not read leaves the reader to read GitHub" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
 export STUB_EVIDENCE='' STUB_READER_RC='' STUB_NO_LISTING='' STUB_MAP_FAILS='' STUB_COLD='' STUB_RATE=''
-unset STUB_RULES STUB_CARRIED
+unset STUB_RULES STUB_CARRIED STUB_TOTAL STUB_LISTED_FAILS
 # The pass binds the link it judged (merge-holds.mjs linkHold): a body edited
 # after arming to close or name another issue holds the group.
 NO_CLOSING='{"totalCount":0,"nodes":[]}'

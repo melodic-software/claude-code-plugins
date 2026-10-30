@@ -1870,13 +1870,14 @@ leaves it reading more. With no carried run cache, or one whose carried sections
 (the artifact is kept for one day, so pr-merge with no successful scheduled or hand-started run
 that long leaves none), the step reads the base branch's `merge_queue` rule and GitHub's
 `/rate_limit`, which costs no request. A missing cache is shared, so every entry the queue builds
-at once goes cold together: the cold reader starts only when the token's core pool has at least
-1,546 requests (one cold read's worst case under the listing's caps: 793 per-FAIL reads, 3
-incremental reads of at most 13 pages each, and 3 whole listings of up to 3 attempts of 77 pages, each
-with a top-up of at most 7) times `max_entries_to_build`, plus the read floor (`limits.api`
-`read-floor` of the planned limit, inlined in the job env), left: 7,830 with the queue building 5.
-An entry with a carried run cache but no carried listing pays the listing's part (up to 753)
-without this check. A rule or rate limit that does not read, a stop in the
+at once goes cold together, so the step first lists every artifact page once and the cold reader
+starts only when the token's core pool then has at least one cold read's worst case under the
+listing's caps (3 reads per listed FAIL, 3 incremental reads of at most 13 pages each, one count
+read, and 3 whole listings of up to 3 attempts of `ceil(total_count / 100) + 1` pages, each with a
+top-up of at most 7: 1,546 at 7,522 artifacts and 264 FAILs) times `max_entries_to_build`, plus the
+read floor (`limits.api` `read-floor` of the planned limit, inlined in the job env), left.
+An entry with a carried run cache but no carried listing pays the listing's part
+without this check. A listing, rule or rate limit that does not read, a stop in the
 job's stop file, or less headroom than that holds the pull request, so the queue ejects it and the
 ejection counts toward `merge.max-queue-ejections`. `ci-status` allows 20 minutes for a cold read,
 about 6 to 11, at most about 15. It reads with `ci-status`'s token, which holds no `issues`
