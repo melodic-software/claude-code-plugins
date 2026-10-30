@@ -1,7 +1,7 @@
 # Retired consumer-facing conventions for the docs-naming plugin.
 # Append-only: records are never deleted and their detection fields are never
 # edited once published (demote with `status: report-only` instead). Schema and
-# helper contract: docs/conventions/retired-conventions/README.md in the
+# helper contract: docs/contracts/retired-conventions/README.md in the
 # consuming marketplace; evaluated by lib/check-retirements.sh from setup.
 ---
 id: docs-naming-r001

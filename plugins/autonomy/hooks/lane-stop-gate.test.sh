@@ -1287,7 +1287,7 @@ if is_block "$OUT"; then ok "an enabled lane still blocks after the pre-filter l
 # ============================================================================
 # This hook fires on EVERY Stop of every session, gated or not, so its cost on
 # the interactive default path is paid per turn fleet-wide against the 500 ms
-# per-turn ceiling in docs/conventions/hook-budget/README.md. Reading the code
+# per-turn ceiling in docs/contracts/hook-budget/README.md. Reading the code
 # cannot prove the count: bash execs a bare `$(cmd)` in the substitution's own
 # subshell only when the command carries no redirection of its own; a
 # `2>/dev/null`, a `<<<` or a pipeline written INSIDE the substitution forks
