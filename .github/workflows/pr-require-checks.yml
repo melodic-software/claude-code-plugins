@@ -3376,11 +3376,11 @@ jobs:
       # gh_read's wait budget: a rate-limit wait must end by
       # GH_READ_JOB_SECONDS (timeout-minutes in seconds) less
       # GH_READ_MARGIN_SECONDS after the first step starts. The margin keeps
-      # five minutes for the job's setup and the steps after the wait:
-      # aggregate-results' 60 s rate-limit wait, 45 s of own-gate retries, 7 s
+      # 375 s for the job's setup and the steps after the wait:
+      # aggregate-results' 60 s rate-limit wait, 120 s of own-gate retries, 7 s
       # of status writes and the 90 s rerun wait, plus retry sleeps.
       GH_READ_JOB_SECONDS: 1200
-      GH_READ_MARGIN_SECONDS: 300
+      GH_READ_MARGIN_SECONDS: 375
       # The lanes App's bot account id, which the trust-hold, cost-hold and
       # lanes-hold steps match a pull request author against. Its one source is
       # the repository variable; each step that reads it fails closed or keeps
@@ -6070,7 +6070,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@72c0b1598594e42bcc3358f47a719801b312a6bc # 72c0b15 2026-10-30
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane

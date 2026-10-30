@@ -15,8 +15,10 @@ to the result file. Prints one line per check, detail lines indented under it:
     traces            how many tracePaths resolve, and what that leaves unchecked
     session started   no run ended at 0 turns with no run error, no failed Bash
                       result reports the sandbox failing to start, and no run of 2
-                      or more Bash calls had every one fail; each means the run
-                      measured a session that never ran, or ran with no working shell
+                      or more Bash calls had every one fail with no output; each
+                      means the run measured a session that never ran, or ran with
+                      no working shell. A failed call that printed output ran in a
+                      working shell, whatever its exit code
     permission denials  no denied tool call in any trace; a denial is a warning
                       when that run scores the same as every denial-free run
                       of its case in the same arm (there must be one), since
@@ -112,9 +114,10 @@ TOOL_RESULT, RESULT_USE_ID, RESULT_ERROR = "tool_result", "tool_use_id", "is_err
 DENIAL_TEXT = "denied by your permission settings"  # in an is_error tool_result
 # Anywhere in a trace line when the shell sandbox never started (Claude Code 2.1.310).
 SANDBOX_FAILURE_TEXT = "Sandbox is required but failed to initialize"
-# A run with at least this many Bash calls, every one failed, had no working shell.
-# Two, not one, so a lone grep that matches nothing does not flag a healthy run.
+# A run with at least this many Bash calls, every one failed with no output, had no
+# working shell. Two, not one, so one silent failure does not flag a healthy run.
 MIN_BASH_CALLS = 2
+EXIT_LINE = re.compile(r"\AExit code -?\d+\s*")  # heads a failed Bash result's text
 # The input a denial line prints: Read's file, or Grep's and Glob's search root,
 # else the call's first input value.
 TARGET_KEYS = ("file_path", "path")
@@ -349,11 +352,26 @@ def is_denial(block):
     )
 
 
+def has_output(content):
+    """True when a tool_result's content holds text past a leading exit-code line,
+    or a block other than text."""
+    if isinstance(content, list):
+        return any(
+            has_output(b)
+            if isinstance(b, str)
+            else b.get(BLOCK_TYPE) != "text" or has_output(b.get("text"))
+            for b in content
+            if isinstance(b, (str, dict))
+        )
+    return isinstance(content, str) and bool(EXIT_LINE.sub("", content.strip()))
+
+
 def shell_failure(run):
     """Why the run had no working shell, or None: a failed Bash result reporting the
-    sandbox not starting, or every one of at least MIN_BASH_CALLS Bash calls failing,
-    which catches a sandbox failure whatever its wording. A denied call never reached
-    the shell, so it counts toward neither; check_denials judges it."""
+    sandbox not starting, or every one of at least MIN_BASH_CALLS Bash calls failing
+    with no output. A failed call that printed output ran, so the shell worked. A
+    denied call never reached the shell, so it counts toward neither; check_denials
+    judges it."""
     bash_ids, failed_ids = set(), set()
     for line in run.trace or []:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -369,7 +387,8 @@ def shell_failure(run):
                     continue
                 if SANDBOX_FAILURE_TEXT in json.dumps(block.get(CONTENT)):
                     return "the shell sandbox failed to start"
-                failed_ids.add(block.get(RESULT_USE_ID))
+                if not has_output(block.get(CONTENT)):
+                    failed_ids.add(block.get(RESULT_USE_ID))
     if len(bash_ids) >= MIN_BASH_CALLS and failed_ids == bash_ids:
         return "all %d Bash calls failed" % len(bash_ids)
     return None
