@@ -75,14 +75,12 @@
 //   there is UPSTREAM_STOP_STEP: the upstream-status gate skipped the review
 //   while GitHub Actions or npm listed an outage, so the head has no review.
 //   Its failed jobs are re-run once, inside the lookback, only while that gate
-//   would now let it run (check-upstream-status.mjs). Its re-run carries the
-//   record rerunRecordName(run id, head SHA), as a lane re-run does, so
-//   pr-feedback-dispatch.yml's rerun-ci-status records the ci-status re-run
-//   that review's completion causes (check-trusted-trigger
-//   reconciler-record.mjs) and pr-verify's gate accepts it. A review run
-//   re-run any other way is not, and a person's re-run of it becomes attempt
-//   3, which the merge gate never binds. The reusable's bot check
-//   reads `github.actor`, which a re-run keeps
+//   would now let it run (check-upstream-status.mjs). The re-run carries no
+//   record, so the ci-status re-run its completion causes is unrecorded and
+//   pr-verify's gate refuses it: ci-status asks a person to re-run ci-status.
+//   A person's re-run of the review becomes attempt 3, which the merge gate
+//   never binds. The reusable's bot check reads `github.actor`, which a
+//   re-run keeps
 //   (https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context),
 //   and the merge gate binds the re-run (babysit_review_evidence
 //   `_upstream_stopped`). Any other failure or loss of these runs is not
@@ -383,9 +381,7 @@ export function classify(runs, since) {
 // A CI item with its record, when its re-run makes attempt 2 of a recorded
 // upstream. One PR holds one run per workflow, so a place holds one record.
 const withRecord = (item) =>
-  (RECORDED_UPSTREAMS.has(item.path) && (item.kind === "ci" || item.attempt === 1)) || item.kind === "upstream"
-    ? { ...item, record: rerunRecordName(item.id, item.head) }
-    : item;
+  RECORDED_UPSTREAMS.has(item.path) && (item.kind === "ci" || item.attempt === 1) ? { ...item, record: rerunRecordName(item.id, item.head) } : item;
 // The items the record uploads cover: every lane re-run, and each recorded CI re-run.
 const recorded = (item) => item.kind === "lane" || item.record !== undefined;
 

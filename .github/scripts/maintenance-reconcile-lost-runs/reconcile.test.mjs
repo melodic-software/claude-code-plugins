@@ -1848,12 +1848,6 @@ test("the hosted callers still name the stop step as the reconciler reads it", (
 
 const NPM_OUTAGE = { components: [{ name: "Package installation", status: "partial_outage", group: false }] };
 
-test("an upstream re-run of a hosted review is recorded under the reconciler's record name", async () => {
-  const { failedJobReruns, outputs } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1))] });
-  assert.deepEqual(failedJobReruns, [201]);
-  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, "", ""]);
-});
-
 test("a main-run review is not re-run or recorded while the upstream gate reads an npm outage", async () => {
   const upstream = { ...UPSTREAM_OK, [NPM_COMPONENTS]: NPM_OUTAGE };
   const { reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301)], upstream });

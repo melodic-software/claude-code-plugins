@@ -59,9 +59,6 @@ for env in 'HEAD_SHA: ${{ github.event.workflow_run.head_sha }}' 'PR_NUMBER: ${{
   'LANE_PATH: ${{ github.event.workflow_run.path }}' 'LANE_DONE_AT: ${{ github.event.workflow_run.updated_at }}' "POLL_LIMIT_SECONDS: '600'" \
   'REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}' 'REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}' \
   'TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json' \
-  'REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}' 'DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' \
-  'RECONCILER_WORKFLOW: .github/workflows/maintenance-reconcile-lost-runs.yml' \
-  'RECONCILER_RECORD: .base/.github/actions/check-trusted-trigger/reconciler-record.mjs' \
   'API_BUDGET_SH: .base/.github/actions/log-api-budget/api-budget.bash'; do
   if [[ "$step" == *"$env"* ]]; then ok "step env carries $env"; else fail "step env lacks $env"; fi
 done
@@ -76,14 +73,13 @@ fi
 list_step="$(step_of 'Check out the trusted-actors list')"
 # shellcheck disable=SC2016 # the ${{ }} text is workflow source, not shell
 for want in 'continue-on-error: true' 'uses: actions/checkout@' 'ref: refs/heads/main' 'path: .base' 'persist-credentials: false' \
-  '/.github/standards/trusted-actors/' '/.github/actions/log-api-budget/' '/.github/actions/check-trusted-trigger/' \
-  '/.github/actions/check-kill-switch/' '/.github/actions/setup-pinned-node/' '/.node-version' 'sparse-checkout-cone-mode: false'; do
+  '/.github/standards/trusted-actors/' '/.github/actions/log-api-budget/' 'sparse-checkout-cone-mode: false'; do
   if [[ "$list_step" == *"$want"* ]]; then ok "the list checkout carries '$want'"; else fail "the list checkout lacks '$want'"; fi
 done
 # The record goes up between the find and the re-run, and each later step
 # runs only on the find step's outputs. The job ends by logging its readings.
 order="$(grep -nE '^      - name: ' <<<"$job" | cut -d: -f3- | paste -sd'|')"
-if [[ "$order" == ' Check out the trusted-actors list| Set up Node| Find the ci-status to re-run| Record the re-run| Re-run ci-status| Log the API budget at the end' ]]; then
+if [[ "$order" == ' Check out the trusted-actors list| Find the ci-status to re-run| Record the re-run| Re-run ci-status| Log the API budget at the end' ]]; then
   ok "the job finds, records, re-runs, then logs the API budget"
 else
   fail "step order: '$order'"
@@ -198,13 +194,6 @@ runs() {
 # cijob <status> [started_at]
 cijob() { jq -cn --arg st "$1" --arg at "${2:-$EARLY}" '{jobs: [{id: 7, name: "lint-repo", status: "completed"}, {id: 77, name: "ci-status", status: $st, started_at: $at}]}'; }
 
-# The reconciler-record check's stand-in logs the run it was asked about and
-# exits STUB_RECORD_RC (0 vouches, 3 refuses).
-cat >"$TMP_ROOT/record-stub.mjs" <<'STUB'
-import { appendFileSync } from "node:fs";
-appendFileSync(process.env.STUB_LOG, `record-check ${process.env.REVIEW_RUN_ID}\n`);
-process.exit(Number(process.env.STUB_RECORD_RC));
-STUB
 # The list names one human and one bot; KYLE is the human.
 KYLE=153232337 LANES_APP=337595936 STRANGER=9999001
 jq -n --argjson h "$KYLE" --argjson b "$LANES_APP" '{version: 1, actors: [{id: $h, login: "kyle-sexton", kind: "human"},
@@ -221,7 +210,6 @@ expect() {
     PR_NUMBER="${PR_NUMBER-42}" LANE_PATH="${LANE_PATH-$CODE}" LANE_DONE_AT="${LANE_DONE_AT-$DONE}" \
     GITHUB_OUTPUT="$TMP_ROOT/out" RECORD_FILE="$TMP_ROOT/record.json" GITHUB_RUN_ID=555 \
     REVIEW_ATTEMPT="${REVIEW_ATTEMPT-1}" REVIEW_RERUNNER_ID="${REVIEW_RERUNNER_ID-$KYLE}" \
-    REVIEW_RUN_ID="${REVIEW_RUN_ID-3}" RECONCILER_RECORD="${RECONCILER_RECORD-$TMP_ROOT/record-stub.mjs}" STUB_RECORD_RC="${STUB_RECORD_RC-3}" \
     TRUSTED_ACTORS="${TRUSTED_ACTORS-$TMP_ROOT/trusted-actors.json}" RUNNER_TEMP="$TMP_ROOT/rt" \
     API_BUDGET_SH="${API_BUDGET_SH-$ROOT/.github/actions/log-api-budget/api-budget.bash}" POLL_SECONDS=60 POLL_LIMIT_SECONDS=600 bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
@@ -466,27 +454,6 @@ REVIEW_ATTEMPT='' REVIEW_RERUNNER_ID=$KYLE expect "a review run with no attempt 
 check_unrecorded "a missing review attempt hands on no record"
 REVIEW_ATTEMPT=1 REVIEW_RERUNNER_ID=$STRANGER TRUSTED_ACTORS="$TMP_ROOT/absent.json" expect "a first review attempt is recorded without the list" 0 "as attempt 2."
 check_reran 1 "a first attempt hands on the record"
-
-# The lost-run reconciler's re-run of an upstream-stopped review (attempt 2,
-# github-actions[bot]) is recorded only when its record passes pr-verify's own
-# reconciler check; any other attempt or re-runner never asks it.
-ACTIONS_BOT=41898282
-record_checks() { grep -c '^record-check ' "$TMP_ROOT/log"; }
-REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID=$ACTIONS_BOT STUB_RECORD_RC=0 expect "a reconciler review re-run with an accepted record is recorded" 0 "as attempt 2."
-check_reran 1 "a reconciler re-run hands on the record"
-if grep -qx 'record-check 3' "$TMP_ROOT/log"; then ok "the record check is asked about the review run"; else fail "record check calls: $(grep '^record-check' "$TMP_ROOT/log")"; fi
-REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID=$ACTIONS_BOT STUB_RECORD_RC=3 expect "a reconciler review re-run with no accepted record is not recorded" 0 "no reconciler record vouches"
-check_unrecorded "a missing or unaccepted reconciler record hands on no record"
-REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID=$ACTIONS_BOT RECONCILER_RECORD="$TMP_ROOT/absent.mjs" expect "an unrunnable record check records nothing" 0 "no reconciler record vouches"
-check_unrecorded "an unrunnable record check hands on no record"
-REVIEW_ATTEMPT=3 REVIEW_RERUNNER_ID=$ACTIONS_BOT STUB_RECORD_RC=0 expect "a bot review re-run at attempt 3 is not recorded" 0 "no reconciler record vouches"
-check_unrecorded "attempt 3 hands on no record"
-if [[ "$(record_checks)" == 0 ]]; then ok "attempt 3 never asks the record check"; else fail "attempt 3 asked the record check"; fi
-REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID=$STRANGER STUB_RECORD_RC=0 expect "an unlisted person's attempt 2 is not recorded on a reconciler record" 0 "no reconciler record vouches"
-check_unrecorded "a non-bot re-runner hands on no record"
-if [[ "$(record_checks)" == 0 ]]; then ok "a non-bot re-runner never asks the record check"; else fail "a non-bot re-runner asked the record check"; fi
-REVIEW_ATTEMPT=2 REVIEW_RERUNNER_ID=$ACTIONS_BOT REVIEW_RUN_ID='' STUB_RECORD_RC=0 expect "a reconciler re-run with no review run id is not recorded" 0 "no reconciler record vouches"
-check_unrecorded "a missing review run id hands on no record"
 
 # Without the library (a failed checkout) the job runs as before and keeps no reading.
 STUB_PR="$(pr)" STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$SEC")")" STUB_RUNS="$(runs "$(run 9)")" STUB_JOBS="$(cijob completed)"
