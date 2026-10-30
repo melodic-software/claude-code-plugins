@@ -910,7 +910,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    request (a line starting `PR-fix lane: please fix this finding`, any case, outside a fenced
    block) by a `human` on that list whose permission on the repository reads `write` or `admin`
    (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`), whose review may be on any
-   head, so a request on a thread from an earlier review is worked; or the lanes App's last
+   head, so a request on a thread from an earlier review is worked (that thread's first comment
+   may also be such a human's own, on their own review); or the lanes App's last
    comment is a reply the reply job left open (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) and
    every comment after it is by such a `human` (any permission), created after it, whose review
    may also be on any head. A human's
