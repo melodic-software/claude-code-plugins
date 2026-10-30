@@ -270,6 +270,7 @@ jobs:
       app-label: agent-ready
       timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '40') }}
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
+      caller-releases-lease: true
     secrets:
       claude-api-key: ${{ secrets.ISSUE_LANE_CLAUDE_API_KEY }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
@@ -354,6 +355,7 @@ jobs:
       app-label: agent-ready
       timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '40') }}
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
+      caller-releases-lease: true
     secrets:
       claude-code-oauth-token: ${{ secrets.ISSUE_LANE_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
@@ -420,6 +422,7 @@ jobs:
       app-label: agent-ready
       timeout-minutes: ${{ fromJSON(needs.pick-slot.outputs.timeout-minutes || '40') }}
       issue-dimensions: ${{ needs.pick-slot.outputs.issue-dimensions }}
+      caller-releases-lease: true
     secrets:
       fallback-claude-code-oauth-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
       scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
@@ -853,3 +856,57 @@ jobs:
       escalation-reason: >-
         ${{ needs.apply-issue-patch.outputs.escalation-reason
         || needs.apply-issue-patch.result == 'failure' && 'patch-apply-failed' || '' }}
+
+  # Ends the lane lease each read call's broker-check posted, once the PR is
+  # open and the outcome reported, whatever their result, so no local loop
+  # takes the issue between the read run and its PR. The read calls run in
+  # caller-releases-lease mode and release only a handed-off call's lease
+  # themselves (release then reports it already superseded). The handles
+  # come only from those calls' lease outputs, set by broker-check, which runs
+  # no model. A failure here leaves a lease to expire at its TTL.
+  release-lease:
+    needs: [resolve-issue, resolve-issue-subscription, resolve-issue-fallback, apply-issue-patch, report-outcome]
+    if: >-
+      always() && (needs.resolve-issue.outputs.lease == 'held'
+      || needs.resolve-issue-subscription.outputs.lease == 'held'
+      || needs.resolve-issue-fallback.outputs.lease == 'held')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Release the lane leases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          HOLDER: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          LEASE_1: ${{ needs.resolve-issue.outputs.lease }}
+          LEASE_COMMENT_ID_1: ${{ needs.resolve-issue.outputs.lease-comment-id }}
+          LEASE_2: ${{ needs.resolve-issue-subscription.outputs.lease }}
+          LEASE_COMMENT_ID_2: ${{ needs.resolve-issue-subscription.outputs.lease-comment-id }}
+          LEASE_3: ${{ needs.resolve-issue-fallback.outputs.lease }}
+          LEASE_COMMENT_ID_3: ${{ needs.resolve-issue-fallback.outputs.lease-comment-id }}
+          TRACKER: .base/plugins/work-items/tools/work-item-tracker/work-item-tracker.sh
+          WORK_ITEM_TRACKER_BINDING: .base/.work-item-tracker.json
+        run: |
+          failed=0
+          for n in 1 2 3; do
+            lease_var="LEASE_$n" id_var="LEASE_COMMENT_ID_$n"
+            [ "${!lease_var}" = held ] || continue
+            if [[ ! ${!id_var} =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::read call $n holds a lease with no valid comment id"
+              failed=1
+              continue
+            fi
+            bash "$TRACKER" release "github:$REPO#$ISSUE_NUMBER" --lease-comment-id "${!id_var}" --holder "$HOLDER" || failed=1
+          done
+          exit "$failed"

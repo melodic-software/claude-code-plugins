@@ -206,6 +206,14 @@ on:
         required: false
         type: string
         default: ""
+      caller-releases-lease:
+        description: >-
+          Issue mode: `true` when the caller ends the lane lease itself, from
+          the lease and lease-comment-id outputs, after it opened the PR and
+          reported; lease-release then runs only for a call that handed off.
+        required: false
+        type: boolean
+        default: false
     # A caller passes one of the three: its first call the API key, its
     # second call the OAuth token, its third call the fallback token.
     secrets:
@@ -378,6 +386,16 @@ on:
           scan job, uploaded nothing, recorded no lane outcome and posted no
           check, and the next call runs the activity.
         value: ${{ jobs.run.outputs.handed-off }}
+      # Set by broker-check, which runs no model, so a caller may act on them.
+      lease:
+        description: >-
+          Issue mode: `held` when broker-check posted this call's lane lease,
+          `already-leased` when it backed off; empty otherwise.
+        value: ${{ jobs.broker-check.outputs.lease }}
+      lease-comment-id:
+        description: >-
+          Issue mode, lease `held`: the lease comment's id, for the caller's release.
+        value: ${{ jobs.broker-check.outputs.lease-comment-id }}
 
 permissions: {}
 
@@ -459,7 +477,8 @@ jobs:
       # installation token cannot call). The earliest live lease wins, so a
       # live local claim makes this run back off: lease=already-leased, and
       # the run job's go step stops the model. Any other failure fails the
-      # job. The TTL outlives the run job; the lease-release job ends it early.
+      # job. The TTL outlives the run job; lease-release, or the caller in
+      # caller-releases-lease mode, ends it early.
       - name: Claim the issue with a lane lease
         id: lease
         if: inputs.issue-number != '' && steps.broker.outcome == 'success'
@@ -3411,12 +3430,16 @@ jobs:
   # Issue mode: ends the lane lease broker-check posted, once every other job
   # of this run has ended, whatever their result. It reads the lease handle
   # only from broker-check, which ran before any model turn. A failure here
-  # leaves the lease to expire at its TTL.
+  # leaves the lease to expire at its TTL. In caller-releases-lease mode the
+  # caller ends it after opening the PR, except for a call whose scan job
+  # skipped (a handoff): that call hands the caller nothing to open, and the
+  # next call's claim backs off from any older live lease, its own lane's too.
   lease-release:
     needs: [broker-check, run, issue-fields, scan, scan-refusal, summary]
     if: >-
       always() && inputs.issue-number != '' && needs.broker-check.outputs.lease == 'held'
       && needs.broker-check.outputs.lease-comment-id != ''
+      && (!inputs.caller-releases-lease || needs.scan.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

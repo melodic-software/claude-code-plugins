@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml .github/standards/runner-policy/package.json plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh plugins/work-items/tools/work-item-tracker/work-item-tracker.sh .work-item-tracker.json
+# test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml .github/standards/runner-policy/package.json plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh plugins/work-items/tools/work-item-tracker/work-item-tracker.sh .work-item-tracker.json .github/workflows/work-resolve-issue.yml
 # Runs the shell of two read-lane broker-check steps, lifted from their YAML,
 # against the cases the contract states
 # (docs/conventions/pr-pipeline/pr-run-activity.md, "The broker-check job"):
@@ -8,7 +8,10 @@
 #   - request-lane-token's check mode accepts only an https URL whose last path
 #     segment is /token;
 #   - broker-check's issue lease step backs off as already-leased on a live
-#     lease older than its own, and the run job's go step then runs no model.
+#     lease older than its own, and the run job's go step then runs no model;
+#   - in caller-releases mode the read runner's lease-release skips unless the
+#     call handed off, and work-resolve-issue.yml releases every held handle
+#     after it opened the PR and reported, on pass and fail alike.
 # Needs node and the yaml package (npm ci --prefix .github/standards/runner-policy).
 set -uo pipefail
 
@@ -153,6 +156,65 @@ if grep -q '^lease-comment-id=' "$WORK/output"; then
   fail "an already-leased run hands no lease handle to lease-release"
 else
   ok "an already-leased run hands no lease handle to lease-release"
+fi
+
+# --- Caller-side release (#9791): the lease outlives the read run until the
+# caller has opened the PR and reported. ---
+# holds <label> <yaml-file> <js-boolean-expression on d>
+holds() {
+  if node -e '
+    const { createRequire } = require("node:module");
+    const yaml = createRequire(process.argv[1] + "/package.json")("yaml");
+    const d = yaml.parse(require("node:fs").readFileSync(process.argv[2], "utf8"));
+    process.exit(eval(process.argv[3]) === true ? 0 : 1);
+  ' "$POLICY_DIR" "$2" "$3" 2>/dev/null; then
+    ok "$1"
+  else
+    fail "$1"
+  fi
+}
+READ_YML="$ROOT/.github/workflows/pr-run-activity-read.yml"
+CALLER_YML="$ROOT/.github/workflows/work-resolve-issue.yml"
+holds "the read runner takes caller-releases-lease, a boolean defaulting to false" "$READ_YML" \
+  'const i = d.on.workflow_call.inputs["caller-releases-lease"]; i?.type === "boolean" && i.default === false'
+holds "the read runner hands its lease handle to the caller" "$READ_YML" \
+  'const o = d.on.workflow_call.outputs; o.lease?.value === "${{ jobs.broker-check.outputs.lease }}" && o["lease-comment-id"]?.value === "${{ jobs.broker-check.outputs.lease-comment-id }}"'
+holds "lease-release skips in caller-releases mode unless the call handed off (scan skipped)" "$READ_YML" \
+  'const c = d.jobs["lease-release"].if.replace(/\s+/g, " "); c.includes("(!inputs.caller-releases-lease || needs.scan.result == '"'skipped'"')")'
+holds "every read call of work-resolve-issue.yml runs in caller-releases mode" "$CALLER_YML" \
+  'Object.values(d.jobs).filter((j) => /pr-run-activity-read\.yml/.test(j.uses ?? "")).every((j) => j.with["caller-releases-lease"] === true)'
+holds "work-resolve-issue.yml releases after apply-issue-patch and report-outcome, on always()" "$CALLER_YML" \
+  'const j = d.jobs["release-lease"]; ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback", "apply-issue-patch", "report-outcome"].every((n) => j.needs.includes(n)) && /^always\(\)/.test(j.if.trim())'
+holds "the caller release job holds contents read and issues write only" "$CALLER_YML" \
+  'JSON.stringify(d.jobs["release-lease"].permissions) === JSON.stringify({ contents: "read", issues: "write" })'
+
+RELEASE_STEP="$WORK/release.sh"
+if lift "$CALLER_YML" 'd.jobs["release-lease"]?.steps.find((s) => s.name === "Release the lane leases")?.run' "$RELEASE_STEP"; then
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$*" >>"%s"\n' "$WORK/tracker.log" >"$WORK/tracker.sh"
+  # release_case <label> <expected-rc> <expected-calls> <L1> <ID1> <L2> <ID2> <L3> <ID3>
+  release_case() {
+    : >"$WORK/tracker.log"
+    local rc=0 out
+    out="$(TRACKER="$WORK/tracker.sh" REPO=o/r ISSUE_NUMBER=5 HOLDER=987654 \
+      LEASE_1="$4" LEASE_COMMENT_ID_1="$5" LEASE_2="$6" LEASE_COMMENT_ID_2="$7" \
+      LEASE_3="$8" LEASE_COMMENT_ID_3="$9" bash "$RELEASE_STEP" 2>&1)" || rc=$?
+    local calls
+    calls="$(cat "$WORK/tracker.log")"
+    if [[ $rc -ne $2 || $calls != "$3" ]]; then
+      fail "$1: rc=$rc calls=[$calls]: $out"
+    else
+      ok "$1"
+    fi
+  }
+  release_case "a held lease is released under the lanes App holder" 0 \
+    "release github:o/r#5 --lease-comment-id 41 --holder 987654" held 41 "" "" "" ""
+  release_case "every held handle is released, the handed-off call's too" 0 \
+    "release github:o/r#5 --lease-comment-id 41 --holder 987654
+release github:o/r#5 --lease-comment-id 42 --holder 987654" held 41 held 42 "" ""
+  release_case "an already-leased call releases nothing" 0 "" already-leased "" "" "" "" ""
+  release_case "a held lease with a malformed id releases nothing and fails" 1 "" held "0x1" "" "" "" ""
+else
+  fail "work-resolve-issue.yml has no release-lease job with a 'Release the lane leases' step"
 fi
 
 test_harness::report

@@ -175,7 +175,12 @@ times out after 10 minutes. In order:
    job's `go` step runs no model; any other claim failure fails the job. The read file's
    `lease-release` job, with `contents: read` and `issues: write`, releases a `held` lease after
    every other job of the run ends, whatever their result, reading the lease handle only from this
-   job's outputs.
+   job's outputs. A caller passing `caller-releases-lease: true` gets the handle as the `lease` and
+   `lease-comment-id` outputs and releases it itself; `lease-release` then runs only for a call
+   whose scan job skipped (a handoff), since the next call's claim backs off from any older live
+   lease. `work-resolve-issue.yml` does this on all three read calls: its `release-lease` job
+   releases every `held` handle after `apply-issue-patch` and `report-outcome`, on `always()`, so
+   the issue keeps its lease until its PR is open.
 
 Any answer but an allow, or no answer, fails the job, which skips the run job. The report job
 passes the broker-check job's result as `run-result` whenever it is not `success`, so a failure
