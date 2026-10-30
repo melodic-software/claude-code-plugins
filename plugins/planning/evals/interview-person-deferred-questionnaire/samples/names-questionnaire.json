@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Next: /planning:plan for the purge job. Alongside it, run /planning:questionnaire to turn the retention-window question into a document Dana fills in.",
+      "why": "names the questionnaire skill with its slash, beside the next step"
+    },
+    {
+      "answer": "Run planning:questionnaire for Dana's retention-window question.",
+      "why": "names the skill without the slash"
+    },
+    {
+      "answer": "Next: /planning:plan, and `/planning:questionnaire` for the deferred question Dana holds.",
+      "why": "questionnaire in backticks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Next: /planning:plan. The retention window stays in Deferred questions until Dana replies.",
+      "why": "partial: a next step but no questionnaire hand-off"
+    },
+    {
+      "answer": "Message Dana and ask her for the retention window, then run /planning:plan.",
+      "why": "wrong route: advises asking but never names the skill"
+    },
+    {
+      "answer": "Next: /planning:plan. No need for /planning:questionnaire; just ping Dana.",
+      "why": "contradictory: names the skill only to reject it"
+    },
+    {
+      "answer": "Run /planning:plan without /planning:questionnaire.",
+      "why": "contradictory: without the questionnaire"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "recommends only; no tool calls"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "planning:interview"}},
+        {"tool": "Read", "input": {"file_path": "PLAN.md"}}
+      ],
+      "why": "loads the interview skill and reads the Brief, never the questionnaire"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "planning:questionnaire"}}
+      ],
+      "why": "wrong scope: runs the questionnaire itself instead of recommending it"
+    },
+    {
+      "answer": [
+        {"tool": "Skill", "input": {"skill": "planning:interview"}},
+        {"tool": "Skill", "input": {"skill": "planning:questionnaire", "args": "Dana: retention window"}}
+      ],
+      "why": "wrong scope: hands the question to the questionnaire on the user's behalf"
+    }
+  ]
+}
