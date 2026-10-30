@@ -42,18 +42,6 @@ packages.lock.json  -diff
 *.lock              -diff
 
 ###############################################################################
-# Line-list registries: git's built-in union driver keeps both sides' lines
-# instead of conflicting. Only lists whose order carries no meaning and whose
-# gate fails what a bad union can leave behind, such as a line one side removed.
-###############################################################################
-
-# Gate: scripts/check-purged-em-dashes.sh fails a stale entry.
-scripts/em-dash-purged-paths.txt  merge=union
-# Gate: scripts/sync-shared-copies.sh --check fails a duplicate, a missing
-# canonical, or a registered copy that is missing.
-scripts/shared-copies.txt         merge=union
-
-###############################################################################
 # Binary: no line-ending conversion, no diff.
 ###############################################################################
 
