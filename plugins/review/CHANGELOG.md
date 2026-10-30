@@ -3,6 +3,24 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.5] - 2026-10-29
+
+### Changed
+
+- Synced contract copies name their canonical source at `docs/contracts/<name>/`, where the plugin contracts moved from `docs/conventions/<name>/`.
+
+## [1.7.4] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [1.7.3] - 2026-10-29
+
+### Changed
+
+- `/review:security-review` opens each inline comment for a `manifest <field>: flag` with that flag's summary line, `manifest <field>: flag, <reason>`, and puts its severity line last above the footer. The pr-unblock lane matches that first line to find a `dependencies` flag it may settle without a person.
+
 ## [1.7.2] - 2026-10-29
 
 ### Changed

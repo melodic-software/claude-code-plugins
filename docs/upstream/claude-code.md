@@ -95,7 +95,7 @@ The store verdict is human-written. No row was written to `docs/native-surfaces/
 
 | Decision | Items | Component | Record |
 |---|---|---|---|
-| `--permission-prompts none` on lane launch, babysit, and autonomy dispatch; documented for print mode and unattended runs, denial under `--bg` not probed | 259-002 | harness-ops lanes; source-control babysit; autonomy | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
+| `--permission-prompts none` on lane launch, babysit, and autonomy dispatch; documented for print mode and unattended runs; a 2026-10-28 host run on 2.1.312 without the flag saw a `--bg --permission-mode auto` session take one classifier denial as a tool error and continue ([#8444](https://github.com/melodic-software/claude-code-plugins/issues/8444)); denial with the flag under `--bg` is still unverified | 259-002 | harness-ops lanes; source-control babysit; autonomy | [#5156](https://github.com/melodic-software/claude-code-plugins/pull/5156) |
 | The same flag on the running-retro observer, keeping `dontAsk` | 259-002 | session-flow observer | [#5161](https://github.com/melodic-software/claude-code-plugins/pull/5161) |
 | The same flag on `hop_chain.py`, keeping `bypassPermissions` | 259-002 | session-flow harness | [#5239](https://github.com/melodic-software/claude-code-plugins/pull/5239) |
 | `claude plugin validate --json` for per-file errors and warnings, gated on >= 2.1.259 | 259-004 | `scripts/validate-plugins.sh`; plugin-quality auditor | [#5161](https://github.com/melodic-software/claude-code-plugins/pull/5161) |

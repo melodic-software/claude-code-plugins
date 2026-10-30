@@ -534,7 +534,7 @@ GH_TIMEOUT_COMMAND=""
 if [[ "${REPO_FLEET_FORCE_BASH_TIMEOUT:-}" != "1" ]]; then
   for candidate in timeout gtimeout; do
     if command -v "$candidate" >/dev/null 2>&1 &&
-      "$candidate" --help 2>&1 | grep -Fq -- '--kill-after'; then
+      grep -Fq -- '--kill-after' < <("$candidate" --help 2>&1); then
       GH_TIMEOUT_COMMAND="$candidate"
       break
     fi

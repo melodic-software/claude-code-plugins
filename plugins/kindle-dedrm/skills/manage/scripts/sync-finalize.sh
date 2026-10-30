@@ -14,7 +14,7 @@ KINDLE_UPDATES_DIR="${LOCALAPPDATA}/Amazon/Kindle/updates"
 
 echo "=== kindle-dedrm: sync finalize ==="
 
-if powershell.exe -NoProfile -Command "Get-Process Kindle -ErrorAction SilentlyContinue" 2>/dev/null | grep -qi kindle; then
+if grep -qi kindle < <(powershell.exe -NoProfile -Command "Get-Process Kindle -ErrorAction SilentlyContinue" 2>/dev/null); then
   echo "[sync-finalize] ERROR: Kindle is still running. Quit it (File → Exit + close tray icon) and re-run."
   exit 1
 fi

@@ -614,7 +614,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     listener: {state: "idle"}, online: false, session: "", sel: null, pick: new Set(), busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", search: "", fly: null, pinned: null, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
     instance: "", restarted: false, finished: null, need: null, actKeys: null,
-    armed: null, snap: {}, conflict: null, undo: null, propEdit: null, propDraft: null, propMsg: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, noteOpen: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
+    armed: null, snap: {}, conflict: null, undo: null, propEdit: null, propDraft: null, propMsg: null, revs: null, themeSig: "", loaded: false, replies: {}, noteSeen: 0, noteOpen: new Set(), moreShut: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
 
   // ---------- storage (every access guarded) ----------
@@ -1422,7 +1422,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (altsOf(q).length) more += '<section class="blk"><h4>Alternatives</h4><div class="alts">' + altsOf(q).map(a =>
       '<div class="alt' + (d && d.decision === "alt" && d.alt === a.key ? " chosen" : "") + '"><span class="k">(' + esc(a.key) + ")</span><span>" + lineHtml(a.text) + (a.tradeoff ? '<span class="to">' + lineHtml(a.tradeoff) + "</span>" : "") + "</span></div>").join("") + "</div></section>";
     const why = q.recommendation && q.basis ? mdHtml(q.basis) : "", tab = (id, label, open) => '<button type="button" class="dtab" id="' + id + 'Btn" data-discl="' + id + '" aria-expanded="' + open + '" aria-controls="' + id + '">' + label + "</button>";
-    const whyOpen = lsGet("whyOpen", false) === true, moreOpen = lsGet("moreOpen", false) === true; // one toggle row, the panels below it: opening Why never moves Details
+    const whyOpen = lsGet("whyOpen", false) === true, moreOpen = !S.moreShut.has(q.id) && (lsGet("moreOpen", false) === true || (st !== "arch" && !isAnswered(st))); // one toggle row, the panels below it: opening Why never moves Details; an unanswered question opens Details until the user closes it there
     if (why || more) h += '<div class="discl" id="discl"><div class="dtabs">' + (why ? tab("why", "Why", whyOpen) : "") + (more ? tab("more", "Details: what we know, alternatives", moreOpen) : "") + "</div>" +
       (why ? '<div class="dpanel" id="why" role="region" aria-labelledby="whyBtn"' + (whyOpen ? "" : " hidden") + ">" + why + "</div>" : "") +
       (more ? '<div class="dpanel" id="more" role="region" aria-labelledby="moreBtn"' + (moreOpen ? "" : " hidden") + ">" + more + "</div>" : "") + "</div>";
@@ -2491,10 +2491,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (t.closest("[data-sendnote]")) { sendNote(); return; }
     if (t.closest("[data-notenewest]")) { const n = $("noteNewest"); if (n) { n.scrollIntoView({block: "nearest"}); n.focus({preventScroll: true}); } return; }
     const dt = t.closest("[data-discl]");
-    if (dt) { // toggled in place, like a details element; the choice is kept for the next question
+    if (dt) { // toggled in place, like a details element; the choice is kept for the next question, and a closed Details stays closed on its question until a reload
       const k = dt.dataset.discl, open = dt.getAttribute("aria-expanded") !== "true", panel = $(k);
       dt.setAttribute("aria-expanded", String(open)); if (panel) panel.hidden = !open;
       lsSet(k + "Open", open);
+      if (k === "more") S.moreShut[open ? "delete" : "add"](S.sel);
       return;
     }
     const nz = t.closest("[data-notetoggle]");

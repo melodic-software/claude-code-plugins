@@ -292,7 +292,7 @@ expect() {
 
 export STUB_PULL STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE='' STUB_FILES='[["docs/guide.md"]]'
 export STUB_ACTORS="$ROOT/.github/standards/trusted-actors/trusted-actors.json"
-export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]'
+export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 KYLE_VETO="$(comment kyle User MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')"
 
 STUB_PULL="$(pull 'Closes #1')"
@@ -410,8 +410,7 @@ fi
 ci_status="$(awk '/^  ci-status:/ { on = 1; print; next } on && /^  [A-Za-z0-9_-]+:$/ { exit } on { print }' "$WORKFLOW")"
 if grep -qE '^ +uses: actions/cache(/restore)?@' <<<"$ci_status"; then
   fail "ci-status restores an Actions cache"
-elif [[ "$(grep -A3 -E '^ +uses: actions/setup-node@' <<<"$ci_status")" == *'package-manager-cache: false'* ]] &&
-  [[ "$(grep -cE '^ +uses: actions/setup-node@' <<<"$ci_status")" -eq "$(grep -cE '^ +package-manager-cache: false$' <<<"$ci_status")" ]]; then
+elif [[ "$(grep -cE '^ +uses: actions/setup-node@' <<<"$ci_status")" -eq "$(grep -cE '^ +package-manager-cache: false$' <<<"$ci_status")" ]]; then
   ok "ci-status restores no Actions cache, setup-node's package cache included"
 else
   fail "ci-status's setup-node may restore a package cache (no package-manager-cache: false)"
@@ -601,9 +600,19 @@ unset STUB_NO_ACTORS
 STUB_REVIEWS=''
 STUB_FILES='[["docs/guide.md"]]' STUB_CONFIG='merge: {}'
 expect "a config with no denied paths holds no path" 0 3 "no hold path"
-STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: docs/held/**'
+# Owner decision Q15: merge.diff-check.path-holds absent or false turns the
+# hold paths off; the module still prints its no-hold line.
+STUB_FILES='[[".github/scripts/pr-merge/clear-escalations.mjs"]]'
+for config in $'merge:\n  diff-check:\n    denied-paths: [docs/held/**]' $'merge:\n  diff-check:\n    path-holds: false'; do
+  STUB_CONFIG=$config
+  expect "path holds off ($(tr '\n' ' ' <<<"$config")) holds no floor path" 0 3 "path holds are off (merge.diff-check.path-holds), so nothing holds it for this: it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path."
+done
+STUB_CONFIG=$'merge:\n  diff-check:\n    path-holds: true'
+expect "path holds on holds a floor path" 1 3 "it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path"
+STUB_FILES='[["docs/guide.md"]]'
+STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: docs/held/**\n    path-holds: true'
 expect "denied paths that are not a list fail closed" 1 3 "the hold paths could not be read"
-STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]'
+STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a file list shorter than changed_files fails closed before the discussion" 1 0 "::error::GitHub listed fewer files than #7 changes"
 STUB_PULL="$(pull 'Closes #1')"
