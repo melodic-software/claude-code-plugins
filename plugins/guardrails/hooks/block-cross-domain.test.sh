@@ -309,6 +309,9 @@ shared "from a from domain, a name that only starts like the exception" deny "$D
   'ls {epsilon/shared-not/x}'
 shared "from a from domain, the exception beside a sibling that starts like it" deny "$DATA" "$Z_CWD" \
   'cp {epsilon/shared/a} {epsilon/shared-private/b}'
+shared "from a from domain, a sibling whose name continues with +" deny "$DATA" "$Z_CWD" 'cat {epsilon/shared+x/f}'
+shared "from a from domain, a sibling whose name continues with ~" deny "$DATA" "$Z_CWD" 'cat {epsilon/shared~x/f}'
+shared "from a from domain, an operator right after the exception" allow "$DATA" "$Z_CWD" 'ls {epsilon/shared}|cat'
 shared "from a from domain, a glob right after the exception" deny "$DATA" "$Z_CWD" 'cat {epsilon/shared}*/x'
 shared "from a from domain, a brace right after the exception" deny "$DATA" "$Z_CWD" 'ls {epsilon/shared}{,-private}'
 shared "from a from domain, an expansion right after the exception" deny "$DATA" "$Z_CWD" 'ls {epsilon/shared}$X'

@@ -44,9 +44,11 @@
 # command that names the path, or a path below it, is not denied for it, as long
 # as the command text, quotes and `\` dropped, holds no `..`. Every other foreign
 # path the command names still denies it, and the exception opens nothing to a
-# session in `to` or in a domain `from` does not list. A glob, brace or
-# expansion right after the path (`shared*`, `shared{,-x}`, `shared$x`) closes
-# it for that mention, since it can reach a sibling. The path counts only when
+# session in `to` or in a domain `from` does not list. Any character right
+# after the path but the text's end, `/`, whitespace or a word-ending operator
+# (`;&|<>()`) closes it for that mention: a glob, brace or expansion
+# (`shared*`, `shared{,-x}`, `shared$x`) can reach a sibling, and any other
+# character (`shared+x`, `shared~x`) names one. The path counts only when
 # it is a path of `to` on this host: the longest root or owner directory of any
 # domain that holds it, or equals it, is `to`'s, compared with runs of `\` and
 # `/` as one `/` and a drive spelled `C:`, `/cygdrive/c` or `/mnt/c` (and on
@@ -616,9 +618,12 @@ bcd::names() {
 
 # bcd::spend_open <needle> <its to domain>: an open shared exception's path, in
 # bcd::names's text `t`. Each occurrence that names it becomes a space, and one
-# a glob, brace or expansion follows (`shared*`, `shared{,-x}`, `shared$x`),
-# which can reach past it, names its `to` domain. An occurrence inside a longer
-# name is kept, so a sibling (`shared-x`) still names `to` through its root.
+# that the text's end, `/`, whitespace or a word-ending operator (`;&|<>()`)
+# does not follow names its `to` domain: a glob, brace or expansion
+# (`shared*`, `shared{,-x}`, `shared$x`) can reach past it, and any other
+# character (`shared+x`, `shared~x`) continues a sibling's name. An occurrence
+# inside a longer name is kept, so a sibling (`shared-x`) still names `to`
+# through its root.
 bcd::spend_open() {
   local rest=$t out="" pre
   while [[ "$rest" == *"$1"* ]]; do
@@ -628,9 +633,9 @@ bcd::spend_open() {
       out+=$pre$1
       continue
     fi
-    case "$rest" in
-    '*'* | '?'* | '['* | '{'* | '$'* | '`'* | '@('* | '+('* | '!('*) bcd::named "$2" 2 ;;
-    *) ;;
+    case "${rest:0:1}" in
+    '' | / | ' ' | $'\t' | $'\n' | ';' | '&' | '|' | '<' | '>' | '(' | ')') ;;
+    *) bcd::named "$2" 2 ;;
     esac
     out+="$pre "
   done
