@@ -1043,12 +1043,15 @@ pin "surface.md lists the accept-audit event kind" "$PLUGIN_DIR/skills/interview
 #     them ("in practice a gap counts as real only when …") changes the line and fails here.
 #     The router row and the confirmation-gate line now give `lock` one problem question; each
 #     keeps its STOP-on-gap clause word for word.
+#     The confirmation-gate line's opening clause now uses Step 3's stop wording ("no question is
+#     left to ask") in place of "an empty frontier is necessary but not sufficient" (#9790); it
+#     still withholds the stop until the user confirms, and the `lock` clause is unchanged.
 pin_exact "router \`lock\` row is byte-identical to the pinned defense" "$SKILL" \
   '| `lock` | **Force synthesis, one problem question** | "Stop asking, just write it", "I'"'"'m clear, lock the brief". Skip auto-detect, confirm the one-line problem with one question, synthesize directly. If a real gap surfaces during synthesis, STOP and surface it (do not fudge) |'
 pin_exact "Step 1.5 \`lock\` routing line is byte-identical to the pinned defense" "$SKILL" \
   'For `lock`: skip Step 1.5 AND Step 2, synthesize directly. If a gap surfaces mid-synthesis, STOP and surface; do not fudge.'
 pin_exact "the confirmation-gate paragraph is byte-identical to the pinned defense" "$SKILL" \
-  '**Confirmation gate (`me` and `auto`):** an empty frontier is necessary but not sufficient. Before persisting the contract or handing off, restate the shared understanding, opening with the one-line problem, and get the user'"'"'s explicit confirmation that it is reached. Do not act on the interview'"'"'s output until they confirm. `lock` confirms the problem with one question, registered like any row; its invocation confirms the rest (its STOP-on-gap rule still applies).'
+  '**Confirmation gate (`me` and `auto`):** that no question is left to ask does not end the interview on its own. Before persisting the contract or handing off, restate the shared understanding, opening with the one-line problem, and get the user'"'"'s explicit confirmation that it is reached. Do not act on the interview'"'"'s output until they confirm. `lock` confirms the problem with one question, registered like any row; its invocation confirms the rest (its STOP-on-gap rule still applies).'
 pin_exact "the fudge-prohibition bullet is byte-identical to the pinned defense" "$SKILL" \
   '- **Does not fudge gaps in `lock` mode**. If a true unknown surfaces during synthesis, STOP and surface it. Fall back to `auto` or `me` instead of guessing'
 pin_exact "loop.md's \`lock\` STOP-on-gap line is byte-identical to the pinned defense" "$LOOP" \
