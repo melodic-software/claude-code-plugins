@@ -188,7 +188,7 @@ describe("parseVerdict", () => {
 });
 
 describe("planWrites", () => {
-  const plan = (body, { labels = [], fields = {}, classSetters = {}, holdSetters = {}, earlierFlags = [] } = {}) =>
+  const plan = (body, { labels = [], fields = {}, classSetters = {}, holdSetters = {}, earlierFlags = [], triageLabels = [] } = {}) =>
     planWrites(parseVerdict(body, DIMS, CLASSES), {
       labels,
       fields,
@@ -198,6 +198,7 @@ describe("planWrites", () => {
       classSetters,
       holdSetters,
       earlierFlags,
+      triageLabels,
     });
 
   test("a clean verdict adds the class and status: ready and writes the three fields", () => {
@@ -305,6 +306,50 @@ describe("planWrites", () => {
     assert.equal(result.ready, false);
     assert.deepEqual(result.remove, []);
     assert.ok(!result.add.includes(READY));
+    assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
+  });
+
+  // Run 41064812826 (#9953): the triage run applied needs-human for a host-run
+  // step. A capability limit is admission's to route (host-run), never a
+  // person's: needs-human this run's triage applied holds only beside a flag.
+  test("needs-human this run's triage applied with no flag is refused and the verdict reaches ready", () => {
+    const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"] });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.add, ["work-class: scoped", READY]);
+    assert.deepEqual(result.remove, ["needs-human"]);
+    assert.deepEqual(result.refused, ["needs-human"]);
+    assert.deepEqual(result.reasons, []);
+  });
+
+  test("needs-human this run's triage applied with an unreadable Flags line is refused, and the parse problem holds", () => {
+    const result = plan(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known"] }), {
+      labels: ["needs-human"],
+      triageLabels: ["needs-human"],
+      earlierFlags: null,
+    });
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.remove, ["needs-human"]);
+    assert.ok(result.add.includes(NEEDS_DECISION));
+    assert.ok(!result.reasons.includes("held by needs-human"), result.reasons.join("; "));
+  });
+
+  for (const flag of ["intent", "security", "cost"]) {
+    test(`needs-human this run's triage applied beside a ${flag} flag holds`, () => {
+      const result = plan(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", `Flags: ${flag}`] }), {
+        labels: ["needs-human"],
+        triageLabels: ["needs-human"],
+      });
+      assert.equal(result.ready, false);
+      assert.deepEqual(result.remove, []);
+      assert.deepEqual(result.refused, []);
+      assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
+    });
+  }
+
+  test("needs-human on an escalated run holds even when this run's triage applied it", () => {
+    const result = plan(ESCALATED_BODY, { labels: ["needs-human"], triageLabels: ["needs-human"] });
+    assert.equal(result.ready, false);
+    assert.deepEqual(result.remove, []);
     assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
   });
 
@@ -1055,6 +1100,37 @@ describe("run", () => {
         { event: "labeled", label: { name: "needs-human" }, actor: { id: LANES_APP } },
         { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT } },
       ],
+    });
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+  });
+
+  test("a needs-human this run's triage applied with no flag comes off before admission, which then routes the host work", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [{ event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" }],
+    });
+    const result = await run({
+      env: ENV,
+      github: fake.github,
+      dimensionsConfig: DIMS,
+      fieldSetters: noSetters,
+      admitIssue: async () => {
+        assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === "/repos/o/r/issues/7/labels/needs-human"));
+        return { outcome: "refused", reasons: ["host work"], status: "status: confirmed" };
+      },
+      log: () => {},
+    });
+    assert.equal(result.outcome, "ready");
+    assert.match(result.summary, /- Refused: needs-human/);
+  });
+
+  test("a needs-human github-actions[bot] applied before this run started keeps the hold", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [{ event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T11:59:00Z" }],
     });
     assert.equal((await go(fake)).outcome, "needs-decision");
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));

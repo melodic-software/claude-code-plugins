@@ -304,9 +304,11 @@ jobs:
 
         UNRUNNABLE DONE-WHEN. A done-when item an unattended lane run cannot do (a run on a named
         host or OS, a paid eval, a run repeated N times, a measurement over time, or a page on a
-        host outside the issue lane's web access) is no reason for needs_human, the intent flag or
-        a none class on its own: triage the lane-checkable items as usual, with their work class
-        and fields. Admission holds the issue and posts the split itself.
+        host outside the issue lane's web access) is no reason for needs_human, the `needs-human`
+        label, the intent flag or a none class on its own: triage the lane-checkable items as
+        usual, with their work class and fields. Admission routes host work to `host-run`, or
+        holds the issue and posts the split itself. The `needs-human` label you apply holds only
+        beside a flag on the Flags line; the verdict step takes it off when the Flags line is none.
 
         VERDICT LINES. Begin your comment with these five lines, each at the start of its own line,
         exactly in this form, one value each (the Flags line lists every flag that applies, comma
@@ -324,8 +326,8 @@ jobs:
         COST. When the work an issue asks for would add or raise a charge that no diff shows (a new
         paid service or subscription, a plan upgrade, or an account, organization or repository
         billing setting such as a paid GitHub feature, Actions retention or a spending limit),
-        apply the `needs-human` label and keep needs_human false, so your comment is kept, and add one line to it:
-        `Cost: <what bills, where; the owner decision it lacks>`.
+        set `Flags: cost`, apply the `needs-human` label and keep needs_human false, so your comment
+        is kept, and add one line to it: `Cost: <what bills, where; the owner decision it lacks>`.
         Skip this only when a comment whose first line is exactly `**Decision recorded.**`, by an
         author whose login does not end in `[bot]`, already covers that charge; then name it on the
         Cost line.
@@ -390,10 +392,12 @@ jobs:
         c. When one or more stay open, apply `status: needs-decision` and keep needs_human false.
            After the quote, ask each as a numbered new question with a `RECOMMENDED:` answer and its
            basis. Never fill one with a default of your own or treat a recommendation as decided.
-        d. When the remaining work needs a person (a host, spend, a trust-boundary decision the
-           recorded decision leaves open, or an attended run), apply the `needs-human` label and keep needs_human false, even when (c)
-           also applies, so your comment with the quote and new questions is kept. The decision
-           comment stays on the issue for the person who picks it up.
+        d. When the remaining work needs a person (spend, with `Flags: cost`, or a trust-boundary
+           decision the recorded decision leaves open, with `Flags: security`), apply the
+           `needs-human` label and keep needs_human false, even when (c) also applies, so your
+           comment with the quote and new questions is kept. Work on a host or in an attended run
+           is UNRUNNABLE DONE-WHEN, not a person: admission routes it. The decision comment stays
+           on the issue for the person who picks it up.
         e. When the decision settles every open question and no person is needed, apply no status
            label, quote the decision, say in one sentence that it settles the open questions, and ask
            nothing again. Triage the rest as usual.
