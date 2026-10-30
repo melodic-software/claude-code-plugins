@@ -6,7 +6,7 @@
 //   setup-apply.mjs [--root <dir>] --check
 //   setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ...
 //
-// The YAML reader and parser are the copies bundled with /education:explain,
+// The YAML reader is the copy bundled with /education:explain,
 // under skills/explain/scripts/. The options, guarantees and exit codes are in
 // ../../../lib/setup-apply.mjs.
 
@@ -19,7 +19,6 @@ run({
   plugin: "education",
   schema: join(PLUGIN, "schemas", "education.schema.json"),
   reader: join(PLUGIN, "skills", "explain", "scripts", "parse-concern-value.sh"),
-  parser: join(PLUGIN, "skills", "explain", "scripts", "yaml-subset.awk"),
   fixedTemp: true,
   report: wholeFileReport,
 });

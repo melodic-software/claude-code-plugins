@@ -177,7 +177,7 @@ come. For the lifetime rules and the settings that change them, see
 ### Telemetry
 
 With `HOOK_TELEMETRY_SINK` set, the module sends envelopes per the
-[hook-telemetry convention](../../docs/conventions/hook-telemetry/README.md) to the sink,
+[hook-telemetry convention](../../docs/contracts/hook-telemetry/README.md) to the sink,
 fire-and-forget, and only on fires that act:
 
 - `zone-crossing-inject`, status `ok`, for each fire that sends lines, with `hook_event`
@@ -317,7 +317,7 @@ what holds their budget now:
 | The hook-census ceiling on the crossing hook in `.performance/ratchets.json` | Processes per crossing-hook fire | The `budget:` case: 0 processes on a call that writes nothing |
 
 The PostCompact marker is the one settings hook left. Per
-[`docs/conventions/hook-budget/README.md`](../../docs/conventions/hook-budget/README.md) it fires
+[`docs/contracts/hook-budget/README.md`](../../docs/contracts/hook-budget/README.md) it fires
 once per compaction. Measured on Windows 11 under Git Bash, twelve trials against an interleaved
 `bash -c :` floor, old and new interleaved in one loop (2026-09-02): 9 processes to 4, 9.4
 spawn-equivalents before and 5.7 after (0.7.34), with `date` replaced by printf's clock (a `date`
@@ -452,7 +452,7 @@ Three supported routes:
    {"context_guard_hooks_enabled": "<value>"}
    ```
 
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
    limits: the Claude Code version it needs, which install it finds, how it rejects a bad
    value, and why a session started before the change keeps the old value until a fresh
    session starts. Do **not** `claude plugin uninstall` to reconfigure: see

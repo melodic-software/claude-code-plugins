@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.3.3] - 2026-10-30
+
+### Changed
+
+- The review discipline gains an `INTENTIONAL` outcome ([#7642](https://github.com/melodic-software/claude-code-plugins/issues/7642)): a finding that describes the code correctly where the code is that way on purpose is answered with its reason in the D5 reply and files no tracker item. It is not available for a defect the change introduced, which stays `VALID (fix now)`.
+
 ## [4.3.2] - 2026-10-30
 
 ### Fixed

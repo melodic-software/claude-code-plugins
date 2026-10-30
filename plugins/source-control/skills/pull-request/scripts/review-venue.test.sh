@@ -53,7 +53,8 @@ case "\$2" in
     [[ -f "$TEST_TMPDIR/wf-\$id.json" ]] || exit 1
     # The documented event filter: only runs of that event come back.
     case "\$2" in
-      *event=pull_request*) jq -c '.workflow_runs |= map(select(.event == "pull_request"))' "$TEST_TMPDIR/wf-\$id.json" ;;
+      *event=pull_request*) jq -c '(.workflow_runs | length) as \$n | .workflow_runs |= map(select(.event == "pull_request"))
+        | if has("total_count") then .total_count -= \$n - (.workflow_runs | length) else . end' "$TEST_TMPDIR/wf-\$id.json" ;;
       *) cat "$TEST_TMPDIR/wf-\$id.json" ;;
     esac
     ;;
@@ -66,6 +67,12 @@ case "\$2" in
 esac
 STUB_EOF
 chmod +x "$STUB_DIR/gh"
+# The pause before a re-read is logged, not waited out.
+cat >"$STUB_DIR/sleep" <<STUB_EOF
+#!/usr/bin/env bash
+printf 'sleep %s\n' "\$*" >>"$TEST_TMPDIR/calls"
+STUB_EOF
+chmod +x "$STUB_DIR/sleep"
 
 CODE='melodic-software/ci-workflows/.github/workflows/pr-review.yml@a623e29085a3be885718cf9c0c0eca85bb53dd97'
 SEC='melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@a623e29085a3be885718cf9c0c0eca85bb53dd97'
@@ -80,11 +87,19 @@ lane_run() {
 }
 other_run() { jq -nc '{id: 2, workflow_id: 999, path: ".github/workflows/ci.yml", status: "completed", conclusion: "success"}'; }
 
-# page <n> <run-json>... -> page-n.json
+# page <n> <run-json>... -> page-n.json, whose total_count says the listing ends
+# on this page
 page() {
   local n="$1"
   shift
-  jq -sc '{workflow_runs: .}' <<<"$(printf '%s\n' "$@")" >"$TEST_TMPDIR/page-$n.json"
+  jq -sc --argjson off "$(((n - 1) * 100))" '{total_count: ($off + length), workflow_runs: .}' \
+    <<<"$(printf '%s\n' "$@")" >"$TEST_TMPDIR/page-$n.json"
+}
+
+# set_total <file> <count>: overwrite the total_count a stand-in listing reports
+set_total() {
+  jq -c --argjson t "$2" '.total_count = $t' "$TEST_TMPDIR/$1" >"$TEST_TMPDIR/total.tmp" &&
+    mv "$TEST_TMPDIR/total.tmp" "$TEST_TMPDIR/$1"
 }
 
 # wf <id> <status:conclusion:hours-ago[:event[:class]]>... -> wf-id.json,
@@ -114,7 +129,7 @@ wf() {
     *) ;;
     esac
   done
-  jq -sc '{workflow_runs: .}' <<<"$(printf '%s\n' "${runs[@]}")" >"$TEST_TMPDIR/wf-$id.json"
+  jq -sc '{total_count: length, workflow_runs: .}' <<<"$(printf '%s\n' "${runs[@]}")" >"$TEST_TMPDIR/wf-$id.json"
   wf_state "$id" active
 }
 
@@ -339,6 +354,67 @@ reset
 echo 'not json' >"$TEST_TMPDIR/page-1.json"
 run >/dev/null 2>&1
 assert_exit "an unparsable run listing fails closed" 2 "$?"
+
+# #9086: a listing page that parses but is not whole says nothing about the
+# lanes: it reads unreadable, never absent or stale.
+reset
+echo '{"total_count": 3}' >"$TEST_TMPDIR/page-1.json"
+out=$(run)
+assert_exit "a page with no workflow_runs is still a read" 0 "$?"
+assert_contains "a page with no workflow_runs leaves the code lane unreadable" "$out" "code-review local unreadable"
+assert_contains "a page with no workflow_runs leaves the security lane unreadable" "$out" "security-review local unreadable"
+assert_not_contains "a page with no workflow_runs never reads absent" "$out" "absent"
+assert_eq "an incomplete page is read three times" 3 "$(grep -c 'actions/runs?' "$TEST_TMPDIR/calls")"
+assert_contains "the re-reads pause first" "$(cat "$TEST_TMPDIR/calls")" "sleep 2"
+
+reset
+page 1 "$(other_run)"
+set_total page-1.json 250
+out=$(run)
+assert_contains "a page shorter than total_count leaves is unreadable" "$out" "code-review local unreadable: page 1"
+assert_not_contains "a short page never reads absent" "$out" "absent"
+
+reset
+page 1 "$(other_run)" "$(lane_run 11 .github/workflows/pr-review-hosted.yml "$CODE")"
+set_total page-1.json 1
+out=$(run)
+assert_exit "a page holding more runs than total_count is still a read" 0 "$?"
+assert_contains "a lane seen on a page that is not whole is not taken" "$out" "code-review local unreadable"
+assert_contains "a page holding more runs than total_count is unreadable" "$out" "security-review local unreadable"
+
+reset
+full=()
+for _ in $(seq 100); do full+=("$(other_run)"); done
+page 1 "${full[@]}"
+page 2 "$(other_run)"
+set_total page-2.json 1
+out=$(run)
+assert_contains "a short page 2 is checked against the runs page 1 already read" "$out" "code-review local unreadable: page 2"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:success:1
+wf 22 completed:skipped:1
+set_total wf-22.json 40
+out=$(run)
+assert_contains "a whole lane listing keeps its verdict" "$out" "code-review ci healthy"
+assert_contains "a short lane listing is unreadable" "$out" "security-review local unreadable"
+assert_not_contains "a short lane listing never reads stale" "$out" "stale"
+
+reset
+page 1 "${BOTH_PAGE[@]}"
+wf 11 completed:failure:1 completed:success:2
+wf 22 completed:success:1
+first=$(run)
+second=$(run)
+assert_eq "the same whole listing twice gives the same lines" "$first" "$second"
+assert_not_contains "a whole listing is read once" "$(cat "$TEST_TMPDIR/calls")" "sleep"
+assert_eq "a whole listing page is requested once" 1 "$(grep -c 'actions/runs?' "$TEST_TMPDIR/calls")"
+
+reset
+printf 'null\n' >"$TEST_TMPDIR/page-1.json"
+run >/dev/null 2>&1
+assert_exit "a null run listing fails closed" 2 "$?"
 
 # pr-review-cli.yml serves either lane; it counts for security-review only from
 # a caller whose path names security, so the security lane never takes a

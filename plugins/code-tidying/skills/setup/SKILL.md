@@ -154,7 +154,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 Not `apply` surface: Claude Code owns the storage, and this contract forbids setup to write
 `pluginConfigs`, so `check` reports the observed value and routes the change. Reconfigure through
 Claude Code's native flow, per the marketplace's
-[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md)
+[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md)
 (which owns the verified-version record): interactive `/plugin configure code-tidying@<marketplace>`
 any time, or headless:
 

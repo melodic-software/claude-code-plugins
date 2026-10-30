@@ -29,11 +29,11 @@ scanner; remaining real cite relocated.
 | Path | Status |
 |---|---|
 | `CLAUDE.md` | clean |
-| `docs/conventions/commit-convention/README.md` | remediated: design-topic ghost-ref moved to `## Sources` |
-| `docs/conventions/config-cascade/README.md` | clean |
-| `docs/conventions/ecosystem-commands/README.md` | clean |
-| `docs/conventions/hook-observability/README.md` | clean |
-| `docs/conventions/hook-telemetry/README.md` | clean |
+| `docs/contracts/commit-convention/README.md` | remediated: design-topic ghost-ref moved to `## Sources` |
+| `docs/contracts/config-cascade/README.md` | clean |
+| `docs/contracts/ecosystem-commands/README.md` | clean |
+| `docs/contracts/hook-observability/README.md` | clean |
+| `docs/contracts/hook-telemetry/README.md` | clean |
 | `/ai-briefing:generate` `reference/build-pipeline.md` | clean |
 | `/ai-briefing:generate` `reference/slide-generation.md` | clean |
 | `plugins/architecture/CHANGELOG.md` | basename-exempt |
