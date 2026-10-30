@@ -62,7 +62,7 @@ jobs:
       contents: read
       issues: read # list the issue's blocked_by dependencies
     outputs:
-      proceed: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' }}
+      proceed: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true' }}
       outsider: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.outsider == 'true' }}
       # Whether the issue is a trusted size-split sub-issue, for resolve-config.
       split-child: ${{ steps.blockers.outputs.split-child }}
@@ -119,6 +119,18 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
         run: node .base/.github/scripts/work-resolve-issue/check-blockers.mjs
+
+      # Skips the run while Actions or npm installs report a degraded
+      # component, with a logged reason; fails open
+      # (.github/actions/check-upstream-status). agent-ready stays, and
+      # work-unblock's sweep re-fires the run as one the blocker gate skipped
+      # (label-unblocked.mjs didNoWork).
+      - name: Check upstream status
+        id: upstream
+        if: steps.blockers.outputs.proceed == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        uses: ./.base/.github/actions/check-upstream-status # zizmor: ignore[self-repository]
 
       # The mark work-unblock's sweep reads: a run that stopped here is never
       # re-fired.
