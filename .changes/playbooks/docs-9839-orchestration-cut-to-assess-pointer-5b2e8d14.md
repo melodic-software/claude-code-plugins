@@ -4,7 +4,7 @@ bump: patch
 
 ### Changed
 
-- The `fable-5` orchestration chapter's "When to delegate, when to stay inline" section no longer restates the delegate-or-inline verdict that `/multi-agent:assess` and its subagent docs pointer own. It points at assess and keeps only what assess does not decide: the file-overlap and detail-needed-later stay-inline conditions, the fan-out cost weighing, and the isolation and consistency reasons. The hub's delegation line now points at assess too.
+- The `fable-5` orchestration chapter's "When to delegate, when to stay inline" section no longer restates the delegate-or-inline verdict that `/multi-agent:assess` and its subagent docs pointer own. It points at assess and keeps only what assess does not decide: the file-overlap and detail-needed-later stay-inline conditions, the fan-out cost weighing, and the isolation and consistency reasons.
 
 ### Fixed
 
