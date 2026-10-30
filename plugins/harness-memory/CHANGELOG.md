@@ -3,6 +3,12 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.4] - 2026-10-29
+
+### Fixed
+
+- **The per-project state key no longer pipes into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `lib/state-key.sh` checks the remote identity with a here-string instead of `printf | grep -q`, so under `set -o pipefail` a valid identity can no longer be read as invalid and keyed by hash when grep exits before printf finishes writing.
+
 ## [2.0.3] - 2026-10-29
 
 ### Changed
