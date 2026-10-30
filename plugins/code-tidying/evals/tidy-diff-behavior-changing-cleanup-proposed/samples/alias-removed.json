@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "import { parseOrder, type Order } from \"./order-schema\";\n\nexport async function loadOrders(url: string): Promise<Order[]> {\n  try {\n    const response = await fetch(url);\n    const payload = await response.json();\n    console.log(\"here\");\n    return [parseOrder(payload)];\n  } catch {\n    return [];\n  }\n}\n",
+      "why": "alias inlined"
+    },
+    {
+      "answer": "import { parseOrder, type Order } from \"./order-schema\";\n\nexport async function loadOrders(url: string): Promise<Order[]> {\n  try {\n    const response = await fetch(url);\n    const body = await response.json();\n    console.log(\"here\");\n    return [parseOrder(body)];\n  } catch {\n    return [];\n  }\n}\n",
+      "why": "payload dropped instead"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import { parseOrder, type Order } from \"./order-schema\";\n\nexport async function loadOrders(url: string): Promise<Order[]> {\n  try {\n    const response = await fetch(url);\n    const payload = await response.json();\n    const body = payload;\n    console.log(\"here\");\n    return [parseOrder(body)];\n  } catch {\n    return [];\n  }\n}\n",
+      "why": "seeded file, alias kept"
+    }
+  ]
+}

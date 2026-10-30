@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Rows taken: docs/setup.md 1-11. Pass 1 simplify: none (no code file listed). Pass 2 comments: none (no code file listed). Pass 3 docs-hygiene: /docs-hygiene:write-for-humans did not resolve in this session, skipped. Pass 4 ai-slop: skipped, /ai-slop:audit not available. Turns: no budget.",
+      "why": "code passes none, markdown passes skipped with reason"
+    },
+    {
+      "answer": "Only markdown was listed, so the simplify and comment passes had nothing to do. write-for-humans: tightened line 3 (docs/setup.md:3). ai-slop fix: none.",
+      "why": "code passes none, markdown passes ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Deleted `// increment the counter` at docs/setup.md:6 (COMMENT-ONLY) and proposed removing `console.log(\"here\")`.",
+      "why": "treated fence as code"
+    },
+    {
+      "answer": "Simplify and comment passes: none.",
+      "why": "markdown passes not reported"
+    }
+  ]
+}

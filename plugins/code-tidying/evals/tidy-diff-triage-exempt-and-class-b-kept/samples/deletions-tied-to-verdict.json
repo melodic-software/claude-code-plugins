@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Pass 2: deleted `// loop over the records` at src/users.ts:19 (COMMENT-ONLY). Proposals: src/users.ts:12 `// Step 1: parse input` is class B; extract `parseInput(raw)` then delete. Kept: the thread-safety warning (class C); loadUser's doc comment is exempt.",
+      "why": "deletion with verdict, step proposed"
+    },
+    {
+      "answer": "change-shape.sh exited 3 (no TypeScript parser), so `// loop over the records` at src/users.ts:19 is a proposal. Proposal: extract the block under `// Step 1: parse input` into a named function.",
+      "why": "proposal quoting the verdict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Deleted `// loop over the records` and `// Step 1: parse input`; both restate the code.",
+      "why": "step deleted, no verdict"
+    },
+    {
+      "answer": "Extracted parseInput(raw) and removed the step comment; deleted the narrating comment.",
+      "why": "applied class B"
+    }
+  ]
+}
