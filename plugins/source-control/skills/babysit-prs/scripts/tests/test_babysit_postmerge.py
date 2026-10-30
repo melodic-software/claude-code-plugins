@@ -2656,10 +2656,25 @@ class ReplacedRuns(CheckCase):
     def test_a_run_cancelled_after_its_jobs_started_still_waits_for_its_rerun(
         self,
     ) -> None:
+        # Run 11 off the branch: no newer green run settles run 10.
+        self.gh.on_main.discard(LATER_SHA)
         verdict = self.check()
         self.assertFalse(verdict.merges[0].verified)
         self.assertIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
         self.assertEqual([r.run_id for r in verdict.reruns], [self.REPLACED])
+
+    def test_a_red_run_a_newer_green_run_descends_from_is_settled(self) -> None:
+        # Run 41005510323: red on ad7cbfa1 after 41030741557 passed on its
+        # descendant 3a01401f. It is not re-run and holds nothing, and the
+        # check reads no listing for it: run 11 is already held.
+        verdict = self.check()
+        self.assertEqual(verdict.reruns, ())
+        self.assertNotIn(f"attribution-pending:{self.REPLACED}", verdict.merges[0].pending)
+        self.assertTrue(verdict.merges[0].verified, verdict.merges[0].pending)
+        self.assertEqual(
+            sum("/actions/workflows/pr-require-checks.yml/runs?" in " ".join(c) for c in self.gh.calls),
+            2,
+        )
 
     def test_a_replaced_run_is_no_baseline(self) -> None:
         # Before the merge: a red run, then a replaced one. The red run is the

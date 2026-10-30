@@ -220,6 +220,9 @@ SIGNAL_READ_BACK = "read-back"
 FULL_RUN_EVENTS = {SIGNAL_SCHEDULE: "schedule", SIGNAL_DISPATCH: "workflow_dispatch"}
 
 GREEN, FLAKE, RED, RERUN, PENDING = "green", "flake", "red", "rerun", "pending"
+# A red attempt 1 a newer green full run on the branch descends from: main
+# already recovered, so it is neither re-run nor pending (`_Context.superseded`).
+SETTLED = "settled"
 
 EXIT_FAILURE, EXIT_UNREADABLE, EXIT_WRITE_FAILED, EXIT_UNVERIFIED = 1, 3, 4, 5
 # `--lane-alerted`'s "not recorded": a code no crash (1), argparse refusal (2),
@@ -1191,6 +1194,9 @@ class _Context:
     quarantine_days: int | None = None
     quarantine_days_cache: dict[int, int] = field(default_factory=dict)
     green_cache: dict[int, Run | None] = field(default_factory=dict)
+    # The full runs the check already listed, which `superseded` reads
+    # instead of a listing of its own.
+    held_full_runs: dict[int, Run] = field(default_factory=dict)
     # `red-main.confirm-wait-minutes` plus FULL_RUN_ALLOWANCE (None: read at
     # the branch tip the first time it is needed).
     lane_rerun_window: timedelta | None = None
@@ -1459,6 +1465,29 @@ class _Context:
                 ]
             self.green_cache[run.id] = self._newest_on_branch(greens)
         return self.green_cache[run.id]
+
+    def superseded(self, run: Run) -> Run | None:
+        """The newest full run already listed (`held_full_runs`) that passed
+        after `run`, on a commit that has `run`'s head in its history and is
+        on the branch, or None. Newest first, it stops at the first passed run
+        that descends, as the demotion alert's newer-green.bash does; it lists
+        nothing, and each ancestry read is cached."""
+        newer = sorted(
+            (
+                r
+                for r in self.held_full_runs.values()
+                if r.conclusion == "success"
+                and r.id != run.id
+                and r.created_at > run.created_at
+                and _FULL_SHA.fullmatch(r.head_sha or "")
+            ),
+            key=lambda r: r.created_at,
+            reverse=True,
+        )
+        for r in newer:
+            if self.contains(run.head_sha, r.head_sha) and self.on_branch(r):
+                return r
+        return None
 
     def on_branch(self, run: Run) -> bool:
         """Whether `run`'s head commit is on the branch as `refs/heads/`
@@ -2105,6 +2134,12 @@ class _Context:
             return RED, f"attempt 1 {first.conclusion}"
         second = self._attempt(run, 2) if run.attempt >= 2 else None
         if second is None:
+            if (newer := self.superseded(run)) is not None:
+                return (
+                    SETTLED,
+                    f"attempt 1 {first.conclusion}; run {newer.id} passed on "
+                    f"{newer.head_sha[:12]} after it",
+                )
             return RERUN, f"attempt 1 {first.conclusion}; awaiting the wrapper's re-run"
         # A re-run by anyone else (a person re-running until green) cannot
         # clear a red attempt 1. Two github-actions[bot] re-runs can:
@@ -2367,6 +2402,7 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
             now - ctx.lane_rerun_lookback(),
             now,
         )
+        ctx.held_full_runs.update((r.id, r) for r in runs)
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
             if (
                 run.id not in tally.reruns
@@ -2509,6 +2545,7 @@ def check(
             ),
             key=lambda item: item[1].created_at,
         )
+        ctx.held_full_runs.update((r.id, r) for _, r in full_runs)
         canary_runs = sorted(
             (
                 r

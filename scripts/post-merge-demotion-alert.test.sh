@@ -129,7 +129,7 @@ case "$endpoint" in
     fixture="$STUB_DIR/annotations.$(sed -E 's#.*/check-runs/([0-9]+)/.*#\1#' <<<"$endpoint").json"
     [[ -f "$fixture" ]] || fixture="$STUB_DIR/annotations.none.json"
     ;;
-  */actions/workflows/*status=success\&per_page=20)
+  */actions/workflows/*status=success\&per_page=10)
     # The newer-green lookup: STUB_FAIL_NEWER_READ fails it; before poll
     # STUB_NEWER_FROM it lists no run.
     [[ "${STUB_FAIL_NEWER_READ:-}" != 1 ]] || exit 1
@@ -142,17 +142,12 @@ case "$endpoint" in
   */actions/workflows/*status=success*) fixture="$STUB_DIR/green.json" ;;
   */actions/workflows/*) fixture="$STUB_DIR/runs.json" ;;
   */git/ref/heads/main)
-    # main's tip, unambiguous where a tag shares the name: STUB_TIP (default
-    # the run's own head), fail, or rate (refused for a rate limit).
-    [[ "${STUB_ON_MAIN:-ahead}" != fail-ref && "${STUB_TIP:-}" != fail ]] || exit 1
-    if [[ "${STUB_TIP:-}" == rate ]]; then
-      echo 'gh: API rate limit exceeded for installation ID 1. (HTTP 403)' >&2
-      exit 1
-    fi
+    # main's tip, unambiguous where a tag shares the name.
+    [[ "${STUB_ON_MAIN:-ahead}" != fail-ref ]] || exit 1
     fixture="$STUB_DIR/main-ref.json"
-    jq -n --arg s "${STUB_TIP:-$STUB_RUN_SHA}" '{object: {sha: $s}}' >"$fixture"
+    echo '{"object": {"sha": "abcdefabcdefabcdefabcdefabcdefabcdefabcd"}}' >"$fixture"
     ;;
-  */compare/fedcba9876543210fedcba9876543210fedcba98...*)
+  */compare/*...abcdefabcdefabcdefabcdefabcdefabcdefabcd)
     # Whether the newer green run's head is on main: STUB_ON_MAIN is the
     # compare status (default ahead), or fail.
     [[ "${STUB_ON_MAIN:-ahead}" != fail ]] || exit 1
@@ -287,7 +282,7 @@ PY
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" GITHUB_OUTPUT="$TMP_ROOT/stub/output" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
     STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
-    STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_TIP="${TIP:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
+    STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
     RUN_BRANCH="$4" RUN_REPO="$5" RUN_SHA="$6" RUN_URL="$RUN_URL" RUN_ATTEMPT="${ATTEMPT:-2}" \
     RUN_ID=4242 RUN_WORKFLOW_ID=77 RUN_CREATED="$CREATED" \
@@ -720,7 +715,7 @@ fi
 
 # --- Re-run, baseline and the gitleaks gate ------------------------------------
 RERUN=success ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(head -2 <<<"$LOG")" == $'GET repos/o/r/git/ref/heads/main\nPOST repos/o/r/actions/runs/4242/rerun-failed-jobs' &&
+if [[ "$RC" -eq 0 && "$(head -2 <<<"$LOG")" == $'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10\nPOST repos/o/r/actions/runs/4242/rerun-failed-jobs' &&
   "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 2 && "$(posts)" -eq 1 ]]; then
   ok "a full run's first failed attempt re-runs its failed jobs and a passing re-run files nothing"
 else
@@ -786,34 +781,6 @@ ATTEMPT=1 files "a canary's first failed attempt files without a re-run" canary 
 if grep -q 'rerun-failed-jobs' <<<"$LOG"; then
   fail "a canary run was re-run: log='$LOG'"
 fi
-
-# A red run on a superseded head (main moved on) is neither re-run nor waited
-# on, so attempt 1 is not judged and nothing is filed.
-TIP="$OTHER" RERUN=failure ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$LOG" == 'GET repos/o/r/git/ref/heads/main' && ! -s "$TMP_ROOT/stub/polls" &&
-  "$OUT" == *"::notice::$RUN_URL is on ${SHA:0:12}, not main's tip ${OTHER:0:12}"*"nothing filed"* ]] && grep -qx 'superseded=true' "$TMP_ROOT/stub/output"; then
-  ok "a red run on a superseded head is not re-run, not waited on, and files nothing"
-else
-  fail "superseded head: rc=$RC log='$LOG' out='$OUT'"
-fi
-TIP="$OTHER" VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never \
-  run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$LOG" == 'GET repos/o/r/git/ref/heads/main' && ! -s "$TMP_ROOT/stub/polls" &&
-  "$OUT" == *"not main's tip ${OTHER:0:12}"*"nothing filed"* ]] && grep -qx 'superseded=true' "$TMP_ROOT/stub/output"; then
-  ok "a bot-dispatched red run on a superseded head is not waited on and files nothing"
-else
-  fail "bot-dispatched superseded head: rc=$RC log='$LOG' out='$OUT'"
-fi
-for mode in fail rate; do
-  TIP=$mode RERUN=failure ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-  want=0 note='::warning::the read of main'
-  [[ "$mode" == fail ]] || want=1 note='::error title=GitHub rate limit::the read of main'
-  if [[ "$RC" -eq "$want" && "$LOG" == 'GET repos/o/r/git/ref/heads/main' && "$OUT" == *"$note"* ]]; then
-    ok "a failed read of main's tip ($mode) re-runs nothing and files nothing"
-  else
-    fail "tip read $mode: rc=$RC log='$LOG' out='$OUT'"
-  fi
-done
 
 RUNS="$(baseline_run 4141 failure)" BASE_JOBS="$(job 2 test-bash 'Run the bash tests')" \
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
@@ -1305,10 +1272,10 @@ newer_run() {
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" VIA=workflow_dispatch STARTER='github-actions[bot]' \
   ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$OUT" == *"main already recovered: run 4300"*"nothing filed"* ]] &&
-  [[ "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 1 ]] &&
-  ! grep -qv '^GET ' <<<"$LOG" && grep -qx 'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=20' <<<"$LOG" &&
+  [[ "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 0 ]] &&
+  ! grep -qv '^GET ' <<<"$LOG" && grep -qx 'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10' <<<"$LOG" &&
   grep -qx 'recovered=true' "$TMP_ROOT/stub/output"; then
-  ok "a dispatched run ends its wait at the first poll and files nothing when a newer run on main passed"
+  ok "a dispatched run whose head a newer green run on main descends from is not waited on and files nothing"
 else
   fail "dispatched run, main recovered: rc=$RC log='$LOG' out='$OUT' output='$(cat "$TMP_ROOT/stub/output")'"
 fi
@@ -1325,7 +1292,7 @@ fi
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" FAIL_NEWER_READ=1 VIA=workflow_dispatch \
   STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq "$confirm_wait" && "$(posts)" -eq 1 ]] &&
-  [[ "$(grep -c '^GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=20$' <<<"$LOG")" -eq $((confirm_wait + 1)) ]] &&
+  [[ "$(grep -c '^GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10$' <<<"$LOG")" -eq $((confirm_wait + 2)) ]] &&
   ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
   ok "a failing newer-run lookup keeps the dispatched run waiting the full $confirm_wait polls, then files"
 else
@@ -1336,7 +1303,7 @@ GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z feat/x), $(n
   VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never \
   run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)$(dispatches)" == 11 && "$OUT" != *"already recovered"* ]] &&
-  grep -qx 'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=20' <<<"$LOG" &&
+  grep -qx 'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10' <<<"$LOG" &&
   ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
   ok "a dispatched run with no re-run still files when no newer run on this repository's main passed"
 else
@@ -1355,12 +1322,14 @@ fi
 
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ATTEMPT=1 RERUN=never \
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(grep -c '^GET repos/o/r/actions/runs/4242$' <<<"$LOG")" -eq 20 ]] &&
-  grep -qx 'POST repos/o/r/issues' <<<"$LOG" && ! grep -q 'status=success&per_page=20$' <<<"$LOG" &&
-  ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
-  ok "a workflow_run event waits its full 20 polls without the newer-run lookup, then files"
+# Run 41005510323: red on ad7cbfa1 and re-run after 41030741557 had passed
+# on its descendant 3a01401f, which raised a stale MAIN-RED.
+if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"main already recovered: run 4300"* ]] &&
+  [[ "$LOG" == $'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10\nGET repos/o/r/compare/'"$SHA...fedcba9876543210fedcba9876543210fedcba98"$'\nGET repos/o/r/git/ref/heads/main\nGET repos/o/r/compare/fedcba9876543210fedcba9876543210fedcba98...abcdefabcdefabcdefabcdefabcdefabcdefabcd' ]] &&
+  grep -qx 'recovered=true' "$TMP_ROOT/stub/output"; then
+  ok "a red run a newer green run on main descends from is not re-run or waited on, in four reads, and is settled"
 else
-  fail "workflow_run event, newer run on main: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
+  fail "red run with a newer green descendant: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
 fi
 
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" NEWER_FROM=2 VIA=workflow_dispatch STARTER='github-actions[bot]' \
@@ -1370,6 +1339,16 @@ if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$(fixes)" -eq 0 && "$OUT" == *"at atte
   ok "a dispatched run whose re-run also failed files nothing when a newer run on main passed"
 else
   fail "dispatched run, re-run failed, main recovered: rc=$RC posts=$(posts) fixes=$(fixes) log='$LOG' out='$OUT'"
+fi
+
+# main moved on (a newer run on a descendant is still red or running) but no
+# newer run passed: the red run is still re-run and judged.
+GREEN="$(green_run "$OTHER")" ATTEMPT=1 RERUN=failure run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(head -2 <<<"$LOG")" == $'GET repos/o/r/actions/workflows/77/runs?branch=main&status=success&per_page=10\nPOST repos/o/r/actions/runs/4242/rerun-failed-jobs' &&
+  "$(posts)" -ge 1 ]] && ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
+  ok "a red run with no newer green run is still re-run and judged when main has moved"
+else
+  fail "no newer green run: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
 fi
 
 # A newer green run shows main recovered only when its head descends from the
@@ -1402,7 +1381,7 @@ done
 MAIN_TIP=abcdefabcdefabcdefabcdefabcdefabcdefabcd
 for status in diverged behind fail fail-ref; do
   GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ON_MAIN=$status VIA=workflow_dispatch \
-    STARTER='github-actions[bot]' ATTEMPT=2 run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+    STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
   if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$OUT" != *"already recovered"* ]] &&
     grep -qx 'GET repos/o/r/git/ref/heads/main' <<<"$LOG" && ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
     ok "a newer green run off main's history (main tip compare $status) files"
@@ -1410,8 +1389,8 @@ for status in diverged behind fail fail-ref; do
     fail "newer green run off main, $status: rc=$RC posts=$(posts) log='$LOG' out='$OUT'"
   fi
 done
-GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ON_MAIN=identical TIP="$MAIN_TIP" VIA=workflow_dispatch \
-  STARTER='github-actions[bot]' ATTEMPT=2 run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ON_MAIN=identical VIA=workflow_dispatch \
+  STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"main already recovered: run 4300"* ]] &&
   grep -qx "GET repos/o/r/compare/$NEWER...$MAIN_TIP" <<<"$LOG"; then
   ok "a newer green run at main's tip suppresses the alert"

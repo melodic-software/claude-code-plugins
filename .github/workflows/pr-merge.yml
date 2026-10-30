@@ -566,26 +566,28 @@ jobs:
             echo "stop=$stop" >>"$GITHUB_OUTPUT"
             exit 1
           }
-          if ! run=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '"\(.run_attempt) \(.head_sha)"' 2>"$err"); then
+          if ! run=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '"\(.run_attempt) \(.head_sha) \(.created_at) \(.workflow_id)"' 2>"$err"); then
             stopped "the read of run $RUN_ID"
             echo "::error::the read of run $RUN_ID failed; no re-run started or recorded"
             exit 1
           fi
-          read -r attempt head <<<"$run"
+          read -r attempt head created workflow <<<"$run"
           if [ "$attempt" != 1 ]; then
             echo "::notice::run $RUN_ID is at attempt $attempt; no re-run started or recorded"
             exit 0
           fi
-          # Only main's tip is re-run: a red run on a superseded head would
-          # judge code main no longer holds and can raise a stale MAIN-RED.
-          if ! tip=$(gh api "repos/$REPO/git/ref/heads/main" --jq .object.sha 2>"$err"); then
-            stopped "the read of main's tip"
-            echo "::warning::the read of main's tip failed; run $RUN_ID is not re-run"
-            exit 0
-          fi
-          if [ "$head" != "$tip" ]; then
-            echo "::notice::run $RUN_ID is on ${head:0:12}, not main's tip ${tip:0:12}: a superseded head is not re-run"
-            exit 0
+          # A red run a newer full run on main's history passed on a
+          # descendant of is settled, as babysit_postmerge.py and the demotion
+          # alert read it: re-running it would judge code main no longer holds
+          # and can raise a stale MAIN-RED. A failed lookup re-runs as before.
+          if [[ $head =~ ^[0-9a-f]{40}$ && $workflow =~ ^[1-9][0-9]*$ ]]; then
+            . .base/.github/scripts/post-merge-demotion-alert/newer-green.bash
+            newer=$(newer_green_of "$REPO" "$workflow" "$RUN_ID" "$created" "$head" 2>"$err") || newer=
+            [ ! -s "$err" ] || stopped "the read of newer full runs on main"
+            if [ -n "$newer" ]; then
+              echo "::notice::run $RUN_ID is settled: run ${newer%%$'\t'*} passed on main at ${newer##*$'\t'} after it, so it is not re-run"
+              exit 0
+            fi
           fi
           # As the dispatch: at most three POSTs, sent again after a capped
           # full-jitter wait only when gh's error shows the request never
