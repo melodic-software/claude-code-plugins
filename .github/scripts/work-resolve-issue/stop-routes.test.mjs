@@ -177,7 +177,7 @@ test("a close, host-run or attended reason that names security holds as security
 // Owner rule: a capability limit routes to host-run or fail, never to a
 // person. Run 41012431399 held #10022 as security because its host-only reason
 // said "tokens" and "model credentials". After an ending code, a secret noun
-// holds only beside a risk word; a security concern still always holds.
+// holds unless it is part of a known needs-a-credential capability phrasing.
 test("an ending reason that names a secret noun as a capability keeps its route", () => {
   for (const reason of [
     "host-only: the work runs the eval suites against prepaid credit and records pass rate, tokens, advisor call rate and wall time. That needs `claude` eval runs on a host with model credentials; this lane cannot invoke `claude` or spend credit.",
@@ -190,12 +190,38 @@ test("an ending reason that names a secret noun as a capability keeps its route"
   for (const reason of [
     "host-only: the eval would print the API key",
     "host-only: a token leaks to the run output",
-    "attended: rotate the compromised password",
+    "manual-external: rotate the compromised password",
     "host-only: the secret is exposed in the fixture",
     "host-only: needs credentials, and the run found a backdoor",
   ]) {
     assert.equal(runCode(reason), "security-risk", reason);
     assert.equal(stopRoute(runCode(reason)), "hold", reason);
+  }
+});
+
+// Security review of the capability carve-out: a reason that says where a
+// secret ended up names no risk word, and must still reach a person.
+test("an ending reason that names an exposed secret without a risk word holds", () => {
+  const exposures = [
+    "the API key is in the run log",
+    "found a token committed in config.json",
+    "credentials written to the artifact",
+    "the secret appears in output",
+    "the token was checked into the repo",
+    "the api key is visible in the workflow log",
+    "the secret was pushed to a public branch",
+    "the token was logged by the runner",
+    "the password is shown in the job summary",
+    "the credentials end up in the cache",
+    "the token was dumped into the debug output",
+    "the api key is revealed in the URL",
+    "needs a host with credentials; also the token is in the run log",
+  ];
+  for (const code of ["host-only", "manual-external", "already-done"]) {
+    for (const exposure of exposures) {
+      const reason = `${code}: ${exposure}`;
+      assert.equal(runCode(reason), "security-risk", reason);
+    }
   }
 });
 

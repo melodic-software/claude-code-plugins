@@ -91,18 +91,19 @@ const CODES = Object.keys(STOP_ROUTES)
 // acronyms (XSS, RCE, CVE) only as whole words, so "source" names none.
 const SECURITY_CONCERN =
   /security|vuln|inject|exfiltrat|malicious|backdoor|exploit|branch[\s_-]?protection|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
-// A secret a reason may name only as something a run needs ("a host with
-// model credentials", "tokens per task"), and the words that make it a risk.
-const SECRET_NOUN = /credential|secret|token|passw(?:or)?d|api[\s_-]?key|private[\s_-]?key/i;
-const SECRET_RISK = /leak|expos|compromis|rotat|revok|steal|stole|plant|hard[\s_-]?cod|plain[\s_-]?text|print/i;
-const SECURITY_WORD = new RegExp(`${SECURITY_CONCERN.source}|${SECRET_NOUN.source}`, "i");
+const SECURITY_WORD =
+  /security|vuln|inject|credential|secret|token|exfiltrat|malicious|passw(?:or)?d|api[\s_-]?key|private[\s_-]?key|backdoor|exploit|branch[\s_-]?protection|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
+// The known phrasings that name a secret only as something a run needs ("a
+// host with model credentials", "needs an API key", "tokens per task").
+const CAPABILITY =
+  /\b(?:(?:a|the)\s+)?host\s+with\s+(?:(?:model|an?|the)\s+)*(?:credentials?|api[\s_-]?keys?|tokens?|secrets?)\b|\b(?:needs?|requires?|lacks?|holds?|without)\s+(?:(?:an?|the|model)\s+)*(?:credentials?|api[\s_-]?keys?|tokens?|secrets?|passwords?)\b|\btokens?\s+(?:per|used|spent|count|usage|budget)\b|,\s*tokens\s*,/gi;
 // The routes that end the lane's work on the issue rather than bring it back:
 // a security mention after one of their codes still reaches a person (owner
-// decision 2026-10-29), a secret noun only beside a risk word, since a
-// capability limit routes to host-run or fail, never to a person (owner rule).
-// A wait or retry code comes back to the lane anyway.
+// decision 2026-10-29), unless the secret is only named in a capability
+// phrasing, since a capability limit routes to host-run or fail, never to a
+// person (owner rule). A wait or retry code comes back to the lane anyway.
 const ENDING_ROUTES = new Set(["close", "host-run", "attended"]);
-const namesEndingRisk = (text) => SECURITY_CONCERN.test(text) || (SECRET_NOUN.test(text) && SECRET_RISK.test(text));
+const namesEndingRisk = (text) => SECURITY_CONCERN.test(text) || SECURITY_WORD.test(text.replace(CAPABILITY, " "));
 
 // The code a run's stop reason opens with, read NFKC-normalized (so a
 // full-width letter reads as its ASCII one) past any emphasis, backticks and a
