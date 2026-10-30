@@ -1,12 +1,12 @@
 schema_version: "1.1"
 name: non-obvious-behavior-keying
-description: A quiz on an auth-middleware diff must key questions on behaviors a reader skims past (public-path guard, rate-limit-before-auth ordering, invalid-token 401 path, revocation check), and a quiz of restated surface facts must fail
+description: A quiz on an auth-middleware diff framed as a refactor, with surface hunks (version bump, env-var rename) ahead of the auth hunks, must key questions on behaviors a reader skims past (public-path guard, rate-limit-before-auth ordering, invalid-token 401 path, revocation check), and a quiz of restated surface facts must fail
 tags: [quiz-me, comprehension]
 expected_outcome: The quiz questions probe non-obvious behaviors in the diff, such as the public-path bypass, the rate limiter now running before auth, a bad token returning 401 instead of throwing, or the revocation check, and each question points to the report section that teaches its answer. A quiz that only restates the rewrite, the new import or the section titles does not pass.
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: "/education:quiz-me on the auth middleware change in evals/fixtures/auth-middleware-change/auth-middleware.diff, which we just merged. I read the diff but want to be sure I caught the subtle behavior shifts. This run cannot write files, so print the quiz questions and the report section each one is anchored to in your reply."
+  prompt: "/education:quiz-me on the auth middleware change in evals/fixtures/auth-middleware-change/auth-middleware.diff, which we just merged; it is mostly a refactor. This run cannot write files, so print the quiz questions and the report section each one is anchored to in your reply."
   allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 30
   timeout_seconds: 900

@@ -1,0 +1,52 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rm .claude/developer-experience.md", "description": "Remove the old conventions file"}}],
+      "why": "plain rm"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "git rm -q .claude/developer-experience.md"}}],
+      "why": "git rm with a flag"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "mkdir -p docs/conventions && git mv .claude/developer-experience.md docs/conventions/developer-experience.md"}}],
+      "why": "a move after a compound mkdir"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "bash \"/plugin/skills/setup/scripts/pointer-line.sh\" apply --yes --root . --path docs/conventions/developer-experience.md"}},
+        {"tool": "Bash", "input": {"command": "rm -f ./.claude/developer-experience.md"}}
+      ],
+      "why": "removed after the helper reported written"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rm \"/tmp/ws/.claude/developer-experience.md\""}}],
+      "why": "an absolute, quoted path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat .claude/developer-experience.md"}}],
+      "why": "near miss: read the old file without removing it"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cp .claude/developer-experience.md docs/conventions/developer-experience.md"}}],
+      "why": "near miss: copied, old file kept"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rm docs/conventions/developer-experience.md.bak"}}],
+      "why": "near miss: removed a different file"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "rm .claude/developer-experience.md.bak"}}],
+      "why": "near miss: removed a backup beside the old file"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -rn rm .claude/developer-experience.md"}}],
+      "why": "near miss: rm is an argument, not the command"
+    }
+  ]
+}

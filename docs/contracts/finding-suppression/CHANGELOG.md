@@ -14,6 +14,8 @@ and merge form are unchanged.
 - **Where the record lives** names the first adopter's team layer as the `suppressions` mapping of
   `<home>/harness-config.yaml`, with `.claude/audit-pass.md` read only while that file is absent, and
   allows a consuming plugin's YAML concern file as the team layer.
+- The **No expiry key** trade states that an entry whose `date` is older than `exceptions.max_days`
+  (default 90, ADR 0080) is reported, never removed, and that no key is added for it.
 
 ## [1.0] - 2026-07-24
 
