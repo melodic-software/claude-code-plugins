@@ -49,6 +49,17 @@ assert_live "fresh 15m lease is live" "$FRESH_15M" "$NOW"
 SUPERSEDED="$(jq -cn --arg t "$NOW_ISO" '{renewed_at:$t, ttl_hours:24, superseded_at:$t}')"
 assert_not_live "superseded lease not live" "$SUPERSEDED" "$NOW"
 
+# A lease dated past now + 300 s, or with a TTL over 168 h, is not live: a planted
+# comment cannot block the item for ever.
+SKEW_OK="$(jq -cn --arg t "$(date -u -d "@$((NOW + 300))" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$((NOW + 300))" +%Y-%m-%dT%H:%M:%SZ)" '{renewed_at:$t, ttl_hours:24}')" # portability-ok: GNU-first, BSD fallback (#1510)
+assert_live "a lease renewed 300 s ahead (clock skew) is live" "$SKEW_OK" "$NOW"
+FUTURE_DATED="$(jq -cn --arg t "$(date -u -d "@$((NOW + 301))" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$((NOW + 301))" +%Y-%m-%dT%H:%M:%SZ)" '{renewed_at:$t, ttl_hours:24}')" # portability-ok: GNU-first, BSD fallback (#1510)
+assert_not_live "a lease renewed more than 300 s ahead is not live" "$FUTURE_DATED" "$NOW"
+AT_CAP="$(jq -cn --arg t "$NOW_ISO" '{renewed_at:$t, ttl_hours:168}')"
+assert_live "a 168 h lease is live" "$AT_CAP" "$NOW"
+OVER_CAP="$(jq -cn --arg t "$NOW_ISO" '{renewed_at:$t, ttl_hours:168, ttl_minutes:1}')"
+assert_not_live "a lease over the 168 h cap is not live" "$OVER_CAP" "$NOW"
+
 # Expiry boundary vs fixed injected clock (#1675 / medley#1675): exclusive end —
 # live while now < renewed_at+ttl; exact expiry and after are dead.
 FIXED_NOW=1783828800 # 2026-07-12T04:00:00Z
