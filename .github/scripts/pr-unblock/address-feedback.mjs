@@ -661,8 +661,9 @@ export function threadAuthors(comments, { reviewerId, reviewerIds = [], appId, t
 }
 
 // Whether a thread threadAuthors accepted (`authors`) sits on a review its
-// finder submitted on a marker-confirmed head: the reviewer bot's, a listed review bot's, or
-// github-actions[bot]'s for a verifier note or a lane comment. A trusted
+// finder submitted on a marker-confirmed head: the reviewer bot's, a listed review bot's,
+// github-actions[bot]'s for a verifier note or a lane comment, or the trusted
+// person's who opened it (always directed, so any head). A trusted
 // person's direction (a fix request, or a reply to the lane's escalation)
 // asks for the thread, so its review may be on an earlier head. `review` is
 // { user: { id }, commit_id }. keepThreads and the dispatcher
@@ -676,8 +677,9 @@ export function onReviewedHead({ authors, firstAuthorId, review, heads }) {
 }
 
 // A thread is kept when it is unresolved, its first comment belongs to a
-// review its own author (the reviewer bot, a listed review bot, or
-// github-actions[bot] for a lane comment or a verifier note) submitted on a
+// review its own author (the reviewer bot, a listed review bot,
+// github-actions[bot] for a lane comment or a verifier note, or the trusted
+// person who opened it) submitted on a
 // marker-confirmed head (any head for a thread carrying
 // a trusted person's direction), and threadAuthors accepts its comments.
 // A thread with more comments than one page reads is left alone. A listed

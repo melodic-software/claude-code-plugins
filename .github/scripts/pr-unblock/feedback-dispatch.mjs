@@ -26,7 +26,8 @@
 //   every comment is the reviewer bot's or a listed review bot's
 //   (REVIEWER_IDS, pr-pipeline.yaml review-threads.reviewer-ids), a trusted
 //   person with write access
-//   asked the lane to fix it (isFixRequest), or a trusted person answered the
+//   asked the lane to fix it (isFixRequest), in a bot's thread or one a
+//   trusted person opened, or a trusted person answered the
 //   lane's escalation (address-feedback.mjs threadAuthors); on a PR carrying
 //   the human-gated label, the same when a lane escalation put the label on
 //   and no review lane holds the PR (gate-source.mjs gateSource), on an owner

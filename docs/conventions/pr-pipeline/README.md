@@ -186,7 +186,7 @@ this repository, exactly one open non-draft PR into `main` has its head, the lan
 [adopted owner](#owner-pull-requests) opened that PR, it carries no `do-not-merge`, both lanes' newest reviewed-head markers
 name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
 reviewer bot, one the lane never answered where a fix request, below, follows the reviewer bot's
-finding, or answered by a trusted human after the lane escalated it; on a PR carrying the
+finding or sits in a thread a trusted person opened, or answered by a trusted human after the lane escalated it; on a PR carrying the
 human-gated label, only one whose answer is a fix request, unless a lane escalation put the label
 on: the lanes App added it last, its `work-items:escalation lane=pr-unblock` comment (pr-unblock
 or fix-ci) followed within a minute, no other marker is on its comments since, no review-lane
