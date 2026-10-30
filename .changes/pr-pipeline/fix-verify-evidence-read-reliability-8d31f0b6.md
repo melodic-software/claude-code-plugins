@@ -19,4 +19,8 @@ bump: patch
 - `verify-cap.mjs` skips the address-feedback or fix-ci round, for that run only, when the
   reader's listing does not fit in its 120 s, as it does when a sibling FAIL run cannot be read:
   either may hide the FAIL cap. Any other refusal still lets the round run, now with a warning
-  naming the refusal and its detail instead of none.
+  naming the refusal and its detail instead of none, except `verify:fail` on an address-feedback
+  round sent for that FAIL, which expects it.
+- `verify-cap.mjs` logs one line per read summarizing the reader's stderr, its
+  `babysit-listing-miss` lines first, so a listing that missed GitHub's live count shows in the
+  dispatch job's log.

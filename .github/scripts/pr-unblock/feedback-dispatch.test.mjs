@@ -205,7 +205,7 @@ test("a PR whose pr-verify FAILs are at the cap gets no address-feedback round",
   const { result, lines } = await decide(api, resolvedLane(), { verifyCapped });
   assert.equal(result, null);
   assert.deepEqual(api.calls.dispatch, []);
-  assert.deepEqual(asked, [{ number: 42, head: HEAD, base: undefined }]);
+  assert.deepEqual(asked, [{ number: 42, head: HEAD, base: undefined, expected: [] }]);
   assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
   // The cap never clears for the head: a later run at it reads nothing.
   const record = emptyRecord();
@@ -240,6 +240,29 @@ test("a pass-only dispatch of a PR whose pr-verify FAILs are at the cap gets no 
   assert.equal(result, null);
   assert.deepEqual(api.calls.dispatch, []);
   assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
+});
+
+// A round sent for pr-verify's FAIL at the head (notesSince set) finds that
+// FAIL (babysit_verify_evidence.py FAIL, "verify:fail") there by design, so
+// the reader is told to expect it; a review run's round and a pass expect none.
+test("only a round sent for pr-verify's FAIL at the head expects the reader's FAIL refusal", async () => {
+  for (const [extra, expected] of [
+    [{ notesSince: Date.parse("2026-10-17T19:00:00Z") }, ["verify:fail"]],
+    [{}, []],
+    [{ passOnly: true }, []],
+  ]) {
+    const asked = [];
+    const verifyCapped = (request) => {
+      asked.push(request);
+      return null;
+    };
+    await decide(fakeApi(), resolvedLane(), { ...extra, verifyCapped });
+    assert.deepEqual(
+      asked.map((request) => request.expected),
+      [expected],
+      JSON.stringify(extra),
+    );
+  }
 });
 
 test("a PR the reader does not find at the cap dispatches as before", async () => {
