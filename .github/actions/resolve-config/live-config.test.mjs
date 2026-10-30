@@ -236,6 +236,23 @@ test("live config: every other PR activity still waits on needs-human", () => {
   }
 });
 
+// security: outside-actor holds on its own: a lane escalation or a person
+// removing needs-human does not let a PR activity work it.
+test("live config: every PR activity that leaves needs-human to the select job waits on security: outside-actor", () => {
+  for (const [lane, activity] of [
+    ["pr-refine", "fix-docs"],
+    ["pr-unblock", "resolve-conflicts"],
+    ["pr-unblock", "apply-conflict-patch"],
+    ["pr-unblock", "address-feedback"],
+    ["pr-unblock", "apply-feedback-patch"],
+    ["pr-unblock", "fix-ci"],
+    ["pr-unblock", "apply-patch"],
+    ["pr-refine", "apply-patch"],
+  ]) {
+    assert.equal(skipReason(lane, activity, { mergeable: "clean", labels: ["security: outside-actor"] }), "awaiting-human", activity);
+  }
+});
+
 test("live config: publish-feedback runs the reply script after address-feedback, granted publish-artifact only", () => {
   const slot = selected("pr-unblock", "publish-feedback");
   assert.equal(slot.applies, true);

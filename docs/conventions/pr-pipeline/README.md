@@ -103,8 +103,8 @@ trusted-actor list, and an unreadable list flags. An outside actor's item gets `
 (no label write when the payload shows both already on), and one comment per actor names the
 login, without a mention, and the event, quoting none of their text. `security: outside-actor`
 is a hold of its own (`merge-holds.mjs` `OUTSIDE_ACTOR_LABEL`): the merge queue, auto-merge
-arming, the babysit merge gate, intake triage, the work-unblock sweep and each activity whose
-`labels-absent` lists `needs-human` skip it too, and only a person removes it; `clear-escalations.mjs` keeps
+arming, the babysit merge gate, ci-status, intake triage, the work-unblock sweep and every pull
+request activity (its `labels-absent`, which the write runner holds too) skip it, and only a person removes it; `clear-escalations.mjs` keeps
 `needs-human` on an item carrying it. It holds the job's own
 `GITHUB_TOKEN` (`contents: read`, `issues: write`, `pull-requests: write`). A review or diff
 comment on a fork pull request gets a read-only token and is not flagged; the fork pull request
