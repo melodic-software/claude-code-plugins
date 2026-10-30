@@ -2010,22 +2010,6 @@ jobs:
           job-id: run
           max-chunks: 5
 
-      # The launcher steps fail softly. A run that handed off ends green and
-      # leaves the activity to the fallback call; any other skill run that
-      # got as far as the credential steps and left no launcher success fails
-      # here, after its outcome and partial patch were carried.
-      - name: Fail without a result
-        if: >-
-          always() && (steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success'
-          || steps.fallback-present.outcome == 'success')
-          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
-          && steps.act-token.outputs.handoff != 'true'
-          && steps.act-key.outcome != 'success' && steps.act-token.outcome != 'success'
-          && steps.act-fallback.outcome != 'success'
-        run: |
-          echo "::error::the skill's launcher run left no result"
-          exit 1
-
       # The failed GitHub API calls this job's scripts recorded (recordFailure
       # in retry-fetch.mjs and rate-guard.mjs), for the report job's lane run
       # report comment. The model shares RUNNER_TEMP and could plant or change
@@ -2057,6 +2041,22 @@ jobs:
               | {rows: $rows, dropped: (($lines | length) - ($rows | length))}') || rows=$none
           fi
           echo "api-failures=${rows:-$none}" >>"$GITHUB_OUTPUT"
+
+      # The launcher steps fail softly. A run that handed off ends green and
+      # leaves the activity to the fallback call; any other skill run that
+      # got as far as the credential steps and left no launcher success fails
+      # here, after its outcome and partial patch were carried.
+      - name: Fail without a result
+        if: >-
+          always() && (steps.key-present.outcome == 'success' || steps.token-present.outcome == 'success'
+          || steps.fallback-present.outcome == 'success')
+          && steps.key-present.outputs.present != 'false' && steps.act-key.outputs.handoff != 'true'
+          && steps.act-token.outputs.handoff != 'true'
+          && steps.act-key.outcome != 'success' && steps.act-token.outcome != 'success'
+          && steps.act-fallback.outcome != 'success'
+        run: |
+          echo "::error::the skill's launcher run left no result"
+          exit 1
 
   # Issue mode: the run job's pre-model fields, which pick the issue's lane
   # branch and the commit its patch applies to, checked before any caller
