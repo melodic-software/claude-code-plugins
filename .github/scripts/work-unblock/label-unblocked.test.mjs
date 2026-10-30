@@ -2160,6 +2160,19 @@ test("a run that stopped green on stale workflow files is re-fired, once per ver
   assert.deepEqual(writes(changed.calls), refired(30, `${WRITE_SHA}-${newer}`));
 });
 
+// Run 41046083087: the API key leg ran and handed off, and the subscription
+// leg waited for its slot past a lane workflow change and stopped stale there.
+const staleLegJob = (name, stop) => ({ ...staleRunJob(stop), name: `${name} / run` });
+
+test("a run whose later leg stopped green on stale workflow files is re-fired", async () => {
+  for (const leg of ["resolve-issue-subscription", "resolve-issue-fallback"]) {
+    const jobs = [ADMITTED, pickSlot, BROKER_ALLOWED, staleRunJob("skipped"), staleLegJob(leg, "success"), { name: "report-outcome", conclusion: "skipped", steps: [] }];
+    const fake = stalledRun({ jobs, conclusion: "success" });
+    assert.equal(await sweep({ github: fake.github, actions: fake.actions }), 0, leg);
+    assert.deepEqual(writes(fake.calls), refired(30), leg);
+  }
+});
+
 // A breaker trip: the token broker refused the run for the lanes kill switch,
 // which only the refused job's log names. Run 40127074215 failed at
 // broker-check's broker ask before any resolve-issue run job; run 40127093047
@@ -2611,6 +2624,23 @@ test("a green run whose broker ask the kill switch skipped is a breaker trip, re
   tripped(recent.calls);
 });
 
+// A later leg asks the broker again after the API key leg hands off: its
+// broker-check's refusal or kill-switch skip is the run's breaker trip too.
+const LEG_RAN = [ADMITTED, pickSlot, BROKER_ALLOWED, { name: "resolve-issue / run", conclusion: "success", steps: [{ name: "Run the skill on the API key", conclusion: "success" }] }];
+const legCheck = (leg, job) => ({ ...job, name: `${leg} / broker-check` });
+
+test("a later leg's broker-check refused or skipped for the kill switch is a breaker trip", async () => {
+  for (const leg of ["resolve-issue-subscription", "resolve-issue-fallback"]) {
+    const refused = stalledRun({ jobs: [...LEG_RAN, legCheck(leg, BROKER_REFUSED[2]), { name: "report-outcome", conclusion: "skipped", steps: [] }], logs: CHECK_KILLED });
+    assert.equal(await sweep({ github: refused.github, actions: refused.actions }), 0, leg);
+    tripped(refused.calls);
+    assert.deepEqual(logReads(refused.calls), [`GET /repos/${REPO}/actions/jobs/${BROKER_CHECK_ID}/logs`], leg);
+    const skipped = stalledRun({ jobs: [...LEG_RAN, legCheck(leg, KILL_SKIPPED[2]), { name: "report-outcome", conclusion: "skipped", steps: [] }], conclusion: "success" });
+    assert.equal(await sweep({ github: skipped.github, actions: skipped.actions }), 0, leg);
+    tripped(skipped.calls);
+  }
+});
+
 test("a green run whose kill-switch check did not run, or whose broker ask ran, is no breaker trip", async () => {
   const [kill, ask] = KILL_SKIPPED[2].steps;
   const check = (steps) => ({ ...KILL_SKIPPED[2], steps });
@@ -2672,7 +2702,9 @@ test("the job ids and step names the sweep matches exist in the lane workflows",
   assert.ok(steps(caller["pick-slot"]).includes("Check the WIP cap"));
   assert.ok(steps(caller.admit).includes("Wait for open blockers"));
   assert.ok(steps(caller.admit).includes("Stop on untrusted provenance"));
-  assert.match(caller["resolve-issue"], /^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-read\.yml\b/m);
+  // Every call of the read runner is a leg stoppedStale reads.
+  const calls = Object.keys(caller).filter((id) => /^ {4}uses: \.\/\.github\/workflows\/pr-run-activity-read\.yml\b/m.test(caller[id]));
+  assert.deepEqual(calls, ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]);
   const read = jobs(workflow("pr-run-activity-read.yml"));
   assert.ok(steps(read["broker-check"]).includes("Ask the broker whether the lane may run"));
   assert.ok(steps(read["broker-check"]).includes("Check the kill switch"));
