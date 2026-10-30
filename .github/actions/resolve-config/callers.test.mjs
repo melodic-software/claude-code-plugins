@@ -6931,6 +6931,31 @@ test("every workflow npm ci reads npm-fetch.npmrc from the job's checkout", () =
   assert.ok(covered >= 15, `only ${covered} installing jobs found`);
 });
 
+// A stalled install fails at its own step bound, inside the job's, with no
+// retry, and skips the audit and fund requests through env.
+test("every workflow npm ci step is bounded, unretried, and skips audit and fund", () => {
+  let steps = 0;
+  let loglevel = 0;
+  for (const file of workflowFiles()) {
+    const doc = workflow(file);
+    for (const [id, job] of Object.entries(doc.jobs ?? {})) {
+      for (const step of job.steps ?? []) {
+        if (!/\bnpm ci\b/.test(step.run ?? "")) continue;
+        const where = `${file} ${id} "${step.name}"`;
+        const env = { ...doc.env, ...job.env };
+        assert.equal(env.npm_config_audit, "false", `${where}: npm_config_audit`);
+        assert.equal(env.npm_config_fund, "false", `${where}: npm_config_fund`);
+        assert.ok(step["timeout-minutes"] < job["timeout-minutes"], `${where}: step timeout ${step["timeout-minutes"]} not below job ${job["timeout-minutes"]}`);
+        assert.doesNotMatch(step.run, /\bretry\b|\buntil\b|npm ci[^\n]*\|\|[^\n]*npm ci/, `${where}: retry wrapper`);
+        if (/\bnpm ci\b[^\n]*--loglevel http/.test(step.run)) loglevel += 1;
+        steps += 1;
+      }
+    }
+  }
+  assert.ok(steps >= 16, `only ${steps} npm ci steps found`);
+  assert.equal(loglevel, 1, "exactly one npm ci step logs at --loglevel http");
+});
+
 // --- lane transcripts: every model leg keeps its transcript, sealed ---
 
 // The read runner's model job uploads nothing (the test above). The write

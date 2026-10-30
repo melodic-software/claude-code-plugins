@@ -139,6 +139,8 @@ jobs:
       restored: ${{ steps.restored.outputs.restored }}
       stop-class: ${{ steps.stop.outputs.class }}
     env:
+      npm_config_audit: "false"
+      npm_config_fund: "false"
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
@@ -201,6 +203,7 @@ jobs:
       # What the covering suites need, as a developer machine installs it;
       # resolve-config's suites take their own lockfile.
       - name: Install the test dependencies
+        timeout-minutes: 5
         run: |
           bash scripts/setup-env.sh
           npm ci --ignore-scripts --no-audit --no-fund --prefix .github/actions/resolve-config

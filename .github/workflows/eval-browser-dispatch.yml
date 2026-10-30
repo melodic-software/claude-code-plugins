@@ -127,6 +127,8 @@ jobs:
       pull-requests: read # check-trusted-trigger reads the pull request
       actions: read # check-trusted-trigger reads this run's re-runner
     env:
+      npm_config_audit: "false"
+      npm_config_fund: "false"
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
@@ -401,6 +403,7 @@ jobs:
       # Every binary this job runs comes from the locked root toolchain. Its
       # install scripts run here, after sudo and docker access are gone.
       - name: Install the locked root toolchain
+        timeout-minutes: 5
         if: steps.stage.outputs.go == 'true'
         run: |
           cp .base/package.json .base/package-lock.json /opt/tools/

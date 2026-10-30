@@ -1232,6 +1232,7 @@ jobs:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('.node-version', '.github/standards/runner-policy/package-lock.json') }}
       - name: Install pinned runner-policy dependencies
+        timeout-minutes: 4
         if: needs.select-tests.outputs.run_workflows == 'true'
         run: npm ci --prefix .github/standards/runner-policy
       - name: Save the npm cache
@@ -2210,9 +2211,12 @@ jobs:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('.node-version', 'package-lock.json') }}
       - name: Install the locked root toolchain
+        timeout-minutes: 2
         if: needs.select-tests.outputs.run_tests == 'true'
         run: |
-          npm ci
+          # --loglevel http logs each registry request, so a stalled install
+          # shows which request stalls.
+          npm ci --loglevel http
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Save the npm cache
         if: github.ref == 'refs/heads/main' && steps.npm_cache.outcome == 'success' && steps.npm_cache.outputs.cache-hit != 'true'
@@ -2811,6 +2815,7 @@ jobs:
       # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, DEMO_VIDEO_REQUIRE_DEPS,
       # INVENTORY_REQUIRE_ACORN).
       - name: Install locked plugin test toolchains
+        timeout-minutes: 5
         run: |
           # Each lock must hold every pin its requirements.in declares, so an edit to the .in
           # without regenerating the lock fails here instead of testing a stale lock.
@@ -2998,6 +3003,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - name: Install locked plugin test toolchains
+        timeout-minutes: 4
         id: toolchains
         env:
           PLAYWRIGHT_CACHE_HIT: ${{ steps.playwright_cache.outputs.cache-hit }}
@@ -3114,6 +3120,7 @@ jobs:
       # but cannot install or serve MCP is caught here, not on a consumer's
       # machine.
       - name: Install dependencies
+        timeout-minutes: 3
         run: |
           [[ " $PACKAGES " == *" plugins/miro/server "* ]] || exit 0
           npm ci
@@ -3159,6 +3166,7 @@ jobs:
       # installs (install-links via the package's .npmrc), so manifest/lockfile
       # drift breaks `npm ci` only on a clean install.
       - name: Install dependencies
+        timeout-minutes: 3
         run: |
           [[ " $PACKAGES " == *" plugins/knowledge/skills/video-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh install
@@ -3177,6 +3185,7 @@ jobs:
       # that decides which URLs the briefing validator is allowed to
       # dereference (#1488).
       - name: Install dependencies
+        timeout-minutes: 3
         run: |
           [[ " $PACKAGES " == *" plugins/ai-briefing/skills/generate/output/build "* ]] || exit 0
           bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh install
@@ -3191,6 +3200,7 @@ jobs:
       # pulled in as file: dependencies via the package's .npmrc
       # install-links=true (#1507).
       - name: Install dependencies
+        timeout-minutes: 3
         run: |
           [[ " $PACKAGES " == *" plugins/knowledge/skills/course-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh install
@@ -3212,6 +3222,7 @@ jobs:
       # workflow commands stopped: a green run raises no failure annotations.
       # Pinned by scripts/ci-test-node-stop-commands.test.sh.
       - name: Test resolve-config
+        timeout-minutes: 4
         run: |
           [[ " $PACKAGES " == *" .github/actions/resolve-config "* ]] || exit 0
           npm ci --ignore-scripts --prefix .github/actions/resolve-config
