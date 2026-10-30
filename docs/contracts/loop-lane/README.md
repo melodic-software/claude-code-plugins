@@ -342,6 +342,19 @@ The owner's standing direction on cost and other stops (the owner's section 3), 
 > "Any other stop is a defect to fix, not a reason to ask me."
 <!-- spellchecker:on -->
 
+The owner's standing direction section 10, 2026-10-29, verbatim. The security review lane reads
+its threat model from this record
+([`/review:security-review`](../../../plugins/review/skills/security-review/SKILL.md), "Owner
+threat model: throughput phase"):
+
+<!-- spellchecker:off -->
+> The only actors are me, our bots, our agents and our GitHub Apps. There are no outside contributors. Holds that guard against our own actors (path holds, trust-path holds, person-approval holds, bot-author holds, pin/repin ceremony) are friction, not security boundaries, and come off now.
+>
+> Section 3's "high/critical boundary" means only: a token or secret leaking, my accounts being compromised, or anything that bills me. Nothing else qualifies.
+>
+> Phase: maximum throughput until open issues and open PRs both reach 0. Hardening (re-adding holds, pins, reviews) is deferred to after that, as configuration edits.
+<!-- spellchecker:on -->
+
 Trust holds (untrusted provenance, an untrusted spec) are security controls the owner keeps.
 
 Three labels take work off the unattended path, and each means one thing (owner decision,
@@ -368,8 +381,8 @@ went to the owner on 2026-10-28 although its tier was `auto`.
 
 ### The owner's standing direction
 
-The owner's standing direction for every session and lane, 2026-10-28, verbatim. Sections 2 and 3
-are quoted in [When work stops for the owner](#when-work-stops-for-the-owner); section 6 is
+The owner's standing direction for every session and lane, 2026-10-28, verbatim. Sections 2, 3
+and 10 (2026-10-29) are quoted in [When work stops for the owner](#when-work-stops-for-the-owner); section 6 is
 [design-for-change](../../standards/design-for-change.md).
 
 <!-- spellchecker:off -->
