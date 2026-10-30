@@ -277,6 +277,10 @@ SUMMARY_CRITICAL_RE = re.compile(
     r"^\s*`?critical-findings: (\d{1,6})`?\s*$", re.MULTILINE
 )
 MAX_CHAIN = 100
+# How many earlier heads a no-change skip chain may pass through to reach a
+# review (`_skip_target`); ci-status's `carried` in pr-require-checks.yml
+# follows the same cap, so the two gates agree on every chain.
+SKIP_HOPS = 10
 
 
 @dataclass(frozen=True)
@@ -952,9 +956,9 @@ def _skip_target(
     """The review a no-change skip carries forward: its `through` head, and
     on through each further no-change skip (one per push that changed no file
     of the pull request, such as a clean base merge) to the first head the
-    lane reviewed. A head whose content changed has its own review record,
-    so the chain stops there."""
-    for _ in range(MAX_CHAIN):
+    lane reviewed, at most `SKIP_HOPS` heads back. A head whose content
+    changed has its own review record, so the chain stops there."""
+    for _ in range(SKIP_HOPS):
         rec = _link(lane, sha, lane_runs, seen, posted)
         if rec.skip is not None:
             raise Unbound("skip-not-no-change")

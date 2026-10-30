@@ -2211,6 +2211,26 @@ class SkipTests(Base):
         self.assertTrue(result["claude-review"].bound)
         self.assertEqual(result["claude-review"].open_findings, 2)
 
+    def skip_chain(self, heads: int) -> list[dict[str, Any]]:
+        """S skips through `heads` earlier heads; the last is a whole review."""
+        shas = [f"{i:040x}" for i in range(1, heads + 1)]
+        runs = [run("claude-review", shas[-1], "findings=0 inline=0 scope=whole")]
+        runs += [
+            run("claude-review", sha, f"skip=no-change through={nxt}")
+            for sha, nxt in zip(shas, shas[1:])
+        ]
+        return [*runs, run("claude-review", S, f"skip=no-change through={shas[0]}")]
+
+    def test_skip_chain_binds_at_the_hop_cap(self) -> None:
+        # ci-status follows the same cap (pr-require-checks.yml `carried`).
+        self.assertEqual(ev.SKIP_HOPS, 10)
+        self.assertTrue(self.bind(self.skip_chain(10))["claude-review"].bound)
+
+    def test_skip_chain_past_the_hop_cap_is_unbound(self) -> None:
+        self.assertUnbound(
+            self.bind(self.skip_chain(11))["claude-review"], "incremental-gap"
+        )
+
     def test_a_merge_that_changed_content_is_reviewed_not_carried(self) -> None:
         # S0 merged the base and changed content, so its lane reviewed it
         # (incremental) rather than skipping; the clean merge after it carries

@@ -4947,8 +4947,8 @@ jobs:
       # record names the head it carries (`skip=no-change through=<head>`).
       # It passes only when a counted review of that lane on this pull
       # request covers that head, followed through further no-change skips
-      # up to 10 heads back, the rule babysit_review_evidence.py binds by
-      # (`_skip_target`). Any other skip record never counts. A pending, failed or cancelled
+      # up to 10 heads back, the rule and cap babysit_review_evidence.py
+      # binds by (`_skip_target`, `SKIP_HOPS`). Any other skip record never counts. A pending, failed or cancelled
       # review fails, as does a skipped one (a fork, or a bot outside the
       # caller's allowed-bot-sender-ids), with the cause named. A lane the
       # kill switch stopped (its kill-switch job succeeded and ran its
@@ -5229,7 +5229,7 @@ jobs:
           # carried <sha>: whether a counted review of $lane on this pull
           # request covers <sha>, following no-change skips (each a push that
           # changed no file of it, such as a clean base merge) up to 10 heads
-          # back, never round a loop.
+          # back, never round a loop: babysit_review_evidence.py's SKIP_HOPS.
           carried() {
             local sha=$1 seen=" $HEAD_SHA " hop
             for hop in 1 2 3 4 5 6 7 8 9 10; do
