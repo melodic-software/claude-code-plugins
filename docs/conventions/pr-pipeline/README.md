@@ -2589,7 +2589,8 @@ them on every `pull_request` run, contract-only runs included:
   trust-gate path (the hold-paths above less the security review's own files, matched
   case-insensitively), since no lane
   reviews it. An approval of the current head by a person on the trusted-actor list's `human`
-  list clears it; a new push needs a new approval. While `merge.diff-check.path-holds` is false (this repository's
+  list clears it; a new push needs a new approval. Then re-run `ci-status`, since a review does
+  not. While `merge.diff-check.path-holds` is false (this repository's
   setting, owner decision Q21, 2026-10-29), `scripts/sync-hold-floor.py` writes a guard after
   `hold_patterns` that empties it for every author but Dependabot, so only a Dependabot PR is held
   for its paths: its action-pin bumps bring in third-party code (owner decision Q24). The same holds a same-repository PR that changes a trust-gate
