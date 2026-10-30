@@ -214,3 +214,9 @@ docs/conventions/pr-pipeline.yaml
 docs/conventions/source-control.yaml
 docs/conventions/testing.yaml
 docs/conventions/work-items.yaml
+
+# Comment-only pointer stubs left at the ecosystem-commands examples' old home,
+# for installed plugin versions that still link there. They hold no example and
+# no lane reads them; examples.test.sh validates the real files under
+# docs/contracts/ecosystem-commands/examples/.
+docs/conventions/ecosystem-commands/examples/*

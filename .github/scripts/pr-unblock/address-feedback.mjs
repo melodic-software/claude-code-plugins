@@ -36,11 +36,12 @@
 // write-access fix request on, is marked as direction; every other body is
 // data.
 
+import { execFileSync } from "node:child_process";
 import { appendFileSync, lstatSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { dirname, join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { commentItems, gateSource, laneHold, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
+import { commentItems, FAILING, gateSource, laneHold, latestRuns, listLabelEvents, prHold, ROUND_MARKER } from "./gate-source.mjs";
 import { retryFetch } from "./retry-fetch.mjs";
 import { isProtectedPath, namedInScope, prPathsOf } from "./thread-scope.mjs";
 import { retryRung, stopSkip } from "./escalation-routes.mjs";
@@ -81,6 +82,85 @@ const THREAD_COMMENT_CAP = 100;
 const FILES_CAP = 3000;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
+
+// The checkout this script runs from: the select job's base copy.
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../..");
+
+// scripts/plan-test-lanes.sh over `paths`, the selection pr-require-checks.yml's
+// select-tests job makes, as its key=value lines.
+export function planLanes(paths, root = ROOT) {
+  const out = execFileSync("bash", [join(root, "scripts/plan-test-lanes.sh"), "--", ...paths], {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  return Object.fromEntries(
+    out
+      .split("\n")
+      .filter((line) => line.includes("="))
+      .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
+  );
+}
+
+// The check-run names a plan's lanes post: test-bash, test-python and
+// test-node in pr-require-checks.yml (a matrix lane once per leg its
+// bash_legs or python_legs lists, as `<lane> (<leg>)`), and each
+// pr-test-windows.yml job it names. An unreadable leg list throws.
+const legs = (value) => {
+  const list = JSON.parse(value || "[0]");
+  if (!Array.isArray(list) || list.length === 0 || !list.every((leg) => Number.isSafeInteger(leg) && leg >= 0)) {
+    throw new Error("a lane's legs are not a list of leg numbers");
+  }
+  return list;
+};
+export function coveringLanes(plan) {
+  const matrix = ["bash", "python"].filter((lane) => plan[lane] === "true").flatMap((lane) => legs(plan[`${lane}_legs`]).map((leg) => `test-${lane} (${leg})`));
+  const node = plan.node === "true" ? ["test-node"] : [];
+  const windows = JSON.parse(plan.windows_jobs || "[]");
+  return [...matrix, ...node, ...(Array.isArray(windows) ? windows.filter((job) => typeof job === "string") : [])];
+}
+
+// A test lane's check-run name: every test job in pr-require-checks.yml and
+// pr-test-windows.yml is named test-<lane>, a matrix leg `test-<lane> (<leg>)`.
+const TEST_LANE = /^test-[a-z0-9]+(?:-[a-z0-9]+)*(?: \(\d+\))?$/;
+// A cancelled run is not red: fix-ci does not take a head whose only failing
+// checks were cancelled (fix-ci-dispatch.mjs), so it settles nothing instead.
+const failed = (run) => run.status === "completed" && FAILING.has(run.conclusion);
+const byName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+
+// The head's CI for the tests the PR selects, which the reply job settles a
+// tests-only finding from (adjudicate-feedback.mjs settleDisputes): the
+// latest real run (gate-source.mjs latestRuns) of each github-actions check.
+// The plan is read from the base tree, so it can list fewer lanes than the
+// head's select-tests job ran. red: any test lane run on the head failed,
+// planned or not; green: every covering lane the plan names
+// has a run, each one passed, and no test lane the plan does not name ran;
+// unsettled otherwise (pending, cancelled, missing or skipped, an unplanned lane that
+// ran, a listing past its pages, no covering lane, or a failed read), which
+// settles nothing.
+export async function ciSnapshot({ api, headSha, files, plan = planLanes }) {
+  try {
+    const lanes = coveringLanes(plan([...new Set(files.flatMap((file) => [file?.filename, file?.previous_filename]).filter((path) => typeof path === "string" && path !== ""))].sort()));
+    const listed = await api.listCommitCheckRuns(headSha);
+    const tests = [...latestRuns(listed.filter((run) => run?.app?.slug === "github-actions")).values()].filter((run) => TEST_LANE.test(String(run.name)));
+    const red = tests.filter(failed).sort(byName);
+    if (red.length > 0) {
+      return { state: "red", runs: red.map((run) => ({ name: run.name, url: run.html_url })) };
+    }
+    const runs = tests.filter((run) => lanes.includes(String(run.name))).sort(byName);
+    const unplanned = tests.some((run) => !lanes.includes(String(run.name)) && run.conclusion !== "skipped");
+    const passed =
+      lanes.length > 0 &&
+      listed.complete !== false &&
+      !unplanned &&
+      lanes.every((lane) => runs.some((run) => run.name === lane)) &&
+      runs.every((run) => run.status === "completed" && run.conclusion === "success");
+    return { state: passed ? "green" : "unsettled", runs: runs.map((run) => ({ name: run.name, url: run.html_url })) };
+  } catch {
+    return { state: "unsettled", runs: [] };
+  }
+}
 
 // GitHub refuses a comment body over 65536 characters; leave room for the
 // framing (judgment).
@@ -666,6 +746,7 @@ export async function select({
   humanGatedLabel = "needs-human",
   maxRounds = DEFAULT_MAX_ROUNDS,
   adoption = NO_ADOPTION,
+  ci = async () => undefined,
 }) {
   const [pull, files, issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.getPull(pr),
@@ -828,6 +909,7 @@ export async function select({
     threads: worked,
     file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: worked, ...(retry ? { retry } : {}) },
     reviewedHeads: [...heads].sort(),
+    ci: await ci({ headSha, files }),
   };
 }
 
@@ -836,8 +918,8 @@ export async function select({
 // function of the thread file and those heads. publish-feedback.mjs checks the
 // model's replies against it and re-reads the threads against those heads: a
 // review lane edits its one marker in place, so after the fix push it may name
-// only the fix head.
-export function runRecord(file, reviewedHeads) {
+// only the fix head. `ci` is ciSnapshot's, when the select job took one.
+export function runRecord(file, reviewedHeads, ci) {
   const run = {
     version: 1,
     head_sha: file.head_sha,
@@ -850,6 +932,7 @@ export function runRecord(file, reviewedHeads) {
     })),
     ...(file.stale_notes ? { stale_notes: file.stale_notes } : {}),
     ...(reviewedHeads ? { reviewed_heads: reviewedHeads } : {}),
+    ...(ci ? { ci } : {}),
   };
   return `${JSON.stringify(run)}\n`;
 }
@@ -1274,6 +1357,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"),
       maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
       adoption: await ownerAdoption(env, log),
+      ci: ({ headSha, files }) => ciSnapshot({ api: client, headSha, files }),
     });
   };
   if (command === "select" && env.VERIFY_PASS_HEAD) {
@@ -1312,7 +1396,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     const result = await selectThreads();
     if (result.file) {
       writeFileSync(env.THREAD_FILE, `${JSON.stringify(result.file, null, 2)}\n`);
-      writeFileSync(env.RUN_FILE, runRecord(result.file, result.reviewedHeads));
+      writeFileSync(env.RUN_FILE, runRecord(result.file, result.reviewedHeads, result.ci));
     }
     output("proceed", String(result.decision === "proceed"));
     // The write runner drops the human-gated label from the hold list only
