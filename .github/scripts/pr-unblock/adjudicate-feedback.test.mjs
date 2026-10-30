@@ -21,6 +21,7 @@ import {
   prepare,
   reviewerEvidence,
   settleDisputes,
+  testsReply,
   verdictOf,
 } from "./adjudicate-feedback.mjs";
 import { escalationRoute } from "./escalation-routes.mjs";
@@ -958,4 +959,104 @@ test("a conditional word or a contracted negation within two lines guards the ca
     assert.equal(result.escalationReason, "feedback-disputed", text);
   }
   assert.equal((await settleProbe("# probe\n\n\n\nUse `/work-items:track add` for each item.\n", 5)).resolved, true);
+});
+
+// A finding whose only ask is to run tests CI runs (#10075): the select job
+// recorded the head's covering check runs in run.json's `ci`.
+const RUNS = [
+  { name: "test-bash (0)", url: "https://github.com/o/r/actions/runs/1/job/11" },
+  { name: "test-node", url: "https://github.com/o/r/actions/runs/1/job/12" },
+];
+const settleTests = async ({ disposition = "UNCERTAIN", ci = { state: "green", runs: RUNS }, verdict = "tests-only", pushed = false, current = thread("PRRT_a") } = {}) => {
+  const posts = [];
+  let resolved = false;
+  const result = await settleDisputes({
+    api: {
+      readThread: async () => ({ isResolved: false, pr: 42, commentIds: [1, 2] }),
+      replyToComment: async (pr, id, text) => {
+        posts.push(text);
+        return { id: 3, in_reply_to_id: id };
+      },
+    },
+    pr: 42,
+    adjudicatedSha: HEAD,
+    posted: [{ thread: "PRRT_a", disposition }],
+    replies: [{ thread: "PRRT_a", disposition, evidence: [] }],
+    shown: new Map([["PRRT_a", { comment_ids: [1] }]]),
+    now: new Map([["PRRT_a", current]]),
+    verdicts: new Map([["PRRT_a", { verdict, question: "none" }]]),
+    ci,
+    pushed,
+    headMoved: async () => false,
+    resolveAfterReply: async () => {
+      resolved = true;
+      return true;
+    },
+    escalationReason: "",
+    log: () => {},
+  });
+  return { result, posts, resolved };
+};
+
+test("settleDisputes resolves an UNCERTAIN tests-only finding on a green head with a fixed reply citing the covering runs", async () => {
+  const { result, posts, resolved } = await settleTests();
+  assert.deepEqual(result, { escalationReason: "", skipReason: "" });
+  assert.equal(resolved, true);
+  assert.deepEqual(posts, [testsReply(RUNS, HEAD)]);
+  assert.equal(posts[0].split("\n")[0], FINDING_ANSWERED);
+  for (const run of RUNS) {
+    assert.ok(posts[0].includes(`[${run.name}](${run.url})`), run.name);
+  }
+  assert.ok(posts[0].includes(HEAD));
+  // It claims only what the snapshot shows: the plan's checks passed at the head.
+  assert.ok(posts[0].includes(`Every check the plan selected (\`scripts/plan-test-lanes.sh\`) passed at \`${HEAD}\``));
+  assert.ok(!posts[0].includes("the tests this finding asks for"));
+});
+
+test("settleDisputes leaves an UNCERTAIN tests-only finding on a red head open with no reply and no escalation, for fix-ci", async () => {
+  const { result, posts, resolved } = await settleTests({ ci: { state: "red", runs: RUNS } });
+  assert.deepEqual(result, { escalationReason: "", skipReason: "" });
+  assert.deepEqual(posts, []);
+  assert.equal(resolved, false);
+});
+
+test("settleDisputes leaves a tests-only finding whose covering checks are pending, missing or skipped as today", async () => {
+  for (const ci of [{ state: "unsettled", runs: [] }, {}, null, { state: "green", runs: [] }]) {
+    const { result, posts, resolved } = await settleTests({ ci });
+    assert.deepEqual(result, { escalationReason: "feedback-unadjudicated", skipReason: "" }, JSON.stringify(ci));
+    assert.deepEqual(posts, []);
+    assert.equal(resolved, false);
+  }
+  assert.equal(escalationRoute("feedback-unadjudicated"), "fail");
+});
+
+test("settleDisputes settles a tests-only verdict only on an UNCERTAIN reply", async () => {
+  for (const disposition of ["INCORRECT", "VALID-defer"]) {
+    const { result, posts, resolved } = await settleTests({ disposition });
+    assert.deepEqual(result, { escalationReason: "feedback-unadjudicated", skipReason: "" }, disposition);
+    assert.deepEqual(posts, []);
+    assert.equal(resolved, false);
+  }
+});
+
+test("settleDisputes leaves a tests-only finding open when this round pushed a fix, whose head the green read did not cover", async () => {
+  for (const ci of [{ state: "green", runs: RUNS }, { state: "red", runs: RUNS }]) {
+    const { result, posts, resolved } = await settleTests({ ci, pushed: true });
+    assert.equal(result.escalationReason, "feedback-unadjudicated", ci.state);
+    assert.deepEqual(posts, []);
+    assert.equal(resolved, false);
+  }
+});
+
+// Green CI says nothing about a security finding, however minor (#11041 review).
+test("settleDisputes leaves a tests-only verdict on a security-review finding open, even on a green head", async () => {
+  const { result, posts, resolved } = await settleTests({ current: ratedThread("PRRT_a", RATED_FIRST) });
+  assert.deepEqual(result, { escalationReason: "feedback-unadjudicated", skipReason: "" });
+  assert.deepEqual(posts, []);
+  assert.equal(resolved, false);
+});
+
+test("verdictOf takes tests-only with no question", () => {
+  assert.deepEqual(verdictOf({ verdict: "tests-only", question: "none" }), { verdict: "tests-only", question: "none" });
+  assert.equal(verdictOf({ verdict: "tests-only", question: "design" }), null);
 });

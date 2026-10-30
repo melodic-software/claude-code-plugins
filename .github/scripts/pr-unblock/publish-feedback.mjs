@@ -149,9 +149,22 @@ function check(condition, why) {
 
 const sameIds = (a, b) => a.length === b.length && a.every((id, i) => id === b[i]);
 
+// The check runs a ci snapshot may cite: a github-actions job page.
+const CI_RUN_URL = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[1-9][0-9]{0,19}\/job\/[1-9][0-9]{0,19}$/;
+const CI_RUN_NAME = /^[A-Za-z0-9_.-]+( \([0-9]{1,3}\))?$/;
+const ciValid = (ci) =>
+  ci !== null &&
+  typeof ci === "object" &&
+  Object.keys(ci).sort().join(",") === "runs,state" &&
+  ["green", "red", "unsettled"].includes(ci.state) &&
+  Array.isArray(ci.runs) &&
+  ci.runs.length <= 100 &&
+  ci.runs.every((run) => run !== null && typeof run === "object" && Object.keys(run).sort().join(",") === "name,url" && CI_RUN_NAME.test(String(run.name)) && CI_RUN_URL.test(String(run.url)));
+
 // run.json is the select job's: the gated head and the threads it kept, with
 // the comment ids the model was shown and, from a select job that records
-// them, the reviewed heads it kept them on.
+// them, the reviewed heads it kept them on and the head's covering check runs
+// (address-feedback.mjs ciSnapshot).
 export function parseRun(text) {
   let run;
   try {
@@ -175,6 +188,7 @@ export function parseRun(text) {
     run.reviewed_heads === undefined || (Array.isArray(run.reviewed_heads) && run.reviewed_heads.every((sha) => SHA.test(String(sha)))),
     "run.json holds a malformed reviewed_heads list",
   );
+  check(run.ci === undefined || ciValid(run.ci), "run.json holds a malformed ci snapshot");
   for (const thread of run.threads) {
     check(
       THREAD_ID.test(thread?.id ?? "") &&
@@ -752,6 +766,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
       shown,
       now,
       verdicts: posted.some((entry) => DISPUTED.includes(entry.disposition)) ? parseVerdicts(readAdjudication(), run.head_sha) : new Map(),
+      ci: run.ci,
       pushed: run.head_sha !== headSha,
       headMoved,
       resolveAfterReply: resolve,
