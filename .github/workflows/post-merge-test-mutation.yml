@@ -414,6 +414,7 @@ jobs:
             /.github/actions/check-trusted-trigger/
             /.github/actions/log-api-budget/
             /.github/actions/setup-pinned-node/
+            /.github/scripts/lib/
             /.github/scripts/post-merge-test-mutation/
             /.node-version
           sparse-checkout-cone-mode: false
