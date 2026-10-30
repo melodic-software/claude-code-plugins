@@ -98,7 +98,8 @@ const marker = (path, blob, head, { user = BOT, at = "2026-10-17T21:50:00Z" } = 
 // changes against its merge base with main.
 // `compare` is the status of a run's head against main; `moved` is a PR as a
 // fresh GET /pulls/{n} answers it, when it changed since the listing; `refs`
-// is each branch's tip as GET git/ref/heads/{branch} answers it, null a 404.
+// is each branch's tip as GET git/ref/heads/{branch} answers it: a SHA, null
+// for a 404, {status} for that error, or {} for an answer with no SHA.
 function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN_BLOBS, changed = {}, compare = "ahead", moved = {}, refs = {}, mainTag = false, failOn } = {}) {
   const calls = [];
   const all = Object.values(runs).flat();
@@ -138,10 +139,11 @@ function world({ pulls = [], runs = {}, comments = {}, checks = {}, blobs = MAIN
       return { ref: "refs/heads/main", object: { sha: MAIN_TIP } };
     }
     if ((match = new RegExp(`^/repos/${REPO}/git/ref/heads/(.+)$`).exec(route)) && match[1] in refs) {
-      if (refs[match[1]] === null) {
-        throw new GitHubError(404, `${method} ${path}`);
+      const tip = refs[match[1]];
+      if (tip === null || tip?.status !== undefined) {
+        throw new GitHubError(tip?.status ?? 404, `${method} ${path}`);
       }
-      return { ref: `refs/heads/${match[1]}`, object: { sha: refs[match[1]] } };
+      return typeof tip === "string" ? { ref: `refs/heads/${match[1]}`, object: { sha: tip } } : { ref: `refs/heads/${match[1]}` };
     }
     // Every main-side read names main's tip, never the name main.
     if ((match = /\/contents\/(.+)$/.exec(route))) {
@@ -544,6 +546,20 @@ test("a 422 on the ref update of a branch still at the head it was read at fails
   );
   assert.ok(lines.some((line) => line.startsWith(`::error title=refire-refused::#30: PATCH /repos/${REPO}/git/refs/heads/fix/30 failed with status 422`)), lines.join("\n"));
   assert.equal(lines.some((line) => line.startsWith("::warning")), false, lines.join("\n"));
+});
+
+test("a ref update refused with a 409 whose branch cannot be read again fails the run at that PR", async (t) => {
+  for (const [tip, cause] of [
+    [{ status: 500 }, `GET /repos/${REPO}/git/ref/heads/fix/9 failed with status 500`],
+    [{}, `PATCH /repos/${REPO}/git/refs/heads/fix/9 failed with status 409; the branch's tip cannot be read`],
+  ]) {
+    const w = refusedWorld([pr(9), pr(30)], { failOn: { prefix: `PATCH /repos/${REPO}/git/refs/heads/fix/9`, status: 409 }, refs: { "fix/9": tip } });
+    const { code, lines } = await logged(t, w);
+    assert.equal(code, 1, JSON.stringify(tip));
+    assert.equal(pushes(w.calls).length, 1, JSON.stringify(tip));
+    assert.ok(lines.includes(`::error title=refire-refused::#9: ${cause}`), lines.join("\n"));
+    assert.equal(lines.some((line) => line.startsWith("::warning")), false, lines.join("\n"));
+  }
 });
 
 test("a PR from a branch the config names as workflow-owned is never commented on or pushed to; the others still are", async (t) => {
