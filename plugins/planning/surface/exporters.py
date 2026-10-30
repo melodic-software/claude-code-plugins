@@ -536,6 +536,10 @@ def marked_commits(q, events):
     return [(i in ticked, c) for i, c in enumerate(q.get("commits") or [])]
 
 
+# The decisions that carry a question's commitments.
+CARRIES = ("accept", "hedged")
+
+
 def commitments(q, events):
     """(confirmed, unconfirmed) commitment texts."""
     marked = marked_commits(q, events)
@@ -630,21 +634,26 @@ def register(doc, resp, extra=()):
         res = lead + encode(fields, marked)
         confirmed, unconfirmed = commitments(q, events)
         decided = latest_decision(q, responses) or {}
+        # An own answer replaces the recommendation, so the Brief and the report drop its
+        # commitments; the ledger row keeps their ticks, so an import restores them.
+        briefed = marked
+        if decided.get("decision") == "own":
+            confirmed, unconfirmed, briefed = [], [], []
         rows.append(
             {
                 "n": f"Q{pos[q['id']]}",
                 "q": q,
                 "status": status,
                 "resolution": res.rstrip(),
-                "display": clean(lead + readable(status, fields, marked)),
-                "readable": clean(readable(status, fields, marked)),
+                "display": clean(lead + readable(status, fields, briefed)),
+                "readable": clean(readable(status, fields, briefed)),
                 "note": note,
                 "reserved": reserved,
                 "confirmed": confirmed,
                 "unconfirmed": unconfirmed,
-                # Accept, hedged and own carry the recommendation's commitments; an alternative
-                # withdraws them and a defer's open row covers them.
-                "carries": decided.get("decision") in ("accept", "hedged", "own"),
+                # Accept and hedged carry the recommendation's commitments; an own answer or an
+                # alternative withdraws them and a defer's open row covers them.
+                "carries": decided.get("decision") in CARRIES,
                 "decision": decided.get("decision"),
             }
         )

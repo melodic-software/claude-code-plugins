@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: vf-route-findings
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'f1-refuted'
+    type: 'regex'
+    pattern: '^\W*(?:\d+[.)]\W*)?F1\W+refuted\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'f2-confirmed'
+    type: 'regex'
+    pattern: '^\W*(?:\d+[.)]\W*)?F2\W+confirmed\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'f3-refuted'
+    type: 'regex'
+    pattern: '^\W*(?:\d+[.)]\W*)?F3\W+refuted\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'f4-confirmed'
+    type: 'regex'
+    pattern: '^\W*(?:\d+[.)]\W*)?F4\W+confirmed\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'one-verdict-each'
+    type: 'regex'
+    pattern: '^\W*(?:\d+[.)]\W*)?F[1-4]\W+(?:not\W+)?(?:confirmed|refuted)\b'
+    flags: 'im'
+    target: 'last_message'
+    match: 'count:4'
