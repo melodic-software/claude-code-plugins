@@ -999,7 +999,7 @@ jobs:
       # no token the same way, and the next scheduled run checks every PR.
       # A merge-pr slot the config turns off (`enabled: false`, or an
       # `applies-when` that does not match) mints no token, so no step after
-      # this one runs, and the job ends green.
+      # this one uses the lane token, and the job ends green.
       - name: Report a lane the config turns off
         if: steps.config.outcome == 'success' && steps.config.outputs.applies != 'true'
         env:
