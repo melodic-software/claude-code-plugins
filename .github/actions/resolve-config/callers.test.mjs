@@ -7118,15 +7118,16 @@ test("every kill-switch-ok caller runs no token step and no dependent job on a k
   ].sort());
 });
 
-// work-unblock re-fires an issue from the failed mint step, and no
-// dispatcher re-fires report-escalation, so only a pull request run of any
-// other activity ends a kill-switch refusal green; those two stay red.
-test("pr-run-activity-write.yml takes kill-switch-ok on a pull request run only, never for report-escalation", () => {
+// work-unblock re-fires an issue from its stopped mint step (label-unblocked.mjs
+// STOPPED), but no dispatcher re-fires report-escalation, so every run but
+// report-escalation ends a kill-switch refusal green; that one stays red.
+test("pr-run-activity-write.yml takes kill-switch-ok on every run but report-escalation", () => {
   const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "lane-token");
   const value = step.with["kill-switch-ok"];
   const at = (issue, activity) => evaluate(value, { "inputs.issue-number": issue, "inputs.activity": activity });
   assert.equal(at("", "publish-feedback"), true, "a pull request run skips");
-  assert.equal(at("7", "apply-issue-patch"), false, "an issue run stays red");
+  assert.equal(at("7", "apply-issue-patch"), true, "an issue run's patch skips");
+  assert.equal(at("7", "report-outcome"), true, "an issue run's report skips");
   assert.equal(at("", "report-escalation"), false, "an escalation stays red");
   const { jobs } = workflow("pr-unblock.yml");
   assert.equal(jobs["report-escalation"].with.activity, "report-escalation", "the escalation caller passes that activity");
