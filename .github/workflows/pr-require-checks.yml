@@ -5235,7 +5235,7 @@ jobs:
             for hop in 1 2 3 4 5 6 7 8 9 10; do
               [[ $seen != *" $sha "* ]] || return 1
               seen="$seen$sha "
-              run= verdict=
+              run='' verdict=''
               lane_at "$sha" "$PR_NUMBER"
               case $verdict in
               pass) return 0 ;;
@@ -5254,7 +5254,7 @@ jobs:
             return 1
           }
           while read -r file lane check; do
-            run= verdict=
+            run='' verdict=''
             lane_at "$HEAD_SHA"
             if [ -z "$run" ]; then
               echo "::error::'$check' is missing: no $file run on $HEAD_SHA yet. ci-status re-runs when the review finishes."
