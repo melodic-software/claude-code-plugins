@@ -68,6 +68,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { CREDENTIAL_SHAPES } from "../../../lib/publish-gate.mjs";
 import { BODY_HOLD, LANES_APP_LOGIN } from "../pr-merge/merge-holds.mjs";
 import { fixRefusal, parseConfig } from "../pr-unblock/dependency-classify.mjs";
 import { stopSkip } from "../pr-unblock/escalation-routes.mjs";
@@ -130,17 +131,9 @@ export const REFUSALS = {
 export const refusalsOf = (entry, names = Object.keys(REFUSALS).filter((name) => !REFUSALS[name].optional)) => names.filter((name) => REFUSALS[name].test(entry));
 
 // Credential shapes: any match in the patch or a patched blob refuses it all.
-// GitHub prefixes from
-// https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-// and the ghs_ regex GitHub recommends for current and stateless installation tokens from
-// https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
-// (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
-export const CREDENTIALS = [
-  { name: "Anthropic API key", pattern: /sk-ant-(?:api|admin)\d{2}-[A-Za-z0-9_-]{20,}/ },
-  { name: "Anthropic OAuth token", pattern: /sk-ant-oat\d{2}-[A-Za-z0-9_-]{20,}/ },
-  { name: "GitHub token", pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|ghs_[A-Za-z0-9._-]{36,}|github_pat_[A-Za-z0-9_]{22,})/ },
-];
-export const credentialIn = (text) => CREDENTIALS.find((credential) => credential.pattern.test(text))?.name ?? "";
+// The shapes are lib/publish-gate.mjs CREDENTIAL_SHAPES, the read runner's
+// scan job's own, so the two scanners never disagree.
+export const credentialIn = (text) => CREDENTIAL_SHAPES.find(([, pattern]) => pattern.test(text))?.[0] ?? "";
 
 const REASONS = "not-reproducible|flaky|protected-path|weaken-required|unfixed";
 const ESCALATED_LINE = new RegExp(`^(.+?): escalated (?:${REASONS})(?: |$)`);
@@ -456,23 +449,14 @@ function readCapped(file, cap) {
   }
 }
 
-// The first written blob of `entries` whose first MAX_BLOB_BYTES carry a
-// credential shape, or undefined. It runs before every invalid refusal, so a
-// fault beside a credential (a size, a path count, a symlink) never turns its
-// hold into a retry; a gitlink names a commit, not a blob, and is skipped.
-function leakedBlob(git, entries) {
-  const head = (sha) => {
-    try {
-      return git(["cat-file", "blob", sha], { maxBuffer: MAX_BLOB_BYTES });
-    } catch (error) {
-      if (error?.code === "ENOBUFS" && Buffer.isBuffer(error.stdout)) {
-        return error.stdout.subarray(0, MAX_BLOB_BYTES);
-      }
-      throw error;
-    }
-  };
-  return entries.find((entry) => !ZERO.test(entry.newSha) && entry.newMode !== GITLINK && credentialIn(head(entry.newSha).toString("latin1")));
-}
+// The first written blob of `entries` that carries a credential shape, or
+// undefined. Each blob is read whole, so the size refusals come after it, as
+// does every invalid refusal once the patch applies (a symlink, a path count,
+// a blob's size, a patch made on another commit), so a fault beside a
+// credential never turns its hold into a retry. A gitlink names a commit, not
+// a blob, and is skipped.
+const leakedBlob = (git, entries) =>
+  entries.find((entry) => !ZERO.test(entry.newSha) && entry.newMode !== GITLINK && credentialIn(git(["cat-file", "blob", entry.newSha]).toString("latin1")));
 
 // Why the patch file is not to be applied, as {kind, why}, or null when it is:
 // a regular file of at most MAX_PATCH_BYTES with the SHA-256 given and no
@@ -912,6 +896,12 @@ export async function push({
     return { outcome: "superseded" };
   }
   if (moved && !target.movedHead) {
+    // Refused, but only once its blobs on the commit it was made on are scanned.
+    const atProducer = SHA.test(String(patchHeadSha)) && hasCommit(git, patchHeadSha) ? applyOnto(git, patchHeadSha, patchFile, false) : "";
+    const leaked = atProducer ? leakedBlob(git, changes(git(["diff-tree", "-r", "-z", "--no-renames", patchHeadSha, atProducer]))) : undefined;
+    if (leaked) {
+      return escalate("credential", `the patched ${leaked.path} carries a credential shape`);
+    }
     return escalate("invalid", `the patch was made on ${patchHeadSha}, not the start commit ${headSha}`);
   }
   if (moved) {

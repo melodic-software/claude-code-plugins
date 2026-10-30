@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 
 import { checkRow, createGitHubApi, credentialIn, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, mergeFrom, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { findSecret, scanLeak } from "../../../lib/publish-gate.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The registry as committed: the rows these tests hold apply-patch to.
@@ -1198,19 +1199,47 @@ test("issue target: a blob-only credential in a patch over max-files escalates p
   assert.deepEqual(api.calls, []);
 });
 
-// A blob over MAX_BLOB_BYTES is still scanned up to that many bytes, so its
-// size fault does not hide a credential near its start.
+// A blob over MAX_BLOB_BYTES is read whole before its size is refused, so the
+// size fault does not hide a credential anywhere in it, past the cap included.
 test("issue target: a credential in a patched blob over the size cap escalates patch-credential", async (t) => {
   const big = Buffer.alloc(6 * 1024 * 1024, 7);
   big[0] = 0;
   const fix = repoWithPatch(t, (repo) => {
     const changed = Buffer.from(big);
-    changed.write(GITHUB_TOKENS[0], 16, "latin1");
+    changed.write(GITHUB_TOKENS[0], 5.5 * 1024 * 1024, "latin1");
     writeFileSync(join(repo, "big.bin"), changed);
   }, { head: (repo) => writeFileSync(join(repo, "big.bin"), big) });
   assert.doesNotMatch(readFileSync(fix.patchFile, "latin1"), /ghp_/);
   const api = fakeApi(fix.repo, fix.head, { labels: READY });
   assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-credential" });
+});
+
+// The two scanners share one list (lib/publish-gate.mjs CREDENTIAL_SHAPES):
+// the read runner's scan job and apply-patch catch a key glued to a word and
+// a 40-character fine-grained token alike, which they once disagreed on.
+test("the publish gate and apply-patch catch the same shared credential shapes", () => {
+  const glued = `X${"sk-ant"}-api03-${"k".repeat(40)}`;
+  const pat = `${"github"}_pat_${"A1".repeat(20)}`;
+  assert.equal(pat.length - "github_pat_".length, 40);
+  for (const text of [`key=${glued}`, `t ${pat} t`]) {
+    assert.notEqual(credentialIn(text), "", text);
+    assert.notEqual(findSecret(text), null, text);
+    assert.ok(scanLeak(Buffer.from(text)).block, text);
+  }
+});
+
+// A patch made on another commit is refused, but its blobs on that commit are
+// scanned first, so a credential there holds rather than retries.
+test("issue target: a blob-only credential in a patch made on another commit escalates patch-credential", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "blob.bin"), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])])));
+  writeFileSync(join(fix.repo, "notes.md"), "moved\n");
+  const moved = commitAll(fix.repo, "moved");
+  const api = fakeApi(fix.repo, moved, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api, { headSha: moved }), { outcome: "escalate", escalationReason: "patch-credential" });
+  const clean = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  writeFileSync(join(clean.repo, "notes.md"), "moved\n");
+  const cleanMoved = commitAll(clean.repo, "moved");
+  assert.deepEqual(await pushIssue(clean, fakeApi(clean.repo, cleanMoved, { labels: READY }), { headSha: cleanMoved }), { outcome: "escalate", escalationReason: "patch-invalid" });
 });
 
 // select scans patch.diff for a credential even when another file sits beside it.
@@ -2136,6 +2165,24 @@ test("a conflicted path left with markers escalates unresolved-conflict before a
   // A resolution that writes new marker lines is no resolution either.
   const marked = mergeFixture(t, { ...CONFLICT, resolve: (repo) => writeFileSync(join(repo, "a.txt"), "<<<<<<< x\npr\n=======\nmain\n>>>>>>> y\n") });
   assert.deepEqual(await mergePush(marked, fakeApi(marked.repo, marked.head)), { outcome: "escalate", escalationReason: "unresolved-conflict" });
+});
+
+// Under the merge row a credential beside a refused symlink is named as the
+// credential: the scan runs before the refusals (the row folds both into
+// conflict-patch-invalid, so the log names which).
+test("a merge resolution with a blob-only credential beside a symlink escalates for the credential", async (t) => {
+  const fix = mergeFixture(t, {
+    ...CONFLICT,
+    resolve: (repo) => {
+      writeFileSync(join(repo, "a.txt"), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])]));
+      symlinkSync("keep.txt", join(repo, "link"));
+    },
+  });
+  assert.doesNotMatch(readFileSync(fix.patchFile, "latin1"), /ghp_/);
+  const lines = [];
+  assert.deepEqual(await mergePush(fix, fakeApi(fix.repo, fix.head), { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "conflict-patch-invalid" });
+  assert.match(lines.join("\n"), /carries a credential shape/);
+  assert.doesNotMatch(lines.join("\n"), /symlink/);
 });
 
 test("a model may delete a conflicted path", async (t) => {
