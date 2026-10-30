@@ -1393,17 +1393,18 @@ test("an empty patch-state whose report escalated a check names ci-fix-escalated
 // A fix-ci run that changed nothing and escalated only
 // unfixed or not-reproducible checks retries once, one model rung up, instead
 // of stopping; flaky ends in a failing status (the dispatcher retries the
-// head), protected-path and weaken-required stay with a person, and a rung-1
+// head), protected-path and weaken-required go to the session-builder queue (a
+// failing status, needs-session), and a rung-1
 // run never retries again in the same run.
 for (const [why, reply, rung, want] of [
   ["unfixed at rung 0", "test-node: escalated unfixed three fixes failed\n", 0, { proceed: false, skipReason: "rung-up", escalationReason: "" }],
   ["unfixed and not-reproducible at rung 0", "a: escalated unfixed x\nb: escalated not-reproducible y\nc: fixed\n", 0, { proceed: false, skipReason: "rung-up", escalationReason: "" }],
   ["unfixed at rung 1", "test-node: escalated unfixed three fixes failed\n", 1, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-escalated" }],
   // A fix that needs a path the lane token may not push, or one that weakens
-  // a required check, stays with a person.
-  ["protected-path at rung 0", "lint: escalated protected-path edits .github\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-protected-path" }],
-  ["weaken-required beside unfixed at rung 0", "a: escalated unfixed x\nb: escalated weaken-required y\n", 0, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-weaken-required" }],
-  ["protected-path beside weaken-required at rung 1", "a: escalated weaken-required x\nb: escalated protected-path y\n", 1, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-protected-path" }],
+  // a required check, goes to the session-builder queue.
+  ["protected-path at rung 0", "lint: escalated protected-path edits .github\n", 0, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-protected-path" }],
+  ["weaken-required beside unfixed at rung 0", "a: escalated unfixed x\nb: escalated weaken-required y\n", 0, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-required" }],
+  ["protected-path beside weaken-required at rung 1", "a: escalated weaken-required x\nb: escalated protected-path y\n", 1, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-protected-path" }],
   ["flaky at rung 0", "a: escalated flaky x\n", 0, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-escalated" }],
 ]) {
   test(`an empty fix-ci patch escalating ${why} selects ${want.skipReason}`, (t) => {
@@ -1493,15 +1494,15 @@ test("select reads the rung from MODEL_RUNG and refuses any other value", async 
 // The first weaken-required stop on a head (no lane stop there yet, so
 // fix-ci-context passes weakenRetry) stops for one fresh fixer round: a
 // fail-routed reason the dispatcher retries. Without weakenRetry (the fresh
-// round ran, or an earlier stop spent the head's retry) it holds for a person
-// as before, and a protected-path escalation beside it always does.
+// round ran, or an earlier stop spent the head's retry) it goes to the
+// session-builder queue, and a protected-path escalation beside it always does.
 for (const [why, reply, rung, weakenRetry, want] of [
   ["weaken-required, first on the head", "a: escalated weaken-required y\n", 0, true, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-retry" }],
   ["weaken-required beside unfixed, first on the head", "a: escalated unfixed x\nb: escalated weaken-required y\n", 0, true, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-retry" }],
   ["weaken-required at the in-run rung-up, first on the head", "a: escalated weaken-required y\n", 1, true, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-retry" }],
-  ["weaken-required in the fresh round", "a: escalated weaken-required y\n", 1, false, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-weaken-required" }],
-  ["weaken-required with no retry left at rung 0", "a: escalated weaken-required y\n", 0, false, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-weaken-required" }],
-  ["protected-path beside weaken-required, first on the head", "a: escalated weaken-required x\nb: escalated protected-path y\n", 0, true, { proceed: false, skipReason: "awaiting-human", escalationReason: "ci-fix-protected-path" }],
+  ["weaken-required in the fresh round", "a: escalated weaken-required y\n", 1, false, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-required" }],
+  ["weaken-required with no retry left at rung 0", "a: escalated weaken-required y\n", 0, false, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-required" }],
+  ["protected-path beside weaken-required, first on the head", "a: escalated weaken-required x\nb: escalated protected-path y\n", 0, true, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-protected-path" }],
   ["unfixed alone, first on the head", "a: escalated unfixed x\n", 0, true, { proceed: false, skipReason: "rung-up", escalationReason: "" }],
 ]) {
   test(`an empty fix-ci patch escalating ${why} selects ${want.escalationReason || want.skipReason}`, (t) => {

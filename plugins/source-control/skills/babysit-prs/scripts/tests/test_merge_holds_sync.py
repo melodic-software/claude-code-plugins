@@ -114,6 +114,10 @@ def import_closure(entries: tuple[str, ...]) -> list[str]:
         name = file.relative_to(ROOT).as_posix()
         if name in seen:
             continue
+        # A directory URL (admit.mjs lists `../../workflows/` for their
+        # names) loads no code; each gated workflow is floored by name.
+        if file.is_dir():
+            continue
         seen.add(name)
         for spec in IMPORT.findall(file.read_text(encoding="utf-8")):
             todo.append(file.parent / spec)
@@ -344,8 +348,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
 
     def test_the_floor_holds_the_same_paths_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertEqual(len(risk.FLOOR_CLASSES), 109)
-        self.assertEqual(len(risk.REVIEW_FLOOR), 42)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 116)
+        self.assertEqual(len(risk.REVIEW_FLOOR), 49)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
         )

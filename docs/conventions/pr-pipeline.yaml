@@ -192,7 +192,10 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      labels-absent: [do-not-merge, needs-human, "security: outside-actor"]
+      # A stop routed to needs-session waits for the session builder: no
+      # same-head re-roll and no fresh round budget on a rebased head until a
+      # session removes the label.
+      labels-absent: [do-not-merge, needs-human, needs-session, "security: outside-actor"]
       draft: [false]
   apply-dependency-patch:
     # Applies review-dependency's patch, on a fix verdict only, to the head
@@ -212,7 +215,7 @@ activities:
     reads-untrusted: true
     inputs: [pr, head-sha]
     applies-when:
-      labels-absent: [do-not-merge, needs-human, "security: outside-actor"]
+      labels-absent: [do-not-merge, needs-human, needs-session, "security: outside-actor"]
       draft: [false]
   apply-dependency-verdict:
     # Acts on the verdict review-dependency recorded: posts the round marker
@@ -422,9 +425,11 @@ activities:
     inputs: [issue]
   report-escalation:
     # Ends a stopped run on its reason's route (escalation-routes.json):
-    # hold labels the PR needs-human and posts the reason with a resume key;
-    # fail posts or edits one lane-stopped comment, and report-stop-status a
-    # failing status on the head.
+    # hold (the owner's three reasons, or a reason the table does not list)
+    # labels the PR needs-human and posts the reason with a resume key; fail
+    # posts or edits one lane-stopped comment, and report-stop-status a
+    # failing status on the head; a fail entry naming needs-session also adds
+    # that label, the session-builder queue.
     script: .github/scripts/pr-unblock/report-escalation.sh
     effect: publish-artifact
     gating: advisory
