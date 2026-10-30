@@ -24,12 +24,13 @@
 // bot), or any other run whose actor and triggering actor are each a listed
 // human. A scheduled or
 // hand-started run counts only on main, since another branch runs its own
-// copy; pull_request_target runs always run main's. And its
+// copy. A pull_request_target run reads only its own pull request, so it
+// supersedes no run. And its
 // event must rank at least as high as this run's (RANKS). For `merge`, only a
 // scheduled run re-fires refused lane runs, and a pull_request_target run
 // starts no full CI run: pull_request_target, then workflow_dispatch, then
-// schedule. For `enable-auto-merge`, every run lists every lane pull request
-// and disarms one on a hold, and only a scheduled or hand-started one arms:
+// schedule. For `enable-auto-merge`, a scheduled or hand-started run reads
+// every lane pull request and disarms one on a hold, and only it arms:
 // pull_request_target, then workflow_dispatch and schedule.
 //
 // Any failure answers `superseded=false`: the job does its work as it would
@@ -75,8 +76,10 @@ export function eligible(runs, { runId, event, trusted, ranks }) {
       String(run.id) !== runId &&
       Object.hasOwn(ranks, run.event) &&
       ranks[run.event] >= ranks[event] &&
+      // An event run reads only its own pull request (pr-merge.yml EVENT_PR).
+      run.event !== "pull_request_target" &&
       // A dispatch on another branch runs that branch's copy of the workflow.
-      (run.event === "pull_request_target" || run.head_branch === "main") &&
+      run.head_branch === "main" &&
       (run.event === "schedule"
         ? run.run_attempt === 1 || trusted.humans.has(run.triggering_actor?.id)
         : startedByHuman(trusted, run)),

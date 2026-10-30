@@ -70,9 +70,12 @@
 // a run the blocker gate skipped is re-fired like a run that did no work once
 // none blocks. An umbrella, an issue with an open sub-issue, is skipped and
 // waits the same way until none is open; the listing's sub_issues_summary
-// answers for one with none open at no extra call. A run the gate stopped on untrusted provenance, or an issue
-// whose untrusted-provenance label someone unlisted removed, is never
-// re-fired and gets no needs-human: admission's refusal reaches a person.
+// answers for one with none open at no extra call. A run the gate stopped on
+// an outside author or untrusted provenance, or an issue whose
+// untrusted-provenance label someone unlisted removed, is never re-fired and
+// gets no needs-human: on an outside author the lane's report-skip removes
+// agent-ready and asks a listed human to re-file the work, and on the rest
+// admission's refusal reaches a person.
 //
 // On `schedule` it sweeps instead: every issue closed since the last
 // successful scheduled run that ran its labeling step began (less
@@ -1341,7 +1344,9 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
   // The lane stops for good on an issue untrusted provenance holds
   // (check-blockers.mjs), so one is never re-fired or handed to a person here:
   // admission's refusal path takes it to a person. The label itself is a hold
-  // above; this is the removal by someone unlisted.
+  // above; this is the removal by someone unlisted. An outsider's issue loses
+  // agent-ready to the lane's report-skip, and a run that stopped on it is
+  // never re-fired (stoppedUntrusted, below).
   if (untrustedHold({ labels: [], events, humans, isApp: (actor) => actor?.login === bot })) {
     return { reason: `${UNTRUSTED} was last removed by neither a listed human nor the lanes App` };
   }
@@ -1427,7 +1432,7 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
   const ended = Math.max(...runs.map((run) => Date.parse(run.updated_at)).filter(Number.isFinite), addedAt);
   const jobsOf = jobLister(actions, repo);
   if (await stoppedUntrusted(jobsOf, runs)) {
-    return { reason: "its lane run stopped on untrusted provenance, which a person decides" };
+    return { reason: "its lane run stopped on an outside author or untrusted provenance, which a person decides" };
   }
   const { stalled, run: refused, stage } = (await didNoWork(jobsOf, refusalReader(jobLog, repo), runs)) ?? {};
   if (stalled) {
