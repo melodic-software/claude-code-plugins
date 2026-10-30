@@ -6185,6 +6185,8 @@ class ForeignPaths(unittest.TestCase):
             "CODEOWNERS",
             "docs/CODEOWNERS",
             ".gitmodules",
+            # adjudicate-feedback.mjs reads the linked issues' spec through it.
+            ".github/scripts/pr-verify/resolve-pr.mjs",
         }
         for user in (
             {"login": "melodic-standards-sync[bot]", "id": 300666570, "type": "Bot"},
@@ -9444,39 +9446,79 @@ _role_label = mock.patch.object(
 )
 
 
-_read_concern_values = policy._concern_values
-_real_run_command = policy.run_command
-_READER = policy.PARSER
-_concern_answers: dict[Any, dict[str, list[str]] | None] = {}
-
-
-def _cached_concern_values(
-    text: str, keys: list[tuple[str, bool]]
-) -> dict[str, list[str]] | None:
-    """The shared YAML reader's answer, read once per document, key list and
-    environment: the reader is a pure function of them, and spawning it for
-    every config read dominated this module's run time. A test that swaps
-    the command runner or the reader script reads through."""
-    if policy.run_command is not _real_run_command or policy.PARSER != _READER:
-        return _read_concern_values(text, keys)
-    key = (text, tuple(keys), tuple(sorted(os.environ.items())))
-    if key not in _concern_answers:
-        _concern_answers[key] = _read_concern_values(text, keys)
-    found = _concern_answers[key]
-    return None if found is None else {k: list(v) for k, v in found.items()}
-
-
-_concern_cache = mock.patch.object(policy, "_concern_values", _cached_concern_values)
-
-
 def setUpModule() -> None:
     _role_label.start()
-    _concern_cache.start()
 
 
 def tearDownModule() -> None:
-    _concern_cache.stop()
     _role_label.stop()
+
+
+class ConcernValuesAnswers(unittest.TestCase):
+    """The shared YAML reader runs once per document and key list in a
+    process: `read_config_at` reads the same few config texts at hundreds of
+    commits per gate run."""
+
+    def setUp(self) -> None:
+        self.argvs: list[list[str]] = []
+        self.fail = False
+        real = policy.run_command
+
+        def counting(argv: list[str], **kwargs: Any) -> Any:
+            self.argvs.append(argv)
+            if self.fail:
+                raise OSError("reader unavailable")
+            return real(argv, **kwargs)
+
+        patcher = mock.patch.object(policy, "run_command", counting)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_a_document_is_read_once(self) -> None:
+        keys = [("merge.rung", False), ("merge.authority", False)]
+        text = "merge:\n  rung: off\n  authority: pr-merge\n"
+        first = policy._concern_values(text, keys)
+        second = policy._concern_values(text, keys)
+        self.assertEqual(
+            first, {"merge.rung": ["off"], "merge.authority": ["pr-merge"]}
+        )
+        self.assertEqual(second, first)
+        self.assertEqual(len(self.argvs), 2)
+        second["merge.rung"].append("x")
+        self.assertEqual(policy._concern_values(text, keys), first)
+        policy._concern_values("merge:\n  rung: on\n", keys)
+        self.assertEqual(len(self.argvs), 4)
+
+    def test_a_rejected_read_is_read_again(self) -> None:
+        keys = [("merge.rung", False)]
+        text = "merge:\n  rung: rejected-once\n"
+        answers = iter([None, {"merge.rung": ["rejected-once"]}])
+        with mock.patch.object(
+            policy, "_read_concern_values", lambda *_: next(answers)
+        ):
+            self.assertIsNone(policy._concern_values(text, keys))
+            self.assertEqual(
+                policy._concern_values(text, keys), {"merge.rung": ["rejected-once"]}
+            )
+
+    def test_a_failed_read_is_read_again(self) -> None:
+        keys = [("merge.rung", False)]
+        text = "merge:\n  rung: retried\n"
+        self.fail = True
+        with self.assertRaises(policy.PolicyReadError):
+            policy._concern_values(text, keys)
+        self.fail = False
+        self.assertEqual(
+            policy._concern_values(text, keys), {"merge.rung": ["retried"]}
+        )
+        self.assertEqual(len(self.argvs), 2)
+
+    def test_a_given_runner_reads_every_time(self) -> None:
+        keys = [("merge.rung", False)]
+        text = "merge:\n  rung: given\n"
+        policy._concern_values(text, keys, run=policy.run_command)
+        policy._concern_values(text, keys, run=policy.run_command)
+        self.assertEqual(len(self.argvs), 2)
 
 
 class FileContents(unittest.TestCase):

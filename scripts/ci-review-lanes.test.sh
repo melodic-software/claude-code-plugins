@@ -9,7 +9,8 @@
 # with the cause named, a lane the kill switch stopped among them; Dependabot, the
 # release App and the standards-sync App are exempt by numeric author id, but
 # not from a trust-gate path (with merge.diff-check.path-holds false, only
-# Dependabot is held for one), and neither is a pull request an agent App
+# Dependabot is held for one) unless a person on the base's trusted-actor list
+# approves the head, and neither is a pull request an agent App
 # (merge.trust-path-hold-apps at the base) opened, wrote a commit of or pushed
 # to. It fails closed when it cannot read.
 # test-scope: .github/workflows/pr-require-checks.yml docs/conventions/pr-pipeline.yaml
@@ -211,6 +212,10 @@ case "$*" in
   fi
   printf '%s\n' "${!var-[]}"
   ;;
+*/pulls/*/reviews*)
+  [[ -z "${STUB_REVIEWS_FAIL:-}" ]] || exit 1
+  printf '%s\n' "${STUB_REVIEWS:-[]}"
+  ;;
 */pulls/*) jq -cn --argjson n "${STUB_CHANGED:-0}" --argjson c "${STUB_COMMIT_COUNT:-0}" --arg u "${STUB_AUTHOR:-kyle-sexton}" \
   '{changed_files: $n, commits: $c, user: {login: $u}}' ;;
 */check-runs/*/annotations*)
@@ -252,7 +257,7 @@ expect() {
   # SHARED_FILES stands for the pages the broker step left under RUNNER_TEMP.
   rm -rf "$TMP_ROOT/pr-files.json" "$TMP_ROOT/pr-reads"
   [[ -z "${SHARED_FILES:-}" ]] || printf '%s\n' "$SHARED_FILES" >"$TMP_ROOT/pr-files.json"
-  out="$(PATH="${STUB_PATH:+$STUB_PATH:}$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r GITHUB_REPOSITORY_ID=1 HEAD_SHA="${HEAD_SHA-$HEAD}" \
+  out="$(PATH="${STUB_PATH:+$STUB_PATH:}$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r GITHUB_REPOSITORY_ID=1 HEAD_SHA="${HEAD_SHA-$HEAD}" BASE_SHA="${BASE_SHA-fedcba9876543210fedcba9876543210fedcba98}" \
     AUTHOR_ID="${AUTHOR_ID-153232337}" HEAD_REPO="${HEAD_REPO-o/r}" PR_NUMBER="${PR_NUMBER-77}" HEAD_REF="${HEAD_REF-feature/x}" \
     BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/base-config}" RUNNER_TEMP="$TMP_ROOT" bash -e "${BODY-$TMP_ROOT/body.sh}" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
@@ -467,6 +472,44 @@ STUB_FILES_FAIL=1 STUB_CHANGED=4 SHARED_FILES="$(files README.md)" \
   AUTHOR_ID=49699333 expect "a reused list shorter than the change fails closed" 1 "::error::GitHub listed fewer files than #77 changes"
 STUB_FILES='[]' STUB_CHANGED=0
 AUTHOR_ID=49699333999 expect "an id that only contains an exempt id is not exempt" 1 "is missing"
+# A person on the base commit's trusted-actor list approving the head in their
+# newest review clears an exempt author's trust-gate hold.
+mkdir -p "$TMP_ROOT/base-config/.github/standards/trusted-actors"
+printf '%s\n' '{"actors":[{"kind":"human","id":153232337,"login":"kyle-sexton"},{"kind":"app","id":49699333,"login":"dependabot[bot]"}]}' \
+  >"$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json"
+# review <user id> <state> [commit]
+review() { jq -cn --argjson id "$1" --arg st "$2" --arg sha "${3:-$HEAD}" \
+  '{user: {id: $id, login: "u\($id)"}, state: $st, commit_id: $sha}'; }
+reviews() { local IFS=,; printf '[%s]\n' "$*"; }
+CLEAR='a person on the trusted-actor list approving this head clears it.'
+export STUB_REVIEWS STUB_REVIEWS_FAIL
+STUB_FILES="$(files CODEOWNERS)" STUB_CHANGED=1
+STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED)")"
+AUTHOR_ID=49699333 expect "a listed person's approval of the head clears an exempt author's hold" 0 \
+  "u153232337, a person on the trusted-actor list, approved $HEAD" "::error::"
+if grep -qxF 'api repos/o/r/pulls/77/reviews?per_page=100 --paginate' "$TMP_ROOT/log"; then
+  ok "the reviews are read live and whole"
+else
+  fail "unexpected review read: '$(sort -u "$TMP_ROOT/log")'"
+fi
+STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED)" "$(review 153232337 COMMENTED)")"
+AUTHOR_ID=49699333 expect "a comment after the approval keeps it" 0 "approved $HEAD" "::error::"
+STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED "${HEAD//0/f}")")"
+AUTHOR_ID=49699333 expect "an approval of an older commit does not clear the hold" 1 "A person merges it; $CLEAR"
+STUB_REVIEWS="$(reviews "$(review 777 APPROVED)" "$(review 49699333 APPROVED)")"
+AUTHOR_ID=49699333 expect "an approval by an account not a listed person does not clear the hold" 1 "A person merges it; $CLEAR"
+STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED)" "$(review 153232337 CHANGES_REQUESTED)")"
+AUTHOR_ID=49699333 expect "changes requested after the approval keep the hold" 1 "A person merges it; $CLEAR"
+STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED)")" STUB_REVIEWS_FAIL=1
+AUTHOR_ID=49699333 expect "an unreadable review list keeps the hold" 1 "A person merges it; $CLEAR"
+STUB_REVIEWS_FAIL=
+STUB_REVIEWS='{"message":"not a list"}'
+AUTHOR_ID=49699333 expect "a review answer that is not a list keeps the hold" 1 "A person merges it; $CLEAR"
+STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED)")"
+BASE_CONFIG="$TMP_ROOT/bare-config" AUTHOR_ID=49699333 expect "an unreadable trusted-actor list keeps the hold" 1 "A person merges it; $CLEAR"
+STUB_REVIEWS='[]'
+AUTHOR_ID=49699333 expect "with no approval the hold stays" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths: CODEOWNERS. A person merges it; $CLEAR"
+STUB_FILES='[]' STUB_CHANGED=0
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
 # A trust-gate path an agent App touched waits for a person, whoever opened
