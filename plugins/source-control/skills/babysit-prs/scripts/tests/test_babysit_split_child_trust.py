@@ -503,5 +503,13 @@ class OneReadPerChild(unittest.TestCase):
         self.assertEqual(self.fake.rules_calls(), 0)
 
 
+class ScopeTargetTest(unittest.TestCase):
+    def test_a_lone_surrogate_counts_as_one_code_unit(self) -> None:
+        # JavaScript strings hold lone surrogates; scopeTarget counts each as
+        # one UTF-16 code unit, so scope_target must not raise on one.
+        self.assertTrue(ve.scope_target("\ud800a", {"x \ud800a"}))
+        self.assertFalse(ve.scope_target("\ud800", {"x \ud800"}))
+
+
 if __name__ == "__main__":
     unittest.main()
