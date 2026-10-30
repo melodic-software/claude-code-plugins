@@ -36,11 +36,11 @@ graders:
   - name: commits
     type: tool_used
     tool: Bash
-    input_match: 'git\b[^|;&]*\bcommit\b'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bgit\b(?:[^"\\|;&]|\\.)*?\bcommit\b'
     min: 1
     arm: both
   - name: shrink-before-commit
     type: tool_order
     before: { tool: Edit, input_match: '"file_path":"[^"]*users/module\.py"' }
-    after: { tool: Bash, input_match: 'git\b[^|;&]*\bcommit\b' }
+    after: { tool: Bash, input_match: '"command":"(?:[^"\\]|\\.)*?\bgit\b(?:[^"\\|;&]|\\.)*?\bcommit\b' }
     arm: both

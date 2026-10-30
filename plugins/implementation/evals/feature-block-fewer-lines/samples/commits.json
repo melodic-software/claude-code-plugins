@@ -16,6 +16,18 @@
         }
       ],
       "why": "commits"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest discover tests && git add users/module.py && git commit -q -F -",
+            "description": "Test then commit"
+          }
+        }
+      ],
+      "why": "test and commit in one command"
     }
   ],
   "fail": [
@@ -29,6 +41,18 @@
         }
       ],
       "why": "never commits"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --format='%s%n%b' -3",
+            "description": "Show recent commit messages"
+          }
+        }
+      ],
+      "why": "git log whose description mentions commit"
     }
   ]
 }
