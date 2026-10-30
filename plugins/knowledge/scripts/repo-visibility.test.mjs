@@ -192,6 +192,23 @@ describe("directoryVisibility", () => {
     assert.equal(r.root, onGitHub);
   });
 
+  it("judges a path under a non-directory by the repository holding that non-directory", () => {
+    for (const [repo, answer] of [
+      [noRemote, "local"],
+      [onGitHub, "public"],
+    ]) {
+      const masked = path.join(repo, ".claude", "skills");
+      mkdirSync(path.dirname(masked), { recursive: true });
+      writeFileSync(masked, "");
+      try {
+        const r = directoryVisibility(path.join(masked, "notes"), { runGit, runGh: fakeGh("public").runGh });
+        assert.deepEqual([r.visibility, r.root], [answer, repo]);
+      } finally {
+        rmSync(path.dirname(masked), { recursive: true, force: true });
+      }
+    }
+  });
+
   it("is unknown when gh fails, is missing, or gives any other answer", () => {
     const missing = () => ({ status: null, stdout: "", error: new Error("spawnSync gh ENOENT") });
     for (const runGh of [fakeGh("", 1).runGh, fakeGh("null\n").runGh, fakeGh("").runGh, fakeGh("Public\n").runGh, missing]) {

@@ -42,13 +42,13 @@
  * the null device; listing the remotes runs a second time with the user's own
  * global and system config files, and the URLs of both listings count.
  *
- * A directory that does not exist yet is judged by its nearest existing ancestor,
- * so a new directory inside a public repository reads as public.
+ * A directory that does not exist yet is judged by its nearest existing ancestor
+ * directory, so a new directory inside a public repository reads as public.
  *
  * Exit: 0 printed a visibility (any of the five); 2 usage, or an invalid name.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, realpathSync } from "node:fs";
+import { lstatSync, realpathSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -172,14 +172,30 @@ export function githubVisibility(owner, repo, { runGh = runner("gh", process.env
 }
 
 /**
- * The nearest existing ancestor of `dir`, itself included.
+ * Whether `p` is a directory, following symlinks; false when it cannot be read.
+ *
+ * @param {string} p
+ * @returns {boolean}
+ */
+function isDirectory(p) {
+  try {
+    return statSync(p, { throwIfNoEntry: false })?.isDirectory() ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * The nearest existing ancestor directory of `dir`, itself included. A file or
+ * device in the path (a sandbox masks paths with the null device) is skipped,
+ * since git cannot run from it.
  *
  * @param {string} dir
  * @returns {string}
  */
 function nearestExisting(dir) {
   let current = path.resolve(dir);
-  while (!existsSync(current)) {
+  while (!isDirectory(current)) {
     const parent = path.dirname(current);
     if (parent === current) break;
     current = parent;
