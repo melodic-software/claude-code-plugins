@@ -3327,9 +3327,9 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
 
     def timed(self, clock: list[float]) -> FlakyListing:
         """Three 502s, the clock reading `clock` in turn, a 60s listing timeout
-        (a live count of 10,000 artifacts sizes it past that cap)."""
+        (2,000 artifacts: three 27 s listings, so the cap is the timeout)."""
         fake = FlakyListing(["gh: Bad Gateway (HTTP 502)"] * 3)
-        fake.live_total = 10_000
+        fake.live_total = 2_000
         with (
             mock.patch.object(ve, "_listing_clock", side_effect=clock),
             mock.patch.object(ve, "LISTING_TIMEOUT_SECONDS", 60.0),
@@ -3446,9 +3446,51 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
         report = json.loads(out.getvalue())
         self.assertEqual(report["refusal"], "verify:unreadable")
         self.assertIn(
-            "29301 artifacts in 294 pages, past the 293 pages", report["detail"]
+            "29301 artifacts in 294 pages need 301 s for a whole listing and its "
+            "top-up at 1 s a page, past the 300 s listing cap",
+            report["detail"],
         )
         self.assertEqual((fake.probes(), fake.full_listings(), fake.pages()), (1, 0, 0))
+
+    def caller(self, limit: str, total: int) -> tuple[ve.Evidence, FlakyListing]:
+        """A reader a caller kills at `limit` seconds, started just now."""
+        fake = FlakyListing([])
+        fake.live_total = total
+        env = {ve.DEADLINE_ENV: limit, ve.CALLER_ENV: "verify-cap.mjs"}
+        with (
+            mock.patch.dict("os.environ", env),
+            mock.patch.object(ve, "_elapsed", return_value=0.0),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+        ):
+            evidence = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
+        return evidence, fake
+
+    def test_a_caller_limit_too_short_for_the_listing_refuses_naming_it(
+        self,
+    ) -> None:
+        # verify-cap.mjs kills its reader at 120 s: 120 - 15 leaves 105 s, and
+        # 10,450 artifacts (105 pages and a 7-page top-up) need 112 s.
+        evidence, fake = self.caller("120", 10_450)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertIn(
+            "10450 artifacts in 105 pages need 112 s for a whole listing and its "
+            "top-up at 1 s a page, past the 105 s left of verify-cap.mjs's 120 s "
+            "limit",
+            evidence.detail or "",
+        )
+        self.assertEqual(fake.timeouts, [])
+
+    def test_a_caller_limit_bounds_the_listing_timeout(self) -> None:
+        # enable-auto-merge.mjs kills its reader at 240 s: 225 s left, under
+        # the 300 s cap and over the 112 s one whole listing needs.
+        _, fake = self.caller("240", 10_450)
+        self.assertEqual(fake.timeouts[0], 225.0)
+        # A limit past the cap leaves the cap; one that is not a number is
+        # ignored.
+        for limit in ("900", "soon", "0"):
+            with self.subTest(limit):
+                _, fake = self.caller(limit, 10_450)
+                self.assertEqual(fake.timeouts[0], 300.0)
 
     def test_a_count_that_does_not_read_refuses_without_paging(self) -> None:
         for error, reads in (

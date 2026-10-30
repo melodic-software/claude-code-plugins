@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { readFileSync } from "node:fs";
 
-import { final, SIBLING_UNREADABLE, VERIFY_SCRIPT, verifyCapReader } from "./verify-cap.mjs";
+import { final, SIBLING_UNREADABLE, VERIFY_CAP_TIMEOUT_MS, VERIFY_SCRIPT, verifyCapReader } from "./verify-cap.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -17,7 +17,7 @@ function reader(done) {
   const calls = [];
   const lines = [];
   const spawn = (command, args, options) => {
-    calls.push({ command, args, timeout: options.timeout });
+    calls.push({ command, args, timeout: options.timeout, env: options.env });
     return done;
   };
   const read = verifyCapReader({ GITHUB_REPOSITORY: REPO }, { spawn, log: (line) => lines.push(line) });
@@ -79,4 +79,17 @@ test("a sibling FAIL run the reader cannot read skips the round, for this run on
 test("the sibling detail is the reader's SIBLING_UNREADABLE", () => {
   const source = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
   assert.ok(source.includes(`SIBLING_UNREADABLE = "${SIBLING_UNREADABLE}"`));
+});
+
+// babysit_verify_evidence.py DEADLINE_ENV and CALLER_ENV: the reader sizes its
+// listing to the limit this caller kills it at, and names the caller when a
+// listing cannot fit, rather than being killed with no reason.
+test("the reader is told the limit it is killed at, and who kills it", () => {
+  const { read, calls } = reader(answer({ refusal: null }));
+  read({ number: 42, head: HEAD, base: BASE });
+  assert.equal(calls[0].timeout, 120_000);
+  assert.equal(VERIFY_CAP_TIMEOUT_MS, 120_000);
+  assert.equal(calls[0].env.BABYSIT_VERIFY_DEADLINE_SECONDS, "120");
+  assert.equal(calls[0].env.BABYSIT_VERIFY_CALLER, "verify-cap.mjs");
+  assert.equal(calls[0].env.GITHUB_REPOSITORY, REPO);
 });

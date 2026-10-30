@@ -47,7 +47,10 @@ export function verifyCapReader(env, { spawn = spawnSync, log = (line) => consol
     if (SHA.test(String(base ?? ""))) {
       args.push("--base-sha", base);
     }
-    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_CAP_TIMEOUT_MS });
+    // The reader sizes its listing to this kill limit and names this caller
+    // when a listing cannot fit (babysit_verify_evidence.py DEADLINE_ENV).
+    const readerEnv = { ...env, BABYSIT_VERIFY_DEADLINE_SECONDS: String(VERIFY_CAP_TIMEOUT_MS / 1000), BABYSIT_VERIFY_CALLER: "verify-cap.mjs" };
+    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env: readerEnv, timeout: VERIFY_CAP_TIMEOUT_MS });
     let report;
     try {
       if (done.status !== 0) {

@@ -1115,6 +1115,11 @@ export const cacheMode = (env) => (env.VERIFY_CACHE === "serve" ? "serve" : "sha
 // kept refusal is served (`serve`) only to a pull request not armed, which is
 // always read in full, and never on `fresh`; `cacheOnly` reads only a kept
 // one, returning no `refusal` on a miss or when there is no file to read.
+// The reader's env with the limit it is killed at, so it sizes its listing to
+// that limit and names this caller when a listing cannot fit
+// (babysit_verify_evidence.py DEADLINE_ENV and CALLER_ENV).
+const readerEnv = (env, timeoutMs) => ({ ...env, BABYSIT_VERIFY_DEADLINE_SECONDS: String(timeoutMs / 1000), BABYSIT_VERIFY_CALLER: "enable-auto-merge.mjs" });
+
 export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) {
   // `rung`: the lane room's effective rung, which the gate scores at.
   const verify = async ({ number, headRefOid: head, baseRefOid: base, autoMergeRequest }, rung, { fresh = false, cacheOnly = false } = {}) => {
@@ -1143,7 +1148,7 @@ export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) 
     }
     const started = clock();
     const timeout = args.includes("--answers-only") ? CACHE_ONLY_TIMEOUT_MS : VERIFY_TIMEOUT_MS;
-    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout });
+    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env: readerEnv(env, timeout), timeout });
     const cost = { number, calls: ghCalls(done.stderr), ms: clock() - started };
     let evidence;
     if (done.status === 0) {
@@ -1237,7 +1242,7 @@ export function pythonClose(env, spawn = spawnSync) {
     for (const label of holds) {
       args.push("--hold-label", label);
     }
-    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
+    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env: readerEnv(env, VERIFY_TIMEOUT_MS), timeout: VERIFY_TIMEOUT_MS });
     let answer = null;
     try {
       answer = JSON.parse(String(done.stdout).trim().split("\n").at(-1));
