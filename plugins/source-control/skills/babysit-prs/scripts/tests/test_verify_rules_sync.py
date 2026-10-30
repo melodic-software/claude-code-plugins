@@ -214,12 +214,17 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
     def test_a_fail_outlives_the_look_back_and_a_pass_its_held_head(self) -> None:
         # A FAIL the gate still counts must not expire before the pull
         # request turns too old (TOO_OLD_DAYS), or verify:earlier-fail and the
-        # FAIL cap stop refusing; a pass is read only at the open head, and
-        # 7 days is the window .github/artifact-retention.json records.
+        # FAIL cap stop refusing. So must a pass judged after a relink: it may
+        # supersede a FAIL at its head (`_superseded`), which a later head of
+        # the same change still reads. Any other pass is read only at the open
+        # head, and 7 days is the window .github/artifact-retention.json records.
         writer = RESOLVER.parent / "write-verdict.mjs"
         script = (
             f"import {{ retentionDays }} from {json.dumps(writer.as_uri())};"
-            ' console.log(JSON.stringify(["fail", "pass", "pass-notes"].map(retentionDays)));'
+            " console.log(JSON.stringify(["
+            ' retentionDays("fail", false), retentionDays("pass", true),'
+            ' retentionDays("pass-notes", true), retentionDays("pass", false),'
+            ' retentionDays("pass-notes", false)]));'
         )
         proc = subprocess.run(
             ["node", "--input-type=module", "-e", script],
@@ -227,8 +232,9 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
             text=True,
             check=True,
         )
-        fail, passed, notes = json.loads(proc.stdout)
-        self.assertGreater(fail, ve.TOO_OLD_DAYS)
+        fail, relinked, relinked_notes, passed, notes = json.loads(proc.stdout)
+        for days in (fail, relinked, relinked_notes):
+            self.assertGreater(days, ve.TOO_OLD_DAYS)
         self.assertEqual((passed, notes), (7, 7))
 
     # Each FAIL-shaped name, and the issues its name carries read off by hand,
