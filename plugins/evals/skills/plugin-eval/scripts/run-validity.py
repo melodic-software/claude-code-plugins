@@ -17,9 +17,10 @@ one line per check, detail lines indented under it:
     scaffold          no case sets context.scaffold_script in its case.yaml,
                       or the pass ran with --scaffold (--scaffolded); without
                       it, both arms of such a case ran in an empty workspace.
-                      A case.yaml that cannot be located, read or parsed is
-                      UNCHECKED; a case with no case.yaml has no script, so
-                      read the result where its suite root still exists
+                      A case.yaml that cannot be located, read or parsed,
+                      including a suite root or case dir that does not exist,
+                      is UNCHECKED; an existing case dir with no case.yaml has
+                      no script
     traces            how many tracePaths resolve, and what that leaves unchecked
     session started   no run ended at 0 turns with no run error, no failed Bash
                       result reports the sandbox failing to start, and no run of 2
@@ -329,7 +330,8 @@ def script_value(text):
 
 def scaffold_script(case, root):
     """(the case's context.scaffold_script or None, why its case.yaml could not
-    be read or None). A case with no case.yaml has no script."""
+    be read or None). An existing case dir with no case.yaml has no script; a
+    missing suite root or case dir leaves the case.yaml unread."""
     case_dir = case.get(CASE_DIR)
     if not root or not isinstance(case_dir, str) or not case_dir:
         return None, (
@@ -341,7 +343,9 @@ def scaffold_script(case, root):
         with open(path, encoding="utf-8") as handle:
             text = handle.read()
     except FileNotFoundError:
-        return None, None
+        if os.path.isdir(os.path.dirname(path)):
+            return None, None
+        return None, "case dir %s does not exist" % os.path.dirname(path)
     except (OSError, ValueError) as error:
         return None, "cannot read %s (%s)" % (path, error)
     if not SCAFFOLD_KEY.search(text):

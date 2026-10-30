@@ -75,7 +75,13 @@ class RunValidityTest(unittest.TestCase):
         return path
 
     def clean(self):
-        return load(CLEAN)
+        """The clean result, its suite root a "suite" directory beside the
+        written result that holds each case's dir and no case.yaml."""
+        result = load(CLEAN)
+        result["suite"]["root"] = "suite"
+        for case in result["cases"]:
+            (self.dir / "suite" / case["dir"]).mkdir(parents=True, exist_ok=True)
+        return result
 
     def assertVerdict(self, proc, verdict, code):
         self.assertEqual(proc.returncode, code, proc.stdout + proc.stderr)
@@ -107,8 +113,9 @@ class RunValidityTest(unittest.TestCase):
         )
         self.assertIn("  unfired: case noise-before-gain, with-arm run 1", proc.stdout)
         self.assertIn(
-            "verdict: INVALID (3 permission denials in the traces; the skill did not fire"
-            " in 1 with-arm run of a should-trigger case)",
+            "verdict: INVALID (scaffold scripts unchecked in 4 cases; 3 permission"
+            " denials in the traces; the skill did not fire in 1 with-arm run of a"
+            " should-trigger case)",
             proc.stdout,
         )
 
@@ -151,7 +158,7 @@ class RunValidityTest(unittest.TestCase):
         self.assertNotIn("ceiling", verdict)
 
     def test_clean_runs_are_valid_with_their_warnings_named(self):
-        proc = self.run_script(CLEAN, "--runs", "1")
+        proc = self.run_script(self.write(self.clean()), "--runs", "1")
         self.assertVerdict(proc, "VALID", 0)
         self.assertIn("traces: 6 of 6 tracePaths resolve", proc.stdout)
         self.assertIn(
@@ -243,6 +250,24 @@ class RunValidityTest(unittest.TestCase):
         self.assertIn("check scaffold: UNCHECKED", proc.stdout)
         self.assertIn("  case control-no-trigger: cannot read", proc.stdout)
         self.assertIn("scaffold scripts unchecked in 1 case", proc.stdout)
+
+    def test_a_suite_root_that_does_not_exist_leaves_scaffold_unchecked(self):
+        result = self.clean()
+        result["suite"]["root"] = str(self.dir / "gone")
+        proc = self.run_script(self.write(result), "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check scaffold: UNCHECKED (3 cases whose case.yaml", proc.stdout)
+        self.assertIn("  case control-no-trigger: case dir ", proc.stdout)
+        self.assertNotIn("check scaffold: PASS", proc.stdout)
+        self.assertIn("scaffold scripts unchecked in 3 cases", proc.stdout)
+
+    def test_a_missing_case_dir_leaves_scaffold_unchecked(self):
+        result = self.clean()
+        (self.dir / "suite" / result["cases"][2]["dir"]).rmdir()
+        proc = self.run_script(self.write(result), "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check scaffold: UNCHECKED (1 case whose case.yaml", proc.stdout)
+        self.assertIn("  case noise-before-gain: case dir ", proc.stdout)
 
     def test_a_result_with_no_suite_root_leaves_scaffold_unchecked(self):
         result = self.clean()
@@ -554,9 +579,9 @@ class RunValidityTest(unittest.TestCase):
         `score`; with first_denied, its first run of that arm is denied too; with
         also_with, the second with-arm run of the case at that index is denied as
         well; with missing, a (case index, arm, run index) whose tracePath does
-        not resolve; with root, the suite.root the plugin's directory is in
-        place of the fixture's ("" for none); with command, the denied call is
-        a Bash call running it instead."""
+        not resolve; with root, the plugin's directory as a suite.plugins path
+        ("" for no suite root and no plugin path); with command, the denied
+        call is a Bash call running it instead."""
         tool, tool_input = "Grep", {"pattern": "judge"}
         if command is not None:
             tool, tool_input = "Bash", {"command": command}
@@ -571,7 +596,9 @@ class RunValidityTest(unittest.TestCase):
             encoding="utf-8",
         )
         data = load(self.write(self.clean()))
-        if root is not None:
+        if root:
+            data["suite"]["plugins"] = [{"path": root}]
+        elif root is not None:
             data["suite"]["root"] = root
         for case in data["cases"]:
             for name in ("with", "without"):
