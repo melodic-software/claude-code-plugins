@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.13.11] - 2026-10-30
+
+### Changed
+
+- The setup skill's reconfiguration short form names `claude plugin configure context-budget@<marketplace> --values-stdin` as the preferred headless route and the `claude plugin install --config` rerun as its fallback before Claude Code 2.1.285, and carries the scope and failure-signal caveats for both routes, per the plugin-reconfiguration convention. The headless toggle-change eval expects that order.
+
 ## [0.13.10] - 2026-10-30
 
 ### Changed
