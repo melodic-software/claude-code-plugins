@@ -148,8 +148,10 @@ CONTROL_DESCRIPTION = re.compile(
 )
 
 # case.yaml's context.scaffold_script, in block or flow form, read without a
-# YAML parser. A scaffold_script key outside these shapes leaves the case UNCHECKED.
-SCAFFOLD_KEY = re.compile(r"^[^#\n]*\bscaffold_script\s*:", re.MULTILINE)
+# YAML parser. Any uncommented mention of scaffold_script outside these shapes,
+# a quoted key or an empty value continued on the next line among them, leaves
+# the case UNCHECKED.
+SCAFFOLD_KEY = re.compile(r"^[^#\n]*scaffold_script", re.MULTILINE)
 CONTEXT_BLOCK = re.compile(r"context:\s*(?:#.*)?")
 CONTEXT_FLOW = re.compile(r"context:\s*\{(.*)\}\s*(?:#.*)?")
 BLOCK_SCRIPT = re.compile(r"\s+scaffold_script:\s*(.*?)\s*(?:#.*)?")
@@ -328,6 +330,19 @@ def script_value(text):
     return None if value in NO_VALUE else value
 
 
+def indent(line):
+    return len(line) - len(line.lstrip())
+
+
+def continues(lines, index):
+    """True when the next line with content is indented past lines[index], so
+    the key there holds a value this scanner does not read."""
+    for line in lines[index + 1 :]:
+        if line.strip() and not line.lstrip().startswith("#"):
+            return indent(line) > indent(lines[index])
+    return False
+
+
 def scaffold_script(case, root):
     """(the case's context.scaffold_script or None, why its case.yaml could not
     be read or None). An existing case dir with no case.yaml has no script; a
@@ -350,8 +365,9 @@ def scaffold_script(case, root):
         return None, "cannot read %s (%s)" % (path, error)
     if not SCAFFOLD_KEY.search(text):
         return None, None
+    lines = text.splitlines()
     in_context = False
-    for line in text.splitlines():
+    for index, line in enumerate(lines):
         flow = CONTEXT_FLOW.fullmatch(line)
         if flow:
             found = FLOW_SCRIPT.search(flow.group(1))
@@ -365,7 +381,10 @@ def scaffold_script(case, root):
         elif in_context:
             found = BLOCK_SCRIPT.fullmatch(line)
             if found:
-                return script_value(found.group(1)), None
+                value = script_value(found.group(1))
+                if value is None and continues(lines, index):
+                    break
+                return value, None
     return None, (
         "%s names scaffold_script outside a context block this check reads" % path
     )

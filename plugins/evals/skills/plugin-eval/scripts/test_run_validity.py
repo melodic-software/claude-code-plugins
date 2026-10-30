@@ -239,6 +239,17 @@ class RunValidityTest(unittest.TestCase):
         self.assertIn("check scaffold: UNCHECKED (1 case whose case.yaml", proc.stdout)
         self.assertIn("names scaffold_script outside a context block", proc.stdout)
 
+    def test_a_scaffold_script_the_scanner_cannot_read_is_unchecked(self):
+        for text in (
+            'name: m\ncontext:\n  "scaffold_script": fixture.sh\n',
+            "name: m\ncontext:\n  scaffold_script:\n    fixture.sh\n",
+        ):
+            proc = self.with_case_yaml(text)
+            self.assertVerdict(proc, "INVALID", 1)
+            self.assertIn(
+                "check scaffold: UNCHECKED (1 case whose case.yaml", proc.stdout, text
+            )
+
     def test_a_case_yaml_that_cannot_be_opened_is_unchecked(self):
         result = self.clean()
         result["suite"]["root"] = "suite"
