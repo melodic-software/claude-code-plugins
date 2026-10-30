@@ -57,6 +57,7 @@ const VALID_MERGE = {
   "diff-check": { "denied-paths": [] },
   "stack-landing": "manual",
   "lane-prs": "native",
+  "refire-skip-branches": [],
 };
 
 test("authority local-babysit without agent-identity fails the schema on the missing identity", () => {
@@ -249,6 +250,14 @@ test("merge.lane-prs takes native or gate, and the schema's default is the resol
   rejectedFor(withMerge({ "lane-prs": "off" }), /must be equal to one of the allowed values/);
   const schema = json("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json");
   assert.equal(schema.$defs.merge.properties["lane-prs"].default, run(withMerge({})).merge["lane-prs"]);
+});
+
+test("merge.refire-skip-branches takes a list of branch names, and the schema's default is the resolver's", () => {
+  assert.deepEqual(run(withMerge({ "refire-skip-branches": ["release/plugins", "release/other"] })).merge["refire-skip-branches"], ["release/plugins", "release/other"]);
+  rejectedFor(withMerge({ "refire-skip-branches": "release/plugins" }), /must be array/);
+  rejectedFor(withMerge({ "refire-skip-branches": ["release plugins"] }), /must match pattern/);
+  const schema = json("../../../docs/conventions/pr-pipeline/pr-pipeline.schema.json");
+  assert.deepEqual(schema.$defs.merge.properties["refire-skip-branches"].default, run(withMerge({})).merge["refire-skip-branches"]);
 });
 
 test("merge.dependabot.majors takes hold or review", () => {

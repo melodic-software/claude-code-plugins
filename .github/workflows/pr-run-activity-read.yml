@@ -206,6 +206,15 @@ on:
         required: false
         type: string
         default: ""
+      caller-releases-lease:
+        description: >-
+          Issue mode: `true` when the caller ends the lane lease itself, from
+          the lease-comment-id output, in the write runner call that opens the
+          PR; the report job then releases it only for a call that handed off
+          or set neither scan-issue-run-started nor scan-reuse-branch.
+        required: false
+        type: boolean
+        default: false
     # A caller passes one of the three: its first call the API key, its
     # second call the OAuth token, its third call the fallback token.
     secrets:
@@ -378,6 +387,16 @@ on:
           scan job, uploaded nothing, recorded no lane outcome and posted no
           check, and the next call runs the activity.
         value: ${{ jobs.run.outputs.handed-off }}
+      # Set by broker-check, which runs no model, so a caller may act on them.
+      lease:
+        description: >-
+          Issue mode: `held` when broker-check posted this call's lane lease,
+          `already-leased` when it backed off; empty otherwise.
+        value: ${{ jobs.broker-check.outputs.lease }}
+      lease-comment-id:
+        description: >-
+          Issue mode, lease `held`: the lease comment's id, for the caller's release.
+        value: ${{ jobs.broker-check.outputs.lease-comment-id }}
 
 permissions: {}
 
@@ -391,7 +410,8 @@ jobs:
   # and never checks out the PR head. A local kill-switch stop skips the broker
   # call and ends green, so the run job's own kill-switch step stops the lane
   # neutral; any broker answer but an allow, or none, fails this job, which
-  # skips the run job and fails the check.
+  # skips the run job and fails the check. issues: write is for the issue
+  # lease alone, posted before any model turn (CONTRACT.md "Lease protocol").
   broker-check:
     if: >-
       !(github.event_name == 'pull_request'
@@ -401,11 +421,16 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      issues: write
     # "Re-run failed jobs" reuses a successful broker-check and its outputs,
     # so the run job also checks that the allow came from its own attempt.
     outputs:
       allowed: ${{ steps.broker.outcome == 'success' }}
       attempt: ${{ github.run_attempt }}
+      lease: ${{ steps.lease.outputs.lease }}
+      lease-comment-id: ${{ steps.lease.outputs.lease-comment-id }}
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       - name: Assert the default branch is set
         env:
@@ -448,6 +473,61 @@ jobs:
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
+
+      # Issue mode, after the broker's allow and before any model turn: claim
+      # the issue with a lease comment only, held by the lanes App identity,
+      # through the tracker's claim (no `gh api user`, which this
+      # installation token cannot call). The earliest live lease wins, so a
+      # live local claim makes this run back off: lease=already-leased, and
+      # the run job's go step stops the model, with a comment on the issue
+      # saying so. Any other failure fails the job. The TTL outlives the run
+      # job; the report job, or the caller in caller-releases-lease mode, ends
+      # it early.
+      - name: Claim the issue with a lane lease
+        id: lease
+        if: inputs.issue-number != '' && steps.broker.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          HOLDER: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+          TRACKER: .base/plugins/work-items/tools/work-item-tracker/work-item-tracker.sh
+          WORK_ITEM_TRACKER_BINDING: .base/.work-item-tracker.json
+        run: |
+          [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $HOLDER =~ ^[1-9][0-9]*$ && $TIMEOUT_MINUTES =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::the issue number, lanes App sender id or timeout is not a positive integer"
+            exit 1
+          }
+          rc=0
+          out="$(bash "$TRACKER" claim "github:$REPO#$ISSUE_NUMBER" --lease-only --holder "$HOLDER" \
+            --ttl-hours $(((TIMEOUT_MINUTES + 59) / 60 + 1)) --session-id "run-$GITHUB_RUN_ID")" || rc=$?
+          if [ "$rc" -eq 7 ]; then
+            echo "::notice::already-leased: a live lease on #$ISSUE_NUMBER predates this run's, so no model runs"
+            echo "lease=already-leased" >>"$GITHUB_OUTPUT"
+            note="already-leased: another session holds a live lease on #$ISSUE_NUMBER, so run $GITHUB_SERVER_URL/$REPO/actions/runs/$GITHUB_RUN_ID ran no model."
+            echo "$note" >>"$GITHUB_STEP_SUMMARY"
+            # The issue's own report of the back-off; no report-outcome runs for it.
+            gh api "repos/$REPO/issues/$ISSUE_NUMBER/comments" -f body="$note" --jq .id >/dev/null ||
+              echo "::warning::could not comment the already-leased back-off on #$ISSUE_NUMBER"
+            exit 0
+          fi
+          [ "$rc" -eq 0 ] || exit "$rc"
+          id="$(jq -r '.lease_comment_id' <<<"$out")"
+          [[ $id =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::the claim returned no lease comment id; the lease expires at its TTL"
+            exit 1
+          }
+          echo "lease=held" >>"$GITHUB_OUTPUT"
+          echo "lease-comment-id=$id" >>"$GITHUB_OUTPUT"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # Job-level evidence of the broker's allow for a caller's handoff read
   # (.github/scripts/lib/handoff-evidence.sh): this job succeeds only on
@@ -899,21 +979,33 @@ jobs:
       # already names it). With the model running or a branch reused, it also
       # names the issue's stopped runs' branches with no pull request in any
       # state, past the branch it picked (prune-branches), for
-      # work-resolve-issue.yml's prune job to delete.
+      # work-resolve-issue.yml's prune job to delete. A run that backed off
+      # on another session's lease skips this check, so it names no branch
+      # for the caller's report-outcome to open a PR from.
       - name: Check for an earlier run's work on the issue
         id: issue-prior
         if: >-
           inputs.issue-number != '' && steps.config.outputs.applies == 'true'
           && steps.config.outputs.kind == 'skill'
           && steps.workflow-current.outputs.stale != 'true'
+          && needs.broker-check.outputs.lease != 'already-leased'
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/work-resolve-issue/report-outcome.mjs --find-prior
 
+      # Issue mode: broker-check found a live lease older than its own, so
+      # another session holds the issue and the run stops before any model turn.
+      - name: Stop on an existing issue lease
+        if: steps.config.outputs.applies == 'true' && needs.broker-check.outputs.lease == 'already-leased'
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+        run: |
+          echo "::warning::already-leased: another session holds a live lease on #$ISSUE_NUMBER; the run stops before any model turn"
+
       # Whether the activity runs: it applies, and in issue mode neither stale
-      # workflow files nor an earlier run's work stops it. Every step below
+      # workflow files, an earlier run's work nor another session's lease stops it. Every step below
       # that touches the activity keys on this.
       - name: Decide whether the activity runs
         id: go
@@ -921,8 +1013,9 @@ jobs:
         env:
           PRIOR: ${{ steps.issue-prior.outputs.proceed }}
           STALE: ${{ steps.workflow-current.outputs.stale }}
+          LEASE: ${{ needs.broker-check.outputs.lease }}
         run: |
-          if [ "$PRIOR" = false ] || [ "$STALE" = true ]; then
+          if [ "$PRIOR" = false ] || [ "$STALE" = true ] || [ "$LEASE" = already-leased ]; then
             echo "run=false" >>"$GITHUB_OUTPUT"
           else
             echo "run=true" >>"$GITHUB_OUTPUT"
@@ -2092,6 +2185,8 @@ jobs:
       base-sha: ${{ steps.checked.outputs.base-sha }}
       start-sha: ${{ steps.checked.outputs.start-sha }}
       prune-branches: ${{ steps.checked.outputs.prune-branches }}
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       # Each field through env. issue-run-started is set first, alone, so a
       # refused field still leaves it; claimed says a branch is named.
@@ -2225,6 +2320,14 @@ jobs:
             echo "start-sha=${RESUME_TIP:-$BASE_SHA}"
             echo "prune-branches=$prune"
           } >>"$GITHUB_OUTPUT"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # Everything the run job hands on leaves here, on a fresh VM that ran no
   # model or head code, with no id-token, no cache and nothing from the run
@@ -2942,6 +3045,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       # Code from the default branch tip the event names; the checked base
       # is only data the diff step fetches.
@@ -3184,27 +3289,48 @@ jobs:
           if-no-files-found: error
           overwrite: true
 
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   report:
-    needs: [broker-check, run, scan]
+    needs: [broker-check, run, issue-fields, scan, summary]
     # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
     # lanes App's own pull_request events skip the run job. Issue mode has no
     # PR head to post a check on, and a run that handed off leaves the check
-    # to the caller's fallback call.
+    # to the caller's fallback call. In issue mode this job only ends the lane
+    # lease broker-check posted, whatever the other jobs' results, unless the
+    # caller ends it: in caller-releases-lease mode, a call that did not hand
+    # off and whose issue-fields job set issue-run-started or reuse-branch
+    # (the outputs the caller's report-outcome runs on) leaves it to the
+    # caller's write runner, and every other call releases it here.
     if: >-
-      always() && inputs.issue-number == '' && needs.run.outputs.handed-off != 'true'
+      always() && (inputs.issue-number == '' && needs.run.outputs.handed-off != 'true'
       && !(github.event_name == 'pull_request'
       && github.event.pull_request.head.repo.full_name != github.repository)
       && !(github.event_name == 'pull_request'
       && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
+      || inputs.issue-number != '' && needs.broker-check.outputs.lease == 'held'
+      && needs.broker-check.outputs.lease-comment-id != ''
+      && !(inputs.caller-releases-lease && needs.run.outputs.handed-off != 'true'
+      && (needs.issue-fields.outputs.issue-run-started == 'true'
+      || needs.issue-fields.outputs.reuse-branch != '')))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    # issues: write lets check-signed-commits add its label and comment. Every
-    # caller job grants it; no job that runs the model holds it.
+    # issues: write lets check-signed-commits add its label and comment, and
+    # in issue mode end the lane lease. Every caller job grants it; no job
+    # that runs the model holds it.
     permissions:
       checks: write
       contents: read
       issues: write
       pull-requests: read
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       # The default branch tip, never the run job's base-sha or the event's
       # base SHA: a hostile run job could forge the one, and a PR into another
@@ -3228,6 +3354,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
+        if: inputs.issue-number == ''
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
@@ -3237,6 +3364,7 @@ jobs:
       # already a failure, or a neutral superseded-sha on a cancel, in
       # report-check-run's decision.
       - name: Download the verdict
+        if: inputs.issue-number == ''
         continue-on-error: true
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -3249,7 +3377,7 @@ jobs:
       # failure.
       - name: Read the PR's current head SHA
         id: pr-head
-        if: always()
+        if: always() && inputs.issue-number == ''
         env:
           PR_NUMBER: ${{ inputs.pr-number || github.event.pull_request.number }}
           RUN_PR_NUMBER: ${{ needs.run.outputs.pr-number }}
@@ -3292,7 +3420,7 @@ jobs:
       # the fallback call posts that check.
       - name: Choose the head the check is posted on
         id: head
-        if: always()
+        if: always() && inputs.issue-number == ''
         env:
           RUN_HEAD: ${{ needs.run.outputs.head-sha }}
           CALLER_HEAD: ${{ inputs.head-sha }}
@@ -3340,11 +3468,13 @@ jobs:
       - name: Check the lane's commits are signed
         id: signed
         if: >-
+          inputs.issue-number == '' && (
           always()
           && needs.run.outputs.can-commit == 'true'
           && steps.pr-head.outputs.number != ''
           && steps.head.outputs.sha != ''
           && steps.head.outputs.forged == 'false'
+          )
         uses: ./.base/.github/actions/check-signed-commits # zizmor: ignore[self-repository]
         with:
           pr-number: ${{ steps.pr-head.outputs.number }}
@@ -3355,16 +3485,20 @@ jobs:
       # the dispatch ref, which is not the PR's commit, so nothing is posted.
       - name: Note that no check is posted without a head SHA
         if: >-
+          inputs.issue-number == '' && (
           always() && github.event_name != 'pull_request'
           && steps.head.outputs.post == 'true' && steps.head.outputs.sha == ''
+          )
         run: echo "The run job gated no head SHA, so no check run is posted." >>"$GITHUB_STEP_SUMMARY"
 
       # A forged head or PR posts failure on the trusted head: the run result
       # reads failure and the head disagrees with the verdict's.
       - name: Post the check run
         if: >-
+          inputs.issue-number == '' && (
           always() && steps.head.outputs.post == 'true'
           && !(github.event_name != 'pull_request' && steps.head.outputs.sha == '')
+          )
         uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
         with:
           lane: ${{ inputs.lane }}
@@ -3394,6 +3528,30 @@ jobs:
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}
           github-token: ${{ github.token }}
 
+      # Issue mode: the lease handle comes only from broker-check, which ran
+      # before any model turn. A failure warns and leaves the lease to expire
+      # at its TTL without failing the job.
+      - name: Release the lane lease
+        if: always() && inputs.issue-number != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          HOLDER: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          LEASE_COMMENT_ID: ${{ needs.broker-check.outputs.lease-comment-id }}
+          TRACKER: .base/plugins/work-items/tools/work-item-tracker/work-item-tracker.sh
+          WORK_ITEM_TRACKER_BINDING: .base/.work-item-tracker.json
+        run: |
+          [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $LEASE_COMMENT_ID =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::the issue number or lease comment id is not a positive integer"
+            exit 1
+          }
+          bash "$TRACKER" release "github:$REPO#$ISSUE_NUMBER" --lease-comment-id "$LEASE_COMMENT_ID" --holder "$HOLDER" || {
+            echo "::warning::could not release the lane lease on #$ISSUE_NUMBER; it expires at its TTL"
+            exit 1
+          }
+
       # One comment per lane run on the PR (lane-run-report/post.mjs), found
       # by a marker naming the activity, run id, model rung and leg, so a
       # re-run edits it. A checked-out base without the script, or a failed
@@ -3422,3 +3580,11 @@ jobs:
             exit 0
           fi
           node "$script"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

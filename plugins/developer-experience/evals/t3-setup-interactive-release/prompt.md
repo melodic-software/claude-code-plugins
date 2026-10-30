@@ -1,5 +1,5 @@
 ---
-description: "Scenario T3: setup apply on the bare brackenfold copy, whose `bfk release` asks for confirmation. Both arms get the same slash prompt, so the no-plugin arm is not the scenario's plain-language baseline. The conventions-file graders read the plugin's default path and are with-only; their committed labels (sources/labels/T3/) judged a diff, so the judge is uncalibrated here"
+description: "Scenario T3: setup apply on the bare brackenfold copy, whose `bfk release` asks for confirmation. Both arms get the same slash prompt, so the no-plugin arm is not the scenario's plain-language baseline. The conventions-file graders read the plugin's default path and are with-only. Their judge samples are the labeled AGENTS.md diffs (sources/labels/T3/), and the judges are not yet calibrated against them"
 tags: [setup, task-outcome]
 max_turns: 40
 timeout_seconds: 900

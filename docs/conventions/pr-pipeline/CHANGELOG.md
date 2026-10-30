@@ -1,5 +1,69 @@
 # Changelog for the PR pipeline convention
 
+## [8.15.0] - 2026-10-30
+
+### Changed
+
+- **pr-verify PASS and PASS-NOTES artifacts now expire after 7 days instead of 30, unless the pull request's body or issue links changed since its head commit.** Such a pass is read only at an open pull request's current head, so outliving that head is dead weight in the repository-wide artifact listing; a pass that expires on a held head fails closed as `verify:missing` and the next push, edit or label has pr-verify judge it again. A pass judged after a body edit or link change may supersede a FAIL at its head, which the merge gate still reads at a later merge-only head, so it keeps 90 days like the FAIL. FAIL verdicts keep 90 days for the 80-day look-back. The `pr-review-main-*` row records why its 90 days stay for now.
+
+- The read runner's `broker-check` job holds `issues: write`. In issue mode, after the broker's allow, it claims the issue with a lease comment held by the lanes App identity before any model turn; a live older lease makes the run exit `already-leased` with no model turn. A new `lease-release` job releases the lease once every other job of the run ends, unless the caller passes `caller-releases-lease: true`. `work-resolve-issue.yml` does, and its `release-lease` job releases the lease after the PR opens and the outcome is reported, so no local loop takes the issue in between.
+
+## [8.14.0] - 2026-10-30
+
+### Added
+
+- `merge.refire-skip-branches` (default `[]`): head branches a workflow owns and rebuilds. pr-merge's re-fire step never comments on or pushes an empty commit to a pull request from one of them. This repository lists `release/plugins`, which `release-publish-plugins.yml` rebuilds. Skipping another owned branch takes only a config edit.
+
+### Fixed
+
+- pr-merge's re-fire step (`refire-refused.mjs`) now reports a pull request that changed since the listing, or whose branch a fresh read shows moved or deleted after a 409 or 422 on the ref update, as a `::warning::` for that pull request, and the other pull requests still re-fire. A pull request whose push has not landed an hour after its marker is a `::warning::` too, so a person looks. Before, one 422 on `release/plugins` failed the whole merge job (run 41065454536). Any other failure still fails the step: any error on the new commit, a 409 or 422 on a ref update whose branch is still at the head it was read at or whose tip cannot be read again, an auth refusal or server error on a write, a failed run, comment or blob read, a setup error, or a failed run listing. The step ends with a `refire-refused: outcome re-fired=N failed=N skipped-owned=N deferred=N` line in its log and step summary.
+
+## [8.13.0] - 2026-10-30
+
+### Added
+
+- The log-api-budget action has a `calls` output, `<name>-calls=N` for each named token, taken from
+  its api-calls line: the job's own requests.
+- These jobs now end with the log-api-budget step and name `API_BUDGET_TOKEN: github-token`, so each
+  run carries an api-calls line:
+  - pr-unblock.yml: the not-run jobs, `conflict-scan-refusal`, `fix-ci-unreported` and
+    `report-stop-status`.
+  - pr-review-hosted.yml and pr-review-security-hosted.yml: `resolve-model` and `kill-switch`.
+  - pr-run-activity-read.yml: `broker-check`, `issue-fields`, `summary` and `report`.
+  - pr-run-activity-write.yml: `report`.
+
+### Changed
+
+- pr-merge's sweep line reports the job's own request counts,
+  `sweep-calls=N github-token-calls=M candidates=… reached=… skipped=…`, in place of
+  `sweep-cost=… github-token-cost=…`. That was the rise in a counter every concurrent job shares,
+  which the action documents as not the job's cost.
+
+- pr-feedback-dispatch.yml and pr-unblock-dispatch.yml restore the artifact listing pr-merge's last
+  scheduled or hand-started run on main saved (`listing-carry.mjs`, its provenance checks unchanged)
+  and set `BABYSIT_VERIFY_LISTING` and `BABYSIT_VERIFY_LISTING_CARRY` for the FAIL-cap reader, as
+  pr-merge.yml's gate does. The first pull request's read lists only the pages since the carried
+  listing, and later ones reuse or extend the job's saved listing, instead of each read listing every
+  artifact of the repository. A listing that does not hold GitHub's live artifact count is still
+  dropped for a full read.
+
+### Fixed
+
+- verify-cap.mjs runs the FAIL-cap reader with `BABYSIT_VERIFY_NO_INCREMENTAL_WAITS=1`. Before this,
+  the 15 s and 30 s waits after a missed incremental read, plus the whole listing after them, could
+  run past the reader's 2-minute kill. verify-cap reads a killed reader as not the cap, so a round
+  could start on a pull request that was already at `verify:repeated-fail`.
+- The log-api-budget action's `calls` output reports `unknown` in place of an empty count when the
+  job has no api-calls line to read (no `RUNNER_TEMP`).
+
+## [8.12.0] - 2026-10-30
+
+### Added
+
+- The report jobs of `pr-run-activity-read.yml` and `pr-run-activity-write.yml` post one comment
+  per lane run on the PR, edited in place on a re-run, listing the activity, its outcome, the
+  commits pushed and each GitHub API call the run job's scripts saw fail, by path and status.
+
 ## [8.11.0] - 2026-10-30
 
 ### Changed

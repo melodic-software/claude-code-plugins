@@ -890,6 +890,221 @@ mkdir -p "$MARKER_DIR"
 marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
 assert_eq "a reordered payload finds its own marker" "ran" "$(target_state)"
 
+# --- a launch token and the monitor's `.seen`: a Stop skips until the next launch ---
+#
+# A launch removes `.seen` and writes a token unique to it; the monitor copies a
+# token it processed into `.seen`; a Stop skips while every `.launched` holds a
+# token its `.seen` repeats. Every doubt about either file runs the monitor.
+present_or_absent() { [[ -e "$1" || -L "$1" ]] && printf 'present' || printf 'absent'; }
+OLD_TOKEN=$'1790000000-4242-17\n'
+MARKER_PAYLOAD='{"session_id":"sess-7","hook_event_name":"PreToolUse"}'
+rm -rf "$MARKER_DIR"
+mkdir -p "$MARKER_DIR"
+printf '%s' "$OLD_TOKEN" >"$MARKER_DIR/sess-7.seen"
+marker_launch --launch-marker guard-launch-monitor 0 >/dev/null
+launch_token="$(<"$MARKER_DIR/sess-7.launched")"
+assert_eq "a launch writes a token of epoch seconds, PID and RANDOM" "token" \
+  "$([[ "$launch_token" =~ ^[0-9]+-[0-9]+-[0-9]+$ ]] && printf 'token' || printf '%s' "$launch_token")"
+assert_eq "a launch removes the monitor's .seen" "absent" "$(present_or_absent "$MARKER_DIR/sess-7.seen")"
+marker_launch --launch-marker guard-launch-monitor 0 >/dev/null
+assert_eq "each launch writes its own token" "differs" \
+  "$([[ "$(<"$MARKER_DIR/sess-7.launched")" != "$launch_token" ]] && printf 'differs' || printf 'same')"
+
+MARKER_PAYLOAD='{"session_id":"sess-7","hook_event_name":"Stop"}'
+cp "$MARKER_DIR/sess-7.launched" "$MARKER_DIR/sess-7.seen"
+marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
+assert_eq "a launch the monitor has seen skips the Stop" "skipped" "$(target_state)"
+
+# `seen_state_runs <label> <.launched bytes> <.seen bytes, or - for none>`
+seen_state_runs() {
+  rm -rf "$MARKER_DIR/sess-7.launched" "$MARKER_DIR/sess-7.seen"
+  printf '%s' "$2" >"$MARKER_DIR/sess-7.launched"
+  [[ "$3" == - ]] || printf '%s' "$3" >"$MARKER_DIR/sess-7.seen"
+  marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
+  assert_eq "$1" "ran" "$(target_state)"
+}
+seen_state_runs "a launch since .seen runs the monitor" "$OLD_TOKEN" $'1790000061-4243-18\n'
+seen_state_runs "a missing .seen runs the monitor" "$OLD_TOKEN" -
+seen_state_runs "an empty .launched runs the monitor" '' ''
+seen_state_runs "a malformed .launched runs the monitor" $'garbage\n' $'garbage\n'
+seen_state_runs "a .launched with a second line runs the monitor" $'1-2-3\nx' $'1-2-3\nx'
+rm -f "$MARKER_DIR/sess-7.seen"
+printf '%s' "$OLD_TOKEN" >"$MARKER_DIR/sess-7.launched"
+mkdir "$MARKER_DIR/sess-7.seen"
+marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
+assert_eq "a .seen that is no file runs the monitor" "ran" "$(target_state)"
+rmdir "$MARKER_DIR/sess-7.seen"
+# Root reads every file, and MSYS cannot set these bits against Windows ACLs.
+if [[ "$(id -u)" != 0 && "${OSTYPE:-}" != msys* && "${OSTYPE:-}" != cygwin* ]]; then
+  printf '%s' "$OLD_TOKEN" >"$MARKER_DIR/sess-7.launched"
+  printf '%s' "$OLD_TOKEN" >"$MARKER_DIR/sess-7.seen"
+  chmod 000 "$MARKER_DIR/sess-7.seen"
+  marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
+  assert_eq "an unreadable .seen runs the monitor" "ran" "$(target_state)"
+  chmod 600 "$MARKER_DIR/sess-7.seen"
+  chmod 000 "$MARKER_DIR/sess-7.launched"
+  marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
+  assert_eq "an unreadable .launched runs the monitor" "ran" "$(target_state)"
+  chmod 600 "$MARKER_DIR/sess-7.launched"
+
+  # An open that fails after `.seen` is gone leaves the old token unseen.
+  MARKER_PAYLOAD='{"session_id":"sess-7","hook_event_name":"PreToolUse"}'
+  chmod 444 "$MARKER_DIR/sess-7.launched"
+  marker_launch --launch-marker guard-launch-monitor 0 >/dev/null
+  assert_eq "a launch whose open fails has already removed .seen" "absent" \
+    "$(present_or_absent "$MARKER_DIR/sess-7.seen")"
+  chmod 600 "$MARKER_DIR/sess-7.launched"
+  MARKER_PAYLOAD='{"session_id":"sess-7","hook_event_name":"Stop"}'
+  marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
+  assert_eq "and the next Stop runs the monitor" "ran" "$(target_state)"
+else
+  printf 'SKIP: %s\n' "markers unreadable or unwritable by permission bits (needs a non-root POSIX user)"
+fi
+
+# A token write that fails after the truncate leaves an empty `.launched` and no
+# `.seen`. A BASH_ENV function shadowing `printf` fails that one write.
+FAILING_WRITE_ENV="$MARKER_CASE/failing-token-write.bash"
+cat >"$FAILING_WRITE_ENV" <<'ENV'
+printf() {
+  if [[ $# -eq 2 && "$1" == '%s\n' && "$2" =~ ^[0-9]+-[0-9]+-[0-9]+$ ]]; then
+    return 1
+  fi
+  builtin printf "$@"
+}
+ENV
+printf '%s' "$OLD_TOKEN" >"$MARKER_DIR/sess-8.launched"
+printf '%s' "$OLD_TOKEN" >"$MARKER_DIR/sess-8.seen"
+printf '%s' '{"session_id":"sess-8","hook_event_name":"PreToolUse"}' |
+  HOME="$MARKER_HOME" TMPDIR="$MARKER_CASE/tmp" BASH_ENV="$FAILING_WRITE_ENV" \
+    bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+    --marker-root "$MARKER_ROOT_DIR" --launch-marker guard-launch-monitor \
+    "$MARKER_TARGET" "$MARKER_SEEN" 0 >/dev/null 2>&1 || true
+assert_eq "a failed token write leaves an empty .launched and no .seen" "empty:absent" \
+  "$([[ -s "$MARKER_DIR/sess-8.launched" ]] && printf 'written' || printf 'empty'):$(present_or_absent "$MARKER_DIR/sess-8.seen")"
+MARKER_PAYLOAD='{"session_id":"sess-8","hook_event_name":"Stop"}'
+marker_launch --skip-unless-marker guard-launch-monitor 0 >/dev/null
+assert_eq "and the next Stop runs the monitor" "ran" "$(target_state)"
+
+# --- the `.seen` removal and the `.launched` open both fail: the guard is told ---
+#
+# The old pair could still skip the next Stop, so the launcher names the marker
+# to the guard. Staged structurally: `rm -f` refuses a `.seen` that is a
+# directory and the open refuses a `.launched` that is one, on every host, and a
+# file holds the tmp fallback's name.
+UNWRITTEN_CASE="$PROBE_DIR/unwritten-case"
+UNWRITTEN_ROOT="$UNWRITTEN_CASE/data"
+mkdir -p "$UNWRITTEN_ROOT/guard-launch-monitor/s-unwritten.seen" \
+  "$UNWRITTEN_ROOT/guard-launch-monitor/s-unwritten.launched" "$UNWRITTEN_CASE/tmp"
+: >"$UNWRITTEN_CASE/tmp/disk-hygiene-guard-launch-monitor"
+ENV_TARGET="$FIXTURE_ROOT/skills/clean/scripts/env_target.py"
+printf 'import os, pathlib, sys\npathlib.Path(sys.argv[1]).write_text(os.environ.get("DISK_HYGIENE_UNWRITTEN_MARKER", "unset"))\n' \
+  >"$ENV_TARGET"
+unwritten_env() { # <session>: what the target finds in DISK_HYGIENE_UNWRITTEN_MARKER
+  rm -f "$UNWRITTEN_CASE/env"
+  printf '{"session_id":"%s","hook_event_name":"PreToolUse"}' "$1" |
+    HOME="$MARKER_HOME" TMPDIR="$UNWRITTEN_CASE/tmp" DISK_HYGIENE_UNWRITTEN_MARKER=inherited \
+      bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+      --marker-root "$UNWRITTEN_ROOT" --launch-marker guard-launch-monitor \
+      "$ENV_TARGET" "$UNWRITTEN_CASE/env" >/dev/null 2>&1 || true
+  cat "$UNWRITTEN_CASE/env" 2>/dev/null || printf 'not run'
+}
+assert_contains "a launch that can neither clear .seen nor open .launched names the marker" \
+  "guard-launch-monitor/s-unwritten.launched" "$(unwritten_env s-unwritten)"
+assert_eq "a launch that writes its token names nothing, whatever it inherited" "unset" \
+  "$(unwritten_env s-written)"
+
+if [[ -n "$REAL_PYTHON" ]]; then
+  # The registered engine-gate row's launcher arguments, with the real guard.
+  guard_row() { # <session> <command>: sets GUARD_RC and GUARD_OUT
+    GUARD_RC=0
+    printf '{"session_id":"%s","tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" "$2" |
+      HOME="$MARKER_HOME" TMPDIR="$UNWRITTEN_CASE/tmp" CLAUDE_PLUGIN_DATA="$UNWRITTEN_ROOT" \
+        bash "$LAUNCHER" --marker-root "$UNWRITTEN_ROOT" --launch-marker guard-launch-monitor \
+        "$GUARD" --mode engine-gate --plugin-root "$SCRIPT_DIR/.." \
+        --authorized-data-root "$UNWRITTEN_ROOT" >"$UNWRITTEN_CASE/out" 2>/dev/null || GUARD_RC=$?
+    GUARD_OUT="$(<"$UNWRITTEN_CASE/out")"
+  }
+  guard_row s-written "git status"
+  assert_eq "a recorded guard launch defers with no output" "0:" "$GUARD_RC:$GUARD_OUT"
+  guard_row s-unwritten "git status"
+  assert_eq "an unrecorded launch's defer keeps exit 0" "0" "$GUARD_RC"
+  assert_eq "and carries only a systemMessage naming the marker" "true" \
+    "$(jq -e '(keys == ["systemMessage"]) and (.systemMessage | contains("s-unwritten.launched"))' \
+      <<<"$GUARD_OUT" 2>/dev/null || echo false)"
+  guard_row s-written "python3 /tmp/hygiene.py scan"
+  written_verdict="$GUARD_RC:$(jq -c '.hookSpecificOutput' <<<"$GUARD_OUT" 2>/dev/null)"
+  guard_row s-unwritten "python3 /tmp/hygiene.py scan"
+  assert_eq "an unrecorded launch keeps the guard's decision and exit status" "$written_verdict" \
+    "$GUARD_RC:$(jq -c '.hookSpecificOutput' <<<"$GUARD_OUT" 2>/dev/null)"
+  assert_contains "and names the marker beside the decision" "s-unwritten.launched" \
+    "$(jq -r '.systemMessage // ""' <<<"$GUARD_OUT" 2>/dev/null)"
+
+  # --- a guard launch after a seen Stop: the next Stop runs and reports ---
+  CYCLE_CASE="$PROBE_DIR/cycle-case"
+  CYCLE_ROOT="$CYCLE_CASE/data"
+  CYCLE_DIR="$CYCLE_ROOT/guard-launch-monitor"
+  CYCLE_TRANSCRIPT="$CYCLE_CASE/transcript.jsonl"
+  mkdir -p "$CYCLE_DIR" "$CYCLE_CASE/tmp"
+  CYCLE_TRANSCRIPT_NATIVE="$CYCLE_TRANSCRIPT"
+  if command -v cygpath >/dev/null 2>&1; then
+    CYCLE_TRANSCRIPT_NATIVE="$(cygpath -m "$CYCLE_TRANSCRIPT")"
+  fi
+  CYCLE_STOP_PAYLOAD="{\"session_id\":\"s-cycle\",\"transcript_path\":\"$CYCLE_TRANSCRIPT_NATIVE\",\"hook_event_name\":\"Stop\"}"
+  cycle_stop() { # the Stop row's launcher arguments, with the real monitor
+    printf '%s' "$CYCLE_STOP_PAYLOAD" |
+      HOME="$MARKER_HOME" TMPDIR="$CYCLE_CASE/tmp" \
+        bash "$LAUNCHER" --marker-root "$CYCLE_ROOT" --skip-unless-marker guard-launch-monitor \
+        "$MONITOR" --data-root "$CYCLE_ROOT" 2>/dev/null || true
+  }
+  printf '{"type":"user","message":"hello"}\n' >"$CYCLE_TRANSCRIPT"
+  printf '%s-4242-17\n' "$(($(date +%s) - 120))" >"$CYCLE_DIR/s-cycle.launched"
+  assert_eq "a Stop after a launch runs the monitor, which finds nothing" "" "$(cycle_stop)"
+  assert_eq "and the monitor records that launch as seen" "same" \
+    "$(cmp -s "$CYCLE_DIR/s-cycle.launched" "$CYCLE_DIR/s-cycle.seen" && printf 'same' || printf 'differs')"
+  printf '%s\n' '{"type":"attachment","attachment":{"type":"hook_non_blocking_error","command":"node exec-bash.mjs run-python-hook.sh destructive_guard.py --mode engine-gate","exitCode":1,"durationMs":17,"stderr":"seeded"}}' \
+    >>"$CYCLE_TRANSCRIPT"
+  assert_eq "the next Stop skips, reading no transcript" "" "$(cycle_stop)"
+  printf '%s' '{"session_id":"s-cycle","hook_event_name":"PreToolUse"}' |
+    HOME="$MARKER_HOME" TMPDIR="$CYCLE_CASE/tmp" bash "$LAUNCHER" \
+      --marker-root "$CYCLE_ROOT" --launch-marker guard-launch-monitor \
+      "$MARKER_TARGET" "$CYCLE_CASE/ran" 0 >/dev/null 2>&1 || true
+  assert_contains "a guard launch since makes the next Stop report the seeded failure" \
+    "destructive_guard.py failed to run" "$(cycle_stop)"
+
+  # --- a seen launch's Stop row starts only node (process census) ---
+  #
+  # The registered Stop row: node runs exec-bash.mjs, which makes the seen test
+  # before it would start bash. Expected with `.seen` repeating the token: one
+  # successful execve, node itself, so no bash and no Python.
+  STOP_NODE="$(command -v node || true)"
+  if ! command -v strace >/dev/null 2>&1; then
+    echo "SKIP: strace not available for the Stop row census" >&2
+  elif [[ -z "$STOP_NODE" ]] || [[ "$(head -c 2 "$STOP_NODE" 2>/dev/null)" == "#!" ]]; then
+    echo "SKIP: node is absent or is a shim script; Stop row census not exercised" >&2
+  elif ! strace -qq -e trace=execve -o /dev/null true >/dev/null 2>&1; then
+    echo "SKIP: strace cannot trace on this host; Stop row census not exercised" >&2
+  else
+    stop_row_execs() { # <log>: the Stop row under strace; prints its successful execve count
+      printf '%s' "$CYCLE_STOP_PAYLOAD" |
+        HOME="$MARKER_HOME" TMPDIR="$CYCLE_CASE/tmp" \
+          strace -f -qq -e trace=execve -o "$1" "$STOP_NODE" "$SCRIPT_DIR/exec-bash.mjs" \
+          --marker-root "$CYCLE_ROOT" --skip-unless-marker guard-launch-monitor \
+          "$LAUNCHER" --marker-root "$CYCLE_ROOT" --skip-unless-marker guard-launch-monitor \
+          "$MONITOR" --data-root "$CYCLE_ROOT" >/dev/null 2>&1 || true
+      grep -E '^[0-9]+ +execve\(' "$1" | grep -cE '\) = 0$' || true
+    }
+    cp "$CYCLE_DIR/s-cycle.launched" "$CYCLE_DIR/s-cycle.seen"
+    assert_eq "a seen launch's Stop row execs only node (strace census)" "1" \
+      "$(stop_row_execs "$PROBE_DIR/stop-seen.strace")"
+    printf '%s-4243-18\n' "$(date +%s)" >"$CYCLE_DIR/s-cycle.launched"
+    new_launch_execs="$(stop_row_execs "$PROBE_DIR/stop-new.strace")"
+    assert_eq "a launch since .seen makes the Stop row start more than node (strace census)" "more" \
+      "$([[ "$new_launch_execs" -gt 1 ]] && printf 'more' || printf '%s' "$new_launch_execs")"
+  fi
+else
+  printf 'SKIP: %s\n' "no python3 on PATH; the guard notice and the launch-to-Stop cycle not exercised"
+fi
+
 # --- a launch that can write no marker at all must not silence the monitor ---
 #
 # Both candidates fail on the launch side here, which leaves the Stop row

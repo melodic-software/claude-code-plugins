@@ -111,16 +111,24 @@ nothing and writes nothing, so every remediation is a pointer the user acts on:
 - **a toggle is off**. Reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention, which owns the verified-version record
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>):
-  interactive `/plugin configure desktop-notification@<marketplace>` any time, or headless
+  interactive `/plugin configure desktop-notification@<marketplace>` any time. Headless, preferred
+  on Claude Code 2.1.285 or later:
+  `claude plugin configure desktop-notification@<marketplace> --values-stdin < values.json`, where
+  `values.json` holds `{"<key>": "true"}` (every value a string, booleans included; keys left out
+  keep their saved values). Headless fallback, before 2.1.285:
   `claude plugin install desktop-notification@<marketplace> -s <scope> --config <key>=true`
-  (repeatable per key). Against an already-installed plugin it prints `already installed` **and
+  (repeatable per key); against an already-installed plugin it prints `already installed` **and
   still writes the value**. Do **not** uninstall to reconfigure: uninstalling drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. `-s` defaults to `user`; pass the install scope `claude plugin list`
-  reports for this plugin, and run from that project's directory for a `project`/`local` scope.
-  A rerun at another scope adds an install record at that scope and enables the plugin there
-  (measured in both directions); the value itself always lands in user settings. A rejected value prints a warning yet
-  exits 0, so read the output. These options are personal `userConfig`
+  to its manifest default. The value lands in user settings whichever route writes it.
+  `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
+  in. For the rerun, `-s` defaults to `user`; pass the install scope `claude plugin list` reports
+  for this plugin, and run from that project's directory for a `project`/`local` scope; from the
+  home directory pass `user`. A rerun at
+  another scope adds an install record at that scope and enables the plugin there (measured in
+  both directions). Check each route's own failure signal: `--values-stdin` rejects a bad value
+  with exit 1 and saves nothing, but stores an empty string as `""`; the `--config` rerun prints a
+  warning for a rejected value yet exits 0, so read its output. These options are personal `userConfig`
   values, so this skill never writes user settings or `pluginConfigs`. Afterwards rerun `check`
   in a **fresh session**. The rendered `${user_config.*}` is injected at skill load and each
   hook receives its `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a

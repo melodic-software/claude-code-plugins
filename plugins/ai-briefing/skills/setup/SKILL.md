@@ -71,19 +71,25 @@ anything.
    the configured value is wrong for this repository, also report the reconfiguration route:
    - **Interactive, any time:** `/plugin configure ai-briefing@<marketplace>`. The recommended
      route; this skill never writes `pluginConfigs`.
-   - **Headless:** rerun the install with the new value, per the marketplace's
+   - **Headless, preferred on Claude Code 2.1.285 or later**, per the marketplace's
      plugin-reconfiguration convention
      (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-     which owns the verified-version record): `claude plugin install ai-briefing@<marketplace>
-     -s <scope> --config active_profile=<name>` (repeatable per key). Against an
-     already-installed plugin it prints `already installed` **and still writes the value**. Do
-     **not** uninstall to reconfigure: that drops this plugin's entire stored `pluginConfigs`
-     entry, resetting every option in the README's Options reference to its manifest default.
-     `-s` defaults to `user`; pass the scope `claude plugin list` reports for this plugin, and
-     run from that project's directory for a `project`/`local` scope, or the rerun adds a
-     second install record at the scope passed and enables the plugin there; the value itself
-     always lands in user settings. A rejected value prints a warning yet exits 0, so read the
-     output. Afterwards rerun `check` in a **fresh session**. The rendered
+     which owns the verified-version record):
+     `claude plugin configure ai-briefing@<marketplace> --values-stdin < values.json`, run from
+     the project the plugin is installed in (it has no scope flag), where `values.json` holds
+     `{"active_profile": "<name>"}` (every value a string; keys left out keep their saved values).
+     It rejects a bad value with exit 1 and saves nothing, but stores an empty string as `""`.
+   - **Headless fallback, before 2.1.285:** rerun the install with the new value:
+     `claude plugin install ai-briefing@<marketplace> -s <scope> --config active_profile=<name>`
+     (repeatable per key). Against an already-installed plugin it prints `already installed`
+     **and still writes the value**. `-s` defaults to `user`; pass the scope `claude plugin list`
+     reports for this plugin, and run from that project's directory for a `project`/`local`
+     scope, or the rerun adds a second install record at the scope passed and enables the plugin
+     there; from the home directory pass `user`. A rejected value prints a warning yet exits 0, so read the output.
+   - **Either headless route:** the value lands in user settings. Do **not** uninstall to
+     reconfigure: that drops this plugin's entire stored `pluginConfigs` entry, resetting every
+     option in the README's Options reference to its manifest default. Afterwards rerun `check`
+     in a **fresh session**. The rendered
      `${user_config.*}` is injected at skill load, so a same-session `check` still reports the
      OLD value; report the observed effective value, never an unobserved change.
    - **Neither, for a one-off:** a per-run `--profile <name>` selects a different profile without
