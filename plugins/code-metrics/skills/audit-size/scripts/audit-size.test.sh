@@ -46,7 +46,7 @@ assert_contains "all-unavailable run renders the Measured nothing headline" "$ou
 bash "$SCRIPT" "$SOURCES/does-not-exist.py" >/dev/null 2>&1
 assert_eq "a missing explicit path exits 2" 2 "$?"
 
-bash "$SCRIPT" --help 2>&1 | grep -q 'audit-size.sh \[--json\]'
+grep -q 'audit-size.sh \[--json\]' < <(bash "$SCRIPT" --help 2>&1)
 assert_eq "--help prints usage" 0 "$?"
 
 # The 1000-line provenance is one sentence, owned by the bundled defaults and

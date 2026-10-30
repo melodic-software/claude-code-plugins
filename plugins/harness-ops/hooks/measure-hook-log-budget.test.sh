@@ -60,7 +60,7 @@ msys* | cygwin*)
   assert_contains "git bash host stamp" "$OUT" "host: windows-git-bash"
   ;;
 *)
-  if printf '%s' "$OUT" | grep -q 'host: windows-git-bash'; then
+  if grep -q 'host: windows-git-bash' <<<"$OUT"; then
     fail "non-windows host stamped a windows capture" "$OUT"
   else
     pass "non-windows host did not stamp a windows capture"

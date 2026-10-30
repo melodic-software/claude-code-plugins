@@ -53,7 +53,7 @@ while IFS= read -r line; do
   case "$line" in
   "managed enforced deny "*)
     rule="${line#managed enforced deny }"
-    printf '%s\n' "$NEUTRAL" | grep -qF -- "$rule" || {
+    grep -qF -- "$rule" <<<"$NEUTRAL" || {
       leaked=1
       printf '  leaked rule not present in input: %s\n' "$rule" >&2
     }

@@ -36,7 +36,7 @@ source "$PLUGIN_ROOT/scripts/test-helpers.sh"
 
 assert_matches() {
   # assert_matches <name> <text> <extended regex>
-  if printf '%s' "$2" | grep -Eq "$3"; then
+  if grep -Eq "$3" <<<"$2"; then
     pass "$1"
   else
     fail "$1" "matches: $3" "$(printf '%s' "$2" | head -c 400)"
@@ -242,7 +242,7 @@ rm -rf "$team"
 # 10. Usage.
 PATH="$EMPTY_PATH" bash "$SCRIPT" "$SOURCES/does-not-exist.py" >/dev/null 2>&1
 assert_eq "a missing explicit scope path exits 2" 2 "$?"
-PATH="$EMPTY_PATH" bash "$SCRIPT" --help 2>&1 | grep -q 'audit-coverage.sh \[--json\]'
+grep -q 'audit-coverage.sh \[--json\]' < <(PATH="$EMPTY_PATH" bash "$SCRIPT" --help 2>&1)
 assert_eq "--help prints usage" 0 "$?"
 PATH="$EMPTY_PATH" bash "$SCRIPT" --all "$SOURCES" --artifacts >/dev/null 2>&1
 assert_eq "--artifacts without a path exits 2" 2 "$?"
