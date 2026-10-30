@@ -281,8 +281,8 @@ test("a reason a person decides is never cleared", async () => {
 // stopped on and on a new one alike: a lane posts a pr-unblock/* status on a
 // head only when it stops there or clears its own failure, so a new head
 // carries nothing that proves the cause gone or fails it in the label's place.
-// unresolved-conflict, workflow-staged and feedback-not-landed keep their own
-// check.
+// unresolved-conflict, workflow-staged, protected-path-conflict,
+// feedback-protected-path and feedback-not-landed keep their own check.
 test("a label for a reason now routed to a failing status: fix-ci comes off on a red head, others stay after the head moves", async () => {
   for (const reason of ["ci-fix-escalated", "ci-fix-round-cap"]) {
     const atHead = commented(BOT, escalationBody(reason).replaceAll(KEY, HEAD), "2026-10-18T10:00:05Z");
@@ -292,13 +292,16 @@ test("a label for a reason now routed to a failing status: fix-ci comes off on a
     assert.match(w.writes()[0].body.body, new RegExp(`\`${reason}\``));
   }
   const others = Object.keys(ROUTES).filter(
-    (reason) => escalationRoute(reason) === "fail" && escalationActivity(reason) !== "fix-ci" && !["unresolved-conflict", "workflow-staged", "feedback-not-landed"].includes(reason),
+    (reason) =>
+      escalationRoute(reason) === "fail" &&
+      escalationActivity(reason) !== "fix-ci" &&
+      !["unresolved-conflict", "workflow-staged", "protected-path-conflict", "feedback-protected-path", "feedback-not-landed"].includes(reason),
   );
   assert.ok(others.includes("feedback-untaken-threads") && others.includes("unexpected-path-staged"));
   assert.deepEqual(
     others.filter((reason) => escalationActivity(reason) === "review-dependency"),
-    ["dependency-invalid"],
-    "every review-dependency stop but dependency-invalid holds for a person",
+    ["dependency-round-cap", "dependency-invalid", "dependency-fix-not-landed", "dependency-config-unreadable", "dependency-files-truncated", "dependency-control-uncited", "dependency-workflow-unpinned"],
+    "only dependency-security-close, dependency-escalate and dependency-fix-refused hold for a person",
   );
   for (const reason of others) {
     const atHead = commented(BOT, escalationBody(reason).replaceAll(KEY, HEAD), "2026-10-18T10:00:05Z");

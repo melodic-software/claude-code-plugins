@@ -1107,7 +1107,7 @@ test("main select writes outputs and the thread file; escalation writes no threa
   await main(["select"], env("esc"), { api: fakeApi({ files: [{ filename: ".github/workflows/x.yml" }] }), log: () => {} });
   assert.equal(
     readFileSync(join(dir, "esc.out"), "utf8"),
-    "proceed=false\nhuman-gate=\nmodel-rung=\nskip-reason=awaiting-human\nescalation-reason=feedback-protected-path\nnot-run-detail=\nstop-resolved=false\n",
+    "proceed=false\nhuman-gate=\nmodel-rung=\nskip-reason=lane-stopped\nescalation-reason=feedback-protected-path\nnot-run-detail=\nstop-resolved=false\n",
   );
   assert.throws(() => readFileSync(join(dir, "esc.json")));
   assert.throws(() => readFileSync(join(dir, "esc.run.json")), "an escalation writes no run.json");

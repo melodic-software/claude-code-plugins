@@ -1152,6 +1152,8 @@ jobs:
     timeout-minutes: 75
     permissions:
       contents: read # the base checkout and the disputed files at the head
+      issues: read # the linked issues' spec text (contract.json)
+      pull-requests: read # the PR's closing issues and Refs: line
     outputs:
       attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
       sha256: ${{ steps.upload.outcome == 'success' && steps.collect.outputs.sha256 || '' }}
@@ -1204,7 +1206,15 @@ jobs:
           REPLIES_FILE: ${{ runner.temp }}/adjudicate-input/replies.jsonl
           REPLIES_SHA256: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
           OUT_DIR: ${{ runner.temp }}/adjudicate
-        run: node .base/.github/scripts/pr-unblock/adjudicate-feedback.mjs prepare
+          # The linked issues' trusted spec text, read as pr-verify reads it,
+          # staged as contract.json: a quote from it may settle an intent or
+          # design question.
+          PR_NUMBER: ${{ inputs.pr-number }}
+          TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
+        run: |
+          LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
+          export LANE_IDENTITY
+          node .base/.github/scripts/pr-unblock/adjudicate-feedback.mjs prepare
 
       - name: Resolve the adjudicator's model
         id: models

@@ -297,6 +297,13 @@ jobs:
         .github/scripts/pr-unblock/adjudicate-feedback.mjs
         .github/scripts/pr-unblock/publish-feedback.mjs
         .github/scripts/pr-unblock/request-budget.mjs
+        .github/scripts/pr-verify/resolve-pr.mjs
+        .github/scripts/pr-verify/write-verdict.mjs
+        .github/scripts/intake-triage/admit.mjs
+        .github/actions/select-trusted-text/select-trusted-text.mjs
+        lib/publish-gate.mjs
+        .github/recurring-schedule.json
+        plugins/work-items/scripts/charge-words.json
         .github/scripts/pr-unblock/dependency-classify.mjs
         .github/scripts/apply-patch/apply-patch.mjs
         .github/scripts/apply-patch/predicates.mjs

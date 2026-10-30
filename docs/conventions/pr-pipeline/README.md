@@ -418,20 +418,21 @@ runs `fix-ci` and `apply-patch` once more at `model-rung` 1 (`fix-ci-rung-up`,
 any other run, so that cap bounds rung-ups on a head too. `report-escalation`
 ends the run unless that retry's patch applied cleanly: the retry's own reason, else
 `ci-fix-escalated` (a neutral or failed retry), each routed to a failing `pr-unblock/fix-ci`
-status but `ci-fix-protected-path` and `ci-fix-weaken-required` (a check the model could fix only
-through a path the lane token may not push, or by weakening a required check), which go to a
-person. `ci-fix-escalated` also queues the PR with `needs-session` on each such stop, while the
-dispatcher's same-head retry still runs: a session builder makes the change the lane could not,
-and the session that finds the head green or lands the fix removes the label; no lane removes it.
-A cancelled run applies no label: the write
+status; `ci-fix-escalated`, `ci-fix-protected-path` and `ci-fix-weaken-required` (a check the
+rung-up retry could not fix, or one the model could fix only through a path the lane token may not
+push or by weakening a required check) also queue the PR with `needs-session` for a session
+builder, while the dispatcher's same-head retry still runs: the session that finds the head green
+or lands the fix removes the label; no lane removes it. A cancelled run applies no label: the write
 workflow's `run` job has no status function in its `if:`, so it skips on a cancel, nothing
-pushes and `ci-status` stays red. In a run that changed nothing, `protected-path` goes to a
-person and `flaky` to a failing status without a rung-up. `weaken-required` on the head's first
+pushes and `ci-status` stays red. In a run that changed nothing, `protected-path` goes to the
+`needs-session` queue (a failing status and the label) and `flaky` to a failing status, both
+without a rung-up. `weaken-required` on the head's first
 fix-ci attempt stops `ci-fix-weaken-retry` instead, a failing status: the dispatcher retries the
 head once at `model-rung` 1, a fresh fixer round whose context carries a fixed brief (fix the
 code under test and keep every test's assertions and expected values). A
-`weaken-required` in that round, or after any earlier attempt on the head, goes to a person as
-`ci-fix-weaken-required`; the guard itself is unchanged. Beside a pushed patch, the new head's
+`weaken-required` in that round, or after any earlier attempt on the head, stops
+`ci-fix-weaken-required` for a session builder; the guard itself is unchanged. Beside a pushed
+patch, the new head's
 CI decides for all of them. The same
 `pr-unblock-dispatch.yml` run starts `fix-ci`, after the conflict and Dependabot dispatches: one
 GraphQL query per page of 50 open pull requests, its `rateLimit.cost` logged, lists the non-draft,
@@ -668,14 +669,35 @@ activity in a trailer. A verdict is bound to the commit it judged and is not reu
 
 A `pr-unblock` run that stops ends on the route
 [`escalation-routes.json`](../../../.github/scripts/pr-unblock/escalation-routes.json), the one
-routing table, gives its reason; `report-escalation.sh` reads it. Route `hold` is for a reason only
-a person settles: a path the lane would itself have to resolve or write that its token may not
-push, or a supply-chain refusal (SAFETY), an intent,
-design or security question, a person's own thread or hold, a finding no adjudicator may judge (a
-CRITICAL one, or a security-review one rated `IMPORTANT` or above or with no rating it reads; a
-security-review `SUGGESTION` is adjudicated like a code-review finding), or any `review-dependency` stop: its failing status would be per head,
-and the merge gate's head-bound `verdict=merge` marker comes from the lane's own re-run, so only the label
-holds it for a person. Every other reason is a defect the lane's bounded retries (the
+routing table, gives its reason; `report-escalation.sh` reads it. Route `hold` is only for the
+owner's three reasons
+([When work stops for the owner](../loop-lane/README.md#when-work-stops-for-the-owner)): an intent
+or design question the work item contract does not settle, a person's own thread or hold, a HIGH or CRITICAL security risk (a security
+question, a finding no adjudicator may judge: a CRITICAL one, or a security-review one rated
+`IMPORTANT` or above or with no rating it reads; a security-review `SUGGESTION` is adjudicated like
+a code-review finding; a Dependabot security update the review would close, a risk the dependency
+review raised, or a commit on a Dependabot branch from anyone but Dependabot). A reason the table
+does not list holds too, with no activity to resume. The adjudicator settles an intent or design
+question for the reviewer itself when it quotes a line of the linked issues' spec text, the text
+pr-verify reads (`resolve-pr.mjs` `linkedIssues`), staged as `contract.json`: the script keeps the
+quote only when it is an exact substring of that text, at least 20 characters, and the reply
+quotes it with the issue's URL; the finding stands and the next round fixes it. A quote shows the
+text exists, not that it bears on the finding, so it never dismisses one: a `lane` verdict on an
+intent or design question goes to a person. A quote that fails the check, or no spec text, leaves
+the question a person's; a
+security question, a CRITICAL finding and a security-review one rated `IMPORTANT` or above never
+settle by quote. Every other reason routes `fail`. A `fail`
+entry that names `"label": "needs-session"` is a change the lane cannot make: a path its token may
+not push, a fix that weakens a required check after its fresh fixer round, a failing check the
+`fix-ci` rung-up retry could not fix, or a dependency update
+the review could not finish (its cap, an unlanded fix, an unreadable config, a cut-short listing,
+an uncited control, a workflow change beyond a pin swap). `review-dependency` and
+`apply-dependency-patch` do not apply while `needs-session` is on (their `labels-absent` in
+`pr-pipeline.yaml`), so such a stop gets no same-head model re-run and no fresh round budget on a
+rebased head until a session removes the label. It also puts the PR in the
+session-builder queue with that label, which no merge gate reads, so a session builder makes the
+change instead of a person; a person arms it only where the merge gate already asks for one. Every
+other reason is a defect the lane's bounded retries (the
 `fix-ci` rung-up, the adjudicator, the round, repeat and per-head caps) did not mend, routed `fail`:
 no human-gated label (an entry naming `"label": "needs-session"` adds that label first, the
 session-builder queue, which no merge gate reads), a failing commit status on the head the activity gated (`pr-unblock/conflict` for
@@ -1003,8 +1025,13 @@ the rules that only tighten in
   `<!-- babysit-merge-demotion sha=<S> signal=<name> -->` and that carries the `needs-human` label.
   It holds the rung at `off` until a human closes it directly. A close through a pull request's or
   commit's `Closes #N` does not count, and an issue that a non-human edited at any time stays in
-  force. The wrapper finds these issues by author (the agent identity or `github-actions[bot]`), so
-  removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
+  force. A red-main record (signal `schedule` or `dispatch`) that no non-human edited also clears,
+  open or not, once main is green at a later commit: a green `pr-require-checks` run on main,
+  attempt 1, from a schedule or a `github-actions[bot]` dispatch, created after the record, at a
+  commit ahead of the record's SHA and on main's history. The earliest such run's creation is the
+  clear time, read from every such run since the record, so newer runs never move it. Canary and
+  read-back records stay human-close. The wrapper finds these issues by author (the agent identity
+  or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
   also `needs-human`. That record does not hold the rung off.
