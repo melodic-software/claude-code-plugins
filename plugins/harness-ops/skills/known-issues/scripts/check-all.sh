@@ -12,7 +12,7 @@
 # snapshot be overwritten by another's and then reports the second project's
 # rows as the first's. That is a wrong answer served, not merely a lost file.
 # The key comes from lib/state-key.sh, the scheme
-# docs/conventions/plugin-data-report-keying/ rule 1 defines. It splits
+# docs/contracts/plugin-data-report-keying/ rule 1 defines. It splits
 # worktrees, which is right here: registry_dir is project-relative, so two
 # worktrees of one repository hold two registries.
 #

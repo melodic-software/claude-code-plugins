@@ -746,7 +746,7 @@ legs:
    necessary but not sufficient, and do not ship a grant on docs alone.
 2. **An interpreter-led rule is still an anti-pattern in this repo.** A grant shaped like
    `bash` wrapping the script path names the interpreter and is dropped under auto mode. See
-   `docs/conventions/permission-rule-hygiene/README.md`, anti-pattern 1. A direct-path rule that
+   `docs/contracts/permission-rule-hygiene/README.md`, anti-pattern 1. A direct-path rule that
    names the `.sh` (or `.py`) under the plugin root is the documented shape, but see leg 3.
 3. **The grant would not last long enough anyway.** We read an `allowed-tools` grant as lasting only
    for the turn that invokes the skill. The parent runs this gate *after* a dispatch returns, which

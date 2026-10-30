@@ -72,7 +72,7 @@ hook::buffer_stdin_to INPUT || exit 0
 # jq is required to parse the tool payload. hook::require jq fails OPEN
 # (this hook never blocks) but makes the degraded state visible to both the
 # user (systemMessage) and the agent (additionalContext), once per session and
-# agent — see docs/conventions/hook-observability/.
+# agent — see docs/contracts/hook-observability/.
 hook::require jq "PostToolUse" guardrails "$INPUT"
 
 FILE=""
@@ -111,7 +111,7 @@ esac
 
 # Bundled verifier missing (install corruption, not a consumer-facing
 # prerequisite) — fail open, don't block, but tell the user once per session
-# rather than skip silently (docs/conventions/hook-observability/). The model
+# rather than skip silently (docs/contracts/hook-observability/). The model
 # cannot reinstall a plugin, so it is not told; the path goes to the debug log.
 CFV_SHARED="$PLUGIN_ROOT/lib/verification/cli-flag-cache.sh"
 if [[ ! -x "$VERIFIER" || ! -f "$CFV_SHARED" ]]; then

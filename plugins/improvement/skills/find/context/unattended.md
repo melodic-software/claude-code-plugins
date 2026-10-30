@@ -49,7 +49,7 @@ and skip the dismissed-memory read/write (nothing is suppressed, nothing is reco
 
 `<state-key>` is produced by the plugin's shipped helper. Run it, never re-derive the key from
 the description below (the helper is byte-identical across plugins per
-`docs/conventions/plugin-data-report-keying/README.md`, and a hand-derived variation makes the
+`docs/contracts/plugin-data-report-keying/README.md`, and a hand-derived variation makes the
 skill miss its own prior reports and dismissed-memory):
 
 ```bash
@@ -115,7 +115,7 @@ Applies in both modes, when `/code-metrics:audit-duplication` ran and its docume
 - **The candidate's next step is a lint proposal**: a check that stops the next copy. Which rung
   fits (`shared-helper`, one helper every caller goes through, or a linter rung that flags a new
   copy) is the enforcement ladder's call, made by `/review:audit-enforceability`
-  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/enforcement-ladder/README.md>).
+  (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/enforcement-ladder/README.md>).
 - **No CI ceiling on a total clone count.** The trend is a ranking input, never a gate; a proposal
   targets one growing class, not the repository's total.
 - **The findings hand-off.** Write one file in the review-findings shape (frontmatter

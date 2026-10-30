@@ -47,7 +47,7 @@ multi-finding comments. Every pass re-derives comment state from GitHub:
 2. **Classify each remaining comment** as addressed or unaddressed by checking GitHub for
    evidence:
    - **Addressed (skip):** the comment has a substantive reply (from ANY author) containing
-     BOTH: (a) a classification token (VALID, INCORRECT, or UNCERTAIN), AND (b) evidence (code
+     BOTH: (a) a classification token (VALID, INCORRECT, UNCERTAIN, or INTENTIONAL), AND (b) evidence (code
      reference, test output, or reasoning).
    - **Unaddressed (process):** no reply meeting both criteria. "Noted" or "will fix" without
      classification + evidence does NOT count.
@@ -83,6 +83,7 @@ multi-paragraph analyses. Each finding is a separate work item requiring its own
 | 1 | <summary> | VALID: fixing | <evidence> | 👍 |
 | 2 | <summary> | INCORRECT | <evidence why wrong> | 👎 |
 | 3 | <summary> | VALID (defer) | <structural, urgent, or fix blocked on research: why; item id> | 👍 |
+| 4 | <summary> | INTENTIONAL | <the decision or constraint that makes it deliberate> | 👀 |
 ```
 
 The reaction is per-comment (GitHub allows one reaction type per user per comment). Post the
@@ -139,7 +140,7 @@ Ledger constraints:
 - Severity column MUST match the parent comment's severity labels verbatim (CRITICAL / IMPORTANT / SUGGESTION / P1 / P2 / P3)
 - Validation status MUST come from your own code reading, not a paraphrase of the bot claim
 - Evidence MUST cite line numbers + verbatim snippets (≤3 lines) OR direct command output
-- Suggested classification MUST be one of: VALID (fix now) | VALID (defer) | INCORRECT | UNCERTAIN. VALID (defer) only for a structural, urgent-but-cannot-land, or fix-blocked-on-research finding; a small or medium one is VALID (fix now), placed per D4.6's scope test
+- Suggested classification MUST be one of: VALID (fix now) | VALID (defer) | INCORRECT | UNCERTAIN | INTENTIONAL. VALID (defer) only for a structural, urgent-but-cannot-land, or fix-blocked-on-research finding; a small or medium one is VALID (fix now), placed per D4.6's scope test
 - One row per finding. If the parent comment has 6 findings, the ledger has 6 rows. No collapsing.
 
 If the parent comment is genuinely single-finding, return a 1-row ledger anyway.
@@ -189,18 +190,22 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   non-trivial claims. Never implement a fix based solely on a bot's assertion. **Blast radius:**
   when the fix would change a shared artifact (a reusable workflow or action, shared config, a
   published package), list its consumers and check the change against each before D4
-- [ ] D4. Classify with evidence: VALID (fix now) / VALID (defer) / INCORRECT / UNCERTAIN.
-  Classification MUST cite evidence from D2–D3. `VALID (defer)` must pass D4.6's scope test.
+- [ ] D4. Classify with evidence: VALID (fix now) / VALID (defer) / INCORRECT / UNCERTAIN /
+  INTENTIONAL. Classification MUST cite evidence from D2–D3. `VALID (defer)` must pass D4.6's scope test.
+  `INTENTIONAL` is for a finding that describes the code correctly where the code is that way on
+  purpose: the D5 reply states the reason (the decision, contract or constraint that makes it
+  deliberate), no code changes, and no tracker item is filed. It is not available for a defect this
+  change introduced, which D4.6's provenance rule keeps `VALID (fix now)` ([2026-10-25 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6402548080)).
   The classification carries a `Basis:`, `verified` with the `file:line`, tool output, or URL,
   or `judgment` (never on a consequential finding: cross-repo, shared infrastructure,
   irreversible, or security). A consequential verdict the evidence cannot settle is withheld:
   classify it UNCERTAIN and name the evidence that would settle it. Contract:
   [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../context/recommendation-basis.md);
-  full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)
+  full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/recommendation-basis/README.md#basis-label)
 - [ ] D4.5. React to the parent comment via `gh api .../reactions`. One reaction per comment
   (not per finding). **Tiebreaker for mixed-finding comments:** `+1` if ANY finding is VALID
-  (signals action taken), `-1` only when ALL are INCORRECT, `eyes` when all UNCERTAIN or a mix
-  of UNCERTAIN + INCORRECT with zero VALID
+  (signals action taken), `-1` only when ALL are INCORRECT, `eyes` when all UNCERTAIN or INTENTIONAL, or a
+  mix of those with INCORRECT and zero VALID
   - [ ] **verify reaction exists:** GET the same reactions endpoint filtered by your posting
     identities. Non-zero confirms. Use `pulls/comments/<id>/reactions` for inline review
     comments. **Exemption:** PR review BODIES have no reactions endpoint in the REST API, so skip
@@ -293,11 +298,11 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
 - [ ] D7.5. Resolve review thread. **Author- and classification-conditional, inline review
   comments only** (this section is the canonical policy). <!-- contract-restatement-begin: D7.5-thread-eligibility --> **Resolution is a thread-level act
   while dispositions are per-finding, so eligibility is a property of the whole thread:** every
-  finding extracted from it per §2 must carry one of four recorded dispositions: `VALID (fix
+  finding extracted from it per §2 must carry one of five recorded dispositions: `VALID (fix
   now)` with the fix pushed and cited (D6–D7); `VALID (fix now)` fixed in a linked PR, the
   separate PR D4.6's scope test sends an unrelated fix to, with the reply citing that PR;
-  `VALID (defer)` grounded per D4.6 with the item id cited; or `INCORRECT` with the
-  counter-evidence posted. One dispositioned finding does not make
+  `VALID (defer)` grounded per D4.6 with the item id cited; `INCORRECT` with the
+  counter-evidence posted; or `INTENTIONAL` with its reason posted in the D5 reply. One dispositioned finding does not make
   a multi-finding thread eligible. `UNCERTAIN` is never resolved. It escalates, and a single
   `UNCERTAIN` holds its whole thread open. Resolving early is not a cosmetic error: a resolved
   thread drops every comment it carries out of the readiness denominator
@@ -305,7 +310,7 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   from the classification gate and the PR can merge over it. This is what
   `${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/reference/safety.md`'s Never Do Automatically entry
   "Resolve any thread over a live, unaddressed finding" means operationally: *addressed* is one of
-  those four records for every finding present, never the absence of one.
+  those five records for every finding present, never the absence of one.
   <!-- contract-restatement-end: D7.5-thread-eligibility -->
   **What a tier may act on is bounded by its own
   tooling, and this list never overrides that.** A disposition making a thread eligible here does

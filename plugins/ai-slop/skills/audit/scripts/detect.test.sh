@@ -1686,7 +1686,7 @@ assert_contains "emit chunked: the finding row from the first chunk is present" 
 
 # The tally is this suite's only witness, so it is reconciled against the
 # declared total before it may report green: the liveness-assertion convention's
-# "Gate / classifier" row, docs/conventions/liveness-assertion/README.md
+# "Gate / classifier" row, docs/contracts/liveness-assertion/README.md
 # ("never green when findings were miscounted"). Both conditions are evaluated
 # and both reports printed, so a failing run that also lost cases says so twice.
 echo

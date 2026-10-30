@@ -16,6 +16,7 @@ import { test } from "node:test";
 
 import {
   ARM_MUTATION,
+  AUTO_MERGE_STATE_QUERY,
   BODY_HOLD,
   DETAIL_QUERY,
   DISARM_MUTATION,
@@ -132,12 +133,16 @@ const ROOM = { refusal: null, unreadable: null, count: 0, cap: 5, queued: [], ru
 const room = (answer = ROOM) => async () => answer;
 const labels = (...names) => ({ totalCount: names.length, nodes: names.map((name) => ({ name })) });
 
-// armErrors: per pull request id, the errors its arm sends throw, in order.
+// armErrors and disarmErrors: per pull request id, the errors its arm or
+// disarm sends throw, in order.
 // filesError: what every changed-files GET throws.
-function world(pulls, { failArm = false, armErrors = {}, filesError = null, noteErrors = [], disarmError = null, pinError = null } = {}) {
+// A pull request's `after` is its auto-merge state as the read-back sees it
+// (AUTO_MERGE_STATE_QUERY), else its listed state; `after: "error"` fails the read.
+function world(pulls, { failArm = false, armErrors = {}, disarmErrors = {}, filesError = null, noteErrors = [], disarmError = null, pinError = null } = {}) {
   const pins = [];
   const noteThrows = [...noteErrors];
   const armThrows = Object.fromEntries(Object.entries(armErrors).map(([id, errors]) => [id, [...errors]]));
+  const disarmThrows = Object.fromEntries(Object.entries(disarmErrors).map(([id, errors]) => [id, [...errors]]));
   const calls = [];
   const notes = [];
   const github = async (method, path, body, headers) => {
@@ -304,6 +309,16 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
     if (body.query === ARM_MUTATION && armThrows[body.variables.id]?.length > 0) {
       throw armThrows[body.variables.id].shift();
     }
+    if (body.query === AUTO_MERGE_STATE_QUERY) {
+      const found = pulls.find((candidate) => candidate.id === body.variables.id);
+      if (found?.after === "error") {
+        throw new GitHubError(502, "POST /graphql");
+      }
+      return { data: { node: found?.after ?? { state: "OPEN", headRefOid: found?.headRefOid, autoMergeRequest: found?.autoMergeRequest ?? null } } };
+    }
+    if (body.query === DISARM_MUTATION && disarmThrows[body.variables.id]?.length > 0) {
+      throw disarmThrows[body.variables.id].shift();
+    }
     if (body.query === DISARM_MUTATION && disarmError) {
       throw disarmError;
     }
@@ -329,7 +344,7 @@ function world(pulls, { failArm = false, armErrors = {}, filesError = null, note
   };
   const writes = () =>
     calls
-      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY].includes(body.query) && !String(body.query).startsWith(SKIP_STATE_PREFIX))
+      .filter(({ method, path, body }) => method === "POST" && path === "/graphql" && ![PULLS_QUERY, DETAIL_QUERY, PULL_OPENED_QUERY, COMMENT_EDITED_QUERY, UNLABELED_QUERY, DISCUSSION_PAGE_QUERIES.comments, THREAD_PAGE_QUERY, AUTO_MERGE_STATE_QUERY].includes(body.query) && !String(body.query).startsWith(SKIP_STATE_PREFIX))
       .map(({ body }) => ({ mutation: body.query === ARM_MUTATION ? "arm" : body.query === DISARM_MUTATION ? "disarm" : "?", ...body.variables }));
   return { github, writes, verify, verified, calls, notes, pins };
 }
@@ -1464,6 +1479,61 @@ test("an arm GitHub answers with a rate limit is never sent again", async () => 
   }
 });
 
+const unanswered = () => new GitHubError(502, "POST /graphql");
+const readBacks = (calls) => calls.filter(({ body }) => body?.query === AUTO_MERGE_STATE_QUERY).length;
+
+test("a resent arm that errors with the pull request already armed at its head reads it back once and counts it armed", async () => {
+  const { code, writes, lines, calls, statuses } = await run([pull(1, { after: { state: "OPEN", headRefOid: HEAD, autoMergeRequest: { enabledAt: NOW } } })], {}, { armErrors: { PR_1: [reset(), unanswered()] } });
+  assert.equal(code, 0);
+  assert.equal(writes.length, 2);
+  assert.equal(readBacks(calls), 1);
+  assert.ok(lines.includes(`enable-auto-merge: #1 arm failed after a resend (POST /graphql failed with status 502), but it is already armed at ${HEAD}, so an earlier send landed`));
+  assert.ok(lines.includes(`enable-auto-merge: #1 armed at ${HEAD}`));
+  assert.deepEqual(statuses, [{ sha: HEAD, state: "success", description: "armed for native auto-merge" }]);
+  assert.ok(!lines.some((line) => line.startsWith("::error")));
+});
+
+test("a resent arm that errors while the pull request is unarmed or armed at another head still fails, naming it and the cause", async () => {
+  for (const after of [undefined, { state: "OPEN", headRefOid: "c".repeat(40), autoMergeRequest: { enabledAt: NOW } }, { state: "MERGED", headRefOid: HEAD, autoMergeRequest: { enabledAt: NOW } }, "error"]) {
+    const { code, lines, calls } = await run([pull(1, { after })], {}, { armErrors: { PR_1: [reset(), unanswered()] } });
+    assert.equal(code, 1);
+    assert.equal(readBacks(calls), 1);
+    assert.ok(lines.includes("::error title=enable-auto-merge::#1 arm: POST /graphql failed with status 502"), String(after));
+    assert.ok(!lines.some((line) => line.startsWith("enable-auto-merge: #1 armed")));
+  }
+});
+
+test("an arm that errors on its first send, or with a rate limit, is not read back", async () => {
+  const after = { state: "OPEN", headRefOid: HEAD, autoMergeRequest: { enabledAt: NOW } };
+  for (const errors of [[unanswered()], [reset(), new GitHubError(403, "POST /graphql")]]) {
+    const { code, calls } = await run([pull(1, { after })], {}, { armErrors: { PR_1: errors } });
+    assert.equal(code, 1);
+    assert.equal(readBacks(calls), 0);
+  }
+});
+
+test("a resent disarm that errors with the pull request already unarmed counts it disarmed and writes the note", async () => {
+  const armed = pull(1, { autoMergeRequest: {}, verdict: MISSING, after: { state: "OPEN", headRefOid: HEAD, autoMergeRequest: null } });
+  const { code, writes, notes, lines, calls } = await run([armed], {}, { disarmErrors: { PR_1: [reset(), new GitHubError(200, "POST /graphql (GraphQL errors)")] } });
+  assert.equal(code, 0);
+  assert.deepEqual(writes, Array(2).fill({ mutation: "disarm", id: "PR_1" }));
+  assert.equal(readBacks(calls), 1);
+  assert.ok(lines.includes("enable-auto-merge: #1 disarm failed after a resend (POST /graphql (GraphQL errors) failed with status 200), but it is already unarmed, so an earlier send landed"));
+  assert.deepEqual(notes, [{ method: "POST", path: `${ISSUES}/1/comments`, body: { body: laneNote(MISSING_REASON) } }]);
+  assert.ok(!lines.some((line) => line.startsWith("::error")));
+});
+
+test("a resent disarm that errors while the pull request is still armed, merged, or not read as a pull request fails, naming it and the cause, and writes no note", async () => {
+  for (const after of [undefined, { state: "MERGED", headRefOid: HEAD, autoMergeRequest: null }, {}]) {
+    const armed = pull(1, { autoMergeRequest: {}, verdict: MISSING, after });
+    const { code, notes, lines, calls } = await run([armed], {}, { disarmErrors: { PR_1: [reset(), new GitHubError(200, "POST /graphql (GraphQL errors)")] } });
+    assert.equal(code, 1, JSON.stringify(after));
+    assert.equal(readBacks(calls), 1);
+    assert.deepEqual(notes, []);
+    assert.ok(lines.includes("::error title=enable-auto-merge::#1 disarm: POST /graphql (GraphQL errors) failed with status 200"));
+  }
+});
+
 test("the resend warning names the arm and its pull request", async () => {
   const { lines } = await run([pull(1)], {}, { armErrors: { PR_1: [closed()] } });
   assert.ok(lines.some((line) => line.startsWith("::warning::enable-auto-merge: POST /graphql (arm) for PR_1 failed (TypeError UND_ERR_SOCKET)")));
@@ -1730,7 +1800,7 @@ test("auto-merge a person turned off stays off; one the lanes App turned off is 
 });
 
 test("the comment veto agrees with the gate's HUMAN_MERGE_VETO_RE", () => {
-  const bodies = ["do not merge", "Don't merge", "don’t merge", "dont-merge", "do-not merge", "Do NOT\nmerge", "donut merge", "merge it", "doesn't merge", ""];
+  const bodies = ["do not merge", "Don't merge", "don’t merge", "dont-merge", "do-not merge", "Do NOT\nmerge", "donut merge", "merge it", "doesn't merge", "", "do-not-merge", "ci-status, gitleaks, do-not-merge, cost holds", "the `do-not-merge` label", "removed the do-not-merge label", "Not ready, do-not-merge until Friday.", "Sorry, do-not-merge this.", "`do-not-merge` label please", "a, b, do-not-merge", "Hold on, do-not-merge, I'm still reviewing."];
   const scripts = fileURLToPath(new URL("../../../plugins/source-control/skills/babysit-prs/scripts", import.meta.url));
   const python = spawnSync(
     "python3",

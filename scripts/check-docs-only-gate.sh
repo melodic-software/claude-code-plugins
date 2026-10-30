@@ -9,7 +9,7 @@
 # WHY. The heavy lanes short-circuit on a diff confined to the docs-only
 # allowlist. That short-circuit is a fail-open shape by construction: getting it
 # wrong makes a lane report success without running, which is exactly the
-# false-green docs/conventions/liveness-assertion/ names. Consumers spell the
+# false-green docs/contracts/liveness-assertion/ names. Consumers spell the
 # gate as `steps.scope.outputs.docs_only != 'true'`, an INVERSE-polarity test
 # of a string flag. A consumer that wrote `== 'false'` instead of `!= 'true'`
 # would skip its lane whenever the detector emitted anything unexpected: the

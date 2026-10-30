@@ -322,7 +322,7 @@ rate-limit-guard@<marketplace> -s <scope> --config rate_limit_guard_enabled=fals
 already-installed plugin that prints `already installed` and still writes the value. Never
 uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry and resets every
 option to its manifest default. The verified-version record lives in the
-[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
+[plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md).
 
 The file path and the 95% pause threshold an opted-in lane applies are deliberately **not** configurable: they are contract
 constants that cross-plugin consumers inline from the
@@ -369,7 +369,7 @@ Three supported routes:
    {"rate_limit_guard_enabled": "<value>"}
    ```
 
-   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
    limits: the Claude Code version it needs, which install it finds, how it rejects a bad
    value, and why a session started before the change keeps the old value until a fresh
    session starts. Do **not** `claude plugin uninstall` to reconfigure: see

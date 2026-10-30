@@ -111,7 +111,7 @@ time) is the recommended rotation path regardless. It masks input, unlike anythi
 command line (see the security note below).
 
 Per the marketplace's plugin-reconfiguration convention
-(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
 which owns the verified-version record), a headless `claude plugin install … --config` rerun
 against an already-installed plugin prints `already installed` and still writes the value, but
 that record covers only a non-sensitive option, so do not rely on it for a `sensitive` credential

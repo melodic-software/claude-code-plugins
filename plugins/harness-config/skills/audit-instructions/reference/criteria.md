@@ -78,7 +78,7 @@ superseded on each model generation.
 such as a level name, a model range, or a type predicate, keeps that literal as its own setting and
 additionally carries the record that decision needs: the decision in our words, a pointer to the
 exact upstream section, an as-of date, and a recheck trigger naming an observable event, with no
-upstream text (the shape is `docs/conventions/upstream-drift/README.md` in this monorepo; in a
+upstream text (the shape is `docs/contracts/upstream-drift/README.md` in this monorepo; in a
 standalone install those parts, not the path, are the requirement). A row whose Source line only
 names its page and section, and whose firing rule acts on no such literal, carries no stamp: the
 catalog-wide trigger already covers it.
@@ -262,7 +262,7 @@ each only on the surfaces its row names.
 - Environment variables (`CLAUDE_CODE_EFFORT_LEVEL`, `MAX_THINKING_TOKENS`, and
   `CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING` with the models it reaches):
   <https://code.claude.com/docs/en/env-vars>; read it whole per the
-  [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#reading-the-basis-the-fetch-route),
+  [fetch route](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#reading-the-basis-the-fetch-route),
   because a summarizing fetch truncates this page well before these rows
 - Prompt caching (what belongs to the cache key): <https://code.claude.com/docs/en/prompt-caching>
 - Errors (what Claude Code sends, or reports, when thinking is off at an effort level the model
@@ -301,7 +301,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   watch. If the line enforces a governed situation, it is consequential: convert per I5 or open a
   watch, and do not cut it on this check alone.
 - **Hold instead of delete** when the candidate matches a protected class in the
-  [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md),
+  [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md),
   on I5's terms. This bar asks whether removal would change behavior *today*; a protected rail's
   removal changes behavior only on the occasion it was written for, which this criterion cannot
   observe.
@@ -385,7 +385,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   editorial (Deletion tiers) unless the line governs a situation, in which case it is
   consequential and needs a closed watch before the deletion is applicable.
 - **Hold instead of delete** when the candidate matches a protected class in the
-  [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md)
+  [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md)
   (the Gate 0 consequence classes, adopted there by reference for the deletion operation). Report
   the hold and its class; propose compression in place instead. The register is non-exhaustive, so
   a candidate absent from it is judged on this criterion's normal terms, never deleted *because* it
@@ -404,7 +404,7 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
   deletion only when a closed watch is cited (Deletion tiers). Convert a must-always rule to a
   hook either way; conversion is not a deletion.
 - **Hold instead of delete** when the candidate matches a protected class in the
-  [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/instruction-exception-register/README.md).
+  [instruction exception register](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/instruction-exception-register/README.md).
   "The model already does this" is the weakest possible evidence against a rail whose absence is
   unrecoverable, and the hook conversion stays available: converting a protected rule to a
   deterministic mechanism is a remediation, deleting it is not.
@@ -1640,7 +1640,7 @@ by `--opinion`.
 - **Source:** none. No official page states that a restated benchmark figure needs a re-derivation
   event, which is why this check is `OPINION`-tier and off by default. The record shape it asks for
   (the decision, a pointer, an as-of date, a recheck trigger) is this monorepo's
-  `docs/conventions/upstream-drift/README.md`; in a standalone install those parts, not the path,
+  `docs/contracts/upstream-drift/README.md`; in a standalone install those parts, not the path,
   are the requirement.
 
 ### I20: Prefilled assistant response
@@ -1809,7 +1809,7 @@ by `--opinion`.
   delta triggers, which is why this check is `OPINION`-tier and off by default, the same footing as
   I19, and it adds no Sources entry for the same reason. The record shape it asks for (a pointer to
   the baseline, an as-of date, observable recheck triggers beside the doctrine) is this monorepo's
-  `docs/conventions/upstream-drift/README.md`; in a standalone install those parts, not the path,
+  `docs/contracts/upstream-drift/README.md`; in a standalone install those parts, not the path,
   are the requirement.
 
 ### I23: Context-budget directive to stop, summarize, or hand off
@@ -2173,7 +2173,7 @@ guide reverses it; the Sonnet 5 and Opus 4.8 literalism sections corroborate the
   relay, behind `--persist-findings`. I28's two arms carry one
   crosswalk rule id each, `harness-config/audit-instructions/rule-coercive-emphasis` (arm 1) and
   `harness-config/audit-instructions/rule-blanket-tool-default` (arm 2), both `IMPORTANT`, argued in
-  [the severity crosswalk](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/detector-findings/README.md).
+  [the severity crosswalk](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/detector-findings/README.md).
   Every other check here stays report-only: no crosswalk row, no relay. I32 relays as `error`
   (`CRITICAL`) on the marketplace arm and `warning` (`IMPORTANT`) on the user and project arm. The persist mechanics,
   including the body-scope fence, are [context/persist-findings.md](../context/persist-findings.md).

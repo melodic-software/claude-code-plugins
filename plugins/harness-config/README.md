@@ -83,7 +83,7 @@ bare-command-on-PATH pattern. The user-global file
 (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`) is where Claude Code's own "Always allow" path
 writes, so on a long-lived machine expect it to carry most of the findings. Their remediation is
 the operator's, since no skill can write that file. The principle and citations live in the marketplace
-[permission-rule-hygiene convention](../../docs/conventions/permission-rule-hygiene/README.md).
+[permission-rule-hygiene convention](../../docs/contracts/permission-rule-hygiene/README.md).
 Report-only.
 
 ```shell
@@ -220,8 +220,8 @@ enforcement hierarchy. Nothing project-specific is baked into the plugin.
 `suppressions` mapping of `docs/conventions/harness-config.yaml` (the convention home the repository
 binds, when it binds another; schema [`schemas/harness-config.schema.json`](schemas/harness-config.schema.json)),
 layered per the marketplace's
-[config-cascade](../../docs/conventions/config-cascade/README.md) contract, with its keys owned by
-[finding-suppression](../../docs/conventions/finding-suppression/README.md). All layers absent is a
+[config-cascade](../../docs/contracts/config-cascade/README.md) contract, with its keys owned by
+[finding-suppression](../../docs/contracts/finding-suppression/README.md). All layers absent is a
 valid state. That record is also how a consumer declares session posture to `audit`: a baseline
 finding the team has judged (for example a `git push` ask-gate in a repository whose cloud sessions
 must push) is suppressed by its `finding_id` with a reason, and `audit` prints a paste-ready stanza

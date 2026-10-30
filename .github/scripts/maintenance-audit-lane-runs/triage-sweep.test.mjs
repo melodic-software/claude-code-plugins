@@ -10,6 +10,7 @@
 // Owner rule 2026-10-24: no new issues; comment on the original instead.
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { ADMIT_MARKER, retriageNote } from "../intake-triage/admit.mjs";
 
 import {
   decide,
@@ -580,6 +581,29 @@ test("a needs-triage search hit with the bot's hand-off and a newer hand-back fr
   assert.equal(result.candidates, 0);
   assert.equal(reads.filter((p) => p.includes("/comments")).length, 0);
   assert.deepEqual(gh.writes, []);
+});
+
+// Admission's re-triage over a blocker's report-delivered close (admit.mjs
+// retriageNote) hands the issue back as work-unblock does, so a dependent
+// that used both dispatches is judged again instead of handed to a
+// maintainer. The admission comment is edited in place, so its last edit
+// counts; any other admission comment hands nothing back.
+const admissionAt = (user, text, at) => ({ id: 7, user, body: `${ADMIT_MARKER}\n${text}`, created_at: "2026-10-16T00:00:00Z", updated_at: at });
+const retriage = retriageNote("blocker #5 was closed report-delivered", [{ number: 5, url: "u", reason: "the report" }]);
+
+test("readState starts a new cycle on the lanes App's re-triage admission comment edited after the state", () => {
+  const state = stateAt([11, 22], null, "2026-10-17T06:00:00Z");
+  assert.deepEqual(readState([state, admissionAt(LANES, retriage, "2026-10-18T08:00:00Z")], String(APP)).runs, []);
+  assert.deepEqual(readState([state, admissionAt(LANES, retriage, "2026-10-17T05:00:00Z")], String(APP)).runs, [11, 22], "edited before the state");
+  assert.deepEqual(readState([state, admissionAt(LANES, "Not admitted to the issue lane yet: open pull request #9 is for it.", "2026-10-18T08:00:00Z")], String(APP)).runs, [11, 22], "a plain wait");
+  assert.deepEqual(readState([state, admissionAt({ login: "other-app[bot]", id: OUTSIDER }, retriage, "2026-10-18T08:00:00Z")], String(APP)).runs, [11, 22], "another App");
+});
+
+test("handedInComments counts the lanes App's re-triage admission comment by its last edit", () => {
+  const state = { author: { __typename: "Bot", login: "github-actions" }, body: renderState({ runs: [1, 2], filed: HANDED, repoUrl: "u" }), createdAt: "2026-10-17T00:00:00Z", updatedAt: "2026-10-17T06:00:00Z" };
+  const back = { author: { __typename: "Bot", login: "melodic-automation-lanes", databaseId: APP }, body: `${ADMIT_MARKER}\n${retriage}`, createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-18T08:00:00Z" };
+  assert.equal(handedInComments([state, back], String(APP)), false);
+  assert.equal(handedInComments([state, { ...back, updatedAt: "2026-10-17T05:00:00Z" }], String(APP)), true, "edited before the hand-off");
 });
 
 test("handedInComments counts a hand-back only from the lanes App's account", () => {

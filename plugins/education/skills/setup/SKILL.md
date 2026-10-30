@@ -79,7 +79,7 @@ Report a PASS/INFO/WARN table. Write nothing.
    recommend a machine-absolute team path.
 7. To change a `userConfig` value, reconfigure through Claude Code's native flow per the
    plugin-reconfiguration convention
-   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
    which owns the verified-version record): interactive `/plugin configure education@<marketplace>` any time;
    headless, rerun `claude plugin install education@<marketplace> -s <scope> --config quiz_policy=<value>`
    (repeatable per key). Against an already-installed plugin it prints `already installed` and still writes the

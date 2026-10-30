@@ -88,7 +88,7 @@ model should see when `/bugs:scan` or `/bugs:write` loads. Layers concatenate in
 the bundled gotchas. Each line records a failure the model actually hit in this repository, the
 same failure-driven rule the bundled gotchas follow. Generalizable lines belong in the shipped
 skill via an issue to this marketplace; see
-[`docs/conventions/config-cascade/consumer-gotchas.md`](../../../docs/conventions/config-cascade/consumer-gotchas.md).
+[`docs/contracts/config-cascade/consumer-gotchas.md`](../../../docs/contracts/config-cascade/consumer-gotchas.md).
 
 ## Keys
 

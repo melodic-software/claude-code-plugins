@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -534,17 +534,17 @@ test("pr-verify still names its judge step as the reconciler reads it, in every 
 // A review leg whose step names drifted would lose its hold, and one whose
 // trigger check took no reconciler record would refuse every re-run.
 test("pr-review-main still names its review and write steps as the reconciler reads them, and takes its record, in every review leg", () => {
-  const legs = verifyLegs("pr-review-main.yml").filter(({ body }) => /^ {6}- name: Review the pull request$/m.test(body));
+  const legs = verifyLegs("pr-review-main.yml").filter(({ body }) => new RegExp(`^ {6}- name: ${REVIEW_STEP}$`, "m").test(body));
   assert.equal(legs.length, 3);
   for (const { name, body } of legs) {
     const steps = legSteps(body);
     const names = steps.map((s) => s.match(/^ {6}- name: (.+)$/m)[1]);
-    const review = steps.findIndex((s) => /^ {8}id: review$/m.test(s));
+    const review = steps.findIndex((s) => /^ {8}id: review-1$/m.test(s));
     assert.equal(names[review], REVIEW_STEP, name);
     assert.equal(names[review - 1], JUDGE_PREDECESSOR, name);
     const writes = steps.filter((s) => s.startsWith(`      - name: ${WRITE_STEP}\n`));
     assert.equal(writes.length, 1, name);
-    assert.match(writes[0], /\n[ ]+if: steps\.review\.outcome == 'success'/, name);
+    assert.match(writes[0], /\n[ ]+if: steps\.review-1\.outcome == 'success' && /, name);
     const trigger = steps.find((s) => s.startsWith("      - name: Check the trigger\n"));
     assert.match(trigger, /\n[ ]+reconciler-workflow: \.github\/workflows\/maintenance-reconcile-lost-runs\.yml\n/, name);
   }
@@ -1202,6 +1202,69 @@ test("a floor-label run re-run since the listing is left alone", async () => {
   assert.deepEqual(failedJobReruns, []);
 });
 
+// A pr-verify verdict whose pr-feedback-dispatch run found the kill switch on:
+// post-verify-notes fails at its kill-switch step, posting nothing, and the
+// first pass after the switch lifts re-runs that job, which applies the verdict.
+const FEEDBACK = ".github/workflows/pr-feedback-dispatch.yml";
+const verdictJob = (failedStep = VERDICT_STOP_STEP, { name = "post-verify-notes", conclusion = "failure" } = {}) => ({
+  id: 4007,
+  name,
+  status: "completed",
+  conclusion,
+  steps: [
+    { name: "Set up job", status: "completed", conclusion: "success" },
+    { name: "Check the kill switch", status: "completed", conclusion: "success" },
+    { name: VERDICT_STOP_STEP, status: "completed", conclusion: failedStep === VERDICT_STOP_STEP ? "failure" : "skipped" },
+    { name: "Download the verdict", status: "completed", conclusion: failedStep === "Download the verdict" ? "failure" : "skipped" },
+    { name: "Complete job", status: "completed", conclusion: "success" },
+  ],
+});
+const SWITCHED = [verdictJob(), { id: 4008, name: "dispatch", status: "completed", conclusion: "skipped", steps: [] }];
+const verdictRun = (id, opts = {}) => run(id, MAIN_TIP, { path: FEEDBACK, event: "workflow_run", conclusion: "failure", jobs: SWITCHED, ...opts });
+
+test("a verdict the kill switch kept from its PR is applied once the switch lifts", async () => {
+  const { code, failedJobReruns, reruns } = await reconcile({ pulls: [], runs: [verdictRun(401)] });
+  assert.equal(code, 0);
+  assert.deepEqual(failedJobReruns, [401]);
+  assert.deepEqual(reruns, []);
+});
+
+test("while the kill switch is on, no stopped verdict is read or re-run", async () => {
+  const { code, calls } = await reconcile({ pulls: [], runs: [verdictRun(401)], env: { KILL_SWITCH: "" } });
+  assert.equal(code, 0);
+  assert.deepEqual(calls, []);
+});
+
+test("a verdict run that failed anywhere but the kill-switch step, or at attempt 2, is left alone", async () => {
+  const runs = [
+    verdictRun(401, { jobs: [verdictJob("Download the verdict")] }),
+    verdictRun(402, { jobs: [verdictJob(), { id: 4009, name: "dispatch", status: "completed", conclusion: "failure", steps: [] }] }),
+    verdictRun(403, { jobs: [verdictJob(VERDICT_STOP_STEP, { name: "rerun-ci-status" })] }),
+    verdictRun(404, { attempt: 2 }),
+    verdictRun(405, { created: "2026-10-18T19:00:00Z" }),
+    verdictRun(406, { jobs: [] }),
+  ];
+  const { failedJobReruns, calls } = await reconcile({ pulls: [], runs });
+  assert.deepEqual(failedJobReruns, []);
+  assert.equal(calls.filter((c) => c.startsWith("POST ")).length, 0);
+});
+
+test("post-verify-notes still fails at the kill-switch step the reconciler matches, before any read", () => {
+  const job = verifyLegs("pr-feedback-dispatch.yml").find(({ name }) => name === "post-verify-notes");
+  const steps = legSteps(job?.body ?? "");
+  const stop = steps.findIndex((s) => s.startsWith(`      - name: ${VERDICT_STOP_STEP}\n`));
+  assert.ok(stop > 0, "the kill-switch stop step is in the job");
+  assert.match(steps[stop - 1], /^ {6}- name: Check the kill switch\n/);
+  assert.match(steps[stop], /if: steps\.kill\.outputs\.proceed != 'true' && github\.event\.workflow_run\.conclusion == 'success'\n/);
+  assert.match(steps[stop], /\n {10}exit 1\n/);
+  assert.match(steps[stop + 1], /^ {6}- name: Download the verdict\n/);
+});
+
+test("a stopped verdict re-run since the listing is left alone", async () => {
+  const { failedJobReruns } = await reconcile({ pulls: [], runs: [verdictRun(401)], github: rerunSinceListing(401) });
+  assert.deepEqual(failedJobReruns, []);
+});
+
 test("a floor-label re-run takes no place under the cap of 3", async () => {
   const runs = [run(201, sha(1)), run(202, sha(2)), run(203, sha(3)), intakeRun(301)];
   const { reruns, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2), pr(3)], runs });
@@ -1386,9 +1449,9 @@ test("passed heads whose spec nobody touched since their checks ran cost one Gra
     assert.equal(count("/actions/artifacts?"), 0);
     assert.equal(count("POST /graphql"), 1);
     // The pulls page, one run listing per head, nine status listings for each
-    // of pr-verify and pr-review-main, one intake listing and the one
-    // pre-filter query.
-    assert.equal(reads.length, 1 + numbers.length + 2 * 9 + 1 + 1);
+    // of pr-verify and pr-review-main, one intake listing, one stopped-verdict
+    // listing and the one pre-filter query.
+    assert.equal(reads.length, 1 + numbers.length + 2 * 9 + 1 + 1 + 1);
   });
 });
 
