@@ -7,7 +7,9 @@
 //   parse(text, { source: true }) -> the same grammar, but every scalar is its source text as
 //     lib/yaml-subset.awk prints it (plain text as written, quotes removed, `\n` kept as written),
 //     mappings are Maps in document order, an empty value is null, and a key may not be empty or
-//     hold `.` or a tab
+//     hold `.` or a tab; as in that reader, a plain key is `[A-Za-z0-9_-]`, a quoted key may have
+//     blanks before its `:`, only a comment may follow a quoted value, and a root sequence or a
+//     sequence nested on one line is an error
 //
 // The subset: block mappings (nested by indentation of two or more spaces); block sequences
 // (scalar or mapping items, a mapping item may start on the dash line); flow sequences of scalars
@@ -92,7 +94,11 @@ function unquote(text, line, source) {
 function scalar(raw, line, source) {
   const text = raw.trim();
   if (text === "") return null;
-  if (text[0] === "'" || text[0] === '"') return unquote(text, line, source);
+  if (text[0] === "'" || text[0] === '"') {
+    const close = source ? closingQuote(text) : -1;
+    if (close !== -1 && close !== text.length - 1) throw new YamlSubsetError(line, "unexpected text after a value");
+    return unquote(text, line, source);
+  }
   if (text[0] === "{") throw new YamlSubsetError(line, "flow mapping ({...}) is outside the subset; use block style");
   if (text[0] === "&" || text[0] === "*") throw new YamlSubsetError(line, "anchors and aliases are outside the subset");
   if (text[0] === "!") throw new YamlSubsetError(line, "tags are outside the subset");
@@ -162,7 +168,7 @@ function splitKey(content, line, source) {
     const close = closingQuote(content);
     if (close === -1) throw new YamlSubsetError(line, "unterminated quoted key");
     const key = unquote(content.slice(0, close + 1), line, source);
-    const rest = content.slice(close + 1);
+    const rest = source ? content.slice(close + 1).replace(/^[ \t]+/, "") : content.slice(close + 1);
     if (!rest.startsWith(":") || (rest.length > 1 && rest[1] !== " " && rest[1] !== "\t")) return null;
     // A source-mode key is one step of a dotted record path, as in lib/yaml-subset.awk.
     if (source && (key === "" || /[.\t]/.test(key))) throw new YamlSubsetError(line, "a key may not be empty or hold `.` or a tab");
@@ -170,6 +176,8 @@ function splitKey(content, line, source) {
   }
   const split = plainKey(content) ?? (content.endsWith(":") ? [content.slice(0, -1).trim(), ""] : null);
   if (split && /[\s$.]/.test(split[0])) throw new YamlSubsetError(line, `a plain key may not hold a space, \`$\` or \`.\`; quote it: ${quote(split[0])}`);
+  // lib/yaml-subset.awk reads no other plain key, so the line is no mapping entry there.
+  if (split && source && !/^[A-Za-z0-9_-]+$/.test(split[0])) return null;
   return split;
 }
 
@@ -211,6 +219,7 @@ class Parser {
 
   parse() {
     if (!this.lines.length) return null;
+    if (this.source && isItem(this.lines[0][2])) throw new YamlSubsetError(this.lines[0][1], "a root sequence is not part of the subset");
     const value = this.block(this.lines[0][0]);
     if (this.pos < this.lines.length) {
       const [indent, number, content] = this.lines[this.pos];
@@ -266,6 +275,7 @@ class Parser {
       if (lineIndent < indent || !isItem(content)) break;
       if (lineIndent > indent) throw new YamlSubsetError(number, `unexpected indent ${lineIndent} (expected ${indent})`);
       const item = content.slice(1).trim();
+      if (this.source && isItem(item)) throw new YamlSubsetError(number, "a sequence nested on one line is not part of the subset");
       this.pos++;
       if (item === "") {
         // Only a deeper line belongs to an empty item; a `- ` line at this indent is its sibling.
