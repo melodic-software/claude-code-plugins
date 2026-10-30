@@ -1178,4 +1178,6 @@ test("settleDisputes leaves a tests-only verdict on a security-review finding op
 test("verdictOf takes tests-only with no question", () => {
   assert.deepEqual(verdictOf({ verdict: "tests-only", question: "none" }), { verdict: "tests-only", question: "none" });
   assert.equal(verdictOf({ verdict: "tests-only", question: "design" }), null);
+  // Only a reviewer verdict settles a question by quote.
+  assert.equal(verdictOf({ verdict: "tests-only", question: "design", quote: "a quote copied from the linked issue" }), null);
 });

@@ -502,7 +502,7 @@ export function verdictOf(value) {
   if (!CONTRACT_QUESTIONS.includes(question) || quote.trim() === "") {
     return null;
   }
-  return verdict === "lane" ? { verdict: "human", question } : { verdict, question, quote };
+  return verdict === "reviewer" ? { verdict, question, quote } : verdict === "lane" ? { verdict: "human", question } : null;
 }
 
 // A verdict that settles a question by quote, checked against the staged
