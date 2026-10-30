@@ -2050,7 +2050,8 @@ which needs `admit` and `pick-slot` only, runs `report-outcome` in the write fil
 `dimension-skip`, and the reason takes its route: `research-first` and `probe-first` label the
 issue `needs-human`, remove `agent-ready`, and comment the next step under the escalation marker
 and an `outcome=<reason>` marker; `split-required` takes the `intake` route, so intake's split
-files its sub-issues (owner Q93). When the admit job stops the run because the issue's author is
+files its sub-issues (owner Q93), or says on the issue why it cannot; a sub-issue that split filed
+runs at `split-child-size` instead ([Models](README.md#models)). When the admit job stops the run because the issue's author is
 neither a listed human nor the lanes App, `report-skip` runs with `dimension-skip: outside-author`:
 it removes `agent-ready` and comments, under an `outcome=outside-author` marker and with no label,
 that a listed human re-files the work as a new issue. What changes from the PR flow:
