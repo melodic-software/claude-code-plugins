@@ -17,7 +17,7 @@ graders:
     tool: Write
     input_match: '"file_path":"[^"]*\.work/handoffs/[^"]*"[\s\S]*\[[ x~!]\][ ]+[^\\]{0,80}?(?:30 seconds|test\.sh)'
     min: 1
-    arm: with-only
+    arm: both
   - name: todowrite-offered
     type: tool_used
     tool: TodoWrite
