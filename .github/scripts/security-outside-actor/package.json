@@ -1,0 +1,7 @@
+{
+  "name": "security-outside-actor",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

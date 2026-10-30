@@ -3,6 +3,44 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.67.0] - 2026-10-30
+
+### Added
+
+- `block-root-delete-target` judges `xargs` and `parallel` running a recursive `rm` or a deleting `find` ([#9754](https://github.com/melodic-software/claude-code-plugins/issues/9754)). The command's own operands and parallel's `:::` items are judged as written. Items read from a pipe are judged only when a confined listing produced them: a `find` without `-printf`, `-ls` or an `-exec`-family action has its start points judged, and `git ls-files` is judged as a name under the directory it runs from, through `grep`, `sort`, `uniq`, `head` or `tail` at most. Items from a file, from the shell's own stdin or from any other command are refused, so `cat list | xargs rm -rf` is refused and `find build -name '*.o' | xargs rm -rf` passes.
+
+## [0.66.0] - 2026-10-30
+
+### Added
+
+- `/guardrails:setup apply install-git-hooks scope=user` installs the `commit-msg-convention`
+  entry once for the user as a git config hook (git 2.54 or later), loaded under an `includeIf`
+  the operator chooses. It covers every clone and linked worktree the condition matches and runs
+  beside lefthook, husky, the pre-commit framework or a `core.hooksPath` setup. The stable copy
+  lives under `~/.config/git/checks/guardrails/`, the hook is named
+  `guardrails-commit-msg-convention`, and `checks.skipmissing` stays the only skip
+  ([#9775](https://github.com/melodic-software/claude-code-plugins/issues/9775)).
+
+### Fixed
+
+- `reference-verify` pre-push entry: a push from a linked worktree no longer flags a cited path that history once deleted and the tree has again. Git exports `GIT_DIR` to the hook, which made the checks resolve the repository root to the cited file's folder; the checks now run with git's directory variables cleared and find the repository from the file.
+
+## [0.65.0] - 2026-10-30
+
+### Changed
+
+- Every `PreToolUse` guard row except `Workflow` sets `"onFailure": "block"`, so on Claude Code 2.1.295 or later a guard that cannot start because `node` or bash is missing, or that reaches its 60 s timeout, denies the call instead of letting it run unguarded ([#9982](https://github.com/melodic-software/claude-code-plugins/issues/9982)). An older client ignores the key and behaves as before. The hook-budget contract lists which rows set the key and why the rest do not.
+
+## [0.64.0] - 2026-10-30
+
+### Added
+
+- `block-cross-domain` denies a command that writes the machine's git identity, from every session: in a domain, from a neutral directory, and on a host with no domain map ([#9748](https://github.com/melodic-software/claude-code-plugins/issues/9748)). That covers a `git config` with `--global`, `--system` or `--file <identity file>` that sets, adds, replaces or unsets `user.email`, `user.signingkey`, `user.useConfigOnly`, `credential.helper`, `core.sshCommand`, `core.hooksPath` or an `includeIf` key, and a shell write (a redirection, `tee`, `cp`, `mv`, `sed -i` and the like, or a PowerShell writer) to `~/.gitconfig*`, a `*.gitconfig` file or a path the map's `identity_files` lists. Reads pass: `--get`, `--list`, `git config get` and `list`, and a command that only reads the file. With no map the guard now reads each command and parses one whose text holds both `git` and `config`, still starting no process. The compiled map cache moves to format 4, so each map is compiled once more after the update.
+
+### Changed
+
+- The `pre-commit-content` git hook reads and scans the staged files in batches, so a commit of many files, such as a merge of the default branch, no longer starts several processes for each file ([#10591](https://github.com/melodic-software/claude-code-plugins/issues/10591)). It reads each staged file once, finds the files a secret pattern can match with one search over all of them, and checks the files that may hold a machine path together, then one by one only where that check finds something. It still reads every line it read before and reports the same findings. A staged file the hook cannot read out, or cannot write to its temporary directory, now blocks the commit with a message instead of going unscanned.
+
 ## [0.63.4] - 2026-10-29
 
 ### Fixed

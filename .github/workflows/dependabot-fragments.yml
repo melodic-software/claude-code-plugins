@@ -145,3 +145,12 @@ jobs:
             gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --body-file "$body"
           fi
           gh pr merge "$number" --repo "$GITHUB_REPOSITORY" --auto --squash
+      # The steps above call GitHub on the release App's token, not this one,
+      # so the line reads 0 unless a step starts spending the job token.
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

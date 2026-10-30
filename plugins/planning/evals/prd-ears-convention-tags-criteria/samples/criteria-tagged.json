@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Acceptance criteria\n- [event-driven] WHEN a member requests a download, the CSV is ready on the account page within five minutes\n- [unwanted-behavior] IF building the file fails, THEN the member sees an error and can request it again\n",
+      "why": "tagged plain bullets"
+    },
+    {
+      "answer": "## Acceptance criteria\n* AC1: [state-driven] WHILE a download is being built, the request button is disabled\n",
+      "why": "an asterisk bullet with an AC id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "no PRD written"
+    },
+    {
+      "answer": "## Acceptance criteria\n- when a member requests a download, the CSV is ready within five minutes\n- the CSV lists every play\n",
+      "why": "free-text criteria, untagged"
+    },
+    {
+      "answer": "## Acceptance criteria\n- [unwanted_behavior] IF building the file fails, THEN the member sees an error\n",
+      "why": "a misspelled pattern name reads as no tag"
+    }
+  ]
+}

@@ -26,7 +26,8 @@
 //   every comment is the reviewer bot's or a listed review bot's
 //   (REVIEWER_IDS, pr-pipeline.yaml review-threads.reviewer-ids), a trusted
 //   person with write access
-//   asked the lane to fix it (isFixRequest), or a trusted person answered the
+//   asked the lane to fix it (isFixRequest), in a bot's thread or one a
+//   trusted person opened, or a trusted person answered the
 //   lane's escalation (address-feedback.mjs threadAuthors); on a PR carrying
 //   the human-gated label, the same when a lane escalation put the label on
 //   and no review lane holds the PR (gate-source.mjs gateSource), on an owner
@@ -134,6 +135,7 @@ import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from 
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
+import { final as capFinal, verifyCapReader } from "./verify-cap.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -300,6 +302,8 @@ export async function dispatchFeedback({
   notesSince = null,
   passOnly = false,
   adoption = NO_ADOPTION,
+  // verify-cap.mjs verifyCapReader: the cap refusal, or null.
+  verifyCapped = () => null,
 }) {
   const skip = (why) => {
     log(`skip: ${why}`);
@@ -497,6 +501,19 @@ export async function dispatchFeedback({
       return skip(`#${number}: head ${head} already has a ${settings.checkName} check run`);
     }
   }
+  // Last, as it costs a full verifier read, and on a pass-only dispatch too: a
+  // later pass clears no cap, and a push past it could never merge, so
+  // pr-merge closes the pull request for a fresh attempt. It closes only the
+  // lanes App's: an adopted owner's is never skipped.
+  const capped = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha });
+  if (capped) {
+    // The cap never clears for the head: later runs skip it before any
+    // read. A sibling read that failed is read again next run.
+    if (capFinal(capped)) {
+      markHandled(record, settings.checkName, head);
+    }
+    return skip(`#${number}: pr-verify's FAILs are at the cap or cannot all be read (${capped}); pr-merge closes it for a fresh attempt, so no ${settings.activity} round`);
+  }
   const { workflowRunId } = await api.dispatchWorkflow({
     workflow: settings.workflow,
     ref: `refs/heads/${settings.base}`,
@@ -576,8 +593,13 @@ async function sweepIdleOwner(context) {
 // Each open lanes App PR into the base, and each adopted owner PR
 // (dispatchFeedback applies its idle test); only the idle pass takes the
 // owner PRs.
+// One listing per client: a tick's sweeps and recoveries share it.
+const listed = new WeakMap();
 async function openPulls({ api, repository, appSenderId, settings, rest }) {
-  return (await api.listOpenPulls(settings.base)).filter(
+  if (!listed.has(api)) {
+    listed.set(api, api.listOpenPulls(settings.base));
+  }
+  return (await listed.get(api)).filter(
     (pull) =>
       (pull.user?.id === appSenderId || ownerAuthored(pull, rest?.adoption)) &&
       pull.draft === false &&
@@ -751,6 +773,10 @@ export async function lostDispatchRun({ api, runId, log, now = Date.now() }) {
 // completed review run. Returns dispatchFeedback's result with that run's id,
 // or null.
 export async function recoverLost({ api, repository, appSenderId, log, settings = DEFAULTS, now, ...rest }) {
+  const deferred = await recoverDeferred({ ...rest, api, repository, appSenderId, log, settings, now });
+  if (deferred !== null) {
+    return deferred;
+  }
   const lost = await lostDispatchRun({ api, runId: rest.runId, log, now });
   if (lost === null) {
     return null;
@@ -764,6 +790,78 @@ export async function recoverLost({ api, repository, appSenderId, log, settings 
     log("recover: no head left to dispatch");
   }
   return dispatched;
+}
+
+// The record post-verify-notes uploads when the lost-run reconciler re-ran it
+// to apply a verdict the kill switch deferred (reconcile.mjs, the Verdict
+// kind), named for the head and the verdict. The re-run sends no round
+// itself, since check-trusted-trigger trusts a dispatcher only at attempt 1
+// or re-run by a listed human; this tick, an attempt-1 run, sends it.
+export const DEFERRED_RECORD = /^pr-feedback-deferred-([0-9a-f]{40})-(fail|pass)$/;
+const ACTIONS_BOT = "github-actions[bot]";
+
+// Whether `run`, the run that uploaded a deferred record, is a
+// github-actions[bot] re-run of this workflow on main: any workflow can
+// upload that name to its own run.
+const deferringRun = (run, repository) =>
+  run?.path === DISPATCH_WORKFLOW &&
+  run.event === "workflow_run" &&
+  run.head_branch === "main" &&
+  run.repository?.full_name === repository &&
+  run.run_attempt > 1 &&
+  run.triggering_actor?.login === ACTIONS_BOT;
+
+// The first deferred verdict at an open lanes App PR's head that
+// dispatchFeedback sends for the head's newest completed review run, as
+// main() would have for an on-time verdict: a FAIL with notesSince the
+// record's upload, when its notes reached the PR, so a round before then
+// does not hold it; a PASS as a pass-only round. A run of the activity for
+// the PR created after the record holds it, so each record is sent once.
+// Each head costs two exact-name artifact reads, fail then pass; a record
+// whose read fails is logged and left to the next tick.
+export async function recoverDeferred({ api, repository, appSenderId, log, settings = DEFAULTS, ...rest }) {
+  const pulls = (await openPulls({ api, repository, appSenderId, settings, rest })).filter((pull) => pull.user?.id === appSenderId);
+  for (const pull of pulls) {
+    const head = pull.head.sha;
+    for (const verdict of ["fail", "pass"]) {
+      const name = `pr-feedback-deferred-${head}-${verdict}`;
+      try {
+        const [artifact] = (await api.listArtifactsNamed(name))
+          .filter((row) => row?.name === name && row.expired === false)
+          .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+        if (!artifact) {
+          continue;
+        }
+        const run = await api.getWorkflowRun(artifact.workflow_run?.id);
+        if (!deferringRun(run, repository)) {
+          log(`skip: #${pull.number}: ${name} was uploaded by run ${run?.id}, not a github-actions[bot] re-run of ${DISPATCH_WORKFLOW} on main`);
+          continue;
+        }
+        const recorded = Date.parse(artifact.created_at ?? "");
+        const sent = (await api.listWorkflowRuns(settings.workflow)).find(
+          (row) => row.display_title === runTitle(settings.activity, pull.number) && !(Date.parse(row.created_at ?? "") < recorded),
+        );
+        if (sent) {
+          log(`skip: #${pull.number}: ${settings.workflow} run ${sent.id} started after the deferred ${verdict} at ${head}`);
+          continue;
+        }
+        const upstream = await reviewRunAt({ api, head, repository, settings });
+        if (upstream === null) {
+          log(`skip: #${pull.number}: head ${head} has no completed review run`);
+          continue;
+        }
+        const passOnly = verdict === "pass";
+        const dispatched = await dispatchFeedback({ ...rest, api, repository, appSenderId, log, settings, upstream, notesSince: passOnly ? null : recorded, passOnly });
+        if (dispatched !== null) {
+          log(`recover: sent the ${verdict} verdict deferred at ${head} (run ${run.id})`);
+          return { ...dispatched, upstreamRunId: upstream.id };
+        }
+      } catch (error) {
+        log(`::warning::#${pull.number}: the deferred ${verdict} at ${head} could not be decided (${error.message}); the next tick reads it again`);
+      }
+    }
+  }
+  return null;
 }
 
 const THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
@@ -934,6 +1032,11 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       const query = new URLSearchParams({ created: `>=${since}`, per_page: "100" });
       return (await request(`${repo}/actions/workflows/${path.split("/").at(-1)}/runs?${query}`)).workflow_runs ?? [];
     },
+    // The repository's artifacts with exactly this name, newest first.
+    async listArtifactsNamed(name) {
+      const query = new URLSearchParams({ name, per_page: "10" });
+      return (await request(`${repo}/actions/artifacts?${query}`)).artifacts ?? [];
+    },
     // A run's latest attempt's jobs, with their steps.
     async listRunJobs(id) {
       const listing = await request(`${repo}/actions/runs/${encodeURIComponent(id)}/jobs?filter=latest&per_page=100`);
@@ -989,7 +1092,7 @@ export async function resolveFeedbackSlot({ number, head, env, github, settings 
 
 // Writes run-id, the dispatched run, as a step output; the workflow records
 // it with the upstream run id as an artifact on this run.
-export async function main(env, { api, github, resolveSlot, log = (line) => console.log(line), now = Date.now() } = {}) {
+export async function main(env, { api, github, resolveSlot, verifyCapped, log = (line) => console.log(line), now = Date.now() } = {}) {
   for (const key of ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_RUN_ID", "GITHUB_OUTPUT", "GITHUB_EVENT_PATH", "APP_SENDER_ID"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
@@ -1019,6 +1122,9 @@ export async function main(env, { api, github, resolveSlot, log = (line) => cons
     humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`),
     resolveSlot: resolveSlot ?? (({ number, head }) => resolveFeedbackSlot({ number, head, env, github })),
     adoption: await ownerAdoption(env, log),
+    // The gate's reader for the FAIL-cap skip (verify-cap.mjs), when the
+    // workflow names it in VERIFY_EVIDENCE_SCRIPT.
+    verifyCapped: verifyCapped ?? (env.VERIFY_EVIDENCE_SCRIPT ? verifyCapReader(env, { log }) : undefined),
     now,
     log,
   };

@@ -2315,9 +2315,9 @@ def cmd_status(d, a):
         live = len(items) - len(archived) - len(superseded) - len(proposed)
         answered = live - len(opened) - len(waits)
         confirm = [
-            (i, s, pending_commits[i])
+            (i, s, st, pending_commits[i])
             for i, s, st, _ in items
-            if st == "accept" and pending_commits.get(i)
+            if st in exporters.CARRIES and pending_commits.get(i)
         ]
         lines.append(
             f"{title}: {answered} of {live} live answered"
@@ -2328,7 +2328,9 @@ def cmd_status(d, a):
         )
         lines.extend(waits)
         lines.extend(
-            f"  {i} {s} accepted, to confirm: {json.dumps(cs)}" for i, s, cs in confirm
+            f"  {i} {s} {'accepted' if st == 'accept' else st}, "
+            f"to confirm: {json.dumps(cs)}"
+            for i, s, st, cs in confirm
         )
         data["groups"].append(
             {
@@ -2338,7 +2340,9 @@ def cmd_status(d, a):
                 "closed": len(items) - len(opened) - len(waits) - len(proposed),
                 "live": live,
                 "answered": answered,
-                "toConfirm": [{"id": i, "short": s, "commitments": cs} for i, s, cs in confirm],
+                "toConfirm": [
+                    {"id": i, "short": s, "commitments": cs} for i, s, _, cs in confirm
+                ],
                 "open": [i for i, _, st, _ in items if st == "open"],
                 "archived": archived,
                 "superseded": superseded,

@@ -1538,10 +1538,19 @@ test("queueHolds: each hold label holds with ci-status's text", () => {
     ["needs-human", "#7 carries 'needs-human'; the merge queue removes it. Removing the label approves this pull request; re-queue it to merge."],
     ["pr-verify-failed", "#7 carries 'pr-verify-failed': pr-verify failed its head, and a pass at a new commit removes the label. The merge queue removes it; re-queue it once the label is off."],
     ["human-merge-hold", "#7 carries 'human-merge-hold': a person merges it. The merge queue removes it; a person on the trusted-actor list removing the label approves it, then re-queue it to merge."],
+    ["security: outside-actor", "#7 carries 'security: outside-actor': someone outside the organization wrote on it, and only a person removes the label. Re-queue it once the label is off."],
   ]) {
     assert.deepEqual(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "bug" }, { name: label }] }), statuses: [] }), [want], label);
   }
   assert.equal(holdsModule.queueHolds({ pull: queuedPull({ labels: [{ name: "do-not-merge" }, { name: "needs-human" }] }), statuses: [] }).length, 2);
+});
+
+test("security: outside-actor is a hold label of its own, beside the human-gated one", async () => {
+  assert.equal(holdsModule.OUTSIDE_ACTOR_LABEL, "security: outside-actor");
+  const { HOLD_LABELS } = await import("./enable-auto-merge.mjs");
+  assert.ok(HOLD_LABELS.includes(holdsModule.OUTSIDE_ACTOR_LABEL), HOLD_LABELS.join(", "));
+  const { LABEL } = await import("../security-outside-actor/flag.mjs");
+  assert.equal(LABEL, holdsModule.OUTSIDE_ACTOR_LABEL);
 });
 
 test("queueHolds: the human-gated label is the tracker's, trimmed, else needs-human", () => {
@@ -1586,4 +1595,30 @@ test("queueHolds: a pull request, label list or status list that does not read t
   assert.throws(() => holdsModule.queueHolds({ pull: { number: 7, head: {} }, statuses: [] }), /does not read/);
   assert.throws(() => holdsModule.queueHolds({ pull: queuedPull({ labels: null }), statuses: [] }), /labels are not a list/);
   assert.throws(() => holdsModule.queueHolds({ pull: queuedPull(), statuses: {} }), /not a list/);
+});
+
+// A member naming "the do-not-merge label" is not asking to hold the merge.
+// A sentence that says not to merge still holds, and so does a comma list,
+// which cannot be told from a comma clause.
+test("a member naming the do-not-merge label is no veto; saying not to merge is", () => {
+  const said = (body) => [{ login: "kyle-sexton", isUser: true, association: "OWNER", at: "2026-10-30T01:00:00Z", body }];
+  for (const body of [
+    "Apply the `do-not-merge` label before writing any explanation.",
+    "Removed the do-not-merge label; the hold reason is gone.",
+  ]) {
+    assert.deepEqual(holdsModule.vetoers(said(body)), [], body);
+  }
+  for (const body of [
+    "Do not merge this yet.",
+    "don't merge",
+    "do-not-merge",
+    "do-not-merge: waiting on #10954",
+    "Not ready, do-not-merge until Friday.",
+    "The checks are failing, do-not-merge until they pass.",
+    "`do-not-merge` label please",
+    "Hold on, do-not-merge, I'm still reviewing.",
+    "Every hold stays: ci-status, gitleaks, do-not-merge, cost holds.",
+  ]) {
+    assert.deepEqual(holdsModule.vetoers(said(body)), ["kyle-sexton"], body);
+  }
 });

@@ -58,6 +58,7 @@ import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
 import { KILL_SWITCH_STOP, killSwitchStop, laneStop, releasesHead } from "./limit-stop.mjs";
 import { serverFailure } from "./request-budget.mjs";
+import { final as capFinal } from "./verify-cap.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -109,7 +110,7 @@ export const LIST_QUERY = `query($owner: String!, $name: String!, $base: String!
     ref(qualifiedName: $base) { target { ... on Commit { committedDate } } }
     pullRequests(states: OPEN, baseRefName: $base, first: 50, after: $after) {
       nodes {
-        number isDraft isCrossRepository baseRefName headRefOid updatedAt body
+        number isDraft isCrossRepository baseRefName baseRefOid headRefOid updatedAt body
         author { __typename login ... on Bot { databaseId } ... on User { databaseId } }
         labels(first: 100) { nodes { name } }
         commits(last: 1) {
@@ -473,6 +474,8 @@ export async function dispatchCiFixes({
   adoption = DEFAULTS.adoption,
   record = emptyRecord(),
   now = Date.now(),
+  // verify-cap.mjs verifyCapReader: the cap refusal, or null.
+  verifyCapped = () => null,
 }) {
   if (!Number.isSafeInteger(appSenderId) || appSenderId < 1) {
     throw new Error("the lanes App sender id is not a user id");
@@ -658,6 +661,19 @@ export async function dispatchCiFixes({
     );
     if (reason !== "") {
       log(`skip fix-ci #${node.number}: ${reason}`);
+      continue;
+    }
+    // Last, as it costs a full verifier read: a push past the FAIL cap could
+    // never merge, so pr-merge closes the pull request for a fresh attempt.
+    // It closes only the lanes App's: an adopted owner's is never skipped.
+    const verifyCap = node.author?.databaseId === appSenderId ? await verifyCapped({ number: node.number, head: node.headRefOid, base: node.baseRefOid }) : null;
+    if (verifyCap) {
+      log(`skip fix-ci #${node.number}: pr-verify's FAILs are at the cap or cannot all be read (${verifyCap}); pr-merge closes it for a fresh attempt, so no fix-ci round`);
+      // The cap never clears for the head: later runs skip it before any
+      // read. A sibling read that failed is read again next run.
+      if (capFinal(verifyCap)) {
+        markHandled(record, checkName, node.headRefOid);
+      }
       continue;
     }
     sent += 1;

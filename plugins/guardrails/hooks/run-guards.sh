@@ -139,13 +139,13 @@
 #     refuse a command unread. A guard with no ceiling that tokenizes would
 #     parse the whole command only to add a reason to a block already
 #     decided, and a row that runs past its hooks.json `timeout` loses its
-#     block, so a stalled guard is no gate. What Claude Code does with a
-#     timed-out PreToolUse command hook is the hooks page's to state; our
-#     hooks.json rows set no failure-handling field, so they take the page's
-#     default. Pointer: https://code.claude.com/docs/en/hooks#timeouts. As of:
-#     2026-10-11. Recheck trigger: that section changes what a timed-out
-#     PreToolUse command hook does to its tool call or its default failure
-#     handling, or is renamed.
+#     block, so a stalled guard gives no reason. What Claude Code does with a
+#     timed-out PreToolUse command hook is the hooks page's to state; the guard
+#     rows set "onFailure": "block", so 2.1.295 or later denies the call, and
+#     an older client lets it go ahead. Pointer:
+#     https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails.
+#     As of: 2026-10-30. Recheck trigger: that section changes what a timed-out
+#     PreToolUse command hook does to its tool call, or is renamed.
 #     #4528 measured a ~70 KB command still running at 120 s.
 #     Each guard keeps its own kill switch: a disabled guard exits before its
 #     ceiling, so the next enabled ceiling guard is the one that blocks. An

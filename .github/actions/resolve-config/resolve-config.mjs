@@ -113,7 +113,7 @@ export async function fieldSetters(github, repository, number) {
 
 async function gatherFacts(
   needed,
-  { eventName, event, prNumber, headSha, repository, github, sleep },
+  { eventName, event, prNumber, headSha, repository, github, sleep, splitChild },
 ) {
   const facts = { event: pipelineEvent(eventName, event) };
   let pull;
@@ -168,6 +168,16 @@ async function gatherFacts(
     }
     if (needed.includes("fieldSetters")) {
       facts.fieldSetters = await fieldSetters(github, repository, Number(issue.number));
+    }
+    if (needed.includes("splitChild")) {
+      // Whether the issue is a trusted size-split sub-issue, which takes
+      // split-child-size: the caller reads it (admit.mjs trustedSplitChild,
+      // in work-resolve-issue's check-blockers.mjs) and passes it as
+      // SPLIT_CHILD, so this floored module never loads intake's.
+      if (splitChild !== "true" && splitChild !== "false") {
+        throw new Error("split-child must be `true` or `false` when the issue's dimensions are read");
+      }
+      facts.splitChild = splitChild === "true";
     }
     if (needed.includes("labels")) {
       const labels = needed.includes("freshLabels")
@@ -321,6 +331,7 @@ export async function resolveFromBase({ env, github, sleep = wait, event, absent
     return null;
   }
   const facts = await gatherFacts(neededFacts(files, request), {
+    splitChild: env.SPLIT_CHILD,
     eventName: env.EVENT_NAME,
     event: event ?? JSON.parse(readFileSync(env.EVENT_PATH, "utf8")),
     prNumber: env.PR_NUMBER,

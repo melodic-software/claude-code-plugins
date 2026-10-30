@@ -794,9 +794,11 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
     "work-unblock.yml": { "wip-state": "github-token", "label-unblocked": ["lanes-app", "lanes-app github-token"] },
     "pr-merge.yml": { "post-merge-dispatch": "github-token" },
     "intake-reenter.yml": { reenter: "github-token" },
+    "security-outside-actor.yml": { flag: "github-token" },
     "pr-feedback-dispatch.yml": { "post-verify-notes": "github-token", dispatch: "github-token", "rerun-ci-status": "github-token" },
     "post-merge-test-mutation.yml": { report: "github-token" },
     "pr-refine.yml": { "fix-docs-head": "github-token" },
+    "post-merge-demotion-alert.yml": { alert: "github-token", "report-red-main": "github-token" },
   };
   for (const [file, tokens] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -812,6 +814,23 @@ test("each heavy lane job names its API_BUDGET_TOKEN and ends with the log-api-b
       assert.match(last, /uses: \.\/\.base\/\.github\/actions\/log-api-budget /);
       assert.match(last, new RegExp(`\\n {10}tokens: ${logged}\\n?\\s*$`), `${file} ${job} logs ${logged}`);
     }
+  }
+});
+
+// A job's shell steps call gh through api-budget.bash's wrapper, so the
+// job-end step has their readings to count; a step that sends gh before it
+// wraps would leave those calls out.
+test("each shell step in the demotion alert job that calls gh wraps it first", () => {
+  const text = readFileSync(new URL("../../workflows/post-merge-demotion-alert.yml", import.meta.url), "utf8");
+  const block = /\n  alert:\n([\s\S]*?)(?=\n  [a-z0-9-]+:\n|$)/.exec(text)?.[1] ?? "";
+  const wrap = "{ . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true";
+  const calling = block.split(/\n {6}- name: /).filter((step) => /^ {10}[^#\n]*\bgh api\b/m.test(step));
+  assert.ok(calling.length >= 2, "the alert job's gh-calling steps are found");
+  for (const step of calling) {
+    const run = step.indexOf("        run: |\n");
+    assert.ok(run > 0, `${step.split("\n")[0]} is a run step`);
+    const at = step.indexOf(wrap);
+    assert.ok(at > run && at < step.search(/^ {10}[^#\n]*\bgh api\b/m), `${step.split("\n")[0]} wraps gh before its first call`);
   }
 });
 
@@ -847,6 +866,7 @@ test("each job that holds the job token and calls no guarded client ends with th
     "pr-test-windows.yml": Object.fromEntries(windows.map((job) => [job, "./"])),
     "post-merge-detect-silent-revert.yml": { "detect-silent-revert": "./" },
     "release-publish-plugins.yml": { merge: "./", build: "./" },
+    "dependabot-fragments.yml": { write: "./" },
   };
   for (const [file, byJob] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");

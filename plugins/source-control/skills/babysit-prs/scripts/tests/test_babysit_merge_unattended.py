@@ -448,6 +448,41 @@ class PrMergeHoldsOnAHumanVeto(unittest.TestCase):
         self.assertFalse(result["ready"])
         self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
 
+    def test_naming_the_do_not_merge_label_holds_nothing(self) -> None:
+        for body in (
+            "Apply the `do-not-merge` label before writing any explanation.",
+            "Removed the do-not-merge label; the hold reason is gone.",
+        ):
+            with self.subTest(body):
+                result = _evaluate(
+                    fixtures._pr(),
+                    HEAD,
+                    None,
+                    self.PR_MERGE,
+                    issue_comments=[_comment("maintainer", body)],
+                )
+                self.assertEqual(self._vetoes(result), [], result["blockers"])
+
+    def test_a_do_not_merge_veto_still_holds(self) -> None:
+        for body in (
+            "do-not-merge: waiting on #10954",
+            "Not ready, do-not-merge until Friday.",
+            "The checks are failing, do-not-merge until they pass.",
+            "`do-not-merge` label please",
+            "Hold on, do-not-merge, I'm still reviewing.",
+            "Every hold stays: ci-status, gitleaks, do-not-merge, cost holds.",
+        ):
+            with self.subTest(body):
+                result = _evaluate(
+                    fixtures._pr(),
+                    HEAD,
+                    None,
+                    self.PR_MERGE,
+                    issue_comments=[_comment("maintainer", body)],
+                )
+                self.assertFalse(result["ready"])
+                self.assertEqual(len(self._vetoes(result)), 1, result["blockers"])
+
     def test_a_bare_wait_holds_nothing(self) -> None:
         result = _evaluate(
             fixtures._pr(),

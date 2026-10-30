@@ -16,7 +16,7 @@
 # This scripts the deterministic halves of the pilot's license; the
 # model-judgment halves (interview, migration prose, gating) are covered by the
 # setup and audit eval cases. Per-script assertion helpers are deliberately
-# duplicated, not shared: docs/conventions/shell-test-helpers/README.md.
+# duplicated, not shared: docs/contracts/shell-test-helpers/README.md.
 #
 # shellcheck disable=SC2016 # single-quoted backticks are the pointer grammar under test
 set -uo pipefail

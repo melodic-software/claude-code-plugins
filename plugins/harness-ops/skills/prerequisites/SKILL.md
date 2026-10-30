@@ -12,7 +12,7 @@ metadata:
 
 Answer "does this host have what the enabled plugins need?" Read `prerequisites.json` in each enabled plugin, resolve each declared dependency with the shared Node checker, and print one table. Do not install, download, or run `npx`.
 
-**Claim:** the fleet check lives here, not as a `deps` action on `plugins` and not as a machine-health category. `plugins` brings marketplace versions current and is `disable-model-invocation: true`. This question is read-only and model-invocable. Each plugin that needs an external dependency declares it in `prerequisites.json` at the plugin root, in the schema `docs/conventions/prerequisites/` owns, which this skill and the per-plugin check both read.
+**Claim:** the fleet check lives here, not as a `deps` action on `plugins` and not as a machine-health category. `plugins` brings marketplace versions current and is `disable-model-invocation: true`. This question is read-only and model-invocable. Each plugin that needs an external dependency declares it in `prerequisites.json` at the plugin root, in the schema `docs/contracts/prerequisites/` owns, which this skill and the per-plugin check both read.
 
 - **Pointer**: when checking what `disable-model-invocation` governs, fetch [skills: frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference) live. **As of**: 2026-10-11. **Recheck trigger**: a Claude Code release adds a manifest field for external binaries, or `plugins` becomes model-invocable for a read-only action.
 

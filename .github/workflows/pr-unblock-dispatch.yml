@@ -76,6 +76,9 @@ jobs:
       checks: read # skip a PR whose head already has a pr-unblock check run; read ci-status
       actions: write # list and dispatch pr-unblock.yml and pr-refine.yml runs
     env:
+      npm_config_audit: "false"
+      npm_config_fetch_timeout: "60000"
+      npm_config_fund: "false"
       # npm's fetch timeout and retries, from the one file that sets them.
       npm_config_globalconfig: ${{ github.workspace }}/.base/.github/npm-fetch.npmrc
     steps:
@@ -166,6 +169,7 @@ jobs:
       # dispatch.mjs reads the base config's `limits` through the base's
       # resolve-config, which needs its dependencies.
       - name: Install resolve-config's dependencies
+        timeout-minutes: 5
         if: >-
           steps.kill.outputs.proceed == 'true'
           && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
@@ -185,6 +189,28 @@ jobs:
           key: pr-unblock-dispatch-record-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: pr-unblock-dispatch-record-
 
+      # The gate's verifier reader (babysit_verify_evidence.py), which the
+      # dispatch reads for a pull request whose pr-verify FAILs are at the cap
+      # (verify-cap.mjs): the repository's pinned interpreter and PyYAML entry.
+      # A failed install warns; the reader then fails and the round runs.
+      - name: Set up Python
+        if: steps.kill.outputs.proceed == 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: .base/.python-version
+
+      - name: Install the pinned YAML reader
+        if: steps.kill.outputs.proceed == 'true'
+        continue-on-error: true
+        run: |
+          awk '/^pyyaml==/ { keep = 1 } keep { print } keep && !/\\$/ { exit }' \
+            .base/.github/requirements-ci.txt >"$RUNNER_TEMP/pyyaml-requirements.txt"
+          python3 -m pip install --disable-pip-version-check --only-binary=:all: \
+            --require-hashes --requirement "$RUNNER_TEMP/pyyaml-requirements.txt" || {
+            echo "::warning::PyYAML did not install; the FAIL-cap read fails and rounds run under their own caps"
+            exit 1
+          }
+
       - name: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs
         id: dispatch
         if: >-
@@ -194,6 +220,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
+          # fix-ci skips a PR whose pr-verify FAILs are at the cap (verify-cap.mjs).
+          VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
+          # The reader's gh calls, with this job's read scopes.
+          GH_TOKEN: ${{ github.token }}
           # fix-ci starts on PRs the lanes App opened, matched by this id, and
           # on idle PRs of the owners in the config's `adoption` section.
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}

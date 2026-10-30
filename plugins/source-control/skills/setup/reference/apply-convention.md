@@ -226,7 +226,7 @@ With no argument in an interactive session, run the interview:
    - **`pr_body_required_sections`** (optional): the required `## <heading>` section scaffold
      `/source-control:pull-request create` drafts and pre-checks before opening a PR (one bullet per heading; see
      [config-resolution.md](../../../reference/config-resolution.md) and
-     [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
+     [`docs/contracts/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/pr-body-convention/README.md)).
      **RECOMMENDED: keep the plugin's own portable default**, the `briefing` preset. This interview
      must not suggest a `Related`/linked-issue section, or any other specific organization's list, as
      if it were a universal default; a linked-issue section presumes an issue-tracker convention this
@@ -471,7 +471,7 @@ With no argument in an interactive session, run the interview:
 For a `team` write, offer (never require) the neutral-file shape: one tool-agnostic flat-scalar
 YAML file other consumers (commit-msg hooks, CI, other agents) read alongside this plugin. Contract
 and value grammar are owned by the
-[commit-convention owner doc](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md);
+[commit-convention owner doc](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/commit-convention/README.md);
 this skill's part:
 
 - **Recommend it as the default when a second enforcement consumer exists.** Inference (step 2)
