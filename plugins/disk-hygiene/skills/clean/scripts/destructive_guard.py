@@ -3115,16 +3115,9 @@ def _apply_ask_reason(command: str) -> str:
             and all(isinstance(path, str) for path in paths)
         ):
             return _APPLY_ASK_GENERIC_REASON
-        snapshot = _read_json_file(flags["--snapshot"], _APPLY_SNAPSHOT_READ_LIMIT)
-        target = snapshot.get("target") if isinstance(snapshot, dict) else None
-        where = (
-            f"under {_display_text(target)}"
-            if isinstance(target, str)
-            else "(snapshot-relative; the snapshot target could not be read)"
-        )
         return (
             f"disk-hygiene is ready to apply one exact, previewed tier: {_display_text(tier)}, "
-            f"{len(paths)} path(s) {where}:\n"
+            f"{len(paths)} path(s) {_snapshot_location(flags['--snapshot'])}:\n"
             + "\n".join(f"- {_display_text(path)}" for path in paths)
             + "\nConfirm this final mutation prompt only if it matches the tier "
             "and paths you just approved."
@@ -3133,16 +3126,67 @@ def _apply_ask_reason(command: str) -> str:
         return _APPLY_ASK_GENERIC_REASON
 
 
-_HANDOFF_APPLY_ASK_REASON = (
-    "disk-hygiene is ready to verify and delete one exact approved path, "
-    "including version-control content you acknowledged losing: unpushed "
-    "commits and untracked or ignored files do not come back. Confirm this "
-    "final mutation prompt only if it is the one path you just approved."
+def _snapshot_location(snapshot_path: str) -> str:
+    """Where the snapshot-relative paths an ask reason lists sit."""
+    snapshot = _read_json_file(snapshot_path, _APPLY_SNAPSHOT_READ_LIMIT)
+    target = snapshot.get("target") if isinstance(snapshot, dict) else None
+    if isinstance(target, str):
+        return f"under {_display_text(target)}"
+    return "(snapshot-relative; the snapshot target could not be read)"
+
+
+_HANDOFF_APPLY_ASK_GENERIC_REASON = (
+    "disk-hygiene is ready to re-verify and remove the approved paths of one "
+    "tier. Confirm this final mutation prompt only if it matches the tier and "
+    "paths you just approved."
 )
+
+
+def _handoff_ask_reason(command: str) -> str:
+    """Tier, count, and every path a handoff-apply command names.
+
+    Text only, like ``_apply_ask_reason``: an unreadable command returns the
+    generic reason, so the caller's ``ask`` verdict never depends on this.
+    """
+    try:
+        words = _literal_shell_words(command) or []
+        values: dict[str, list[str]] = {
+            flag: [] for flag in ("--snapshot", "--tier", "--path", "--vcs-evidence")
+        }
+        for index, word in enumerate(words[:-1]):
+            if word in values:
+                values[word].append(words[index + 1])
+        (snapshot,) = values["--snapshot"]
+        (tier,) = values["--tier"]
+        paths = values["--path"]
+        if not paths:
+            return _HANDOFF_APPLY_ASK_GENERIC_REASON
+        windows = os.name == "nt"
+        removal = "send to the Recycle Bin" if windows else "delete"
+        loss = (
+            " That includes version-control content you acknowledged losing: "
+            "unpushed commits and untracked or ignored files, which "
+            + ("only the Recycle Bin can restore." if windows else "do not come back.")
+            if values["--vcs-evidence"]
+            else ""
+        )
+        return (
+            f"disk-hygiene is ready to re-verify and {removal} the approved paths of "
+            f"one tier: {_display_text(tier)}, {len(paths)} path(s) "
+            f"{_snapshot_location(snapshot)}:\n"
+            + "\n".join(f"- {_display_text(path)}" for path in paths)
+            + f"\nA path that is not clear when its turn comes is skipped.{loss} "
+            "Confirm this final mutation prompt only if it matches the tier and "
+            "paths you just approved."
+        )
+    except Exception:  # noqa: BLE001 -- text only; the verdict stays "ask"
+        return _HANDOFF_APPLY_ASK_GENERIC_REASON
+
+
 # The ask reason each mutating subcommand shows, given the command.
 _MUTATION_PROMPTS = {
     "apply": _apply_ask_reason,
-    "handoff-apply": lambda _command: _HANDOFF_APPLY_ASK_REASON,
+    "handoff-apply": _handoff_ask_reason,
 }
 
 

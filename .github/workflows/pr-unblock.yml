@@ -7,7 +7,8 @@ name: pr-unblock
 #
 # workflow_dispatch only. resolve-conflicts: GitHub runs no pull_request
 # workflow on a conflicting PR, so pr-unblock-dispatch.yml sends one dispatch
-# per conflicting PR after a push to the default branch; a base job merges the
+# per conflicting PR after a push to the default branch, and a trusted human
+# may dispatch one for a clean PR whose base is stale; a base job merges the
 # default branch tip into the head and decides, a read model job resolves the
 # conflicts and hands them on as a patch, and a script job commits the merge.
 # address-feedback:
@@ -71,10 +72,11 @@ concurrency:
 jobs:
   # resolve-conflicts is five jobs, so no model ever holds a write token or
   # runs git. This one runs only base code with a read-only token. Before any
-  # model turn it reads the PR head, resolves the slot (draft, held and
-  # mergeable PRs skip it), pins the default branch tip as the base, checks
-  # out the head with no credentials, and merges the base into it with the
-  # base's prepare.sh, copied out and hashed first: clean (the push job
+  # model turn it reads the PR head, resolves the slot (draft and held PRs
+  # skip it), pins the default branch tip as the base, checks out the head
+  # with no credentials, skips a head that already holds that base, and
+  # merges the base into it with the base's prepare.sh, copied out and
+  # hashed first: clean (the push job
   # commits the merge with no model), conflicted (the model resolves) or
   # escalate (the repeat cap, a protected path, or a conflict no model can
   # resolve from markers). Every gate, head, base and conflict tree the jobs
@@ -95,15 +97,17 @@ jobs:
       # an escalation; empty when the job stopped before deciding.
       proceed: >-
         ${{ steps.prepare.outputs.merge-state == 'conflicted' && 'true'
-        || (steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.prepare.outputs.merge-state != '') && 'false' || '' }}
+        || (steps.head.outputs.default-base == 'false' || steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.behind.outputs.behind == 'false' || steps.prepare.outputs.merge-state != '') && 'false' || '' }}
       merge-state: ${{ steps.prepare.outputs.merge-state }}
       head-sha: ${{ steps.head.outputs.sha }}
       base-sha: ${{ steps.base-sha.outputs.sha }}
       conflict-tree: ${{ steps.prepare.outputs.conflict-tree }}
       escalation-reason: ${{ steps.prepare.outputs.escalation-reason }}
       skip-reason: >-
-        ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
-        || steps.hold.outputs.held == 'true' && 'awaiting-human' || '' }}
+        ${{ steps.head.outputs.default-base == 'false' && 'not-applicable'
+        || steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
+        || steps.hold.outputs.held == 'true' && 'awaiting-human'
+        || steps.behind.outputs.behind == 'false' && 'up-to-date' || '' }}
       # true when another lane's escalation put the human-gated label on, so
       # apply-conflict-patch pushes past it (lane-hold.mjs).
       lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
@@ -132,29 +136,42 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # Every job merges the default branch tip, so a PR stacked on another
+      # branch skips not-applicable here, as the dispatcher leaves it out.
       - name: Read the PR head
         id: head
         if: steps.kill.outputs.proceed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
-          if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+          { read -r sha && read -r base; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .base.ref') || true
+          if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
             exit 1
           fi
+          if [[ -z ${base:-} || -z ${DEFAULT_BRANCH:-} ]]; then
+            echo "::error::the PR's base or the default branch is unknown"
+            exit 1
+          fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          if [[ $base == "$DEFAULT_BRANCH" ]]; then
+            echo "default-base=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::the PR's base is not the default branch; resolve-conflicts merges only the default branch"
+            echo "default-base=false" >>"$GITHUB_OUTPUT"
+          fi
 
       # As the read runner resolves it: its applies-when decides on the head
       # just read, before any merge.
       - name: Resolve the slot
         id: slot
-        if: steps.head.outcome == 'success'
+        if: steps.head.outcome == 'success' && steps.head.outputs.default-base == 'true'
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: pr-unblock
@@ -225,6 +242,32 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # A clean PR passes the slot so a hand dispatch can refresh a stale
+      # base; a head that already holds the pinned base has nothing to merge,
+      # and prepare.sh's --no-ff merge would leave no MERGE_HEAD.
+      - name: Check the head is behind the base
+        id: behind
+        if: steps.hold.outputs.held == 'false'
+        working-directory: head
+        env:
+          GIT_NO_REPLACE_OBJECTS: "1"
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
+          BASE_SHA: ${{ steps.base-sha.outputs.sha }}
+        run: |
+          rc=0
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA" || rc=$?
+          case $rc in
+          0)
+            echo "::notice::the head already holds the default branch tip; nothing to merge"
+            echo "behind=false" >>"$GITHUB_OUTPUT"
+            ;;
+          1) echo "behind=true" >>"$GITHUB_OUTPUT" ;;
+          *)
+            echo "::error::git merge-base --is-ancestor exited $rc"
+            exit 1
+            ;;
+          esac
+
       # prepare.sh merges the pinned base without committing, runs the
       # version-bump script, and decides; only whitelisted, validated
       # key=value lines become outputs. The identity is the lanes bot's: git
@@ -232,7 +275,7 @@ jobs:
       # counts commits by that author name.
       - name: Merge the base into the head
         id: prepare
-        if: steps.hold.outputs.held == 'false'
+        if: steps.hold.outputs.held == 'false' && steps.behind.outputs.behind == 'true'
         working-directory: head
         env:
           GIT_AUTHOR_NAME: melodic-automation-lanes[bot]
@@ -265,12 +308,15 @@ jobs:
   # clean-merge (the push job commits it), else the stop's own skip
   # (escalation-routes.mjs stopSkip: lane-stopped for a stop routed to a
   # failing status, which ends the head; awaiting-human for one held for a
-  # person). A kill-switch stop reads no head, and nothing is posted.
+  # person). A kill-switch stop reads no head, and nothing is posted; nor is
+  # an up-to-date skip, since a neutral check would end the head for the
+  # dispatcher should a later default-branch push conflict with it.
   resolve-conflicts-not-run:
     needs: resolve-conflicts-select
     if: >-
       ${{ !cancelled() && inputs.activity == 'resolve-conflicts'
       && needs.resolve-conflicts-select.outputs.proceed == 'false'
+      && needs.resolve-conflicts-select.outputs.skip-reason != 'up-to-date'
       && needs.resolve-conflicts-select.outputs.head-sha != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10

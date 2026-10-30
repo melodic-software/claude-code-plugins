@@ -87,8 +87,8 @@
 #     the Brief holds every section that export writes (Decisions among them
 #     when the confirmed restatement has decisions), and its Intent section
 #     holds every line of the export's Intent: the intent paragraph and each
-#     live ask, note and own answer, compared with whitespace runs made one
-#     space. Needs Python 3, as the page does
+#     live ask, note, own answer and note typed on a choice, compared with
+#     whitespace runs made one space. Needs Python 3, as the page does
 # Each defect is named on stderr. Without --procedure the verdict says
 # `procedure=unchecked`, the same convention as `brief=unchecked`. A gradeable
 # register with a procedure defect exits 1 with `status=incomplete` (`open` when

@@ -2,7 +2,7 @@
 enforcement-ladder: 2.0.0
 ---
 
-<!-- GENERATED from docs/conventions/enforcement-ladder/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
+<!-- GENERATED from docs/contracts/enforcement-ladder/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
 edit the canonical source, then rerun the script. -->
 
 # Enforcement ladder

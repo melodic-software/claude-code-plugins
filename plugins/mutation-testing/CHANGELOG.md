@@ -3,6 +3,12 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.1] - 2026-10-29
+
+### Fixed
+
+- **`suppression-lint.sh` no longer pipes into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). It checks a parsed record for unparsable lines with a here-string, so under `set -o pipefail` a record it cannot parse can no longer be graded when grep exits before printf finishes writing.
+
 ## [0.11.0] - 2026-10-29
 
 ### Changed

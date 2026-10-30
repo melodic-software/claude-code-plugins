@@ -367,7 +367,7 @@ audit_file() {
     prev_shapes="$shapes"
   done <"$file"
 
-  if ((t1 + t2 + t3 > 0)) && head -n 10 "$file" | grep -qiE 'sync-managed|do not edit|@generated'; then
+  if ((t1 + t2 + t3 > 0)) && grep -qiE 'sync-managed|do not edit|@generated' < <(head -n 10 "$file"); then
     printf 'Note: upstream (sync-managed or generated file) %s\n' "$file"
   fi
   printf 'Summary file: %s | T1=%s T2=%s T3=%s\n' "$file" "$t1" "$t2" "$t3"

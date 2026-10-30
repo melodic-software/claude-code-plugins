@@ -38,14 +38,14 @@ primary objective; reclaimed bytes are secondary.** That posture does not change
 full: there is no emergency lane and no rule that yields under pressure. The recorded no-proportionality
 decision (no rule yields, no regenerable-at-a-cost engine signal) lives in
 [the safety model](reference/safety-model.md#tidiness-not-emergency). Read that file before the
-optional execution lane. On Windows and macOS a run ends in a report plus the `execution-platform-unsupported` handoff, so plan for no deletion lane there.
+optional execution lane. On Windows and macOS `apply` never runs: a run ends in a report plus the `execution-platform-unsupported` handoff (§6), which on Windows removes through one `handoff-apply` per tier.
 
 ## Arguments and boundaries
 
 Parse `$ARGUMENTS` as the complete user-facing surface: optional `--execute`, optional `--deep` ([deep inventory](#deep-inventory)), optional `--policy <file>`, optional `--max-depth <N>`, optional `--confirmed-large-scan`, optional
 `--quiet`, optional `--root-children` with zero or more `--root-child <name>`, and one target
 directory. Remaining engine flags (`--output`, `--project-dir`, `--in-flight-refs`, `--data-root` on scan;
-`--snapshot`, `--plan`, `--report`, `--confirm-tier`, `--approval-token`, `--paths`, `--path`, and
+`--snapshot`, `--plan`, `--report`, `--confirm-tier`, `--approval-token`, `--tier`, `--paths`, `--path`, and
 `--vcs-evidence` on the other subcommands) are supplied by this skill's command templates, not typed
 by the user. `--execute` means "deletion may be offered" on every platform, the gated engine lane
 where the platform supports it, the manual handoff elsewhere; it is not approval. A message the
@@ -87,10 +87,9 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   approved checkout. When the operator wants a `contested` throwaway checkout gone anyway (no
   remote, untracked files, no commits), never delete it without a clear `handoff-verify` verdict. Record
   `accept_unpublished` with the operator's reason for that exact approved path in
-  `vcs-evidence.json`; every other contest reason must be gone. On Linux, run `handoff-apply`
-  ([command](reference/safety-model.md#standalone-git-checkout-evidence)): it re-runs
-  `handoff-verify` and deletes only on a `clear` verdict. On Windows and macOS, run `handoff-verify`,
-  and delete only on a `clear` verdict through the §6 manual handoff lane. Before deleting, tell the
+  `vcs-evidence.json`; every other contest reason must be gone. On Linux and Windows, run `handoff-apply` ([command](reference/safety-model.md#standalone-git-checkout-evidence)): it re-runs
+  `handoff-verify` and removes the checkout only on a `clear` verdict (Windows recycles it); it refuses a checkout with no hint, so add one in a policy overlay and rescan first.
+  On macOS, run `handoff-verify`, and delete only on a `clear` verdict through the §6 manual handoff lane. Before deleting, tell the
   operator plainly that unpushed commits and untracked or ignored files in that checkout will be lost.
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
@@ -157,7 +156,7 @@ naming what the question never presented cannot be met.
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
 | Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories, or regular files on a volume root), never "everything" or the scan target itself |
-| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown |
+| Removal approval (§5) and manual handoff (§6) | exactly the one tier and the exact path list just shown; on Windows the hook `ask` on that tier's `handoff-apply` asks it (§6) |
 
 **`--sizes-only`** goes through the same large-scan question as an ordinary unbounded walk, so a known-large root needs `--max-depth` or `--confirmed-large-scan`; it sums through VCS and protected directories, read-only, keeps no per-path entries, and has no entry cap. Detail: [scan-flags.md](reference/scan-flags.md#--sizes-only).
 
@@ -429,7 +428,7 @@ token.
 
 Summarize tidiness outcomes first: the paths removed (the report's `removed` list), how many of them
 were empty directories, the coverage gaps that remain, and every skip grouped by `locked`,
-`changed-or-link`, `protected`, `needs-elevation`, `handle-state-unverified`, or `delete-failed`.
+`changed-or-link`, `protected`, `needs-elevation`, `handle-state-unverified`, `recycle-refused`, or `delete-failed`.
 Report `reclaimable_local_bytes_removed` and the observed free-space delta **after** those tidiness
 figures, never as the headline. Do not claim the observed free-space delta is exact: concurrent disk
 activity, sparse files, hard links, compression, and delayed allocation affect it.
@@ -437,10 +436,10 @@ activity, sparse files, hard links, compression, and delayed allocation affect i
 ### Unsupported-platform handoff (Windows, macOS)
 
 Preview reports `execution-platform-unsupported` as a per-candidate blocker on Windows and macOS,
-so the engine never deletes there and the default outcome is the report. When, and only when,
-an execution request was made on one of those platforms and the human approved an exact single-tier
-path list in this session, read [reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md)
-and follow it. It owns the approved-path forms (repeatable inline `--path`, or `handoff-paths.json`), the per-path revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion lane from the engine steps above.
+so `apply` never runs there and the default outcome is the report. When, and only when, an
+execution request was made on one of those platforms, read [reference/unsupported-platform-handoff.md](reference/unsupported-platform-handoff.md)
+and follow it. On Windows it runs one `handoff-apply` per tier, re-verifying each path just before sending it to the Recycle Bin, and that call's hook `ask`, listing the tier and every path, is the tier's approval; on macOS the human first approves an exact single-tier path list in this session.
+It owns the approved-path forms (repeatable inline `--path`, or `handoff-paths.json`), the per-path revalidation, and the hook belt that outlives the cleanup. Do not improvise a manual deletion lane from the engine steps above.
 
 ## Gotchas
 
@@ -453,7 +452,7 @@ and what the guard does when no Python resolves → "Hook launch form".
 - POSIX permits unlinking an open file, so successful deletion is not a live-handle check. Linux
   execution requires an authoritative `lsof` result and fails closed on diagnostics or missing access.
 - Python 3.11 has no `os.path.isjunction`; the engine reads the Windows reparse attribute from `lstat`
-  and treats every reparse point as protected. Windows execution remains disabled.
+  and treats every reparse point as protected. Windows `apply` remains disabled; Windows removal is `handoff-apply`'s Recycle Bin lane.
 - `os.path.ismount` cannot reliably identify same-filesystem bind mounts. Linux execution therefore
   parses `/proc/self/mountinfo` and fails closed if that namespace view is unavailable.
 - Apply opens every Linux parent with `O_NOFOLLOW` relative to the already-open target descriptor,
