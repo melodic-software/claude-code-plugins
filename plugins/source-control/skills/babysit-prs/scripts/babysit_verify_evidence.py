@@ -228,7 +228,7 @@ TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json"
 TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 LISTING_ENV = "BABYSIT_VERIFY_LISTING"
 LISTING_CARRY_ENV = "BABYSIT_VERIFY_LISTING_CARRY"
-# `1`: no wait between incremental reads (`incremental_waits`).
+# `1`: no wait between incremental reads (`no_incremental_waits`).
 NO_INCREMENTAL_WAITS_ENV = "BABYSIT_VERIFY_NO_INCREMENTAL_WAITS"
 HEAD_REFS_ENV = "BABYSIT_VERIFY_HEAD_REFS"
 # The head-ref map's version and its keys' shape, an artifact id
@@ -328,10 +328,10 @@ INCREMENTAL_WAITS = (15.0, 30.0)
 INCREMENTAL_READS = 1 + len(INCREMENTAL_WAITS)
 
 
-def incremental_waits() -> tuple[float, ...]:
-    """`INCREMENTAL_WAITS`, or none when `NO_INCREMENTAL_WAITS_ENV` is `1`:
-    one incremental read, and a miss lists every page at once."""
-    return () if os.environ.get(NO_INCREMENTAL_WAITS_ENV) == "1" else INCREMENTAL_WAITS
+def no_incremental_waits() -> bool:
+    """Whether `NO_INCREMENTAL_WAITS_ENV` is `1`: one incremental read, and a
+    miss lists every page at once, with no `INCREMENTAL_WAITS`."""
+    return os.environ.get(NO_INCREMENTAL_WAITS_ENV) == "1"
 
 
 # The prefix of the stderr line `Reader._incremental` prints for each read
@@ -1127,11 +1127,12 @@ class Reader:
         # a failed read lists every page at once, as `_read_listing` decides.
         if base is not None:
             deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
-            for wait in (*incremental_waits(), None):
+            for wait in (*INCREMENTAL_WAITS, None):
                 listing = self._incremental(base, deadline, "incremental")
                 if (
                     listing is not COUNT_MISSED
                     or wait is None
+                    or no_incremental_waits()
                     or deadline - _listing_clock() - wait <= 0
                 ):
                     break

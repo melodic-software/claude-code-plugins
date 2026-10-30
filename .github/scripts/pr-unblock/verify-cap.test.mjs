@@ -76,11 +76,6 @@ test("a sibling FAIL run the reader cannot read skips the round, for this run on
   assert.equal(own.read({ number: 42, head: HEAD, base: BASE }), null);
 });
 
-test("the sibling detail is the reader's SIBLING_UNREADABLE", () => {
-  const source = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
-  assert.ok(source.includes(`SIBLING_UNREADABLE = "${SIBLING_UNREADABLE}"`));
-});
-
 // Both dispatchers' FAIL-cap reads take the listing pr-merge carried
 // (listing-carry.mjs) as the first read's base, and share one saved listing
 // across every pull request of the job, as pr-merge.yml's gate does; without
@@ -152,3 +147,8 @@ for (const [workflow, dispatchName] of [
     }
   });
 }
+
+test("the sibling detail is the reader's SIBLING_UNREADABLE", () => {
+  const source = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
+  assert.ok(source.includes(`SIBLING_UNREADABLE = "${SIBLING_UNREADABLE}"`));
+});
