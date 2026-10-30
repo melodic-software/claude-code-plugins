@@ -4641,6 +4641,15 @@ jobs:
             exit 1
           }
           echo "label=$human_gated" >>"$GITHUB_OUTPUT"
+          # The base module's OUTSIDE_ACTOR_LABEL, a hold of its own; a base
+          # that exports none names no such hold.
+          # shellcheck disable=SC2016 # JavaScript, not shell
+          outside=$(node --input-type=module -e 'import { pathToFileURL } from "node:url";
+            const { OUTSIDE_ACTOR_LABEL } = await import(pathToFileURL(process.argv[2]).href);
+            console.log(typeof OUTSIDE_ACTOR_LABEL === "string" ? OUTSIDE_ACTOR_LABEL : "");' label "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") || {
+            echo "::error::cannot read the outside-actor label from merge-holds.mjs at $BASE_SHA"
+            exit 1
+          }
           for attempt in 1 2 3; do
             if raw=$(pr_read "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels?per_page=100" --paginate) && labels=$(jq -r '.[].name' <<<"$raw"); then
               break
@@ -4650,6 +4659,10 @@ jobs:
           done
           if ! grep -qxF -- "$human_gated" <<<"$labels"; then
             echo "held=false" >>"$GITHUB_OUTPUT"
+            if [ -n "$outside" ] && grep -qxF -- "$outside" <<<"$labels"; then
+              echo "::error::#$PR_NUMBER carries '$outside': someone outside the organization wrote on it, and only a person removes the label."
+              exit 1
+            fi
             echo "#$PR_NUMBER carries no '$human_gated' label."
             exit 0
           fi
