@@ -58,12 +58,8 @@ No action → route on context (a subject named → `collide`; an existing metap
 - **Options, never a winner.** Surface 6-8 labeled candidates. Label each with its type (expressed
   identity / qualifying / verbal), its linking quality (why it lands), and family distance
   (close / medium / far). The writer picks by emotional intent.
-- **A request for one gets one.** When the writer explicitly asks for a single metaphor ("just give
-  me your one best", "I don't need a list"), honor it: give one candidate with the same three
-  labels, no menu, no runner-up and no finder-question lists, and offer the full menu in one
-  closing sentence.
 - **Show the writer both finder-question lists.** What characteristics does this idea have? What
-  else has those characteristics? Both lists belong in every menu reply because they are raw
+  else has those characteristics? Both lists belong in every reply because they are raw
   material the writer mines for their own options, not just a route to your picks.
 - **Weight the collisions toward verbs.** In any mixed batch, noun×verb candidates should outnumber
   adjective×noun ones.
