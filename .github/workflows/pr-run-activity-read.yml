@@ -481,6 +481,7 @@ jobs:
           if [ "$rc" -eq 7 ]; then
             echo "::notice::already-leased: a live lease on #$ISSUE_NUMBER predates this run's, so no model runs"
             echo "lease=already-leased" >>"$GITHUB_OUTPUT"
+            echo "already-leased: another session holds a live lease on #$ISSUE_NUMBER, so no model ran." >>"$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           [ "$rc" -eq 0 ] || exit "$rc"
@@ -956,7 +957,6 @@ jobs:
           ISSUE_NUMBER: ${{ inputs.issue-number }}
         run: |
           echo "::warning::already-leased: another session holds a live lease on #$ISSUE_NUMBER; the run stops before any model turn"
-          echo "already-leased: another session holds a live lease on #$ISSUE_NUMBER, so no model ran." >>"$GITHUB_STEP_SUMMARY"
 
       # Whether the activity runs: it applies, and in issue mode neither stale
       # workflow files, an earlier run's work nor another session's lease stops it. Every step below

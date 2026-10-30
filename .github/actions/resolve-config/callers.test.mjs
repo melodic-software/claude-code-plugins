@@ -1262,12 +1262,13 @@ test("work-resolve-issue.yml: the resolve-issue model jobs receive no App token 
   }
   assert.ok(!run.steps.some((s) => String(s.uses ?? "").startsWith("anthropics/claude-code-action@")), "no claude-code-action step");
   // No job of the read runner holds a write permission but the report job's
-  // checks and issues and the broker-check job's id-token, none of which runs
-  // the model.
+  // checks and issues, the broker-check job's id-token and issues (the issue
+  // lease, before any model turn) and the lease-release job's issues, none of
+  // which runs the model.
   for (const [name, job] of Object.entries(read.jobs)) {
     for (const [scope, level] of Object.entries(job.permissions ?? {})) {
       if (level === "write") {
-        assert.ok((name === "report" && (scope === "checks" || scope === "issues")) || (name === "broker-check" && scope === "id-token"), `${name} ${scope}`);
+        assert.ok((name === "report" && (scope === "checks" || scope === "issues")) || (name === "broker-check" && (scope === "id-token" || scope === "issues")) || (name === "lease-release" && scope === "issues"), `${name} ${scope}`);
       }
     }
   }
