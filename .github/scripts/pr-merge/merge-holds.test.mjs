@@ -305,12 +305,12 @@ test("a decision line after leading blank lines still counts", async () => {
 });
 
 test("costHold holds a cost path, case-folded, until a decision", () => {
-  for (const path of ["Pulumi.yaml", "infra/pulumi.Dev.yaml", "infra/.x/main.TF", "a.tfvars", "deploy/main.bicep", "deploy/main.bicepparam"]) {
+  for (const path of ["Pulumi.yaml", "infra/Pulumi.yml", "infra/pulumi.Dev.yaml", "infra/.x/main.TF", "infra/main.tf.json", "a.tfvars", "terraform.tfvars.json", "deploy/main.bicep", "deploy/main.bicepparam", "deploy/AzureDeploy.json", "deploy/azuredeploy.parameters.json"]) {
     assert.match(costHold([path], null), new RegExp(`it changes ${path.replaceAll(".", "\\.")}, a cost path`), path);
     assert.equal(costHold([path], LINK), null, path);
   }
   // Owner ruling 2026-10-24: a model or effort default is no real charge.
-  assert.equal(costHold(["docs/a.md", "plugins/multi-agent/reference/defaults.yaml", "Pulumi.md"], null), null);
+  assert.equal(costHold(["docs/a.md", "plugins/multi-agent/reference/defaults.yaml", "Pulumi.md", "deploy/template.json"], null), null);
   assert.equal(costHold(null, null), null);
 });
 

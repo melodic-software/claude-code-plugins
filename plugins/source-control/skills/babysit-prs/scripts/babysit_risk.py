@@ -57,7 +57,7 @@ Cost is not a stop; only a real new charge is (docs/conventions/loop-lane/
 README.md, "When work stops for the owner"). A change that could start one
 (billed infrastructure or billed runner minutes) rates HIGH as
 `cost-review-required` in every lane, floor or not and whatever `floor_exempt`
-says: any `COST_PATHS` file (Pulumi, Terraform, Bicep) or file
+says: any `COST_PATHS` file (Pulumi, Terraform, Bicep, ARM) or file
 under a `RiskInput.pulumi_dirs` directory, and every file when `pulumi_dirs` is
 None (the base tree was not listed); a file renamed or copied into a workflow
 or `pr-pipeline.yaml` path from outside one; a workflow or pipeline file with
@@ -219,8 +219,8 @@ class RiskInput:
     # The owner decision the caller verified for a `cost-review-required`
     # change (its comment URL); None keeps the hold.
     cost_decision: str | None = None
-    # Directories holding a Pulumi.yaml at the base ("" for the root): any
-    # change under one is infrastructure as code.
+    # Directories holding a Pulumi.yaml or Pulumi.yml at the base ("" for
+    # the root): any change under one is infrastructure as code.
     pulumi_dirs: tuple[str, ...] | None = ()
     # Paths only a trusted author's own commits touched: the path floor and
     # the manifest review leave them out (owner decision 2026-10-22).
@@ -962,13 +962,22 @@ COST_FINDING_CODE = "cost-finding"
 SECRET_EXPOSURE_CODE = "secret-exposure-review"
 AGENT_SURFACE_CODE = "agent-surface-review"
 # Infrastructure as code: any change can add or resize a billed resource.
+# A Pulumi project file may end `.yml`; a stack file is only `.yaml`.
+# Terraform's JSON syntax is `.tf.json` and `.tfvars.json`. An ARM template
+# is held by any `.json` name holding `azuredeploy`, which covers the
+# quickstart names (`azuredeploy.json`, its parameter files and
+# `prereq.azuredeploy.json`); one under another name is the review lanes'.
 COST_PATHS: tuple[str, ...] = (
     "**/Pulumi.yaml",
+    "**/Pulumi.yml",
     "**/Pulumi.*.yaml",
     "**/*.tf",
+    "**/*.tf.json",
     "**/*.tfvars",
+    "**/*.tfvars.json",
     "**/*.bicep",
     "**/*.bicepparam",
+    "**/*azuredeploy*.json",
 )
 _WORKFLOWS = (".github/workflows/*.yml", ".github/workflows/*.yaml")
 _PIPELINE_CONFIG = "**/pr-pipeline.yaml"

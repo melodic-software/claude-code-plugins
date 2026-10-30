@@ -5055,8 +5055,8 @@ def merged_since_floor(
 
 def pulumi_dirs_at(repo: str, pr: Mapping[str, Any]) -> tuple[str, ...] | None:
     """`babysit_risk.RiskInput.pulumi_dirs`: each directory holding a
-    `Pulumi.yaml` at the base ("" for the root); None when the base tree
-    cannot be listed whole."""
+    `Pulumi.yaml` or `Pulumi.yml` at the base ("" for the root); None when
+    the base tree cannot be listed whole."""
     owner, name = _split_repo(repo)
     base = str(json_object(pr.get("base")).get("sha"))
     try:
@@ -5074,7 +5074,7 @@ def pulumi_dirs_at(repo: str, pr: Mapping[str, Any]) -> tuple[str, ...] | None:
         sorted(
             path.rpartition("/")[0]
             for path in modes
-            if path.rpartition("/")[2].casefold() == "pulumi.yaml"
+            if path.rpartition("/")[2].casefold() in ("pulumi.yaml", "pulumi.yml")
         )
     )
 

@@ -945,14 +945,18 @@ class CostDecision(unittest.TestCase):
 class PulumiDirs(unittest.TestCase):
     PR = {"base": {"sha": "a" * 40}}
 
-    def test_each_directory_holding_a_pulumi_yaml(self) -> None:
+    def test_each_directory_holding_a_pulumi_project_file(self) -> None:
         tree = {
             "Pulumi.yaml": "100644",
             "infra/x/pulumi.YAML": "100644",
+            "svc/Pulumi.yml": "100644",
+            "svc/Pulumi.prod.yaml": "100644",
             "a.md": "100644",
         }
         with mock.patch.object(policy, "_tree_modes", return_value=tree):
-            self.assertEqual(policy.pulumi_dirs_at(REPO, self.PR), ("", "infra/x"))
+            self.assertEqual(
+                policy.pulumi_dirs_at(REPO, self.PR), ("", "infra/x", "svc")
+            )
 
     def test_an_unlisted_tree_is_unknown(self) -> None:
         with mock.patch.object(policy, "_tree_modes", return_value=None):

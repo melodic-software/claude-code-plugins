@@ -80,16 +80,35 @@ class CostHold(_Finding):
     def test_infrastructure_as_code_holds_floor_or_not(self):
         for path in (
             "infra/Pulumi.yaml",
+            "infra/Pulumi.yml",
             "infra/Pulumi.prod.yaml",
             "infra/main.tf",
+            "infra/main.tf.json",
             "infra/prod.tfvars",
+            "infra/terraform.tfvars.json",
+            "infra/prod.auto.tfvars.json",
             "infra/main.bicep",
             "infra/main.bicepparam",
+            "deploy/azuredeploy.json",
+            "deploy/azuredeploy.parameters.json",
+            "deploy/azuredeploy.parameters.us.json",
+            "deploy/prereqs/prereq.azuredeploy.json",
         ):
             with self.subTest(path=path):
                 result = _cost([_file(path)])
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertIn(COST_CODE, _codes(result))
+
+    def test_other_json_and_yml_files_are_not_infrastructure_as_code(self):
+        # A Pulumi stack file is named only `Pulumi.<stack>.yaml`.
+        for path in (
+            "deploy/template.json",
+            "infra/main.json",
+            "infra/Pulumi.md",
+            "infra/Pulumi.prod.yml",
+        ):
+            with self.subTest(path=path):
+                self.assertNotIn(COST_CODE, _codes(_cost([_file(path)])))
 
     def test_a_cited_owner_decision_clears_it(self):
         result = _cost([_file("infra/Pulumi.yaml")], cost_decision=DECISION)
