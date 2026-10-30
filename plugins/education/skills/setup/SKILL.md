@@ -80,15 +80,22 @@ Report a PASS/INFO/WARN table. Write nothing.
 7. To change a `userConfig` value, reconfigure through Claude Code's native flow per the
    plugin-reconfiguration convention
    (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-   which owns the verified-version record): interactive `/plugin configure education@<marketplace>` any time;
-   headless, rerun `claude plugin install education@<marketplace> -s <scope> --config quiz_policy=<value>`
-   (repeatable per key). Against an already-installed plugin it prints `already installed` and still writes the
+   which owns the verified-version record): interactive `/plugin configure education@<marketplace>` any time.
+   Headless, preferred on Claude Code 2.1.285 or later:
+   `claude plugin configure education@<marketplace> --values-stdin < values.json`, where `values.json`
+   holds `{"quiz_policy": "<value>"}` (every value a string; keys left out keep their saved values).
+   Headless fallback, before 2.1.285: rerun
+   `claude plugin install education@<marketplace> -s <scope> --config quiz_policy=<value>` (repeatable
+   per key); against an already-installed plugin it prints `already installed` and still writes the
    value. Never uninstall to reconfigure: that drops the whole stored `pluginConfigs` entry, resetting every
-   option to its manifest default. `-s` defaults to `user`; pass the scope `claude plugin list` reports, and run
+   option to its manifest default. The value always lands in user settings, whichever route writes it.
+   `claude plugin configure` has no scope flag, so run it from the project the plugin is installed in.
+   For the rerun, `-s` defaults to `user`; pass the scope `claude plugin list` reports (from the home directory pass `user`), and run
    `project`/`local` writes from that project's directory, or the rerun adds a second install record at
-   the scope passed and enables the plugin there; the value itself always lands in user settings.
-   A rejected value prints a warning yet exits 0, so read the output. To set a value for the whole
-   repository instead, use `apply`.
+   the scope passed and enables the plugin there. Check each route's own failure signal: `--values-stdin`
+   rejects a bad value with exit 1 and saves nothing, but stores an empty string as `""`; the `--config`
+   rerun prints a warning for a rejected value yet exits 0, so read its output. To set a value for the
+   whole repository instead, use `apply`.
 8. Tell the user to rerun `check` after a `userConfig` change in a **fresh session**, because rendered
    values are injected at skill load and a same-session rerun still reports the OLD values. Then report
    the observed effective settings.

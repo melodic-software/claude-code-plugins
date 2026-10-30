@@ -6,7 +6,10 @@
 # need 2.1.287). Exits 1 when any mod's tests fail or a plugin ships a
 # hooks/register.* file that its hooks.json names no modules for, and 2 when
 # node, which reads hooks.json, is not on PATH.
-# Basis: https://code.claude.com/docs/en/plugins/mods/test.md
+# Basis: https://code.claude.com/docs/en/plugins/mods/test#write-a-test (as of
+# 2026-10-30: `claude plugin test` runs the *.test.ts files and exits 1 when a test
+# fails). Recheck when that section changes the command, the file pattern or the
+# exit status.
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1

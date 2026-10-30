@@ -133,15 +133,23 @@ Run `check`, then for each FAIL point at the resolution. This skill installs not
   plugin-reconfiguration convention
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
   which owns the verified-version record): interactive
-  `/plugin configure actionlint@<marketplace>` any time, or headless
+  `/plugin configure actionlint@<marketplace>` any time. Headless, preferred on Claude Code
+  2.1.285 or later: `claude plugin configure actionlint@<marketplace> --values-stdin < values.json`,
+  where `values.json` holds `{"actionlint_enabled": "true"}` (every value a string, booleans
+  included; keys left out keep their saved values). Headless fallback, before 2.1.285:
   `claude plugin install actionlint@<marketplace> -s <scope> --config actionlint_enabled=true`
-  (repeatable per key). Against an already-installed plugin it prints `already installed`
+  (repeatable per key); against an already-installed plugin it prints `already installed`
   **and still writes the value**. Do **not** uninstall to reconfigure: that drops this plugin's
   entire stored `pluginConfigs` entry, resetting every option in the README's Options reference
-  to its manifest default. Pass the scope `claude plugin list` reports for this plugin, and for a
-  `project` or `local` scope run from that project's directory, so the rerun matches the existing
-  install record; from the home directory pass `user`. A rejected value prints a warning yet
-  exits 0, so read the output. This skill never writes user settings or `pluginConfigs`.
+  to its manifest default. The value lands in user settings whichever route writes it.
+  `claude plugin configure` has no scope flag, so run it from the project the plugin is installed
+  in. For the rerun, `-s` defaults to `user`; pass the scope `claude plugin list` reports for this
+  plugin, and for a `project` or `local` scope run from that project's directory, so the rerun
+  matches the existing install record; from the home directory pass `user`. A rerun at another
+  scope adds an install record at that scope and enables the plugin there. Check each route's own failure signal:
+  `--values-stdin` rejects a bad value with exit 1 and saves nothing, but stores an empty string
+  as `""`; the `--config` rerun prints a warning for a rejected value yet exits 0, so read its
+  output. This skill never writes user settings or `pluginConfigs`.
   Afterwards rerun `check` in a **fresh session**. The rendered
   `${user_config.*}` is injected at skill load and each hook receives its
   `CLAUDE_PLUGIN_OPTION_*` from an environment fixed at session start, so a same-session
@@ -160,7 +168,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
   docs, `claude plugin install --config <key=value>` sets options "declared in the plugin's
   manifest". An undeclared key silently cannot be set through native config surfaces (a raw
   settings `env` block still works).
-- **`--config`'s post-install behavior is undocumented, so the guidance above rests on
+- **`--config`'s post-install behavior is undocumented, so the fallback above rests on
   observation.** The official docs describe `--config` only as a `claude plugin install` flag
   and say nothing about an already-installed plugin. The verified-version record lives only in
   the plugin-reconfiguration convention cited in `apply` above. It names which CLI release the
