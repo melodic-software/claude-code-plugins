@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Next stage: 5. Design. A user-facing screen is designed before the technical design: /user-experience:structure for the flow and navigation, then /user-interface:design for the screens.",
+      "why": "names the screen design skill"
+    },
+    {
+      "answer": "Screens: `/user-interface:design`, once the flow is mapped.",
+      "why": "names it in backticks"
+    },
+    {
+      "answer": "First the flow, not just the API: /user-experience:structure, then /user-interface:design.",
+      "why": "near miss: a negation word on the line, too far before the skill name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Next stage: 5. Design. Run /planning:design to settle the preference types and the save endpoint.",
+      "why": "near miss: the technical design skill, not the interface one"
+    },
+    {
+      "answer": "Skip /user-interface:design for now; the technical design comes first.",
+      "why": "negated"
+    },
+    {
+      "answer": "Design the screens with /user-interface:design-system before planning.",
+      "why": "a different name sharing the prefix"
+    }
+  ]
+}

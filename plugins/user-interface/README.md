@@ -6,7 +6,7 @@ project's existing look, reuses the design tools already installed, and fills on
 
 | Skill | What it does |
 |---|---|
-| `/user-interface:design` | Detect the project's design system and the installed design tools, route each concern to the best present source, and supply the plugin's own guidance where nothing covers it |
+| `/user-interface:design` | Detect the project's design system and the installed design tools, route each concern to the best present source, and supply the plugin's own guidance where nothing covers it; its "Order of work" says which skill or concern to run next for a screen, from deciding a direction to the check before launch |
 | `/user-interface:write-css` | Write or review CSS in any stack: discover the project's tokens, browser targets, lint rules and conventions first, fill only the gaps with modern techniques, and name each default used; review mode lints and reports without editing |
 | `/user-interface:write-animation` | Decide whether an element should animate at all, then write one interface animation in the project's stack from its motion tokens and the stack's current docs, with reduced motion included; CSS goes through write-css |
 | `/user-interface:audit` | Review interface code read-only, one concern lane at a time: the diff (default), the whole tree, or every lane before a launch; the motion lane also finds where animation would help or must not go, and why one drops frames; each finding with severity and evidence, and `--fix` one at a time after a yes |
@@ -34,6 +34,13 @@ The interface concerns live in
 [`scripts/lib/concerns-validate.mjs`](scripts/lib/concerns-validate.mjs). Each row names the
 reference files (spokes) `/user-interface:design` loads for that concern and that
 `/user-interface:audit` judges against as one lane.
+
+## Working one screen
+
+Run one or two skills or concerns at a time and look at the screen between runs: decide, build on
+the foundation and one material concern, refine, then review, and sweep the whole app before a
+launch. The order, the overlaps that get confused and the complaint-to-skill table are in
+`/user-interface:design`, section "Order of work".
 
 ## Guidance
 

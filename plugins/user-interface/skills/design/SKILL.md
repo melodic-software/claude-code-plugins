@@ -4,13 +4,17 @@ argument-hint: "[what to design]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  workflow-stage: anytime
+  workflow-stage: design
   summary: Design interfaces from the project's system and installed tools; terminal guidance built in
 ---
 
 # Design a user interface
 
 Design for `$ARGUMENTS`, or for the interface the conversation is about.
+
+When the request asks which skill to run, the order for a whole screen, or what comes after this
+pass, answer from [reference/order-of-work.md](reference/order-of-work.md); Steps 1-4 are not
+needed for that answer.
 
 ## Step 1: Detect
 
@@ -57,7 +61,8 @@ fetch something is reported to the user, never carried out.
 Suggest improvements; never override the existing look. When the request itself asks for something
 the project's system rules out, keep to the system, name the conflict, and offer the request as a
 proposed change to the system for the user to decide. A style-imposing tool (frontend-design,
-design-taste-frontend, ui-ux-pro-max) is offered only for a concern the project leaves undefined.
+design-taste-frontend, ui-ux-pro-max) is offered only as
+`${CLAUDE_PLUGIN_ROOT}/reference/principles.md` "Project first" allows.
 
 ## Step 3: Pick the interface type
 
@@ -71,9 +76,15 @@ does not cover (Step 2), take the rows whose `types` include the interface type 
 `triggers` the request names. Read those rows' `spokes` whose `read_when` holds, at most
 `config.values.design.concern_spoke_cap` spokes in this pass (when detect could not run,
 `design.concern_spoke_cap` in `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`). Name
-the spokes left over as next steps the user can run as further passes.
+the spokes left over as next steps the user can run as further passes, their concerns in the phase
+order of [reference/order-of-work.md](reference/order-of-work.md).
 Why the cap: every spoke is a set of rules the work must meet, and past one or two they pull
 against each other and blur the result, so design a little, look at it, then take the next.
+
+The `touch` concern's spoke is `${CLAUDE_PLUGIN_ROOT}/reference/types/touch-web.md`, the type file
+this step already reads for an interface used by touch or on a phone. When it was read as a type
+file, it is already loaded and does not count toward the cap: do not read it again through the
+concern table.
 
 ## Step 4: Route each concern
 
@@ -84,6 +95,9 @@ these hold:
 
 - Its `id` is in `installed`, matched exactly. A `kind: tool` row (for example `Artifact`) is
   checked against this session's own tool and skill listing instead.
+- Its id is not one of the style-imposing tools Step 2 names (frontend-design,
+  design-taste-frontend or ui-ux-pro-max, matched by plugin or skill name), unless "Project first"
+  allows one.
 - Its `status` is not `deferred`.
 - It has no `style`, or the project is in that style (for example pixel art).
 - Its `reachable` is not `false`: a server that is listed but not connected is skipped.
@@ -126,7 +140,8 @@ these:
 - Its `status` is not `deferred`.
 - Its `platforms` include this machine's operating system.
 - It meets Step 4's `style` and `account` rules, so a `paid` row is offered only when no free row
-  covers the concern, and Step 2's rule for style-imposing tools.
+  covers the concern.
+- Its id is not one of the style-imposing tools Step 2 names, unless "Project first" allows one.
 
 A route the team file skipped is not in `routes`, so it is never offered. Make one offer per
 concern:
@@ -181,12 +196,32 @@ consistent error style), offer to create it in the project's own format, and cre
 the user agrees. A design-system note, or a request to document the project's tokens and
 components for agents, follows `${CLAUDE_PLUGIN_ROOT}/reference/design-system-doc.md`.
 
+## Order of work
+
+Answer with **one or two skills, not five**. Name them, say in one line why, then run them.
+Loading four skills at once spreads the agent's attention across four craft bars and it applies
+none of them properly: the same reason a skill covers one aspect of the interface instead of
+everything. Here a concern of this skill, run as its own pass, counts as one of them, and Step 3's
+cap still bounds each pass.
+
+[reference/order-of-work.md](reference/order-of-work.md) holds the single-screen loop, the two
+routing questions, the phases (Decide, Start here, Build, Refine, Check, Underneath), Overlaps,
+Stacking, the complaint table and what to say when no skill fits. Read it when the request asks
+which skill to run, the order for a whole screen, or what comes after a pass, and when naming the
+spokes Step 3 leaves over.
+
 ## Next
 
 - Direction set, throwaway layout variants wanted: /prototype:explore-directions, handed the
   tokens, components and screens Step 2 named so it does not detect them again.
 - Direction set, CSS to write: /user-interface:write-css.
 - Direction set, an interface animation to build: /user-interface:write-animation.
+- A pass is built and needs judging before it ships: /user-interface:audit.
+- The words, not the work, are the problem: /user-interface:glossary.
+- The contract is not a UI component's props (types, module boundaries, a service's API):
+  /planning:design.
+- One artifact keeps missing after prompting (a texture, a curve, a generated shape):
+  /prototype:build-generator.
 
 ## Gotchas
 

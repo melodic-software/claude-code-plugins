@@ -66,11 +66,11 @@
         {
           "tool": "Skill",
           "input": {
-            "skill": "user-interface:audit-animation"
+            "skill": "user-interface:audit-launch"
           }
         }
       ],
-      "why": "near miss: the animation audit shares the audit prefix but reviews motion only"
+      "why": "near miss: a name that shares the audit prefix but is not the audit skill (launch is its argument)"
     }
   ]
 }

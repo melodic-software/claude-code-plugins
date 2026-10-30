@@ -34,7 +34,7 @@
         {
           "tool": "Skill",
           "input": {
-            "skill": "user-interface:audit-animation",
+            "skill": "user-interface:audit-launch",
             "args": "launch"
           }
         }

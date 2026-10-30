@@ -31,6 +31,8 @@ on it. Whether weight may change on interaction at all is the `layout-stability`
 Each axis of variation carries a four-letter tag. Five tags are registered standards; everything
 else is up to the type designer, and a given font exposes only the axes it was built with.
 
+<!-- spellchecker:off -->
+
 | Tag | Axis | What it varies |
 | --- | --- | --- |
 | `wght` | Weight | Stroke heaviness, the territory of `font-weight` |
@@ -39,6 +41,8 @@ else is up to the type designer, and a given font exposes only the axes it was b
 | `slnt` | Slant | Oblique angle |
 | `ital` | Italic | Toggles true italic forms |
 | custom | (any) | Anything the designer invents, in uppercase tags |
+
+<!-- spellchecker:on -->
 
 Fraunces is a good tour: alongside `wght` and `opsz` it exposes `SOFT` (rounds the corners) and
 `WONK` (swaps in deliberately irregular alternates). A leaner file like Manrope's variable build

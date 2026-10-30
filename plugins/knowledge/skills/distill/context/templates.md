@@ -127,6 +127,8 @@ type: essay
 
 ## Note: `notes/<slug>.md`
 
+<!-- spellchecker:off -->
+
 ```md
 # ds: Do Things that Don't Scale
 
@@ -144,9 +146,13 @@ type: essay
 - "Startups take off because the founders make them take off." (`ds`)
 ```
 
+<!-- spellchecker:on -->
+
 Every bullet ends with the slug. The thesis is a claim with a verb, not a topic.
 
 ## Theme reference: `reference/<theme>.md`
+
+<!-- spellchecker:off -->
 
 ```md
 # Startups
@@ -165,6 +171,8 @@ One paragraph: what this theme is inside their thinking and why it matters to th
 ## Key source articles
 `ds` · `schlep` · `<slug>`
 ```
+
+<!-- spellchecker:on -->
 
 40 to 100 lines. Each bullet: bold claim, their reasoning, the concrete thing, citations. When two pieces disagree, keep both with dates and say which is later.
 

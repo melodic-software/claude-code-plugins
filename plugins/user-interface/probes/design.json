@@ -2,11 +2,13 @@
   "skill": "user-interface:design",
   "plugin": "user-interface",
   "skill_dir": "plugins/user-interface/skills/design",
-  "ranking_note": "Covers the component-api concern spoke. The pair is planning:design, which owns language-neutral types, contracts and module boundaries: a UI component's props API comes here, a non-UI contract goes there. The other competitors are the throwaway layout variants and the CSS writer, which a component request could also reach.",
+  "ranking_note": "Covers the component-api concern spoke, the design-system note, and the order of work. The pair is planning:design, which owns language-neutral types, contracts and module boundaries: a UI component's props API comes here, a non-UI contract goes there. The throwaway layout variants and the CSS writer could also take a component request. For the order of work, user-interface:audit takes a review of built UI and session-flow:show-options a menu of every installed skill, while a question about which interface skill or concern to run for a screen comes here. The design-system note probes stand in for the candidate triggers DESIGN.md, document our components and agent invented a variant, which stay out of the description until a model-graded run shows they route here.",
   "competitors": [
     "planning:design",
     "prototype:explore-directions",
-    "user-interface:write-css"
+    "user-interface:write-css",
+    "user-interface:audit",
+    "session-flow:show-options"
   ],
   "queries": [
     {
@@ -52,6 +54,18 @@
       "request": "Lay out the parts and props for an Accordion component other teams will reuse across the app."
     },
     {
+      "id": "pos-train-08",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write a DESIGN.md for this repo so coding agents use our tokens and existing components."
+    },
+    {
+      "id": "pos-train-09",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This settings page layout feels off. Which skill should I run on it first, and what comes after?"
+    },
+    {
       "id": "pos-validation-01",
       "split": "validation",
       "expect_trigger": true,
@@ -74,6 +88,12 @@
       "split": "validation",
       "expect_trigger": true,
       "request": "Is it fine for our design-system Modal to take title, body and footerButtons as props, or is there a better shape?"
+    },
+    {
+      "id": "pos-validation-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Document our components so agents stop making up their own variants of them."
     },
     {
       "id": "neg-train-01",
@@ -128,6 +148,12 @@
       "split": "validation",
       "expect_trigger": false,
       "request": "Talk me through how to split this monorepo's shared code into packages."
+    },
+    {
+      "id": "neg-validation-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Review the UI changes on my branch for problems before I merge them."
     }
   ]
 }
