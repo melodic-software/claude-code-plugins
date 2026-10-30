@@ -276,11 +276,7 @@ Read in this order. Stopping early at any step is the finding.
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/run-validity.py" results.json --runs <the run count the eval used> [--scaffolded]
    ```
 
-   The run count is the run's `--runs`, else the cases' `runs`, else 3. Add `--scaffolded` only
-   when the eval ran with `--scaffold`: the result file does not record it, and the `scaffold`
-   check fails each case whose `case.yaml` sets `context.scaffold_script` when the flag is absent,
-   since both of its arms then ran in an empty workspace. A `case.yaml` it cannot locate or read leaves that check
-   unchecked. Without the traces
+   The run count is the run's `--runs`, else the cases' `runs`, else 3. Add `--scaffolded` only when the eval ran with `--scaffold` ([why](reference/reading-results.md#read-order)). Without the traces
    `--keep-temp` kept it reports the trace checks unchecked and the run INVALID. Report a score,
    delta, or interval only from `verdict: VALID` (exit 0), naming any warnings it printed. On
    `verdict: INVALID` (exit 1), report INVALID with every reason on that line and no number, then
