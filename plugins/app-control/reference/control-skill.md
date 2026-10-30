@@ -50,6 +50,24 @@ Below them, an index with one line per feature file, in this form:
 the files that implement the feature, relative to the project directory that holds `.claude/`. A feature with no module drops that folder:
 `features/<feature>/README.md`.
 
+A control skill can instead be a command file named `control-<app>`. The command file is the hub:
+it holds the sections and the index. Its commands folder is the top-level folder it loads from: a
+project's `.claude/commands/`, a skills-folder plugin's or a plugin's `commands/`, or the folder a
+plugin manifest's `commands` key names. Its base
+directory is `control-<app>/` in that commands folder's parent, whatever subfolder or file name
+the command file has: a command file under `<base>/commands/` keeps its features at
+`<base>/control-<app>/features/<id>/README.md`, where `<base>` is, for example, `.claude`,
+the skills-folder plugin's folder or the plugin root. A command file the manifest's `commands` key
+names as a file, directly or as a map entry's `source`, has no commands folder: its base directory
+is `control-<app>/` in the plugin root wherever the file sits, so a plugin-root
+`./control-shop.md` keeps its features at `<plugin root>/control-shop/features/<id>/README.md`,
+inside the plugin. The base directory stands in for the skill
+folder everywhere this contract names one, so `features/`, `shared/`, `cli/`, `config/` and steps
+files sit there and the index paths resolve there. Every Markdown file under a commands folder,
+in a subfolder too, loads as a command, so a feature file there would be one a model or a person
+could invoke; one folder per command also keeps two commands in one commands folder from sharing
+one `features/` tree.
+
 ## The Ready command
 
 Drive and `/testing:run-e2e` read the Ready command's exit status as the verdict, so each check in
@@ -143,11 +161,20 @@ sections in this order:
 | Section | Holds |
 |---|---|
 | `## Parts` | The distinct behaviors inside the feature, one short line each |
-| `## Sub-features` | The features nested inside this one, each a pointer to its own feature file, or `none` |
-| `## Entry points` | Where a user starts the feature, one line each. Each line ends `driven` or `not driven: <reason>` |
+| `## Sub-features` | The states or branches inside this feature that have their own feature file, each a pointer to it, or `none` |
+| `## Entry points` | Where a user starts the feature, one line each. Each line ends `driven` or `not driven: <reason>`, the reason naming what would make it drivable, such as a test account, a seeded record or a `cli/` command |
 | `## Reset` | How to return the app's own data to a known state |
 | `## Drive` | The steps a user takes, one action per step |
 | `## Gotchas` | What has made a run lie or fail before |
+
+A feature is a goal a user comes to the app to reach, such as placing an order. A sub-feature is a
+state or branch inside that goal, such as an order paid with a saved card, never a separate goal.
+A state or branch with no feature file of its own is a line in `## Parts`.
+
+UI that differs by tenant or configuration, such as a control a setting turns off or a role
+hides, is a named precondition in `## Drive`, stating the tenant, setting or role the steps need,
+or a step whose selector matches every variant. A selector written against one tenant's UI fails
+on the next tenant.
 
 A feature's id is `<feature>`, or `<module>/<feature>` when it sits in a module folder. Drive
 resolves an id, relative to the skill's base directory, to `features/<id>/README.md`, then to the
@@ -162,6 +189,20 @@ feature file names `shared/<item>`; an item fewer than two features use belongs 
 own folder, and `/app-control:map check` reports it. Each item says why it is shared on a line
 `Why shared: <reason>`, in its `README.md` for a folder or in the file itself.
 
+When the project signs in once and saves the session for the features that follow (an auth
+bootstrap, such as a test harness's setup step or a `cli/` command; drive runs none), that
+bootstrap runs the mapped sign-in steps, from `shared/` or by reference from the integrated app
+that owns sign-in, and never copies their selectors, so the sign-in selectors live in one place.
+Each feature that runs on the saved session names that sign-in item in its feature file, which is
+how Shared items counts its users.
+
+A feature that signs out runs in a throwaway browser session, never in the session the bootstrap
+saved: signing out there can end the saved session for every feature that runs after it. The
+throwaway session signs in with an account no other feature in the run signs in with, or with a
+second attempt committed config allows for that account under the Sign-in floor. When the driving
+tool drives the person's own signed-in browser, a feature that signs out is
+`not driven: needs a driving tool that opens its own browser session`.
+
 ## Size budget
 
 Drive loads the hub, then one feature file per level of the id, on every run, so their size is a
@@ -170,7 +211,7 @@ cost every run pays. Counted in characters, newlines included, the way
 
 | File | Budget | About |
 |---|---|---|
-| Hub `SKILL.md` | 16,000 characters | 4,000 tokens |
+| Hub `SKILL.md` or command file | 16,000 characters | 4,000 tokens |
 | Each feature file: a `README.md` under `features/` at any depth, module ones included, or a legacy `features/<feature>.md` | 4,000 characters | 1,000 tokens |
 
 `/app-control:map check` reports a file over its budget, and create reports one it wrote. Over

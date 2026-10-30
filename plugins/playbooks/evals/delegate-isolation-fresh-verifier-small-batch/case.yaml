@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: delegate-isolation-fresh-verifier-small-batch
+description: "fable-5 delegation case 19 from skills/fable-5/evals/evals.json"
+tags: [fable-5, orchestration, delegation]
+expected_outcome: "Plans a fresh-context verifier in addition to its own self-review before declaring the task done, because the batch spans several files and changed behavior. It plans to hand the verifier the changed files and yes/no criteria checkable by reading or searching (zero hits for handle_refund, every caller uses process_refund, the retry path matches the new rule) and to withhold its own rationale. The small size of the change does not excuse the verifier."
+execution:
+  prompt: "/playbooks:fable-5. You just finished a multi-file edit: you renamed `handle_refund` to `process_refund` across four files and changed how it retries a failed refund. It took four tool calls. Before you tell me it is done, say what you will do first, then stop."
+  allowed_tools: [Read, Glob, Grep, Skill, Agent]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: expectation-1
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Plans a fresh-context verifier before declaring the task done, beyond its own self-review. Context, the reference answer: Plans a fresh-context verifier in addition to its own self-review before declaring the task done, because the batch spans several files and changed behavior. It plans to hand the verifier the changed files and yes/no criteria checkable by reading or searching (zero hits for handle_refund, every caller uses process_refund, the retry path matches the new rule) and to withhold its own rationale. The small size of the change does not excuse the verifier. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: expectation-2
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Plans yes/no criteria for the verifier checkable by searching or reading, such as zero hits for handle_refund. Context, the reference answer: Plans a fresh-context verifier in addition to its own self-review before declaring the task done, because the batch spans several files and changed behavior. It plans to hand the verifier the changed files and yes/no criteria checkable by reading or searching (zero hits for handle_refund, every caller uses process_refund, the retry path matches the new rule) and to withhold its own rationale. The small size of the change does not excuse the verifier. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."
+  - name: expectation-3
+    type: llm
+    arm: both
+    criteria: "PASS only if the final reply meets this expectation: Says it will not pass its reasons for the changes to the verifier. Context, the reference answer: Plans a fresh-context verifier in addition to its own self-review before declaring the task done, because the batch spans several files and changed behavior. It plans to hand the verifier the changed files and yes/no criteria checkable by reading or searching (zero hits for handle_refund, every caller uses process_refund, the retry path matches the new rule) and to withhold its own rationale. The small size of the change does not excuse the verifier. FAIL if the reply does not meet the expectation, contradicts it, or leaves it unstated."

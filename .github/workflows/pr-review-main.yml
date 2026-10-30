@@ -1532,6 +1532,8 @@ jobs:
           VERDICTS: ${{ runner.temp }}/pr-review-main-verdicts
         run: |
           shopt -s nullglob
+          calls=0
+          trap 'echo "$calls" >"$RUNNER_TEMP/pr-review-main-calls"' EXIT
           for file in "$VERDICTS"/*/verdict.json; do
             lane=$(jq -r '.lane' "$file"); head=$(jq -r '.head_sha' "$file")
             critical=$(jq -r '.critical' "$file"); findings=$(jq -r '.findings' "$file")
@@ -1540,6 +1542,7 @@ jobs:
             # Neutral either way: the gate reads the title, and a red check would
             # send the fix-ci lane after a review finding.
             conclusion=neutral
+            calls=$((calls + 1))
             gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" \
               -f name="pr-review-main: $lane" -f head_sha="$head" -f status=completed \
               -f conclusion="$conclusion" \
@@ -1547,3 +1550,15 @@ jobs:
               -f "output[summary]=pr-review-main reviewed $head from main: $findings finding(s), $critical CRITICAL. The run's summary lists them." >/dev/null
             echo "recorded $lane $head findings=$findings critical=$critical"
           done
+
+      # The hub's api-calls notice, in log-api-budget's api_budget_emit_calls
+      # shape: this job has no checkout of that action, and its only calls
+      # are the check-run POSTs above, counted as they are sent.
+      - name: Log the API calls at the end
+        if: always()
+        run: |
+          # No file: the record step did not run (its download failed), so 0.
+          calls=0
+          [[ -f $RUNNER_TEMP/pr-review-main-calls ]] && calls=$(<"$RUNNER_TEMP/pr-review-main-calls")
+          [[ $calls =~ ^[0-9]{1,6}$ ]] || calls=0
+          echo "::notice title=api-calls::github-token=$calls not-modified=0 graphql=0"

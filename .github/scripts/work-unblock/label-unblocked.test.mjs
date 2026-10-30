@@ -1060,9 +1060,10 @@ const limitedNote = (resets, at, user = LANES_BOT) => ({
 const ready = (n, labels = []) => issue(n, { labels: ["agent-ready", "work-class: read-only", ...labels] });
 const added = (at, actor = LANES_BOT) => ({ event: "labeled", label: { name: "agent-ready" }, actor, created_at: at });
 const restarted = (n) => [`DELETE /repos/${REPO}/issues/${n}/labels/agent-ready`, labeled(n)];
-function stopped({ resets = "2026-10-16T11:00:00Z", at = "2026-10-16T06:00:00Z", labels = [], comments, events } = {}) {
+function stopped({ resets = "2026-10-16T11:00:00Z", at = "2026-10-16T06:00:00Z", labels = [], comments, events, pulls } = {}) {
   return world({
     openReady: [ready(30, labels)],
+    pulls,
     comments: { 30: comments ?? [note(), limitedNote(resets, at)] },
     events: { 30: events ?? [added("2026-10-16T05:00:00Z")] },
   });
@@ -1328,6 +1329,39 @@ test("retry stops past limits.stop-retries, or any with it at 0, restart nothing
     assert.equal(await sweep({ github }, withLimits(limits)), 0);
     assert.deepEqual(writes(calls), [], JSON.stringify(limits));
   }
+});
+
+// A stop that waits on an open pull request (blocked-by-pr) keeps agent-ready with a wait marker naming it, and the
+// sweep restarts it once that pull request merges or closes, never a person.
+const waitNote = (at, run = 7, pr = 15) => ({
+  id: 35,
+  body: `<!-- work-resolve-issue outcome=wait pr=${pr} run=${run} -->\nThe work-resolve-issue lane stopped on this issue (\`blocked-by-pr\`).`,
+  user: LANES_BOT,
+  created_at: at,
+});
+
+test("a stop that waits on a pull request waits while it is open and restarts once it merges or closes", async () => {
+  const open = stopped({ comments: [note(), waitNote("2026-10-16T11:55:00Z")], pulls: { 15: { number: 15, state: "open", merged_at: null } } });
+  assert.equal(await sweep({ github: open.github }), 0);
+  assert.deepEqual(writes(open.calls), []);
+  for (const pull of [
+    { number: 15, state: "closed", merged_at: "2026-10-16T11:58:00Z" },
+    { number: 15, state: "closed", merged_at: null },
+  ]) {
+    const { github, calls } = stopped({ comments: [note(), waitNote("2026-10-16T11:55:00Z")], pulls: { 15: pull } });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), restarted(30), JSON.stringify(pull));
+  }
+});
+
+test("waits are counted apart from retries, and past limits.stop-retries restart nothing", async () => {
+  const merged = { 15: { number: 15, state: "closed", merged_at: "2026-10-16T11:58:00Z" } };
+  const mixed = stopped({ comments: [note(), retryNote("2026-10-16T08:00:00Z", 6), waitNote("2026-10-16T11:55:00Z")], pulls: merged, events: [added("2026-10-16T05:00:00Z", OWNER)] });
+  assert.equal(await sweep({ github: mixed.github }, withLimits({ "stop-retries": 1 })), 0);
+  assert.deepEqual(writes(mixed.calls), restarted(30));
+  const spent = stopped({ comments: [note(), waitNote("2026-10-16T08:00:00Z", 6), waitNote("2026-10-16T11:55:00Z")], pulls: merged, events: [added("2026-10-16T05:00:00Z", OWNER)] });
+  assert.equal(await sweep({ github: spent.github }, withLimits({ "stop-retries": 1 })), 0);
+  assert.deepEqual(writes(spent.calls), []);
 });
 
 test("the App's remove-and-re-add after a retry stop is a restart, not a stop", async () => {
@@ -2692,6 +2726,29 @@ test("a lane PR closed unmerged hands the issue to triage and never re-runs it",
   });
   assert.equal(await sweep({ github: rerun.github }), 0);
   assert.deepEqual(writes(rerun.calls), []);
+});
+
+// The pr-merge lane closed the PR at the verify cap and restarted or parked
+// the issue itself (babysit_verify_evidence capped_close): no hand-off. Only
+// the lanes App's record counts; anyone can write the marker.
+test("a lane PR the pr-merge lane closed at the verify cap hands nothing off", async () => {
+  const capped = { id: 62, body: `<!-- verify-capped-close pr=7493 heads=${"1".repeat(40)} attempt=1 of=1 -->\nPull request #7493: closed.`, user: LANES_BOT, created_at: "2026-10-16T11:46:00Z" };
+  const { github, calls, lines } = lanePr({ pulls: [CLOSED_PR()], comments: [note(), capped] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), []);
+  const forged = lanePr({ pulls: [CLOSED_PR()], comments: [note(), { ...capped, user: OWNER }] });
+  assert.equal(await sweep({ github: forged.github }), 0);
+  assert.deepEqual(writes(forged.calls), triaged(30, 7493, refsClosedComment(7493)));
+});
+
+// A record with no attempt: the issue did not carry agent-ready when the
+// pr-merge lane read it, so that lane started nothing, and the closed PR is
+// handed to triage as any other.
+test("a verify-cap record that started no attempt still hands the issue off", async () => {
+  const unstarted = { id: 63, body: `<!-- verify-capped-close pr=7493 heads=${"1".repeat(40)} -->\nPull request #7493: closed.`, user: LANES_BOT, created_at: "2026-10-16T11:46:00Z" };
+  const { github, calls } = lanePr({ pulls: [CLOSED_PR()], comments: [note(), unstarted] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), triaged(30, 7493, refsClosedComment(7493)));
 });
 
 test("hand-offs after ended lane PRs share the five-a-run cap with restarts, the earliest end first", async () => {

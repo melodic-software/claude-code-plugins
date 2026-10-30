@@ -58,7 +58,7 @@ permissions, and passes no App key.
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-feedback-dispatch.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
-| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting; any other value, or one outside issue mode, fails step 1 |
+| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, or `outside-author`, the admit job's stop on an issue neither a listed human nor the lanes App wrote; any other value, or one outside issue mode, fails step 1 |
 | `collect-refused` | `''` | Write file, issue mode, `report-outcome`: the model run's `scan-collect-refused`; only `true` counts, and stops the issue on the `collect-refused` route, which holds it for a person |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
@@ -71,7 +71,7 @@ permissions, and passes no App key.
 | `feedback-context-attempt`, `feedback-context-sha256` | `''` | Read file only: for [`prepare: review-threads`](#prepare-review-threads), the attempt naming the select job's `feedback-context-<attempt>` artifact and its thread file's SHA-256 |
 | `patch-threads-attempt`, `patch-threads-sha256` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `review-threads` row, the select job's artifact attempt and its thread file's SHA-256 |
 | `patch-replies-attempt`, `patch-replies-sha256` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `review-threads` row, the read file's `feedback-attempt` and `feedback-sha256` outputs, which name the scanned replies whose `VALID` threads the commit's `Lane-Thread` lines name and bind their bytes |
-| `patch-fix-requested` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), a base-code job's verdict that lifts the human-gated hold of this push: the review-threads select job's `fix-requested`, or `lane-escalated` from `fix-ci-context`, `resolve-conflicts-select` or `fix-docs-head` when another lane's escalation put the label on |
+| `patch-human-gate` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch), a base-code job's verdict on the human-gated hold of this push, the gate it worked past: `fix-request` (the review-threads select job's `human-gate` when every kept thread carries a write-access fix request) lifts it; `lane-escalation` (that output, or `lane-escalated` from `fix-ci-context`, `resolve-conflicts-select` or `fix-docs-head`, when a lane's escalation put the label on) lifts it only while `gate-recheck.mjs`, re-running for `patch-activity` the check its select job ran, still lets it past right before the push; anything else keeps it |
 | `merge-base-sha`, `merge-conflict-tree` | `''` | Read file only: for [`prepare: merge-base`](#prepare-merge-base), the base the caller's select job pinned and the conflict tree its merge reached; this run's merge must reach the same tree, and the scan job then reads the patch as text only |
 | `patch-merge-base-sha`, `patch-merge-state`, `patch-conflict-tree` | `''` | Write file only: for [`prepare: apply-patch`](#prepare-apply-patch) under the `merge-base` row, the select job's pinned base, merge state and conflict tree, which this run's merge must reach |
 | `dependency-context-attempt`, `dependency-context-sha256` | `''` | Read file only: for [`prepare: dependency-review`](#prepare-dependency-review), the attempt naming the select job's `dependency-context-<attempt>` artifact and its context file's SHA-256 |
@@ -910,7 +910,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    request (a line starting `PR-fix lane: please fix this finding`, any case, outside a fenced
    block) by a `human` on that list whose permission on the repository reads `write` or `admin`
    (`GET /repos/{owner}/{repo}/collaborators/{username}/permission`), whose review may be on any
-   head, so a request on a thread from an earlier review is worked; or the lanes App's last
+   head, so a request on a thread from an earlier review is worked (that thread's first comment
+   may also be such a human's own, on their own review); or the lanes App's last
    comment is a reply the reply job left open (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) and
    every comment after it is by such a `human` (any permission), created after it, whose review
    may also be on any head. A human's
@@ -922,7 +923,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    which the skill follows within the same path rules. The reply job's re-read judges threads the
    same way. On a PR carrying the base's human-gated role label it keeps a thread only when one of
    those replies is such a fix request by a write-access human, and
-   reports `fix-requested=true`, which lifts only the human-gated hold of the push job. No kept
+   reports `human-gate=fix-request`, which lifts only the human-gated hold of the push job. No kept
    thread skips `awaiting-human` on such a PR; elsewhere it escalates `feedback-untaken-threads`
    (routed to a failing status) while any review thread is unresolved, and skips `not-applicable`
    only when none is. The dispatcher (`feedback-dispatch.mjs`) dispatches an ungated head for any
@@ -952,7 +953,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    the cap plus the fresh fixer's round), which both neutral checks add to their summary. Otherwise it writes `threads.json` and `run.json` (the gated head and the kept
    threads' ids, paths, comment ids and named paths, and `pr_paths`, from the thread file) and uploads both as
    `feedback-context-<run attempt>`. Its outputs are `proceed`, the head it read, the
-   escalation, `fix-requested`, both files' SHA-256 and that attempt; every later job takes its
+   escalation, `human-gate`, both files' SHA-256 and that attempt; every later job takes its
    gate, head and reply inputs from them, never from a model call's run job, whose runner head
    code could forge. A skip or an escalation runs `address-feedback-not-run` instead, which posts
    the `address-feedback` and `publish-feedback` checks neutral with the select job's skip reason
@@ -1010,7 +1011,8 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    admits only paths in a kept thread's scope (the `kept-threads` rule, `named_paths` and
    `pr_paths` included),
    skips `superseded-sha` when the head moved since the select job read it, keeps the
-   human-gated hold unless the select job reported `fix-requested`, and commits with the
+   human-gated hold unless the select job reported `human-gate` (`lane-escalation` only while a
+   fresh read still finds one), and commits with the
    `Lane-Activity: pr-unblock/address-feedback` trailer followed by one `Lane-Thread: <thread id>`
    line for each kept thread a `VALID` reply names. It reads those replies from the same call's
    scan job artifact (`patch-replies-attempt`), downloaded before the mint and failed red unless
@@ -1198,7 +1200,7 @@ denied on the base checkout and the runner's temp directory (which holds the lan
 the other slots), Glob, Grep and MCP tools denied, and only that thread's files in the workspace. The prompt
 (`.github/scripts/pr-unblock/adjudicate-feedback.prompt.md`) frames every staged file as
 untrusted data. The model route is `adjudicate-feedback` ([README.md, Models](README.md#models)).
-The call returns `verdict` (`lane`, `reviewer` or `human`) and `question` (`none`, or for `human`
+The call returns `verdict` (`lane`, `reviewer`, `human` or `tests-only`) and `question` (`none`, or for `human`
 `intent`, `design` or `security`) to `adjudicate-feedback.schema.json`, and a leg whose init
 message reports another permission mode keeps no verdict. `collect` writes `verdicts.json`, and
 the job uploads it as `feedback-adjudication-<attempt>` with `overwrite: false`, passing its
@@ -1207,6 +1209,20 @@ write file's `review-adjudication-attempt` and `review-adjudication-sha256` inpu
 verdicts only for the select job's head (`run.json`), the code the adjudicator read, with that
 SHA-256; a round that pushed a fix still applies them. The posted replies are fixed text and the
 lane's validated evidence; no model text reaches the pull request.
+
+A `tests-only` verdict (the finding asks only that tests or checks CI runs be run) is settled with no
+model text, and only on an `UNCERTAIN` reply to a finding that is not security-review's, in a round that pushed no fix (the snapshot is of the
+head before any fix). The select job holds `checks: read`, so it records
+the head's CI in `run.json`'s `ci` (`address-feedback.mjs` `ciSnapshot`): it runs the base copy of
+`scripts/plan-test-lanes.sh` over the pull request's files and reads the latest real run of each github-actions check its lanes post (`test-bash (<leg>)` and
+`test-python (<leg>)` for each leg the plan lists, `test-node` and each `pr-test-windows.yml` job it
+names). The plan reads the base tree, so it can name fewer lanes than the head ran. The state is
+`red` when any `test-*` run on the head failed, planned or not (a cancelled run is `unsettled`, since fix-ci does not take a cancelled-only head), `green` when every
+planned check has a run, each one passed, and no unplanned `test-*` lane ran, and
+`unsettled` otherwise. On `green` the reply job posts a fixed reply citing those runs and resolves
+the thread; on `red` it posts nothing and escalates nothing, since `fix-ci-dispatch.mjs` starts
+fix-ci for a head whose lanes failed; on `unsettled`, or on another reply, the round ends
+`feedback-unadjudicated`. The reply job reads only the snapshot, so it needs no checks permission.
 
 The next round reads the finding-stands reply: `threadAuthors` keeps a thread whose last lanes
 App comment is that reply, so `pr-feedback-dispatch.yml` dispatches it once the review lanes
@@ -2032,8 +2048,13 @@ listing and re-fires the issue on main's files, once per version of the two file
 `pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or
 `probe-first`) takes no model turn and leaves no outcome, so the caller's `report-skip` job,
 which needs `admit` and `pick-slot` only, runs `report-outcome` in the write file with
-`dimension-skip`: it labels the issue `needs-human`, removes `agent-ready`, and comments the next
-step under the escalation marker and an `outcome=<reason>` marker. What changes from the PR flow:
+`dimension-skip`, and the reason takes its route: `research-first` and `probe-first` label the
+issue `needs-human`, remove `agent-ready`, and comment the next step under the escalation marker
+and an `outcome=<reason>` marker; `split-required` takes the `intake` route, so intake's split
+files its sub-issues (owner Q93). When the admit job stops the run because the issue's author is
+neither a listed human nor the lanes App, `report-skip` runs with `dimension-skip: outside-author`:
+it removes `agent-ready` and comments, under an `outcome=outside-author` marker and with no label,
+that a listed human re-files the work as a new issue. What changes from the PR flow:
 
 - Step 1 also fails red unless the event is `issues`, `issue-number` is the event's issue,
   `trusted-base` is `default-tip`, and `pr-number` and `dispatcher-run-id` are empty; in the read
@@ -2169,16 +2190,43 @@ step under the escalation marker and an `outcome=<reason>` marker. What changes 
   `.github/scripts/work-resolve-issue/stop-routes.json`, one row per reason with a `why`; a
   `stopped` run opens its `reason` with one of the rows marked `code` (`host-only`,
   `manual-external`, `intent-change`, `design-change`, `security-risk`, `cost-risk`,
-  `patch-protected-path`), and a reason with no code, like a reason the table does not list,
-  holds. `hold` labels the issue with the human-gated role label, removes `agent-ready` and
-  comments why; `host-run` adds the `host-run` label (the host queue's one signal: an unattended
+  `patch-protected-path`, `blocked-by-pr`, `already-done`, `report-delivered`). A reason with no
+  code retries at most once (its row's `retries`) and then fails; a reason the table does not list fails.
+  A security mention always reaches the owner: a reason with no code, or one whose code's route is
+  `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
+  `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API or private key,
+  `backdoor`, `exploit` or branch protection, in any case and even inside a word; `XSS`, `RCE` or
+  `CVE` as a whole word; or an ignore-instructions phrase)
+  takes the `security-risk` row's hold instead; a `wait` or `retry` code keeps its route.
+  Every `hold` row names its `class`, one of `intent-change`, `design-change`, `security-risk` or
+  `cost-risk`, the owner's only reasons for a person, and every comment that reaches a person
+  carries it as a stop-reason code (`intent`, `design`, `security` or `cost`): the marker
+  `<!-- stop-reason lane=work-resolve-issue reason=<code> -->` and the line ``Reason: `<code>` ``,
+  from the shared `.github/scripts/lib/stop-reason.mjs`, which refuses `none` on such a comment.
+  collect-base-activity copies `.github/scripts/lib/` beside the script's base copy for that
+  import. `hold` labels the issue with the human-gated
+  role label, removes `agent-ready` and comments why; `host-run` adds the `host-run` label (the host queue's one signal: an unattended
   agent run on a host) and removes `agent-ready`; `attended` adds the `attended` label (a manual
   external step that needs the owner present, which only a listed human lifts) and removes
   `agent-ready`, asking no decision; `retry` keeps
   `agent-ready` with `<!-- work-resolve-issue outcome=retry run=<run id> -->`, so the work-unblock
   sweep restarts the issue and the next run resumes its branch, while the retry markers since a
-  listed human last added `agent-ready` are fewer than `limits.stop-retries`; past that, the stop
-  takes the `retry-spent` row's route. `fail` removes `agent-ready`, adds no label and comments
+  listed human last added `agent-ready`, whatever stop wrote them, are fewer than
+  `limits.stop-retries` or the stop's row's `retries`; past that, the stop takes the
+  `retry-spent` row's route. `wait` (`blocked-by-pr`) keeps `agent-ready` with
+  `outcome=wait pr=<n>`, naming the first `#<n>` in the reason: the work-unblock sweep restarts the
+  issue once that pull request merges or closes, its waits counted against `limits.stop-retries`
+  apart from its retries; a pull request that is not open, or none named, retries instead.
+  `intake` removes `agent-ready`, `status: ready` and `admission-deferred`, so the triage sweep,
+  which counts `outcome=intake` as a hand-back, sends the issue back through intake. `close`
+  comments, removes `agent-ready` and closes the issue as completed: `already-done` only once a
+  cited merged pull request (the first three `#<n>` are tried) or commit is on the default branch
+  and its commit message closes the issue, and `report-delivered` only on a
+  `work-class: read-only` issue the run committed nothing for, with the run's `summary` as the
+  report; either retries otherwise. Dependents and split parents count the lanes App's
+  `already-done` close as trusted only while that evidence re-checks true when they read it
+  (`isTrustedClose` in check-trusted-trigger, through `.github/scripts/lib/done-evidence.mjs`); a
+  `report-delivered` close, or any read that fails, counts for nothing. `fail` removes `agent-ready`, adds no label and comments
   with `outcome=failed`, which the maintenance monitor's signal 9 reports. Every comment that adds the human-gated label opens with the attended
   queue's escalation marker `<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->`,
   so `/work-items:attend-queue` lists the issue, and then the outcome marker

@@ -70,7 +70,10 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    folder step 1 searched, whose manifest defines `control-<app>` as an inline command, with no
    file (`control skill <name> has no file to read`; see the manifest's commands below), and a name this session shows whose `<plugin>` is no listed
    plugin's `<plugin>` (`control skill <name> is from a session-only plugin drive cannot read`).
-3. **Read, never invoke.** Read each kept file as data, with its folder as its base directory.
+3. **Read, never invoke.** Read each kept file as data. A `SKILL.md`'s base directory is its
+   folder; a command file's is `control-<app>/` in the parent of the top-level commands folder it
+   loads from, and for a file a manifest's `commands` key names as a file (directly or as a map
+   entry's `source`), `control-<app>/` in the plugin root, per the contract's Hub.
    Never invoke a control skill through the Skill tool (what loading a skill applies or runs: see
    below). A repository file for an `<app>`
    beats every plugin file for it.
@@ -91,7 +94,8 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    [`${CLAUDE_PLUGIN_ROOT}/reference/control-skill.md`](../../reference/control-skill.md). The report names the skill used, by its
    full name, and its source (`project` or `plugin`) with its path.
 8. Resolve `<feature>` to its file by id, where the id is `<feature>` or `<module>/<feature>`, under
-   the chosen skill's base directory: `features/<id>/README.md` when it exists, and then never open
+   the chosen skill's base directory (step 3; never the commands folder that holds a command
+   file): `features/<id>/README.md` when it exists, and then never open
    the legacy `features/<id>.md`; only without that README, the legacy file. Neither exists: say so
    and stop that feature rather than guess a file.
 9. An include from an integrated app resolves through the contract's "Integrated apps", and its
@@ -149,6 +153,15 @@ All as of 2026-10-26; recheck when any of them changes.
   that exits 4, is `blocked:` with the floor, never retried. Launch and Ready placeholders are
   filled per the contract's "Environments". A capture
   that needs elevation follows "Elevated captures go through a shown script" instead.
+- **One sign-in per account per run.** The CLI keeps no count between calls, so drive keeps it, per
+  the contract's Sign-in floor: call `cli/ sign-in <account>` at most once per account in a run,
+  unless committed config (the owning app's `config/defaults.json` at HEAD) allows more attempts
+  for that account. The count spans an integrated app's `cli/` too, and a sign-in file included
+  twice for one account is two attempts. A sign-in over the count is not called: it is `blocked:`
+  under the Sign-in floor. A failed sign-in (any failure at a sign-in step, such as a non-zero
+  exit, a timeout or an unset credential variable) ends the steps that are not finally steps, and
+  no other account takes its place. The finally steps still run; one that would sign in again for
+  that account is `blocked:` under the Sign-in floor.
 - **Name the tool, never substitute.** Capture uses the tool the control skill names for the kind,
   one tool per tier. Drive implements no capture and picks no tool of its own. When no tool is named,
   report the kind as a capability gap and use no stand-in. An interactive run may offer to research

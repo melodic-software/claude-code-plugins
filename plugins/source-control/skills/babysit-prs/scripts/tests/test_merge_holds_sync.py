@@ -43,6 +43,7 @@ workflow change after auto-merge is armed.
 from __future__ import annotations
 
 import ast
+import importlib.util
 import fnmatch
 import json
 import pathlib
@@ -97,6 +98,12 @@ ROUTE_ENTRIES = (
 IMPORT = re.compile(
     r"""(?:(?:from|import)\s*\(?|new\s+URL\()\s*["'](\.{1,2}/[^"']+)["']"""
 )
+
+
+# The trusted-actor list is held outside the floor table: the trust gate
+# rates it HIGH, and every review caller's hold-paths lists it first.
+def floor_or_trust_gate(path: str) -> bool:
+    return path == risk.TRUSTED_ACTORS_PATH or any(risk.glob_match(g, path) for g in risk.FLOOR)
 
 
 def import_closure(entries: tuple[str, ...]) -> list[str]:
@@ -298,10 +305,7 @@ class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
             text=True,
             check=True,
         )
-        workflow = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
-            encoding="utf-8"
-        )
-        line = re.search(r"^ *(hold_patterns=\(.*\))$", workflow, re.MULTILINE)[1]
+        line = _hold_patterns_line()
         bash = subprocess.run(
             [
                 "bash",
@@ -340,8 +344,8 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
 
     def test_the_floor_holds_the_same_paths_on_both_sides(self) -> None:
         answer = module(FLOOR_PATHS)
-        self.assertEqual(len(risk.FLOOR_CLASSES), 106)
-        self.assertEqual(len(risk.REVIEW_FLOOR), 40)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 109)
+        self.assertEqual(len(risk.REVIEW_FLOOR), 42)
         self.assertEqual(
             {kind for _, kind in risk.FLOOR_CLASSES}, {"trust", "gate", "enforcement"}
         )
@@ -415,7 +419,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), risk.HIGH_FLOOR)
-        self.assertEqual(len(risk.HIGH_FLOOR), 66)
+        self.assertEqual(len(risk.HIGH_FLOOR), 67)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
@@ -430,7 +434,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
+                self.assertTrue(floor_or_trust_gate(path))
                 self.assertEqual(
                     held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
                 )
@@ -443,7 +447,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(any(risk.glob_match(g, path) for g in risk.FLOOR))
+                self.assertTrue(floor_or_trust_gate(path))
                 self.assertEqual(
                     held, any(risk.glob_match(g, path) for g in risk.HIGH_FLOOR)
                 )
@@ -510,11 +514,35 @@ def _hold_paths(workflow: str) -> list[str]:
     return block[1].split()
 
 
-def _hold_patterns() -> list[str]:
+def _sync_hold_floor() -> Any:
+    spec = importlib.util.spec_from_file_location(
+        "sync_hold_floor", ROOT / "scripts/sync-hold-floor.py"
+    )
+    assert spec and spec.loader
+    loaded = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loaded)
+    return loaded
+
+
+def _hold_patterns_line() -> str:
+    """ci-status's exempt-author `hold_patterns` as the generator writes them
+    with `merge.diff-check.path-holds` true: the hardened list. While the
+    switch is false a guard line after it empties the list for every author
+    but Dependabot (test_the_workflow_list_follows_the_path_holds_switch)."""
+    return _sync_hold_floor().hold_patterns("", holds=True)[0]
+
+
+def _workflow_hold_patterns() -> list[str]:
     text = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
         encoding="utf-8"
     )
     found = re.search(r"^ *hold_patterns=\((.*)\)$", text, re.M)
+    assert found
+    return shlex.split(found[1])
+
+
+def _hold_patterns() -> list[str]:
+    found = re.fullmatch(r"hold_patterns=\((.*)\)", _hold_patterns_line())
     assert found
     return shlex.split(found[1])
 
@@ -541,11 +569,12 @@ class TheScrutinyListsNameTheFloor(unittest.TestCase):
     base-branch hold's `.github/trust-path-hold.json` (the same, case-folded)
     each match every floor entry."""
 
-    def test_the_base_branch_hold_holds_github_and_the_agent_apps(self) -> None:
+    def test_the_base_branch_hold_holds_github_and_the_configured_apps(self) -> None:
         config = _trust_path_hold()
         self.assertEqual(sorted(config), ["apps", "paths"])
         self.assertEqual(config["paths"][0], ".github/**")
-        self.assertIn("melodic-agent[bot]", config["apps"])
+        # ci-workflows' shared hold fails on an empty `apps`.
+        self.assertTrue(config["apps"])
         pipeline = (ROOT / "docs/conventions/pr-pipeline.yaml").read_text(
             encoding="utf-8"
         )
@@ -560,6 +589,43 @@ class TheScrutinyListsNameTheFloor(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue(any(_shared_glob(g, path) for g in config["paths"]))
         self.assertFalse(any(_shared_glob(g, "README.md") for g in config["paths"]))
+
+    def test_the_workflow_list_follows_the_path_holds_switch(self) -> None:
+        # Owner decisions Q21 and Q24 (2026-10-29): with
+        # merge.diff-check.path-holds false a guard empties the list for every
+        # author but Dependabot, whose action-pin bumps bring in third-party
+        # code; true holds every exempt author.
+        sync = _sync_hold_floor()
+        actors = json.loads(
+            (ROOT / ".github/standards/trusted-actors/trusted-actors.json").read_text(
+                encoding="utf-8"
+            )
+        )["actors"]
+        dependabot = [str(a["id"]) for a in actors if a["login"] == "dependabot[bot]"]
+        self.assertEqual(dependabot, [sync.DEPENDABOT_ID])
+        on = sync.hold_patterns("", holds=True)
+        self.assertEqual(on, [_hold_patterns_line()])
+        off = sync.hold_patterns("", holds=False)
+        self.assertEqual(off[0], on[0])
+        self.assertEqual(
+            off[-1], f'[ "$AUTHOR_ID" = {sync.DEPENDABOT_ID} ] || hold_patterns=()'
+        )
+        self.assertTrue(all(line.startswith("#") for line in off[1:-1]))
+        text = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
+            encoding="utf-8"
+        )
+        block = re.search(
+            r"BEGIN hold-floor hold_patterns.*?\n(.*?)\n *# END hold-floor hold_patterns",
+            text,
+            re.S,
+        )
+        assert block
+        self.assertEqual(
+            [line.strip() for line in block[1].split("\n")],
+            sync.hold_patterns("", sync.path_holds()),
+        )
+        self.assertEqual(_workflow_hold_patterns(), _hold_patterns())
+        self.assertTrue(_hold_patterns())
 
     def test_each_list_covers_every_floor_entry(self) -> None:
         lists = {

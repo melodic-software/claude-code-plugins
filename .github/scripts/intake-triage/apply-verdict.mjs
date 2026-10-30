@@ -85,7 +85,7 @@ import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { checkWip, searchRateLimit } from "../../actions/check-wip-cap/check-wip-cap.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
-import { admit, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
+import { admit, authorAdmitted, earlierFlags, EARLIER, isAppId as isApp, loadRules, noteUnrunnable, ownVerdict, UNRECORDED, UNTRUSTED, VERDICT_FLAGS as FLAGS, VERDICT_MARKER } from "./admit.mjs";
 import { MAX_TEXT_BLOCKERS, parseBlockedBy, textBlockers, writeEdges } from "./edges.mjs";
 
 export const MARKER = "<!-- claude-lane intake-triage -->";
@@ -371,7 +371,7 @@ export async function run({ env, github, dimensionsConfig, fieldSetters, admitIs
     log(`apply-verdict: #${number} is not an open issue; nothing written`);
     return { outcome: "skipped" };
   }
-  if (!(humans.has(issue.user?.id) || (appId !== undefined && issue.user?.id === appId))) {
+  if (!authorAdmitted(issue, humans, appId)) {
     log(`apply-verdict: #${number}'s author is neither a listed human nor the lanes App; nothing written`);
     return { outcome: "skipped" };
   }

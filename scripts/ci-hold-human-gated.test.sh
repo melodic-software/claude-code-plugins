@@ -69,14 +69,17 @@ if [[ -n "${agg_line:-}" && "$job_line" -lt "$hold_line" && "$hold_line" -lt "$a
 else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
-# The config comes from a sparse checkout of the base commit: never the head,
-# never a persisted credential, and before every step that reads it.
+# The config comes from a sparse checkout of the commit hold_ref resolves:
+# never the head, never a persisted credential, never an empty ref (which
+# checks out the event's ref, the pull request's own merge commit), and before
+# every step that reads it.
 checkout="$(awk '$0 == "      - name: Check out the base commit'"'"'s hold config" { on = 1; print; next }
   on && /^      - / { exit }
   on { print }' "$WORKFLOW")"
 # shellcheck disable=SC2016 # workflow literals to match, not shell expansions
 for line in $'\n        id: base_config\n' 'continue-on-error: true' \
-  'ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}' \
+  "if: \${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.hold_ref.outputs.sha != '' }}" \
+  'ref: ${{ steps.hold_ref.outputs.sha }}' \
   'persist-credentials: false' '/.work-item-tracker.json' '/.github/standards/trusted-actors/trusted-actors.json' \
   'sparse-checkout-cone-mode: false' 'path: base-config'; do
   if [[ "$checkout" == *"$line"* ]]; then ok "the base checkout carries '${line//$'\n'/}'"; else fail "the base checkout lost '${line//$'\n'/}'"; fi
@@ -88,6 +91,96 @@ if [[ -n "${cost_line:-}" && "$job_line" -lt "$checkout_line" && "$checkout_line
 else
   fail "the base checkout is not in ci-status before the cost-hold step (lines: $order)"
 fi
+
+# hold_ref resolves the commit the hold config is read at: a pull request into
+# the default branch reads the branch's tip at run time, so a re-run (which
+# replays the event and its stale base.sha) still sees a policy merged since;
+# any other base, and a merge group, keep the event's base SHA.
+REF_NAME="Resolve the hold config's commit"
+ref_step="$(awk -v name="      - name: $REF_NAME" '$0 == name { on = 1; print; next }
+  on && /^      - / { exit }
+  on { print }' "$WORKFLOW")"
+awk '/^        run: \|$/ { on = 1; next }
+  on && /^          / { print substr($0, 11); next }
+  on && /^[[:blank:]]*$/ { print ""; next }
+  on { exit }' <<<"$ref_step" >"$TMP_ROOT/hold-ref.sh"
+# shellcheck disable=SC2016 # workflow literals to match, not shell expansions
+for line in $'\n        id: hold_ref\n' \
+  "if: \${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}" \
+  'BASE_REF: ${{ github.event.pull_request.base.ref }}' \
+  'DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' \
+  'BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}'; do
+  if [[ "$ref_step" == *"$line"* ]]; then ok "hold_ref carries '${line//$'\n'/}'"; else fail "hold_ref lost '${line//$'\n'/}'"; fi
+done
+if [[ "$ref_step" == *"continue-on-error"* ]]; then
+  fail "hold_ref must not continue on error: the checkout's guard reads its output"
+else
+  ok "hold_ref carries no continue-on-error"
+fi
+# shellcheck disable=SC2016 # a workflow expression to match, not a shell expansion
+if [[ -s "$TMP_ROOT/hold-ref.sh" ]] && ! grep -q '\${{' "$TMP_ROOT/hold-ref.sh"; then
+  ok "hold_ref's run body takes every event value through env"
+else
+  fail "hold_ref has no run body, or inlines an expression in it"
+fi
+order="$(grep -nE "^      - name: ($REF_NAME|Check out the base commit's hold config)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
+read -r ref_line checkout_line <<<"$order"
+if [[ -n "${checkout_line:-}" && "$ref_line" -lt "$checkout_line" ]]; then
+  ok "hold_ref sits before the checkout that reads it"
+else
+  fail "hold_ref is not before the base checkout (lines: $order)"
+fi
+
+mkdir -p "$TMP_ROOT/git-bin"
+cat >"$TMP_ROOT/git-bin/git" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$GIT_LOG"
+[[ -z "${STUB_LS-}" ]] || printf '%b' "$STUB_LS"
+exit "${STUB_GIT_RC:-0}"
+EOF
+chmod +x "$TMP_ROOT/git-bin/git"
+REF_BASE=1111111111111111111111111111111111111111
+REF_TIP=2222222222222222222222222222222222222222
+REF_DECOY=3333333333333333333333333333333333333333
+# hold_ref_case LABEL EVENT BASE_REF WANT_RC WANT_SHA WANT_GIT_CALLS WANT_WARNING
+hold_ref_case() {
+  local label="$1" out rc sha calls
+  : >"$TMP_ROOT/hold-ref.out"
+  : >"$TMP_ROOT/git.log"
+  out="$(cd "$TMP_ROOT" && PATH="$TMP_ROOT/git-bin:$PATH" GIT_LOG="$TMP_ROOT/git.log" GITHUB_OUTPUT="$TMP_ROOT/hold-ref.out" \
+    GITHUB_REPOSITORY=melodic-software/claude-code-plugins RUNNER_TEMP="$TMP_ROOT" \
+    EVENT="$2" BASE_REF="$3" DEFAULT_BRANCH=main BASE_SHA="${REF_BASE_SHA-$REF_BASE}" \
+    bash -e "$TMP_ROOT/hold-ref.sh" 2>&1)" && rc=0 || rc=$?
+  sha="$(sed -n 's/^sha=//p' "$TMP_ROOT/hold-ref.out")"
+  calls="$(grep -c . "$TMP_ROOT/git.log")"
+  if [[ "$rc" == "$4" && "$sha" == "$5" && "$calls" == "$6" ]] &&
+    { [[ -z "$7" ]] && [[ "$out" != *"::warning::"* ]] || [[ -n "$7" && "$out" == *"$7"* ]]; }; then
+    ok "hold_ref: $label"
+  else
+    fail "hold_ref: $label (rc=$rc sha='$sha' git calls=$calls out: $out)"
+  fi
+}
+STUB_LS="$REF_TIP\trefs/heads/main\n" hold_ref_case "a pull request into the default branch reads its tip" \
+  pull_request main 0 "$REF_TIP" 1 ""
+if grep -qxF -e "-C $TMP_ROOT ls-remote https://github.com/melodic-software/claude-code-plugins refs/heads/main" "$TMP_ROOT/git.log"; then
+  ok "hold_ref asks the public remote for the default branch, outside any checkout"
+else
+  fail "hold_ref's ls-remote call is not the expected one: $(cat "$TMP_ROOT/git.log")"
+fi
+STUB_LS="$REF_TIP\trefs/heads/main\n" hold_ref_case "a pull request into another branch keeps the base SHA" \
+  pull_request release/1 0 "$REF_BASE" 0 ""
+STUB_LS="$REF_TIP\trefs/heads/main\n" hold_ref_case "a merge group keeps the base SHA" \
+  merge_group "" 0 "$REF_BASE" 0 ""
+STUB_GIT_RC=128 hold_ref_case "a failed ls-remote falls back to the base SHA with a warning" \
+  pull_request main 0 "$REF_BASE" 1 "::warning::"
+STUB_LS="not-a-sha\trefs/heads/main\n" hold_ref_case "a non-hex answer falls back to the base SHA with a warning" \
+  pull_request main 0 "$REF_BASE" 1 "::warning::"
+STUB_LS="$REF_DECOY\trefs/heads/x/refs/heads/main\n" hold_ref_case "a tail-matching ref is not the default branch" \
+  pull_request main 0 "$REF_BASE" 1 "::warning::"
+STUB_LS="$REF_DECOY\trefs/heads/x/refs/heads/main\n$REF_TIP\trefs/heads/main\n" hold_ref_case "the exact ref wins over a tail match" \
+  pull_request main 0 "$REF_TIP" 1 ""
+REF_BASE_SHA=main hold_ref_case "a base that is not a commit SHA outputs no ref" \
+  pull_request release/1 1 "" 0 ""
 gate="$(awk '/^  ci-status:$/ { on = 1; next } on && /^    if: / { print; exit }' "$WORKFLOW")"
 if [[ "$gate" == "    if: \${{ !cancelled() }}" ]]; then
   ok "ci-status carries no contract-only gate, so the step runs on label events"
@@ -223,6 +316,19 @@ REFUSAL="$(hold "$APP" "$REFUSAL_BODY")"
 export STUB_COMMENTS="[$NEW,$REFUSAL]" STUB_PIPELINE=$'merge:\n  agent-identity: melodic-automation-lanes[bot]'
 expect "a newer pr-merge refusal beats an older security hold, naming its fenced reasons" 1 1 "needs-human" 0 \
   "(it changes docs/held.md, a hold path pr-merge's gate holds it on its risk score (cost-review-required: infra/main.tf)). $APPROVE" "Changes a trust gate"
+# A reason line past 100 columns wraps at a space, its continuation indented
+# two spaces, and more than 20 lines fold into <details>: the reason reads
+# back as one line either way.
+WRAPPED_BODY=$'<!-- work-items:escalation lane=pr-merge kind=escalated -->\n<!-- babysit-merge-risk -->\nUnattended merge: native auto-merge leaves this pull request unarmed at head `bbbb`. A person must clear this reason, so the pr-merge lane added the `needs-human` label: fix the reason, then remove the label, and the next scheduled run judges it again.\n\n```text\npr-merge\'s gate holds it on its risk score (manifest-review-required:\n  plugins/a/.claude-plugin/plugin.json: hooks)\n```'
+WRAPPED="$(hold "$APP" "$WRAPPED_BODY")"
+export STUB_COMMENTS="[$NEW,$WRAPPED]" STUB_PIPELINE=$'merge:\n  agent-identity: melodic-automation-lanes[bot]'
+expect "a wrapped pr-merge refusal names its reason on one line" 1 1 "needs-human" 0 \
+  "(pr-merge's gate holds it on its risk score (manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks)). $APPROVE" "Changes a trust gate"
+FOLDED_BODY="${WRAPPED_BODY/$'```text'/$'<details><summary>Its reasons (21 lines)</summary>\n\n```text'}"$'\n\n</details>'
+FOLDED="$(hold "$APP" "$FOLDED_BODY")"
+export STUB_COMMENTS="[$NEW,$FOLDED]"
+expect "a folded pr-merge refusal names its reason too" 1 1 "needs-human" 0 \
+  "(pr-merge's gate holds it on its risk score (manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks)). $APPROVE" "Its reasons"
 export STUB_COMMENTS="[$REFUSAL,$NEW]"
 expect "a newer security hold beats an older pr-merge refusal" 1 1 "needs-human" 0 "(Changes a trust gate:" "risk score"
 # A lane's refusal (no attend-queue marker) set no label, so a newer one

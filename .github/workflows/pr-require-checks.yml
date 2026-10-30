@@ -1682,7 +1682,7 @@ jobs:
       # whole hook entry whenever the key is unset (the declared userConfig
       # `default` is unimplemented upstream — anthropics/claude-code#46477), so
       # the hook never fires on a default install. The channel decision matrix
-      # (docs/conventions/hook-config-delivery/) rules argv out for hooks; this
+      # (docs/contracts/hook-config-delivery/) rules argv out for hooks; this
       # gate pins the exact regression #1242 fixed.
       - name: Check plugin hook configs for bare userConfig argv tokens
         id: userconfig_argv
@@ -2260,7 +2260,7 @@ jobs:
       - name: Verify generated shared-library copies match their canonical sources
         if: needs.select-tests.outputs.run_tests == 'true'
         run: scripts/sync-shared-copies.sh --check
-      # docs/conventions/prerequisites/: the gate validates every
+      # docs/contracts/prerequisites/: the gate validates every
       # prerequisites.json and fails on an undeclared tool not listed in
       # scripts/prerequisites-baseline.txt. Its suites run through the selector.
       - name: Check plugin prerequisites are declared
@@ -4135,30 +4135,70 @@ jobs:
         uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-      # THE HOLD STEPS READ THEIR CONFIG FROM THE BASE COMMIT, ONCE. The tracker
+      # THE HOLD STEPS READ THEIR CONFIG ONCE, FROM THE DEFAULT BRANCH'S TIP AT
+      # RUN TIME, OR THE BASE COMMIT FOR ANOTHER BASE. The tracker
       # config names the human-gated label, the trusted-actor list names who
       # may lift a hold and, with pr-pipeline.yaml's merge.agent-identity, the
       # lanes App's id that LANES_APP_ID must equal, and its
       # merge.trust-path-hold-apps the agent Apps whose trust-gate changes the
-      # review-lanes step holds; all are read at the base
+      # review-lanes step holds; all are read there, never at the head,
       # so the pull request cannot rewrite its own hold, as is merge-holds.mjs,
-      # whose refsIssue the cost step runs. A sparse checkout of the four files at the base SHA
+      # whose refsIssue the cost step runs, and clear-escalations.mjs with every
+      # module and data file it loads, whose recheckStaleHold the hold-lift
+      # step runs. A re-run replays the event, whose base.sha stays stale, so
+      # a pull request into the default branch reads that branch's tip as it
+      # stands now: a policy merged since applies on the next run. A pull
+      # request's head cannot change the default branch, so the tip is no more
+      # the pull request's code than the base commit is. A merge group, and a
+      # pull request into another branch, keep the event's base SHA.
+      # hold_ref resolves the commit and outputs it only as 40 hex: it reads
+      # the tip with an unauthenticated `git ls-remote` of this public
+      # repository, run outside any checkout, and falls back to the base SHA
+      # with a warning when that read fails or returns anything else.
+      - name: Resolve the hold config's commit
+        id: hold_ref
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+        run: |
+          hex='^[0-9a-f]{40}$'
+          if [[ ! $BASE_SHA =~ $hex ]]; then
+            echo "::error::the base commit '$BASE_SHA' is not a commit SHA, so the hold config has no commit to read."
+            exit 1
+          fi
+          sha=$BASE_SHA
+          if [ "$EVENT" = pull_request ] && [ -n "$DEFAULT_BRANCH" ] && [ "$BASE_REF" = "$DEFAULT_BRANCH" ]; then
+            tip=$(GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$RUNNER_TEMP" ls-remote "https://github.com/$GITHUB_REPOSITORY" "refs/heads/$DEFAULT_BRANCH" |
+              awk -v ref="refs/heads/$DEFAULT_BRANCH" '$2 == ref { print $1 }') || tip=
+            if [[ $tip =~ $hex ]]; then
+              sha=$tip
+            else
+              echo "::warning::could not read the tip of $DEFAULT_BRANCH, so the hold config falls back to the base commit $BASE_SHA, which a policy merged after it does not reach."
+            fi
+          fi
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+      # A sparse checkout of these files at that SHA
       # is a git fetch, not a REST request: as of actions/checkout v7.0.1 its
       # API calls (default branch, object format, the stale-merge tracepoint, the
       # no-git archive download) all return early for a 40-hex `ref` on a runner
       # with git; recheck on a checkout bump. It checks out no pull request
-      # code: the ref is the base commit, the only code run from it is that
-      # base module, and no credential is persisted.
+      # code: the ref is the default branch's tip or the base commit, the only
+      # code run from it is those modules, and no credential is persisted. It
+      # never runs on an empty ref, which would check out the event's ref, the
+      # pull request's own merge commit.
       # The steps below read BASE_CONFIG: empty when this step did not succeed,
       # which each of them treats as an unreadable config; a file missing from
-      # a checkout that succeeded is a file the base commit does not have.
+      # a checkout that succeeded is a file that commit does not have.
       - name: Check out the base commit's hold config
         id: base_config
-        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') }}
+        if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && steps.hold_ref.outputs.sha != '' }}
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          ref: ${{ steps.hold_ref.outputs.sha }}
           path: base-config
           persist-credentials: false
           sparse-checkout: |
@@ -4166,6 +4206,23 @@ jobs:
             /.github/standards/trusted-actors/trusted-actors.json
             /.github/scripts/pr-merge/merge-holds.mjs
             /docs/conventions/pr-pipeline.yaml
+            /.github/scripts/pr-merge/clear-escalations.mjs
+            /.github/scripts/pr-merge/enable-auto-merge.mjs
+            /.github/scripts/pr-unblock/address-feedback.mjs
+            /.github/scripts/pr-unblock/gate-source.mjs
+            /.github/scripts/pr-unblock/escalation-routes.mjs
+            /.github/scripts/pr-unblock/escalation-routes.json
+            /.github/scripts/pr-unblock/retry-fetch.mjs
+            /.github/scripts/pr-unblock/thread-scope.mjs
+            /.github/scripts/work-resolve-issue/report-outcome.mjs
+            /.github/scripts/work-resolve-issue/limits.mjs
+            /.github/scripts/work-resolve-issue/retry-fetch.mjs
+            /.github/scripts/work-resolve-issue/stop-routes.mjs
+            /.github/scripts/work-resolve-issue/stop-routes.json
+            /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
+            /.github/actions/check-kill-switch/check-kill-switch.mjs
+            /.github/actions/log-api-budget/rate-guard.mjs
+            /.github/actions/log-api-budget/rate-limits.json
           sparse-checkout-cone-mode: false
       # A COST HOLD THE OWNER ALREADY DECIDED COMES OFF. A review lane re-holds
       # every new head, so its `cost` hold went back on after the owner had
@@ -4621,7 +4678,13 @@ jobs:
       # lifts. A bot or another account lifting the hold, or no recorded
       # removal, fails; adding the label back and having a trusted person
       # remove it approves: a trusted person's `labeled` event after the hold
-      # starts a new hold that only that list's removal lifts.
+      # starts a new hold that only that list's removal lifts. The one removal
+      # by another account that lifts it is the lanes App's (LANES_APP_ID, on
+      # the base list) own, after its stale-review-hold comment since the hold
+      # names a head no hold comment names, while none names this head, and
+      # only when the base commit's clear-escalations.mjs recheckStaleHold,
+      # the predicate the App ran, passes again here at this head with this
+      # job's token.
       # It runs only when the step above read the live labels and found the
       # label off. A hold is the newest hold comment or the newest `labeled`
       # event of the label by github-actions[bot] or claude[bot], whichever is
@@ -4637,6 +4700,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           HUMAN_GATED: ${{ steps.human_gated.outputs.label }}
           BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
         run: |
@@ -4699,6 +4763,57 @@ jobs:
           if [ -z "$lifted_at" ]; then
             echo "::error::a review lane held #$PR_NUMBER at $held_at, and no removal of '$HUMAN_GATED' since then is recorded. Add the label back; a person on the trusted-actor list removing it approves this pull request."
             exit 1
+          fi
+          # A stale hold the lanes App cleared (clear-escalations.mjs
+          # stale-review-hold): the App removed the label itself, after its own
+          # comment since the hold opening with that clear's marker; the
+          # newest such marker names a head no review-lane hold comment names,
+          # every hold comment names its head, and none names this head. Hold
+          # comments count from the label's last removal before the label the
+          # App removed went on, as clear-escalations.mjs holdsSince counts
+          # them, so a hold a person already lifted counts for nothing. The
+          # base commit's clear-escalations.mjs recheckStaleHold must then find
+          # the hold no longer standing at the marker's head as it was when the
+          # App removed the label. A later head is judged by its own review
+          # lanes, as after a person's lift, so a clean push after the clear
+          # stays green before they run.
+          if [[ ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ && $actor_id == "$LANES_APP_ID" && -z $via_app && ${HEAD_SHA:-} =~ ^[0-9a-f]{40}$ ]] &&
+            jq -e --argjson id "$LANES_APP_ID" 'any(.actors[]; .id == $id)' <<<"$actors" >/dev/null 2>&1; then
+            # shellcheck disable=SC2016 # $e and $on are jq variables
+            since=$(jq -rs --arg label "$HUMAN_GATED" --arg lifted_at "$lifted_at" '[add[] | select(.label.name == $label)] as $e
+              | ([$e[] | select(.event == "labeled" and .created_at < $lifted_at) | .created_at] | max) as $on
+              | [$e[] | select(.event == "unlabeled" and $on != null and .created_at <= $on) | .created_at] | max // ""' <<<"$events") || since=
+            # shellcheck disable=SC2016 # $c, $app and the rest are jq variables
+            stale=$(jq -rs --arg held_at "$held_at" --arg lifted_at "$lifted_at" --arg since "$since" --arg head "$HEAD_SHA" --argjson app "$LANES_APP_ID" '(add // []) as $c
+              | [$c[] | select(.user.type == "Bot" and (.body | test("(^|\n)<!-- claude-lane-hold lane="))
+                  and ([.created_at, (.updated_at // .created_at)] | max) >= $since
+                  and (.user.login == "claude[bot]" or (.user.login == "github-actions[bot]"
+                    and ([.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "") | select(. != "")] | last // ""
+                      | test("^`?claude-lane: (claude-review|claude-security-review)`?$")))))
+                | [.body | splits("\r?\n") | gsub("^\\s+|\\s+$"; "")
+                  | capture("^<!-- claude-lane-hold lane=[a-z-]+ sha=(?<sha>[0-9a-f]{40}) criteria=[a-z,-]+ -->$").sha] | first // null] as $held
+              | [$c[] | select(.user.id == $app and .created_at > $held_at and .created_at <= $lifted_at)] | sort_by(.created_at)
+                | [last // empty | .body | split("\n")[0] | sub("\r$"; "")
+                  | capture("^<!-- pr-pipeline needs-human-cleared reason=stale-review-hold head=(?<head>[0-9a-f]{40}) -->$").head] as $cleared
+              | if any($held[]; . == null or . == $head) then ""
+                else [$cleared[] | select(. as $h | $held | index($h) == null)] | first // "" end' <<<"$raw") || stale=
+            # The marker only points here: the base commit's
+            # clear-escalations.mjs recheckStaleHold, the predicate the App
+            # ran, judges the hold again at the marker's head with this job's
+            # token. The module is not the first argument, which would run
+            # its main.
+            module="$BASE_CONFIG/.github/scripts/pr-merge/clear-escalations.mjs"
+            if [ -n "$stale" ] && [ -f "$module" ]; then
+              # shellcheck disable=SC2016 # JavaScript, not shell
+              if PR_NUMBER="$PR_NUMBER" HEAD_SHA="$HEAD_SHA" CLEARED_SHA="$stale" HUMAN_GATED="$HUMAN_GATED" \
+                TRUSTED_ACTORS_PATH="$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json" \
+                node --input-type=module -e 'import { pathToFileURL } from "node:url";
+                  const { recheckStaleHold } = await import(pathToFileURL(process.argv[2]).href);
+                  process.exitCode = await recheckStaleHold();' recheck "$module"; then
+                echo "$actor_login cleared the review-lane hold on #$PR_NUMBER as stale: its marker names $stale, which no hold names, and the hold no longer stands at $HEAD_SHA."
+                exit 0
+              fi
+            fi
           fi
           if [[ " $humans " != *" $actor_id "* ]]; then
             echo "::error::$actor_login removed '$HUMAN_GATED' from #$PR_NUMBER after a review lane held it, and is not a person on the trusted-actor list. Add the label back; a person on that list removing it approves this pull request."
@@ -4812,7 +4927,9 @@ jobs:
       # standards-sync App, by numeric author id, are exempt: no review lane
       # reviews them. An exempt author's PR still fails when a changed file
       # (or a renamed file's old path) is a trust-gate path, since no security
-      # lane reads it; a person merges it. So does any other same-repository
+      # lane reads it; a person merges it (with merge.diff-check.path-holds
+      # false, Dependabot alone: the generated guard after hold_patterns
+      # empties the list for every other author). So does any other same-repository
       # PR changing one that an agent App (merge.trust-path-hold-apps in the
       # base commit's pr-pipeline.yaml) opened, authored or committed a commit
       # of, or pushed to its head branch (the repository activity API, one
@@ -4874,7 +4991,9 @@ jobs:
           held_paths() {
             # The trust-gate paths, as bash patterns (`*` crosses `/`).
             # BEGIN hold-floor hold_patterns: generated by scripts/sync-hold-floor.py
-            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/pr-review-main/*' '.claude/*' '*/.claude/*' '.claude-lane/*' '*/.claude-lane/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' 'docs/standards/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
+            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' '.claude/*' '*/.claude/*' '.claude-lane/*' '*/.claude-lane/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' 'docs/standards/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
+            # merge.diff-check.path-holds is false: only Dependabot stays held.
+            [ "$AUTHOR_ID" = 49699333 ] || hold_patterns=()
             # END hold-floor hold_patterns
             if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
               echo "::error::the pull request number '$PR_NUMBER' is not a number."
@@ -4942,7 +5061,7 @@ jobs:
             if [ ! -d "$BASE_CONFIG" ] || { [ -e "$conf" ] && ! apps=$(set -o pipefail; yq -o=json -I=0 '.merge."trust-path-hold-apps" // []' "$conf" |
               jq -ce 'if type == "array" and all(.[]; type == "string" and test("^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$"))
                 then map(ascii_downcase) else error("not a list of [bot] logins") end'); } || [ -z "$apps" ]; then
-              echo "::error::could not read merge.trust-path-hold-apps from the base commit's pr-pipeline.yaml, so whether an agent App touched the trust-gate paths of #$PR_NUMBER is unknown; re-run this run."
+              echo "::error::could not read merge.trust-path-hold-apps from pr-pipeline.yaml in the hold config (the default branch's tip at run time, or the base commit for another base), so whether an agent App touched the trust-gate paths of #$PR_NUMBER is unknown; re-run this run."
               exit 1
             fi
             if [ "$apps" != '[]' ]; then
@@ -5464,7 +5583,7 @@ jobs:
           . "$RUNNER_TEMP/gh-read.sh"
           module=${BASE_CONFIG:-}/.github/scripts/pr-merge/merge-holds.mjs
           if [ -z "${BASE_CONFIG:-}" ] || [ ! -s "$module" ]; then
-            echo "::error::cannot read merge-holds.mjs at the base commit; re-run this run."
+            echo "::error::cannot read merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
             exit 1
           fi
           read3() {
@@ -5503,7 +5622,7 @@ jobs:
             "$RUNNER_TEMP/pr-unblock-statuses.json" "$module") ||
             ! jq -e 'type == "array"' <<<"$stops" >/dev/null ||
             ! failing=$(jq -r '.[] | [.context, .state, .description] | @tsv' <<<"$stops"); then
-            echo "::error::merge-holds.mjs at the base commit could not judge the statuses of $head; re-run this run."
+            echo "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the statuses of $head; re-run this run."
             exit 1
           fi
           if [ -z "$failing" ]; then
@@ -5554,7 +5673,7 @@ jobs:
             ! identity=$(yq -er '.merge."agent-identity"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
             ! want=$(jq -er --arg login "$identity" '[.actors[] | select(.login == $login) | .id | numbers]
               | if length == 1 then .[0] else error("not one entry") end' "$BASE_CONFIG/.github/standards/trusted-actors/trusted-actors.json"); then
-            echo "::error::cannot read merge.agent-identity's trusted-actor id from the base commit's config; re-run this run."
+            echo "::error::cannot read merge.agent-identity's trusted-actor id from the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
             exit 1
           fi
           if [ "$want" != "$LANES_APP_ID" ]; then
@@ -5609,7 +5728,7 @@ jobs:
               }
               console.log(JSON.stringify(reason));' "$RUNNER_TEMP/lanes-pull.json" "$BASE_CONFIG/.github/scripts/pr-merge/merge-holds.mjs") ||
             [ -z "$switched" ] || ! reason=$(jq -er 'if . == null then "" else strings end' <<<"$switched"); then
-            echo "::error::merge-holds.mjs at the base commit could not judge the lanes kill switch for #$pr; re-run this run."
+            echo "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the lanes kill switch for #$pr; re-run this run."
             exit 1
           fi
           if [ -n "$reason" ]; then

@@ -450,5 +450,34 @@ git -C "$REPO" push -q origin main 2>/dev/null
 expect "a push whose net change adds no finding passes through the installed entry" 0 "$?"
 expect "verify reports the entry ok" "ok	reference-verify" "$(node "$INSTALL" verify --repo "$REPO" | grep 'reference-verify')"
 
+# git exports GIT_DIR to a hook, a linked worktree's git dir when pushed from
+# one. A doc below the root citing a path the branch restored still passes.
+new_repo
+node "$INSTALL" copy --scope local --entry reference-verify --repo "$REPO" >/dev/null
+WT="$WORK/wt$n"
+git -C "$REPO" worktree add -q -b restore "$WT" main
+mkdir -p "$WT/docs/sub"
+printf 'gone\n' >"$WT/docs/gone.md"
+# shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+printf '# R\nSee `docs/gone.md` for the details.\n' >"$WT/docs/sub/README.md"
+git -C "$WT" add -A
+git -C "$WT" commit -q -m restore --no-verify
+err="$(git -C "$WT" push -q origin restore 2>&1)"
+expect "a push from a linked worktree citing a restored path passes" "0|" "$?|$(head -1 <<<"$err")"
+
+# An inherited discovery ceiling between the doc and the root does not hide the
+# repository, so a citation of a deleted path still blocks.
+new_repo
+node "$INSTALL" copy --scope local --entry reference-verify --repo "$REPO" >/dev/null
+WT="$WORK/wt$n"
+git -C "$REPO" worktree add -q -b cite "$WT" main
+mkdir -p "$WT/docs/sub"
+# shellcheck disable=SC2016 # markdown code-span backticks, literal fixture text
+printf '# R\nSee `docs/gone.md` for the details.\n' >"$WT/docs/sub/README.md"
+git -C "$WT" add -A
+git -C "$WT" commit -q -m cite --no-verify
+GIT_CEILING_DIRECTORIES="$WT/docs" git -C "$WT" push -q origin cite >/dev/null 2>&1
+expect "a push under a discovery ceiling citing a deleted path blocks" 1 "$?"
+
 echo "reference-verify: $PASS passed, $FAIL failed"
 ((FAIL == 0))

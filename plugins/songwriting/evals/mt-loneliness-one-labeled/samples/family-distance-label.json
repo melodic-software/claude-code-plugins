@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": "§7 Image filter: cliche scan pass (no \"empty heart\"), literally-false check pass.\n\nHere is one:\n\n*The porch light still waits up for nobody.*\n\nType: verbal. Linking: a habit that outlived its reason. Family distance: medium.\n\nIt keeps the focus on the house, which suits a slow ballad."
+    },
+    {
+      "answer": "| Metaphor | Type | Family distance |\n| --- | --- | --- |\n| the hallway swallows my footsteps | Verbal | far |\n\nThe verb carries the silence, so the hallway does the grieving for you.",
+      "why": "one-row table"
+    },
+    {
+      "answer": "**Loneliness is an off-season motel.**\n\n- Type: expressed identity\n- **Distance:** far\n\nWhat characteristics does it have? vacancy, quiet, a sign left lit. What else has them? a church lot on Monday.",
+      "why": "bold label"
+    },
+    {
+      "answer": "**The bed yawns on my side.** A verbal metaphor, family distance: close. Keep the distance in the verb; a closer image would tip into cliche."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "*The porch light still waits up for nobody.* Type: verbal. Linking: a habit that outlived its reason.",
+      "why": "no distance label"
+    },
+    {
+      "answer": "This one goes far beyond cliche. Keep the distance from the obvious.",
+      "why": "distance and far not a label"
+    },
+    {
+      "answer": "Close your eyes and picture the empty garage.",
+      "why": "close as a verb"
+    },
+    {
+      "answer": "Rhymes for 'alone': phone, stone, known.",
+      "why": "a different question"
+    }
+  ]
+}

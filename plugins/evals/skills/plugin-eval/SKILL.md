@@ -469,7 +469,7 @@ reader which one happened and whether the arms were comparable at all (pointer: 
   terminal it may publish to claude.ai unless `--no-publish` is passed.
 - The sandbox limits what the agent under test can reach. It is not a boundary against the
   plugin's own code: hooks, `--scaffold` scripts, and real MCP servers run as you, outside it, with
-  network access. A passing suite is a behavior measurement, never a security vetting.
+  network access. A passing suite is a behavior measurement, never a security vetting. Observed sandbox write limits: [records.md](reference/records.md#sandbox-and-credential-store).
 
 ## Sources
 
@@ -485,7 +485,7 @@ record a drift outcome in this plugin's CHANGELOG.
 | Docker credential-store refusal and the `~/.docker/bin` exemption | <https://code.claude.com/docs/en/changelog> (2.1.293); no docs page covers it | 2026-10-10 | A docs page documents the check, or a release note touches sandbox credential exclusion or exempt paths |
 | Cloud route host and packages | [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) | 2026-10-11 | That section changes its host description or package list |
 | Read-only tool set | <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-10-10 | That section's allowed-tools sentence changes |
-| Worktree Bash guard refusal of `claude plugin eval --help`, and which session shapes it covers | Observed on Claude Code 2.1.301 ([records.md](reference/records.md#worktrees)) | 2026-10-16 | A release note touches worktree isolation or `plugin eval` |
+| Worktree Bash guard refusal of `claude plugin eval --help`, and which session shapes it covers | Observed on Claude Code 2.1.312 ([records.md](reference/records.md#worktrees)) | 2026-10-29 | A release note touches worktree isolation or `plugin eval` |
 | Worktree Bash guard refusal of the user's `!` command | Observed on Claude Code 2.1.285 ([records.md](reference/records.md#worktrees)) | 2026-10-01 | A release note touches worktree isolation or `plugin eval` |
 | CLI linked-worktree refusal | Observed on Claude Code 2.1.289 ([records.md](reference/records.md#worktrees)) | 2026-10-04 | A release note changes the limit or the CLI's repository screening |
 | Model and judge resolution | <https://code.claude.com/docs/en/plugin-evals#command-options> | 2026-10-01 | The table changes its `--model` or `--judge-model` row |

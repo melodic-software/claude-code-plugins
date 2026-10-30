@@ -15,7 +15,7 @@ marketplace, in the `toolchain` plugin's `/toolchain:check` reference table, its
 (already divergent from `/toolchain:check`'s), and the `review` `ecosystem-specialist` agent's inline
 defaults, with no consumer-declared source any of them could defer to. The concern is cross-plugin
 by demonstrated fact, so the contract lives here in marketplace conventions (the same reasoning as
-`docs/conventions/hook-telemetry/`), not inside any one plugin.
+`docs/contracts/hook-telemetry/`), not inside any one plugin.
 
 ## The two layers: canonical verb vs context binding
 

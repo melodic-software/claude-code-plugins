@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call at all"},
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "src/Tarnquill.Cli/Commands/CommitCommand.cs"}}],
+      "why": "read the command's source"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:setup"}}],
+      "why": "another developer-experience skill is outside this check"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "education:explain"}}],
+      "why": "another plugin's skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:build-cli", "args": "review tq commit"}}],
+      "why": "near miss: build-cli fired to review the command instead of explaining it"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "developer-experience:audit-tools"}}],
+      "why": "audit-tools fired"
+    },
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "build-cli"}}],
+      "why": "bare skill name"
+    }
+  ]
+}

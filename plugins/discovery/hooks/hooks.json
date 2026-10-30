@@ -22,7 +22,8 @@
             "type": "command",
             "command": "node",
             "args": ["${CLAUDE_PLUGIN_ROOT}/lib/docs-fetcher-gate.mjs", "discovery:docs-fetcher"],
-            "timeout": 10
+            "timeout": 10,
+            "onFailure": "block"
           }
         ]
       }

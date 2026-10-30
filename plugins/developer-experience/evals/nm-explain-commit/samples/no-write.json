@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [], "why": "nothing written"},
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "src/Tarnquill.Cli/Commands/CommitCommand.cs"}}],
+      "why": "read the command only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "docs/commit-command.md", "content": "# tq commit\n"}}],
+      "why": "near miss: wrote the explanation to a file"
+    }
+  ]
+}

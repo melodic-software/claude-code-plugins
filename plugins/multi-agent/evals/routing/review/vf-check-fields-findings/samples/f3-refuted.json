@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "F1: confirmed\nF2: refuted\nF3: refuted - iterating a dict yields its keys, so sorted(env) is the sorted keys\nF4: confirmed\n",
+      "why": "the requested form"
+    },
+    {
+      "answer": "**F3: Refuted** - `sorted({...})` returns the keys\n",
+      "why": "bold, capitalized"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "F3: confirmed - sorted sorts the values\n",
+      "why": "wrong verdict"
+    },
+    {
+      "answer": "F2: refuted\nF3: confirmed\n",
+      "why": "refuted sits on another finding's line"
+    },
+    {
+      "answer": "F3 looks refuted to me.\n",
+      "why": "not in the requested form"
+    }
+  ]
+}

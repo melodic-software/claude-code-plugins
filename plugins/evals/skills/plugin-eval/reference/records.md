@@ -34,6 +34,17 @@ re-read the page.
   and the current refusal wording is not captured here: it needs a macOS or WSL2 host. Recheck:
   re-run one `Bash`-granting case on a host with such a link.
 
+- Read-only `.git` and session tmp directory under `--allow-tools Bash`: a `claude plugin eval` run
+  saw the scratch repo's `.git` as read-only on Claude Code 2.1.310 and 2.1.314, Linux/WSL2,
+  2026-10-24 and 2026-10-29 (`git fetch` failed writing `.git/FETCH_HEAD` with "Read-only file
+  system"). On 2.1.314 the session tmp directory was read-only too: the shell's cwd-tracking write
+  failed, so a Bash call could report exit 1 though its command succeeded. A fresh clone and an
+  out-of-repo copy failed the same way. Claude Code 2.1.302 completed a merge on 2026-10-18. The
+  cause within the CLI is not bisected (UNVERIFIED). Evidence:
+  [#10277](https://github.com/melodic-software/claude-code-plugins/issues/10277),
+  [#6997](https://github.com/melodic-software/claude-code-plugins/issues/6997). Recheck: re-run the
+  source-control pull-request-ready cases on the next CLI release.
+
 ## Worktrees
 
 - The Bash guard's `eval` refusal: `claude plugin eval --help` refused from a worktree-isolated
@@ -53,6 +64,9 @@ re-read the page.
   - A peer isolated session also had routine Bash refused for the bare word (`grep -i eval`).
   Recheck: re-run `claude plugin eval --help` in a `--worktree` session and in a normal session
   started in a worktree.
+- Recheck on Claude Code 2.1.312, Linux/WSL2, 2026-10-29 (#5696), same probe shape: `claude -p
+  --worktree` still refused, same message; a normal session in a `git worktree add` worktree
+  allowed.
 - The CLI's linked-worktree refusal (`registers more linked worktrees than can be screened`):
   observed on Claude Code 2.1.289, Linux/WSL2, 2026-10-04. Recheck: re-run on a plugin in a
   repository with many linked worktrees.

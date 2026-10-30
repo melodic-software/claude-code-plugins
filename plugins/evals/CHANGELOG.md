@@ -1,5 +1,17 @@
 # Changelog: evals
 
+## [0.10.16] - 2026-10-30
+
+### Changed
+
+- plugin-eval: the sandbox records add the Claude Code 2.1.310 and 2.1.314 observation that a Bash-granting run sees the scratch repo's `.git` (and, on 2.1.314, the session tmp directory) as read-only, and a Gotchas pointer to it.
+
+## [0.10.15] - 2026-10-30
+
+### Changed
+
+- plugin-eval: the worktree guard records add the Claude Code 2.1.312 recheck: a `--worktree` session still refuses `claude plugin eval --help`, and a normal session started in a git worktree runs it.
+
 ## [0.10.14] - 2026-10-29
 
 ### Changed

@@ -3,6 +3,18 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.3] - 2026-10-30
+
+### Changed
+
+- **Stryker.NET exercised-scope filter limits stated** ([#9687](https://github.com/melodic-software/claude-code-plugins/issues/9687)). `audit/context/tool-test-restriction.md` now says the joined `test-case-filter` can match more tests than the set: a generic class's term has no trailing `.`, and a term can match in another listed project. Those extra tests can turn NoCoverage into Survived or Killed. It also stops claiming the probe measured which directory `test-projects` paths resolve against.
+
+## [0.11.2] - 2026-10-30
+
+### Changed
+
+- **Stryker.NET's `test-case-filter` keeps NoCoverage under `perTest`** ([#9687](https://github.com/melodic-software/claude-code-plugins/issues/9687)). A probe of Stryker.NET 5.0.0 on the `dotnet-test-selection` fixture showed the filter applies in the initial coverage run, so a mutant reached only by excluded tests reports NoCoverage. The `audit/context/tool-test-restriction.md` row now reads `yes` with the version, probe date and recheck trigger, so `audit --exercised` may use Stryker.NET's own restriction. A new "Running Stryker.NET on a test set" section says how: `dotnet-test-selection.sh` output becomes `test-projects` and a `FullyQualifiedName~` `test-case-filter`, written to an untracked copy of the Stryker config beside the original and passed with `--config-file`, so the user's config file is never edited.
+
 ## [0.11.1] - 2026-10-29
 
 ### Fixed

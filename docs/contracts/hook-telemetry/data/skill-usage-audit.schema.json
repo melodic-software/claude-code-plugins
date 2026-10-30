@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/skill-usage-audit.schema.json",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/hook-telemetry/data/skill-usage-audit.schema.json",
   "title": "skill-usage-audit telemetry data",
   "description": "Per-hook `data` payload for the skill-usage-audit signal. Discovered from the envelope `hook` value \"skill-usage-audit\". Two producers emit it under this one `hook` id: the PostToolUse/Skill emitter (model-invoked Skill tool, `hook_event` PostToolUse) and the UserPromptExpansion emitter (user-typed slash-command / MCP-prompt, `hook_event` UserPromptExpansion); the `source` field tells them apart. Evolves additive-only. Captures the skill/command name only — never the arguments body. Independent of the hook's bespoke skill-usage.jsonl second store.",
   "type": "object",
