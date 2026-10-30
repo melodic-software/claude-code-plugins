@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.40.2] - 2026-10-30
+
+### Changed
+
+- Links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
 ## [0.40.1] - 2026-10-30
 
 ### Changed
