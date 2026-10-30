@@ -31,6 +31,7 @@
 .github/scripts/pr-review-main
 .github/scripts/pr-unblock
 .github/scripts/pr-verify
+.github/scripts/security-outside-actor
 .github/scripts/work-unblock
 .github/scripts/work-resolve-issue
 plugins/knowledge/vendor/repo-analysis

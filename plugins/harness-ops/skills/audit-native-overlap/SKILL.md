@@ -255,7 +255,7 @@ Three artifacts, one direction of flow:
 **Observation records name their evidence class.** *Extraction-evidence* reads "extracted from
 binary v&lt;X&gt; on &lt;date&gt;"; *live-roster observation* reads "observed in &lt;env&gt; session
 on &lt;date&gt;". Neither is ever flattened into "this surface is available". See
-`docs/conventions/native-references/README.md` for why any static availability claim is wrong
+`docs/contracts/native-references/README.md` for why any static availability claim is wrong
 somewhere by construction.
 
 **A recheck trigger names an observable event.** "A Claude Code release adds, removes, or renames a

@@ -240,6 +240,7 @@ import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { admissionFacts, admissionSettled, ATTENDED, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, specOf, stillBlocking, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 import { doneReason, isSplitParent, mergedRefsReader, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { createJobLogReader } from "./job-log.mjs";
 
 const LABEL = "agent-ready";
@@ -293,9 +294,10 @@ const handedMarker = (pr) => `<!-- work-unblock handed triage #${pr} -->`;
 // itself. One with no attempt started nothing.
 const CAPPED_CLOSE = /^<!-- verify-capped-close pr=([1-9][0-9]{0,9}) heads=[0-9a-f,]* attempt=[0-9]+ of=[0-9]+(?: parked)? -->/;
 const DEFAULT_BOT = "melodic-automation-lanes[bot]";
-// The lane never starts on these: a person decides the first five, and
-// `attended` waits on a step the owner takes present (admit.mjs ATTENDED).
-const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance", ATTENDED]);
+// The lane never starts on these: a person decides each but `attended`,
+// which waits on a step the owner takes present (admit.mjs ATTENDED). Only a
+// person removes OUTSIDE_ACTOR_LABEL, so its issue is never handed to triage.
+const HOLDS = new Set(["needs-owner-decision", "status: needs-decision", "status: needs-info", "needs-human", "work-class: untrusted-provenance", ATTENDED, OUTSIDE_ACTOR_LABEL]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 // post-merge-demotion-alert.yml's fix issue and the comment it posts when it

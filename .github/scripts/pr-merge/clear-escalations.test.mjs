@@ -42,7 +42,7 @@ const RED = [check("test-node", "failure")];
 // `evidence` is what the gate's reader (enable-auto-merge pythonVerify) answers.
 // `reviewThreads` is the GraphQL reviewThreads page answered for a cursor.
 const threadPage = (nodes, hasNextPage = false) => ({ nodes, pageInfo: { hasNextPage, endCursor: hasNextPage ? "next" : null } });
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"] }) {
   const calls = [];
   const checks = async (method, path) => {
     calls.push({ method, path, token: "checks" });
@@ -67,14 +67,14 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       return { ref: "refs/heads/main", object: { sha: MAIN } };
     }
     if (method === "GET" && route === `/repos/${REPO}/issues?state=open&labels=needs-human`) {
-      return path.endsWith("page=1") ? numbers.map((number) => ({ number, pull_request: {}, labels: [{ name: "needs-human" }] })) : [];
+      return path.endsWith("page=1") ? numbers.map((number) => ({ number, pull_request: {}, labels: listed.map((name) => ({ name })) })) : [];
     }
     const [, kind, number] = /^\/repos\/[^/]+\/[^/]+\/(issues|pulls)\/(\d+)(?:\/timeline)?$/.exec(route) ?? [];
     if (method === "GET" && kind === "issues" && route.endsWith("/timeline") && numbers.includes(Number(number))) {
       return path.endsWith("page=1") ? timeline : [];
     }
     if (method === "GET" && kind === "pulls" && numbers.includes(Number(number))) {
-      return { number: Number(number), state: "open", user: author, base: { ref: "main", sha: MAIN }, head: { sha: HEAD, ref: "feat/x", repo: { full_name: headRepo } }, labels: [{ name: "needs-human" }], mergeable };
+      return { number: Number(number), state: "open", user: author, base: { ref: "main", sha: MAIN }, head: { sha: HEAD, ref: "feat/x", repo: { full_name: headRepo } }, labels: labels.map((name) => ({ name })), mergeable };
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${HEAD}...${MAIN}`) {
       return { files: mainFiles };
@@ -125,6 +125,20 @@ test("an App-set needs-human whose workflow-staged reason cleared comes off with
   assert.match(comment.body.body, /`workflow-staged`/);
   assert.match(comment.body.body, new RegExp(`\`${HEAD}\``));
   assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("an App-set needs-human on an item flagged security: outside-actor is never removed", async () => {
+  const flagged = ["needs-human", "security: outside-actor"];
+  for (const [listed, labels] of [
+    [flagged, flagged],
+    [["needs-human"], flagged],
+  ]) {
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated()], listed, labels });
+    const { code, logs } = await run(w);
+    assert.equal(code, 0);
+    assert.deepEqual(w.writes(), []);
+    assert.ok(logs.some((line) => /#7 kept: .*security: outside-actor/.test(line)), logs.join("\n"));
+  }
 });
 
 test("a needs-human a person added is kept", async () => {
