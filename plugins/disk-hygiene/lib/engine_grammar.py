@@ -48,12 +48,16 @@ that asymmetry explicitly rather than leaving it to a positional restatement:
   value is context the guard resolves at runtime.
 
 This module sits on the always-on ``Bash|PowerShell`` PreToolUse path, so it
-imports nothing beyond ``re`` and builds its tables once at import.
+imports only the standard library (the platform's lock module only when the
+run-marker lock is taken) and builds its tables once at import.
 """
 
 from __future__ import annotations
 
+import os
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 TIERS = frozenset({"high", "medium", "low"})
 
@@ -82,8 +86,47 @@ ENGINE_OWNED_DIRS = frozenset(
 ENGINE_OWNED_FILES = frozenset({"catalog.json", "catalog.md"})
 
 # A run marker this old reads as no open run: the belt stands down, and the
-# engine deletes the marker on its next call.
+# engine deletes the marker on that session's next call.
 RUN_IDLE_TIMEOUT_SECONDS = 3600.0
+
+# Held while the guard reads and rewrites a run marker and while the engine
+# reads and deletes one, so two hooks in one parallel batch cannot interleave
+# a check with another's write. Not ``*.json``, so it is never read as a marker.
+RUN_LOCK_FILENAME = ".lock"
+
+
+def run_marker_filename(session_id: str) -> str:
+    """The run marker's file name under ``RUN_MARKER_DIRNAME`` for one session."""
+    safe = "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in session_id)
+    return f"{safe}.json"
+
+
+@contextmanager
+def run_marker_lock(runs: str | os.PathLike[str]) -> Iterator[None]:
+    """Hold the exclusive run-marker lock in ``runs``, creating both if absent.
+
+    Raises ``OSError`` when the lock cannot be taken; callers treat that like
+    any other failed bookkeeping step.
+    """
+    os.makedirs(runs, exist_ok=True)
+    fd = os.open(os.path.join(runs, RUN_LOCK_FILENAME), os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+    finally:
+        os.close(fd)
 
 
 def is_engine_owned(relative: str) -> bool:

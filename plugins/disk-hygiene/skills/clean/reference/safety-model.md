@@ -623,10 +623,14 @@ only a `handoff-verify` opens it and only the timeout ends it. Any other admitte
 idle clock, so a completed or refused scan with no preview after it is a scan-only outcome. With no
 marker, the belt denies no command that does not name the engine (the read-only supporting allowlist
 keeps its `allow`); a command that names the engine gets the same verdict as during a run. The engine
-deletes the marker when the run ends: after an `apply` or `handoff-apply` writes the report the marker
-names, and when a `preview` of the plan it names ends in `manual-handoff-lane` or `blocked`. A marker
-that goes an hour without an engine call reads as no run, and the engine deletes it on its next call.
-The guard never deletes a marker. The kill switch wins over the release: when `disk_hygiene_enabled`
+deletes the calling session's marker, named by `CLAUDE_CODE_SESSION_ID`, when the run ends: after an
+`apply` or `handoff-apply` writes the report the marker names, and when a `preview` of the plan it names
+ends in `manual-handoff-lane` or `blocked`. A marker that goes an hour without an engine call reads as
+no run, and the engine deletes it on that session's next call. The engine never reads another
+session's marker, so one session cannot end another's run; an engine call with no session id deletes
+no marker, and its run ends at the idle timeout. The guard never deletes a marker. The guard's check
+and write and the engine's read and delete take one lock file in `clean-runs/`, so hooks in one
+parallel batch cannot interleave them. The kill switch wins over the release: when `disk_hygiene_enabled`
 is `false` the belt never stands down, so Bash keeps its deny-by-default and PowerShell deletion
 spellings stay denied whether or not a run is open. `clean-runs/` is engine-owned state, so no engine `--output` or
 `--report` can land on a marker.
