@@ -386,7 +386,9 @@ function request(session, verb, args = {}) {
   return new Promise((done, fail) => {
     const conn = net.createConnection(sock);
     let buf = '';
-    conn.on('connect', () => conn.end(`${JSON.stringify({ verb, args })}\n`));
+    // Write without ending: a Windows named pipe does not stay half-open, so ending here closes
+    // the pipe before a slow reply arrives. The holder ends the connection after replying.
+    conn.on('connect', () => conn.write(`${JSON.stringify({ verb, args })}\n`));
     conn.on('data', (d) => {
       buf += d;
     });
@@ -455,9 +457,10 @@ async function serve(opts) {
   await terminal.run(launch.argv[0], launch.argv.slice(1), { env: launch.env, cols: 120, rows: 40 });
   if (await childExited(terminal)) throw new Error('claude exited as soon as it started');
   if (stale) rmSync(sock, { force: true });
-  // Half-open: the client ends its side after the request, and the reply may take seconds.
-  const server = net.createServer({ allowHalfOpen: true }, (conn) => {
+  const server = net.createServer((conn) => {
     let buf = '';
+    // A client that goes away before its reply must not take the holder down with it.
+    conn.on('error', () => {});
     conn.on('data', async (d) => {
       buf += d;
       if (!buf.includes('\n')) return;
