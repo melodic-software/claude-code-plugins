@@ -1,5 +1,5 @@
 # Retired consumer-facing conventions for the source-control plugin.
-# Contract: docs/conventions/retired-conventions/README.md (append-only; ids never reused).
+# Contract: docs/contracts/retired-conventions/README.md (append-only; ids never reused).
 # Evaluated by lib/check-retirements.sh in setup `check`; cleanup is operator-gated in `apply`.
 ---
 id: source-control-r001
