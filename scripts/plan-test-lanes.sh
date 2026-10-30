@@ -223,8 +223,11 @@ read_list::into exclusions "$EXCLUSIONS_LIST" --comments inline || exit 2
 read_list::into outside "$PACKAGES_LIST" --comments inline || exit 2
 
 # Triggers beyond its own directory for a package in the outside list: the
-# workflow whose drift its parity and workflow tests catch.
-declare -A OUTSIDE_TRIGGERS=([.github/scripts/pr-verify]=".github/workflows/pr-verify.yml")
+# workflows and shared files its tests read.
+declare -A OUTSIDE_TRIGGERS=(
+  [.github/scripts/pr-verify]=".github/workflows/pr-verify.yml"
+  [.github/scripts/lane-run-report]=".github/workflows/pr-run-activity-read.yml .github/workflows/pr-run-activity-write.yml .github/scripts/lib/"
+)
 
 # Every Node package as `<package> <owner> [<trigger>]`.
 packages="$SUBPROJECTS"
