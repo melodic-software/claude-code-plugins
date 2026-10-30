@@ -338,7 +338,7 @@ jobs:
       patch-activity: fix-docs
       patch-prepare: docs
       patch-head-sha: ${{ needs.fix-docs-head.outputs.head-sha }}
-      # true drops the human-gated label from the holds: a lane escalation
-      # put it on (lane-hold.mjs).
-      patch-fix-requested: ${{ needs.fix-docs-head.outputs.lane-escalated }}
+      # lane-escalation drops the human-gated label from the holds while the
+      # write runner reads it again as a lane escalation (lane-hold.mjs).
+      patch-human-gate: ${{ needs.fix-docs-head.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}
       reply-attempt: ${{ needs.fix-docs-fallback.result != 'skipped' && needs.fix-docs-fallback.outputs.scan-reply-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result != 'skipped' && needs.fix-docs-subscription.outputs.scan-reply-attempt || needs.fix-docs-fallback.result == 'skipped' && needs.fix-docs-subscription.result == 'skipped' && needs.fix-docs.outputs.scan-reply-attempt || '' }}

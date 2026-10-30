@@ -373,6 +373,80 @@ assert_eq "the skill's own calls after a slash invocation are not prior work" "0
 run transcript-counts "$WORK/missing.jsonl"
 assert_eq "a missing transcript is an input error" "2" "$RUN_RC"
 
+# --- 17b. transcript-counts: Workflow tool agents, cut at the invocation ---
+WT="$WORK/wf.jsonl"
+WF="$WORK/wf/subagents/workflows"
+{
+  printf '{"type":"user","timestamp":"%s","message":{"content":"speed this up"}}\n' "$(ts 0)"
+  use 30 m1 t1 Skill '{"skill":"performance:go-faster"}' 5
+} >"$WT"
+run transcript-counts "$WT"
+BARE="$RUN_OUT"
+assert_eq "no workflows directory adds no workflows key" "false" "$(q 'has("workflows")')"
+mkdir -p "$WF/wf_late"
+use 31 l1 u1 Bash '{"command":"make test"}' 5 >"$WF/wf_late/agent-1.jsonl"
+run transcript-counts "$WT"
+assert_eq "agents started after the invocation leave the output byte-identical" "$BARE" "$RUN_OUT"
+mkdir -p "$WF/wf_a" "$WF/wf_b"
+{
+  use 2 a1 x1 Bash '{"command":"make test"}' 5
+  result 12 x1 false
+  use 13 a2 x2 Bash '{"command":"TOKEN=abc make deploy"}' 5
+  result 14 x2 false
+  use 15 a3 x3 Bash '{"command":"TOKEN=abc make deploy"}' 5
+  result 16 x3 false
+} >"$WF/wf_a/agent-1.jsonl"
+{
+  use 4 b1 y1 Bash '{"command":"make test"}' 5
+  result 8 y1 false
+  use 9 b2 y2 Bash '{"command":"TOKEN=xyz make deploy"}' 5 # no result: a run, not a sample
+  use 10 b3 y3 Bash '{"command":"TOKEN=xyz make deploy"}' 5
+  result 11 y3 false
+  use 20 b4 y4 Bash '{"command":"git status"}' 5
+  use 21 b5 y5 Bash '{"command":"git status"}' 5
+} >"$WF/wf_a/agent-2.jsonl"
+{
+  use 6 c1 z1 Bash '{"command":"make test"}' 5
+  result 7 z1 true
+  use 22 c3 z3 Bash '{"command":"ls"}' 5
+  result 25 z3 false
+  use 26 c4 z4 Bash '{"command":"ls"}' 5
+  use 31 c2 z2 Bash '{"command":"make test"}' 5 # after the invocation: the sweep's, not counted
+  result 32 z2 false
+} >"$WF/wf_a/agent-3.jsonl"
+printf '{"type":"result"}\n{"type":"start"}\n{"type":"result"}\n' >"$WF/wf_a/journal.jsonl"
+{
+  for i in {1..20}; do
+    use "$i" "s$i" "s$i" Bash '{"command":"sleep 1"}' 5
+    result "$((i + 1))" "s$i" false
+  done
+  for i in {1..19}; do
+    use "$i" "r$i" "r$i" Bash '{"command":"sleep 2"}' 5
+    result "$((i + 2))" "r$i" false
+  done
+} >"$WF/wf_b/agent-1.jsonl"
+run transcript-counts "$WT"
+assert_eq "transcript-counts with workflows exits 0" "0" "$RUN_RC"
+assert_eq "agents started before the invocation are counted, later ones are not" "4" "$(q .workflows.agents)"
+assert_eq "only workflows with a counted agent are listed" "wf_a wf_b" "$(q '.workflows.by_workflow | keys | join(" ")')"
+assert_eq "a 3-agent workflow counts its agents, journal results and wall clock" "3 2 30000" \
+  "$(q '.workflows.by_workflow.wf_a | "\(.agents) \(.results) \(.wall_ms)"')"
+assert_eq "a workflow with no journal has 0 results" "1 0 20000" \
+  "$(q '.workflows.by_workflow.wf_b | "\(.agents) \(.results) \(.wall_ms)"')"
+assert_eq "workflow tool calls after the invocation are not counted" "50 1 23000" \
+  "$(q '.workflows.tools.Bash | "\(.calls) \(.errors) \(.wait_ms)"')"
+wcmd() { q ".workflows.repeated_commands[] | select(.command == \"$1\") | \"\(.runs) \(.samples) \(.p50_ms) \(.p95_ms) \(.max_ms) \(.peak)\""; }
+assert_eq "overlapping runs across agents peak at 3" "3 3 4000 null 10000 3" "$(wcmd "make test")"
+assert_eq "20 samples give a p95; spans that only touch peak at 1" "20 20 1000 1000 1000 1" "$(wcmd "sleep 1")"
+assert_eq "19 samples give no p95" "19 19 2000 null 2000 2" "$(wcmd "sleep 2")"
+assert_eq "one sample gives no p50 but a max and peak" "2 1 null null 3000 1" "$(wcmd "ls")"
+assert_eq "no sample gives no p50, max or peak" "2 0 null null null null" "$(wcmd "git status")"
+assert_eq "repeats that show alike add up" "4 3 1000 null 1000 1" \
+  "$(q '.workflows.repeated_commands[] | select(.command | startswith("TOKEN=*** make deploy #")) | "\(.runs) \(.samples) \(.p50_ms) \(.p95_ms) \(.max_ms) \(.peak)"')"
+assert_eq "repeated workflow commands sort slowest first by p95, p50, then max" \
+  "sleep 1|make test|sleep 2|TOKEN=*** make deploy|ls|git status" \
+  "$(q '[.workflows.repeated_commands[].command | sub(" #[0-9a-f]{8}$"; "")] | join("|")')"
+
 # --- 18. run-start / add / finish: the sweeper builds its findings file without a Write tool (R4) ---
 DR="$WORK/data/runs-test"
 capture env GO_FASTER_NOW="$T0" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$DR" --session s1 --mode unattended --session-evidence false

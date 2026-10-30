@@ -6,8 +6,9 @@
 # ci-status fails while the newest `pr-unblock/*` status on the head, by
 # github-actions[bot], is a failure or error, and names each such context. A
 # later success on the same head supersedes a failure. In the merge queue the
-# head is the queued pull request's, read live. It fails closed when it cannot
-# tell.
+# head is the queued pull request's, read live. The rule is the base commit's
+# merge-holds.mjs unblockStops, here the repository's own copy. It fails closed
+# when it cannot tell, a base module that cannot judge included.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -85,6 +86,8 @@ cat >"$TMP_ROOT/bin/sleep" <<'EOF'
 printf '%s\n' "$*" >>"$STUB_SLEEPS"
 EOF
 chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
+mkdir -p "$TMP_ROOT/base/.github/scripts/pr-merge"
+cp "$ROOT/.github/scripts/pr-merge/merge-holds.mjs" "$TMP_ROOT/base/.github/scripts/pr-merge/"
 
 HEAD=0123456789abcdef0123456789abcdef01234567
 QUEUED=fedcba9876543210fedcba9876543210fedcba98
@@ -103,7 +106,7 @@ expect() {
   ci_gh_read::reset "$TMP_ROOT" 1792800600
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_SLEEPS="$TMP_ROOT/sleeps" STUB_STATUSES="$3" \
     GITHUB_REPOSITORY=o/r GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" \
-    HEAD_SHA="${HEAD_SHA-$HEAD}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    HEAD_SHA="${HEAD_SHA-$HEAD}" BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/base}" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${4:-}" && "$out" != *"$4"* ]]; then
@@ -131,7 +134,7 @@ expect "each failing context is named" 1 "[$(status pr-unblock/fix-ci failure),$
   "'pr-unblock/conflict' is error" "'pr-unblock/address-feedback'"
 out_both="$(grep -c "::error::'pr-unblock/" <<<"$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_SLEEPS="$TMP_ROOT/sleeps" \
   STUB_STATUSES="[$(status pr-unblock/fix-ci failure),$(status pr-unblock/conflict error)]" GITHUB_REPOSITORY=o/r \
-  GITHUB_EVENT_NAME=pull_request HEAD_SHA="$HEAD" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)")"
+  GITHUB_EVENT_NAME=pull_request HEAD_SHA="$HEAD" BASE_CONFIG="$TMP_ROOT/base" RUNNER_TEMP="$TMP_ROOT" bash -e "$TMP_ROOT/body.sh" 2>&1)")"
 if [[ "$out_both" -eq 2 ]]; then ok "two failing contexts give two errors"; else fail "two failing contexts gave $out_both errors"; fi
 expect "a newer success supersedes an older failure" 0 "[$(status pr-unblock/fix-ci success),$(status pr-unblock/fix-ci failure)]"
 expect "a newer failure over an older success fails" 1 "[$(status pr-unblock/fix-ci failure),$(status pr-unblock/fix-ci success)]" "'pr-unblock/fix-ci' is failure"
@@ -142,6 +145,18 @@ expect "a description's percent sign is escaped" 1 "[$(status pr-unblock/fix-ci 
 export STUB_STATUS_FAILS=1
 expect "an unreadable status list fails closed" 1 "[]" "::error::could not read the statuses of $HEAD; re-run this run."
 unset STUB_STATUS_FAILS
+expect "a description's tab and newline become spaces" 1 "[$(status pr-unblock/fix-ci failure "$LANE" $'one\ttwo\nthree')]" "on $HEAD: one two three. The lane"
+export BASE_CONFIG=
+expect "no base config fails closed" 1 "[]" "::error::cannot read merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+if [[ -s "$TMP_ROOT/log" ]]; then fail "no base config still read: '$(cat "$TMP_ROOT/log")'"; else ok "no base config makes no call"; fi
+mkdir -p "$TMP_ROOT/old/.github/scripts/pr-merge"
+echo 'export const refsIssue = () => null;' >"$TMP_ROOT/old/.github/scripts/pr-merge/merge-holds.mjs"
+export BASE_CONFIG="$TMP_ROOT/old"
+expect "a base module without unblockStops fails closed" 1 "[$(status pr-unblock/fix-ci success)]" \
+  "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the statuses of $HEAD; re-run this run."
+echo 'export const unblockStops = () => ({});' >"$TMP_ROOT/old/.github/scripts/pr-merge/merge-holds.mjs"
+expect "a base module that answers no list fails closed" 1 "[]" "could not judge the statuses of $HEAD"
+unset BASE_CONFIG
 export HEAD_SHA=main
 expect "a pull request head that is not a commit SHA fails closed" 1 "[]" "::error::the head 'main' is not a commit SHA."
 if [[ -s "$TMP_ROOT/log" ]]; then fail "a bad head was read: '$(cat "$TMP_ROOT/log")'"; else ok "a bad head makes no call"; fi

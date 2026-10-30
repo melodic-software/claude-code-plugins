@@ -3,7 +3,7 @@ name: maintenance-reconcile-lost-runs
 # Re-runs PR CI and verify runs a GitHub outage ended without a result, so
 # nobody has to re-run them by hand. Every 30 minutes it looks at each open,
 # non-draft pull request into main from a branch of this repository, and at
-# the last day's pr-verify runs. A CI workflow whose newest run on the PR's
+# the last day's pr-verify and pr-review-main runs. A CI workflow whose newest run on the PR's
 # current head, or a pr-verify run, ended cancelled, timed_out or
 # startup_failure, on its first attempt, is re-run once with this job's own
 # token. The attempt number is the record: a run at attempt 2 was already
@@ -13,7 +13,9 @@ name: maintenance-reconcile-lost-runs
 # is off. A pr-verify run whose verdict write started (it runs only when the
 # judgment succeeded) is not re-run, even when the write or upload failed, so
 # a head is never judged twice; the summary names the hold. A pr-verify run none of whose jobs started is not
-# re-run: a newer run for the same head judges it.
+# re-run: a newer run for the same head judges it. A pr-review-main run is
+# taken the same way: one that ended failure with no lane's verdict write
+# started (every credential leg stopped) is re-run once, recorded.
 #
 # A CI run on the PR's current head that ended failure only from an outside
 # outage (each failed job hit its time limit, failed in an install step, or
@@ -35,7 +37,10 @@ name: maintenance-reconcile-lost-runs
 # first attempt, only in ci-status, which noted that the lanes kill switch was
 # on, has that ci-status re-run, recorded as above, by the first run after the
 # switch is lifted, whatever the run's age; it takes a place under the cap. A
-# run at a later attempt is left to a person.
+# run at a later attempt is left to a person. Any pull request's ci-status that
+# failed the same way only on a `pr-unblock/*` status is re-run the same way
+# once no such status fails the head (the lane that stopped cleared it); a
+# status post starts no run, and a failed re-run of it is only a warning.
 #
 # An intake-triage run an issue event started whose first attempt failed only
 # in its intake-label-needs-triage job (a rate limit, most often) left the
@@ -47,9 +52,9 @@ name: maintenance-reconcile-lost-runs
 # untriaged; otherwise, and once a dispatch triages it, the issue stays without
 # the floor label.
 #
-# pr-verify's trigger check trusts a re-run github-actions[bot] starts only
+# pr-verify's and pr-review-main's trigger checks trust a re-run github-actions[bot] starts only
 # through this run's record of it: the plan step names an artifact
-# reconcile-rerun-<run id>-2-<head sha> for each pr-verify run it will re-run,
+# reconcile-rerun-<run id>-2-<head sha> for each pr-verify or pr-review-main run it will re-run,
 # and for each pr-require-checks run whose re-run makes its attempt 2 (pr-verify
 # runs after it), the upload steps below write them, and only then does the act
 # step re-run those runs. That no other run can upload into this run's artifacts is
@@ -62,7 +67,7 @@ name: maintenance-reconcile-lost-runs
 # It does nothing while githubstatus.com shows Actions as anything but
 # operational, or the page cannot be read, so it adds no load mid-incident. At
 # most 3 re-runs are in flight at once, auto-merge PRs first, and its writes
-# are at least a second apart. A lost review or refine lane run is listed in
+# are at least a second apart. A lost pull_request review or refine lane run is listed in
 # the run summary for a person: those lanes, or the lanes token broker, refuse
 # a re-run github-actions[bot] starts. No model, and no PR code is checked out.
 # Rules: .github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs.
@@ -108,10 +113,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -120,8 +124,32 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # The base config's limits.api, in resolve-config's output shape, for
+      # the pacer; a failed read leaves rate-limits.json's defaults.
+      - name: Read the pace override from the base config
+        continue-on-error: true
+        run: |
+          yq -o=json '{"limits": {"api": (.limits.api // {})}}' .base/docs/conventions/pr-pipeline.yaml >"$RUNNER_TEMP/pace-config.json"
+
+      # A schedule tick skips its work while the GITHUB_TOKEN pool's remaining
+      # at reset, projected at this window's burn rate, is under limits.api
+      # github-token pace (pr-pipeline.yaml over rate-limits.json; 0 is off),
+      # on even run numbers only, so the timer lanes slow to half cadence
+      # before the breaker stops every lane. Any other event, or a read that
+      # fails, runs as before (.github/actions/log-api-budget/pace.mjs).
+      - name: Pace the tick on the GITHUB_TOKEN burn rate
+        id: pace
+        continue-on-error: true
+        env:
+          RESOLVED_CONFIG: ${{ runner.temp }}/pace-config.json
+          GITHUB_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: node .base/.github/actions/log-api-budget/pace.mjs
+
       - name: Find lost runs
         id: plan
+        if: steps.pace.outputs.paced != 'true'
         env:
           MODE: plan
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
@@ -139,7 +167,7 @@ jobs:
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
           node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
 
-      # One record per pr-verify run, and per pr-require-checks run made attempt
+      # One record per pr-verify or pr-review-main run, and per pr-require-checks run made attempt
       # 2, the act step re-runs, uploaded first. A failed upload fails the job,
       # so that run is not re-run.
       - name: Record re-run 1
@@ -170,6 +198,7 @@ jobs:
           retention-days: 1
 
       - name: Re-run lost runs
+        if: steps.pace.outputs.paced != 'true'
         env:
           MODE: act
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json

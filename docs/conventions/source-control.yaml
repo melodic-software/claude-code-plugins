@@ -14,7 +14,7 @@
 # what actually runs. Re-read it before changing either.
 #
 # subject_pattern is the commit-subject convention, enforced by the guardrails commit-msg hook and
-# block-convention-violation guard (docs/conventions/commit-convention/README.md). Its types are the
+# block-convention-violation guard (docs/contracts/commit-convention/README.md). Its types are the
 # standards components/pr-convention-policy/policy.json `title.allowedTypes`, the scope is optional,
 # and git's own `Merge ...` and `Revert "..."` subjects pass. Single-quoted, with no single quote
 # inside, so every reader gets it unescaped. dialect: posix-ere is the only dialect enforcement reads.

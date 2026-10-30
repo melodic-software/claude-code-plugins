@@ -19,7 +19,9 @@ Inputs are raw GitHub API shapes the caller collects for one pull request:
   names its head's tree, which finding closure keys on (`_open_findings`).
 - `comments`: the pull request's issue comments (REST), each by
   github-actions[bot] or the Claude App carrying an `edit` record: GraphQL's
-  `lastEditedAt` and `editor{__typename login}` for it (`_edited_by_another`).
+  `lastEditedAt` and `editor{__typename login}` for it (`_edited_by_another`),
+  and for an edited comment its `userContentEdits` as `history`
+  (`_marker_revisions`).
 - `threads`: `babysit_gh.fetch_review_threads(..., include_resolved=True)`,
   whose comments carry `lastEditedAt` and `editor`, or None when they could
   not be read.
@@ -40,7 +42,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from babysit_risk import FLOOR, LaneEvidence, glob_match
+from babysit_risk import FLOOR, LONG_LINE_BYTES, LaneEvidence, glob_match
 
 # Lane id -> (caller workflow path, lane job name suffix). Fixed in code: a
 # weaker table could only come from a file a pull request can edit.
@@ -60,13 +62,15 @@ LANES: dict[str, tuple[str, str]] = {
 # workflows that cannot),
 # Claude Code project config and instruction files at any depth, the criteria the lane skills read from the checkout (REVIEW.md,
 # the standards index, the instruction exception register, the
-# untrusted-content contract), the lane's input directory .claude-lane/ (the
-# code lane falls back to a context file there), and .gitattributes, which can
-# hide a hunk from the lane's `git diff`. The callers run every local action
+# untrusted-content contract, at docs/contracts/ and at the docs/conventions/
+# stubs installed plugin versions still read), the lane's input directory
+# .claude-lane/ (the code lane falls back to a context file there), and
+# .gitattributes, which can hide a hunk from the lane's `git diff`. The callers run every local action
 # from a checkout of main and the reusable runs its composites from its own
 # repository, so the rest of .github/ feeds no review. A pull request that
 # changes any listed path may have changed its own review, so its records
-# prove no review by the default branch's lane. plugins/review/ is not listed:
+# prove no review by the default branch's lane; only a main-run review
+# (MAIN_REVIEW_WORKFLOW, `_main_bound`) binds it. plugins/review/ is not listed:
 # the reusable pr-review-cli.yml stages the review plugin from
 # claude-code-plugins' default-branch tip, never the head, and
 # scripts/ci-review-plugin-source.test.sh fails if a caller stops calling it
@@ -74,6 +78,8 @@ LANES: dict[str, tuple[str, str]] = {
 LANE_SOURCE_PREFIXES = (
     ".github/workflows/",
     "docs/standards/",
+    "docs/contracts/instruction-exception-register/",
+    "docs/contracts/untrusted-content/",
     "docs/conventions/instruction-exception-register/",
     "docs/conventions/untrusted-content/",
     ".claude-lane/",
@@ -87,6 +93,30 @@ LANE_SOURCE_NAMES = (
     "REVIEW.md",
     ".gitattributes",
 )
+
+# The review lanes run again from main for a pull request that changes a lane
+# source: `workflow_run` runs the default branch's copy of this file, never a
+# head's, and it reads the head's diff as data. Each lane's verdict is the
+# artifact `main_review_name` names, keyed on the head's tree, holding
+# `verdict.json`. Only a run's own steps upload its artifacts, so the run
+# record authenticates the name (`_main_review_counted`), as for pr-verify.
+MAIN_REVIEW_WORKFLOW = ".github/workflows/pr-review-main.yml"
+MAIN_REVIEW_PREFIX = "pr-review-main"
+MAIN_REVIEW_SCHEMA = 1
+
+
+def main_review_check(lane: str) -> str:
+    """The check run pr-review-main.yml's record job posts for `lane` on each
+    head it reviewed, titled `findings=<n> critical=<m>`."""
+    return f"{MAIN_REVIEW_PREFIX}: {lane}"
+
+
+def main_review_name(lane: str, pr: int, tree: str) -> str:
+    """The artifact a main-run review of `lane` uploads for a pull request
+    head whose tree is `tree`: every review of one tree shares the name, so
+    one exact-name listing returns them all."""
+    return f"{MAIN_REVIEW_PREFIX}-{lane}-{pr}-{tree}"
+
 
 # A changed workflow file `readonly_workflow` may clear: a top-level `.yml`.
 # A `.yaml` stays a lane source, since its stem could repeat a `.yml`'s name
@@ -278,6 +308,8 @@ def bind(
     base_changed: bool = False,
     head_file: Callable[[str, str], str | None] | None = None,
     base_sha: str | None = None,
+    main_reviews: Sequence[Mapping[str, Any]] | None = None,
+    main_context: Mapping[str, Any] | None = None,
 ) -> tuple[LaneEvidence, ...]:
     """Evidence for every lane in `LANES`, in that order.
 
@@ -302,6 +334,15 @@ def bind(
     A lane binds only when every head its reviewed-head markers name still
     has a listed run: a deleted or expired run would drop its findings from
     the count, so it unbinds the lane rather than lowering the count.
+
+    A pull request that changes such a lane source binds a lane only on a
+    main-run review (`main_reviews`, `_main_bound`): its pull_request runs,
+    threads and comments, a reviewed-head marker included, come from a
+    workflow the head can rewrite, so none of them counts. `main_context`
+    holds what those records are checked against: `repo`, `pr` (the pull
+    request number), `tree` (the pinned head's tree) and `branch` (the
+    default branch). With either missing, a lane source unbinds as
+    `lane-source-changed`.
     """
     try:
         if not isinstance(head_sha, str) or not SHA_RE.match(head_sha):
@@ -315,7 +356,16 @@ def bind(
         if not all(_readonly_candidate(path) for path in sources) or not all(
             readonly_workflow(path, head_file, base_sha) for path in sources
         ):
-            raise Unbound("lane-source-changed")
+            return tuple(
+                _main_lane(
+                    lane,
+                    head_sha,
+                    main_reviews,
+                    main_context,
+                    (runs, comments, threads, is_human, head_file),
+                )
+                for lane in LANES
+            )
         # Thread ids already standing for a recorded finding in some lane.
         # LANES order matters: claude-review claims first, so a doubtful
         # untagged thread leaves the count on the security lane.
@@ -334,6 +384,214 @@ def bind(
             )
             for lane in LANES
         )
+
+
+def needs_main_review(
+    changed_paths: Sequence[str] | None,
+    head_file: Callable[[str, str], str | None] | None,
+    base_sha: str | None,
+) -> bool:
+    """Whether `bind()` would read only a main-run review for these changed
+    paths: some lane source that `readonly_workflow` does not clear. An
+    unread list is True, so the caller collects rather than guesses."""
+    if not isinstance(changed_paths, list | tuple):
+        return True
+    sources = [path for path in changed_paths if lane_source(path)]
+    return not all(_readonly_candidate(path) for path in sources) or not all(
+        readonly_workflow(path, head_file, base_sha) for path in sources
+    )
+
+
+def _main_lane(
+    lane: str,
+    head: str,
+    records: Sequence[Mapping[str, Any]] | None,
+    context: Mapping[str, Any] | None,
+    carried: tuple[Any, ...],
+) -> LaneEvidence:
+    """The lane's evidence for a pull request that changes a lane source:
+    bound when a counted main-run review names the pinned head
+    (`_main_bound`) and the recorded counts were read, else unbound as
+    `lane-source-changed`, or as `main-review-stop:<reason>` when no verdict
+    binds and the record job posted a designed stop on the head. The security lane's blocking count is the most of
+    the main-run reviews' CRITICAL findings at this tree, any its
+    pull_request review left open (`_carried_blocking`), and the most any
+    main-run review recorded on another head of this pull request
+    (`_recorded_critical`), so a finding any of them reported holds, bound
+    or not."""
+    try:
+        found = _main_bound(lane, head, records, context)
+    except Exception:  # noqa: BLE001 - any doubt is unbound
+        found = None
+    recorded = _recorded_critical(lane, context)
+    reason = "lane-source-changed"
+    if found is None and (stop := _head_stop(lane, context)):
+        reason = f"main-review-stop:{stop}"
+    if lane != SEVERITY_LANE:
+        if found is None or recorded is None:
+            return _unbound(lane, reason, head, *carried)
+        return LaneEvidence(lane, True, None, found[0], False, None)
+    runs, comments, threads, is_human, head_file = carried
+    left = _carried_blocking(head, runs, comments, threads, is_human, head_file)
+    if found is None or recorded is None:
+        held = max(left or 0, recorded or 0)
+        return LaneEvidence(lane, False, reason, None, False, held or None)
+    findings, critical = found
+    blocking = max(critical, left or 0, recorded)
+    return LaneEvidence(lane, True, None, max(findings, blocking), False, blocking)
+
+
+def _head_stop(lane: str, context: Mapping[str, Any] | None) -> str | None:
+    """The first designed stop pr-review-main's record job posted for `lane`
+    on the pinned head (`main_context["head_stops"]`, read from the closed
+    set `babysit_gh.MAIN_REVIEW_STOP_TITLE` matches), or None. It only names
+    why no verdict binds: a stop never binds a lane."""
+    found = context.get("head_stops") if isinstance(context, Mapping) else None
+    stops = found.get(lane) if isinstance(found, Mapping) else None
+    if not isinstance(stops, list | tuple):
+        return None
+    return next((each for each in stops if isinstance(each, str) and each), None)
+
+
+def _recorded_critical(lane: str, context: Mapping[str, Any] | None) -> int | None:
+    """The most CRITICAL findings a main-run review recorded for `lane` on any
+    head of this pull request (`main_context["carried_critical"]`), so a
+    later tree's clean review, a whitespace push included, never clears one
+    an earlier tree's review found. None when it was not read: the lane
+    then does not bind."""
+    found = context.get("carried_critical") if isinstance(context, Mapping) else None
+    value = found.get(lane) if isinstance(found, Mapping) else None
+    return value if _count(value) else None
+
+
+def _main_bound(
+    lane: str,
+    head: str,
+    records: Sequence[Mapping[str, Any]] | None,
+    context: Mapping[str, Any] | None,
+) -> tuple[int, int] | None:
+    """(findings, CRITICAL findings) for `lane` at `head` from main-run
+    reviews, or None when none binds. A record counts only when
+    `_main_review_counted` proves its origin. As for pr-verify's FAIL, a
+    finding counts from a run of that origin whatever its status or
+    conclusion, since the upload comes before the run's later steps and the
+    other lane's job; the lane binds only when a counted verdict from a
+    completed, successful run names `head`. It then counts the most findings,
+    and the most CRITICAL ones, any counted review of the head's tree
+    reported, so a re-run, a failed run, or an empty commit with the same
+    tree never clears one. The binding verdict also needs the record job's
+    check run on `head` with the same counts (`context["head_records"]`), so
+    a run cancelled before it recorded, whose CRITICAL would not carry,
+    binds nothing."""
+    if not isinstance(records, list | tuple) or not isinstance(context, Mapping):
+        return None
+    found = [
+        each
+        for record in records
+        if (each := _main_review_counted(lane, record, context)) is not None
+    ]
+    records = context.get("head_records")
+    recorded = records.get(lane) if isinstance(records, Mapping) else None
+    if not isinstance(recorded, list | tuple):
+        return None
+    if not any(
+        done
+        and verdict["head_sha"] == head
+        and [verdict["findings"], verdict["critical"]] in [list(r) for r in recorded]
+        for verdict, done in found
+    ):
+        return None
+    counted = [verdict for verdict, _ in found]
+    return (
+        max(verdict["findings"] for verdict in counted),
+        max(verdict["critical"] for verdict in counted),
+    )
+
+
+def _count(value: Any) -> bool:
+    return (
+        isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 10**6
+    )
+
+
+def _main_review_counted(
+    lane: str, record: Any, context: Mapping[str, Any]
+) -> tuple[Mapping[str, Any], bool] | None:
+    """A main-run review's verdict, when its record proves it: the artifact
+    is the one `main_review_name` names for this lane, pull request and
+    tree, uploaded by its listed run; that run is `MAIN_REVIEW_WORKFLOW`,
+    event `workflow_run`, on the default branch of this repository with a
+    head in this repository that the branch holds (the caller's
+    `on_branch`); and `verdict.json` names this lane, pull request and
+    tree, a full head SHA, well-formed counts and a longest diff line within
+    `LONG_LINE_BYTES`. With it, whether the run
+    completed with success, the one kind that binds. Anything else, a
+    head's forged artifact included, is None."""
+    repo, pr, tree, branch = (context.get(k) for k in ("repo", "pr", "tree", "branch"))
+    if not (
+        isinstance(repo, str)
+        and repo
+        and _count(pr)
+        and isinstance(tree, str)
+        and SHA_RE.match(tree)
+        and isinstance(branch, str)
+        and branch
+        and isinstance(record, Mapping)
+        and record.get("lane") == lane
+    ):
+        return None
+    artifact, run, verdict = (record.get(k) for k in ("artifact", "run", "verdict"))
+    if not (
+        isinstance(artifact, Mapping)
+        and isinstance(run, Mapping)
+        and isinstance(verdict, Mapping)
+    ):
+        return None
+    source = artifact.get("workflow_run")
+    run_id = run.get("id")
+    head_sha = run.get("head_sha")
+    if not (
+        artifact.get("name") == main_review_name(lane, pr, tree)
+        and artifact.get("expired") is not True
+        and isinstance(source, Mapping)
+        and isinstance(run_id, int)
+        and not isinstance(run_id, bool)
+        and source.get("id") == run_id
+        and run.get("path") == MAIN_REVIEW_WORKFLOW
+        and run.get("event") == "workflow_run"
+        and run.get("head_branch") == branch
+        and _full_name(run.get("repository")) == repo
+        and _full_name(run.get("head_repository")) == repo
+        and isinstance(head_sha, str)
+        and SHA_RE.match(head_sha)
+        and record.get("on_branch") is True
+    ):
+        return None
+    done = run.get("status") == "completed" and run.get("conclusion") == "success"
+    findings, critical = verdict.get("findings"), verdict.get("critical")
+    reviewed = verdict.get("head_sha")
+    # The longest diff line write-verdict.mjs measured: past what the review
+    # reads whole, or not recorded, and the verdict does not count.
+    longest = verdict.get("max_line_bytes")
+    if not (
+        _count(longest)
+        and longest <= LONG_LINE_BYTES
+        and verdict.get("schema") == MAIN_REVIEW_SCHEMA
+        and verdict.get("lane") == lane
+        and verdict.get("pr") == pr
+        and verdict.get("tree") == tree
+        and isinstance(reviewed, str)
+        and SHA_RE.match(reviewed)
+        and _count(findings)
+        and _count(critical)
+        and critical <= findings
+    ):
+        return None
+    return verdict, done
+
+
+def _full_name(repository: Any) -> Any:
+    return repository.get("full_name") if isinstance(repository, Mapping) else None
 
 
 def lane_source(path: Any) -> bool:
@@ -552,6 +810,7 @@ def _bind_lane(
             chain,
             head_file,
             [(None, marker), *_summary_comments(lane, comments)],
+            _marker_revisions(lane, comments),
         )
     except Unbound as exc:
         return _unbound(
@@ -620,6 +879,7 @@ def _carried_blocking(
                 chain,
                 head_file,
                 [(None, marker), *_summary_comments(SEVERITY_LANE, comments)],
+                _marker_revisions(SEVERITY_LANE, comments),
             )
         except Exception:  # noqa: BLE001 - this head does not bind; try older
             continue
@@ -1101,6 +1361,62 @@ def _summary_comments(
     return found
 
 
+def _marker_revisions(
+    lane: str, comments: Sequence[Mapping[str, Any]]
+) -> list[tuple[datetime, str]]:
+    """Every body the lane's reviewed-head marker comments have held, with
+    when it was written: the lane producer edits one marker in place per head
+    (ci-workflows publish.cjs `writeMarker`), so an earlier review's summary
+    survives only in the comment's edit history (GraphQL `userContentEdits`,
+    each node's `diff` the whole body after that edit). An unedited marker's
+    one body counts at its creation. A comment whose history is missing,
+    incomplete, has a deleted revision or one written by anyone but its
+    author yields nothing, so the summaries it held stay unread."""
+    found: list[tuple[datetime, str]] = []
+    for comment in comments:
+        user = comment.get("user")
+        body = str(comment.get("body") or "")
+        match = MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r"))
+        if (
+            not isinstance(user, Mapping)
+            or user.get("login") != MARKER_AUTHOR
+            or not match
+            or match[1] != lane
+        ):
+            continue
+        edit = comment.get("edit")
+        if not isinstance(edit, Mapping) or "lastEditedAt" not in edit:
+            continue
+        if edit["lastEditedAt"] is None:
+            created = _time(comment.get("created_at"))
+            if created is not None:
+                found.append((created, body))
+            continue
+        history = edit.get("history")
+        nodes = history.get("nodes") if isinstance(history, Mapping) else None
+        if not isinstance(nodes, list | tuple) or history.get("totalCount") != len(
+            nodes
+        ):
+            continue
+        revisions = []
+        for node in nodes:
+            at = _time(node.get("editedAt")) if isinstance(node, Mapping) else None
+            if (
+                at is None
+                or node.get("deletedAt") is not None
+                or not isinstance(node.get("diff"), str)
+                or _edited_by_another(
+                    user,
+                    {"lastEditedAt": node["editedAt"], "editor": node.get("editor")},
+                )
+            ):
+                break
+            revisions.append((at, node["diff"]))
+        else:
+            found.extend(revisions)
+    return found
+
+
 def _require_marked_runs(
     lane: str,
     lane_runs: list[Mapping[str, Any]],
@@ -1129,6 +1445,7 @@ def _open_findings(
     chain: Sequence[_Record],
     head_file: Callable[[str, str], str | None] | None = None,
     summaries: Sequence[tuple[datetime | None, str]] = (),
+    revisions: Sequence[tuple[datetime, str]] = (),
 ) -> tuple[int, bool, int]:
     """Summary findings of the review chain covering the pinned head
     (`chain`, from `_resolve`), plus inline threads still open, plus inline
@@ -1171,12 +1488,16 @@ def _open_findings(
     `reviewed`'s tree reported a finding, and none of them was a whole
     review; and how many open findings are CRITICAL (`SEVERITY_RE`): open
     threads whose comment is not marked IMPORTANT or SUGGESTION, every inline
-    finding whose thread is gone, and the summary findings, of which only the
-    covering review's own may count fewer, when no other review of its tree
-    reported a summary finding: its one `critical-findings:` line, read from
-    `summaries` (the reviewed-head marker, which carries the summary, and
-    each Claude App summary comment posted inside that review's job). An
-    earlier review's summary is not read, so all its findings count."""
+    finding whose thread is gone, and the summary findings. A chain tree's
+    summary findings count fewer only when one review of that tree alone
+    reported any: by its one `critical-findings:` line. For the covering
+    review that line is read from `summaries` (the reviewed-head marker,
+    which carries the summary, and each Claude App summary comment posted
+    inside that review's job). For an earlier link's tree it is read from the
+    marker bodies in `revisions` (`_marker_revisions`) that name the
+    reporting review's head and were written inside its job, and from the
+    summary comments posted inside it; with no such line, or more than one,
+    all its findings count."""
     if threads is None:
         raise Unbound("threads-unread")
     # The covering review's job window, to place its summary comments.
@@ -1195,8 +1516,10 @@ def _open_findings(
     # review of it, whole or incremental, reported.
     head_max: dict[str, int] = {}
     summary_max: dict[str, int] = {}
-    # Per tree, how many reviews of it reported a summary finding.
+    # Per tree, how many reviews of it reported a summary finding, and the
+    # (head sha, job started, job completed, summary findings) of the last.
     summary_reviews: dict[str, int] = {}
+    reporter: dict[str, tuple[str, datetime | None, datetime | None, int]] = {}
     # The trees any review of which was whole or reported a finding.
     spent: set[str] = set()
     for item in lane_runs:
@@ -1224,9 +1547,15 @@ def _open_findings(
                 summary_max.get(tree, 0),
                 rec.findings - rec.inline,  # type: ignore[operator]
             )
+            started = _time(job.get("started_at"))
             if rec.findings > rec.inline:  # type: ignore[operator]
                 summary_reviews[tree] = summary_reviews.get(tree, 0) + 1
-            started = _time(job.get("started_at"))
+                reporter[tree] = (
+                    rec.sha,
+                    started,
+                    rec.completed,
+                    rec.findings - rec.inline,  # type: ignore[operator]
+                )
             if rec == chain[0]:
                 span = (started, rec.completed)
             windows.append(
@@ -1315,6 +1644,28 @@ def _open_findings(
         and len(lines) == 1
     ):
         summary = rest + min(int(lines[0]), own)
+    for tree in chain_trees[1:]:
+        if summary_reviews.get(tree, 0) != 1:
+            continue
+        sha, start, end, reported = reporter[tree]
+        if not (start and end):
+            continue
+        named = [
+            body
+            for at, body in revisions
+            if start <= at <= end
+            and (mark := MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r")))
+            and mark[1] == lane
+            and mark[2] == sha
+        ]
+        posted = [body for at, body in summaries if at and start <= at <= end]
+        lines = [
+            line
+            for body in named + posted
+            for line in SUMMARY_CRITICAL_RE.findall(body)
+        ]
+        if len(lines) == 1:
+            summary -= reported - min(int(lines[0]), reported)
     return (
         count,
         count > 0 and not unresolved and not head_spent,

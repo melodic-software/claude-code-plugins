@@ -35,7 +35,7 @@ states the instructions are not tied to one agent product.
 
 Reopen the decision when either event happens:
 
-- a concurrency bug in the [loop lanes](../conventions/loop-lane/README.md), such as two lanes
+- a concurrency bug in the [loop lanes](../contracts/loop-lane/README.md), such as two lanes
   acting on the same pull request or issue in an order the lane rules did not allow, that a
   model of the lane protocol would have caught; or
 - a consumer of this marketplace asks for TLA+ or model-checking support.

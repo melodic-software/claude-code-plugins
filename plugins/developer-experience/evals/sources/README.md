@@ -7,11 +7,14 @@ The hand-rolled eval harness for the developer-experience skills: the source mat
   Its AC-n citations and `.work/devx/` paths refer to the planning workspace it was written in.
 - `harness/build-fixtures.py` and `harness/build-agentic-overlay.py`: generate
   `fixtures/<tarnquill|brackenfold>/<state>/` (bare, conventions-only, converged; legacy for
-  tarnquill) and `fixtures/brackenfold-agentic/`. Fixtures are not committed: run
-  `python3 -I harness/build-fixtures.py`, then `python3 -I harness/build-agentic-overlay.py`.
+  tarnquill) and `fixtures/brackenfold-agentic/` under `sources/`. Their output is not
+  committed: run `python3 -I harness/build-fixtures.py`, then
+  `python3 -I harness/build-agentic-overlay.py`.
   The output matches the original fixtures except the project GUIDs `dotnet new sln` writes.
   Converged managed blocks are written by the shipped `pointer-line.sh`; the legacy block names a
-  `.claude/` path the helper refuses, so it is written literally.
+  `.claude/` path the helper refuses, so it is written literally. The `claude plugin eval` cases
+  read the committed copy in `evals/fixtures/` instead, seeded by `evals/fixtures/seed.sh`, so a
+  change to a file `build-fixtures.py` writes goes into its copy there too.
 - `harness/scenarios.sh`: scenario id to fixture, per-arm state, prompts, tool allowlist.
 - `harness/run-cell.sh`: one run, `--help` for flags and exit codes. `EVAL_RUNS_DIR` (required)
   holds the workspaces, outside the repository. Results land in

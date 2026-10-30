@@ -195,7 +195,7 @@ run. The record behind that decision, and the trigger to recheck it, are in
   tracked `.claude/settings.json` (Step 5).
 ```
 
-The row keeps the label `fleet-state.sh` gave it, `update ineffective; uninstall clears it`, and stays
+The row keeps the label `fleet-state.sh` gave it, `update ineffective, uninstall clears it`, and stays
 in the divergence count. Offer only the uninstall strategy for it, still confirmed per pin; when the
 highest version is at `project`/`local` scope and no uninstall would bring the row current, report the
 row with this label and offer nothing. When the row also holds a committed enable (the

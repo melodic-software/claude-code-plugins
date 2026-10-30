@@ -115,7 +115,7 @@ lines, band and contract file do not depend on it. Organization-admin features a
 
 ### Conventions and review
 
-- The [mod-authoring convention](../conventions/mod-authoring/README.md) points at the upstream
+- The [mod-authoring convention](../contracts/mod-authoring/README.md) points at the upstream
   pages and restates none of their tables. It keeps only facts upstream does not state, each with
   tracked evidence.
 - No mod-authoring skill: the built-in `plugin-authoring` skill owns authoring and is regenerated
@@ -234,4 +234,4 @@ Every pointer above outside the amendment is as of 2026-10-03, Claude Code 2.1.2
 
 The evidence trail, the runbook and the cited source index live in
 [docs/upstream/claude-code-mods/](../upstream/claude-code-mods/). The authoring pointers are in
-[docs/conventions/mod-authoring/](../conventions/mod-authoring/README.md).
+[docs/contracts/mod-authoring/](../contracts/mod-authoring/README.md).

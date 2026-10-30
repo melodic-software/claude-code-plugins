@@ -104,7 +104,7 @@ block exists to route around.** It is also the class the mods runtime
 
 ## The hook budget is max-shaped, and that decides the cost argument
 
-`docs/conventions/hook-budget/README.md`: ≤ 1 s typical / ≤ 2 s worst-case per
+`docs/contracts/hook-budget/README.md`: ≤ 1 s typical / ≤ 2 s worst-case per
 tool call, ≤ 500 ms per turn, over every **always-on** hook a consumer install
 fires. `OBSERVED` · HIGH.
 

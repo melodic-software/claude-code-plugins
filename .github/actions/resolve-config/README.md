@@ -30,6 +30,20 @@ effect grants ([`effect-grants.json`](effect-grants.json)) and patch rules
 [`patch-rules.schema.json`](patch-rules.schema.json)) ship in this folder, which a lane runs from its
 own base checkout.
 
+## Central lane grants
+
+[`lane-grants.json`](lane-grants.json) holds one row per repository the lanes token broker admits,
+keyed by repository id ([ADR 0085](../../../docs/adr/0085-run-org-lanes-from-ci-workflows-under-one-lanes-app-with-central-grants.md)
+Decision 2): `repository` (a label for readers; the id is the key), `lanes` (each lane the
+repository may run, mapping each activity to its effect, which `effect-grants.json` turns into
+permissions), `trusted-actors` (actors trusted in that repository beyond the trusted-actor list,
+in its `actors` entry shape) and `ci-workflows-commits` (the ci-workflows commits whose lane
+reusables may mint). A repository with no row, or a lane or activity missing from its row, gets no
+token. Today's rows reproduce what each repository's own configuration grants; this action does
+not read the file, and the broker reads it only after its one-time change (ADR 0085 Decision 7).
+No lane patch can change it or the trusted-actor list: every [patch rules](patch-rules.json) row
+refuses both (`lane-grants`).
+
 ## What it rejects
 
 The step fails and writes no file when:

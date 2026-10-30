@@ -1,0 +1,83 @@
+# Seam phrasing: presence-gated cross-plugin references
+
+Owner doc for the shared phrasing convention every optional cross-plugin reference uses.
+The design rule it implements lives in the plugin philosophy's design boundary: optional
+collaboration is presence-gated with a documented fallback, and a bare unguarded
+cross-plugin reference is a defect. This doc owns the *phrasing shape*; the philosophy owns
+the *rule*.
+
+## The shape
+
+Every optional reference to another plugin's skill carries, at the reference site:
+
+1. **The gate** is an explicit installed-ness condition on the invocation:
+   "invoke `/other-plugin:skill` (if that plugin is installed)" or an equivalent
+   "when the `<name>` plugin is installed" clause. The gate names the plugin, not the
+   marketplace (marketplace-qualified IDs never appear in reusable content outside
+   install-recipe sites and the third-party route-row fields the carve-outs below name).
+2. **The fallback** is what the skill does instead, stated in the same sentence or the one
+   adjacent: degrade to a bundled capability, record into the artifact at hand, or report
+   the missing optional capability clearly. "Skip silently" is not a fallback.
+3. **Ownership framing.** When the collaborator owns a concern (a glossary, a tracker
+   seam, a stage skill), the reference says what it owns so the fallback's scope is
+   evident. Descriptive ownership tables need no gate when every invocation site nearby is
+   gated; the gate belongs where the invocation is instructed.
+
+### Install-recipe carve-out
+
+An install-recipe site, the lines a skill prints so an operator can install an optional
+plugin themselves, is the one place a marketplace-qualified ID belongs, because the
+commands do not resolve without it: the operator has to add the marketplace before
+`claude plugin install <plugin>@<marketplace>` can run at all.
+
+The carve-out is scoped to that recipe text and nothing else. Element 1 is unchanged for
+gates: an installed-ness condition still names the plugin alone, because a gate asks whether
+a capability is present, not where the operator would obtain it. A skill that prints a recipe
+therefore carries both shapes, a bare-plugin gate and a marketplace-qualified recipe beneath
+it. The recipe is printed for the operator to run, never executed for them; the plugin
+philosophy's setup contract owns that rule and this carve-out does not relax it.
+
+### Route-row detect carve-out
+
+A route row's `detect` that names a third-party plugin and, for a third-party `kind: plugin` row,
+its `id` carry `name@marketplace`, as the [routing-as-data](../routing-as-data/README.md) doc sets; our own
+marketplace's detects and ids stay bare. A route row is data a detector matches, not prose, so
+this carve-out leaves the gate rule above unchanged.
+
+## What this convention is not
+
+- Not for hard requires: a plugin genuinely broken without its collaborator declares the
+  native manifest `dependencies` entry instead, and needs no gate phrasing.
+- Not a tool-availability check: probing for a CLI or MCP tool at runtime is the
+  prerequisites-and-failure-behavior rules' territory.
+
+## Cross-marketplace install uplift (carve-out, 2026-09-01)
+
+A wrapper skill whose deliverable is getting a plugin from ANOTHER marketplace installed
+may emit that plugin's marketplace-qualified install commands
+(`/plugin install <name>@<marketplace>`) in its own content. The no-marketplace-qualification
+rule above exists so reusable references stay portable across marketplaces that re-host a
+plugin; an install command targeting a foreign marketplace has no unqualified form, so the
+qualification IS the content, not a leak. Bounds:
+
+- The carve-out covers install-uplift text (commands, the `dependencies` manifest
+  entry's documented error paths, scope guidance) plus the wrapper's own
+  identity-bearing references: a provenance-based presence check reading the
+  marketplace-qualified install record, a README provenance section, and eval
+  expectations that assert the qualified command. Routing gates still name the
+  plugin, never the marketplace.
+- Such a routing gate carries the marketplace parity token ("installed from its
+  marketplace") when its overlap verdict row records `baked.description_phrase`, so fleet
+  parity traces it to the store exactly as native gates trace to theirs
+  (`plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py`).
+- Fleet seam audits treat a marketplace-qualified ID outside install-uplift content and the
+  route-row carve-out as a violation, unchanged.
+
+## Conformance
+
+Fleet audits check dim-11-adjacent seam phrasing against this shape: gate present, fallback
+stated, no marketplace qualification outside an install-recipe site or the fields the route-row
+carve-out names. Existing adopters
+(work-items' tracker seam, harness-ops' known-issues reference, session-flow's stage-skill
+preference, planning's glossary hand-off) conform by carrying all three elements at each
+instructed invocation.

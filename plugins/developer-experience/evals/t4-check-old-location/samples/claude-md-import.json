@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| 2 | Load | **FAIL** (`missing-import`) | `CLAUDE.md:1-4` | `CLAUDE.md` does not import `AGENTS.md`, so the pointer line is not read. |\n\nAdd this line to `CLAUDE.md`:\n\n```\n@AGENTS.md\n```",
+      "why": "the missing import and the line alone in a code block"
+    },
+    {
+      "answer": "| 2 | Load | INFO | The pointer line may not load: `CLAUDE.md` has no import. |\n\nLine to add to `CLAUDE.md`:\n\n`@AGENTS.md`",
+      "why": "may not load, with the line alone in a code span"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| 2 | Load | **FAIL** (provisional, helper not run) | There's a root `CLAUDE.md` and it doesn't import `@AGENTS.md`. With the default instruction-file setting, Claude Code reads `CLAUDE.md` instead of `AGENTS.md`, so the pointer line never loads. Fix: add the import line the helper prints as `add:`. I can't quote it because the helper didn't run. |",
+      "why": "excerpt of sources/labels/T4/2/samples/real-p6a-A2-run1.md: the line to add is never printed"
+    },
+    {
+      "answer": "| 2 | Load | **FAIL** | Add `@AGENTS.md` to the top of `CLAUDE.md`. |",
+      "why": "near miss: the line sits inside a table cell"
+    },
+    {
+      "answer": "",
+      "why": "no report"
+    }
+  ]
+}

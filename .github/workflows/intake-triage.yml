@@ -101,6 +101,7 @@ jobs:
             /.github/actions/check-trusted-trigger/
             /.github/actions/log-api-budget/
             /.github/actions/resolve-config/
+            /.github/actions/setup-pinned-node/
             /.github/CODEOWNERS
             /.github/standards/github-actions-conventions/vocabulary.json
             /.github/standards/trusted-actors/
@@ -110,10 +111,9 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check whether the issue was born triaged
         id: check
@@ -185,14 +185,14 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/actions/check-kill-switch/
+            /.github/actions/setup-pinned-node/
             /.node-version
           sparse-checkout-cone-mode: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -432,10 +432,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -460,9 +459,13 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/intake-triage/apply-verdict.mjs --check
 
+      # Its reads go through the job token, counted under github-token for
+      # the job-end api-calls notice.
       - name: Resolve the config
         id: config
         if: steps.who.outputs.proceed == 'true'
+        env:
+          API_BUDGET_TOKEN: github-token
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: intake-triage
@@ -537,14 +540,14 @@ jobs:
         timeout-minutes: 1
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
-          tokens: lanes-app
+          tokens: lanes-app github-token
 
   # Refines a thin issue (#9215): one whose verdict flags intent (no exact
   # outcome) or whose body has no task list (no checkable criteria). It also
   # takes an issue admission held at the lanes App's needs-decision for some,
   # not all, of its done-when items being ones a lane run cannot perform: a
   # sound split lists those items in the refinement comment as checks a
-  # person runs and rewrites the issue's done-when to the rest. Three
+  # person runs and leaves the issue body as written. Three
   # jobs, as the reusable and apply-verdict split it: refine-select (no model,
   # read token) picks the issue and writes the context; refine-issue (the
   # model, contents: read only) explores the default branch, checks the
@@ -583,10 +586,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -684,10 +686,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -912,6 +913,17 @@ jobs:
           json-schema-file: ${{ runner.temp }}/refine-schema.json
           leg-timeout-minutes: "20"
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.run.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}
+
       - name: Report a handoff
         id: handoff
         if: steps.run.outputs.handoff == 'true'
@@ -991,10 +1003,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill
@@ -1200,6 +1211,17 @@ jobs:
           json-schema-file: ${{ runner.temp }}/refine-schema.json
           leg-timeout-minutes: "20"
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload the sealed transcript
+        if: always() && steps.run.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.run.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}
+
       - name: Collect the refinement
         id: collect
         if: steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
@@ -1264,10 +1286,9 @@ jobs:
           persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
         with:
           node-version-file: .base/.node-version
-          package-manager-cache: false
 
       - name: Check the kill switch
         id: kill

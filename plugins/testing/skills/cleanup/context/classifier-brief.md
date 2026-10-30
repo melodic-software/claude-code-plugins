@@ -2,7 +2,8 @@
 
 The brief [`../SKILL.md`](../SKILL.md) step 4 writes to `<work>/classifier-brief.md` and hands to a
 fresh-context subagent. Copy the template below and fill the candidate list. Hand over the test
-files, the production files they import, and the findings; never the reasoning that picked them.
+files, the production files they reach (SKILL.md step 5, "Gate-blind"), and the findings; never
+the reasoning that picked them.
 
 ## Template
 

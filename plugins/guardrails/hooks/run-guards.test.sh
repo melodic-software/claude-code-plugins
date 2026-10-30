@@ -195,7 +195,14 @@ assert_exit "ask and context beside an exit 2: denied" 2 "$RC"
 assert_absent "ask and context beside an exit 2: the ask is dropped" "$OUT" '"ask"'
 
 # --- the shipped guards ask through the dispatcher only when attended --------
-ATT_REPO="$TEST_TMPDIR/att-repo"
+# Outside the temp directory, under the checkout's gitignored .work/:
+# block-dangerous-git allows reset --hard in a repository under the temp
+# directory (#9779), and these rows need its refusal.
+ATT_TOP=$(git -C "$HOOK_DIR" rev-parse --show-toplevel)
+ATT_TOP="${ATT_TOP//$'\r'/}"
+mkdir -p "$ATT_TOP/.work"
+ATT_REPO=$(mktemp -d "$ATT_TOP/.work/run-guards-att.XXXXXX")
+trap 'rm -rf "$TEST_TMPDIR" "$ATT_REPO"' EXIT
 git init -q "$ATT_REPO"
 att_run() { # att_run <attended> <command>: the whole shipped Bash row
   local p

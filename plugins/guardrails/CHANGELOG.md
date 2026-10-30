@@ -3,6 +3,72 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.4] - 2026-10-29
+
+### Fixed
+
+- **`verify-cli-flag.sh` and the retirement check no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). The help-cache freshness fallback reads `find` through process substitution, and `lib/check-retirements.sh` checks each record's fields with a here-string, so under `set -o pipefail` a match can no longer read as a miss when grep exits before the producer finishes writing.
+
+## [0.63.3] - 2026-10-29
+
+### Changed
+
+- A clean Write, Edit or NotebookEdit costs the PreToolUse guard row 7 processes on Linux instead of 14. With telemetry off (the default), hardcoded-path-check decides clean content with its builtin prefilter before running `git rev-parse` or `git check-ignore`. secret-pattern-detection opens a capture subshell only when a pattern matched. No verdict changes.
+
+## [0.63.2] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.63.1] - 2026-10-29
+
+### Changed
+
+- reference-verify judges a stacked branch only on what it adds to the pushed branch below it
+
+  The pre-push reference-verify entry now moves each range's base up to the nearest of the remote's tracking refs between that base and the tip. A new branch stacked on a pushed branch no longer re-verifies every file the branches below it changed, so each push in a stack of branches verifies only its own files. The README row states that those tracking refs are trusted as verified, another author's included. The README's reference-verify row also documents the ssh `ServerAliveInterval` setting. It keeps a long push's idle connection open; a dropped connection leaves a push that reports success but creates no ref.
+
+### Fixed
+
+- `block-dangerous-git` lets a plain `git reset --hard` or `git clean -f` through on the Bash tool when git places both the work tree's top level and the common git directory under the system temp directory (`$TMPDIR`, `$TMP`, `$TEMP` or `/tmp`), the scratch repositories agents create and throw away ([#9779](https://github.com/melodic-software/claude-code-plugins/issues/9779)). `/var/tmp` persists across reboots, so a repository there still blocks unless one of those variables names it. The command has to be that one git invocation alone. It still blocks when `HOME` is under a temp root, in a linked worktree of a repository outside it, in a repository outside it, when the command carries a `-c` global, runs git through a wrapper or alias, or holds a separator, quote, escape, expansion, redirection or glob character, and on the PowerShell tool.
+- `block-root-delete-target` reads `rm -rf "$S"` as the literal `S` was set to when the command opens with `S=<literal>` and one `&&`, `;` or newline, even with other statements between the assignment and the delete (#9779). The binding still needs every `$S` to be a whole double-quoted word and the rest of the command to hold no quote, backslash, `$`, backtick, glob or brace character, and a second assignment to `S`, arithmetic, `let`, `unset`, `for`, `getopts`, a zsh setter such as `foreach`, `vared` or `print -v`, a `{S}>` redirection or any other builtin that sets a variable by name drops it, so the operand blocks as a bare variable as before.
+
+## [0.63.0] - 2026-10-29
+
+### Added
+
+- `block-cross-domain` now checks the `gh` and `az` config directory of a Bash or PowerShell call made from a session whose directory is in an identity domain ([#9747](https://github.com/melodic-software/claude-code-plugins/issues/9747)). When the domain has a `gh_config_dir`, a `gh` call that does not run with it is denied, whether the command sets `GH_CONFIG_DIR` or the hook's own environment carries it. When the domain has none, a `gh` call that runs with another domain's directory is denied. `az` is judged the same way with `AZURE_CONFIG_DIR` and `az_config_dir`. `gh --version` and `az --version` are exempt, and from a session outside every domain nothing is denied. A denied call starts no process, and the guard still exits 0 on every call.
+
+- `block-root-delete-target` judges a `find` that deletes the way it judges a recursive `rm` ([#9752](https://github.com/melodic-software/claude-code-plugins/issues/9752)): `find -delete`, or an `-exec`, `-execdir`, `-ok` or `-okdir` whose command word is `rm`, `rmdir` or `unlink`. Each start point is a target, `.` when none is given, read the way GNU and BSD find both read their leading options, and under `-H`, `-L` or `-follow` a start point that is a symlink is judged by where it points. A start point at a root, at home, outside the allowed roots or on a protected tree is refused, and one strictly inside the git toplevel, a temp root, the session scratchpad or an allowed root passes. A find delete started at the git toplevel is refused as a directory holding a `.git` whatever its filters, because find descends into `.git`.
+
+## [0.62.1] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error.
+
+## [0.62.0] - 2026-10-29
+
+### Added
+
+- `/guardrails:setup apply identity-domains` writes the `block-cross-domain` map, `identity-domains.json` in the plugin data directory, from the identity domains `/harness-ops:machine-profile` recorded ([#9749](https://github.com/melodic-software/claude-code-plugins/issues/9749)). Each domain's tree becomes its root, and a `gh` directory the profile records becomes its `gh_config_dir`. Owners, identity markers, `az_config_dir` and shared exceptions come from the operator or are left out. The map is written only after the operator confirms, and a different map already there is replaced only with `--replace`.
+
+- `block-cross-domain` now denies a Bash or PowerShell command, from a session whose directory is in one identity domain, that names a path of another domain: one of its roots, or `~/src/github.com/<owner>` or `~/worktrees/github.com/<owner>` for an owner the map lists under it. A read is denied as well as a write. The guard matches a path in any case and spelled as a Windows drive path with either slash or escaped backslashes, in its MSYS, Cygwin and WSL drive forms, or below `HOME` after `~`, `$HOME` or `%USERPROFILE%` ([#9744](https://github.com/melodic-software/claude-code-plugins/issues/9744)). The decision is a PreToolUse `deny` on stdout whose reason names the session's domain and the others, and the exit stays 0. A marker alone never denies, and from a session outside every domain's paths nothing is denied. With no map the guard still does nothing, and `block_cross_domain_enabled` turns it off.
+
+- `block-cross-domain` now denies, from a session whose directory is in one identity domain, a Bash or PowerShell command that puts another domain's `identity_markers` entry in an identity position: the URL of `git remote add` or `set-url`, the value of `git config` or `git -c` for `user.email`, `user.name`, the `author.*` and `committer.*` keys or `remote.<name>.url`, `git commit --author`, and an assignment to `GH_CONFIG_DIR`, `AZURE_CONFIG_DIR` or a `GIT_AUTHOR_*` or `GIT_COMMITTER_*` variable. The same marker in a commit message or an `echo` is allowed, as is every call from a neutral directory. The deny is a stdout decision document, and the guard still exits 0 on every call ([#9746](https://github.com/melodic-software/claude-code-plugins/issues/9746)).
+
+### Changed
+
+- The README's hook budget accounting now records the measured `Bash|PowerShell` row cost of `block-cross-domain` ([#9743](https://github.com/melodic-software/claude-code-plugins/issues/9743)) and of the `block-root-delete-target` protected trees ([#9751](https://github.com/melodic-software/claude-code-plugins/issues/9751)) on the Windows reference host: both within the ±0.3 S noise of the untouched rows.
+
+- `block-cross-domain` classifies the session directory by an owner's `~/src/github.com/<owner>` and `~/worktrees/github.com/<owner>` directories as well as by roots, the longest path winning, so a session inside an owner's clone is in that owner's domain. It also drops quotes from the command text before its prefilter, so `"$HOME"/<path>` is parsed like `$HOME/<path>`. The compiled cache now changes with `HOME` as well as with the map.
+
+### Fixed
+
+- The `reference-verify` pre-push entry reports each finding at the line that holds the flag, path or skill reference it names. Before, every finding in a file carried the file's first added line, which for a new file was line 1. When no line the push adds holds that text, the finding falls back to the first added line.
+- A declined `reference-verify` entry (`checks.guardrails.reference-verify.declined`, else `checks.git-hooks.declined`, read the way `install.mjs` reads them) now exits 0 without checking, including when the plugin's lefthook remote runs it from the fetched copy. Before, declining removed only the registrations the installer wrote, so a lefthook-remote consumer kept running the check.
+
 ## [0.61.3] - 2026-10-28
 
 ### Changed

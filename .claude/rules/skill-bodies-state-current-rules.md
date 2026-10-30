@@ -14,7 +14,7 @@ shared"), API availability ("thread resolution is GraphQL-only"), a limit, defau
 error string, schema or benchmark figure. The body states our decision in our own words (it may
 name the topic, never what the page says about it) and records where to read the specific live,
 in the links-only record the
-[upstream-drift convention](../../docs/conventions/upstream-drift/README.md#required-parts)
+[upstream-drift convention](../../docs/contracts/upstream-drift/README.md#required-parts)
 defines: pointer to the exact section or issue, as-of date, recheck trigger. A body that needs the specific
 at run time fetches it from the pointer.
 
