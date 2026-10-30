@@ -8,7 +8,7 @@
   "fail": [
     {
       "answer": [{"tool": "Skill", "input": {"skill": "review:audit-enforceability", "args": "findings.md"}}],
-      "why": "a different review skill"
+      "why": "a review skill, not the ratchet"
     }
   ]
 }
