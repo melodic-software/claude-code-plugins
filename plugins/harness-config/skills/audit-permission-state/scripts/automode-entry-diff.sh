@@ -215,7 +215,7 @@ fi
 
 # Every shell-shape class is the same question asked of a different alternation
 # from the shared vocabulary: does the rule text match this ERE.
-rule_matches() { printf '%s\n' "$1" | grep -qE "$2"; }
+rule_matches() { grep -qE "$2" <<<"$1"; }
 
 n_before=0 n_dropped=0 n_suspended=0 n_kept=0
 monitor_seen=0

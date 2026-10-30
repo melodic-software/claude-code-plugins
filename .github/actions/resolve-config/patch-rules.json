@@ -11,10 +11,11 @@
     "escalations": ["ci-fix-empty", "ci-fix-escalated", "ci-fix-invalid", "ci-fix-not-applied", "ci-fix-protected-path"]
   },
   "review-threads": {
-    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused"],
+    "refuse": ["github-workflows", "codeowners", "gitmodules", "settings", "lane-grants", "symlink", "gitlink", "rename-into-refused", "new-exec-bit"],
     "allow": ["kept-threads"],
     "max-files": 300,
     "requires": [],
+    "content-rule": "pr-mode-revert",
     "commit": { "parents": ["head"], "message": "Address review feedback on {ref}", "trailer": "Lane-Activity: {lane}/{activity}" },
     "thread-trailer": true,
     "reads-report": null,
