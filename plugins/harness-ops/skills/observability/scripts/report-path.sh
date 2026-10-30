@@ -12,7 +12,7 @@
 # `.observability/claude`), so the path has to carry project identity.
 #
 # The key is lib/state-key.sh, the scheme defined by
-# docs/conventions/plugin-data-report-keying/ rule 1:
+# docs/contracts/plugin-data-report-keying/ rule 1:
 #
 #   ${CLAUDE_PLUGIN_DATA}/reports/<state-key>/claude-observability-<date>.md
 #

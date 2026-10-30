@@ -90,6 +90,28 @@ or the lanes App); any other issue waits in `needs-triage` for a person, so an o
 cannot start a model run with each reply. A dispatch skips the born-triaged check. Removing the status label is the
 claim, so a second answer dispatches nothing. It never adds `agent-ready`, and it holds the job's own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
 
+Anyone outside the organization who writes on an issue or pull request is flagged for a person by
+[`security-outside-actor.yml`](../../../.github/workflows/security-outside-actor.yml), a scripted
+workflow with no model, secret or kill switch. It runs on an issue or pull request opened, edited
+or reopened, a pull request synchronized (`pull_request_target` for a pull request), on a
+comment, review or diff comment created, submitted or edited, and on `security: outside-actor`
+removed from an issue or pull request. A flag job starts only when the sender is not a Bot (an App
+installed here), or the event is on a pull request whose head is a fork (an App on the fork can act
+there), and either the content's author is neither `OWNER` nor `MEMBER` or the event is an edit,
+push or reopen by someone other than the author, which judges the sender. The run then trusts the
+actor only by numeric id on the default branch's trusted-actor list, and an unreadable list flags.
+An outside actor's item always gets `security: outside-actor` and `needs-human` written, and one
+comment per actor names the login, without a mention, and the event, quoting none of their text.
+`security: outside-actor` is a hold of its own (`merge-holds.mjs` `OUTSIDE_ACTOR_LABEL`): the merge
+queue, auto-merge arming, the babysit merge gate, ci-status, intake triage, the work-unblock sweep
+and every pull request activity (its `labels-absent`, which the write runner holds too) skip it,
+and `clear-escalations.mjs` keeps `needs-human` on an item carrying it. Only a person on the
+trusted list removes it: when anyone else removes it (any letter case of the name), the run puts
+both labels back and posts one comment naming the remover, without a mention. The job holds the
+job's own `GITHUB_TOKEN` (`contents: read`, `issues: write`, `pull-requests: write`). A review or
+diff comment on a fork pull request gets a read-only token and is not flagged; the fork pull
+request itself is flagged when it opens.
+
 Pipeline lanes skip draft PRs; `ci-status` still reports on them, and passes the skipped lanes.
 The `ready_for_review` run tests the head, and the merge queue re-runs every lane before a merge.
 Converting a PR back to draft
