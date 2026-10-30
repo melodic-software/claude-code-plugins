@@ -347,7 +347,7 @@ sanctioned paths:
   `babysit_review_bot_logins`, `babysit_extra_bot_logins`) are supplied comma-joined. Against an
   already-installed plugin it prints `already installed` **and still writes the value** (per the
   marketplace's plugin-reconfiguration convention,
-  <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
+  <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
   which owns the verified-version record). Do **not** uninstall to reconfigure: uninstalling drops
   this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's
   Options reference to its manifest default. `-s` defaults to `user`; pass the scope

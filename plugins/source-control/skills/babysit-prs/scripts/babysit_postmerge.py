@@ -252,10 +252,6 @@ class UnlistedRecordHold(PostMergeReadError):
         self.dispatch = dispatch
 
 
-class RunSearchCapped(PostMergeReadError):
-    """A run listing that reached `RUN_SEARCH_CAP`, so it may be missing runs."""
-
-
 class PostMergeWriteError(RuntimeError):
     """A remediation write failed."""
 
@@ -493,7 +489,7 @@ def _paginated(
     if items_key == "workflow_runs":
         capped = run_search_capped(payload, items)
         if capped is not None:
-            raise RunSearchCapped(
+            raise PostMergeReadError(
                 f"{label}: total_count {capped}, {len(items)} returned, "
                 f"at the {RUN_SEARCH_CAP}-run search cap"
             )
@@ -796,12 +792,6 @@ def _run_rows(
     ]
 
 
-# The shortest `created` range `_runs` splits a capped listing into: about
-# 140 canary runs a day on 2026-10-30 (pr-merge run 41017118941 listed 1,183
-# over 8.6 days), so a day still at the cap means a burst no split resolves.
-RUN_WINDOW_FLOOR = timedelta(days=1)
-
-
 def _runs(
     owner: str,
     name: str,
@@ -809,40 +799,20 @@ def _runs(
     event: str,
     branch: str,
     since: datetime,
-    now: datetime | None = None,
 ) -> list[Run]:
-    """The runs created since `since`. A listing at the search cap is read
-    again in two halves of its `created` range, the newer one left open so
-    a run created during the read is kept, down to `RUN_WINDOW_FLOOR`; a
-    range that short still at the cap raises `RunSearchCapped`."""
-    now = now or datetime.now(UTC)
-    rows: dict[int, dict[str, Any]] = {}
-
-    def read(low: datetime, high: datetime | None) -> None:
-        stamps = [
-            t.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ") for t in (low, high) if t
-        ]
-        created = quote(
-            f">={stamps[0]}" if high is None else "..".join(stamps), safe=""
-        )
-        endpoint = (
-            f"repos/{owner}/{name}/actions/workflows/{workflow}/runs"
-            f"?event={event}&branch={quote(branch, safe='')}&created={created}&per_page=100"
-        )
-        try:
-            items = _paginated(endpoint, f"{workflow} {event} runs", "workflow_runs")
-        except RunSearchCapped:
-            end = high or now
-            if end - low <= RUN_WINDOW_FLOOR:
-                raise
-            middle = low + (end - low) / 2
-            read(low, middle)
-            read(middle, high)
-            return
-        rows.update((item.get("id"), item) for item in items)
-
-    read(since, None)
-    runs = _run_rows(list(rows.values()), event, owner, name)
+    created = quote(
+        f">={since.astimezone(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}", safe=""
+    )
+    endpoint = (
+        f"repos/{owner}/{name}/actions/workflows/{workflow}/runs"
+        f"?event={event}&branch={quote(branch, safe='')}&created={created}&per_page=100"
+    )
+    runs = _run_rows(
+        _paginated(endpoint, f"{workflow} {event} runs", "workflow_runs"),
+        event,
+        owner,
+        name,
+    )
     return [r for r in runs if r.created_at >= since and r.head_branch == branch]
 
 
@@ -2400,7 +2370,6 @@ def _lane_reruns(ctx: _Context, now: datetime, tally: _Tally) -> list[str]:
             "workflow_dispatch",
             ctx.branch,
             now - ctx.lane_rerun_lookback(),
-            now,
         )
         ctx.held_full_runs.update((r.id, r) for r in runs)
         for run in sorted(runs, key=lambda r: r.created_at, reverse=True):
@@ -2519,9 +2488,7 @@ def check(
         )
         full_runs = [
             (SIGNAL_SCHEDULE, r)
-            for r in _runs(
-                owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor, now
-            )
+            for r in _runs(owner, name, FULL_RUN_WORKFLOW, "schedule", branch, floor)
         ] + [
             (SIGNAL_DISPATCH, r)
             for r in _runs(
@@ -2531,7 +2498,6 @@ def check(
                 "workflow_dispatch",
                 branch,
                 floor,
-                now,
             )
         ]
         # A listing filtered by branch name also returns runs on a tag named
@@ -2549,7 +2515,7 @@ def check(
         canary_runs = sorted(
             (
                 r
-                for r in _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor, now)
+                for r in _runs(owner, name, CANARY_WORKFLOW, "push", branch, floor)
                 if ctx.on_branch(r)
             ),
             key=lambda r: r.created_at,
@@ -3911,13 +3877,6 @@ def write_shared(path: str, shared: policy.SharedPostMerge) -> bool:
             "computedAt": shared.computed_at.isoformat(),
         },
     }
-    return _replace_json(path, payload)
-
-
-def _replace_json(path: str, payload: Mapping[str, Any]) -> bool:
-    """Write `payload` to a temp file beside `path`, then `os.replace` it,
-    so a reader sees the old file or the new one, never part of one. Best
-    effort: a failure is logged and the old file stays."""
     tmp: Path | None = None
     try:
         target = Path(path)
@@ -3931,109 +3890,6 @@ def _replace_json(path: str, payload: Mapping[str, Any]) -> bool:
                 tmp.unlink(missing_ok=True)
         return False
     return True
-
-
-# The run report's record of a gate's own check that came back unreadable.
-UNREADABLE_KEY = "unreadableRecompute"
-
-
-def _unreadable(report: Mapping[str, Any]) -> bool:
-    return (
-        report.get("ok") is not True
-        and report.get("readable") is False
-        and str(report.get("reason") or "").startswith("unreadable")
-    )
-
-
-def _unreadable_at(
-    path: str,
-    head: str,
-    floor: datetime,
-    identity: str,
-    lane_merges_only: bool,
-) -> dict[str, Any] | None:
-    """The report of an unreadable check at `path` made at main's `head` from
-    `floor` for this identity and lane within `SHARED_MAX_AGE`, or None: the
-    gate's own (`UNREADABLE_KEY`), else the job's check the file holds."""
-    try:
-        with open(path, encoding="utf-8") as handle:
-            payload = json_object(json.load(handle))
-    except (OSError, ValueError):
-        return None
-    shared = json_object(payload.get("shared"))
-    job = {
-        "mainSha": shared.get("mainSha"),
-        "since": payload.get("since"),
-        "identity": shared.get("identity"),
-        "laneMergesOnly": shared.get("laneMergesOnly"),
-        "computedAt": shared.get("computedAt"),
-        "report": {
-            k: v
-            for k, v in payload.items()
-            if k not in ("since", "shared", UNREADABLE_KEY)
-        },
-    }
-    now = datetime.now(UTC)
-    for record in (json_object(payload.get(UNREADABLE_KEY)), job):
-        report = json_object(record.get("report"))
-        try:
-            age = now - policy._time(record.get("computedAt"))
-            if (
-                record.get("mainSha") == head
-                and policy._time(record.get("since")) == floor
-                and _login_key(record.get("identity")) == _login_key(identity)
-                and record.get("laneMergesOnly") is lane_merges_only
-                and timedelta(0) <= age <= policy.SHARED_MAX_AGE
-                and _unreadable(report)
-            ):
-                return report
-        except policy.PolicyReadError:
-            continue
-    return None
-
-
-def reuse_unreadable(
-    path: str,
-    post_merge: Callable[[datetime, str], policy.PostMergeGate],
-    head: Callable[[], str | None],
-    *,
-    lane_merges_only: bool,
-) -> Callable[[datetime, str], policy.PostMergeGate]:
-    """`post_merge` for one gate candidate of a run whose report is at
-    `path`. A check this run already made at main's head now (`head()`),
-    from the same floor, identity and lane, that came back unreadable is
-    refused again with its reason and not run again: the same reads at the
-    same head answer the same, and each run costs minutes of the gate's
-    budget. A head that cannot be read runs the check. A check that comes
-    back unreadable is recorded in the file for the next candidate."""
-
-    def gate(floor: datetime, identity: str) -> policy.PostMergeGate:
-        sha = head()
-        if not (isinstance(sha, str) and policy.SHA_RE.fullmatch(sha)):
-            return post_merge(floor, identity)
-        known = _unreadable_at(path, sha, floor, identity, lane_merges_only)
-        if known is not None:
-            return gate_from_report({**known, "unreadableReusedAt": sha})
-        computed_at = datetime.now(UTC)
-        answer = post_merge(floor, identity)
-        if _unreadable(answer.report):
-            try:
-                with open(path, encoding="utf-8") as handle:
-                    payload = json_object(json.load(handle))
-            except (OSError, ValueError):
-                payload = {}
-            payload[UNREADABLE_KEY] = {
-                "mainSha": sha,
-                "since": floor.isoformat(),
-                "identity": identity,
-                "laneMergesOnly": lane_merges_only,
-                "computedAt": computed_at.isoformat(),
-                "report": dict(answer.report),
-            }
-            _replace_json(path, payload)
-        return answer
-
-    return gate
 
 
 def _since(value: str) -> datetime:
