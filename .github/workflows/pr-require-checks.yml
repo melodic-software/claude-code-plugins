@@ -5986,11 +5986,12 @@ jobs:
             artifact=$(jq -sr --arg repo "$GITHUB_REPOSITORY" '[.[] | select(.runId as $id | .run | .id == $id and .status == "completed" and .conclusion == "success"
               and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == "main"
               and .repository.full_name == $repo and .head_repository.full_name == $repo)] | first | .artifact // empty' "$RUNNER_TEMP/verdicts.jsonl") || exit 1
-            # A 5xx or a network error with no HTTP response (the reader's
-            # _transient and NETWORK_ERRORS) is read again after each of 5, 15
-            # and 30 s: GitHub answered three downloads 503 over 26 s in merge
-            # group run 41063238235 (judgment on that run). Any other failure
-            # is final.
+            # A 5xx or a network error with no HTTP response is read again
+            # after each of 5, 15 and 30 s: the grep below takes the reader's
+            # _transient 5xx and NETWORK_ERRORS phrases but the JSON decoder's
+            # (a zip download is not JSON). GitHub answered three downloads
+            # 503 over 26 s in merge group run 41063238235 (judgment on that
+            # run). Any other failure is final.
             record=null
             if [[ $artifact =~ ^[1-9][0-9]*$ ]]; then
               for wait in 5 15 30 ''; do

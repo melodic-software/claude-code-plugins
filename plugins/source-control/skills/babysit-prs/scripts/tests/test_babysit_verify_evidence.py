@@ -264,6 +264,7 @@ class FakeGitHub:
         self.full_skips: list[set[int]] = []
         # The count reads before whole listings, and a gh error for each.
         self.count_reads: list[list[str]] = []
+        self.count_timeouts: list[float | None] = []
         self.count_fail: str | None = None
         # The pull request's RELINK_QUERY answer (its `pullRequest`), or
         # "error" for a failed read; None answers as the closing read does.
@@ -300,6 +301,7 @@ class FakeGitHub:
         probe = f"repos/{REPO}/actions/artifacts?per_page=1"
         if args == ["api", probe]:
             self.count_reads.append(args)
+            self.count_timeouts.append(kwargs.get("timeout_seconds"))
             failed = any(k in probe for k in self.fail)
             if self.count_fail or failed:
                 error = self.count_fail or f"gh: boom (HTTP {self.fail_status})"
@@ -3452,14 +3454,16 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
         )
         self.assertEqual((fake.probes(), fake.full_listings(), fake.pages()), (1, 0, 0))
 
-    def caller(self, limit: str, total: int) -> tuple[ve.Evidence, FlakyListing]:
-        """A reader a caller kills at `limit` seconds, started just now."""
+    def caller(
+        self, limit: str, total: int, elapsed: float = 0.0
+    ) -> tuple[ve.Evidence, FlakyListing]:
+        """A reader a caller kills at `limit` seconds, `elapsed` seconds in."""
         fake = FlakyListing([])
         fake.live_total = total
         env = {ve.DEADLINE_ENV: limit, ve.CALLER_ENV: "verify-cap.mjs"}
         with (
             mock.patch.dict("os.environ", env),
-            mock.patch.object(ve, "_elapsed", return_value=0.0),
+            mock.patch.object(ve, "_elapsed", return_value=elapsed),
             mock.patch.object(postmerge, "gh_capture", side_effect=fake),
         ):
             evidence = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
@@ -3479,6 +3483,39 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
             evidence.detail or "",
         )
         self.assertEqual(fake.timeouts, [])
+        # pr-unblock verify-cap.mjs skips the round on this detail, for this
+        # run only; the 300 s cap's own refusal is not the caller's.
+        self.assertTrue((evidence.detail or "").startswith(ve.DEADLINE_UNREADABLE))
+        evidence, _ = self.caller("900", 29_301)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertIn("past the 300 s listing cap", evidence.detail or "")
+        self.assertFalse((evidence.detail or "").startswith(ve.DEADLINE_UNREADABLE))
+
+    def test_the_count_read_fits_in_what_the_caller_leaves(self) -> None:
+        # 60 s into verify-cap.mjs's 120 s: 120 - 60 - 15 leaves 45 s.
+        _, fake = self.caller("120", 2_000, elapsed=60.0)
+        self.assertEqual(fake.count_timeouts, [45.0])
+        # With no caller limit the count read keeps gh's default timeout.
+        _, fake = self.caller("", 2_000)
+        self.assertEqual(fake.count_timeouts, [None])
+
+    def test_a_caller_limit_already_spent_refuses_before_the_count_read(
+        self,
+    ) -> None:
+        # 110 s into a 120 s limit leaves nothing after the 15 s margin.
+        evidence, fake = self.caller("120", 2_000, elapsed=110.0)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertTrue((evidence.detail or "").startswith(ve.DEADLINE_UNREADABLE))
+        self.assertIn("verify-cap.mjs's 120 s limit", evidence.detail or "")
+        self.assertEqual((fake.probes(), fake.timeouts), (0, []))
+
+    def test_a_small_listing_keeps_gh_s_60_s_default_as_its_floor(self) -> None:
+        # 100 artifacts: 1 page and a 7-page top-up, three times, is 24 s,
+        # under gh's 60 s per-call default the listing timeout replaced.
+        self.assertEqual(self.first_timeout(100), 60.0)
+        # The floor never passes what a caller leaves: 50 - 15 is 35 s.
+        _, fake = self.caller("50", 100)
+        self.assertEqual(fake.timeouts[0], 35.0)
 
     def test_a_caller_limit_bounds_the_listing_timeout(self) -> None:
         # enable-auto-merge.mjs kills its reader at 240 s: 225 s left, under

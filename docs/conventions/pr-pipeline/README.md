@@ -2444,9 +2444,11 @@ and post nothing, on a lanes App pull request (the only kind the close takes; an
 not read) the gate's reader refuses `verify:repeated-fail`
 (`.github/scripts/pr-unblock/verify-cap.mjs`, reading `babysit_verify_evidence.py` with the
 dispatcher job's read token, last before each dispatch), or `verify:unreadable` because another
-pull request's FAIL run for the same issue cannot be read, which may hide the cap; that one is
-read again next run. A read that fails or times out lets the round run under its own caps, which
-costs at most one round before the lane closes the pull request. While `merge.report-only` is
+pull request's FAIL run for the same issue cannot be read, or because the artifact listing does
+not fit in the 120 s the dispatcher allows the reader; either may hide the cap, so it is read again
+next run. A read that fails or times out, or any other refusal, lets the round run under its own
+caps with a warning naming it, which costs at most one round before the lane closes the pull
+request. While `merge.report-only` is
 false the lane escalates `verify:untrusted-spec`
 on the pull request ([loop-lane §2](../../contracts/loop-lane/README.md#2-escalation-contract)): it
 keeps one `<!-- babysit-merge-verify-escalation -->` comment naming the refusal and the head,

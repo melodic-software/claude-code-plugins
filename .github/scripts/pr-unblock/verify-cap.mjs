@@ -6,14 +6,17 @@
 // address-feedback or fix-ci round on it and post nothing; the pr-merge lane
 // closes it for a fresh attempt at its issue (owner decision 2026-10-29). A
 // FAIL run of another pull request for the same issue that cannot be read
-// (`verify:unreadable` with the reader's SIBLING_UNREADABLE detail) may hide
-// the cap, so it skips the round too, failing closed, for this run only.
+// (`verify:unreadable` with the reader's SIBLING_UNREADABLE detail), or an
+// artifact listing that does not fit in this caller's limit (a detail that
+// starts with DEADLINE_UNREADABLE), may hide the cap, so each skips the round
+// too, failing closed, for this run only.
 //
 // The reader runs with the dispatcher job's GITHUB_TOKEN (actions, contents
 // and pull-requests read), for the one pull request about to be dispatched.
 // It reads with no --lane-link, so it needs no issues read for this pull
 // request's own FAILs. A read that fails, times out or answers for another
-// head is not the cap: the round runs as before, with a warning.
+// head, and any other refusal, is not the cap: the round runs as before,
+// with a warning naming it.
 import { spawnSync } from "node:child_process";
 
 export const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
@@ -22,6 +25,10 @@ export const CAPPED = "verify:repeated-fail";
 // `verify:unreadable` refusal `_elsewhere` raises (verify-cap.test.mjs reads
 // the reader to check they match).
 export const SIBLING_UNREADABLE = "a FAIL run of a pull request for the same issue";
+// babysit_verify_evidence.py DEADLINE_UNREADABLE, the start of the
+// `verify:unreadable` detail when the listing does not fit in what
+// VERIFY_CAP_TIMEOUT_MS leaves (verify-cap.test.mjs checks they match).
+export const DEADLINE_UNREADABLE = "the artifact listing does not fit in the caller's limit";
 const UNREADABLE = "verify:unreadable";
 const SHA = /^[0-9a-f]{40}$/;
 // One full read lists every artifact of the repository; the dispatcher job's
@@ -37,8 +44,8 @@ const oneLine = (text) => String(text ?? "").replaceAll(/[\r\n%]/g, " ").trim().
 
 // A function of { number, head, base } that returns the reader's cap refusal,
 // `verify:repeated-fail` with its detail (the FAILed heads), the sibling
-// read's `verify:unreadable` with its detail, or null. Only the first never
-// clears for the head (`final`).
+// read's or the caller limit's `verify:unreadable` with its detail, or null.
+// Only the first never clears for the head (`final`).
 // `base`: the pull request's base commit, so the reader takes the gate's
 // merge.max-verify-fails (the lower of that commit's and main's).
 export function verifyCapReader(env, { spawn = spawnSync, log = (line) => console.log(line) } = {}) {
@@ -67,7 +74,13 @@ export function verifyCapReader(env, { spawn = spawnSync, log = (line) => consol
     if (report.refusal === UNREADABLE && report.detail === SIBLING_UNREADABLE) {
       return `${UNREADABLE}: ${SIBLING_UNREADABLE}`;
     }
+    if (report.refusal === UNREADABLE && String(report.detail ?? "").startsWith(DEADLINE_UNREADABLE)) {
+      return `${UNREADABLE}: ${oneLine(report.detail)}`;
+    }
     if (report.refusal !== CAPPED) {
+      if (report.refusal != null) {
+        log(`::warning::#${number}: the verifier reader refused ${oneLine(report.refusal)} (${oneLine(report.detail)}), not its FAIL cap; the round runs under its own caps`);
+      }
       return null;
     }
     return typeof report.detail === "string" && report.detail ? `${CAPPED}: ${oneLine(report.detail)}` : CAPPED;

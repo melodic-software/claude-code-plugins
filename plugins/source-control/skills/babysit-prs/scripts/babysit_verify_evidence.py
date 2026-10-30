@@ -314,6 +314,13 @@ LISTING_TIMEOUT_SECONDS = 300.0
 DEADLINE_ENV = "BABYSIT_VERIFY_DEADLINE_SECONDS"
 CALLER_ENV = "BABYSIT_VERIFY_CALLER"
 DEADLINE_MARGIN_SECONDS = 15.0
+# The start of a `verify:unreadable` detail when the listing does not fit in
+# what the caller's limit leaves: pr-unblock verify-cap.mjs skips the round
+# on it, for that run only, as on `SIBLING_UNREADABLE`.
+DEADLINE_UNREADABLE = "the artifact listing does not fit in the caller's limit"
+# The least a whole listing's timeout takes, gh's per-call default it
+# replaced, unless the cap or a caller's limit leaves less.
+LISTING_TIMEOUT_FLOOR = 60.0
 # The most pages a whole listing and its top-up read inside the cap, at
 # `LISTING_PAGE_SECONDS` a page: past it the whole listings refuse before
 # paging.
@@ -770,10 +777,13 @@ def listing_timeout(
 ) -> float | None:
     """The whole listings' shared timeout for `total_count` artifacts: each of
     `LISTING_READS` whole listings and its top-up at `LISTING_PAGE_SECONDS` a
-    page, at most `cap`; None when even one does not fit in `cap` (past
-    `LISTING_PAGES_CAP` pages at the default cap)."""
+    page, at least `LISTING_TIMEOUT_FLOOR` and at most `cap`; None when even
+    one does not fit in `cap` (past `LISTING_PAGES_CAP` pages at the default
+    cap)."""
     each = listing_seconds(total_count)
-    return None if each > cap else min(cap, LISTING_READS * each)
+    if each > cap:
+        return None
+    return min(cap, max(LISTING_TIMEOUT_FLOOR, LISTING_READS * each))
 
 
 def _elapsed() -> float:
@@ -1286,13 +1296,20 @@ class Reader:
         Raises `_Unreadable` when `LISTING_READS` reads never hold the live
         count, so no judgment allows on a listing that may lack a FAIL, and
         before any read when the live count (`_live_count`) is too long to
-        list in time (`listing_timeout`)."""
-        total = self._live_count()
+        list in time (`listing_timeout`). A caller's limit (`DEADLINE_ENV`)
+        bounds the count read too, and every refusal for want of its time
+        starts with `DEADLINE_UNREADABLE`."""
+        cap, bound = listing_cap()
+        callers = cap < LISTING_TIMEOUT_SECONDS
+        if callers and cap <= 0:
+            raise _Unreadable(f"{DEADLINE_UNREADABLE}: no time is left of {bound}")
+        total = self._live_count(cap if callers else None)
         cap, bound = listing_cap()
         budget = listing_timeout(total, cap)
         if budget is None:
+            spent = f"{DEADLINE_UNREADABLE}: " if cap < LISTING_TIMEOUT_SECONDS else ""
             raise _Unreadable(
-                f"repository artifacts: {total} artifacts in "
+                f"{spent}repository artifacts: {total} artifacts in "
                 f"{listing_pages(total)} pages need {listing_seconds(total):.0f} s "
                 f"for a whole listing and its top-up at {LISTING_PAGE_SECONDS:.0f} s "
                 f"a page, past {bound}, so none is started"
@@ -1467,20 +1484,28 @@ class Reader:
             tmp.write_text(json.dumps(payload), encoding="utf-8")
             os.replace(tmp, path)
 
-    def _live_count(self) -> int:
+    def _live_count(self, timeout: float | None = None) -> int:
         """GitHub's live `total_count` of the repository's artifacts, from one
         one-artifact page, read again after each of `LISTING_WAITS` on a 5xx
-        or a fast network error; `_Unreadable` when it does not read."""
+        or a fast network error; `_Unreadable` when it does not read. A
+        `timeout` bounds every read and wait, else each read keeps gh's
+        default."""
         label = "repository artifact count"
         args = ["api", f"repos/{self.repo}/actions/artifacts?per_page=1"]
-        for wait in LISTING_WAITS:
+        deadline = None if timeout is None else _listing_clock() + timeout
+        left = timeout
+        for wait in (*LISTING_WAITS, None):
             try:
-                page = self._actions(args, label)
+                page = self._actions(args, label, left)
                 break
             except _Transient:
+                if wait is None or (
+                    deadline is not None and deadline - _listing_clock() - wait <= 0
+                ):
+                    raise
                 _listing_sleep(wait)
-        else:
-            page = self._actions(args, label)
+                if deadline is not None:
+                    left = deadline - _listing_clock()
         total = json_object(page).get("total_count")
         if not _is_artifact_id(total) or total < 0:
             raise _Unreadable(f"{label}: no total_count")

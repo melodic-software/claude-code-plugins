@@ -16,3 +16,7 @@ bump: patch
   reader the limit they kill it at (240 s, 30 s for a kept-answer lookup, 120 s), so a listing that
   cannot finish in that time refuses with the pages, the budget and the caller named rather than
   ending as a bare `verify:unreadable`.
+- `verify-cap.mjs` skips the address-feedback or fix-ci round, for that run only, when the
+  reader's listing does not fit in its 120 s, as it does when a sibling FAIL run cannot be read:
+  either may hide the FAIL cap. Any other refusal still lets the round run, now with a warning
+  naming the refusal and its detail instead of none.
