@@ -5951,16 +5951,25 @@ jobs:
             artifact=$(jq -sr --arg repo "$GITHUB_REPOSITORY" '[.[] | select(.runId as $id | .run | .id == $id and .status == "completed" and .conclusion == "success"
               and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == "main"
               and .repository.full_name == $repo and .head_repository.full_name == $repo)] | first | .artifact // empty' "$RUNNER_TEMP/verdicts.jsonl") || exit 1
+            # A 5xx or a network error with no HTTP response (the reader's
+            # _transient and NETWORK_ERRORS) is read again after each of 5, 15
+            # and 30 s: GitHub answered three downloads 503 over 26 s in merge
+            # group run 41063238235 (judgment on that run). Any other failure
+            # is final.
             record=null
             if [[ $artifact =~ ^[1-9][0-9]*$ ]]; then
-              for attempt in 1 2 3; do
+              for wait in 5 15 30 ''; do
                 # gh-read-exempt: a binary archive, which gh_read's text capture would corrupt.
-                if gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" >"$RUNNER_TEMP/verdict.zip"; then
+                if gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" >"$RUNNER_TEMP/verdict.zip" 2>"$RUNNER_TEMP/verdict.err"; then
                   record=$(unzip -p "$RUNNER_TEMP/verdict.zip" verdict.json | jq -c .) || record=null
                   break
                 fi
-                [ "$attempt" -lt 3 ] || { echo "::error::could not read the verdict of artifact $artifact; re-run this run."; exit 1; }
-                sleep $((attempt * 5))
+                cat "$RUNNER_TEMP/verdict.err" >&2
+                if [ -z "$wait" ] || ! grep -qiE 'HTTP 5[0-9][0-9]|error connecting to|connection reset by peer|connection refused|i/o timeout|tls handshake timeout|unexpected eof' "$RUNNER_TEMP/verdict.err"; then
+                  echo "::error::could not read the verdict of artifact $artifact; re-run this run."
+                  exit 1
+                fi
+                sleep "$wait"
               done
             fi
             # shellcheck disable=SC2016 # GraphQL variables, not shell
