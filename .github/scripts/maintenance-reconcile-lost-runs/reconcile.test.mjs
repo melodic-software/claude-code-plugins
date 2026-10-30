@@ -1845,3 +1845,31 @@ test("the hosted callers still name the stop step as the reconciler reads it", (
     assert.ok(text.includes(`      - name: ${UPSTREAM_STOP_STEP}\n`), file);
   }
 });
+
+const NPM_OUTAGE = { components: [{ name: "Package installation", status: "partial_outage", group: false }] };
+
+test("an upstream re-run of a hosted review is recorded under the reconciler's record name", async () => {
+  const { failedJobReruns, outputs } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1))] });
+  assert.deepEqual(failedJobReruns, [201]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, "", ""]);
+});
+
+test("a main-run review is not re-run or recorded while the upstream gate reads an npm outage", async () => {
+  const upstream = { ...UPSTREAM_OK, [NPM_COMPONENTS]: NPM_OUTAGE };
+  const { reruns, outputs } = await reconcile({ pulls: [], runs: [mainReviewRun(301)], upstream });
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(records(outputs), ["", "", ""]);
+});
+
+test("a hosted review re-run in flight takes none of the CI slots and does not hold the PR's CI back", async () => {
+  const going = run(202, sha(1), { path: REVIEW, status: "in_progress", attempt: 2 });
+  const { reruns } = await reconcile({ pulls: [pr(1)], runs: [going, run(101, sha(1))] });
+  assert.deepEqual(reruns, [101]);
+});
+
+test("a hosted review run that is not a failed first attempt has no jobs read", async () => {
+  for (const r of [run(203, sha(1), { path: REVIEW, conclusion: "success" }), gated(203, sha(1), { attempt: 2 })]) {
+    const { calls } = await reconcile({ pulls: [pr(1)], runs: [r] });
+    assert.ok(!calls.some((c) => c.includes("/runs/203/jobs")), JSON.stringify(calls));
+  }
+});

@@ -5251,7 +5251,7 @@ jobs:
               failed=1
               ;;
             upstream)
-              echo "::error::'$check' did not run on $HEAD_SHA ($url): GitHub Actions or npm listed an outage on its status page when it started. The lost-run reconciler re-runs its failed jobs once GitHub Actions is operational; ci-status re-runs when it finishes."
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational, and that re-run re-runs ci-status with a record pr-verify accepts. Any other re-run becomes attempt 3, which the merge gate does not bind; after 24 hours, push to the head."
               failed=1
               ;;
             gateskipped)

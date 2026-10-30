@@ -426,9 +426,9 @@ export NOTES_42 NOTES_43
 JOBS_10="$(jobs "$(upstream_job 42 failure success skipped failure)" "$(status "$CODE_CHECK" completed skipped skipped)")"
 NOTES_42="$(notes "$(note failure '' 'an upstream outage stops this review (Actions major_outage); the lost-run reconciler re-runs it once GitHub Actions is operational')")"
 expect "a review the upstream gate stopped is named, with the reconciler's re-run" 1 \
-  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): GitHub Actions or npm listed an outage on its status page when it started. The lost-run reconciler re-runs its failed jobs once GitHub Actions is operational; ci-status re-runs when it finishes." "a fork, or a bot"
+  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational, and that re-run re-runs ci-status with a record pr-verify accepts. Any other re-run becomes attempt 3, which the merge gate does not bind; after 24 hours, push to the head." "a fork, or a bot"
 JOBS_10="$(jobs '{"id":42,"name":"kill-switch","status":"completed","conclusion":"failure","steps":[]}')"
-expect "a failed kill-switch job listed with no steps counts as an upstream stop on its error" 1 "GitHub Actions or npm listed an outage on its status page when it started. The lost-run reconciler" "a fork, or a bot"
+expect "a failed kill-switch job listed with no steps counts as an upstream stop on its error" 1 "GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler" "a fork, or a bot"
 NOTES_42="$(notes "$(note notice '' 'an upstream outage stops this review (Actions major_outage)')")"
 expect "a notice copying the upstream error is no upstream stop" 1 "kill-switch job: failure"
 JOBS_10="$(jobs "$(upstream_job 42 failure success skipped skipped)")"

@@ -75,7 +75,13 @@
 //   there is UPSTREAM_STOP_STEP: the upstream-status gate skipped the review
 //   while GitHub Actions or npm listed an outage, so the head has no review.
 //   Its failed jobs are re-run once, inside the lookback, only while that gate
-//   would now let it run (check-upstream-status.mjs). The reusable's bot check
+//   would now let it run (check-upstream-status.mjs). Its re-run carries the
+//   record rerunRecordName(run id, head SHA), as a lane re-run does, so
+//   pr-feedback-dispatch.yml's rerun-ci-status records the ci-status re-run
+//   that review's completion causes (check-trusted-trigger
+//   reconciler-record.mjs) and pr-verify's gate accepts it. A review run
+//   re-run any other way is not, and a person's re-run of it becomes attempt
+//   3, which the merge gate never binds. The reusable's bot check
 //   reads `github.actor`, which a re-run keeps
 //   (https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context),
 //   and the merge gate binds the re-run (babysit_review_evidence
@@ -369,14 +375,17 @@ export function classify(runs, since) {
     rerun: plain.filter((r) => r.event === "pull_request" && isLost(r, since)),
     again: plain.filter((r) => r.event === "pull_request" && isLostAgain(r, since)),
     lane: newest.filter((r) => (!CI_WORKFLOWS.has(r.path) || GATED_REVIEWS.has(r.path)) && isLost(r, since)),
-    inFlight: ci.some((r) => r.status !== "completed" && r.run_attempt > 1),
+    // A hosted review re-run takes no CI slot: it holds no PR's CI back.
+    inFlight: plain.some((r) => r.status !== "completed" && r.run_attempt > 1),
   };
 }
 
 // A CI item with its record, when its re-run makes attempt 2 of a recorded
 // upstream. One PR holds one run per workflow, so a place holds one record.
 const withRecord = (item) =>
-  RECORDED_UPSTREAMS.has(item.path) && (item.kind === "ci" || item.attempt === 1) ? { ...item, record: rerunRecordName(item.id, item.head) } : item;
+  (RECORDED_UPSTREAMS.has(item.path) && (item.kind === "ci" || item.attempt === 1)) || item.kind === "upstream"
+    ? { ...item, record: rerunRecordName(item.id, item.head) }
+    : item;
 // The items the record uploads cover: every lane re-run, and each recorded CI re-run.
 const recorded = (item) => item.kind === "lane" || item.record !== undefined;
 
@@ -638,11 +647,16 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       };
       const tested = [];
       for (const runs of ciRunsByWorkflow(own)) {
+        // A hosted review run is re-run only as a failed first attempt
+        // (`upstream`), so no other one's jobs are read.
+        if (GATED_REVIEWS.has(runs[0].path) && !reconcilerRetries(runs[0], now)) {
+          continue;
+        }
         tested.push(await testedRun(runs, readJobs));
       }
       // A re-run still going under a newer failed contract-only run is in
       // flight too, though classify sees only the newest run.
-      if (tested.some((t) => t?.run?.status !== "completed" && t?.run?.run_attempt > 1)) {
+      if (tested.some((t) => !GATED_REVIEWS.has(t?.run?.path) && t?.run?.status !== "completed" && t?.run?.run_attempt > 1)) {
         inFlight += 1;
         continue;
       }
@@ -795,6 +809,15 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         } catch (error) {
           noteFailure(`lane run ${r.id}`, error);
         }
+      }
+      // A lane re-run during an npm or Actions outage would spend its one
+      // re-run on a run the upstream gate stops again (pr-review-main.yml).
+      const hold = unpublished.length > 0 ? await gateHold() : "";
+      if (hold) {
+        for (const r of unpublished) {
+          say(`lane run ${r.id} (${r.path}) ended ${r.conclusion}; waiting, ${hold}`);
+        }
+        unpublished.length = 0;
       }
       // The record's head is the lane run's own head_sha (main's tip), not
       // the pull request's head: the PR binding is the live gate's job
