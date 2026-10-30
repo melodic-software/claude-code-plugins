@@ -2,32 +2,21 @@
 
 Delegation spends a worker's context window instead of your own. This chapter governs when to spawn delegated workers, how to spec them, and how to treat what they return. (Your model-specific delegation bias, if any, is your model-adaptation chapter's concern.)
 
-For the workflow, subagent or single verdict on a task, `/multi-agent:assess` owns the rule.
-
 ## When to delegate, when to stay inline
 
-Delegate on three task shapes; treat everything else as inline work.
+`/multi-agent:assess` owns the delegation verdict: one context, subagents or a workflow, set by the task's size and whether its steps form one dependent chain, with its pointer to the subagent docs for verbose side output, tool restrictions and quick, targeted changes. Take the verdict from it. This section adds only what assess does not decide.
 
-1. **Genuine fan-out**. TRIGGER: several independent items needing the same treatment with no shared mutable state (audit each module, check each dependency). Weigh spawn plus merge cost against the wall-clock the concurrency saves and the context each item would flood: a handful of one-call items stays inline, a handful of multi-call items is a wave.
-2. **Context-flooding side work**. TRIGGER: investigation whose raw output you will consume once as a conclusion and never re-read (broad searches, log trawls, long external documents), where you expect raw output several times larger than the answer you need. Kept inline, that dead weight dilutes every later decision in the session.
-3. **Isolation as the point**. TRIGGER: verification or review where NOT sharing your context is the value (section "Fresh-context verification" below), or work needing a tool posture you refuse to hold in the main session, such as a strictly read-only reviewer.
+Stay inline even when that verdict says delegate, if either holds:
 
-Stay-inline conditions override all three shapes. If any holds, stay inline even when the work is large:
-
-- Steps are sequential and each consumes the previous step's output, so a worker chain adds spawn latency between steps you would have taken anyway.
 - The work touches files you are actively editing, because two writers on one file produce merge damage, not speed.
-- The whole job is under ~5 tool calls, so the spec would cost more than the work.
 - You will need the full detail later in the session, because a worker returns a lossy summary, and re-deriving lost detail cancels the savings.
 
-Exception: the fresh-context verifier required by "Fresh-context verification" below is never displaced by these conditions. Isolation is its product, so the ~5-call bar and the file-overlap condition do not apply to it. A consistency-carried spawn (the fourth condition below) is likewise not displaced by the ~5-call bar: the piece being small is the premise of that condition, not a strike against it.
+For fan-out, weigh spawn plus merge cost against the wall-clock the concurrency saves and the context each item would flood: a handful of one-call items stays inline, a handful of multi-call items is a wave.
 
-Delegation pays only when at least one of these holds; when none does, it spends both context windows:
+Two reasons carry a spawn that size alone would not justify:
 
-- The raw work output is much larger than spec plus return, so isolation protects your window.
-- The pieces genuinely run concurrently, so a wave of four costs roughly one worker's wall-clock.
-- The isolation itself is the product, as in verification.
-- Consistency across a large set is at stake, the second rationale under "Decompose by context,
-  not by headcount" below; it can carry a spawn that context economy alone would not justify.
+- **Isolation as the product.** The fresh-context verifier required by "Fresh-context verification" below holds none of your context, and that is its value. Neither condition above displaces it.
+- **Consistency across a large set**, the second rationale under "Decompose by context, not by headcount" below. The piece being small is its premise, not a strike against it.
 
 ## Decompose by context, not by headcount
 
@@ -35,9 +24,9 @@ Partition by touch-set per the planning chapter, section "Independent tracks ver
 
 - **Derive worker count from the partition, never the reverse.** Deciding "four workers" first and dividing the work four ways manufactures boundaries the code does not have, so workers re-read the same material and return overlapping or conflicting conclusions you must reconcile by hand.
 - **Cap a concurrent wave at 3-5 workers** regardless of how many pieces exist, because beyond that you cannot meaningfully review the returns, and an unreviewed return is worthless (next two sections). Run remaining pieces as successive waves.
-- **Two rationales ride on one partition, and the second is the one that gets forgotten.** Context economy is why decomposition is usually reached for; output consistency is the other half: we give each worker one focused subtask so a large set comes back consistent. Pointer: for consistency across subtasks, see [Chain prompts for complex tasks](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency#chain-prompts-for-complex-tasks). As of: 2026-08-03. Recheck trigger: a re-read of that section no longer supporting this rationale. The consequence is a tiebreak: when a piece is small enough that context economy alone would not justify the spawn, consistency across a large set still can, which is the fourth condition in the delegation gate above. Both rationales are recorded here and nowhere else in this playbook. The planning and context-economy chapters route delegation to this chapter rather than restating either.
+- **Two rationales ride on one partition, and the second is the one that gets forgotten.** Context economy is why decomposition is usually reached for; output consistency is the other half: we give each worker one focused subtask so a large set comes back consistent. Pointer: for consistency across subtasks, see [Chain prompts for complex tasks](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/increase-consistency#chain-prompts-for-complex-tasks). As of: 2026-08-03. Recheck trigger: a re-read of that section no longer supporting this rationale. The consequence is a tiebreak: when a piece is small enough that context economy alone would not justify the spawn, consistency across a large set still can, which is the consistency reason in the delegation section above. Both rationales are recorded here and nowhere else in this playbook. The planning and context-economy chapters route delegation to this chapter rather than restating either.
 
-This rationale is deliberately mechanism-agnostic. Subagent delegation, a dynamic workflow, and a `claude -p` fan-out all realize the same partition, and which one fits is situational. The choice belongs to the delegation decision above, not to the reason for decomposing.
+This rationale is deliberately mechanism-agnostic. Subagent delegation, a dynamic workflow, and a `claude -p` fan-out all realize the same partition, and which one fits is situational. The choice belongs to `/multi-agent:assess` and the delegation section above, not to the reason for decomposing.
 
 > Weak: "Four workers: split the files alphabetically."
 > Strong: "The touch-set partition yields three disjoint slices: auth, billing, notifications. So three workers, one slice each."
