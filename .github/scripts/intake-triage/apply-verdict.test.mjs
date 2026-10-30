@@ -65,6 +65,7 @@ describe("parseVerdict", () => {
       workClass: "work-class: scoped",
       untrusted: false,
       cost: false,
+      costUnreadable: false,
       dimensions: { size: "small", complexity: "low", uncertainty: "known" },
       flags: [],
       blockedBy: [],
@@ -459,7 +460,7 @@ describe("planWrites", () => {
 
   // The strict Cost parse: a canonical `Cost: ` line holds, a no-charge or
   // `Cost decided: ` one or quoted issue text refuses, and any other cost label
-  // is a problem that holds.
+  // is unreadable and holds.
   const COST_CASES = [
     ["Cost: x", "hold"],
     ["**Cost:** x", "hold"],
@@ -504,10 +505,19 @@ describe("planWrites", () => {
       const verdict = parseVerdict(body, DIMS, CLASSES);
       const result = plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] });
       assert.equal(verdict.cost, outcome === "hold");
-      assert.equal(verdict.problems.includes("a Cost line is not in the `Cost: ` / `Cost decided: ` form"), outcome === "problem");
+      assert.equal(verdict.costUnreadable, outcome === "problem");
+      assert.deepEqual(verdict.problems, []);
       assert.deepEqual(result.refused, outcome === "refuse" ? ["needs-human"] : []);
       assert.equal(result.ready, outcome === "refuse");
       assert.equal(result.remove.includes("needs-human"), outcome === "refuse");
+    });
+  }
+
+  // An unreadable cost label has nothing to refuse on a verdict without a triage hold.
+  for (const line of ["Costs: none", "Cost-benefit: low", "Cost (est.): none"]) {
+    test(`a ${JSON.stringify(line)} line does not stop a clean verdict with no hold`, () => {
+      const result = plan(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", line] }), { labels: [] });
+      assert.equal(result.ready, true, result.reasons.join("; "));
     });
   }
 

@@ -218,10 +218,11 @@ export function parseVerdict(body, dimensionsConfig, classes) {
   // (any other text after it holds); `Cost decided: <text>` names one a recorded
   // decision covers and holds nothing. Only bare or `**Cost:**` dress counts as
   // that form: any other cost label (`**Cost**:`, `_Cost:_`, `Costs:`, `Cost —`,
-  // `Cost (estimate):`) is a problem, which holds. A `>` quote, alone or after a
-  // list marker, is issue text; `Costing:` or `Estimated cost:` is not a label.
+  // `Cost (estimate):`) is unreadable, which keeps a triage hold but does not
+  // stop a verdict with nothing to refuse. A `>` quote, alone or after a list
+  // marker, is issue text; `Costing:` or `Estimated cost:` is not a label.
   let cost = false;
-  let costProblem = false;
+  let costUnreadable = false;
   for (const line of lines) {
     if (QUOTED.test(line)) {
       continue;
@@ -232,13 +233,10 @@ export function parseVerdict(body, dimensionsConfig, classes) {
     if (canonical && text) {
       cost ||= canonical[2] === undefined && !NO_CHARGE.test(text);
     } else if (COST_LABEL.test(unlisted.replaceAll(/[*_`]/g, ""))) {
-      costProblem = true;
+      costUnreadable = true;
     }
   }
-  if (costProblem) {
-    problems.push("a Cost line is not in the `Cost: ` / `Cost decided: ` form");
-  }
-  return { escalated, workClass, untrusted, cost, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
+  return { escalated, workClass, untrusted, cost, costUnreadable, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
 }
 
 // The writes the verdict calls for, given the issue's labels and its current
@@ -338,7 +336,7 @@ export function planWrites(
   // verdict whose Flags line reads none is refused when the rest of the plan
   // is ready: only a flag names a person reason, so admission routes the
   // capability limit or the agent decides the means. An unreadable Flags line,
-  // a `Cost: ` line (not `Cost decided: `), an earlier verdict's flag, an outside-actor or
+  // a `Cost: ` line (not `Cost decided: `) or an unreadable cost label, an earlier verdict's flag, an outside-actor or
   // untrusted-provenance hold (flag.mjs adds needs-human as the same
   // github-actions[bot]), or any other reason keeps both.
   const holds = labels.filter((label) => HOLDS.has(label));
@@ -346,6 +344,7 @@ export function planWrites(
     !verdict.escalated &&
     !verdict.untrusted &&
     !verdict.cost &&
+    !verdict.costUnreadable &&
     Array.isArray(verdict.flags) &&
     verdict.flags.length === 0 &&
     !(Array.isArray(earlierFlags) && earlierFlags.length > 0) &&
