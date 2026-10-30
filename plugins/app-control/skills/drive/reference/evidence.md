@@ -5,6 +5,7 @@
 - Run directory
 - report.md
 - report.json
+- affected.json
 
 ## Run directory
 
@@ -41,6 +42,7 @@ For a job. One object with these fields:
 | `control_skill` | The control skill used, by full name and source, such as `control-shop (project: .claude/skills/control-shop/SKILL.md)`, or `harness-ops:control-claude-code (plugin: <folder>/skills/control-claude-code/SKILL.md)`, or `null` |
 | `fallback` | What drive used when `control_skill` is `null`, else `null` |
 | `mode` | `interactive` or `unattended` |
+| `trusted_root` | The real path of `--trusted-root <dir>` when the run had it, else `null` |
 | `launch` | A list with one entry per process this run launched, one per app: `app`, `pid`, `uid`, `start_time` (the integer the process table gives, compared exactly), `command_line` (a display form) and `command_line_sha256` (over the raw command line bytes, on Linux every byte of `/proc/<pid>/cmdline` as read, trailing NUL included); an empty list when the run launched nothing. A record written as one object, as earlier runs wrote it, reads as a list of one |
 | `ready` | `environment` (the selected name, or `null`), `surfaces` (URL, port or command), `services` (each dependency service's name, url, whether it answered, and whether the app's exposed target matches it, or `not exposed`), `build`, `data`, `telemetry`, `exit` (the Ready command's exit status, or `null` when it did not run) |
 | `steps` | A list; each has `action`, `entry_point`, `observed` (text) and `artifacts` (paths); a step from a steps file also has `id` and `outcome` (`done`, `failed`, `skipped: optional` or `blocked: <reason>`) and `finally: true` for a finally step, and a step a failure ended is not listed; a capture step also has `process` (pid, name, start time and command line, plus the uid and command line sha256 when a pid-bound capture or an elevated attach bound it, and the parent pid when a wrapper resolved to it) and `command` (the exact command run) |
@@ -50,3 +52,25 @@ For a job. One object with these fields:
 | `cleanup` | What was stopped, and each evidence path with whether it exists and is not empty |
 
 The file has no field that rates the outcome. The caller decides what the evidence means.
+
+## affected.json
+
+Written by `affected` into the run directory, by `scripts/affected_features.py`. One object:
+
+| Field | Holds |
+|---|---|
+| `app` | The app's name |
+| `control_skill` | As in `report.json`, or `null` |
+| `source` | `project`, `plugin` or `none` |
+| `trusted_root` | As in `report.json` |
+| `base`, `head` | The refs the diff `<base>...<head>` was taken between |
+| `features` | One entry per feature a changed file maps to, in index order: `id` (as `features/<id>/README.md`), `title` (the index line's), `entry_points` (each `text`, `driven`, and `reason` for a `not driven: <reason>` line, else `null`) and `matched_files` |
+| `unmatched_files` | Each changed file no feature's `sources` matched |
+| `note` | `No control skill: nothing matched`, `control skill present, <n> files unmatched` when no feature matched, each index path that is not a feature file inside the control skill or could not be read, joined by semicolons, or `null` |
+
+The changed files are the old and new path of each change, a rename included, relative to the
+repository root. A file maps to features as the control-skill contract's "Hub" says, a matched
+module line through its `## Sub-features` lines. A `sources` glob resolves against the project
+directory for a project control skill and against the repository root for a plugin one: `**`
+matches across `/`, `*` and `?` match within one path segment, and every other character matches
+itself.
