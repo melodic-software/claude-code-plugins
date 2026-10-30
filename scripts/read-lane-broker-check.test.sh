@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml .github/standards/runner-policy/package.json plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh
+# test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml .github/standards/runner-policy/package.json plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh plugins/work-items/tools/work-item-tracker/work-item-tracker.sh .work-item-tracker.json
 # Runs the shell of two read-lane broker-check steps, lifted from their YAML,
 # against the cases the contract states
 # (docs/conventions/pr-pipeline/pr-run-activity.md, "The broker-check job"):
@@ -125,7 +125,8 @@ lease_case() {
   : >"$WORK/output" && : >"$WORK/stub.log"
   out="$(PATH="$STUB_BIN:$PATH" STUB_LOG="$WORK/stub.log" LEASES="$2" WIT_WRITE_SPACING_S=0 \
     GH_TOKEN=x REPO=acme/widgets ISSUE_NUMBER=1 HOLDER=987654 TIMEOUT_MINUTES=40 GITHUB_RUN_ID=5 \
-    CLAIM="$ROOT/plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh" \
+    TRACKER="$ROOT/plugins/work-items/tools/work-item-tracker/work-item-tracker.sh" \
+    WORK_ITEM_TRACKER_BINDING="$ROOT/.work-item-tracker.json" \
     GITHUB_OUTPUT="$WORK/output" bash "$LEASE_STEP" 2>&1)"
   rc=$?
   local lease

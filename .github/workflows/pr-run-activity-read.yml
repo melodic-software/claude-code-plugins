@@ -469,14 +469,15 @@ jobs:
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           HOLDER: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
-          CLAIM: .base/plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh
+          TRACKER: .base/plugins/work-items/tools/work-item-tracker/work-item-tracker.sh
+          WORK_ITEM_TRACKER_BINDING: .base/.work-item-tracker.json
         run: |
           [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $HOLDER =~ ^[1-9][0-9]*$ && $TIMEOUT_MINUTES =~ ^[1-9][0-9]*$ ]] || {
             echo "::error::the issue number, lanes App sender id or timeout is not a positive integer"
             exit 1
           }
           rc=0
-          out="$(bash "$CLAIM" "github:$REPO#$ISSUE_NUMBER" --lease-only --holder "$HOLDER" \
+          out="$(bash "$TRACKER" claim "github:$REPO#$ISSUE_NUMBER" --lease-only --holder "$HOLDER" \
             --ttl-hours $(((TIMEOUT_MINUTES + 59) / 60 + 1)) --session-id "run-$GITHUB_RUN_ID")" || rc=$?
           if [ "$rc" -eq 7 ]; then
             echo "::notice::already-leased: a live lease on #$ISSUE_NUMBER predates this run's, so no model runs"
@@ -3436,5 +3437,6 @@ jobs:
           ISSUE_NUMBER: ${{ inputs.issue-number }}
           HOLDER: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           LEASE_COMMENT_ID: ${{ needs.broker-check.outputs.lease-comment-id }}
-          RELEASE: .base/plugins/work-items/tools/work-item-tracker/adapters/github/release.sh
-        run: bash "$RELEASE" "github:$REPO#$ISSUE_NUMBER" --lease-comment-id "$LEASE_COMMENT_ID" --holder "$HOLDER"
+          TRACKER: .base/plugins/work-items/tools/work-item-tracker/work-item-tracker.sh
+          WORK_ITEM_TRACKER_BINDING: .base/.work-item-tracker.json
+        run: bash "$TRACKER" release "github:$REPO#$ISSUE_NUMBER" --lease-comment-id "$LEASE_COMMENT_ID" --holder "$HOLDER"
