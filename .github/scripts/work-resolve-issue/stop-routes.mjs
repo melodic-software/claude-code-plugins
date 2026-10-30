@@ -90,9 +90,9 @@ const CODES = Object.keys(STOP_ROUTES)
 // A reason that names a security concern, even inside a word; the short
 // acronyms (XSS, RCE, CVE) only as whole words, so "source" names none.
 const SECURITY_CONCERN =
-  /security|vuln|inject|exfiltrat|malicious|backdoor|exploit|branch[\s_-]?protection|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
+  /security|vuln|inject|exfiltrat|malicious|backdoor|exploit|branch[\s_-]?protection|attack|unauthori[sz]|hijack|\btake[\s-]?over\b|took\s+over|\bstol(?:e|en)\b|\bstranger|\boutsider|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
 const SECURITY_WORD =
-  /security|vuln|inject|credential|secret|token|exfiltrat|malicious|passw(?:or)?d|api[\s_-]?key|private[\s_-]?key|deploy[\s_-]?key|ssh[\s_-]?key|access[\s_-]?key|\bpat\b|backdoor|exploit|branch[\s_-]?protection|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
+  /security|vuln|inject|credential|secret|token|exfiltrat|malicious|passw(?:or)?d|api[\s_-]?key|private[\s_-]?key|deploy[\s_-]?key|ssh[\s_-]?key|access[\s_-]?key|\bpat\b(?!-)|backdoor|exploit|branch[\s_-]?protection|attack|unauthori[sz]|hijack|\btake[\s-]?over\b|took\s+over|\bstol(?:e|en)\b|\bstranger|\boutsider|\b(?:xss|rce|cve)\b|ignore\b.{0,40}\binstructions?\b/i;
 // The phrasings that name a secret only as something a run needs ("a host
 // with model credentials", "needs an API key the lane does not hold", "tokens
 // per task"). Fail closed: the phrasing counts only when the secret noun ends

@@ -206,6 +206,10 @@ test("an ending reason that names a secret noun as a capability keeps its route"
 // secret ended up names no risk word, and must still reach a person.
 test("an ending reason that names an exposed secret without a risk word holds", () => {
   const exposures = [
+    "needs the API key, which a stranger now has",
+    "lacks the token for good: an outsider took it",
+    "requires a password for the account an attacker took over",
+    "an attacker took over the maintainer account",
     "the API key is in the run log",
     "found a token committed in config.json",
     "credentials written to the artifact",
