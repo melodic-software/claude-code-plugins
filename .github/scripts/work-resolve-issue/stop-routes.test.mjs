@@ -347,6 +347,7 @@ test("causeName reads a cause as a row name", () => {
     ["intent - change", "intent-change"],
     ["intent:", "intent"],
     ["intent: ", "intent"],
+    ["intent: -", "intent"],
     [" Intent_Change\n", "intent-change"],
     ["in\u200btent;", "intent"],
     ["--cost__risk.", "cost-risk"],

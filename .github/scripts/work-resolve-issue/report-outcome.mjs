@@ -646,7 +646,8 @@ function routeStop(stop, args, { retries = 0, limits = LIMIT_DEFAULTS, route: gi
 }
 
 // A retry, wait or intake plan with the earlier ones counted in: past the cap
-// it becomes retry-spent's route. Any other plan is returned as it is.
+// it becomes retry-spent's route, or security-risk's hold for a pushbackSecurity
+// stop. Any other plan is returned as it is.
 export const capRetries = (plan, retries, limits = LIMIT_DEFAULTS) =>
   COUNTED.has(plan.action) ? routeStop(plan.stop, plan.stopArgs, { retries, limits, route: plan.action, why: plan.why }) : plan;
 
@@ -1767,7 +1768,8 @@ const openPull = (github, repo, pr, { bot, humans }) =>
 // neither the lanes App nor a listed human opened, and an already-done close
 // that doneEvidence does not prove, retry instead. A retry, wait or intake
 // first counts its own outcome's markers since a listed human last added
-// agent-ready: past its cap it takes retry-spent's route, so an issue intake
+// agent-ready: past its cap it takes retry-spent's route (security-risk's hold
+// for a pushbackSecurity stop, which removes agent-ready too), so an issue intake
 // keeps sending back cannot loop. A
 // retry or wait under the cap posts its comment once per run (a rerun of this
 // report finds its own marker) and keeps agent-ready. A close comments,

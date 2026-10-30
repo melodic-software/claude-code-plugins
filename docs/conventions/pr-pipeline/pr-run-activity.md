@@ -2215,13 +2215,13 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   security reading below, after any code, `blocked-by-pr` included): that one holds as
   `security-risk`, and its first intake comment states no means framing and no "waits on no
   decision from a person".
-  A `stopped` reason (never a `pushback`) with no code, or one whose code's route is
+  A `stopped` reason (a `pushback` takes this reading only as the paragraph above says) with no code, or one whose code's route is
   `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
   `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API, private, deploy,
   SSH or access key, `backdoor`, `exploit`, branch protection, `attack`, `unauthorized`, `hijack`,
   in any case and even inside a word; `XSS`, `RCE`, `CVE` or `PAT`, a takeover, `stolen`, a
   stranger or an outsider as a whole word; or an ignore-instructions phrase)
-  takes the `security-risk` row's hold instead; a `wait` or `retry` code keeps its route. After
+  takes the `security-risk` row's hold instead; after a `wait` or `retry` code a `stopped` reason keeps its route. After
   an ending code, every one of those words but the secret nouns (credential, secret, token,
   password, API key) always holds. A secret noun holds unless it sits in a needs-a-credential
   capability phrasing ("a host with model credentials", "needs an API key the lane does not

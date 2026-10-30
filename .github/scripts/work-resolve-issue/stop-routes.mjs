@@ -155,7 +155,7 @@ export const causeName = (cause) =>
     .toLowerCase()
     .replace(/[.:;\s]+$/, "")
     .replace(/[\s_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/^-+|[-.:;]+$/g, "");
 // The code a reason explicitly opens with, read as runCode reads it, with no
 // security-word reading: "" when it opens with none.
 export const leadingCode = (reason) => {
