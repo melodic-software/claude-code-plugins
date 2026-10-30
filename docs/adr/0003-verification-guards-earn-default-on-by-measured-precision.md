@@ -133,11 +133,30 @@ sufficient one. Specifically:
   works, not after it is polished.**
 - This extends the verification-promotion discipline in
   [ADR 0002](0002-default-on-ai-review-advisory-with-earned-promotion.md) one step earlier in
-  the lifecycle. That ADR governs promoting an advisory gate to blocking on demonstrated
-  precision; this one governs whether an advisory gate ships default-on at all, on the same
+  the lifecycle. That ADR governed promoting an advisory gate to blocking on demonstrated
+  precision (superseded for the review lanes by its 2026-10-30 addendum); this one governs whether an advisory gate ships default-on at all, on the same
   evidentiary basis.
 - `docs/contracts/hook-precision/README.md` owns the over-fire discipline for a guard
   already in the tree. This ADR is the pre-ship counterpart and defers to it thereafter.
+
+## Addendum (2026-10-30): `skill-reference-verify` exception (D64)
+
+D64 is the break-glass rule ([2026-10-26 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6420924529)), which
+[ADR 0080](0080-set-check-precision-defaults-at-zero-false-positives-blocking-and-under-10-percent-advisory.md)
+states on main: an inline exception carries a reason, an expiry and a person's approval.
+
+- **Exception.** `skill-reference-verify`'s in-session `PostToolUse` hook stays default-on below
+  ADR 0080's advisory bar (under 10% false positives) at its measured 57% precision (Context).
+- **Reason.** Its remaining noise was attributed to one identified cause, the shape of argument
+  Decision 3 accepts, and the hook only advises: it exits 0 with `additionalContext`
+  (`plugins/guardrails/hooks/skill-reference-verify.sh`, header).
+- **Expiry.** 90 days after the pull request that adds this entry merges (ADR 0080's default),
+  unless the guard is re-measured on a corpus sweep before then.
+- **Approval.** The owner's [2026-10-25 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6402548080), which ordered this entry.
+
+The exception covers the advisory hook only. The same check also runs from guardrails'
+`reference-verify` git pre-push entry, which fails the push (`plugins/guardrails/README.md`, the
+`skill-reference-verify` row); this exception does not cover that placement.
 
 ## Sources
 

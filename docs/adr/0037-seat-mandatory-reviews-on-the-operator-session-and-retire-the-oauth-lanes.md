@@ -11,7 +11,18 @@
   1, 3, 4, 5, 6 and 8 is removed. Decision 7 and the ready step's merge-then-flip shape stand.
 - Supersedes, for this repository: the lane wiring, the skip-actor exception, and the once-per-PR
   trigger set recorded in ADR 0002. ADR 0002's posture of advisory before blocking and earned
-  promotion still stands and this record applies it.
+  promotion, which this record applied, is superseded by ADR 0002's 2026-10-30 addendum: the
+  review lanes gate merges through `ci-status` ([2026-10-24 direction](https://github.com/melodic-software/claude-code-plugins/pull/9595#issuecomment-6380383362)).
+- Narrowed by Q500 and Q501 ([2026-10-26 decision record](https://github.com/melodic-software/claude-code-plugins/issues/7642#issuecomment-6420924529)). Q500: "with a CI lane no local review in prep or at
+  ready, CI reviews the whole PR once on ready then only each push's changes; blocking-only
+  after the first review; fix rounds capped at 3". Q501: "ready = complete and through local
+  gates, starts automations; `pr_open_state` default `ready`; the AGENTS.md draft section is replaced by the rule in
+  `/source-control:pull-request`". Prep's review and the ready
+  step's reviews run only for a lane the CI review lanes do not cover healthily
+  (`/source-control:pull-request`, review venue); this repository sets `pr_open_state: ready`
+  (`docs/conventions/source-control.yaml`); `loop.review-rounds` is 3
+  (`docs/conventions/pr-pipeline.yaml`). This line records the decision; this record does not show
+  "blocking-only after the first review" implemented.
 
 ## Context
 

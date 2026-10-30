@@ -1,6 +1,6 @@
 # PRD templates: three tiers
 
-All three tiers cover the same eight required sections. Tier governs verbosity, not section presence. Loaded on demand by `/planning:prd` once tier is chosen.
+All three tiers cover the same nine required sections. Tier governs verbosity, not section presence. Loaded on demand by `/planning:prd` once tier is chosen.
 
 **Prototype snippet exception:** if a logic prototype (e.g. `/prototype:pressure-test`, if enabled) left behind code that pins down a design decision better than a paragraph could (a transition table, a data schema, a type definition), copy only the parts that carry the decision into the Open questions section and say which prototype they came from. The PRD defers implementation details to `/planning:plan`, but prototype-validated design constraints are product-level, so they belong here.
 
@@ -40,6 +40,10 @@ updated: <ISO-8601 UTC, e.g. 2026-06-04T14:30:00Z>
 
 ## Success metrics
 - <metric> reaches <threshold> within <window>
+
+## Quality requirements
+- Quality requirement: <prompt where the feature moves the current bar>: <requirement>[; target: <measurable target>]
+- None beyond the product's current bar (when no prompt moves it)
 
 ## Dependencies / risks
 - <dependency or risk>: <mitigation or owner>
@@ -83,6 +87,9 @@ Solo and band artists who play 2+ gigs/month.
 ## Success metrics
 - 60% of weekly-active artists open the calendar widget within 14 days of launch
 - Self-reported "missed a prep deadline" rate (in monthly survey) drops by half within 60 days
+
+## Quality requirements
+- Quality requirement: Performance: the calendar widget does not slow the dashboard's first load; target: adds under 200 ms at p95 for an artist with 50 upcoming gigs
 
 ## Dependencies / risks
 - Reuses the existing `Calendar` domain term, so confirm semantics with the owning module's vocabulary
@@ -144,6 +151,12 @@ Enumerate every significant user journey: every flow a product reviewer might as
 | <name> | <baseline> | <target> | <window> |
 
 Each metric must have a measurement window and a numeric or qualitative threshold. "Increase engagement" without a number does not belong here; push it to **Open questions**.
+
+## Quality requirements
+- Quality requirement: <prompt the feature touches>: <requirement>; target: <number, unit and condition, where a wrong guess would change the design or a check will grade it>
+- Quality requirement: <prompt>: <requirement in words, no target needed>
+
+Cover every prompt in the interview's quality-requirement list that the feature touches.
 
 ## Dependencies / risks
 - **Dep**: <outside-team dependency>, <owner / status>
@@ -226,6 +239,13 @@ Enumerate all significant user journeys across every affected role, erring on co
 | <name> | <baseline> | <target> | <window> | <team> |
 
 Each metric named with owner, because "who watches the dashboard" matters in tier-3.
+
+## Quality requirements
+- Quality requirement: <prompt>: <requirement>; target: <number, unit and condition, where a wrong guess would change the design or a check will grade it>
+- Quality requirement: <prompt>: <requirement in words, no target needed>
+- Quality requirement: <prompt>: does not apply, <one-line reason>
+
+Cover every prompt in the interview's quality-requirement list, each asked or stated as not applying.
 
 ## Dependencies / integrations
 - **Internal**: <upstream/downstream service or team> | <coupling> | <owner>

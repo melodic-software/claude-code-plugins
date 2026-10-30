@@ -53,7 +53,7 @@ per-edit `PostToolUse` hook, however fast, because its output reaches the model 
 states and it covers only Claude Code's own edits. Place it in a git `pre-commit` hook on changed
 lines, `pre-push` when its measured run is over the commit budget but within 60 s, or CI beyond
 that, and flag an existing per-edit one with that placement (house rule:
-[check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/check-placement/README.md#the-rubric)).
+[check-placement](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/README.md#the-rubric)).
 A formatter takes the `PostToolBatch` slot only while its median per fire stays at or under 1 s,
 and also runs at `pre-commit`. And an "async gate" is a contradiction: `async: true` is valid only
 on `type: "command"` hooks, and an async hook cannot return a decision at all.

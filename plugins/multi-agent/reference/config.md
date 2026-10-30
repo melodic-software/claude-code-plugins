@@ -3,7 +3,7 @@
 Owner document for the role map the `multi-agent` skills resolve. The bundled
 values live in [`defaults.yaml`](defaults.yaml); a consumer layer overrides
 them per key. How layers are found and ordered across the marketplace is the
-[config-cascade convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/config-cascade/README.md);
+[config-cascade convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md);
 this page owns the keys.
 
 ## Layers

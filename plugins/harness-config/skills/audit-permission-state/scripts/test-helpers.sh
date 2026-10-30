@@ -9,7 +9,7 @@
 # its exit status is 0 only when nothing failed.
 #
 # Duplicated per plugin by design, not drift. See
-# docs/conventions/shell-test-helpers/README.md at the repo root.
+# docs/contracts/shell-test-helpers/README.md at the repo root.
 
 FAILED=0
 CASE_NUM=0
