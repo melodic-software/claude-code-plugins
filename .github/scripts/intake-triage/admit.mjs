@@ -109,6 +109,7 @@ import { fileURLToPath } from "node:url";
 import { appCloseKind, isTrustedClose, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
+import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
 export const AGENT_READY = "agent-ready";
@@ -950,6 +951,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
   }
   if (verdict.workClass === UNTRUSTED || untrustedHold({ labels: issue.labels, events, humans, isApp: (actor) => appId !== undefined && actor?.id === appId })) {
     refuse.push(`${UNTRUSTED} work needs a person`);
+    hold = true;
+  }
+  // The outside-actor check (flag.mjs) can land after apply-verdict's last
+  // read; this fresh read holds the issue for the person who lifts it.
+  if (labels.includes(OUTSIDE_ACTOR_LABEL)) {
+    refuse.push(`it carries ${OUTSIDE_ACTOR_LABEL}, which a person lifts`);
     hold = true;
   }
   // Reasons the owner already settled without a person: they park the issue

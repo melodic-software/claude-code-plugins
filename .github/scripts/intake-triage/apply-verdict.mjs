@@ -32,7 +32,7 @@
 // person, or an unread setter set, holds. One exception: a needs-human or
 // status: needs-decision this run's triage applied (github-actions[bot], at or after STARTED_AT) on a
 // verdict that did not escalate, absent when the run started, with a readable
-// `Flags: none`, no `Cost: ` line and no outside-actor or untrusted-provenance
+// `Flags: none`, no `Cost: ` line (a `Cost decided: ` one is fine) and no outside-actor or untrusted-provenance
 // hold (read again right before the label writes), is refused and taken off when
 // the rest of the plan is ready, so a capability limit (a host run, a paid
 // eval) reaches admission, which routes it to `host-run` or holds it with a
@@ -206,7 +206,8 @@ export function parseVerdict(body, dimensionsConfig, classes) {
   // An unreadable line names no blocker and holds nothing: an unnamed edge is
   // a finding for review, not a stop.
   const { numbers, problem } = escalated || untrusted ? { numbers: [], problem: null } : parseBlockedBy(lines);
-  // The COST rule's line names a charge an owner decides, whatever Flags reads.
+  // The COST rule's line names a charge an owner decides, whatever Flags reads;
+  // a `Cost decided: ` line names one a recorded decision already covers.
   const cost = lines.some((line) => line.startsWith("Cost: "));
   return { escalated, workClass, untrusted, cost, dimensions, flags, blockedBy: numbers, blockedByProblem: problem, problems };
 }
@@ -308,7 +309,7 @@ export function planWrites(
   // verdict whose Flags line reads none is refused when the rest of the plan
   // is ready: only a flag names a person reason, so admission routes the
   // capability limit or the agent decides the means. An unreadable Flags line,
-  // a Cost line, an earlier verdict's flag, an outside-actor or
+  // a `Cost: ` line (not `Cost decided: `), an earlier verdict's flag, an outside-actor or
   // untrusted-provenance hold (flag.mjs adds needs-human as the same
   // github-actions[bot]), or any other reason keeps both.
   const holds = labels.filter((label) => HOLDS.has(label));
@@ -366,8 +367,9 @@ export function rewordComment(body) {
 // {setters, triage}: setters maps each work-class and hold label on the issue
 // to who added it last, from the issue's events (none when no event names it);
 // triage lists the ones this run's triage applied: absent at `since`, replaying
-// labeled and unlabeled events in order (one with an unreadable time counts
-// as before it), and added at or after it only by github-actions[bot].
+// labeled and unlabeled events by time and id (an add with an unreadable time
+// counts as before it, a removal with one removes nothing), and added at or
+// after it only by github-actions[bot].
 async function labelSetters(github, base, labels, since) {
   const held = new Set(labels.filter((label) => label.startsWith("work-class:") || HOLDS.has(label)));
   const setters = {};
@@ -377,14 +379,25 @@ async function labelSetters(github, base, labels, since) {
   const before = new Set();
   const bot = new Set();
   const other = new Set();
-  for (const event of await paginate(github, `${base}/events`)) {
+  // Replayed by (time, id); an unreadable time sorts last.
+  const time = (event) => {
+    const at = Date.parse(event?.created_at);
+    return Number.isFinite(at) ? at : Number.POSITIVE_INFINITY;
+  };
+  const events = (await paginate(github, `${base}/events`)).toSorted(
+    (a, b) => (time(a) === time(b) ? 0 : time(a) < time(b) ? -1 : 1) || (Number(a?.id) || 0) - (Number(b?.id) || 0),
+  );
+  for (const event of events) {
     const name = event?.label?.name;
     if (!held.has(name) || (event.event !== "labeled" && event.event !== "unlabeled")) {
       continue;
     }
-    const after = Date.parse(event.created_at) >= since;
+    const readable = Number.isFinite(Date.parse(event.created_at));
+    const after = readable && Date.parse(event.created_at) >= since;
     if (event.event === "unlabeled") {
-      if (!after) {
+      // An unreadable removal takes nothing off: the hold it may have
+      // lifted still counts as there before this run.
+      if (readable && !after) {
         before.delete(name);
       }
       continue;

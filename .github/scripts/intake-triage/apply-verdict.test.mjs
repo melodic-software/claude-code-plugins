@@ -441,6 +441,22 @@ describe("planWrites", () => {
     assert.ok(!result.remove.includes("needs-human"));
   });
 
+  // The COST rule writes a charge a person's recorded decision covers as
+  // `Cost decided: `, which needs no owner.
+  test("a Cost decided line beside Flags: none still refuses a needs-human this run's triage applied", () => {
+    const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Cost decided: a paid plan upgrade; the owner's recorded decision"] });
+    const result = plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] });
+    assert.deepEqual(result.refused, ["needs-human"]);
+    assert.equal(result.ready, true);
+  });
+
+  test("a Cost line beside a Cost decided line keeps the needs-human", () => {
+    const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Cost decided: a plan upgrade; decided", "Cost: a new paid service; no owner decision"] });
+    const result = plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] });
+    assert.deepEqual(result.refused, []);
+    assert.equal(result.ready, false);
+  });
+
   test("a quoted Cost line is issue text and refuses nothing it would not", () => {
     const body = laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "> Cost: quoted"] });
     assert.deepEqual(plan(body, { labels: ["needs-human"], triageLabels: ["needs-human"] }).refused, ["needs-human"]);
@@ -1293,6 +1309,78 @@ describe("run", () => {
     assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
   });
 
+  // Only github-actions[bot] adds after STARTED_AT count as this run's triage.
+  test("a needs-human a person takes off and puts back after the bot applied it in this run keeps the hold", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" },
+        { event: "unlabeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T12:05:00Z" },
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T12:06:00Z" },
+      ],
+    });
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+  });
+
+  for (const [who, id] of [
+    ["the lanes App", LANES_APP],
+    ["a person", HUMAN],
+  ]) {
+    test(`a needs-human ${who} also applied after this run started keeps the hold beside the bot's`, async () => {
+      const fake = fakeGitHub({
+        issue: { labels: [{ name: "needs-human" }] },
+        comments: [laneComment()],
+        events: [
+          { event: "labeled", label: { name: "needs-human" }, actor: { id }, created_at: "2026-10-22T12:03:00Z" },
+          { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" },
+        ],
+      });
+      assert.equal((await go(fake)).outcome, "needs-decision");
+      assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+    });
+  }
+
+  // A removal whose time cannot be read lifts nothing that held before.
+  test("a person's needs-human before this run, removed at an unreadable time, keeps the hold when the bot adds it again", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T11:00:00Z" },
+        { event: "unlabeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "not a time" },
+        { event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" },
+      ],
+    });
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    assert.ok(!writes(fake.calls).some(({ method }) => method === "DELETE"));
+  });
+
+  test("a needs-human the bot applied at exactly STARTED_AT is this run's and is refused", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [{ event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: ENV.STARTED_AT }],
+    });
+    assert.equal((await go(fake)).outcome, "ready");
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === "/repos/o/r/issues/7/labels/needs-human"));
+  });
+
+  test("events replay by time and id, not API order", async () => {
+    const fake = fakeGitHub({
+      issue: { labels: [{ name: "needs-human" }] },
+      comments: [laneComment()],
+      events: [
+        { id: 3, event: "labeled", label: { name: "needs-human" }, actor: { id: ACTIONS_BOT }, created_at: "2026-10-22T12:04:00Z" },
+        { id: 2, event: "unlabeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T11:30:00Z" },
+        { id: 1, event: "labeled", label: { name: "needs-human" }, actor: { id: HUMAN }, created_at: "2026-10-22T11:30:00Z" },
+      ],
+    });
+    assert.equal((await go(fake)).outcome, "ready");
+    assert.ok(writes(fake.calls).some(({ method, path }) => method === "DELETE" && path === "/repos/o/r/issues/7/labels/needs-human"));
+  });
+
   test("a needs-human taken off before this run started and applied by its triage is refused", async () => {
     const fake = fakeGitHub({
       issue: { labels: [{ name: "needs-human" }] },
@@ -1878,5 +1966,9 @@ describe("the triage prompt", () => {
   test("every status: needs-decision the prompt asks for comes with a flag, and a flagless one is said to come off", () => {
     assert.match(PROMPT, /c\. When one or more stay open, set `Flags: intent`, apply `status: needs-decision`/);
     assert.match(PROMPT, /A `status: needs-decision` or `needs-human` label you apply holds only beside a flag on the Flags line/);
+  });
+
+  test("a charge a recorded decision covers goes on a Cost decided line, never a Cost line", () => {
+    assert.match(PROMPT, /already covers that charge; then name it on one `Cost decided: <what bills; the decision that covers it>` line instead, never a `Cost: ` line/);
   });
 });

@@ -330,8 +330,9 @@ jobs:
         set `Flags: cost`, apply the `needs-human` label and keep needs_human false, so your comment
         is kept, and add one line to it: `Cost: <what bills, where; the owner decision it lacks>`.
         Skip this only when a comment whose first line is exactly `**Decision recorded.**`, by an
-        author whose login does not end in `[bot]`, already covers that charge; then name it on the
-        Cost line.
+        author whose login does not end in `[bot]`, already covers that charge; then name it on one
+        `Cost decided: <what bills; the decision that covers it>` line instead, never a `Cost: ` line,
+        which holds the issue for the owner.
         A charge a diff shows (IaC resources or SKUs, runner labels or cron schedules in
         workflows, model, effort or turn flags, new secrets) gets no `cost` flag, no `needs-human`
         and no Cost line: the merge-time cost hold catches it after review.

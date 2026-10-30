@@ -190,6 +190,15 @@ describe("decide", () => {
     });
   });
 
+  // flag.mjs can add the label after apply-verdict's last read, so admission's
+  // own fresh read holds on it, whatever the rules list.
+  test("security: outside-actor on the fresh read holds for a person, with no refuse-labels", () => {
+    const rules = { ...RULES, "refuse-labels": [] };
+    const issue = issueOf({ labels: [{ name: READY }, { name: "security: outside-actor" }] });
+    assert.deepEqual(decide(facts({ rules, issue })), { verdict: "refuse", reasons: ["it carries security: outside-actor, which a person lifts"], hold: true });
+    assert.deepEqual(decide(facts({ rules })), { verdict: "admit", reasons: [] });
+  });
+
   // The work-unblock sweep re-admits a deferred issue on no verdict comment,
   // so what changed since its newest admission-deferred add refuses.
   describe("a deferred issue re-admitted with no fresh verdict", () => {
