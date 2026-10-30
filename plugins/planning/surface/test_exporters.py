@@ -352,7 +352,8 @@ class TestExportBrief(SessionCase):
             ],
         )
         self.assertIn("Export test", text)
-        self.assertIn("risk: Unticked promise (unconfirmed)", text)
+        # Q1's own answer replaced the recommendation, so its commitment is no risk.
+        self.assertNotIn("Unticked promise", text)
         self.assertRegex(text, r"- Q2: .*\*\*arbiter: USER-RESERVED\*\*")
         self.assertTrue(text.rstrip().endswith("## Plan"))
         self.assertNotIn("superseded-by-plan", text)
@@ -1600,9 +1601,10 @@ class TestAcceptAuditExport(SessionCase):
 
 
 class TestCommitmentsCarriedByAnswerKind(SessionCase):
-    """Q24: accept and own carry a recommendation's commitments; alt and defer carry none."""
+    """Accept and hedged carry a recommendation's commitments; an own answer and an alt replace
+    the recommendation and carry none, and a defer carries none."""
 
-    def test_only_accept_and_own_carry_risks(self):
+    def test_only_accept_carries_risks(self):
         qs = [question(f"Q{i}", commits=[f"Part of Q{i}"]) for i in range(1, 5)]
         events = [
             event(1, "Q1", "accept"),
@@ -1612,15 +1614,33 @@ class TestCommitmentsCarriedByAnswerKind(SessionCase):
         ]
         self.session(qs, events)
         brief = self.export("brief").read_text(encoding="utf-8")
-        self.assertIn("- 0 commitments confirmed; 2 unconfirmed", brief)
+        self.assertIn("- 0 commitments confirmed; 1 unconfirmed", brief)
         self.assertIn("- risk: Part of Q1 (unconfirmed); from Q1", brief)
-        self.assertIn("- risk: Part of Q3 (unconfirmed); from Q3", brief)
-        self.assertNotIn("Part of Q2", brief)
-        self.assertNotIn("Part of Q4", brief)
+        for n in (2, 3, 4):
+            self.assertNotIn(f"Part of Q{n}", brief)
         report = self.export("report").read_text(encoding="utf-8")
         risks = report.split("<h2>Named risks</h2>", 1)[1]
         self.assertIn("Part of Q1", risks)
         self.assertNotIn("Part of Q2", risks)
+        self.assertNotIn("Part of Q3", risks)
+
+    def test_an_own_answer_drops_a_ticked_commitment_of_the_recommendation_it_replaced(self):
+        qs = [question("Q1", commits=["Cleanup runs after the nightly report"])]
+        events = [
+            event(1, "Q1", "accept"),
+            event(2, "Q1", "confirm", alt="0"),
+            event(3, "Q1", "own", text="Run it at 03:00, after backups finish."),
+        ]
+        self.session(qs, events)
+        brief = self.export("brief").read_text(encoding="utf-8")
+        self.assertIn("- 0 commitments confirmed; 0 unconfirmed", brief)
+        self.assertIn("free-text: Run it at 03:00, after backups finish.", brief)
+        self.assertNotIn("nightly report", brief)
+        # The ledger keeps the tick, so an import restores it.
+        self.assertIn(
+            "commitments:: +Cleanup runs after the nightly report",
+            register_rows(self.export("ledger"))[0],
+        )
 
 
 class TestAutoHandledAccepts(SessionCase):
