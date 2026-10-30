@@ -35,13 +35,23 @@ module's purpose without traversing the whole import graph.
    recommendation.
 
 A second lens, `boundaries`, checks the module boundaries your repository has
-already written down (in `REVIEW.md`, `ARCHITECTURE.md`, ADRs, rules files or an
-existing architecture test) against the project references
+already written down (in `REVIEW.md`, `ARCHITECTURE.md`, ADRs, rules files, an
+existing architecture test, or the `## Boundary rules` section of your
+architecture topic doc) against the project references
 `/architecture:map-dependencies` reads from your build manifests. It lists each
 reference that crosses a recorded rule, and each rule you confirm goes to a
 findings file that `/review:audit-enforceability` turns into an architecture-test
 proposal. With no rule recorded, it shows the references and asks which
 directions are forbidden; it never infers a rule from folder names.
+
+The `conventions` lens reads the code and its history for the conventions
+it already follows: its building blocks, the owner of each piece of state, and
+the blueprint a new feature follows. It proposes each one as a rule and records
+nothing until you say yes. An accepted boundary rule goes into the
+`## Boundary rules` section of your architecture topic doc, where the
+`boundaries` lens reads it. A place that departs from a convention goes to
+`/corrections:codify`, and a paved-path entry goes to
+`/discipline:reuse-or-replace`, which asks before it writes.
 
 ## Across repositories
 
@@ -162,6 +172,7 @@ your records.
 /architecture:improve            # defaults to the deepening lens
 /architecture:improve deepening  # explicit
 /architecture:improve boundaries # recorded boundary rules against manifest edges
+/architecture:improve conventions # derive conventions and propose rules
 /architecture:record-decision    # record one decision into the repo's convention
 
 /architecture:map-landscape --repos /path/to/a,/path/to/b

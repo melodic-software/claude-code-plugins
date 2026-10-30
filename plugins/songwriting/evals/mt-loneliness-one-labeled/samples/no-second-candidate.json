@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "§7 Image filter: cliche scan pass (no \"empty heart\"), literally-false check pass.\n\nHere is one:\n\n*The porch light still waits up for nobody.*\n\nType: verbal. Linking: a habit that outlived its reason. Family distance: medium.\n\nIt keeps the focus on the house, which suits a slow ballad."
+    },
+    {
+      "answer": "**Loneliness is an off-season motel.**\n\n- Type: expressed identity\n- **Distance:** far\n\nWhat characteristics does it have? vacancy, quiet, a sign left lit. What else has them? a church lot on Monday."
+    },
+    {
+      "answer": "*The porch light still waits up for nobody.* Family distance: medium.\n\nWhat characteristics does this loneliness have?\n1. quiet\n2. too much room\n3. nobody to report your day to",
+      "why": "near miss: a numbered finder list, not a second candidate"
+    },
+    {
+      "answer": ""
+    }
+  ],
+  "fail": [
+    {
+      "answer": "One pick: *the porch light waits up for nobody* (verbal, distance: medium). Backup: *Sunday drags its feet*.",
+      "why": "unlabeled backup"
+    },
+    {
+      "answer": "All three sit at family distance: medium.\n\n1. *The porch light waits up for nobody.*\n2. *Sunday drags its feet.*\n3. *The bed yawns on my side.*",
+      "why": "menu with one shared label"
+    },
+    {
+      "answer": "*The hallway swallows my footsteps.* Family distance: far.\n\n**Runner-up:** the off-season motel."
+    }
+  ]
+}
