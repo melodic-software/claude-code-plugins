@@ -92,7 +92,7 @@ outside the system temp directory.
 When the user says yes to the swap, wrap the run step's CLI command, unchanged:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/docker-links.py" run -- env TMPDIR=<dir> claude plugin eval …
+python3 "<skill-dir>/scripts/docker-links.py" run -- env TMPDIR=<dir> claude plugin eval …
 ```
 
 It changes `~/.docker` outside the repository, so it runs only after the user agrees. It replaces
