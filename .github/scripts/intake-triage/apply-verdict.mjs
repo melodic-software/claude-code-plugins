@@ -300,14 +300,16 @@ export function planWrites(
   // verdict whose Flags line reads none is refused when the rest of the plan
   // is ready: only a flag names a person reason, so admission routes the
   // capability limit or the agent decides the means. An unreadable Flags line,
-  // an outside-actor or untrusted-provenance hold (flag.mjs adds needs-human
-  // as the same github-actions[bot]), or any other reason keeps both.
+  // an earlier verdict's flag, an outside-actor or untrusted-provenance hold
+  // (flag.mjs adds needs-human as the same github-actions[bot]), or any other
+  // reason keeps both.
   const holds = labels.filter((label) => HOLDS.has(label));
   const candidates =
     !verdict.escalated &&
     !verdict.untrusted &&
     Array.isArray(verdict.flags) &&
     verdict.flags.length === 0 &&
+    !(Array.isArray(earlierFlags) && earlierFlags.length > 0) &&
     !labels.includes(OUTSIDE_ACTOR_LABEL) &&
     !labels.includes(UNTRUSTED)
       ? TRIAGE_REFUSABLE.filter((label) => labels.includes(label) && triageLabels.includes(label))

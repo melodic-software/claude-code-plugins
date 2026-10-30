@@ -325,6 +325,25 @@ describe("planWrites", () => {
     assert.deepEqual(result.reasons, []);
   });
 
+  // An earlier verdict's flag still needs a person: refusing the only hold
+  // would drop it, so the hold stays and the flag is carried.
+  for (const flag of ["intent", "security"]) {
+    test(`needs-human this run's triage applied after an earlier ${flag} flag stays and carries the flag`, () => {
+      const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"], earlierFlags: [flag] });
+      assert.equal(result.ready, false);
+      assert.deepEqual(result.refused, []);
+      assert.ok(!result.remove.includes("needs-human"));
+      assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
+      assert.ok(result.reasons.includes(`flagged: ${flag} (an earlier verdict)`), result.reasons.join("; "));
+    });
+  }
+
+  test("needs-human this run's triage applied with no readable earlier verdict is still refused", () => {
+    const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"], earlierFlags: null });
+    assert.equal(result.ready, true);
+    assert.deepEqual(result.refused, ["needs-human"]);
+  });
+
   for (const [name, lines] of [
     ["no Flags line", ["Size: Small", "Complexity: Low", "Uncertainty: Known"]],
     ["two Flags lines", ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: none", "Flags: none"]],

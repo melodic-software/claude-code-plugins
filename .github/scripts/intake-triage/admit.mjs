@@ -4,8 +4,10 @@
 // from the default branch's .github/actions/resolve-config/admission-rules.json.
 //
 // Criteria 1, 5 and 6 (exact intent, no very-high security risk, no charge)
-// are already in `status: ready`: apply-verdict withholds it on any flag
-// (triage flags security only for a very-high risk) or a hold label, and the
+// are already in `status: ready`: apply-verdict withholds it on any flag, this
+// verdict's or an earlier one's (triage flags security only for a very-high
+// risk), or a hold label other than one this run's triage applied on a
+// flagless verdict, which it refuses, and the
 // cost rule adds needs-human; criterion 6 is checked here too, on the charge
 // words rule-admit.sh refuses (chargePattern), whatever the verdict flagged.
 // Criterion 4 (no protected path named) applies only to the paths the issue
