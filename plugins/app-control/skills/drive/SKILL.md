@@ -72,7 +72,8 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    plugin's `<plugin>` (`control skill <name> is from a session-only plugin drive cannot read`).
 3. **Read, never invoke.** Read each kept file as data. A `SKILL.md`'s base directory is its
    folder; a command file's is `control-<app>/` in the parent of the top-level commands folder it
-   loads from, per the contract's Hub.
+   loads from, and for a file a manifest's `commands` key names as a file (directly or as a map
+   entry's `source`), `control-<app>/` in the plugin root, per the contract's Hub.
    Never invoke a control skill through the Skill tool (what loading a skill applies or runs: see
    below). A repository file for an `<app>`
    beats every plugin file for it.

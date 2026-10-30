@@ -53,11 +53,15 @@ the files that implement the feature, relative to the project directory that hol
 A control skill can instead be a command file named `control-<app>`. The command file is the hub:
 it holds the sections and the index. Its commands folder is the top-level folder it loads from: a
 project's `.claude/commands/`, a skills-folder plugin's or a plugin's `commands/`, or the folder a
-plugin manifest's `commands` key names (for a file the key names, that file's folder). Its base
+plugin manifest's `commands` key names. Its base
 directory is `control-<app>/` in that commands folder's parent, whatever subfolder or file name
 the command file has: a command file under `<base>/commands/` keeps its features at
 `<base>/control-<app>/features/<id>/README.md`, where `<base>` is, for example, `.claude`,
-the skills-folder plugin's folder or the plugin root. The base directory stands in for the skill
+the skills-folder plugin's folder or the plugin root. A command file the manifest's `commands` key
+names as a file, directly or as a map entry's `source`, has no commands folder: its base directory
+is `control-<app>/` in the plugin root wherever the file sits, so a plugin-root
+`./control-shop.md` keeps its features at `<plugin root>/control-shop/features/<id>/README.md`,
+inside the plugin. The base directory stands in for the skill
 folder everywhere this contract names one, so `features/`, `shared/`, `cli/`, `config/` and steps
 files sit there and the index paths resolve there. Every Markdown file under a commands folder,
 in a subfolder too, loads as a command, so a feature file there would be one a model or a person
