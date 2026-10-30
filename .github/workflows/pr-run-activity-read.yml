@@ -384,7 +384,8 @@ jobs:
   # and never checks out the PR head. A local kill-switch stop skips the broker
   # call and ends green, so the run job's own kill-switch step stops the lane
   # neutral; any broker answer but an allow, or none, fails this job, which
-  # skips the run job and fails the check.
+  # skips the run job and fails the check. issues: write is for the issue
+  # lease alone, posted before any model turn (CONTRACT.md "Lease protocol").
   broker-check:
     if: >-
       !(github.event_name == 'pull_request'
@@ -394,11 +395,14 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      issues: write
     # "Re-run failed jobs" reuses a successful broker-check and its outputs,
     # so the run job also checks that the allow came from its own attempt.
     outputs:
       allowed: ${{ steps.broker.outcome == 'success' }}
       attempt: ${{ github.run_attempt }}
+      lease: ${{ steps.lease.outputs.lease }}
+      lease-comment-id: ${{ steps.lease.outputs.lease-comment-id }}
     steps:
       - name: Assert the default branch is set
         env:
@@ -441,6 +445,40 @@ jobs:
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: ${{ inputs.lane }}
           activity: ${{ inputs.activity }}
+
+      # Issue mode, after the broker's allow and before any model turn: claim
+      # the issue with a lease comment only, held by the lanes App identity,
+      # through the tracker's claim (no `gh api user`, which this
+      # installation token cannot call). The earliest live lease wins, so a
+      # live local claim makes this run back off: lease=already-leased, and
+      # the run job's go step stops the model. Any other failure fails the
+      # job. The TTL outlives the run job; the lease-release job ends it early.
+      - name: Claim the issue with a lane lease
+        id: lease
+        if: inputs.issue-number != '' && steps.broker.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          HOLDER: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+          CLAIM: .base/plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh
+        run: |
+          [[ $ISSUE_NUMBER =~ ^[1-9][0-9]*$ && $HOLDER =~ ^[1-9][0-9]*$ && $TIMEOUT_MINUTES =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::the issue number, lanes App sender id or timeout is not a positive integer"
+            exit 1
+          }
+          rc=0
+          out="$(bash "$CLAIM" "github:$REPO#$ISSUE_NUMBER" --lease-only --holder "$HOLDER" \
+            --ttl-hours $(((TIMEOUT_MINUTES + 59) / 60 + 1)) --session-id "run-$GITHUB_RUN_ID")" || rc=$?
+          if [ "$rc" -eq 7 ]; then
+            echo "::notice::already-leased: a live lease on #$ISSUE_NUMBER predates this run's, so no model runs"
+            echo "lease=already-leased" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          [ "$rc" -eq 0 ] || exit "$rc"
+          echo "lease=held" >>"$GITHUB_OUTPUT"
+          echo "lease-comment-id=$(jq -r '.lease_comment_id' <<<"$out")" >>"$GITHUB_OUTPUT"
 
   # Job-level evidence of the broker's allow for a caller's handoff read
   # (.github/scripts/lib/handoff-evidence.sh): this job succeeds only on
@@ -899,8 +937,18 @@ jobs:
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: node .base/.github/scripts/work-resolve-issue/report-outcome.mjs --find-prior
 
+      # Issue mode: broker-check found a live lease older than its own, so
+      # another session holds the issue and the run stops before any model turn.
+      - name: Stop on an existing issue lease
+        if: steps.config.outputs.applies == 'true' && needs.broker-check.outputs.lease == 'already-leased'
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+        run: |
+          echo "::warning::already-leased: another session holds a live lease on #$ISSUE_NUMBER; the run stops before any model turn"
+          echo "already-leased: another session holds a live lease on #$ISSUE_NUMBER, so no model ran." >>"$GITHUB_STEP_SUMMARY"
+
       # Whether the activity runs: it applies, and in issue mode neither stale
-      # workflow files nor an earlier run's work stops it. Every step below
+      # workflow files, an earlier run's work nor another session's lease stops it. Every step below
       # that touches the activity keys on this.
       - name: Decide whether the activity runs
         id: go
@@ -908,8 +956,9 @@ jobs:
         env:
           PRIOR: ${{ steps.issue-prior.outputs.proceed }}
           STALE: ${{ steps.workflow-current.outputs.stale }}
+          LEASE: ${{ needs.broker-check.outputs.lease }}
         run: |
-          if [ "$PRIOR" = false ] || [ "$STALE" = true ]; then
+          if [ "$PRIOR" = false ] || [ "$STALE" = true ] || [ "$LEASE" = already-leased ]; then
             echo "run=false" >>"$GITHUB_OUTPUT"
           else
             echo "run=true" >>"$GITHUB_OUTPUT"
@@ -3325,3 +3374,35 @@ jobs:
           base-path: .base
           head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}
           github-token: ${{ github.token }}
+
+  # Issue mode: ends the lane lease broker-check posted, once every other job
+  # of this run has ended, whatever their result. It reads the lease handle
+  # only from broker-check, which ran before any model turn. A failure here
+  # leaves the lease to expire at its TTL.
+  lease-release:
+    needs: [broker-check, run, issue-fields, scan, scan-refusal, summary]
+    if: >-
+      always() && inputs.issue-number != '' && needs.broker-check.outputs.lease == 'held'
+      && needs.broker-check.outputs.lease-comment-id != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Release the lane lease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ inputs.issue-number }}
+          HOLDER: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          LEASE_COMMENT_ID: ${{ needs.broker-check.outputs.lease-comment-id }}
+          RELEASE: .base/plugins/work-items/tools/work-item-tracker/adapters/github/release.sh
+        run: bash "$RELEASE" "github:$REPO#$ISSUE_NUMBER" --lease-comment-id "$LEASE_COMMENT_ID" --holder "$HOLDER"

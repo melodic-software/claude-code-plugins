@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml .github/standards/runner-policy/package.json
+# test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml .github/standards/runner-policy/package.json plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh
 # Runs the shell of two read-lane broker-check steps, lifted from their YAML,
 # against the cases the contract states
 # (docs/conventions/pr-pipeline/pr-run-activity.md, "The broker-check job"):
 #   - the run job's "Assert the broker allowed this attempt" step passes only
 #     when broker-check allowed this same run attempt;
 #   - request-lane-token's check mode accepts only an https URL whose last path
-#     segment is /token.
+#     segment is /token;
+#   - broker-check's issue lease step backs off as already-leased on a live
+#     lease older than its own, and the run job's go step then runs no model.
 # Needs node and the yaml package (npm ci --prefix .github/standards/runner-policy).
 set -uo pipefail
 
@@ -86,5 +88,70 @@ url_case "check mode accepts https://<host>/api/token" "https://h.example/api/to
 url_case "check mode accepts https://<host>/token" "https://h.example/token" "$ACCEPTED"
 url_case "check mode refuses a dispatcher run id" "https://h.example/api/token" \
   "check mode takes no effect, grant, PR or issue number, or dispatcher run id" 123
+
+# --- Issue lease (#9791): broker-check's claim step against a stub gh. ---
+LEASE_STEP="$WORK/lease.sh"
+GO_STEP="$WORK/go.sh"
+lift "$ROOT/.github/workflows/pr-run-activity-read.yml" \
+  'd.jobs["broker-check"].steps.find((s) => s.name === "Claim the issue with a lane lease")?.run' "$LEASE_STEP" ||
+  fail "broker-check has no 'Claim the issue with a lane lease' step"
+lift "$ROOT/.github/workflows/pr-run-activity-read.yml" \
+  'd.jobs.run.steps.find((s) => s.id === "go")?.run' "$GO_STEP" ||
+  fail "the run job has no go step"
+
+STUB_BIN="$WORK/bin"
+mkdir -p "$STUB_BIN"
+# The lease list this stub returns is $LEASES; a POST returns comment id 2, and
+# `gh api user` is recorded so the test can show the step never needs it.
+cat >"$STUB_BIN/gh" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+*"api user"*) echo API_USER >>"$STUB_LOG"; echo someone ;;
+*"--method PATCH"*) echo "PATCH" >>"$STUB_LOG"; echo 2 ;;
+*"--paginate"*) printf '%s\n' "$LEASES" ;;
+*"-f body="*) echo POST >>"$STUB_LOG"; echo 2 ;;
+*) echo "gh-stub: unhandled: $*" >&2; exit 90 ;;
+esac
+STUB
+chmod +x "$STUB_BIN/gh"
+
+lease_body() {
+  printf '<!-- work-item-lease v1 {"schema_version":"1.0","holder":"%s","acquired_at":"2099-01-01T00:00:00Z","renewed_at":"2099-01-01T00:00:00Z","ttl_hours":2} -->' "$1"
+}
+
+# lease_case <label> <leases-json> <expected-lease> <expected-go-run>
+lease_case() {
+  local out rc
+  : >"$WORK/output" && : >"$WORK/stub.log"
+  out="$(PATH="$STUB_BIN:$PATH" STUB_LOG="$WORK/stub.log" LEASES="$2" WIT_WRITE_SPACING_S=0 \
+    GH_TOKEN=x REPO=acme/widgets ISSUE_NUMBER=1 HOLDER=987654 TIMEOUT_MINUTES=40 GITHUB_RUN_ID=5 \
+    CLAIM="$ROOT/plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh" \
+    GITHUB_OUTPUT="$WORK/output" bash "$LEASE_STEP" 2>&1)"
+  rc=$?
+  local lease
+  lease="$(sed -n 's/^lease=//p' "$WORK/output")"
+  if [[ $rc -ne 0 || $lease != "$3" ]] || grep -q API_USER "$WORK/stub.log"; then
+    fail "$1: rc=$rc lease=$lease, expected $3 with no gh api user: $out"
+    return
+  fi
+  : >"$WORK/go-output"
+  PRIOR='' STALE='' LEASE="$lease" GITHUB_OUTPUT="$WORK/go-output" bash "$GO_STEP"
+  if [[ "$(cat "$WORK/go-output")" == "run=$4" ]]; then
+    ok "$1"
+  else
+    fail "$1: go wrote '$(cat "$WORK/go-output")', expected run=$4"
+  fi
+}
+
+OURS="$(jq -cn --arg b "$(lease_body 987654)" '[{id:2, node_id:"x", body:$b, created_at:"x"}]')"
+LOCAL_FIRST="$(jq -cn --arg a "$(lease_body alice)" --arg b "$(lease_body 987654)" \
+  '[{id:1, node_id:"x", body:$a, created_at:"x"}, {id:2, node_id:"x", body:$b, created_at:"x"}]')"
+lease_case "an unleased issue is claimed lease-only and the model runs" "$OURS" held true
+lease_case "a live local lease makes the run exit already-leased with no model turn" "$LOCAL_FIRST" already-leased false
+if grep -q '^lease-comment-id=' "$WORK/output"; then
+  fail "an already-leased run hands no lease handle to lease-release"
+else
+  ok "an already-leased run hands no lease handle to lease-release"
+fi
 
 test_harness::report
