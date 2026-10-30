@@ -120,6 +120,24 @@ test("the upload is each job's only artifact step and follows the written verdic
   assert.doesNotMatch(text, /actions\/upload-artifact\/merge|gh api .*artifacts.* -X (POST|PUT)|actions\/download-artifact|actions\/cache/);
 });
 
+// The resolver reads only, and skips on its own reads a run whose head is
+// judged, moved past, a draft, red for anything a person's approval does not
+// lift, or not the lanes App's; so it runs before the trigger gate, whose
+// reads then go only to a run the resolver would judge. The agree step runs
+// only after the gate proceeds, so a gate refusal ends the run without a
+// judgment and without a mismatch error.
+test("the resolver runs before the trigger gate, and the agree step only after the gate proceeds", () => {
+  for (const job of JOBS) {
+    assert.ok(index("Resolve the pull request", job) < index("Check the trigger", job), job);
+    assert.ok(index("Check the trigger", job) < index("Assert the gate and the resolver agree", job), job);
+    assert.match(step("Resolve the pull request", job), /^ {8}if: steps\.kill\.outputs\.proceed == 'true'$/m, job);
+    assert.match(step("Check the trigger", job), /^ {8}if: steps\.pr\.outputs\.proceed == 'true'$/m, job);
+    assert.match(step("Assert the gate and the resolver agree", job), /^ {8}if: steps\.gate\.outputs\.proceed == 'true'$/m, job);
+    // Every judging step hangs off agree, and so does the missing-verdict failure.
+    assert.match(step("Fail without a verdict", job), /steps\.agree\.outcome == 'success'/, job);
+  }
+});
+
 test("pr-merge.yml gives the gate an Actions token for the verdict reads only", () => {
   // babysit_verify_evidence.py reads BABYSIT_VERIFY_GH_TOKEN; the lane token
   // the gate runs gh with holds no Actions permission.
