@@ -2230,13 +2230,32 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `manual-external`, `intent-change`, `design-change`, `security-risk`, `cost-risk`,
   `patch-protected-path`, `blocked-by-pr`, `already-done`, `report-delivered`). A reason with no
   code retries at most once (its row's `retries`) and then fails; a reason the table does not list fails.
-  A security mention always reaches the owner: a reason with no code, or one whose code's route is
+  A `pushback` exit holds only for a code or an intent cause. A `reason` that opens with a hold
+  code (`security-risk`, `cost-risk`, `design-change`, `intent-change`) takes that hold row,
+  whatever its cause. Otherwise it holds as `intent` when its outcome names `"cause": "intent"`
+  or `intent-change` (any case, spaces, underscores or hyphens between the words, a trailing `.`,
+  `:` or `;`), an intent question; else a `cause` that names a hold code, read the same way, takes
+  that hold row; else a `reason` that opens with a `host-run` or `attended` code (`host-only`,
+  `patch-protected-path`, `manual-external`) takes that row, or the `security-risk` hold when the
+  security reading below for a `stopped` reason finds a security risk after the code. Any other
+  pushback is `pushback-means`, which goes back through intake triage once (`intake` route,
+  `retries: 1`): intake decides it again on evidence and admits it, unless its own intent,
+  security or cost rules stop it. A second `pushback-means` since a listed human added
+  `agent-ready` takes `retry-spent`'s route, unless a security reading fired: a `pushback-means`
+  any of whose words a comment can show (the reason, the summary, each `notDone` item) or whose
+  `cause` reads as a security risk (the security reading below, after any code, `blocked-by-pr`
+  included) gets an intake comment with no means framing and no "waits on no decision from a
+  person", whose marker carries `security` (`outcome=intake security`). A security reading on a
+  `pushback-means` whose intake round is spent holds as `security-risk`, and its hand-back says
+  the run named the risk again after its intake rounds were spent. An earlier round's mark does
+  not carry over to later runs: intake triage re-judged it before admitting the issue again.
+  A `stopped` reason (a `pushback` takes this reading only as the paragraph above says) with no code, or one whose code's route is
   `close`, `host-run` or `attended`, that names a security word (`security`, `vuln`, `inject`,
   `credential`, `secret`, `token`, `exfiltrat`, `malicious`, a password, an API, private, deploy,
   SSH or access key, `backdoor`, `exploit`, branch protection, `attack`, `unauthorized`, `hijack`,
   in any case and even inside a word; `XSS`, `RCE`, `CVE` or `PAT`, a takeover, `stolen`, a
   stranger or an outsider as a whole word; or an ignore-instructions phrase)
-  takes the `security-risk` row's hold instead; a `wait` or `retry` code keeps its route. After
+  takes the `security-risk` row's hold instead; after a `wait` or `retry` code a `stopped` reason keeps its route. After
   an ending code, every one of those words but the secret nouns (credential, secret, token,
   password, API key) always holds. A secret noun holds unless it sits in a needs-a-credential
   capability phrasing ("a host with model credentials", "needs an API key the lane does not
