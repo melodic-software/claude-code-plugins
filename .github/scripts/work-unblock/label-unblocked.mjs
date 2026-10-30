@@ -283,6 +283,11 @@ const STAGE_STEP = "Stage the activity from the base";
 // request-lane-token's notice when kill-switch-ok ends a kill-switch refusal
 // green with no token.
 const STOPPED = /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[notice\]lane-token-stopped: the broker refused the token because a lanes kill switch is on(?:,|$)/;
+// The runner's markers around request-lane-token's one composite step, its
+// `Request the lane token` with id `request`; a STOPPED line counts only
+// between the job's first start marker and its end marker.
+const MINT_START = /^\d{4}-\d\d-\d\dT[\d:.]+Z ##\[start-action display=Request the lane token;id=([\w-]+\.request)\]$/;
+const mintEnd = (id) => new RegExp(`^\\d{4}-\\d\\d-\\d\\dT[\\d:.]+Z ##\\[end-action id=${id.replace(".", "\\.")};`);
 const BREAKER = "kill-switch";
 // The refused jobs' logs on 2026-10-24 were 45 KB (broker-check) and 94 KB
 // (apply-issue-patch); a longer one is left unread.
@@ -1130,10 +1135,11 @@ async function didNoWork(jobsOf, refusalOf, runs) {
 
 // The reason the broker refused `job`, from its log: the failed step's last
 // line before the runner's first `Process completed`, in `mode` (check or
-// token), or BREAKER for a `stop` mode log with a STOPPED notice line. Null
-// when there is no such line or the log cannot be read within LOG_CAP_BYTES,
-// or no log reader was given; the log is data, and no other line of it is
-// read.
+// token), or BREAKER for a `stop` mode log with a STOPPED line inside the
+// mint step's MINT_START section. Null when there is no such line or the log
+// cannot be read within LOG_CAP_BYTES, or no log reader was given; the log is
+// data: check and token modes read only that one line, and a STOPPED line
+// outside the section never counts.
 function refusalReader(jobLog, repo) {
   return async (job, mode) => {
     if (!jobLog || !RUN_ID.test(String(job?.id))) {
@@ -1148,7 +1154,13 @@ function refusalReader(jobLog, repo) {
     }
     const lines = String(log ?? "").split("\n");
     if (mode === "stop") {
-      return lines.some((line) => STOPPED.test(line)) ? BREAKER : null;
+      const start = lines.findIndex((line) => MINT_START.test(line));
+      if (start < 0) {
+        return null;
+      }
+      const end = mintEnd(MINT_START.exec(lines[start])[1]);
+      const stop = lines.findIndex((line, at) => at > start && end.test(line));
+      return stop > 0 && lines.slice(start, stop).some((line) => STOPPED.test(line)) ? BREAKER : null;
     }
     const end = lines.findIndex((line) => STEP_FAILED.test(line));
     return end > 0 ? (DENIAL[mode].exec(lines[end - 1])?.[1] ?? null) : null;

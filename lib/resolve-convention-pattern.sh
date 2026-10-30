@@ -46,7 +46,7 @@
 # plugins exist only because installed plugins are cache-isolated and must be
 # self-contained — never edit a copy. Edit the source and run
 # scripts/sync-shared-copies.sh; CI rejects drifted copies. Owner contract:
-# docs/conventions/commit-convention/.
+# docs/contracts/commit-convention/.
 #
 # Usage:
 #   resolve-convention-pattern.sh [--layer] <repo_root> <subject_pattern|pr_title_pattern>
