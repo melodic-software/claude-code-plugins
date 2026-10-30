@@ -7257,17 +7257,17 @@ test("pr-run-activity-write.yml takes kill-switch-ok on every run but report-esc
   assert.equal(jobs["report-escalation"].with.activity, "report-escalation", "the escalation caller passes that activity");
 });
 
-// resolve-config reads a split child's fact only from its caller (SPLIT_CHILD)
-// and fails without it, so every resolve here that reads unpinned issue
-// dimensions passes the admit job's split-child, and that job is in its needs.
-test("work-resolve-issue.yml: every resolve without pinned dimensions passes admit's split-child", () => {
+// resolve-config reads whether the issue runs whole only from its caller
+// (RUNS_WHOLE) and fails without it, so every resolve here that reads unpinned
+// issue dimensions passes the admit job's runs-whole, and that job is in its needs.
+test("work-resolve-issue.yml: every resolve without pinned dimensions passes admit's runs-whole", () => {
   const { jobs } = workflow("work-resolve-issue.yml");
   const unpinned = [];
   for (const [name, job] of Object.entries(jobs)) {
     for (const step of job.steps ?? []) {
       if (!String(step.uses ?? "").endsWith("/actions/resolve-config") || step.with?.lane !== "work-resolve-issue" || step.with["issue-dimensions"] !== undefined) continue;
       unpinned.push(name);
-      assert.equal(step.with["split-child"], "${{ needs.admit.outputs.split-child }}", `${name}: ${step.name}`);
+      assert.equal(step.with["runs-whole"], "${{ needs.admit.outputs.runs-whole }}", `${name}: ${step.name}`);
       assert.ok([job.needs].flat().includes("admit"), `${name} needs admit`);
     }
   }

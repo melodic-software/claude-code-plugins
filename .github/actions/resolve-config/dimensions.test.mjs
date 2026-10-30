@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { checkDimensions, dimensionBudget, issueDimensions, parsePin, splitChildDims } from "./dimensions.mjs";
+import { checkDimensions, dimensionBudget, issueDimensions, parsePin, runsWholeDims } from "./dimensions.mjs";
 import { Rejection } from "./resolve.mjs";
 
 const HUMAN = 153232337;
@@ -156,16 +156,16 @@ for (const [why, config] of [
   });
 }
 
-// A trusted size-split sub-issue rated with a split size takes
-// split-child-size; nothing else changes.
-test("splitChildDims gives a trusted split child of a split size the split-child size, and leaves everything else", () => {
+// An issue that runs whole rated with a split size takes split-child-size;
+// nothing else changes.
+test("runsWholeDims gives an issue that runs whole of a split size the split-child size, and leaves everything else", () => {
   const config = { ...CONFIG, "split-child-size": "medium" };
   const large = { size: "large", complexity: "low", uncertainty: "known" };
-  assert.deepEqual(splitChildDims(large, config, true), { ...large, size: "medium" });
-  assert.deepEqual(splitChildDims(large, config, false), large);
-  assert.deepEqual(splitChildDims(large, CONFIG, true), large, "no split-child-size, no change");
-  assert.deepEqual(splitChildDims({ ...large, size: "small" }, config, true), { ...large, size: "small" });
-  assert.deepEqual(splitChildDims({ ...large, size: null }, config, true), { ...large, size: null });
+  assert.deepEqual(runsWholeDims(large, config, true), { ...large, size: "medium" });
+  assert.deepEqual(runsWholeDims(large, config, false), large);
+  assert.deepEqual(runsWholeDims(large, CONFIG, true), large, "no split-child-size, no change");
+  assert.deepEqual(runsWholeDims({ ...large, size: "small" }, config, true), { ...large, size: "small" });
+  assert.deepEqual(runsWholeDims({ ...large, size: null }, config, true), { ...large, size: null });
 });
 
 test("checkDimensions refuses a split-child-size that names no size that runs", () => {

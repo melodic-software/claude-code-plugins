@@ -77,12 +77,13 @@ export function dimensionBudget(dims, config) {
   };
 }
 
-// `dims` for a trusted size-split sub-issue (`splitChild`): a size that
-// splits becomes `split-child-size`, since admission takes such a child
-// whatever its Size (owner Q93). Anything else is returned as is. Pure.
-export function splitChildDims(dims, config, splitChild) {
+// `dims` for an issue that runs whole (`runsWhole`: a trusted size-split
+// sub-issue, or one whose split the lanes App declined): a size that splits
+// becomes `split-child-size`, since admission takes such an issue whatever
+// its Size (owner Q93). Anything else is returned as is. Pure.
+export function runsWholeDims(dims, config, runsWhole) {
   const size = config["split-child-size"];
-  return splitChild === true && size !== undefined && config.sizes[dims.size] === "split" ? { ...dims, size } : dims;
+  return runsWhole === true && size !== undefined && config.sizes[dims.size] === "split" ? { ...dims, size } : dims;
 }
 
 // The dimensions a pin (dimensionBudget's `pin`) names.

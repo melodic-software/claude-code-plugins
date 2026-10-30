@@ -94,9 +94,9 @@ import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../acti
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { ADMIT_MARKER, authorAdmitted, bodyVersion, CONFIRMED, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
-import { linesDigest, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines, taskText } from "./admit.mjs";
+import { linesDigest, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_DECLINE_MARKER, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, sizeSplitSettings, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines, taskText } from "./admit.mjs";
 
-export { bodyVersion, REFINE_MARKER };
+export { bodyVersion, REFINE_MARKER, SIZE_DECLINE_MARKER, sizeSplitSettings };
 const TASK = "- [ ] ";
 const LANE_BOT = "github-actions[bot]";
 const NEEDS_DECISION = "status: needs-decision";
@@ -226,23 +226,9 @@ async function candidates(github, repository, issue, trusted) {
 // `size-split.on-decline: subset`): each sub-issue then holds every line and
 // one admit.mjs SCOPE_PREFIX line naming its targets.
 
-// admission-rules.json's `size-split`: {onDecline, maxParts}. `on-decline`
-// is `subset` (a declined line split may split by target) or `park`;
-// `max-parts` caps the sub-issues. Throws on any other shape.
-export function sizeSplitSettings(rules) {
-  const section = rules?.["size-split"] ?? {};
-  const known = ["on-decline", "max-parts"];
-  const onDecline = section["on-decline"] ?? "subset";
-  const maxParts = section["max-parts"] ?? 10;
-  if (typeof section !== "object" || Array.isArray(section) || !Object.keys(section).every((key) => known.includes(key)) || !["subset", "park"].includes(onDecline) || !Number.isInteger(maxParts) || maxParts < 2 || maxParts > 99) {
-    throw new Error("admission-rules.json `size-split` holds only `on-decline` (subset or park) and `max-parts` (2 to 99)");
-  }
-  return { onDecline, maxParts };
-}
-
 // A size split's visible declines (decision on the silent park): one lanes
-// App comment per reason and body version, fixed text only, no hold label.
-export const SIZE_DECLINE_MARKER = "<!-- intake-triage size-split-decline -->";
+// App comment per reason and body version (admit.mjs SIZE_DECLINE_MARKER),
+// fixed text only, no hold label.
 const DECLINES = {
   "not-human": "a listed human did not file it, and a split copies only a listed human's text",
   "few-lines": "its trusted text holds fewer than 2 task-list lines, even with intake's refinement",
@@ -253,30 +239,39 @@ const DECLINES = {
 };
 const declineMarker = (code) => SIZE_DECLINE_MARKER.replace(" -->", ` reason=${code} -->`);
 
+// What happens to a declined issue under `size-split.declined`: admission
+// takes it whole (admit.mjs runsWholeDeclined), or it stays parked.
+const DECLINED = {
+  "run-whole":
+    "This Size Large issue goes to the issue lane whole instead: work-unblock's next sweep re-runs admission, which takes it whatever its Size while this body is unchanged and its other rules hold",
+  park: "This Size Large issue stays parked at `status: ready`",
+};
+
 // Posts decline `code` on the issue unless the lanes App already posted it
-// for this body. The text is fixed; no model or issue text is rendered.
-async function postDecline({ github, base, appId, body, code, log }) {
+// for this body, saying what `declined` (sizeSplitSettings) does with it.
+// The text is fixed; no model or issue text is rendered.
+async function postDecline({ github, base, appId, body, code, declined, log }) {
   const head = `${declineMarker(code)}\n${bodyVersion(body)}\n`;
   if ((await paginate(github, `${base}/comments`)).some((item) => appId !== undefined && item?.user?.id === appId && String(item.body ?? "").startsWith(head))) {
     log(`refine: ${base} already says why it is not split (${code})`);
     return;
   }
   await github("POST", `${base}/comments`, {
-    body: `${head}**Not split at intake (owner Q93).** This Size Large issue stays parked at \`status: ready\`: ${DECLINES[code]}. No person is asked to act and no hold label is added. The split settings are \`size-split\` in \`.github/actions/resolve-config/admission-rules.json\`.\n\n<sub>Automated by the lanes App, once per reason and body version.</sub>`,
+    body: `${head}**Not split at intake (owner Q93).** ${DECLINED[declined]}: ${DECLINES[code]}. No person is asked to act and no hold label is added. The split settings are \`size-split\` in \`.github/actions/resolve-config/admission-rules.json\`.\n\n<sub>Automated by the lanes App, once per reason and body version.</sub>`,
   });
   log(`refine: ${base} says why it is not split (${code})`);
 }
 
 // Posts the decline refine-select chose (context.size_decline) for the
 // body it read; a body changed since gets nothing, as its triage reruns.
-export async function applySizeDecline({ github, repository, number, appId, context, log = console.log }) {
+export async function applySizeDecline({ github, repository, number, appId, rules, context, log = console.log }) {
   const base = `/repos/${repository}/issues/${number}`;
   const issue = await github("GET", base);
   if (!Object.hasOwn(DECLINES, context?.size_decline) || issue.pull_request || issue.state !== "open" || String(issue.body ?? "") !== context?.issue?.body) {
     log(`refine: #${number} changed or closed since the decline was chosen; nothing written`);
     return { outcome: "skipped" };
   }
-  await postDecline({ github, base, appId, body: issue.body, code: context.size_decline, log });
+  await postDecline({ github, base, appId, body: issue.body, code: context.size_decline, declined: sizeSplitSettings(rules).declined, log });
   return { outcome: "declined" };
 }
 
@@ -902,7 +897,7 @@ export async function applySizeSplit({ github, repository, number, appId, humans
     log(`refine: #${number} ${why}; nothing filed`);
     note(`#${number} stays parked for its size split: ${why}`);
     if (code !== null) {
-      await postDecline({ github, base, appId, body: issue.body, code, log });
+      await postDecline({ github, base, appId, body: issue.body, code, declined: settings.declined, log });
     }
     return { outcome: "skipped", children: [] };
   };
@@ -1088,7 +1083,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         // A decline refine-select chose: no model ran and no refinement exists.
         const raw = () => JSON.parse(readFileSync(env.REFINEMENT_PATH, "utf8")).output;
         if (context.size_decline) {
-          await applySizeDecline({ github, repository, number, appId, context });
+          await applySizeDecline({ github, repository, number, appId, rules: rules(), context });
           writeOutputs({ redispatch: "false", children: "" });
         } else if (context.size_split) {
           // applySizeSplit checks the partition itself: a bad one leaves the issue parked, green.

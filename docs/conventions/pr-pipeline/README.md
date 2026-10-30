@@ -2893,10 +2893,11 @@ events) is neither a listed human on the trusted-actor list nor the lanes App, r
 those keys, and `small` must run. An option no entry maps fails the resolve with
 `unmapped-dimension`. Before any model turn the activity skips with its Uncertainty's
 mode when that is not `run` (`research-first` or `probe-first`), then with `split-required` when
-its Size is `split`, except a sub-issue intake's size split filed whose body counts as its parent's
-text (`admit.mjs` `trustedSplitChild`, the resolve's `splitChild` fact): admission takes such a
-sub-issue whatever its Size, so when `split-child-size` names a size that runs, a split size reads
-as that size and the pin carries it. Otherwise its `max-turns` is the size's `base-turns` times the complexity
+its Size is `split`, except an issue that runs whole (`admit.mjs` `runsWhole`, the resolve's
+`runsWhole` fact): a sub-issue intake's size split filed whose body counts as its parent's text, or
+an issue whose split the lanes App declined on its current body. Admission takes such an issue
+whatever its Size, so when `split-child-size` names a size that runs, a split size reads as that
+size and the pin carries it. Otherwise its `max-turns` is the size's `base-turns` times the complexity
 factor, rounded up, replacing the profile's, and the size's `timeout-minutes` is the run job's
 timeout; a skip takes the shortest size timeout. resolve-config outputs `issue-dimensions`
 (`<size>/<complexity>/<uncertainty>`) and `timeout-minutes`;
@@ -2918,11 +2919,17 @@ of the issue's trusted task-list line numbers, or, when each line repeats over n
 target-subset sub-issue holds every trusted line and one last `Scope:` line naming its targets,
 under a header that says so; it counts as its parent's text only when every target is verbatim
 text of a trusted parent line. `size-split` in `.github/actions/resolve-config/admission-rules.json`
-holds `on-decline` (`subset` allows the target-subset split, `park` does not) and `max-parts`. An
+holds `on-decline` (`subset` allows the target-subset split, `park` does not), `max-parts`, and
+`declined` (`run-whole`, the default, or `park`). An
 issue with fewer than 2 trusted task-list lines gets the thin refinement first and splits on its
-lines at the next triage. A split that cannot be made leaves the issue parked at `status: ready`
-with no hold label, and the lanes App posts one comment naming the reason, once per reason and
-body version (marker `<!-- intake-triage size-split-decline reason=<code> -->`): `not-human`
+lines at the next triage. When a split cannot be made, the lanes App posts one comment naming the
+reason, once per reason and body version (marker
+`<!-- intake-triage size-split-decline reason=<code> -->`, then the body's version line), with no
+hold label. With `declined: run-whole`, admission then takes the issue whole whatever its Size
+while that comment's body version matches the current body, as it takes a split sub-issue:
+work-unblock's hourly sweep re-runs admission on `status: ready` issues in no queue, and the
+issue's other rules, an open sub-issue's wait included, still apply. With `declined: park` the
+issue stays parked at `status: ready`. The reasons: `not-human`
 (a listed human did not file it), `few-lines` (fewer than 2 trusted lines even with the
 refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target), or
 `no-type` (an Issue Type admission does not take).

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { describe, test } from "node:test";
 import { bodyVersion, personChecks, renderSplitRecord, SIZE_SPLIT_MARKER, splitChildBody, splitChildHeader, splitItemsLine, splitTaskLines, trustedSplitChild } from "./admit.mjs";
 import { fileURLToPath } from "node:url";
@@ -422,6 +423,39 @@ describe("decide", () => {
   test("Size Large parks the issue for the intake split instead of refusing it", () => {
     const result = decide(facts({ verdict: { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } } }));
     assert.deepEqual(result, { verdict: "wait", reasons: ["Size large: the split into sub-issues at intake is pending (owner Q93)"], pulls: [] });
+  });
+
+  // Owner Q93: a Size Large issue whose split the lanes App visibly declined
+  // on its current body runs whole, as a trusted split sub-issue does. The
+  // decline head is refine.mjs's documented format, its hash computed here.
+  describe("a declined size split", () => {
+    const LARGE = { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } };
+    const PENDING = { verdict: "wait", reasons: ["Size large: the split into sub-issues at intake is pending (owner Q93)"], pulls: [] };
+    const sha = (text) => createHash("sha256").update(text).digest("hex");
+    const declineOf = (body, { id = APP, prefix = "" } = {}) => ({
+      user: { id },
+      body: `${prefix}<!-- intake-triage size-split-decline reason=no-split -->\n<!-- refined body sha256:${sha(body)} -->\n**Not split at intake (owner Q93).**`,
+    });
+
+    test("a decline on the current body admits the issue whole", () => {
+      assert.deepEqual(decide(facts({ verdict: LARGE, comments: [declineOf(BODY)] })), { verdict: "admit", reasons: [] });
+    });
+
+    test("a decline on an older body, by another author, or quoted still parks", () => {
+      for (const comment of [declineOf(`${BODY}\nedited`), declineOf(BODY, { id: HUMAN }), declineOf(BODY, { prefix: "> " })]) {
+        assert.deepEqual(decide(facts({ verdict: LARGE, comments: [comment] })), PENDING, comment.body);
+      }
+    });
+
+    test("size-split declined: park keeps parking a declined issue", () => {
+      const rules = { ...RULES, "size-split": { ...RULES["size-split"], declined: "park" } };
+      assert.deepEqual(decide(facts({ verdict: LARGE, rules, comments: [declineOf(BODY)] })), PENDING);
+    });
+
+    test("a declined issue with an open sub-issue waits on it, not admitted whole", () => {
+      const subIssues = [{ number: 8, state: "open" }];
+      assert.deepEqual(decide(facts({ verdict: LARGE, comments: [declineOf(BODY)], subIssues })), { verdict: "wait", reasons: ["sub-issue #8 is open"], pulls: [] });
+    });
   });
 
   test("Size Large beside a real refusal reason still refuses, and names both", () => {
@@ -2401,8 +2435,8 @@ describe("authorAdmitted", () => {
   });
 });
 
-// resolve-config's splitChild fact (read by check-blockers.mjs): the issue lane's budget for a trusted
-// size-split sub-issue rated Large (pr-pipeline.yaml split-child-size).
+// Half of resolve-config's runsWhole fact (admit.mjs runsWhole, read by check-blockers.mjs): the issue
+// lane's budget for a trusted size-split sub-issue rated Large (pr-pipeline.yaml split-child-size).
 test("trustedSplitChild reads the issue and its native parent and applies splitChildBody", async () => {
   const LANES = 337595936;
   const HUMAN_ID = 153232337;

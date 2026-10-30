@@ -897,7 +897,7 @@
         },
         "split-child-size": {
           "$ref": "#/$defs/name",
-          "description": "The size a trusted size-split sub-issue (admit.mjs splitChildBody) runs at when its Size is one that splits; a key of sizes that runs. Absent, such a child skips with split-required like any other."
+          "description": "The size an issue that runs whole (admit.mjs runsWhole: a trusted size-split sub-issue, or one whose split intake declined on its current body) runs at when its Size is one that splits; a key of sizes that runs. Absent, such an issue skips with split-required like any other."
         },
         "complexity-profiles": {
           "type": "object",

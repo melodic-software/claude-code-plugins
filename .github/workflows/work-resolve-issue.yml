@@ -65,7 +65,7 @@ jobs:
       proceed: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true' }}
       outsider: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.outsider == 'true' }}
       # Whether the issue is a trusted size-split sub-issue, for resolve-config.
-      split-child: ${{ steps.blockers.outputs.split-child }}
+      runs-whole: ${{ steps.blockers.outputs.runs-whole }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -217,7 +217,7 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           # What the read runner hands on for resolve-issue.
           applied-by-supported: patch work-outcome
-          split-child: ${{ needs.admit.outputs.split-child }}
+          runs-whole: ${{ needs.admit.outputs.runs-whole }}
 
       - name: Pick the slot
         id: slot
@@ -652,7 +652,7 @@ jobs:
         with:
           lane: work-resolve-issue
           base-path: .base
-          split-child: ${{ needs.admit.outputs.split-child }}
+          runs-whole: ${{ needs.admit.outputs.runs-whole }}
           output-path: ${{ runner.temp }}/resolved-config.json
 
       # For lane.json, which names the branch. A skill run reaches this job

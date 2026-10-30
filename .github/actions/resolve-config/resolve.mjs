@@ -7,7 +7,7 @@ import { posix } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
 import { parseDocument } from "yaml";
 
-import { checkDimensions, dimensionBudget, issueDimensions, parsePin, splitChildDims } from "./dimensions.mjs";
+import { checkDimensions, dimensionBudget, issueDimensions, parsePin, runsWholeDims } from "./dimensions.mjs";
 import { MissingFact, appliesAll, factsFor } from "./predicate.mjs";
 import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 
@@ -549,7 +549,7 @@ export function neededFacts(files, { lane, activity, configPath, pinnedDimension
         needed.add("fieldValues");
         needed.add("fieldSetters");
         if (doc.models["issue-dimensions"]?.["split-child-size"] !== undefined) {
-          needed.add("splitChild");
+          needed.add("runsWhole");
         }
       }
     }
@@ -866,7 +866,7 @@ function resolveSlot(
           throw new MissingFact(fact);
         }
       }
-      dims = splitChildDims(issueDimensions(facts, config, trustedActors), config, facts.splitChild);
+      dims = runsWholeDims(issueDimensions(facts, config, trustedActors), config, facts.runsWhole);
     } else {
       dims = parsePin("not-assessed", config);
     }

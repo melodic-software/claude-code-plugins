@@ -913,13 +913,13 @@ describe("size split", () => {
   });
 
   test("sizeSplitSettings reads admission-rules.json's size-split section, defaulting to a subset split of at most 10 parts", () => {
-    assert.deepEqual(sizeSplitSettings({}), { onDecline: "subset", maxParts: 10 });
-    assert.deepEqual(sizeSplitSettings({ "size-split": { "on-decline": "park", "max-parts": 4 } }), { onDecline: "park", maxParts: 4 });
-    for (const bad of [{ "on-decline": "person" }, { "max-parts": 1 }, { "max-parts": 2.5 }, { extra: true }]) {
+    assert.deepEqual(sizeSplitSettings({}), { onDecline: "subset", maxParts: 10, declined: "run-whole" });
+    assert.deepEqual(sizeSplitSettings({ "size-split": { "on-decline": "park", "max-parts": 4, declined: "park" } }), { onDecline: "park", maxParts: 4, declined: "park" });
+    for (const bad of [{ "on-decline": "person" }, { "max-parts": 1 }, { "max-parts": 2.5 }, { extra: true }, { declined: "person" }]) {
       assert.throws(() => sizeSplitSettings({ "size-split": bad }), JSON.stringify(bad));
     }
     const file = JSON.parse(readFileSync(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url), "utf8"));
-    assert.deepEqual(sizeSplitSettings(file), { onDecline: "subset", maxParts: 10 });
+    assert.deepEqual(sizeSplitSettings(file), { onDecline: "subset", maxParts: 10, declined: "run-whole" });
     assert.notEqual(partitionProblem({ parts: [[1], [2], [3]], order: [] }, 3, 2), null, "max-parts bounds the parts");
   });
 
@@ -955,15 +955,20 @@ describe("size split", () => {
 
   test("applySizeDecline posts the reason once per reason and body version, and nothing on a changed body", async () => {
     const declineContext = { issue: { number: 7, title: "Big work", body: BODY }, size_decline: "not-human" };
-    const decline = (comments, issue = sizeIssue()) => {
+    const decline = (comments, issue = sizeIssue(), rules = undefined) => {
       const fake = fakeGitHub({ issue, comments, spec: specOf(BODY) });
-      return applySizeDecline({ github: fake.github, repository: "o/r", number: 7, appId: APP, context: declineContext, log: () => {} }).then(() => writes(fake.calls));
+      return applySizeDecline({ github: fake.github, repository: "o/r", number: 7, appId: APP, rules, context: declineContext, log: () => {} }).then(() => writes(fake.calls));
     };
     const first = await decline([laneComment(), parked()]);
     assert.equal(first.length, 1);
     const body = first[0].body.body;
     assert.ok(body.startsWith(`${SIZE_DECLINE_MARKER.replace(" -->", " reason=not-human -->")}\n${bodyVersion(BODY)}\n`), body);
     assert.match(body, /a listed human did not file it/);
+    assert.match(body, /goes to the issue lane whole/, "size-split declined defaults to run-whole");
+    assert.doesNotMatch(body, /stays parked/);
+    const parkedBody = (await decline([laneComment(), parked()], sizeIssue(), { "size-split": { declined: "park" } }))[0].body.body;
+    assert.match(parkedBody, /stays parked at `status: ready`/);
+    assert.doesNotMatch(parkedBody, /issue lane whole/);
     assert.ok(!/needs-human|needs-decision/.test(JSON.stringify(first)), "no hold label");
     assert.deepEqual(await decline([laneComment(), parked(), appComment(body)]), [], "a second run repeats nothing");
     assert.deepEqual(await decline([laneComment(), parked()], sizeIssue({ body: "changed" })), [], "a body changed since select gets nothing");

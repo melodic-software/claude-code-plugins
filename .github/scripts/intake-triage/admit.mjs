@@ -140,6 +140,54 @@ export const SIZE_SPLIT_PENDING = "Size large: the split into sub-issues at inta
 export const SIZE_SPLIT_MARKER = "<!-- intake-triage size-split -->";
 // Opens the body of each sub-issue that split files.
 export const SPLIT_CHILD_MARKER = "<!-- intake-triage size-split child -->";
+// Opens the lanes App's comment saying why refine.mjs did not split a Size
+// Large issue, with ` reason=<code>` before ` -->`; its second line is the
+// body it judged (bodyVersion).
+export const SIZE_DECLINE_MARKER = "<!-- intake-triage size-split-decline -->";
+const DECLINE_LINE = /^<!-- intake-triage size-split-decline reason=[a-z-]{1,40} -->$/;
+
+// admission-rules.json's `size-split`: {onDecline, maxParts, declined}.
+// `on-decline` is `subset` (a declined line split may split by target) or
+// `park`; `max-parts` caps the sub-issues; `declined` is `run-whole` (an
+// issue whose split the lanes App declined runs whole, runsWholeDeclined) or
+// `park` (it stays parked at status: ready). Throws on any other shape.
+export function sizeSplitSettings(rules) {
+  const section = rules?.["size-split"] ?? {};
+  const known = ["on-decline", "max-parts", "declined"];
+  const onDecline = section["on-decline"] ?? "subset";
+  const maxParts = section["max-parts"] ?? 10;
+  const declined = section.declined ?? "run-whole";
+  if (
+    typeof section !== "object" ||
+    Array.isArray(section) ||
+    !Object.keys(section).every((key) => known.includes(key)) ||
+    !["subset", "park"].includes(onDecline) ||
+    !Number.isInteger(maxParts) ||
+    maxParts < 2 ||
+    maxParts > 99 ||
+    !["run-whole", "park"].includes(declined)
+  ) {
+    throw new Error("admission-rules.json `size-split` holds only `on-decline` (subset or park), `max-parts` (2 to 99) and `declined` (run-whole or park)");
+  }
+  return { onDecline, maxParts, declined };
+}
+
+// Whether `issue` runs whole whatever its Size because the lanes App
+// (`appId`) declined to split it on its current body: one of `comments` (REST
+// shape) is the App's, opens with a decline marker line (any reason), and
+// its next line is bodyVersion of the body as it is now. An older body's
+// decline, another author's or a quoted copy does not count, nor does any
+// with `size-split.declined: park` (owner Q93). Pure.
+export function runsWholeDeclined(issue, comments, rules, appId) {
+  if (appId === undefined || sizeSplitSettings(rules).declined !== "run-whole") {
+    return false;
+  }
+  const version = bodyVersion(issue?.body);
+  return (comments ?? []).some((comment) => {
+    const [marker, body] = String(comment?.body ?? "").split("\n", 2);
+    return comment?.user?.id === appId && DECLINE_LINE.test(marker) && body === version;
+  });
+}
 export const READY = "status: ready";
 export const NEEDS_DECISION = "status: needs-decision";
 export const CONFIRMED = "status: confirmed";
@@ -906,7 +954,7 @@ export function admissionSettled(labels, events, isMark) {
 // issue waited for. Until a verdict written after that close judges the issue
 // against it, the wait carries `retriage` and admit() sends the issue back to
 // intake; once one has, the issue's own criteria decide.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], doneBy = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern() }) {
+export function decide({ issue, comments = [], verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], doneBy = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern() }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -920,10 +968,12 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
 
   const refuse = [];
   let hold = false;
-  // A trusted size-split sub-issue never splits again, so Size Large neither
-  // parks nor refuses it; a run has no turn or time cap (owner Q93, C13).
+  // A trusted size-split sub-issue never splits again, nor does an issue whose
+  // split the lanes App declined on its current body (runsWholeDeclined), so
+  // Size Large neither parks nor refuses it; a run has no turn or time cap
+  // (owner Q93, C13).
   const splitChild = splitChildBody(spec, humans, rules["task-list"]) !== null;
-  if (splitChild && !rules.sizes.includes("large")) {
+  if ((splitChild || runsWholeDeclined(issue, comments, rules, appId)) && !rules.sizes.includes("large")) {
     rules = { ...rules, sizes: [...rules.sizes, "large"] };
   }
   if (!authorAdmitted(issue, humans, appId)) {
@@ -1361,9 +1411,7 @@ export async function splitParentOf(github, repository, parent, appId) {
 
 // Whether issue `number` is a trusted size-split sub-issue: the lanes App
 // (`appId`) filed it with SPLIT_CHILD_MARKER and splitChildBody counts it
-// against its native parent. work-resolve-issue's check-blockers.mjs reads it
-// and hands it to resolve-config as the splitChild fact (pr-pipeline.yaml
-// models.issue-dimensions.split-child-size). Reads only.
+// against its native parent. Reads only.
 export async function trustedSplitChild(github, repository, number, humans, appId, taskList) {
   const spec = await specOf(github, repository, number);
   if (appId === undefined || spec.author?.__typename !== "Bot" || spec.author.databaseId !== appId || !spec.body.startsWith(SPLIT_CHILD_MARKER)) {
@@ -1371,6 +1419,20 @@ export async function trustedSplitChild(github, repository, number, humans, appI
   }
   const parent = await splitParentOf(github, repository, await parentOf(github, `/repos/${repository}/issues/${Number(number)}`), appId);
   return parent !== undefined && humanWritten(parent.spec, humans) && splitChildBody({ ...spec, splitParent: parent }, humans, taskList) !== null;
+}
+
+// Whether `issue` (as just read) runs whole whatever its Size, as admission
+// takes it: a trusted size-split sub-issue (trustedSplitChild) or one whose
+// split the lanes App declined on its current body (runsWholeDeclined).
+// work-resolve-issue's check-blockers.mjs reads it and hands it to
+// resolve-config as the runsWhole fact (pr-pipeline.yaml
+// models.issue-dimensions.split-child-size). Reads only.
+export async function runsWhole(github, repository, issue, humans, appId, rules) {
+  const number = Number(issue.number);
+  if (runsWholeDeclined(issue, await paginate(github, `/repos/${repository}/issues/${number}/comments`), rules, appId)) {
+    return true;
+  }
+  return trustedSplitChild(github, repository, number, humans, appId, rules["task-list"]);
 }
 
 // The one comment of the lanes App's (a Bot whose id is `appId`) that counts

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
@@ -53,7 +54,7 @@ async function run(blockers, { env = ENV, subject = {} } = {}) {
   const github = async (method, path, body) => {
     calls.push(`${method} ${path}`);
     if (typeof blockers === "function") {
-      return blockers(path);
+      return path.startsWith("/repos/o/r/issues/42/comments") ? (subject.comments ?? []) : blockers(path);
     }
     if (path === "/repos/o/r/issues/42") {
       if (subject.issue instanceof Error) {
@@ -64,8 +65,12 @@ async function run(blockers, { env = ENV, subject = {} } = {}) {
         state: "open",
         ...("author" in subject ? subject.author !== undefined && { user: subject.author } : { user: HUMAN }),
         labels: (subject.labels ?? []).map((name) => ({ name })),
+        body: subject.body ?? "Plain issue.",
         ...(subject.summary && { sub_issues_summary: subject.summary }),
       };
+    }
+    if (path.startsWith("/repos/o/r/issues/42/comments")) {
+      return subject.comments ?? [];
     }
     if (path.startsWith("/repos/o/r/issues/42/sub_issues")) {
       return subject.subs ?? [];
@@ -94,13 +99,25 @@ async function run(blockers, { env = ENV, subject = {} } = {}) {
 }
 
 const SKIP = { proceed: "false", untrusted: "false" };
-// A run that proceeds also says whether the issue is a trusted size-split
-// sub-issue (admit.mjs trustedSplitChild); a listed human wrote this one.
-const RUN = { proceed: "true", untrusted: "false", "split-child": "false" };
+// A run that proceeds also says whether the issue runs whole (admit.mjs
+// runsWhole); a listed human wrote this one, and nothing declined its split.
+const RUN = { proceed: "true", untrusted: "false", "runs-whole": "false" };
 const FINAL = { proceed: "false", untrusted: "true" };
 // The outside-author stop: FINAL, plus the mark report-skip reads to tell the
 // issue's author is outside the trusted list.
 const OUTSIDER = { ...FINAL, outsider: "true" };
+
+// Owner Q93: a Size Large issue whose split the lanes App declined on its
+// current body runs whole, as admission takes it. The decline head is
+// refine.mjs's documented format, its hash computed here.
+test("runs-whole is true only for the lanes App's decline on the issue's current body", async () => {
+  const sha = (text) => createHash("sha256").update(text).digest("hex");
+  const decline = (body, user = APP) => ({ user, body: `<!-- intake-triage size-split-decline reason=no-split -->\n<!-- refined body sha256:${sha(body)} -->\nNot split.` });
+  assert.deepEqual((await run([], { subject: { comments: [decline("Plain issue.")] } })).outputs, { ...RUN, "runs-whole": "true" });
+  for (const comment of [decline("An older body."), decline("Plain issue.", HUMAN)]) {
+    assert.deepEqual((await run([], { subject: { comments: [comment] } })).outputs, RUN, comment.body);
+  }
+});
 
 test("an open blocker skips the run with a notice naming it, and writes nothing", async () => {
   const { code, calls, lines, outputs } = await run([issue(7, "open"), issue(8, "closed"), issue(9, "open", { repo: "o/other" })]);

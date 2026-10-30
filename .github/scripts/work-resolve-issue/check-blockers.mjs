@@ -37,16 +37,16 @@
 //   LANES_APP_ID         the lanes App bot's numeric user id
 //   GITHUB_OUTPUT        receives proceed=true|false and untrusted=true|false,
 //                        outsider=true on the outside-author stop, and with
-//                        proceed=true split-child=true|false: whether the issue
-//                        is a trusted size-split sub-issue (admit.mjs
-//                        trustedSplitChild), resolve-config's split-child input
+//                        proceed=true runs-whole=true|false: whether the issue
+//                        runs whole whatever its Size, as admission takes it
+//                        (admit.mjs runsWhole), resolve-config's runs-whole input
 //   GITHUB_API_URL
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createGitHub, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
-import { authorAdmitted, blockersOf, clearedPastReport, closedByTrusted, judgedSince, loadRules, openSubIssues, stillBlocking, trustedElsewhere, trustedSplitChild, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
+import { authorAdmitted, blockersOf, clearedPastReport, closedByTrusted, judgedSince, loadRules, openSubIssues, runsWhole, stillBlocking, trustedElsewhere, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
 
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -64,7 +64,7 @@ export async function main({ env = process.env, github, log = console.log, write
   let held;
   let pending;
   let subs;
-  let splitChild;
+  let whole;
   try {
     if (!REPO.test(repository) || !NUMBER.test(number) || !NUMBER.test(env.LANES_APP_ID ?? "")) {
       throw new Error("GITHUB_REPOSITORY, ISSUE_NUMBER or LANES_APP_ID is not set to a repository, issue number and App id");
@@ -88,12 +88,12 @@ export async function main({ env = process.env, github, log = console.log, write
       pending = await stillBlocking(await blockersOf(client, base), repository, trusted, (blocker) => trustedElsewhere(client, blocker, humans));
       subs = pending.length > 0 ? [] : await openSubIssues(client, base, issue);
       if (pending.length === 0 && subs.length === 0) {
-        const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
-        splitChild = await trustedSplitChild(client, repository, Number(number), humans, appId, taskList);
+        const rules = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
+        whole = await runsWhole(client, repository, issue, humans, appId, rules);
       }
     }
   } catch (error) {
-    log(`::warning title=admission unread::the run is skipped and agent-ready kept: its labels, events, blockers, sub-issues or split-child provenance could not be read (${String(error?.message ?? error).replace(/[\r\n%]/g, " ")}); work-unblock's sweep re-fires it`);
+    log(`::warning title=admission unread::the run is skipped and agent-ready kept: its labels, events, blockers, sub-issues, split provenance or split decline could not be read (${String(error?.message ?? error).replace(/[\r\n%]/g, " ")}); work-unblock's sweep re-fires it`);
     write({ proceed: "false", untrusted: "false" });
     return 0;
   }
@@ -117,7 +117,7 @@ export async function main({ env = process.env, github, log = console.log, write
     write({ proceed: "false", untrusted: "false" });
     return 0;
   }
-  write({ proceed: "true", untrusted: "false", "split-child": String(splitChild) });
+  write({ proceed: "true", untrusted: "false", "runs-whole": String(whole) });
   return 0;
 }
 

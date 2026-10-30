@@ -66,12 +66,14 @@ inputs:
       them instead of reading the issue's fields again.
     required: false
     default: ""
-  split-child:
+  runs-whole:
     description: >
-      `true` or `false`: whether the issue is a trusted size-split sub-issue
-      (admit.mjs trustedSplitChild, as work-resolve-issue's admit job reads
-      it). Required when the run reads the issue's dimensions; a Large child
-      then takes models.issue-dimensions.split-child-size.
+      `true` or `false`: whether the issue runs whole whatever its Size, as
+      admission takes it: a trusted size-split sub-issue or one whose split
+      the lanes App declined on its current body (admit.mjs runsWhole, as
+      work-resolve-issue's admit job reads it). Required when the run reads
+      the issue's dimensions; a Large one then takes
+      models.issue-dimensions.split-child-size.
     required: false
     default: ""
   model-rung:
@@ -222,7 +224,7 @@ runs:
         APPLIED_BY_SUPPORTED: ${{ inputs.applied-by-supported }}
         ISSUE_DIMENSIONS: ${{ inputs.issue-dimensions }}
         MODEL_RUNG: ${{ inputs.model-rung }}
-        SPLIT_CHILD: ${{ inputs.split-child }}
+        RUNS_WHOLE: ${{ inputs.runs-whole }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         REPOSITORY: ${{ github.repository }}
       run: |
