@@ -1005,6 +1005,37 @@ async function verifyRecordedRerun({ github, repository, event, list, deniedIds,
   throw new Stop(refuse);
 }
 
+// Whether the lost-run reconciler's record vouches for its re-run of runId,
+// read at attempt RERUN_ATTEMPT by verifyRecordedRerun with the reconciler as
+// the only recorder: the rules the trigger check applies, unchanged. For a
+// workflow that records an attempt the reconciler's re-run causes
+// (pr-feedback-dispatch.yml rerun-ci-status, through reconciler-record.mjs).
+// Any refusal is false; an unexpected error throws.
+export async function reconcilerRecordVouches({ github, repository, defaultBranch, list, deniedIds, reconcilerWorkflow, runId, sleep = defaultSleep }) {
+  if (reconcilerWorkflow === "") {
+    return false;
+  }
+  try {
+    await verifyRecordedRerun({
+      github,
+      repository,
+      event: { repository: { default_branch: defaultBranch } },
+      list,
+      deniedIds,
+      recorders: [reconcilerRecorder(reconcilerWorkflow)],
+      runId: String(runId),
+      runAttempt: String(RERUN_ATTEMPT),
+      sleep,
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof Stop) {
+      return false;
+    }
+    throw error;
+  }
+}
+
 // app-label: the lanes App applying exactly that label to an issue starts the
 // lane; the label alone admits the issue. Any other App event stops. The
 // re-runner is the App itself, listed, or a listed human.
