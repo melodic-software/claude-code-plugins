@@ -478,7 +478,7 @@ assert_eq "old ownerless sentinel: released" "no" "$([[ -e "$S/.prune-in-progres
 # CC_OTEL_SENTINEL_MAX_AGE_MINUTES moves the bound: an ownerless sentinel two minutes old is young
 # under the default hour and stale under a one-minute bound; a bad value is rejected.
 mkdir "$S/.prune-in-progress"
-touch -t "$(date -d @$((NOW - 120)) +%Y%m%d%H%M.%S 2>/dev/null || date -r $((NOW - 120)) +%Y%m%d%H%M.%S)" "$S/.prune-in-progress"
+touch -t "$(printf '%(%Y%m%d%H%M.%S)T' $((NOW - 120)))" "$S/.prune-in-progress"
 echo stopped >"$SVC"
 out="$(run_svc "$S")"
 assert_eq "bound default: two-minute ownerless sentinel respected" "stopped" "$(cat "$SVC")"
