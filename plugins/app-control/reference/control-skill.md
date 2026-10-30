@@ -52,11 +52,14 @@ the files that implement the feature, relative to the project directory that hol
 
 Each folder level that has a `README.md` indexes the level below it. A module folder may hold its
 own `README.md`, whose `## Sub-features` points to each feature folder under it; the hub's index
-then names that `README.md` in place of a line per feature under the module. That line keeps the
-form above: its `<n>` is the sum of the entry points of the features under the module, and its
-`sources` is the union of their globs, so a changed file under any of them still matches a hub
-line. The module `README.md`'s `## Sub-features` gives each feature under it a line in the same
-form, which is where a caller that matched the module line finds the feature. A module with no
+then names that `README.md` in place of a line per feature under the module. The module
+`README.md` is a feature file with all six sections of [Feature files](#feature-files). Its
+`## Entry points` repeats each entry point of the features under it, one line each, so the hub
+line keeps the form above: its `<n>` is the number of lines under the module `README.md`'s own
+`## Entry points`, which is the sum of the features' entry points, and its `sources` is the union
+of their globs, so a changed file under any of them still matches a hub line. The module
+`README.md`'s `## Sub-features` gives each feature under it a line in the same form, which is
+where a caller that matched the module line finds the feature. A module with no
 `README.md`, like a small app with no modules, keeps a hub index line per feature.
 
 A control skill can instead be a command file named `control-<app>`. The command file is the hub:
