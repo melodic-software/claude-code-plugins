@@ -79,7 +79,7 @@ const LANE_BRANCH = "work-resolve-issue/issue-12-345-1";
 
 test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled review run", () => {
   const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
-  const runs = (conclusion, event = "pull_request", posted = "", branch = LANE_BRANCH, passed = "") =>
+  const runs = (conclusion, event = "pull_request", posted = "", branch = LANE_BRANCH, passed = "", rerun = {}) =>
     evaluate(gate, {
       "github.ref": "refs/heads/main",
       "github.repository": "melodic-software/claude-code-plugins",
@@ -91,6 +91,9 @@ test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled revie
       "github.event.workflow_run.conclusion": conclusion,
       "needs.post-verify-notes.outputs.head-sha": posted,
       "needs.post-verify-notes.outputs.pass-head-sha": passed,
+      "github.run_attempt": "1",
+      "github.triggering_actor": "a-person",
+      ...rerun,
     });
   assert.equal(runs("skipped"), false);
   assert.equal(runs("cancelled"), false);
@@ -105,6 +108,13 @@ test("pr-feedback-dispatch.yml starts no runner for a skipped or cancelled revie
   // A pass dispatches only once its job found a stale fail-note thread.
   assert.equal(runs("success", "workflow_run", "", "main"), false);
   assert.equal(runs("success", "workflow_run", "", "main", "a".repeat(40)), true);
+  // The reconciler's re-run of a verdict the kill switch stopped posts the
+  // notes but dispatches nothing: the gate trusts that dispatcher only at
+  // attempt 1 or re-run by a listed human.
+  const bot = { "github.run_attempt": "2", "github.triggering_actor": "github-actions[bot]" };
+  assert.equal(runs("success", "workflow_run", "a".repeat(40), "main", "", bot), false);
+  assert.equal(runs("success", "workflow_run", "", "main", "a".repeat(40), bot), false);
+  assert.equal(runs("success", "workflow_run", "a".repeat(40), "main", "", { "github.run_attempt": "2" }), true);
 });
 
 test("pr-feedback-dispatch.yml starts no runner for a review run off a lane branch", () => {
@@ -123,6 +133,8 @@ test("pr-feedback-dispatch.yml starts no runner for a review run off a lane bran
       "github.event.workflow_run.conclusion": "success",
       "needs.post-verify-notes.outputs.head-sha": "",
       "needs.post-verify-notes.outputs.pass-head-sha": "",
+      "github.run_attempt": "1",
+      "github.triggering_actor": "a-person",
     });
   // Every branch the issue lane opens a PR from passes; a rename of the lane
   // branch fails here instead of silently stopping dispatches.
@@ -151,6 +163,8 @@ test("pr-feedback-dispatch.yml sweeps only after a scheduled pr-unblock-dispatch
       "github.event.workflow_run.conclusion": "success",
       "needs.post-verify-notes.outputs.head-sha": "",
       "needs.post-verify-notes.outputs.pass-head-sha": "",
+      "github.run_attempt": "1",
+      "github.triggering_actor": "a-person",
       ...overrides,
     });
   assert.equal(runs(), true);
@@ -181,6 +195,8 @@ test("pr-feedback-dispatch.yml decides a lane branch's head again after a pull_r
       "github.event.workflow_run.conclusion": "skipped",
       "needs.post-verify-notes.outputs.head-sha": "",
       "needs.post-verify-notes.outputs.pass-head-sha": "",
+      "github.run_attempt": "1",
+      "github.triggering_actor": "a-person",
       ...overrides,
     });
   assert.equal(runs(), true, "the lanes App's own unlabel skips pr-merge's job and still counts");
