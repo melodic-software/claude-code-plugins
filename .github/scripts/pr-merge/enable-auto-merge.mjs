@@ -1104,6 +1104,11 @@ export function cacheLine(number, cache) {
 // merge.verify-cache as the run applies it: `serve` only when it says so.
 export const cacheMode = (env) => (env.VERIFY_CACHE === "serve" ? "serve" : "shadow");
 
+// The reader's env with the limit it is killed at, so it sizes its listing to
+// that limit and names this caller when a listing cannot fit
+// (babysit_verify_evidence.py DEADLINE_ENV and CALLER_ENV).
+const readerEnv = (env, timeoutMs) => ({ ...env, BABYSIT_VERIFY_DEADLINE_SECONDS: String(timeoutMs / 1000), BABYSIT_VERIFY_CALLER: "enable-auto-merge.mjs" });
+
 // The gate's own reader, one process per pull request; the run shares its
 // artifact listing, head-ref map and run cache through the BABYSIT_* files.
 // `--shared-listing`: the first read's listing serves the whole run, an allow
@@ -1115,10 +1120,6 @@ export const cacheMode = (env) => (env.VERIFY_CACHE === "serve" ? "serve" : "sha
 // kept refusal is served (`serve`) only to a pull request not armed, which is
 // always read in full, and never on `fresh`; `cacheOnly` reads only a kept
 // one, returning no `refusal` on a miss or when there is no file to read.
-// The reader's env with the limit it is killed at, so it sizes its listing to
-// that limit and names this caller when a listing cannot fit
-// (babysit_verify_evidence.py DEADLINE_ENV and CALLER_ENV).
-const readerEnv = (env, timeoutMs) => ({ ...env, BABYSIT_VERIFY_DEADLINE_SECONDS: String(timeoutMs / 1000), BABYSIT_VERIFY_CALLER: "enable-auto-merge.mjs" });
 
 export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) {
   // `rung`: the lane room's effective rung, which the gate scores at.
