@@ -102,6 +102,78 @@ test("a listing that does not fit in the caller's limit skips the round, for thi
   assert.deepEqual(lines, []);
 });
 
+// Both dispatchers' FAIL-cap reads take the listing pr-merge carried
+// (listing-carry.mjs) as the first read's base, and share one saved listing
+// across every pull request of the job, as pr-merge.yml's gate does; without
+// them each read lists every artifact of the repository.
+const READER = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
+const readerEnv = (name) => {
+  const match = new RegExp(`^${name} = "([A-Z_]+)"$`, "m").exec(READER);
+  assert.ok(match, name);
+  return match[1];
+};
+const dispatchSteps = (workflow) => {
+  const text = readFileSync(new URL(`../../workflows/${workflow}`, import.meta.url), "utf8");
+  const job = /\n {2}dispatch:\n([\s\S]*?)(?=\n {2}[a-z-]+:\n|$)/.exec(text);
+  assert.ok(job, `${workflow} dispatch job`);
+  return job[1]
+    .split(/\n(?= {6}- name: )/)
+    .slice(1)
+    .map((block) => ({ name: /^ {6}- name: (.*)$/m.exec(block)[1], block }));
+};
+const stepEnv = (block) => {
+  const env = {};
+  const body = /\n {8}env:\n((?: {10}.*\n?)*)/.exec(block)?.[1] ?? "";
+  for (const line of body.split("\n")) {
+    const kv = /^ {10}([A-Z_][A-Z0-9_]*): (.*)$/.exec(line);
+    if (kv) env[kv[1]] = kv[2].replaceAll("${{ runner.temp }}", "/runner/temp");
+  }
+  return env;
+};
+
+for (const [workflow, dispatchName] of [
+  ["pr-feedback-dispatch.yml", "Dispatch address-feedback"],
+  ["pr-unblock-dispatch.yml", "Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs"],
+]) {
+  test(`${workflow}: every FAIL-cap read starts from pr-merge's carried listing and shares one saved listing`, () => {
+    const steps = dispatchSteps(workflow);
+    const names = steps.map((s) => s.name);
+    const carry = steps.find((s) => s.block.includes("node .base/.github/scripts/pr-merge/listing-carry.mjs"));
+    assert.ok(carry, "a step restores pr-merge's listing through listing-carry.mjs");
+    const dispatch = steps.find((s) => s.name === dispatchName);
+    assert.ok(dispatch, dispatchName);
+    assert.ok(names.indexOf(carry.name) < names.indexOf(dispatch.name), "the carry is restored before the dispatch reads");
+    assert.match(carry.block, /\n {8}continue-on-error: true\n/, "a failed restore never stops the dispatch");
+    const carryEnv = stepEnv(carry.block);
+    assert.equal(carryEnv.ACTIONS_TOKEN, "${{ github.token }}");
+
+    const LISTING = readerEnv("LISTING_ENV");
+    const CARRY = readerEnv("LISTING_CARRY_ENV");
+    const env = stepEnv(dispatch.block);
+    assert.ok(env.VERIFY_EVIDENCE_SCRIPT, "the dispatch builds its FAIL-cap reader");
+    // The reader the dispatch builds hands both files to every spawn.
+    const seen = [];
+    const read = verifyCapReader(env, {
+      spawn: (command, args, options) => {
+        seen.push(options.env);
+        return answer({ refusal: null });
+      },
+      log: () => {},
+    });
+    read({ number: 1, head: HEAD, base: BASE });
+    read({ number: 2, head: HEAD, base: BASE });
+    assert.equal(seen.length, 2);
+    const NO_WAITS = readerEnv("NO_INCREMENTAL_WAITS_ENV");
+    for (const spawned of seen) {
+      // A carried listing's waits and a whole listing outlast VERIFY_CAP_TIMEOUT_MS.
+      assert.equal(spawned[NO_WAITS], "1", "a miss on the carried listing lists every page at once");
+      assert.equal(spawned[CARRY], carryEnv.BABYSIT_VERIFY_LISTING_CARRY, "the reader takes the file listing-carry.mjs wrote");
+      assert.equal(spawned[LISTING], "/runner/temp/verify-listing.json", "one saved listing for the job's pull requests");
+      assert.notEqual(spawned[LISTING], spawned[CARRY]);
+    }
+  });
+}
+
 test("the sibling and caller-limit details are the reader's SIBLING_UNREADABLE and DEADLINE_UNREADABLE", () => {
   const source = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
   assert.ok(source.includes(`SIBLING_UNREADABLE = "${SIBLING_UNREADABLE}"`));

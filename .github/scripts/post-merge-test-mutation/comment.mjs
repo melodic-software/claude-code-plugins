@@ -10,36 +10,11 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { ownComment as ownMarked, upsert as upsertMarked } from "../lib/upsert-comment.mjs";
 import { MARKER } from "./report.mjs";
 
-// GITHUB_TOKEN's comments; a person's comment that quotes the marker is not ours.
-const AUTHOR = "github-actions[bot]";
-const PAGE = 100;
-const MAX_PAGES = 30;
-
-// This lane's comment on the pull request, or null. The client returns no Link
-// header, so pages are read until one comes back short.
-export async function ownComment({ github, repository, pull }) {
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    const comments = await github("GET", `/repos/${repository}/issues/${pull}/comments?per_page=${PAGE}&page=${page}`);
-    if (!Array.isArray(comments)) throw new Error("the comment list is not a list");
-    const own = comments.find((c) => c?.user?.login === AUTHOR && Number.isSafeInteger(c.id) && typeof c.body === "string" && c.body.startsWith(`${MARKER}\n`));
-    if (own) return own;
-    if (comments.length < PAGE) return null;
-  }
-  throw new Error(`the pull request has more than ${PAGE * MAX_PAGES} comments`);
-}
-
-export async function upsert({ github, repository, pull, body }) {
-  const own = await ownComment({ github, repository, pull });
-  if (!own) {
-    await github("POST", `/repos/${repository}/issues/${pull}/comments`, { body });
-    return "posted";
-  }
-  if (own.body === body) return "left unchanged";
-  await github("PATCH", `/repos/${repository}/issues/comments/${own.id}`, { body });
-  return "edited";
-}
+export const ownComment = ({ github, repository, pull }) => ownMarked({ github, repository, pull, marker: MARKER });
+export const upsert = ({ github, repository, pull, body }) => upsertMarked({ github, repository, pull, marker: MARKER, body });
 
 export async function main(env = process.env, { github } = {}) {
   if (!/^[1-9][0-9]*$/.test(env.PULL ?? "")) {

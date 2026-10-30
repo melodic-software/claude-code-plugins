@@ -34,6 +34,11 @@ const SHA = /^[0-9a-f]{40}$/;
 // One full read lists every artifact of the repository; the dispatcher job's
 // timeout-minutes (10) leaves room for a few (judgment).
 export const VERIFY_CAP_TIMEOUT_MS = 2 * 60_000;
+// The reader's waits between incremental reads of a carried listing
+// (babysit_verify_evidence.py INCREMENTAL_WAITS) and the whole listing after
+// them do not fit in that limit, and a killed read is not the cap, so a miss
+// goes straight to the whole listing (NO_INCREMENTAL_WAITS_ENV).
+export const NO_INCREMENTAL_WAITS = { BABYSIT_VERIFY_NO_INCREMENTAL_WAITS: "1" };
 
 // Whether a verifyCapReader answer never clears for the head, so a
 // dispatcher records the head as handled: the cap does, a sibling read that
@@ -49,6 +54,7 @@ const oneLine = (text) => String(text ?? "").replaceAll(/[\r\n%]/g, " ").trim().
 // `base`: the pull request's base commit, so the reader takes the gate's
 // merge.max-verify-fails (the lower of that commit's and main's).
 export function verifyCapReader(env, { spawn = spawnSync, log = (line) => console.log(line) } = {}) {
+  env = { ...env, ...NO_INCREMENTAL_WAITS };
   return ({ number, head, base }) => {
     const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--repo", env.GITHUB_REPOSITORY];
     if (SHA.test(String(base ?? ""))) {

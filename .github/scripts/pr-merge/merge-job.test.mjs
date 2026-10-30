@@ -320,9 +320,9 @@ test("the job end logs both tokens' readings from the job's own responses, and r
   assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Revoke the lane token"));
 });
 
-// Runs the sweep-cost step with the end reading's costs and a summary of
+// Runs the sweep-cost step with the end step's call counts and a summary of
 // `reached` gate verdicts and `skipped` carried ones beside one held candidate.
-const runSweepCost = (costs, reached, skipped = 0) => {
+const runSweepCost = (calls, reached, skipped = 0) => {
   const dir = tempDir("pr-merge-cost-");
   try {
     writeFileSync(join(dir, "held.json"), '[{"number": 9}]');
@@ -334,7 +334,7 @@ const runSweepCost = (costs, reached, skipped = 0) => {
     writeFileSync(join(dir, "pr-merge-summary.json"), JSON.stringify(rows));
     const result = spawnSync("bash", ["-eo", "pipefail", "-c", runScript("Write the sweep cost")], {
       encoding: "utf8",
-      env: { ...process.env, RUNNER_TEMP: dir, GITHUB_STEP_SUMMARY: join(dir, "step-summary"), COSTS: costs, CANDIDATES: "5" },
+      env: { ...process.env, RUNNER_TEMP: dir, GITHUB_STEP_SUMMARY: join(dir, "step-summary"), CALLS: calls, CANDIDATES: "5" },
     });
     return { status: result.status, stdout: result.stdout, stepSummary: readFileSync(join(dir, "step-summary"), "utf8") };
   } finally {
@@ -342,17 +342,18 @@ const runSweepCost = (costs, reached, skipped = 0) => {
   }
 };
 
-test("the sweep cost names both tokens' spend, the candidates, those reached and those skipped, in the log and the summary", () => {
-  const run = runSweepCost("lanes-app-cost=312 github-token-cost=41", 3, 2);
+test("the sweep cost names both tokens' own request counts, the candidates, those reached and those skipped, in the log and the summary", () => {
+  const run = runSweepCost("lanes-app-calls=312 github-token-calls=41", 3, 2);
   assert.equal(run.status, 0);
-  const line = "sweep-cost=312 github-token-cost=41 candidates=5 reached=3 skipped=2\n";
+  const line = "sweep-calls=312 github-token-calls=41 candidates=5 reached=3 skipped=2\n";
   assert.equal(run.stdout, line);
   assert.equal(run.stepSummary, line);
-  // A rolled window, or no end reading, reads unknown.
-  assert.equal(runSweepCost("lanes-app-cost=unknown", 0).stdout, "sweep-cost=unknown github-token-cost=unknown candidates=5 reached=0 skipped=0\n");
+  // A token the job-end step wrote no count for reads unknown; a cost is not a count.
+  assert.equal(runSweepCost("lanes-app-calls=7", 0).stdout, "sweep-calls=7 github-token-calls=unknown candidates=5 reached=0 skipped=0\n");
+  assert.equal(runSweepCost("lanes-app-cost=312 github-token-cost=41", 0).stdout, "sweep-calls=unknown github-token-calls=unknown candidates=5 reached=0 skipped=0\n");
   const block = step("Write the sweep cost");
   assert.match(block, /\n {8}if: always\(\) && steps\.gate\.outcome != 'skipped'\n/);
-  assert.match(block, /COSTS: \$\{\{ steps\.budget-end\.outputs\.costs \}\}/);
+  assert.match(block, /CALLS: \$\{\{ steps\.budget-end\.outputs\.calls \}\}/);
   const names = steps.map((s) => s.name);
   assert.ok(names.indexOf("Log the API budget at job end") < names.indexOf("Write the sweep cost"));
 });
