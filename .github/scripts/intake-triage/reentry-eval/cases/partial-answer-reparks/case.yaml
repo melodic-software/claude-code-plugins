@@ -1,0 +1,59 @@
+schema_version: "1.1"
+name: partial-answer-reparks
+description: 'The decision answers question 1 only: triage quotes it, re-parks at status: needs-decision and asks question 2 again as a new question with a recommendation'
+tags: [intake, reentry]
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Filled by build-suite.mjs from the ci-workflows reusable."
+  allowed_tools: [Read, Grep, Glob]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: reads-decision-comment
+    type: tool_used
+    tool: Read
+    input_match: 'comment-1\.md'
+    min: 1
+    arm: both
+  - name: quotes-decision-marker
+    type: regex
+    pattern: '(?:^|\\n|\n)> \*\*Decision recorded\.\*\*'
+    target: last_message
+    arm: both
+  - name: quotes-decision-verbatim
+    type: regex
+    pattern: '(?:^|\\n|\n)> 1\. One pinned issue, edited in place by each weekly run\. Do not open a new issue each week\.'
+    target: last_message
+    arm: both
+  - name: links-decision
+    type: regex
+    pattern: 'issuecomment-100000001'
+    target: last_message
+    arm: both
+  - name: keeps-needs-human-false
+    type: regex
+    pattern: '"needs_human"\s*:\s*false'
+    target: last_message
+    arm: both
+  - name: reparks-needs-decision
+    type: regex
+    pattern: '"labels"\s*:\s*\[[^\]]*"status: needs-decision"'
+    target: last_message
+    arm: both
+  - name: asks-with-recommendation
+    type: regex
+    pattern: 'RECOMMENDED:'
+    target: last_message
+    arm: both
+  - name: asks-stale-age
+    type: regex
+    pattern: '(?:30|90)[ -]days?'
+    flags: i
+    target: last_message
+    arm: both
+  - name: judges-open-questions
+    type: llm
+    criteria: 'PASS only if the reply''s comment treats question 1 (pinned issue) as settled by the quoted decision, does not ask it again, and asks question 2 (30 or 90 days) as a new numbered question with a RECOMMENDED answer and a basis, without deciding it itself. FAIL if it picks a stale age as if decided, re-asks question 1, or asks nothing.'
+    focus: last_message
+    arm: both
