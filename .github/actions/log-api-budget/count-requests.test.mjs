@@ -227,3 +227,28 @@ test("without API_BUDGET_SCRIPT, or with one that is not lower-case kebab case, 
     assert.match(job, /^::notice title=api-calls::github-token=3 not-modified=1 graphql=1$/m);
   }
 });
+
+test("a 4xx or 5xx answer is a lane run report row, by path with no query; a 2xx or 304 is not", () =>
+  withBudget({ API_BUDGET_TOKEN: "github-token" }, async () => {
+    const answers = [404, 200, 304, 503];
+    const send = countRequests(async () => new Response(null, { status: answers.shift(), headers: READING }));
+    await send(`${API}/repos/o/r/pulls/1?per_page=100&token=x`);
+    await send(`${API}/repos/o/r`);
+    await send(`${API}/repos/o/r`);
+    await send(`${API}/graphql`, { method: "post" });
+    const file = join(process.env.RUNNER_TEMP, "lane-run-report", "api-failures.jsonl");
+    assert.deepEqual(
+      readFileSync(file, "utf8").trim().split("\n").map((line) => JSON.parse(line)),
+      [
+        { method: "GET", path: "/repos/o/r/pulls/1", status: 404 },
+        { method: "POST", path: "/graphql", status: 503 },
+      ],
+    );
+  }));
+
+test("without RUNNER_TEMP a failed answer is returned and nothing is written", () =>
+  withBudget({}, async () => {
+    delete process.env.RUNNER_TEMP;
+    const send = countRequests(async () => new Response("{}", { status: 500 }));
+    assert.equal((await send(`${API}/x`)).status, 500);
+  }));
