@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING } from "../intake-triage/admit.mjs";
 import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -4506,4 +4506,62 @@ test("a status: ready issue whose blocker the App closed report-delivered is adm
     assert.equal(written.includes(labeled(26)), expected === "admit", readyAt);
     assert.equal(written.includes(`DELETE /repos/${REPO}/issues/26/labels/status%3A%20ready`), expected === "retriage", readyAt);
   }
+});
+
+// A parent parked as "split pending" and then split by hand waits on its open
+// sub-issues, and readmitReady leaves it out unread, so its admission comment
+// is rewritten to name them: on a sub-issue close (closeSplitParent's reads),
+// and on the sweep for the parents whose number is the UTC hour modulo 24.
+const admissionNote = (reasons, id = 88) => ({ id, user: LANES_BOT, body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: ${reasons}.`, created_at: STAMP });
+const refreshed = (text, id = 88) => `PATCH /repos/${REPO}/issues/comments/${id} ${JSON.stringify({ body: `${ADMIT_MARKER}\nNot admitted to the issue lane yet: ${text}.` })}`;
+function splitWaitWorld({ labels = ["status: ready"], blockedBy = 0, note = admissionNote(SIZE_SPLIT_PENDING) } = {}) {
+  const parent = { ...issue(30, { labels }), issue_dependencies_summary: { blocked_by: blockedBy } };
+  const first = subIssue(31, { closed_at: "2026-10-16T11:30:00Z" });
+  const second = subIssue(32, { state: "open", closed_by: null });
+  return world({
+    closedList: [first],
+    issues: { 30: parent, 31: first, 32: second },
+    parents: { 31: parent },
+    subIssues: { 30: [first, second] },
+    comments: { 30: [note] },
+  });
+}
+
+test("a sub-issue closing rewrites its parent's split-pending admission comment to name the open sub-issues", async () => {
+  const { github, calls } = splitWaitWorld();
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), [refreshed("sub-issue #32 is open")]);
+  const stale = splitWaitWorld({ note: admissionNote("sub-issue #31 is open; sub-issue #32 is open") });
+  assert.equal(await sweep({ github: stale.github }), 0);
+  assert.deepEqual(writes(stale.calls), [refreshed("sub-issue #32 is open")]);
+});
+
+test("a parent's admission comment stays when it gives another reason, the parent is blocked, or it is not status: ready in no queue", async () => {
+  for (const setup of [
+    { note: admissionNote("sub-issue #32 is open") },
+    { note: { ...admissionNote(SIZE_SPLIT_PENDING), body: `${ADMIT_MARKER}\n${refusalText("Size huge is not one of small")}` } },
+    { note: admissionNote(`${SIZE_SPLIT_PENDING}; blocker #12 is open`) },
+    { blockedBy: 1 },
+    { labels: [] },
+    { labels: ["status: ready", "status: needs-decision"] },
+  ]) {
+    const { github, calls } = splitWaitWorld(setup);
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(setup));
+  }
+});
+
+test("the sweep rewrites the split-pending comment of an open-sub-issue parent whose number is the UTC hour modulo 24, and reads no other", async () => {
+  // NOW is 12:00 UTC: 36 is read, 37 is not.
+  const parent = (number) => readyIssue(number, { sub_issues_summary: { total: 2, completed: 1 }, issue_dependencies_summary: { blocked_by: 0 } });
+  const { github, calls } = readyWorld({
+    items: [parent(36), parent(37)],
+    extra: {
+      comments: { 36: [admissionNote(SIZE_SPLIT_PENDING)], 37: [admissionNote(SIZE_SPLIT_PENDING, 89)] },
+      subIssues: { 36: [subIssue(41, { state: "open", closed_by: null }), subIssue(42)], 37: [subIssue(43, { state: "open", closed_by: null })] },
+    },
+  });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), [refreshed("sub-issue #41 is open")]);
+  assert.ok(!calls.some((call) => call.startsWith(`GET /repos/${REPO}/issues/37/`)));
 });
