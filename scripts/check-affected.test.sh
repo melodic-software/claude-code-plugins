@@ -297,7 +297,7 @@ run STUB_ARGS_LOG="$args_log" -- --base base --tests --budget 45
 check "--budget sets the budget passed to affected-tests" '[[ $RC == 0 && $(cat "$args_log") == *" --budget 45 "* ]]'
 share_log="$tmp/affected-share.log"
 run -u PLUGIN_TEST_SHARE_WARN_ONLY STUB_SHARE_LOG="$share_log" -- --base base --tests
-check "--tests passes PLUGIN_TEST_SHARE_WARN_ONLY=1 to the suites"'[[ $RC == 0 && $(cat "$share_log") == 1 ]]'
+check "--tests passes PLUGIN_TEST_SHARE_WARN_ONLY=1 to the suites" '[[ $RC == 0 && $(cat "$share_log") == 1 ]]'
 run CHECK_DATA_ROOT="$repo" -- --base base --tests
 check "--tests keeps a caller's CHECK_DATA_ROOT from the suites" '[[ $RC == 0 && $ERR != *"saw CHECK_DATA_ROOT"* ]]'
 run STUB_AFFECTED_TESTS=3 STUB_NOT_RUN=$'eco/test_x.py\neco/X.Tests.ps1\n' -- --base base --tests
