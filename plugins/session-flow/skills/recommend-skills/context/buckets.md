@@ -1,6 +1,6 @@
 # Buckets and rendering
 
-How `show-options` sorts the resolved catalog into five buckets and renders them in two tiers. The
+How `recommend-skills` sorts the resolved catalog into five buckets and renders them in two tiers. The
 two rules in `SKILL.md` govern *presence*; everything here governs *order*, *grouping*, and *shape*.
 
 ## Why five
@@ -70,7 +70,7 @@ across invocations.
 different filenames or formats would each fail to recover what the other surfaced, and the
 least-recently-surfaced ordering would never advance. So:
 
-- **Path:** `<memory_dir>/show-options/spotlight-ledger.json`, with `<memory_dir>` the memory root
+- **Path:** `<memory_dir>/recommend-skills/spotlight-ledger.json`, with `<memory_dir>` the memory root
   (default `.work/`). Not under a topic slug, because rotation is a
   property of the operator's catalog, not of any one topic, and a per-slug ledger would restart the
   rotation on every new piece of work.

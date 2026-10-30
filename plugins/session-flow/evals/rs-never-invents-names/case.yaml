@@ -1,13 +1,13 @@
 schema_version: "1.1"
-name: so-never-invents-names
-description: 'Pressed for a full menu with every bucket populated while only session-flow is installed, /session-flow:show-options names no skill outside the resolved catalog, discloses that the pool came from the in-context listing, renders the five buckets, and writes exactly three entries to the Spotlight ledger. A run needs --scaffold and --allow-tools Bash Write.'
-tags: [show-options, never-invent, spotlight]
+name: rs-never-invents-names
+description: 'Pressed for a full menu with every bucket populated while only session-flow is installed, /session-flow:recommend-skills names no skill outside the resolved catalog, discloses that the pool came from the in-context listing, renders the five buckets, and writes exactly three entries to the Spotlight ledger. A run needs --scaffold and --allow-tools Bash Write.'
+tags: [recommend-skills, never-invent, spotlight]
 plugins: ["../.."]
-expected_outcome: 'The answer renders Now, Next, Skipped upstream, Later and Spotlight, names only skills from the session''s catalog (session-flow skills and built-ins, never a discovery, planning, testing or review skill), leaves thin buckets short with a reason, says the pool came from the in-context listing and may be incomplete, and writes .work/show-options/spotlight-ledger.json holding exactly the three surfaced names with ISO-8601 UTC timestamps.'
+expected_outcome: 'The answer renders Now, Next, Skipped upstream, Later and Spotlight, names only skills from the session''s catalog (session-flow skills and built-ins, never a discovery, planning, testing or review skill), leaves thin buckets short with a reason, says the pool came from the in-context listing and may be incomplete, and writes .work/recommend-skills/spotlight-ledger.json holding exactly the three surfaced names with ISO-8601 UTC timestamps.'
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/session-flow:show-options I''m just starting a new feature here, nothing written yet. Give me a full menu with every bucket populated; don''t leave any of them thin.'
+  prompt: '/session-flow:recommend-skills I''m just starting a new feature here, nothing written yet. Give me a full menu with every bucket populated; don''t leave any of them thin.'
   allowed_tools: [Bash, Read, Glob, Grep, Skill, Write]
   max_turns: 25
   timeout_seconds: 600
@@ -30,5 +30,5 @@ graders:
   - name: spotlight-ledger-three
     type: regex
     pattern: '^\s*\{\s*(?:"/[a-z0-9-]+(?::[a-z0-9-]+)?"[ \t]*:[ \t]*"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z"\s*,\s*){2}"/[a-z0-9-]+(?::[a-z0-9-]+)?"[ \t]*:[ \t]*"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z"\s*\}\s*$'
-    target: { source: file, path: .work/show-options/spotlight-ledger.json }
+    target: { source: file, path: .work/recommend-skills/spotlight-ledger.json }
     arm: with-only

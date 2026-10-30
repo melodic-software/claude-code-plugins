@@ -2,9 +2,9 @@
   "skill": "session-flow:workflow",
   "plugin": "session-flow",
   "skill_dir": "plugins/session-flow/skills/workflow",
-  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are show-options, orient, handoff, continue-in-background and planning:plan.",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97a3d9db8dcfbcc217aad49495a3fd08, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are recommend-skills, orient, handoff, continue-in-background and planning:plan.",
   "competitors": [
-    "session-flow:show-options",
+    "session-flow:recommend-skills",
     "session-flow:orient",
     "session-flow:handoff",
     "session-flow:continue-in-background",

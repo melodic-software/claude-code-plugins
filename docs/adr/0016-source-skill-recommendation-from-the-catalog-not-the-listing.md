@@ -5,7 +5,7 @@
 
 ## Context
 
-`session-flow:show-options` answers "what should I run next?" by presenting the installed skills that
+`session-flow:recommend-skills` (named `show-options` when this was decided) answers "what should I run next?" by presenting the installed skills that
 fit the moment as a menu the operator chooses from. Its defining constraint is that it must not
 withhold an option because it judges the step already done or unnecessary; the human decides.
 

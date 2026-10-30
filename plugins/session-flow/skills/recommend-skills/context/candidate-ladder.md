@@ -1,6 +1,6 @@
 # The candidate ladder
 
-How `show-options` resolves *which skills exist* and *what they are for*. Two separate needs, a
+How `recommend-skills` resolves *which skills exist* and *what they are for*. Two separate needs, a
 complete name set and per-skill enrichment, resolved by separate ladders, because the sources that
 answer them well are not the same.
 
@@ -45,7 +45,7 @@ plugin key, with a version and a manifest flag: no descriptions, no `metadata.*`
 Ladder B exists rather than being folded into this one.
 
 **Read its output from stdout; never pass `--out` into the consuming project.** Inventory's own
-documented example writes `./claude-inventory.json` into the working directory. `show-options`
+documented example writes `./claude-inventory.json` into the working directory. `recommend-skills`
 advertises the Spotlight ledger as its only write, so leaving an untracked artifact in a consumer's
 repository just to render a menu would break that promise. If a temporary file is unavoidable in
 some environment, it belongs in a temp path that is cleaned up, never in the project tree.

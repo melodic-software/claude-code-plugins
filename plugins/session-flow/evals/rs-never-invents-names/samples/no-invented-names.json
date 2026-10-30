@@ -9,7 +9,7 @@
       "why": "short menu"
     },
     {
-      "answer": "Pool: in-context listing (rung 3), may be truncated; /harness-ops:inventory is not enabled.\nSpotlight written at 2026-10-13T09:00:00Z to .work/show-options/spotlight-ledger.json.\nDocs: https://code.claude.com/docs/en/skills\nLater: /compact, /loop, /session-flow:retro",
+      "answer": "Pool: in-context listing (rung 3), may be truncated; /harness-ops:inventory is not enabled.\nSpotlight written at 2026-10-13T09:00:00Z to .work/recommend-skills/spotlight-ledger.json.\nDocs: https://code.claude.com/docs/en/skills\nLater: /compact, /loop, /session-flow:retro",
       "why": "labels, times, URLs and built-ins"
     }
   ],

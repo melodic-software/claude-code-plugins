@@ -2,11 +2,11 @@
   "skill": "discipline:sweep-all",
   "plugin": "discipline",
   "skill_dir": "plugins/discipline/skills/sweep-all",
-  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the individual discipline correctors, the show-options menu skill and the orchestrate posture skill.",
+  "ranking_note": "Authored from the before descriptions at commit 871a753a97, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the individual discipline correctors, the recommend-skills menu skill and the orchestrate posture skill.",
   "competitors": [
     "discipline:do-your-research",
     "discipline:tighten-your-output",
-    "session-flow:show-options",
+    "session-flow:recommend-skills",
     "session-flow:orchestrate",
     "discipline:use-your-skills"
   ],

@@ -8,9 +8,9 @@ metadata:
   summary: Lay out the skills that fit this moment as a ranked, nothing-hidden menu
 ---
 
-**Arguments.** `[topic-slug]`. e.g. /session-flow:show-options, /session-flow:show-options my-topic
+**Arguments.** `[topic-slug]`. e.g. /session-flow:recommend-skills, /session-flow:recommend-skills my-topic
 
-# Show options
+# Recommend skills
 
 **The human decides.** This skill's judgment goes into *rank* and *annotations*. It never goes into
 *presence*.
