@@ -153,6 +153,15 @@ All as of 2026-10-26; recheck when any of them changes.
   that exits 4, is `blocked:` with the floor, never retried. Launch and Ready placeholders are
   filled per the contract's "Environments". A capture
   that needs elevation follows "Elevated captures go through a shown script" instead.
+- **One sign-in per account per run.** The CLI keeps no count between calls, so drive keeps it, per
+  the contract's Sign-in floor: call `cli/ sign-in <account>` at most once per account in a run,
+  unless committed config (the owning app's `config/defaults.json` at HEAD) allows more attempts
+  for that account. The count spans an integrated app's `cli/` too, and a sign-in file included
+  twice for one account is two attempts. A sign-in over the count is not called: it is `blocked:`
+  under the Sign-in floor. A failed sign-in (any failure at a sign-in step, such as a non-zero
+  exit, a timeout or an unset credential variable) ends the steps that are not finally steps, and
+  no other account takes its place. The finally steps still run; one that would sign in again for
+  that account is `blocked:` under the Sign-in floor.
 - **Name the tool, never substitute.** Capture uses the tool the control skill names for the kind,
   one tool per tier. Drive implements no capture and picks no tool of its own. When no tool is named,
   report the kind as a capability gap and use no stand-in. An interactive run may offer to research
