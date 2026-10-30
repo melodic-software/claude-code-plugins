@@ -212,7 +212,7 @@ while IFS= read -r file; do
     while [[ $offset -le 12 ]]; do
       candidate="$(sed -n "$((line_num + offset))p" "$file" 2>/dev/null)"
       [[ -z "$candidate" ]] && break
-      if printf '%s' "$candidate" | grep -qE '^[[:space:]]*(public|private|internal|protected).*[[:alnum:]_][[:alnum:]_]*[[:space:]]*\('; then
+      if grep -qE '^[[:space:]]*(public|private|internal|protected).*[[:alnum:]_][[:alnum:]_]*[[:space:]]*\(' <<<"$candidate"; then
         method_line="$candidate"
         break
       fi

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Resolved root: the plugin data directory (`${CLAUDE_PLUGIN_DATA}`), rung 5. Rungs 1 and 2 are unset, rung 3 is skipped because nobody can answer in an unattended run, and rung 4 found no Documents folder.\n\nWhere the workspace will live: `${CLAUDE_PLUGIN_DATA}/<project-slug>/topic/sourdough-baking/`.\n\nMission: one reliable weekly loaf, three in a row with an open crumb, 30 minutes a week. Does that capture it?",
+      "why": "states the location, asks only about the mission"
+    },
+    {
+      "answer": "Resolved root: plugin data (rung 5).\n\nStarting point: where do you keep your starter, and how often do you feed it?",
+      "why": "a teaching question with a where, not about the root"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Before I create the workspace: where should learning state live? The default is `~/Documents/Claude Learning/`.",
+      "why": "asks the rung 3 question in an unattended run"
+    },
+    {
+      "answer": "Which folder should hold your learning workspaces?",
+      "why": "asks for a folder"
+    }
+  ]
+}

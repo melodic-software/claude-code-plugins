@@ -7,13 +7,15 @@ name: pr-unblock
 #
 # workflow_dispatch only. resolve-conflicts: GitHub runs no pull_request
 # workflow on a conflicting PR, so pr-unblock-dispatch.yml sends one dispatch
-# per conflicting PR after a push to the default branch; a base job merges the
+# per conflicting PR after a push to the default branch, and a trusted human
+# may dispatch one for a clean PR whose base is stale; a base job merges the
 # default branch tip into the head and decides, a read model job resolves the
 # conflicts and hands them on as a patch, and a script job commits the merge.
 # address-feedback:
 # pr-feedback-dispatch.yml sends one after a review lane finishes on a lanes App
-# PR with unresolved reviewer-bot threads; a base job keeps the threads, a read
-# model job answers them, and script jobs push its patch and post its replies.
+# PR, or an idle adopted owner PR, with unresolved reviewer-bot threads; a base
+# job keeps the threads, a read model job answers them, and script jobs push
+# its patch and post its replies.
 # After a pr-verify pass at a PR's head that left fail-note threads of earlier
 # heads open, it sends one with verify-pass-head: a pass-only round, where the
 # base job lists those threads, no model job runs, and the reply job resolves
@@ -70,10 +72,11 @@ concurrency:
 jobs:
   # resolve-conflicts is five jobs, so no model ever holds a write token or
   # runs git. This one runs only base code with a read-only token. Before any
-  # model turn it reads the PR head, resolves the slot (draft, held and
-  # mergeable PRs skip it), pins the default branch tip as the base, checks
-  # out the head with no credentials, and merges the base into it with the
-  # base's prepare.sh, copied out and hashed first: clean (the push job
+  # model turn it reads the PR head, resolves the slot (draft and held PRs
+  # skip it), pins the default branch tip as the base, checks out the head
+  # with no credentials, skips a head that already holds that base, and
+  # merges the base into it with the base's prepare.sh, copied out and
+  # hashed first: clean (the push job
   # commits the merge with no model), conflicted (the model resolves) or
   # escalate (the repeat cap, a protected path, or a conflict no model can
   # resolve from markers). Every gate, head, base and conflict tree the jobs
@@ -94,15 +97,17 @@ jobs:
       # an escalation; empty when the job stopped before deciding.
       proceed: >-
         ${{ steps.prepare.outputs.merge-state == 'conflicted' && 'true'
-        || (steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.prepare.outputs.merge-state != '') && 'false' || '' }}
+        || (steps.head.outputs.default-base == 'false' || steps.slot.outputs.applies == 'false' || steps.hold.outputs.held == 'true' || steps.behind.outputs.behind == 'false' || steps.prepare.outputs.merge-state != '') && 'false' || '' }}
       merge-state: ${{ steps.prepare.outputs.merge-state }}
       head-sha: ${{ steps.head.outputs.sha }}
       base-sha: ${{ steps.base-sha.outputs.sha }}
       conflict-tree: ${{ steps.prepare.outputs.conflict-tree }}
       escalation-reason: ${{ steps.prepare.outputs.escalation-reason }}
       skip-reason: >-
-        ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
-        || steps.hold.outputs.held == 'true' && 'awaiting-human' || '' }}
+        ${{ steps.head.outputs.default-base == 'false' && 'not-applicable'
+        || steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason
+        || steps.hold.outputs.held == 'true' && 'awaiting-human'
+        || steps.behind.outputs.behind == 'false' && 'up-to-date' || '' }}
       # true when another lane's escalation put the human-gated label on, so
       # apply-conflict-patch pushes past it (lane-hold.mjs).
       lane-escalated: ${{ steps.hold.outputs.lane-escalated }}
@@ -131,29 +136,42 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
+      # Every job merges the default branch tip, so a PR stacked on another
+      # branch skips not-applicable here, as the dispatcher leaves it out.
       - name: Read the PR head
         id: head
         if: steps.kill.outputs.proceed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr-number }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           if ! [[ $PR_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
-          if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+          { read -r sha && read -r base; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .base.ref') || true
+          if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
             exit 1
           fi
+          if [[ -z ${base:-} || -z ${DEFAULT_BRANCH:-} ]]; then
+            echo "::error::the PR's base or the default branch is unknown"
+            exit 1
+          fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
+          if [[ $base == "$DEFAULT_BRANCH" ]]; then
+            echo "default-base=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "::notice::the PR's base is not the default branch; resolve-conflicts merges only the default branch"
+            echo "default-base=false" >>"$GITHUB_OUTPUT"
+          fi
 
       # As the read runner resolves it: its applies-when decides on the head
       # just read, before any merge.
       - name: Resolve the slot
         id: slot
-        if: steps.head.outcome == 'success'
+        if: steps.head.outcome == 'success' && steps.head.outputs.default-base == 'true'
         uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
         with:
           lane: pr-unblock
@@ -224,6 +242,32 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      # A clean PR passes the slot so a hand dispatch can refresh a stale
+      # base; a head that already holds the pinned base has nothing to merge,
+      # and prepare.sh's --no-ff merge would leave no MERGE_HEAD.
+      - name: Check the head is behind the base
+        id: behind
+        if: steps.hold.outputs.held == 'false'
+        working-directory: head
+        env:
+          GIT_NO_REPLACE_OBJECTS: "1"
+          HEAD_SHA: ${{ steps.head.outputs.sha }}
+          BASE_SHA: ${{ steps.base-sha.outputs.sha }}
+        run: |
+          rc=0
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA" || rc=$?
+          case $rc in
+          0)
+            echo "::notice::the head already holds the default branch tip; nothing to merge"
+            echo "behind=false" >>"$GITHUB_OUTPUT"
+            ;;
+          1) echo "behind=true" >>"$GITHUB_OUTPUT" ;;
+          *)
+            echo "::error::git merge-base --is-ancestor exited $rc"
+            exit 1
+            ;;
+          esac
+
       # prepare.sh merges the pinned base without committing, runs the
       # version-bump script, and decides; only whitelisted, validated
       # key=value lines become outputs. The identity is the lanes bot's: git
@@ -231,7 +275,7 @@ jobs:
       # counts commits by that author name.
       - name: Merge the base into the head
         id: prepare
-        if: steps.hold.outputs.held == 'false'
+        if: steps.hold.outputs.held == 'false' && steps.behind.outputs.behind == 'true'
         working-directory: head
         env:
           GIT_AUTHOR_NAME: melodic-automation-lanes[bot]
@@ -264,12 +308,15 @@ jobs:
   # clean-merge (the push job commits it), else the stop's own skip
   # (escalation-routes.mjs stopSkip: lane-stopped for a stop routed to a
   # failing status, which ends the head; awaiting-human for one held for a
-  # person). A kill-switch stop reads no head, and nothing is posted.
+  # person). A kill-switch stop reads no head, and nothing is posted; nor is
+  # an up-to-date skip, since a neutral check would end the head for the
+  # dispatcher should a later default-branch push conflict with it.
   resolve-conflicts-not-run:
     needs: resolve-conflicts-select
     if: >-
       ${{ !cancelled() && inputs.activity == 'resolve-conflicts'
       && needs.resolve-conflicts-select.outputs.proceed == 'false'
+      && needs.resolve-conflicts-select.outputs.skip-reason != 'up-to-date'
       && needs.resolve-conflicts-select.outputs.head-sha != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -539,9 +586,9 @@ jobs:
       patch-merge-base-sha: ${{ needs.resolve-conflicts-select.outputs.base-sha }}
       patch-merge-state: ${{ needs.resolve-conflicts-select.outputs.merge-state }}
       patch-conflict-tree: ${{ needs.resolve-conflicts-select.outputs.conflict-tree }}
-      # true drops the human-gated label from the holds: another lane's
-      # escalation put it on (lane-hold.mjs).
-      patch-fix-requested: ${{ needs.resolve-conflicts-select.outputs.lane-escalated }}
+      # lane-escalation drops the human-gated label from the holds while the
+      # write runner reads it again as another lane's escalation (lane-hold.mjs).
+      patch-human-gate: ${{ needs.resolve-conflicts-select.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}
 
   # A conflicted round whose answering leg handed on no patch state, which a
   # scan that refused the model's output (a leak-scan block, an oversize
@@ -626,7 +673,7 @@ jobs:
       head-sha: ${{ steps.head.outputs.sha }}
       escalation-reason: ${{ steps.select.outputs.escalation-reason }}
       skip-reason: ${{ steps.slot.outputs.applies == 'false' && steps.slot.outputs.skip-reason || steps.select.outputs.skip-reason }}
-      fix-requested: ${{ steps.select.outputs.fix-requested }}
+      human-gate: ${{ steps.select.outputs.human-gate }}
       # "1" for a same-head retry after the reply job stopped there
       # (escalation-routes.mjs retryRung), else empty.
       model-rung: ${{ steps.select.outputs.model-rung }}
@@ -1041,10 +1088,11 @@ jobs:
       # The same leg's scanned replies, whose VALID threads the commit names.
       patch-replies-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-attempt || '' }}
       patch-replies-sha256: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.feedback-sha256 || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.feedback-sha256 || '' }}
-      # true drops the human-gated label from the holds: the select job kept
-      # only threads a trusted person with write access asked to fix, or a
-      # lane escalation put the label on (gate-source.mjs).
-      patch-fix-requested: ${{ needs.address-feedback-select.outputs.fix-requested }}
+      # fix-request drops the human-gated label from the holds: the select job
+      # kept only threads a trusted person with write access asked to fix;
+      # lane-escalation drops it while the write runner reads it again as a
+      # lane escalation (gate-source.mjs).
+      patch-human-gate: ${{ needs.address-feedback-select.outputs.human-gate }}
       reply-attempt: ${{ needs.address-feedback-fallback.result != 'skipped' && needs.address-feedback-fallback.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result != 'skipped' && needs.address-feedback-subscription.outputs.scan-reply-attempt || needs.address-feedback-fallback.result == 'skipped' && needs.address-feedback-subscription.result == 'skipped' && needs.address-feedback.outputs.scan-reply-attempt || '' }}
 
   # The adjudicator, after the model job and before the reply job, only when
@@ -1220,6 +1268,17 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 0's sealed transcript
+        if: always() && steps.judge-0.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-0.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-0
+
       # A leg in another permission mode, or with no init message, keeps no
       # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
       - name: Keep disputed thread 0's verdict
@@ -1281,6 +1340,17 @@ jobs:
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
 
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 1's sealed transcript
+        if: always() && steps.judge-1.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-1.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-1
+
       # A leg in another permission mode, or with no init message, keeps no
       # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
       - name: Keep disputed thread 1's verdict
@@ -1341,6 +1411,17 @@ jobs:
             Skill
           json-schema-file: ${{ github.workspace }}/.base/.github/scripts/pr-unblock/adjudicate-feedback.schema.json
           leg-timeout-minutes: "15"
+
+      # The leg's transcript, failed legs included, sealed to the transcript
+      # key and kept 7 days for the puller; a failed upload never fails the job.
+      - name: Upload disputed thread 2's sealed transcript
+        if: always() && steps.judge-2.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-2.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-2
 
       # A leg in another permission mode, or with no init message, keeps no
       # verdict (check-permission-mode.sh); its thread reads as unadjudicated.
@@ -1909,6 +1990,7 @@ jobs:
       pull-requests: read # the PR's head and commits
       checks: read # the head's check runs and their annotations
       actions: read # each failing job's workflow file and log
+      statuses: read # the head's pr-unblock/fix-ci weaken retry stop
     outputs:
       proceed: ${{ steps.context.outputs.proceed }}
       head-sha: ${{ steps.context.outputs.head-sha }}
@@ -1925,6 +2007,9 @@ jobs:
       # "1" for a same-head retry after the push job stopped there
       # (escalation-routes.mjs retryRung), else empty.
       model-rung: ${{ steps.context.outputs.model-rung }}
+      # true on a head with no lane stop yet, so apply-patch gives a
+      # weaken-required stop one fresh fixer round (ci-fix-weaken-retry).
+      weaken-retry: ${{ steps.context.outputs.weaken-retry }}
       # The artifact name's attempt, so a re-run of the model job alone still
       # finds it.
       context-attempt: ${{ steps.upload.outcome == 'success' && github.run_attempt || '' }}
@@ -2263,6 +2348,7 @@ jobs:
       patch-prepare: ci-context
       # A same-head retry's producer ran a rung up: no second in-run rung-up.
       patch-model-rung: ${{ needs.fix-ci-context.outputs.model-rung }}
+      patch-weaken-retry: ${{ needs.fix-ci-context.outputs.weaken-retry }}
       # The head fix-ci-context gated, from a job that ran no head code; the
       # read runner's own head-sha output is the run job's, which head code
       # could forge. Both fix-ci calls refuse a context for another head, so a
@@ -2270,9 +2356,10 @@ jobs:
       # own trigger gate reads at apply time, and its push needs the branch
       # still at that head.
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
-      # true drops the human-gated label from the holds: another lane's
-      # escalation put it on (fix-ci-context.mjs).
-      patch-fix-requested: ${{ needs.fix-ci-context.outputs.lane-escalated }}
+      # lane-escalation drops the human-gated label from the holds while the
+      # write runner reads it again as another lane's escalation
+      # (fix-ci-context.mjs).
+      patch-human-gate: ${{ needs.fix-ci-context.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}
       reply-attempt: ${{ needs.fix-ci-fallback.result != 'skipped' && needs.fix-ci-fallback.outputs.scan-reply-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result != 'skipped' && needs.fix-ci-subscription.outputs.scan-reply-attempt || needs.fix-ci-fallback.result == 'skipped' && needs.fix-ci-subscription.result == 'skipped' && needs.fix-ci.outputs.scan-reply-attempt || '' }}
 
   # fix-ci's one retry one model rung up, in this same run: when apply-patch
@@ -2483,9 +2570,11 @@ jobs:
       patch-activity: fix-ci
       patch-prepare: ci-context
       patch-head-sha: ${{ needs.fix-ci-context.outputs.head-sha }}
-      patch-fix-requested: ${{ needs.fix-ci-context.outputs.lane-escalated }}
+      patch-human-gate: ${{ needs.fix-ci-context.outputs.lane-escalated == 'true' && 'lane-escalation' || '' }}
       # At rung 1 an escalation goes to a person: there is no rung above.
       patch-model-rung: "1"
+      # A weaken-required stop here still takes the head's fresh fixer round.
+      patch-weaken-retry: ${{ needs.fix-ci-context.outputs.weaken-retry }}
       reply-attempt: ${{ needs.fix-ci-rung-up-fallback.result != 'skipped' && needs.fix-ci-rung-up-fallback.outputs.scan-reply-attempt || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result != 'skipped' && needs.fix-ci-rung-up-subscription.outputs.scan-reply-attempt || needs.fix-ci-rung-up-fallback.result == 'skipped' && needs.fix-ci-rung-up-subscription.result == 'skipped' && needs.fix-ci-rung-up.outputs.scan-reply-attempt || '' }}
 
   # A fix-ci round whose every call posted no check (a run that forged a

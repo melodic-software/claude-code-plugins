@@ -1,0 +1,7 @@
+{
+  "name": "upload-lane-transcript",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

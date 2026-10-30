@@ -1,0 +1,51 @@
+{
+  "pass": [
+    {
+      "answer": "\"\"\"Text helpers.\"\"\"\n\nimport re\n\n\ndef slugify(value):\n    \"\"\"Lower-case value and join its words with hyphens: 'Hello World' -> 'hello-world'.\"\"\"\n    return re.sub(r\"[^a-z0-9]+\", \"-\", value.lower()).strip(\"-\")\n",
+      "why": "digits added to the kept characters"
+    },
+    {
+      "answer": "    return re.sub(r\"[^0-9a-z]+\", \"-\", value.lower()).strip(\"-\")\n",
+      "why": "digits listed first"
+    },
+    {
+      "answer": "    return re.sub(r\"[^a-z\\d]+\", \"-\", value.lower()).strip(\"-\")\n",
+      "why": "\\d in place of 0-9"
+    },
+    {
+      "answer": "    return \"-\".join(re.findall(r\"[a-z0-9]+\", value.lower()))\n",
+      "why": "findall over the kept characters"
+    },
+    {
+      "answer": "    return re.sub(r\"[\\W_]+\", \"-\", value.lower()).strip(\"-\")\n",
+      "why": "non-word characters and underscores"
+    },
+    {
+      "answer": "    return re.sub(r\"\\W+\", \"-\", value.lower()).strip(\"-\")\n",
+      "why": "non-word characters only"
+    },
+    {
+      "answer": "    value = re.sub(r\"[^\\w\\s-]\", \"\", value.lower())\n    return re.sub(r\"[-\\s]+\", \"-\", value).strip(\"-\")\n",
+      "why": "the common two-step slug"
+    },
+    {
+      "answer": "    words = \"\".join(c if c.isalnum() else \" \" for c in value.lower()).split()\n    return \"-\".join(words)\n",
+      "why": "isalnum instead of a regex"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "    return re.sub(r\"[^a-z]+\", \"-\", value.lower()).strip(\"-\")\n",
+      "why": "the seeded bug, unchanged"
+    },
+    {
+      "answer": "    return re.sub(r\"[^a-zA-Z]+\", \"-\", value).lower().strip(\"-\")\n",
+      "why": "near miss: kept capitals, still drops digits"
+    },
+    {
+      "answer": "    # digits: 0-9 should be kept\n    return re.sub(r\"[^a-z]+\", \"-\", value.lower()).strip(\"-\")\n",
+      "why": "near miss: a comment names 0-9 but the class still drops digits"
+    }
+  ]
+}

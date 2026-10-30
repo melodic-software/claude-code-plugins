@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: n1-missing-conventions-nudge
+context:
+  scaffold_script: scaffold.sh

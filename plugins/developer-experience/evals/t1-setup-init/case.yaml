@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: t1-setup-init
+context:
+  scaffold_script: scaffold.sh

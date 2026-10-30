@@ -3,6 +3,18 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.5] - 2026-10-29
+
+### Fixed
+
+- **`migrate`'s cutover check no longer pipes into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). `cutover-check.sh` matches the bundle window with a here-string and the evidence page's AGENTS.md lines through process substitution, and the adherence experiment's scorer does the same, so under `set -o pipefail` a match can no longer read as a miss when grep exits before the producer finishes writing.
+
+## [0.28.4] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
 ## [0.28.3] - 2026-10-28
 
 ### Changed

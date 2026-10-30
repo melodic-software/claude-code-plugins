@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Where should learning state live? I suggest `~/Documents/Claude Learning/`.",
+      "why": "offers the default home"
+    },
+    {
+      "answer": "Where do you want your learning workspaces kept? Your Documents folder is the usual place.",
+      "why": "names the Documents folder"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Where do you want your learning workspaces kept?",
+      "why": "asks with no default offered"
+    }
+  ]
+}

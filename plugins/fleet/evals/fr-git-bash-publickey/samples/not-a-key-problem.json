@@ -17,6 +17,14 @@
     {
       "answer": "Nothing was wrong with the keys: the MSYS ssh in Git Bash answered instead of ssh.exe.",
       "why": "observed wording: past tense"
+    },
+    {
+      "answer": "That error usually means the client offered the wrong key or no key at all, not that a key is broken. Point this ssh at the key you already have.",
+      "why": "observed wording: 'not that a key is broken'"
+    },
+    {
+      "answer": "Permission denied (publickey) means the client offered the wrong key or no key, not a broken one. Check which ssh binary ran.",
+      "why": "observed wording: 'wrong key or no key, not a broken one'"
     }
   ],
   "fail": [
@@ -30,6 +38,10 @@
     {
       "answer": "Your keys are probably not fine; regenerate them with ssh-keygen.",
       "why": "written to fail: an adverb before 'not fine' must not pass"
+    },
+    {
+      "answer": "The config is not a broken one; your key is the problem, so regenerate it with ssh-keygen.",
+      "why": "written to fail: 'not a broken one' about the config, then blames the key"
     }
   ]
 }

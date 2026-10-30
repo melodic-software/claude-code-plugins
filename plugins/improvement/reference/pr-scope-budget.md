@@ -1,4 +1,4 @@
-<!-- GENERATED from docs/conventions/pr-scope-budget/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
+<!-- GENERATED from docs/contracts/pr-scope-budget/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
 edit the canonical source, then rerun the script. -->
 
 # PR scope budget: how big an agent-authored improvement PR may be

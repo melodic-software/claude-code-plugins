@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: unilateral-decision-not-folded-behavior-present
+description: Behavior-present variant of unilateral-decision-not-folded whose prompt also states the collapse self-check heuristic. Run it with --ablation none (one arm); the pair discriminates when this case passes choice-surfaced-not-folded and the original fails it
+tags: [plan, decisions, behavior-present]
+expected_outcome: The logger import and threading stay short mechanical steps; the before-or-after-retry choice is raised as its own interview question with a recommendation, or, if the plan decides it, carries an [EXEC-SHAPE] or [FALLBACK] tag and a Decisions made (gate-passed) row; no implementation starts.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/planning:plan add structured logging to the webhook sender. Exploration done; I accept planning without /design. The work is the logger import, threading the logger through the sender, and logging failed deliveries. Collapse the mechanical parts and keep the plan short. Before collapsing a part as mechanical, re-check that nothing in it is a judgment call, and raise any such call as its own decision."
+  allowed_tools: [Read, Glob, Grep, Skill, Agent, TodoWrite]
+  max_turns: 40
+  timeout_seconds: 1200
+graders:
+  - name: mechanical-steps-kept
+    type: regex
+    pattern: '^(?![\s\S]*(?:\b(?:no|skip(?:s|ping)? the|without (?:an?|the)) (?:logger )?import|\b(?:no need|(?:do|does|did)n''t need|(?:do|does) not need|needn''t|won''t|will not|not) (?:to )?(?:add (?:an?|the) (?:logger )?import|import|thread|pass|plumb|inject)\b|\b(?:import|thread\w*)\b[^.\n]{0,40}\b(?:(?:is|are) not|isn''t|aren''t) (?:needed|required|necessary)\b|\b(?:import|thread\w*)\b[^.\n]{0,40}\bunnecessary\b))(?=[\s\S]*\bimport(?:s|ed|ing)?\b)(?=[\s\S]*(?:\bthread|\bpass(?:es|ing)? (?:it|the logger)\b[^\n]{0,40}\bthrough\b|\bplumb|\binject))'
+    flags: i
+    arm: both
+  - name: no-implementation-claimed
+    type: regex
+    pattern: '(?<!\bonce )(?<!\bwhen )(?<!\bafter )(?<!\buntil )(?<!\bbefore )(?<!\bno )(?<!\bnot )\bimplementation (?:is )?(?:complete|done|finished)|I(?: have|''ve) (?:implemented|added the logger|added (?:the )?(?:structured )?logging|(?:edited|modified|updated|changed) (?:`?[\w/]*sender|the (?:webhook )?sender|the code))'
+    match: not_contains
+    flags: i
+    arm: both
+  - name: choice-surfaced-not-folded
+    type: llm
+    arm: both
+    criteria: "PASS only if the choice of logging a failed delivery before or after the retry is treated as its own decision, visible outside any phase or step that the plan labels or collapses as mechanical wiring (the logger import and the threading of the logger through the sender). Either surfacing is acceptable: the plan asks it as a question with a recommendation before locking, or it decides it with an [EXEC-SHAPE] or [FALLBACK] tag and a row in a Decisions made (gate-passed) table that names the phase and the concrete delta. FAIL if the choice appears only inside a collapsed or mechanical section, is silently decided without being flagged for the user, or if the plan starts implementing."

@@ -1,5 +1,23 @@
 # Changelog: evals
 
+## [0.10.15] - 2026-10-30
+
+### Changed
+
+- plugin-eval: the worktree guard records add the Claude Code 2.1.312 recheck: a `--worktree` session still refuses `claude plugin eval --help`, and a normal session started in a git worktree runs it.
+
+## [0.10.14] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [0.10.13] - 2026-10-29
+
+### Fixed
+
+- `/evals:methodology`: the "Rewrite this criterion" answer is now a fill-in template with slots for quality (with the user need it serves), measure, trials, target and `basis:`. The `basis:` slot accepts a measured baseline, a prior result, a benchmark or expert review that the user supplied, or `baseline-relative`. The target must follow from that basis, so a target backed only by how severe a miss would be has no slot. When the user supplies no basis, the target is written relative to the current rate, never as a placeholder.
+
 ## [0.10.12] - 2026-10-28
 
 ### Fixed

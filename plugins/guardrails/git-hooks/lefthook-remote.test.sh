@@ -6,7 +6,8 @@
 # remote names this file. With lefthook on PATH, a consumer whose lefthook.yml carries the
 # snippet `install.mjs plan --scope remote` returns, fetched from a local stand-in for this
 # repository, verifies ok and blocks an off-convention subject, a staged secret and (with jq)
-# a pushed citation of a deleted path, reading the consumer's own files; a new commit on main
+# a pushed citation of a deleted path, reading the consumer's own files, until the consumer
+# declines that entry; a new commit on main
 # reaches the consumer on its next lefthook install.
 # test-scope: plugins/guardrails/git-hooks/lefthook-remote.yml plugins/guardrails/git-hooks/entries.json plugins/guardrails/lib/git-hooks/install.mjs plugins/guardrails/git-hooks/commit-msg-convention.sh plugins/guardrails/git-hooks/pre-commit-content.sh plugins/guardrails/git-hooks/reference-verify.sh .lefthook/commit-msg/guardrails-commit-msg-convention.sh .lefthook/pre-commit/guardrails-pre-commit-content.sh .lefthook/pre-push/guardrails-reference-verify.sh .github/scripts/pr-require-checks/install-lefthook.sh
 set -uo pipefail
@@ -154,6 +155,9 @@ if command -v jq >/dev/null 2>&1; then
   err="$(git -C "$REPO" push origin main 2>&1)"
   expect "pre-push: a pushed citation of a deleted path blocks, from the refs on stdin" yes \
     "$(grep -q 'README.md:1: stale-path-verify' <<<"$err" && echo yes)"
+  git -C "$REPO" config checks.guardrails.reference-verify.declined true
+  git -C "$REPO" push -q origin main >/dev/null 2>&1
+  expect "pre-push: with the entry declined, the same push passes" 0 "$?"
 elif [[ "${GUARDRAILS_REQUIRE_LEFTHOOK:-}" == 1 ]]; then
   expect "jq is on PATH for the pre-push case" yes no
 else

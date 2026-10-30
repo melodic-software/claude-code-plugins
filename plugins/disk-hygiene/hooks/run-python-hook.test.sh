@@ -649,7 +649,8 @@ run_registered_args() {
 while IFS= read -r args_json; do
   run_registered_args "$engine_payload" "$args_json"
   assert_eq "registered engine-gate row denies an engine command without python" "2" "$NOPY_RC"
-done < <(jq -c '.hooks.PreToolUse[].hooks[] | .args' "$HOOKS_JSON")
+done < <(jq -c '.hooks.PreToolUse[].hooks[] | .args |
+  select(map(tostring) | join(" ") | contains("destructive_guard.py"))' "$HOOKS_JSON")
 belt_args="$(sed -n 's/^ *args: *//p' \
   "$SCRIPT_DIR/../skills/clean/SKILL.md" | head -n 1)"
 belt_args="${belt_args#\'}"
@@ -817,6 +818,38 @@ printf '%s' "$MARKER_PAYLOAD" |
     "$MARKER_TARGET" "$MARKER_SEEN" 0 >/dev/null 2>&1 || true
 assert_eq "an unrecorded session spawns no interpreter, not even a probe" \
   "0" "$(grep -c . "$SKIP_LOG" || true)"
+
+# The Skill row is marker-only: no target, so no interpreter and no output, and
+# it records only the skill `--only-skill` names.
+skill_launch() {
+  local payload="$1" rc=0
+  : >"$SKIP_LOG"
+  SKILL_OUT="$(printf '%s' "$payload" |
+    HOME="$MARKER_CASE/skip-home" TMPDIR="$MARKER_CASE/tmp" PATH="$SKIP_BIN:$PATH" \
+      bash "$FIXTURE_ROOT/hooks/run-python-hook.sh" \
+      --marker-root "$MARKER_ROOT_DIR" --launch-marker clean-invoked \
+      --only-skill disk-hygiene:clean 2>&1)" || rc=$?
+  SKILL_RC="$rc"
+}
+skill_marker() {
+  [[ -f "$MARKER_ROOT_DIR/clean-invoked/$1.launched" ]] && printf 'present' || printf 'absent'
+}
+skill_launch '{"session_id":"sk-1","tool_name":"Skill","tool_input":{"skill":"disk-hygiene:clean","args":"/tmp/x"}}'
+assert_eq "a model load of clean records the session" "present" "$(skill_marker sk-1)"
+assert_eq "the marker-only row exits 0" "0" "$SKILL_RC"
+assert_eq "the marker-only row prints nothing, so it makes no permission decision" "" "$SKILL_OUT"
+assert_eq "the marker-only row spawns no interpreter" "0" "$(grep -c . "$SKIP_LOG" || true)"
+skill_launch '{"session_id":"sk-2","tool_name":"Skill","tool_input":{"skill":"/disk-hygiene:clean"}}'
+assert_eq "a leading slash on the skill name still records" "present" "$(skill_marker sk-2)"
+for other in \
+  '{"session_id":"sk-3","tool_name":"Skill","tool_input":{"skill":"repo-hygiene:clean"}}' \
+  '{"session_id":"sk-3","tool_name":"Skill","tool_input":{"skill":"clean"}}' \
+  '{"session_id":"sk-3","tool_name":"Skill","tool_input":{"skill":"disk-hygiene:clean-x"}}' \
+  '{"session_id":"sk-3","tool_name":"Skill","tool_input":{"skill":"disk-hygiene:audit","args":"{\"skill\":\"disk-hygiene:clean\"}"}}'; do
+  skill_launch "$other"
+  assert_eq "another skill records nothing: $other" "absent" "$(skill_marker sk-3)"
+  assert_eq "another skill exits 0 silently: $other" "0:" "$SKILL_RC:$SKILL_OUT"
+done
 
 mkdir -p "$MARKER_DIR"
 : >"$MARKER_DIR/sess-1.launched"
@@ -1004,5 +1037,7 @@ assert_eq "the second SessionStart handler is the exec-form resume notice" "true
   "$(jq '.hooks.SessionStart[0].hooks[1] | .command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/resume-notice.mjs", "--marker-root", "${CLAUDE_PLUGIN_DATA}"]' "$HOOKS_JSON" | tr -d '\r')"
 assert_eq "the clean expansion records the session the resume notice reads" "true" \
   "$(jq '[.hooks.UserPromptExpansion[].hooks[].args | .[1:6] == ["${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "--marker-root", "${CLAUDE_PLUGIN_DATA}", "--launch-marker", "clean-invoked"]] == [true]' "$HOOKS_JSON" | tr -d '\r')"
+assert_eq "a model load of clean records the same marker, with no target to launch" "true" \
+  "$(jq '[.hooks.PreToolUse[] | select(.matcher == "Skill") | .hooks[] | has("if") == false and .args[3:] == ["${CLAUDE_PLUGIN_ROOT}/hooks/run-python-hook.sh", "--marker-root", "${CLAUDE_PLUGIN_DATA}", "--launch-marker", "clean-invoked", "--only-skill", "disk-hygiene:clean"]] == [true]' "$HOOKS_JSON" | tr -d '\r')"
 
 pass "all run-python-hook contract checks"

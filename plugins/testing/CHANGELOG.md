@@ -3,6 +3,53 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.1] - 2026-10-29
+
+### Fixed
+
+- **`resolve-config.sh` and the `test-scan` hook no longer pipe into an early-exit grep** ([#11034](https://github.com/melodic-software/claude-code-plugins/issues/11034)). The resolver finds an unknown adapter's line through process substitution, so under `set -o pipefail` a found line can no longer come back as a failure, which left the error without its file and line, when `grep -m1` exits before `sed` finishes writing. The hook's config-error lookup takes the same form; its captured text was already correct.
+
+## [1.6.0] - 2026-10-29
+
+### Changed
+
+- **`/testing:audit --judge` gives tests of one shape one verdict** ([#11009](https://github.com/melodic-software/claude-code-plugins/issues/11009)). Before dispatching, the judge pass computes a shape key for every block with the new `skills/audit/scripts/judge-check.sh shape`. Blocks with the same key have the same body apart from the test's name, the same lines around them in their file, and the same judge class and effort. The judge sees only the first block of each key, and the others take its verdict, reported as `same shape as <path>:<start> <name>`. Before, each file got its own judge run, so identical tests could come back FLAG in one file and PASS in another.
+- **A comment-only repair is now caught by a script.** The judge pass runs `judge-check.sh comment-only` on each FLAG's proposed diff. When every line the diff adds or removes is blank or a comment, the verdict turns UNKNOWN. This check used to be the orchestrator's own reading of the diff. It applies the comment syntax of the scanner adapters' languages, from the same `judge-lib.sh` function the calibration harness uses.
+
+## [1.5.0] - 2026-10-29
+
+### Added
+
+- **`/testing:cleanup` offers cannot-fail-only mode when the mutation run cannot gate the folder** ([#11005](https://github.com/melodic-software/claude-code-plugins/issues/11005)). Step 3 used to stop the batch when `/mutation-testing:audit` recorded `K0 empty` or ended as `no mapping: scope empty`. A suite that reaches its code through dependency injection or an interface, common in .NET, maps nothing. Cleanup now names the result and offers cannot-fail-only mode, continuing only on your yes. It does the same when the audit refuses because you declined both its install command and `tool: manual`. Any step 2 quarantines stay in the batch, and a batch with no cannot-fail candidate still reports them. Unattended, it still stops. A new `cannot_fail_only_offered_on_empty_mapping` eval covers the offer on the `cleanup-dotnet` fixture.
+
+## [1.4.4] - 2026-10-29
+
+### Changed
+
+- The generated README "How to set these" block names `claude plugin configure <plugin>@<marketplace> --values-stdin` as the preferred headless route, per the plugin-reconfiguration convention, and keeps the `claude plugin install --config` rerun only as its fallback.
+
+## [1.4.3] - 2026-10-29
+
+### Fixed
+
+- **`/testing:cleanup` finds a C# test's production files** ([#11004](https://github.com/melodic-software/claude-code-plugins/issues/11004)). The gate-blind check in step 5 and the candidate changes listed under `Gate: block` in step 6 used to read the production files a test file imports. A C# `using` names a namespace, not a file, so those checks had no answer on C#. Both now read the files defining the code a test reaches: what it calls directly, through a helper, an interface or dependency injection. When no changed test reaches a newly surviving mutant's file, `Gate: block` lists every changed test, since each mutant ran against the whole test set. Step 6 now says the replay compares the two records mutant by mutant, and the classifier brief hands over the production files each test reaches.
+- A new `dotnet_gate_runs` eval runs the gated batch on the `cleanup-dotnet` fixture with `test-command: dotnet test {tests}`, and expects `Gate: pass` from the replay. The fixture gains its two `.csproj` files, a `.gitignore` for build output, and a `PriceFeedTests.cs.fixture` that calls `PriceFeed` directly. A `mutation-testing-dotnet.md` config beside it has the keys `/mutation-testing:setup apply` writes.
+
+## [1.4.2] - 2026-10-29
+
+### Changed
+
+- Synced the shared `yaml-subset.awk` parser, which now refuses what `yaml-subset.mjs` refuses: a key repeated in one mapping (before, only under `-v STRICT=1`), an unknown backslash escape in a double-quoted string, a nested flow sequence such as `a: [[1, 2]]`, a `%` directive line (before, skipped), and a sequence-item map whose later keys sit more than two columns past the dash. A config file holding one of these is now a parse error, so `parse-concern-value.sh` takes the fallback for it.
+
+## [1.4.1] - 2026-10-29
+
+### Changed
+
+- **`diagnose`, `plan`, `run-e2e` and `write` cite the gather-block convention.** The dated record
+  for why git reads stay out of the pre-compute block now links the repository's gather-block
+  convention, at the same heading, instead of a reference file inside the source-control plugin's
+  worktree skill.
+
 ## [1.4.0] - 2026-10-28
 
 ### Added

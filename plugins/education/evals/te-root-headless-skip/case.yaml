@@ -1,0 +1,21 @@
+schema_version: "1.1"
+name: te-root-headless-skip
+graders:
+  - name: no-root-question
+    type: regex
+    pattern: '\b(?:where|(?:which|what) (?:folder|directory|location|path|root))\b(?:[^\n?.]|\.(?=\S)){0,160}?\b(?:learning (?:state|files|notes|home|workspaces?)|workspaces?|Claude Learning)\b(?:[^\n?.]|\.(?=\S)){0,160}\?'
+    flags: 'i'
+    match: 'not_contains'
+    target: last_message
+  - name: no-root-ask-tool
+    type: tool_used
+    tool: AskUserQuestion
+    input_match: '[Ww]here|[Ff]older|Directory|directory|[Rr]oot|Location|location'
+    min: 0
+    max: 0
+    arm: both
+  - name: names-lower-rung
+    type: regex
+    pattern: '\brung\s*(?:4|5|four|five)\b|\bCLAUDE_PLUGIN_DATA\b|\bplugin[- ]data\b|\bClaude Learning\b'
+    flags: 'i'
+    target: last_message

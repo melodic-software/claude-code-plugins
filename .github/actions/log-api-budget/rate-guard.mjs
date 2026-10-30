@@ -53,7 +53,8 @@ const DEFAULTS = new URL("./rate-limits.json", import.meta.url);
 // belong to content-creation alone.
 const SHARE = (value) => typeof value === "number" && value >= 0 && value <= 1;
 const COUNT = (value) => Number.isInteger(value) && value >= 1;
-const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "limit-cap": COUNT };
+// pace, optional, is pace.mjs's share for timer-driven lanes.
+const FIELDS = { plan: (value) => SHARE(value) && value > 0, "writer-pause": SHARE, breaker: SHARE, "read-floor": SHARE, "limit-cap": COUNT, pace: SHARE };
 const CONTENT_FIELDS = { ...FIELDS, "per-minute": COUNT, "per-hour": COUNT };
 const REQUIRED = ["plan", "writer-pause", "breaker", "read-floor"];
 
@@ -159,6 +160,41 @@ export function recordReading({ token = process.env.API_BUDGET_TOKEN, dir = proc
   } catch {
     // A reading is never worth failing the job.
   }
+}
+
+// The bucket a request's reading goes under: token when the client pins one;
+// else API_BUDGET_OVERRIDE_TOKEN for a request whose bearer is not the
+// step's own token (GH_TOKEN, else GITHUB_TOKEN), as babysit_gh.py buckets a
+// call carrying its own GH_TOKEN; else API_BUDGET_TOKEN.
+const bearerOf = (headers) => {
+  const value = typeof headers?.get === "function" ? headers.get("authorization") : Object.entries(headers ?? {}).find(([name]) => name.toLowerCase() === "authorization")?.[1];
+  return String(value ?? "").replace(/^(bearer|token)\s+/i, "");
+};
+export function budgetToken(init, { token, env = process.env } = {}) {
+  if (token) {
+    return token;
+  }
+  const own = env.GH_TOKEN || env.GITHUB_TOKEN;
+  const bearer = bearerOf(init?.headers);
+  return env.API_BUDGET_OVERRIDE_TOKEN && own && bearer && bearer !== own ? env.API_BUDGET_OVERRIDE_TOKEN : env.API_BUDGET_TOKEN;
+}
+
+// A fetch that keeps each answer's rate-limit reading (recordReading) under
+// budgetToken's bucket, for the job-end api-calls notice, and changes nothing
+// else. Every client factory sends its attempts through one, inside its retry
+// layer. A fetch that already counts (marked with countsRequests) comes back
+// as it is, so no request is counted twice.
+export const COUNTED = Symbol.for("api-budget.counted");
+export const countsRequests = (fetchImpl) => Object.assign(fetchImpl, { [COUNTED]: true });
+export function countRequests(fetchImpl, { token } = {}) {
+  if (fetchImpl?.[COUNTED]) {
+    return fetchImpl;
+  }
+  return countsRequests(async function counted(url, init = {}) {
+    const response = await fetchImpl(url, init);
+    recordReading({ token: budgetToken(init, { token }), status: response.status, headers: response.headers });
+    return response;
+  });
 }
 
 // Appends one content-creating write, as its epoch second, to
@@ -402,21 +438,29 @@ export function createRateLimitLatch({
     belowFloor: (url) => low.get(poolOf(url)) === true,
     // A fetch that checks the latch before each request, counts a
     // content-creating write, and reads each answer, keeping its rate-limit
-    // reading under token (API_BUDGET_TOKEN when unset, recordReading), so a
+    // reading under token (budgetToken when unset, countRequests), so a
     // second client's readings never mix with the first's.
-    guard: (fetchImpl, { token } = {}) =>
-      async function guarded(url, init = {}) {
+    guard: (fetchImpl, { token } = {}) => {
+      const send = countRequests(fetchImpl, { token });
+      return countsRequests(async function guarded(url, init = {}) {
         check(url, init.method);
         if (isContentWrite(url, init.method, init.body)) {
           recordContentWrite({ at: Math.floor(now() / 1000) });
         }
-        const response = await fetchImpl(url, init);
-        recordReading({ token, status: response.status, headers: response.headers });
+        const response = await send(url, init);
         await observe(url, response, init.method, token);
         return response;
-      },
+      });
+    },
   };
 }
 
 // The process-wide latch every helper shares by default.
 export const rateLimitLatch = createRateLimitLatch();
+
+// latch with its guard pinned to token: a client on a second token keeps its
+// readings under token and plans to token's limits.api entry (entryOf), not
+// API_BUDGET_TOKEN's, while sharing latch's stops.
+export function budgetLatch(token, latch = rateLimitLatch) {
+  return { ...latch, guard: (fetchImpl) => latch.guard(fetchImpl, { token }) };
+}

@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/ecosystem-commands/ecosystem.schema.json",
+  "title": "Ecosystem command surface (one file per ecosystem)",
+  "description": "Schema for a consuming repository's .claude/ecosystems/<ecosystem>.yaml file. The filename stem is the ecosystem identifier (lowercase kebab-case). Command values are opaque shell strings; null means the ecosystem has no such phase. Contract: docs/contracts/ecosystem-commands/README.md.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["globs"],
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether this ecosystem applies to the repo. False disables detection without deleting the file."
+    },
+    "globs": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "description": "File glob patterns that classify changed files into this ecosystem (matched against repo-relative paths)."
+    },
+    "anchor": {
+      "type": "string",
+      "description": "How to resolve <solution-or-project-file>: the scoping anchor for ecosystems with a canonical entry point (e.g. 'the solution file at repo root (*.slnx)')."
+    },
+    "project-discovery": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "File patterns identifying per-project roots (walked for <project-dir>), e.g. ['pyproject.toml']."
+    },
+    "build-cmd": {
+      "type": ["string", "null"],
+      "description": "Build/compile verification command. Null when the ecosystem has no build step."
+    },
+    "test-cmd": {
+      "type": ["string", "null"],
+      "description": "Test command. Null when no test framework is wired."
+    },
+    "check-cmd": {
+      "type": ["string", "null"],
+      "description": "Lint/format check command (no file modification). Null when lint does not apply."
+    },
+    "fix-cmd": {
+      "type": ["string", "null"],
+      "description": "Format-only auto-fix command (whitespace, import layout, style). Must not apply semantic/code-changing lint autofixes. Null when the toolchain has no format-fix mode. Code-changing autofixes belong in code-fix-cmd."
+    },
+    "code-fix-cmd": {
+      "type": ["string", "null"],
+      "description": "Code-changing auto-fix command (lint autofixes that rewrite logic, delete unused imports, apply safe/unsafe code edits). Null when absent. Invoked only by /toolchain:lint --code-fix behind that skill's confirmation / --yes gate — never by bare --fix."
+    },
+    "opt-in": {
+      "type": "string",
+      "description": "A condition resolvers evaluate to decide whether to run this ecosystem's lint phase — either a single condition governing the whole check-cmd (e.g. 'a ruff config (ruff.toml, .ruff.toml, or pyproject.toml [tool.ruff])'), or a multi-clause value where each clause names a sub-tool and its own condition (e.g. 'shellcheck always applies to shell files; shfmt only when .editorconfig declares shell style'). Unmet -> resolvers report a visible skip rather than silently omitting the ecosystem, and never impose the tool's built-in defaults on a repo that hasn't configured it."
+    },
+    "install-hint": {
+      "type": "string",
+      "description": "Cross-platform install guidance shown when a required tool is missing. Missing tools report skip, never failure."
+    },
+    "tool-pin": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 },
+      "description": "Pinned tool versions keyed by tool name. When present, resolvers warn if the installed version drifts from the pin (a pin typically mirrors the repo's own CI pin). Inert when absent."
+    },
+    "gates": {
+      "type": "array",
+      "description": "Repo-specific CI-parity gates beyond plain build/test/lint (lockfile drift, generated-artifact freshness, schema regeneration).",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["name", "cmd"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "description": "Gate identifier shown in reports." },
+          "cmd": { "type": "string", "minLength": 1, "description": "Gate command (opaque shell string)." },
+          "trigger-globs": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 },
+            "description": "Run the gate only when a changed file matches (matched against the full changed-file set); omit to run whenever the ecosystem runs. Never selects the ecosystem under auto-targeting — to make a cross-ecosystem trigger select its ecosystem, add the pattern to the ecosystem's own `globs`."
+          },
+          "run-from": {
+            "type": "string",
+            "enum": ["ecosystem", "repo-root"],
+            "default": "ecosystem",
+            "description": "Execution scope for this gate's cmd. 'ecosystem' (default) runs from the same location the ecosystem's own build/test/lint use — once per project-discovery root, the anchor's directory, or $REPO_ROOT when neither is defined; unchanged from pre-run-from behavior. 'repo-root' forces a single run from $REPO_ROOT regardless of the ecosystem's project-discovery or anchor, for a repo-wide check (e.g. protobuf generation, schema freshness) declared under a project-discovery ecosystem that would otherwise run redundantly, or fail, once per project root. Under 'repo-root', a cmd using the <files> placeholder gets the full ecosystem-scoped changed-files set, not one project's subset, and <project-dir> is undefined — a cmd using it under 'repo-root' is a configuration error a resolver reports as a failure rather than guessing an expansion."
+          },
+          "remediation": { "type": "string", "description": "Pointer shown on failure." }
+        }
+      }
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-form caveats a resolver should surface (trap flags, ordering constraints). Rationale belongs in the repo's own rules, not here."
+    }
+  }
+}

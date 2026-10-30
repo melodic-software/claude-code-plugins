@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git rev-parse --show-toplevel"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/plugins/education/skills/explain/scripts/parse-concern-value.sh\" \"/tmp/run/docs/conventions/education.yaml\" explain_starting_rung"
+          }
+        }
+      ],
+      "why": "documented reader"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        }
+      ],
+      "why": "never reads the file"
+    }
+  ]
+}

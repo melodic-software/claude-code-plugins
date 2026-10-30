@@ -294,7 +294,7 @@ audit_file() {
 
   local t1=0 t2=0 t3=0
   local prev_line="" line_num=0 shapes shape excerpt
-  local prev_ct="" prev_shapes="" ct joined
+  local prev_ct="" prev_shapes="" ct joined joined_shapes
 
   # Pre-pass: every line of a comment run carrying a license cue is exempt from origin-note,
   # even when the cue sits on another line of the same NOTICE block.
@@ -315,24 +315,36 @@ audit_file() {
   # shellcheck disable=SC2094 # emit_finding only prints the file name; it never writes the file
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_num=$((line_num + 1))
+    # Under --added-since a line is analyzed only when a finding it feeds can be in scope: its
+    # own, the pair it ends, or the pair the next line ends. So cost tracks the added lines.
+    if ! in_scope $((line_num - 1)) "$line_num" $((line_num + 1)); then
+      prev_line="$line"
+      prev_ct=""
+      prev_shapes=""
+      continue
+    fi
     if cr_line_skipped "$prev_line" "$line"; then
       prev_line="$line"
       prev_ct=""
       continue
     fi
-    shapes="$(cr_detect_shapes "$line" "${license_block[$line_num]:-0}" "${justified_run[$line_num]:-0}" || true)"
+    cr_detect_shapes "$line" "${license_block[$line_num]:-0}" "${justified_run[$line_num]:-0}"
+    shapes="$REPLY"
 
     # A comment line that continues a comment on the line before it is also read joined to
     # that line, so a phrase wrapped across the break is found. Only a shape neither line
     # yields alone is new, and it is reported once, at the first line's number.
     ct=""
     if cr_is_comment_line "$line"; then
-      ct="$(cr_comment_text "$line")"
+      cr_comment_text "$line"
+      ct="$REPLY"
       ct="${ct#"${ct%%[![:space:]]*}"}"
       ct="${ct%"${ct##*[![:space:]]}"}"
     fi
     if [[ -n "$ct" && -n "$prev_ct" ]] && in_scope $((line_num - 1)) "$line_num"; then
-      joined="$(cr_trim_excerpt "$prev_ct $ct")"
+      cr_detect_shapes_text "$prev_ct $ct" "${license_block[$line_num]:-0}" "${justified_run[$line_num]:-0}"
+      joined_shapes="$REPLY"
+      [[ -n "$joined_shapes" ]] && joined="$(cr_trim_excerpt "$prev_ct $ct")"
       while IFS= read -r shape; do
         [[ -z "$shape" ]] && continue
         case $'\n'"$shapes"$'\n'"$prev_shapes"$'\n' in
@@ -340,7 +352,7 @@ audit_file() {
         *) ;;
         esac
         emit_finding "$file" "$shape" $((line_num - 1)) "$joined"
-      done < <(cr_detect_shapes_text "$prev_ct $ct" "${license_block[$line_num]:-0}" "${justified_run[$line_num]:-0}" || true)
+      done <<<"$joined_shapes"
     fi
 
     if [[ -n "$shapes" ]] && in_scope "$line_num"; then
@@ -355,7 +367,7 @@ audit_file() {
     prev_shapes="$shapes"
   done <"$file"
 
-  if ((t1 + t2 + t3 > 0)) && head -n 10 "$file" | grep -qiE 'sync-managed|do not edit|@generated'; then
+  if ((t1 + t2 + t3 > 0)) && grep -qiE 'sync-managed|do not edit|@generated' < <(head -n 10 "$file"); then
     printf 'Note: upstream (sync-managed or generated file) %s\n' "$file"
   fi
   printf 'Summary file: %s | T1=%s T2=%s T3=%s\n' "$file" "$t1" "$t2" "$t3"

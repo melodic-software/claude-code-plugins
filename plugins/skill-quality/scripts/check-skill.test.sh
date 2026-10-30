@@ -4981,6 +4981,15 @@ if grep -q 'output truncated to the last 100 lines; run bash .*x.test.sh for all
 else
   fail "check 7 should truncate a 300-line failing test: $out"
 fi
+# CHECK_SKILL_SKIP_SCRIPT_TESTS=1 skips check 7 with a note: the failing test
+# above does not run.
+out="$(CHECK_SKILL_SKIP_SCRIPT_TESTS=1 run script-long 2>&1)"
+if grep -q 'script tests skipped (CHECK_SKILL_SKIP_SCRIPT_TESTS=1)' <<<"$out" &&
+  ! grep -q 'script test failed' <<<"$out" && ! grep -qx '300' <<<"$out"; then
+  pass "CHECK_SKILL_SKIP_SCRIPT_TESTS=1 skips check 7"
+else
+  fail "CHECK_SKILL_SKIP_SCRIPT_TESTS=1 should skip check 7: $out"
+fi
 
 # Check 7 runs a skill's script tests only when the skill sits in the invoking
 # cwd's git work tree; anywhere else (another repo, no repo, or a cwd in no
