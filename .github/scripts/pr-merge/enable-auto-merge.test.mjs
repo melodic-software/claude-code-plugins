@@ -1044,7 +1044,7 @@ test("a labeled pull request whose standing refusal lacks the verifier's answer 
   assert.ok(!heldLane.calls.some(({ body }) => body?.query === DETAIL_QUERY));
 });
 
-test("a risk hold is a person's only for a security finding, a high path, a trusted-actor widening or a cost hold", async () => {
+test("a risk hold is a person's only for a security finding, a trusted-actor widening or a cost hold", async () => {
   // reviewsPerson as babysit_risk.person_reasons answers for each code,
   // read from the Python, the one list.
   const codes = (reviews) => reviews.split("; ").map((part) => part.slice(0, part.indexOf(": ")));
@@ -1060,18 +1060,19 @@ test("a risk hold is a person's only for a security finding, a high path, a trus
   };
   const risk = (reviews) => ({ refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews, reviewsPerson: answer(reviews) });
   const holding = (reviews) => `pr-merge's gate holds it on its risk score (${reviews})`;
-  const lane = ["evidence-unbound:claude-review: no-marker", "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", "unreadable: RuntimeError: boom"];
-  const person = [
-    "security-finding: 1 CRITICAL",
+  // A high path is the lanes' (owner decision 2026-10-30, #11020).
+  const lane = [
+    "evidence-unbound:claude-review: no-marker",
+    "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks",
+    "unreadable: RuntimeError: boom",
     "high-path:**: 'a' mode '120000' (symlink)",
-    "files-incomplete: x; trust-gate:trusted-actors: entries added",
-    "cost-review-required: infra/main.tf",
     "high-path:docs/**: docs/a.md",
   ];
+  const person = ["security-finding: 1 CRITICAL", "files-incomplete: x; trust-gate:trusted-actors: entries added", "cost-review-required: infra/main.tf"];
   // A new comment wraps a reason line past 100 columns at a space.
   const wrapped = {
     [lane[1]]: "pr-merge's gate holds it on its risk score (manifest-review-required:\n  plugins/a/.claude-plugin/plugin.json: hooks)",
-    [person[2]]: "pr-merge's gate holds it on its risk score (files-incomplete: x; trust-gate:trusted-actors: entries\n  added)",
+    [person[1]]: "pr-merge's gate holds it on its risk score (files-incomplete: x; trust-gate:trusted-actors: entries\n  added)",
   };
   for (const reviews of lane) {
     // A lane's stays a lane's however long its comment has stood: past
