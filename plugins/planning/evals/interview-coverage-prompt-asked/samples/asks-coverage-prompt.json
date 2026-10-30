@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Before I write the Brief, one coverage check: are the criteria missing an unwanted-behavior case (IF <trigger>, THEN <response>) or a state-driven case (WHILE <state>, <response>)? \"Neither applies\" is a fine answer.",
+      "why": "names both patterns by name and form"
+    },
+    {
+      "answer": "Coverage: do you want an IF the git call fails, THEN exit non-zero criterion, or a WHILE a prune is running criterion? Neither applies is fine.",
+      "why": "uppercase EARS keywords for both cases"
+    },
+    {
+      "answer": "One check on AC coverage. State-driven: anything that must hold while some state lasts? Unwanted-behavior: anything for when a step fails?",
+      "why": "both names, state-driven first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Q1: Should the dry-run output include the branch's last commit date?\nMy recommendation: no.",
+      "why": "no coverage prompt"
+    },
+    {
+      "answer": "If the flag is passed then we print branches, while keeping the real prune unchanged.",
+      "why": "lowercase prose if/then/while is not the coverage prompt"
+    },
+    {
+      "answer": "Are the criteria missing an unwanted-behavior case, such as a failed git call?",
+      "why": "asks only the unwanted-behavior half"
+    }
+  ]
+}
