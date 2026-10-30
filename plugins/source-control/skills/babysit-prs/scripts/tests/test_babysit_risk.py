@@ -1158,19 +1158,21 @@ def _lane_config():
     )
 
 
-def _lane_input(files):
+def _lane_input(files, **changes):
     """The pr-merge lane's input under this repository's own
     docs/conventions/pr-pipeline.yaml, wired as babysit_merge.score_unattended
-    wires it."""
+    wires it; `changes` overrides a switch."""
     config = _lane_config()
-    return _input(
-        files=files,
-        max_changed_lines=config.max_changed_lines,
-        high_paths=config.denied_paths,
-        high_floor=config.high_path_floor,
-        max_changed_files=config.max_changed_files,
-        lines_optional=True,
-    )
+    wired = {
+        "files": files,
+        "max_changed_lines": config.max_changed_lines,
+        "high_paths": config.denied_paths,
+        "high_floor": config.high_path_floor,
+        "path_holds": config.path_holds,
+        "max_changed_files": config.max_changed_files,
+        "lines_optional": True,
+    }
+    return _input(**(wired | changes))
 
 
 class LanePathFloorTests(unittest.TestCase):
@@ -1179,10 +1181,12 @@ class LanePathFloorTests(unittest.TestCase):
     (B) and Q-ENFORCE (A)); the trust gate still holds the trusted-actor
     list."""
 
-    def test_the_live_config_has_the_floor_off(self):
+    def test_the_live_config_has_the_floor_and_path_holds_off(self):
+        # Owner decision Q15: path holds off until open issues and PRs reach 0.
         self.assertIs(_lane_config().high_path_floor, False)
+        self.assertIs(_lane_config().path_holds, False)
 
-    def test_the_floor_holds_with_the_switch_off(self):
+    def test_the_floor_holds_with_path_holds_on_and_is_skipped_live(self):
         for path in (
             ".gitmodules",
             ".github/CODEOWNERS",
@@ -1239,9 +1243,17 @@ class LanePathFloorTests(unittest.TestCase):
                     _lane("claude-security-review", open_findings=1),
                 )
                 result = score(
-                    dataclasses.replace(_lane_input((_file(path),)), lanes=unreviewed)
+                    _lane_input((_file(path),), lanes=unreviewed, path_holds=True)
                 )
                 self.assertEqual(result.score, Risk.HIGH, result.reasons)
+                self.assertTrue(
+                    any(babysit_risk.is_path_hold(r) for r in result.reasons)
+                )
+                live = score(_lane_input((_file(path),), lanes=unreviewed))
+                self.assertFalse(
+                    any(babysit_risk.is_path_hold(r) for r in live.reasons)
+                )
+                self.assertNotEqual(live.skipped, ())
 
     def test_trusted_paths_off_the_floor_merge(self):
         for path in (
@@ -1308,9 +1320,10 @@ class LanePathFloorTests(unittest.TestCase):
         patch = "@@ -1,1 +1,1 @@\n-  max-in-flight: 5\n+  max-in-flight: 50"
         files = (_file("docs/conventions/pr-pipeline.yaml", patch=patch),)
         self.assertEqual(
-            _codes(score(_lane_input(files))),
+            _codes(score(_lane_input(files, path_holds=True))),
             ("high-path:docs/conventions/pr-pipeline.yaml", "cost-finding"),
         )
+        self.assertEqual(_codes(score(_lane_input(files))), ("cost-finding",))
 
 
 MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
@@ -1960,6 +1973,37 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             )
         )
 
+    def test_a_hash_inside_quotes_or_a_block_scalar_hides_no_secret(self):
+        text = "name: x\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n"
+        for added in (
+            '      - run: echo "a #b ${{ secrets.DEPLOY }}"\n',
+            "      - run: echo 'a #b ${{ secrets.DEPLOY }}'\n",
+            '      - env:\n          K: "a #b ${{ secrets.DEPLOY }}"\n',
+            # A quoted scalar's later lines.
+            '      - run: "echo a\n          #b ${{ secrets.DEPLOY }}"\n',
+            "      - run: |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+            "      - run: >-\n          echo a\n          # ${{ secrets.DEPLOY }}\n",
+            "      - name: y\n        run: |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+            # An anchor or tag before the scalar.
+            "      - run: &s |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+            "      - run: !!str |\n          echo a #b ${{ secrets.DEPLOY }}\n",
+            '      - env:\n          K: &k "a\n            #b ${{ secrets.DEPLOY }}"\n',
+            # A flow mapping's value right after a quoted key's `:`.
+            '    env: {"K":"x\n      #b ${{ secrets.DEPLOY }}"}\n',
+            "    env: {'K' :'x\n      #b ${{ secrets.DEPLOY }}'}\n",
+        ):
+            with self.subTest(added):
+                self.assertTrue(babysit_risk.gated_workflow("x", text + added))
+        for plain in (
+            "      # ${{ secrets.DEPLOY }}\n      - run: echo a\n",
+            "      - run: echo a # ${{ secrets.DEPLOY }}\n",
+            "      - run: 'echo a' # ${{ secrets.DEPLOY }}\n",
+            # A block scalar ends at its key's indent.
+            "      - run: |\n          echo a\n        env: {} # ${{ secrets.DEPLOY }}\n",
+        ):
+            with self.subTest(plain):
+                self.assertFalse(babysit_risk.gated_workflow("x", text + plain))
+
     def test_the_generator_puts_a_newly_credentialed_workflow_on_the_floor(self):
         import importlib.util
         import shutil
@@ -2415,3 +2459,49 @@ class LaneSourceReviewPathTests(unittest.TestCase):
         result = self._score(_lane("claude-security-review"))
         self.assertNotIn(f"review-path:{self.PATH}", _codes(result))
         self.assertFalse(holds(result))
+
+
+class PathHoldsSwitchTests(unittest.TestCase):
+    """`merge.diff-check.path-holds` (owner decision Q15): off, a changed
+    path holds nothing for its path alone; on, the floor holds as before;
+    a cost path and an unsafe path hold either way."""
+
+    GATE = ".github/scripts/pr-merge/clear-escalations.mjs"
+    WORKFLOW = ".github/workflows/pr-merge.yml"
+    # The security review unbound, so an enforcement path is not cleared.
+    UNREVIEWED = (_lane("claude-review"), _lane("claude-security-review", bound=False))
+
+    def _paths(self, result):
+        return [r.code for r in result.reasons if babysit_risk.is_path_hold(r)]
+
+    def test_off_a_gate_script_change_gets_no_path_hold(self):
+        result = score(_input(files=(_file(self.GATE),), path_holds=False))
+        self.assertEqual(self._paths(result), [])
+        self.assertFalse(holds(result))
+        self.assertEqual([r.code for r in result.skipped], [f"high-path:{self.GATE}"])
+
+    def test_on_a_gate_script_change_holds_for_a_person(self):
+        result = score(_input(files=(_file(self.GATE),), path_holds=True))
+        self.assertEqual(self._paths(result), [f"high-path:{self.GATE}"])
+        self.assertTrue(holds(result))
+        self.assertEqual(result.skipped, ())
+
+    def test_off_a_workflow_change_gets_no_path_hold(self):
+        files = (_file(self.WORKFLOW),)
+        on = score(_input(files=files, lanes=self.UNREVIEWED))
+        self.assertNotEqual(self._paths(on), [])
+        off = score(_input(files=files, lanes=self.UNREVIEWED, path_holds=False))
+        self.assertEqual(self._paths(off), [])
+        self.assertEqual(sorted(r.code for r in off.skipped), sorted(self._paths(on)))
+
+    def test_off_a_cost_path_still_holds(self):
+        result = score(_input(files=(_file("infra/main.tf"),), path_holds=False))
+        self.assertIn("cost-review-required", _codes(result))
+        self.assertTrue(holds(result))
+
+    def test_off_an_unsafe_path_still_holds(self):
+        result = score(
+            _input(files=(_file("docs/a", mode="120000"),), path_holds=False)
+        )
+        self.assertIn("high-path:**", _codes(result))
+        self.assertTrue(holds(result))

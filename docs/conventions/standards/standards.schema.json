@@ -1,6 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/standards/standards.schema.json",
-  "description": "Moved to docs/contracts/standards/standards.schema.json; this schema refers there.",
-  "$ref": "https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/standards/standards.schema.json"
-}

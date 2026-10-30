@@ -89,3 +89,6 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 ^https://api\.github\.com/repos/anthropics/claude-code/releases$
 ^https://api\.github\.com/repos/anthropics/claude-code/releases/tags/v2\.1\.269$
 ^https://api\.github\.com/repos/anthropics/claude-code/tags$
+
+# TEMPORARY (#7537): local links to the plugin-author contracts that moved from docs/conventions/<name>/ to docs/contracts/<name>/ dangle until the old-path stubs land; the stubs change removes this entry.
+^file://.*/docs/conventions/(argument-hint|authoring-formats|check-placement|commit-convention|config-cascade|consumer-config-layering|detector-findings|ecosystem-commands|enforcement-ladder|execution-target|finding-suppression|hook-budget|hook-config-delivery|hook-input-rewriting|hook-observability|hook-precision|hook-telemetry|instruction-exception-register|invocation-context|invocation-mode|liveness-assertion|loop-lane|mod-authoring|native-references|on-demand-dependencies|permission-rule-hygiene|plugin-data-report-keying|plugin-option-naming|plugin-reconfiguration|pr-body-convention|pr-scope-budget|pre-pr-ordering|prerequisites|recommendation-basis|record-bundle|rendered-views|retired-conventions|routing-as-data|seam-phrasing|setup-lifecycle|shell-test-helpers|skill-argument-shape|standards|tracker-reference-form|untrusted-content|upstream-drift|windows-path-emit|workspace-environment)(/|#|$)

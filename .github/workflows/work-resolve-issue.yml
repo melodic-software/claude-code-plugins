@@ -48,9 +48,12 @@ jobs:
   # this job. It runs check-trusted-trigger from the default branch tip with
   # a read-only token and no secret; the read runner checks the trigger again.
   # A trusted label proceeds no further (check-blockers.mjs, admission's rules)
-  # on an issue untrusted provenance holds, for good, or one a blocker still
-  # blocks, or whose labels, events or blockers cannot be read: agent-ready
-  # stays, and work-unblock's sweep re-fires the last two once they clear.
+  # on an issue neither a listed human nor the lanes App wrote, or one
+  # untrusted provenance holds, both for good, or one a blocker still
+  # blocks, or whose labels, events or blockers cannot be read. On the first,
+  # report-skip removes agent-ready and comments that a listed human re-files
+  # the work; on the rest agent-ready stays, and work-unblock's sweep re-fires
+  # the last two once they clear.
   admit:
     if: github.event.label.name == 'agent-ready'
     runs-on: ubuntu-24.04
@@ -60,6 +63,7 @@ jobs:
       issues: read # list the issue's blocked_by dependencies
     outputs:
       proceed: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.proceed == 'true' }}
+      outsider: ${{ steps.gate.outputs.proceed == 'true' && steps.blockers.outputs.outsider == 'true' }}
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -118,7 +122,7 @@ jobs:
       # re-fired.
       - name: Stop on untrusted provenance
         if: steps.blockers.outputs.untrusted == 'true'
-        run: echo "untrusted provenance holds this issue; a person decides it"
+        run: echo "an outside author or untrusted provenance holds this issue; a person decides it"
 
       - name: Log the API budget at the end
         if: always()
@@ -410,13 +414,18 @@ jobs:
   # below skips. This job reports it instead: report-outcome, with the
   # lanes App token, routes the skip by stop-routes.json (each a hold: the
   # human-gated label), removes agent-ready and comments the next step. It needs no slot and runs at the WIP cap too.
+  # It also reports the admit job's outside-author stop (pick-slot skipped,
+  # hence !cancelled()): report-outcome removes agent-ready and comments that
+  # a listed human re-files the work as a new issue, adding no label.
   report-skip:
     needs: [admit, pick-slot]
     if: >-
-      github.event.label.name == 'agent-ready' && needs.admit.outputs.proceed == 'true'
+      !cancelled() && github.event.label.name == 'agent-ready'
+      && (needs.admit.outputs.outsider == 'true'
+      || (needs.admit.outputs.proceed == 'true' && needs.pick-slot.result == 'success'
       && (needs.pick-slot.outputs.skip-reason == 'split-required'
       || needs.pick-slot.outputs.skip-reason == 'research-first'
-      || needs.pick-slot.outputs.skip-reason == 'probe-first')
+      || needs.pick-slot.outputs.skip-reason == 'probe-first')))
     permissions:
       contents: read
       pull-requests: read
@@ -431,7 +440,7 @@ jobs:
       issue-number: ${{ format('{0}', github.event.issue.number) }}
       trusted-base: default-tip
       app-label: agent-ready
-      dimension-skip: ${{ needs.pick-slot.outputs.skip-reason }}
+      dimension-skip: ${{ needs.admit.outputs.outsider == 'true' && 'outside-author' || needs.pick-slot.outputs.skip-reason }}
 
   # The commit job: a script with no model that runs nothing from the patch.
   # It checks the patch against the model job's SHA-256, applies it to the

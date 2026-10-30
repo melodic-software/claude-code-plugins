@@ -371,7 +371,7 @@ fi
 # makes the missing path a no-op). A shell whose rm supports neither falls back
 # to plain rm -rf — the device and path checks still bound the target itself.
 rm_flags=(-rf)
-if rm --version 2>/dev/null | grep -qi coreutils; then
+if grep -qi coreutils < <(rm --version 2>/dev/null); then
   rm_flags+=(--one-file-system)
 elif rm -f -x "$TARGET_ABS.__onefs_probe__" 2>/dev/null; then
   rm_flags+=(-x)

@@ -1,6 +1,0 @@
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/block-windows-drive-tmp.schema.json",
-  "description": "Moved to docs/contracts/hook-telemetry/data/block-windows-drive-tmp.schema.json; this schema refers there.",
-  "$ref": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/contracts/hook-telemetry/data/block-windows-drive-tmp.schema.json"
-}

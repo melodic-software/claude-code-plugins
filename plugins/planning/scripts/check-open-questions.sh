@@ -32,13 +32,14 @@
 #          register, a malformed row, an unknown status, a duplicate, an
 #          out-of-order or a missing (gap) Q id, an unfenced `- Q<N> |` row
 #          outside the register section (any heading ends the section, a
-#          sub-heading inside it included), or a named `--brief` that is
-#          missing. Row errors are collected in one pass, each on stderr with
-#          its own ledger line, and the verdict keeps the counts of the rows
-#          that parsed.
+#          sub-heading inside it included), a named `--brief` that is
+#          missing, or a `--surface` that is missing, comes without `--brief`
+#          and `--procedure`, or cannot be exported. Row errors are collected
+#          in one pass, each on stderr with its own ledger line, and the
+#          verdict keeps the counts of the rows that parsed.
 #
 # Usage:
-#   bash check-open-questions.sh --ledger <interview-checklist.md> [--brief <PLAN.md>] [--procedure]
+#   bash check-open-questions.sh --ledger <interview-checklist.md> [--brief <PLAN.md>] [--procedure] [--surface <data_dir>]
 #   bash check-open-questions.sh --help
 #
 # Register row shape (inside the ledger's `## Open-question register` section):
@@ -79,7 +80,15 @@
 #   - with --brief, the Brief holds every section of the literal Brief template:
 #     TLDR, Problem, Goal, Work size, Constraints, Acceptance criteria,
 #     Captured assumptions, Out-of-scope, Deferred questions (headings only;
-#     content is not graded)
+#     content is not graded), plus Intent when the Brief carries a
+#     `- Restatement:` stamp (a page export)
+#   - with --surface <data_dir> (the interview page's data dir), the gate runs
+#     `surface/round.sh export-brief --ledger <ledger>` on that data dir and
+#     the Brief holds every section that export writes (Decisions among them
+#     when the confirmed restatement has decisions), and its Intent section
+#     holds every line of the export's Intent: the intent paragraph and each
+#     live ask, note, own answer and note typed on a choice, compared with
+#     whitespace runs made one space. Needs Python 3, as the page does
 # Each defect is named on stderr. Without --procedure the verdict says
 # `procedure=unchecked`, the same convention as `brief=unchecked`. A gradeable
 # register with a procedure defect exits 1 with `status=incomplete` (`open` when
@@ -266,10 +275,53 @@ brief_fields() {
   ' "$3"
 }
 
+# Print each unfenced heading's text between lines `lo` and `hi` (both
+# exclusive), lowercased, its #s dropped and its whitespace runs made one space.
+heading_texts() {
+  awk -v lo="$1" -v hi="$2" "$fence_awk"'
+    NR <= lo || NR >= hi { next }
+    fence_line($0) { next }
+    fenced { next }
+    /^#+[[:space:]]/ {
+      text = tolower($0)
+      sub(/^#+/, "", text)
+      gsub(/[[:space:]]+/, " ", text)
+      sub(/^ /, "", text)
+      sub(/ $/, "", text)
+      print text
+    }
+  ' "$3"
+}
+
+# Print each non-blank, unfenced line of the section whose heading text is
+# `name` (lowercase) between lines `lo` and `hi` (both exclusive), with its
+# whitespace runs made one space, as brief_fields reads a line.
+section_lines() {
+  awk -v name="$1" -v lo="$2" -v hi="$3" "$fence_awk"'
+    NR <= lo || NR >= hi { next }
+    fence_line($0) { next }
+    fenced { next }
+    {
+      text = $0
+      gsub(/[[:space:]]+/, " ", text)
+      sub(/^ /, "", text)
+      sub(/ $/, "", text)
+    }
+    /^#+[[:space:]]/ {
+      section = tolower(text)
+      sub(/^#+ /, "", section)
+      next
+    }
+    section == name && text != "" { print text }
+  ' "$4"
+}
+
 ledger=""
 brief=""
 brief_named=0
 procedure_on=0
+surface=""
+surface_named=0
 
 die_ungradeable() {
   echo "error: $1" >&2
@@ -305,6 +357,16 @@ while [[ $# -gt 0 ]]; do
     procedure_on=1
     shift
     ;;
+  --surface)
+    surface="${2-}"
+    surface_named=1
+    shift 2 || die_ungradeable "--surface needs a value"
+    ;;
+  --surface=*)
+    surface="${1#*=}"
+    surface_named=1
+    shift
+    ;;
   *)
     die_ungradeable "unknown argument: $1"
     ;;
@@ -320,6 +382,14 @@ done
 if [[ "$brief_named" -eq 1 ]]; then
   [[ -n "$brief" ]] || die_ungradeable "--brief needs a value"
   [[ -f "$brief" ]] || die_ungradeable "--brief not found: $brief"
+fi
+# --surface grades the Brief's sections, which only --brief with --procedure
+# reads; accepting it alone would report a comparison that never ran.
+if [[ "$surface_named" -eq 1 ]]; then
+  [[ -n "$surface" ]] || die_ungradeable "--surface needs a value"
+  [[ "$brief_named" -eq 1 && "$procedure_on" -eq 1 ]] ||
+    die_ungradeable "--surface needs --brief and --procedure"
+  [[ -d "$surface" ]] || die_ungradeable "--surface not found: $surface"
 fi
 
 register_matches="$(heading_matches 'open-question register' "$ledger")"
@@ -679,8 +749,11 @@ if [[ "$procedure_on" -eq 1 ]]; then
 
   if [[ "$brief_named" -eq 1 ]]; then
     brief_bounds
-    for section_pattern in 'tl;?dr' 'problem' 'goal' 'work[- ]size' 'constraints' \
-      'acceptance criteria' 'captured assumptions' 'out[- ]of[- ]scope' 'deferred questions'; do
+    section_patterns=('tl;?dr' 'problem' 'goal' 'work[- ]size' 'constraints'
+      'acceptance criteria' 'captured assumptions' 'out[- ]of[- ]scope' 'deferred questions')
+    # A page export writes Intent above Goal; a hand-written Brief need not.
+    [[ -z "$restatement_stamp" ]] || section_patterns+=('intent')
+    for section_pattern in "${section_patterns[@]}"; do
       section_matches="$(heading_matches "^#+[[:space:]]+${section_pattern}[[:space:]]*\$" "$brief")"
       section_status=$?
       if [[ "$section_status" -eq 4 ]]; then
@@ -691,6 +764,30 @@ if [[ "$procedure_on" -eq 1 ]]; then
       section_matches="$(printf '%s\n' "$section_matches" | awk -F'\t' -v lo="$brief_lo" -v hi="$brief_hi" '$1 > lo && $1 < hi')"
       [[ -n "$section_matches" ]] || proc_problems="${proc_problems}Brief is missing the section matching '$section_pattern'"$'\n'
     done
+
+    # The page's own export is what the Brief must still carry: a section a
+    # confirmed restatement filled (Decisions) and the user's words in Intent
+    # exist only on the page, so the template headings alone cannot show them.
+    if [[ "$surface_named" -eq 1 ]]; then
+      expected_brief="$(mktemp)" || die_ungradeable "could not create a temp file for the --surface export"
+      trap 'rm -f "$expected_brief"' EXIT
+      round_sh="$(dirname "${BASH_SOURCE[0]}")/../surface/round.sh"
+      export_err="$(bash "$round_sh" --dir "$surface" export-brief --ledger "$ledger" --out "$expected_brief" 2>&1 >/dev/null)" ||
+        die_ungradeable "could not export the Brief from --surface $surface: $export_err"
+      # export-brief writes `## Brief` on line 1 and ends the Brief at `## Plan`.
+      export_hi="$(awk '/^##[[:space:]]+Plan[[:space:]]*$/ { print NR; exit }' "$expected_brief")"
+      export_hi="${export_hi:-999999999}"
+      brief_headings=$'\n'"$(heading_texts "$brief_lo" "$brief_hi" "$brief")"$'\n'
+      while IFS= read -r want; do
+        [[ -z "$want" || "$brief_headings" == *$'\n'"$want"$'\n'* ]] ||
+          proc_problems="${proc_problems}Brief is missing the section '$want' that the page export writes"$'\n'
+      done <<<"$(heading_texts 1 "$export_hi" "$expected_brief")"
+      brief_intent=$'\n'"$(section_lines intent "$brief_lo" "$brief_hi" "$brief")"$'\n'
+      while IFS= read -r want; do
+        [[ -z "$want" || "$brief_intent" == *$'\n'"$want"$'\n'* ]] ||
+          proc_problems="${proc_problems}Brief's Intent is missing a line the page export writes: $want"$'\n'
+      done <<<"$(section_lines intent 1 "$export_hi" "$expected_brief")"
+    fi
   fi
 
   if [[ -n "$proc_problems" ]]; then

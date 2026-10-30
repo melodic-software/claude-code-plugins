@@ -20,6 +20,10 @@
     {
       "answer": "Replace the string concatenation in workers/export.js with an array join; that is the hot loop.",
       "why": "names a cause and a fix"
+    },
+    {
+      "answer": "No profile was in hand, so I ran the worker on synthetic orders and recorded a CPU profile myself. In the 2M-row CPU profile, 69% of samples were top-level script work, and the string-building loop isn't the problem. To confirm on the real workload, run `/app-control:drive capture --kind cpu` against the worker and come back with the file.",
+      "why": "reports results from a profile the agent recorded in this run"
     }
   ]
 }

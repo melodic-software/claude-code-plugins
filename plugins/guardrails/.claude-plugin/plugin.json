@@ -81,7 +81,7 @@
     "block_cross_domain_enabled": {
       "type": "boolean",
       "title": "Block-cross-domain guard",
-      "description": "From a session in one identity domain (identity-domains.json), denies a Bash or PowerShell command naming another domain's root or owner, putting its marker in a git remote, author or gh/az config variable, or running gh or az without its domain's config directory. No map: no-op. On by default.",
+      "description": "Denies a Bash or PowerShell global git identity write (git config --global user.email and kin, a ~/.gitconfig write). In an identity domain (identity-domains.json) also denies naming another domain's path, using its marker, or gh/az without the domain's config dir. On by default.",
       "default": true
     },
     "block_unresolved_pr_merge_enabled": {
@@ -176,5 +176,5 @@
       "min": 1
     }
   },
-  "version": "0.63.1"
+  "version": "0.63.4"
 }

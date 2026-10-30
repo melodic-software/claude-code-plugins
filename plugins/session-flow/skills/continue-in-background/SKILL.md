@@ -210,14 +210,26 @@ fallback), then:
    inherits" below calls for it.
 
    `--permission-mode auto` is always passed, following the repository's rule to launch
-   unattended local lanes with `--permission-mode auto` (AGENTS.md). Whether a detached session
-   can still stop on a prompt after auto mode falls back is unverified: no probe has been run.
-   Pointer: [Permission modes § When auto mode falls back](https://code.claude.com/docs/en/permission-modes#when-auto-mode-falls-back)
-   and [agent view § Permission mode, model, and effort](https://code.claude.com/docs/en/agent-view#permission-mode-model-and-effort);
-   as of 2026-10-19; recheck trigger: either section changes what a background session does when
-   an action is denied or auto mode falls back. The launch report says auto mode may deny an
-   action and that where a denied action is reported is unverified; it never promises the final
-   hand-off.
+   unattended local lanes with `--permission-mode auto` (AGENTS.md). We rely on one denied
+   action not stopping the launched session, which our probe observed: the denial came back to
+   the model as a tool error, the session went on to its next step and ended its turn with no
+   prompt, and the denial was in its transcript and `claude logs` output, reaching the final
+   hand-off only because the task asked for a per-step report. Whether a detached session can
+   still stop on a prompt after auto mode falls back is unverified: the probe made one denial and
+   did not exercise the fallback.
+
+   - **Pointer**: the probe record in [reference/denial-probe.md](reference/denial-probe.md); the
+     docs sections, [Permission modes § When auto mode falls back](https://code.claude.com/docs/en/permission-modes#when-auto-mode-falls-back)
+     and [agent view § Permission mode, model, and effort](https://code.claude.com/docs/en/agent-view#permission-mode-model-and-effort).
+   - **As of**: probe 2026-10-28, Claude Code 2.1.312; docs pages read 2026-10-29, first 100000
+     characters of each only
+   - **Recheck trigger**: a Claude Code release note changes how a background session handles a
+     classifier denial, or either section starts saying what a background session does when an
+     action is denied or auto mode falls back.
+
+   The launch report says auto mode may deny an action, that the session keeps going past a
+   denial, and that a denial is in the session's transcript and `claude logs <id>`, reaching the
+   final hand-off only when the resumed task reports it; it never promises the final hand-off.
 
    `claude --bg` starts the session as a background agent and returns immediately; the user
    manages it with `claude agents`. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required
@@ -232,8 +244,8 @@ fallback), then:
    save-point output on ANY path.
 3. Report the launch result: the command's output, the agent name, the `claude agents`
    management hint, any launched-session behavior the resumed work depends on (next
-   section), and that auto mode may deny an action and where a denied action is reported is
-   unverified, never a promise of the final hand-off. Verify the agent actually appeared. A zero-exit launch can still be invisible if
+   section), and the denied-action statement step 2 defines, never a promise of the final
+   hand-off. Verify the agent actually appeared. A zero-exit launch can still be invisible if
    the persistence override is ever unrecognized. Confirm by listing sessions non-interactively this
    turn when the CLI offers a way, and otherwise telling the user explicitly: "confirm it
    appears in `claude agents`". The `/clear`-then-paste instruction is replaced by this report.
@@ -370,8 +382,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   `/goal`, a space and the goal region's between-rails text from `save_point.py emit <file>` on
   the full path (validated first, exit 0 quoted), or on prompt-only the goal region then the
   resume region, counted within the limit; and the launch result reported (including any non-inherited flags mirrored or worth
-  flagging, and that auto mode may deny an action and where a denied action is reported is
-  unverified), OR the non-zero exit reported with fallback to
+  flagging, and step 2's denied-action statement: auto mode may deny an action, the session keeps going past a denial, which
+  is in its transcript and `claude logs`, not promised in the final hand-off), OR the non-zero
+  exit reported with fallback to
   `/clear`-then-paste
 - [ ] For resumed verify or unattended work, `--effort` passed with the model-config table's level
   whose described use fits the task, the report naming the level and quoting that use; page unreadable → said so, no `--effort`, and the report states the session starts

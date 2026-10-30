@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { keepThreads, staleVerifyNotes, threadAuthors, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
-import { main, noteComments, notePath, postNotes, readVerdict } from "./verify-notes.mjs";
+import { failComment, main, noteComments, notePath, postNotes, readVerdict } from "./verify-notes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const APP = 337595936;
@@ -77,6 +77,32 @@ test("with no note naming a changed file, everything goes on the first changed f
 test("model text stays inside its fence", () => {
   const [{ body }] = noteComments({ head: HEAD, summary: "a```b\u001b", notes: [], files: FILES });
   assert.match(body, /```text\nSummary: a'''b\?\n```$/);
+});
+
+// GitHub scrolls a long code-block line sideways, so each quoted line breaks
+// at a space within 100 columns, continuations indented two spaces.
+const words = (n) => Array(n).fill("word").join(" ");
+const quoted = (body) => body.slice(body.indexOf("```text\n") + 8, body.lastIndexOf("\n```"));
+
+test("a long note wraps at spaces within 100 columns", () => {
+  // "- " and 19 four-letter words take 96 columns; a 20th would take 101.
+  const body = failComment({ head: HEAD, summary: "s", notes: [words(200)] });
+  assert.equal(quoted(body), ["Summary: s", `- ${words(19)}`, ...Array(9).fill(`  ${words(19)}`), `  ${words(10)}`].join("\n"));
+});
+
+test("a word longer than the width stays whole on its own line", () => {
+  const url = `https://example.com/${"a".repeat(150)}`;
+  const body = failComment({ head: HEAD, summary: "s", notes: [`see ${url} end`] });
+  assert.equal(quoted(body), ["Summary: s", "- see", `  ${url}`, "  end"].join("\n"));
+});
+
+test("a quote over 20 lines folds into a details block, and 20 lines do not", () => {
+  const fold = failComment({ head: HEAD, summary: "s", notes: Array(20).fill("n") });
+  assert.ok(fold.includes(["<details><summary>What it wrote (21 lines)</summary>", "", "```text", "Summary: s", "- n"].join("\n")));
+  assert.ok(fold.includes(["- n", "```", "", "</details>", ""].join("\n")));
+  const flat = failComment({ head: HEAD, summary: "s", notes: Array(19).fill("n") });
+  assert.ok(!flat.includes("<details>"));
+  assert.ok(flat.includes(["", "```text", "Summary: s", "- n"].join("\n")));
 });
 
 test("the verdict must be the fail its artifact name names", () => {

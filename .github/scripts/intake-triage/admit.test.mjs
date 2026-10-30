@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admit, chargeHits, chargePattern, decide, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admit, authorAdmitted, chargeHits, chargePattern, decide, deferralLapsed, doneReason, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, refusalText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -176,6 +176,67 @@ describe("decide", () => {
         assert.equal(result.hold, true, path);
         assert.match(result.reasons.join(), /untrusted-provenance work needs a person/, path);
       }
+    });
+  });
+
+  // The work-unblock sweep re-admits a deferred issue on no verdict comment,
+  // so what changed since its newest admission-deferred add refuses.
+  describe("a deferred issue re-admitted with no fresh verdict", () => {
+    const DEFERRED_AT = "2026-10-20T09:00:00Z";
+    const event = (kind, name, id, at) => ({ event: kind, label: { name }, actor: { id }, created_at: at });
+    const deferredAdd = event("labeled", DEFERRED, APP, DEFERRED_AT);
+    const deferredIssue = (...more) => issueOf({ labels: [{ name: READY }, { name: DEFERRED }, ...more.map((name) => ({ name }))] });
+    const SECURITY = "area: security was added after it was deferred, so the admission it was deferred from did not judge it";
+    const EDITED = "its body was edited after it was deferred, so the admission it was deferred from judged an older body";
+
+    test("admits a deferred issue nothing changed on", () => {
+      assert.deepEqual(decide(facts({ issue: deferredIssue(), events: [deferredAdd] })), { verdict: "admit", reasons: [] });
+    });
+
+    test("refuses for a person a deferred issue that now carries do-not-merge, needs-human or the hold class, whatever the rules say", () => {
+      const bare = { ...RULES, "refuse-labels": [] };
+      for (const [label, reason] of [
+        ["do-not-merge", "it carries do-not-merge"],
+        ["needs-human", "it carries needs-human"],
+        [UNTRUSTED_CLASS, `${UNTRUSTED_CLASS} work needs a person`],
+      ]) {
+        for (const rules of [RULES, bare]) {
+          assert.deepEqual(decide(facts({ rules, issue: deferredIssue(label), events: [deferredAdd] })), { verdict: "refuse", reasons: [reason], hold: true }, label);
+        }
+      }
+      const removed = [deferredAdd, event("labeled", UNTRUSTED_CLASS, APP, DEFERRED_AT), event("unlabeled", UNTRUSTED_CLASS, OUTSIDER, "2026-10-20T10:00:00Z")];
+      assert.deepEqual(decide(facts({ issue: deferredIssue(), events: removed })), { verdict: "refuse", reasons: [`${UNTRUSTED_CLASS} work needs a person`], hold: true });
+    });
+
+    test("a deferred issue that lost status: ready lapses, and decide skips it", () => {
+      const lost = issueOf({ labels: [{ name: DEFERRED }] });
+      assert.deepEqual(deferralLapsed({ labels: lost.labels, events: [deferredAdd], editedAt: null, humans, appId: APP }), [
+        { reason: `it lost ${READY} while deferred`, kind: "not-ready", hold: false },
+      ]);
+      assert.deepEqual(deferralLapsed({ labels: deferredIssue().labels, events: [deferredAdd], editedAt: null, humans, appId: APP }), []);
+      assert.deepEqual(decide(facts({ issue: lost, events: [deferredAdd] })), { verdict: "skip", reasons: [`no ${READY}`] });
+    });
+
+    test("refuses for a person a deferred issue that gained area: security after its deferral", () => {
+      const after = [deferredAdd, event("labeled", "area: security", HUMAN, "2026-10-20T10:00:00Z")];
+      assert.deepEqual(decide(facts({ issue: deferredIssue("area: security"), events: after })), { verdict: "refuse", reasons: [SECURITY], hold: true });
+      const before = [event("labeled", "area: security", HUMAN, "2026-10-20T08:00:00Z"), deferredAdd];
+      assert.deepEqual(decide(facts({ issue: deferredIssue("area: security"), events: before })), { verdict: "admit", reasons: [] });
+    });
+
+    test("refuses a deferred issue whose body was edited after its deferral", () => {
+      const issue = deferredIssue();
+      const editedAt = (at) => ({ ...written(USER(HUMAN), { body: issue.body, editor: USER(HUMAN), lastEditedAt: at }), comments: [] });
+      assert.deepEqual(decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T10:00:00Z") })), { verdict: "refuse", reasons: [EDITED] });
+      assert.deepEqual(decide(facts({ issue, events: [deferredAdd], spec: editedAt("2026-10-20T08:00:00Z") })), { verdict: "admit", reasons: [] });
+    });
+
+    test("a fresh verdict judges the security area and the body itself", () => {
+      const issue = deferredIssue("area: security");
+      const events = [deferredAdd, event("labeled", "area: security", HUMAN, "2026-10-20T10:00:00Z")];
+      const spec = { ...written(USER(HUMAN), { body: issue.body, editor: USER(HUMAN), lastEditedAt: "2026-10-20T10:00:00Z" }), comments: [] };
+      const verdict = { ...VERDICT, writtenAt: "2026-10-20T11:00:00Z" };
+      assert.deepEqual(decide(facts({ issue, events, spec, verdict })), { verdict: "admit", reasons: [] });
     });
   });
 
@@ -618,6 +679,28 @@ describe("decide", () => {
       ]) {
         const result = decide(facts({ issue }));
         assert.equal(result.verdict, "refuse");
+        assert.equal(result.hold, true);
+        assert.equal(CHARGE.exec(result.reasons.join("; "))?.[1], words);
+      }
+    });
+
+    // docs/contracts/loop-lane/README.md: model usage under the
+    // Claude subscriptions is not cost; a plan or seat change and a paid
+    // purchase are.
+    test("holds only for a charge the owner's cost list names", () => {
+      assert.deepEqual(decide(facts({ issue: issueOf({ body: `${BODY}\n\nThe lane runs on the subscription login.` }) })), { verdict: "admit", reasons: [] });
+      assert.deepEqual(chargeHits("Each lane signs in with its subscription logins.", chargePattern()), []);
+      assert.deepEqual(chargeHits("The lane spends Claude subscription usage.", chargePattern()), []);
+      for (const [body, words] of [
+        ["This needs a plan or seat change.", "seat"],
+        ["This needs a paid subscription purchase.", "subscription"],
+        ["Create a new Azure subscription for the lane.", "subscription"],
+        ["Reduce the Azure subscription usage.", "subscription"],
+        ["Upgrade the Claude subscription to a higher plan.", "subscription"],
+        ["Buy a new Claude subscription for the lane.", "subscription"],
+        ["The lane raises Copilot subscription usage-based pricing.", "subscription"],
+      ]) {
+        const result = decide(facts({ issue: issueOf({ body: `${BODY}\n\n${body}` }) }));
         assert.equal(result.hold, true);
         assert.equal(CHARGE.exec(result.reasons.join("; "))?.[1], words);
       }
@@ -2059,5 +2142,20 @@ describe("attended", () => {
     const before = decide(facts({ issue: thin, spec: humanSpec(thin, [manual]), events: [label("unlabeled", HUMAN, "2026-10-19T00:00:00Z")] }));
     assert.equal(before.verdict, "refuse");
     assert.equal(before.attended, true);
+  });
+});
+
+describe("authorAdmitted", () => {
+  const humans = new Set([101]);
+  test("admits a listed human's or the lanes App's issue, nobody else's", () => {
+    assert.equal(authorAdmitted({ user: { id: 101 } }, humans, 303), true);
+    assert.equal(authorAdmitted({ user: { id: 303 } }, humans, 303), true);
+    assert.equal(authorAdmitted({ user: { id: 202 } }, humans, 303), false);
+  });
+  test("refuses an issue with no author, whatever App id is unset", () => {
+    for (const appId of [undefined, null, 303]) {
+      assert.equal(authorAdmitted({}, humans, appId), false, String(appId));
+      assert.equal(authorAdmitted({ user: { id: 303 } }, humans, appId === 303 ? undefined : appId), false, String(appId));
+    }
   });
 });

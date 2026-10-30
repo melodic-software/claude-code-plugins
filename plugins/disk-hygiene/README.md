@@ -7,10 +7,11 @@ that it is not work product. Safe tidiness is the primary objective; reclaimable
 secondary signal, so zero-byte and empty-directory residue stay visible in reports.
 
 The default lane is read-only. Cleanup is available only through a fresh, exact-path preview followed
-by explicit approval of one confidence tier, or, on Linux, through `handoff-apply` for one approved
-standalone Git checkout. The engine then rechecks every candidate before removing only the entries
-captured in the snapshot, except the Git metadata contents `handoff-apply` empties (see the safety
-contract); it never follows links or recursively deletes an unvalidated tree.
+by explicit approval of one confidence tier, or through `handoff-apply` for one tier's approved paths:
+on Linux for an approved standalone Git checkout, and on Windows, where it sends each path to the
+Recycle Bin and refuses one the shell reports it cannot recycle. The engine then rechecks every candidate before removing
+only the entries captured in the snapshot, except the Git metadata contents `handoff-apply` empties
+(see the safety contract); it never follows links or recursively deletes an unvalidated tree.
 
 ## Safety contract
 
@@ -38,7 +39,7 @@ contract); it never follows links or recursively deletes an unvalidated tree.
   point, symlinks, entries changed since the scan, and paths outside the target are hard stops. These
   predicates cannot be disabled by policy. The sole VCS exception is the evidence mode for an
   entire standalone Git checkout: `handoff-verify` reads it without changing anything, and on Linux
-  `handoff-apply` runs the same checks and then deletes that one approved path. It requires empty
+  and Windows `handoff-apply` runs the same checks and then removes that approved path. It requires empty
   porcelain status, every local head SHA confirmed through the checkout's GitHub remote, every stash
   SHA present in an independent checkout (or no stashes), and the existing exact-path operator
   approval. Without all four, categorical protection remains, except that an `accept_unpublished`
@@ -59,7 +60,9 @@ contract); it never follows links or recursively deletes an unvalidated tree.
   directory non-empty and therefore skipped. The one exception is Linux `handoff-apply`, which
   empties a verified checkout's `.git` contents, entries the snapshot never inventoried, under the
   mount, consumer-glob, readability, device, and link checks in the
-  [safety model](skills/clean/reference/safety-model.md#standalone-git-checkout-evidence). After
+  [safety model](skills/clean/reference/safety-model.md#standalone-git-checkout-evidence). Windows
+  `handoff-apply` walks nothing: it re-verifies each approved path, then sends it to the Recycle Bin
+  whole, so the bin, not a bottom-up walk, keeps what it moves restorable. After
   captured children are removed, a directory is
   reopened with `O_NOFOLLOW`, checked empty through its descriptor, and matched by device, inode, and
   type immediately before descriptor-relative `rmdir`. The report leads with tidiness outcomes
@@ -71,7 +74,8 @@ The execution lane is Linux-only. It reads the current mount namespace from `/pr
 re-discovers protections and Git state, opens every parent through `O_NOFOLLOW` directory descriptors,
 checks the descriptor identities against the snapshot, and calls descriptor-relative `unlink`/`rmdir`.
 Windows and macOS retain the complete audit/report lane but return `execution-platform-unsupported`
-at preview. Backups remain the recovery boundary for user data.
+at preview; on Windows, `handoff-apply` removes one approved tier through the Recycle Bin instead.
+Backups remain the recovery boundary for user data.
 
 ## Requirements and platform support
 
@@ -105,14 +109,14 @@ at preview. Backups remain the recovery boundary for user data.
   when the operator invokes standalone-checkout VCS evidence mode. Other hosting providers remain
   protected; no generic network or `git ls-remote` fallback is treated as provider proof.
 - Windows has the full **audit** lane (Python 3.11's `lstat` reparse metadata plus Win32 APIs
-  exposed by the OS; never invokes UAC) but engine **execution is unsupported**: `preview` reports
-  `execution-platform-unsupported` as a per-candidate blocker, and removal is a manual, per-path
-  Recycle-Bin handoff offered only after an execution request and explicit approval. The
-  request is `--execute` or the user's own in-session request after the audit report, and it
-  gates every deletion lane, manual included. The Recycle-Bin / Trash naming is a model-layer
-  distinction only, the engine treats Windows and macOS identically (execution unsupported); which
-  reversible-removal container the manual lane prefers is the model's instruction, not engine
-  behavior.
+  exposed by the OS; never invokes UAC) but the engine's **`apply` is unsupported**: `preview`
+  reports `execution-platform-unsupported` as a per-candidate blocker. Removal is one
+  `handoff-apply` per approved tier, offered only after an execution request: it re-verifies each
+  path, sends it to the Recycle Bin through the shell, and refuses a path the shell reports it
+  cannot recycle. The request is `--execute` or the user's own in-session request after the audit
+  report, and it gates every deletion lane, manual included. On macOS removal stays a manual,
+  per-path handoff; which reversible-removal container that lane prefers is the model's
+  instruction, not engine behavior.
 - Linux requires readable `/proc/self/mountinfo`, descriptor-relative filesystem APIs, and `lsof` for
   the optional execution lane. Absence, diagnostics, or authority gaps block cleanup.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and
@@ -449,7 +453,8 @@ selectable.
   VCS evidence mode can return `clear` only after the proof gates in the
   [safety model](skills/clean/reference/safety-model.md) pass, or an `accept_unpublished`
   acknowledgement waives the first two for that one approved path. On Linux, `handoff-apply` then
-  deletes that one path in the same call; on Windows and macOS the deletion is the manual handoff.
+  deletes that path in the same call, and on Windows it recycles it; on macOS the deletion is the
+  manual handoff.
 - Use a product's own prune/GC/uninstall command for state it owns. This skill reports the handoff and
   records the native result but never makes managed state eligible for engine execution.
 - `git clean` remains the authority for ignored/untracked repository files. This plugin protects every
@@ -671,19 +676,33 @@ Three supported routes:
 
 1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
    `/plugin configure disk-hygiene@<marketplace>`.
-2. **Headless.** Repeat `--config` for each option. Replace
+2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+   run from the project the plugin is installed in. Replace
    `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin configure disk-hygiene@<marketplace> --values-stdin < values.json
+   ```
+
+   `values.json` holds a JSON object of strings, booleans included:
+
+   ```json
+   {"disk_hygiene_enabled": "<value>"}
+   ```
+
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md), which records its
+   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
+   value, and why a session started before the change keeps the old value until a fresh
+   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
+   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+
+   The fallback the convention names, for a Claude Code release without
+   `plugin configure`, reruns the install with the new value, passing the scope
+   `claude plugin list` reports for this plugin:
 
    ```shell
    claude plugin install disk-hygiene@<marketplace> -s <scope> --config disk_hygiene_enabled=<value>
    ```
-
-   Rerun the same command to change a value on an installed plugin, passing the scope
-   `claude plugin list` reports for this plugin. Do **not** `claude plugin uninstall` to
-   reconfigure: see [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
-   The [`plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure) entry in the CLI reference covers applying a saved
-   value. What a rerun prints and writes, and why a session started before the rerun keeps the
-   old value until a fresh session starts, are recorded in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md).
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
    settings (`~/.claude/settings.json`):
@@ -709,6 +728,7 @@ of the routes above.
 ### Upstream documentation
 
 - [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
 - [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
