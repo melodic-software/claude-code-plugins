@@ -69,8 +69,7 @@ the document and does only what needs judgment:
 | F: token-shaped values, documentation status against the fetched `env-vars` page | F: whether an undocumented custom variable is justified |
 | G: the measurement, read from an existing debug log; `skillOverrides` keys that name a known plugin (inert, `warning`), colon keys whose prefix names no plugin (`skip`), and entries in the user dir's `settings.local.json` (`info`) | G: the levers, scoped to the roster's composition, and what an undecided colon key names |
 | H and I: every value check; the accepted `effortLevel` and `disableDeepLinkRegistration` values, the version `enforceAvailableModels` requires, the `fallbackModel` cap and the values of every other string key whose Type bullet lists them come from the fetched `settings-reference`; a `deniedModels` or `availableModelsMatch` key outside managed settings is flagged from a rule kept in our words | H and I: nothing, once the Phase 3 fetch confirms the behavior the row rests on |
-| J: each `Fixed in vX.Y.Z` a `reference/known-issues.md` row records, compared with the installed Claude Code version (the form is that file's "Recording a fix version") | J: the live status of each issue (Phase 3.2), and whether a workaround an `info` row flags is still needed |
-| K: the age of each suppression entry against `exceptions.max_days` (default 90; the team YAML may set another), a `warning` past it that names the entry, its reason and its age, never a removal | K: nothing; report each aged entry for the operator to re-date or remove |
+| J: each `Fixed in vX.Y.Z` a `reference/known-issues.md` row records, compared with the installed Claude Code version (the form is that file's "Recording a fix version"). K: the age of each suppression entry against `exceptions.max_days` (default 90; the team YAML may set another), a `warning` past it that names the entry, its reason and its age, never a removal | J: the live status of each issue (Phase 3.2), and whether a workaround an `info` row flags is still needed. K: nothing; report each aged entry for the operator to re-date or remove |
 
 A row the engine marks `skip` or `not-inspectable` is exactly that in the report: never clean.
 
@@ -210,8 +209,7 @@ category; **full per-check criteria in
 - **F, Environment Variables**: whether a variable the engine reports as not on the env-vars page is documented elsewhere or justified by the repo
 - **G, Skill-listing budget**: the levers, scoped to the roster's composition (`skillOverrides` reaches project and user skills; plugin skills are managed through `/plugin`). The engine already reports `skillOverrides` entries that cannot take effect: a key naming a known plugin (`G/skill-override-plugin`, `warning`) and entries in the user dir's `settings.local.json` (`G/skill-override-home-local`, `info`); a colon key it left as `skip` is yours to name or leave undecided. When the engine reports `not measured`, name the routes (`/doctor` interactively, a `--debug` relaunch headless) and never report clean
 - **H, Model and effort settings** and **I, Deep-link registration**: engine-decided; Phase 3 confirms the behavior each finding rests on before it is reported
-- **J, Known-issues fix versions**: engine-decided (`known-issue-fixed` rows); for an `info` finding, Phase 3.2 confirms the workaround is retired only if the live issue agrees
-- **K, Suppression age**: engine-decided (`suppression-age` rows); report each aged entry, which keeps suppressing until the operator re-dates or removes it
+- **J, Known-issues fix versions** and **K, Suppression age**: engine-decided (`known-issue-fixed` and `suppression-age` rows); for a J `info` finding, Phase 3.2 confirms the workaround is retired only if the live issue agrees; report each aged K entry, which keeps suppressing until the operator re-dates or removes it
 
 ---
 
