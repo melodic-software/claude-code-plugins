@@ -1,0 +1,14 @@
+{
+	"pass": [
+		{
+			"answer": "{\"labels\": [\"priority: medium\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: none\\nBlocked by: none\\n\\n> **Decision recorded.**\\n> 1. One pinned issue, edited in place by each weekly run. Do not open a new issue each week.\\n> 2. 90 days without a commit.\\n\\nDecision: https://github.com/melodic-software/claude-code-plugins/issues/99904#issuecomment-100000004\\n\\nThe decision settles the open questions.\", \"needs_human\": false, \"reason\": \"Re-entry after a recorded decision.\", \"type\": \"Task\", \"proposed_class\": \"work-class: scoped\"}",
+			"why": "the expected re-entry reply"
+		}
+	],
+	"fail": [
+		{
+			"answer": "{\"labels\": [\"priority: medium\", \"status: needs-decision\"], \"comment\": \"Size: Small\\nComplexity: Low\\nUncertainty: Known\\nFlags: none\\nBlocked by: none\\n\\n> **Decision recorded.**\\n> 1. One pinned issue, edited in place by each weekly run. Do not open a new issue each week.\\n> 2. 90 days without a commit.\\n\\nDecision: https://github.com/melodic-software/claude-code-plugins/issues/99904#issuecomment-100000004\\n\\nThe decision settles the open questions.\", \"needs_human\": false, \"reason\": \"Re-entry after a recorded decision.\", \"type\": \"Task\", \"proposed_class\": \"work-class: scoped\"}",
+			"why": "misses what this grader checks"
+		}
+	]
+}
