@@ -3,6 +3,22 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.66.0] - 2026-10-30
+
+### Added
+
+- `/guardrails:setup apply install-git-hooks scope=user` installs the `commit-msg-convention`
+  entry once for the user as a git config hook (git 2.54 or later), loaded under an `includeIf`
+  the operator chooses. It covers every clone and linked worktree the condition matches and runs
+  beside lefthook, husky, the pre-commit framework or a `core.hooksPath` setup. The stable copy
+  lives under `~/.config/git/checks/guardrails/`, the hook is named
+  `guardrails-commit-msg-convention`, and `checks.skipmissing` stays the only skip
+  ([#9775](https://github.com/melodic-software/claude-code-plugins/issues/9775)).
+
+### Fixed
+
+- `reference-verify` pre-push entry: a push from a linked worktree no longer flags a cited path that history once deleted and the tree has again. Git exports `GIT_DIR` to the hook, which made the checks resolve the repository root to the cited file's folder; the checks now run with git's directory variables cleared and find the repository from the file.
+
 ## [0.65.0] - 2026-10-30
 
 ### Changed
