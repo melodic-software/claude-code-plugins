@@ -4081,7 +4081,8 @@ class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
     or `LISTING_TOP_UP_PAGES` without it fails here. The other terms are the
     workflow comment's: 3 reads a FAIL (its run, a compare and a download),
     at most 13 pages an incremental read, the count read before the whole
-    listings, and one page more than the live count fills."""
+    listings, one page more than the live count fills, and the step's own
+    listing, which each entry the queue builds at once also reads."""
 
     def cold_cost(self, total: int, fails: int) -> int:
         """The workflow's own `pages=` and `cold_cost=` lines, run by bash."""
@@ -4109,7 +4110,8 @@ class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
             with self.subTest(total=total, fails=fails):
                 pages = ve.listing_pages(total) + 1
                 worst = (
-                    3 * fails
+                    pages
+                    + 3 * fails
                     + ve.INCREMENTAL_READS * 13
                     + 1
                     + ve.LISTING_READS * (attempts * pages + ve.LISTING_TOP_UP_PAGES)
@@ -4118,9 +4120,9 @@ class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
 
     def test_the_cost_of_two_listings_differs_by_hand(self) -> None:
         # 10,450 artifacts (106 pages) and 300 FAILs against 7,522 (77) and
-        # 264: 1,915 against 1,546, worked by hand in ci-lanes-pr-hold.test.sh.
-        self.assertEqual(self.cold_cost(10_450, 300), 1_915)
-        self.assertEqual(self.cold_cost(7_522, 264), 1_546)
+        # 264: 2,021 against 1,623, worked by hand in ci-lanes-pr-hold.test.sh.
+        self.assertEqual(self.cold_cost(10_450, 300), 2_021)
+        self.assertEqual(self.cold_cost(7_522, 264), 1_623)
 
 
 # --- The --authority pr-merge path ------------------------------------------------

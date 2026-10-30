@@ -1877,9 +1877,10 @@ that long leaves none), the step reads the base branch's `merge_queue` rule and 
 `/rate_limit`, which costs no request. A missing cache is shared, so every entry the queue builds
 at once goes cold together, so the step first lists every artifact page once and the cold reader
 starts only when the token's core pool then has at least one cold read's worst case under the
-listing's caps (3 reads per listed FAIL, 3 incremental reads of at most 13 pages each, one count
-read, and 3 whole listings of up to 3 attempts of `ceil(total_count / 100) + 1` pages, each with a
-top-up of at most 7: 1,546 at 7,522 artifacts and 264 FAILs) times `max_entries_to_build`, plus the
+listing's caps (the step's own listing, 3 reads per listed FAIL, 3 incremental reads of at most 13
+pages each, one count read, and 3 whole listings of up to 3 attempts of `ceil(total_count / 100) + 1`
+pages, each with a top-up of at most 7: 1,623 at 7,522 artifacts and 264 FAILs) times
+`max_entries_to_build`, plus the
 read floor (`limits.api` `read-floor` of the planned limit, inlined in the job env), left.
 An entry with a carried run cache but no carried listing pays the listing's part
 without this check. A listing, rule or rate limit that does not read, a stop in the
