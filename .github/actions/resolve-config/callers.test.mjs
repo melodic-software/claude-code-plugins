@@ -5591,6 +5591,32 @@ test("work-resolve-issue.yml: report-outcome passes apply-issue-patch's escalati
   assert.equal(evaluate(job.with["escalation-reason"], context("", "skipped")), "");
 });
 
+// A kill switch that stopped apply-issue-patch green dropped this run's patch,
+// so report-outcome skips and work-unblock re-fires the issue as a breaker
+// trip; and a report-outcome the switch stopped green never posts its status
+// as passed.
+test("work-resolve-issue.yml: a kill-switch stop skips report-outcome and never reads as a passed report", () => {
+  const { jobs } = workflow("work-resolve-issue.yml");
+  const started = {
+    "needs.resolve-issue-fallback.result": "skipped",
+    "needs.resolve-issue-subscription.result": "skipped",
+    "needs.resolve-issue.outputs.scan-issue-run-started": "true",
+  };
+  for (const id of ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]) {
+    started[`needs.${id}.outputs.scan-reuse-branch`] = "";
+    started[`needs.${id}.outputs.scan-issue-run-started`] ??= "";
+  }
+  const report = (skip) => evaluate(jobs["report-outcome"].if, { ...started, "needs.apply-issue-patch.outputs.skip-reason": skip });
+  assert.equal(report(""), true);
+  assert.equal(report("rung-up"), true, "another skip still reports");
+  assert.equal(report("kill-switch"), false);
+  const post = jobs["report-statuses"].steps.find((step) => step.env?.REPORT_RESULT !== undefined);
+  const result = (value, skip) => evaluate(post.env.REPORT_RESULT, { "needs.report-outcome.result": value, "needs.report-outcome.outputs.skip-reason": skip });
+  assert.equal(result("success", ""), "success");
+  assert.equal(result("failure", ""), "failure");
+  assert.equal(result("success", "kill-switch"), "stopped");
+});
+
 test("pr-run-activity-write.yml: a patch-* escalation reason passes the input check in issue mode only", () => {
   const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.name?.startsWith("Assert the lanes App sender id"));
   const status = (reason, issueMode) =>
@@ -6869,6 +6895,8 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
       if (rest === "result") context[ref] = call === "resolve-issue-fallback" ? "skipped" : "success";
       else context[ref] = call === "resolve-issue" ? first : "";
     }
+    // Another job's value (apply-issue-patch's skip-reason) is the same in both runs.
+    for (const [ref] of String(expression).matchAll(/needs\.[\w-]+\.(?:result|outputs\.[\w-]+)/g)) context[ref] ??= "";
     return evaluate(expression, context);
   };
   let reads = 0;
@@ -6900,6 +6928,7 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
       "needs.resolve-issue.outputs.scan-outcome-uploaded": first.uploaded ?? "",
       "needs.resolve-issue.outputs.scan-reuse-branch": "",
       "needs.resolve-issue.outputs.scan-patch-state": first.patch ?? "",
+      "needs.apply-issue-patch.outputs.skip-reason": "",
     }));
   const handedOff = { started: "true" };
   const ran = { started: "true", uploaded: "true", patch: "written" };

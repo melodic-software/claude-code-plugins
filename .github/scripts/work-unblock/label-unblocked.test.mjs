@@ -2398,6 +2398,19 @@ test("a run whose stopped mint is followed by a mint that took its token did wor
   assert.deepEqual(logReads(calls), []);
 });
 
+// The reverse order: apply-issue-patch minted and pushed, then the switch
+// stopped report-outcome green. The run did work but never reported, so it
+// gets a failed run's once-per-version re-fire at once, not the stranded
+// wait for a green run, and it reads no log.
+test("a green run whose report mint the kill switch stopped after a patch mint is re-fired like a failed run", async () => {
+  const minted = { id: PATCH_MINT_ID, name: "apply-issue-patch / run", conclusion: "success", steps: [{ name: "Request the lane token", conclusion: "success" }, { name: "Stage the activity from the base", conclusion: "success" }] };
+  const jobs = [...MINT_STOPPED.slice(0, -2), minted, stoppedJob(REPORT_MINT_ID, "report-outcome / run")];
+  const { github, actions, calls } = stalledRun({ jobs, logs: MINT_STOPPED_LOGS, conclusion: "success" });
+  assert.equal(await sweep({ github, actions }), 0);
+  assert.deepEqual(writes(calls), refired(30));
+  assert.deepEqual(logReads(calls), []);
+});
+
 test("a stopped mint whose log does not carry the kill-switch notice is a failed mint, never a breaker trip", async () => {
   for (const [name, log] of [
     ["a lookalike notice", stoppedLog({ line: "lane-token-stopped: the broker refused the token because a lanes kill switch is onward" })],

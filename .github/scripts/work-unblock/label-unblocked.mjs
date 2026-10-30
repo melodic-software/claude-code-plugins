@@ -1058,9 +1058,7 @@ async function didNoWork(jobsOf, refusalOf, runs) {
       return null;
     }
     const jobs = await jobsOf(run);
-    const endedAt = (job, name, conclusion) => (job?.steps ?? []).some((step) => step?.name === name && step.conclusion === conclusion);
     const failedAt = (job, name) => endedAt(job, name, "failure");
-    const stoppedAt = (job) => endedAt(job, MINT_STEP, "success") && endedAt(job, STAGE_STEP, "skipped");
     if (jobs.some((job) => endedAt(job, MINT_STEP, "success") && !stoppedAt(job))) {
       return null;
     }
@@ -1145,6 +1143,21 @@ function jobLister(actions, repo) {
     }
     return listed.get(run.id);
   };
+}
+
+const endedAt = (job, name, conclusion) => (job?.steps ?? []).some((step) => step?.name === name && step.conclusion === conclusion);
+// A mint that ended green with no token: kill-switch-ok's stop.
+const stoppedAt = (job) => endedAt(job, MINT_STEP, "success") && endedAt(job, STAGE_STEP, "skipped");
+
+// Whether a mint of one of `runs` stopped green: such a run that also minted
+// did work and never reported, as a failed run did before kill-switch-ok.
+async function stoppedMint(jobsOf, runs) {
+  for (const run of runs.filter((item) => RUN_ID.test(String(item.id)))) {
+    if ((await jobsOf(run)).some(stoppedAt)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 const namedJobs = (jobs, name) => jobs.filter((job) => job?.name === name || String(job?.name).startsWith(`${name} /`));
@@ -1499,7 +1512,12 @@ async function refireRefusal({ github, actions, jobLog, repo, number, issue, las
     const trip = stalled === "breaker" ? { run: refused.id, ended: Date.parse(refused.updated_at) || ended } : undefined;
     return { reason: null, resets: due, refire: key, recorded, stall: stalled, trip };
   }
-  if (!runs.some((run) => FAILED.has(run.conclusion)) && !(await cancelledBeforeWork(jobsOf, runs)) && !(await stoppedStale(jobsOf, runs))) {
+  if (
+    !runs.some((run) => FAILED.has(run.conclusion)) &&
+    !(await stoppedMint(jobsOf, runs)) &&
+    !(await cancelledBeforeWork(jobsOf, runs)) &&
+    !(await stoppedStale(jobsOf, runs))
+  ) {
     return stranded(ended, "its lane run did not fail", "no-report");
   }
   const key = await workflowKey();
