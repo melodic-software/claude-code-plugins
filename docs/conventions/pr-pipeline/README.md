@@ -77,18 +77,18 @@ no renumbering.
 `maintenance` and `upstream` are scheduled producers, not steps in a PR's path. They file work
 into `intake`.
 
-An answered issue re-enters `intake` through
-[`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
+An answered issue re-enters `intake` through [`intake-reenter.yml`](../../../.github/workflows/intake-reenter.yml), a scripted workflow with no
 model. On a new comment on an open issue, not a pull request, it acts on a `status: needs-decision`
 issue whose comment is a decision (first line `**Decision recorded.**`, by a human on the
 trusted-actors list, not posted through an App, unedited or last edited by a listed human), or on a
 `status: needs-info` issue whose comment is by the issue's author or a listed human. It removes that
-status label, and `needs-human` for a decision, and adds `needs-triage`. It dispatches
+status label and adds `needs-triage`. A decision on an issue that carries `needs-human` changes
+nothing; a listed human's removal of `needs-human` re-enters an issue with no `status:` label or
+at `status: needs-decision`, removing that label the same way. It dispatches
 `intake-triage.yml` once only when the issue's author is one intake admits on open (a listed human
 or the lanes App); any other issue waits in `needs-triage` for a person, so an outside author
 cannot start a model run with each reply. A dispatch skips the born-triaged check. Removing the status label is the
-claim, so a second answer dispatches nothing. It never adds `agent-ready`, and it holds the job's
-own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
+claim, so a second answer dispatches nothing. It never adds `agent-ready`, and it holds the job's own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
 
 Anyone outside the organization who writes on an issue or pull request is flagged for a person by
 [`security-outside-actor.yml`](../../../.github/workflows/security-outside-actor.yml), a scripted
@@ -2989,12 +2989,23 @@ group, queued, never cancelled), so a burst of closes or a close run beside the 
 each admit the full room. The search index can still lag an `agent-ready` label added moments
 before, so a run right after another may read the room as one admission too wide.
 
-The queued cap paces only work-unblock's new `agent-ready` labels. Every other writer is exempt by
-design (owner decision 2026-10-22, #8966), and the issues it labels still count as queued work:
+Intake's own admission (apply-verdict) runs once per issue, so runs for different issues can read
+the same room at once. Under a room it first claims a place with a fresh `admission-deferred`, then
+adds `agent-ready` only while fewer issues than the room count ahead of it. Those are the open
+issues the issues listing (not the search) shows with `agent-ready` or `admission-deferred`, each
+placed by its newest `admission-deferred` add (else its first `agent-ready` add) since 10 minutes
+before the status read; a tie, or an issue whose add its events do not show yet, counts as ahead.
+Otherwise, or when that read fails, the issue stays deferred for work-unblock's sweep. An issue
+counted both there and in the search's count only makes the check stricter.
+
+The queued cap paces only work-unblock's and intake admission's new `agent-ready` labels. Every
+other writer is exempt by design (owner decision 2026-10-22, #8966), and the issues it labels still
+count as queued work:
 
 | Writer | Paced |
 |---|---|
 | work-unblock adding `agent-ready` to an unblocked or deferred issue | Yes |
+| Intake admission (apply-verdict) adding `agent-ready` to a newly triaged issue | Yes |
 | work-unblock's restarts, re-fires and relabels (remove and re-add on an admitted issue) | No: they re-run work already admitted |
 | A person adding the label by hand | No |
 | A person-run skill: `/work-items:triage`, `/work-items:decompose`, `/work-items:attend-queue`, `/work-items:track` | No: a person's account, their call |
