@@ -149,8 +149,10 @@
 // pin. An armed pull request
 // that fails any rule is disarmed. Each request opens its own connection, and
 // a read or write that fails on the network is sent up to twice more
-// (withRetry). One whose arm or disarm still fails is left as it was, named
-// with its cause, and the run goes on to the rest, then exits 1. While
+// (withRetry). A resent arm or disarm that errors is read back once, and
+// counts as done when the pull request already holds the target state. One
+// whose arm or disarm still fails is left as it was, named with its cause,
+// and the run goes on to the rest, then exits 1. While
 // merge.report-only is true it reports
 // each decision and writes nothing.
 //
@@ -312,6 +314,11 @@ export const ARM_MUTATION = `mutation($id: ID!, $head: GitObjectID!) {
 export const DISARM_MUTATION = `mutation($id: ID!) {
   disablePullRequestAutoMerge(input: { pullRequestId: $id }) { clientMutationId }
 }`;
+// A pull request's auto-merge state, read back once when a resent arm or
+// disarm errors (sendSettled).
+export const AUTO_MERGE_STATE_QUERY = `query($id: ID!) {
+  node(id: $id) { ... on PullRequest { headRefOid autoMergeRequest { enabledAt } } }
+}`;
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
@@ -351,9 +358,8 @@ export function describe(error, { label = false } = {}) {
 // lost answer would post it twice. A resent arm is pinned to the same expectedHeadOid, so it can arm
 // only the head the run read. When the lost answer was a success, the resend
 // may arm or disarm a pull request already in that state; should GitHub
-// answer that with an error, the run reports it (a warning for an arm, an
-// error and exit 1 for a disarm) with the state right, and the next run reads
-// it as it is.
+// answer that with an error, the run reads the state back once (sendSettled)
+// and counts the target reached as a success.
 export function withRetry(github, { sleep, random = Math.random }) {
   return async (method, path, body, headers = {}, options) => {
     for (let attempt = 0; ; attempt += 1) {
@@ -1627,6 +1633,35 @@ export async function main({ env = process.env, github, actions, verify, room, c
     // error, and the run fails.
     let stopped = null;
     const disarmStop = () => (stopped === null ? null : latch.until(`${env.GITHUB_API_URL || "https://api.github.com"}/graphql`));
+    // Arms or disarms one pull request. When a resent send errors, the first
+    // may have landed with its answer lost, so the state is read back once:
+    // armed at the head the run read, or unarmed, is the target reached and
+    // returns as a success. Any other state, a failed read, or a rate limit
+    // (nothing more is sent) throws the send's own error, with the newest
+    // answer still the send's.
+    const sendSettled = async (action, pull) => {
+      const [query, variables] = action === "arm" ? [ARM_MUTATION, { id: pull.id, head: pull.headRefOid }] : [DISARM_MUTATION, { id: pull.id }];
+      try {
+        await github("POST", "/graphql", { query, variables });
+      } catch (error) {
+        if ((error?.attempts ?? 1) === 1 || answer?.limited || [401, 403, 429].includes(error?.status) || disarmStop() !== null) {
+          throw error;
+        }
+        const sent = answer;
+        let state;
+        try {
+          state = (await github("POST", "/graphql", { query: AUTO_MERGE_STATE_QUERY, variables: { id: pull.id } }))?.data?.node;
+        } catch (readError) {
+          console.log(`enable-auto-merge: #${pull.number} ${action} failed after a resend and its state was not read back: ${describe(readError)}`);
+        }
+        answer = sent;
+        const reached = state != null && (action === "arm" ? state.autoMergeRequest != null && state.headRefOid === pull.headRefOid : state.autoMergeRequest == null);
+        if (!reached) {
+          throw error;
+        }
+        console.log(`enable-auto-merge: #${pull.number} ${action} failed after a resend (${describe(error)}), but it is already ${action === "arm" ? `armed at ${pull.headRefOid}` : "unarmed"}, so an earlier send landed`);
+      }
+    };
     verify ??= pythonVerify(env);
     whole ??= pythonWholeReview(env);
     const reads = READER_EVENTS.includes(env.EVENT_NAME);
@@ -2080,7 +2115,7 @@ export async function main({ env = process.env, github, actions, verify, room, c
         try {
           // An armed one is disarmed first, so a close that fails leaves it unarmed.
           if (pull.autoMergeRequest != null) {
-            await github("POST", "/graphql", { query: DISARM_MUTATION, variables: { id: pull.id } });
+            await sendSettled("disarm", pull);
             console.log(`enable-auto-merge: #${pull.number} disarmed: ${escapeCommand(reason)}`);
           }
           close ??= pythonClose(env);
@@ -2170,11 +2205,11 @@ export async function main({ env = process.env, github, actions, verify, room, c
       try {
         if (action === "arm") {
           arms += 1;
-          await github("POST", "/graphql", { query: ARM_MUTATION, variables: { id: pull.id, head: pull.headRefOid } });
+          await sendSettled("arm", pull);
           console.log(`enable-auto-merge: #${pull.number} armed at ${pull.headRefOid}`);
           statuses.push({ sha: pull.headRefOid, state: "success", description: "armed for native auto-merge" });
         } else {
-          await github("POST", "/graphql", { query: DISARM_MUTATION, variables: { id: pull.id } });
+          await sendSettled("disarm", pull);
           if (roomHeld.has(pull.number)) {
             roomHeld.set(pull.number, "unarmed");
           }
