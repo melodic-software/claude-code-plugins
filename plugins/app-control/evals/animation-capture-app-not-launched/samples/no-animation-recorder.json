@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat tools/anim-capture.mjs", "description": "Read the recorder"}}],
+      "why": "reads the recorder, runs nothing"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -n anim-capture .claude/skills/control-shop/SKILL.md", "description": "Find the animation row"}}],
+      "why": "the recorder name as a search term"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "node tools/anim-capture.mjs --frames --out evidence", "description": "Capture animation"}}],
+      "why": "runs the recorder"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "mkdir -p evidence && node ./tools/anim-capture.mjs --frames --out evidence", "description": "Capture animation"}}],
+      "why": "runs the recorder after a separator"
+    }
+  ]
+}
