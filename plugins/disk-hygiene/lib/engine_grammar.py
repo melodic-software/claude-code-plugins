@@ -73,8 +73,12 @@ AUTHORIZED_DATA_ROOT_FILE = "file-inside-authorized-data-root"
 
 # State under the data root that the engine and its hooks write themselves:
 # the guard decision log and its rotation, the launch-monitor markers, the
-# inventory reports, and the investigated catalog.
-ENGINE_OWNED_DIRS = frozenset({"guard-decisions", "guard-launch-monitor", "inventory"})
+# clean belt's per-session run markers, the inventory reports, and the
+# investigated catalog.
+RUN_MARKER_DIRNAME = "clean-runs"
+ENGINE_OWNED_DIRS = frozenset(
+    {"guard-decisions", "guard-launch-monitor", RUN_MARKER_DIRNAME, "inventory"}
+)
 ENGINE_OWNED_FILES = frozenset({"catalog.json", "catalog.md"})
 
 # Appended to a preview's --plan path: the engine writes this file when the

@@ -11155,7 +11155,6 @@ class GuardTests(unittest.TestCase):
         self.assertEqual("deny", self._belt("gh issue list"))
         self._run_file("report.json").write_text("{}", encoding="utf-8")
         self.assertIsNone(self._belt("gh issue list"))
-        self.assertFalse(self._run_marker().exists())
 
     def test_scan_during_an_open_run_keeps_the_belt(self) -> None:
         self._open_run_by_preview()
@@ -11183,7 +11182,6 @@ class GuardTests(unittest.TestCase):
         self.assertEqual("deny", self._belt("gh issue list"))
         self._run_file("report.json").write_text("{}", encoding="utf-8")
         self.assertIsNone(self._belt("gh issue list"))
-        self.assertFalse(self._run_marker().exists())
 
     def test_terminal_preview_outcome_ends_the_run(self) -> None:
         self._open_run_by_preview()
@@ -11198,7 +11196,6 @@ class GuardTests(unittest.TestCase):
             ),
         )
         self.assertIsNone(self._belt("gh issue list"))
-        self.assertFalse(self._run_marker().exists())
 
     def test_manual_lane_verify_holds_the_belt_for_its_deletes(self) -> None:
         self._scan()
@@ -11210,6 +11207,16 @@ class GuardTests(unittest.TestCase):
         self._age_run_marker()
         self.assertIsNone(self._belt("Remove-Item x", tool_name="PowerShell"))
 
+    def test_scan_after_a_timed_out_run_does_not_reopen_it(self) -> None:
+        self._scan()
+        verify = self._engine_words(
+            f"handoff-verify --snapshot {self.snapshot_arg} --path rel/junk"
+        )
+        self.assertEqual("allow", self._belt(verify))
+        self._age_run_marker()
+        self._scan()
+        self.assertIsNone(self._belt("Remove-Item x", tool_name="PowerShell"))
+
     def test_corrupt_run_marker_holds_the_belt_until_the_idle_timeout(self) -> None:
         self.authorize_data_root()
         marker = self._run_marker()
@@ -11218,13 +11225,13 @@ class GuardTests(unittest.TestCase):
         self.assertEqual("deny", self._belt("gh issue list"))
         self._age_run_marker()
         self.assertIsNone(self._belt("gh issue list"))
-        self.assertFalse(marker.exists())
+        self._scan()
+        self.assertIsNone(self._belt("gh issue list"))
 
     def test_run_marker_past_the_idle_timeout_releases_the_belt(self) -> None:
         self._open_run_by_preview()
         self._age_run_marker()
         self.assertIsNone(self._belt("gh issue list"))
-        self.assertFalse(self._run_marker().exists())
 
     def test_belt_without_a_session_id_keeps_denying(self) -> None:
         self.authorize_data_root()
@@ -17415,6 +17422,7 @@ class EngineOwnedStateTests(EngineFileArgumentCase):
         "guard-decisions/decisions.jsonl",
         "guard-decisions/decisions.previous.jsonl",
         "guard-launch-monitor/session.warned",
+        "clean-runs/session.json",
         "inventory/inventory-20260101T000000000000Z.json",
         "catalog.json",
         "CATALOG.md",
@@ -17528,9 +17536,10 @@ class EngineOwnedStateTests(EngineFileArgumentCase):
         monitor = load_module("guard_launch_monitor", "guard_launch_monitor.py")
         log = guard.guard_decision_log
         self.assertEqual(
-            {log.LOG_DIRNAME, monitor._MARKER_DIRNAME, "inventory"},
+            {log.LOG_DIRNAME, monitor._MARKER_DIRNAME, "clean-runs", "inventory"},
             set(grammar.ENGINE_OWNED_DIRS),
         )
+        self.assertEqual("clean-runs", guard._run_marker_path("/r", "s").parent.name)
         hygiene.DATA_ROOT_OVERRIDE = str(self.data_root)
         try:
             catalog = hygiene.catalog_paths()

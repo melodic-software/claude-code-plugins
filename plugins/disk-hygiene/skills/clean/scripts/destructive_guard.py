@@ -2591,9 +2591,10 @@ def _bash_denial_guidance(
     return (
         f"disk-hygiene: denied by the /disk-hygiene:clean session belt: {reason} "
         "Allowed shapes: /disk-hygiene:clean. The belt holds while a clean run is "
-        "open: from an engine preview, handoff-verify, apply or handoff-apply until "
-        f"that step ends, or until {_RUN_IDLE_TIMEOUT_SECONDS / 60:g} minutes pass "
-        "with no engine call."
+        "open: from an engine preview until the run's apply or handoff-apply "
+        "writes its report or the preview ends in manual-handoff-lane or blocked, "
+        "and from each handoff-verify, until "
+        f"{_RUN_IDLE_TIMEOUT_SECONDS / 60:g} minutes pass with no engine call."
     )
 
 
@@ -2610,7 +2611,7 @@ def _bash_denial_guidance(
 # manual lane's PowerShell deletes follow a handoff-verify, which holds it.
 # Outside a run, other Bash and PowerShell deletes answer to the session's own
 # permission rules.
-_RUN_MARKER_DIRNAME = "clean-runs"
+_RUN_MARKER_DIRNAME = engine_grammar.RUN_MARKER_DIRNAME
 _RUN_IDLE_TIMEOUT_SECONDS = 3600.0
 
 
@@ -2647,7 +2648,9 @@ def _record_run_step(
             # writes marks the lane's end, so only the idle timeout ends it.
             ends_with = None
         else:
-            if marker.is_file():
+            # Refresh only an open run: touching an ended or timed-out marker
+            # would reopen it.
+            if _run_open(authority, session_id):
                 os.utime(marker)
             return
         # Two seconds early, so an end file on a filesystem with coarse
@@ -2670,7 +2673,9 @@ def _run_open(authority: str | None, session_id: str | None) -> bool:
     Fails closed: with no data root or session id the run cannot be looked up,
     and a marker that cannot be read holds the belt until the idle timeout,
     counted from the marker's mtime. A marker past the timeout, or whose step's
-    end file has appeared since the step opened, is deleted and reads as no run.
+    end file has appeared since the step opened, reads as no run. The guard
+    never deletes it (only the engine's lanes delete); the next step that opens
+    a run overwrites it.
     """
     if not authority or not session_id:
         return True
@@ -2696,9 +2701,6 @@ def _run_open(authority: str | None, session_id: str | None) -> bool:
                 ended = False
     except Exception:  # noqa: BLE001 - a corrupt marker younger than the timeout
         return True
-    if ended:
-        with contextlib.suppress(OSError):
-            marker.unlink()
     return not ended
 
 
