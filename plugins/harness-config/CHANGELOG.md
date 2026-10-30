@@ -5,6 +5,18 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.2.0] - 2026-10-30
+
+### Added
+
+- `/harness-config:audit` reports each suppression entry, at every layer, whose `date` is older than `exceptions.max_days` as a Category K `suppression-age` warning that names the entry, its reason and its age. The default is 90 days, per ADR 0080; set `exceptions.max_days` in `docs/conventions/harness-config.yaml` for another value. The entry keeps suppressing and nothing is removed. The schema accepts the new `exceptions.max_days` key.
+
+### Changed
+
+- Shared copies synced: links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
+- Shared copies synced: links and paths to marketplace plugin contracts now name `docs/contracts/<name>/`, where the contracts moved from `docs/conventions/<name>/`. The old paths keep a stub with every section heading.
+
 ## [2.1.8] - 2026-10-30
 
 ### Changed
