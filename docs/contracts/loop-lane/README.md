@@ -373,6 +373,22 @@ is the issue lane's hold on a patch carrying a credential shape (`patch-credenti
 [`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json)), a token-leak
 path under section 10.
 
+The pr-merge gate keeps two more holds for the owner, each a reason
+[`babysit_risk.person_reasons`](../../../plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py)
+names (owner decision 2026-10-30, #11020):
+
+- A trusted-actor widening (`trust-gate:trusted-actors`): a newly trusted login is a path to
+  compromise the owner's accounts.
+- A file listing past the files API's cap (`files-capped`): the files past the cap stay unjudged,
+  and no lane can read them. A listing a read did not finish (`files-incomplete`) is the lanes'
+  to read again.
+
+In pr-merge's risk score, a high path (a floor path, a configured denied path, or an aliasing path,
+symlink, submodule or mode change) still holds a pull request but does not stop it for the owner,
+who set no path restrictions. A review finding there stops for the owner only as a CRITICAL
+security finding; an IMPORTANT or SUGGESTION one is reported and does not hold, and an unresolved
+IMPORTANT thread does not keep a stale review-lane hold.
+
 Three labels take work off the unattended path, and each means one thing (owner decision,
 2026-10-28):
 
