@@ -1,8 +1,8 @@
 {
   "pass": [
     {
-      "answer": "The lane parses the invocation surface: validates the optional owner/repo against the checkout (match — proceed), applies shard 0/2 so only even-numbered items (102, 104, 106) remain in the snapshot, orders admitted cap slots newest-first, and binds lane_instance worker-a for telemetry (overriding userConfig). It rejects autopilot and --merge c3-this-run with a clear message — merge authority and babysit tier tokens belong to the merge lane, not this worker lane — and does not silently ignore them. It loads reference/mode-standing.md only (the explicit --standing a headless launch must carry) and does not load reference/mode-drain.md. The cycle report states which source supplied each effective value.",
-      "why": "the case's expected outcome"
+      "answer": "work-loop stopped at argument validation. melodic-software/example-repo matches the origin remote, and --standing, --shard 0/2, --ordering newest-first and --instance worker-a are valid, but autopilot and --merge c3-this-run are rejected: babysit tier keywords and merge flags belong to /source-control:babysit-loop, the merge lane, not this worker lane. Relaunch without them. No telemetry was read, no frontier snapshot was taken, nothing was admitted or dispatched, and no next cycle is scheduled.",
+      "why": "stops at validation and names the merge lane as the owner"
     }
   ],
   "fail": [
