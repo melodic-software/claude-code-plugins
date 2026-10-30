@@ -69,6 +69,12 @@
 //             (DIMENSION_SKIP): comments the next step with an
 //             outcome=<reason> marker, adds the human-gated label, removes
 //             agent-ready. No outcome file is read.
+//   outside  the admit job stopped the run because the issue's author is
+//             neither a listed human nor the lanes App (DIMENSION_SKIP
+//             outside-author): comments that a listed human re-files the work
+//             as a new issue (once: a re-run finds its own comment) and
+//             removes agent-ready, with no label, since a
+//             retry stops again. No outcome file is read.
 //
 // Run from the base copy. It reads only the outcome directory and the GitHub
 // API, and never writes to a branch.
@@ -100,8 +106,10 @@
 //                       when its scan job refused the run's output and so
 //                       uploaded no outcome (see readScanRefusal)
 //   DIMENSION_SKIP      split-required, research-first or probe-first when
-//                       the issue dimensions skipped the run
-//                       (work-resolve-issue.yml report-skip), else empty
+//                       the issue dimensions skipped the run, or
+//                       outside-author when the admit job stopped it on the
+//                       issue's author (work-resolve-issue.yml report-skip),
+//                       else empty
 //   REUSE_SUMMARY_DIR   on a reuse, holds the summary pass's reuse-summary.json
 //                       (runner-written issue, branch and tip; model output)
 //   TRACKER_CONFIG      base .work-item-tracker.json, for the human-gated label
@@ -570,6 +578,24 @@ export const DIMENSION_STEPS = {
 // that ran nothing, so prior() passes them over like a dimension skip.
 const RETIRED_SKIPS = new Set(["not-assessed"]);
 
+// The admit job's stop on an issue neither a listed human nor the lanes App
+// wrote (check-blockers.mjs), which report-skip reports like a dimension skip.
+export const OUTSIDE_AUTHOR = "outside-author";
+
+// A run the admit job stopped on the issue's author: agent-ready comes off and
+// one comment says a listed human re-files the work. No label: re-adding
+// agent-ready stops again, and the issue's text is never quoted.
+function outsideAuthorPlan({ issueNumber, runUrl, runId }) {
+  const lines = [
+    `<!-- work-resolve-issue outcome=${OUTSIDE_AUTHOR}${runId ? ` run=${runId}` : ""} -->`,
+    "The work-resolve-issue lane did not start this issue (`outside-author`): its author is outside the trusted list, neither a listed human nor the lanes App, so the lane does not work from its text. A listed human re-files the work as a new issue in their own words.",
+  ];
+  if (runUrl) {
+    lines.push("", `Run: ${runUrl}`);
+  }
+  return { action: "hand-back", exit: OUTSIDE_AUTHOR, issueNumber, comment: lines.join("\n"), addLabels: [], removeLabels: ["agent-ready"] };
+}
+
 // A run its issue dimensions skipped before any model turn: the issue goes to
 // a person with the next step, and agent-ready comes off.
 function dimensionSkipPlan({ reason, issueNumber, humanLabel, runUrl, runId }) {
@@ -728,9 +754,10 @@ export const checksPassed = (checks) => Boolean(checks?.results.length) && !chec
 // its own leak scan: a trusted `merge: human`, an issue labeled
 // untrusted-provenance, an unreadable denied-path list or changed-file list,
 // a listing cut at the cap while some path is denied (it may hide one), a
-// changed path the merge lane refuses, a runner check that failed, and on a
-// reused branch a leak scan that is missing or not clean. Runner checks that
-// did not report hold nothing: ci-status reruns them on the head. The scan is
+// changed path the merge lane refuses, and on a reused branch a leak scan that
+// is missing or not clean. Runner checks hold nothing, failed or unreported:
+// the PR's Verification section names a failure, and ci-status reruns them on
+// the head, where a red one goes to the fix lanes, not a person. The scan is
 // not covered that way: lint-repo's gitleaks honors a gitleaks:allow comment
 // or .gitleaksignore the branch can add, its password rule misses short or
 // symbol-bearing values scanLeak flags, and it reads only the commits' patches.
@@ -742,7 +769,6 @@ export function mustHold({ issueLabels, humanMerge, holdPaths, changedFiles, che
     changedFiles === null ||
     (holdPaths.length > 0 && changedFiles.length >= COMPARE_FILES_CAP) ||
     changedFiles.some((path) => holdPaths.some((glob) => posix.matchesGlob(path, glob))) ||
-    Boolean(checks?.results.some(({ exit }) => exit !== 0)) ||
     (reused && checks?.scan !== "clean")
   );
 }
@@ -1181,7 +1207,7 @@ export const trustedCloser = (closing, { repo, bot, humans }) =>
 //          continues the work instead of starting from the default branch.
 //          A branch behind the default branch would carry its stale base into
 //          the runner's whole-branch checks, so it starts fresh instead
-//          (`stale` names it) and is left as it is. With `keepBehind` it
+//          (`stale` names it and the tip read) and is left as it is. With `keepBehind` it
 //          resumes anyway: the read runner's issue-fields job re-derives a
 //          claim made before the model ran, and the default branch may have
 //          moved since;
@@ -1219,7 +1245,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   const allLane = ({ commits }) => allLaneCommits(commits, bot);
   // Newest marker first. A resumable marker for a resumed run that kept no
   // branch of its own (`branch=resumed`) left the work on the run before it,
-  // so it is passed over, and so is a dimension skip, which ran nothing. The
+  // so it is passed over, and so is a dimension skip or an outside-author stop, which ran nothing. The
   // first other marker decides: a resumable one
   // whose run's branch still passes resumes it; anything else (a pushback, a
   // marker naming no run, or a branch deleted or failing a check) starts
@@ -1230,6 +1256,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
       (marker) =>
         !(marker.onResumed && RESUMABLE.has(marker.outcome)) &&
         !Object.hasOwn(DIMENSION_STEPS, marker.outcome) &&
+        marker.outcome !== OUTSIDE_AUTHOR &&
         !RETIRED_SKIPS.has(marker.outcome),
     );
   const resume =
@@ -1237,7 +1264,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
       ? lane.find((branch) => branch.match[1] === decisive.run && usable(branch) && allLane(branch))
       : null;
   if (resume && resume.behindBy !== 0 && !keepBehind) {
-    return { action: "run", stale: { branch: resume.name, behindBy: resume.behindBy } };
+    return { action: "run", stale: { branch: resume.name, tip: resume.sha, behindBy: resume.behindBy } };
   }
   return resume ? { action: "resume", branch: resume.name, tip: resume.sha, cause: decisive.outcome } : { action: "run" };
 }
@@ -1440,6 +1467,13 @@ export async function closingPulls(github, { owner, name, number }, maxPages = 5
   throw new Error(`the issue has more than ${maxPages} pages of closing pull requests`);
 }
 
+// The marker of report-outcome's comment naming a stale lane branch a fresh
+// run left behind, once per branch.
+export const staleMarker = (branch) => `<!-- work-resolve-issue stale-branch=${branch} -->`;
+const staleNoted = (body, branch) => String(body ?? "").split(/\r?\n/, 1)[0] === staleMarker(branch);
+export const staleComment = (branch) =>
+  `${staleMarker(branch)}\nThis run started fresh from the default branch instead of resuming \`${branch}\`, which is behind it. That branch keeps the earlier run's commits, and no lane deletes it: a person can delete it once it is no longer needed.`;
+
 // --find-prior: reads the facts findPrior decides on and writes its step
 // outputs. Any failed read, or an answer of the wrong shape, fails the step,
 // so the mint never follows it.
@@ -1457,8 +1491,8 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
     const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
     const humans = readHumans(env.TRUSTED_ACTORS_PATH ?? "");
     const github = api({ fetch, apiUrl: env.GITHUB_API_URL || "https://api.github.com", token: env.GH_TOKEN, sleep });
-    const markers = (await paginate(github, `${repo}/issues/${issueNumber}/comments`))
-      .filter((comment) => comment.user?.login === bot)
+    const appComments = (await paginate(github, `${repo}/issues/${issueNumber}/comments`)).filter((comment) => comment.user?.login === bot);
+    const markers = appComments
       .map((comment) => ({ ...parseOutcomeMarker(comment.body), at: Date.parse(comment.created_at) }))
       .filter((marker) => marker.outcome !== undefined);
     // A marker naming no run is matched by its time, so that time must read.
@@ -1517,6 +1551,16 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
           ...(prior.action === "resume"
             ? { "resume-branch": prior.branch, "resume-tip": prior.tip, "resume-cause": prior.cause }
             : {}),
+          // A fresh start past a stale branch: write-issue gives the model its
+          // commits as data, and report-outcome names it on the issue unless
+          // a lanes App comment already does (stale-noted).
+          ...(prior.stale
+            ? {
+                "stale-branch": prior.stale.branch,
+                "stale-tip": prior.stale.tip,
+                "stale-noted": String(appComments.some((comment) => staleNoted(comment.body, prior.stale.branch))),
+              }
+            : {}),
         }
       : { proceed: "false", "skip-reason": "not-applicable", "reuse-branch": prior.action === "reuse" ? prior.branch : "" };
     appendFileSync(env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(""));
@@ -1544,8 +1588,9 @@ export async function findPriorMain({ env = process.env, fetch = globalThis.fetc
 // a failed post leaves agent-ready for work-unblock's stranded sweep. Adding a
 // label the issue has, or removing one it lacks (a 404 the catch logs), leaves
 // the same labels, so both are resent; the comment is not.
+// An empty plan.comment posts none: the comment is already on the issue.
 async function applyHandBack(github, repo, plan) {
-  const comment = () => github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
+  const comment = async () => plan.comment && github("POST", `${repo}/issues/${plan.issueNumber}/comments`, { body: plan.comment });
   if (plan.addLabels.length) {
     await github("POST", `${repo}/issues/${plan.issueNumber}/labels`, { labels: plan.addLabels }, { safeToResend: true });
   } else {
@@ -1596,7 +1641,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       throw new Error("GITHUB_REPOSITORY is not owner/repo");
     }
     const dimensionSkip = env.DIMENSION_SKIP ?? "";
-    if (dimensionSkip && !Object.hasOwn(DIMENSION_STEPS, dimensionSkip)) {
+    if (dimensionSkip && !Object.hasOwn(DIMENSION_STEPS, dimensionSkip) && dimensionSkip !== OUTSIDE_AUTHOR) {
       throw new Error("DIMENSION_SKIP is not an issue-dimension skip reason");
     }
     const escalation = env.ESCALATION_REASON ?? "";
@@ -1613,7 +1658,17 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     const runUrlOf = (id) => (env.GITHUB_SERVER_URL && id ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}/actions/runs/${id}` : "");
     const runUrl = runUrlOf(env.GITHUB_RUN_ID);
     const runId = /^[1-9][0-9]{0,14}$/.test(env.GITHUB_RUN_ID ?? "") ? env.GITHUB_RUN_ID : "";
-    // A dimension skip left no outcome to read: no model ran.
+    // A dimension skip or an outside-author stop left no outcome to read: no model ran.
+    if (dimensionSkip === OUTSIDE_AUTHOR) {
+      // A re-run finds the lanes App's own comment and posts none; the marker
+      // from anyone else does not count, since the outside author can write it.
+      const bot = env.LANES_BOT_LOGIN || "melodic-automation-lanes[bot]";
+      const comments = await paginate(github, `${repo}/issues/${issueNumber}/comments`);
+      const posted = comments.some((comment) => comment.user?.login === bot && parseOutcomeMarker(comment.body)?.outcome === OUTSIDE_AUTHOR);
+      const plan = outsideAuthorPlan({ issueNumber, runUrl, runId });
+      await applyHandBack(github, repo, posted ? { ...plan, comment: "" } : plan);
+      return 0;
+    }
     if (dimensionSkip) {
       const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/.work-item-tracker.json");
       const resolved = env.RESOLVED_CONFIG || join(env.RUNNER_TEMP ?? "", "resolved-config.json");
@@ -1626,6 +1681,18 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
     }
     const dir = env.WORK_OUTCOME_DIR ?? "";
     const ran = readBranch(dir, issueNumber);
+    // The stale lane branch this run started fresh past, which issue-prior
+    // found no comment naming: lane.json's `stale` (rewritable, so only a
+    // name of this issue's lane-branch shape). The comment names it once so a
+    // person can find and delete it; nothing deletes it. A failed post is
+    // logged, and the next fresh start past it posts again.
+    const stale = readBranch(dir, issueNumber, "stale");
+    if (stale) {
+      await github("POST", `${repo}/issues/${issueNumber}/comments`, { body: staleComment(stale) }).then(
+        () => console.log(`report-outcome: named the stale lane branch ${stale} on issue #${issueNumber}`),
+        (error) => console.log(`report-outcome: could not name the stale lane branch ${stale}: ${error.message}`),
+      );
+    }
     // On a reuse the downloaded outcome is the branch's own only when it names
     // that branch (a re-run attempt of the run that made it).
     let outcome = reuse && ran !== reuse ? null : readOutcome(join(dir, "work-outcome.json"));

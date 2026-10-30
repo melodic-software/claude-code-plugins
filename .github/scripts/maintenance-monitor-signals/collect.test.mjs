@@ -584,7 +584,8 @@ test("stalled stops: a freshly stopped PR behind more than 20 idle ones is read 
 // posted after the comment's edit, and a draft's feedback skip (not-applicable
 // from the slot's draft predicate). Neither ran the activity, so both stay
 // stalled. A label clear-escalations took off for a reason now routed to a
-// failing status (#10136's shape: no stop comment on that head) is a stop too.
+// failing status (#10136's shape: no stop comment on that head) is a stop too,
+// except feedback-not-landed, which clears only once its cause is gone.
 test("stalled stops: a skip is no attempt, and a cleared fail-routed label is a stop", async () => {
   const skip = (title, at) => ({ conclusion: "neutral", output: { title }, started_at: at });
   const cleared = (pr, head, reason) => ({
@@ -595,12 +596,13 @@ test("stalled stops: a skip is no attempt, and a cleared fail-routed label is a 
     html_url: `https://github.com/o/r/pull/${pr}#c`,
   });
   const api = fakeApi([
-    [/\/pulls\?state=open/, [8401, 8402, 8403, 8404, 8405].map((number) => ({ number, draft: number === 8402, head: { sha: sha(String(number % 10)) } }))],
+    [/\/pulls\?state=open/, [8401, 8402, 8403, 8404, 8405, 8406].map((number) => ({ number, draft: number === 8402, head: { sha: sha(String(number % 10)) } }))],
     [/\/issues\/8401\/comments/, [stopComment(8401, sha("1"), "2026-10-19T12:00:00Z", { activity: "resolve-conflicts", reason: "repeat-cap" })]],
     [/\/issues\/8402\/comments/, [stopComment(8402, sha("2"), "2026-10-19T12:00:00Z", { activity: "address-feedback", reason: "feedback-partial" })]],
     [/\/issues\/8403\/comments/, [cleared(8403, sha("3"), "ci-fix-escalated")]],
     [/\/issues\/8404\/comments/, [cleared(8404, sha("4"), "feedback-uncertain")]],
     [/\/issues\/8405\/comments/, Array.from({ length: 350 }, (_, i) => ({ id: i, body: "chatter", user: { login: "someone" } }))],
+    [/\/issues\/8406\/comments/, [cleared(8406, sha("6"), "feedback-not-landed")]],
     [/\/commits\/1{40}\/check-runs/, { check_runs: [skip("Skipped: lane-stopped", "2026-10-19T12:00:05Z")] }],
     [/\/commits\/2{40}\/check-runs/, { check_runs: [skip("Skipped: not-applicable", "2026-10-19T12:40:00Z")] }],
     [/\/commits\/3{40}\/check-runs/, { check_runs: [{ conclusion: "success", output: { title: "Fixed" }, started_at: "2026-10-19T09:00:00Z" }] }],
@@ -614,7 +616,7 @@ test("stalled stops: a skip is no attempt, and a cleared fail-routed label is a 
       [8402, "address-feedback", "feedback-partial"],
       [8403, "fix-ci", "ci-fix-escalated"],
     ],
-    "a held reason's clear is no stop",
+    "a held reason's clear, and a feedback-not-landed one, is no stop",
   );
   assert.ok(data.gaps.includes("stalled stops: #8405 has over 300 comments and none names a stop on its head; older ones not read"), data.gaps.join("\n"));
 });
