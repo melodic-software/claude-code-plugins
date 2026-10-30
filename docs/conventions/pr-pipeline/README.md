@@ -1033,7 +1033,7 @@ the rules that only tighten in
   revert and read-back records stay human-close. A push to main files a `revert` record when one
   of its commits names a pull request it reverts and the lanes App enqueued that pull request or
   its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
-  on a line of its squash message: `Reverts` (optionally bulleted `- ` or `* `) followed by `#N`
+  on a line of its squash message: `Reverts` (optionally after a `-` or `*` bullet) followed by `#N`
   or `<owner>/<repo>#N` references, each counted; a GitHub revert-button subject
   `Revert "... (#N)" (#M)`; or `This reverts commit <sha>` or the red-main bot's
   `<!-- red-main-revert culprit=<sha> -->`, through that commit's `(#N)` subject. Every canary push
