@@ -336,7 +336,8 @@ def _concern_values(
 
     None when the reader rejects the document (`--strict` exit 3). Any other
     failure raises. With the default runner an answer is read once per
-    process (`_CONCERN_ANSWERS`); a failure is read again.
+    process (`_CONCERN_ANSWERS`); a rejection or failure is read again, so a
+    one-off reader failure never sticks.
     """
     if run is not None:
         return _read_concern_values(text, keys, run)
@@ -347,10 +348,13 @@ def _concern_values(
         run_command,
         tuple(sorted(os.environ.items())),
     )
-    if key not in _CONCERN_ANSWERS:
-        _CONCERN_ANSWERS[key] = _read_concern_values(text, keys, run_command)
-    found = _CONCERN_ANSWERS[key]
-    return None if found is None else {k: list(v) for k, v in found.items()}
+    found = _CONCERN_ANSWERS.get(key)
+    if found is None:
+        found = _read_concern_values(text, keys, run_command)
+        if found is None:
+            return None
+        _CONCERN_ANSWERS[key] = found
+    return {k: list(v) for k, v in found.items()}
 
 
 def _read_concern_values(

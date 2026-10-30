@@ -9487,6 +9487,18 @@ class ConcernValuesAnswers(unittest.TestCase):
         policy._concern_values("merge:\n  rung: on\n", keys)
         self.assertEqual(len(self.argvs), 4)
 
+    def test_a_rejected_read_is_read_again(self) -> None:
+        keys = [("merge.rung", False)]
+        text = "merge:\n  rung: rejected-once\n"
+        answers = iter([None, {"merge.rung": ["rejected-once"]}])
+        with mock.patch.object(
+            policy, "_read_concern_values", lambda *_: next(answers)
+        ):
+            self.assertIsNone(policy._concern_values(text, keys))
+            self.assertEqual(
+                policy._concern_values(text, keys), {"merge.rung": ["rejected-once"]}
+            )
+
     def test_a_failed_read_is_read_again(self) -> None:
         keys = [("merge.rung", False)]
         text = "merge:\n  rung: retried\n"

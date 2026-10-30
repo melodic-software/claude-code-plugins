@@ -3896,7 +3896,11 @@ def read_shared(path: str) -> policy.SharedPostMerge | None:
         demotion = policy.Demotion(
             record["active"], fields[3], tuple(records), newest, cleared
         )
-        report = {k: v for k, v in payload.items() if k not in ("since", "shared")}
+        report = {
+            k: v
+            for k, v in payload.items()
+            if k not in ("since", "shared", UNREADABLE_KEY)
+        }
         return policy.SharedPostMerge(
             main_sha=fields[0],
             config_sha=fields[1],
