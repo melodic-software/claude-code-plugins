@@ -160,15 +160,16 @@ const READ_ONLY_CLASS = "work-class: read-only";
 // listed person's own removal took it off (merge-holds.mjs HUMAN_MERGE_HOLD).
 export const HUMAN_MERGE_HOLD = "human-merge-hold";
 const EXITS = new Set(["done", "pushback", "stopped"]);
-// The one `cause` a pushback that reaches a person names: an intent question.
-const PUSHBACK_CAUSE = "intent";
-// A pushback's stop: pushback with cause intent; else the hold row runCode
-// reads its reason as (a security word, or a hold code such as
-// design-change), so a security or primary-design stop still reaches a
-// person; else pushback-means.
+// The causes a pushback that reaches a person names: an intent question.
+const PUSHBACK_CAUSES = new Set(["intent", "intent-change"]);
+// A pushback's stop: security-risk when runCode reads its reason as security,
+// whatever the cause; else pushback with cause intent; else the hold row
+// runCode reads its reason as (a hold code such as design-change), so a
+// primary-design stop still reaches a person; else pushback-means.
 const pushbackStop = (outcome) => {
-  if (String(outcome.cause ?? "").trim().toLowerCase() === PUSHBACK_CAUSE) return "pushback";
   const code = runCode(outcome.reason);
+  if (code === "security-risk") return code;
+  if (PUSHBACK_CAUSES.has(String(outcome.cause ?? "").trim().toLowerCase())) return "pushback";
   return stopRoute(code) === "hold" ? code : "pushback-means";
 };
 // The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title

@@ -60,7 +60,8 @@ dispatch, PR or babysit step. It works in place:
    from the code, docs and issue, build it, and state the choice and its basis in `summary`. An
    open choice of the primary design (the structure other parts depend on, such as a new service,
    store or contract) is not yours to make: stop before any edit with `stopped` and a
-   `design-change:` reason. Read
+   `design-change:` reason. A HIGH or CRITICAL security or cost concern found before any edit
+   stops there with `stopped` and a `security-risk:` or `cost-risk:` reason. Read
    `split_parent` first when present: a question is
    not open where its body states exactly one choice for it; where it lists options, it picks
    none of them. A comment the runner marked `"decision": true` (a listed

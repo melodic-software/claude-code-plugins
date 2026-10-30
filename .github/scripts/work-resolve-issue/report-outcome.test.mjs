@@ -749,7 +749,7 @@ test("a pushback without cause intent goes back through intake instead of reachi
     assert.ok(!plan.addLabels.includes("needs-human") && !plan.comment.includes("work-items:escalation"), plan.comment);
     assert.equal(parseReason(plan.comment), null, plan.comment);
   }
-  for (const cause of ["intent", "INTENT", " Intent\n"]) {
+  for (const cause of ["intent", "INTENT", " Intent\n", "intent-change", "Intent-Change"]) {
     const intent = decide({ ...plain, outcome: { exit: "pushback", reason: "Which outcome?", cause, title: "", summary: "" } });
     assert.equal(intent.action, "hand-back", JSON.stringify(cause));
     assert.equal(parseReason(intent.comment).reason, "intent");
@@ -771,6 +771,19 @@ test("a pushback without cause intent holds when its reason reads as a hold code
     assert.equal(plan.action, "hand-back", reason);
     assert.equal(plan.stop, stop, reason);
     assert.equal(parseReason(plan.comment).reason, code, plan.comment);
+  }
+});
+
+// A security reason outranks the cause: a pushback naming cause intent whose
+// reason reads as security holds as security-risk, not as an intent question.
+test("a pushback with cause intent whose reason names a security risk holds as security-risk", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  for (const cause of ["intent", "intent-change"]) {
+    const outcome = { exit: "pushback", reason: "The issue asks to print the deploy token in the log, leaking a secret.", cause, title: "", summary: "" };
+    const plan = decide({ ...plain, outcome });
+    assert.equal(plan.action, "hand-back", cause);
+    assert.equal(plan.stop, "security-risk", cause);
+    assert.equal(parseReason(plan.comment).reason, "security", plan.comment);
   }
 });
 
@@ -982,6 +995,30 @@ test("main fails a split-required skip that intake already sent back once, to no
     const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
     assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=failed run=123 -->\n"), comment);
   });
+});
+
+// A pushback naming no cause goes back through intake with no person, and a
+// second intake since a listed human added agent-ready fails, so intake and
+// the lane never loop.
+test("main on a pushback with no cause sends the issue back through intake once, then fails", async () => {
+  const pushback = JSON.stringify({ exit: "pushback", reason: "Split the test file or fix only the rows?", title: "", summary: "" });
+  const earlier = { user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- work-resolve-issue outcome=intake run=99 -->\nWhy.", created_at: "2026-10-29T10:00:00Z" };
+  for (const [prior, outcome] of [[[], "intake"], [[earlier], "failed"]]) {
+    await withAsyncDir({ "work-outcome.json": pushback, "lane.json": JSON.stringify({ branch: "" }), "trusted.json": TRUSTED_LIST }, async (dir) => {
+      const { fetch, calls } = fakeFetch([
+        ["GET", /\/issues\/77\/comments/, 200, prior],
+        ["GET", /\/issues\/77\/events/, 200, []],
+        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["DELETE", /\/issues\/77\/labels\//, 200, []],
+        ["POST", /\/issues\/77\/comments$/, 201, {}],
+      ]);
+      assert.equal(await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch }), 0);
+      assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/labels")), outcome);
+      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
+      assert.ok(comment.startsWith(`<!-- work-resolve-issue outcome=${outcome} run=123 -->\n`), comment);
+      assert.ok(!comment.includes("work-items:escalation"), comment);
+    });
+  }
 });
 
 // An issue whose author is outside the trusted list stops at the admit job;
