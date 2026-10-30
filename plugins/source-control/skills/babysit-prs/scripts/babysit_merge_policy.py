@@ -4149,12 +4149,9 @@ def _dependabot_content(
     lock files and `uses:` repins (`content_refusal`, per the pairs
     `.github/dependabot.yml` names at both the base and the default branch
     head, `_dependabot_config`); it sends the pull request to tier
-    `review`. The paths a version-bump commit touched count as checked once
-    it passes the bump rule (only plugin.json's `version` and CHANGELOG.md;
-    else `dependabot-bump-content:<why>`); any other commit that is not
-    Dependabot's (a lanes App fix) must pass the fix rule
-    (`_fix_commit_refusal`), else `dependabot-fix-content:<why>` is the
-    refusal, as is a commit whose file list cannot be read whole. The changed
+    `review`. A commit that is not Dependabot's (a lanes App fix) must pass
+    the fix rule (`_fix_commit_refusal`), and its paths then count as checked;
+    else `dependabot-fix-content:<why>` is the refusal, as is a commit whose file list cannot be read whole. The changed
     paths (either side of a rename) are None when the files listing was not
     read whole. Raises `PolicyReadError` on a read failure."""
     base_sha = str(json_object(pr.get("base")).get("sha") or "")
@@ -4168,11 +4165,9 @@ def _dependabot_content(
         if touched is None:
             # Unreadable (or past the listing cap) is not "touches nothing".
             return None, f"unreadable: commit files {sha[:12]}", None
-        bump = dependabot.is_actions_commit(item)
-        refusal = _fix_commit_refusal(owner, name, sha, config, bump=bump)
+        refusal = _fix_commit_refusal(owner, name, sha, config)
         if refusal:
-            kind = "bump" if bump else "fix"
-            return None, f"dependabot-{kind}-content:{refusal}", None
+            return None, f"dependabot-fix-content:{refusal}", None
         extra.update(touched)
     if config is None:
         return "dependabot-config-unreadable", None, None
@@ -4224,13 +4219,9 @@ def _fix_commit_refusal(
     name: str,
     sha: str,
     config: list[tuple[str, str]] | None,
-    *,
-    bump: bool = False,
 ) -> str | None:
     """Why a lanes App commit is not a fix the lane may merge with
-    (`babysit_dependabot.fix_refusal` against its one parent), or, with
-    `bump`, the version-bump commit more than a version bump (`bump_refusal`),
-    or None. The commit's files, modes and both sides' text are read here; a
+    (`babysit_dependabot.fix_refusal` against its one parent), or None. The commit's files, modes and both sides' text are read here; a
     read that fails is a refusal."""
     status, payload = _get(f"repos/{owner}/{name}/commits/{sha}")
     detail = json_object(payload)
@@ -4265,8 +4256,6 @@ def _fix_commit_refusal(
         return _raw_at(owner, name, path, parent if side == "before" else sha)
 
     try:
-        if bump:
-            return dependabot.bump_refusal(listing, entry, text)
         return dependabot.fix_refusal(listing, config, entry, text)
     except PolicyReadError as exc:
         return f"fix-unreadable:{str(exc)[:120]}"
@@ -4452,7 +4441,7 @@ def dependabot_eligibility(
         # to a person: the AI review judges it like any risky bump.
         files = _commit_files(owner, name)
         # Commits no review could admit refuse before any content is read.
-        refusal = dependabot.commits_refusal(commits, files, agent_identity)
+        refusal = dependabot.commits_refusal(commits, agent_identity)
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)
         content, refusal, paths = _dependabot_content(
@@ -4512,7 +4501,7 @@ def dependabot_eligibility(
             lane_commits = agent_identity
         # Provenance is never demoted: a push or commit not Dependabot's refuses.
         refusal = dependabot.commits_refusal(
-            commits, files, lane_commits
+            commits, lane_commits
         ) or _dependabot_pushes(owner, name, number, pr, commits, lane_commits)
         if refusal:
             return Eligibility(False, refusal, "C2", dependabot=tier)

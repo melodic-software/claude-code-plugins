@@ -1273,9 +1273,8 @@ same inputs: the pull request, its REST commits and files with patches, each non
 commit's files, and the base's `.github/dependabot.yml`. The pr-merge lane's commit and content
 refusals are review reasons here, so the AI review owns the pull request: a commit whose
 `verification.verified` is not `true` (`commit-unverified:<sha>`), whose git committer email is
-not `noreply@github.com` (`commit-not-committed-by-github:<sha>`), or that is neither signed
-`dependabot[bot]` nor the `[dependabot skip]` version-bump commit (`commit-not-dependabot:<sha>`,
-`commit-not-version-bump:<sha>`); no commits (`commits-missing`); a commits listing short of the
+not `noreply@github.com` (`commit-not-committed-by-github:<sha>`), or that is not signed
+`dependabot[bot]` (`commit-not-dependabot:<sha>`); no commits (`commits-missing`); a commits listing short of the
 pull request's commit count, which the dispatcher reads as GraphQL `commits.totalCount`
 (`commits-listed:<listed>-of:<total>`); a commit whose files cannot be
 read whole; a fix commit touching `.github/`. The lanes App admission is left out, so a pull
@@ -1390,8 +1389,7 @@ warns of a [classifier gap](README.md#classifier-gaps).
      full 40-hex SHAs, so only the SHA and the trailing comment differ; unless the pull request's commits are listed whole
      (fewer than 250, the pull request's count, the last one the head) and each is Dependabot's
      own (author id 49699333, committer `web-flow`, a valid signature, Dependabot's name and
-     email), the version-bump commit (only plugins' `plugin.json` `version` and `CHANGELOG.md`
-     changing, as regular files), or a single-parent commit that passes the fix rule against
+     email) or a single-parent commit that passes the fix rule against
      its parent, and arrived in its own author's push (the README's **Pushes** check, read
      from the head branch's repository activity), it posts no merge marker and escalates
      `dependency-fix-refused`; it reads
