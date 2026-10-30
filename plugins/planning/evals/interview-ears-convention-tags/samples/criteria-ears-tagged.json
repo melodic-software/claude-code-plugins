@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "### Acceptance criteria\n- AC1: [event-driven] WHEN an upload completes, the manifest lists the uploaded file\n- AC2: [unwanted-behavior] IF an upload fails, THEN the manifest is left unchanged",
+      "why": "both criteria tagged in the ears shape"
+    },
+    {
+      "answer": "- **AC1:** [event-driven] WHEN an upload completes, the manifest lists it\n- **AC2:** [unwanted-behavior] IF an upload fails, THEN the manifest is unchanged",
+      "why": "bold ids still tagged"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "### Acceptance criteria\n- AC1: When an upload completes, the manifest lists the uploaded file\n- AC2: If an upload fails, the manifest is left unchanged",
+      "why": "free-text criteria, untagged"
+    },
+    {
+      "answer": "- AC1: [event] WHEN an upload completes, the manifest lists it\n- AC2: [unwanted_behavior] IF an upload fails, THEN unchanged",
+      "why": "misspelled tag names read as no tag"
+    },
+    {
+      "answer": "- AC1: [event-driven] WHEN an upload completes, the manifest lists it\n- AC2: If an upload fails, the manifest is unchanged",
+      "why": "only one criterion tagged"
+    }
+  ]
+}
