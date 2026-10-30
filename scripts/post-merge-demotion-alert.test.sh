@@ -796,6 +796,14 @@ if [[ "$RC" -eq 0 && "$LOG" == 'GET repos/o/r/git/ref/heads/main' && ! -s "$TMP_
 else
   fail "superseded head: rc=$RC log='$LOG' out='$OUT'"
 fi
+TIP="$OTHER" VIA=workflow_dispatch STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never \
+  run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$LOG" == 'GET repos/o/r/git/ref/heads/main' && ! -s "$TMP_ROOT/stub/polls" &&
+  "$OUT" == *"not main's tip ${OTHER:0:12}"*"nothing filed"* ]]; then
+  ok "a bot-dispatched red run on a superseded head is not waited on and files nothing"
+else
+  fail "bot-dispatched superseded head: rc=$RC log='$LOG' out='$OUT'"
+fi
 for mode in fail rate; do
   TIP=$mode RERUN=failure ATTEMPT=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
   want=0 note='::warning::the read of main'
@@ -1394,7 +1402,7 @@ done
 MAIN_TIP=abcdefabcdefabcdefabcdefabcdefabcdefabcd
 for status in diverged behind fail fail-ref; do
   GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ON_MAIN=$status VIA=workflow_dispatch \
-    STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+    STARTER='github-actions[bot]' ATTEMPT=2 run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
   if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$OUT" != *"already recovered"* ]] &&
     grep -qx 'GET repos/o/r/git/ref/heads/main' <<<"$LOG" && ! grep -q 'recovered' "$TMP_ROOT/stub/output"; then
     ok "a newer green run off main's history (main tip compare $status) files"
@@ -1403,7 +1411,7 @@ for status in diverged behind fail fail-ref; do
   fi
 done
 GREEN="$(green_run "$OTHER"), $(newer_run 4300 2026-10-17T16:50:00Z)" ON_MAIN=identical TIP="$MAIN_TIP" VIA=workflow_dispatch \
-  STARTER='github-actions[bot]' ATTEMPT=1 RERUN=never run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
+  STARTER='github-actions[bot]' ATTEMPT=2 run_step "$FULL" workflow_dispatch failure main o/r "$SHA" '[]'
 if [[ "$RC" -eq 0 && "$(posts)" -eq 0 && "$OUT" == *"main already recovered: run 4300"* ]] &&
   grep -qx "GET repos/o/r/compare/$NEWER...$MAIN_TIP" <<<"$LOG"; then
   ok "a newer green run at main's tip suppresses the alert"

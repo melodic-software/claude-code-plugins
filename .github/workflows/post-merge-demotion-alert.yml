@@ -398,32 +398,30 @@ jobs:
               exit 0
             }
             if [[ "$RUN_ATTEMPT" -eq 1 && ("$RUN_TRIGGERING_ACTOR" != 'github-actions[bot]' || "$EVENT_NAME" == workflow_dispatch) ]]; then
+              # Only main's tip is re-run or waited on: a red run on a
+              # superseded head would judge code main no longer holds and can
+              # raise a stale MAIN-RED, and pr-merge re-runs no such head.
+              tip_err="$(mktemp)"
+              if ! tip="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha' 2>"$tip_err")" ||
+                [[ ! "$tip" =~ ^[0-9a-f]{40}$ ]]; then
+                cat "$tip_err" >&2
+                if grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$tip_err"; then
+                  echo "::error title=GitHub rate limit::the read of main's tip was rate limited; $RUN_URL is not re-run and nothing filed"
+                  exit 1
+                fi
+                echo "::warning::the read of main's tip failed; $RUN_URL is not re-run and nothing filed"
+                exit 0
+              fi
+              rm -f -- "$tip_err"
+              if [[ "$RUN_SHA" != "$tip" ]]; then
+                echo "::notice::$RUN_URL is on ${RUN_SHA:0:12}, not main's tip ${tip:0:12}: a superseded head is not re-run or waited on, so nothing filed"
+                exit 0
+              fi
               polls=20
               if [[ "$RUN_TRIGGERING_ACTOR" == 'github-actions[bot]' ]]; then
                 polls=40
-              else
-                # Only main's tip is re-run: a red run on a superseded head
-                # would judge code main no longer holds and can raise a stale
-                # MAIN-RED. Its wait is skipped too, so attempt 1 is not judged.
-                tip_err="$(mktemp)"
-                if ! tip="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha' 2>"$tip_err")" ||
-                  [[ ! "$tip" =~ ^[0-9a-f]{40}$ ]]; then
-                  cat "$tip_err" >&2
-                  if grep -qiE 'rate limit|RATE_LIMITED|abuse detection|HTTP 429' "$tip_err"; then
-                    echo "::error title=GitHub rate limit::the read of main's tip was rate limited; $RUN_URL is not re-run and nothing filed"
-                    exit 1
-                  fi
-                  echo "::warning::the read of main's tip failed; $RUN_URL is not re-run and nothing filed"
-                  exit 0
-                fi
-                rm -f -- "$tip_err"
-                if [[ "$RUN_SHA" != "$tip" ]]; then
-                  echo "::notice::$RUN_URL is on ${RUN_SHA:0:12}, not main's tip ${tip:0:12}: a superseded head is not re-run or waited on, so nothing filed"
-                  exit 0
-                fi
-                if ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
-                  echo "::warning::could not re-run $RUN_URL; waiting for any re-run already started"
-                fi
+              elif ! gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/rerun-failed-jobs" >/dev/null; then
+                echo "::warning::could not re-run $RUN_URL; waiting for any re-run already started"
               fi
               for _ in $(seq "$polls"); do
                 sleep "${POLL_SECONDS:-60}"
