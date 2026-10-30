@@ -131,7 +131,7 @@ done
 repo="$(new_repo)"
 seed "$repo" 'worker_continuation: resume\nworker_continuation: respawn\n'
 run "$repo" --check
-assert_true 'a duplicate key is named as a parse error' out_has "duplicate key \`worker_continuation\` (first at line 1)"
+assert_true 'a duplicate key is named as a parse error' out_has 'line 2: duplicate key "worker_continuation"'
 
 # A key outside the schema, empty or with a value, is named in one line and
 # ignored: --check still prints the valid key and exits 1, and apply writes
@@ -188,7 +188,7 @@ if (mode === "swap-docs") {
   const real = childProcess.spawnSync;
   childProcess.spawnSync = (cmd, ...rest) => {
     const r = real(cmd, ...rest);
-    if (cmd === "awk") {
+    if (cmd === "bash") {
       try {
         symlinkSync(outside, `${root}/docs`);
       } catch {}
