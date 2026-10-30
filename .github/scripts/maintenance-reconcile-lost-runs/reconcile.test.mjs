@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1769,4 +1769,79 @@ test("ci-status's pr-unblock step still writes the stop note the reconciler matc
   assert.match(step, /done <<<"\$failing"\n[ ]+exit 1\n/);
   assert.match(STOP_LINE("pr-unblock/conflict"), PR_UNBLOCK_STOP_NOTE);
   assert.doesNotMatch(STOP_LINE("ci-lanes"), PR_UNBLOCK_STOP_NOTE);
+});
+
+// A hosted review run the upstream-status gate stopped: its kill-switch job
+// failed at the callers' `Stop on upstream status` step (pr-review-hosted.yml,
+// pr-review-security-hosted.yml) and the review job was skipped.
+const SECURITY_REVIEW = ".github/workflows/pr-review-security-hosted.yml";
+const NPM_COMPONENTS = "https://status.npmjs.org/api/v2/components.json";
+const gatedJobs = ({ stop = "failure", kill = "failure", review = "skipped" } = {}) => [
+  { id: 301, name: "resolve-model", status: "completed", conclusion: "success", steps: [] },
+  {
+    id: 302,
+    name: "kill-switch",
+    status: "completed",
+    conclusion: kill,
+    steps: [
+      { name: "Check the kill switch", status: "completed", conclusion: "success" },
+      { name: "Check upstream status", status: "completed", conclusion: "success" },
+      { name: "Report the kill switch", status: "completed", conclusion: "skipped" },
+      { name: UPSTREAM_STOP_STEP, status: "completed", conclusion: stop },
+    ],
+  },
+  { id: 303, name: "pr-review / claude-review-status", status: "completed", conclusion: review, steps: [] },
+];
+const gated = (id, head, opts = {}, jobs = gatedJobs()) => run(id, head, { path: REVIEW, conclusion: "failure", updated: "2026-10-19T19:00:00Z", jobs, ...opts });
+
+test("the reconciler takes the hosted review lanes among its CI workflows", () => {
+  for (const file of [REVIEW, SECURITY_REVIEW]) {
+    assert.ok(CI_WORKFLOWS.has(file), file);
+  }
+});
+
+test("a hosted review run the upstream gate stopped has its failed jobs re-run once", async () => {
+  for (const path of [REVIEW, SECURITY_REVIEW]) {
+    const { failedJobReruns, reruns, code } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1), { path })] });
+    assert.equal(code, 0, path);
+    assert.deepEqual(failedJobReruns, [201], path);
+    assert.deepEqual(reruns, [], path);
+  }
+});
+
+test("a hosted review run that failed any other way is never re-run", async () => {
+  for (const jobs of [
+    gatedJobs({ stop: "skipped" }),
+    gatedJobs({ review: "failure" }),
+    gatedJobs({ kill: "success", stop: "skipped", review: "failure" }),
+  ]) {
+    const { failedJobReruns, reruns } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1), {}, jobs)] });
+    assert.deepEqual([...failedJobReruns, ...reruns], []);
+  }
+});
+
+test("a hosted review run the upstream gate stopped again at attempt 2 is never re-run", async () => {
+  const { failedJobReruns, reruns } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1), { attempt: 2 })] });
+  assert.deepEqual([...failedJobReruns, ...reruns], []);
+});
+
+test("a lost hosted review run is still reported, not re-run", async () => {
+  const { failedJobReruns, reruns } = await reconcile({ pulls: [pr(1)], runs: [run(201, sha(1), { path: SECURITY_REVIEW, conclusion: "timed_out" })] });
+  assert.deepEqual([...failedJobReruns, ...reruns], []);
+});
+
+test("an upstream-stopped review waits while the gate would still skip it", async () => {
+  const npmDown = { components: [{ name: "Package installation", status: "partial_outage", group: false }] };
+  const { failedJobReruns } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1))], upstream: { ...UPSTREAM_OK, [NPM_COMPONENTS]: npmDown } });
+  assert.deepEqual(failedJobReruns, []);
+  const slow = { components: [{ name: "Package installation", status: "degraded_performance", group: false }] };
+  const { failedJobReruns: ran } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1))], upstream: { ...UPSTREAM_OK, [NPM_COMPONENTS]: slow } });
+  assert.deepEqual(ran, [201]);
+});
+
+test("the hosted callers still name the stop step as the reconciler reads it", () => {
+  for (const file of [REVIEW, SECURITY_REVIEW]) {
+    const text = readFileSync(new URL(`../../../${file}`, import.meta.url), "utf8");
+    assert.ok(text.includes(`      - name: ${UPSTREAM_STOP_STEP}\n`), file);
+  }
 });
