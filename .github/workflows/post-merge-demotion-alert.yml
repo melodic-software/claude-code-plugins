@@ -142,6 +142,11 @@ jobs:
       # 'true' when every newly failing suite was outside the merges'
       # affected set or quarantined: no record, and no red-main report.
       excused: ${{ steps.file.outputs.excused }}
+    # Each guarded API call's rate-limit reading (the gh wrapper below and
+    # babysit_gh.py under the judge), for the job-end api-budget notice
+    # (.github/actions/log-api-budget).
+    env:
+      API_BUDGET_TOKEN: github-token
     steps:
       # main's tip, for babysit_postmerge.py --judge-run and the plan script it
       # runs in a worktree of the last green SHA; full history for that worktree.
@@ -185,6 +190,10 @@ jobs:
           RUN_TRIGGERING_ACTOR: ${{ github.event.workflow_run.triggering_actor.login }}
           RUN_COMMIT_MESSAGE: ${{ github.event.workflow_run.head_commit.message }}
         run: |
+          # Each `gh api` call keeps its rate-limit reading for the job-end
+          # api-budget notice (.github/actions/log-api-budget).
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
             if [[ ! "$INPUT_RUN_ID" =~ ^[1-9][0-9]{0,14}$ ]]; then
               echo "::error::run-id must be a run id (digits only)"
@@ -278,6 +287,10 @@ jobs:
           RUN_TRIGGERING_ACTOR: ${{ steps.run.outputs.triggering-actor }}
           RUN_COMMIT_MESSAGE: ${{ steps.run.outputs.commit-message }}
         run: |
+          # Each `gh api` call keeps its rate-limit reading for the job-end
+          # api-budget notice (.github/actions/log-api-budget).
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
           case "$RUN_WORKFLOW:$RUN_EVENT" in
             pr-require-checks:schedule) signal=schedule ;;
             pr-require-checks:workflow_dispatch) signal=dispatch ;;
@@ -867,6 +880,14 @@ jobs:
             fi
             exit 1
           fi
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
 
   # The red-main report. It runs after the alert job, so a re-run the alert
   # started is already under way, and only for a full run on main that
