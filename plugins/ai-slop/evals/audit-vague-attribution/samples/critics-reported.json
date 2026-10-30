@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "docs/queue.md:11 rule-vague-attribution: \"Some critics argue that a log-based queue is overkill\". Which critics? No source named.",
+      "why": "the critics line reported under the rule"
+    },
+    {
+      "answer": "Findings in docs/queue.md:\n- line 3, rule-vague-attribution: \"Experts argue ... widely regarded\"\n- line 11, rule-vague-attribution: \"Some critics argue\" names nobody",
+      "why": "both weasel lines reported, the critics line among them"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs/queue.md:3 rule-vague-attribution: \"Experts argue that a log-based queue is always the safer choice\". No other findings.",
+      "why": "the critics line missed"
+    },
+    {
+      "answer": "docs/queue.md:11 rule-promotional-language: \"Some critics argue that a log-based queue is overkill\".",
+      "why": "reported under another rule"
+    }
+  ]
+}

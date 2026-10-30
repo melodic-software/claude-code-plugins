@@ -1,9 +1,9 @@
 schema_version: "1.1"
 name: audit-vague-attribution
-description: "Audit reports weasel attribution under rule-vague-attribution and leaves attributed claims alone, read-only. Written from MB:plugins/ai-slop/skills/audit/reference/catalog.md:259-265, MB:plugins/ai-slop/skills/audit/SKILL.md:116-118 and 296-297 (the base contract). Bash, Edit and Write are listed so the no-edit, no-write and fixture-unchanged graders can fail."
+description: "Audit reports weasel attribution under rule-vague-attribution and leaves attributed claims alone, read-only. Written from MB:plugins/ai-slop/skills/audit/reference/catalog.md:259-265 and 852, MB:plugins/ai-slop/skills/audit/SKILL.md:116-118 and 296-297 (the base contract). The base rule is a rubric whose phrases are examples, so a 'Some critics argue' line is weasel wording under it; base keeps a name list out of rule-vague-attribution, and a list whose every outlet carries what it said is no finding there under either version. Bash, Edit and Write are listed so the no-edit, no-write and fixture-unchanged graders can fail."
 tags: [audit, rubric, attribution]
 runs: 3
-expected_outcome: "The audit reports the 'Experts argue' and 'widely regarded' sentence (docs/queue.md lines 3-4) under rule-vague-attribution, quoting it. The paragraph that cites the March load test figures and quotes the Kafka documentation gets no rule-vague-attribution finding. No file is edited."
+expected_outcome: "The audit reports the 'Experts argue' and 'widely regarded' sentence (docs/queue.md lines 3-4) under rule-vague-attribution, quoting it. The paragraph that cites the March load test figures and quotes the Kafka documentation gets no rule-vague-attribution finding. The 'Some critics argue' sentence (line 11) is reported under rule-vague-attribution. The closing paragraph (lines 13-15), where InfoQ and the Confluent blog post each carry what they said, gets no rule-vague-attribution finding. No file is edited."
 context:
   scaffold_script: scaffold.sh
 execution:
