@@ -19,7 +19,7 @@
 # is not a gate: `managed-scope-sync` and `state-key-sync` shipped outside the
 # aggregate for their whole lifetime (claude-code-plugins#2856), each advertised
 # as a dedicated check in scripts/cross-plugin-source-registry.txt. That is the
-# false-green shape docs/conventions/liveness-assertion/ names — green surface,
+# false-green shape docs/contracts/liveness-assertion/ names — green surface,
 # dead enforcement — with the added twist that the surface is the merge gate
 # itself.
 #

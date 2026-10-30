@@ -103,7 +103,7 @@
 // answers them all; a run whose verifier read did not come never narrows a
 // person's comment that already names its reasons. The
 // comment is the record; only a cause a person must clear
-// (docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner,
+// (docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner,
 // with cost and trust holds kept: untrusted
 // provenance or an untrusted spec, a security finding, a high path, a
 // trusted-actor widening, a real charge or a listing too long to check, see
@@ -612,7 +612,7 @@ export function verifyHold(evidence, head) {
 export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human", "issue-labels-unreadable"]);
 
 // Who clears the refusal verifyHold reads in `evidence` at `head`
-// (docs/conventions/loop-lane/README.md#when-work-stops-for-the-owner;
+// (docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner;
 // cost and trust holds stay a person's): `person`
 // for an issue link the trust hold refuses (TRUST_REFUSALS), a verifier
 // refusal the gate marks `needsHuman` (babysit_verify_evidence NEEDS_HUMAN)

@@ -208,7 +208,7 @@ this repository, exactly one open non-draft PR into `main` has its head, the lan
 [adopted owner](#owner-pull-requests) opened that PR, it carries no `do-not-merge`, both lanes' newest reviewed-head markers
 name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
 reviewer bot, one the lane never answered where a fix request, below, follows the reviewer bot's
-finding, or answered by a trusted human after the lane escalated it; on a PR carrying the
+finding or sits in a thread a trusted person opened, or answered by a trusted human after the lane escalated it; on a PR carrying the
 human-gated label, only one whose answer is a fix request, unless a lane escalation put the label
 on: the lanes App added it last, its `work-items:escalation lane=pr-unblock` comment (pr-unblock
 or fix-ci) followed within a minute, no other marker is on its comments since, no review-lane
@@ -301,7 +301,7 @@ serves an adopted owner PR, posting its replies as the lanes App:
 - What: the round is the App PR round, unchanged: the same threads (only the reviewer bot's, a
   listed review bot's, or a lane's, under the same trusted-person rules), the same CRITICAL and
   security holds, the same `apply-feedback-patch` push under the same patch rules, and no merge.
-  A thread a person wrote, answered without a fix request, or directed still goes to that person;
+  A thread a person wrote without a fix request, answered without one, or directed still goes to that person;
   on an owner PR such a thread starts no round, and the select job skips it with no stop instead of
   escalating `feedback-untaken-threads`.
 - Resolve: GitHub lets only a PR's author or a writer resolve its threads, so `publish-feedback`
@@ -326,7 +326,11 @@ permission on the repository, never edited, or last edited by a person on that l
 `>` line never matches). On a thread the lanes App never commented on, one fix request after the
 reviewer bot's finding makes the thread one `address-feedback` works, as long as every other
 comment is the reviewer bot's or a trusted person's; their comments from the first fix request on
-are direction. Such a thread, and one a trusted person answered after the lane escalated it, is
+are direction. A thread such a person opened is worked the same way: their own fix request in it,
+first comment or a later one, asks the lane to fix what it names (a failing check, say, on a PR
+no review bot commented on), so the lane no longer stops on it with `feedback-untaken-threads`.
+A thread anyone else opened, or one without a fix request, is left alone as before. Such a
+thread, and one a trusted person answered after the lane escalated it, is
 worked even when its review is on an earlier head than the one the reviewed-head markers name.
 `pr-feedback-dispatch.yml` runs only when a review run completes, so a fix request posted after
 the head's review starts nothing on its own. To start the round, an account on the trusted-actor

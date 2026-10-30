@@ -15,7 +15,7 @@
 # to prove the shipping config, not just the mechanism.
 #
 # Assertion scaffolding lives in scripts/lib/test-harness.sh — repo tooling,
-# not a plugin library. See docs/conventions/shell-test-helpers/README.md.
+# not a plugin library. See docs/contracts/shell-test-helpers/README.md.
 # shellcheck disable=SC2016  # fixture bodies are literal shell content in single quotes; expansion is never wanted
 set -uo pipefail
 

@@ -6,7 +6,7 @@
 # Hermetic: a stub `gh` first on PATH records every call (one argv element per
 # line) and copies any --body-file into the log, so no case reaches GitHub.
 # Report lines are written by hand in the form check-upstream-drift.sh --report
-# prints (docs/conventions/upstream-drift/README.md, the --report row); titles,
+# prints (docs/contracts/upstream-drift/README.md, the --report row); titles,
 # issue numbers and the 60,000-character cap are literals of the plan.
 # shellcheck disable=SC2016  # stub source and expected code spans are literal text; expansion is never wanted
 set -uo pipefail
