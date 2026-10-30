@@ -130,7 +130,7 @@ assert_contains "the all-unavailable run renders the Measured nothing headline" 
 # 4. Usage.
 PATH="$EMPTY_PATH" bash "$SCRIPT" "$SOURCES/does-not-exist.py" >/dev/null 2>&1
 assert_eq "a missing explicit path exits 2" 2 "$?"
-PATH="$EMPTY_PATH" bash "$SCRIPT" --help 2>&1 | grep -q 'audit-complexity.sh \[--json\]'
+grep -q 'audit-complexity.sh \[--json\]' < <(PATH="$EMPTY_PATH" bash "$SCRIPT" --help 2>&1)
 assert_eq "--help prints usage" 0 "$?"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
