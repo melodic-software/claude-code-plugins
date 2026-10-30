@@ -58,8 +58,11 @@ then names that `README.md` in place of a line per feature under the module. The
 line keeps the form above: its `<n>` is the number of lines under the module `README.md`'s own
 `## Entry points`, which is the sum of the features' entry points, and its `sources` is the union
 of their globs, so a changed file under any of them still matches a hub line. The module
-`README.md`'s `## Sub-features` gives each feature under it a line in the same form, which is
-where a caller that matched the module line finds the feature. A module with no
+`README.md`'s `## Sub-features` holds one index line per feature under it, in the form above with
+that feature's own path, count and globs. A caller that maps a changed file to features reads the
+hub's lines, and for a matched module line reads the module `README.md`'s `## Sub-features` lines
+too: the file maps to each feature whose own line's `sources` match it, and that line's path gives
+the feature id (`features/auth/sign-in/README.md` is `auth/sign-in`). A module with no
 `README.md`, like a small app with no modules, keeps a hub index line per feature.
 
 A control skill can instead be a command file named `control-<app>`. The command file is the hub:
