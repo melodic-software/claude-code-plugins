@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The lane parses the invocation surface: validates the optional owner/repo against the checkout (match — proceed), applies shard 0/2 so only even-numbered items (102, 104, 106) remain in the snapshot, orders admitted cap slots newest-first, and binds lane_instance worker-a for telemetry (overriding userConfig). It rejects autopilot and --merge c3-this-run with a clear message — merge authority and babysit tier tokens belong to the merge lane, not this worker lane — and does not silently ignore them. It loads reference/mode-standing.md only (the explicit --standing a headless launch must carry) and does not load reference/mode-drain.md. The cycle report states which source supplied each effective value.",
+      "why": "the case's expected outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Shard 0/2 kept 102, 104 and 106, ordered newest-first, instance worker-a. autopilot and --merge c3-this-run were ignored and the cycle ran.",
+      "why": "contradicts an expectation"
+    },
+    {
+      "answer": "Rejected autopilot and --merge c3-this-run: they belong to the merge lane. Shard 0/2 kept 101, 103 and 105. Loaded mode-drain.md.",
+      "why": "contradicts an expectation"
+    }
+  ]
+}
