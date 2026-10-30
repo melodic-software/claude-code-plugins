@@ -152,6 +152,12 @@ runs:
           mkdir -p "$RUNNER_TEMP/lib"
           cp -R "$BASE_PATH/.github/scripts/lib/." "$RUNNER_TEMP/lib/"
         fi
+        # The branch activity reader, which address-feedback.mjs listActivity
+        # loads as ../pr-merge/merge-holds.mjs.
+        if [[ -f $BASE_PATH/.github/scripts/pr-merge/merge-holds.mjs ]]; then
+          mkdir -p "$RUNNER_TEMP/pr-merge"
+          cp "$BASE_PATH/.github/scripts/pr-merge/merge-holds.mjs" "$RUNNER_TEMP/pr-merge/"
+        fi
 
     - name: Stage the base marketplace and the skill prompt
       id: skill

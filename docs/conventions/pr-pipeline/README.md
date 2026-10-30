@@ -1102,10 +1102,23 @@ the rules that only tighten in
   does, and for a pull request whose changed files include a lane source runs both lanes on the
   head's diff as data, each lane's criteria and the standards copied from main, with a read-only
   token and a model that may only Read its data directory. The diff is `git diff --text`, so a file
-  git would call binary is shown as text, and a patch that still holds a binary file or is over
-  300000 bytes gets no verdict. The diff is split into parts one Read returns whole (15000 bytes
-  and 1000 lines at most; a longer line gets no verdict), and a verdict is written only when the
-  run read every part whole, with no offset or limit (`write-verdict.mjs` `readCoverage`). A diff
+  git would call binary is shown as text, and a patch that still holds a binary file gets no
+  verdict. A patch over 300000 bytes is split into chunks of at most 300000 bytes, cut at file
+  boundaries with each file whole (`split-diff.py`); each chunk is reviewed by its own run, in
+  order, and the lane's one verdict sums the chunks' findings and takes the most CRITICAL ones
+  any one chunk found; the verdict's `items` give each finding its `chunk`, so they can hold more
+  CRITICAL items than its `critical` count, which alone binds. A patch that holds a single file
+  over 300000 bytes, or needs more than 4 chunks (the diff step's `MAX_CHUNKS`, at most the leg's
+  review steps), gets no verdict: a multi-file diff over about 1.2 MB still stops as `too-large`
+  until a dynamic chunk count lifts it
+  ([#11000](https://github.com/melodic-software/claude-code-plugins/issues/11000)). The
+  diff step logs a `pr-review-main chunks` notice with the chunk count and each chunk's bytes,
+  and the verdict step one `pr-review-main chunk` notice per chunk with its bytes, findings and
+  CRITICAL ones. Each chunk is split into parts one Read returns whole (15000
+  bytes and 1000 lines at most; a longer line gets no verdict), and a verdict is written only when
+  every chunk's run succeeded and read each of its parts whole, with no offset or limit
+  (`write-verdict.mjs` `readCoverage`). A chunk that hands off hands the whole lane to the next
+  leg, which reviews every chunk again. A diff
   line over 1800 bytes (`babysit_risk.LONG_LINE_BYTES`), which Read may cut short, gets no verdict:
   the merge gate holds a pull request only the main-run review binds (`needs_main_review`, as
   `bind()` decides; a read-only workflow binds through the pull_request lanes, which read the
@@ -1126,12 +1139,13 @@ the rules that only tighten in
   `pr-review-main-<lane>-<pr>-<tree>`, the tree read by git, never the model, and a separate job
   with no model posts its counts as the check run `pr-review-main: <lane>` (titled
   `findings=<n> critical=<m>`, conclusion neutral) on the reviewed head. A designed stop (a
-  binary file, a patch over the size cap or a line over 1800 bytes) leaves the leg green with no
+  binary file, a patch over the chunk cap or a line over 1800 bytes) leaves the leg green with no
   verdict, and the record job posts it on the head as the same check run titled
-  `verdict=none reason=<too-large|binary|long-line>`, so each stop is a countable record; it
-  posts nothing else. A stop counts no CRITICAL finding and never binds a lane: with no verdict
-  the lanes stay unbound as `main-review-stop:<reason>`, a lane's reason. A forged stop only
-  renames that reason.
+  `verdict=none reason=<too-large|binary|long-line|chunk-failed>`, so each stop is a countable
+  record; it posts nothing else. `chunk-failed` is a chunked review one of whose chunks failed,
+  left no result or skipped a part: no chunk's counts bind, and that leg still fails. A stop
+  counts no CRITICAL finding and never binds a lane: with no verdict the lanes stay unbound as
+  `main-review-stop:<reason>`, a lane's reason. A forged stop only renames that reason.
   The gate (`babysit_review_evidence._main_bound`) counts a verdict only when its run is that
   file, event `workflow_run`, on the default branch of this repository with a head the branch
   holds, and the verdict names that lane, pull request and tree. As with pr-verify's FAIL, a
