@@ -116,25 +116,15 @@ jobs:
           echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict until the lost-run reconciler re-runs it"
           exit 1
 
-      # The upstream run's actors, the re-runner and the PR author must all be
-      # on the trusted-actor list.
-      - name: Check the trigger
-        id: gate
-        if: steps.kill.outputs.proceed == 'true'
-        # Each API call keeps its rate-limit reading for the api-budget
-        # notice the job logs before its last step.
-        env:
-          API_BUDGET_TOKEN: github-token
-        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
-        with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
-          triggering-actor: ${{ github.triggering_actor }}
-          reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
-          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
-
+      # The resolver reads only, and skips on its own reads every run it
+      # would not judge (a head already judged or moved past, a draft, a run
+      # red for anything an approval does not lift, an author it does not
+      # judge), so it runs first and the gate's reads go only to a run it
+      # would judge. Nothing it writes reaches the model before the gate and
+      # the agree step pass.
       - name: Resolve the pull request
         id: pr
-        if: steps.gate.outputs.proceed == 'true'
+        if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
@@ -152,11 +142,27 @@ jobs:
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
+      # The upstream run's actors, the re-runner and the PR author must all be
+      # on the trusted-actor list.
+      - name: Check the trigger
+        id: gate
+        if: steps.pr.outputs.proceed == 'true'
+        # Each API call keeps its rate-limit reading for the api-budget
+        # notice the job logs before its last step.
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          triggering-actor: ${{ github.triggering_actor }}
+          reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
+          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+
       # The gate and the resolver read the PR separately; both must name the
       # same PR at the run's head, or nothing is judged.
       - name: Assert the gate and the resolver agree
         id: agree
-        if: steps.pr.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true'
         env:
           GATE_PR: ${{ steps.gate.outputs.pr-number }}
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
@@ -476,26 +482,15 @@ jobs:
           echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict until the lost-run reconciler re-runs it"
           exit 1
 
-      # The upstream run's actors, the re-runner and the PR author must all be
-      # on the trusted-actor list. A re-run github-actions[bot] started passes
-      # only as the lost-run reconciler's recorded re-run of this run.
-      - name: Check the trigger
-        id: gate
-        if: steps.kill.outputs.proceed == 'true'
-        # Each API call keeps its rate-limit reading for the api-budget
-        # notice the job logs before its last step.
-        env:
-          API_BUDGET_TOKEN: github-token
-        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
-        with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
-          triggering-actor: ${{ github.triggering_actor }}
-          reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
-          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
-
+      # The resolver reads only, and skips on its own reads every run it
+      # would not judge (a head already judged or moved past, a draft, a run
+      # red for anything an approval does not lift, an author it does not
+      # judge), so it runs first and the gate's reads go only to a run it
+      # would judge. Nothing it writes reaches the model before the gate and
+      # the agree step pass.
       - name: Resolve the pull request
         id: pr
-        if: steps.gate.outputs.proceed == 'true'
+        if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
@@ -513,11 +508,28 @@ jobs:
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
+      # The upstream run's actors, the re-runner and the PR author must all be
+      # on the trusted-actor list. A re-run github-actions[bot] started passes
+      # only as the lost-run reconciler's recorded re-run of this run.
+      - name: Check the trigger
+        id: gate
+        if: steps.pr.outputs.proceed == 'true'
+        # Each API call keeps its rate-limit reading for the api-budget
+        # notice the job logs before its last step.
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          triggering-actor: ${{ github.triggering_actor }}
+          reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
+          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+
       # The gate and the resolver read the PR separately; both must name the
       # same PR at the run's head, or nothing is judged.
       - name: Assert the gate and the resolver agree
         id: agree
-        if: steps.pr.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true'
         env:
           GATE_PR: ${{ steps.gate.outputs.pr-number }}
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}
@@ -839,26 +851,15 @@ jobs:
           echo "::error::the lanes kill switch stops this run (reason: ${REASON:-unreadable}); no verdict until the lost-run reconciler re-runs it"
           exit 1
 
-      # The upstream run's actors, the re-runner and the PR author must all be
-      # on the trusted-actor list. A re-run github-actions[bot] started passes
-      # only as the lost-run reconciler's recorded re-run of this run.
-      - name: Check the trigger
-        id: gate
-        if: steps.kill.outputs.proceed == 'true'
-        # Each API call keeps its rate-limit reading for the api-budget
-        # notice the job logs before its last step.
-        env:
-          API_BUDGET_TOKEN: github-token
-        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
-        with:
-          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
-          triggering-actor: ${{ github.triggering_actor }}
-          reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
-          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
-
+      # The resolver reads only, and skips on its own reads every run it
+      # would not judge (a head already judged or moved past, a draft, a run
+      # red for anything an approval does not lift, an author it does not
+      # judge), so it runs first and the gate's reads go only to a run it
+      # would judge. Nothing it writes reaches the model before the gate and
+      # the agree step pass.
       - name: Resolve the pull request
         id: pr
-        if: steps.gate.outputs.proceed == 'true'
+        if: steps.kill.outputs.proceed == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           API_BUDGET_TOKEN: github-token
@@ -876,11 +877,28 @@ jobs:
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS
           node .base/.github/scripts/pr-verify/resolve-pr.mjs
 
+      # The upstream run's actors, the re-runner and the PR author must all be
+      # on the trusted-actor list. A re-run github-actions[bot] started passes
+      # only as the lost-run reconciler's recorded re-run of this run.
+      - name: Check the trigger
+        id: gate
+        if: steps.pr.outputs.proceed == 'true'
+        # Each API call keeps its rate-limit reading for the api-budget
+        # notice the job logs before its last step.
+        env:
+          API_BUDGET_TOKEN: github-token
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          triggering-actor: ${{ github.triggering_actor }}
+          reconciler-workflow: .github/workflows/maintenance-reconcile-lost-runs.yml
+          ci-status-rerun-workflow: .github/workflows/pr-feedback-dispatch.yml
+
       # The gate and the resolver read the PR separately; both must name the
       # same PR at the run's head, or nothing is judged.
       - name: Assert the gate and the resolver agree
         id: agree
-        if: steps.pr.outputs.proceed == 'true'
+        if: steps.gate.outputs.proceed == 'true'
         env:
           GATE_PR: ${{ steps.gate.outputs.pr-number }}
           GATE_HEAD: ${{ steps.gate.outputs.head-sha }}

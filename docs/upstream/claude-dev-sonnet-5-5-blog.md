@@ -11,7 +11,7 @@
 
 This is the provenance record for acting on the claude.dev post about building with Sonnet 5.5. It
 follows the record shape of [opus-5-5-usage-guide.md](opus-5-5-usage-guide.md) and the
-[upstream-drift](../conventions/upstream-drift/README.md#required-parts) convention. Each row is our
+[upstream-drift](../contracts/upstream-drift/README.md#required-parts) convention. Each row is our
 decision in our own words; no row restates the post or a docs page.
 
 ## Status

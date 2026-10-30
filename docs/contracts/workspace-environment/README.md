@@ -148,7 +148,7 @@ collide on ports, containers and databases.
 
 A worktree's stage reads untrusted input when it works an `untrusted-provenance` item, a pull request
 from a fork, or raw intake (the stage table in
-[`docs/conventions/execution-target/`](../execution-target/README.md#required-plugins-per-stage)).
+[`docs/contracts/execution-target/`](../execution-target/README.md#required-plugins-per-stage)).
 No verb runs for such a worktree unless that stage runs on a cloud host whose stage-start probe
 passed. The skill skips every verb, says why, and continues without them.
 

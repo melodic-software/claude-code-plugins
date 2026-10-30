@@ -206,7 +206,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, errorLabel, GitHubError, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { humanGatedLabelFrom } from "../pr-unblock/address-feedback.mjs";
+import { humanGatedLabelFrom, quote } from "../pr-unblock/address-feedback.mjs";
 import {
   lines as bodyLines,
   foreignMarker,
@@ -670,15 +670,29 @@ export const personReason = (reasons) => [...new Set(reasons.map(String))].sort(
 const partialLine = (head) => `<!-- pr-merge-partial head=${head} -->`;
 export const isPartial = (body, head) => String(body ?? "").split("\n").at(-1) === partialLine(head);
 
-// The reason lines of a person's refusal comment `body` at `head` as
-// refusalBody renders them, or null when it is not one.
-function personReasons(body, head, label) {
+// The reason lines of a refusal comment `body` at `head` (a person's when
+// `person`), each whole and as fenced renders it, when refusalBody renders it
+// from them with `since`, `partial` and `records`, or rendered it before
+// reasons wrapped (one fence line per reason); else null. A wrapped line's
+// continuations start with two spaces, which no fenced line does.
+export function refusalReasons(body, person, head, label, { since = null, partial = false, records = [] } = {}) {
   const lines = String(body ?? "").split("\n");
-  const partial = isPartial(body, head);
   const open = lines.indexOf("```text");
-  const reasons = open < 0 ? [] : lines.slice(open + 1, lines.indexOf("```", open + 1));
-  return open >= 0 && refusalBody(true, reasons.join("\n"), head, label, null, partial, recordLines(body)) === body ? reasons : null;
+  const close = lines.indexOf("```", open + 1);
+  if (open < 0 || close < 0) {
+    return null;
+  }
+  const raw = lines.slice(open + 1, close);
+  const reasons = raw.reduce((out, line) => (line.startsWith("  ") && out.length > 0 ? [...out.slice(0, -1), `${out.at(-1)} ${line.slice(2)}`] : [...out, line]), []);
+  if (refusalBody(person, reasons.join("\n"), head, label, since, partial, records) === body) {
+    return reasons;
+  }
+  return renderRefusal(unwrappedFence, person, raw.join("\n"), head, label, since, partial, records) === body ? fenced(raw.join("\n")).split("\n") : null;
 }
+
+// The reason lines of a person's refusal comment `body` at `head`, or null
+// when it is not one.
+const personReasons = (body, head, label) => refusalReasons(body, true, head, label, { partial: isPartial(body, head), records: recordLines(body) });
 
 // A person's refusal at `head` whose every reason is a hold path
 // (merge-holds.pathHoldKind's "it changes <path>, a hold path"): the one
@@ -802,8 +816,19 @@ async function liftBlocked(github, repo, number, options) {
   return liftBlocker({ timeline, reviewComments, reviews, ...options });
 }
 
-// A reason as the comment's fenced block carries it.
-const fenced = (reason) => String(reason).replaceAll(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''");
+// A reason as the comment carried it before reasons wrapped.
+const unfolded = (reason) => String(reason).replaceAll(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''");
+// A reason as the comment's fenced block carries it: each line trimmed, its
+// whitespace runs one space, so a wrap at a space joins back exactly.
+const fenced = (reason) =>
+  unfolded(reason)
+    .split("\n")
+    .map((line) => line.replaceAll(/\s+/g, " ").trim())
+    .join("\n");
+// The fenced block: each reason line wrapped (address-feedback quote), or one
+// fence line per reason as before reasons wrapped.
+const wrappedFence = (reason) => quote(fenced(reason).split("\n"), (count) => `Its reasons (${count} lines)`);
+const unwrappedFence = (reason) => ["```text", unfolded(reason), "```"].join("\n");
 
 // A whole-review request's record line (babysit_whole_review.py RECORD_RE),
 // kept on every rewrite of the refusal comment, a person's included, since it
@@ -826,7 +851,10 @@ export const recordLines = (body) => {
 };
 
 // `records`: the comment's whole-review record lines, before its last.
-export function refusalBody(person, reason, head, label, since = null, partial = false, records = []) {
+export const refusalBody = (person, reason, head, label, since = null, partial = false, records = []) =>
+  renderRefusal(wrappedFence, person, reason, head, label, since, partial, records);
+
+function renderRefusal(fence, person, reason, head, label, since, partial, records) {
   const who = person
     ? `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`
     : "The lanes clear this reason on their own; the next scheduled run judges it again.";
@@ -835,9 +863,7 @@ export function refusalBody(person, reason, head, label, since = null, partial =
     REFUSAL_MARKER,
     `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${head}\`. ${who}`,
     "",
-    "```text",
-    fenced(reason),
-    "```",
+    fence(reason),
     ...(records.length === 0 ? [] : ["", ...records]),
     ...(person || since === null ? [] : [laneSince(head, since)]),
     ...(person && partial ? [partialLine(head)] : []),
@@ -896,6 +922,11 @@ export function refusalWrites(pull, comments, { clears, reason, comment, partial
   const lane = refusalBody(false, reason, pull.headRefOid, label, since, false, records);
   const person = refusalBody(true, reason, pull.headRefOid, label, null, partial && !answered, records);
   const body = clears === "person" ? person : lane;
+  // The same comment as written before reasons wrapped, which says this too.
+  const unwrapped =
+    clears === "person"
+      ? renderRefusal(unwrappedFence, true, reason, pull.headRefOid, label, null, partial && !answered, records)
+      : renderRefusal(unwrappedFence, false, reason, pull.headRefOid, label, since, false, records);
   const carried = (pull.labels?.nodes ?? []).some((node) => String(node?.name).toLowerCase() === String(label).toLowerCase());
   // The verifier's answer adding nothing to a partial refusal at the head:
   // its mark comes off in place, notifying no one of what it already said.
@@ -907,7 +938,7 @@ export function refusalWrites(pull, comments, { clears, reason, comment, partial
   // goes back on unless a person removed it after the comment last changed,
   // which the caller reads from the timeline (`liftedSince`).
   const standing = partial && body === person ? personReasons(prior?.body, pull.headRefOid, label) : null;
-  if (prior?.body === body || (standing !== null && fenced(reason).split("\n").every((line) => standing.includes(line)))) {
+  if (prior?.body === body || (prior !== undefined && prior.body === unwrapped) || (standing !== null && fenced(reason).split("\n").every((line) => standing.includes(line)))) {
     return body === person && !carried ? { body: null, commentId: prior.databaseId ?? null, label, liftedSince: String(prior.updatedAt ?? prior.createdAt) } : null;
   }
   // An escalation to a person posts a new comment: an edit notifies no one

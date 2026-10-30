@@ -27,7 +27,7 @@ held in one YAML file the repository owner changes by pull request.
 the work loop (`/work-items:work-loop`), local triage (`/work-items:triage`) and the babysit loop
 (`/source-control:babysit-loop`, which runs `/source-control:babysit-prs`). In a repository that runs
 the PR pipeline's lanes, post-ready work is placed by the pipeline config
-([`docs/conventions/pr-pipeline/`](../pr-pipeline/README.md)), not by this file. Merge authority is
+([`docs/conventions/pr-pipeline/`](../../conventions/pr-pipeline/README.md)), not by this file. Merge authority is
 not part of this setting and does not change with the host.
 
 ## The file

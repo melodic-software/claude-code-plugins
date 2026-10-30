@@ -82,6 +82,46 @@ const FILES_CAP = 3000;
 
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 
+// GitHub refuses a comment body over 65536 characters; leave room for the
+// framing (judgment).
+const BODY_MAX = 60000;
+
+// GitHub scrolls a long line in a code block instead of wrapping it, so each
+// quoted line is broken at a space to fit WRAP columns, its continuations
+// indented two spaces; a word longer than that (a URL, a path) stays whole. A
+// quote over FOLD_LINES lines folds into a <details> block (judgment).
+export const WRAP = 100;
+const FOLD_LINES = 20;
+
+export function wrapLine(line, width = WRAP) {
+  const out = [];
+  let lead = "";
+  let rest = line;
+  while (lead.length + rest.length > width) {
+    const room = width - lead.length;
+    let cut = rest.lastIndexOf(" ", room);
+    if (cut <= 0) cut = rest.indexOf(" ", room);
+    if (cut <= 0) break;
+    out.push(lead + rest.slice(0, cut).trimEnd());
+    rest = rest.slice(cut + 1).trimStart();
+    lead = "  ";
+  }
+  out.push(lead + rest);
+  return out;
+}
+
+// One fenced quote, with no fence inside it and no control character. The
+// fence keeps the quoted text inert: no mention, reference, link or HTML
+// renders, and no line of it reads as a lane footer, rating or fix request.
+// `summary` labels the <details> block a long quote folds into.
+export function quote(lines, summary = (count) => `What it wrote (${count} lines)`) {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what it removes
+  const text = lines.join("\n").replace(/\r\n/g, "\n").replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''");
+  const wrapped = (text.length > BODY_MAX ? `${text.slice(0, BODY_MAX)} [cut]` : text).split("\n").flatMap((line) => wrapLine(line));
+  const fence = ["```text", ...wrapped, "```"].join("\n");
+  return wrapped.length > FOLD_LINES ? [`<details><summary>${summary(wrapped.length)}</summary>`, "", fence, "", "</details>"].join("\n") : fence;
+}
+
 // The ids of the unresolved threads (listThreads) a pr-verify FAIL's notes
 // opened on a head other than `head`: the first comment is
 // github-actions[bot]'s, opens with VERIFY_NOTE_MARKER, and was posted on
@@ -780,10 +820,11 @@ export async function select({
     modelRung: retryRung(await api.listCheckRuns(headSha, REPLY_CHECK)),
     rounds,
     maxRounds: bound,
-    // True drops the human-gated label from the write runner's holds: every
-    // kept thread carries a write-access fix request, or a lane escalation
-    // that lets this activity work put the label on.
-    fixRequested: labeled,
+    // The gate the round works past on a PR carrying the human-gated label,
+    // which the write runner's holds read: fix-request when every kept thread
+    // carries a write-access fix request, lane-escalation when a lane
+    // escalation that lets this activity work put the label on.
+    humanGate: labeled ? (gated ? "fix-request" : "lane-escalation") : "",
     threads: worked,
     file: { version: 1, repository, pr, head_sha: headSha, pr_paths: prPathsOf(files), threads: worked, ...(retry ? { retry } : {}) },
     reviewedHeads: [...heads].sort(),
@@ -1275,9 +1316,10 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
     }
     output("proceed", String(result.decision === "proceed"));
     // The write runner drops the human-gated label from the hold list only
-    // when this is true: every kept thread carries a write-access fix request,
-    // or a lane escalation put the label on.
-    output("fix-requested", String(result.fixRequested === true));
+    // on fix-request (every kept thread carries a write-access fix request),
+    // or on lane-escalation (a lane escalation put the label on) while it
+    // reads that again right before its push.
+    output("human-gate", result.humanGate ?? "");
     output("model-rung", result.modelRung ?? "");
     output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? stopSkip(result.escalationReason) : "");
     output("escalation-reason", result.escalationReason ?? "");

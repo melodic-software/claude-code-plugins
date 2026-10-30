@@ -1,5 +1,5 @@
 # Example .claude/ecosystems/go.yaml — a consuming repo's Go command surface.
-# Contract: docs/conventions/ecosystem-commands/README.md (schema: ecosystem.schema.json).
+# Contract: docs/contracts/ecosystem-commands/README.md (schema: ecosystem.schema.json).
 globs: ["*.go", "go.mod", "go.sum", "*.proto", "buf.gen.yaml", "buf.yaml", "buf.work.yaml", "buf.lock"]
 project-discovery: ["go.mod"]
 build-cmd: "go build ./..."

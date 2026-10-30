@@ -7,7 +7,7 @@
 
 When `resolve-conflicts` cannot finish a merge, the PR goes to a person through the loop-lane
 contract: the human-gated role label plus a machine-marked comment
-([loop-lane README, "2. Escalation contract"](../conventions/loop-lane/README.md#2-escalation-contract)). The leaf's
+([loop-lane README, "2. Escalation contract"](../contracts/loop-lane/README.md#2-escalation-contract)). The leaf's
 `mutate-branch` grant holds `pull-requests: read` and `issues: read`, so it cannot label or comment
 ([`effect-grants.json`](../../.github/actions/resolve-config/effect-grants.json)). The activity's
 `verdict.json` is written after untrusted processing in the same job and is never trusted
