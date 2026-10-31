@@ -641,7 +641,7 @@ describe("decide", () => {
       ["- [ ] .GITMODULES drops the old submodule.", ".GITMODULES"],
       // #9113's criterion: a bare name of a workflow on disk.
       ["- [ ] pr-require-checks.yml pins that ci-workflows release.", ".github/workflows/pr-require-checks.yml"],
-      ["- [ ] `pr-test-windows.yml:94` reads the new output.", ".github/workflows/pr-test-windows.yml"],
+      ["- [ ] `pr-test-platforms.yml:94` reads the new output.", ".github/workflows/pr-test-platforms.yml"],
       ["- [ ] pr-require-checks.yml is unchanged.", ".github/workflows/pr-require-checks.yml"],
     ];
     for (const [line, path] of refused) {
@@ -791,7 +791,7 @@ describe("decide", () => {
     // A title names the subject, not the change: #8682 and #9054 named an
     // existing workflow in theirs and changed only scripts.
     test("admits an issue whose title alone names an existing workflow", () => {
-      const issue = { ...withCriteria("- [ ] Line 3 says nineteen."), title: "ci: move the macOS planning job out of pr-test-windows.yml" };
+      const issue = { ...withCriteria("- [ ] Line 3 says nineteen."), title: "ci: move the macOS planning job out of pr-test-platforms.yml" };
       assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] });
     });
 
@@ -1702,6 +1702,14 @@ describe("admit", () => {
     const done = writes(fake.calls);
     assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
     assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
+  });
+
+  test("a refusal that needs a person takes a parked status: confirmed off too, after the hold", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: CONFIRMED }, { name: "work-class: untrusted-provenance" }] }) });
+    assert.equal((await go(fake)).outcome, "refused");
+    const done = writes(fake.calls);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.ok(done.some((call) => call.startsWith("DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed")), done.join("\n"));
   });
 
   test("a refusal with a person reason among mechanical ones still sets needs-decision", async () => {

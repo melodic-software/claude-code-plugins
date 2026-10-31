@@ -165,7 +165,7 @@ import { networkError, retryFetch } from "./retry-fetch.mjs";
 import { refusalText, sayWhy } from "../lib/admission-comment.mjs";
 import { doneEvidence, RUN_WORDS, stopLine } from "../lib/done-evidence.mjs";
 import { personReasonLines } from "../lib/stop-reason.mjs";
-import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
+import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securityWord, STOP_ROUTES, stopReasonCode, stopRetries, stopRoute, stopWhy } from "./stop-routes.mjs";
 
 export { doneEvidence };
 
@@ -203,11 +203,18 @@ const pushbackStop = (outcome) => {
 // (stopPlan's neutral text) and its marker carries `security`; a spent
 // intake round that is itself such a stop holds as security-risk (routeStop),
 // so a real security risk the run names again never ends without a person.
-const pushbackSecurity = (stop, outcome) =>
-  stop === "pushback-means" &&
-  [outcome?.reason, outcome?.summary, outcome?.cause, ...(outcome?.notDone ?? []).map((item) => item?.what)].some(
-    (words) => typeof words === "string" && words && runCode(words, { anyCodeEnds: true }) === "security-risk",
+const stopWords = (outcome) =>
+  [outcome?.reason, outcome?.summary, outcome?.cause, ...(outcome?.notDone ?? []).map((item) => item?.what)].filter(
+    (words) => typeof words === "string" && words,
   );
+const pushbackSecurity = (stop, outcome) =>
+  stop === "pushback-means" && stopWords(outcome).some((words) => runCode(words, { anyCodeEnds: true }) === "security-risk");
+// The word a security-risk hold read in the run's words, for handBack; "" when
+// the reason or the cause opens with or names a hold code, which holds on its own.
+const heldWord = (outcome) =>
+  [leadingCode(outcome?.reason), leadingCode(outcome?.cause), causeName(outcome?.cause)].some((code) => stopRoute(code) === "hold")
+    ? ""
+    : (stopWords(outcome).map(securityWord).find(Boolean) ?? "");
 // The subject allows no `#`, `/` or `GH-<digit>`, so the squash commit title
 // cannot name an issue to close.
 const PREFIX = /^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._-]+\))?!?: /;
@@ -521,8 +528,9 @@ export function unmarkedAnswer(comments, humans, bot) {
 // `reason` is the stop-reason code (stopReasonCode), which must be a person
 // reason: the comment carries its marker and its visible line. `spentSecurity`
 // marks routeStop's spent security hold, whose line says the run named the
-// risk again after its intake rounds were spent.
-function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false, unmarked = null, reason, spentSecurity = false }) {
+// risk again after its intake rounds were spent. `word` is heldWord's, which a
+// code span keeps inert in this public comment.
+function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onResumed = false, unmarked = null, reason, spentSecurity = false, word = "" }) {
   const pushback = outcome.exit === "pushback";
   const [reasonMarker, reasonLine] = personReasonLines(LANE, reason);
   const lines = escalated([
@@ -537,6 +545,7 @@ function handBack({ outcome, issueNumber, branch, humanLabel, runUrl, runId, onR
         : "The work-resolve-issue lane stopped partway through this issue and needs a person.",
     "",
     reasonLine,
+    ...(word ? ["", `Matched security word: \`${word}\`. A match holds the stop whether or not the text names a risk, so read the word in context below.`] : []),
     "",
     "Why, in the run's own words:",
     "",
@@ -690,7 +699,7 @@ function routeStop(stop, args, { retries = 0, limits = LIMIT_DEFAULTS, route: gi
   const pr = route === "wait" ? waitedPull(args.outcome?.reason, args.issueNumber) : "";
   const plan =
     route === "hold"
-      ? handBack({ ...args, reason: stopReasonCode(shown), spentSecurity })
+      ? handBack({ ...args, reason: stopReasonCode(shown), spentSecurity, word: shown === "security-risk" ? heldWord(args.outcome) : "" })
       : stopPlan({ ...args, outcome: { notDone: [], ...args.outcome }, route, stop, shown, retries, cap, pr, why, neutral: security });
   return { ...plan, stop, stopArgs: args, ...(why && { why }) };
 }

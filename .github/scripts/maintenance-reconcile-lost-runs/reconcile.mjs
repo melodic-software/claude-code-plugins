@@ -198,7 +198,7 @@ export const LANE_LOST = new Set([...LOST, "failure"]);
 export const GATED_REVIEWS = new Set([".github/workflows/pr-review-hosted.yml", ".github/workflows/pr-review-security-hosted.yml"]);
 export const CI_WORKFLOWS = new Set([
   ".github/workflows/pr-require-checks.yml",
-  ".github/workflows/pr-test-windows.yml",
+  ".github/workflows/pr-test-platforms.yml",
   ".github/workflows/pr-check-managed-files-hosted.yml",
   ...GATED_REVIEWS,
 ]);
@@ -254,9 +254,11 @@ const NOT_RERUN = new Set(["success", "skipped", "neutral"]);
 const INTAKE_JOBS_WINDOW_MS = 2 * 3_600_000;
 // A lost lane run whose steps listed in full is re-run once when it was lost
 // before or during its judgment (a cut list is held below). One whose verdict
-// write (WRITE_STEP) started is held: that step runs only when the judgment
-// truly succeeded, so the judgment may be a FAIL that the write or upload
-// lost, and a re-run would sample the head a second time. The judge step's
+// write (WRITE_STEP) started is held: that step runs once a judgment finished
+// (every judge step truly succeeded, a chunk left a fail the head can count, a
+// chunk's result did not count, or the final judge stopped on run-claude-cli's
+// credential scan), so the judgment may be a FAIL that the write
+// or upload lost, and a re-run would sample the head a second time. The judge step's
 // own conclusion cannot show this: it is continue-on-error, so it lists
 // success even when it broke. A FAIL
 // the first attempt uploaded counts whatever the run's conclusion, so a second
@@ -271,7 +273,7 @@ export const JUDGE_STEP = "Judge the pull request";
 // cannot show a runner loss from an annotation: the judge step's log may echo
 // model or PR text that reads as one.
 export const JUDGE_PREDECESSOR = "Write the prompt and schema";
-// The step after JUDGE_STEP, which runs only on the judgment's true outcome.
+// The step after JUDGE_STEP, which runs only once a judgment finished.
 export const WRITE_STEP = "Write the verdict";
 // pr-review-main's first judge step, between the same predecessor and the
 // verdict write; its later chunks' review steps follow it, so a cut list that

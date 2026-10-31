@@ -12,8 +12,8 @@ name: intake-reenter
 # No model and no App token: the job's GITHUB_TOKEN edits labels and starts
 # the dispatch, as the triage sweep's does, and intake-triage admits
 # github-actions[bot] as a dispatcher. The script reads the issue and comment
-# back from the API; nothing from the event but their numbers reaches it, and
-# no comment text reaches a shell. issue_comment and issues run this file from
+# back from the API; nothing from the event but their numbers and the removed
+# label's name, through env, reaches it, and no comment text reaches a shell. issue_comment and issues run this file from
 # the default branch only.
 #
 # A listed human who removes `needs-human` and leaves no `status:` label has
@@ -21,6 +21,11 @@ name: intake-reenter
 # events, and when that person was the newest to remove `needs-human` from an
 # open issue with no status label, no `agent-ready` and an admitted author, it
 # adds `needs-triage` and dispatches the same way.
+#
+# work-unblock removes `status: confirmed` with the lanes App's token when a
+# blocker of an issue admission parked closes; only that token's removal starts
+# this run. The same `issues: unlabeled` run reads who removed it and dispatches
+# the same way when the App did and nothing else moves the issue.
 #
 # Accepted exposure: only a trusted comment decides whether a re-entry
 # happens, and the triage run it starts passes the model only comments whose
@@ -35,7 +40,8 @@ name: intake-reenter
 # `agent-ready`.
 on:
   # Runs from the default branch; the job's `if` drops PR, bot and App
-  # comments, and only the issue and comment numbers reach the script.
+  # comments, and only the issue and comment numbers and the removed label's
+  # name, through env, reach the script.
   issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created]
   issues: # zizmor: ignore[dangerous-triggers]
@@ -51,7 +57,9 @@ jobs:
     # whose payload already shows `status: confirmed`: a session parking an
     # issue swaps the labels in one edit, and the script refuses any issue
     # with a `status:` label anyway. When the payload predates the add, the
-    # script's own label read refuses it.
+    # script's own label read refuses it. A bot's `status: confirmed` removal
+    # gets through unless the payload shows the status, `agent-ready` or
+    # `needs-triage` every other App removal lands after.
     if: >-
       !github.event.issue.pull_request
       && github.event.issue.state == 'open'
@@ -62,15 +70,22 @@ jobs:
                || contains(github.event.issue.labels.*.name, 'status: confirmed')
                || contains(github.event.issue.labels.*.name, 'status: needs-info')))
           || (github.event_name == 'issues'
-              && github.event.label.name == 'needs-human'
-              && !contains(github.event.issue.labels.*.name, 'status: confirmed')))
+              && ((github.event.label.name == 'needs-human'
+                   && !contains(github.event.issue.labels.*.name, 'status: confirmed'))
+                  || (github.event.label.name == 'status: confirmed'
+                      && github.event.sender.type == 'Bot'
+                      && !contains(github.event.issue.labels.*.name, 'status: ready')
+                      && !contains(github.event.issue.labels.*.name, 'status: needs-decision')
+                      && !contains(github.event.issue.labels.*.name, 'status: needs-info')
+                      && !contains(github.event.issue.labels.*.name, 'agent-ready')
+                      && !contains(github.event.issue.labels.*.name, 'needs-triage')))))
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read # check out main
       issues: write # read the issue and comments; edit its labels
       actions: write # dispatch intake-triage.yml
-    # Every comment on a parked issue and every `needs-human` removal starts a
+    # Every comment on a parked issue and every removal above starts a
     # run, so runs wait in line (`queue: max`): the default keeps one waiting run and cancels it when a
     # later comment arrives, which would drop an answer behind a chat reply.
     concurrency:
@@ -113,6 +128,7 @@ jobs:
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           COMMENT_ID: ${{ github.event.comment.id }}
           EVENT_NAME: ${{ github.event_name }}
+          REMOVED_LABEL: ${{ github.event.label.name }}
           LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
           KILL_SWITCH: proceed

@@ -1,6 +1,6 @@
 ---
 description: "Clean stopping point before the machine may go away: sweeps every repo and worktree touched for uncommitted, unpushed, or PR-less work, pushes it, records follow-ups in PR and issue bodies, prunes only the provably safe, and gives a free-and-clear verdict. Use when: 'clean stop', 'get to a clean stopping point', 'safe to shut down', 'wrap up before I lose this machine', 'make everything durable', 'stopping for the day', 'is anything stranded', 'leave it clean'. Gates destructive cleanup."
-argument-hint: "[unattended]"
+argument-hint: "[--unattended]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -24,8 +24,10 @@ bodies on the remote.
 
 ## Arguments
 
-`unattended` is the only argument. It only gates the `/export` step (record the suggestion in
-output, do not ask); remote artifacts are always created without prompting, as step 3 states.
+`--unattended` is the only argument: the caller declares that nobody is present. It only gates the
+`/export` step (record the suggestion in output, do not ask); remote artifacts are always created
+without prompting, as step 3 states. Take it out wherever it appears; other text is context for the
+sweep. The bare word `unattended` is not this flag: stop and name `--unattended`.
 
 ## Steps
 
@@ -56,7 +58,7 @@ output, do not ask); remote artifacts are always created without prompting, as s
    [All settings § cleanupPeriodDays](https://code.claude.com/docs/en/settings-reference#cleanupperioddays);
    as of 2026-10-11; recheck trigger: that setting is renamed or stops
    governing transcript retention). When the session is worth keeping:
-   If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`unattended`:** record the suggestion in output; do not ask.
+   If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`--unattended`:** record the suggestion in output; do not ask.
    That destination is machine-local, so when the machine may go away, also
    surface copying the export off the machine as a "preserve off the machine" item.
 3. **Linkage + breadcrumbs (redact before any remote write).** Before a PR

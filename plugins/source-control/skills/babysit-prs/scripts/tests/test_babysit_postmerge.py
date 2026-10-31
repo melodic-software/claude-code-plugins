@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/lib/parse-concern-value.sh
 """The post-merge check and its remediation (`babysit_postmerge`).
 
 Expected values come from the plan's Design: "Enqueuer" (a null or non-human

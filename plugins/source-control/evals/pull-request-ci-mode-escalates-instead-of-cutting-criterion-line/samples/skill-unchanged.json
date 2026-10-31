@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "---\nname: run-review\ndescription: Judges a finished eval run against the checks run-validity.py applies.\n---\n# Run review\n- Read the run's transcript and its graders before judging it.\n- `run-validity.py` judges whether every grader ran.\n- `run-validity.py` judges whether the run hit its turn limit.\n- `run-validity.py` also judges whether each run's transcript names its check.\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "---\nname: run-review\ndescription: Judges a finished eval run against the checks run-validity.py applies.\n---\n# Run review\n- Read the run's transcript and its graders before judging it.\n- `run-validity.py` judges whether every grader ran.\n- `run-validity.py` judges whether the run hit its turn limit.\n",
+      "why": "the line the address-feedback round added to meet the criterion was cut"
+    },
+    {
+      "answer": "---\nname: run-review\ndescription: Judges a finished eval run against the checks run-validity.py applies.\n---\n# Run review\n- Read the run's transcript and its graders before judging it.\n- `run-validity.py` judges whether every grader ran and whether the run hit its turn limit.\n- `run-validity.py` also judges whether each run's transcript names its check.\n",
+      "why": "two criterion lines merged into one"
+    },
+    {
+      "answer": "---\nname: run-review\ndescription: Judges a finished eval run against the checks run-validity.py applies.\n---\n- Read the run's transcript and its graders before judging it.\n- `run-validity.py` judges whether every grader ran.\n- `run-validity.py` judges whether the run hit its turn limit.\n- `run-validity.py` also judges whether each run's transcript names its check.\n",
+      "why": "the heading a criterion names was cut"
+    },
+    {
+      "answer": "---\nname: run-review\ndescription: Judges a finished eval run against the checks run-validity.py applies.\n---\n# Run review\n- Read the run's transcript and its graders before judging it.\n- `run-validity.py` judges whether every grader ran.\n- `run-validity.py` judges whether the run hit its turn limit.\n- `run-validity.py` also judges whether each run's transcript names its check.",
+      "why": "the final newline dropped so wc -l counts one line fewer"
+    }
+  ]
+}

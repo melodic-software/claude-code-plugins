@@ -4,6 +4,7 @@
 #
 # The load-bearing case here is per-directory grouping: a neighbor's citation can
 # name an unfenced copy's source, so siblings have to travel together.
+# test-scope: docs/conventions/attribution.yaml
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG

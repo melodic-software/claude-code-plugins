@@ -1,6 +1,6 @@
 # distill checklist
 
-Copy into `<plugin-data>/{project-slug}/{target-skill-slug}/{book-slug}-checklist.md`. Derive both slugs per SKILL.md Phase 1.4 (`{project-slug}` includes the path-hash discriminator). Tick as each phase completes; the ticked state is the cross-session resume pointer.
+Copy into `<plugin-data>/{project-slug}/{target-skill-slug}/{book-slug}-checklist.md`. Derive both slugs per SKILL.md Phase 1.4 (`{project-slug}` is the progress key `work-root.mjs --progress-key` prints). Tick as each phase completes; the ticked state is the cross-session resume pointer.
 
 ## Phases
 

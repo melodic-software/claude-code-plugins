@@ -106,7 +106,7 @@ export function planLanes(paths, root = ROOT) {
 // The check-run names a plan's lanes post: test-bash, test-python and
 // test-node in pr-require-checks.yml (a matrix lane once per leg its
 // bash_legs or python_legs lists, as `<lane> (<leg>)`), and each
-// pr-test-windows.yml job it names. An unreadable leg list throws.
+// pr-test-platforms.yml job it names. An unreadable leg list throws.
 const legs = (value) => {
   const list = JSON.parse(value || "[0]");
   if (!Array.isArray(list) || list.length === 0 || !list.every((leg) => Number.isSafeInteger(leg) && leg >= 0)) {
@@ -122,7 +122,7 @@ export function coveringLanes(plan) {
 }
 
 // A test lane's check-run name: every test job in pr-require-checks.yml and
-// pr-test-windows.yml is named test-<lane>, a matrix leg `test-<lane> (<leg>)`.
+// pr-test-platforms.yml is named test-<lane>, a matrix leg `test-<lane> (<leg>)`.
 const TEST_LANE = /^test-[a-z0-9]+(?:-[a-z0-9]+)*(?: \(\d+\))?$/;
 // A cancelled run is not red: fix-ci does not take a head whose only failing
 // checks were cancelled (fix-ci-dispatch.mjs), so it settles nothing instead.
@@ -1072,6 +1072,9 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
   const repo = `${apiUrl}/repos/${owner}/${name}`;
   return {
     getPull: async (pr) => (await request(`${repo}/pulls/${pr}`)).data,
+    // A GraphQL answer whole, errors kept for the caller to judge
+    // (fix-ci-context.mjs, for pr-verify's linkedIssues).
+    graphqlAnswer: async (body) => (await request(graphqlUrl, "POST", body)).data,
     listLabelEvents: (pr) => listLabelEvents({ graphql, repository, number: pr }),
     // Metadata read, which every token holds. A 404 (not a collaborator) is none.
     async getPermission(login) {
