@@ -31,6 +31,6 @@ confirm-first variant rather than standing in for consent.
 
 ## Boundaries
 
-- **vs [`deterministic-work-execution.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/deterministic-work-execution.md)**:
+- **vs [`deterministic-work-execution.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/deterministic-work-execution.md)**:
   that file covers producing the count honestly by running a tool. This file
   says when the count is required and what to do with it.
