@@ -881,7 +881,7 @@ test("pr-review-main's record job ends with its own api-calls notice in the emit
 test("each job that holds the job token and calls no guarded client ends with the log-api-budget step", () => {
   const windows = ["select-tests-windows", ...["rename-1", "rename-2", "secrets", "guards", "hooks", "lib", "worktree"].map((s) => `test-windows-${s}`), "test-macos-planning-shared"];
   const jobs = {
-    "pr-test-windows.yml": Object.fromEntries(windows.map((job) => [job, "./"])),
+    "pr-test-platforms.yml": Object.fromEntries(windows.map((job) => [job, "./"])),
     "post-merge-detect-silent-revert.yml": { "detect-silent-revert": "./" },
     "release-publish-plugins.yml": { merge: "./", build: "./" },
     "dependabot-fragments.yml": { write: "./" },
