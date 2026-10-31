@@ -410,6 +410,16 @@ describe("applyRefinement", () => {
     assert.equal(done.length, 3);
   });
 
+  test("a refinement with open questions replaces a parked status: confirmed with needs-decision, hold first", async () => {
+    const parked = { id: 61, body: `${ADMIT_MARKER}\nNot admitted to the issue lane: no trusted-human acceptance criteria.`, user: { id: APP, type: "Bot" } };
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment(), parked], events: [], spec: CONFIRMED });
+    assert.deepEqual(await apply(fake, INEXACT), { outcome: "needs-decision", redispatch: false });
+    assert.deepEqual(
+      writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${body?.labels ? ` ${body.labels}` : ""}`),
+      ["POST /repos/o/r/issues/7/labels status: needs-decision", "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed", "POST /repos/o/r/issues/7/comments"],
+    );
+  });
+
   test("an exact refinement of a status: confirmed issue admission never parked asks for no re-triage", async () => {
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment()], events: [], spec: CONFIRMED });
     const result = await apply(fake, EXACT);

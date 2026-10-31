@@ -1704,6 +1704,14 @@ describe("admit", () => {
     assert.match(done[1], /^DELETE \/repos\/o\/r\/issues\/7\/labels\/status%3A%20ready/);
   });
 
+  test("a refusal that needs a person takes a parked status: confirmed off too, after the hold", async () => {
+    const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: READY }, { name: CONFIRMED }, { name: "work-class: untrusted-provenance" }] }) });
+    assert.equal((await go(fake)).outcome, "refused");
+    const done = writes(fake.calls);
+    assert.equal(done[0], `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [NEEDS_DECISION] })}`);
+    assert.ok(done.some((call) => call.startsWith("DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed")), done.join("\n"));
+  });
+
   test("a refusal with a person reason among mechanical ones still sets needs-decision", async () => {
     const fake = fakeGitHub({ issue: issueOf({ body: "Make the README better.", labels: [{ name: READY }, { name: "work-class: untrusted-provenance" }] }) });
     const result = await go(fake);

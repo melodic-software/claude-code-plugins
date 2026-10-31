@@ -9,7 +9,8 @@
 // (its action.yml, output execution-file), and model text shaped like a
 // credential (an Anthropic key or OAuth token, both sk-ant-; a GitHub token,
 // per GitHub's documented ghp_ prefix and 36-character body; an AWS access key
-// id, AKIA plus 16; a PEM private key header, RFC 7468) writes nothing.
+// id, AKIA plus 16; a PEM private key header, RFC 7468) writes nothing on a
+// pass, and on a fail, which stands, withholds all of the model's text.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -27,6 +28,7 @@ import {
   localLoop,
   main,
   mergeChunks,
+  WITHHELD_SUMMARY,
   parseFinal,
   writeChunkResults,
   retentionDays,
@@ -37,6 +39,8 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
+// A workflow env list: one line per slot (chunk-diff.sh MAX_CHUNKS), blank for a step that left nothing.
+const slots = (...filled) => `${[...filled, ...Array(12 - filled.length).fill("")].join("\n")}\n`;
 const ISSUE = {
   number: 7,
   author_login: "maintainer",
@@ -253,14 +257,119 @@ test("linked issues outside their schema throw", () => {
 const KEY = `${"sk-ant-"}api03-${"Q".repeat(40)}`;
 const TOKEN = `${"sk-ant-"}oat01-${"Z".repeat(40)}`;
 
-test("a summary or note shaped like an Anthropic key or OAuth token throws", () => {
+const assertWithheld = (built, label) => {
+  assert.equal(built.verdict, "fail", label);
+  assert.equal(built.withheld, true, label);
+  assert.equal(built.summary, WITHHELD_SUMMARY, label);
+};
+
+test("a pass shaped like an Anthropic key or OAuth token is a withheld fail", (t) => {
+  t.mock.method(console, "log", () => {});
   for (const output of [
     { verdict: "pass", summary: `the key is ${KEY}`, notes: [] },
-    { verdict: "fail", summary: "s", notes: ["fine", `token ${TOKEN} leaked`] },
+    { verdict: "pass-notes", summary: "s", notes: ["fine", `token ${TOKEN} leaked`] },
     { verdict: "pass-notes", summary: TOKEN, notes: [] },
   ]) {
-    assert.throws(() => buildVerdict({ ...ids, output: JSON.stringify(output) }), /credential/, JSON.stringify(output));
+    assertWithheld(buildVerdict({ ...ids, output: JSON.stringify(output) }), JSON.stringify(output.verdict));
   }
+});
+
+test("a fail holding credential-shaped text stands, with none of the model's text", (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const half = "a".repeat(18);
+  const short = "sk-ant-abcdefgh";
+  for (const [label, summary, notes] of [
+    ["a whole token", "fine", [`src/a.mjs:3: prints ${TOKEN}`, "c.md: keep me out"]],
+    // The body under a private key header matches no pattern of its own.
+    ["a private key", `-----BEGIN RSA ${"PRIVATE"} KEY-----\nMIIEpAIBAAKCAQEA${"b".repeat(60)}`, ["c.md: keep me out"]],
+    // findSecret reads a copy with tags removed.
+    ["a token split by a tag", "fine", [`ghp_${half}<b></b>${half}`, "c.md: keep me out"]],
+    // Only deeperLeak reads a token across two lines or two notes.
+    ["a token over a line break", `see ghp_${half}\n${half} there`, []],
+    ["a token over two notes", "fine", [`see ghp_${half}`, `${half} there`, "c.md: keep me out"]],
+    ["a token over a fold", "fine", [`see ghp_${half}\n\\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a token over two diff lines", "fine", [`+ghp_${half}\n+${half}`, "c.md: keep me out"]],
+    ["a token over diff lines in a pathed note", "fine", [`a.md:1 adds +ghp_${half}\n+${half}`, "c.md: keep me out"]],
+    ["a whole token after a fold", "fine", [`see\n\\ continued: ${TOKEN}`, "c.md: keep me out"]],
+    ["a whole token before a fold", "fine", [`see ${TOKEN}\n\\ continued: rest`, "c.md: keep me out"]],
+    ["a token over a same-line fold after a space", "fine", [`see ghp_${half} \\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a token over a same-line fold after a tab", "fine", [`see ghp_${half}\t\\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a token over a fold after a trailing space", "fine", [`see ghp_${half} \n\\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a token over a fold after a bare CR", "fine", [`see ghp_${half}\r\\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a token over two folds in a row", "fine", [`see ghp_${half} \\ continued: \\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a token over two folds on their own lines", "fine", [`see ghp_${half}\n\\ continued: \n\\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a short Anthropic key over a same-line fold", "fine", [`b.md: ${short.slice(0, 10)} \\ continued: ${short.slice(10)}`]],
+    // run-claude-cli's scan fails its step on a shorter key than findSecret's.
+    ["a short Anthropic key", "fine", [`b.md: ${short}`]],
+  ]) {
+    const built = buildVerdict({ ...ids, output: JSON.stringify({ verdict: "fail", summary, notes }) });
+    assert.equal(built.verdict, "fail", label);
+    assert.equal(built.withheld, true, label);
+    assert.match(built.summary, /withheld/, label);
+    assert.doesNotMatch(JSON.stringify(built), /ghp_|sk-ant-|MIIE|keep me out|src\/a\.mjs|there/, label);
+    assert.equal(built.notes.length, notes.length === 0 ? 0 : 1, label);
+  }
+  assert.ok(log.mock.calls.length > 0);
+  for (const { arguments: [line] } of log.mock.calls) {
+    assert.match(line, /^::warning title=pr-verify credential::kind=[A-Za-z0-9 ]+$/);
+  }
+  assertWithheld(buildVerdict({ ...ids, output: JSON.stringify({ verdict: "pass", summary: `b.md: ${short}`, notes: [] }) }));
+  assertWithheld(buildVerdict({ ...ids, output: JSON.stringify({ verdict: "pass-notes", summary: "fine", notes: [`see ghp_${half}`, `${half} there`] }) }));
+});
+
+test("a withheld fail stays recorded through the chunk merge into the verdict", (t) => {
+  t.mock.method(console, "log", () => {});
+  const merged = mergeChunks([{ ...CHUNK_PASS, verdict: "fail", summary: KEY, notes: [] }, CHUNK_PASS], FINAL_PASS);
+  assert.equal(merged.verdict, "fail");
+  assert.equal(buildVerdict({ ...ids, output: merged }).withheld, true);
+  const final = mergeChunks([CHUNK_PASS, CHUNK_PASS], { ...CHUNK_PASS, verdict: "fail", summary: KEY, notes: [] });
+  assert.equal(buildVerdict({ ...ids, output: final }).withheld, true);
+});
+
+test("a fail quoting the withheld sentence is not withheld, and no model can claim to be", () => {
+  const quoting = { verdict: "fail", summary: `The docs must say: ${WITHHELD_SUMMARY}`, notes: ["a.md: wrong sentence"] };
+  const built = buildVerdict({ ...ids, output: JSON.stringify(quoting) });
+  assert.equal(built.summary, quoting.summary);
+  assert.equal("withheld" in built, false);
+  for (const output of [{ ...quoting, withheld: true }, JSON.stringify({ ...quoting, withheld: true })]) {
+    assert.throws(() => buildVerdict({ ...ids, output }), /verdict schema/);
+  }
+});
+
+test("a pass or pass-notes quoting only an assignment writes no verdict, and a fail's text is withheld", (t) => {
+  const quote = 'a.test.mjs:3 fixture token: "test-token-value"';
+  for (const verdict of ["pass", "pass-notes"]) {
+    for (const output of [
+      { verdict, summary: quote, notes: [] },
+      { verdict, summary: "fine", notes: [quote] },
+    ]) {
+      assert.throws(() => buildVerdict({ ...ids, output: JSON.stringify(output) }), /shaped like a credential \(password or secret assignment\)/, verdict);
+    }
+  }
+  t.mock.method(console, "log", () => {});
+  assertWithheld(buildVerdict({ ...ids, output: JSON.stringify({ verdict: "fail", summary: quote, notes: [] }) }));
+});
+
+test("a format beside an assignment still withholds a pass", (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const cloudflare = `${"cfk_"}${"k".repeat(40)}`;
+  const quote = 'token: "test-token-value"';
+  for (const [text, kind] of [
+    // Assignment matches come first in findSecret's list, before this format.
+    [`api_key: "${cloudflare}"`, "Cloudflare API token"],
+    [`${quote} and ${cloudflare}`, "Cloudflare API token"],
+    [`${quote}\nsee ${GITHUB_TOKEN}`, "GitHub token"],
+  ]) {
+    assertWithheld(buildVerdict({ ...ids, output: JSON.stringify({ verdict: "pass-notes", summary: text, notes: [] }) }), kind);
+    assert.equal(log.mock.calls.at(-1).arguments[0], `::warning title=pr-verify credential::kind=${kind}`);
+  }
+});
+
+test("a word ending in sk-ant- is no key, and a key after a separator is", (t) => {
+  const summary = "task-ant-migrations runs first";
+  assert.equal(buildVerdict({ ...ids, output: JSON.stringify({ verdict: "pass", summary, notes: [] }) }).summary, summary);
+  t.mock.method(console, "log", () => {});
+  assertWithheld(buildVerdict({ ...ids, output: JSON.stringify({ verdict: "pass", summary: "key=sk-ant-abcdefgh", notes: [] }) }));
 });
 
 test("naming the key prefix alone is not a credential", () => {
@@ -273,7 +382,8 @@ const GITHUB_TOKEN = `${"ghp_"}${"k".repeat(36)}`;
 const AWS_KEY = `${"AKIA"}${"Q7".repeat(8)}`;
 const PEM = `-----BEGIN ${"RSA PRIVATE"} KEY-----`;
 
-test("a summary or note shaped like any shared credential pattern throws, naming the kind", () => {
+test("a pass shaped like any shared credential pattern is a withheld fail, and only the kind is logged", (t) => {
+  const log = t.mock.method(console, "log", () => {});
   for (const [secret, kind] of [
     [GITHUB_TOKEN, "GitHub token"],
     [AWS_KEY, "AWS access key"],
@@ -281,9 +391,12 @@ test("a summary or note shaped like any shared credential pattern throws, naming
   ]) {
     for (const output of [
       { verdict: "pass", summary: `found ${secret}`, notes: [] },
-      { verdict: "fail", summary: "s", notes: ["fine", `see ${secret}`] },
+      { verdict: "pass-notes", summary: "s", notes: ["fine", `see ${secret}`] },
     ]) {
-      assert.throws(() => buildVerdict({ ...ids, output: JSON.stringify(output) }), new RegExp(`credential \\(${kind}\\)`), kind);
+      const built = buildVerdict({ ...ids, output: JSON.stringify(output) });
+      assertWithheld(built, kind);
+      assert.equal(JSON.stringify(built).includes(secret), false, kind);
+      assert.equal(log.mock.calls.at(-1).arguments[0], `::warning title=pr-verify credential::kind=${kind}`);
     }
   }
 });
@@ -367,6 +480,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   };
   const env = {
     LOG_FILES: log("clean-log", 0),
+    JUDGE_OUTCOMES: slots("success"),
     CHUNKS: "1",
     DIFF_DIR: path.join(dir, "diff"),
     PR_NUMBER: "41",
@@ -419,7 +533,6 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   writeFileSync(unparsable, "{not json");
   for (const [label, extra] of [
     ["bad output", { EXECUTION_FILES: execution("bad", {}) }],
-    ["a credential in the summary", { EXECUTION_FILES: execution("key", { verdict: "pass", summary: KEY, notes: [] }) }],
     ["missing execution file", { EXECUTION_FILES: path.join(dir, "missing.json") }],
     ["unparsable execution file", { EXECUTION_FILES: unparsable }],
     ["unreadable spec", { EXECUTION_FILES: okFile, SPEC_FILE: path.join(dir, "missing.json") }],
@@ -490,8 +603,13 @@ test("mergeChunks refuses a chunk off the schema, so no verdict is written", () 
   assert.throws(() => mergeChunks([CHUNK_PASS, {}], FINAL_PASS), /schema/);
   assert.throws(() => mergeChunks([CHUNK_PASS, { ...CHUNK_PASS, verdict: "maybe" }], FINAL_PASS), /schema/);
   assert.throws(() => mergeChunks([]), /no chunk/);
-  // A credential past a chunk's share of the summary still voids it.
-  assert.throws(() => mergeChunks([CHUNK_PASS, { ...CHUNK_PASS, summary: `${"x".repeat(3000)} ${KEY}` }], FINAL_PASS), /credential/);
+});
+
+test("a credential past a chunk's share of the summary still withholds the head", (t) => {
+  t.mock.method(console, "log", () => {});
+  const merged = mergeChunks([CHUNK_PASS, { ...CHUNK_PASS, summary: `${"x".repeat(3000)} ${KEY}` }], FINAL_PASS);
+  assert.equal(merged.verdict, "fail");
+  assert.equal(buildVerdict({ ...ids, output: merged }).withheld, true);
 });
 
 test("main writes one verdict from every chunk, and none when a chunk leaves none", () => {
@@ -537,10 +655,12 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
     VERDICT_DIR: path.join(dir, `verdict-${label}`),
     GITHUB_OUTPUT: path.join(dir, `out-${label}`),
     // Slots a run skips render as blank lines.
-    EXECUTION_FILES: `${first}\n${second}\n\n\n`,
-    LOG_FILES: `${logs.join("\n")}\n\n\n`,
+    EXECUTION_FILES: slots(first, second),
+    LOG_FILES: slots(...logs),
+    JUDGE_OUTCOMES: slots("success", "success"),
     FINAL_EXECUTION_FILE: final(),
     FINAL_LOG_FILE: log(0),
+    FINAL_OUTCOME: "success",
     RESULTS_DIR: resultsDir,
     MANIFEST_DIR: manifestDir,
     ...extra,
@@ -571,7 +691,7 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
     ["a later chunk with a denial", execution([parts[1]], { structured_output: CHUNK_PASS, permission_denials: [{ tool_name: "Bash" }] }), {}],
     ["a final judge off the schema", chunk(1, CHUNK_PASS), { FINAL_EXECUTION_FILE: final({}) }],
     ["no final judge", chunk(1, CHUNK_PASS), { FINAL_EXECUTION_FILE: "", FINAL_LOG_FILE: "" }],
-    ["a later chunk's missing log", "", { LOG_FILES: `${log(0)}\n\n\n\n` }],
+    ["a later chunk's missing log", "", { LOG_FILES: slots(log(0)) }],
   ]) {
     const kept = run(`kept-${label}`, counted, second, undefined, extra);
     main(kept);
@@ -580,11 +700,85 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
     assert.deepEqual(written.notes, CHUNK_FAIL.notes, label);
     assert.match(readFileSync(kept.GITHUB_OUTPUT, "utf8"), new RegExp(`^name=pr-verify-41-${HEAD}-fail-i7\n`), label);
   }
+  // A denial voids a pass, never a fail. Credential-shaped text withholds either.
+  const denied = run("denied-fail", execution([parts[0], manifest], { structured_output: CHUNK_FAIL, permission_denials: [{ tool_name: "Bash" }] }), "");
+  main(denied);
+  const deniedVerdict = JSON.parse(readFileSync(path.join(denied.VERDICT_DIR, "verdict.json"), "utf8"));
+  assert.equal(deniedVerdict.verdict, "fail");
+  assert.match(deniedVerdict.summary, /hit 1 permission denial/);
+  const logDenied = run("denied-log-fail", chunk(0, CHUNK_FAIL), "", [log(1), log(0)]);
+  main(logDenied);
+  assert.equal(JSON.parse(readFileSync(path.join(logDenied.VERDICT_DIR, "verdict.json"), "utf8")).verdict, "fail");
+  const leaked = run("leaked-fail", chunk(0, { ...CHUNK_FAIL, notes: [`a.mjs: ${KEY}`] }), "");
+  main(leaked);
+  const leakedText = readFileSync(path.join(leaked.VERDICT_DIR, "verdict.json"), "utf8");
+  assert.equal(JSON.parse(leakedText).verdict, "fail");
+  assert.equal(JSON.parse(leakedText).withheld, true);
+  assert.doesNotMatch(leakedText, /sk-ant-|a\.mjs/);
+  // A chunk whose step failed writes no model text, whatever a scan here finds.
+  const unscanned = "the lane's scan found what this one does not";
+  const stepFailed = run("step-failed", chunk(0, { ...CHUNK_FAIL, summary: unscanned }), "", undefined, { JUDGE_OUTCOMES: slots("failure") });
+  main(stepFailed);
+  const stepText = readFileSync(path.join(stepFailed.VERDICT_DIR, "verdict.json"), "utf8");
+  assert.equal(JSON.parse(stepText).verdict, "fail");
+  assert.equal(JSON.parse(stepText).withheld, true);
+  assert.ok(!stepText.includes(unscanned));
+  // A pass with credential-shaped text, or from a failed step, is a withheld
+  // fail, which counts as any fail does, in the artifact name and retention.
+  for (const [name, env] of [
+    ["pass-leak", run("pass-leak", chunk(0, { ...CHUNK_PASS, summary: KEY }), "")],
+    ["pass-denied-leak", run("pass-denied-leak", execution([parts[0], manifest], { structured_output: { ...CHUNK_PASS, summary: KEY }, permission_denials: [{ tool_name: "Bash" }] }), "")],
+    ["pass-step", run("pass-step", chunk(0, { ...CHUNK_PASS, summary: unscanned }), "", undefined, { JUDGE_OUTCOMES: slots("failure") })],
+    // A credential in the log leaves the scan stop no log to read.
+    ["pass-no-log", run("pass-no-log", chunk(0, CHUNK_PASS), "", undefined, { LOG_FILES: slots(), JUDGE_OUTCOMES: slots("failure") })],
+    ["pass-assignment", run("pass-assignment", chunk(0, { ...CHUNK_PASS, summary: 'token: "test-token-value"' }), "", undefined, { JUDGE_OUTCOMES: slots("failure") })],
+  ]) {
+    main(env);
+    const text = readFileSync(path.join(env.VERDICT_DIR, "verdict.json"), "utf8");
+    assert.equal(JSON.parse(text).verdict, "fail", name);
+    assert.equal(JSON.parse(text).withheld, true, name);
+    assert.ok(!text.includes(unscanned) && !text.includes("sk-ant-"), name);
+    assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), new RegExp(`^name=pr-verify-41-${HEAD}-fail-i7\nverdict=fail\nretention-days=90\n`), name);
+  }
+  // Beside a counted fail, a failed step's pass adds none of its text.
+  const passFailed = run("pass-failed", chunk(0, CHUNK_FAIL), chunk(1, { ...CHUNK_PASS, summary: unscanned }), undefined, { JUDGE_OUTCOMES: slots("success", "failure") });
+  main(passFailed);
+  assert.ok(!readFileSync(path.join(passFailed.VERDICT_DIR, "verdict.json"), "utf8").includes(unscanned));
+  // A final fail stands when its step failed on the lane's credential scan,
+  // and nothing else does.
+  const finalLeak = run("final-leak", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_OUTCOME: "failure", FINAL_EXECUTION_FILE: final({ ...FINAL_FAIL, items: [], notes: [`item 2: ${KEY}`] }) });
+  main(finalLeak);
+  const finalLeakVerdict = JSON.parse(readFileSync(path.join(finalLeak.VERDICT_DIR, "verdict.json"), "utf8"));
+  assert.equal(finalLeakVerdict.verdict, "fail");
+  assert.equal(finalLeakVerdict.withheld, true);
+  const finalStep = run("final-step", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_OUTCOME: "failure", FINAL_EXECUTION_FILE: final({ ...FINAL_FAIL, items: [], summary: unscanned }) });
+  main(finalStep);
+  assert.ok(!readFileSync(path.join(finalStep.VERDICT_DIR, "verdict.json"), "utf8").includes(unscanned));
+  for (const [name, env] of [
+    ["final-outcome", run("final-outcome", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_OUTCOME: "failure" })],
+    ["final-outcome-no-log", run("final-outcome-no-log", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_OUTCOME: "failure", FINAL_LOG_FILE: "" })],
+    ["final-key", run("final-key", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_EXECUTION_FILE: final({ ...FINAL_PASS, items: FINAL_ITEMS, summary: KEY }) })],
+  ]) {
+    main(env);
+    const stood = JSON.parse(readFileSync(path.join(env.VERDICT_DIR, "verdict.json"), "utf8"));
+    assert.equal(stood.verdict, "fail", name);
+    assert.equal(stood.withheld, true, name);
+  }
+  // A refs entry's context parts sit with the results, so a pass reads them.
+  const refsDir = path.join(dir, "refs-results");
+  mkdirSync(refsDir);
+  const contextPart = path.join(refsDir, "context-part-001.txt");
+  writeFileSync(contextPart, "{}\n");
+  assert.throws(() => main(run("refs-unread", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { RESULTS_DIR: refsDir, FINAL_EXECUTION_FILE: execution([spec, manifest], { structured_output: { ...FINAL_PASS, items: FINAL_ITEMS } }) })), /did not read/);
+  const refsRead = run("refs-read", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { RESULTS_DIR: refsDir, FINAL_EXECUTION_FILE: execution([contextPart, spec, manifest], { structured_output: { ...FINAL_PASS, items: FINAL_ITEMS } }) });
+  main(refsRead);
+  assert.equal(JSON.parse(readFileSync(path.join(refsRead.VERDICT_DIR, "verdict.json"), "utf8")).verdict, "pass");
   // A fail with short coverage is still the judge's fail, in any flow.
   const short = run("short", execution([], { structured_output: CHUNK_FAIL }), "");
   main(short);
   const shortVerdict = JSON.parse(readFileSync(path.join(short.VERDICT_DIR, "verdict.json"), "utf8"));
   assert.equal(shortVerdict.verdict, "fail");
+  assert.equal("withheld" in shortVerdict, false);
   assert.match(shortVerdict.summary, /read 0 of 2 parts/);
   const oneDir = path.join(dir, "one-chunk");
   mkdirSync(path.join(oneDir, "chunk-1"), { recursive: true });
@@ -595,6 +789,21 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
   // A fail that read short and names no defect counts for nothing.
   const bare = { ...CHUNK_FAIL, notes: [] };
   assert.throws(() => main(run("bare", execution([], { structured_output: bare }), "", [log(0)], { CHUNKS: "1", DIFF_DIR: oneDir })), /names no defect/);
+  assert.throws(() => main(run("claimed", execution([], { structured_output: { ...bare, withheld: true } }), "", [log(0)], { CHUNKS: "1", DIFF_DIR: oneDir })), /verdict schema/);
+  // A withheld fail needs no note to stand on a short read, on one chunk or
+  // beside another chunk's fail.
+  for (const [name, env] of [
+    ["bare-withheld", run("bare-withheld", execution([], { structured_output: { ...bare, summary: KEY } }), "", [log(0)], { CHUNKS: "1", DIFF_DIR: oneDir })],
+    ["bare-step", run("bare-step", execution([], { structured_output: bare }), "", [log(0)], { CHUNKS: "1", DIFF_DIR: oneDir, JUDGE_OUTCOMES: slots("failure") })],
+    ["bare-chunks", run("bare-chunks", execution([], { structured_output: { ...bare, summary: KEY } }), chunk(1, CHUNK_FAIL))],
+  ]) {
+    main(env);
+    const stood = JSON.parse(readFileSync(path.join(env.VERDICT_DIR, "verdict.json"), "utf8"));
+    assert.equal(stood.verdict, "fail", name);
+    assert.equal(stood.withheld, true, name);
+    assert.ok(stood.summary.includes(WITHHELD_SUMMARY), name);
+    assert.doesNotMatch(stood.summary, /sk-ant-/, name);
+  }
   const covered = run("covered", execution([path.join(oneDir, "chunk-1", "part-001.patch")], { structured_output: bare }), "", [log(0)], { CHUNKS: "1", DIFF_DIR: oneDir });
   main(covered);
   assert.equal(JSON.parse(readFileSync(path.join(covered.VERDICT_DIR, "verdict.json"), "utf8")).summary, bare.summary);
@@ -631,7 +840,6 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
     ["no final step", run("final-none", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_EXECUTION_FILE: "" })],
     ["a final step with no result", run("final-empty", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_EXECUTION_FILE: execution(results, null) })],
     ["a final step off the schema", run("final-schema", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_EXECUTION_FILE: final({}) })],
-    ["a final step with a credential", run("final-key", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_EXECUTION_FILE: final({ ...FINAL_PASS, items: FINAL_ITEMS, summary: KEY }) })],
     ["a denial in the final step's result", run("final-denied", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_EXECUTION_FILE: execution(whole, { structured_output: { ...FINAL_PASS, items: FINAL_ITEMS }, permission_denials: [{ tool_name: "Read" }] }) })],
     ["a denial in the final step's log", run("final-log", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_LOG_FILE: log(1) })],
     ["no log from the final step", run("final-no-log", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_LOG_FILE: "" })],
@@ -685,7 +893,7 @@ test("a head of twelve chunks gets a verdict from every chunk, and none when one
       ]),
     );
   const log = () => write("log.jsonl", JSON.stringify({ leg: 1, denials: { count: 0 } }));
-  const run = (label, outputs) => ({
+  const run = (label, outputs, outcomes = outputs.map((output) => (output === null ? "skipped" : "success"))) => ({
     PR_NUMBER: "41",
     HEAD_SHA: HEAD,
     BASE_SHA: BASE,
@@ -698,8 +906,10 @@ test("a head of twelve chunks gets a verdict from every chunk, and none when one
     GITHUB_OUTPUT: path.join(dir, `out-${label}`),
     EXECUTION_FILES: `${outputs.map((output, i) => (output === null ? "" : execution([parts[i], manifest], output))).join("\n")}\n`,
     LOG_FILES: `${outputs.map((output) => (output === null ? "" : log())).join("\n")}\n`,
+    JUDGE_OUTCOMES: `${outcomes.join("\n")}\n`,
     FINAL_EXECUTION_FILE: execution([...results, spec, manifest], { ...FINAL_PASS, items: [{ item: "item 1", chunks: [12] }] }),
     FINAL_LOG_FILE: log(),
+    FINAL_OUTCOME: "success",
     RESULTS_DIR: resultsDir,
     MANIFEST_DIR: manifestDir,
   });
@@ -719,6 +929,14 @@ test("a head of twelve chunks gets a verdict from every chunk, and none when one
   assert.equal(verdictOf(failed).verdict, "fail");
   assert.deepEqual(verdictOf(failed).notes, CHUNK_FAIL.notes);
   assert.match(verdictOf(failed).summary, /^Chunk 11 of 12, fail: chunk broken$/m);
+
+  // A scan stop in a late slot still reaches its own position in the list.
+  const outcomes = all("success");
+  outcomes[10] = "failure";
+  const stopped = run("scan-stop", all(CHUNK_PASS), outcomes);
+  main(stopped);
+  assert.equal(verdictOf(stopped).verdict, "fail");
+  assert.equal(verdictOf(stopped).withheld, true);
 
   const missing = all(CHUNK_PASS);
   missing[10] = null;
@@ -772,19 +990,28 @@ test("checkChunk stops the slots only on a fail the head can count", () => {
   const part = file("diff/chunk-1/part-001.patch", "x\n");
   const reads = { type: "assistant", message: { content: [{ type: "tool_use", id: "t", name: "Read", input: { file_path: part } }] } };
   const result = (output, extra = {}) => [reads, { type: "result", structured_output: output, ...extra }];
-  for (const [label, execution, logFile, expected] of [
+  for (const [label, execution, logFile, expected, outcome = "success"] of [
     ["a fail", result(CHUNK_FAIL), cleanLog, "true"],
     ["a pass", result(CHUNK_PASS), cleanLog, "false"],
     ["pass-notes", result(CHUNK_NOTES), cleanLog, "false"],
     ["no result", [], cleanLog, "false"],
     ["off the schema", result({}), cleanLog, "false"],
-    ["a fail with a denial", result(CHUNK_FAIL, { permission_denials: [{ tool_name: "Bash" }] }), cleanLog, "false"],
-    ["a fail with a denial in its log", result(CHUNK_FAIL), file("denied.jsonl", JSON.stringify({ denials: { count: 1 } })), "false"],
+    ["a fail with a denial", result(CHUNK_FAIL, { permission_denials: [{ tool_name: "Bash" }] }), cleanLog, "true"],
+    ["a fail with a denial in its log", result(CHUNK_FAIL), file("denied.jsonl", JSON.stringify({ denials: { count: 1 } })), "true"],
+    ["a pass with a denial", result(CHUNK_PASS, { permission_denials: [{ tool_name: "Bash" }] }), cleanLog, "false"],
+    ["a fail holding a credential", result({ ...CHUNK_FAIL, summary: KEY }), cleanLog, "true"],
+    ["a pass holding a credential", result({ ...CHUNK_PASS, summary: KEY }), cleanLog, "true"],
     ["a fail that read short, with notes", [{ type: "result", structured_output: CHUNK_FAIL }], cleanLog, "true"],
     ["a fail that read short, with no notes", [{ type: "result", structured_output: { ...CHUNK_FAIL, notes: [] } }], cleanLog, "false"],
+    ["a fail that read short, holding a credential in its summary alone", [{ type: "result", structured_output: { ...CHUNK_FAIL, summary: KEY, notes: [] } }], cleanLog, "true"],
+    ["a fail that read short claiming to be withheld", [{ type: "result", structured_output: { ...CHUNK_FAIL, notes: [], withheld: true } }], cleanLog, "false"],
+    ["a fail from a failed step", result(CHUNK_FAIL), cleanLog, "true", "failure"],
+    ["a pass from a failed step", result(CHUNK_PASS), cleanLog, "true", "failure"],
+    ["a pass from a failed step with no log", result(CHUNK_PASS), "", "true", "failure"],
+    ["a pass with a denial and no log", result(CHUNK_PASS), "", "false"],
   ]) {
     const out = path.join(dir, `out-${label}`);
-    checkChunk({ EXECUTION_FILE: file(`${label}.json`, execution), LOG_FILE: logFile, GITHUB_OUTPUT: out, CHUNK: "1", CHUNKS: "1", DIFF_DIR: diff });
+    checkChunk({ EXECUTION_FILE: file(`${label}.json`, execution), LOG_FILE: logFile, GITHUB_OUTPUT: out, CHUNK: "1", CHUNKS: "1", DIFF_DIR: diff, JUDGE_OUTCOME: outcome });
     assert.equal(readFileSync(out, "utf8"), `fail=${expected}\n`, label);
   }
 });
@@ -800,12 +1027,14 @@ test("parseFinal maps each item to its chunks, and an item no chunk delivers fai
   for (const bad of [{ ...FINAL_PASS, items: [] }, { ...FINAL_PASS, items: [{ item: "a", chunks: [1, 3] }] }, { ...FINAL_PASS, items: [{ item: "a", chunks: 1 }] }, { ...FINAL_PASS, items: [{ item: "a", chunks: ["1"] }] }, { ...FINAL_PASS, items: [{ item: "a" }] }, FINAL_PASS, {}]) {
     assert.throws(() => parseFinal(bad, 2), /schema|item/);
   }
-  assert.throws(() => parseFinal({ ...FINAL_PASS, items: [{ item: KEY, chunks: [] }] }, 2), /credential/);
+  const masked = parseFinal({ ...FINAL_PASS, items: [{ item: KEY, chunks: [] }] }, 2);
+  assert.equal(masked.verdict, "fail");
+  assert.ok(!JSON.stringify(masked).includes(KEY));
   // An item no chunk delivers fails the head, even beside a chunk out of range.
   assert.equal(parseFinal({ ...FINAL_PASS, items: [{ item: "a", chunks: [9] }, { item: "b", chunks: [] }] }, 2).verdict, "fail");
 });
 
-test("writeChunkResults hands the final step each chunk's output and the spec, each one Read", () => {
+test("writeChunkResults hands the final step each chunk's output whole, and the spec, each file one Read", () => {
   const dir = tempDir("pr-verify-results-");
   const diff = path.join(dir, "diff");
   const write = (name, value) => {
@@ -825,12 +1054,16 @@ test("writeChunkResults hands the final step each chunk's output and the spec, e
       { type: "result", subtype: "success", structured_output: output },
     ]);
   const logs = `${write("a.jsonl", JSON.stringify({ denials: { count: 0 } }))}\n${write("b.jsonl", JSON.stringify({ denials: { count: 0 } }))}\n`;
-  const crowded = { ...CHUNK_NOTES, notes: Array(30).fill("n".repeat(1000)) };
+  // More than one file holds: the item at the end of the summary, and the
+  // last note past a note's own length, still reach the final step.
+  const crowded = { ...CHUNK_NOTES, summary: `${"delivers x. ".repeat(1000)}delivers the last item`, notes: [...Array(30).fill("n".repeat(1000)), `${"m".repeat(1500)} the last note`] };
   const env = {
     CHUNKS: "2",
     DIFF_DIR: diff,
     LOG_FILES: logs,
     RESULTS_DIR: path.join(dir, "results"),
+    PART_BYTES: "15000",
+    JUDGE_OUTCOMES: slots("success", "success"),
     SPEC_TEXT_FILE: write("spec-text.json", `[\n  {"body": "${"é long spec ".repeat(5000)}"}\n]\n`),
     SPEC_FILE: write("spec.json", "[]\n"),
     CONTEXT_FILE: write("context.json", "{}\n"),
@@ -840,12 +1073,19 @@ test("writeChunkResults hands the final step each chunk's output and the spec, e
     PROMPT_TEMPLATE: fileURLToPath(new URL("./spec-prompt.md", import.meta.url)),
     SCHEMA_FILE: path.join(dir, "spec-schema.json"),
   };
-  writeChunkResults({ ...env, EXECUTION_FILES: `${execution("e1.json", parts[0], crowded)}\n${execution("e2.json", parts[1], CHUNK_PASS)}\n\n\n` });
-  const first = readFileSync(path.join(env.RESULTS_DIR, "chunk-1.json"), "utf8");
-  assert.ok(Buffer.byteLength(first) <= 15000);
-  assert.ok(first.split("\n").every((line) => line.length <= 1500));
-  assert.ok(JSON.parse(first.replaceAll("\n", "")).notes_left_out > 0);
-  assert.deepEqual(JSON.parse(readFileSync(path.join(env.RESULTS_DIR, "chunk-2.json"), "utf8").replaceAll("\n", "")), { chunk: 2, of: 2, ...CHUNK_PASS, notes_left_out: 0 });
+  writeChunkResults({ ...env, EXECUTION_FILES: slots(execution("e1.json", parts[0], crowded), execution("e2.json", parts[1], CHUNK_PASS)) });
+  const resultParts = (k) => readdirSync(env.RESULTS_DIR).filter((name) => name.startsWith(`chunk-${k}-part-`)).sort();
+  assert.ok(resultParts(1).length > 1);
+  for (const name of resultParts(1)) {
+    const text = readFileSync(path.join(env.RESULTS_DIR, name), "utf8");
+    assert.ok(Buffer.byteLength(text) <= 15000, name);
+    assert.ok(text.split("\n").every((line) => line.length <= 1500), name);
+  }
+  const result = (k) => JSON.parse(resultParts(k).map((name) => readFileSync(path.join(env.RESULTS_DIR, name), "utf8")).join("").replaceAll("\n", ""));
+  assert.deepEqual(result(1), { chunk: 1, of: 2, ...crowded });
+  assert.deepEqual(result(2), { chunk: 2, of: 2, ...CHUNK_PASS });
+  assert.deepEqual(resultParts(2), ["chunk-2-part-001.txt"]);
+  assert.deepEqual(readdirSync(env.RESULTS_DIR).filter((name) => name.startsWith("context-part-")), []);
   const specParts = readdirSync(env.RESULTS_DIR).filter((name) => name.startsWith("spec-part-")).sort();
   assert.ok(specParts.length > 1);
   let rejoined = "";
@@ -857,15 +1097,37 @@ test("writeChunkResults hands the final step each chunk's output and the spec, e
   }
   assert.ok(rejoined.length >= readFileSync(env.SPEC_TEXT_FILE, "utf8").length);
   const prompt = readFileSync(env.PROMPT_FILE, "utf8");
-  assert.ok(prompt.includes(`  - \`${path.join(env.RESULTS_DIR, "chunk-1.json")}\`\n  - \`${path.join(env.RESULTS_DIR, "chunk-2.json")}\``));
+  assert.ok(prompt.includes(`  - \`${path.join(env.RESULTS_DIR, resultParts(1).at(-1))}\`\n  - \`${path.join(env.RESULTS_DIR, "chunk-2-part-001.txt")}\``));
   for (const name of specParts) assert.ok(prompt.includes(`  - \`${path.join(env.RESULTS_DIR, name)}\``), name);
   for (const file of [env.SPEC_FILE, env.CONTEXT_FILE, env.PR_FILE, ...manifestParts]) assert.ok(prompt.includes(file), file);
   assert.doesNotMatch(prompt, /RESULT_FILES|SPEC_PARTS|MANIFEST_PARTS|SPEC_FILE|PR_FILE|CONTEXT_FILE/);
   assert.ok(!prompt.includes("/diff/"), "the final step is pointed at no diff");
   assert.deepEqual(JSON.parse(readFileSync(env.SCHEMA_FILE, "utf8")).required, ["verdict", "summary", "notes", "items"]);
   const secret = { ...env, RESULTS_DIR: path.join(dir, "none"), EXECUTION_FILES: `${execution("e3.json", parts[0], { ...CHUNK_PASS, summary: KEY })}\n${execution("e4.json", parts[1], CHUNK_PASS)}\n` };
-  assert.throws(() => writeChunkResults(secret), /credential/);
-  assert.equal(existsSync(secret.RESULTS_DIR), false);
+  writeChunkResults(secret);
+  const secretResult = readFileSync(path.join(secret.RESULTS_DIR, "chunk-1-part-001.txt"), "utf8");
+  assert.ok(!secretResult.includes("sk-ant-"));
+  assert.equal(JSON.parse(secretResult).verdict, "fail");
+  // A refs entry's context goes through the same parts, one Read each.
+  const refsSpec = { ...env, RESULTS_DIR: path.join(dir, "refs"), PROMPT_FILE: path.join(dir, "prompt-refs.md"), SPEC_TEXT_FILE: write("spec-refs.json", [{ spec_kind: "refs", body: "x" }]), CONTEXT_FILE: write("context-long.json", { pr: { body: "é long body ".repeat(5000) } }), EXECUTION_FILES: `${execution("e7.json", parts[0], CHUNK_PASS)}\n${execution("e8.json", parts[1], CHUNK_PASS)}\n` };
+  writeChunkResults(refsSpec);
+  const contextParts = readdirSync(refsSpec.RESULTS_DIR).filter((name) => name.startsWith("context-part-")).sort();
+  assert.ok(contextParts.length > 1);
+  const refsPrompt = readFileSync(refsSpec.PROMPT_FILE, "utf8");
+  for (const name of contextParts) {
+    assert.ok(Buffer.byteLength(readFileSync(path.join(refsSpec.RESULTS_DIR, name))) <= 15000, name);
+    assert.ok(refsPrompt.includes(path.join(refsSpec.RESULTS_DIR, name)), name);
+  }
+  assert.ok(!refsPrompt.includes(refsSpec.CONTEXT_FILE));
+  // More results than the final judge's budget stop before it runs.
+  const huge = { ...CHUNK_NOTES, summary: "y".repeat(16000), notes: Array(40).fill("z".repeat(8000)) };
+  const over = { ...env, RESULTS_DIR: path.join(dir, "over"), EXECUTION_FILES: `${execution("e9.json", parts[0], huge)}\n${execution("e10.json", parts[1], CHUNK_PASS)}\n` };
+  assert.throws(() => writeChunkResults(over), /parts/);
+  assert.equal(existsSync(over.RESULTS_DIR), false);
+  // The workflow names the Read budget, and no default stands in for it.
+  for (const bad of [undefined, "", "many", "100"]) {
+    assert.throws(() => writeChunkResults({ ...env, PART_BYTES: bad, RESULTS_DIR: path.join(dir, "bad"), EXECUTION_FILES: `${execution("e5.json", parts[0], CHUNK_PASS)}\n${execution("e6.json", parts[1], CHUNK_PASS)}\n` }), /PART_BYTES/, String(bad));
+  }
 });
 
 test("checkKeyLeg on the final step reads the chunks that ran, past the blank slots", () => {
@@ -876,10 +1138,10 @@ test("checkKeyLeg on the final step reads the chunks that ran, past the blank sl
     return target;
   };
   const [a, b, c] = [file("a"), file("b"), file("c")];
-  const clean = { CHUNKS: "2", LOG_FILES: `${a}\n${b}\n\n\n${c}\n`, GITHUB_OUTPUT: path.join(dir, "out") };
+  const clean = { CHUNKS: "2", LOG_FILES: `${slots(a, b)}${c}\n`, GITHUB_OUTPUT: path.join(dir, "out") };
   checkKeyLeg(clean);
   assert.equal(readFileSync(clean.GITHUB_OUTPUT, "utf8"), "clean=true\n");
-  const short = { CHUNKS: "2", LOG_FILES: `${a}\n\n\n\n${c}\n`, GITHUB_OUTPUT: path.join(dir, "short") };
+  const short = { CHUNKS: "2", LOG_FILES: `${slots(a)}${c}\n`, GITHUB_OUTPUT: path.join(dir, "short") };
   assert.throws(() => checkKeyLeg(short), /unreadable/);
   assert.equal(existsSync(short.GITHUB_OUTPUT), false);
 });

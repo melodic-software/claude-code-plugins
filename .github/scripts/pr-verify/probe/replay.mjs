@@ -99,7 +99,7 @@ export const LEG_ENV = Object.freeze({
 export const JUDGE = Object.freeze({
   dataDir: "pr-verify-data",
   modelRoute: "verify-pr",
-  preamble: "You run unattended; return only the verdict the schema asks for; nothing you write is posted.",
+  preamble: "You run unattended; return only the verdict the schema asks for; your summary and notes are public, so never quote a credential.",
   permissionMode: "dontAsk",
   tools: ["Read"],
   allowedTools: ["Read(./pr-verify-data/**)"],
