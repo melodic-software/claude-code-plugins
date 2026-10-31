@@ -12,12 +12,14 @@
 // a pass or pass-notes with a permission denial writes none, and so does a chunk
 // that left no output or read a part of its diff short (pr-review-main
 // readCoverage) with no defect in its notes. A fail stands on a denial, since no
-// fail can pass the head. Any verdict whose text matches the shared credential
-// patterns (lib/publish-gate.mjs findSecret), or whose step's credential scan
-// stopped it, becomes a fail with a fixed text in place of the model's, so the
-// head is not sampled again and no part of it is published. Only this script
-// records such a fail as `withheld: true`, which is what verify-notes.mjs reads
-// to hold the pull request.
+// fail can pass the head. A fail whose text matches the shared credential
+// patterns (lib/publish-gate.mjs findSecret), a pass or pass-notes whose text
+// holds a credential format (those patterns less WARN_ONLY, a secret assignment
+// that may be a fixture), and any verdict whose step's credential scan stopped
+// it become a fail with a fixed text in place of the model's, so the head is not
+// sampled again and no part of it is published. Only this script records such a
+// fail as `withheld: true`, which is what verify-notes.mjs reads to hold the pull
+// request. A pass or pass-notes holding only an assignment writes no verdict.
 // The file also records the head
 // branch and the linked issues with their authors, as the resolver read them
 // (number, author and last body editor login, id and type, last_edited_at;
@@ -34,7 +36,7 @@ import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { deeperLeak, findSecret } from "../../../lib/publish-gate.mjs";
+import { deeperLeak, findSecret, firstHit, SECRET_PATTERNS, WARN_ONLY } from "../../../lib/publish-gate.mjs";
 import { readCoverage } from "../pr-review-main/write-verdict.mjs";
 
 export const VERDICTS = Object.freeze(["pass", "pass-notes", "fail"]);
@@ -133,19 +135,33 @@ export function buildEvidence({ capture, prBody } = {}) {
 
 // run-claude-cli's own scan, which fails its step on a shorter Anthropic key
 // than findSecret's shape, so this script holds text to the same line.
-const KEY_SHAPE = /sk-ant-[A-Za-z0-9_-]{8,}/;
+const KEY_SHAPE = /\bsk-ant-[A-Za-z0-9_-]{8,}/;
 // chunk-diff.sh's fold, which a quoted line carries through the middle of a
 // token, with the white space a quote leaves before it, on the line or across a
 // line end.
 const FOLD = /\s*\\ continued: ?/g;
-const scan = (text) => findSecret(text)?.[0] ?? (KEY_SHAPE.test(text) ? "Anthropic key" : deeperLeak(text));
+// The credential formats, which scanLeak blocks on. findSecret alone would name
+// an assignment first and hide a format later on its line or after it.
+const FORMATS = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
+const formatIn = (text) => firstHit(FORMATS, text)?.[0] ?? (KEY_SHAPE.test(text) ? "Anthropic key" : deeperLeak(text));
 // The texts in order, so a credential split between two of them still reads.
 // The raw text keeps the word boundaries a whole token needs; the second pass
-// joins a token split over a fold or over two quoted diff lines.
+// joins a token split over a fold or over two quoted diff lines. With no format,
+// any hit left is WARN_ONLY.
 const credentialIn = (texts) => {
   const text = texts.join("\n");
-  return scan(text) ?? scan(text.replace(FOLD, "").replace(/\n[-+ ]/g, "\n"));
+  const joined = text.replace(FOLD, "").replace(/\n[-+ ]/g, "\n");
+  return formatIn(text) ?? formatIn(joined) ?? (findSecret(text) ?? findSecret(joined))?.[0] ?? null;
 };
+
+// A pass or pass-notes holding only an assignment: no verdict, and no security
+// stop, unless its step's scan stopped it (readJudgment), which `parsed` is for.
+class AssignmentOnly extends Error {
+  constructor(parsed) {
+    super(`the structured output holds text shaped like a credential (${WARN_ONLY})`);
+    this.parsed = parsed;
+  }
+}
 
 // What a withheld fail says. Its text decides nothing: a genuine fail may quote it.
 export const WITHHELD_SUMMARY = "The verifier returned fail, and its text is withheld: the text was shaped like a credential, or its step stopped on the credential scan.";
@@ -189,6 +205,9 @@ function parseOutput(output) {
     throw new Error("the structured output does not match the verdict schema");
   }
   const kind = credentialIn([parsed.summary, ...parsed.notes]);
+  if (kind === WARN_ONLY && parsed.verdict !== "fail") {
+    throw new AssignmentOnly(parsed);
+  }
   return kind ? withheld(parsed, kind) : parsed;
 }
 
@@ -518,8 +537,17 @@ function readExecution(file) {
 function readJudgment(file, logFile, outcome, parse = parseOutput) {
   const messages = readExecution(file);
   const result = lastResult(messages);
-  const output = parse(result.structured_output);
-  if (outcome !== "success") {
+  const stopped = outcome !== "success";
+  let output;
+  try {
+    output = parse(result.structured_output);
+  } catch (error) {
+    if (!stopped || !(error instanceof AssignmentOnly)) {
+      throw error;
+    }
+    output = error.parsed;
+  }
+  if (stopped) {
     return { messages, output: withheld(output, "credential scan stop") };
   }
   const denied = resultDenials(result).length + logDenials(readLog(logFile));

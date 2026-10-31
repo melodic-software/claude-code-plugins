@@ -9,10 +9,11 @@ bump: patch
   gone from a chunk's result.
 - `pr-verify` folds a diff line over 1800 bytes onto lines that start `\ continued:`, so a verifier
   reads every byte of it and no head passes on a line Read cut short.
-- A `pr-verify` `fail` that hit a permission denial, and any verdict that holds credential-shaped text
-  or comes from a judge step `run-claude-cli` failed on its own credential scan, is now written instead
-  of leaving no verdict and a second sample of the head. A `pass` or `pass-notes` of that kind becomes a
-  `fail` that counts toward the repeated-fail cap. Each publishes a fixed text and
+- A `pr-verify` `fail` that hit a permission denial or holds credential-shaped text, a `pass` or
+  `pass-notes` that holds a credential format, and any verdict from a judge step `run-claude-cli` failed
+  on its own credential scan, is now written instead of leaving no verdict and a second sample of the
+  head. A `pass` or `pass-notes` of that kind becomes a `fail` that counts toward the repeated-fail cap;
+  one holding only a secret assignment, which may be a fixture, still leaves no verdict. Each publishes a fixed text and
   none of the model's, logs the credential's kind alone as a warning, and holds the pull request for a person with the
   human-gated label, a dequeue and a `security` stop reason, since a later clean commit rotates nothing. The verdict
   records `withheld: true` in code, so a fail quoting that text gets no hold and no model can claim one. The comment

@@ -334,6 +334,42 @@ test("a fail quoting the withheld sentence is not withheld, and no model can cla
   }
 });
 
+test("a pass or pass-notes quoting only an assignment writes no verdict, and a fail's text is withheld", (t) => {
+  const quote = 'a.test.mjs:3 fixture token: "test-token-value"';
+  for (const verdict of ["pass", "pass-notes"]) {
+    for (const output of [
+      { verdict, summary: quote, notes: [] },
+      { verdict, summary: "fine", notes: [quote] },
+    ]) {
+      assert.throws(() => buildVerdict({ ...ids, output: JSON.stringify(output) }), /shaped like a credential \(password or secret assignment\)/, verdict);
+    }
+  }
+  t.mock.method(console, "log", () => {});
+  assertWithheld(buildVerdict({ ...ids, output: JSON.stringify({ verdict: "fail", summary: quote, notes: [] }) }));
+});
+
+test("a format beside an assignment still withholds a pass", (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const cloudflare = `${"cfk_"}${"k".repeat(40)}`;
+  const quote = 'token: "test-token-value"';
+  for (const [text, kind] of [
+    // Assignment matches come first in findSecret's list, before this format.
+    [`api_key: "${cloudflare}"`, "Cloudflare API token"],
+    [`${quote} and ${cloudflare}`, "Cloudflare API token"],
+    [`${quote}\nsee ${GITHUB_TOKEN}`, "GitHub token"],
+  ]) {
+    assertWithheld(buildVerdict({ ...ids, output: JSON.stringify({ verdict: "pass-notes", summary: text, notes: [] }) }), kind);
+    assert.equal(log.mock.calls.at(-1).arguments[0], `::warning title=pr-verify credential::kind=${kind}`);
+  }
+});
+
+test("a word ending in sk-ant- is no key, and a key after a separator is", (t) => {
+  const summary = "task-ant-migrations runs first";
+  assert.equal(buildVerdict({ ...ids, output: JSON.stringify({ verdict: "pass", summary, notes: [] }) }).summary, summary);
+  t.mock.method(console, "log", () => {});
+  assertWithheld(buildVerdict({ ...ids, output: JSON.stringify({ verdict: "pass", summary: "key=sk-ant-abcdefgh", notes: [] }) }));
+});
+
 test("naming the key prefix alone is not a credential", () => {
   const output = JSON.stringify({ verdict: "pass", summary: "keys start with sk-ant-", notes: ["sk-ant- prefix"] });
   assert.equal(buildVerdict({ ...ids, output }).summary, "keys start with sk-ant-");
@@ -693,6 +729,7 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
     ["pass-step", run("pass-step", chunk(0, { ...CHUNK_PASS, summary: unscanned }), "", undefined, { JUDGE_OUTCOMES: slots("failure") })],
     // A credential in the log leaves the scan stop no log to read.
     ["pass-no-log", run("pass-no-log", chunk(0, CHUNK_PASS), "", undefined, { LOG_FILES: slots(), JUDGE_OUTCOMES: slots("failure") })],
+    ["pass-assignment", run("pass-assignment", chunk(0, { ...CHUNK_PASS, summary: 'token: "test-token-value"' }), "", undefined, { JUDGE_OUTCOMES: slots("failure") })],
   ]) {
     main(env);
     const text = readFileSync(path.join(env.VERDICT_DIR, "verdict.json"), "utf8");
