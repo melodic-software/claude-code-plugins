@@ -426,8 +426,8 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 
 ## Next
 
-/planning:design-handoff gates the finished design and writes it into PLAN.md's `## Design`, which
-/planning:plan reads.
+- Design finished, to gate and write into PLAN.md's `## Design`, which /planning:plan reads: /planning:design-handoff.
+- The contract is a UI component's props API (parts, variants, controlled state): /user-interface:design.
 
 ## Relationship to other skills
 

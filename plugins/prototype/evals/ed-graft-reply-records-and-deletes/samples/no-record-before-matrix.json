@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [], "why": "nothing written before the combine matrix"},
+    {"answer": ["mockup-run/notes.md"], "why": "a different path"}
+  ],
+  "fail": [
+    {"answer": ["docs/decisions/ui-shipments.md"], "why": "the decision recorded before the combine matrix ran"}
+  ]
+}

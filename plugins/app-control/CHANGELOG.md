@@ -3,6 +3,14 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0] - 2026-10-31
+
+### Added
+
+- `/app-control:drive` eval cases check that an unattended animation capture runs nothing on an app this run did not launch, and reports a capability gap with no stand-in tool when the control skill names none.
+
+- `/app-control:drive capture --kind animation` records an animation's per-frame state (each animation's target, property, from and to values, current value, duration, easing and progress) with the tool the control skill names for the kind, only in an app this run launched with seeded data.
+
 ## [0.19.0] - 2026-10-31
 
 ### Added

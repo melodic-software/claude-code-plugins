@@ -8,7 +8,7 @@ Each `Baseline:` line links the live compat entry; never copy version numbers fr
 2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
 
 Contents: `one-focus-ring-with-focus-visible`, `hover-styles-only-where-hover-exists`,
-`press-feedback`, `hit-area-larger-than-the-visual`, `whole-card-clickable-from-one-link`,
+`press-feedback`, `hit-area-larger-than-the-visual`, `card-with-a-distinct-link`,
 `has-for-parent-and-page-state`, `form-feedback-with-user-invalid`,
 `textarea-that-grows-with-its-content`.
 
@@ -17,21 +17,24 @@ Contents: `one-focus-ring-with-focus-visible`, `hover-styles-only-where-hover-ex
 Why: keyboard users get a visible ring and mouse users do not, with one rule and no
 `outline: none`.
 
-Baseline: [`:focus-visible`](https://developer.mozilla.org/en-US/docs/Web/CSS/:focus-visible#browser_compatibility).
+Baseline: [`:focus-visible`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/:focus-visible#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use it as the focus style for every interactive element. Never write `outline: none`.
 
 ```css
 :focus-visible {
-  outline: max(2px, 0.08em) solid currentColor;
-  outline-offset: 0.25em;
+  outline: max(2px, 0.08em) solid var(--focus-ring, currentColor);
+  outline-offset: 2px;
 }
 ```
 
 Rules:
 
-- On a filled button `currentColor` can fail contrast. Use the button's background color there.
+- The ring's color is the `--focus-ring` token; the contrast it must keep in both themes is the
+  `color` concern's rule. Use the project's focus token where it has one.
+- Without the token the ring falls back to `currentColor`, which can fail contrast on a filled
+  button. Use the button's background color there.
 - A component that draws its ring with `box-shadow` keeps `outline-color: transparent`, never
   `outline: none`, so forced-colors mode can repaint it.
 
@@ -39,8 +42,8 @@ Rules:
 
 Why: a tap on a touch screen otherwise leaves the hover state stuck.
 
-Baseline: [`hover` media feature](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/hover#browser_compatibility),
-[`pointer`](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/pointer#browser_compatibility).
+Baseline: [`hover` media feature](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/hover#browser_compatibility),
+[`pointer`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/pointer#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use it on every `:hover` rule.
@@ -55,16 +58,30 @@ Rules:
 
 - A framework's hover variant may wrap itself in `(hover: hover)` only. Check its compiled output;
   write the full query by hand wherever it is missing.
+- In Tailwind, read what the installed version's `hover:` variant compiles to in the pointer below.
+  A variant gated on hover alone covers half of the query: override it once with the project's
+  custom-variant mechanism so it adds `(pointer: fine)`. An older config may carry a flag for this;
+  `hoverOnlyWhenSupported` is the search token, confirmed against the installed version.
+- Every `:hover` rule lives behind this query, so a tap never leaves a control stuck in its hover
+  state. Moving the rules there at the token or config level fixes every instance at once.
 - Touch users still need feedback on press. Give it with `:active`, which works for every input.
+
+- **Pointer**: Tailwind CSS, upgrade guide, "Hover styles on mobile" (what the `hover` variant
+  compiles to, and the custom-variant override),
+  <https://tailwindcss.com/docs/upgrade-guide#hover-styles-on-mobile>
+- **As of**: 2026-10-29
+- **Recheck trigger**: Tailwind changes the media query its `hover` variant compiles to, or how a
+  variant is overridden.
 
 ## Press feedback: `press-feedback`
 
 Why: a pressed control that visibly reacts confirms the press, on every input type.
 
-Baseline: [`:active`](https://developer.mozilla.org/en-US/docs/Web/CSS/:active#browser_compatibility),
+Baseline: [`:active`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/:active#browser_compatibility),
 widely available. As of 2026-10-11, recheck on a status change.
 
-Use it on every button and anything else that can be pressed.
+Use it on pressable controls. Which controls take the scale, which skip it, and the scale's limits
+are the `motion` concern's (`press`); this recipe is how to write it.
 
 ```css
 .button:active { transform: scale(0.97); }
@@ -76,7 +93,6 @@ Use it on every button and anything else that can be pressed.
 
 Rules:
 
-- Keep the scale between 0.95 and 0.98.
 - `the-reset` (`foundations.md`) removes the tap highlight; without this a tap gives no feedback.
 - When feedback needs a script, listen for `pointerdown`, not `click`.
 
@@ -84,7 +100,7 @@ Rules:
 
 Why: a pseudo-element grows the target to at least 44px without changing what the user sees.
 
-Baseline: [`inset`](https://developer.mozilla.org/en-US/docs/Web/CSS/inset#browser_compatibility).
+Baseline: [`inset`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/inset#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use it on icon buttons, close buttons and any target that looks smaller than 44px.
@@ -99,67 +115,76 @@ Use it on icon buttons, close buttons and any target that looks smaller than 44p
 }
 ```
 
+Or with sizing directly, where the control may grow:
+
+```css
+.small-button {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+```
+
 Rules:
 
 - `overflow: hidden` or `clip` on the button cuts the area off.
 - It does not work on `<input>`, which has no pseudo-elements. Wrap it in a `<label>`.
+- In Tailwind, a fixed negative inset does the same for a known size: `relative before:absolute
+  before:-inset-2.5` takes a 24px button to 44px.
+- Two extended areas must never overlap; the sizes and the overlap rule are the `touch` concern's.
 
-## Whole card clickable from one link: `whole-card-clickable-from-one-link`
+## Card with a distinct link: `card-with-a-distinct-link`
 
-Why: one real link stretched over the card keeps link text short for screen readers and needs no
-click handler on a `div`.
+Why: Don't wrap an entire card in one `<a>`: it kills text selection and screen readers announce
+the whole card as a single link. Give the card a distinct CTA link.
 
-Baseline: [`:has()`](https://developer.mozilla.org/en-US/docs/Web/CSS/:has#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
+Baseline: [`inset`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/inset#browser_compatibility),
+for the tile carve-out; the card itself is plain HTML. As of 2026-10-29, recheck on a status
+change.
 
-Use it for cards, list rows and tiles where the whole area navigates, in place of an `<a>` wrapped
-around the card.
+Use it for cards and list rows that lead somewhere and hold text a person may read or copy.
 
 ```html
 <article class="card">
-  <h3><a class="card-link" href="/reports/q3">Quarterly report</a></h3>
+  <h3>Quarterly report</h3>
   <p>Revenue grew in every region.</p>
+  <a class="card-cta" href="/reports/q3">Read the Q3 report</a>
   <button type="button">Save</button>
 </article>
 ```
 
-```css
-.card { position: relative; }
+Rules:
 
-.card-link::after {
+- The link text names its destination on its own, so it still makes sense in a screen reader's
+  list of links.
+- Put hover styles on the link, inside the query from `hover-styles-only-where-hover-exists`.
+
+Our carve-out, not part of the rule above: a tile no one selects text in (an image tile, a
+navigation tile with a one-line label, no other control inside) may take one link stretched over
+the tile, because nothing is lost to the overlay.
+
+```css
+.tile { position: relative; }
+
+.tile-link::after {
   content: "";
   position: absolute;
   inset: 0;
 }
-
-.card-link:focus-visible { outline: 2px solid transparent; }
-
-.card:has(.card-link:focus-visible) {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
-}
-
-.card :is(button, a:not(.card-link)) {
-  position: relative;
-  z-index: 1;
-}
 ```
 
-Rules:
-
-- No element between the card and the link may be positioned; the overlay would size itself to
+- No element between the tile and the link may be positioned; the overlay would size itself to
   that element.
-- The link's own ring is made transparent, never removed (`one-focus-ring-with-focus-visible`).
-  Write the full `2px solid transparent`, so no engine's default outline style shows through.
-- Text under the overlay cannot be selected. Accept it.
-- Put hover styles on `.card:hover`, inside the query from `hover-styles-only-where-hover-exists`.
+- A tile with a second control or any text worth copying is a card: use the distinct link.
 
 ## `:has()` for parent and page state: `has-for-parent-and-page-state`
 
 Why: the parent styles itself from what it contains, replacing a script that toggles a class on
 it.
 
-Baseline: [`:has()`](https://developer.mozilla.org/en-US/docs/Web/CSS/:has#browser_compatibility).
+Baseline: [`:has()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/:has#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use it wherever a script adds a class to a parent because of its contents or a child's state.
@@ -176,6 +201,8 @@ html:has(dialog:modal) { overflow: hidden; }
 Rules:
 
 - `:modal` matches `showModal()` only, so a non-modal dialog does not lock the page.
+- Where the project uses a dialog primitive that locks scroll itself, keep its lock: an `overflow`
+  lock alone has a history of failing for touch scrolling (the `touch` concern).
 - Keep `scrollbar-gutter: stable` with the scroll lock, or the page shifts sideways when the
   scrollbar disappears. `the-reset` (`foundations.md`) sets it.
 - `:has()` cannot be nested inside `:has()`.
@@ -185,7 +212,7 @@ Rules:
 Why: the browser waits until the user has interacted before flagging a field, replacing blur
 listeners and a "touched" class.
 
-Baseline: [`:user-invalid`](https://developer.mozilla.org/en-US/docs/Web/CSS/:user-invalid#browser_compatibility).
+Baseline: [`:user-invalid`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/:user-invalid#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use it for inline form validation.
@@ -209,7 +236,7 @@ Rules:
 Why: `field-sizing: content` sizes the textarea to its text, with no auto-grow script and no
 hidden mirror element.
 
-Baseline: [`field-sizing`](https://developer.mozilla.org/en-US/docs/Web/CSS/field-sizing#browser_compatibility).
+Baseline: [`field-sizing`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/field-sizing#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use it for any multi-line input, such as a chat composer or a comment box.

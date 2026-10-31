@@ -693,8 +693,11 @@ models:
     review:
       model: opus
       max-turns: 60
+    # Both review lanes judge work the code-fix and standard profiles write
+    # (opus), with no objective signal on the head when the model is chosen:
+    # docs/plugin-philosophy.md, Model tiers, rules 3 and 4.
     pr-review:
-      model: sonnet
+      model: opus
       effort: high
       max-turns: 75
     triage:
@@ -1356,6 +1359,8 @@ merge:
       - glob: ".github/workflows/pr-refine.yml"
         class: gate
       - glob: ".github/workflows/pr-require-checks.yml"
+        class: gate
+      - glob: ".github/workflows/pr-review-approved.yml"
         class: gate
       - glob: ".github/workflows/pr-review-hosted.yml"
         class: gate

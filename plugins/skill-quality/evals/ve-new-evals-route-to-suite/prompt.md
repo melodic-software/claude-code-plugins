@@ -1,0 +1,1 @@
+I'm adding evals to release-notes, a new skill in my plugin at ./plugins/release-tools. Should I write an evals.json next to the skill so validate-evals can check it, or something else? Answer in under 120 words.

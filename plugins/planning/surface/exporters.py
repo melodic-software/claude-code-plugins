@@ -73,8 +73,10 @@ present only when it has a value, each value escaped on its own (esc_field), joi
                                   alternative, whose note it is; beside a counted free-text answer
                                   (not a set-aside or superseded-by-plan row's), the user's words
                                   when the question's resolution is the answer (reply --resolution)
-  aside:: E(aside)                the newest decision a user hold set aside, when none counts;
-                                  import restores it still set aside
+  aside:: E(aside)                the newest decision a user hold set aside, when none counts,
+                                  and on an open row with no hold, an accept or hedged accept a
+                                  recommendation revision set aside, named as of the text it
+                                  accepted; import restores it still set aside
   commitments:: M(c1)[; M(c2)...] every commitment in order, M() being `+` (confirmed) or `-`
                                   (unconfirmed) then E(text)
 An accepted or hedged decision with an unconfirmed commitment exports `open`, keeping its answer,
@@ -89,7 +91,8 @@ whose held accept or alternative is set aside, because that decision's note is i
 Import reads these fields by name and refuses, naming the field, an unknown field (a leading one
 too, when a named field follows it), a field out of order or repeated, an unmarked commitment, and
 a contradictory pair: answer with aside, proposal without was, hold or aside on a row the status
-settles, an answer the status contradicts, and a note no field above gives a meaning.
+settles, aside with no hold beside anything but an open row's accept or hedged accept, an answer
+the status contradicts, and a note no field above gives a meaning.
 
 Every older grammar still imports, read as it always was: a held row
 `[plan proposes: E(new); was: E(old); ]waits on:: ...` or `awaiting user:: ...` with `answer:`,
@@ -247,7 +250,8 @@ def decision_fields(q, rec, resolve=True):
     decision, text = rec.get("decision"), rec.get("text") or ""
     if decision in ("accept", "hedged"):
         word = "accepted" if decision == "accept" else "hedged"
-        return f"{word}: {q.get('recommendation') or 'the recommendation'}", text
+        accepted = aside_rec(q, rec) or q.get("recommendation") or "the recommendation"
+        return f"{word}: {accepted}", text
     if decision == "alt":
         key = rec.get("alt") or ""
         alt = next(
@@ -273,6 +277,13 @@ def resolves(resolution, rec):
         and resolution.get("decidedAt") == rec.get("updatedAt")
         and resolution.get("seq") == rec.get("seq")
     )
+
+
+def aside_rec(q, rec):
+    """The recommendation the accept or hedged accept `rec` was given against, when a later
+    recommendation revision set it aside; else None."""
+    aside = q.get("asideRecommendation")
+    return aside["text"] if resolves(aside, rec) else None
 
 
 def seed_proposal(seed):
@@ -617,6 +628,13 @@ def settle(q, responses, events, seed_rows):
         if decision in ("accept", "hedged") and commitments(q, events)[1]:
             status = "open"
         return status, fields, clean(text), decision == "defer"
+    aside = newest_decision(q, responses, aside=True)
+    if status != "superseded-by-plan" and aside and aside_rec(q, aside) is not None:
+        # A revised recommendation set this accept aside: open until the user accepts again,
+        # the accept named as of the text it accepted.
+        fields["aside"], note = decision_fields(q, aside)
+        fields["note"] = note or None
+        return "open", fields, "", False
     fields["note"] = seed_text(seed)
     if status == "superseded-by-plan":
         # A set-aside decision leaves the plan's proposal waiting on the user again.
@@ -2048,7 +2066,14 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
         clash("proposal", "was")
     if hold is not None and status not in UNSETTLED:
         clash("hold", f"status {status}")
-    if "aside" in fields and hold is None:
+    # Without a hold, only a recommendation revision sets a decision aside: an open row's accept.
+    revised_aside = (
+        "aside" in fields
+        and hold is None
+        and status == "open"
+        and fields["aside"].startswith(("accepted: ", "hedged: "))
+    )
+    if "aside" in fields and hold is None and not revised_aside:
         clash("aside", "hold")
     who, sep, waits = (hold or "").partition(" ")
     if hold is not None and (who not in ("claude", "user") or not sep):
@@ -2165,6 +2190,8 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
             q["terminal"] = held_terminal(q, decided, (noted and note) or "", at)
         if "aside" in fields:
             q.update(setAsideAt=at, setAsideSeq=0, setAsideRev=rev)
+        if revised_aside:
+            q["asideRecommendation"] = {"text": q["recommendation"], "decidedAt": at}
     by = "claude" if status in UNSETTLED else "user-terminal"
     line = f"{SEED_NOTE}: {status}" + (", held." if hold is not None else ".")
     if hold is None and status == "superseded-by-plan" and seeded[qid]["resolution"]:

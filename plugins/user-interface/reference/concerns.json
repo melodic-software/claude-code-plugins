@@ -4,17 +4,663 @@
     {
       "id": "motion",
       "title": "Motion and animation",
-      "types": ["web", "touch-web", "app"],
-      "triggers": ["animation", "motion", "transition", "easing", "duration", "spring", "gesture", "drag", "swipe", "jank", "dropped frames"],
+      "types": [
+        "web",
+        "touch-web",
+        "app"
+      ],
+      "triggers": [
+        "animation",
+        "motion",
+        "transition",
+        "easing",
+        "duration",
+        "spring",
+        "gesture",
+        "drag",
+        "swipe",
+        "jank",
+        "dropped frames"
+      ],
       "spokes": [
-        {"path": "reference/animation/catalog.md", "read_when": "always"},
-        {"path": "reference/animation/behaviors.md", "read_when": "a known component moves: modal, popover, menu, toast, tooltip, drawer, accordion"},
-        {"path": "reference/animation/gestures.md", "read_when": "drag, swipe or a spring"},
-        {"path": "reference/animation/performance.md", "read_when": "an animation drops frames, or the performance sub-mode"}
+        {
+          "path": "reference/animation/catalog.md",
+          "read_when": "always"
+        },
+        {
+          "path": "reference/animation/behaviors.md",
+          "read_when": "a known component moves: modal, popover, menu, toast, tooltip, drawer, accordion, icon swap, section entrance"
+        },
+        {
+          "path": "reference/animation/gestures.md",
+          "read_when": "drag, swipe or a spring"
+        },
+        {
+          "path": "reference/animation/performance.md",
+          "read_when": "an animation drops frames, or the performance sub-mode"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/motion.md",
+        "skills/write-css/reference/show-and-hide.md"
+      ],
+      "routing_concerns": [
+        "animation-authoring",
+        "animation-audit"
+      ],
+      "audit": {
+        "order": 4,
+        "procedure": "skills/audit/reference/motion.md"
+      }
+    },
+    {
+      "id": "component-api",
+      "title": "Component API",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "component API",
+        "props API",
+        "component props",
+        "what props",
+        "prop names",
+        "component variants",
+        "swap the rendered element",
+        "compound components",
+        "controlled and uncontrolled",
+        "defaultValue",
+        "variant prop",
+        "asChild",
+        "render prop",
+        "slot props",
+        "forward ref"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/component-api.md",
+          "read_when": "always"
+        },
+        {
+          "path": "reference/types/web/component-api/implementation.md",
+          "read_when": "the component is written in React"
+        }
       ],
       "recipes": [],
-      "routing_concerns": ["animation-authoring", "animation-audit"],
-      "audit": {"order": 4, "procedure": "skills/audit/reference/motion.md"}
+      "routing_concerns": [
+        "component-libraries"
+      ],
+      "audit": {
+        "order": 8,
+        "procedure": null
+      }
+    },
+    {
+      "id": "web-layout",
+      "title": "Layout and spacing",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "layout",
+        "spacing",
+        "hierarchy",
+        "visual hierarchy",
+        "alignment",
+        "whitespace",
+        "grid",
+        "breakpoints",
+        "primary action",
+        "z-index",
+        "stacking order",
+        "density"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/layout.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/layout.md",
+        "skills/write-css/reference/spacing-and-shape.md",
+        "skills/write-css/reference/foundations.md"
+      ],
+      "routing_concerns": [],
+      "audit": {
+        "order": 5,
+        "procedure": null
+      }
+    },
+    {
+      "id": "typography",
+      "title": "Typography",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "typography",
+        "typeface",
+        "font pairing",
+        "font files",
+        "type scale",
+        "line height",
+        "letter spacing",
+        "line length",
+        "text wrapping",
+        "truncation",
+        "underline",
+        "variable font"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/typography.md",
+          "read_when": "always"
+        },
+        {
+          "path": "reference/types/web/typography/typefaces-and-formats.md",
+          "read_when": "a typeface is chosen, paired or swapped, or font files are added or loaded"
+        },
+        {
+          "path": "reference/types/web/typography/font-capabilities.md",
+          "read_when": "a variable font, font weights, OpenType features, numerals, small caps or superscripts are set"
+        },
+        {
+          "path": "reference/types/web/typography/scale-and-rhythm.md",
+          "read_when": "a type scale, text units, line height, paragraph spacing, letter spacing or text-box trimming is set"
+        },
+        {
+          "path": "reference/types/web/typography/line-behavior.md",
+          "read_when": "line length, wrapping, truncation, text alignment, casing, typographic characters, language or direction is set or reviewed"
+        },
+        {
+          "path": "reference/types/web/typography/details-and-floors.md",
+          "read_when": "underlines, text selection, placeholders, carets, font smoothing, decorative text or minimum text sizes are set or reviewed"
+        },
+        {
+          "path": "reference/types/web/typography/tailwind.md",
+          "read_when": "detect reports Tailwind"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/foundations.md",
+        "skills/write-css/reference/text-and-media.md"
+      ],
+      "routing_concerns": [
+        "typography-color"
+      ],
+      "audit": {
+        "order": 6,
+        "procedure": null
+      }
+    },
+    {
+      "id": "color",
+      "title": "Color",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "color",
+        "palette",
+        "oklch",
+        "contrast",
+        "color scale",
+        "tonal ramp",
+        "convert hex",
+        "gamut",
+        "display-p3",
+        "chroma",
+        "focus ring color",
+        "color tokens"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/color.md",
+          "read_when": "always"
+        },
+        {
+          "path": "reference/types/web/color/building-scales.md",
+          "read_when": "building a tonal ramp, a hue family or a dark-mode remap, or auditing a scale for hue drift"
+        },
+        {
+          "path": "reference/types/web/color/contrast.md",
+          "read_when": "a contrast number, a failing pair, or text checked in both themes"
+        },
+        {
+          "path": "reference/types/web/color/converting-colors.md",
+          "read_when": "rewriting hex, rgb() or hsl() literals as oklch"
+        },
+        {
+          "path": "reference/types/web/color/gamut-and-p3.md",
+          "read_when": "high chroma, Display P3, or a browser target without oklch()"
+        },
+        {
+          "path": "reference/types/web/color/tailwind.md",
+          "read_when": "detect reports Tailwind"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/foundations.md",
+        "skills/write-css/reference/interaction.md"
+      ],
+      "routing_concerns": [
+        "typography-color"
+      ],
+      "audit": {
+        "order": 11,
+        "procedure": null
+      }
+    },
+    {
+      "id": "shape-and-depth",
+      "title": "Shape and depth",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "border radius",
+        "rounded corners",
+        "nested radius",
+        "concentric radius",
+        "box-shadow",
+        "elevation",
+        "depth",
+        "card looks flat",
+        "border looks harsh",
+        "hairline border",
+        "gradient banding",
+        "image outline"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/shape-and-depth.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/spacing-and-shape.md",
+        "skills/write-css/reference/motion.md",
+        "skills/write-css/reference/scroll-and-viewport.md"
+      ],
+      "routing_concerns": [],
+      "audit": {
+        "order": 7,
+        "procedure": null
+      }
+    },
+    {
+      "id": "forms",
+      "title": "Forms and inputs",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "form fields",
+        "input field",
+        "textarea",
+        "input label",
+        "validation",
+        "error message",
+        "submit button",
+        "double submit",
+        "Enter to submit",
+        "autocomplete",
+        "checkbox",
+        "signup form"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/forms.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/interaction.md"
+      ],
+      "routing_concerns": [],
+      "audit": {
+        "order": 12,
+        "procedure": null
+      }
+    },
+    {
+      "id": "marketing-pages",
+      "title": "Marketing pages",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "landing page",
+        "marketing page",
+        "marketing site",
+        "homepage",
+        "hero section",
+        "pricing page",
+        "blog page",
+        "changelog page",
+        "documentation site",
+        "call to action",
+        "open graph image",
+        "RSS feed"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/marketing-pages.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/show-and-hide.md"
+      ],
+      "routing_concerns": [
+        "visual-direction"
+      ],
+      "audit": {
+        "order": 16,
+        "procedure": null
+      }
+    },
+    {
+      "id": "icons",
+      "title": "Icons and illustrations",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "icon set",
+        "iconography",
+        "icon size",
+        "icon stroke weight",
+        "icons look heavy",
+        "icon library",
+        "filled or outlined icons",
+        "icon meaning",
+        "illustration",
+        "spot illustration"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/icons.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/text-and-media.md"
+      ],
+      "routing_concerns": [
+        "icons-imagery"
+      ],
+      "audit": {
+        "order": 14,
+        "procedure": null
+      }
+    },
+    {
+      "id": "layout-stability",
+      "title": "Layout stability",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "layout shift",
+        "content jumps",
+        "page jumps on load",
+        "numbers jump",
+        "tabular numbers",
+        "reserve space",
+        "image dimensions",
+        "skeleton size",
+        "bold on hover",
+        "flash on refresh",
+        "banner pushes content",
+        "long names break the layout"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/layout-stability.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/text-and-media.md"
+      ],
+      "routing_concerns": [],
+      "audit": {
+        "order": 3,
+        "procedure": null
+      }
+    },
+    {
+      "id": "states",
+      "title": "Interface states",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "empty state",
+        "loading state",
+        "skeleton loader",
+        "spinner",
+        "error state",
+        "retry button",
+        "404 page",
+        "first-run screen",
+        "optimistic update",
+        "copy to clipboard",
+        "toast display time",
+        "badge or tag"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/states.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [],
+      "routing_concerns": [],
+      "audit": {
+        "order": 10,
+        "procedure": null
+      }
+    },
+    {
+      "id": "theming",
+      "title": "Theming and dark mode",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "dark mode",
+        "dark theme",
+        "light and dark",
+        "theme toggle",
+        "theme switch",
+        "prefers-color-scheme",
+        "color-scheme",
+        "theme-color",
+        "dark: variant",
+        "theme provider",
+        "next-themes",
+        "second theme"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/theming.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/foundations.md"
+      ],
+      "routing_concerns": [],
+      "audit": {
+        "order": 13,
+        "procedure": null
+      }
+    },
+    {
+      "id": "generic-defaults",
+      "title": "Generic defaults",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "looks AI-generated",
+        "looks generic",
+        "vibe-coded",
+        "template look",
+        "cookie-cutter",
+        "purple gradient",
+        "gradient text",
+        "glassmorphism",
+        "emoji icons",
+        "fake testimonials",
+        "placeholder content",
+        "lorem ipsum"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/generic-defaults.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [],
+      "routing_concerns": [],
+      "audit": {
+        "order": 15,
+        "procedure": null
+      }
+    },
+    {
+      "id": "accessibility",
+      "title": "Accessibility",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "accessibility",
+        "a11y",
+        "screen reader",
+        "keyboard navigation",
+        "tab order",
+        "focus visible",
+        "focus trap",
+        "aria-label",
+        "skip link",
+        "alt text",
+        "aria-live",
+        "inert",
+        "navigation drawer",
+        "closed panel",
+        "icon button"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/accessibility.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/interaction.md"
+      ],
+      "routing_concerns": [
+        "accessibility-review"
+      ],
+      "audit": {
+        "order": 2,
+        "procedure": null
+      }
+    },
+    {
+      "id": "touch",
+      "title": "Touch and mobile web",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "mobile web",
+        "feels wrong on my phone",
+        "touch screen",
+        "tap target",
+        "sticky hover",
+        "tap highlight",
+        "input zoom",
+        "100vh on mobile",
+        "safe area",
+        "notch",
+        "pull-to-refresh",
+        "scrolls sideways",
+        "page zooms in",
+        "maximum-scale",
+        "pinch to zoom"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/touch-web.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [
+        "skills/write-css/reference/interaction.md",
+        "skills/write-css/reference/scroll-and-viewport.md",
+        "skills/write-css/reference/foundations.md"
+      ],
+      "routing_concerns": [],
+      "audit": {
+        "order": 1,
+        "procedure": null
+      }
+    },
+    {
+      "id": "web-performance",
+      "title": "Web performance",
+      "types": [
+        "web",
+        "touch-web"
+      ],
+      "triggers": [
+        "LCP",
+        "largest contentful paint",
+        "preload the hero image",
+        "lazy-load images",
+        "responsive images",
+        "virtualize a long list",
+        "virtual list",
+        "code splitting",
+        "bundle size",
+        "debounce search",
+        "static generation",
+        "autoplay video",
+        "thousands of rows",
+        "list scrolls slowly"
+      ],
+      "spokes": [
+        {
+          "path": "reference/types/web/performance.md",
+          "read_when": "always"
+        }
+      ],
+      "recipes": [],
+      "routing_concerns": [],
+      "audit": {
+        "order": 9,
+        "procedure": null
+      }
     }
   ]
 }

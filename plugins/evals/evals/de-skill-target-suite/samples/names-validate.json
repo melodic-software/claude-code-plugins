@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Before a paid run, check them with /evals:validate plugins/release-tools/evals; it reads the files and calls no model.",
+      "why": "slash form with the eval dir"
+    },
+    {
+      "answer": "Run `evals:validate` on the eval directory first.",
+      "why": "qualified name without the slash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Validate them with claude plugin validate before you run anything.",
+      "why": "near miss: the manifest validator"
+    },
+    {
+      "answer": "Run /skill-quality:check validate-evals deploy-notes first.",
+      "why": "near miss: the legacy JSON validator"
+    },
+    {
+      "answer": "Run /evals:validator on the folder.",
+      "why": "near miss: a name that does not exist"
+    },
+    {
+      "answer": "Deploy notes usually list the merged pull requests grouped by area.",
+      "why": "answers a different question"
+    }
+  ]
+}

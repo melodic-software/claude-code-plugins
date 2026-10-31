@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Flow from docs/PRD.md and the four routes.\n\n1. **Sign-up** (`/signup`)\n   - Email already registered: say an account exists for that address; offer Sign in with the email filled in, and Reset password.\n   - Network error on submit: say the account was not created; keep what was typed and offer Retry.\n2. **Verify email** (`/verify-email`)\n   - Link expired: say the link is older than its time limit; offer Resend link to the same address, and Change email.\n3. **Pantry setup** (`/onboarding/pantry`)\n   - Staples list fails to load: say the list could not load; offer Retry and Skip for now, which goes on to the recipe box.\n4. **Add recipe** (`/recipes/new`)\n   - URL import fails: say the page could not be read; keep the URL and offer Type it in instead, prefilled with any part that did import.\n   - Unverified user saves: say saving needs a verified email; keep the draft and offer Resend link.",
+      "why": "every error says what happened and a specific next action"
+    },
+    {
+      "answer": "| Step | Error | What went wrong | Recovery |\n|--|--|--|--|\n| Sign-up | email taken | an account already uses this email | Sign in, email prefilled |\n| Verify email | link used or expired | the link no longer works | Resend link |\n| Pantry setup | list failed | staples did not load | Retry, or Skip to the recipe box |\n| Add recipe | import failed | the URL could not be parsed | Type the recipe in; the URL and any imported fields stay |\n| Add recipe | save failed | the recipe was not saved | Retry save; the draft is kept |",
+      "why": "table form, each row with a cause and a specific recovery"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. Sign-up: error state shows \"Something went wrong\" with a Back button.\n2. Verify email: error state, try again later.\n3. Pantry setup: error state.\n4. Add recipe: error state shows \"Something went wrong\".",
+      "why": "generic messages and generic exits only"
+    },
+    {
+      "answer": "1. Sign-up: email already registered, offer Sign in.\n2. Verify email: link expired, offer Resend.\n3. Pantry setup: list failed to load.\n4. Add recipe: import failed, contact support.",
+      "why": "two errors give no specific recovery"
+    },
+    {
+      "answer": "Sign-up, verify email, pantry setup, add recipe. Each step moves to the next on success.",
+      "why": "no error states"
+    }
+  ]
+}

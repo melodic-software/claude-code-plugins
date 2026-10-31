@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "prototype:pressure-test"
+          }
+        }
+      ],
+      "why": "other skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:design"
+          }
+        }
+      ],
+      "why": "user-interface:design, which mockup-setup.md runs before every build"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "design"
+          }
+        }
+      ],
+      "why": "invoked design"
+    }
+  ]
+}

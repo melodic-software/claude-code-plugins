@@ -185,6 +185,58 @@
         "Interactive and asserted elements carry proposed data-testid attributes, and the copy-out terminator lists them per screen and variant from the markup",
         "The handover's reply template has one `screen:` block per screen with `state:` and `test-ids:` lines, and no variant is folded in before the user answers"
       ]
+    },
+    {
+      "id": 16,
+      "name": "vary-keeps-switcher-and-diverges-around-variant",
+      "prompt": "The three /shipments mockup variants in evals/fixtures/shipments-mockup.html are open in my browser: A Ledger (one dense table), B Cards (a column of parcel cards), C Map (a map with a side list). /prototype:explore-directions vary B",
+      "expected_output": "vary is an action, not a scope: the skill keeps the existing mockup and switcher and drafts a fresh set of variants that diverge around B's direction (parcel cards), each with a direction name and a stated axis, structurally different from each other. It does not restart from scratch on a new page, does not ask what to explore, and does not record a decision or delete the candidates, since no direction was chosen.",
+      "files": ["evals/fixtures/shipments-mockup.html"],
+      "expectations": [
+        "The response treats `vary B` as the vary action, not as a new scope named 'vary B'",
+        "The new variants stay in B's direction (parcel cards) and differ from each other structurally, each with a direction name and a stated axis",
+        "The response keeps the switcher (the existing mockup page and its bundled switcher) rather than building a separate harness",
+        "The response does not record a winning direction or delete the candidate variants"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "graft-reply-runs-combine-matrix",
+      "prompt": "Here is my reply for the /shipments variants:\ndirection: graft\nsteal: delivery-date cards from B\nsteal: region filter from C\nBase it on A, the dense table.",
+      "expected_output": "A reply naming parts of more than one variant is a combine: before recording anything, the skill builds the combine matrix on base A. It is a table keyed by variant pair (for example 'B to A', 'C to A'), one row per portable feature with what the user sees, what A does instead today, and a choice of Add or Add as a mode, capped at 8 rows, with a one-line note of any feature dropped as non-portable, a free-text line under the rows, and a reply grammar such as '1, 3m'. It waits for the user's ticks, then builds one combined variant named A+ beside the originals, rather than rebuilding the merge from the reply's prose.",
+      "files": [],
+      "expectations": [
+        "The response renders a combine matrix on base A before recording a decision or deleting variants",
+        "Each matrix row is keyed by its variant pair (the donor variant and the base A) and states what A does instead today",
+        "Each row offers Add or Add as a mode, and the matrix ends with a free-text line and a way to reply with row numbers",
+        "The response does not build the merged variant until the user has ticked rows, and plans it as a new variant (A+) added beside the originals"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "bare-vary-asks-which-variant",
+      "prompt": "The three /shipments mockup variants in evals/fixtures/shipments-mockup.html are open in my browser: A Ledger, B Cards, C Map. /prototype:explore-directions vary",
+      "expected_output": "vary with no variant named is still the vary action, not a scope: the skill asks which variant to diverge around, as one question naming A Ledger, B Cards and C Map, and waits for the answer. It drafts no new variants, starts no new page, and records or deletes nothing before the person answers.",
+      "files": ["evals/fixtures/shipments-mockup.html"],
+      "expectations": [
+        "The response treats the bare `vary` as the vary action, not as a scope named 'vary'",
+        "The response asks one question: which of A Ledger, B Cards or C Map to diverge around",
+        "The response drafts no new variants and builds no new page before the person names the variant",
+        "The response does not record a winning direction or delete the candidate variants"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "controls-with-variant-puts-numbers-on-panel",
+      "prompt": "The three /shipments mockup variants in evals/fixtures/shipments-mockup.html are open in my browser: A Ledger, B Cards, C Map. B Cards' card entrance uses a 200ms duration, an ease-out curve and a 12px offset. /prototype:explore-directions controls B",
+      "expected_output": "controls B is the controls action on a named variant, so the skill asks no question about which variant: it keeps B and puts its numbers (the 200ms duration, the easing curve, the 12px offset, and a speed multiplier on the motion) on the control panel, fixed at the top-right clear of the switcher, with each value shown beside its control and a button that copies the whole config. The controls write CSS variables rather than re-rendering on every input, and the panel adds no second replay button, since the switcher's replay already re-mounts the variant.",
+      "files": ["evals/fixtures/shipments-mockup.html"],
+      "expectations": [
+        "The response treats `controls B` as the controls action on variant B and does not ask which variant to use",
+        "The panel carries B's duration, easing and offset as controls, plus a speed multiplier, rather than hardcoding those values",
+        "Each control shows its current value, and the panel has a button that copies the whole config",
+        "The panel sits top-right, clear of the switcher, and does not add its own replay button"
+      ]
     }
   ]
 }

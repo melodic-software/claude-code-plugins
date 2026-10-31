@@ -119,9 +119,8 @@ Decide the kind from the repository, then name the route. The user starts `build
 ## Boundary
 
 - `/evals:design` interviews for criteria and scaffolds a suite; `/evals:plugin-eval` runs a
-  plugin's suite against a no-plugin baseline and reads the delta;
-  `/skill-quality:check validate-evals` validates a skill's eval file when the `skill-quality`
-  plugin is installed.
+  plugin's suite against a no-plugin baseline and reads the delta; `/evals:validate` checks a
+  suite's case files before a run.
 - The bundled `claude-api` skill's `hillclimb` searches model, effort and prompt against a suite
   you already have. When that skill resolves in this session, prefer its `hillclimb` for the
   search itself; prefer this skill when the suite does not exist yet or its criteria are not yet

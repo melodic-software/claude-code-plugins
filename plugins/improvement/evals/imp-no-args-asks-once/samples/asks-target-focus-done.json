@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Before I touch anything, three quick questions:\n\n1. **Target**: recommended: `src/discount.js` (most recently added file with logic). Alternatives: `src/late-fee.js`, `src/currency.js`.\n2. **Focus**: recommended: `standards` (the repo has docs/standards/javascript.md). Other lenses: performance, naming, readability, currency.\n3. **Done**: the target matches every rule in javascript.md, shipped as one small PR.\n\nWhich target and focus should I use?"
+    },
+    {
+      "answer": "I have no conversation to infer from, so I need your call on three things. Suggested answers are in brackets.\n\n- What should I improve? Target [src/late-fee.js]\n- What does better mean this run? Focus [standards]\n- What does success look like? [late-fee.js follows the JavaScript standard with no behavior change]\n\nReply with changes or 'go'?",
+      "why": "bullets, 'success' for done"
+    },
+    {
+      "answer": "Before I change anything:\n\n**Target** (recommended): `src/discount.js`. Alternatives: `src/late-fee.js`.\n\n**Focus** (recommended): standards.\n\n**Done looks like:** the file follows `docs/standards/javascript.md` with no behavior change.\n\nReply to confirm, or tell me a different target or focus."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Which file should I improve? I recommend src/discount.js.",
+      "why": "asks for the target only"
+    },
+    {
+      "answer": "Target src/discount.js, focus standards, done: replaced == with ===.",
+      "why": "reports work, asks nothing"
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Target: `src/discount.js`. Focus: standards. Done: the file follows the standard. I updated `code == null` to strict equality."
+    }
+  ]
+}

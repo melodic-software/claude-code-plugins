@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: ed-offline-mockup-handover
+description: "Base contract of the HTML mockup substrate and the step-4 handover: an offline page in a mktemp run directory with the CSP meta tag, variant markers and the bundled switcher inlined, then the four-part handover ending in the reply template. csp-base-directives checks that one meta tag carries every directive of the base policy, MB:plugins/prototype/skills/explore-directions/SKILL.md:157-159, in any order."
+tags: [explore-directions, hard]
+runs: 3
+expected_outcome: "The mockup is one HTML page written inside a mktemp run directory named explore-directions-XXXXXX outside the workspace, with a CSP meta tag whose policy starts default-src 'none', data-variant and data-variant-label markers, and the bundled switcher inlined whole; the handover gives the file:// path, one line per variant with key, descriptive name and states, says no screenshots exist, gives one honest tradeoff row per variant without picking a favorite, and ends with the reply template's direction: and steal: lines. The Content-Security-Policy meta tag carries every directive of the base policy, not only default-src 'none'."
+execution:
+  prompt: "/prototype:explore-directions onboarding checklist screen for a new habit-tracking app. There is no app yet. I'm the only person deciding and I want the mockup now: build it without asking me anything first."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 80
+  timeout_seconds: 1200

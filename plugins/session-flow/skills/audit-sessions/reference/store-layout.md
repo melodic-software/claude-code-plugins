@@ -30,8 +30,9 @@ D/audit-sessions/
     none of them;
   - the working directory, edited file paths (relative to it when inside it), branch names, PR
     repositories, and the names of slash commands, model-invoked skills and assistant errors;
-  - in the `friction` block, per event: the command shape and, for a denial, the classifier's
-    category or the first line of the hook's message; with `audit_sessions_excerpt_chars` above 0,
+  - in the `friction` block, per event: the command shape, the call's `tool_use_id` for a denial
+    or an approved prompt, and, for a denial, the classifier's category or the first line of the
+    hook's message; with `audit_sessions_excerpt_chars` above 0,
     also an excerpt of the call's command line or path, the agent's asking line, or the person's
     reply. `/session-flow:audit-friction` documents the block's fields.
 

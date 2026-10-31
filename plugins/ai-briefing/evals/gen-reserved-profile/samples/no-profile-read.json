@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/.claude/ai-briefing/conference/sources.md"
+          }
+        }
+      ],
+      "why": "other profile"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/.claude/ai-briefing/con/sources.md"
+          }
+        }
+      ],
+      "why": "read the reserved profile path"
+    }
+  ]
+}

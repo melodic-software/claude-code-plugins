@@ -1,0 +1,45 @@
+schema_version: "1.1"
+name: gen-confirm-gate
+graders:
+  - name: asks-confirm
+    type: regex
+    pattern: '(?<!no need to )(?<!without )(?:\b(?:please|can you|could you) confirm\b|\bconfirm (?:to|and I(?:''ll| will)) (?:proceed|start|begin|continue|run|collect)\b|\b(?:shall|should|can|may) I (?:proceed|go ahead|continue|start|begin|run|kick off|collect)\b|\b(?:ok(?:ay)?|good|fine) to (?:proceed|go ahead|start|run|collect)\b|\bproceed\s*\?|\bready (?:to (?:proceed|start|go)|when you are)\b|\b(?:want|like) me to (?:proceed|go ahead|start|begin|run|continue|collect|kick)\b|\b(?:once|after|when) you(?:''ve| have)? (?:confirm(?:ed)?|approve[ds]?|say (?:go|yes))\b|\b(?:wait(?:ing)? (?:for|on)|need) your (?:confirmation|approval|go-ahead|ok)\b|\breply (?:with )?[`"*]*(?:yes|ok|go|confirm(?:ed)?|proceed)\b|\b(?:does|do) (?:this|these|that|the (?:plan|scope|settings?|parameters?|run)) look (?:right|good|correct)\b)'
+    flags: 'i'
+    target: last_message
+  - name: shows-window
+    type: regex
+    pattern: '\b(?:2026-10-20|Oct(?:ober)?\.? 20(?:th)?|20(?:th)? Oct(?:ober)?)\b'
+    flags: 'i'
+    target: last_message
+  - name: shows-providers
+    type: regex
+    pattern: '^(?=[\s\S]*\bnorthwind\b)(?=[\s\S]*\bcontoso\b)'
+    flags: 'i'
+    target: last_message
+  - name: shows-source-classes
+    type: regex
+    pattern: '^(?=[\s\S]*\b(?:official|vendor|first-party)\b)(?=[\s\S]*\b(?:RSS|Atom|feeds?|GitHub|release (?:notes|pages)|secondary)\b)'
+    flags: 'i'
+    target: last_message
+  - name: shows-profile
+    type: regex
+    pattern: '\bprofile\b[^\n]{0,40}\bdefault\b|\bdefault\b[^\n]{0,20}\bprofile\b'
+    flags: 'i'
+    target: last_message
+  - name: shows-format
+    type: regex
+    pattern: '\bmarkdown\b'
+    flags: 'i'
+    target: last_message
+  - name: no-webfetch
+    type: tool_used
+    tool: 'WebFetch'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-websearch
+    type: tool_used
+    tool: 'WebSearch'
+    min: 0
+    max: 0
+    arm: 'both'

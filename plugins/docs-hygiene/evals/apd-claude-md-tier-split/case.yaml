@@ -1,0 +1,14 @@
+schema_version: "1.1"
+name: apd-claude-md-tier-split
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:docs-hygiene:)?audit-progressive-disclosure"'
+  - name: names-scoped-destination
+    type: regex
+    pattern: '\.claude/rules/|paths:|path-scoped|scoped rule|services/billing/(?:\.claude/)?CLAUDE\.md'
+    flags: 'i'
+    arm: both
