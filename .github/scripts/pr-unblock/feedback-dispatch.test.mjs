@@ -259,6 +259,25 @@ test("a pass-only dispatch of a PR whose pr-verify FAILs are at the cap gets no 
   assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
 });
 
+// A pass-only round only resolves notes a later pass superseded, and nothing
+// sends it again (#11354), so a cap the reader could not read does not hold
+// it; the listing's deadline still warns. A FAIL round still skips.
+test("a pass-only dispatch the reader could not read the cap for still gets its round, and still warns", async () => {
+  const deadline = "verify:unreadable: the artifact listing does not fit in the caller's limit: 10812 artifacts in 109 pages need 116 s";
+  for (const detail of [deadline, "verify:unreadable: a FAIL run of a pull request for the same issue"]) {
+    const api = fakeApi();
+    const record = emptyRecord();
+    const { result, lines } = await decide(api, resolvedLane(), { passOnly: true, record, verifyCapped: () => detail });
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" }, detail);
+    assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["verify-pass-head"]), [HEAD], detail);
+    assert.equal(record.handled.size, 0, detail);
+    assert.equal(lines.some((line) => line.startsWith("::warning title=verify-deadline-skip::")), detail === deadline, detail);
+  }
+  const fail = fakeApi();
+  await decide(fail, resolvedLane(), { verifyCapped: () => deadline });
+  assert.deepEqual(fail.calls.dispatch, []);
+});
+
 // A round sent for pr-verify's FAIL at the head (notesSince set) finds that
 // FAIL (babysit_verify_evidence.py FAIL, "verify:fail") there by design, so
 // the reader is told to expect it; a review run's round and a pass expect none.
@@ -1694,7 +1713,7 @@ function recoveryApi({ runs = [lostRun()], jobs = { 600: startedJobs }, ...optio
 }
 
 test("a tick with no lost pr-feedback-dispatch.yml run in the window makes one run listing for recovery and dispatches nothing", async (t) => {
-  const api = recoveryApi({ runs: [lostRun({ conclusion: "success" }), lostRun({ id: 601, status: "in_progress", conclusion: null }), lostRun({ id: 602, conclusion: "failure" })] });
+  const api = recoveryApi({ runs: [lostRun({ conclusion: "success" }), lostRun({ id: 601, status: "in_progress", conclusion: null }), lostRun({ id: 602, conclusion: "skipped" })] });
   const { output } = await sweepMain(t, api, TICK, NOW);
   assert.equal(api.listings.length, 1);
   assert.deepEqual(api.jobReads, []);
@@ -1704,8 +1723,11 @@ test("a tick with no lost pr-feedback-dispatch.yml run in the window makes one r
 });
 
 test("a lost pr-feedback-dispatch.yml run with a started job gets one fresh dispatch of a head dispatchFeedback sends", async (t) => {
-  for (const conclusion of ["cancelled", "timed_out"]) {
-    const api = recoveryApi({ runs: [lostRun({ conclusion })] });
+  // A failed dispatch job (#11344: the POST threw `fetch failed`) sent
+  // nothing either, and nothing else sends it again.
+  for (const conclusion of ["cancelled", "timed_out", "failure"]) {
+    const jobs = { 600: [{ ...startedJobs[0], conclusion }] };
+    const api = recoveryApi({ runs: [lostRun({ conclusion })], jobs });
     const { output, lines } = await sweepMain(t, api, TICK, NOW);
     assert.deepEqual(api.jobReads, [600], conclusion);
     assert.deepEqual(
@@ -1727,6 +1749,7 @@ test("a lost run whose dispatch job never started or was not lost, or this run i
     ["no job", [lostRun({ conclusion: "startup_failure" })], { 600: [] }, [600]],
     // Another job of the run was lost; the dispatch job finished or was skipped.
     ["a lost ci-status re-run", [lostRun()], { 600: [{ id: 2, name: "rerun-ci-status", conclusion: "cancelled", steps: ran }, { id: 1, name: "dispatch", conclusion: "success", steps: ran }] }, [600]],
+    ["a failed ci-status re-run", [lostRun({ conclusion: "failure" })], { 600: [{ id: 2, name: "rerun-ci-status", conclusion: "failure", steps: ran }, { id: 1, name: "dispatch", conclusion: "success", steps: ran }] }, [600]],
     ["this run", [lostRun({ id: Number(RUN_ID) })], {}, []],
   ]) {
     const api = recoveryApi({ runs, jobs });
@@ -1862,6 +1885,23 @@ test("a lost run that already dispatched is not dispatched again", async (t) => 
   const second = await sweepMain(t, going, TICK, NOW);
   assert.deepEqual(going.calls.dispatch, []);
   assert.match(second.lines.join("\n"), /is not done yet/);
+});
+
+// A failed run stays in the window for a day, and a round that ended before
+// posting its check does not handle the head, so each failed or lost run
+// sends at most one round per PR: a finished run of the activity for the PR
+// created after it holds the PR.
+test("a lost run sends one round per PR: a finished round for the PR created after it holds the PR", async (t) => {
+  for (const [label, created, sent] of [
+    ["after the lost run", "2026-10-17T13:20:00Z", []],
+    ["before the lost run", "2026-10-17T12:50:00Z", ["42"]],
+  ]) {
+    const api = recoveryApi({ runs: [lostRun({ conclusion: "failure" })], jobs: { 600: [{ ...startedJobs[0], conclusion: "failure" }] } });
+    api.listWorkflowRuns = async () => [{ id: 7, status: "completed", conclusion: "failure", display_title: TITLE_42, created_at: created }];
+    const { lines } = await sweepMain(t, api, TICK, NOW);
+    assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), sent, label);
+    assert.equal(lines.some((line) => line.includes("run 7") && line.includes("after lost run 600")), sent.length === 0, `${label}\n${lines.join("\n")}`);
+  }
 });
 
 test("the recovery leaves a head the sweep has capped alone", async (t) => {
