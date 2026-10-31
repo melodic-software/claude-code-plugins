@@ -47,6 +47,7 @@ mkdir -p "$REPO"
   git -C "$REPO" config user.email t@t.t
   git -C "$REPO" config user.name t
   git -C "$REPO" config commit.gpgsign false
+  git -C "$REPO" config tag.gpgsign false
   git -C "$REPO" config core.autocrlf false
   printf 'clean\n' >"$REPO/notes.txt"
   git -C "$REPO" add notes.txt
