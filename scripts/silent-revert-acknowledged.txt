@@ -40,3 +40,4 @@
 # separate the two shapes, which is why this file exists.
 91e77fc16f62bc0ce99b36565053636fb4a21d9e  #2135 deliberately reconciled a merge of origin/main; disposition argued in the PR body
 c97fba7b12f8dd61aac0574ee009f8632a2af1df  #7780 deliberately retired the ratification marker that #7725 had wired into pr-merge; the verifier criterion stays
+5cce729c61018f709e9fa5216e639112e7f82daa  #11646 raised pr-verify's chunk ceiling from 4 to 12, growing .github/workflows/pr-verify.yml from 2,592 to 5,040 lines with 44 deleted, mostly limit values and conditions rewritten in each job; the canary compared against #11548's slots and counted those
