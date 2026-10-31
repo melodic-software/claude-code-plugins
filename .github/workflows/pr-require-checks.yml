@@ -73,9 +73,9 @@ permissions:
 # THE GROUP BRANCHES ON THE PREDICATE, AND EVERY BRANCH BUT MAIN'S DISPATCH
 # CANCELS. A contract-only
 # run takes a group of its own keyed on `github.run_id`, so it can neither be
-# cancelled nor evict anything, and it waits for nothing: its `ci-status` reads
-# the `ci-lanes` status once and finishes (see the `ci-status` job). The
-# previous shape queued instead, on a shared
+# cancelled nor evict anything, and it waits only on a full run in flight: its
+# `ci-status` holds for that run, then reads the `ci-lanes` status (see the
+# `ci-status` job). The previous shape queued instead, on a shared
 # group with `cancel-in-progress` false, and eviction is unconditional: a
 # pending run evicted before its `ci-status` job started left the check suite
 # with no `ci-status` check run at all, and the required check stopped reporting
@@ -3363,8 +3363,9 @@ jobs:
     # `ci-lanes` commit status the last full run recorded on this SHA.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    # 9 s p95 and 42 s max in full mode, about 10 s contract-only. The cap is
-    # the worst case of the pinned composites' waits: two 60 s rate-limit waits
+    # 9 s p95 and 42 s max in full mode, about 10 s contract-only, up to 10
+    # minutes more while a contract-only run holds. The cap covers that hold
+    # plus the worst case of the pinned composites' waits: two 60 s rate-limit waits
     # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
@@ -3392,7 +3393,9 @@ jobs:
       # GH_READ_MARGIN_SECONDS after the first step starts. The margin keeps
       # 375 s for the job's setup and the steps after the wait:
       # aggregate-results' 60 s rate-limit wait, 120 s of own-gate retries, 7 s
-      # of status writes and the 90 s rerun wait, plus retry sleeps.
+      # of status writes and the 90 s rerun wait, plus retry sleeps. It does not
+      # hold the 600 s `yield-wait-seconds` hold of a contract-only run: a long
+      # rate-limit wait before a long hold can reach the timeout, which fails.
       GH_READ_JOB_SECONDS: 1200
       GH_READ_MARGIN_SECONDS: 375
       # The lanes App's bot account id, which the trust-hold, cost-hold and
@@ -4954,418 +4957,6 @@ jobs:
             exit 1
           fi
           echo "$actor_login, a person on the trusted-actor list, lifted the human-merge hold on #$PR_NUMBER."
-      # BOTH REVIEW LANES REVIEW THE HEAD. Neither review check is required by a
-      # ruleset (github-iac ADR 0017); this step makes ci-status need them. For
-      # each lane it takes the newest pull_request run of the lane's caller
-      # workflow on the head, from this repository's head (a fork's run on the
-      # same commit never counts), and that run's latest jobs, which are the GitHub
-      # Actions check runs. The lane passes when its status job succeeded and
-      # its `Apply the hold` step succeeded, so a summary-mode run or one
-      # without a hold label never counts. A push that changed no file of the
-      # pull request since a review (a clean base merge) is the lane's
-      # no-change skip: its hold step does not run, and its review-complete
-      # record names the head it carries (`skip=no-change through=<head>`).
-      # It passes only when a counted review of that lane on this pull
-      # request covers that head, followed through further no-change skips
-      # up to 10 heads back, the rule and cap babysit_review_evidence.py
-      # binds by (`_skip_target`, `SKIP_HOPS`). Any other skip record never counts. A pending, failed or cancelled
-      # review fails, as does a skipped one (a fork, or a bot outside the
-      # caller's allowed-bot-sender-ids), with the cause named. A lane the
-      # kill switch stopped (its kill-switch job succeeded and ran its
-      # `Report the kill switch` step, so a switch was on when the run
-      # started) fails too: the kill switch pauses review, it never waives it.
-      # Once it is off, a trusted person re-runs the review run, whose
-      # completion re-runs ci-status (pr-feedback-dispatch.yml rerun-ci-status);
-      # the admin bypass stays the break-glass. A
-      # kill-switch job that failed stopped the review too, and fails.
-      # Dependabot, the release App and the
-      # standards-sync App, by numeric author id, are exempt: no review lane
-      # reviews them. An exempt author's PR still fails when a changed file
-      # (or a renamed file's old path) is a trust-gate path, since no security
-      # lane reads it (with merge.diff-check.path-holds false, Dependabot
-      # alone: the generated guard after hold_patterns empties the list for
-      # every other author). A person on the base commit's trusted-actor list
-      # approving the head clears that hold: their newest non-comment review,
-      # matched by numeric id, is APPROVED at the head. It counts as that
-      # person's whatever client submitted it. An unreadable review or
-      # trusted-actor list keeps it. Any other
-      # same-repository PR changing one that an agent App
-      # (merge.trust-path-hold-apps in the base commit's pr-pipeline.yaml)
-      # opened, authored or committed a commit of, or pushed to its head
-      # branch (the repository activity API, one page) fails too, since its
-      # head can rewrite the review callers; it still needs
-      # both lanes otherwise. Those reads run only once a trust-gate path
-      # matched, and an unreadable base config, PR, commit list or push
-      # history, or a short commit list or full push page, fails closed. A draft is exempt
-      # (see `Note a draft`). pr-feedback-dispatch.yml re-runs this job when a
-      # review run completes. An unreadable run or job list fails closed.
-      # The jobs API can list a finished job's steps empty or cut short, so a
-      # step it lists with no conclusion, or not at all, proves nothing either
-      # way. Then the job's own check-run annotations decide. The review
-      # counts only with its publish step's `claude-lane-review-complete`
-      # notice naming this lane and this head, which proves a comments-mode
-      # publish for that lane and head. The notice itself does not prove the
-      # hold step ran: that step runs alongside the publish in comments mode
-      # because both callers set hold-label.
-      # A kill-switch stop counts only with the notice its report step
-      # writes. A pull_request run takes its workflow from the pull request,
-      # so a head that rewrites a review caller can forge these notices as it
-      # can forge the step list. An unreadable annotation list fails closed.
-      # Pinned by scripts/ci-review-lanes.test.sh, which runs this body.
-      - name: Require both review lanes on this head
-        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          AUTHOR_ID: ${{ github.event.pull_request.user.id }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
-        run: |
-          . "$RUNNER_TEMP/gh-read.sh"
-          # dependabot[bot], melodic-plugin-release[bot] and
-          # melodic-standards-sync[bot], as
-          # .github/standards/trusted-actors/trusted-actors.json lists them.
-          exempt_author_ids='49699333 337859524 300666570'
-          lanes='pr-review-hosted.yml claude-review pr-review / claude-review-status
-          pr-review-security-hosted.yml claude-security-review pr-review-security / security-review'
-          if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::the head '$HEAD_SHA' is not a commit SHA."
-            exit 1
-          fi
-          # READER=pr_read for the pull alone; runs, jobs and annotations are live.
-          read_api() {
-            local attempt body
-            for attempt in 1 2 3; do
-              if body=$("${READER:-gh_read}" "${@:2}"); then
-                printf '%s\n' "$body"
-                return 0
-              fi
-              [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
-              sleep $((attempt * 5))
-            done
-          }
-          # held_paths: sets files to the changed and renamed-from paths of the
-          # pull request and held to those that are trust-gate paths.
-          held_paths() {
-            # The trust-gate paths, as bash patterns (`*` crosses `/`).
-            # BEGIN hold-floor hold_patterns: generated by scripts/sync-hold-floor.py
-            hold_patterns=('.github/standards/trusted-actors/*' '.github/actions/check-trusted-trigger/*' 'CODEOWNERS' '*/CODEOWNERS' '.gitmodules' '*/.gitmodules' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' 'docs/conventions/pr-pipeline.yaml' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' '.claude/*' '*/.claude/*' '.claude-lane/*' '*/.claude-lane/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' 'docs/standards/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
-            # merge.diff-check.path-holds is false: only Dependabot stays held.
-            [ "$AUTHOR_ID" = 49699333 ] || hold_patterns=()
-            # END hold-floor hold_patterns
-            if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
-              echo "::error::the pull request number '$PR_NUMBER' is not a number."
-              exit 1
-            fi
-            # The broker step above leaves the file list it read; read it again
-            # only when that step could not.
-            if [ -s "$RUNNER_TEMP/pr-files.json" ]; then
-              files=$(jq -r '.[] | [.filename, (.previous_filename // "")] | @tsv' "$RUNNER_TEMP/pr-files.json")
-            else
-              for attempt in 1 2 3; do
-                if files=$(gh_read "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | [.filename, (.previous_filename // "")] | @tsv'); then
-                  break
-                fi
-                [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
-                sleep $((attempt * 5))
-              done
-            fi
-            held=
-            # Case-folded, as the floor matches: a case-insensitive checkout
-            # reads `.github/codeowners` as CODEOWNERS.
-            shopt -s nocasematch
-            while IFS= read -r path; do
-              for pattern in "${hold_patterns[@]}"; do
-                # shellcheck disable=SC2053 # the pattern is matched as a glob on purpose
-                [[ $path != $pattern ]] || held="$held $path"
-              done
-            done < <(tr '\t' '\n' <<<"$files" | grep .)
-            shopt -u nocasematch
-          }
-          if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
-            held_paths
-            pr=$(READER=pr_read read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
-            if [ "$(grep -c . <<<"$files")" -lt "$(jq '.changed_files // 0' <<<"$pr")" ]; then
-              echo "::error::GitHub listed fewer files than #$PR_NUMBER changes, so its hold-paths cannot be checked; a person merges it."
-              exit 1
-            fi
-            if [ -n "$held" ]; then
-              # Each reviewer's newest non-comment review decides; reviews are read live.
-              if reviews=$(read_api "the reviews of #$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" --paginate) &&
-                trusted_humans &&
-                approver=$(jq -ers --arg head "$HEAD_SHA" --arg humans " $humans " '[add[] | select(.state != "COMMENTED" and .state != "PENDING")]
-                  | group_by(.user.id) | map(last)
-                  | map(select(.state == "APPROVED" and .commit_id == $head
-                    and (.user.id | type) == "number" and ((" \(.user.id) ") as $id | $humans | contains($id))))
-                  | first | .user.login | strings' <<<"$reviews"); then
-                echo "$approver, a person on the trusted-actor list, approved $HEAD_SHA, which clears the trust-gate hold on #$PR_NUMBER; the review lanes are not required."
-                exit 0
-              fi
-              echo "::error::#$PR_NUMBER is by an author no review lane reviews and changes trust-gate paths:${held//%/%25}. A person merges it; a person on the trusted-actor list approving this head clears it."
-              exit 1
-            fi
-            echo "The author ($AUTHOR_ID) is one no review lane reviews, and no trust-gate path changed; the review lanes are not required."
-            exit 0
-          fi
-          # A fork's head gets no review run here, and the lookup below reads
-          # only runs from this repository's head, so name the fork up front.
-          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
-            while read -r _ _ check; do
-              echo "::error::'$check' did not run on $HEAD_SHA (head repository: ${HEAD_REPO:-unknown}): a fork, or a bot outside the caller's allowed-bot-sender-ids, gets no review, and a kill-switch job that did not succeed stops it. A push by a person on the trusted-actor list starts a review."
-            done <<<"$lanes"
-            exit 1
-          fi
-          # An agent App's head can rewrite the review callers, so a trust-gate
-          # path it touched waits for a person as an exempt author's does: the
-          # base's merge.trust-path-hold-apps, matched by login against the
-          # author, each commit's author and committer (account or noreply
-          # address) and each push to the head branch. GitHub lists at most
-          # 3000 files, so a list that long may hide one.
-          held_paths
-          if [ -n "$held" ] || [ "$(grep -c . <<<"$files")" -ge 3000 ]; then
-            conf=$BASE_CONFIG/docs/conventions/pr-pipeline.yaml
-            apps='[]'
-            # pipefail, and an empty list counts as unread: the step runs without
-            # pipefail, so a failed yq would otherwise leave apps empty and pass.
-            if [ ! -d "$BASE_CONFIG" ] || { [ -e "$conf" ] && ! apps=$(set -o pipefail; yq -o=json -I=0 '.merge."trust-path-hold-apps" // []' "$conf" |
-              jq -ce 'if type == "array" and all(.[]; type == "string" and test("^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$"))
-                then map(ascii_downcase) else error("not a list of [bot] logins") end'); } || [ -z "$apps" ]; then
-              echo "::error::could not read merge.trust-path-hold-apps from pr-pipeline.yaml in the hold config (the default branch's tip at run time, or the base commit for another base), so whether an agent App touched the trust-gate paths of #$PR_NUMBER is unknown; re-run this run."
-              exit 1
-            fi
-            if [ "$apps" != '[]' ]; then
-              pr=$(READER=pr_read read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
-              if [ "$(grep -c . <<<"$files")" -lt "$(jq '.changed_files // 0' <<<"$pr")" ]; then
-                held="$held (and files GitHub did not list)"
-              fi
-            fi
-            if [ "$apps" != '[]' ] && [ -n "$held" ]; then
-              commits=$(read_api "the commits of #$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits?per_page=100" --paginate) || exit 1
-              ref=$(jq -rn --arg r "refs/heads/$HEAD_REF" '$r | @uri')
-              want=$(jq -er '.commits | numbers' <<<"$pr") && listed=$(jq -n '[inputs | arrays[]] | length' <<<"$commits") && [ "$listed" -ge "$want" ] || {
-                echo "::error::GitHub listed fewer commits than #$PR_NUMBER has, so whether an agent App wrote one cannot be checked; a person merges it."
-                exit 1
-              }
-              # The activity API keeps a branch name's history across deletions,
-              # so a reused name fills any one page: read page by page along the
-              # Link header's rel="next" cursor, keeping only App pushes and
-              # stopping at the first page with one. Only a short page ends the
-              # history: a full page with no next link, a next link this step
-              # cannot read or that leaves this repository's activity of the
-              # branch (gh would expand a {placeholder} in it), or past 20 pages
-              # (2000 entries; the busiest reused name had 564), a person merges it.
-              next_re='^repositories/([0-9]+)/activity\?[A-Za-z0-9%&=._~-]+$'
-              pushes='[]' next="repos/$GITHUB_REPOSITORY/activity?ref=$ref&direction=desc&per_page=100" pages=0
-              while [ -n "$next" ]; do
-                if [ "$pages" -ge 20 ]; then
-                  echo "::error::the push history of $HEAD_REF runs past 20 pages, so whether an agent App pushed to it cannot be checked; a person merges it."
-                  exit 1
-                fi
-                page=$(read_api "the push history of $HEAD_REF" "$next" -i) || exit 1
-                pages=$((pages + 1))
-                link=$(awk '{ sub(/\r$/, "") } $0 == "" { exit } tolower($0) ~ /^link:/' <<<"$page")
-                next=$(sed -nE 's#.*<https://[^/>]+/([^>]*)>; *rel="next".*#\1#p' <<<"$link")
-                pushes=$(awk 'body { print; next } { sub(/\r$/, "") } $0 == "" { body = 1 }' <<<"$page" |
-                  jq -ren --argjson apps "$apps" 'input | if type == "array" then . else error("not a list") end
-                    | "\(length) \([.[] | select(.actor.login // "" | ascii_downcase as $l | any($apps[]; . == $l)) | {actor: {login: .actor.login}, after}] | tojson)"') || {
-                  echo "::error::the push history of $HEAD_REF is unreadable, so whether an agent App pushed to it cannot be checked; a person merges it."
-                  exit 1
-                }
-                size=${pushes%% *} pushes=${pushes#* }
-                if [ "$pushes" != '[]' ]; then
-                  next=
-                elif [ -z "$next" ] && [[ ${link,,} =~ rel=\"?next ]]; then
-                  echo "::error::the push history of $HEAD_REF has a next link this step cannot read; a person merges it."
-                  exit 1
-                elif [ -z "$next" ] && [ "$size" -ge 100 ]; then
-                  echo "::error::the push history of $HEAD_REF fills page $pages with no next link, so whether an agent App pushed to it cannot be checked; a person merges it."
-                  exit 1
-                elif [ -n "$next" ] && { [[ ! $next =~ $next_re ]] || [ "${BASH_REMATCH[1]}" != "$GITHUB_REPOSITORY_ID" ] || [[ "&${next#*\?}&" != *"&ref=$ref&"* ]]; }; then
-                  echo "::error::the push history of $HEAD_REF has a next link outside this repository's activity of the branch; a person merges it."
-                  exit 1
-                fi
-              done
-              why=$(jq -nr --argjson apps "$apps" --argjson pr "$pr" --argjson pushes "$pushes" '
-                def app: ascii_downcase as $l | any($apps[]; . == $l);
-                def mail: ascii_downcase as $m
-                  | any($apps[]; . as $a | $m == $a + "@users.noreply.github.com" or ($m | endswith("+" + $a + "@users.noreply.github.com")));
-                [if ($pr.user.login // "" | app) then "\($pr.user.login) opened it" else empty end]
-                + [inputs[] | select(any(.author.login, .committer.login; . // "" | app)
-                    or any(.commit.author.email, .commit.committer.email; . // "" | mail))
-                  | "an agent App authored or committed \(.sha[0:12])"]
-                + [$pushes[] | select(.actor.login // "" | app) | "\(.actor.login) pushed \((.after // "")[0:12]) to it"]
-                | unique | join("; ")' <<<"$commits")
-              if [ -n "$why" ]; then
-                echo "::error::#$PR_NUMBER changes trust-gate paths:${held//%/%25}, and $why, so no review lane decides it. A person merges it."
-                exit 1
-              fi
-              echo "No agent App opened, wrote or pushed to #$PR_NUMBER; the review lanes decide its trust-gate paths."
-            fi
-          fi
-          failed=0
-          # lane_at <sha> [pr]: sets run, url and verdict from the newest
-          # pull_request run of $file on <sha> from this repository's head,
-          # with <pr> only one GitHub lists for that pull request; run is empty
-          # when there is none.
-          lane_at() {
-            runs=$(read_api "the $file runs on $1" \
-              "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$1&event=pull_request&per_page=100") || exit 1
-            run=$(jq -c --arg path ".github/workflows/$file" --arg sha "$1" --arg repo "$GITHUB_REPOSITORY" --arg pr "${2:-}" \
-              '[.workflow_runs[] | select(.path == $path and .head_sha == $sha and .event == "pull_request"
-                and .head_repository.full_name == $repo
-                and ($pr == "" or any(.pull_requests[]?; .number == ($pr | tonumber))))] | max_by(.id) // empty' <<<"$runs")
-            [ -n "$run" ] || return 0
-            id=$(jq -r .id <<<"$run")
-            url=$(jq -r .html_url <<<"$run")
-            jobs=$(read_api "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100") || exit 1
-            verdict=$(jq -r --arg check "$check" --arg run_status "$(jq -r .status <<<"$run")" '
-              (.jobs | map(select(.name == $check)) | max_by(.id)) as $s
-              | (.jobs | map(select(.name == "kill-switch")) | max_by(.id)) as $k
-              | if $s != null and $s.status != "completed" then "pending"
-                elif $s.conclusion == "success" then
-                  if any($s.steps[]?; .name == "Apply the hold" and .conclusion != null) | not then "unlisted \($s.id)"
-                  elif any($s.steps[]?; .name == "Apply the hold" and .conclusion == "success") then "pass" else "uncounted \($s.id)" end
-                elif $s != null and $s.conclusion != "skipped" then "red \($s.conclusion)"
-                elif $k.conclusion == "success" and any($k.steps[]?; .name == "Report the kill switch" and .conclusion == "success") then "stopped"
-                elif $run_status != "completed" then "pending"
-                elif $k.conclusion == "failure" and any($k.steps[]?; .name == "Stop on upstream status" and .conclusion == "failure") then "upstream"
-                elif $k.conclusion == "failure" and (any($k.steps[]?; .name == "Stop on upstream status" and .conclusion != null) | not) then "upstreamunlisted \($k.id)"
-                elif $k.conclusion == "success" and (any($k.steps[]?; .name == "Report the kill switch" and .conclusion != null) | not) then "killunlisted \($k.id)"
-                elif $k.conclusion == "success" and any($k.steps[]?; .name == "Check upstream status" and .conclusion == "success") then "gateskip \($k.id)"
-                else "missing \($k.conclusion // "absent")" end' <<<"$jobs")
-          }
-          # record_at <job> <sha>: sets record from the job's review-complete
-          # notices for $lane on <sha>: `review` for a review, `through <head>`
-          # for a no-change skip carrying <head>'s review, else `none`.
-          record_at() {
-            notes=$(read_api "the annotations of job $1" "repos/$GITHUB_REPOSITORY/check-runs/$1/annotations?per_page=100") || exit 1
-            record=$(jq -r --arg want "claude-lane-review-complete lane=$lane sha=$2" '
-              [.[]? | select(.annotation_level == "notice" and .title == "claude-lane-review-complete") | .message // ""
-                | select(. == $want or startswith($want + " ")) | ltrimstr($want) | sub(" account=fallback$"; "")] as $r
-              | [$r[] | select(test("^ skip=no-change through=[0-9a-f]{40}$")) | .[-40:]] as $t
-              | if any($r[]; . == "" or startswith(" findings=")) then "review"
-                elif ($t | unique | length) == 1 then "through \($t[0])" else "none" end' <<<"$notes")
-          }
-          # carried <sha>: whether a counted review of $lane on this pull
-          # request covers <sha>, following no-change skips (each a push that
-          # changed no file of it, such as a clean base merge) up to 10 heads
-          # back, never round a loop: babysit_review_evidence.py's SKIP_HOPS.
-          carried() {
-            local sha=$1 seen=" $HEAD_SHA " hop
-            for hop in 1 2 3 4 5 6 7 8 9 10; do
-              [[ $seen != *" $sha "* ]] || return 1
-              seen="$seen$sha "
-              run='' verdict=''
-              lane_at "$sha" "$PR_NUMBER"
-              case $verdict in
-              pass) return 0 ;;
-              unlisted\ * | uncounted\ *)
-                record_at "${verdict#* }" "$sha"
-                case $record in
-                review) [[ $verdict == unlisted\ * ]] && return 0 || return 1 ;;
-                through\ *) sha=${record#through } ;;
-                *) return 1 ;;
-                esac
-                ;;
-              *) return 1 ;;
-              esac
-            done
-            echo "::warning::'$check' carries a review back more than $hop heads; ci-status stops there." >&2
-            return 1
-          }
-          while read -r file lane check; do
-            run='' verdict=''
-            lane_at "$HEAD_SHA"
-            if [ -z "$run" ]; then
-              echo "::error::'$check' is missing: no $file run on $HEAD_SHA yet. ci-status re-runs when the review finishes."
-              failed=1
-              continue
-            fi
-            # The hosted callers' `Stop on upstream status` step fails the
-            # kill-switch job with this lane's error while GitHub Actions or
-            # npm lists an outage (.github/actions/check-upstream-status).
-            if [[ $verdict =~ ^upstreamunlisted\ ([1-9][0-9]*)$ ]]; then
-              job=${BASH_REMATCH[1]}
-              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
-              verdict=$(jq -r 'if any(.[]?; .annotation_level == "failure" and ((.message // "") | test("^an upstream outage stops this (security )?review \\(")))
-                then "upstream" else "missing failure" end' <<<"$notes")
-            fi
-            # A run from before that step skipped the review with the gate's
-            # notice and a kill-switch job that succeeded.
-            if [[ $verdict =~ ^gateskip\ ([1-9][0-9]*)$ ]]; then
-              job=${BASH_REMATCH[1]}
-              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
-              verdict=$(jq -r 'if any(.[]?; .annotation_level == "notice" and ((.message // "") | test("^upstream status: .*; this run is skipped$")))
-                then "gateskipped" else "missing success" end' <<<"$notes")
-            fi
-            if [[ $verdict =~ ^killunlisted\ ([1-9][0-9]*)$ ]]; then
-              job=${BASH_REMATCH[1]}
-              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
-              verdict=$(jq -r 'if any(.[]?; .annotation_level == "notice" and ((.message // "") | test("^a kill switch stops this (security )?review \\(")))
-                then "stopped" else "missing success" end' <<<"$notes")
-            fi
-            # A status job whose hold step did not succeed, or is not listed,
-            # counts on its review-complete record: a review when the step is
-            # unlisted, or a no-change skip whose head carries a counted review.
-            if [[ $verdict =~ ^(unlisted|uncounted)\ ([1-9][0-9]*)$ ]]; then
-              kind=${BASH_REMATCH[1]}
-              record_at "${BASH_REMATCH[2]}" "$HEAD_SHA"
-              case $record in
-              review) verdict=${kind/unlisted/pass-notice} ;;
-              through\ *)
-                through=${record#through } head_url=$url
-                if carried "$through"; then verdict=pass-skip; else verdict=skip-unproven; fi
-                url=$head_url
-                ;;
-              *) verdict=${kind/unlisted/unproven} ;;
-              esac
-            fi
-            case $verdict in
-            pass) echo "'$check' passed on $HEAD_SHA ($url)." ;;
-            pass-notice) echo "'$check' passed on $HEAD_SHA ($url): GitHub listed no 'Apply the hold' step with a conclusion, and the job's review-complete notice names $lane and this head." ;;
-            pass-skip) echo "'$check' skipped $HEAD_SHA ($url) as unchanged since $through, whose review counts." ;;
-            skip-unproven)
-              echo "::error::'$check' skipped $HEAD_SHA in $url as unchanged since $through, but no counted review of $lane on #$PR_NUMBER covers $through, so it is not a review that counts. Re-run the review on $through, or push a change so this head is reviewed."
-              failed=1
-              ;;
-            unproven)
-              echo "::error::'$check' passed in $url, but GitHub listed no 'Apply the hold' step with a conclusion and the job records no review-complete notice for $lane on $HEAD_SHA, so it is not a review that counts. Re-run this run."
-              failed=1
-              ;;
-            stopped)
-              echo "::error::'$check' did not run on $HEAD_SHA ($url): a kill switch was on when it started. Once it is off, re-run all jobs of $url; ci-status re-runs when it finishes."
-              failed=1
-              ;;
-            upstream)
-              echo "::error::'$check' did not run on $HEAD_SHA ($url): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, its dispatch re-runs this ci-status job under the reconciler's record, so pr-verify accepts it; if that re-run does not come, a person re-runs this ci-status job, not the review run; after 24 hours, push to the head."
-              failed=1
-              ;;
-            gateskipped)
-              echo "::error::'$check' did not run on $HEAD_SHA ($url): the upstream status gate skipped it when it started. Once GitHub Actions and npm are operational, re-run all jobs of $url; ci-status re-runs when it finishes."
-              failed=1
-              ;;
-            pending)
-              echo "::error::'$check' has not finished on $HEAD_SHA ($url). ci-status re-runs when the review finishes."
-              failed=1
-              ;;
-            uncounted)
-              echo "::error::'$check' passed in $url, but its 'Apply the hold' step did not run: the lane ran in summary mode or without a hold label, so it is not a review that counts."
-              failed=1
-              ;;
-            red\ *)
-              echo "::error::'$check' ended ${verdict#red } on $HEAD_SHA ($url): the review did not complete. Re-run the lane."
-              failed=1
-              ;;
-            *)
-              echo "::error::'$check' did not run on $HEAD_SHA ($url; kill-switch job: ${verdict#missing }): a fork, or a bot outside the caller's allowed-bot-sender-ids, gets no review, and a kill-switch job that did not succeed stops it. A push by a person on the trusted-actor list starts a review."
-              failed=1
-              ;;
-            esac
-          done <<<"$lanes"
-          exit "$failed"
       # A QUEUED PULL REQUEST IS HELD BY ITS LABELS TOO. A merge-group payload
       # carries no pull request, so `check-contract` above reports `skipped`,
       # and a `do-not-merge` or human-gated label applied after enqueue would
@@ -6166,7 +5757,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@72c0b1598594e42bcc3358f47a719801b312a6bc # 72c0b15 2026-10-30
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@226dad32d631e5870f005b94983261ebbcd737f3 # 226dad3 2026-10-31
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane
@@ -6175,20 +5766,439 @@ jobs:
           # A `skipped` lane is red, except on a draft, where every lane skips
           # (see `Note a draft`).
           treat-skipped-as: ${{ github.event.pull_request.draft && 'pass' || 'fail' }}
-          # `carry-forward-wait-seconds: '0'` means no carry-forward wait. Under
-          # `yield-to-full-run` the composite may re-read for up to 30 s, only
-          # when the in-flight full run has already written `success` and its
-          # aggregate step is finishing. While a full run on the SHA is in
-          # flight it fails with "superseded by full run <url>", and that run's
-          # newer ci-status decides the gate. Once the full run records
-          # `success` it re-runs those red contract-only runs, which then read
-          # the `success` and replace their red check runs. A draft full run
-          # skips its lanes and re-runs nothing. Operator remedy:
+          # `carry-forward-wait-seconds: '0'` means no carry-forward wait. While
+          # a full run on the SHA is in flight the composite holds, up to
+          # `yield-wait-seconds`, with this check run in progress, then passes
+          # only on a `success` recorded since it started. The ceiling covers the full
+          # run's p95 (580 s, max 783 s of 148 runs, 2026-10-31). Past it the
+          # run fails with "superseded by full run <url>", and that run's newer
+          # ci-status decides the gate; once it records `success` it re-runs
+          # that red run. A contract-only run whose earlier step failed cannot
+          # pass, and a draft's lanes are skipped, so neither holds. A full
+          # run's value stays constant: it is what skips the rerun wait.
+          # Operator remedy:
           # docs/ci-runner-routing.md, section Contract-only ci-status.
           yield-to-full-run: 'true'
+          yield-wait-seconds: ${{ ((job.status == 'failure' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) || github.event.pull_request.draft) && '0' || '600' }}
           rerun-contract-only-siblings: ${{ github.event.pull_request.draft && 'false' || 'true' }}
           carry-forward-wait-seconds: '0'
           # This step's own name, so the own-step lookup never depends on
           # how many steps of the job are in progress.
           step-name: Aggregate lane results
           token: ${{ github.token }}
+      # After the aggregate, so a contract-only run that holds for a full run reaches
+      # this check once that run has finished. Before it, a review still running
+      # failed the job in the very window a yield happens, and the hold never ran.
+      # BOTH REVIEW LANES REVIEW THE HEAD. Neither review check is required by a
+      # ruleset (github-iac ADR 0017); this step makes ci-status need them. For
+      # each lane it takes the newest pull_request run of the lane's caller
+      # workflow on the head, from this repository's head (a fork's run on the
+      # same commit never counts), and that run's latest jobs, which are the GitHub
+      # Actions check runs. The lane passes when its status job succeeded and
+      # its `Apply the hold` step succeeded, so a summary-mode run or one
+      # without a hold label never counts. A push that changed no file of the
+      # pull request since a review (a clean base merge) is the lane's
+      # no-change skip: its hold step does not run, and its review-complete
+      # record names the head it carries (`skip=no-change through=<head>`).
+      # It passes only when a counted review of that lane on this pull
+      # request covers that head, followed through further no-change skips
+      # up to 10 heads back, the rule and cap babysit_review_evidence.py
+      # binds by (`_skip_target`, `SKIP_HOPS`). Any other skip record never counts. A pending, failed or cancelled
+      # review fails, as does a skipped one (a fork, or a bot outside the
+      # caller's allowed-bot-sender-ids), with the cause named. A lane the
+      # kill switch stopped (its kill-switch job succeeded and ran its
+      # `Report the kill switch` step, so a switch was on when the run
+      # started) fails too: the kill switch pauses review, it never waives it.
+      # Once it is off, the lost-run reconciler re-runs the review run, whose
+      # completion re-runs ci-status (pr-feedback-dispatch.yml rerun-ci-status);
+      # reconcile.mjs matches the error below, and a trusted person's re-run
+      # does the same. The admin bypass stays the break-glass. A
+      # kill-switch job that failed stopped the review too, and fails.
+      # Dependabot, the release App and the
+      # standards-sync App, by numeric author id, are exempt: no review lane
+      # reviews them. An exempt author's PR still fails when a changed file
+      # (or a renamed file's old path) is a trust-gate path, since no security
+      # lane reads it (with merge.diff-check.path-holds false, Dependabot
+      # alone: the generated guard after hold_patterns empties the list for
+      # every other author). A person on the base commit's trusted-actor list
+      # approving the head clears that hold: their newest non-comment review,
+      # matched by numeric id, is APPROVED at the head. It counts as that
+      # person's whatever client submitted it. An unreadable review or
+      # trusted-actor list keeps it. Any other
+      # same-repository PR changing one that an agent App
+      # (merge.trust-path-hold-apps in the base commit's pr-pipeline.yaml)
+      # opened, authored or committed a commit of, or pushed to its head
+      # branch (the repository activity API, one page) fails too, since its
+      # head can rewrite the review callers; it still needs
+      # both lanes otherwise. Those reads run only once a trust-gate path
+      # matched, and an unreadable base config, PR, commit list or push
+      # history, or a short commit list or full push page, fails closed. A draft is exempt
+      # (see `Note a draft`). pr-feedback-dispatch.yml re-runs this job when a
+      # review run completes. An unreadable run or job list fails closed.
+      # The jobs API can list a finished job's steps empty or cut short, so a
+      # step it lists with no conclusion, or not at all, proves nothing either
+      # way. Then the job's own check-run annotations decide. The review
+      # counts only with its publish step's `claude-lane-review-complete`
+      # notice naming this lane and this head, which proves a comments-mode
+      # publish for that lane and head. The notice itself does not prove the
+      # hold step ran: that step runs alongside the publish in comments mode
+      # because both callers set hold-label.
+      # A kill-switch stop counts only with the notice its report step
+      # writes. A pull_request run takes its workflow from the pull request,
+      # so a head that rewrites a review caller can forge these notices as it
+      # can forge the step list. An unreadable annotation list fails closed.
+      # Pinned by scripts/ci-review-lanes.test.sh, which runs this body.
+      - name: Require both review lanes on this head
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.draft == false }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          # dependabot[bot], melodic-plugin-release[bot] and
+          # melodic-standards-sync[bot], as
+          # .github/standards/trusted-actors/trusted-actors.json lists them.
+          exempt_author_ids='49699333 337859524 300666570'
+          lanes='pr-review-hosted.yml claude-review pr-review / claude-review-status
+          pr-review-security-hosted.yml claude-security-review pr-review-security / security-review'
+          if [[ ! $HEAD_SHA =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the head '$HEAD_SHA' is not a commit SHA."
+            exit 1
+          fi
+          # READER=pr_read for the pull alone; runs, jobs and annotations are live.
+          read_api() {
+            local attempt body
+            for attempt in 1 2 3; do
+              if body=$("${READER:-gh_read}" "${@:2}"); then
+                printf '%s\n' "$body"
+                return 0
+              fi
+              [ "$attempt" -lt 3 ] || { echo "::error::could not read $1; re-run this run." >&2; return 1; }
+              sleep $((attempt * 5))
+            done
+          }
+          # held_paths: sets files to the changed and renamed-from paths of the
+          # pull request and held to those that are trust-gate paths.
+          held_paths() {
+            # The trust-gate paths, as bash patterns (`*` crosses `/`).
+            # BEGIN hold-floor hold_patterns: generated by scripts/sync-hold-floor.py
+            hold_patterns=('.github/standards/trusted-actors/*' 'CODEOWNERS' '*/CODEOWNERS' 'docs/conventions/pr-pipeline.yaml' '.gitmodules' '*/.gitmodules' 'plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_classify.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_dependabot.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_feedback.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_merge_policy.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_review_trigger.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_run_cache.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_state.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_util.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' 'plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py' '.claude/*' '*/.claude/*' '.claude-lane/*' '*/.claude-lane/*' '.mcp.json' '*/.mcp.json' 'CLAUDE.md' '*/CLAUDE.md' 'CLAUDE.local.md' '*/CLAUDE.local.md' 'AGENTS.md' '*/AGENTS.md' 'REVIEW.md' '.github/actions/check-trusted-trigger/*' '.github/actions/resolve-config/*' '.github/actions/check-kill-switch/*' '.github/actions/request-lane-token/*' '.github/actions/log-api-budget/rate-guard.mjs' '.github/actions/log-api-budget/rate-limits.json' '.github/scripts/pr-merge/merge-holds.mjs' '.github/scripts/pr-merge/enable-auto-merge.mjs' '.github/scripts/pr-merge/superseded.mjs' '.github/scripts/pr-merge/clear-escalations.mjs' '.github/scripts/pr-merge/carry-run-cache.mjs' '.github/scripts/pr-merge/gate-check.mjs' '.github/scripts/pr-merge/head-ref-map.mjs' '.github/scripts/pr-merge/lane-records.mjs' '.github/scripts/pr-merge/last-report.mjs' '.github/scripts/pr-merge/rate-stop.bash' '.github/scripts/pr-merge/refire-refused.mjs' '.github/scripts/pr-merge/rotation.mjs' '.github/scripts/pr-merge/sweep-summary.mjs' '.github/scripts/pr-merge/who.mjs' '.github/scripts/pr-merge/post-unarmed-status.mjs' '.github/scripts/pr-merge/verify-answers.mjs' '.github/scripts/pr-merge/listing-carry.mjs' '.github/actions/report-check-run/posting-run.mjs' 'scripts/sync-hold-floor.py' '.github/scripts/pr-unblock/address-feedback.mjs' '.github/scripts/pr-unblock/escalation-routes.mjs' '.github/scripts/pr-unblock/escalation-routes.json' '.github/scripts/pr-unblock/gate-source.mjs' '.github/scripts/pr-unblock/thread-scope.mjs' '.github/scripts/pr-unblock/retry-fetch.mjs' '.github/scripts/work-resolve-issue/report-outcome.mjs' '.github/scripts/work-resolve-issue/limits.mjs' '.github/scripts/work-resolve-issue/retry-fetch.mjs' '.github/scripts/pr-unblock/report-escalation.sh' '.github/scripts/pr-unblock/adjudicate-feedback.mjs' '.github/scripts/pr-unblock/publish-feedback.mjs' '.github/scripts/pr-unblock/request-budget.mjs' '.github/scripts/pr-verify/resolve-pr.mjs' '.github/scripts/pr-verify/write-verdict.mjs' '.github/scripts/intake-triage/admit.mjs' '.github/actions/select-trusted-text/select-trusted-text.mjs' 'lib/publish-gate.mjs' '.github/recurring-schedule.json' 'plugins/work-items/scripts/charge-words.json' '.github/scripts/pr-unblock/dependency-classify.mjs' '.github/scripts/apply-patch/apply-patch.mjs' '.github/scripts/apply-patch/predicates.mjs' '.github/scripts/apply-patch/protected-paths.mjs' '.github/scripts/apply-patch/retry-fetch.mjs' '.github/scripts/pr-unblock/fix-ci-context.mjs' '.github/scripts/pr-unblock/feedback-dispatch.mjs' '.github/scripts/pr-unblock/verify-notes.mjs' '.github/scripts/pr-unblock/limit-stop.mjs' '.github/scripts/pr-unblock/dispatch-record.mjs' '.github/scripts/pr-unblock/verify-cap.mjs' '.github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs' '.github/scripts/work-resolve-issue/stop-routes.json' '.github/scripts/work-resolve-issue/stop-routes.mjs' '.github/scripts/lib/stop-reason.mjs' '.github/scripts/lib/admission-comment.mjs' '.github/scripts/lib/done-evidence.mjs' '.github/scripts/pr-review-main/*' 'docs/conventions/instruction-exception-register/*' 'docs/conventions/untrusted-content/*' 'docs/standards/*' '.github/workflows/dependabot-fragments.yml' '.github/workflows/eval-browser-dispatch.yml' '.github/workflows/intake-reenter.yml' '.github/workflows/intake-triage.yml' '.github/workflows/maintenance-audit-lane-runs.yml' '.github/workflows/maintenance-reconcile-lost-runs.yml' '.github/workflows/post-merge-demotion-alert.yml' '.github/workflows/post-merge-test-mutation.yml' '.github/workflows/pr-feedback-dispatch.yml' '.github/workflows/pr-merge.yml' '.github/workflows/pr-refine.yml' '.github/workflows/pr-require-checks.yml' '.github/workflows/pr-review-hosted.yml' '.github/workflows/pr-review-main.yml' '.github/workflows/pr-review-security-hosted.yml' '.github/workflows/pr-run-activity-read.yml' '.github/workflows/pr-run-activity-write.yml' '.github/workflows/pr-unblock-dispatch.yml' '.github/workflows/pr-unblock.yml' '.github/workflows/pr-verify.yml' '.github/workflows/release-publish-plugins.yml' '.github/workflows/work-resolve-issue.yml' '.github/workflows/work-unblock.yml')
+            # merge.diff-check.path-holds is false: only Dependabot stays held.
+            [ "$AUTHOR_ID" = 49699333 ] || hold_patterns=()
+            # END hold-floor hold_patterns
+            if [[ ! $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::the pull request number '$PR_NUMBER' is not a number."
+              exit 1
+            fi
+            # The broker step above leaves the file list it read; read it again
+            # only when that step could not.
+            if [ -s "$RUNNER_TEMP/pr-files.json" ]; then
+              files=$(jq -r '.[] | [.filename, (.previous_filename // "")] | @tsv' "$RUNNER_TEMP/pr-files.json")
+            else
+              for attempt in 1 2 3; do
+                if files=$(gh_read "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --paginate --jq '.[] | [.filename, (.previous_filename // "")] | @tsv'); then
+                  break
+                fi
+                [ "$attempt" -lt 3 ] || { echo "::error::could not read the files of #$PR_NUMBER; re-run this run."; exit 1; }
+                sleep $((attempt * 5))
+              done
+            fi
+            held=
+            # Case-folded, as the floor matches: a case-insensitive checkout
+            # reads `.github/codeowners` as CODEOWNERS.
+            shopt -s nocasematch
+            while IFS= read -r path; do
+              for pattern in "${hold_patterns[@]}"; do
+                # shellcheck disable=SC2053 # the pattern is matched as a glob on purpose
+                [[ $path != $pattern ]] || held="$held $path"
+              done
+            done < <(tr '\t' '\n' <<<"$files" | grep .)
+            shopt -u nocasematch
+          }
+          if [[ $AUTHOR_ID =~ ^[0-9]+$ && " $exempt_author_ids " == *" $AUTHOR_ID "* ]]; then
+            held_paths
+            pr=$(READER=pr_read read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
+            if [ "$(grep -c . <<<"$files")" -lt "$(jq '.changed_files // 0' <<<"$pr")" ]; then
+              echo "::error::GitHub listed fewer files than #$PR_NUMBER changes, so its hold-paths cannot be checked; a person merges it."
+              exit 1
+            fi
+            if [ -n "$held" ]; then
+              # Each reviewer's newest non-comment review decides; reviews are read live.
+              if reviews=$(read_api "the reviews of #$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews?per_page=100" --paginate) &&
+                trusted_humans &&
+                approver=$(jq -ers --arg head "$HEAD_SHA" --arg humans " $humans " '[add[] | select(.state != "COMMENTED" and .state != "PENDING")]
+                  | group_by(.user.id) | map(last)
+                  | map(select(.state == "APPROVED" and .commit_id == $head
+                    and (.user.id | type) == "number" and ((" \(.user.id) ") as $id | $humans | contains($id))))
+                  | first | .user.login | strings' <<<"$reviews"); then
+                echo "$approver, a person on the trusted-actor list, approved $HEAD_SHA, which clears the trust-gate hold on #$PR_NUMBER; the review lanes are not required."
+                exit 0
+              fi
+              echo "::error::#$PR_NUMBER is by an author no review lane reviews and changes trust-gate paths:${held//%/%25}. A person merges it; a person on the trusted-actor list approving this head clears it."
+              exit 1
+            fi
+            echo "The author ($AUTHOR_ID) is one no review lane reviews, and no trust-gate path changed; the review lanes are not required."
+            exit 0
+          fi
+          # A fork's head gets no review run here, and the lookup below reads
+          # only runs from this repository's head, so name the fork up front.
+          if [ "$HEAD_REPO" != "$GITHUB_REPOSITORY" ]; then
+            while read -r _ _ check; do
+              echo "::error::'$check' did not run on $HEAD_SHA (head repository: ${HEAD_REPO:-unknown}): a fork, or a bot outside the caller's allowed-bot-sender-ids, gets no review, and a kill-switch job that did not succeed stops it. A push by a person on the trusted-actor list starts a review."
+            done <<<"$lanes"
+            exit 1
+          fi
+          # An agent App's head can rewrite the review callers, so a trust-gate
+          # path it touched waits for a person as an exempt author's does: the
+          # base's merge.trust-path-hold-apps, matched by login against the
+          # author, each commit's author and committer (account or noreply
+          # address) and each push to the head branch. GitHub lists at most
+          # 3000 files, so a list that long may hide one.
+          held_paths
+          if [ -n "$held" ] || [ "$(grep -c . <<<"$files")" -ge 3000 ]; then
+            conf=$BASE_CONFIG/docs/conventions/pr-pipeline.yaml
+            apps='[]'
+            # pipefail, and an empty list counts as unread: the step runs without
+            # pipefail, so a failed yq would otherwise leave apps empty and pass.
+            if [ ! -d "$BASE_CONFIG" ] || { [ -e "$conf" ] && ! apps=$(set -o pipefail; yq -o=json -I=0 '.merge."trust-path-hold-apps" // []' "$conf" |
+              jq -ce 'if type == "array" and all(.[]; type == "string" and test("^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$"))
+                then map(ascii_downcase) else error("not a list of [bot] logins") end'); } || [ -z "$apps" ]; then
+              echo "::error::could not read merge.trust-path-hold-apps from pr-pipeline.yaml in the hold config (the default branch's tip at run time, or the base commit for another base), so whether an agent App touched the trust-gate paths of #$PR_NUMBER is unknown; re-run this run."
+              exit 1
+            fi
+            if [ "$apps" != '[]' ]; then
+              pr=$(READER=pr_read read_api "#$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER") || exit 1
+              if [ "$(grep -c . <<<"$files")" -lt "$(jq '.changed_files // 0' <<<"$pr")" ]; then
+                held="$held (and files GitHub did not list)"
+              fi
+            fi
+            if [ "$apps" != '[]' ] && [ -n "$held" ]; then
+              commits=$(read_api "the commits of #$PR_NUMBER" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/commits?per_page=100" --paginate) || exit 1
+              ref=$(jq -rn --arg r "refs/heads/$HEAD_REF" '$r | @uri')
+              want=$(jq -er '.commits | numbers' <<<"$pr") && listed=$(jq -n '[inputs | arrays[]] | length' <<<"$commits") && [ "$listed" -ge "$want" ] || {
+                echo "::error::GitHub listed fewer commits than #$PR_NUMBER has, so whether an agent App wrote one cannot be checked; a person merges it."
+                exit 1
+              }
+              # The activity API keeps a branch name's history across deletions,
+              # so a reused name fills any one page: read page by page along the
+              # Link header's rel="next" cursor, keeping only App pushes and
+              # stopping at the first page with one. Only a short page ends the
+              # history: a full page with no next link, a next link this step
+              # cannot read or that leaves this repository's activity of the
+              # branch (gh would expand a {placeholder} in it), or past 20 pages
+              # (2000 entries; the busiest reused name had 564), a person merges it.
+              next_re='^repositories/([0-9]+)/activity\?[A-Za-z0-9%&=._~-]+$'
+              pushes='[]' next="repos/$GITHUB_REPOSITORY/activity?ref=$ref&direction=desc&per_page=100" pages=0
+              while [ -n "$next" ]; do
+                if [ "$pages" -ge 20 ]; then
+                  echo "::error::the push history of $HEAD_REF runs past 20 pages, so whether an agent App pushed to it cannot be checked; a person merges it."
+                  exit 1
+                fi
+                page=$(read_api "the push history of $HEAD_REF" "$next" -i) || exit 1
+                pages=$((pages + 1))
+                link=$(awk '{ sub(/\r$/, "") } $0 == "" { exit } tolower($0) ~ /^link:/' <<<"$page")
+                next=$(sed -nE 's#.*<https://[^/>]+/([^>]*)>; *rel="next".*#\1#p' <<<"$link")
+                pushes=$(awk 'body { print; next } { sub(/\r$/, "") } $0 == "" { body = 1 }' <<<"$page" |
+                  jq -ren --argjson apps "$apps" 'input | if type == "array" then . else error("not a list") end
+                    | "\(length) \([.[] | select(.actor.login // "" | ascii_downcase as $l | any($apps[]; . == $l)) | {actor: {login: .actor.login}, after}] | tojson)"') || {
+                  echo "::error::the push history of $HEAD_REF is unreadable, so whether an agent App pushed to it cannot be checked; a person merges it."
+                  exit 1
+                }
+                size=${pushes%% *} pushes=${pushes#* }
+                if [ "$pushes" != '[]' ]; then
+                  next=
+                elif [ -z "$next" ] && [[ ${link,,} =~ rel=\"?next ]]; then
+                  echo "::error::the push history of $HEAD_REF has a next link this step cannot read; a person merges it."
+                  exit 1
+                elif [ -z "$next" ] && [ "$size" -ge 100 ]; then
+                  echo "::error::the push history of $HEAD_REF fills page $pages with no next link, so whether an agent App pushed to it cannot be checked; a person merges it."
+                  exit 1
+                elif [ -n "$next" ] && { [[ ! $next =~ $next_re ]] || [ "${BASH_REMATCH[1]}" != "$GITHUB_REPOSITORY_ID" ] || [[ "&${next#*\?}&" != *"&ref=$ref&"* ]]; }; then
+                  echo "::error::the push history of $HEAD_REF has a next link outside this repository's activity of the branch; a person merges it."
+                  exit 1
+                fi
+              done
+              why=$(jq -nr --argjson apps "$apps" --argjson pr "$pr" --argjson pushes "$pushes" '
+                def app: ascii_downcase as $l | any($apps[]; . == $l);
+                def mail: ascii_downcase as $m
+                  | any($apps[]; . as $a | $m == $a + "@users.noreply.github.com" or ($m | endswith("+" + $a + "@users.noreply.github.com")));
+                [if ($pr.user.login // "" | app) then "\($pr.user.login) opened it" else empty end]
+                + [inputs[] | select(any(.author.login, .committer.login; . // "" | app)
+                    or any(.commit.author.email, .commit.committer.email; . // "" | mail))
+                  | "an agent App authored or committed \(.sha[0:12])"]
+                + [$pushes[] | select(.actor.login // "" | app) | "\(.actor.login) pushed \((.after // "")[0:12]) to it"]
+                | unique | join("; ")' <<<"$commits")
+              if [ -n "$why" ]; then
+                echo "::error::#$PR_NUMBER changes trust-gate paths:${held//%/%25}, and $why, so no review lane decides it. A person merges it."
+                exit 1
+              fi
+              echo "No agent App opened, wrote or pushed to #$PR_NUMBER; the review lanes decide its trust-gate paths."
+            fi
+          fi
+          failed=0
+          # lane_at <sha> [pr]: sets run, url and verdict from the newest
+          # pull_request run of $file on <sha> from this repository's head,
+          # with <pr> only one GitHub lists for that pull request; run is empty
+          # when there is none.
+          lane_at() {
+            runs=$(read_api "the $file runs on $1" \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$1&event=pull_request&per_page=100") || exit 1
+            run=$(jq -c --arg path ".github/workflows/$file" --arg sha "$1" --arg repo "$GITHUB_REPOSITORY" --arg pr "${2:-}" \
+              '[.workflow_runs[] | select(.path == $path and .head_sha == $sha and .event == "pull_request"
+                and .head_repository.full_name == $repo
+                and ($pr == "" or any(.pull_requests[]?; .number == ($pr | tonumber))))] | max_by(.id) // empty' <<<"$runs")
+            [ -n "$run" ] || return 0
+            id=$(jq -r .id <<<"$run")
+            url=$(jq -r .html_url <<<"$run")
+            jobs=$(read_api "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100") || exit 1
+            verdict=$(jq -r --arg check "$check" --arg run_status "$(jq -r .status <<<"$run")" '
+              (.jobs | map(select(.name == $check)) | max_by(.id)) as $s
+              | (.jobs | map(select(.name == "kill-switch")) | max_by(.id)) as $k
+              | if $s != null and $s.status != "completed" then "pending"
+                elif $s.conclusion == "success" then
+                  if any($s.steps[]?; .name == "Apply the hold" and .conclusion != null) | not then "unlisted \($s.id)"
+                  elif any($s.steps[]?; .name == "Apply the hold" and .conclusion == "success") then "pass" else "uncounted \($s.id)" end
+                elif $s != null and $s.conclusion != "skipped" then "red \($s.conclusion)"
+                elif $k.conclusion == "success" and any($k.steps[]?; .name == "Report the kill switch" and .conclusion == "success") then "stopped"
+                elif $run_status != "completed" then "pending"
+                elif $k.conclusion == "failure" and any($k.steps[]?; .name == "Stop on upstream status" and .conclusion == "failure") then "upstream"
+                elif $k.conclusion == "failure" and (any($k.steps[]?; .name == "Stop on upstream status" and .conclusion != null) | not) then "upstreamunlisted \($k.id)"
+                elif $k.conclusion == "success" and (any($k.steps[]?; .name == "Report the kill switch" and .conclusion != null) | not) then "killunlisted \($k.id)"
+                elif $k.conclusion == "success" and any($k.steps[]?; .name == "Check upstream status" and .conclusion == "success") then "gateskip \($k.id)"
+                else "missing \($k.conclusion // "absent")" end' <<<"$jobs")
+          }
+          # record_at <job> <sha>: sets record from the job's review-complete
+          # notices for $lane on <sha>: `review` for a review, `through <head>`
+          # for a no-change skip carrying <head>'s review, else `none`.
+          record_at() {
+            notes=$(read_api "the annotations of job $1" "repos/$GITHUB_REPOSITORY/check-runs/$1/annotations?per_page=100") || exit 1
+            record=$(jq -r --arg want "claude-lane-review-complete lane=$lane sha=$2" '
+              [.[]? | select(.annotation_level == "notice" and .title == "claude-lane-review-complete") | .message // ""
+                | select(. == $want or startswith($want + " ")) | ltrimstr($want) | sub(" account=fallback$"; "")] as $r
+              | [$r[] | select(test("^ skip=no-change through=[0-9a-f]{40}$")) | .[-40:]] as $t
+              | if any($r[]; . == "" or startswith(" findings=")) then "review"
+                elif ($t | unique | length) == 1 then "through \($t[0])" else "none" end' <<<"$notes")
+          }
+          # carried <sha>: whether a counted review of $lane on this pull
+          # request covers <sha>, following no-change skips (each a push that
+          # changed no file of it, such as a clean base merge) up to 10 heads
+          # back, never round a loop: babysit_review_evidence.py's SKIP_HOPS.
+          carried() {
+            local sha=$1 seen=" $HEAD_SHA " hop
+            for hop in 1 2 3 4 5 6 7 8 9 10; do
+              [[ $seen != *" $sha "* ]] || return 1
+              seen="$seen$sha "
+              run='' verdict=''
+              lane_at "$sha" "$PR_NUMBER"
+              case $verdict in
+              pass) return 0 ;;
+              unlisted\ * | uncounted\ *)
+                record_at "${verdict#* }" "$sha"
+                case $record in
+                review) [[ $verdict == unlisted\ * ]] && return 0 || return 1 ;;
+                through\ *) sha=${record#through } ;;
+                *) return 1 ;;
+                esac
+                ;;
+              *) return 1 ;;
+              esac
+            done
+            echo "::warning::'$check' carries a review back more than $hop heads; ci-status stops there." >&2
+            return 1
+          }
+          while read -r file lane check; do
+            run='' verdict=''
+            lane_at "$HEAD_SHA"
+            if [ -z "$run" ]; then
+              echo "::error::'$check' is missing: no $file run on $HEAD_SHA yet. ci-status re-runs when the review finishes."
+              failed=1
+              continue
+            fi
+            # The hosted callers' `Stop on upstream status` step fails the
+            # kill-switch job with this lane's error while GitHub Actions or
+            # npm lists an outage (.github/actions/check-upstream-status).
+            if [[ $verdict =~ ^upstreamunlisted\ ([1-9][0-9]*)$ ]]; then
+              job=${BASH_REMATCH[1]}
+              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
+              verdict=$(jq -r 'if any(.[]?; .annotation_level == "failure" and ((.message // "") | test("^an upstream outage stops this (security )?review \\(")))
+                then "upstream" else "missing failure" end' <<<"$notes")
+            fi
+            # A run from before that step skipped the review with the gate's
+            # notice and a kill-switch job that succeeded.
+            if [[ $verdict =~ ^gateskip\ ([1-9][0-9]*)$ ]]; then
+              job=${BASH_REMATCH[1]}
+              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
+              verdict=$(jq -r 'if any(.[]?; .annotation_level == "notice" and ((.message // "") | test("^upstream status: .*; this run is skipped$")))
+                then "gateskipped" else "missing success" end' <<<"$notes")
+            fi
+            if [[ $verdict =~ ^killunlisted\ ([1-9][0-9]*)$ ]]; then
+              job=${BASH_REMATCH[1]}
+              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
+              verdict=$(jq -r 'if any(.[]?; .annotation_level == "notice" and ((.message // "") | test("^a kill switch stops this (security )?review \\(")))
+                then "stopped" else "missing success" end' <<<"$notes")
+            fi
+            # A status job whose hold step did not succeed, or is not listed,
+            # counts on its review-complete record: a review when the step is
+            # unlisted, or a no-change skip whose head carries a counted review.
+            if [[ $verdict =~ ^(unlisted|uncounted)\ ([1-9][0-9]*)$ ]]; then
+              kind=${BASH_REMATCH[1]}
+              record_at "${BASH_REMATCH[2]}" "$HEAD_SHA"
+              case $record in
+              review) verdict=${kind/unlisted/pass-notice} ;;
+              through\ *)
+                through=${record#through } head_url=$url
+                if carried "$through"; then verdict=pass-skip; else verdict=skip-unproven; fi
+                url=$head_url
+                ;;
+              *) verdict=${kind/unlisted/unproven} ;;
+              esac
+            fi
+            case $verdict in
+            pass) echo "'$check' passed on $HEAD_SHA ($url)." ;;
+            pass-notice) echo "'$check' passed on $HEAD_SHA ($url): GitHub listed no 'Apply the hold' step with a conclusion, and the job's review-complete notice names $lane and this head." ;;
+            pass-skip) echo "'$check' skipped $HEAD_SHA ($url) as unchanged since $through, whose review counts." ;;
+            skip-unproven)
+              echo "::error::'$check' skipped $HEAD_SHA in $url as unchanged since $through, but no counted review of $lane on #$PR_NUMBER covers $through, so it is not a review that counts. Re-run the review on $through, or push a change so this head is reviewed."
+              failed=1
+              ;;
+            unproven)
+              echo "::error::'$check' passed in $url, but GitHub listed no 'Apply the hold' step with a conclusion and the job records no review-complete notice for $lane on $HEAD_SHA, so it is not a review that counts. Re-run this run."
+              failed=1
+              ;;
+            stopped)
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): a kill switch was on when it started. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of $url; ci-status re-runs when it finishes."
+              failed=1
+              ;;
+            upstream)
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, its dispatch re-runs this ci-status job under the reconciler's record, so pr-verify accepts it; if that re-run does not come, a person re-runs this ci-status job, not the review run; after 24 hours, push to the head."
+              failed=1
+              ;;
+            gateskipped)
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): the upstream status gate skipped it when it started. Once GitHub Actions and npm are operational, re-run all jobs of $url; ci-status re-runs when it finishes."
+              failed=1
+              ;;
+            pending)
+              echo "::error::'$check' has not finished on $HEAD_SHA ($url). ci-status re-runs when the review finishes."
+              failed=1
+              ;;
+            uncounted)
+              echo "::error::'$check' passed in $url, but its 'Apply the hold' step did not run: the lane ran in summary mode or without a hold label, so it is not a review that counts."
+              failed=1
+              ;;
+            red\ *)
+              echo "::error::'$check' ended ${verdict#red } on $HEAD_SHA ($url): the review did not complete. Re-run the lane."
+              failed=1
+              ;;
+            *)
+              echo "::error::'$check' did not run on $HEAD_SHA ($url; kill-switch job: ${verdict#missing }): a fork, or a bot outside the caller's allowed-bot-sender-ids, gets no review, and a kill-switch job that did not succeed stops it. A push by a person on the trusted-actor list starts a review."
+              failed=1
+              ;;
+            esac
+          done <<<"$lanes"
+          exit "$failed"

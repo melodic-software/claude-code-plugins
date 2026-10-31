@@ -172,6 +172,7 @@ describe("--config", () => {
         duration_ms: { press: 160, small: 200, medium: 250, large: 400 },
         gesture: { velocity_threshold: 0.11 },
       },
+      design: { concern_spoke_cap: 2 },
       routing: { version: 1, deny: ["superdesign"] },
     });
   });
@@ -194,6 +195,7 @@ describe("--config", () => {
       "animation.duration_ms.medium": "defaults",
       "animation.duration_ms.large": "team",
       "animation.gesture.velocity_threshold": "defaults",
+      "design.concern_spoke_cap": "defaults",
       routing: "team",
     });
   });

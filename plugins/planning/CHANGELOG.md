@@ -3,6 +3,29 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.129.1] - 2026-10-31
+
+### Fixed
+
+- `/planning:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
+- interview: the gather-block record link now points at the gather-block convention doc, at the
+  same heading, instead of a file inside source-control's worktree skill.
+
+## [0.129.0] - 2026-10-31
+
+### Added
+
+- `/planning:interview`: a question stores the constraint ids its recommendation was checked against as `checkedAgainst`, set by `add` and `revise`. A newer constraint marks every open and answered question without it `Upstream changed`, the Constraints panel says whether the round's recommendations are current, and the exported ledger row ends `stale:: C<N>`. `check-open-questions.sh` then reports `stale=<n>` and exits 1 until a `revise` naming the constraint or a `reconfirm` clears the row. A question or ledger without the list reads as before. ([#5769](https://github.com/melodic-software/claude-code-plugins/issues/5769))
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
 ## [0.128.0] - 2026-10-31
 
 ### Added

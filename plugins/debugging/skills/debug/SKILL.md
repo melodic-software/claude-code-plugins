@@ -322,8 +322,10 @@ The names collide outright, so "debug this" can land on either, but the two debu
   confirm it fails, rank causes, probe them, fix with a regression test, remove what the run added.
 
 **Routing.** When the broken thing is Claude Code itself (a hook, a tool call, a permission, a
-session misbehaving) rather than the user's code, offer it to the person: you can run `/debug`
-instead of or alongside this skill. Make the offer at Phase 1, before building a loop against the
+session misbehaving) rather than the user's code, offer it to the person:
+If /debug is available in your session (gate basis: `disableBundledSkills` or a `skillOverrides`
+entry can hide it; records in [reference/native-debug.md](reference/native-debug.md)), you can run
+it instead of or alongside this skill. Make the offer at Phase 1, before building a loop against the
 application. When the caller passes `unattended` as the first argument, the run records the offer
 in its output instead of asking; without that argument it asks.
 

@@ -5,6 +5,17 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-10-31
+
+### Changed
+
+- `/plugin-quality:audit session` reads `plugin_usage` from the session's running-retro ledger instead of searching installed plugins for session-flow's parser and running it by path. With no ledger or no key it tells the operator to run `/session-flow:running-retro` and re-run; with session-flow absent it reports the missing capability and the by-name form. ([#5819](https://github.com/melodic-software/claude-code-plugins/issues/5819))
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
 ## [0.17.8] - 2026-10-30
 
 ### Changed

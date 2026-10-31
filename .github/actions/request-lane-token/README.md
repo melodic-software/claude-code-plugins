@@ -75,6 +75,12 @@ run, and mints nothing ([Check mode](#check-mode)).
    base SHA and the default-branch tip resolve the activity differently.
 6. Writes the outputs. Any failure after the broker issued a token attempts to revoke it, and prints the status, before the step
    exits.
+7. When the 200 carries an optional `rate_limit` object (`remaining`, `limit` and `reset` in epoch
+   seconds), the lanes App's REST quota at the mint, it writes an `api-budget` notice,
+   `mint lanes-app core remaining=R used=U limit=L reset=<ISO>`, and a job summary line. The
+   monitoring lane reads that notice from lane runs, since its `GITHUB_TOKEN` cannot read the App's
+   quota. With no `rate_limit` it writes nothing more; with one that is not three whole numbers,
+   `remaining` at most `limit`, it warns `lane-token-quota-unread` and still passes.
 
 It does not revoke a token it handed out. The workflow does, in a final step with
 `if: always() && steps.<id>.outputs.token != ''`, because a composite action has no post step.

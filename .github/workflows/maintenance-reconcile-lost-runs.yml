@@ -42,6 +42,13 @@ name: maintenance-reconcile-lost-runs
 # once no such status fails the head (the lane that stopped cleared it); a
 # status post starts no run, and a failed re-run of it is only a warning.
 #
+# A hosted review run a kill switch stopped, on a head whose newest
+# pr-require-checks run failed only in ci-status with its note of that stop, is
+# re-run once, recorded, once neither the lanes switch, the lane's own switch
+# nor the upstream gate would stop it again; its completion re-runs ci-status
+# (pr-feedback-dispatch.yml rerun-ci-status). One lane per head per pass, and a
+# place under the cap, whatever the run's age up to GitHub's 30 days.
+#
 # An intake-triage run an issue event started whose first attempt failed only
 # in its intake-label-needs-triage job (a rate limit, most often) left the
 # issue without its floor label; its failed jobs are re-run once, taking no
@@ -56,9 +63,9 @@ name: maintenance-reconcile-lost-runs
 # through this run's record of it: the plan step names an artifact
 # reconcile-rerun-<run id>-2-<head sha> for each pr-verify or pr-review-main run it will re-run,
 # for each pr-require-checks run whose re-run makes its attempt 2 (pr-verify
-# runs after it), and for each hosted review run the upstream-status gate
-# stopped, the upload steps below write them, and only then does the act step
-# re-run those runs. That no other run can upload into this run's artifacts is
+# runs after it), and for each hosted review run a kill switch or the
+# upstream-status gate stopped, the upload steps below write them, and only then
+# does the act step re-run those runs. That no other run can upload into this run's artifacts is
 # UNVERIFIED: GitHub does not document that it scopes the runtime upload token
 # to its own run, and the REST API has no endpoint that creates an artifact.
 # A forged record still needs a github-actions[bot] attempt-2 re-run of the
@@ -159,6 +166,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          # Read as the review callers read them: only `true`, in any case, stops the lane.
+          CLAUDE_REVIEW_DISABLED: ${{ vars.CLAUDE_REVIEW_DISABLED }}
+          CLAUDE_SECURITY_REVIEW_DISABLED: ${{ vars.CLAUDE_SECURITY_REVIEW_DISABLED }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: |
           mkdir -p "$RUNNER_TEMP/reconcile-record" "$RUNNER_TEMP/reconcile-settled"

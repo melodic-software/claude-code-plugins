@@ -57,8 +57,10 @@ can mean any of the three.
 
 **Routing.** When the bundled `fewer-permission-prompts` skill resolves in this session, prefer it
 for reducing prompts by writing an allowlist; prefer this skill to see what is in effect. When the
-report ends with a rule the person wants added, removed, or moved, offer it to the person: you can
-run `/permissions` to view and edit these rules interactively. When the caller passes
+report ends with a rule the person wants added, removed, or moved, offer it to the person:
+If /permissions is available in your session (gate basis: it varies by version and host; records
+in [reference/native-surfaces.md](reference/native-surfaces.md)), you can run it to view and edit
+these rules interactively. When the caller passes
 `unattended` as the first argument, the run records that offer in its output instead of asking;
 without that argument it asks.
 

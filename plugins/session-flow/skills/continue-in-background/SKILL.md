@@ -414,10 +414,15 @@ can mean any of them.
   payload, so the continuation carries no conversation history, survives on disk, and ends on a
   checked condition.
 
-**Routing.** At the start of the run, offer them to the person: you can run `/background` to
-detach this session as it is, `/fork` to copy it into a background session, or `/subtask` for a
-side task whose result should come back here, instead of or alongside this skill. Prefer this
-skill when the continuation should start clean from a durable save-point. When the caller passes
+**Routing.** At the start of the run, offer them to the person, each instead of or alongside this
+skill. If /background is available in your session (gate basis: gated, per **Availability is
+never assumed** below; records in
+[native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)),
+you can run it to detach this session as it is. If /fork is available in your session (gate basis:
+gated, per the same paragraph and records), you can run it to copy this session into a background
+session. If /subtask is available in your session (gate basis: gated, per the same paragraph and
+records), you can run it for a side task whose result should come back here. Prefer this skill
+when the continuation should start clean from a durable save-point. When the caller passes
 `unattended` as the first argument, the run records the offer in its output instead of asking;
 without that argument it asks.
 

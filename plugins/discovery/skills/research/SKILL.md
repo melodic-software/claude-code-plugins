@@ -308,9 +308,12 @@ research can mean either surface.
   ledger), and grades every run off disk with a fresh verifier before surfacing it.
 
 **Routing.** When the deep tier is selected, offer it to the person at the start of the run,
-before dispatching: for a single-topic ask that wants one deep cited report, "you can run
-`/deep-research <question>` instead of or alongside this skill"; for a multi-topic ask, only as an
-addition for one topic that needs adversarial claim-checking. If the person takes it instead, stop.
+before dispatching. For a single-topic ask that wants one deep cited report:
+If /deep-research is available in your session (gate basis: it needs the WebSearch tool and varies
+by settings, plan, and host, and whether `disableBundledSkills` hides it is not established;
+records in [reference/native-deep-research.md](reference/native-deep-research.md)), you can run
+`/deep-research <question>` instead of or alongside this skill. For a multi-topic ask, offer it
+only as an addition for one topic that needs adversarial claim-checking. If the person takes it instead, stop.
 When the caller passes a leading `unattended` argument, the run records the offer in its output
 instead of asking, and dispatches; without that argument it asks.
 

@@ -322,8 +322,9 @@ a model. Run Step 1 first, pass `--scope` yourself as in the style pass's step 3
 ## Boundary, the built-in `/insights` command
 
 This skill keeps a durable store, flags sessions over the shipped thresholds and routes each
-finding; `/insights` is a separate report the person runs. We treat them as complementary: if
-`/insights` is available in your session, suggest that the person run it alongside this skill. It
+finding; `/insights` is a separate report the person runs. We treat them as complementary:
+If /insights is available in your session (gate basis: this skill never assumes it resolves; the
+**Pointer** record below), suggest that the person run it alongside this skill. It
 is reserved for the person, so this skill never runs it. When the caller passes `unattended` as the
 first argument, record the `/insights` suggestion in the run's output and do not ask the person;
 without that argument, make the suggestion to the person.

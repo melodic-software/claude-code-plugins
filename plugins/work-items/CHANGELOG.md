@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.15.0] - 2026-10-31
+
+### Added
+
+- `/work-items:work` ranks the candidates in each selection tier by their `priority:` label, highest first, and keeps the tier's own order (`next_due`, the guardrails preference, or oldest-first) only as the tie-break, and the work-loop lane ranks its admitted items the same way before its `created_at` order, so a priority raised at triage now changes what a lane picks. The rank comes from the new `work_priority_order` key in the repository's `docs/conventions/work-items.yaml` (default `priority: critical`, `high`, `medium`, `low`); an item with no listed label ranks last in its tier.
+
+### Changed
+
+- `charge-words.json` gains `work_headings`, the section headings intake admission reads as stating
+  work. Its `description` records that `rule-admit.sh` still reads the whole title and body.
+
+### Fixed
+
+- `charge-words.json` stops counting a measured pass run on the subscription as a charge: that
+  phrase is model usage, which its description already said is no charge. A real use such as a
+  subscription upgrade still matches.
+- A backslash-escaped backtick no longer opens a code span in the `code` pattern, so a word between
+  escaped backticks counts as prose and `rule-admit.sh` refuses it.
+
 ## [3.14.0] - 2026-10-31
 
 ### Added

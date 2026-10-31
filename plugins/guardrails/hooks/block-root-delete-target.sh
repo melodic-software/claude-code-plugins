@@ -50,12 +50,14 @@
 # real commands and was rejected on that measurement. This guard does not
 # inherit that objection: it reads a cheap substring first, so a command whose
 # text holds none of `rm`, `-delete`, `.delete`, `unlink`, `rsync`,
-# `robocopy`, `worktree` and `remove` never reaches the parse at all. The
+# `robocopy`, `worktree`, `remove` and the decoder names (`base64`, `base32`,
+# `basenc`, `xxd`) never reaches the parse at all. The
 # prefilter is a SUBSTRING match, not a token one, so `npm run format` does
 # reach the tokenizer and is allowed there on its command word. The path question is
 # asked only once a recursive `rm`, a deleting find, a deleting rsync, a
 # deleting robocopy, a forced git worktree remove or an interpreter's deleter
-# call, run directly or by xargs or parallel, is established.
+# call, run directly or by xargs or parallel, is established. A decoder sink
+# asks no path question: it is refused outright.
 #
 # FIND DELETES. `find -delete`, and a find whose expression runs `rm`, `rmdir`
 # or `unlink` as the command word of an -exec, -execdir, -ok or -okdir action,
@@ -188,6 +190,34 @@
 # newline, `&&`, `||` or a statement modifier. The code's own argv (an xargs
 # or parallel item included) is not a target: a deleter given one is refused
 # above as a path the code computes.
+#
+# DECODER SINKS. A decoder feeding an execution sink is refused outright,
+# whatever the decoded text targets, because that text never appears in the
+# command and no arm can judge it; an attended session is denied too. The
+# decoders: base64, base32 and basenc with -d, -D or a prefix of --decode,
+# xxd with -r, and PowerShell's [Convert]::FromBase64String. A decoder writes
+# decoded text unless its stdout is redirected or it is given an output file
+# (-o or --output; xxd's second operand), so `base64 -d x > out.bin`, `xxd -r
+# dump.hex out.bin` and `base64 -d x | less` pass. Bash sinks: a shell (bash,
+# sh, zsh, dash, ksh, mksh) or a source of /dev/stdin reading its program from
+# a pipe a decoder feeds, through any stage but a pager (`echo <b64> | base64
+# -d | tr -d '\r' | sh`), the first command of a -c operand or an eval text
+# included (`... | sh -c sh`); and, in a parse holding a paren or a backtick,
+# a decoder after a command whose program a substitution supplies: eval, a
+# shell's -c operand, a shell or source with no operand (`bash <(...)`,
+# `source <(...)`), a command word that is itself an unquoted `$(...)`, and a
+# backtick where a command starts. The program an eval or a -c operand runs,
+# a here-string a stdin shell reads as its program, and a command interpreter
+# code runs are parsed as commands, so `eval "$(echo <b64> | base64 -d)"`,
+# `bash -c "$(base64 -d <<< <b64>)"` and `bash <<< "$(base64 -d x)"` are
+# refused, and so is a decoder piped into a shell inside a substitution body.
+# PowerShell: a
+# statement is decoded when a word of it is the [Convert]::FromBase64String (or
+# [System.Convert]::FromBase64String) call, a grouping or `$( )` inside it is,
+# or a decoded stage pipes into it, and Invoke-Expression or iex given one is
+# refused (`iex ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b)))`,
+# `... | iex`). A decoder named inside quoted prose (`git commit -m "base64 -d
+# | sh"`) is one argv word, never a command, and stays allowed.
 #
 # PIPELINE-FED DELETES. `xargs` and `parallel` run a command on the items they
 # read, so when that command is a recursive rm or a deleting find (named
@@ -358,7 +388,14 @@
 # perl `unlink glob '*.tmp'`, ruby `%w[...]`), a literal path holding a `$`
 # (`rmtree('a$b')`) or an escape this reading does not decode (`'\x2f'`), a
 # perl hash key named unlink or rmdir (`$h{unlink}`, read as a call on `$_`),
-# and the three launcher lines decided below.
+# a decoder writing to stdout anywhere before a shell on its own across `;`
+# or `&&` (`base64 -d x; ls; bash`, read as a pipe), a decoder writing to
+# stdout anywhere after an unquoted substitution an eval, a -c, a source or a
+# stdin shell runs, or after a substitution in command position (`eval
+# $(ssh-agent -s); base64 -d x`, `source <(kubectl completion bash); base64 -d
+# x`, `` `npm bin`/x; base64 -d f | less ``) or a backtick after a separator
+# inside a quoted string, xargs handing decoded items to a shell (`base64 -d x
+# | xargs sh`), and the three launcher lines decided below.
 #
 # LAUNCHER LINES REFUSED BY DECISION (#4681). Each is refused although the
 # launcher does not delete the host root, and each stays refused on purpose:
@@ -429,6 +466,18 @@
 #     judged, and a quote character inside it ends the span early, so the code
 #     after it is not judged either.
 #   * Other delete verbs: `shred`.
+#   * In a decoder sink: a decoder this guard does not name (openssl base64
+#     -d, uudecode, an interpreter's base64 module), one behind a launcher
+#     (`sudo base64 -d`), decoded text carried through a variable or a file
+#     to the sink (`x=$(base64 -d f); eval "$x"`, `$b = ...; iex $s`), a sink
+#     this guard does not name (an interpreter reading stdin, `pwsh -c -`,
+#     `powershell -EncodedCommand`, `[scriptblock]::Create`, `&` or `.` of a
+#     decoded scriptblock), a quoted substitution after source or a shell
+#     (`source "$(...)"`, read as a file name), a heredoc a shell reads as
+#     its program whose body decodes (`bash <<EOF` over `$(base64 -d x)`, or
+#     `cat <<EOF | sh`), a backtick after a launcher (`sudo` before one),
+#     nested PowerShell, and a here-string with no substitution, which is not
+#     parsed.
 #   * In interpreter code: a script file an interpreter runs, and a program
 #     piped into its stdin (`cat x.py | python3`) or redirected to it from
 #     outside its own command (`{ python3 -; } <<'EOF'`, `0<&3`); an
@@ -580,8 +629,8 @@
 # bare-variable operand, of a protected tree, of a target outside the allowed
 # roots, on items no confined listing produced, or on an interpreter deleter
 # whose path is not a plain string literal, asks the user when the session is attended and exits 2
-# otherwise (hook::refuse, refuse.sh). A command it cannot finish reading is
-# denied either way.
+# otherwise (hook::refuse, refuse.sh). A command it cannot finish reading, and
+# a decoder sink, are denied either way.
 
 set -uo pipefail
 
@@ -868,6 +917,13 @@ rdt_block() {
       'BLOCKED: judging where this recursive delete lands failed unexpectedly.' \
       'Fix: simplify the command, or run the delete on its own.'
     ;;
+  decoder-sink)
+    # Denied in an attended session too: the decoded text never appears in the
+    # command, so there is nothing a person could judge from it.
+    printf -v msg '%s\n' \
+      'BLOCKED: decoded text (base64 -d, base32 -d, basenc -d, xxd -r or [Convert]::FromBase64String) is run as a command, by a shell, eval, source, Invoke-Expression or a substitution in command position, so this guard cannot read what would run.' \
+      'Fix: decode to a file, read it, and run the commands it holds as commands of their own.'
+    ;;
   *)
     # Single-quoted on purpose: the Fix line must show a literal $HOME to the
     # agent rather than expanding it in the hook process.
@@ -909,15 +965,15 @@ fi
 # `robocopy`, `worktree` or `remove`, the text a recursive rm, a deleting
 # find, rsync, robocopy, git worktree remove or interpreter delete must hold
 # (`npm run format` still reaches the tokenizer and is allowed on its command
-# word).
-# PowerShell: Remove-Item, rmdir, erase, cmd, rd, del, rm, robocopy, and `ri`
-# as a command word (not the `ri` inside Write/string). Over-inclusive on
-# purpose; the tokenizer decides.
+# word), or `base64`, `base32`, `basenc` or `xxd`, which a decoder sink holds.
+# PowerShell: Remove-Item, rmdir, erase, cmd, rd, del, rm, robocopy,
+# FromBase64, and `ri` as a command word (not the `ri` inside Write/string).
+# Over-inclusive on purpose; the tokenizer decides.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   rdt_ps_pre="${COMMAND,,}"
   rdt_ps_hit=0
   case "$rdt_ps_pre" in
-  *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del* | *robocopy*) rdt_ps_hit=1 ;;
+  *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del* | *robocopy* | *frombase64*) rdt_ps_hit=1 ;;
   *) ;;
   esac
   if ((rdt_ps_hit == 0)) && [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])ri([^[:alnum:]_]|$) ]]; then
@@ -926,7 +982,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   ((rdt_ps_hit)) || exit 0
 else
   case "${COMMAND,,}" in
-  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove*) ;;
+  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *base64* | *base32* | *basenc* | *xxd*) ;;
   *) exit 0 ;;
   esac
 fi
@@ -2763,7 +2819,9 @@ rdt_judge_pending() {
     rdt_root_like "$t" || RDT_TREEC="$t"
   fi
   # An allowed root, or a name-prefix entry's directory, that is a filesystem
-  # root or HOME itself is dropped.
+  # root or HOME itself is dropped. A `/` entry is dropped on every host, even
+  # where `/` maps to the Git install directory, so it is judged before the
+  # mapping as well as after it.
   RDT_ALLOWC=()
   RDT_PDIRC=()
   RDT_PNAME=()
@@ -2771,10 +2829,12 @@ rdt_judge_pending() {
   if [[ -n "$home" ]]; then
     rdt_canon_to RDT_HOMEC "${RDT_WMAP[${RDT_RES[$home]}]}"
     for c in ${allow[@]+"${allow[@]}"}; do
+      [[ "${RDT_RES[$c]}" == / ]] && continue
       rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
       rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]] || RDT_ALLOWC+=("$t")
     done
     for ((k = 0; k < ${#pdir[@]}; k++)); do
+      [[ "${RDT_RES[${pdir[k]}]}" == / ]] && continue
       rdt_canon_to t "${RDT_WMAP[${RDT_RES[${pdir[k]}]}]}"
       { rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]]; } && continue
       RDT_PDIRC+=("$t")
@@ -2848,6 +2908,87 @@ rdt_judge_pending() {
     fi
     rdt_allowed "$c" "${td[k]}" "$l" || rdt_block "outside-tree" "'$p' (the operand '${tw[k]}')"
   done
+  return 0
+}
+
+# rdt_sink_check <index of the command word>: DECODER SINKS for one command. A
+# shell reading its program from stdin (no -c and no script operand, -s, or
+# /dev/stdin) and a source or `.` of /dev/stdin are refused when a decoder
+# feeds them (rdt_dec_feed), and a here-string they read as their program that
+# holds a substitution is parsed as that program. In a parse holding a paren
+# or a backtick, a command whose program a substitution the tokenizer split
+# off may supply opens the sink for the rest of the parse (rdt_sink): a shell
+# or source with no operand (`bash <(...)`), eval with none (`eval` before a
+# backtick), and eval, a -c operand or the command word itself ending in an
+# unquoted `$` (`eval $(...)`, `$(...)`). Reads words, n and HOOK_SEG_* from
+# rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_sink_check() {
+  local k=$(($1 + 1)) b w c=0 s=0 stdin=0 last=$((n - 1)) split=0 open=0
+  local -a herestr=() q0=()
+  ((${rdt_flat:-1})) || open=1
+  [[ "${words[last]}" == *'$' && "${HOOK_SEG_WORD_QUOTED[last]:-0}" == 0 ]] && split=$open
+  if (($1 == last && split)); then
+    rdt_sink=1
+    return 0
+  fi
+  b="${words[$1]##*/}"
+  b="${b,,}"
+  b="${b%.exe}"
+  case "$b" in
+  eval)
+    ((open && (k >= n || split))) && rdt_sink=1
+    return 0
+    ;;
+  source | .)
+    ((k >= n)) || [[ "${words[k]}" == /dev/stdin || "${words[k]}" == /dev/fd/0 || "${words[k]}" == /proc/self/fd/0 ]] && stdin=1
+    ;;
+  bash | sh | zsh | dash | ksh | mksh)
+    while ((k < n)); do
+      w="${words[k]}"
+      case "$w" in
+      -- | -)
+        k=$((k + 1))
+        break
+        ;;
+      -o | +o | -O | +O | --rcfile | --init-file) k=$((k + 2)) ;;
+      [-+]?*)
+        if [[ "$w" =~ ^-[A-Za-z]+$ ]]; then
+          [[ "$w" == *c* ]] && c=1
+          [[ "$w" == *s* ]] && s=1
+        fi
+        k=$((k + 1))
+        ;;
+      *) break ;;
+      esac
+    done
+    if ((c)); then
+      ((open && (k >= n || (split && k == last)))) && rdt_sink=1
+      return 0
+    fi
+    ((s || k >= n)) || [[ "${words[k]}" == /dev/stdin || "${words[k]}" == /dev/fd/0 || "${words[k]}" == /proc/self/fd/0 ]] && stdin=1
+    ;;
+  *) return 0 ;;
+  esac
+  ((stdin)) || return 0
+  ((${rdt_dec_feed:-0})) && rdt_block "decoder-sink"
+  ((open && k >= n)) && rdt_sink=1
+  for ((c = 0; c < ${#HOOK_SEG_REDIR_OP[@]}; c++)); do
+    [[ "${HOOK_SEG_REDIR_OP[c]}" == '<<<' && "${HOOK_SEG_REDIR_FD[c]:-0}" == 0 ]] || continue
+    # shellcheck disable=SC2016  # a literal `$(` and backtick, not an expansion
+    case "${HOOK_SEG_REDIR_TARGET[c]}" in
+    *'$('* | *'`'*) herestr+=("${HOOK_SEG_REDIR_TARGET[c]}") ;;
+    *) ;;
+    esac
+  done
+  ((${#herestr[@]})) || return 0
+  q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
+  for w in "${herestr[@]}"; do
+    rdt_scanned=$((rdt_scanned + ${#w}))
+    ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
+    rdt_parse "$w"
+  done
+  HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]}"})
   return 0
 }
 
@@ -3200,6 +3341,8 @@ rdt_check_segment() {
     done
   done
   ((i < n)) || return 0
+
+  rdt_sink_check "$i"
 
   # A child shell runs its operand as a full command, so one process is every
   # command inside it. Re-parse that operand with the same tokenizer, which is
@@ -4056,7 +4199,7 @@ rdt_ix_code() {
   local lang="$1" ix_m="" ix_cm="" ix_ri k
   local -a ix_v=() ix_k=() ix_re=()
   case "${2,,}" in
-  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove*) ;;
+  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *base64* | *base32* | *basenc* | *xxd*) ;;
   *) return 0 ;;
   esac
   rdt_ix_lex "$2"
@@ -4798,7 +4941,13 @@ rdt_deleter=0
 # read in, judged once the parse has the bodies (rdt_ix_heredocs).
 rdt_parse() {
   local rdt_feed_in="$rdt_seg_feed" rdt_prev="" rdt_flat=1 b=$'\\' t="$1" rdt_hd_n=0
+  local rdt_dec_prev="${rdt_dec_feed:-0}" rdt_sink=0
+  local rdt_bq=$'(^|[;&|(\n])[[:space:]]*((then|do|else|elif|if|while|until|!|\\{)[[:space:]]+)*`'
   local -a rdt_hd_lang=() rdt_hd_st=()
+  # The first command of a text another command feeds (a -c operand, eval)
+  # reads that command's stdin, and a backtick where a command starts runs
+  # its body's output as that command (DECODER SINKS).
+  [[ "$1" =~ $rdt_bq ]] && rdt_sink=1
   if [[ "$t" == *"$b"* ]]; then
     t="${t//"$b$b"/}"
     t="${t//"$b("/}"
@@ -4826,7 +4975,7 @@ rdt_parse() {
 # command's first heredoc opener.
 # shellcheck disable=SC2329  # invoked as the hook::bash_parse_segments callback
 rdt_segment() {
-  local rdt_seg_feed="$rdt_feed_in" j rdt_hd_at="$rdt_hd_n"
+  local rdt_seg_feed="$rdt_feed_in" j rdt_hd_at="$rdt_hd_n" rdt_dec_feed="$rdt_dec_prev" rdt_dec_out=0
   if ((rdt_flat == 0)); then
     rdt_seg_feed=open
   elif [[ -n "$rdt_prev" ]]; then
@@ -4837,10 +4986,87 @@ rdt_segment() {
     [[ "${HOOK_SEG_REDIR_OP[j]}" == '<<' || "${HOOK_SEG_REDIR_OP[j]}" == '<<-' ]] && rdt_hd_n=$((rdt_hd_n + 1))
     if [[ "${HOOK_SEG_REDIR_OP[j]}" == '<'* && "${HOOK_SEG_REDIR_FD[j]:-0}" == 0 ]]; then
       rdt_seg_feed=open
+      rdt_dec_feed=0
     fi
   done
+  # Read before rdt_check_segment, whose re-parse rebuilds HOOK_SEG_REDIR_*.
+  rdt_dec_class "$@"
+  ((rdt_dec_out && rdt_sink)) && rdt_block "decoder-sink"
   rdt_feed_class "$@"
   rdt_check_segment "$@"
+  rdt_dec_prev=$rdt_dec_out
+}
+
+# rdt_dec_class <argv word>...: rdt_dec_out is 1 when the command writes
+# decoded text to its stdout (DECODER SINKS): base64, base32 or basenc with
+# -d, -D or a prefix of --decode, or xxd with -r, given no output file (-o or
+# --output; xxd's second operand) and no redirection of stdout. Any other
+# command but a pager (less, more, most) passes on what it reads
+# (rdt_dec_feed), since a filter of decoded text is decoded text still.
+# shellcheck disable=SC2329  # invoked from rdt_segment
+rdt_dec_class() {
+  # Most commands neither decode nor read decoded text: skip the copy below.
+  if ((rdt_dec_feed == 0)); then
+    case "${*,,}" in
+    *base64* | *base32* | *basenc* | *xxd*) ;;
+    *) return 0 ;;
+    esac
+  fi
+  local -a words=("$@")
+  local n=$# i=0 b k w c dec=0 ops=0
+  while ((i < n)) && [[ "${words[i]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do
+    i=$((i + 1))
+  done
+  ((i < n)) || return 0
+  for ((k = 0; k < ${#HOOK_SEG_REDIR_OP[@]}; k++)); do
+    [[ "${HOOK_SEG_REDIR_OP[k]}" == '>'* && "${HOOK_SEG_REDIR_FD[k]:-1}" == 1 ]] && return 0
+  done
+  b="${words[i]##*/}"
+  b="${b,,}"
+  b="${b%.exe}"
+  case "$b" in
+  base64 | base32 | basenc)
+    for ((k = i + 1; k < n; k++)); do
+      w="${words[k]}"
+      case "$w" in
+      --) break ;;
+      --d*) dec=1 ;;
+      --o*) return 0 ;;
+      --*) ;;
+      -?*)
+        for ((c = 1; c < ${#w}; c++)); do
+          case "${w:c:1}" in
+          [dD]) dec=1 ;;
+          o) return 0 ;;
+          [bw]) break ;;
+          *) ;;
+          esac
+        done
+        ;;
+      *) ;;
+      esac
+    done
+    ;;
+  xxd)
+    for ((k = i + 1; k < n; k++)); do
+      w="${words[k]}"
+      if ((ops == 0)) && [[ "$w" == -?* ]]; then
+        case "$w" in
+        -r*) dec=1 ;;
+        -[cglosnR] | -cols | -groupsize | -len | -offset | -seek | -name) k=$((k + 1)) ;;
+        *) ;;
+        esac
+      else
+        ops=$((ops + 1))
+        ((ops == 2)) && [[ "$w" != - ]] && return 0
+      fi
+    done
+    ;;
+  less | more | most) ;;
+  *) dec="$rdt_dec_feed" ;;
+  esac
+  rdt_dec_out=$dec
+  return 0
 }
 
 # rdt_feed_class <argv word>...: what this command writes to a pipe after it,
@@ -5082,7 +5308,7 @@ rdt_parallel_check() {
   for ((k = e + 1; k < n; k++)); do
     case "${words[k],,}" in
     ::: | :::+ | :::: | ::::+) ;;
-    *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove*) rdt_parse "${words[k]}" ;;
+    *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *base64* | *base32* | *basenc* | *xxd*) rdt_parse "${words[k]}" ;;
     *) ;;
     esac
   done
@@ -5332,9 +5558,9 @@ rdt_brace_rec() {
 
 # rdt_scan_body <body>: tokenize one substitution body, under two budgets.
 #
-# A body whose TEXT holds none of `rm`, `-delete` and `unlink` cannot carry a
-# delete the matcher recognizes, so it is not tokenized at all: the same
-# reasoning as the prefilter in front of the whole guard.
+# A body whose TEXT holds none of the prefilter's words cannot carry a delete
+# or a decoder sink the matcher recognizes, so it is not tokenized at all: the
+# same reasoning as the prefilter in front of the whole guard.
 #
 # The rest are charged against ONE MAX_COMMAND_LEN budget, because the depth cap
 # bounds the nesting and not the WORK. Nesting multiplies the text to tokenize,
@@ -5356,10 +5582,10 @@ rdt_brace_rec() {
 # its feed is open (PIPELINE-FED DELETES in the header).
 rdt_scanned=0
 rdt_scan_body() {
-  local b="$1" rdt_seg_feed=open
+  local b="$1" rdt_seg_feed=open rdt_dec_feed=0
   [[ -n "$b" ]] || return 0
   case "${b,,}" in
-  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove*) ;;
+  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *base64* | *base32* | *basenc* | *xxd*) ;;
   *) return 0 ;;
   esac
   rdt_scanned=$((rdt_scanned + ${#b}))
@@ -6038,6 +6264,35 @@ rdt_ps_statement() {
   esac
 }
 
+# rdt_ps_decoded <word>...: one pipeline stage, for DECODER SINKS. The stage is
+# decoded when a word of it is [Convert]::FromBase64String (the `(` of the call
+# ends the word, so a quoted string that names it is never that whole word), a
+# level closed inside it was (rdt_ps_dec), or a decoded stage pipes into it
+# (rdt_ps_pipe_dec). A decoded stage taints its level (rdt_ps_lvl_dec), and
+# Invoke-Expression or iex given decoded text is refused.
+rdt_ps_decoded() {
+  local d=$rdt_ps_dec w c=""
+  rdt_ps_dec=0
+  ((rdt_ps_after_pipe && rdt_ps_pipe_dec)) && d=1
+  rdt_ps_after_pipe=0
+  for w in "$@"; do
+    case "${w,,}" in
+    '[convert]::frombase64string' | '[system.convert]::frombase64string') d=1 ;;
+    *) ;;
+    esac
+    [[ -z "$c" && "$w" != "&" ]] && c="$w"
+  done
+  rdt_ps_pipe_dec=$d
+  ((d)) || return 0
+  rdt_ps_lvl_dec=1
+  c="${c##*\\}"
+  c="${c##*/}"
+  c="${c,,}"
+  c="${c%.exe}"
+  [[ "$c" == iex || "$c" == invoke-expression ]] && rdt_block "decoder-sink"
+  return 0
+}
+
 # rdt_ps_walk <command>: PowerShell quoting (backtick escape, backslash
 # literal) into statements split on the boundaries listed above, then judged.
 # Judging a statement resets the pipeline state, so the stage right after a `|`
@@ -6047,9 +6302,10 @@ rdt_ps_statement() {
 # many words each holds) and __svp (their pipeline state).
 rdt_ps_walk() {
   local __s="$1" __n=${#1} __i=0
-  local -a __words=() __sv=() __svn=() __svp=() __svk=()
+  local -a __words=() __sv=() __svn=() __svp=() __svk=() __svd=()
   local __word="" __in=0 __q="" __c __nxt __cont=0
   rdt_ps_piped=0
+  rdt_ps_dec=0 rdt_ps_lvl_dec=0 rdt_ps_pipe_dec=0 rdt_ps_after_pipe=0
 
   rdt_ps_flush_word() {
     if ((__in)); then
@@ -6061,6 +6317,7 @@ rdt_ps_walk() {
   rdt_ps_end_stmt() {
     rdt_ps_flush_word
     if ((${#__words[@]})); then
+      rdt_ps_decoded "${__words[@]}"
       rdt_ps_statement "${__words[@]}"
       __words=()
       rdt_ps_piped=0
@@ -6077,8 +6334,10 @@ rdt_ps_walk() {
     __svn+=("${#__words[@]}")
     __svp+=("$rdt_ps_piped")
     __svk+=("$1")
+    __svd+=("$rdt_ps_dec$rdt_ps_lvl_dec$rdt_ps_pipe_dec$rdt_ps_after_pipe")
     __words=()
     rdt_ps_piped=0
+    rdt_ps_dec=0 rdt_ps_lvl_dec=0 rdt_ps_pipe_dec=0 rdt_ps_after_pipe=0
   }
   # A `)` or `}` judges the innermost level and hands its parked statement back
   # with one placeholder word, the kind the level was opened with (`(` or
@@ -6086,7 +6345,7 @@ rdt_ps_walk() {
   # statement.
   rdt_ps_close() {
     rdt_ps_end_stmt
-    local __k=${#__svn[@]} __cnt __tot __kind
+    local __k=${#__svn[@]} __cnt __tot __kind __d
     ((__k)) || return 0
     __cnt=${__svn[__k - 1]}
     __kind=${__svk[__k - 1]}
@@ -6098,7 +6357,13 @@ rdt_ps_walk() {
       __words=()
     fi
     rdt_ps_piped=${__svp[__k - 1]}
-    unset "__svn[__k - 1]" "__svp[__k - 1]" "__svk[__k - 1]"
+    # A level that held decoded text taints the statement it hands back to.
+    __d=${__svd[__k - 1]}
+    rdt_ps_dec=$((${__d:0:1} | rdt_ps_lvl_dec))
+    rdt_ps_lvl_dec=${__d:1:1}
+    rdt_ps_pipe_dec=${__d:2:1}
+    rdt_ps_after_pipe=${__d:3:1}
+    unset "__svn[__k - 1]" "__svp[__k - 1]" "__svk[__k - 1]" "__svd[__k - 1]"
     __words+=("$__kind")
     if [[ "$__kind" == "{" ]]; then
       case "${__words[0],,}" in
@@ -6238,6 +6503,7 @@ rdt_ps_walk() {
         rdt_ps_piped=0
         rdt_ps_end_stmt
         rdt_ps_piped=1
+        rdt_ps_after_pipe=1
       fi
       ;;
     '&')

@@ -30,10 +30,13 @@
 # change set; its initial release already carries the vendored source. Whether
 # the bump also writes its changelog entry is changelog-parity-gate's half.
 #
+# "Differs from <base-ref>" means differs from the merge base of <base-ref> and
+# HEAD, so a branch behind its base is judged only on its own changes.
+#
 # Exit: 0 no unbumped vendor change; 1 at least one; 2 usage, a base ref git
-# cannot resolve, a failed diff, missing tooling, or a base manifest that
-# exists but cannot be read as a version (failed git show, malformed JSON, no
-# `version` key) — a gate that cannot see must refuse to pass, never report
+# cannot resolve or with no merge base with HEAD, a failed diff, missing
+# tooling, or a base manifest that exists but cannot be read as a version
+# (failed git show, malformed JSON, no `version` key) — a gate that cannot see must refuse to pass, never report
 # "nothing changed", and never mistake "could not read" for the new-plugin
 # carve-out.
 set -uo pipefail
@@ -66,6 +69,13 @@ if ! gate_entry::classify "$@"; then
   exit 2
 fi
 base="$GE_REF"
+# Compare against the fork point, not the tip of the base: a branch behind its
+# base would otherwise count the base's own later changes as its changes. $base
+# stays the name the messages print.
+if ! mb="$(git merge-base "$base" HEAD)"; then
+  echo "$self: 'git merge-base $base HEAD' failed (no common ancestor, or history not fetched deeply enough); refusing to pass without checking." >&2
+  exit 2
+fi
 
 # One diff over the whole plugins/ tree, filtered structurally in the loop: a
 # git pathspec glob ('plugins/*/vendor/') matches `*` across slashes, so it
@@ -91,7 +101,7 @@ base="$GE_REF"
 # (non-ASCII bytes, a literal quote) reaches the structural filter verbatim
 # instead of wrapped in quotes that match no pattern.
 changed_paths=()
-if ! changed_files::into changed_paths "$base" --include-deleted --no-renames -- plugins/; then
+if ! changed_files::into changed_paths "$mb" --include-deleted --no-renames -- plugins/; then
   echo "$self: git diff failed against $base (or staging its output did); refusing to pass on a change set this gate could not read" >&2
   exit 2
 fi
@@ -157,14 +167,14 @@ for plugin in "${changed_plugins[@]}"; do
   # a path the base tree lacks, non-zero only when git itself failed), and
   # once the manifest is known to exist every later step must succeed: a base
   # version this gate cannot read is not a bump exemption.
-  if ! base_manifest_entry="$(git ls-tree --name-only "$base" -- "$manifest")"; then
+  if ! base_manifest_entry="$(git ls-tree --name-only "$mb" -- "$manifest")"; then
     echo "$self: git ls-tree failed reading $base; refusing to pass on a base this gate could not read" >&2
     exit 2
   fi
   if [[ -z "$base_manifest_entry" ]]; then
     continue
   fi
-  if ! git show "$base:$manifest" >"$base_manifest_file"; then
+  if ! git show "$mb:$manifest" >"$base_manifest_file"; then
     echo "$self: git show failed reading $manifest at $base; refusing to pass on a manifest this gate could not read" >&2
     exit 2
   fi
@@ -184,7 +194,7 @@ for plugin in "${changed_plugins[@]}"; do
   rc=1
   if [[ -n "$head_version" ]]; then
     rc=0
-    changelog_fragments::bump_delivered "$base" "$plugin" "$base_version" "$head_version" || rc=$?
+    changelog_fragments::bump_delivered "$mb" "$plugin" "$base_version" "$head_version" || rc=$?
   fi
   # shellcheck disable=SC2310  # the non-zero return IS the answer; bump_delivered already read the list
   if ((rc == 1)) && [[ -n "$head_version" ]] && changelog_fragments::in_mode "$plugin"; then

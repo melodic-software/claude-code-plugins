@@ -317,7 +317,7 @@ The command and this skill share a name, so "plan this" can mean either.
 - **`/plan` (built-in command)**: `/plan [description]` enters plan mode, optionally starting on the description; `/plan open` views the session plan. It is reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** The planning discipline: stress-test, blast radius, an approval gate, and a persisted PLAN.md a cleared session can execute.
 
-**Routing.** Where Plan Mode Integration says to suggest plan mode, offer it to the person: you can run `/plan` (or press `shift+tab`) alongside this skill. Prefer this skill for the plan itself. When the caller passes `unattended` as the first argument, the run records the offer in its output instead of asking; without that argument it asks.
+**Routing.** Where Plan Mode Integration says to suggest plan mode, offer it to the person: If /plan is available in your session (gate basis: not gated behind a setting, though a host may lack it; records in [reference/native-plan.md](reference/native-plan.md)), you can run it (or press `shift+tab`) alongside this skill. Prefer this skill for the plan itself. When the caller passes `unattended` as the first argument, the run records the offer in its output instead of asking; without that argument it asks.
 
 **Mutation gate.** This skill writes PLAN.md and its checklist; `/plan` changes the permission mode. This skill never toggles the mode on the person's behalf.
 
