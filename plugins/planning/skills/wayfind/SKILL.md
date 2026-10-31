@@ -177,7 +177,7 @@ that charting needs an interactive session. Do not fabricate a map.
      other. When it resolves, add its pointer to Decisions-so-far and change the old decision's
      line to `<old title> (#<old>): superseded by <new title> (#<new>) (resolved <date>)`.
      Never reopen the old item or edit its resolution comment.
-7. **Map closure → destination handoff.** When the frontier is empty and every decision item is
+7. **Map closure → destination handoff.** When the frontier holds no item and every decision item is
    closed, close the map issue and hand the destination onward (`/planning:interview` or
    `/planning:prd` for a Brief/PRD; `/planning:design`, ahead of `/planning:plan`, for a PLAN).
 
