@@ -66,6 +66,14 @@ Walk it top to bottom; do not restate or improvise any of its steps. On the full
 shape 2: `save_point.py validate <file>` must exit 0 before anything launches (an unfinished
 skeleton, one still carrying `<!-- FILL` slots, fails there and cannot be launched from).
 
+The launched session has its own session id, so hand it this session's worktree claims exactly as
+the sibling `handoff` skill's "Hand worktree claims to the resuming session" does. On the full
+path the payload ends at the `Read @` directive, so the file carries the handover: the Environment
+to re-establish entry and the first item of `Remaining actions, in order`. On prompt-only the first
+remaining-work bullet carries it, in the resume region the payload includes. Either way the
+successor runs the handover before `check-enter`. `--cloud` skips it: the cloud session has no
+local worktree to re-lock.
+
 ## Completion condition gate
 
 No one is present to say the work is done, so the launched session starts only with a checkable
@@ -364,6 +372,8 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   inline `Purpose:` line between the rails, never discarded (the launched agent receives exactly
   the rails prompt); a goal-conflicting purpose flagged rather than obeyed; never embedded in the
   launch command. No purpose given → nothing to tick
+- [ ] Worktree claims handed to the successor ("Produce the save-point"): each worktree whose
+  lock names this session carries the handover before `check-enter` (OR none held)
 - [ ] Dirty-tree gate evaluated this turn: `git rev-parse --is-inside-work-tree` first, then
   `git status --porcelain -uall` when it says `true`, ignoring save-point files under the handoff
   location; effective `worktree.bgIsolation` read before judging other changes, and `none` → launch with the

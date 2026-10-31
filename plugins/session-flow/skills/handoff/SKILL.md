@@ -235,6 +235,16 @@ and its reason there instead, and list every untracked path under "File roles in
 since the commit left them out. On the prompt-only path, which writes no file, the same facts go
 into the resume prompt as one bullet.
 
+## Hand worktree claims to the resuming session
+
+`/clear` starts a new session id, and a worktree lock names the session that holds it, so without a
+handover the resumed session's claim gate stops on its own lane's worktree. For each worktree this
+session holds a claim on, record the old session id under Environment to re-establish and make the
+handover the first remaining action, which leads the resume prompt's `Next:` headlines, as the
+structure doc's "Worktree claims" paragraph says. On
+the prompt-only path the first remaining-work bullet carries the path, this session's id and the
+handover step, since no file holds them. Release nothing: the claim moves, it is never dropped.
+
 ## Produce the save-point
 
 The save-point machinery, destination resolution, locating the position, full-vs-prompt-only
@@ -338,6 +348,11 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   with `TodoWrite` instead, from the latest `TodoWrite` call; with neither, a line saying this
   session has no task tools (OR, in every case, an explicit statement that there is nothing to
   recreate)
+- [ ] Worktree claims read this turn ("Hand worktree claims to the resuming session"): each
+  worktree whose lock names this session has an Environment to re-establish entry with its path,
+  this session's id and the handover before `check-enter`, and the handover is the first item of
+  `Remaining actions, in order`, so it leads `Next:` unless the handoff is closed (OR a line
+  saying this session holds no worktree claim)
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
   names the previous handoff recorded as deliberately left running. For each one, read its
   actual output or transcript per
@@ -410,6 +425,9 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   is `UNVERIFIED (<check>)`, never "verified" (engine doc, "Claim provenance";
   [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
+- [ ] Worktree claims read this turn: each worktree whose lock names this session is the first
+  remaining-work bullet, with its path, this session's id and the handover before `check-enter`
+  (OR none held)
 - [ ] `wip_commit` line reported, as on the full path; a commit, refusal or hook rejection is one
   bullet in the prompt, nothing pushed
 - [ ] If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`unattended`:** record the suggestion; do not ask.
