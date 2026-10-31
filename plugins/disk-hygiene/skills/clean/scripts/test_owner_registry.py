@@ -359,7 +359,8 @@ LABEL_ONLY = {SCRIPTS / "deep_inventory.py"}
 # handoff lane reaches it through `unlink_handoff_path`, and recycles through
 # `recycle_handoff_path` and `windows_recycle` on Windows.
 # `write_text_atomic` and `run_inventory` remove only the temporary file they wrote themselves,
-# and `close_clean_runs` only the clean belt's run markers under the data root.
+# and `close_clean_runs` only the calling session's clean-belt run marker under the data
+# root.
 DELETERS = {
     "apply_plan",
     "handoff_apply",
@@ -698,7 +699,8 @@ class EngineSourceTest(unittest.TestCase):
         self.assertEqual(["marker.unlink"], removals)
         source = ast.unparse(closer)
         self.assertIn("engine_grammar.RUN_MARKER_DIRNAME", source)
-        self.assertIn("glob('*.json')", source)
+        self.assertIn("engine_grammar.run_marker_filename(session_id)", source)
+        self.assertNotIn("glob(", source)
 
 
 class BaselinePolicyUnchangedTest(unittest.TestCase):

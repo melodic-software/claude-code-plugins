@@ -1383,6 +1383,37 @@ test("pr-run-activity-write.yml prepares no head test-file runner", () => {
   assert.doesNotMatch(read("../../workflows/pr-run-activity-write.yml"), /run-test-file|check-skill/);
 });
 
+// claude-code-action puts the lane token in GH_TOKEN and GITHUB_TOKEN of the
+// environment it hands Claude, and the environment scrub keeps both for Bash,
+// so the skill's settings set both to empty: no Bash process, the wrappers'
+// ancestors included, holds the token in its /proc/<pid>/environ. The action's
+// MCP servers get the token from their own config env.
+test("pr-run-activity-write.yml clears the GitHub token from the skill's Bash", () => {
+  const steps = Object.values(workflow("pr-run-activity-write.yml").jobs).flatMap((job) => job.steps ?? []);
+  const skill = steps.find((step) => step.id === "act-skill");
+  const clear = steps.find((step) => step.id === "skill-settings");
+  assert.ok(clear, "no step clears the token from the skill's settings");
+  assert.ok(steps.indexOf(clear) < steps.indexOf(skill));
+  assert.equal(clear.if, skill.if);
+  assert.equal(clear.env.SETTINGS_JSON, "${{ steps.config.outputs.settings-json }}");
+  assert.equal(skill.with.settings, "${{ steps.skill-settings.outputs.json }}");
+  const dir = tempDir("skill-settings-");
+  const output = join(dir, "output");
+  const run = (settingsJson) => {
+    writeFileSync(output, "");
+    const result = spawnSync("bash", ["-c", clear.run], {
+      env: { ...process.env, SETTINGS_JSON: settingsJson, GITHUB_OUTPUT: output },
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(/^json=(.*)$/m.exec(readFileSync(output, "utf8"))[1]);
+  };
+  const cleared = { GH_TOKEN: "", GITHUB_TOKEN: "" };
+  assert.deepEqual(run(""), { env: cleared });
+  assert.deepEqual(run(SUBAGENT), { env: { CLAUDE_CODE_SUBAGENT_MODEL: "haiku", ...cleared } });
+  assert.deepEqual(run('{"env":{"GH_TOKEN":"x"},"model":"m"}'), { env: cleared, model: "m" });
+});
+
 // The admission gate: on an issue anyone can open, only a listed human's
 // agent-ready label (or the lanes App's own) may start a job that gets the
 // issue lane's Claude credential or runs the read runner.

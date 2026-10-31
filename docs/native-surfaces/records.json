@@ -3577,11 +3577,11 @@
         "kind": "skill"
       },
       "reason": "/agents manages subagents (its registration now reads \"(removed)\"); ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
+      "as_of": "2.1.314",
+      "date": "2026-10-31",
       "fingerprint": {
         "native": "50803a5285096ddfa642be9e0d31533f",
-        "component": "e86f6506f34e1755f133f801bf57677e"
+        "component": "cd7f413b405cdf063bd8232bbc12c86c"
       }
     },
     {
@@ -3798,6 +3798,24 @@
       "fingerprint": {
         "native": "5069683c7e6234eea9e55f077aab832a",
         "component": "9648b17d76a5aff222e60fc2704daa4b"
+      }
+    },
+    {
+      "native": {
+        "name": "brief",
+        "class": "builtin-command"
+      },
+      "component": {
+        "plugin": "review",
+        "skill": "brief-reviewer",
+        "kind": "agent"
+      },
+      "reason": "/brief toggles brief-only output mode; ours is a read-only reviewer agent that runs the review brief it is dispatched with. Shared word only. Ruled 2026-10-26 by the owner's recorded direction on #9105.",
+      "as_of": "2.1.314",
+      "date": "2026-10-31",
+      "fingerprint": {
+        "native": "5069683c7e6234eea9e55f077aab832a",
+        "component": "7ef1065b167e33c3ebc33ec443415195"
       }
     },
     {
@@ -4747,11 +4765,11 @@
         "kind": "skill"
       },
       "reason": "/rename renames the conversation; ours sweeps stale references after a file or symbol rename. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.288",
-      "date": "2026-10-02",
+      "as_of": "2.1.314",
+      "date": "2026-10-31",
       "fingerprint": {
         "native": "b7b277e905dba7621cb48e6eef55ae23",
-        "component": "3dd11aa7afb7ac4bdf88bbfffb2c1845"
+        "component": "e2eb959d9b86b8ef172d5f3569d8cc78"
       }
     },
     {
@@ -4855,11 +4873,11 @@
         "kind": "skill"
       },
       "reason": "/resume reopens a previous conversation; ours launches a new detached session to carry the current work. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
+      "as_of": "2.1.314",
+      "date": "2026-10-31",
       "fingerprint": {
         "native": "d70acfcedf494ca9e65a44cf39476a7b",
-        "component": "55c282b9936fe112e1a991bb5a8bff7a"
+        "component": "212ffa50da668a2dfcbdbc3240a857e4"
       }
     },
     {
@@ -4909,11 +4927,11 @@
         "kind": "skill"
       },
       "reason": "/stop ends a background session; ours sweeps repositories for unpushed work before the machine goes away. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
+      "as_of": "2.1.314",
+      "date": "2026-10-31",
       "fingerprint": {
         "native": "d5e0baa18be41b93d246633a7e178c62",
-        "component": "6dbc0857c2afc2636edbf9de4e4a9a60"
+        "component": "10815f1fd37ec6e7a46d1e4c576e0bf4"
       }
     },
     {
