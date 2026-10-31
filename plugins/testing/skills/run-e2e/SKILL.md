@@ -1,6 +1,6 @@
 ---
 description: "When the bundled run skill resolves in this session, prefer it to launch the app for a quick look; this skill for evidenced verification flows. End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use when: the user wants the running app verified end to end (e2e, smoke test, 'does it actually work'), the UI clicked through, or UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
-argument-hint: "[unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [worst-case [--keep]] [scenario|<target>]"
+argument-hint: "[worst-case…] [--unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [scenario|<target>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -41,25 +41,28 @@ tilt, a dev-server script) and any documented evidence requirements govern.
 
 ## Arguments
 
-`$ARGUMENTS`: `[unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [worst-case [--keep]] [scenario|<target>]`,
+`$ARGUMENTS`: `[worst-case [--keep]] [--unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [scenario|<target>]`,
 e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`, `/testing:run-e2e non-ui`,
-`/testing:run-e2e unattended app=shop base=main the login flow`,
+`/testing:run-e2e --unattended app=shop base=main the login flow`,
 `/testing:run-e2e worst-case the member list`.
 
-- `unattended`, optional, the first token: the caller declares no one is present. The run asks
-  nothing: Step 1 takes its unattended column, own driving never invokes the bundled `run` skill,
-  and the run writes `e2e-summary.json` (Step 5).
-- `app=<app>`, `base=<ref>`, `trusted-root=<dir>`, optional, in any order right after the optional
-  `unattended`: the app `/app-control:drive` runs, the ref the change is diffed from, and the only
+- `--unattended`, optional, anywhere in the arguments: the caller declares no one is present. Take
+  it out of `$ARGUMENTS` first; the rules below read what is left. The run asks nothing: Step 1
+  takes its unattended column, own driving never invokes the bundled `run` skill, and the run
+  writes `e2e-summary.json` (Step 5). The bare word `unattended` is not this flag: it is scenario
+  text, and the run is attended.
+- `app=<app>`, `base=<ref>`, `trusted-root=<dir>`, optional, in any order, as the first tokens left
+  once `--unattended` is out or right after `worst-case [--keep]`: the app `/app-control:drive` runs, the ref the change is diffed from, and the only
   root drive reads control skills from. `<app>` and `--trusted-root <dir>` go to every drive call,
   `ready` included; `--base <ref>` goes only to `affected`. Without `base=`, the base is the
   default branch's remote-tracking ref, `git symbolic-ref --short refs/remotes/origin/HEAD`. When
   that command prints no ref (CI checkouts and shallow clones often lack `origin/HEAD`), the run
-  guesses no other branch: an attended run asks for the base, and an `unattended` run invokes no
+  guesses no other branch: an attended run asks for the base, and an `--unattended` run invokes no
   `affected`, takes `blocked: no base ref (pass base=<ref>)` as `affected`'s `blocked:` line
   (Step 1) and goes on to own driving of what the scenario names. `capture` is `blocked` with that
   reason only when the run then drives nothing, and `ran` when it drives an entry point (Step 5).
-- `worst-case`, optional: the action, only as the exact next token after those (scenario text that
+- `worst-case`, optional: the action, only as the first token left or the exact next token after
+  the `app=`, `base=` and `trusted-root=` tokens (scenario text that
   merely starts with the word, such as `worst-case-scenario …`, stays a scenario). It takes a
   `<target>` (a component, screen or route) and runs the Worst-case content section below.
   `--keep`, right after it, keeps the injected fixture as a regression test.
@@ -84,12 +87,12 @@ service, is an app to drive and takes Step 1 like the e2e route.
 The testing plugin works without app-control and never requires it. Check first whether
 `/app-control:drive` resolves in this session. When it does, invoke
 `/app-control:drive affected [<app>] --base <ref> --out <run dir>/affected` through the Skill tool,
-adding `--unattended` on an `unattended` run and `--trusted-root <dir>` when given, and read
+adding `--unattended` on an `--unattended` run and `--trusted-root <dir>` when given, and read
 `<run dir>/affected/affected.json` as data: a non-null `control_skill` is a control skill found,
 `null` is none. When `affected` writes no `affected.json`, take its `blocked:` line into the report
 and count the control skill as none.
 
-| app-control | Control skill | Attended | `unattended` |
+| app-control | Control skill | Attended | `--unattended` |
 |---|---|---|---|
 | `/app-control:drive` resolves | found | Say the run goes through `/app-control:drive` and that the person can decline, then use it | Use `/app-control:drive` with `--unattended` |
 | `/app-control:drive` resolves | none | Offer to create one with `/app-control:map create`; ask and wait for the answer | Own driving; the report records the suggestion |
@@ -171,7 +174,7 @@ failed scenario returns a failure packet path with the evidence paths.
 ### Drive route
 
 The subagent invokes `/app-control:drive [<app>] <feature> --out <run dir>/<feature>` through the
-Skill tool once per touched feature, adding `--unattended` on an `unattended` run and
+Skill tool once per touched feature, adding `--unattended` on an `--unattended` run and
 `--trusted-root <dir>` when given. Each feature gets
 its own directory because drive writes one `report.md` and `report.json` per run directory; the
 subagent returns every feature's report paths. Drive's own body governs the launch, Ready, the
@@ -223,7 +226,7 @@ found) gets its control skill brought back in line, under its feature id (Step 2
 `/app-control:map` is the only writer of a control skill; this skill never edits one.
 
 - `/app-control:map` resolves: invoke `/app-control:map refresh <feature id>` through the Skill tool
-  once per touched feature, adding `--unattended` on an `unattended` run, and report each pass's
+  once per touched feature, adding `--unattended` on an `--unattended` run, and report each pass's
   `clean`, `changed` or `blocked` result. A blocked pass is reported, never a failed run.
 - It does not resolve: no feature was matched (Step 2), so nothing is refreshed; the
   `touched features not matched (app-control not installed)` line stands and `## Next` names
@@ -237,7 +240,7 @@ step and runs it once itself over the merged report, so two runs never refresh t
 
 ## Step 5: Unattended summary
 
-An `unattended` run ends by writing `e2e-summary.json` at the top of its run directory, for the job
+An `--unattended` run ends by writing `e2e-summary.json` at the top of its run directory, for the job
 that called it. One object:
 
 | Field | Holds |

@@ -1,0 +1,67 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --format=%B -1"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff"
+          }
+        }
+      ],
+      "why": "read-only git"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add skills/run-review/SKILL.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git commit -am \"fit SKILL.md under the cap\""
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git checkout -- skills/run-review/SKILL.md"
+          }
+        }
+      ],
+      "why": "the tree belongs to the runner"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C /work restore skills/run-review/SKILL.md"
+          }
+        }
+      ]
+    }
+  ]
+}

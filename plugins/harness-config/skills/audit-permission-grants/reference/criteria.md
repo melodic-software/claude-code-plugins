@@ -66,7 +66,9 @@ The coverage block also counts plugin manifests and plugin `settings.json` files
 walk could not open, and files an exclusion rule removed. `No fragile permission grants found.` is printed only against a non-zero
 denominator with every input readable; a run that parsed nothing prints `NOTHING TO AUDIT`, and a run
 that found nothing but could not open or parse an input prints `INCOMPLETE SCAN, NOT A CLEAN BILL`
-with its audited and blocked counts. Neither may be relayed as clean.
+with its audited and blocked counts. A run that would otherwise print the clean bill, but excluded
+every frontmatter candidate as non-loadable, prints `NO FRONTMATTER AUDITED, NOT A CLEAN BILL`.
+None of these may be relayed as clean.
 
 **The exclusion set is disclosed rather than extended by path segment, and here is why.** A
 blanket `vendor/` or `node_modules/` exclusion would make an `error`-tier check silently blind to
@@ -75,8 +77,13 @@ file in that subdirectory (<https://code.claude.com/docs/en/skills>, fetched 202
 when the skills page changes how nested `.claude/skills/` directories are discovered). The
 detector instead applies a **loadability model**: only frontmatter at documented discovery paths is
 audited, meaning project or nested `.claude/skills/<name>/SKILL.md`, plugin `skills/<name>/SKILL.md`, and
-the parallel agents/commands paths. Everything else is excluded and counted. Filtering to *installed*
-plugin versions needs an `installed_plugins.json` oracle this detector does not consult.
+the parallel agents/commands paths. A plugin root is `plugins/<name>/`, or any directory at or below
+the scan root that holds `.claude-plugin/plugin.json`, which covers an installed cache root
+(`cache/<marketplace>/<plugin>/<version>/`) and a single-plugin repository
+(<https://code.claude.com/docs/en/plugins-reference> "Standard layout", fetched 2026-10-31; recheck
+when that table moves `skills/`, `agents/` or `commands/` off the plugin root). Everything else is
+excluded and counted. Filtering to *installed* plugin versions needs an `installed_plugins.json`
+oracle this detector does not consult.
 An exclusion whose count is printed cannot suppress anything silently, which is the property that
 matters.
 

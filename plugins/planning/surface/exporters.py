@@ -11,7 +11,9 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  restatement rev (without one, each Problem field reads `unknown` and each Work
                  size field `not assessed`; with no confirmed Constraints it lists the page's
                  recorded constraints and the ledger's `## Constraint ledger` rows), as do a
-                 Decisions section from its decisions recap, the Deferred questions entries
+                 Decisions section from its decisions recap (a line taken while unticked
+                 commitments held its row open reads `answered` once they are ticked), the
+                 Deferred questions entries
                  from its deferred and planningOwned bullets and the TLDR's opening scope
                  bullets from its tldr. Intent, above Goal, holds its intent paragraph (else
                  `none stated`), then the user's own words: each live ask, note and own event's
@@ -1083,6 +1085,41 @@ def replacements(rows):
     return out
 
 
+# A recap line written while the row was open: its Q<N>, then its question and answer.
+OPEN_RECAP = re.compile(r"^(?:[-*+]\s+)?(Q[1-9][0-9]*) open: (.*)\)$")
+
+
+def recap_head(said, answer):
+    """The question part of a recap line's `<question> (<answer>` text, through the `(` and any
+    `[id] ` lead, when the answer it shows is `answer` as it read before its commitments were
+    ticked, or that answer cut short; else None."""
+    base = answer.rpartition("; confirmed: ")[0]
+    for m in re.finditer(r"\((\[[^\]\s]+\] )?", said) if base else ():
+        shown = said[m.end() :]
+        whole = shown == base or shown.startswith(base + "; confirmed: ")
+        cut = shown.endswith("…") and shown[:-1].strip() and answer.startswith(shown[:-1])
+        if whole or cut:
+            return said[: m.end()]
+    return None
+
+
+def ticked_recap(text, rows):
+    """The restated decisions recap, each line written while unticked commitments held its row
+    open rewritten as `answered` with the row's whole answer once they are ticked, as "Tick
+    these and confirm" does after the recap was taken. A line whose answer changed is kept."""
+    by_n = {r["n"]: r for r in rows}
+    out = []
+    for line in str(text or "").splitlines():
+        m = OPEN_RECAP.match(line.strip())
+        r = by_n.get(m.group(1)) if m else None
+        ticked = r and r["status"] == "answered" and r["carries"] and r["confirmed"]
+        head = recap_head(m.group(2), r["readable"]) if ticked else None
+        if head is not None:
+            line = f"{m.group(1)} answered: {head}{r['readable']})"
+        out.append(line)
+    return "\n".join(out)
+
+
 def marked_decisions(sections, replaced):
     """The restated decisions recap, each line a replacing row leads ending `; replaces Q<N>`
     with the rows it superseded, unless the line already says so."""
@@ -1162,19 +1199,25 @@ def ledger_row(n, qid, status, title, res):
 
 
 def unanswered_asks(doc, events):
-    """Each Notes line Claude posted with needsAnswer that no live note from the user is at or
-    after; the page pins the newest of them as a loose end."""
-    said = [
-        str(e.get("at") or "")
-        for e in events
-        if e.get("kind") == "note" and not e.get("withdrawn")
-    ]
-    last = max(said, default=None)
-    return [
-        n
-        for n in doc.get("notes") or []
-        if n.get("needsAnswer") and (last is None or last < str(n.get("at") or ""))
-    ]
+    """Each Notes line Claude posted with needsAnswer that no live note from the user answers.
+    Each user note answers the oldest ask still open at or before it, so two asks need two
+    notes; the page pins the same asks as loose ends."""
+    notes = doc.get("notes") or []
+    thread = sorted(
+        [(str(n.get("at") or ""), 0, i) for i, n in enumerate(notes) if n.get("needsAnswer")]
+        + [
+            (str(e.get("at") or ""), 1, 0)
+            for e in events
+            if e.get("kind") == "note" and not e.get("withdrawn")
+        ]
+    )
+    waiting = []
+    for _, by_user, i in thread:
+        if by_user:
+            waiting = waiting[1:]
+        else:
+            waiting.append(notes[i])
+    return waiting
 
 
 def brief_label(r):
@@ -1252,6 +1295,8 @@ def export_brief(d, text=None):
     rows.sort(key=lambda r: int(r["n"][1:]))
     latest, restated, sign = confirmed_restatement(doc, resp.get("events") or [])
     sections = (restated or {}).get("sections") or {}
+    if sections.get("decisions"):
+        sections = dict(sections, decisions=ticked_recap(sections["decisions"], rows))
     count = {
         s: sum(1 for r in rows if r["status"] == s)
         for s in ("answered", "deferred", "blocked", "withdrawn", *UNSETTLED)

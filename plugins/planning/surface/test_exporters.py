@@ -1,5 +1,6 @@
 # test-scope: plugins/planning/surface/tests/fixtures/ledger-legacy/*
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
+# test-scope: .markdownlint-cli2.jsonc plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
 """Tests for the exporters and import-ledger (AC27 to AC29), driven through round.py's CLI.
 
 Sessions are built in temporary data dirs: questions.json written directly, responses.json
@@ -634,13 +635,21 @@ class TestExportBrief(SessionCase):
 
     COVERAGE = "Are the criteria missing an unwanted-behavior case and a state-driven case?"
 
-    def with_coverage_prompt(self, events):
-        """Q1 accepted, then the coverage prompt posted in Notes with needsAnswer, then events."""
+    SECOND = "Which reader is the report for?"
+
+    def ask(self, at):
+        """A second Notes line from Claude that needs an answer, posted at `at`."""
+        return {"at": at, "by": "claude", "text": self.SECOND, "needsAnswer": True}
+
+    def with_coverage_prompt(self, events, *asks):
+        """Q1 accepted, then the coverage prompt posted in Notes with needsAnswer, then any
+        further asks, then events."""
         self.session([question("Q1")], [event(1, "Q1", "accept"), *events])
         path = self.dir / "questions.json"
         doc = json.loads(path.read_text(encoding="utf-8"))
         doc["notes"] = [
-            {"at": "2026-09-24T10:05:00Z", "by": "claude", "text": self.COVERAGE, "needsAnswer": True}
+            {"at": "2026-09-24T10:05:00Z", "by": "claude", "text": self.COVERAGE, "needsAnswer": True},
+            *asks,
         ]
         path.write_text(json.dumps(doc), encoding="utf-8")
         text = self.export("brief").read_text(encoding="utf-8")
@@ -655,6 +664,20 @@ class TestExportBrief(SessionCase):
         reply = {**event(2, None, "note", text="Neither applies."), "at": "2026-09-24T10:06:00Z"}
         assumptions = self.with_coverage_prompt([reply])
         self.assertNotIn("asked in Notes", assumptions)
+
+    def test_one_reply_answers_only_the_oldest_of_two_asks(self):
+        second = self.ask("2026-09-24T10:05:00Z")
+        reply = {**event(2, None, "note", text="Neither applies."), "at": "2026-09-24T10:06:00Z"}
+        assumptions = self.with_coverage_prompt([reply], second)
+        self.assertNotIn(self.COVERAGE, assumptions)
+        self.assertIn(f"- asked in Notes, not answered: {self.SECOND}\n", assumptions)
+
+    def test_a_reply_before_an_ask_does_not_answer_it(self):
+        later = self.ask("2026-09-24T10:07:00Z")
+        reply = {**event(2, None, "note", text="Neither applies."), "at": "2026-09-24T10:06:00Z"}
+        assumptions = self.with_coverage_prompt([reply], later)
+        self.assertNotIn(self.COVERAGE, assumptions)
+        self.assertIn(f"- asked in Notes, not answered: {self.SECOND}\n", assumptions)
 
 
 LEDGER_HEAD = "# Interview ledger\n\n## Open-question register\n\n"
@@ -1142,6 +1165,7 @@ class TestBriefDecisionsOnce(SessionCase):
     ledger, and an answered row the confirmed restatement carries adds no raw Constraints line."""
 
     OLD = ("Cache builds in S3?", "S3 cache", "Use the shared S3 bucket.")
+    LONG = " ".join(["Keep the build cache on the runner's local disk."] * 8)
 
     def section(self, text, name):
         return text.split(f"### {name}")[1].split("###")[0].split("\n## ")[0]
@@ -1262,6 +1286,55 @@ class TestBriefDecisionsOnce(SessionCase):
         self.assertIn("- Q2 Short Q2: alt a: Alt a of Q2\n", constraints)
         self.assertEqual(text.splitlines().count(f"- {own}"), 1)
         self.assertIn("- Q4 Short Q4: accepted: Recommended answer for Q4.", constraints)
+
+    def test_commitments_ticked_at_confirm_leave_one_line_in_its_final_status(self):
+        qs = [
+            question("Q1", commits=["One writer only"]),
+            question("Q2", commits=["Retries stop at three"]),
+            question("Q3"),
+            question("Q4", recommendation=self.LONG, commits=["Cache stays local"]),
+        ]
+        events = [event(i, f"Q{i}", "accept") for i in (1, 2, 3, 4)]
+        self.session(qs, events)
+        recap, _ = exporters.confirmation_recap(self.dir, 20000)
+        self.assertIn("Q1 open: ", recap)
+        self.assertRegex(recap, r"Q4 open: .*…\)")
+        text = self.confirmed(
+            qs,
+            # "Tick these and confirm" ticks Q1's commitment after the recap was taken; Q2 then
+            # takes an alternative, so its answer changed and its line stays as written.
+            [
+                *events,
+                event(5, "Q1", "confirm", alt="0"),
+                event(6, "Q4", "confirm", alt="0"),
+                event(7, "Q2", "alt", alt="a"),
+            ],
+            decisions=recap,
+            **RESTATED,
+        )
+        q1 = [x for x in text.splitlines() if re.match(r"^- Q1\b", x)]
+        self.assertEqual(
+            q1,
+            [
+                "- Q1 answered: Question Q1? "
+                "(accepted: Recommended answer for Q1.; confirmed: One writer only)"
+            ],
+        )
+        self.assertIn(q1[0], self.section(text, "Decisions"))
+        self.assertNotIn("Q1 open", text)
+        self.assertIn("- Q2 open: ", self.section(text, "Decisions"))
+        constraints = self.section(text, "Constraints")
+        self.assertIn("- Q2 Short Q2: alt a: Alt a of Q2\n", constraints)
+        # Q4's recap line cut its long answer; it still reads once, whole.
+        q4 = [x for x in text.splitlines() if re.match(r"^- Q4\b", x)]
+        self.assertEqual(
+            q4,
+            [
+                f"- Q4 answered: Question Q4? "
+                f"(accepted: {self.LONG}; confirmed: Cache stays local)"
+            ],
+        )
+        self.gated("ticked", text)
 
 
 class TestChangedRowsRecap(SessionCase):
@@ -4671,7 +4744,7 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
         )
         before = ledger.read_text(encoding="utf-8")
         rc, out = self.rp("export-ledger", "--diff", str(ledger))
-        self.assertEqual(rc, 1, out)
+        self.assertEqual(rc, 6, out)
         self.assertIn("Q1 round: kept 'round 1 (design)' (page: 'round 1')", out)
         self.assertIn("Q3: only in the ledger; kept", out)
         self.assertIn("Q2 status: conflict, kept the ledger's 'answered'", out)
@@ -4681,7 +4754,7 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
         rc, out = self.rp(
             "export-ledger", "--out", str(merged), "--ledger", str(ledger)
         )
-        self.assertEqual(rc, 1, out)
+        self.assertEqual(rc, 6, out)
         self.assertIn("conflict", out)
         rows = register_rows(merged)
         self.assertIn("| round 1 (design) |", rows[0])
@@ -4704,7 +4777,7 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
             ]
         )
         rc, out = self.rp("export-ledger", "--diff", str(ledger))
-        self.assertEqual(rc, 1, out)
+        self.assertEqual(rc, 6, out)
         self.assertIn("Q1 status: 'deferred' -> 'answered'", out)
         self.assertNotIn("conflict", out)
 
@@ -4762,11 +4835,11 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
         ]
         ledger = self.ledger(answered)
         rc, out = self.rp("export-ledger", "--diff", str(ledger))
-        self.assertEqual(rc, 1, out)
+        self.assertEqual(rc, 6, out)
         self.assertIn("Q1 status: conflict, kept the ledger's 'answered'", out)
         self.assertIn("Q2 status: conflict, kept the ledger's 'answered'", out)
         rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
-        self.assertEqual(rc, 1, out)
+        self.assertEqual(rc, 6, out)
         self.assertEqual(register_rows(ledger), answered)
 
     def test_sync_ledger_into_an_empty_register_keeps_its_prose_apart(self):

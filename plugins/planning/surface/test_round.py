@@ -4010,6 +4010,24 @@ class TestRoundTooling(DirCase):
         rows = ledger.read_text(encoding="utf-8").splitlines()
         self.assertIn("- Q4 | open | round 2 | Question Q4? |", rows)
 
+    def test_sync_ledger_names_the_ledger_ledger_check_reads(self):
+        ledger = self.ledger()
+        self.assertNotIn("seededFrom", self.doc()["meta"])
+        rc, out, err = self.rp(
+            "add-round",
+            "--file",
+            self.round_file(question("Q4")),
+            "--sync-ledger",
+            str(ledger),
+        )
+        self.assertEqual(rc, 0, out + err)
+        meta = self.doc()["meta"]
+        self.assertEqual(meta["syncedLedger"], str(ledger.resolve()))
+        self.assertEqual(meta["ledgerSync"], {"rev": self.doc()["rev"], "rows": []})
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("ledger in sync", out)
+
     def test_sync_ledger_with_a_missing_ledger_writes_nothing(self):
         self.assert_refused(
             "add-round",
@@ -4543,7 +4561,7 @@ class TestSupersedeResolve(DirCase):
                 text=True,
                 timeout=60,
             )
-            self.assertEqual(p.returncode, 2, (args, p.stdout, p.stderr))
+            self.assertEqual(p.returncode, 1, (args, p.stdout, p.stderr))
         rc, out, err = self.cmd(
             "supersede", "Q1", "--proposes-file", str(self.tmp / "missing.txt"),
             "--ledger", str(self.ledger),
@@ -4623,12 +4641,12 @@ class TestLedgerCheck(DirCase):
     def test_a_disagreeing_row_is_recorded_and_logged_once(self):
         self.drift_one_row()
         rc, out, err = self.rp("ledger-check")
-        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(rc, 6, out + err)
         self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], ["Q2"])
         self.assertEqual(len(self.activity()), 1)
         self.assertRegex(self.activity()[0], r"^Ledger out of sync, 1 row: Q2 ")
         rc, out, err = self.rp("ledger-check")
-        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(rc, 6, out + err)
         self.assertEqual(len(self.activity()), 1)
 
     def test_a_page_without_a_ledger_is_not_checked(self):
@@ -4638,6 +4656,18 @@ class TestLedgerCheck(DirCase):
         rc, out, err = self.rp("ledger-check")
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("ledgerSync", self.doc()["meta"])
+
+    def test_a_page_synced_to_a_ledger_is_checked_against_it(self):
+        doc = self.doc()
+        del doc["meta"]["seededFrom"]
+        self.write_doc(doc)
+        rc, out, err = self.rp("sync-ledger", "--ledger", str(self.ledger))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], [])
+        self.drift_one_row()
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 6, out + err)
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], ["Q2"])
 
     def test_wake_logs_the_disagreeing_row_after_apply(self):
         self.drift_one_row()
@@ -5029,6 +5059,82 @@ class TestCliHygiene(DirCase):
 
         for op in r.OP_ARGS:
             self.assertIn(op, out)
+
+
+class TestExitCodes(DirCase):
+    """One exit code per outcome: 1 refused, 2 a missing prerequisite, 5 a server that did not
+    start, 6 a ledger the page disagrees with (TestLedgerCheck and the --diff tests in
+    test_exporters.py cover 6)."""
+
+    def test_round_sh_help_lists_every_exit_code(self):
+        bash = shutil.which("bash")
+        if not bash:
+            self.skipTest("bash is not on PATH")
+        p = subprocess.run(
+            [bash, str(HERE / "round.sh"), "--help"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
+        for line in (
+            "  0  done",
+            "  1  refused:",
+            "  2  a prerequisite is missing:",
+            "  5  ensure-running started the page server, but it did not answer",
+            "  6  the page and a ledger disagree:",
+        ):
+            self.assertIn(line, p.stdout)
+
+    def test_a_refusal_exits_1(self):
+        out = self.assert_refused("group-order", "g1")
+        self.assertIn("refused: group-order", out)
+
+    def test_a_usage_error_exits_1_not_the_prerequisite_code(self):
+        for args in (("status", "--no-such-flag"), ("add",)):
+            with self.subTest(args=args):
+                rc, out, err = self.rp(*args)
+                self.assertEqual(rc, 1, out + err)
+                self.assertIn("error:", err)
+
+    def test_missing_curl_exits_2_from_ensure_running_and_watch_sh(self):
+        empty = self.tmp / "empty-path"
+        empty.mkdir()
+        rc, out, err = self.rp(
+            "ensure-running", "--port", "0", env={**os.environ, "PATH": str(empty)}
+        )
+        self.assertEqual(rc, 2, out + err)
+        self.assertIn("missing prerequisite: curl", err)
+        bash = shutil.which("bash")
+        if not bash:
+            self.skipTest("bash is not on PATH")
+        p = subprocess.run(
+            [bash, str(HERE / "watch.sh"), str(self.dir)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={**os.environ, "WATCH_CURL": str(self.tmp / "no-such-curl")},
+        )
+        self.assertEqual(p.returncode, rc, p.stdout + p.stderr)
+        self.assertIn("missing prerequisite: curl", p.stderr)
+
+    def test_a_server_that_does_not_start_exits_5(self):
+        if not shutil.which("curl"):
+            self.skipTest("curl is not on PATH")
+        import contextlib
+        import io
+        from unittest import mock
+
+        import round as r
+
+        dead = subprocess.Popen([sys.executable, "-c", "pass"])
+        self.addCleanup(dead.wait)
+        err = io.StringIO()
+        with mock.patch.object(r, "start_server", return_value=dead):
+            with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as cm:
+                r.main(["--dir", str(self.dir), "ensure-running", "--port", "0"])
+        self.assertEqual(cm.exception.code, 5)
+        self.assertIn("the server did not start", err.getvalue())
 
 
 class TestRoundRestate(DirCase):

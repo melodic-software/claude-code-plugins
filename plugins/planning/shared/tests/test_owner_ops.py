@@ -1,4 +1,6 @@
 # test-scope: plugins/planning/shared/session.py plugins/planning/shared/schema/ops.schema.json plugins/planning/shared/schema/state.schema.json
+# test-scope: plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/shared/schema/wire.schema.json
+# test-scope: plugins/planning/surface/question_shape.py plugins/planning/surface/schema.py plugins/planning/surface/schema/*.schema.json
 """Claude's resolve-report, share-result and take-down-result ops act as the owner's page does, and a prototype
 question an op writes keeps the prototype rules.
 

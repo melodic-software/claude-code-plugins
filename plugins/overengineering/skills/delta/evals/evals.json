@@ -60,7 +60,7 @@
     {
       "id": 5,
       "name": "quiet-cycle-is-one-line-and-routes-nothing",
-      "prompt": "/overengineering:delta unattended",
+      "prompt": "/overengineering:delta --unattended",
       "expected_output": "Runs the audit unattended, compares the spines, finds nothing clearing the noise budget, and says so in one line plus the counts table — then stops. It does not restate the open findings, does not list the counted classes as rows, does not offer a summary of what is still outstanding, and does not touch any tracker item: a 'nothing changed this cycle' comment is exactly the nag the lane exists to avoid. It still reports something rather than going silent, because total silence is indistinguishable from a lane that stopped running.",
       "files": [],
       "expectations": [

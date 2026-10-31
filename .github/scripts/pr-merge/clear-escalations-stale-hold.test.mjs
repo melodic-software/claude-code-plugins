@@ -261,6 +261,11 @@ test("the hold stays when the head changes a review caller, a person spoke, or t
   await assertKept(world({ timeline: [...baseTimeline(), escalation] }), "a lanes App comment since needs-human went on carries a marker");
 });
 
+test("pr-verify's credential stop keeps a stale review hold's label", async () => {
+  const stop = (at) => commented(ACTIONS_BOT, "<!-- stop-reason lane=pr-verify reason=security -->\nReason: `security`", at);
+  await assertKept(world({ timeline: [...baseTimeline(), stop("2026-10-18T11:40:00Z")] }), "pr-verify holds it for a credential, which a person lifts");
+});
+
 // Fixes from the security review of 990c1941.
 test("an incremental review by either lane keeps the hold: a finding at the held head may not have been looked at again", async () => {
   const lanes = baseLanes();
@@ -294,6 +299,7 @@ test("a hold written, or a head pushed, after the judgment keeps the label with 
   for (const [w, why] of [
     [after({ timeline: [...baseTimeline(), hold(HEAD, "2026-10-18T11:50:00Z")] }), "a review lane wrote a hold since it was judged"],
     [after({ head: "f".repeat(40) }), `its head moved to ${"f".repeat(40)} since it was judged`],
+    [after({ timeline: [...baseTimeline(), commented(ACTIONS_BOT, "<!-- stop-reason lane=pr-verify reason=security -->\nReason: `security`", "2026-10-18T11:50:00Z")] }), "pr-verify holds it for a credential"],
   ]) {
     const { code, log } = await run(w);
     assert.equal(code, 0);
