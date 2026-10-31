@@ -1,5 +1,15 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.21] - 2026-10-31
+
+### Added
+
+- `/docs-hygiene:write-for-agents` has an eval case that a rule worded too weakly is strengthened and kept, not deleted, and the hard limit beside it survives.
+
+### Changed
+
+- `/docs-hygiene:write-for-agents` gains "Be strict with precise words": replace vague words with numbers or conditions, keep firm words for hard limits no hook enforces, and write no all-caps emphasis.
+
 ## [2.0.20] - 2026-10-31
 
 ### Fixed
