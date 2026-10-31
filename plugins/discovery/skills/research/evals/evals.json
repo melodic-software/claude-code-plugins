@@ -689,6 +689,33 @@
         "Output assigns each remaining researcher its own sub-slice and a full envelope",
         "Output closes the post-dispatch boundary for each topic, including the pilot's, before synthesizing the slice-root RESEARCH.md"
       ]
+    },
+    {
+      "id": 49,
+      "name": "authoritative-paper-reports-claim-passes-flagged",
+      "prompt": "Research what Anthropic's research says about how often Claude agents stop to ask for clarification on ambiguous coding tasks. [The dispatched discovery:researcher returns a well-formed payload with verification: pending, and all three gates exit 0. One accepted claim reads 'Anthropic's paper P reports that agents asked for clarification on 30% of ambiguous tasks, measured with model M and agent scaffold S on benchmark B'. Its sidecar header records confidence: HIGH (single source), single_source: 'Anthropic publishes P, its own research measuring its own Claude agents; copies found elsewhere quote it', and no subject_pool. Its only Tier 0/1 source is P, fetched this turn, as role: primary, under pool Anthropic. A blog post summarizing P is recorded under the same pool. A second claim, 'Anthropic states that Claude agents ask for clarification on 30% of ambiguous tasks', cites only P, carries subject_pool: Anthropic, and is listed under Gaps labeled single-publisher (Anthropic) at MEDIUM.]",
+      "files": [],
+      "expected_output": "Briefs the sibling verifier on rows 4, 7, 12 and 14. The verifier grades row 4 on the single-source branch: the first claim states what Anthropic's paper reports under the conditions it names, Anthropic owns the agents P measured, the reason holds, and the blog post is a repost under P's pool. Rows 4 and 7 pass at HIGH (single source), and the claim is presented with the flag and its conditions. The second claim is the result as a fact about Claude's behavior, worded as an attribution with subject_pool: Anthropic, so it stays a single-publisher fact at MEDIUM under Gaps until a probe or an independent measurement backs it; the reports-claim does not lift it.",
+      "expectations": [
+        "The verifier is briefed on rows 4, 7, 12 and 14 by number",
+        "Row 4 is graded on the reports-claim's single_source: reason and passes, not failed for lacking two independent corroborators",
+        "The blog post summarizing the paper is treated as a repost: recorded under the paper's pool, not counted",
+        "Row 7 passes with the reports-claim at HIGH (single source), presented with the flag and the paper's conditions",
+        "The claim stating the result as a fact about Claude's behavior stays a single-publisher Gap at MEDIUM and is not accepted on the paper alone"
+      ]
+    },
+    {
+      "id": 50,
+      "name": "non-authoritative-paper-reports-claim-is-a-gap",
+      "prompt": "Research what published research says about how often ExampleCloud's coding agent asks for clarification on ambiguous tasks. [The dispatched discovery:researcher returns a well-formed payload with verification: pending, and all three gates exit 0. One accepted claim reads 'paper Q reports that ExampleCloud's agent asked for clarification on 12% of ambiguous tasks, measured on the benchmark Q names'. Its sidecar header records confidence: HIGH (single source) and single_source: 'only Q publishes this result'. Q is a preprint by the Example University agents lab, which is unaffiliated with ExampleCloud, fetched this turn, as role: primary, under pool Example University. A second preprint, by another group, restating Q's figure is recorded as a corroborator under its own pool.]",
+      "files": [],
+      "expected_output": "Briefs the sibling verifier on rows 4, 7, 12 and 14. The verifier finds the flag misapplied: Q's publisher does not own ExampleCloud's agent, so it is not authoritative on the claim's topic, the reports-claim is not a first-party content claim, and Q counts only as one source for the 12% figure, which needs two independent corroborators. The second preprint only restates Q's figure, so it is a repost under Q's pool and is not counted. Row 4 fails, and so does row 7. The parent writes verification: fail rows 4,7 and files the claim as a Gap routed to Phase 2 for an independent measurement of the figure.",
+      "expectations": [
+        "The verifier judges the single_source: reason not to hold because the paper's publisher does not own the product it measured, so it is not authoritative on the claim's topic",
+        "The preprint that restates Q's figure is treated as a repost under Q's pool, not counted as a corroborator",
+        "Row 4 fails for lacking two independent corroborators, and row 7 fails: the claim is not accepted at HIGH (single source)",
+        "The claim is filed as a Gap, not presented as accepted"
+      ]
     }
   ]
 }
