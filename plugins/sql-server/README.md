@@ -80,7 +80,8 @@ its managed identity client id, when given) to `tedious`'s `token-credential` au
 
 The executor loads `tedious` and `@azure/identity`, the dependencies in `package.json`, on the
 first call, so the server starts without them and a call made before they are installed fails
-with a tool error saying so.
+with a tool error saying so. `package-lock.json` pins their whole tree, and Claude Code installs
+that tree when it copies the plugin into its cache.
 
 ### The reject list
 
