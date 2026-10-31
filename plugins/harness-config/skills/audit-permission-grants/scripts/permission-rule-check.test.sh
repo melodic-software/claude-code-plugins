@@ -1306,6 +1306,26 @@ err_out=$(PATH="$empty_path_dir" "$real_bash" "$SCRIPT" 2>&1) || rc=$?
 assert_exit "exit 2 when jq missing" 2 "$rc"
 assert_contains "jq required message" "$err_out" "jq required"
 
+# On a Linux host with apt-get and no jq (a stock WSL Ubuntu install), the stop
+# names the apt-get command and the prerequisites check. bash keeps an OSTYPE it
+# inherits, so each case pins the platform and runs on any host. CLAUDE_PLUGIN_ROOT
+# is unset so the message library resolves from this checkout.
+apt_path_dir="$TEST_TMPDIR/apt-path"
+mkdir -p "$apt_path_dir"
+printf '#!%s\nexit 0\n' "$real_bash" >"$apt_path_dir/apt-get"
+chmod +x "$apt_path_dir/apt-get"
+nojq() { (
+  unset CLAUDE_PLUGIN_ROOT
+  PATH="$1" OSTYPE="$2" "$real_bash" "$SCRIPT" 2>&1
+); }
+rc=0
+err_out=$(nojq "$apt_path_dir" linux-gnu) || rc=$?
+assert_exit "exit 2 when jq missing on an apt host" 2 "$rc"
+assert_contains "an apt host is told the apt-get command" "$err_out" "Install it: sudo apt-get install jq"
+assert_contains "the stop points at the prerequisites check" "$err_out" "/harness-ops:prerequisites"
+assert_contains "macOS is told the brew command" "$(nojq "$empty_path_dir" darwin23)" "Install it: brew install jq"
+assert_contains "Windows is told the winget command" "$(nojq "$empty_path_dir" msys)" "Install it: winget install jqlang.jq"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

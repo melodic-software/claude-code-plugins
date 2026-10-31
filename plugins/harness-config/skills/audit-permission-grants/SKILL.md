@@ -69,9 +69,11 @@ It scans frontmatter `allowed-tools` and settings `permissions.allow` across the
 the user-global settings file (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`), and prints one
 finding per fragile grant (`<severity> [<check>] <source>: <detail>`). `--count` prints the count.
 **Exit 2 is the environment-gap channel: report the gap rather than a clean bill.** It is raised by a
-missing `jq`, a missing shared pattern library, a scan root that resolves to neither a git toplevel
-nor `$CLAUDE_PROJECT_DIR`, and any argument the script does not recognize. An unresolvable **user**
-scope is not one of them: the run records it in the coverage block, says so on stderr, and continues.
+missing `jq` (its message names the platform's install command when it finds one), a missing
+shared pattern library, a scan root that resolves to neither a git toplevel nor
+`$CLAUDE_PROJECT_DIR`, and any argument the script does not recognize. An unresolvable **user**
+scope is not one of them: the run records it in the coverage block, says so on stderr, and
+continues.
 On an unresolvable project root, say the scan did not run and
 give the fix: run from inside the repository you mean to scan, or set
 `$PERMISSION_HYGIENE_SCAN_ROOT` explicitly. That variable is a supported operator lever, not a
