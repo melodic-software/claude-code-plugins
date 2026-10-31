@@ -133,9 +133,10 @@ Vendor facts this shape depends on:
   [Permissions required for fine-grained personal access tokens](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens).
   As of: 2026-10-04. Recheck trigger: the endpoint's role mapping or required permission changes.
 - **Routine triggers.** Pointer: "Add an API trigger" and "Supported events" on
-  [Routines](https://code.claude.com/docs/en/routines) (the `/fire` endpoint; `text` arrives as
-  untrusted data; GitHub triggers cover pull request and release events, not issues). As of:
-  2026-10-04. Recheck trigger: routines gain an issues trigger, or `/fire` leaves its beta header.
+  [Routines](https://code.claude.com/docs/en/routines), which the page now calls scheduled tasks
+  (the `/fire` endpoint; `text` arrives as untrusted data; GitHub triggers cover pull request,
+  release and issue events). As of: 2026-10-31. Recheck trigger: the supported GitHub events
+  change, or `/fire` leaves its beta header.
 - **App actions on a user's behalf.** Pointer:
   [Authenticating with a GitHub App on behalf of a user](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-with-a-github-app-on-behalf-of-a-user)
   (requests made with a user access token are attributed to that user; an installation token
@@ -195,3 +196,15 @@ vendor-hosted channel agents are advisory, plan-gated):
 A continuous routine never enqueues its RUN here: the feed emission may wake the routine's
 ratified temporal surface, and the run enters via the temporal adapter carrying `signal.routine`
 and `signal.producer_identity`; `channel-feed` carries only the ordinary feed signal.
+
+Vendor facts this shape depends on, for Slack, where Claude ships as two separate products:
+
+- **Claude Tag.** Pointer: [Work with Claude Tag](https://claude.com/docs/claude-tag/overview)
+  (Claude in Slack channels with admin-governed access; Team and Enterprise plans only; public
+  beta). As of: 2026-10-31. Recheck trigger: Claude Tag leaves public beta, or the plans that
+  include it change.
+- **Claude Code in Slack, the earlier version.** Pointer:
+  [Claude Code in Slack](https://code.claude.com/docs/en/slack) (answers channel @mentions only
+  from Pro, Max and Ultra accounts, in a Slack workspace no organization has connected to Claude
+  Tag; each session runs under the mentioning user's own account). As of: 2026-10-31. Recheck
+  trigger: the page retires this version, or the plans or workspaces it answers change.

@@ -115,11 +115,11 @@
       "id": 10,
       "name": "enablement-needs-behavioral-evidence",
       "prompt": "My settings.json has \"some-plugin@marketplace\": false in enabledPlugins, so that plugin is off and its state directory under ~/.claude is dead weight. Confirm and remove it.",
-      "expected_output": "Declines the inference: enabledPlugins is not the whole enablement picture — enablement also lives at other scopes, plugin-declared hooks live in each plugin's own manifest, direct-path invocations from settings.json bypass the plugin system, and enablement is read at session start so a running session keeps what it loaded. Points at recent_writers as behavioral evidence of whether anything wrote to that path recently, routes the enablement verdict to /harness-ops:plugins audit, and removes nothing.",
+      "expected_output": "Declines the inference: enabledPlugins is not the whole enablement picture — enablement also lives at other scopes, plugin-declared hooks live in each plugin's own manifest, direct-path invocations from settings.json bypass the plugin system, and enablement is read at session start so a running session keeps what it loaded. Points at recent_writers as behavioral evidence of whether anything wrote to that path recently, routes the enablement verdict to /harness-ops:plugins-audit, and removes nothing.",
       "files": [],
       "expectations": [
         "Output states that an enabledPlugins false entry does not establish that a plugin is inactive",
-        "Output prefers behavioral evidence (recent writes to the tree) over declared configuration, and routes the enablement verdict to /harness-ops:plugins audit",
+        "Output prefers behavioral evidence (recent writes to the tree) over declared configuration, and routes the enablement verdict to /harness-ops:plugins-audit",
         "Output does not remove the plugin's state directory"
       ]
     },

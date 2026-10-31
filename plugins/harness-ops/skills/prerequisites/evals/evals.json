@@ -30,10 +30,10 @@
       "id": 3,
       "name": "version-question-routes-to-plugins",
       "prompt": "/harness-ops:prerequisites\n\nAre my plugins up to date with the marketplace?",
-      "expected_output": "Explains that plugin versions are a different question and names /harness-ops:plugins audit, rather than answering from the prerequisites table.",
+      "expected_output": "Explains that plugin versions are a different question and names /harness-ops:plugins-audit, rather than answering from the prerequisites table.",
       "files": [],
       "expectations": [
-        "Names /harness-ops:plugins audit for the version question",
+        "Names /harness-ops:plugins-audit for the version question",
         "Does not present the prerequisites table as an answer about plugin versions"
       ]
     },

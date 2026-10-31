@@ -1,4 +1,4 @@
-# Changed paths that start no pr-test-windows.yml step, read by scripts/plan-test-lanes.sh.
+# Changed paths that start no pr-test-platforms.yml step, read by scripts/plan-test-lanes.sh.
 # The Windows plan is selected from the changed files minus these, so a change made only of
 # them runs no Windows job; any path not listed here selects as usual. One glob per line,
 # matched against the repo-relative path, `*` crossing `/`. Keep the reason beside each entry.

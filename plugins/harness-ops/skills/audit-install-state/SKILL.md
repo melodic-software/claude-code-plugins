@@ -35,7 +35,7 @@ shedding project state belongs to `claude purge`.
 | Is this machine's Claude Code install directory healthy? | **this skill** |
 | Are a repo's project-scope config FILES correct? | `/harness-config:audit` |
 | Are permission grants portable and durable? | `/harness-config:audit-permission-grants` |
-| Is the plugin fleet current, and at what scope? | `/harness-ops:plugins audit` |
+| Is the plugin fleet current, and at what scope? | `/harness-ops:plugins-audit` |
 | Delete a genuinely unmanaged leftover | `/disk-hygiene:clean` |
 
 Rationale and handoffs: [reference/scope-and-handoffs.md](reference/scope-and-handoffs.md).
@@ -237,7 +237,7 @@ Consumes a genuinely unmanaged leftover this report surfaced; the audit itself n
 - **A number in a filename is not a PID until proven otherwise.** The most expensive error in this
   problem space, and the reason the liveness gate is code rather than advice.
 - **`enabledPlugins: false` does not mean disabled.** Enablement spans several scopes and is read at
-  session start; `recent_writers` is behavioral evidence, `/harness-ops:plugins audit` the verdict.
+  session start; `recent_writers` is behavioral evidence, `/harness-ops:plugins-audit` the verdict.
 - **An empty directory may be deliberate**, and **a cloud-session tree is the common experimental
   state.** Phases 0 and 1 exist so neither is graded as decay.
 - **`commands/`, `todos/`, `statsig/`, `logs/` being absent is good news.** It is positive evidence

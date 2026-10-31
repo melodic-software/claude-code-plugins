@@ -10,4 +10,4 @@ expected_outcome: "The restatement ends by asking the user to confirm, or to nam
 
 /planning:interview Add CSV export to the admin orders page.
 
-Where we are: rounds 1 and 2 are answered. Q1 export the filtered rows. Q2 columns as shown in the table. Q3 timestamps in UTC. Q4 a cap of 50,000 rows. Q5 file name orders-YYYY-MM-DD.csv. The frontier is empty and the assumption sweep added no open row. Restate the contract and ask me to confirm it.
+Where we are: rounds 1 and 2 are answered. Q1 export the filtered rows. Q2 columns as shown in the table. Q3 timestamps in UTC. Q4 a cap of 50,000 rows. Q5 file name orders-YYYY-MM-DD.csv. No open question remains on the frontier and the assumption sweep added no open row. Restate the contract and ask me to confirm it.
