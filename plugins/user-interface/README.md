@@ -83,7 +83,6 @@ order. Keys and allowed values are in [`reference/team.schema.json`](reference/t
 | `animation.stagger_ms.interval`, `.max_total` | `40`, `400` | milliseconds between items, and for the group |
 | `animation.blur_max_px` | `20` | px, a heuristic ceiling for an animated blur |
 | `animation.gesture.velocity_threshold` | `0.11` | px/ms for a small element's swipe to dismiss |
-| `design.concern_spoke_cap` | `2` | the most concern spokes one design pass loads, an integer of at least 1 |
 | `components.primitives_default` | `base-ui` | `base-ui`, `radix`, `react-aria`: the primitives library a React project with none installed builds on |
 | `routing` | none | route rows, `disable` and `deny`, team layer only |
 

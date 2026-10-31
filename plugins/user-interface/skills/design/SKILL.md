@@ -73,18 +73,11 @@ alone.
 
 Then read `${CLAUDE_PLUGIN_ROOT}/reference/concerns.json`. For each concern the project's system
 does not cover (Step 2), take the rows whose `types` include the interface type and whose
-`triggers` the request names. Read those rows' `spokes` whose `read_when` holds, at most
-`config.values.design.concern_spoke_cap` spokes in this pass (when detect could not run,
-`design.concern_spoke_cap` in `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`). Name
-the spokes left over as next steps the user can run as further passes, their concerns in the phase
-order of [reference/order-of-work.md](reference/order-of-work.md).
-Why the cap: every spoke is a set of rules the work must meet, and past one or two they pull
-against each other and blur the result, so design a little, look at it, then take the next.
+`triggers` the request names. Read those rows' `spokes` whose `read_when` holds.
 
 The `touch` concern's spoke is `${CLAUDE_PLUGIN_ROOT}/reference/types/touch-web.md`, the type file
 this step already reads for an interface used by touch or on a phone. When it was read as a type
-file, it is already loaded and does not count toward the cap: do not read it again through the
-concern table.
+file, it is already loaded: do not read it again through the concern table.
 
 ## Step 4: Route each concern
 
@@ -201,14 +194,12 @@ components for agents, follows `${CLAUDE_PLUGIN_ROOT}/reference/design-system-do
 Answer with **one or two skills, not five**. Name them, say in one line why, then run them.
 Loading four skills at once spreads the agent's attention across four craft bars and it applies
 none of them properly: the same reason a skill covers one aspect of the interface instead of
-everything. Here a concern of this skill, run as its own pass, counts as one of them, and Step 3's
-cap still bounds each pass.
+everything. Here a concern of this skill, run as its own pass, counts as one of them.
 
 [reference/order-of-work.md](reference/order-of-work.md) holds the single-screen loop, the two
 routing questions, the phases (Decide, Start here, Build, Refine, Check, Underneath), Overlaps,
 Stacking, the complaint table and what to say when no skill fits. Read it when the request asks
-which skill to run, the order for a whole screen, or what comes after a pass, and when naming the
-spokes Step 3 leaves over.
+which skill to run, the order for a whole screen, or what comes after a pass.
 
 ## Next
 

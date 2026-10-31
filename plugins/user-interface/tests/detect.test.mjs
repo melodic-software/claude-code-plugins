@@ -180,7 +180,6 @@ describe("--config", () => {
         blur_max_px: 20,
         gesture: { velocity_threshold: 0.11 },
       },
-      design: { concern_spoke_cap: 2 },
       components: { primitives_default: "base-ui" },
       routing: { version: 1, deny: ["superdesign"] },
     });
@@ -223,7 +222,6 @@ describe("--config", () => {
       "animation.stagger_ms.max_total": "defaults",
       "animation.blur_max_px": "defaults",
       "animation.gesture.velocity_threshold": "defaults",
-      "design.concern_spoke_cap": "defaults",
       "components.primitives_default": "defaults",
       routing: "team",
     });

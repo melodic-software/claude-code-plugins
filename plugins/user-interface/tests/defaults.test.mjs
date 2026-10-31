@@ -39,7 +39,6 @@ const CONTRACT = {
     blur_max_px: 20,
     gesture: { velocity_threshold: 0.11 },
   },
-  design: { concern_spoke_cap: 2 },
   components: { primitives_default: "base-ui" },
 };
 
@@ -58,18 +57,6 @@ test("the shipped defaults validate against team.schema.json with no error", () 
   const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
   assert.deepEqual(layers[0], { name: "defaults", path: null, state: "loaded", errors: [], error_keys: [] });
   assert.deepEqual(values, CONTRACT);
-});
-
-// Expected values: the cap's contract, an integer of at least 1 with default 2.
-test("the concern-spoke cap takes an integer of at least 1 and keeps 2 otherwise", () => {
-  const capWith = (raw) => {
-    const { values, layers } = resolve({ plugin: "user-interface", projectRoot: PLUGIN, home: "no-such-home", schema, defaults, userConfig: { design_concern_spoke_cap: raw }, teamOnly: ["routing"], userHome: join(PLUGIN, "no-such-user") });
-    return { cap: values.design.concern_spoke_cap, error_keys: layers[1].error_keys };
-  };
-  assert.deepEqual(capWith("3"), { cap: 3, error_keys: [] });
-  assert.deepEqual(capWith("1"), { cap: 1, error_keys: [] });
-  assert.deepEqual(capWith("0"), { cap: 2, error_keys: ["design.concern_spoke_cap"] });
-  assert.deepEqual(capWith("1.5"), { cap: 2, error_keys: ["design.concern_spoke_cap"] });
 });
 
 // Expected values: the owner's decision that base-ui is the default, and the setting's three

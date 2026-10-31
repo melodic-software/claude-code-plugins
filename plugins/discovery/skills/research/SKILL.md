@@ -1,6 +1,6 @@
 ---
 description: "Multi-source external research with source tiers, recency checks, and a coverage ledger. Use when: 'research this', 'verify a technical claim', 'evaluate libraries or approaches', 'compare X vs Y', 'is this still current', 'find the authoritative source', 'what do the official docs say', 'deep research', 'research these N topics', 'migration research', 'exhaustive research on X'. Also a local folder outside any repository, or machine state. breadth=low narrows; deep or multi-topic asks take the deep tier."
-argument-hint: "[breadth=low|medium] [deep] [topic]"
+argument-hint: "[breadth=low|medium] [deep] [--unattended] [topic]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Workflow(discovery:research-sweep)"]
@@ -9,7 +9,7 @@ metadata:
   summary: Multi-source external research with source tiers and a coverage ledger
 ---
 
-**Arguments.** `[breadth=low|medium] [deep] [topic]`. e.g., /discovery:research breadth=low <lib> changelog, /discovery:research deep <topic>
+**Arguments.** `[breadth=low|medium] [deep] [--unattended] [topic]`. e.g., /discovery:research breadth=low <lib> changelog, /discovery:research deep <topic>
 
 ## Routing. Dispatch by default
 
@@ -91,7 +91,7 @@ Each criterion is binary. **Any FAIL returns to the named phase (a verifier-owne
 
 Research the following topic: $ARGUMENTS
 
-A leading `breadth=low` or `breadth=medium` token is not part of the topic: strip it before writing `Topic:` and apply it under "Effort, source breadth". A dispatched run and a run with no topic: "Topic caveats" below.
+A leading `breadth=low` or `breadth=medium` token is not part of the topic: strip it before writing `Topic:` and apply it under "Effort, source breadth". `--unattended`, anywhere in the arguments, is not part of the topic either: it is the caller declaring that nobody is present, which governs the `/deep-research` offer under "Routing". Strip it first, so the other tokens count as leading without it. A dispatched run and a run with no topic: "Topic caveats" below.
 
 ## Disciplines
 
@@ -318,7 +318,8 @@ by settings, plan, and host, and whether `disableBundledSkills` hides it is not 
 records in [reference/native-deep-research.md](reference/native-deep-research.md)), you can run
 `/deep-research <question>` instead of or alongside this skill. For a multi-topic ask, offer it
 only as an addition for one topic that needs adversarial claim-checking. If the person takes it instead, stop.
-An unattended run records the offer in its output instead of asking, and dispatches.
+When the caller passes `--unattended`, the run records the offer in its output
+instead of asking, and dispatches; without that flag it asks.
 
 **Mutation gate.** This skill writes only its own research slice. It never starts the workflow on
 the person's behalf, and a report from the person's own run is not a graded `RESEARCH.md`.

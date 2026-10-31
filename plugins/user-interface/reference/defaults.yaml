@@ -118,10 +118,6 @@ animation:
   blur_max_px: 20
   gesture:
     velocity_threshold: 0.11
-# The most concern spokes (reference/concerns.json) one /user-interface:design pass loads.
-design:
-  concern_spoke_cap: 2
-
 # The primitives library a React project with none installed builds on: a setting value from the
 # primitives table in component-libraries.md, not a package name (install by the name its Install
 # page gives). The project's installed library and design system beat every layer.
