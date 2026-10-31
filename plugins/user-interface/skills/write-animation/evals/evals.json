@@ -42,7 +42,7 @@
         "The same answer includes a reduced-motion variant, not a follow-up suggestion",
         "Under reduced motion the panel does not slide; at most a short opacity change remains",
         "The panel leaves through the right edge it entered from",
-        "No duration exceeds the configured large role (500ms at the defaults)"
+        "No duration exceeds the configured large role (300ms at the defaults)"
       ],
       "difficulty": "routine",
       "source": "reference/principles.md Motion is optional and catalog.md reduced-motion, written for this suite"

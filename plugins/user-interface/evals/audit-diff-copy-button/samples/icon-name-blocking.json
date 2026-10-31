@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| Severity | Before | After | Why |\n| --- | --- | --- | --- |\n| Blocking | `<button onClick={copy}>{copied ? <CheckIcon /> : <CopyIcon />}</button>` at `CodeBlock.tsx:16` | `<button aria-label=\"Copy code\" onClick={copy}>` | An icon-only button with no accessible name (`accessibility` concern); verified from code |",
+      "why": "names the missing name, grades it Blocking, fixes with an action name"
+    },
+    {
+      "answer": "### Must fix\n\n- `CodeBlock.tsx:16`: the button renders only an icon, so a screen reader announces just \"button\". Give it visible text, \"Copy\", or `aria-label=\"Copy code\"`.\n\n### Should fix\n\n- The copied check icon is not announced.",
+      "why": "the review's most severe level is called Must fix; the fix names the action"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "| Severity | Before | After | Why |\n| --- | --- | --- | --- |\n| Blocking | `<button onClick={copy}>` at `CodeBlock.tsx:16` | `<button aria-label=\"Copy icon\" onClick={copy}>` | The button has no accessible name |",
+      "why": "near miss: graded Blocking, but the label names the icon, not the action"
+    },
+    {
+      "answer": "| Severity | Before | After | Why |\n| --- | --- | --- | --- |\n| Important | `{copied ? <CheckIcon /> : <CopyIcon />}` at `CodeBlock.tsx:19` | a `role=\"status\"` region | The copied state is silent |\n| Suggestion | `<button onClick={copy}>` at `CodeBlock.tsx:16` | add `aria-label=\"Copy code\"` | The button has no accessible name |",
+      "why": "the missing name is graded at the lowest level"
+    },
+    {
+      "answer": "The copied state is only a check icon, so screen readers hear nothing. Add a polite live region that says \"Copied\".",
+      "why": "does not mention the missing accessible name"
+    }
+  ]
+}

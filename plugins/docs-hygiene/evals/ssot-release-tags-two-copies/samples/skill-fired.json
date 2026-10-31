@@ -1,0 +1,72 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:extract-ssot",
+            "args": "plan release-tags"
+          }
+        }
+      ],
+      "why": "qualified name with action"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "hotfix"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "extract-ssot"
+          }
+        }
+      ],
+      "why": "bare name after a search"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:write-for-humans"
+          }
+        }
+      ],
+      "why": "sibling writing skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "discipline:point-dont-copy"
+          }
+        }
+      ],
+      "why": "near-miss competitor"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:rename-references"
+          }
+        }
+      ],
+      "why": "sibling sweep skill"
+    }
+  ]
+}

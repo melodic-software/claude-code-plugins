@@ -12,8 +12,8 @@ before configuration, name things the way the platform names them, and support b
 uncontrolled state when state is involved.
 
 The examples are React (JSX). In another framework, keep the contract and write it in that
-framework's own idiom. Working code for each pattern is in `component-api/implementation.md`; how to
-choose a primitives library is in `../../component-libraries.md`.
+framework's own idiom. Working code for each pattern is in `component-api/implementation.md`; which
+primitives library to build on is in `../../component-libraries.md`.
 
 A rule that ends in **Audit:** gives the severity `/user-interface:audit` uses for a finding against
 it, and what that finding looks like.
@@ -277,7 +277,8 @@ Let consumers swap the rendered element while keeping the behavior and styles:
 
 On a component built on a primitives library, use that library's own form of the pattern rather
 than a second one beside it, and make the element passed in meet what its composition page asks of
-a custom component.
+a custom component. Each library's composition page is in the Composition column of the primitives
+table in `../../component-libraries.md`, with its pointer record.
 
 **Audit: Suggestion.** A shared component with no way to render a different element, so a link
 styled as a button has to be a `<button>` that navigates.

@@ -1,10 +1,10 @@
 # Semantic-diff subagent dispatch template
 
-Agent tool prompt body + return-format contract for the default action. Loaded by `/docs-hygiene:compress` when dispatching the comparison pass; private implementation surface. Do NOT cite this file from outside the skill (external consumers invoke `/docs-hygiene:compress`).
+Agent tool prompt body + return-format contract for the default action's comparison pass. Private implementation surface: do NOT cite this file from outside the skill (external consumers invoke `/docs-hygiene:compress`).
 
 ## Dispatch shape
 
-Spawn one subagent per target file via `Agent` tool. Subagent type: `general-purpose`. Pass two file paths (original snapshot + condensed candidate) plus the prompt body below verbatim. Subagent returns categorized findings; main session decides revert vs ship.
+Spawn one `general-purpose` subagent per target file via `Agent` tool. Pass two file paths (original snapshot + condensed candidate) plus the prompt body below verbatim. The subagent returns categorized findings; the main session decides revert vs ship.
 
 ## Prompt body (paste into Agent tool `prompt` field verbatim, with `{ORIG}` / `{COND}` / `{ARTICLES}` substituted)
 
@@ -54,7 +54,7 @@ Do NOT propose revisions. Do NOT score quality. Classify only.
 
 ## Required-pattern checklist (sanity-check grep targets)
 
-The prompt body above contains all four allowed citation token patterns and all six forbidden tokens. When editing this file, drift-detect from the skill root via:
+The prompt body contains all four allowed citation token patterns and all six forbidden tokens. After editing this file, drift-detect from the skill root:
 
 ```bash
 grep -F '[<file>:<line>]' context/semantic-diff-prompt.md
@@ -67,13 +67,13 @@ All four MUST match.
 
 ## Return-format contract
 
-Main session parses the subagent return for the `TOTAL:` summary line; counts feed the output schema (`compression_pct`, `semantic_loss`, `ambiguity`, `false_positive`). Per-finding blocks drive the revert pass. Every SEMANTIC LOSS + AMBIGUITY (+ UNCERTAIN) finding's CONDENSED quote reverts to its ORIGINAL form.
+The main session parses the `TOTAL:` summary line; its counts feed the output schema (`compression_pct`, `semantic_loss`, `ambiguity`, `false_positive`). Per-finding blocks drive the revert pass: every SEMANTIC LOSS + AMBIGUITY (+ UNCERTAIN) finding's CONDENSED quote reverts to its ORIGINAL form.
 
 ## Failure modes
 
-- **Subagent returns prose without the FINDING N: blocks**. Treat as dispatch failure; surface error + revert entire candidate. Do NOT ship a partially-classified diff.
+- **Subagent returns prose without the FINDING N: blocks**. Dispatch failure: surface error + revert entire candidate. Do NOT ship a partially-classified diff.
 - **Subagent uses forbidden citation token**. Treat ALL findings from that dispatch as unverified training recall; revert the entire candidate.
-- **Subagent returns 0 findings**. Verify with `diff -u {ORIG} {COND}` that files actually differ; 0 findings on a non-zero diff = dispatch failure (revert).
+- **Subagent returns 0 findings**. Verify with `diff -u {ORIG} {COND}` that the files differ; 0 findings on a non-zero diff = dispatch failure (revert).
 
 ## Cross-references
 

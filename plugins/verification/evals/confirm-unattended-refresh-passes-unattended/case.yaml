@@ -1,10 +1,10 @@
 schema_version: "1.1"
 name: confirm-unattended-refresh-passes-unattended
-description: When confirm refreshes a touched feature itself in a pipeline lane with no one present, it passes --unattended to /app-control:map refresh so the pass never stops to ask
+description: When confirm, called with --unattended, refreshes a touched feature itself, it passes --unattended to /app-control:map refresh so the pass never stops to ask
 tags: [confirm, app-control, refresh, unattended, invented]
 expected_outcome: The reply calls /app-control:map refresh cart/total with --unattended, once, asks nothing, and calls no refresh for checkout.
 execution:
-  prompt: "/verification:confirm outcome. Do not read the repository, launch, install or run anything; treat these as facts. A pipeline lane invoked this run and no one is present to answer. Stage 1 already passed. The testing plugin is not installed, so /testing:run-e2e did not run; the live drive of the cart page through the bundled /run is done and showed the total with tax, the PR's acceptance criterion. The app-control plugin is installed: /app-control:map resolves in this session. The repository has the control skill .claude/skills/control-shop/, whose index has two lines: `- Cart total | features/cart/total/README.md | entry points: 1 | sources: src/cart/**` and `- Checkout | features/checkout/README.md | entry points: 1 | sources: src/checkout/**`. This branch changes only src/cart/total.ts. List every skill call you make from here on, with its exact arguments, then stop."
+  prompt: "/verification:confirm outcome --unattended. Do not read the repository, launch, install or run anything; treat these as facts. Stage 1 already passed. The testing plugin is not installed, so /testing:run-e2e did not run; the live drive of the cart page through the bundled /run is done and showed the total with tax, the PR's acceptance criterion. The app-control plugin is installed: /app-control:map resolves in this session. The repository has the control skill .claude/skills/control-shop/, whose index has two lines: `- Cart total | features/cart/total/README.md | entry points: 1 | sources: src/cart/**` and `- Checkout | features/checkout/README.md | entry points: 1 | sources: src/checkout/**`. This branch changes only src/cart/total.ts. List every skill call you make from here on, with its exact arguments, then stop."
   allowed_tools: [Read, Glob, Grep]
   max_turns: 8
   timeout_seconds: 300

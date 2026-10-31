@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: ad-module-map-without-regeneration
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:docs-hygiene:)?audit-derivability"'
+  - name: map-not-kept
+    type: regex
+    pattern: 'module-map\.md[^\n]*?(?::|verdict:?)[ \t*`]*(?:delete|remove|drop|convert|replace|pointer)'
+    flags: 'i'
+  - name: map-keep-verdict-absent
+    type: regex
+    pattern: 'module-map\.md[^\n]*?(?::|verdict:?)[ \t*`]*keep'
+    flags: 'i'
+    match: not_contains
+  - name: names-missing-drift-control
+    type: regex
+    pattern: '\b(?:no|nobody|nothing|without|lacks?|missing|absent|never)\b[^\n]{0,80}\b(?:(?:re)?(?:generate|generates|generated|generating|generation|generator)\b|(?:re-?)?checks?\b|drift[- ]control|kept in sync|keeps? it in sync|updates? it)'
+    flags: 'i'

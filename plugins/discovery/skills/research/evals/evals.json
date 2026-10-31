@@ -717,6 +717,20 @@
         "The claim is filed as a Gap, not presented as accepted",
         "The 12% figure stated as a fact about ExampleCloud's agent is not accepted on Q alone; it needs a live probe or independent measurements"
       ]
+    },
+    {
+      "id": 51,
+      "name": "unproven-author-post-only-corroborates",
+      "prompt": "Research whether ExampleQueue retries a failed message with exponential backoff by default. [Running inline. ExampleQueue's documentation page on delivery says failed messages are retried with exponential backoff unless a retry policy overrides it. A widely shared blog post with many likes, written by an author who calls himself a messaging expert, says the same and is the top search result. His GitHub profile holds only forks and tutorial repositories with no users, his personal site links no product, library or employer, and nothing else he has built turns up.]",
+      "files": [],
+      "expected_output": "Applies the proof-of-work test before weighing the post: the author shows no shipped work people use and no employer signal, and his likes and followers prove nothing, so his Sources cell is labeled unproven. The documentation page is the spine of the claim. The post is not cited as an authority (not Tier 2, not a Phase 3 fallback authority); at most it corroborates the documentation page.",
+      "expectations": [
+        "Output checks the author's GitHub or personal site for something he built that people use, or an employer signal, before weighing the post",
+        "Output does not count the post's likes, follower count or search ranking as evidence of the author's authority",
+        "The post's Sources cell in the evidence table carries the label unproven",
+        "The documentation page, not the post, is the source the claim rests on",
+        "The post is not cited as a Tier 2 or Phase 3 fallback authority, and appears at most as a corroborator"
+      ]
     }
   ]
 }

@@ -1,0 +1,125 @@
+{
+  "skill": "docs-hygiene:audit-derivability",
+  "plugin": "docs-hygiene",
+  "skill_dir": "plugins/docs-hygiene/skills/audit-derivability",
+  "ranking_note": "Authored from the before descriptions at commit 4803086565, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the line-level noise, SSOT extraction, compression and agent-doc writing siblings, the attribution audit, the instruction-placement audit and the point-don't-copy discipline.",
+  "competitors": [
+    "docs-hygiene:audit-noise",
+    "docs-hygiene:extract-ssot",
+    "docs-hygiene:compress",
+    "docs-hygiene:write-for-agents",
+    "attribution:audit",
+    "instruction-placement:audit",
+    "discipline:point-dont-copy"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Half of docs/ seems to echo what the source already says. Which of these files could we drop entirely?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Would a new agent be able to work out what ARCHITECTURE.md says just by reading the code? If so, is the file still needed?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Go through docs/ops and tell me, file by file, whether to delete it, replace it with a link, or keep it."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our CONTRIBUTING page lists every npm script. Is it worth maintaining when package.json has the same thing?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I suspect most of our README is reconstructable from the repo. Judge whether the whole file still pays for its upkeep."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is docs/api-overview.md just a cache of the route files, or does it hold something only it knows?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Sweep the docs folder and give me a keep-or-cut call on each page, with reasons."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "This onboarding guide restates our config. Should it go away or become a pointer?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which markdown files in this repo exist only to repeat what's in the source tree?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Before I delete docs/deploy.md, check whether it records anything you couldn't recover from the codebase."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find the stale dated citations and 'as you asked' asides inside this rule file."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The same setup steps are pasted into four READMEs. Pull them into one shared page."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Shorten this design doc without losing any of its requirements."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which paragraphs in our docs were lifted from the vendor's website?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Strip the ghost refs and PR back-references out of CONTRIBUTING.md."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add a short section to AGENTS.md telling agents how to run the migrations."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Our CLAUDE.md is huge; which parts should move into path-scoped rules?"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "You pasted the provider's rate-limit table into our guide; link to it instead."
+    }
+  ]
+}

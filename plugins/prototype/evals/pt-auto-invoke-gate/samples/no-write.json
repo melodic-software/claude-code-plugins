@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "none"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pressure-test-x/refunds.mjs",
+            "content": "export function reduce(){}"
+          }
+        }
+      ],
+      "why": "spiked unasked"
+    }
+  ]
+}

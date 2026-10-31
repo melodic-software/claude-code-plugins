@@ -42,17 +42,20 @@ const RED = [check("test-node", "failure")];
 // `evidence` is what the gate's reader (enable-auto-merge pythonVerify) answers.
 // `reviewThreads` is the GraphQL reviewThreads page answered for a cursor.
 const threadPage = (nodes, hasNextPage = false) => ({ nodes, pageInfo: { hasNextPage, endCursor: hasNextPage ? "next" : null } });
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [] }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [], keyStatuses = [] }) {
   const calls = [];
   const known = (number) => numbers.includes(number) || sessionNumbers.includes(number);
   const checks = async (method, path) => {
     calls.push({ method, path, token: "checks" });
-    // `statuses` is the HEAD's REST statuses, newest first, or an Error.
-    if (path.startsWith(`/repos/${REPO}/commits/${HEAD}/statuses?`)) {
-      if (statuses instanceof Error) {
-        throw statuses;
+    // `statuses` is the HEAD's REST statuses, newest first, or an Error;
+    // `keyStatuses` the KEY's, an older head a lane stopped on.
+    const statusHead = new RegExp(`^/repos/${REPO}/commits/([0-9a-f]{40})/statuses\\?`).exec(path)?.[1];
+    if (statusHead === HEAD || statusHead === KEY) {
+      const rows = statusHead === HEAD ? statuses : keyStatuses;
+      if (rows instanceof Error) {
+        throw rows;
       }
-      return path.endsWith("page=1") ? statuses : [];
+      return path.endsWith("page=1") ? rows : [];
     }
     if (headChecks instanceof Error) {
       throw headChecks;
@@ -84,7 +87,7 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
     if (method === "GET" && kind === "issues" && route.endsWith("/timeline") && known(Number(number))) {
       return path.endsWith("page=1") ? timeline : [];
     }
-    if (method === "GET" && kind === "pulls" && numbers.includes(Number(number))) {
+    if (method === "GET" && kind === "pulls" && known(Number(number))) {
       return { number: Number(number), state: "open", user: author, base: { ref: "main", sha: MAIN }, head: { sha: HEAD, ref: "feat/x", repo: { full_name: headRepo } }, labels: labels.map((name) => ({ name })), mergeable };
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${HEAD}...${MAIN}`) {
@@ -1697,10 +1700,10 @@ test("a person's comment written before the label and edited after it, or in the
 // whose escalation-routes.json entry names it, and its `clear` mode posts
 // success over the stop's failing status when a same-head retry lands.
 const sessionLabeled = (actor, at = "2026-10-18T10:00:00Z") => ({ event: "labeled", actor, label: { name: "needs-session" }, created_at: at });
-const stopBody = (reason, head = HEAD) =>
-  `<!-- pr-unblock:lane-stopped activity=fix-ci -->\nThe pr-unblock lane stopped \`fix-ci\` on this pull request: why. The lane labels it \`needs-session\` for a session builder, who makes the change this lane cannot, and the run ends in a failing \`pr-unblock/fix-ci\` status on the head the lane gated.\n\n- Reason: \`${reason}\`\n- Head: \`${head}\`\n- Run: https://github.com/${REPO}/actions/runs/1\n`;
-const stopped = (reason = "ci-fix-escalated") => commented(BOT, stopBody(reason), "2026-10-18T10:00:02Z");
-const status = (state, creator = ACTIONS_BOT, at = "2026-10-18T11:00:00Z") => ({ context: "pr-unblock/fix-ci", state, creator, created_at: at });
+const stopBody = (reason, head = HEAD, activity = escalationActivity(reason)) =>
+  `<!-- pr-unblock:lane-stopped activity=${activity} -->\nThe pr-unblock lane stopped \`${activity}\` on this pull request: why. The lane labels it \`needs-session\` for a session builder, who makes the change this lane cannot, and the run ends in a failing \`pr-unblock/${activity}\` status on the head the lane gated.\n\n- Reason: \`${reason}\`\n- Head: \`${head}\`\n- Run: https://github.com/${REPO}/actions/runs/1\n`;
+const stopped = (reason = "ci-fix-escalated", head = HEAD) => commented(BOT, stopBody(reason, head), "2026-10-18T10:00:02Z");
+const status = (state, creator = ACTIONS_BOT, at = "2026-10-18T11:00:00Z", context = "pr-unblock/fix-ci") => ({ context, state, creator, created_at: at });
 const sessionWorld = (options) => world({ numbers: [], sessionNumbers: [8], ...options });
 
 test("a rung-0 ci-fix-escalated stop whose same-head retry landed leaves the PR without needs-session, with no comment", async () => {
@@ -1753,6 +1756,57 @@ test("a needs-session a person added, or one with no lane stop since it went on,
     await run(w);
     assert.deepEqual(w.writes(), [], JSON.stringify(timeline));
   }
+});
+
+// The new-head lift (#11200): a stop's status sits on the stop's head, so a
+// push leaves nothing that marks the new head mended. The label comes off
+// when the head is none of the stops' heads, the new head carries no failing
+// status for their activities, and its checks pass; ci-status, which the
+// label keeps red, is not counted.
+const NEW_HEAD_GREEN = [check("test-node", "success"), check("ci-status", "failure", { id: 2 })];
+const laneContext = (reason) => `pr-unblock/${escalationActivity(reason)}`;
+
+test("a needs-session stop on an older head comes off once the new head carries no failing status and its checks pass", async () => {
+  for (const reason of ["ci-fix-escalated", "dependency-round-cap"]) {
+    assert.equal(ROUTES[reason].label, "needs-session");
+    const keyStatuses = [status("failure", ACTIONS_BOT, "2026-10-18T10:00:01Z", laneContext(reason))];
+    const w = sessionWorld({ timeline: [sessionLabeled(BOT), stopped(reason, KEY)], keyStatuses, headChecks: NEW_HEAD_GREEN });
+    const { code, logs } = await run(w);
+    assert.equal(code, 0);
+    assert.deepEqual(w.writes(), [{ method: "DELETE", path: `/repos/${REPO}/issues/8/labels/needs-session`, body: undefined }], reason);
+    const cleared = new RegExp(`#8 needs-session cleared: ${reason} stopped at ${KEY}, and no ${laneContext(reason)} status fails at the new head ${HEAD}; no check other than ci-status fails`);
+    assert.ok(logs.some((line) => cleared.test(line)), logs.join("\n"));
+  }
+});
+
+test("a new head keeps needs-session while the stop's status fails there or its checks do not pass", async () => {
+  for (const [options, kept] of [
+    [{ statuses: [status("failure")], headChecks: NEW_HEAD_GREEN }, /pr-unblock\/fix-ci reads failure at the new head/],
+    [{ statuses: [status("pending"), status("success")], headChecks: NEW_HEAD_GREEN }, /pr-unblock\/fix-ci reads pending at the new head/],
+    [{ headChecks: RED }, /stays at the new head: a check other than ci-status fails/],
+    [{ headChecks: [check("ci-status", "failure")] }, /stays at the new head/],
+    [{ headChecks: [{ ...check("test-node", "success"), status: "in_progress", conclusion: null }] }, /stays at the new head/],
+    [{ headChecks: new Error("HTTP 403") }, /stays at the new head/],
+  ]) {
+    const w = sessionWorld({ timeline: [sessionLabeled(BOT), stopped("ci-fix-escalated", KEY)], keyStatuses: [status("failure")], ...options });
+    const { code, logs } = await run(w);
+    assert.equal(code, 0);
+    assert.deepEqual(w.writes(), [], String(kept));
+    assert.ok(logs.some((line) => /#8 needs-session kept: /.test(line) && kept.test(line)), logs.join("\n"));
+  }
+});
+
+test("a dependency-workflow-unpinned stop keeps needs-session on a new head; only its same-head clear removes it", async () => {
+  const reason = "dependency-workflow-unpinned";
+  const context = laneContext(reason);
+  const failed = status("failure", ACTIONS_BOT, "2026-10-18T10:00:01Z", context);
+  const kept = sessionWorld({ timeline: [sessionLabeled(BOT), stopped(reason, KEY)], keyStatuses: [failed], headChecks: NEW_HEAD_GREEN });
+  const { logs } = await run(kept);
+  assert.deepEqual(kept.writes(), []);
+  assert.ok(logs.some((line) => /#8 needs-session kept: dependency-workflow-unpinned stopped at .*only its lane's clear on that head/.test(line)), logs.join("\n"));
+  const lifted = sessionWorld({ timeline: [sessionLabeled(BOT), stopped(reason, KEY)], keyStatuses: [status("success", ACTIONS_BOT, undefined, context), failed] });
+  await run(lifted);
+  assert.deepEqual(lifted.writes(), [{ method: "DELETE", path: `/repos/${REPO}/issues/8/labels/needs-session`, body: undefined }]);
 });
 
 test("a needs-session stop whose head statuses do not read keeps the label without failing the run", async () => {

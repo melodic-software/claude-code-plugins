@@ -1,0 +1,67 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:rename-references",
+            "args": "audit review to code-review"
+          }
+        }
+      ],
+      "why": "qualified name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "rename-references",
+            "args": "audit /review to /code-review"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "naming:name-it-better"
+          }
+        }
+      ],
+      "why": "naming competitor"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-naming:audit-file-names"
+          }
+        }
+      ],
+      "why": "casing audit competitor"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:extract-ssot"
+          }
+        }
+      ],
+      "why": "sibling skill"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": ".claude/skills/changelog-entry/SKILL.md: tier=invocation — 0 finding(s) — T1=0, T2=0, T3=0\n\nNo. At 29 lines with one concern, splitting buys nothing: every line is needed each time the skill runs, and a spoke would add a read. Hub-and-spoke is a scaling tool; revisit if the skill grows toward the line cap or gains mutually exclusive branches.", "why": "canonical"},
+    {"answer": "Keep it as one file. It is short, single-purpose and every section is used on every run, so there is nothing to push down a tier.", "why": "short prose"}
+  ],
+  "fail": [
+    {"answer": "Yes. Keep the steps in SKILL.md and move the rules and examples into reference/conventions.md and reference/examples.md with pointers.", "why": "split proposed"},
+    {"answer": "Mostly fine, but move the Examples section into examples.md so the body stays lean.", "why": "partial split proposed"},
+    {"answer": "The file mixes steps, rules and examples, which are separate concerns; split it by concern.", "why": "mixed-concerns finding on a coherent file"},
+    {"answer": "", "why": "empty"},
+    {"answer": "Added: Export of invoices as CSV from the billing page.", "why": "answers a different question"}
+  ]
+}

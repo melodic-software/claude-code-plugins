@@ -3,6 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.133.0] - 2026-10-31
+
+### Added
+
+- `/planning:interview product <idea>` stress-tests a product or feature idea one question at a time against twenty product principles and ends in a verdict; `/planning:prd` and `/planning:brainstorm` point to it.
+
+### Changed
+
+- `/planning:design` names `/user-interface:design` as the next step when the contract being designed is a UI component's props API.
+
+## [0.132.5] - 2026-10-31
+
+### Fixed
+
+- The interview page's Decide list now fades its top or bottom edge when rows are scrolled out of view past that edge. With every row in view, it shows no fade. The Rec row clamps to four lines, so a long recommendation no longer fills the list. When the clamp cuts the text, a Read all button opens the whole recommendation in a dialog ([#11649](https://github.com/melodic-software/claude-code-plugins/issues/11649)).
+
 ## [0.132.4] - 2026-10-31
 
 ### Fixed

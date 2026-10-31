@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-hygiene:audit-encapsulation"}}], "why": "qualified name"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "audit-encapsulation", "args": "sweep"}}], "why": "bare name with args"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no Skill call"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "skill-quality:check"}}], "why": "the skill linter"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "discipline:point-dont-copy"}}], "why": "the coupling corrector"},
+    {"answer": [{"tool": "Grep", "input": {"pattern": "plugins/lint-kit/skills"}}], "why": "grep only"}
+  ]
+}

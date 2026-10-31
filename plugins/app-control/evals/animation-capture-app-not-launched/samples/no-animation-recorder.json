@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat tools/anim-capture.mjs", "description": "Read the recorder"}}],
+      "why": "reads the recorder, runs nothing"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -n anim-capture .claude/skills/control-shop/SKILL.md", "description": "Find the animation row"}}],
+      "why": "the recorder name as a search term"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "mkdir -p evidence && cat > evidence/report.md <<'EOF'\n   Tool named by control skill: `node tools/anim-capture.mjs --frames --out <dir>`.\n   Not run.\nEOF", "description": "Write the report"}}],
+      "why": "names the recorder's command line inside the report it writes"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "node tools/anim-capture.mjs --frames --out evidence", "description": "Capture animation"}}],
+      "why": "runs the recorder"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "mkdir -p evidence && node ./tools/anim-capture.mjs --frames --out evidence", "description": "Capture animation"}}],
+      "why": "runs the recorder after a separator"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cd app && timeout 60 node tools/anim-capture.mjs --frames --out evidence", "description": "Capture animation"}}],
+      "why": "runs the recorder through a timeout wrapper"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "ANIM_FPS=60 node tools/anim-capture.mjs --frames", "description": "Capture animation"}}],
+      "why": "runs the recorder with an environment assignment"
+    }
+  ]
+}

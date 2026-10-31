@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Actual behavior\n\nThe panel snaps to fully open, then slides out.\n\n## Notes\n\n- The drawer's transform values and timing at the jump: unknown, needs reporter confirmation.",
+      "why": "states no value; the timing is a placeholder"
+    },
+    {
+      "answer": "Which frame does it jump at? If you can, send the drawer's transform and duration at that point; I won't guess them.",
+      "why": "values appear only as something to ask for"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Actual behavior\n\nThe 300ms slide-in restarts from `translateX(0)` when close is pressed, then runs the exit.",
+      "why": "near miss: plausible, but states a duration and a transform the reporter never gave"
+    },
+    {
+      "answer": "## Notes\n\nThe drawer animates on `ease-in-out` over 400ms; the close keyframe restarts from opacity 1.",
+      "why": "states an easing, a duration and an opacity as observed"
+    }
+  ]
+}

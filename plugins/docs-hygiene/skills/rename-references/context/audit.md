@@ -8,12 +8,12 @@
 - [Special cases](#special-cases)
 - [Hand-off](#hand-off)
 
-Audit mode runs the full pattern library + triage classifier against the codebase but performs NO Edit calls. Output is a findings report. Use when:
+Audit mode runs the full pattern library + triage classifier but performs NO Edit calls; output is a findings report. Use for:
 
 - Pre-rename impact analysis ("how big is the blast radius if I rename X?")
 - Verifying a just-completed rename has zero stragglers (post-rename gate)
 - Investigating a suspected stale reference reported elsewhere
-- User wants to think about the rename before committing to edits
+- Thinking through the rename before committing to edits
 
 ## Inputs
 
@@ -46,7 +46,9 @@ than resolve. Carry the resolved mode and every rule that fired into the Phase 4
 
 ### Phase 2: Survey
 
-Run all patterns from [patterns.md](patterns.md) in parallel via Grep tool. For each pattern:
+Run all patterns from [patterns.md](patterns.md) in parallel through the Grep tool with
+the patterns.md regexes, over the tracked tree. The sweep is those Grep calls; reading files one by one is
+not a sweep. Use Read only to confirm a Grep hit in context before classifying it. For each pattern:
 
 - Substitute `<old>` with actual old token (escape regex metacharacters)
 - Use `output_mode: "content"` with `-n` for line numbers and `-C 1` for one line of surrounding context
@@ -61,27 +63,26 @@ Run all patterns from [patterns.md](patterns.md) in parallel via Grep tool. For 
 
 **Collect per-OCCURRENCE records, not per-line ones.** `output_mode: "content"` returns matching
 LINES, and `--column` reports only the first match on a line, so a line-shaped record gives the
-span rule below nothing to compare and silently degrades it back to line-keyed dedup, restoring
-the false completion eval 14 exists to prevent. For every returned match, re-scan it locally for
-ALL occurrences of the form's pattern and emit one record per occurrence:
-`{file, line, start, end, pattern_form, snippet}`. A line with two `<old>` occurrences produces
-two records.
+span rule below nothing to compare and silently degrades it to line-keyed dedup, restoring the false
+completion eval 14 exists to prevent. For every returned match, re-scan it locally for ALL occurrences of the form's pattern
+and emit one record per occurrence: `{file, line, start, end, pattern_form, snippet}`. A line with
+two `<old>` occurrences produces two records.
 
 **Enumerate every `<old>` span INSIDE each match. Do not rely on repeated whole-pattern
 matching.** Some forms match a span far wider than the token: Form 7's
 `description:\s*"[^"]*\b<old>\b[^"]*"` swallows the entire field, and its greedy prefix binds the
 captured group to just ONE occurrence. On `description: "first <old> and then <old>"` the pattern
-yields a single match for two references, and no amount of cursor advancing recovers the other,
-because re-matching from inside the field cannot reproduce the `description:` prefix the pattern requires.
+yields one match for two references, and no cursor advancing recovers the other, because
+re-matching from inside the field cannot reproduce the `description:` prefix the pattern requires.
 So for each match, scan its REFERENCE REGION for every occurrence of `<old>` and emit one record
 per occurrence, all attributed to the matching form. The whole-pattern match establishes THAT the
 form applies and to what extent; the token spans inside its reference region are the references.
-Under container mode a lost occurrence becomes suppressed Form 2 residue, so this drops silently
+Under container mode a lost occurrence becomes suppressed Form 2 residue, so it drops silently
 and the rename can falsely complete.
 
 **The reference region is the whole match ONLY when the whole match is reference-bearing.**
-Enumerating blindly is as wrong as enumerating too little, and in the more dangerous direction:
-these forms are Certain, so a spurious record auto-applies. Each form's region:
+Enumerating blindly is as wrong as enumerating too little, and more dangerous: these forms are
+Certain, so a spurious record auto-applies. Each form's region:
 
 | Form | Reference region | Excluded from enumeration |
 |---|---|---|
@@ -92,43 +93,42 @@ these forms are Certain, so a spurious record auto-applies. Each form's region:
 The comment case is the live hazard: `name: <old> # <old> before publishing` is one declaration
 and one piece of ordinary prose. Enumerating the whole match emits two records, both attributed to
 Form 14, which is Certain and exempt from the common-word demotion in a manifest, so apply mode
-rewrites the comment text too. The TOML alternative has the identical shape and the identical
-region. A comment is documentation ABOUT the declaration, never a second declaration.
+rewrites the comment text too. The TOML alternative has the identical shape and region. A comment
+is documentation ABOUT the declaration, never a second declaration.
 
 **Then advance the rescan cursor to the end of the LAST enumerated `<old>` span, not the end of
 the match.**
-Several forms deliberately CONSUME a trailing delimiter instead of using a lookahead, because
-ripgrep's default engine rejects look-around. Forms 1, 3, 13, 15 and both delimiter-anchored Form 14
-alternatives all do. That consumed delimiter is frequently the LEADING delimiter the next
-occurrence needs, so a rescan that resumes after the whole match eats the boundary and emits only
-the first of two adjacent references. Verified: on `{"name":"<old>","id":"<old>"}` a global
-`rg -o` returns ONE match, `{"name":"<old>",`, because the first match consumed the comma the `id`
-member needed; resuming at the end of the captured token instead returns both. Insert
-`"version":"1"` between them and both appear either way. The collision is specifically
-ADJACENCY, which is exactly what a compact manifest produces. Form 2 still finds the lost token,
-but under container mode that is suppressed residue, so the sweep can report completion with the
-second declaration stale.
+Several forms CONSUME a trailing delimiter instead of using a lookahead, because ripgrep's default
+engine rejects look-around: Forms 1, 3, 13, 15 and both delimiter-anchored Form 14 alternatives.
+That consumed delimiter is often the LEADING delimiter the next occurrence needs, so a rescan that
+resumes after the whole match eats the boundary and emits only the first of two adjacent
+references. Verified: on `{"name":"<old>","id":"<old>"}` a global `rg -o` returns ONE match,
+`{"name":"<old>",`, because the first match consumed the comma the `id` member needed; resuming at
+the end of the captured token returns both. Insert `"version":"1"` between them and both appear
+either way. The collision is specifically ADJACENCY, which a compact manifest produces. Form 2
+still finds the lost token, but under container mode that is suppressed residue, so the sweep can
+report completion with the second declaration stale.
 
-Two details that make the cursor rule correct rather than merely different:
+Two details that make the cursor rule correct:
 
 - **Advance a cursor; do not slice the string.** Re-running the pattern against a substring makes
   `^` match at the cursor, which would admit a member with no delimiter in front of it. Keep `^`
   bound to the real start of line or block.
 - **The cursor is the last enumerated token's end, not the match's start + 1.** Advancing by one
   character re-finds the same occurrence through a different alternative and doubles the record;
-  the captured span is the unit of identity everywhere else in this pipeline, so it is the unit
-  here too. Advancing past the whole match is the adjacency bug above; advancing past only the
-  FIRST token in a wide match re-emits the ones already enumerated.
+  the captured span is the unit of identity everywhere else in this pipeline, so here too.
+  Advancing past the whole match is the adjacency bug above; advancing past only the FIRST token
+  in a wide match re-emits the ones already enumerated.
 
 **Rescan the returned BLOCK, not a line, for the multiline forms.** For Form 7 and Form 14's
-Setext alternative the unit Grep returns is a multi-line block, and the pattern only matches
-against that whole block. Feeding it one line at a time reproduces NOTHING, so the rescan emits
-no record and the reference vanishes between the survey and triage, silently, on exactly the two
-forms that were added because their references were being missed. Keep the matched block intact,
-run the form's pattern against the block, locate the captured `<old>` span within it, and convert
-that block offset to `(line, start, end)` using the block's own first-line number. Line-by-line
-rescanning is correct for every single-line form and wrong for these two; branch on whether the
-form needs `multiline: true`, which is the same two forms listed above.
+Setext alternative Grep returns a multi-line block, and the pattern only matches against that
+whole block. Feeding it one line at a time emits no record, so the reference vanishes between the
+survey and triage, silently, on exactly the two forms added because their references were being
+missed. Keep the matched block intact, run the form's pattern against the block, locate the
+captured `<old>` span within it, and convert that block offset to `(line, start, end)` using the
+block's own first-line number. Line-by-line rescanning is correct for every single-line form and
+wrong for these two; branch on whether the form needs `multiline: true`, which is the same two
+forms listed above.
 
 With those records, apply BOTH rules from `patterns.md`, in this order:
 
@@ -145,7 +145,7 @@ With those records, apply BOTH rules from `patterns.md`, in this order:
    one aggregate count, and **every other form's matches, Forms 4 through 12, are demoted to
    Ambiguous**, including Forms 8 and 12, which are Certain by default and would otherwise stay
    on the auto-apply path and rewrite an unrelated dotted key or glob entry. Precedence alone
-   leaves all of them at their identifier-mode ratings; the mode rule is what removes them.
+   leaves all of them at their identifier-mode ratings; the mode rule removes them.
 
 Both run BEFORE Phase 3, or triage will bucket the same reference twice and re-admit the
 residue the mode rule excluded.
@@ -219,9 +219,9 @@ If `<new>` is undetermined (single-token reverse mode), omit the `→ <new>` and
 - **All matches in excluded paths**: report with breakdown showing why each was excluded. User may want to widen scope via the override flags (`--include-historical`, `--include-memory`, `--include-plan-docs`, `--include-bare-token`)
 - **Ambiguous bucket is empty AND `<old>` is in English-verb blocklist**: unusual for an
   identifier rename. Re-run Form 2 without blocklist filter to verify; the blocklist demotes, not
-  excludes. **Expected, not unusual, under container-rename mode**, where the bare-token residue
-  is excluded from the buckets entirely and reported as an aggregate, so an empty Ambiguous
-  bucket is the designed outcome rather than a signal to re-run
+  excludes. **Expected under container-rename mode**, where the bare-token residue is excluded
+  from the buckets entirely and reported as an aggregate, so an empty Ambiguous bucket is the
+  designed outcome, not a signal to re-run
 - **Audit invoked while another `/docs-hygiene:rename-references` apply is in progress**: abort. In-flight edits and rename-documenting plan docs would be misclassified mid-apply
 
 ## Hand-off

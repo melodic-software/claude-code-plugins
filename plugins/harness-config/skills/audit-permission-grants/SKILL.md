@@ -69,9 +69,11 @@ It scans frontmatter `allowed-tools` and settings `permissions.allow` across the
 the user-global settings file (`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json`), and prints one
 finding per fragile grant (`<severity> [<check>] <source>: <detail>`). `--count` prints the count.
 **Exit 2 is the environment-gap channel: report the gap rather than a clean bill.** It is raised by a
-missing `jq`, a missing shared pattern library, a scan root that resolves to neither a git toplevel
-nor `$CLAUDE_PROJECT_DIR`, and any argument the script does not recognize. An unresolvable **user**
-scope is not one of them: the run records it in the coverage block, says so on stderr, and continues.
+missing `jq` (its message names the platform's install command when it finds one), a missing
+shared pattern library, a scan root that resolves to neither a git toplevel nor
+`$CLAUDE_PROJECT_DIR`, and any argument the script does not recognize. An unresolvable **user**
+scope is not one of them: the run records it in the coverage block, says so on stderr, and
+continues.
 On an unresolvable project root, say the scan did not run and
 give the fix: run from inside the repository you mean to scan, or set
 `$PERMISSION_HYGIENE_SCAN_ROOT` explicitly. That variable is a supported operator lever, not a
@@ -93,6 +95,10 @@ result readable. Carry its numbers into the report:
   audited and blocked counts. Relay that as the outcome too. The rule is the same one the denominator
   serves: the run cannot speak for a scope it never read, and the violation it missed may be sitting
   in the file it could not parse.
+- **A clean bill needs frontmatter coverage when there was frontmatter to cover.** When a run
+  with no finding and no unreadable input excluded every frontmatter candidate as non-loadable, it
+  prints `NO FRONTMATTER AUDITED, NOT A CLEAN BILL` in place of the clean bill. Relay it as the outcome, and check that each plugin
+  directory under the root sits at `plugins/<name>/` or holds `.claude-plugin/plugin.json`.
 - **Say what was not read.** The block counts paths the walk could not open, settings files present
   but not valid JSON (whose rules were skipped entirely), and files an exclusion rule removed. Each
   of those is a hole in the denominator, and each belongs in the report next to the finding count.
