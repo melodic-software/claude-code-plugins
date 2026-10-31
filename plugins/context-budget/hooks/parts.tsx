@@ -22,12 +22,17 @@ const entry = (c: LiveCategory): string =>
 
 const isFree = (c: LiveCategory) => c.kind === 'free'
 
-// The skill listing's default budget is 1% of the context window (skillListingBudgetFraction 0.01,
-// counted in characters): https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short,
-// also skills/audit/reference/levers.json "skill-listing-budget". The row's percent is tokens, so
-// this compares the row's token share with the budget's 1%, not the two sizes. Fixed; no option.
+// The skill listing's default budget is 1% of the context window (skillListingBudgetFraction 0.01):
+// https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short, also
+// skills/audit/reference/levers.json "skill-listing-budget". Claude Code counts that budget in
+// characters, sized from the window's tokens: SLASH_COMMAND_TOOL_CHAR_BUDGET's documented fallback
+// of 8,000 characters (https://code.claude.com/docs/en/env-vars) is 1% of a 200k window at 4
+// characters per token. So a listing that fills the default budget is about 1% of the window in
+// tokens, the unit the row reports, and a row at 1% has reached the default budget. Fixed; no
+// option. A raised skillListingBudgetFraction lets the listing pass 1% without being over its
+// budget, so the fix text states the row's share and makes no claim about the budget.
 const SKILLS_WARN_PERCENT = 1
-export const SKILLS_FIX = 'over the default 1% skill listing budget: run /skill-doctor, or check skillListingBudgetFraction'
+export const SKILLS_FIX = 'Skills holds 1% or more of the window: run /skill-doctor, or check skillListingBudgetFraction'
 
 // Skills is the one category with a documented level. Its kind is shared with other used rows, so
 // this one check reads the name.
