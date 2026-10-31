@@ -15,8 +15,9 @@ name: pr-verify
 # request event red for anything but such a hold stops this workflow from running
 # (docs/conventions/pr-pipeline/README.md, "Native auto-merge").
 #
-# No pull request code runs here. The diff, the trusted PR text and the linked
-# issues are data files in pr-verify-data under the working directory, and the
+# No pull request code runs here. The diff, the trusted PR text, the linked
+# issues and the upstream run's jobs (upstream-jobs.mjs) are data files in
+# pr-verify-data under the working directory, and the
 # model reads them with the Read tool alone: its rules allow that directory
 # and deny .base and every other tool. The judgment runs on ci-workflows'
 # run-claude-cli as the pr-verify role, on one credential per job. The
@@ -239,6 +240,18 @@ jobs:
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
           bash .base/.github/scripts/pr-verify/chunk-diff.sh
 
+      # The jobs of the run this one was started by, each with its name and
+      # conclusion, so the model can judge whether the suites that cover the
+      # change ran (prompt.md). The token reads only.
+      - name: List the upstream run's jobs
+        if: steps.agree.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
+        run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
+
       # The reads the subscription job would repeat, from the files and
       # outputs of the steps above, before the model runs: one job output
       # (resolve-pr.mjs packReads), empty when too large or on any failure,
@@ -326,6 +339,7 @@ jobs:
             prompt=${prompt//PR_FILE/$DATA/pr.json}
             prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
             prompt=${prompt//SPEC_FILE/$DATA/spec.json}
+            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}
             note=
             if [ "$CHUNKS" -gt 1 ]; then
               note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
@@ -1125,6 +1139,18 @@ jobs:
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
           bash .base/.github/scripts/pr-verify/chunk-diff.sh
 
+      # The jobs of the run this one was started by, each with its name and
+      # conclusion, so the model can judge whether the suites that cover the
+      # change ran (prompt.md). The token reads only.
+      - name: List the upstream run's jobs
+        if: steps.agree.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
+        run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
+
       # The judgment's model, turns and effort: the verify-pr route of the
       # base config's models block.
       - name: Resolve the verifier's model
@@ -1200,6 +1226,7 @@ jobs:
             prompt=${prompt//PR_FILE/$DATA/pr.json}
             prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
             prompt=${prompt//SPEC_FILE/$DATA/spec.json}
+            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}
             note=
             if [ "$CHUNKS" -gt 1 ]; then
               note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
@@ -1980,6 +2007,18 @@ jobs:
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
           bash .base/.github/scripts/pr-verify/chunk-diff.sh
 
+      # The jobs of the run this one was started by, each with its name and
+      # conclusion, so the model can judge whether the suites that cover the
+      # change ran (prompt.md). The token reads only.
+      - name: List the upstream run's jobs
+        if: steps.agree.outcome == 'success'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          API_BUDGET_TOKEN: github-token
+          UPSTREAM_RUN_ID: ${{ github.event.workflow_run.id }}
+          JOBS_FILE: ${{ github.workspace }}/pr-verify-data/upstream-jobs.json
+        run: node .base/.github/scripts/pr-verify/upstream-jobs.mjs
+
       # The judgment's model, turns and effort: the verify-pr route of the
       # base config's models block.
       - name: Resolve the verifier's model
@@ -2055,6 +2094,7 @@ jobs:
             prompt=${prompt//PR_FILE/$DATA/pr.json}
             prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
             prompt=${prompt//SPEC_FILE/$DATA/spec.json}
+            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}
             note=
             if [ "$CHUNKS" -gt 1 ]; then
               note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
