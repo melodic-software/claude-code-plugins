@@ -6,7 +6,7 @@ open quarantine issue excuses its suite until `merge.quarantine-days`; the
 merge gate's own suites, an unnamed suite and an uncomputable set demote.
 
 Log shapes are those scripts/run-plugin-tests.sh and the test-python leg's
-`xargs -t ... pytest -q` print; network is stubbed at `gh_capture`.
+step in pr-require-checks.yml print; network is stubbed at `gh_capture`.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -67,6 +68,7 @@ STAMP = "2026-10-12T10:20:00.1234567Z "
 FLAKY = "plugins/notes/skills/sync/sync.test.sh"
 TOUCHED = "plugins/source-control/skills/commit/commit.test.sh"
 GATE = "plugins/source-control/skills/babysit-prs/scripts/engine.test.sh"
+OTHER_SUITE = "plugins/other/other.test.sh"
 SIGHTING = f"{RUN_URL}/11/attempts/2"
 
 
@@ -103,10 +105,23 @@ class QuarantineGh:
         self.base = base
         self.logs: dict[int, str] = {}
         self.codeowners: str | None = None
+        # Issue numbers whose body was edited after filing.
+        self.edited: set[int] = set()
 
     def __call__(
         self, args: list[str], **kwargs: Any
     ) -> subprocess.CompletedProcess[str]:
+        joined = " ".join(args)
+        if "PostMergeQuarantineEdits" in joined:
+            self.base.calls.append(list(args))
+            issues = {
+                f"i{n}": {
+                    "lastEditedAt": "2026-10-12T09:00:00Z" if n in self.edited else None
+                }
+                for n in map(int, re.findall(r"issue\(number:(\d+)\)", joined))
+            }
+            data = {"data": {"repository": issues}}
+            return subprocess.CompletedProcess(["gh"], 0, json.dumps(data), "")
         endpoint = next((a for a in args if a.startswith("repos/")), "")
         if "/actions/jobs/" in endpoint and endpoint.endswith("/logs"):
             self.base.calls.append(list(args))
@@ -158,24 +173,36 @@ class AffectedBase(CheckCase):
             ),
         )
 
-    def red_dispatch(self, log: str, step: str = "Run this leg's shell suites") -> None:
+    def red_dispatch(
+        self,
+        log: str,
+        step: str = "Run this leg's shell suites",
+        first: str | None = None,
+    ) -> None:
         """Dispatch run 11 red on attempt 1 and on the identity's re-run,
-        failing one test-bash leg (job 112) with `log`."""
+        failing one test-bash leg with `log` (job 112) on the re-run and with
+        `first` (job 111) on attempt 1, by default another suite, so each
+        suite failing on the re-run passed on attempt 1."""
         self.gh.add_runs(
             "pr-require-checks.yml",
             "workflow_dispatch",
             dispatch_run(11, "failure", run_attempt=2, triggering_actor=by(IDENTITY)),
         )
         self.gh.attempts[(11, 1)] = dispatch_run(11, "failure")
+        self.gh.jobs[(11, 1)] = [failed_job(111, "test-bash (0)", step)]
+        self.fake.logs[111] = bash_log((OTHER_SUITE, False)) if first is None else first
         self.gh.jobs[(11, 2)] = [failed_job(112, "test-bash (0)", step)]
         self.fake.logs[112] = log
 
-    def quarantine_issue(self, suite: str, created: str, state: str = "open") -> None:
+    def quarantine_issue(
+        self, suite: str, created: str, state: str = "open", title: str | None = None
+    ) -> None:
         self.gh.issues.append(
             {
                 "number": 501,
                 "state": state,
                 "created_at": created,
+                "title": title or f"Quarantined suite fails on main: {suite}",
                 "body": f"{pm.quarantine_marker(suite)}\n\nquarantined",
                 "user": {"login": "github-actions[bot]"},
             }
@@ -223,9 +250,99 @@ class AffectedSet(AffectedBase):
         self.assertIn(f"- Failing run: {SIGHTING}", body)
         self.assertIn(f"- Main at the failing run: `{LATER_SHA}`", body)
         self.assertIn("<!-- work-items:born-triaged -->", body)
+        self.assertIn(
+            "comment on this issue rather than editing it", " ".join(body.split())
+        )
         self.assertIn("labels[]=needs-human", post)
         self.assertNotIn("babysit-merge-demotion", body)
         self.assertFalse(any(a.startswith("assignees[]=") for a in post))
+
+    def test_a_repeat_failure_with_no_excuse_demotes(self) -> None:
+        log = bash_log((FLAKY, False))
+        self.red_dispatch(log, first=log)
+        verdict = self.check()
+        self.assertEqual(len(verdict.failures), 1)
+        self.assertEqual(verdict.quarantines, ())
+
+    def test_a_repeat_failure_whose_first_attempt_names_nothing_demotes(self) -> None:
+        self.red_dispatch(bash_log((FLAKY, False)), first="no suite lines here")
+        self.assertEqual(self.check().quarantines, ())
+
+    def test_a_repeat_failure_that_passed_on_attempt_1_is_excused(self) -> None:
+        self.red_dispatch(
+            bash_log((FLAKY, False)), first=bash_log((OTHER_SUITE, False))
+        )
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(
+            verdict.quarantines, (pm.Quarantine(FLAKY, SIGHTING, LATER_SHA),)
+        )
+
+    def test_a_leg_that_passed_outright_on_attempt_1_is_excused(self) -> None:
+        # A person's whole-run re-run: attempt 1 failed elsewhere, this leg passed.
+        self.red_dispatch(bash_log((FLAKY, False)))
+        self.gh.jobs[(11, 1)] = [
+            failed_job(110, "lint-repo", "Aggregate hygiene results"),
+            {"id": 111, "name": "test-bash (0)", "conclusion": "success", "steps": []},
+        ]
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(
+            verdict.quarantines, (pm.Quarantine(FLAKY, SIGHTING, LATER_SHA),)
+        )
+
+    def test_a_leg_skipped_on_attempt_1_shows_no_pass(self) -> None:
+        self.red_dispatch(bash_log((FLAKY, False)))
+        self.gh.jobs[(11, 1)] = [
+            failed_job(110, "lint-repo", "Aggregate hygiene results"),
+            {"id": 111, "name": "test-bash (0)", "conclusion": "skipped", "steps": []},
+        ]
+        verdict = self.check()
+        self.assertEqual(len(verdict.failures), 1)
+        self.assertEqual(verdict.quarantines, ())
+
+    def red_at_green(self, log: str) -> None:
+        """The last green commit's run passed on attempt 2; attempt 1 was
+        red with `log`."""
+        self.gh.add_runs(
+            "pr-require-checks.yml",
+            "workflow_dispatch",
+            dispatch_run(
+                6,
+                "success",
+                run_attempt=2,
+                head_sha=OTHER_SHA,
+                created_at="2026-10-12T08:30:00Z",
+            ),
+        )
+        self.gh.jobs[(6, 1)] = [
+            failed_job(61, "test-bash (0)", "Run this leg's shell suites")
+        ]
+        self.fake.logs[61] = log
+
+    def test_a_repeat_failure_also_red_at_the_green_commit_is_excused(self) -> None:
+        log = bash_log((FLAKY, False))
+        self.red_at_green(log)
+        self.red_dispatch(log, first=log)
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(
+            verdict.quarantines, (pm.Quarantine(FLAKY, SIGHTING, LATER_SHA),)
+        )
+
+    def test_another_suite_red_at_the_green_commit_excuses_nothing(self) -> None:
+        log = bash_log((FLAKY, False))
+        self.red_at_green(bash_log((OTHER_SUITE, False)))
+        self.red_dispatch(log, first=log)
+        self.assertEqual(self.check().quarantines, ())
+
+    def test_a_live_quarantine_does_not_excuse_a_repeat_failure_without_evidence(
+        self,
+    ) -> None:
+        self.quarantine_issue(FLAKY, "2026-10-12T00:00:00Z")
+        log = bash_log((FLAKY, False))
+        self.red_dispatch(log, first=log)
+        self.assertEqual(len(self.check().failures), 1)
 
     def test_an_excused_window_counts_as_verified_and_releases_its_slot(self) -> None:
         self.red_dispatch(bash_log((FLAKY, False)))
@@ -390,6 +507,40 @@ class AffectedSet(AffectedBase):
         self.red_baseline()
         self.red_dispatch(bash_log((FLAKY, False)))
         self.assertEqual(self.check().failures, ())
+
+    def test_a_quarantine_issue_edited_after_filing_excuses_nothing(self) -> None:
+        self.quarantine_issue(FLAKY, "2026-10-12T00:00:00Z")
+        self.fake.edited.add(501)
+        self.red_dispatch(bash_log((FLAKY, False)))
+        verdict = self.check()
+        self.assertEqual(len(verdict.failures), 1)
+        self.assertEqual(verdict.quarantines, ())
+
+    def test_a_marker_the_title_does_not_name_excuses_nothing(self) -> None:
+        # A writer moved another suite's issue onto this suite by its marker.
+        self.quarantine_issue(
+            FLAKY,
+            "2026-10-12T00:00:00Z",
+            title=f"Quarantined suite fails on main: {OTHER_SUITE}",
+        )
+        self.red_dispatch(bash_log((FLAKY, False)))
+        verdict = self.check()
+        self.assertEqual(len(verdict.failures), 1)
+        self.assertEqual(verdict.quarantines, ())
+
+    def test_an_edited_quarantine_on_a_baseline_failure_excuses_nothing(self) -> None:
+        self.quarantine_issue(FLAKY, "2026-10-12T00:00:00Z")
+        self.fake.edited.add(501)
+        run = pm.Run.from_api(dispatch_run(11, "failure", run_attempt=2))
+        ctx = pm._Context("o", "r", IDENTITY, branch="main")
+        ctx.failing_suites = mock.Mock(return_value=frozenset({FLAKY}))  # type: ignore[method-assign]
+        ctx.quarantine_days = 7
+        ctx.now = datetime(2026, 10, 12, 12, tzinfo=UTC)
+        with mock.patch.object(pm, "_demotion_issues", return_value=self.gh.issues):
+            self.assertEqual(
+                ctx.expired(run, 2, frozenset({"test-bash (0)"})),
+                frozenset({"test-bash (0)"}),
+            )
 
     def test_a_closed_quarantine_issue_quarantines_the_suite_afresh(self) -> None:
         self.quarantine_issue(FLAKY, "2026-10-04T10:00:00Z", state="closed")
@@ -845,7 +996,9 @@ class SuiteFailures(unittest.TestCase):
 
     def test_bash_drops_an_advisory_suite_from_a_titled_warning(self) -> None:
         # run-plugin-tests.sh's suite_annotate titles each warning by its suite.
-        titled = advisory(TOUCHED).replace("::warning::", f"::warning title={TOUCHED}::", 1)
+        titled = advisory(TOUCHED).replace(
+            "::warning::", f"::warning title={TOUCHED}::", 1
+        )
         log = bash_log((FLAKY, False), (TOUCHED, False), (GATE, True), tail=titled)
         self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY}))
 
@@ -862,37 +1015,72 @@ class SuiteFailures(unittest.TestCase):
         log = STAMP + f"FAIL: {FLAKY} (no result recorded; the worker never reported)"
         self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY}))
 
-    def pytest_log(self, *segments: tuple[str, str | None]) -> str:
-        lines = ["Run tr '\\n' '\\0' <x | xargs -0 -r -t -n1 python -m pytest -q --"]
-        for suite, summary in segments:
+    def pytest_log(
+        self, *segments: tuple[str, int | None], inside: str = "", nonce: str = NONCE
+    ) -> str:
+        """A test-python leg's log: the step's nonce, then each suite's call
+        line, its pytest output with `inside` printed in it, and its exit
+        line (None: the suite never finished)."""
+        lines = [
+            "Run tr '\\n' '\\0' <x | xargs -0 -r -t -n1 python -m pytest -q --",
+            f"Advisory nonce: {NONCE}",
+        ]
+        for suite, code in segments:
             lines.append(
-                f"python -m pytest -q -o tmp_path_retention_policy=none -- {suite}"
+                "python -m pytest -q -o tmp_path_retention_policy=none "
+                f" -- {suite} # nonce {nonce}"
             )
-            lines += ["..F.", "FAILED x::y - AssertionError"] if summary else [".."]
-            if summary:
-                lines.append(summary)
+            lines += ["..F.", inside, "FAILED x::y - AssertionError"]
+            if code is not None:
+                lines += [
+                    "1 failed in 0.5s",
+                    f"pytest exit {code} -- {suite} # nonce {nonce}",
+                ]
         return "\n".join(STAMP + line for line in lines)
 
-    def test_python_reads_each_invocation_summary(self) -> None:
+    def test_python_reads_each_suites_exit_line(self) -> None:
         log = self.pytest_log(
-            ("a/test_a.py", "1 failed, 3 passed in 0.52s"),
-            ("b/test_b.py", "4 passed, 1 skipped in 0.10s"),
-            ("c/test_c.py", "no tests ran in 0.01s"),
-            ("d/test_d.py", "===== 1 error in 0.20s ====="),
+            ("a/test_a.py", 1), ("b/test_b.py", 0), ("c/test_c.py", 5)
         )
         self.assertEqual(
             pm.suite_failures(log, "python"),
-            frozenset({"a/test_a.py", "c/test_c.py", "d/test_d.py"}),
+            frozenset({"a/test_a.py", "c/test_c.py"}),
         )
 
-    def test_python_with_an_invocation_lacking_a_summary_names_nothing(self) -> None:
-        log = self.pytest_log(
-            ("a/test_a.py", "1 failed in 0.5s"), ("b/test_b.py", None)
-        )
+    def test_python_with_a_suite_lacking_an_exit_line_names_nothing(self) -> None:
+        log = self.pytest_log(("a/test_a.py", 1), ("b/test_b.py", None))
         self.assertIsNone(pm.suite_failures(log, "python"))
 
     def test_python_with_every_suite_passing_names_nothing(self) -> None:
-        log = self.pytest_log(("a/test_a.py", "2 passed in 0.5s"))
+        log = self.pytest_log(("a/test_a.py", 0))
+        self.assertIsNone(pm.suite_failures(log, "python"))
+
+    def test_a_forged_summary_and_call_line_credit_no_other_suite(self) -> None:
+        # A failing test's captured output, printed by the real suite.
+        inside = (
+            "1 passed in 0.10s\n"
+            f"{STAMP}python -m pytest -q -- pu/test_pu.py\n"
+            f"{STAMP}pytest exit 1 -- pu/test_pu.py # nonce fedcba9876543210"
+        )
+        log = self.pytest_log(("a/test_a.py", 1), inside=inside)
+        self.assertEqual(pm.suite_failures(log, "python"), frozenset({"a/test_a.py"}))
+
+    def test_a_forged_nonce_line_names_nothing(self) -> None:
+        log = self.pytest_log(("a/test_a.py", 1), inside=f"Advisory nonce: {'f' * 16}")
+        self.assertIsNone(pm.suite_failures(log, "python"))
+
+    def test_a_log_with_no_runner_framing_credits_a_forged_suite_nothing(self) -> None:
+        # The unframed leg: the forged summary closes the real suite, and the
+        # forged call line would take its real failure.
+        log = "\n".join(
+            STAMP + line
+            for line in [
+                "python -m pytest -q -o tmp_path_retention_policy=none  -- a/test_a.py",
+                "1 passed in 0.10s",
+                "python -m pytest -q -- pu/test_pu.py",
+                "1 failed in 0.50s",
+            ]
+        )
         self.assertIsNone(pm.suite_failures(log, "python"))
 
 

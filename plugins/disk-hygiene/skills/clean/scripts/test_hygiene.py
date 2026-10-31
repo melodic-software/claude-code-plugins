@@ -8312,6 +8312,80 @@ class HandoffVerifyTests(unittest.TestCase):
                 self.handoff_verify_cli(temporary, [names[0]]), (status, payload)
             )
 
+    def preview_inline(
+        self, temporary: str, *words: str
+    ) -> tuple[int, dict[str, Any]]:
+        argv = [
+            "preview",
+            "--snapshot",
+            str(Path(temporary) / "snapshot.json"),
+            *words,
+            "--data-root",
+            temporary,
+        ]
+        handle, vcs = self.clear_probe_mocks()
+        output = io.StringIO()
+        with handle, vcs, redirect_stdout(output):
+            status = hygiene.main(argv)
+        return status, json.loads(output.getvalue())
+
+    def test_preview_inline_form_writes_the_plan_the_file_form_reads(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, names = self.five_file_snapshot(temporary)
+            inline = self.preview_inline(
+                temporary, "--tier", "high", "--path", names[0], "--path", names[1]
+            )
+            plan_path = Path(temporary) / "plan-high.json"
+            plan = hygiene.load_json(plan_path)
+            self.assertEqual("high", plan["tier"])
+            self.assertEqual(names[:2], [item["path"] for item in plan["candidates"]])
+            self.assertEqual(
+                {"unmanaged"}, {item["owner"] for item in plan["candidates"]}
+            )
+            # Same result, token included, so the unchanged apply --plan matches.
+            self.assertEqual(
+                self.preview_inline(temporary, "--plan", str(plan_path)), inline
+            )
+
+    def test_preview_inline_path_keeps_the_handoff_path_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            self.five_file_snapshot(temporary)
+            for relative in ("/junk0.tmp", "../junk0.tmp", ".", "absent.tmp"):
+                with self.subTest(path=relative):
+                    status, payload = self.preview_inline(
+                        temporary, "--tier", "high", "--path", relative
+                    )
+                    self.assertEqual(2, status)
+                    self.assertIn("approved path", payload["error"])
+                    self.assertFalse((Path(temporary) / "plan-high.json").exists())
+
+    def test_preview_refuses_tier_and_path_apart(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, names = self.five_file_snapshot(temporary)
+            plan = Path(temporary) / "plan.json"
+            plan.write_text("{}", encoding="utf-8")
+            for words in (
+                ("--path", names[0]),
+                ("--plan", str(plan), "--tier", "high"),
+            ):
+                with self.subTest(words=words):
+                    status, payload = self.preview_inline(temporary, *words)
+                    self.assertEqual(2, status)
+                    self.assertIn("--tier and --path together", payload["error"])
+
+    @unittest.skipUnless(os.name == "posix", "symlink creation is POSIX-only here")
+    def test_preview_inline_plan_never_lands_on_engine_owned_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            _, names = self.five_file_snapshot(temporary)
+            catalog = Path(temporary) / "catalog.json"
+            catalog.write_text("{}", encoding="utf-8")
+            (Path(temporary) / "plan-high.json").symlink_to(catalog)
+            status, _ = self.preview_inline(
+                temporary, "--tier", "high", "--path", names[0]
+            )
+            self.assertEqual(2, status)
+            self.assertEqual("{}", catalog.read_text(encoding="utf-8"))
+
     def test_handoff_verify_inline_path_keeps_the_file_form_validation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             self.five_file_snapshot(temporary)
@@ -10364,23 +10438,45 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         data_root = self.authorize_data_root()
         verify = f'"{self.python_command()}" "{script}" handoff-verify --snapshot {self.snapshot_arg}'
+        preview = f'"{self.python_command()}" "{script}" preview --snapshot {self.snapshot_arg} --tier high'
         apply = (
             f'"{self.python_command()}" "{script}" handoff-apply --execute --snapshot {self.snapshot_arg} '
             f"--tier medium --report {self.report_arg}"
         )
         apply_tail = f" --vcs-evidence {self.evidence_arg}{data_root}"
+
+        def shapes(head: str, beside: str) -> dict[str, str]:
+            return {
+                "no value": f"{head} --path{data_root}",
+                "joined value": f"{head} --path=rel/junk{data_root}",
+                "prefix": f"{head} --pa rel/junk{data_root}",
+                "beside the file form": f"{head} --path rel/junk {beside}{data_root}",
+                "empty quoted value": f'{head} --path ""{data_root}',
+                "flag-shaped value": f"{head} --path -rf{data_root}",
+                "variable expansion": f"{head} --path $HOME/x{data_root}",
+                "glob": f"{head} --path a/*.tmp{data_root}",
+                "tilde": f"{head} --path ~/x{data_root}",
+                "backslash": f"{head} --path a\\b{data_root}",
+                "command substitution": f"{head} --path 'a/$(id)'{data_root}",
+                "chained command": f"{head} --path rel/junk{data_root}; rm -rf x",
+            }
+
         malformed = {
-            "no value": f"{verify} --path{data_root}",
-            "joined value": f"{verify} --path=rel/junk{data_root}",
-            "beside --paths": f"{verify} --path rel/junk --paths {self.paths_arg}{data_root}",
-            "empty quoted value": f'{verify} --path ""{data_root}',
-            "flag-shaped value": f"{verify} --path -rf{data_root}",
-            "variable expansion": f"{verify} --path $HOME/x{data_root}",
-            "glob": f"{verify} --path a/*.tmp{data_root}",
-            "tilde": f"{verify} --path ~/x{data_root}",
-            "backslash": f"{verify} --path a\\b{data_root}",
-            "command substitution": f"{verify} --path 'a/$(id)'{data_root}",
-            "chained command": f"{verify} --path rel/junk{data_root}; rm -rf x",
+            **{
+                f"handoff-verify {label}": command
+                for label, command in shapes(verify, f"--paths {self.paths_arg}").items()
+            },
+            **{
+                f"preview {label}": command
+                for label, command in shapes(preview, f"--plan {self.plan_arg}").items()
+            },
+            "preview tier outside the set": (
+                f'"{self.python_command()}" "{script}" preview --snapshot {self.snapshot_arg} '
+                f"--tier extreme --path rel/junk{data_root}"
+            ),
+            "preview chosen output": (
+                f"{preview} --path rel/junk --output {self.output_arg}{data_root}"
+            ),
             "handoff-apply joined value": f"{apply} --path=rel/junk{apply_tail}",
             "handoff-apply prefix": f"{apply} --pa rel/junk{apply_tail}",
         }
@@ -10388,6 +10484,11 @@ class GuardTests(unittest.TestCase):
         cases = {
             "one path": (f"{verify} --path rel/junk{data_root}", "allow"),
             "two paths": (f"{verify} --path a/one --path b/two{data_root}", "allow"),
+            "preview one path": (f"{preview} --path rel/junk{data_root}", "allow"),
+            "preview two paths": (
+                f"{preview} --path a/one --path b/two{data_root}",
+                "allow",
+            ),
             "handoff-apply": (f"{apply} --path rel/junk{apply_tail}", "ask"),
             **{label: (command, "deny") for label, command in malformed.items()},
         }
@@ -11331,6 +11432,52 @@ class GuardTests(unittest.TestCase):
                 self.assertEqual(code, self._engine_preview(outcome))
                 self.assertFalse(self._run_marker().exists())
                 self.assertIsNone(self._belt("gh issue list"))
+
+    def _open_run_by_inline_preview(self) -> None:
+        self._scan()
+        preview = self._engine_words(
+            f"preview --snapshot {self.snapshot_arg} --tier high --path rel/junk"
+        )
+        self.assertEqual("allow", self._belt(preview))
+
+    def _engine_inline_preview(self, outcome: str) -> int:
+        status = {"explicit-approval": "ready-for-explicit-approval"}
+        return self._engine(
+            "preview",
+            "--snapshot",
+            os.fspath(self._run_file("snapshot.json")),
+            "--tier",
+            "high",
+            "--path",
+            "rel/junk",
+            entry_map=mock.Mock(return_value={"rel/junk": {}}),
+            preview=mock.Mock(
+                return_value={"outcome": outcome, "status": status.get(outcome, "blocked")}
+            ),
+        )
+
+    def test_inline_preview_opens_the_run_on_the_plan_it_writes(self) -> None:
+        self._open_run_by_inline_preview()
+        recorded = json.loads(self._run_marker().read_text("utf-8"))["ends_with"]
+        self.assertEqual(
+            os.path.normcase(self._run_file("plan-high.json")),
+            os.path.normcase(Path(recorded).resolve()),
+        )
+        self.assertEqual("deny", self._belt("gh issue list"))
+
+    def test_terminal_inline_preview_outcome_ends_the_run(self) -> None:
+        for outcome, code in (("manual-handoff-lane", 0), ("blocked", 3)):
+            with self.subTest(outcome=outcome):
+                self._open_run_by_inline_preview()
+                self.assertEqual(code, self._engine_inline_preview(outcome))
+                self.assertFalse(self._run_marker().exists())
+                self.assertIsNone(self._belt("gh issue list"))
+
+    def test_approvable_inline_preview_keeps_the_run_open_for_its_apply(self) -> None:
+        self._open_run_by_inline_preview()
+        self.assertEqual(0, self._engine_inline_preview("explicit-approval"))
+        self.assertTrue(self._run_file("plan-high.json").is_file())
+        self.assertTrue(self._run_marker().is_file())
 
     def test_approvable_preview_keeps_the_run_open_for_its_apply(self) -> None:
         self._open_run_by_preview()
@@ -17505,7 +17652,7 @@ class EngineGrammarTests(unittest.TestCase):
             [flag.name for flag in apply_spec.flags],
         )
         self.assertEqual(
-            ["--snapshot", "--plan", "--data-root"],
+            ["--snapshot", "--plan", "--path", "--tier", "--data-root"],
             [flag.name for flag in self.grammar.subcommand("preview").flags],
         )
 

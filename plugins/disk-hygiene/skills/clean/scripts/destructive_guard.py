@@ -2655,6 +2655,16 @@ def _run_marker_path(authority: str, session_id: str) -> Path:
     )
 
 
+def _preview_plan_file(words: list[str]) -> str | None:
+    """The plan a preview reads, or the one its inline form writes."""
+    plan = _argv_flag_value(words, "--plan")
+    if plan:
+        return plan
+    snapshot = _argv_flag_value(words, "--snapshot")
+    tier = _argv_flag_value(words, "--tier")
+    return engine_grammar.inline_plan_path(snapshot, tier) if snapshot and tier else None
+
+
 def _record_run_step(
     command: str, command_kind: str, authority: str | None, session_id: str | None
 ) -> None:
@@ -2669,7 +2679,7 @@ def _record_run_step(
         words = _literal_shell_words(command) or []
         ends_with: str | None
         if command_kind == "preview":
-            ends_with = _argv_flag_value(words, "--plan")
+            ends_with = _preview_plan_file(words)
             if not ends_with:
                 return
         elif command_kind in _MUTATING_ENGINE_SUBCOMMANDS:

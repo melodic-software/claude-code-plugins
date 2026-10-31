@@ -847,7 +847,31 @@ class Observer:
             with ledger.open("a", encoding="utf-8") as f:
                 f.write(section)
             self.log(f"appended to ledger {ledger.name}")
+        self._stamp_plugin_usage(ledger)
         return True
+
+    def _stamp_plugin_usage(self, ledger: Path) -> None:
+        """Best effort: the findings are on disk whatever this does."""
+        try:
+            run = subprocess.run(
+                [
+                    sys.executable,
+                    str(Path(__file__).with_name("stamp_plugin_usage.py")),
+                    "--ledger",
+                    str(ledger),
+                    "--session-id",
+                    self.session_id,
+                    "--session-data-dir",
+                    str(self.transcript.parent),
+                ],
+                capture_output=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+            self.log((run.stdout or run.stderr or "").strip())
+        except (OSError, subprocess.SubprocessError) as exc:
+            self.log(f"plugin_usage not stamped: {exc}")
 
     def _find_session_ledger(self) -> Path | None:
         for path in sorted(self.ledger_dir.glob("*-running-retro-*.md")):
