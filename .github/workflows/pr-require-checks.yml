@@ -6334,7 +6334,10 @@ jobs:
       # (or a renamed file's old path) is a trust-gate path, since no security
       # lane reads it (with merge.diff-check.path-holds false, Dependabot
       # alone: the generated guard after hold_patterns empties the list for
-      # every other author). A person on the base commit's trusted-actor list
+      # every other author), unless every change block of a Dependabot PR
+      # only swaps the ref of an action whose owner the base lists in
+      # merge.dependabot.trusted-action-owners (owner decision
+      # Q-ANTHROPIC-DEPS). A person on the base commit's trusted-actor list
       # approving the head clears that hold: their newest non-comment review,
       # matched by numeric id, is APPROVED at the head. It counts as that
       # person's whatever client submitted it. An unreadable review or
@@ -6453,6 +6456,63 @@ jobs:
                   | first | .user.login | strings' <<<"$reviews"); then
                 echo "$approver, a person on the trusted-actor list, approved $HEAD_SHA, which clears the trust-gate hold on #$PR_NUMBER; the review lanes are not required."
                 exit 0
+              fi
+              # Owner decision Q-ANTHROPIC-DEPS narrows Q24: a Dependabot PR
+              # whose every change block swaps the 40-hex ref of one `uses:`
+              # line of an action owner the base lists in
+              # merge.dependabot.trusted-action-owners (one action, same
+              # line, a new 40-hex ref and an optional `# <version>` comment)
+              # skips the hold, once each new SHA is one a tag of that action's
+              # repository points to (`git ls-remote --tags`, unauthenticated,
+              # as hold_ref reads the tip), so a branch name or a commit no tag
+              # names (a fork's imposter commit) does not pass. Only the
+              # broker step's file pages count; any other file, status, line or
+              # ref, a patch GitHub left out or cut short, or an unread tag
+              # list keeps it.
+              if [ "$AUTHOR_ID" = 49699333 ]; then
+                conf=$BASE_CONFIG/docs/conventions/pr-pipeline.yaml
+                owners='[]'
+                if [ ! -d "$BASE_CONFIG" ] || { [ -e "$conf" ] && ! owners=$(set -o pipefail; yq -o=json -I=0 '.merge.dependabot."trusted-action-owners" // []' "$conf" |
+                  jq -ce 'if type == "array" and all(.[]; type == "string" and test("^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$"))
+                    then map(ascii_downcase) else error("not a list of owners") end'); } || [ -z "$owners" ]; then
+                  echo "::error::could not read merge.dependabot.trusted-action-owners from pr-pipeline.yaml in the hold config (the default branch's tip at run time, or the base commit for another base), so whether #$PR_NUMBER bumps only trusted actions is unknown; re-run this run."
+                  exit 1
+                fi
+                # swaps: one "<owner>/<repo> <new SHA>" line per new ref, or
+                # nothing when any file or line falls outside the shape.
+                swaps=
+                if [ "$owners" != '[]' ] && [ -s "$RUNNER_TEMP/pr-files.json" ]; then
+                  swaps=$(jq -nr --argjson owners "$owners" '
+                    def ref_swap: capture("^(?<key>[ \t]*(-[ \t]+)?uses:[ \t]+(?<repo>(?<owner>[A-Za-z0-9]+(-[A-Za-z0-9]+)*)/[A-Za-z0-9_-][A-Za-z0-9._-]*)(/[A-Za-z0-9._-]+)*)@(?<ref>[0-9a-f]{40})([ \t]+#[ \t]*v?[0-9A-Za-z._-]+)?[ \t]*$")
+                      | select(.owner | ascii_downcase | IN($owners[]));
+                    def blocks: reduce ((split("\n") | map(sub("\r$"; "")))[], "") as $l ({done: [], cur: []};
+                      if $l | test("^[-+]") then .cur += [$l] elif .cur == [] then . else .done += [.cur] | .cur = [] end) | .done;
+                    [inputs | arrays[]] as $files
+                    | if ($files | length > 0) and all($files[];
+                      .status == "modified" and .previous_filename == null and (.patch | type) == "string"
+                      and (.filename | test("^\\.github/workflows/[^/]+\\.ya?ml$|(^|/)action\\.ya?ml$"))
+                      and ((.patch | blocks) as $bs | ($bs | length > 0) and ([$bs[][]] | length) == .additions + .deletions
+                        and all($bs[]; (map(select(startswith("-"))) as $old | map(select(startswith("+"))) as $new
+                          | . == $old + $new and ($old | length) == ($new | length)
+                          and all(range($old | length); ([$old[.][1:] | ref_swap] | length) == 1
+                            and ([$new[.][1:] | ref_swap] | length) == 1 and ($old[.][1:] | ref_swap | .key) == ($new[.][1:] | ref_swap | .key))))))
+                    then [$files[].patch | blocks[][] | select(startswith("+")) | .[1:] | ref_swap | "\(.repo) \(.ref)"] | unique[]
+                    else empty end' "$RUNNER_TEMP/pr-files.json") || swaps=
+                fi
+                if [ -n "$swaps" ]; then
+                  untagged=
+                  while read -r repo sha; do
+                    if ! tags=$(GIT_TERMINAL_PROMPT=0 timeout 60 git -C "$RUNNER_TEMP" ls-remote --tags "https://github.com/$repo") ||
+                      ! awk -v sha="$sha" '$1 == sha && index($2, "refs/tags/") == 1 { found = 1 } END { exit !found }' <<<"$tags"; then
+                      untagged="$untagged $repo@$sha"
+                    fi
+                  done <<<"$swaps"
+                  if [ -z "$untagged" ]; then
+                    echo "#$PR_NUMBER by Dependabot changes only the ref of actions by owners in merge.dependabot.trusted-action-owners ($owners), each to a tagged commit, on trust-gate paths:${held//%/%25}, which clears the trust-gate hold (owner decision Q-ANTHROPIC-DEPS); the review lanes are not required."
+                    exit 0
+                  fi
+                  echo "No tag of the action's repository points to, or its tag list could not be read for:$untagged, so the trusted-owner exception does not apply."
+                fi
               fi
               echo "::error::#$PR_NUMBER is by an author no review lane reviews and changes trust-gate paths:${held//%/%25}. A person merges it; a person on the trusted-actor list approving this head clears it."
               exit 1

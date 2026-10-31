@@ -1182,6 +1182,37 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(module=module):
                 self.assert_across_modules(True, self.SPREAD, replace, module)
 
+    # yallist's iterator: `e.prototype[Symbol.iterator]=...` in an exported
+    # function. 2.1.314 wraps it as `x(function(a,$O){$O.exports=...})`; the
+    # wrapper is left out so the pin holds only the iterator write's hit. A
+    # function declaration's `prototype` is writable and the function is
+    # exported, so the write may land on any object even when the one caller
+    # passes the module's own class: the write stays a sink of `@@iterator`,
+    # and the spread reads partial.
+    YALLIST = (
+        "function Y(){}"
+        "var R=function(e){e.prototype[Symbol.iterator]=function*(){"
+        "for(let t=this.head;t;t=t.next)yield t.value}};"
+    )
+
+    def assert_yallist_sink(self, module: str) -> None:
+        self.assert_across_modules(True, self.SPREAD, module)
+        found = type(self).reader.sinks(module, 0, len(module), ["@@iterator"])
+        self.assertEqual(
+            found["hits"],
+            [("write", "@@iterator", module.index("e.prototype[Symbol.iterator]"))],
+        )
+
+    def test_the_yallist_iterator_stays_partial(self) -> None:
+        """The one call passes a module-local function declaration never
+        written again, and the write still counts."""
+        self.assert_yallist_sink(self.YALLIST + "try{R(Y)}catch(t){}export{R,Y};")
+
+    def test_a_yallist_call_with_an_unknown_argument_stays_partial(self) -> None:
+        """A call passing what another call returns may hand the function
+        Array, whose prototype the spread reads."""
+        self.assert_yallist_sink(self.YALLIST + "R(g());export{R};")
+
     def test_a_require_read_as_a_truthiness_test_is_no_load(self) -> None:
         """A `.require` read that is only tested never hands the loader on:
         a `&&` operand other than the last, an `if`, loop or `?:` test, a

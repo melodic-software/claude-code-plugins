@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "check-skills: fixed"
+    },
+    {
+      "answer": "- `check-skills: fixed`"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "check-skills: escalated weaken-required the only cut removes a criterion line."
+    },
+    {
+      "answer": "I trimmed SKILL.md so it fits."
+    }
+  ]
+}

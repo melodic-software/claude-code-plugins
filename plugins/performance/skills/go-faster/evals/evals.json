@@ -134,7 +134,7 @@
     {
       "id": 9,
       "name": "temp-file-github-numbers-through-findings-py",
-      "prompt": "/performance:go-faster unattended, include CI and PR timing",
+      "prompt": "/performance:go-faster --unattended\n\nInclude CI and PR timing.",
       "expected_output": "Setup: a repository with a GitHub remote, an authenticated gh, and completed CI runs and merged pull requests. The sweeper writes only through findings.py: one gh repo view probe, then findings.py ci-timing and pr-timing for every GitHub number, findings passed as one plain `findings.py add --json` argument per Bash call with no stdin heredoc, and no gh output or JSON saved to a temporary file.",
       "files": [],
       "expectations": [
@@ -153,7 +153,7 @@
       "id": 10,
       "name": "workload-mismatch-reports-cannot-quantify",
       "prompt": "/performance:go-faster, and tell me if git got faster since this morning's run",
-      "expected_output": "AC9 conditions rule. Setup: earlier the same day, `/performance:go-faster unattended` ran in this repository and worktree on the same machine, harness and model, sharing this data folder. This attended run times git status while the main session is active, so its workload text differs and the re-measure is reported as cannot-quantify, never as a speedup or slowdown.",
+      "expected_output": "AC9 conditions rule. Setup: earlier the same day, `/performance:go-faster --unattended` ran in this repository and worktree on the same machine, harness and model, sharing this data folder. This attended run times git status while the main session is active, so its workload text differs and the re-measure is reported as cannot-quantify, never as a speedup or slowdown.",
       "files": [],
       "expectations": [
         "The git finding's workload is exactly 'git status x5, main session active'",
@@ -168,7 +168,7 @@
     {
       "id": 11,
       "name": "workload-match-compares-baseline",
-      "prompt": "/performance:go-faster unattended, again",
+      "prompt": "/performance:go-faster --unattended\n\nRun it again.",
       "expected_output": "AC9 conditions rule, matching half. Setup: an earlier unattended run in this repository and worktree on the same machine, harness and model, sharing this data folder. The workload text is identical, so compare reports the before and after values for git status timing.",
       "files": [],
       "expectations": [

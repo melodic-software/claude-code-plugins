@@ -2711,7 +2711,16 @@ them on every `pull_request` run, contract-only runs included:
   not. While `merge.diff-check.path-holds` is false (this repository's
   setting, owner decision Q21, 2026-10-29), `scripts/sync-hold-floor.py` writes a guard after
   `hold_patterns` that empties it for every author but Dependabot, so only a Dependabot PR is held
-  for its paths: its action-pin bumps bring in third-party code (owner decision Q24). The same holds a same-repository PR that changes a trust-gate
+  for its paths: its action-pin bumps bring in third-party code (owner decision Q24). The exception
+  (owner decision Q-ANTHROPIC-DEPS) is a Dependabot PR whose every changed file is a modified
+  workflow or `action.yml` and whose every change block only swaps the ref (and version comment)
+  of one `uses:` line of an action whose owner `merge.dependabot.trusted-action-owners` lists
+  (this repository: `anthropics`), read from the diff in the broker step's file pages. Both refs
+  must be 40-hex SHAs, the comment a version token (`# v1.0.266`), and each new SHA a commit a tag
+  of the action's repository points to (an unauthenticated `git ls-remote --tags`), so a branch,
+  a tag name or a commit no tag names keeps the hold. Any other line, file, status or owner, a
+  patch GitHub omitted or cut short, or an unread tag list keeps the hold, and an unreadable
+  owner list fails closed. The same holds a same-repository PR that changes a trust-gate
   path when an App named in `merge.trust-path-hold-apps` (the base commit's `pr-pipeline.yaml`,
   `[bot]` logins; this repository names only `trust-path-hold-off[bot]`, a login no App holds, so
   the hold is off) opened it, is the

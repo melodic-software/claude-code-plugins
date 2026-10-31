@@ -1199,19 +1199,25 @@ def ledger_row(n, qid, status, title, res):
 
 
 def unanswered_asks(doc, events):
-    """Each Notes line Claude posted with needsAnswer that no live note from the user is at or
-    after; the page pins the newest of them as a loose end."""
-    said = [
-        str(e.get("at") or "")
-        for e in events
-        if e.get("kind") == "note" and not e.get("withdrawn")
-    ]
-    last = max(said, default=None)
-    return [
-        n
-        for n in doc.get("notes") or []
-        if n.get("needsAnswer") and (last is None or last < str(n.get("at") or ""))
-    ]
+    """Each Notes line Claude posted with needsAnswer that no live note from the user answers.
+    Each user note answers the oldest ask still open at or before it, so two asks need two
+    notes; the page pins the same asks as loose ends."""
+    notes = doc.get("notes") or []
+    thread = sorted(
+        [(str(n.get("at") or ""), 0, i) for i, n in enumerate(notes) if n.get("needsAnswer")]
+        + [
+            (str(e.get("at") or ""), 1, 0)
+            for e in events
+            if e.get("kind") == "note" and not e.get("withdrawn")
+        ]
+    )
+    waiting = []
+    for _, by_user, i in thread:
+        if by_user:
+            waiting = waiting[1:]
+        else:
+            waiting.append(notes[i])
+    return waiting
 
 
 def brief_label(r):
