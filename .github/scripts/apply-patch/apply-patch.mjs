@@ -80,7 +80,7 @@ export { segments } from "./protected-paths.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
 // A compressed binary patch inflates: any one patched blob, and all of them
-// together, are capped before any is read.
+// together, are capped once leakedBlob has scanned them.
 export const MAX_BLOB_BYTES = 5 * 1024 * 1024;
 export const MAX_TOTAL_BLOB_BYTES = 20 * 1024 * 1024;
 export const RULES_PATH = ".github/actions/resolve-config/patch-rules.json";
@@ -138,6 +138,25 @@ export const CREDENTIAL_SHAPES = Object.freeze([
   ["Anthropic key", /sk-ant-[A-Za-z0-9_-]{20,}/],
 ]);
 export const credentialIn = (text) => CREDENTIAL_SHAPES.find(([, pattern]) => pattern.test(text))?.[0] ?? "";
+
+// The whole file is scanned in chunks that overlap by far more than the
+// shortest text any shape matches (its prefix and minimum run, at most 40
+// bytes), so no match is cut at a chunk's edge.
+const SCAN_CHUNK_BYTES = MAX_PATCH_BYTES;
+const SCAN_OVERLAP_BYTES = 4096;
+function credentialInFile(file) {
+  const fd = openSync(file, "r");
+  try {
+    const buffer = Buffer.alloc(SCAN_CHUNK_BYTES);
+    for (let position = 0; ; position += SCAN_CHUNK_BYTES - SCAN_OVERLAP_BYTES) {
+      const read = readSync(fd, buffer, 0, SCAN_CHUNK_BYTES, position);
+      const found = credentialIn(buffer.subarray(0, read).toString("latin1"));
+      if (found || read < SCAN_CHUNK_BYTES) return found;
+    }
+  } finally {
+    closeSync(fd);
+  }
+}
 
 const REASONS = "not-reproducible|flaky|protected-path|weaken-required|unfixed";
 const ESCALATED_LINE = new RegExp(`^(.+?): escalated (?:${REASONS})(?: |$)`);
@@ -477,8 +496,9 @@ const leakWhy = (leaked) => `the patched ${leaked.path} ${leaked.unread ? "is to
 
 // Why the patch file is not to be applied, as {kind, why}, or null when it is:
 // a regular file of at most MAX_PATCH_BYTES with the SHA-256 given and no
-// credential shape. A credential shape in a regular file's bytes is kind
-// `credential` whatever else is wrong with it; anything else is `invalid`.
+// credential shape. A credential shape anywhere in a regular file's bytes,
+// past the size cap included, is kind `credential` whatever else is wrong with
+// it; anything else is `invalid`.
 export function patchProblem(file, expected) {
   const invalid = (why) => ({ kind: "invalid", why });
   if (!existsSync(file)) {
@@ -487,11 +507,11 @@ export function patchProblem(file, expected) {
   if (!lstatSync(file).isFile()) {
     return invalid("the patch is not one regular file of at most 1 MiB");
   }
-  const bytes = readCapped(file, MAX_PATCH_BYTES + 1);
-  const credential = credentialIn(bytes.toString("latin1"));
+  const credential = credentialInFile(file);
   if (credential) {
     return { kind: "credential", why: `the patch carries a ${credential} shape` };
   }
+  const bytes = readCapped(file, MAX_PATCH_BYTES + 1);
   if (!/^[0-9a-f]{64}$/.test(String(expected))) {
     return invalid("the patch or its SHA-256 is missing");
   }
@@ -913,9 +933,14 @@ export async function push({
     return { outcome: "superseded" };
   }
   if (moved && !target.movedHead) {
-    // Refused, but only once its blobs on the commit it was made on are scanned.
+    // Refused, but only once its blobs on the commit it was made on are
+    // scanned. With that commit missing, or the patch not applying to it, the
+    // blobs cannot be read, so, as leakedBlob counts an unread blob, it holds.
     const atProducer = SHA.test(String(patchHeadSha)) && hasCommit(git, patchHeadSha) ? applyOnto(git, patchHeadSha, patchFile, false) : "";
-    const leaked = atProducer ? leakedBlob(git, changes(git(["diff-tree", "-r", "-z", "--no-renames", patchHeadSha, atProducer]))) : undefined;
+    if (!atProducer) {
+      return escalate("credential", `the patch's blobs cannot be read on ${patchHeadSha}, so they may carry a credential shape`);
+    }
+    const leaked = leakedBlob(git, changes(git(["diff-tree", "-r", "-z", "--no-renames", patchHeadSha, atProducer])));
     if (leaked) {
       return escalate("credential", leakWhy(leaked));
     }

@@ -1432,6 +1432,43 @@ test("a patch over 1 MiB is invalid in select and in the push", async (t) => {
   assert.deepEqual(api.calls, []);
 });
 
+// The credential scan reads the whole patch, past the size cap, so an
+// oversized patch holds for a token anywhere in it, one across a scan chunk's
+// edge included, and stays invalid without one.
+test("issue target: an oversized patch escalates patch-credential for a token past 1 MiB, else patch-invalid", async (t) => {
+  const MiB = 1024 * 1024;
+  const cases = [
+    ["a token past the first MiB", `diff --git a/x b/x\n${"x".repeat(MiB + 100)}\n${GITHUB_TOKENS[0]}\n`, "patch-credential"],
+    ["a token across the first MiB's edge", `${"x".repeat(MiB - 10)} ${GITHUB_TOKENS[0]}\n${"x".repeat(100)}`, "patch-credential"],
+    ["no token", `diff --git a/x b/x\n${"x".repeat(MiB + 100)}\n`, "patch-invalid"],
+  ];
+  for (const [what, text, reason] of cases) {
+    const big = patchDirOf(t, text);
+    const selected = select({ row: issueRow(), patchState: "written", patchSha256: big.sum, patchHeadSha: "a".repeat(40), headSha: "a".repeat(40), patchDir: big.dir });
+    assert.equal(selected.escalationReason, reason, `select: ${what}`);
+    const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+    const api = fakeApi(fix.repo, fix.head, { labels: READY });
+    assert.deepEqual(await pushIssue(fix, api, { patchFile: join(big.dir, "patch.diff"), patchSha256: big.sum }), { outcome: "escalate", escalationReason: reason }, what);
+    assert.deepEqual(api.calls, [], what);
+  }
+});
+
+// A patch made on another commit whose blobs cannot be read there, the commit
+// missing or the patch not applying to it, holds as an unread blob does.
+test("issue target: a moved head whose producer commit is missing or rejects the patch escalates patch-credential", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  writeFileSync(join(fix.repo, "README.md"), "# moved\n");
+  const moved = commitAll(fix.repo, "moved");
+  const lines = [];
+  const missing = await pushIssue(fix, fakeApi(fix.repo, moved, { labels: READY }), { headSha: moved, patchHeadSha: "f".repeat(40), log: (line) => lines.push(line) });
+  assert.deepEqual(missing, { outcome: "escalate", escalationReason: "patch-credential" });
+  assert.match(lines.join("\n"), /cannot be read/);
+  writeFileSync(join(fix.repo, "notes.md"), "moved again\n");
+  const tip = commitAll(fix.repo, "moved again");
+  const rejects = await pushIssue(fix, fakeApi(fix.repo, tip, { labels: READY }), { headSha: tip, patchHeadSha: moved });
+  assert.deepEqual(rejects, { outcome: "escalate", escalationReason: "patch-credential" }, "a producer commit the patch does not apply to");
+});
+
 test("a patch that does not apply to the gated head is not applied", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\necho ok\n"));
   writeFileSync(join(fix.repo, "scripts/x.sh"), "#!/bin/sh\nchanged=1\n");
