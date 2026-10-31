@@ -5,7 +5,7 @@
       "why": "named collection curve, offered as a default"
     },
     {
-      "answer": "```css\n.rec-dot { animation: pulse 1.6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate; }\n```\n\nThat is the quad in-out curve from the easing library, a starting point to adjust by eye.",
+      "answer": "```css\n.rec-dot { animation: pulse 1.6s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite alternate; }\n```\n\nThat is the quad in-out curve from the easing library, a starting point to adjust by eye.",
       "why": "a named library family, offered as a default"
     }
   ],

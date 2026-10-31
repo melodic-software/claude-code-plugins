@@ -19,8 +19,8 @@ cat > src/menu.css <<'CSS'
   opacity: 0;
   transform: scale(0.96);
   transition:
-    opacity 150ms cubic-bezier(0.23, 1, 0.32, 1),
-    transform 150ms cubic-bezier(0.23, 1, 0.32, 1);
+    opacity 190ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 190ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 .menu[data-open="true"] {
   opacity: 1;

@@ -2,7 +2,7 @@
   "skill": "user-interface:write-css",
   "plugin": "user-interface",
   "skill_dir": "plugins/user-interface/skills/write-css",
-  "ranking_note": "Written from the write-css description at the merge base. Near-misses aim at the other user-interface skills: write-animation builds motion, audit reviews animation, glossary names an effect, and design owns a component's variant API (neg-train-04 asks which variants a component offers, not their styles).",
+  "ranking_note": "Written from the write-css description at the merge base. Near-misses aim at the other user-interface skills: write-animation builds motion, audit reviews built interface code one concern lane at a time (motion included) without editing it, glossary names an effect, and design owns a component's variant API (neg-train-04 asks which variants a component offers, not their styles).",
   "competitors": [
     "user-interface:write-animation",
     "user-interface:audit",

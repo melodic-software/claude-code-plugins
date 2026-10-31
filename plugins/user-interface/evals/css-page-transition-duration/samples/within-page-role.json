@@ -17,6 +17,10 @@
     {
       "answer": "@view-transition { navigation: auto; }\n::view-transition-group(root) { animation-duration: 700ms; }",
       "why": "near miss: 700ms"
+    },
+    {
+      "answer": "@view-transition { navigation: auto; }\n::view-transition-old(root), ::view-transition-new(root) { animation-duration: 450ms; }",
+      "why": "near miss: 450ms, inside large but over the 400ms page role"
     }
   ]
 }

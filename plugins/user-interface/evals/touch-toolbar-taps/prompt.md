@@ -1,7 +1,7 @@
 ---
 schema_version: "1.1"
 name: touch-toolbar-taps
-description: "Hard (the prompt names symptoms, not fixes): Written from MB:plugins/user-interface/reference/types/touch-web.md:20-21 and MB:plugins/user-interface/reference/types/touch-web.md:32-33. The tap highlight is removed only with a pressed state on every tappable element, controls that never zoom are marked with touch-action, and each target meets the WCAG 2.5.8 minimum with spacing. Head raises the target to 44px and grades leaving the highlight on; 44px passes the 24px floor graded here, so both versions share the outcome."
+description: "Hard (the prompt names symptoms, not fixes): Written from MB:plugins/user-interface/reference/types/touch-web.md:20-21 and MB:plugins/user-interface/reference/types/touch-web.md:32-33. The tap highlight is removed only with a pressed state on every tappable element, controls that never zoom are marked with touch-action, and each target meets the WCAG 2.5.8 minimum with spacing. Head raises the target to 44px, which passes the 24px floor graded here. The prompt's complaint that every tap flashes a gray box asks for the highlight to go in both versions, so the grader fails a reply that leaves it on; both versions share the outcome."
 tags: [web, touch, hard]
 runs: 5
 max_turns: 15

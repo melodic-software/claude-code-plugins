@@ -2,13 +2,14 @@
   "skill": "user-interface:design",
   "plugin": "user-interface",
   "skill_dir": "plugins/user-interface/skills/design",
-  "ranking_note": "Covers the component-api concern spoke, the design-system note, and the order of work. The pair is planning:design, which owns language-neutral types, contracts and module boundaries: a UI component's props API comes here, a non-UI contract goes there. The throwaway layout variants and the CSS writer could also take a component request. For the order of work, user-interface:audit takes a review of built UI and session-flow:recommend-skills a menu of every installed skill, while a question about which interface skill or concern to run for a screen comes here. The design-system note probes stand in for the candidate triggers DESIGN.md, document our components and agent invented a variant, which stay out of the description until a model-graded run shows they route here.",
+  "ranking_note": "Covers the component-api concern spoke, the design-system note, and the order of work. The pair is planning:design, which owns language-neutral types, contracts and module boundaries: a UI component's props API comes here, a non-UI contract goes there. The throwaway layout variants and the CSS writer could also take a component request. For the order of work, user-interface:audit takes a review of built UI and session-flow:recommend-skills a menu of every installed skill, while a question about which interface skill or concern to run for a screen comes here. user-interface:write-animation builds one animation, so a request to animate a menu (neg-train-06) goes there. The design-system note probes stand in for the candidate triggers DESIGN.md, document our components and agent invented a variant, which stay out of the description until a model-graded run shows they route here.",
   "competitors": [
     "planning:design",
     "prototype:explore-directions",
     "user-interface:write-css",
     "user-interface:audit",
-    "session-flow:recommend-skills"
+    "session-flow:recommend-skills",
+    "user-interface:write-animation"
   ],
   "queries": [
     {

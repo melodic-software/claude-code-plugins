@@ -2,7 +2,7 @@
   "skill": "user-interface:audit",
   "plugin": "user-interface",
   "skill_dir": "plugins/user-interface/skills/audit",
-  "ranking_note": "Written from the description of user-interface:audit at the merge base (under its base name), before the rename to audit, so the positives cover only what the animation audit owned: the animation in a diff, every animation in the tree, where motion would help or must not go, and why an animation drops frames, with --fix behind a yes. Near-misses aim at the other user-interface skills: write-animation builds one animation, glossary names an effect, write-css writes or reviews styles, and design shapes a component or CLI output. Scoring the merge base needs skill and skill_dir pointed at the base name and path, since this format has no field for a renamed skill.",
+  "ranking_note": "Written from the description of user-interface:audit on main, which reviews interface code one concern lane at a time over the diff, the whole tree, or every lane before a launch. Most positives exercise the motion lane (the animation in a diff, every animation in the tree, where motion would help or must not go, and why an animation drops frames, with --fix behind a yes); pos-train-08 asks for the launch sweep and pos-validation-05 for a non-motion lane. Near-misses aim at the other user-interface skills: write-animation builds one animation, glossary names an effect, write-css writes or reviews styles, and design shapes a component or CLI output.",
   "competitors": [
     "user-interface:write-animation",
     "user-interface:glossary",
@@ -51,6 +51,12 @@
       "split": "train",
       "expect_trigger": true,
       "request": "Review the animation code under src/components/drawer and fix the worst issue once I agree."
+    },
+    {
+      "id": "pos-train-08",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We ship on Friday. Sweep the whole app's interface and tell me what should block the release."
     },
     {
       "id": "neg-train-01",
@@ -105,6 +111,12 @@
       "split": "validation",
       "expect_trigger": true,
       "request": "Where does this onboarding screen need movement to explain itself, and where would animation just get in the way?"
+    },
+    {
+      "id": "pos-validation-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check the form screens I changed on this branch for accessibility problems, worst first."
     },
     {
       "id": "neg-validation-01",

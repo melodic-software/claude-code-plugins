@@ -6,7 +6,7 @@
     },
     {
       "answer": ".toolbar { gap: 12px; }\n.icon-btn { position: relative; }\n.icon-btn::before { content: \"\"; position: absolute; inset: -6px; }",
-      "why": "32px hit areas with the gap widened to fit"
+      "why": "32px hit areas with the gap widened to fit, inside the base 24px floor graded here; head asks for 44px"
     }
   ],
   "fail": [

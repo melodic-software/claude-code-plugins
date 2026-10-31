@@ -2,7 +2,7 @@
   "pass": [
     {
       "answer": "@media (hover: hover) { .card-cta:hover { text-decoration-thickness: 2px; } }",
-      "why": "hover query"
+      "why": "hover query, inside the base range; head gates on (hover: hover) and (pointer: fine)"
     },
     {
       "answer": "@media (hover: hover) and (pointer: fine) { .tile:hover img { opacity: 0.9; } }",

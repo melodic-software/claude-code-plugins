@@ -6,7 +6,7 @@
     },
     {
       "answer": ".card { animation: rise 200ms ease-out both; animation-delay: calc(var(--i) * 0.06s); }\n\nI used 60ms rather than 150ms: longer gaps feel slow.",
-      "why": "60ms, inside the range, with the reason"
+      "why": "60ms, inside the base range shared by both versions, with the reason; head would rate a list stagger over 50ms a Suggestion"
     }
   ],
   "fail": [

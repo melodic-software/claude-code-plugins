@@ -1,45 +1,26 @@
 {
   "pass": [
     {
-      "answer": [],
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Verdict: Not yet.\"}]}}",
       "why": "no tool call"
     },
     {
-      "answer": [
-        {
-          "tool": "Grep",
-          "input": {
-            "pattern": "console.log"
-          }
-        }
-      ],
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Grep\",\"input\":{\"pattern\":\"console.log\"}}]}}",
       "why": "searching is fine"
     }
   ],
   "fail": [
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "launch-report.md",
-            "content": "Not yet."
-          }
-        }
-      ],
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"launch-report.md\",\"content\":\"Not yet.\"}}]}}",
       "why": "near miss: writes only the report, but to a file in a read-only sweep"
     },
     {
-      "answer": [
-        {
-          "tool": "Write",
-          "input": {
-            "file_path": "lib/auth.ts",
-            "content": "export async function getSession() {\n  const res = await fetch(\"/api/session\");\n  return res.json();\n}\n"
-          }
-        }
-      ],
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"lib/auth.ts\",\"content\":\"export async function getSession() {\\n  const res = await fetch(\\\"/api/session\\\");\\n  return res.json();\\n}\\n\"}}]}}",
       "why": "rewrites a source file"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > launch-report.md <<'MD'\\nNot yet.\\nMD\",\"description\":\"x\"}}]}}",
+      "why": "writes the report through a Bash heredoc"
     }
   ]
 }
