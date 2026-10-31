@@ -1,6 +1,6 @@
 ---
 description: "Audit Claude Code permission grants (allowed-tools frontmatter and permissions.allow in every settings scope) for portability and auto-mode durability: dropped interpreter wildcards, machine-specific paths, literal substitution tokens, inert plugin self-grants. Report-only. Use when: 'check permission rules', 'why was my allowed-tools grant ignored', 'audit allow rules', 'is this permission portable', or a guarded helper is denied despite an allow rule. Effective state: audit-permission-state."
-argument-hint: "[frontmatter|settings|plugins|all]"
+argument-hint: "[unattended] [frontmatter|settings|plugins|all]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Audit permission grants for portability and auto-mode durability
 ---
 
-**Arguments.** `[frontmatter|settings|plugins|all]`. default: all
+**Arguments.** `[unattended] [frontmatter|settings|plugins|all]`. default: all
 
 ## Purpose
 
@@ -42,6 +42,10 @@ applied to its output:
 - `settings`: project, local, and user-global `permissions.allow` only
 - `plugins`: plugin `settings.json` self-grant (P3) only
 - `all`: everything (default)
+
+A leading `unattended` is not a filter: the caller declares nobody is present, which changes only
+the `/permissions` offer (see "Boundary" below). Take it out before reading the filter, and never
+pass it to the detector.
 
 The filter reads like a scan-scope, but a detector-side scope flag would buy nothing: the root is a
 git toplevel, `$CLAUDE_PROJECT_DIR`, or an explicitly named directory, never an unbounded sweep, and
@@ -159,8 +163,9 @@ the denominator beside it. `NOTHING TO AUDIT` is **not** that outcome; see "Repo
 
 **Routing.** When a finding calls for adding, removing, or rewriting a settings rule, offer it to
 the person: you can run `/permissions` instead of or alongside editing the file by hand. A grant
-in `allowed-tools` frontmatter is outside the dialog; the finding's own remedy applies there. An
-unattended run records the offer in its output instead of asking.
+in `allowed-tools` frontmatter is outside the dialog; the finding's own remedy applies there. When
+the caller passes `unattended` as the first argument, the run records the offer in its output
+instead of asking; without that argument it asks.
 
 **Mutation gate.** `/permissions` writes whichever scope the person edits. This skill never runs
 it on the person's behalf.

@@ -1,6 +1,6 @@
 ---
 description: "Produce structured implementation plans with goal, approach, test strategy, blast radius, parallelism, and a user approval gate before any code is written, persisted as PLAN.md for fresh-session handoff. Use when: 'plan this', 'architect this', 'how should we implement', 'implementation plan', 'write a plan for this', 'what's the approach here', 'review this plan' (audits an existing plan's completeness), or proactively before executing without a formalized plan."
-argument-hint: "[task description, 'review', or 'close-out'] [--reader guardrails|standard|step-by-step]"
+argument-hint: "[unattended] [task description|review|close-out] [--reader guardrails|standard|step-by-step]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -9,7 +9,7 @@ metadata:
 allowed-tools: ["Workflow(planning:plan-panel)"]
 ---
 
-**Arguments.** `[task description, 'review', or 'close-out'] [--reader guardrails|standard|step-by-step]`. e.g., /planning:plan add caching to query handlers, /planning:plan review, /planning:plan close-out --reader guardrails. Take `--reader <depth>` out of `$ARGUMENTS` before routing; it sets the "Reader depth" of the published copy.
+**Arguments.** `[unattended] [task description|review|close-out] [--reader guardrails|standard|step-by-step]`. e.g., /planning:plan add caching to query handlers, /planning:plan review, /planning:plan close-out --reader guardrails. Take `--reader <depth>` out of `$ARGUMENTS` before routing; it sets the "Reader depth" of the published copy.
 
 ## Repository context. Gather first
 
@@ -44,7 +44,7 @@ For **non-trivial / multi-layer** plans, Step 2 walks its design-default checkli
 
 ## Action Router
 
-Parse `$ARGUMENTS` to determine the action:
+Parse `$ARGUMENTS` to determine the action, after taking out a leading `unattended` (the caller declaring that nobody is present; it governs the `/plan` offer under "Routing"):
 
 | Argument | Action | Use case |
 |----------|--------|----------|
@@ -317,7 +317,7 @@ The command and this skill share a name, so "plan this" can mean either.
 - **`/plan` (built-in command)**: `/plan [description]` enters plan mode, optionally starting on the description; `/plan open` views the session plan. It is reserved for the person to run; the model does not invoke it.
 - **This skill (marketplace plugin).** The planning discipline: stress-test, blast radius, an approval gate, and a persisted PLAN.md a cleared session can execute.
 
-**Routing.** Where Plan Mode Integration says to suggest plan mode, offer it to the person: you can run `/plan` (or press `shift+tab`) alongside this skill. Prefer this skill for the plan itself. An unattended run records the offer in its output instead of asking.
+**Routing.** Where Plan Mode Integration says to suggest plan mode, offer it to the person: you can run `/plan` (or press `shift+tab`) alongside this skill. Prefer this skill for the plan itself. When the caller passes `unattended` as the first argument, the run records the offer in its output instead of asking; without that argument it asks.
 
 **Mutation gate.** This skill writes PLAN.md and its checklist; `/plan` changes the permission mode. This skill never toggles the mode on the person's behalf.
 

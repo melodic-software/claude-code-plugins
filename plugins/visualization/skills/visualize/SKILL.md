@@ -1,6 +1,6 @@
 ---
 description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for rendering its own output. Decide the best visual form and medium for what is in the conversation right now, then render it. Use when asked to visualize, diagram, chart, draw, sketch, or render something, or which visual form fits it best. Infers the target, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, or a rich rendered page) and a medium (inline terminal, a local HTML file, or a published Artifact), and asks only when the target is ambiguous and no form was named. Routes chart craft and artifact-design fundamentals to those capabilities when installed. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
-argument-hint: "[terminal|file|artifact]"
+argument-hint: "[unattended] [terminal|file|artifact]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -320,7 +320,9 @@ that listing is a shadowing local skill: do not make the offer, and tell the per
 `design` skill shadows the bundled canvas command. A local `design` skill that disables model
 invocation shadows it too and is hidden from you, so every offer adds that `/design`'s description
 should read "Make a new Design artifact from a brief"; anything else is a local skill, not the
-canvas, and not to be run for it.
+canvas, and not to be run for it. When the caller passes `unattended` as the first argument,
+record the `/design` suggestion in the run's output and do not ask the person; without that
+argument, tell the person as above.
 
 **Mutation gate:** the canvas publishes a persistent Artifact under the person's account, so it is
 never a silent default and nothing tracked in a repository references it. This skill never runs it.

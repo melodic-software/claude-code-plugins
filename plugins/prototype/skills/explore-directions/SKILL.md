@@ -1,6 +1,6 @@
 ---
 description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for throwaway variants. Builds throwaway UI variations, a few structurally different layouts (three by default), toggled from a floating switcher, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'how should this screen be laid out', 'show me layout options'. Builds a self-contained HTML mockup by default, or runs on the real stack behind one route on request; the user keeps one variant or bits of each. Logic or state questions: /prototype:pressure-test. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
-argument-hint: "[scope]"
+argument-hint: "[unattended] [scope]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh:*)"]
@@ -10,7 +10,7 @@ metadata:
   summary: Throwaway UI variations answering what should this look like
 ---
 
-**Arguments.** `[scope]`. e.g., /prototype:explore-directions settings page
+**Arguments.** `[unattended] [scope]`. e.g., /prototype:explore-directions settings page
 
 ## Repository context. Gather first
 
@@ -36,6 +36,10 @@ Project ecosystems: !`${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh 2>/dev/nu
 ## Variables
 
 Arguments: `$ARGUMENTS`
+
+A leading `unattended` is not part of the scope: it is the caller declaring that nobody is
+present, which governs the `/design` suggestion under "Boundary". Take it out before reading the
+scope, so the suggestion's `/design <scope>` never carries it.
 
 ## Purpose
 
@@ -415,7 +419,9 @@ shadows the bundled command, and the bundled one never appears in your skill lis
 user a local `design` skill shadows the bundled canvas command. A local `design` skill that
 disables model invocation shadows it too and is hidden from you, so every offer adds that
 `/design`'s description should read "Make a new Design artifact from a brief"; anything else is
-a local skill, not the canvas, and not to be run for it.
+a local skill, not the canvas, and not to be run for it. When the caller passes `unattended` as the
+first argument, record the `/design` suggestion, with its lifecycle difference, in the run's output
+and build the mockup without asking the person; without that argument, tell the user as above.
 
 **Mutation gate.** The canvas persists under the user's account. This skill never runs it, never
 publishes on its own initiative, and never references the canvas from anything tracked in the

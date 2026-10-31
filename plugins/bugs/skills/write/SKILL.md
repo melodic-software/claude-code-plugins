@@ -1,6 +1,6 @@
 ---
 description: "Structured five-field bug report (title, steps to reproduce, expected vs actual, justified severity, suggested fix location) from an informal description, read-only. Use when the user names a defect they observed ('there is a bug in X', 'expected X got Y', 'I am seeing ERROR in FILE'), or asks for one written up ('report a bug', 'file a bug', 'write this up as a bug'). Skip when the defect needs investigation first, a fix is already in progress, or the request is a missing capability rather than a defect."
-argument-hint: "[--file] [--quick|--full] [--no-survey] <bug description>"
+argument-hint: "[unattended] [--file] [--quick|--full] [--no-survey] <bug description>"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -39,6 +39,9 @@ Consumer gotchas:
 ## Variables
 
 Arguments: `$ARGUMENTS`
+
+A leading `unattended` is not part of the bug description: it is the caller declaring that nobody
+is present, which governs the `/bug` offer under "Boundary". Take it out before reading the rest.
 
 ## Purpose
 
@@ -187,8 +190,9 @@ severity cannot be calibrated from context, ask one question rather than invent 
   repository, filed nowhere unless they ask.
 
 When the defect is in Claude Code itself (the CLI, a built-in command, a bundled skill), offer the
-person `/bug` instead of or alongside this skill; an unattended run records the offer in its output
-instead of asking. Never run `/bug` on the person's behalf: it packages session history for someone
+person `/bug` instead of or alongside this skill. When the caller passes `unattended` as the first
+argument, the run records the offer in its output instead of asking; without that argument it
+asks. Never run `/bug` on the person's behalf: it packages session history for someone
 outside this repository, and only the person decides what goes and where. Never assume `/bug` is
 present in their host.
 

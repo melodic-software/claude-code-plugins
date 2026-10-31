@@ -1,6 +1,6 @@
 ---
 description: "Debug and diagnose broken behavior via a disciplined six-phase loop: build feedback loop → reproduce → hypothesize → instrument → fix + regression test → cleanup. Use when: the user reports an OBSERVED FAILURE with no pre-existing reproduction, in any of three shapes: wrong or broken behavior ('diagnose this', 'debug this', 'why is X broken', 'X is throwing'), a performance regression ('this is slow'), or an intermittent or flaky failure, whether seen in the UI, logs, production, or a screenshot. Phase 1 builds the loop; no phase proceeds without a fast, deterministic signal. Skip when: the symptom is already a failing test with no reproduction gap. Cycle it directly. Skip when a captured profile, trace or heap snapshot is in hand and the failure does not reproduce (`/debugging:analyze-profile`). Outputs: reproduction loop, root-cause hypothesis, regression test or documented seam gap, cleaned fix, post-mortem finding."
-argument-hint: "[bug description or observation]"
+argument-hint: "[unattended] [bug description or observation]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Diagnose broken behavior. Reproduce, hypothesize, instrument, fix with regression test
 ---
 
-**Arguments.** `[bug description or observation]`. e.g., /debugging:debug photo uploads over 20 MB fail with a 502
+**Arguments.** `[unattended] [bug description or observation]`. e.g., /debugging:debug photo uploads over 20 MB fail with a 502
 
 ## Repository context. Gather first
 
@@ -31,6 +31,9 @@ contains git.
 ## Variables
 
 Arguments: `$ARGUMENTS`
+
+A leading `unattended` is not part of the observation: it is the caller declaring that nobody is
+present, which governs the `/debug` offer under "Routing". Take it out before reading the rest.
 
 ## Purpose
 
@@ -321,7 +324,8 @@ The names collide outright, so "debug this" can land on either, but the two debu
 **Routing.** When the broken thing is Claude Code itself (a hook, a tool call, a permission, a
 session misbehaving) rather than the user's code, offer it to the person: you can run `/debug`
 instead of or alongside this skill. Make the offer at Phase 1, before building a loop against the
-application. An unattended run records the offer in its output instead of asking.
+application. When the caller passes `unattended` as the first argument, the run records the offer
+in its output instead of asking; without that argument it asks.
 
 **Mutation gate.** `debug` starts debug logging for the session from the moment it runs. This
 skill never runs it on the person's behalf.

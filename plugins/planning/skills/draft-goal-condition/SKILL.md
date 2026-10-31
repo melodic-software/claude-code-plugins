@@ -1,6 +1,6 @@
 ---
 description: "Pick the repetition lever (/goal, /loop, routines and /schedule, a workflow, a Stop hook, or a one-shot prompt) and, when /goal fits, draft a transcript-demonstrable completion condition, checked against the documented limit by a deterministic counter. Use when: 'which loop should I use', 'pick the right autonomy lever', 'craft a /goal', 'make Claude keep working until X', 'my goal is not measurable', 'my /goal is too long'."
-argument-hint: "[intent]"
+argument-hint: "[unattended] [intent]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -11,7 +11,8 @@ metadata:
 ## Variables
 
 Arguments: `$ARGUMENTS`. The natural-language intent for the autonomous run, plus any constraints
-or bounds the user volunteers.
+or bounds the user volunteers. A leading `unattended` is not part of the intent: it is the caller
+declaring that nobody is present, which governs the offer under "Routing". Take it out first.
 
 ## Purpose
 
@@ -250,8 +251,9 @@ and that a goal the page says is removed must be re-set.
 propose it with `ProposeGoal`, leaving `ask_user` true, only when all of these hold: the tool
 resolves in this session, the session is the main thread of an interactive local session (not a
 subagent), plan mode is not active, and the condition passes the counter at the tool's own cap.
-When the lever check routes away from `/goal`, make no offer. An unattended run records the
-paste-ready line in its output instead of asking.
+When the lever check routes away from `/goal`, make no offer. When the caller passes
+`unattended` as the first argument, the run records the paste-ready line in its output instead of
+asking; without that argument it asks.
 
 **Mutation gate.** Only the person's approval arms a goal: their `/goal` run or their keypress on
 a `ProposeGoal` dialog. This skill never sets `ask_user` false, and never sets, replaces, or

@@ -2,7 +2,7 @@
 description: "Read-only orientation from durable state: where the session stands and why, from ledgers, handoff save-points, workflow checklists, running-retro ledgers, open PRs and work items, and git, which the built-in /recap never sees. Use when: 'where were we', 'catch me up', 'orient me', 'get my bearings', 'what's the state', 'brief me', 'situation report', 'where do we stand', 'lay of the land'. Writes nothing; freshness checks, recovery, and the next stage belong to sibling skills. Skip: what past sessions tried on a topic is /session-flow:recall."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[catch-up]"
+argument-hint: "[unattended] [catch-up]"
 metadata:
   workflow-stage: session
   summary: Read-only situation report from durable and off-thread state
@@ -143,8 +143,9 @@ Both answer "where were we", so a request to catch up can land on either.
 **Routing.** When the person wants only a one-line reminder of this conversation, offer it to
 the person: you can run `/recap` instead of or alongside this skill. Make the offer at the end
 of the briefing, or at the start when the ask names only the current conversation. Prefer this
-skill whenever durable or off-thread state matters. An unattended run records the offer in its
-output instead of asking.
+skill whenever durable or off-thread state matters. When the caller passes `unattended` as the
+first argument, the run records the offer in its output instead of asking; without that argument
+it asks.
 
 **Mutation gate.** Neither writes files. This skill never runs `/recap` on the person's behalf.
 
