@@ -27,7 +27,7 @@ once the gap between layers (the border width plus the padding) passes
 independent, so pick each radius on its own merits.
 
 The subtraction holds for a child that sits at the parent's content edge; a margin on the child adds
-to the gap. Recipe: `concentric-nested-radius`.
+to the gap.
 
 - **Pointer**: CSS Backgrounds and Borders 3, corner shaping,
   <https://www.w3.org/TR/css-backgrounds-3/#corner-shaping>
