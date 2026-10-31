@@ -185,11 +185,7 @@ itself the thing this skill removes.
      worktree, branch, commits, PR, files written), then resume it: a
      subagent through `SendMessage` to its id, a workflow agent through
      its workflow resume (the **Resumable** bullet), never a new
-     workflow run unless the relaunch reports it has no saved results
-     (see <https://code.claude.com/docs/en/sub-agents#resume-subagents> and
-     <https://code.claude.com/docs/en/workflows#resume-after-you-leave-the-session>,
-     as of 2026-10-31; recheck when either changes when a resume is
-     refused). Do not spawn a replacement for either. When the id no
+     workflow run. Do not spawn a replacement for either. When the id no
      longer resolves (step 2's gone-session case), restart from that
      trail, fitting the restart to the cause as in "Dead but safe to
      redo". Each resume or restart counts toward the two retries, and
