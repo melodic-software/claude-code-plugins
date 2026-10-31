@@ -641,7 +641,7 @@ describe("decide", () => {
       ["- [ ] .GITMODULES drops the old submodule.", ".GITMODULES"],
       // #9113's criterion: a bare name of a workflow on disk.
       ["- [ ] pr-require-checks.yml pins that ci-workflows release.", ".github/workflows/pr-require-checks.yml"],
-      ["- [ ] `pr-test-windows.yml:94` reads the new output.", ".github/workflows/pr-test-windows.yml"],
+      ["- [ ] `pr-test-platforms.yml:94` reads the new output.", ".github/workflows/pr-test-platforms.yml"],
       ["- [ ] pr-require-checks.yml is unchanged.", ".github/workflows/pr-require-checks.yml"],
     ];
     for (const [line, path] of refused) {
@@ -791,7 +791,7 @@ describe("decide", () => {
     // A title names the subject, not the change: #8682 and #9054 named an
     // existing workflow in theirs and changed only scripts.
     test("admits an issue whose title alone names an existing workflow", () => {
-      const issue = { ...withCriteria("- [ ] Line 3 says nineteen."), title: "ci: move the macOS planning job out of pr-test-windows.yml" };
+      const issue = { ...withCriteria("- [ ] Line 3 says nineteen."), title: "ci: move the macOS planning job out of pr-test-platforms.yml" };
       assert.deepEqual(decide(facts({ issue })), { verdict: "admit", reasons: [] });
     });
 

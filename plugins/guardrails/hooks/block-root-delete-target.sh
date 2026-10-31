@@ -50,14 +50,16 @@
 # real commands and was rejected on that measurement. This guard does not
 # inherit that objection: it reads a cheap substring first, so a command whose
 # text holds none of `rm`, `-delete`, `.delete`, `unlink`, `rsync`,
-# `robocopy`, `worktree`, `remove` and the decoder names (`base64`, `base32`,
-# `basenc`, `xxd`) never reaches the parse at all. The
+# `robocopy`, `worktree`, `remove`, `mv`, `truncate`, `shred`, `of=` and the
+# decoder names (`base64`, `base32`, `basenc`, `xxd`) never reaches the parse
+# at all. The
 # prefilter is a SUBSTRING match, not a token one, so `npm run format` does
 # reach the tokenizer and is allowed there on its command word. The path question is
 # asked only once a recursive `rm`, a deleting find, a deleting rsync, a
-# deleting robocopy, a forced git worktree remove or an interpreter's deleter
-# call, run directly or by xargs or parallel, is established. A decoder sink
-# asks no path question: it is refused outright.
+# deleting robocopy, a forced git worktree remove, an interpreter's deleter
+# call, a move or a content destroyer, run directly or by xargs or parallel,
+# is established. A decoder sink asks no path question: it is refused
+# outright.
 #
 # FIND DELETES. `find -delete`, and a find whose expression runs `rm`, `rmdir`
 # or `unlink` as the command word of an -exec, -execdir, -ok or -okdir action,
@@ -266,6 +268,46 @@
 # -m "Start-Process cmd '/c rd /s /q C:\'"`) is one word of another command
 # and stays allowed.
 #
+# MOVES AND CONTENT DESTROYERS (#9767). A move takes what it names away from
+# where it was, and a content destroyer keeps the file but not what it held,
+# so each such target is judged as an operand of a recursive rm, through every
+# arm below:
+#   * mv: each source, which is every operand but the last, or every operand
+#     with -t or --target-directory, whose argument is the directory moved
+#     into (mv(1)). A move onto /dev/null is judged by its source like any
+#     other (`mv ~ /dev/null`). A last word that can become several words (an
+#     unquoted brace, glob, `$` or backtick, or a quoted "$@" or "${a[@]}")
+#     makes all but its final word sources, so with one every operand is
+#     judged.
+#   * truncate, which shrinks or extends each file to a size, and shred, which
+#     overwrites each file (truncate(1), shred(1)): every operand. The word
+#     after -r or -s (truncate), or -n or -s (shred), is that option's
+#     argument, and so is the one after its long name written without `=`.
+#   * dd: the file each of= names, which dd writes instead of standard output
+#     (dd(1)), unless it is /dev/null, /dev/stdout or /dev/stderr.
+#   * On the PowerShell tool, Move-Item (mi, move, and mv on Windows),
+#     Clear-Content (clc) and a Set-Content that writes several files: each
+#     -Path or -LiteralPath (PSPath, LP) element, or the first positional
+#     argument when neither is named, every element of a comma list
+#     included (Move-Item, Clear-Content, Set-Content, learn.microsoft.com).
+#     Set-Content is judged only with more than one element, a -Path holding
+#     `*`, `?` or `[`, or the pipeline item as its path, because writing one
+#     named file is an ordinary write, as `>` is in Bash. With no path and a
+#     pipe into it, the Get-ChildItem or Get-Item stage before it is judged
+#     as a pipeline removal's is. Move-Item moves a directory's children with
+#     it, so it refuses any other feed, as a recursive Remove-Item does. A
+#     grouping as a judged path is refused.
+# Options are read as getopt_long reads them, anywhere up to `--`, an
+# unambiguous prefix of a long option included; a word an option takes after
+# an operand is judged as an operand too, because under POSIXLY_CORRECT options
+# end at the first operand. Items xargs or parallel hand one of these commands
+# are judged as a recursive rm's are, and there mv's last written word is
+# judged too, because the items may follow it; a dd whose every of= names a
+# stream writes nothing, so its items are not judged. The coreutils 9.11
+# pages (man7.org) and the PowerShell 7.6 pages were read 2026-10-31; recheck
+# when mv gains another option that names its destination, or Set-Content or
+# Clear-Content gains an alias.
+#
 # PIPELINE-FED DELETES. `xargs` and `parallel` run a command on the items they
 # read, so when that command is a recursive rm or a deleting find (named
 # directly, through a launcher, or in a child shell) the items are its targets.
@@ -448,8 +490,16 @@
 # whose path is an expression judged by its first word
 # (`[IO.Directory]::Delete($env:TEMP + '\x')` as `$env:TEMP`), .Delete() on
 # a grouping that is not one Get-Item or Get-ChildItem statement (a WMI
-# object's), an -EncodedCommand holding text outside printable ASCII, and the
-# three launcher lines decided below.
+# object's), an -EncodedCommand holding text outside printable ASCII, a move
+# into the tree from outside it (`mv ~/Downloads/x.zip .`, whose source is
+# judged as moved away), a bare variable as a move's source or a file a
+# content destroyer names (`mv "$f" out/`, refused as `rm -rf "$f"` is), an
+# unquoted expansion as mv's last word (`mv out.log $TMPDIR/`: it may split
+# into several words, so every operand is judged and `$TMPDIR/` is refused as
+# a bare variable), an option's argument written after an operand (`mv a -t
+# /opt/x`, judged as an operand too), a truncate that only extends a file
+# (`truncate -s +1M /opt/x.img`, judged as if it shrank), and the three
+# launcher lines decided below.
 #
 # LAUNCHER LINES REFUSED BY DECISION (#4681). Each is refused although the
 # launcher does not delete the host root, and each stays refused on purpose:
@@ -489,8 +539,10 @@
 #     classifier's sink-attempt budget). Matched: Remove-Item and its aliases
 #     (ri, rm, del, erase, rd, rmdir) with -Recurse on any unambiguous prefix
 #     (-r, -rec, -Recurse) or the bash-in-PS cluster -rf; cmd /c (and /k)
-#     rd /s and rmdir /s; a pipeline into Remove-Item with no path; and the
-#     indirection forms POWERSHELL INDIRECTION AND PIPELINES lists.
+#     rd /s and rmdir /s; a pipeline into Remove-Item with no path; the
+#     indirection forms POWERSHELL INDIRECTION AND PIPELINES lists; and
+#     Move-Item, Clear-Content and a Set-Content of several files (MOVES AND
+#     CONTENT DESTROYERS).
 #     A statement ends at `; | & && ||` and at an unquoted newline (LF, CRLF or
 #     a bare CR) that no backtick continues. An unquoted `(`, `$(` or `{`
 #     opens a nested level whose statements are judged on their own, so a
@@ -530,7 +582,14 @@
 #     `New-Object`), items a ForEach-Object stage changes before a removal, a
 #     Set-Location before the delete, and an argument list whose quoted
 #     element holds a comma (read as two words).
-#   * Other delete verbs: `shred`.
+#   * In a move or content destroyer: the file mv or Move-Item overwrites at
+#     its destination (only what it moves away is judged), an output
+#     redirection (`> file`), a Set-Content of one file or of a path a
+#     variable or grouping holds, an of= a brace builds (`dd {of=x,if=y}`), a
+#     find action that runs mv, truncate or shred (`-exec mv {} out \;`), mv,
+#     truncate, shred and dd on the PowerShell tool (where `mv` is read as
+#     Move-Item), and Move-Item, Clear-Content and Set-Content from the Bash
+#     tool.
 #   * In a decoder sink: a decoder this guard does not name (openssl base64
 #     -d, uudecode, an interpreter's base64 module), one behind a launcher
 #     (`sudo base64 -d`), decoded text carried through a variable or a file
@@ -600,11 +659,11 @@
 #   * From the Bash tool, a delete run by a Windows program instead of rm:
 #     `cmd /c rd /s /q <dir>` (or `cmd //c`, `rmdir`) and `powershell -Command
 #     Remove-Item -Recurse <dir>`, and `cmd /c robocopy`. The Bash lane
-#     matches the rm, find, rsync, robocopy, git and interpreter command
-#     words only, and its prefilter passes only text holding `rm`, `-delete`,
-#     `.delete`, `unlink`, `rsync`, `robocopy`, `worktree` or `remove`; cmd
-#     rd /s, cmd /c robocopy and Remove-Item are judged in the PowerShell lane
-#     (#6626).
+#     matches the rm, find, rsync, robocopy, git, mv, truncate, shred, dd and
+#     interpreter command words only, and its prefilter passes only text
+#     holding `rm`, `-delete`, `.delete`, `unlink`, `rsync`, `robocopy`,
+#     `worktree`, `remove`, `mv`, `truncate`, `shred` or `of=`; cmd rd /s, cmd
+#     /c robocopy and Remove-Item are judged in the PowerShell lane (#6626).
 #   * Expansion-built targets AND an expansion-built command word. Detection
 #     never evaluates a shell expansion. A bare variable operand is refused
 #     (above), but `rm -rf "$X/build"` is left alone, and so are an unquoted
@@ -1032,28 +1091,32 @@ fi
 # the whole guard rather than a missed spelling.
 #
 # Bash: a substring `rm`, `-delete`, `.delete`, `unlink`, `rsync`,
-# `robocopy`, `worktree` or `remove`, the text a recursive rm, a deleting
-# find, rsync, robocopy, git worktree remove or interpreter delete must hold
-# (`npm run format` still reaches the tokenizer and is allowed on its command
-# word), or `base64`, `base32`, `basenc` or `xxd`, which a decoder sink holds.
+# `robocopy`, `worktree`, `remove`, `mv`, `truncate`, `shred` or `of=`, the
+# text a recursive rm, a deleting find, rsync, robocopy, git worktree remove,
+# interpreter delete, move or content destroyer must hold (`npm run format`
+# still reaches the tokenizer and is allowed on its command word), or
+# `base64`, `base32`, `basenc` or `xxd`, which a decoder sink holds.
 # PowerShell: Remove-Item, rmdir, erase, cmd, rd, del (which `.Delete(`
 # holds), rm, robocopy, FromBase64, pwsh and powershell (an -EncodedCommand
-# hides its text), and `ri` as a command word (not the `ri` inside
-# Write/string). Over-inclusive on purpose; the tokenizer decides.
+# hides its text), move, mv, Clear-Content and Set-Content, and `ri`, `mi` or
+# `clc` as a command word (not the `ri` inside Write/string). Over-inclusive
+# on purpose; the tokenizer decides.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   rdt_ps_pre="${COMMAND,,}"
   rdt_ps_hit=0
   case "$rdt_ps_pre" in
-  *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del* | *robocopy* | *frombase64* | *pwsh* | *powershell*) rdt_ps_hit=1 ;;
+  *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del* | *robocopy* | *frombase64* | *pwsh* | *powershell* | \
+    *move* | *mv* | *clear-content* | *set-content*) rdt_ps_hit=1 ;;
   *) ;;
   esac
-  if ((rdt_ps_hit == 0)) && [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])ri([^[:alnum:]_]|$) ]]; then
+  if ((rdt_ps_hit == 0)) && [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])(ri|mi|clc)([^[:alnum:]_]|$) ]]; then
     rdt_ps_hit=1
   fi
   ((rdt_ps_hit)) || exit 0
 else
   case "${COMMAND,,}" in
-  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *base64* | *base32* | *basenc* | *xxd*) ;;
+  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *mv* | *truncate* | \
+    *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd*) ;;
   *) exit 0 ;;
   esac
 fi
@@ -3548,8 +3611,14 @@ rdt_check_segment() {
   # DELETES in the header), an rsync or a robocopy removes from its
   # destination or its sources (RSYNC DELETES, ROBOCOPY DELETES), xargs and
   # parallel run their command on the items they read (PIPELINE-FED DELETES),
-  # and an interpreter runs the code it is given (INTERPRETER DELETES).
+  # an interpreter runs the code it is given (INTERPRETER DELETES), and mv,
+  # truncate, shred and dd move away or destroy what they name (MOVES AND
+  # CONTENT DESTROYERS).
   case "$base" in
+  mv | truncate | shred | dd)
+    rdt_content_check "$i" "$base"
+    return 0
+    ;;
   python | python[0-9]* | py | pypy | pypy[0-9]* | node | nodejs | perl | perl[0-9]* | ruby | ruby[0-9]*)
     rdt_interp_check "$i" "$base"
     return 0
@@ -4019,6 +4088,126 @@ rdt_git_worktree_check() {
   return 0
 }
 
+# rdt_gnu_scan <index of the command word> <letters> <letter:long name>...: the
+# words after a coreutils command word, read as getopt_long reads them, into
+# RDT_GNU_OP (the index of each operand) and RDT_GNU_SEEN (the letter of each
+# option met that takes an argument). Options stand anywhere up to `--`. A
+# short cluster letter in <letters> takes the rest of the word, or the next
+# word when it ends the cluster; a long option that is a prefix of a listed
+# name takes the next word unless written with `=`. Under POSIXLY_CORRECT,
+# which a command inherits unseen, options end at the first operand, so a word
+# an option takes after an operand is an operand too. Reads words and n from
+# rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_content_check, under a parser callback
+rdt_gnu_scan() {
+  local k=$1 c w x long letters="$2" eoo=0 take
+  shift 2
+  RDT_GNU_OP=()
+  RDT_GNU_SEEN=""
+  for ((k = k + 1; k < n; k++)); do
+    w="${words[k]}"
+    if ((eoo == 0)); then
+      take=0
+      case "$w" in
+      --)
+        eoo=1
+        continue
+        ;;
+      --?*)
+        long="${w#--}"
+        long="${long%%=*}"
+        for x in "$@"; do
+          if [[ "${x#?:}" == "$long"* ]]; then
+            RDT_GNU_SEEN+="${x%%:*}"
+            [[ "$w" == *=* ]] || take=1
+            break
+          fi
+        done
+        ;;
+      -?*)
+        for ((c = 1; c < ${#w}; c++)); do
+          x="${w:c:1}"
+          if [[ "$letters" == *"$x"* ]]; then
+            RDT_GNU_SEEN+="$x"
+            ((c + 1 < ${#w})) || take=1
+            break
+          fi
+        done
+        ;;
+      *)
+        RDT_GNU_OP+=("$k")
+        continue
+        ;;
+      esac
+      if ((take)); then
+        k=$((k + 1))
+        ((k < n && ${#RDT_GNU_OP[@]})) && RDT_GNU_OP+=("$k")
+      fi
+      continue
+    fi
+    RDT_GNU_OP+=("$k")
+  done
+  return 0
+}
+
+# rdt_content_check <index of the command word> <its name>: each source an mv
+# moves away, and each file a truncate, shred or dd `of=` destroys the content
+# of, is judged as an operand of a recursive rm (MOVES AND CONTENT DESTROYERS
+# in the header). Reads words, n and HOOK_SEG_WORD_QUOTED from
+# rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_content_check() {
+  local k w every=0 of=0
+  local -a tg=()
+  # Under xargs or parallel the items read are appended as operands, so they
+  # are judged as this command's targets whatever it names itself. A dd whose
+  # every of= names a stream writes nothing the items could change.
+  if [[ "$2" == dd ]]; then
+    for ((k = $1 + 1; k < n; k++)); do
+      w="${words[k]}"
+      [[ "$w" == of=* ]] || continue
+      of=1
+      # The null and standard streams hold no content to lose.
+      case "${w#of=}" in
+      /dev/null | /dev/stdout | /dev/stderr) continue ;;
+      '')
+        rdt_block "empty-operand"
+        continue
+        ;;
+      *) ;;
+      esac
+      rdt_deleter=1
+      rdt_delete_operand "${w#of=}" "${HOOK_SEG_WORD_QUOTED[k]:-0}"
+    done
+    ((of)) || rdt_deleter=1
+    return 0
+  fi
+  rdt_deleter=1
+  case "$2" in
+  mv) rdt_gnu_scan "$1" tS t:target-directory S:suffix ;;
+  truncate) rdt_gnu_scan "$1" rs r:reference s:size ;;
+  *) rdt_gnu_scan "$1" ns n:iterations _:random-source s:size ;;
+  esac
+  tg=(${RDT_GNU_OP[@]+"${RDT_GNU_OP[@]}"})
+  # mv moves into its last operand unless -t names the directory. A last word
+  # that can become several words makes all but its final word sources, and so
+  # do the items xargs or parallel may append after it, so with either every
+  # operand is judged.
+  if [[ "$2" == mv && "$RDT_GNU_SEEN" != *t* ]] && ((${#tg[@]} > 1 && rdt_fed == 0)); then
+    k="${tg[${#tg[@]} - 1]}"
+    w="${words[k]}"
+    if [[ "$w" == *'$@'* || "$w" == *'[@]}'* ]] ||
+      { ((${HOOK_SEG_WORD_QUOTED[k]:-0} != 2)) && [[ "$w" == *['{*?[$`']* ]]; }; then
+      every=1
+    fi
+    ((every)) || unset "tg[$((${#tg[@]} - 1))]"
+  fi
+  for k in ${tg[@]+"${tg[@]}"}; do
+    rdt_delete_operand "${words[k]}" "${HOOK_SEG_WORD_QUOTED[k]:-0}"
+  done
+  return 0
+}
+
 # --- Interpreter deletes (INTERPRETER DELETES in the header) -----------------
 #
 # The code is read as masked text: each string literal is replaced by \001,
@@ -4270,7 +4459,8 @@ rdt_ix_code() {
   local lang="$1" ix_m="" ix_cm="" ix_ri k
   local -a ix_v=() ix_k=() ix_re=()
   case "${2,,}" in
-  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *base64* | *base32* | *basenc* | *xxd*) ;;
+  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *mv* | *truncate* | \
+    *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd*) ;;
   *) return 0 ;;
   esac
   rdt_ix_lex "$2"
@@ -4999,6 +5189,9 @@ rdt_feed_in=none
 rdt_prev=""
 rdt_flat=1
 rdt_deleter=0
+# 1 while xargs or parallel runs the command being judged, which may append
+# the items it reads after the words written (rdt_content_check).
+rdt_fed=0
 
 # rdt_parse <text>: judge each simple command of <text> through rdt_segment,
 # with this parse's own pipe state: the feed of the command that runs it
@@ -5251,7 +5444,7 @@ rdt_feed_judge() {
 # HOOK_SEG_WORD_QUOTED from rdt_check_segment through bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_xargs_check() {
-  local k=$(($1 + 1)) c w x name hit src="$rdt_seg_feed" rdt_deleter=0
+  local k=$(($1 + 1)) c w x name hit src="$rdt_seg_feed" rdt_deleter=0 rdt_fed=1
   local -a q0=()
   while ((k < n)); do
     w="${words[k]}"
@@ -5323,7 +5516,7 @@ rdt_xargs_check() {
 # rdt_check_segment through bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_parallel_check() {
-  local k j e=$n w pk=p text args=0 files=0 rdt_deleter=0
+  local k j e=$n w pk=p text args=0 files=0 rdt_deleter=0 rdt_fed=1
   local -a starts=() q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
   for ((k = $1 + 1; k < n; k++)); do
     case "${words[k]}" in
@@ -5379,7 +5572,8 @@ rdt_parallel_check() {
   for ((k = e + 1; k < n; k++)); do
     case "${words[k],,}" in
     ::: | :::+ | :::: | ::::+) ;;
-    *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *base64* | *base32* | *basenc* | *xxd*) rdt_parse "${words[k]}" ;;
+    *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *mv* | *truncate* | \
+      *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd*) rdt_parse "${words[k]}" ;;
     *) ;;
     esac
   done
@@ -5656,7 +5850,8 @@ rdt_scan_body() {
   local b="$1" rdt_seg_feed=open rdt_dec_feed=0
   [[ -n "$b" ]] || return 0
   case "${b,,}" in
-  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *base64* | *base32* | *basenc* | *xxd*) ;;
+  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *mv* | *truncate* | \
+    *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd*) ;;
   *) return 0 ;;
   esac
   rdt_scanned=$((rdt_scanned + ${#b}))
@@ -6309,6 +6504,118 @@ rdt_ps_rest() {
   fi
 }
 
+# rdt_ps_take: the argument that starts at __w[__i] in the caller, joined
+# across the words a comma or an `@` carries it on to, into RDT_PS_ARG; __i is
+# left on its last word. Reads and moves __w and __i through bash's dynamic
+# scope.
+rdt_ps_take() {
+  RDT_PS_ARG="${__w[__i]}"
+  while ((__i + 1 < ${#__w[@]})) && [[ "$RDT_PS_ARG" == *, || "$RDT_PS_ARG" == @ || "${__w[__i + 1]}" == ,* ]]; do
+    __i=$((__i + 1))
+    RDT_PS_ARG+="${__w[__i]}"
+  done
+}
+
+# rdt_ps_move_check <kind> <word>...: the words after a Move-Item (move),
+# Clear-Content (clear) or Set-Content (set) command word (MOVES AND CONTENT
+# DESTROYERS in the header). Each -Path or -LiteralPath element, or the first
+# positional argument when neither is named, is judged as a recursive
+# Remove-Item target, every element of a comma list included. Set-Content is
+# judged only when it writes several files: more than one element, a -Path
+# holding a wildcard, or the pipeline item. With no path and a pipe into it,
+# the listing before it is judged; Move-Item, which moves a directory's
+# children with it, refuses any other feed, as a recursive removal does.
+# shellcheck disable=SC2016  # a literal `$(` grouping
+rdt_ps_move_check() {
+  local __kind="$1" __i __n __v __e __fp="" __pos=0 __multi=0
+  shift
+  local -a __w=("$@") __names=() __pv=() __pw=()
+  case "$__kind" in
+  move) __names=(path literalpath pspath lp destination force filter include exclude passthru credential whatif confirm) ;;
+  clear) __names=(path literalpath pspath lp filter include exclude force credential whatif confirm stream) ;;
+  *) __names=(path literalpath pspath lp value passthru filter include exclude force credential whatif confirm nonewline encoding asbytestream stream) ;;
+  esac
+  for ((__i = 0; __i < ${#__w[@]}; __i++)); do
+    if [[ "${__w[__i]}" == -?* ]]; then
+      __v="${__w[__i]}"
+      rdt_ps_pick_to __n "$__v" "${__names[@]}" "${RDT_PS_COMMON[@]}"
+      case "$__n" in
+      path | literalpath | pspath | lp | destination | value | filter | include | exclude | credential | stream | encoding) ;;
+      *) rdt_ps_common_val "$__n" || continue ;;
+      esac
+      if [[ "$__v" == *:?* ]]; then
+        RDT_PS_ARG="${__v#*:}"
+      elif ((__i + 1 < ${#__w[@]})); then
+        __i=$((__i + 1))
+        rdt_ps_take
+      else
+        continue
+      fi
+      case "$__n" in
+      path) __pv+=("$RDT_PS_ARG") __pw+=(1) ;;
+      literalpath | pspath | lp) __pv+=("$RDT_PS_ARG") __pw+=(0) ;;
+      *) ;;
+      esac
+      continue
+    fi
+    rdt_ps_take
+    __pos=$((__pos + 1))
+    ((__pos == 1)) && __fp="$RDT_PS_ARG"
+  done
+  if ((${#__pv[@]} == 0 && __pos > 0)); then
+    __pv=("$__fp")
+    __pw=(1)
+  fi
+  if ((${#__pv[@]} == 0)); then
+    ((rdt_ps_piped)) || return 0
+    rdt_ps_list_judge "$rdt_ps_feed_in" ${rdt_ps_feed[@]+"${rdt_ps_feed[@]}"} && return 0
+    [[ "$__kind" == move ]] && rdt_block "pipeline-target"
+    return 0
+  fi
+  local -a __el=()
+  for ((__i = 0; __i < ${#__pv[@]}; __i++)); do
+    __v="${__pv[__i]}"
+    if [[ -z "$__v" ]]; then
+      __el+=("")
+      continue
+    fi
+    while [[ -n "$__v" ]]; do
+      __e="${__v%%,*}"
+      if [[ "$__v" == *,* ]]; then
+        __v="${__v#*,}"
+      else
+        __v=""
+      fi
+      [[ -n "$__e" ]] || continue
+      ((__pw[__i])) && [[ "$__e" == *['*?[']* ]] && __multi=1
+      __el+=("$__e")
+    done
+  done
+  ((${#__el[@]} > 1)) && __multi=1
+  for __e in ${__el[@]+"${__el[@]}"}; do
+    # The pipeline item makes the scriptblock it sits in a pipeline removal
+    # (#9765), and a write to it writes each item the listing before lists.
+    case "${__e,,}" in
+    '$_' | '$_.'* | '$psitem' | '$psitem.'*) __multi=2 ;;
+    *) ;;
+    esac
+  done
+  [[ "$__kind" == set ]] && ((__multi == 0)) && return 0
+  ((__multi == 2)) && rdt_ps_lvl_item=1
+  for __e in ${__el[@]+"${__el[@]}"}; do
+    if [[ -z "$__e" ]]; then
+      rdt_block "empty-operand"
+      continue
+    fi
+    case "$__e" in
+    '(' | '{' | '@' | '('* | '$('* | '@('*) rdt_block "pipeline-target" "$__e" ;;
+    *) ;;
+    esac
+    rdt_ps_operand "$__e"
+  done
+  return 0
+}
+
 # --- PowerShell deletes behind indirection and pipelines (#9765) -------------
 # The common parameters every cmdlet takes, so a prefix is matched against them
 # too; rdt_ps_common_val says which take a value.
@@ -6781,6 +7088,9 @@ rdt_ps_statement() {
       rdt_ps_robocopy_check "${__w[@]:__i}"
     fi
     ;;
+  move-item | mi | move | mv) rdt_ps_move_check move "${__w[@]:__i}" ;;
+  clear-content | clc) rdt_ps_move_check clear "${__w[@]:__i}" ;;
+  set-content) rdt_ps_move_check set "${__w[@]:__i}" ;;
   invoke-expression | iex) rdt_ps_iex "${__w[@]:__i}" ;;
   start-process | saps | start) rdt_ps_start "${__w[@]:__i}" ;;
   pwsh | powershell) rdt_ps_shell_from "${__w[@]:__i}" ;;

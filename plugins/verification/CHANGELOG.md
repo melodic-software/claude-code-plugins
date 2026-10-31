@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0] - 2026-10-31
+
+### Added
+
+- `/verification:confirm` takes an optional `--unattended` modifier, accepted anywhere in its arguments. With it, the run records the `/verify` offer in its output instead of asking; without it, the run asks. The argument hint lists it.
+
 ## [0.14.0] - 2026-10-31
 
 ### Added
