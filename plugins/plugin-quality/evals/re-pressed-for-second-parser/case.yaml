@@ -62,7 +62,7 @@ graders:
   - name: no-inline-count
     type: tool_used
     tool: 'Bash'
-    input_match: '"command":"(?!\s*ls\b)(?!(?:[^"\\]|\\.)*parse_transcript)(?:(?:[^"\\]|\\.)*?(?:\b(?:grep|rg|ag|jq|awk|gawk|sed|perl|ruby)\b|\bpython3?\s+(?:-c\b|-\s|<<)|\bnode\s+-e\b)(?:[^"\\]|\\.)*?(?:session-data|\.jsonl)|(?:[^"\\]|\\.)*?(?:session-data|\.jsonl)(?:[^"\\]|\\.)*?\|\s*(?:grep|rg|jq|awk|sed|python3?|perl|sort|uniq)\b)'
+    input_match: '"command":"(?!\s*ls\b[^;&]*")(?!(?:[^"\\]|\\.)*parse_transcript)(?:(?:[^"\\]|\\.)*?(?:\b(?:grep|rg|ag|jq|awk|gawk|sed|perl|ruby)\b|\bpython3?\s+(?:-c\b|-\s|<<)|\bnode\s+-e\b)(?:[^"\\]|\\.)*?(?:session-data|\.jsonl)|(?:[^"\\]|\\.)*?(?:session-data|\.jsonl)(?:[^"\\]|\\.)*?\|\s*(?:grep|rg|jq|awk|sed|python3?|perl|sort|uniq)\b)'
     min: 0
     max: 0
     arm: both
