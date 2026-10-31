@@ -6,6 +6,6 @@ graders:
   - name: resolver-ran
     type: tool_used
     tool: 'Bash'
-    input_match: '"command":"(?:[^"\\]|\\.)*resolve-convention-home\.sh'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||[;|(]|\$\(|\\n)\s*)?(?:\w+=\S*\s+)*(?:(?:bash|sh)\s+(?:-\S+\s+)*)?(?:\\"|'')?[^\s"''\\]*resolve-convention-home\.sh(?:\\"|'')?(?=\s|"|;|&|\||\))'
     min: 1
     arm: with-only
