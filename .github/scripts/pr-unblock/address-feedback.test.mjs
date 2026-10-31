@@ -898,10 +898,10 @@ test("at the cap, the code lane's findings go to a fresh fixer: every thread run
   assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1", "PRRT_2"]);
 });
 
-// The owner's rule: a person decides only an intent or design question or a
-// real HIGH or CRITICAL security risk code cannot resolve. An IMPORTANT
-// security finding is a code fix first: it gets the fresh fixer's round, and
-// holds for a person only when that round was given it and left it open.
+// The owner's rule (decision on #11020): only a CRITICAL security finding
+// holds for a person. An IMPORTANT one is a code fix: it gets the fresh
+// fixer's round, and if that round leaves it open the head fails as any
+// unconverged finding does, with no person.
 for (const [label, roots] of [
   ["an IMPORTANT security lane finding", [LANE_FINDING]],
   ["an IMPORTANT security lane finding beside a code lane one", [CODE_FINDING, LANE_FINDING]],
@@ -915,15 +915,32 @@ for (const [label, roots] of [
     assert.match(result.file.retry.brief, /never weaken/i);
   });
   for (const rounds of [4, 9]) {
-    test(`after ${rounds} rounds at a cap of 3, ${label} the fresh fixer's round left open escalates feedback-round-cap`, async () => {
+    test(`after ${rounds} rounds at a cap of 3, ${label} the fresh fixer's round left open fails the head, not a person`, async () => {
       const result = await capped({ rounds, roots });
       assert.equal(result.decision, "escalate");
-      assert.equal(result.escalationReason, "feedback-round-cap");
-      assert.equal(escalationRoute(result.escalationReason), "hold");
+      assert.equal(result.escalationReason, "feedback-not-converging");
+      assert.equal(escalationRoute(result.escalationReason), "fail");
       assert.equal(result.file, undefined);
     });
   }
 }
+
+test("needsPerson holds a security lane finding rated CRITICAL or unrated, never an IMPORTANT or SUGGESTION one", () => {
+  const lane = (body) => ({ comments: [{ id: 100, author: "reviewer", body }] });
+  for (const body of [LANE_FINDING, LANE_FINDING.replace("IMPORTANT", "SUGGESTION")]) {
+    assert.equal(needsPerson(lane(body), ACTIONS_BOT), false, body.split("\n")[0]);
+  }
+  for (const body of [LANE_FINDING.replace("IMPORTANT", "CRITICAL"), LANE_FINDING.replace("severity: IMPORTANT\n", "")]) {
+    assert.equal(needsPerson(lane(body), ACTIONS_BOT), true, body.split("\n")[0]);
+  }
+});
+
+test("after the fresh fixer's round, a CRITICAL security finding left open still holds for a person", async () => {
+  const result = await capped({ rounds: 4, roots: [CODE_FINDING, LANE_FINDING.replace("IMPORTANT", "CRITICAL")] });
+  assert.equal(result.decision, "escalate");
+  assert.equal(result.escalationReason, "feedback-round-cap");
+  assert.equal(escalationRoute(result.escalationReason), "hold");
+});
 
 test("after the fresh fixer's round, an IMPORTANT security finding opened after that round fails the head instead of holding: no round was given it", async () => {
   const result = await capped({ rounds: 4, roots: [CODE_FINDING, LANE_FINDING], rootAt: at(20) });
