@@ -1,0 +1,139 @@
+{
+  "skill": "user-interface:write-css",
+  "plugin": "user-interface",
+  "skill_dir": "plugins/user-interface/skills/write-css",
+  "ranking_note": "Competitors are the same-plugin neighbors a styling request could reach (whole-component design, animation, review, naming, plugin settings) plus prototype:explore-directions, the throwaway-layout skill a build request could also reach.",
+  "competitors": [
+    "user-interface:design",
+    "user-interface:write-animation",
+    "user-interface:audit",
+    "user-interface:glossary",
+    "user-interface:setup",
+    "prototype:explore-directions"
+  ],
+  "competitor_dirs": {
+    "prototype:explore-directions": "plugins/prototype/skills/explore-directions"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The long product names in the cart sidebar overflow the card and push the price off screen. Fix it in cart.module.css with an ellipsis."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Convert the .gallery flexbox in gallery.scss to CSS grid so the tiles line up in columns instead of ragged rows."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Swap the inline styles on this card for Tailwind classes:\n<div style=\"padding:16px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.2)\">"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our Badge is a styled-component. Add a `variant` prop that switches between success, warning and danger colors using the theme tokens."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you go through src/styles/main.css and point out anything outdated or fragile, like float layouts or magic numbers?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The stat widget sits in both the narrow sidebar and the wide main column. Make it stack vertically based on its own width, not the viewport."
+    },
+    {
+      "id": "pos-train-07",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Dark mode: the --surface and --text custom properties don't change when prefers-color-scheme is dark. Wire that up in tokens.css."
+    },
+    {
+      "id": "pos-train-08",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The icon and label in our Svelte Chip aren't vertically centered, the icon sits a couple pixels low. Fix it in the <style> block."
+    },
+    {
+      "id": "neg-train-build-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Build a checkout page in React from scratch: shipping address form, order summary and a payment step."
+    },
+    {
+      "id": "neg-train-build-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a notifications panel component in Angular with unread counts, mark-all-as-read, and grouping by day."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "When the accordion opens, have the content slide down smoothly instead of popping in."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review the interface changes in this PR's diff and list the problems by severity. Read-only, no fixes."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Is there a name for the frosted blurry background behind a modal?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Mock up a few rough alternatives for the onboarding screen layout that I can toggle between before we commit."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "sidebar.css still lays out the two columns with floats and a clearfix hack. Rewrite that stylesheet with grid, keep the 280px sidebar, and make it stack below 768px."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Convert these inline styles to Tailwind classes: `<button style={{padding: '8px 16px', borderRadius: 6, background: '#4f46e5', color: 'white', fontWeight: 600}}>Save</button>` and add hover and disabled styles while you're at it."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you look over the styled-components in src/components/Card/styles.ts? I think there are hardcoded colors that should be theme values and some of the media queries look duplicated."
+    },
+    {
+      "id": "neg-validation-build-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Build an Angular order summary component for checkout: line items with quantity steppers, subtotal, tax and shipping rows, a promo code field, and an empty-cart state with a link back to the shop."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What's the name for that effect where a panel looks like frosted glass and blurs whatever is behind it? I want to search for examples."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Before we commit to anything, show me three different layouts for the analytics overview screen so I can click between them and pick one."
+    }
+  ]
+}
