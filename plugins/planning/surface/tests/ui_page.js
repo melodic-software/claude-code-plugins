@@ -285,6 +285,10 @@ async page => { // the question page itself: choices, chips, banners, header and
   }
   if (PHASE === 5) { // the shell revised Q3's recommendation after its kept accept
     await page.waitForTimeout(600);
+    // #11584: the revision set the accept aside, so Q3 reads open, under Show: Open and no longer under Review.
+    const inShow = async v => { await page.selectOption("#filter", v); await page.waitForTimeout(150); return !!(await page.$('.rail-list .qbtn[data-q="Q3"]')); };
+    const underReview = await inShow("review"), underOpen = await inShow("open");
+    ok("#11584: a revision that sets the accept aside moves Q3 from Show: Review to Show: Open", !underReview && underOpen, JSON.stringify({underReview, underOpen}));
     await pick("Q3");
     const cs = await page.$$eval("#choices .choice", els => els.map(e => e.textContent));
     ok("#5910: no Reconfirm once the recommendation changed since the accept; Rec shows the revised text", !cs.some(t => /Reconfirm/.test(t)) && /pinned by digest/.test(await text("#choices .choice.rec")), JSON.stringify(cs));
