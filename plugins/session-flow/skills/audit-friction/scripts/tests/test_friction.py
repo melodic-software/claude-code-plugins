@@ -202,10 +202,14 @@ def test_mine_warns_about_an_unread_sibling_projects_tree(store, tmp_path):
     data = data_of(result)
     assert data["sibling_roots_unread"] == [str(sibling)]
     assert f'add it with --source "{sibling}"' in data["warnings"][0]
-    assert [r["via"] for r in data["projects_roots"]] == ["machine store"]
+    # The store does not record the root it was collected from, so the row says it is the collector's default.
+    assert [r["via"] for r in data["projects_roots"]] == [
+        "machine store, collector default root; the store does not record the root it was collected from"
+    ]
     markdown = friction("mine", "--data-dir", str(store), *WINDOW, "--format", "md", siblings=pattern).stdout
     assert f"Warning: sibling projects tree not read: {sibling}" in markdown
-    assert "Projects roots read: " in markdown
+    assert "Projects roots: " in markdown
+    assert "collector default root" in markdown
 
 
 def test_mine_reads_a_sibling_given_as_source_without_warning(tmp_path):
@@ -228,6 +232,100 @@ def test_mine_without_a_sibling_lists_only_the_machine_root(store, tmp_path):
     data = data_of(result)
     assert (data["sibling_roots_unread"], data["warnings"]) == ([], [])
     assert len(data["projects_roots"]) == 1
+
+
+@pytest.fixture
+def module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("friction_detection_under_test", SCRIPTS / "friction.py")
+    loaded = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loaded)
+    return loaded
+
+
+def test_wsl_distros_decodes_utf16_and_utf8_listings(module, monkeypatch):
+    calls = []
+    outputs = iter([
+        "\ufeffUbuntu\r\nDebian\r\n\r\n".encode("utf-16-le"),
+        b"Ubuntu\nDebian\n",
+    ])
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, stdout=next(outputs))
+
+    monkeypatch.setattr(module, "_wsl_exe", lambda: "C:\\Windows\\System32\\wsl.exe")
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    assert module._wsl_distros("--running") == ["Ubuntu", "Debian"]
+    assert module._wsl_distros() == ["Ubuntu", "Debian"]
+    assert calls == [
+        ["C:\\Windows\\System32\\wsl.exe", "--list", "--quiet", "--running"],
+        ["C:\\Windows\\System32\\wsl.exe", "--list", "--quiet"],
+    ]
+
+
+def test_wsl_distros_is_empty_on_failure_or_without_wsl(module, monkeypatch):
+    monkeypatch.setattr(module, "_wsl_exe", lambda: "wsl")
+    monkeypatch.setattr(module.subprocess, "run", lambda argv, **kw: subprocess.CompletedProcess(argv, 1, stdout=b"x"))
+    assert module._wsl_distros() == []
+
+    def must_not_run(argv, **kwargs):
+        raise AssertionError("wsl.exe ran without a resolved path")
+
+    monkeypatch.setattr(module, "_wsl_exe", lambda: None)
+    monkeypatch.setattr(module.subprocess, "run", must_not_run)
+    assert module._wsl_distros() == []
+
+
+def test_wsl_exe_resolves_under_system_root_only(module, monkeypatch, tmp_path):
+    monkeypatch.setenv("SystemRoot", str(tmp_path))
+    assert module._wsl_exe() is None
+    exe = tmp_path / "System32" / "wsl.exe"
+    exe.parent.mkdir()
+    exe.write_bytes(b"")
+    assert module._wsl_exe() == str(exe)
+
+
+def test_wsl_automount_root_reads_wsl_conf(module, tmp_path):
+    conf = tmp_path / "wsl.conf"
+    conf.write_text('[automount]\nroot = "/win/"\n', encoding="utf-8")
+    assert module._wsl_automount_root(str(conf)) == "/win/"
+    conf.write_text("[network]\nhostname = box\n", encoding="utf-8")
+    assert module._wsl_automount_root(str(conf)) == "/mnt/"
+    conf.write_text("root = /win/\n", encoding="utf-8")
+    assert module._wsl_automount_root(str(conf)) == "/mnt/"
+    assert module._wsl_automount_root(str(tmp_path / "missing.conf")) == "/mnt/"
+
+
+def test_sibling_patterns_on_windows_lists_running_distros_and_skips_stopped(module, monkeypatch):
+    monkeypatch.delenv("AUDIT_FRICTION_SIBLING_GLOBS", raising=False)
+    monkeypatch.setattr(module.sys, "platform", "win32")
+    monkeypatch.setattr(module, "_wsl_distros", lambda *flags: ["Ubuntu"] if "--running" in flags else ["Ubuntu", "Debian"])
+    patterns, stopped = module.sibling_patterns()
+    assert patterns == [
+        "\\\\wsl$\\Ubuntu\\home\\*\\.claude\\projects",
+        "\\\\wsl$\\Ubuntu\\root\\.claude\\projects",
+    ]
+    assert stopped == ["Debian"]
+
+
+def test_sibling_patterns_under_wsl_uses_the_automount_root(module, monkeypatch):
+    monkeypatch.delenv("AUDIT_FRICTION_SIBLING_GLOBS", raising=False)
+    monkeypatch.setattr(module.sys, "platform", "linux")
+    monkeypatch.setattr(module, "_wsl_automount_root", lambda: "/win/")
+    interop: list[str] = []
+    monkeypatch.setattr(module.glob, "glob", lambda pattern: list(interop) if "WSLInterop" in pattern else [])
+    assert module.sibling_patterns() == ([], [])
+    interop.append("/proc/sys/fs/binfmt_misc/WSLInterop-late")
+    assert module.sibling_patterns() == ([str(Path("/win/") / "*" / "Users" / "*" / ".claude" / "projects")], [])
+
+
+def test_root_key_folds_the_two_wsl_unc_spellings(module, monkeypatch):
+    monkeypatch.setattr(module.os.path, "realpath", lambda path: path)
+    assert module._root_key("\\\\wsl.localhost\\Ubuntu\\home\\me\\.claude\\projects\\") == module._root_key(
+        "\\\\wsl$\\Ubuntu\\home\\me\\.claude\\projects"
+    )
 
 
 MERGE = """CAVEAT: synthetic

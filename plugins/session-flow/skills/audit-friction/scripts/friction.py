@@ -14,8 +14,8 @@
 secondary performance signals and the events themselves. `--source DIR` first runs the audit-sessions
 collector over DIR (laid out like `~/.claude/projects`) into its own store under
 `D/audit-friction/sources/`, so the machine store never mixes in another directory's sessions; the
-retention and excerpt options pass through to that collect. `mine` also lists every projects root it
-read, and warns about a sibling tree the default run skipped: under WSL a Windows user's
+retention and excerpt options pass through to that collect. `mine` also lists the projects roots (the
+machine store's row is the collector's default root, since the store does not record its root), and warns about a sibling tree the default run skipped: under WSL a Windows user's
 `<automount root>/<drive>/Users/*/.claude/projects`, on Windows a running WSL distribution's
 `\\\\wsl$\\<distro>\\home\\*\\.claude\\projects` (a stopped distribution is listed as unchecked, never
 started). `AUDIT_FRICTION_SIBLING_GLOBS`, when set, replaces that detection with its own
@@ -86,6 +86,7 @@ CLASS_HINTS = (
 )
 RULE_LINE = re.compile(r"^effective (allow|ask|deny) scopes=(\S+) precedence_basis=\S+ (.+)$")
 RULE_SPEC = re.compile(r"^([\w*.-]+)(?:\((.*)\))?$", re.S)
+MACHINE_VIA = "machine store, collector default root; the store does not record the root it was collected from"
 SHAPE_FLAGS_MISS = frozenset({"cd-prefix", "env-prefix", "compound", "substitution", "heredoc", "multiline"})
 
 
@@ -139,20 +140,29 @@ def _root_key(path: str) -> str:
     return text.replace("\\\\wsl.localhost\\", "\\\\wsl$\\")
 
 
-def _wsl_automount_root() -> str:
+def _wsl_automount_root(conf: str = "/etc/wsl.conf") -> str:
     """The Windows drives' mount root inside WSL: `[automount] root` in /etc/wsl.conf, else /mnt/."""
     parser = configparser.ConfigParser()
     try:
-        parser.read("/etc/wsl.conf", encoding="utf-8")
+        parser.read(conf, encoding="utf-8")
         root = parser.get("automount", "root", fallback="/mnt/")
     except (configparser.Error, UnicodeDecodeError):
         root = "/mnt/"
     return root.strip().strip("\"'") or "/mnt/"
 
 
+def _wsl_exe() -> str | None:
+    """wsl.exe by its System32 path: a bare name would let CreateProcess run a `wsl.exe` from the current directory."""
+    path = os.path.join(os.environ.get("SystemRoot") or "C:\\Windows", "System32", "wsl.exe")
+    return path if os.path.isfile(path) else None
+
+
 def _wsl_distros(*flags: str) -> list[str]:
+    exe = _wsl_exe()
+    if exe is None:
+        return []
     try:
-        done = subprocess.run(["wsl.exe", "--list", "--quiet", *flags], capture_output=True, timeout=30)
+        done = subprocess.run([exe, "--list", "--quiet", *flags], capture_output=True, timeout=30)
     except (OSError, subprocess.SubprocessError):
         return []
     if done.returncode != 0:
@@ -299,7 +309,7 @@ def render_mine(data: dict) -> str:
         f"{data['sessions']} sessions ({', '.join(f'{v} {k}' for k, v in data['session_classes'].items()) or 'none'}), "
         f"{data['active_hours']} active hours, {data['typed_turns']} typed turns.",
         "",
-        "Projects roots read: " + "; ".join(f"{r['root']} ({r['via']})" for r in data["projects_roots"]) + ".",
+        "Projects roots: " + "; ".join(f"{r['root']} ({r['via']})" for r in data["projects_roots"]) + ".",
     ]
     if data["wsl_distros_unchecked"]:
         lines.append("Stopped WSL distributions, not checked for a projects tree: "
@@ -351,7 +361,8 @@ def cmd_mine(args: argparse.Namespace) -> int:
             warnings.append(f"source {source}: {envelope.get('summary')}")
             continue
         stores.append(store)
-    roots = [{"root": str(collect.default_projects_root()), "via": "machine store"}]
+    # The store does not record which root filled it, so this row names the collector's default, not a root known read.
+    roots = [{"root": str(collect.default_projects_root()), "via": MACHINE_VIA}]
     roots += [{"root": s["source"], "via": "--source"} for s in sources if s["status"] != "error"]
     siblings, stopped = sibling_roots([r["root"] for r in roots])
     for sibling in siblings:
