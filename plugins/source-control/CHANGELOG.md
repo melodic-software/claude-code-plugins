@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.8.2] - 2026-10-31
+
+### Security
+
+- `resolve-version-bump-conflict.sh` leaves a plugin for manual resolution when its `CHANGELOG.md` or `plugin.json` is a symlink, whether the link resolves or not, instead of writing through it or skipping the plugin.
+
 ## [4.8.1] - 2026-10-31
 
 ### Fixed

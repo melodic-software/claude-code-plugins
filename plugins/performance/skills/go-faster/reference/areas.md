@@ -561,8 +561,10 @@ them live when a command's output, or the files you find, do not match the entry
 
 - **Source**: subagent calls and Workflow-tool agents in this session's transcript, from the
   `session-work` counts.
-- **Run**: no new call; read `tools.Agent` (and `tools.Task`, its older name), `subagents` and
-  the `workflows` block when present.
+- **Run**: no new call; read `tools.Agent` (and `tools.Task`, its older name; see
+  [sub-agents: restrict which subagents can be spawned](https://code.claude.com/docs/en/sub-agents#restrict-which-subagents-can-be-spawned),
+  as of 2026-10-31; recheck when that section stops listing the old name), `subagents` and the
+  `workflows` block when present.
 - **Owner**: none.
 - **Record**: with subagent calls, a measured finding, unit `wait-ms`, value the summed `wait_ms`
   of those tools, title naming the call count and `subagents`, tier E1, workload `transcript
