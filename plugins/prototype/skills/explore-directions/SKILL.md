@@ -205,8 +205,9 @@ Constraints:
   `data:` URIs), reproduce its surrounding page markup once (header, navigation, the page around
   the feature) with synthetic values in place of every real value (records, user names, counts),
   and let the variant containers wrap only the subtree under test. Strip every `<script>` element
-  and `on*` attribute from markup you inline: the switcher and the variants' own script are the
-  page's only script. Every variant shares that look
+  and `on*` attribute, and every `javascript:` URL value (`href`, `src`, `action`, `formaction`),
+  from markup you inline: the switcher and the variants' own script are the page's only script.
+  Every variant shares that look
   and differs structurally. The per-variant direction below applies only when no app exists yet
   or the person asked to change the app's design.
 - **Otherwise each variant declares its visual direction.** With no app look to keep, and no

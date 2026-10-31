@@ -14,6 +14,17 @@
         }
       ],
       "why": "other skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:design"
+          }
+        }
+      ],
+      "why": "user-interface:design, which mockup-setup.md runs before every build"
     }
   ],
   "fail": [

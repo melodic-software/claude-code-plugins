@@ -20,7 +20,7 @@
           "tool": "Write",
           "input": {
             "file_path": "/tmp/explore-directions-a1B2c3/explore-directions.html",
-            "content": "<script src=\"https://cdn.example-analytics.com/a.js\"></script>"
+            "content": "<script src=\"https://cdn.analytics.example/a.js\"></script>"
           }
         }
       ],

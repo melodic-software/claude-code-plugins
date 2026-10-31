@@ -18,7 +18,7 @@ cat > app/index.html <<'HTML'
 <html>
 <head>
   <link rel="stylesheet" href="styles/app.css">
-  <script src="https://cdn.example-analytics.com/a.js"></script>
+  <script src="https://cdn.analytics.example/a.js"></script>
 </head>
 <body>
   <header><strong>Ledgerly</strong><nav><a href="/customers">Customers</a> <a href="/invoices">Invoices</a></nav></header>

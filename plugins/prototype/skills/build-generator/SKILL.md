@@ -1,5 +1,5 @@
 ---
-description: "Builds a throwaway generator for an artifact prompting cannot hit: dial-in controls bound to taste values, or a replica of the process behind a reference. The person tunes it; its output (config, coordinates, CSS) goes into the project; the generator is deleted. Researches a visual language first for creative work. Arguments: save-output, add-controls, export with a format. /playgrounds:use is an optional, presence-gated adapter for the dial-in case."
+description: "Builds a throwaway generator the person tunes for an artifact prompting cannot hit, whose saved output goes into the project."
 argument-hint: "[save-output [path/to/config.json]|add-controls [<description>]|export <format>] [<subject>]"
 user-invocable: true
 disable-model-invocation: true
