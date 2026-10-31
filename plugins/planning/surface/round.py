@@ -970,7 +970,12 @@ def op_propose(d, doc, a):
     `group` and `fromSeq` (the Ask it answers). It carries no recommendation, alternatives or
     commitments, and `proposed` makes the server derive it `proposed`, so the page offers only
     Accept, Edit and Not this, and the exports leave it out until the user accepts or edits it."""
-    q = {"id": a.id, "short": a.short, "title": a.title}
+    q = {
+        "id": a.id,
+        "short": a.short,
+        "title": a.title,
+        "checkedAgainst": [c["id"] for c in doc.get("constraints") or []],
+    }
     for req, gloss in REQUIRED_FIELDS:
         if not q.get(req):
             sys.exit(f"refused: propose {a.id or 'a question'} missing {req} ({gloss})")

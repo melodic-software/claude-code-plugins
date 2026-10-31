@@ -431,7 +431,7 @@ fi
 registered=0
 open_count=0
 stale_count=0
-stale_tail_re='(^|\] |[^\\]; )stale:: C[0-9]+(, C[0-9]+)*$'
+stale_tail_re='(^|\] |(^|[^\\])(\\\\)*; )stale:: C[0-9]+(, C[0-9]+)*$'
 answered=0
 deferred=0
 withdrawn=0

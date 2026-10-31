@@ -5286,6 +5286,33 @@ class TestConstraintRecheck(DirCase):
         self.add_q3(checkedAgainst=[])
         self.assertEqual(self.status(), {"Q3": ["C1"]})
 
+    def test_a_proposal_answers_to_the_constraints_recorded_so_far(self):
+        rc, out, err = self.op(
+            "propose", id="Q3", title="A proposed question?", short="Short Q3"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q3")["checkedAgainst"], ["C1"])
+
+    def test_the_mark_after_an_escaped_backslash_is_still_the_mark(self):
+        from exporters import drop_stale
+
+        self.assertEqual(drop_stale("answer:: C:\\\\; stale:: C2"), "answer:: C:\\\\")
+        self.assertEqual(
+            drop_stale("answer:: said\\; stale:: C2"), "answer:: said\\; stale:: C2"
+        )
+        self.assertEqual(drop_stale("[q-1] stale:: C2"), "[q-1]")
+
+    def test_a_marked_row_can_still_be_superseded(self):
+        from exporters import supersede_row
+
+        text = (
+            "## Open-question register\n\n"
+            "- Q1 | answered | round 1 | a | answer:: accepted: yes; stale:: C2\n"
+        )
+        out = supersede_row(text, "Q1", "a plan change", "the ledger")
+        self.assertIn("superseded-by-plan", out)
+        self.assertNotIn("stale::", out)
+
     def test_the_ledger_marks_the_row_and_an_import_drops_the_mark(self):
         from exporters import export_ledger, parse_register
 

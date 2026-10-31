@@ -108,6 +108,11 @@ stale_text="$(mkledger <<'EOF'
 EOF
 )"
 expect_exit "an escaped separator is answer text, not a mark -> 0" 0 --ledger "$stale_text"
+stale_backslash="$(mkledger <<'EOF'
+- Q1 | answered | round 1 | a | answer:: free-text: C:\\; stale:: C2
+EOF
+)"
+expect_exit "a mark after an escaped backslash still blocks -> 1" 1 --ledger "$stale_backslash"
 expect_stdout "open verdict counts the open row" "open=1" --ledger "$one_open"
 
 # 8. Mixed terminal statuses all count as resolved.

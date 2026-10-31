@@ -163,7 +163,16 @@ UNKNOWN_LEAD = re.compile(r"^([^:;]+)::(?: |$)")
 ALT = re.compile(r"^alt (\S+?)(?:: (.*))?$", re.DOTALL)
 # A row's last field: the constraints its recommendation was not checked against. The page derives
 # it, so parse_register drops it and an import never reads it as part of the answer.
-STALE_TAIL = re.compile(r"(?:(?<=\] )|^|(?<!\\); )stale:: C[0-9]+(?:, C[0-9]+)*$")
+# The `; ` must be unescaped: an even run of backslashes before it is answer text.
+STALE_LIST = r"stale:: C[0-9]+(?:, C[0-9]+)*$"
+STALE_TAIL = re.compile(
+    rf"(?:(?<=\] )|^){STALE_LIST}|((?:^|[^\\])(?:\\\\)*); {STALE_LIST}"
+)
+
+
+def drop_stale(res):
+    """A row's resolution without its derived stale mark."""
+    return STALE_TAIL.sub(lambda m: m.group(1) or "", res).rstrip()
 
 
 def clean(s):
@@ -1642,7 +1651,7 @@ def parse_register(text):
         parts = [p.strip() for p in m.group(2).split("|", 3)]
         parts += [""] * (4 - len(parts))
         status, cell, title, res = parts
-        res = STALE_TAIL.sub("", res).rstrip()
+        res = drop_stale(res)
         rows.append(
             (int(m.group(1)), status.lower(), round_of(cell)[0], title, res, cell)
         )
@@ -1664,7 +1673,7 @@ def locate_row(lines, qid, where):
         lead = REGISTER_LEAD.match(cells[3].strip())
         ids = {f"Q{int(m.group(1))}", lead.group(1).strip()[1:-1] if lead else ""}
         if qid.upper() in {x.upper() for x in ids if x}:
-            found.append((i, lines[i][: m.start(2)], cells[0], cells[3]))
+            found.append((i, lines[i][: m.start(2)], cells[0], drop_stale(cells[3])))
     if len(found) != 1:
         raise SystemExit(
             f"refused: {len(found)} register rows match {qid!r} in {where}"
