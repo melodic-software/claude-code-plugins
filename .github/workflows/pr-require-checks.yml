@@ -3958,7 +3958,7 @@ jobs:
           # closed as before. pr_read_put <answer> <args>... keeps an answer a
           # step read its own way; pr_read_forget drops every kept answer, and
           # every step that writes to the pull request runs it after its write
-          # (the cost-hold step and the lanes App step's auto-merge disarm).
+          # (the cost-hold step).
           # check-contract writes before any step reads through this cache.
           pr_read() {
             local file out
