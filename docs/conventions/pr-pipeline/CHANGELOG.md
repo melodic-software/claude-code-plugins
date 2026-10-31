@@ -1,5 +1,11 @@
 # Changelog for the PR pipeline convention
 
+## [8.25.1] - 2026-10-31
+
+### Fixed
+
+- The entry-hold check on a capped lane pull request and a queued lane entry counts a member's newest comment saying "do not merge", not any comment with blocking text, matching the arm path.
+
 ## [8.25.0] - 2026-10-31
 
 ### Changed
