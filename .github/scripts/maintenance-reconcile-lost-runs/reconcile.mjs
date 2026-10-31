@@ -79,6 +79,16 @@
 // covered: a re-run puts no PR back in the queue, and pr-merge re-enqueues its
 // own PRs once their checks pass.
 //
+// A run's attempt-1 jobs never change once it completed, so a lost lane run
+// held for good, and a failed intake or verdict run that is not one to re-run,
+// is read once: its id is carried in the SETTLED_ARTIFACT this pass uploads,
+// and the next pass, reading the newest scheduled or hand-started run of
+// main's copy of this workflow that holds one, skips each carried id its
+// listing still shows. A run to re-run is never carried (a deferred one still
+// gets its place later, and a re-run that fails is tried again), nor one whose
+// failed job's steps did not list in full. A carry that is missing or cannot be
+// read reads every run, as before.
+//
 // Nothing is read from GitHub while githubstatus.com shows Actions as anything
 // but operational, or the status cannot be read, so a re-run never adds load
 // mid-incident. At most MAX_IN_FLIGHT re-runs are in flight at once (PR CI
@@ -99,6 +109,10 @@
 //                        resolve-pr; LANE_IDENTITY also names the lanes App
 //   KILL_SWITCH         `proceed` from the kill-switch step; anything else stops
 //   STATUS_URL           the status page's components endpoint (default githubstatus.com)
+//   SETTLED_PATH         plan writes this pass's settled runs there for the
+//                        upload, and only then reads the last pass's; unset
+//                        carries nothing
+//   GITHUB_RUN_ID, RUNNER_TEMP  this run, and where the last carry is downloaded
 //   GITHUB_OUTPUT        plan writes record-1 to record-3 there (empty when unused)
 //   GITHUB_STEP_SUMMARY  the outcome is listed there when set
 //   GITHUB_API_URL
@@ -109,6 +123,7 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { ghDownload, newestTrustedRun } from "../pr-merge/rotation.mjs";
 import { refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
 import { ACTIONS, componentStatus, fetchStatus } from "./component-status.mjs";
 import {
@@ -223,7 +238,28 @@ export const LANE_RUN_PAGES = 5;
 // run that starts between two queries is still listed by the later one.
 export const LANE_LIST_STATUSES = [...LANE_LOST, "requested", "pending", "waiting", "queued", "in_progress"];
 
+// The artifact that carries settled run ids from one pass to the next.
+export const SETTLED_ARTIFACT = "reconcile-settled-runs";
+export const SETTLED_FILE = "settled.json";
+const WORKFLOW_PATH = ".github/workflows/maintenance-reconcile-lost-runs.yml";
+const SETTLED_VERSION = 1;
+
 class RateLimited extends Error {}
+
+// The carried ids, or an error for any other shape.
+export function parseSettled(text, repo) {
+  const data = JSON.parse(text);
+  if (data?.version !== SETTLED_VERSION || data.repository !== repo || !Array.isArray(data.runs) || !data.runs.every((id) => Number.isSafeInteger(id) && id > 0)) {
+    throw new Error("the settled runs file has an unexpected shape");
+  }
+  return new Set(data.runs);
+}
+
+// The newest trusted pass's settled ids, empty when no pass carries any.
+async function readSettled({ repo, runId, call, download }) {
+  const id = await newestTrustedRun({ repo, runId, actions: call, name: SETTLED_ARTIFACT, workflow: WORKFLOW_PATH });
+  return id === undefined ? new Set() : parseSettled(download(id), repo);
+}
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
@@ -522,7 +558,9 @@ export async function prefilterSpec(call, repo, candidates) {
 // Reads every open PR's head and the recorded lanes' runs, and returns the
 // re-runs to make in order, with a record name on each lane re-run and each
 // recorded CI re-run.
-async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp }) {
+async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled = new Set() }) {
+  // The ids to carry to the next pass: read and settled now, or carried and still listed.
+  const settle = [];
   const pulls = (await paginate(call, `/repos/${repo}/pulls?state=open&base=main`, 5))
     .filter((p) => p.state === "open" && p.draft !== true && p.base?.ref === "main" && p.head?.repo?.full_name === repo && SHA.test(p.head?.sha ?? ""))
     .sort(byMergeCriticality);
@@ -729,9 +767,14 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       inFlight += runs.filter((r) => r.status !== "completed" && r.run_attempt > 1).length;
       const unpublished = [];
       for (const r of runs.filter((run) => isLostLane(run, since))) {
+        if (settled.has(r.id)) {
+          settle.push(r.id);
+          continue;
+        }
         try {
           const held = await holdReason(call, repo, r.id, judge);
           if (held) {
+            settle.push(r.id);
             const why = held === NOT_STARTED ? "; a newer run judges the head, so it is not re-run" : "; not re-run";
             say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}${why}`);
           } else {
@@ -772,6 +815,10 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     noteFailure(INTAKE, error);
   }
   for (const r of candidates) {
+    if (settled.has(r.id)) {
+      settle.push(r.id);
+      continue;
+    }
     try {
       const listing = await call("GET", `/repos/${repo}/actions/runs/${r.id}/attempts/1/jobs?per_page=100`);
       if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
@@ -780,6 +827,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const rerun = listing.jobs.filter((job) => !NOT_RERUN.has(job?.conclusion));
       if (rerun.length > 0 && rerun.every((job) => String(job?.name ?? "").startsWith(`${INTAKE_LABEL_JOB} / `))) {
         intake.push({ kind: "intake", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha });
+      } else if (rerun.length > 0) {
+        settle.push(r.id);
       }
     } catch (error) {
       noteFailure(`intake run ${r.id}`, error);
@@ -808,6 +857,10 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     noteFailure(VERDICT_DISPATCH, error);
   }
   for (const r of stopped) {
+    if (settled.has(r.id)) {
+      settle.push(r.id);
+      continue;
+    }
     try {
       const listing = await call("GET", `/repos/${repo}/actions/runs/${r.id}/attempts/1/jobs?per_page=100`);
       if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
@@ -817,6 +870,10 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const failedSteps = (rerun[0]?.steps ?? []).filter((step) => step?.conclusion === "failure").map((step) => step.name);
       if (rerun.length === 1 && rerun[0].name === VERDICT_JOB && failedSteps.length === 1 && failedSteps[0] === VERDICT_STOP_STEP) {
         verdicts.push({ kind: "verdict", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha });
+      } else if (rerun.length > 1 || (rerun.length === 1 && (rerun[0].name !== VERDICT_JOB || stepsKnown(rerun[0])))) {
+        // A listing with no failed job, or a step list read before it was
+        // whole, is read again next pass.
+        settle.push(r.id);
       }
     } catch (error) {
       noteFailure(`verdict run ${r.id}`, error);
@@ -843,7 +900,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     }
   }
   items.push(...intake, ...verdicts);
-  return { items, failed };
+  return { items, failed, settle };
 }
 
 // Re-runs each planned item still lost on a fresh read.
@@ -923,7 +980,7 @@ function recordOutputs(items) {
   return Object.fromEntries(Array.from({ length: MAX_IN_FLIGHT }, (_, i) => [`record-${i + 1}`, names[i] ?? ""]));
 }
 
-export async function main({ env = process.env, github, fetchStatus: readStatus = fetchStatus, sleep = delay, now = Date.now() } = {}) {
+export async function main({ env = process.env, github, fetchStatus: readStatus = fetchStatus, sleep = delay, now = Date.now(), download } = {}) {
   const lines = [];
   const say = (line) => {
     console.log(`reconcile: ${line}`);
@@ -1025,11 +1082,27 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
           specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
         });
     }
-    result = await plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp });
+    let settled = new Set();
+    if (env.SETTLED_PATH) {
+      try {
+        download ??= ghDownload({ repo, token: env.GH_TOKEN, dir: env.RUNNER_TEMP, name: SETTLED_ARTIFACT, file: SETTLED_FILE });
+        settled = await readSettled({ repo, runId: String(env.GITHUB_RUN_ID), call, download });
+      } catch (error) {
+        if (error instanceof RateLimited) {
+          throw error;
+        }
+        console.log(`::warning title=reconcile::no settled runs carried, so every run is read: ${escapeCommand(error?.message ?? error)}`);
+      }
+    }
+    const { settle, ...planned } = await plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled });
+    result = planned;
     if (result.items.some(recorded) && !env.RECORD_PATH) {
       throw new Error("RECORD_PATH is not set");
     }
     write();
+    if (env.SETTLED_PATH) {
+      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Set(settle)] }));
+    }
     if (lines.length === 0 && result.items.length === 0) {
       say(result.failed > 0 ? `${result.failed} listings failed; what was lost is unknown` : "nothing lost");
     }
