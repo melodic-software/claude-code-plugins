@@ -396,6 +396,21 @@ test("a new base dispatches a failed or not-applicable head again, within the pe
   assert.equal(api.calls.list, 1, "the base tip comes with the listing");
 });
 
+// fix-ci-context skips stop-resolved on any head it finds settled with none
+// failing, which leaves nothing to fix there, as a not-applicable skip does.
+test("a stop-resolved head goes again on a new base, as a not-applicable one does", async () => {
+  const resolved = (completedAt) => check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: stop-resolved", completedAt });
+  const failed = lanes("FAILURE");
+  const { result } = await run(
+    {
+      pages: [[pr(1, { checks: [failed, resolved("2026-10-22T10:00:00Z")] }), pr(2, { checks: [failed, resolved("2026-10-22T11:30:00Z")] })]],
+      baseCommittedAt: "2026-10-22T11:00:00Z",
+    },
+    { maxDispatch: 10 },
+  );
+  assert.deepEqual(result.dispatched.map((d) => d.number), [1]);
+});
+
 // GitHub's rollup lists only a check name's newest run, so the head's earlier
 // fix-ci runs are in the REST listing alone. A head context skips each time
 // (no failing check it counts) on a base that moves before every dispatcher

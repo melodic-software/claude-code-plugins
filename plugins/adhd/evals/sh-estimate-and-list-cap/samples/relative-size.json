@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Medium if the tests already cover the routes: 12 route files and the config bumps. Large if they do not, since the tests get written first.\n\nDo now:\n1. Bump `express` to 5 in package.json and run `npm install`\n2. Update the 12 route files\n3. Fix the failing tests\n4. Update the CI config\n5. Bump the Docker base image\n\nLater:\n1. Update the README\n2. Tell the team in Slack\n\nNext: run `npm install express@5`."
+    },
+    {
+      "answer": "Run `npm install express@5` now. Size: Medium, mostly the 12 route files.\n\n- Must: route files, tests, CI config\n- Nice to have: README, Slack note"
+    },
+    {
+      "answer": "Small: one dependency bump and a config line. Next: run `npm install express@5`."
+    },
+    {
+      "answer": "LARGE, because every route file and its tests change. Next: run `npm install express@5`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "This will take some work, depending on how many tests break.\n\n1. Bump express\n2. Update the 12 route files\n3. Fix the tests\n4. Update the CI config\n5. Bump the Docker base image\n6. Update the README\n7. Tell the team in Slack"
+    },
+    {
+      "answer": "About 4 to 6 hours if the tests already cover the routes; a full day if they do not. Next: run `npm install express@5`."
+    },
+    {
+      "answer": "Here is a haiku about autumn leaves falling on a quiet pond."
+    }
+  ]
+}
