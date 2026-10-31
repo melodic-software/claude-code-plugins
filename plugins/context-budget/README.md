@@ -61,6 +61,21 @@ The `live_display` option picks where it shows:
 hot reload. In `off` mode, `/context-budget live` shows a toast that says how to turn the display
 on.
 
+**Skills warning.** When the Skills row holds 1% or more of the window, it shows in the warning
+color. In the pane, a line under the row names the fix: run `/skill-doctor`, or check
+`skillListingBudgetFraction`. In the band, the Skills entry in the legend turns the same color, and
+the pane carries the fix. The level is the skill listing's default budget, 1% of the context
+window. That budget counts characters and the row counts tokens, so the warning compares the row's
+token share with the budget's 1%, not the two sizes. The threshold is fixed, with no option to
+change it. The row shows its percent rounded, so a Skills row at 0.6% reads "1%" with no color.
+No other category has a documented level, so no other row warns. How full the context is stays
+with `context-guard`.
+
+- **Pointer:** [skills § Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short).
+- **As of:** 2026-10-31.
+- **Recheck trigger:** that section changes the listing budget's default or unit, or what the
+  Skills row in `/context` counts.
+
 **Refresh and cost.** The mod reads Claude Code's local estimate of the breakdown, with no network
 call, when you open or switch the view and, while it is shown, when context usage changes. `off`
 makes no reads.

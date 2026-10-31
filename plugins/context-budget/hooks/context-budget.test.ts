@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { tokens } from './parts'
+import { SKILLS_FIX, tokens } from './parts'
 
 const PANE = 'context-budget-live'
 const HEADER = '◆ context 90k of 1M · compacts at 955k 9%'
@@ -18,10 +18,23 @@ const CATEGORIES = [
 // 'empty': no response measured yet (a fresh session, or just after a compaction), so the window
 // figures carry no tokens while the local breakdown estimate still answers.
 // 'breakdown-rejected': the breakdown call fails while the plain figures still answer.
-type Usage = 'breakdown' | 'no-threshold' | 'no-breakdown' | 'rejected' | 'breakdown-rejected' | 'empty'
+// 'skills-over' and 'skills-under': a Skills row at 1% and at 0.9% of the window, taken from the
+// free space so the window rows still sum to 1,000,000.
+type Usage = 'breakdown' | 'no-threshold' | 'no-breakdown' | 'rejected' | 'breakdown-rejected' | 'empty' | 'skills-over' | 'skills-under'
 
-const breakdown = (threshold: boolean) => ({
-  categories: CATEGORIES,
+const withSkills = (skills: number) =>
+  CATEGORIES.flatMap(c =>
+    c.kind === 'free'
+      ? [{ ...c, tokens: c.tokens - skills }]
+      : c.name === 'System prompt'
+        ? [c, { name: 'Skills', tokens: skills, color: 'suggestion', isDeferred: false, kind: 'used' }]
+        : [c],
+  )
+
+const SKILLS: Partial<Record<Usage, number>> = { 'skills-over': 10_000, 'skills-under': 9_000 }
+
+const breakdown = (threshold: boolean, skills?: number) => ({
+  categories: skills !== undefined ? withSkills(skills) : CATEGORIES,
   totalTokens: 90_000,
   maxTokens: 1_000_000,
   rawMaxTokens: 1_000_000,
@@ -48,7 +61,7 @@ const world = (on: any, usage: Usage = 'breakdown', held?: { call: number; until
     if (usage === 'rejected' || (usage === 'breakdown-rejected' && e.breakdown !== undefined)) return { deny: 'usage unavailable' }
     const context = usage === 'empty' ? { window: 1_000_000 } : { window: 1_000_000, tokens: 88_000, percent: 9 }
     const plain = usage === 'no-breakdown' || e.breakdown === undefined
-    const b = { ...breakdown(usage !== 'no-threshold'), ...(older ? { totalTokens: 50_000 } : {}) }
+    const b = { ...breakdown(usage !== 'no-threshold', SKILLS[usage]), ...(older ? { totalTokens: 50_000 } : {}) }
     return { value: { startedAt: 0, rateLimits: [], context: plain ? context : { ...context, breakdown: b } } }
   })
   on('ui.open', ($: unknown, e: { id: string }) => {
@@ -358,6 +371,59 @@ test('band: a refresh in flight when the session ends writes nothing', { options
   release()
   await inFlight
   expect(await texts(await mountBand($))).toEqual(['other plugin row'])
+})
+
+const SKILLS_ROW = 'Skills 10k 1%'
+const FIX = `  ${SKILLS_FIX}`
+
+test('warning: a Skills row at 1% of the window is amber in the pane and names the fix under it', async ($, on) => {
+  world(on, 'skills-over')
+  await live($)
+  const ui = await mountPane($)
+  const found: Found[] = await ui.findAll({ type: 'Text' })
+  await ui.unmount()
+  const shown = found.map(t => t.text)
+  expect(found.find(t => t.text === SKILLS_ROW)?.props.color).toBe('warning')
+  expect(shown.indexOf(FIX)).toBe(shown.indexOf(SKILLS_ROW) + 1)
+  expect(FIX).toContain('/skill-doctor')
+  expect(FIX).toContain('skillListingBudgetFraction')
+  // No other row is colored or carries a fix; swatches and bar segments keep their row theme keys.
+  const rows = found.filter(t => t.text !== '■ ' && segments([t]).length === 0)
+  expect(rows.filter(t => t.props.color === 'warning').map(t => t.text)).toEqual([SKILLS_ROW, FIX])
+})
+
+test('warning: a Skills row below 1% renders as any other row, with no color and no fix', async ($, on) => {
+  world(on, 'skills-under')
+  await live($)
+  const ui = await mountPane($)
+  const found: Found[] = await ui.findAll({ type: 'Text' })
+  await ui.unmount()
+  // 9k of 1M is 0.9%, shown rounded as 1%.
+  expect(found.find(t => t.text === 'Skills 9k 1%')?.props.color).toBeUndefined()
+  expect(found.map(t => t.text).join('\n')).not.toContain('/skill-doctor')
+})
+
+// The band line has no room for the fix text; the pane row carries it (the test above).
+test('warning: the band legend draws a Skills entry at 1% in the warning color, the rest plain', { options: { live_display: 'band' } }, async ($, on) => {
+  world(on, 'skills-over')
+  await measure($)
+  const ui = await mountBand($)
+  const found: Found[] = await ui.findAll({ type: 'Text' })
+  await ui.unmount()
+  const legend = found.filter(t => /^(System prompt|Skills|  Messages)/.test(t.text))
+  expect(legend.map(t => [t.text, t.props.color])).toEqual([
+    ['System prompt 10k 1%  ', undefined],
+    [SKILLS_ROW, 'warning'],
+    ['  Messages 80k 8%  Autocompact buffer 45k 5%  Free space 855k 86%', undefined],
+  ])
+  expect(found.map(t => t.text).join('\n')).not.toContain('/skill-doctor')
+})
+
+test('warning: the band legend stays one plain line when Skills is below 1%', { options: { live_display: 'band' } }, async ($, on) => {
+  world(on, 'skills-under')
+  await measure($)
+  const shown = await texts(await mountBand($))
+  expect(shown).toContain('System prompt 10k 1%  Skills 9k 1%  Messages 80k 8%  Autocompact buffer 45k 5%  Free space 856k 86%')
 })
 
 test('tokens: a value that rounds up to the next unit reads in that unit', () => {
