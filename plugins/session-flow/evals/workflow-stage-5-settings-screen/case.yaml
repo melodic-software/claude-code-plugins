@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: workflow-stage-5-settings-screen
+description: 'After a written PRD and a locked contract for a new user-facing settings screen, the next stage is 5, Design, and its answer says the flow and the screens are designed before the technical design: /user-experience:structure for the flow and navigation, then /user-interface:design for the screens. Only session-flow is loaded, so the answer names those skills as if-installed examples from the stage definitions. A run needs --scaffold.'
+tags: [workflow, design-stage, user-interface]
+plugins: ["../.."]
+expected_outcome: 'The answer places the session after stage 4 (the PRD in docs/prd and the Brief in PLAN.md satisfy stages 3 and 4), suggests stage 5, Design, and for this screen names the stage 5 UI work, with /user-experience:structure for the flow and navigation and /user-interface:design for the screens as if-installed examples, before the technical design.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/session-flow:workflow The PRD for our new notification settings screen is in docs/prd/notification-settings.md and the contract is locked in PLAN.md. What stage comes next, and what does it cover for this screen?'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: names-structure
+    type: regex
+    pattern: '^(?![^\n]*\b(?:not|never|don''t|won''t|do not|skip|avoid|instead of|rather than|no need to)\b[^\n]{0,15}user-experience:structure)[^\n]*/user-experience:structure(?![\w-])'
+    flags: 'mi'
+    arm: both
+  - name: names-ui-design
+    type: regex
+    pattern: '^(?![^\n]*\b(?:not|never|don''t|won''t|do not|skip|avoid|instead of|rather than|no need to)\b[^\n]{0,15}user-interface:design)[^\n]*/user-interface:design(?![\w-])'
+    flags: 'mi'
+    arm: both

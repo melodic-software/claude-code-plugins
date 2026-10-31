@@ -70,16 +70,17 @@ test("an unknown routing concern is rejected", () => {
 
 test("a duplicate id is rejected", () => {
   const errors = check(withRow((c, t) => t.concerns.push(structuredClone(c))));
-  assert.deepEqual(errors, ["$.concerns[1].id: duplicate id motion"]);
+  assert.deepEqual(errors, [`$.concerns[${table.concerns.length}].id: duplicate id motion`]);
 });
 
 test("an audit.order another row already holds is rejected", () => {
   const errors = check(withRow((c, t) => t.concerns.push({ ...structuredClone(c), id: "motion-copy" })));
-  assert.deepEqual(errors, ["$.concerns[1].audit.order: duplicate order 4, also motion"]);
+  assert.deepEqual(errors, [`$.concerns[${table.concerns.length}].audit.order: duplicate order 4, also motion`]);
 });
 
 test("rows with distinct audit.order values are accepted", () => {
-  const errors = check(withRow((c, t) => t.concerns.push({ ...structuredClone(c), id: "motion-copy", audit: { ...c.audit, order: 5 } })));
+  const free = Math.max(...table.concerns.map((r) => r.audit.order)) + 1;
+  const errors = check(withRow((c, t) => t.concerns.push({ ...structuredClone(c), id: "motion-copy", audit: { ...c.audit, order: free } })));
   assert.deepEqual(errors, []);
 });
 

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "@media (hover: hover) { .card-cta:hover { text-decoration-thickness: 2px; } }",
+      "why": "hover query, inside the base range; head gates on (hover: hover) and (pointer: fine)"
+    },
+    {
+      "answer": "@media (hover: hover) and (pointer: fine) { .tile:hover img { opacity: 0.9; } }",
+      "why": "hover and pointer query"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".card:hover { background: #f4f4f5; }",
+      "why": "ungated hover"
+    },
+    {
+      "answer": "@media (pointer: fine) { .card:hover { background: #f4f4f5; } }",
+      "why": "near miss: pointer query only"
+    }
+  ]
+}

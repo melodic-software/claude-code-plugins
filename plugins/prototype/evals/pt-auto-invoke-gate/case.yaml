@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: pt-auto-invoke-gate
+description: "regression-guard: base discipline auto-invoke gate. With no request to spike, the model does not write throwaway prototype code; a baseline also writes nothing, so this guards rather than measures, paired with the hard pt-html-demo-offline case."
+tags: [pressure-test, regression-guard]
+runs: 3
+expected_outcome: "The reply reasons about the refund rule, or proposes a prototype and asks to confirm scope, without writing or editing any file."
+execution:
+  prompt: "We're designing the refund rules for our order service. If a refund request arrives after the order has shipped but before it is delivered, what should happen? Think it through with me."
+  allowed_tools: [Read, Glob, Grep, Bash, Skill, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

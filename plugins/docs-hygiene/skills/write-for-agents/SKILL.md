@@ -66,7 +66,7 @@ follow it, without opening the target.
 
 - **Put the matching term first.** Open with the term the reader is matching on ("Deploys:
   see…", never "See the following doc for information about deploys").
-- **Cover the branches.** State when to follow it AND what the reader gets ("for tracked-changes
+- **Cover the branches.** State when to follow it and what the reader gets ("for tracked-changes
   output specifically, read X"), so both the follow and the skip are informed decisions.
 - A pointer that exists only because changes must be mirrored across distant folders can mask a
   cohesion problem. Before adding it, consider restructuring so things that change together live
@@ -144,6 +144,29 @@ not at all is I8-c's, scoped per model the same way. Never ask the model to show
 its reasoning in the reply, which some models decline; ask for what the reader needs, such as the
 rationale in two or three sentences or the evidence as a list.
 
+## Be strict with precise words
+
+Words like "reasonably", "tasteful" and "where appropriate" are too soft to force the agent to
+follow them, so it falls back to its defaults: those sentences don't change behavior. State the
+number, the condition or the boundary instead, which narrows the answers the agent has to choose
+from. An example of the form:
+
+```text
+Bad:  Keep the summary reasonably short and mention the tests where appropriate.
+Good: The summary is at most three sentences. Name each test command you ran with its
+      pass and fail counts.
+```
+
+Strict means precise, not loud. Keep firm words (never, always) for a hard limit no hook
+enforces, since that is the one rule that must not bend to context, and write no all-caps
+emphasis: reframe the line and give its reason instead. A firm word anywhere else is a flag to
+reconsider, not a ban.
+
+- **Pointer**: skill-creator,
+  [How to think about improvements](https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md#how-to-think-about-improvements).
+- **As of**: 2026-10-29
+- **Recheck trigger**: that section moves or changes its guidance on emphasis.
+
 ## Leading words
 
 A leading word is a compact concept the model already holds from pretraining, repeated as a token
@@ -159,7 +182,8 @@ and never re-explained, so it anchors a region of behavior in few tokens.
 Run it sentence by sentence. An instruction the model already follows by default spends load and
 says nothing. Running the document, not debate, settles whether a sentence changes behavior.
 Delete a failing sentence whole. A word too weak to beat the default is a no-op too; the fix is a
-stronger word.
+stronger word: a more precise one, and a firm one only for a hard limit
+([Be strict with precise words](#be-strict-with-precise-words)).
 
 ## After writing
 
@@ -174,7 +198,7 @@ stronger word.
   sibling via the Skill tool (`/docs-hygiene:audit-noise`, `/docs-hygiene:audit-derivability`,
   `/docs-hygiene:audit-progressive-disclosure`) rather than expanding this write into an audit.
 
-## What this skill does NOT do
+## What this skill does not do
 
 - **Does not author skills.** Whether a skill should exist, what it triggers on, its frontmatter,
   action shape and body structure are `/playbooks:skill-authoring` territory (description shape

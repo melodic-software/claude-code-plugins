@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: ed-playground-not-imitated
+description: "Base playground boundary: a parameter explorer that hands back a prompt is routed to the playground skill or named as an installable plugin, and no imitation is built."
+tags: [explore-directions, hard]
+runs: 3
+expected_outcome: "The reply routes the box-shadow explorer to the first-party playground skill (or /playgrounds:use), or says it is an installable plugin when neither resolves, and writes no file."
+execution:
+  prompt: "/prototype:explore-directions a box-shadow explorer: sliders for blur, spread, offset and opacity, a live preview, and a generated prompt at the bottom with a copy button so I can paste the values back to you."
+  allowed_tools: [Read, Glob, Grep, Bash, Skill, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

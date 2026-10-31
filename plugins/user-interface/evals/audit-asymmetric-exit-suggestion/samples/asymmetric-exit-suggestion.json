@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "## Suggestion\n\n- `src/menu.css:5`: the exit runs 190ms against a 200ms entrance, longer than the 0.8 exit factor allows. Shorten it to 160ms or less. Verified from code.",
+      "why": "flagged at Suggestion, exit shortened"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No issues: the transitions name their properties, scale from 0.96, and reduced motion keeps only the fade.",
+      "why": "exit timing not mentioned"
+    },
+    {
+      "answer": "## Important\n\n- `src/menu.css:5`: the 190ms exit is too long for its 200ms entrance; cut it to 160ms.",
+      "why": "near miss: flagged, but at Important"
+    },
+    {
+      "answer": "## Suggestion\n\n- `src/menu.css:5`: the exit (190ms) does not mirror the entrance (200ms). Exit mirrors entry, so match it to 200ms.",
+      "why": "the base rule: asks the exit to mirror the entrance"
+    }
+  ]
+}

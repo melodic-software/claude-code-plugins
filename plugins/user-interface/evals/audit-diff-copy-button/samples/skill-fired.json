@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:audit"
+          }
+        }
+      ],
+      "why": "the audit skill fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:audit",
+            "args": "diff"
+          }
+        }
+      ],
+      "why": "the audit skill fired with the diff scope"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:audit-launch"
+          }
+        }
+      ],
+      "why": "near miss: a name that starts with the audit skill's but is not it"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:design"
+          }
+        }
+      ],
+      "why": "a sibling skill in the same plugin instead"
+    }
+  ]
+}
