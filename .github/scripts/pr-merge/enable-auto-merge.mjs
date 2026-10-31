@@ -52,9 +52,9 @@
 //   read once for the run, and run cache. An event run (a person's edit,
 //   unlabel or ready) never arms and reads no verdict: it only disarms on a
 //   hold, so a pull request waits up to one scheduled interval to be armed.
-//   ci-status disarms an armed lanes App pull request on each push to its
-//   head, so a new head is armed only after the reader judges it, and in the
-//   merge queue it checks the pass again at the head it merges
+//   An arm survives a push to its head (disarming needs contents: write, which
+//   the arming lanes App token holds and ci-status's GITHUB_TOKEN lacks), so
+//   in the merge queue ci-status checks the pass again at the head it merges
 //   (merge-holds.mjs verdictHold) and runs this reader again there on a
 //   listing of its own (merge-holds.mjs evidenceHold), which holds a FAIL
 //   uploaded after the run's one listing.
