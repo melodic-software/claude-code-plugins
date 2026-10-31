@@ -50,9 +50,6 @@ axe = "axe"
 # claude-code-plugins kindle-dedrm, provisioning. Rewriting it to "caliber"
 # would break both the package id and the command names.
 calibre = "calibre"
-# Patrick and John Collison (the "Collison installation" example): claude-code-plugins
-# knowledge distill templates. A surname, not a misspelling of "collision".
-collison = "collison"
 
 [default.extend-identifiers]
 # Win32 APPBARDATA variable ($abd): dotfiles set-windows-prefs (taskbar auto-hide).
