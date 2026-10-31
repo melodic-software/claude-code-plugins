@@ -6,7 +6,8 @@ Writes <out-dir>/chunk-<k>.patch, k from 1, each at most max-bytes, the
 patch's bytes in order and nothing else. A chunk ends at a file boundary (a
 `diff --git` line), and a file is never split: a file over max-bytes, or a
 patch that needs more than max-chunks chunks, is too large: nothing is
-written and the exit status is 3. An empty patch writes no chunk.
+written, the error names each such file, and the exit status is 3. An empty
+patch writes no chunk.
 
 With more than one chunk it also writes <manifest>, each file of the patch
 in order as `chunk <k> <status> <path>`, status added, deleted, renamed (the
@@ -44,10 +45,18 @@ def files_of(data: bytes) -> list[list[bytes]]:
 
 
 def split(data: bytes, max_bytes: int, max_chunks: int) -> list[bytes]:
+    files = files_of(data)
+    over = [
+        entry(lines).decode(errors="replace")
+        for lines in files
+        if sum(map(len, lines)) > max_bytes
+    ]
+    if over:
+        raise TooLarge(
+            f"a file is larger than one chunk of {max_bytes} bytes: {', '.join(over)}"
+        )
     chunks: list[bytes] = []
-    for unit in (b"".join(lines) for lines in files_of(data)):
-        if len(unit) > max_bytes:
-            raise TooLarge("a file is larger than one chunk")
+    for unit in (b"".join(lines) for lines in files):
         if not chunks or len(chunks[-1]) + len(unit) > max_bytes:
             chunks.append(b"")
         chunks[-1] += unit
@@ -86,6 +95,7 @@ def manifest(chunks: list[bytes], max_bytes: int) -> bytes:
         for k, chunk in enumerate(chunks, 1)
         for lines in files_of(chunk)
     ]
+
     def more(count: int) -> bytes:
         return b"and %d more files, not listed\n" % count if count else b""
 
