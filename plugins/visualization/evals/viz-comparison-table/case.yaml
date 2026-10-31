@@ -8,7 +8,7 @@ graders:
     target: last_message
   - name: names-rung
     type: regex
-    pattern: 'shipped[ \t]+default|\bauto\b[^\n]{0,60}?(?:default|rung|tier|terminal|inline)|(?:default|rung|tier|terminal|inline)[^\n]{0,60}?\bauto\b|no (?:medium )?(?:argument|preference|override)s?[^\n]{0,80}?(?:default|terminal|inline)|no (?:medium|argument|preference|override|configuration|config|setting)s?\b[^\n]{0,30}?\b(?:set|given|passed|specified|configured|named)\b[^\n]{0,100}?\bdefault\b'
+    pattern: 'shipped[ \t]+default|\bauto\b[^\n]{0,60}?(?:default|rung|tier|terminal|inline)|(?:default|rung|tier|terminal|inline)[^\n]{0,60}?\bauto\b|no (?:medium )?(?:argument|preference|override)s?[^\n]{0,80}?(?:default|terminal|inline)|no (?:medium|argument|preference|override|configuration|config|setting)s?\b[^\n]{0,30}?\b(?:set|given|passed|specified|configured|named)\b[^\n]{0,100}?\bdefault\b|(?:\b(?:that|it)(?:''s|’s|[ \t]+is|[ \t]+was)[ \t]+the[ \t]+|\b(?:this is|used|using|picked|chose|went with)[ \t]+the[ \t]+|(?:terminal|inline|medium(?![-\w])|table|render|shown|showed)[^\n]{0,60}?\b(?:the|that|this)[ \t]+)default\b(?![ \t-]+(?:port|retention|replication|replicas?|license|value|storage|persistence|durability|queue|broker|backend|settings?|config(?:uration)?)\b)'
     flags: i
     target: last_message
   - name: no-page

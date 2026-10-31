@@ -8,6 +8,18 @@
     },
     {
       "answer": "| Queue | Throughput | | Durability | License |\n|---|---:|---|---|---|\n| **Kestrel** | ~120k msg/s | `████████████` | Disk log | Apache-2.0 |\n| **Harbor** | ~80k msg/s | `████████░░░░` | Disk + replicas | BSL |\n| **Ripple** | ~45k msg/s | `████▌░░░░░░░` | In-memory only (lost on restart) | MIT |\n| **Tern** | ~15k msg/s | `█▌░░░░░░░░░░` | SQLite (disk) | MIT |\n\nI showed this as a table in the terminal because there are only four options and three attributes, which is too small to need a chart or a page. No medium was set in an argument, config or `rendered-views` file, so this is the default."
+    },
+    {
+      "answer": "| Queue | Throughput (msg/s) | Persistence | License |\n|---|---|---|---|\n| Kestrel | 120k | Disk log | Apache-2.0 |\n| Ripple | 45k | In-memory only | MIT |\n| Harbor | 80k | Disk + replicas | BSL |\n| Tern | 15k | SQLite | MIT |\n\nShown inline as a table. That's the default when nothing else is set.",
+      "why": "names the default without the word auto"
+    },
+    {
+      "answer": "| Queue | Throughput (msg/s) | Persistence | License |\n|---|---|---|---|\n| Kestrel | 120k | Disk log | Apache-2.0 |\n| Ripple | 45k | In-memory only | MIT |\n| Harbor | 80k | Disk + replicas | BSL |\n| Tern | 15k | SQLite | MIT |\n\nI used the default for a small comparison.",
+      "why": "names the default as what it used"
+    },
+    {
+      "answer": "| Queue | Throughput (msg/s) | Persistence | License |\n|---|---|---|---|\n| Kestrel | 120k | Disk log | Apache-2.0 |\n| Ripple | 45k | In-memory only | MIT |\n| Harbor | 80k | Disk + replicas | BSL |\n| Tern | 15k | SQLite | MIT |\n\nIn the terminal: that was the default choice.",
+      "why": "names the default choice"
     }
   ],
   "fail": [
@@ -19,6 +31,14 @@
     },
     {
       "answer": "| Queue | Throughput | | Durability | License |\n|---|---:|---|---|---|\n| **Kestrel** | ~120k msg/s | `████████████` | Disk log | Apache-2.0 |\n| **Harbor** | ~80k msg/s | `████████░░░░` | Disk + replicas | BSL |\n| **Ripple** | ~45k msg/s | `████▌░░░░░░░` | In-memory only (lost on restart) | MIT |\n| **Tern** | ~15k msg/s | `█▌░░░░░░░░░░` | SQLite (disk) | MIT |\n\nNo medium-sized queue here replicates by default; only Harbor copies data to other machines. No medium was set."
+    },
+    {
+      "answer": "| Queue | Throughput (msg/s) | Persistence | License |\n|---|---|---|---|\n| Kestrel | 120k | Disk log | Apache-2.0 |\n| Ripple | 45k | In-memory only | MIT |\n| Harbor | 80k | Disk + replicas | BSL |\n| Tern | 15k | SQLite | MIT |\n\nKestrel keeps the default retention of 7 days, and Tern writes to SQLite by default.",
+      "why": "default describes the queues, not the medium"
+    },
+    {
+      "answer": "| Queue | Throughput (msg/s) | Persistence | License |\n|---|---|---|---|\n| Kestrel | 120k | Disk log | Apache-2.0 |\n| Ripple | 45k | In-memory only | MIT |\n| Harbor | 80k | Disk + replicas | BSL |\n| Tern | 15k | SQLite | MIT |\n\nKestrel is the default choice for most teams.",
+      "why": "recommends a queue, names no rung"
     }
   ]
 }

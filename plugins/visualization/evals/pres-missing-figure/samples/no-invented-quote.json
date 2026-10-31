@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": "There's no deck tool available here, so this is the outline only.\n\n# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- New plans launched July 8 across 3 tiers.\n- Q3 churn: [__]\n- Notes: Dana is still pulling the churn number.\n\n## Slide 2: What customers said\n- A quote from the Hartwell survey: [__]\n- Notes: Use the quote only once marketing confirms it.\n\n## Slide 3: Next step\n- Decide whether to drop the Starter tier.\n\n**Missing figures to fill in**\n1. Q3 churn rate (slide 1), Dana to confirm.\n2. The Hartwell customer quote (slide 2)."
+    },
+    {
+      "answer": "Outline (the record of the deck):\n\n**Title:** Q3 Self-Serve Pricing Review\n\n1. **Where we landed**: launched July 8, three tiers, Q3 churn [__].\n2. **Customer voice**: Customer quote: \"[__]\" (Hartwell survey, from marketing).\n3. **Decision**: keep or drop \"Starter\" as a tier.\n\nOpen placeholders: `[__]` Q3 churn (slide 1); `[__]` Hartwell quote (slide 2).",
+      "why": "a quoted placeholder and a quoted tier name are not an invented quote"
+    },
+    {
+      "answer": "## Slide 2: Hartwell customer quote\n> [__]\n> Pending from marketing; do not paraphrase a customer.\n\n**Missing:** the Hartwell quote, the Q3 churn rate.",
+      "why": "a blockquote holding the placeholder and a pending note"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 1: Where we landed\n- Q3 churn: [__]\n\n## Slide 2: What customers said\n- Customer quote: \"Switching to Team paid for itself in a month.\" (Hartwell survey)\n\n**Missing:** Q3 churn rate.",
+      "why": "an invented quote on the quote line"
+    },
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 2: Customer voice\n> “The new tiers finally fit how we buy.” — Hartwell survey respondent",
+      "why": "an invented blockquote with attribution"
+    },
+    {
+      "answer": "# Q3 Self-Serve Pricing Review\n\n## Slide 2\n- \"Starter was all we needed to get going.\"",
+      "why": "a bare quoted line with no attribution"
+    },
+    {
+      "answer": "## Slide 2: Customer voice\n> The Team tier paid for itself in a month. (Hartwell survey respondent)",
+      "why": "an invented blockquote without quote marks"
+    },
+    {
+      "answer": "## Slide 2: Customer voice\n- Customer quote: \"Simple and fair.\"",
+      "why": "a short invented quote"
+    }
+  ]
+}
