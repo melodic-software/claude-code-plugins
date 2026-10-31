@@ -4,7 +4,9 @@
 # binds in the pointer region of AGENTS.md or CLAUDE.md, read with
 # lib/resolve-convention-home.sh (ADR 0075 fix 3) both at the merge base with
 # the base branch and in the working tree; docs/conventions when the
-# repository binds none or declined a home.
+# repository binds none or declined a home. The marketplace repository itself
+# (a root holding .claude-plugin/marketplace.json) must bind one in its working
+# tree: there an unbound or declined home is a finding.
 #
 #   scripts/check-convention-yaml.sh          validate; list every finding
 #   scripts/check-convention-yaml.sh --check  same, explicit form matching the
@@ -69,7 +71,8 @@ fi
 
 # The convention home is the one the repository binds in its pointer region
 # (lib/resolve-convention-home.sh, ADR 0075 fix 3). With no region, a declined
-# home, or a root that binds none, it is docs/conventions.
+# home, or a root that binds none, it is docs/conventions, except in the
+# marketplace repository's working tree (on_unbound below).
 resolver=lib/resolve-convention-home.sh
 if [[ ! -f "$resolver" ]]; then
   printf 'check-convention-yaml: %s is required to find the convention home\n' "$resolver" >&2
@@ -99,16 +102,28 @@ if [[ -z "$merge_base" && ("${GITHUB_ACTIONS:-}" == true || -n "${GITHUB_BASE_RE
   exit 2
 fi
 
-# resolve_home <label> [resolver args...]: print the home, docs/conventions when
-# the root binds none or declined one; return the resolver's exit 3 or other
-# failure code with its message on stderr.
+# The marketplace repository runs this gate on itself, so its working tree must
+# bind a home; a root with no marketplace manifest (a fixture) may bind none.
+on_unbound=default
+[[ -f .claude-plugin/marketplace.json ]] && on_unbound=fail
+
+# resolve_home <label> <default|fail> [resolver args...]: print the home. When
+# the root binds none or declined one (resolver exit 1, 4 or 5), print
+# docs/conventions under default, and under fail report it and return 3; return
+# the resolver's exit 3 or other failure code with its message on stderr.
 resolve_home() {
-  local label="$1" out rc=0
-  shift
+  local label="$1" unbound="$2" out rc=0
+  shift 2
   out="$(bash "$resolver" --root . "$@" 2>/dev/null)" || rc=$?
   case "$rc" in
   0) printf '%s\n' "$out" ;;
-  1 | 4 | 5) printf 'docs/conventions\n' ;;
+  1 | 4 | 5)
+    if [[ "$unbound" == fail ]]; then
+      printf 'check-convention-yaml: %s: unbound convention home (%s exit %s); bind docs/conventions in the convention-home region of AGENTS.md\n' "$label" "$resolver" "$rc" >&2
+      return 3
+    fi
+    printf 'docs/conventions\n'
+    ;;
   3)
     # The resolver's own message says which region is broken.
     bash "$resolver" --root . "$@" 2>&1 >/dev/null | sed "s/^/check-convention-yaml: $label: /" >&2 || true
@@ -123,14 +138,14 @@ resolve_home() {
 
 rc=0
 # shellcheck disable=SC2310  # resolve_home returns its codes itself; set -e has nothing to catch
-head_home="$(resolve_home 'working tree')" || rc=$?
+head_home="$(resolve_home 'working tree' "$on_unbound")" || rc=$?
 ((rc == 3)) && exit 1
 ((rc == 0)) || exit 2
 homes=("$head_home")
 if [[ -n "$merge_base" ]]; then
   rc=0
   # shellcheck disable=SC2310  # resolve_home returns its codes itself; set -e has nothing to catch
-  base_home="$(resolve_home "merge base $merge_base" --ref "$merge_base")" || rc=$?
+  base_home="$(resolve_home "merge base $merge_base" default --ref "$merge_base")" || rc=$?
   # A broken pointer at the base is a warning: failing on it would fail every
   # later change, the one that repairs it included.
   ((rc == 0 || rc == 3)) || exit 2

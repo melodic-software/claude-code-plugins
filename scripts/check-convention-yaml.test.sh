@@ -365,6 +365,35 @@ if [[ $RC -eq 0 && "$ERR" == *"merge base"*"pointer target directory missing"* &
 else
   fail "$label: $(state)"
 fi
+# 11e. A root holding .claude-plugin/marketplace.json (the marketplace
+#      repository itself) must bind a home in its working tree; the merge base
+#      may still bind none, so the change that adds the region passes.
+new_marketplace() { new_repo && put .claude-plugin/marketplace.json '{}' && put plugins/alpha/schemas/alpha.schema.json '{}'; }
+label="a marketplace root with no convention-home region exits 1 naming the unbound home"
+new_marketplace && put docs/conventions/alpha.yaml 'mode: on'
+run_sut
+if [[ $RC -eq 1 && "$ERR" == *"working tree: unbound convention home"* && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="a marketplace root that declined a home exits 1 naming the unbound home"
+new_marketplace &&
+  put AGENTS.md $'<!-- BEGIN GENERATED: convention-home -->\ndeclined\n<!-- END GENERATED: convention-home -->'
+run_sut
+if [[ $RC -eq 1 && "$ERR" == *"unbound convention home"* && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="a marketplace root bound to docs/conventions exits 0"
+new_marketplace && put docs/conventions/alpha.yaml 'mode: on' && put AGENTS.md "$(region_for docs/conventions)"
+run_sut
+if [[ $RC -eq 0 && "$LOG" == "--schemafile plugins/alpha/schemas/alpha.schema.json -- docs/conventions/alpha.yaml" ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+label="a marketplace head that binds docs/conventions over an unbound merge base exits 0"
+new_marketplace && put docs/conventions/alpha.yaml 'mode: on' && base_here && put AGENTS.md "$(region_for docs/conventions)"
+run_sut GITHUB_BASE_REF=main
+if [[ $RC -eq 0 && "$LOG" == "--schemafile plugins/alpha/schemas/alpha.schema.json -- docs/conventions/alpha.yaml" ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
 label="P4: no merge base under GITHUB_ACTIONS exits 2"
 new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put docs/conventions/alpha.yaml 'mode: on'
 run_sut GITHUB_ACTIONS=true
