@@ -1900,6 +1900,34 @@ let baseRules;
 const baseTaskList = () =>
   (baseRules ??= loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url))))["task-list"];
 
+// The lanes App's split record in `comments` with its sub-issues filed, if
+// any, and `at`, when its comment was posted.
+const filedRecord = (comments, isApp) =>
+  comments
+    .filter((comment) => isApp(comment.user))
+    .map((comment) => ({ ...splitRecord(comment.body), at: comment.created_at }))
+    .find((record) => (record.filed?.length ?? 0) > 0);
+
+// Whether a task item (taskItems) is one of `children` in this repository: a
+// `#N` that opens or ends the item cites it, and only when the rest of the
+// item is empty or that sub-issue's whole title (less a Conventional Commits
+// prefix), with no line under it: "Test #12" or "update the README after
+// #12" is the parent's own work.
+const citesChild = (children, repository) => {
+  const bare = (text) => String(text ?? "").replaceAll(/[*()[\]`.,;:!]/g, " ").replaceAll(/\s+/g, " ").trim().toLowerCase();
+  const titles = new Map(
+    children.filter((child) => here(child?.repository_url, repository)).map((child) => [Number(child?.number), bare(String(child?.title ?? "").replace(/^\w+(?:\([^)]*\))?!?:\s*/, ""))]),
+  );
+  return (item) =>
+    item.more.length === 0 &&
+    [/^\s*(?:\*\*)?\(?#(\d+)\b/, /(?<![\w/#=?&])#(\d+)\)?[.;]?\s*$/].some((pattern) => {
+      const match = pattern.exec(item.text);
+      const title = titles.get(Number(match?.[1]));
+      const rest = match ? bare(`${item.text.slice(0, match.index)} ${item.text.slice(match.index + match[0].length)}`) : null;
+      return title !== undefined && (rest === "" || rest === title);
+    });
+};
+
 // Whether `issue` in this repository is a split parent, whose work is its
 // sub-issues' (owner Q93): the lanes App (`isApp(actor)`) posted a split
 // record with its sub-issues filed (refine.mjs), or it was split by hand:
@@ -1911,29 +1939,13 @@ const baseTaskList = () =>
 // and has no line under it. Any other item may be more work.
 // `comments` are its comments. A failed read throws.
 export async function isSplitParent({ github, repository, issue, comments, children, isApp, humans }) {
-  if (comments.some((comment) => isApp(comment.user) && (splitRecord(comment.body)?.filed.length ?? 0) > 0)) {
+  if (filedRecord(comments, isApp)) {
     return true;
   }
   if (children.length === 0 || names(issue.labels).includes(RECURRING)) {
     return false;
   }
-  const bare = (text) => String(text ?? "").replaceAll(/[*()[\]`.,;:!]/g, " ").replaceAll(/\s+/g, " ").trim().toLowerCase();
-  const titles = new Map(
-    children.filter((child) => here(child?.repository_url, repository)).map((child) => [Number(child?.number), bare(String(child?.title ?? "").replace(/^\w+(?:\([^)]*\))?!?:\s*/, ""))]),
-  );
-  // A `#N` that opens or ends the item cites it, and only when the rest of the
-  // item is empty or that sub-issue's whole title (less a Conventional Commits
-  // prefix), with no line under it: "Test #12" or "update the README after
-  // #12" is the parent's own work.
-  const cites = (item) =>
-    item.more.length === 0 &&
-    [/^\s*(?:\*\*)?\(?#(\d+)\b/, /(?<![\w/#=?&])#(\d+)\)?[.;]?\s*$/].some((pattern) => {
-      const match = pattern.exec(item.text);
-      const title = titles.get(Number(match?.[1]));
-      const rest = match ? bare(`${item.text.slice(0, match.index)} ${item.text.slice(match.index + match[0].length)}`) : null;
-      return title !== undefined && (rest === "" || rest === title);
-    });
-  if (!taskItems(issue.body, baseTaskList()).every(cites)) {
+  if (!taskItems(issue.body, baseTaskList()).every(citesChild(children, repository))) {
     return false;
   }
   const linker = new Map();
@@ -1951,25 +1963,60 @@ export async function isSplitParent({ github, repository, issue, comments, child
   });
 }
 
-// Whether `issue`, as just read, is a split parent (isSplitParent) closed as
-// completed by the lanes App (`isApp(actor)`) once each sub-issue was closed
-// by a listed human or a merge (`trusted(number)`): the one close by the App
-// that counts as done (owner Q93).
+// The acceptance rule of a split, its one home (owner Q93): why `issue` must
+// stay open, or null when its split is finished and it closes as completed.
+// It is finished when it is a split parent (isSplitParent), every sub-issue
+// closed with state_reason `completed` (not_planned, duplicate and a null
+// reason do not count) by a close `trusted(number)` accepts, and its done-when
+// is covered. A split record covers it when its parts number every item from 1
+// with no gap, one part per sub-issue filed, each filed sub-issue is one of
+// `children`, and the body holds no more open items than the parts number. A
+// split by hand covers it when the body has a task list (ticked lines count;
+// isSplitParent read the unticked ones): with none, nothing shows a sub-issue
+// carried the done-when. On either path, an open task item in a listed human's
+// comment on the issue is work left on it unless it cites a sub-issue
+// (citesChild); a split record already took the items of a comment last written
+// before it (splitTaskLines), so those count as covered. `comments` are its
+// comments. A failed read throws.
+export async function splitLeftOpen({ github, repository, issue, comments, children, isApp, humans, trusted }) {
+  if (children.length === 0 || !(await isSplitParent({ github, repository, issue, comments, children, isApp, humans }))) {
+    return "it is not a split parent";
+  }
+  for (const child of children) {
+    if (child?.state !== "closed" || child.state_reason !== "completed" || !(await trusted(child.number))) {
+      return `sub-issue #${child?.number} is not closed as completed by a listed human or a merge`;
+    }
+  }
+  const taskList = baseTaskList();
+  const record = filedRecord(comments, isApp);
+  if (record) {
+    const items = new Set(record.parts.flat());
+    const listed = new Set(children.map((child) => Number(child?.number)));
+    if (items.size !== Math.max(...items) || items.has(0) || record.parts.length !== record.filed.length || !record.filed.every((number) => listed.has(number)) || taskItems(issue.body, taskList).length > items.size) {
+      return "its split record does not cover every item with its sub-issues";
+    }
+  } else if (!["[ ]", "[x]", "[X]"].some((box) => taskItems(issue.body, taskList.replace("[ ]", box)).length > 0)) {
+    return "its body has no task list a sub-issue can cover";
+  }
+  const cites = citesChild(children, repository);
+  const split = Date.parse(record?.at);
+  const beforeSplit = (comment) => Date.parse(comment.updated_at ?? comment.created_at) <= split;
+  if (comments.some((comment) => humans.has(comment.user?.id) && !beforeSplit(comment) && !taskItems(comment.body, taskList).every(cites))) {
+    return "a listed human's comment leaves an open task item on it";
+  }
+  return null;
+}
+
+// Whether `issue`, as just read, was closed as completed by the lanes App
+// (`isApp(actor)`) with its split finished (splitLeftOpen): the one close by
+// the App that counts as done (owner Q93).
 export async function splitParentClosed({ github, repository, issue, isApp, humans, trusted }) {
   if (issue?.state !== "closed" || issue.state_reason !== "completed" || !isApp(issue.closed_by) || !Number.isInteger(issue.number)) {
     return false;
   }
   const base = `/repos/${repository}/issues/${issue.number}`;
   const children = await paginate(github, `${base}/sub_issues`);
-  if (!(await isSplitParent({ github, repository, issue, comments: await paginate(github, `${base}/comments`), children, isApp, humans }))) {
-    return false;
-  }
-  for (const child of children) {
-    if (child?.state !== "closed" || !(await trusted(child.number))) {
-      return false;
-    }
-  }
-  return children.length > 0;
+  return (await splitLeftOpen({ github, repository, issue, comments: await paginate(github, `${base}/comments`), children, isApp, humans, trusted })) === null;
 }
 
 // admissionFacts' `isTrusted` for admit(): issue `number` here was closed by
