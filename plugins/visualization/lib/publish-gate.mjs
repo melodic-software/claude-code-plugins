@@ -77,8 +77,9 @@ export const MACHINE_PATTERNS = Object.freeze([
   ["private hostname", /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:local|internal|lan)\b(?![.-])/i],
 ]);
 
-// The builder's page stamp carries a 64-hex digest, which would otherwise pair with any 32-hex token.
-const STAMP = /<!-- rv-gen:[\w.-]+ sha256:[0-9a-f]{64} -->/g;
+// The builders' page stamps carry a 64-hex digest, which would otherwise pair with any 32-hex token.
+// Only their own names match, since what this removes no pattern reads.
+const STAMP = /<!-- rv-gen:(?:escape-helper-v\d+|view-builder-interactive) sha256:[0-9a-f]{64} -->/g;
 
 const ENTITIES = Object.freeze({ amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " });
 const codePoint = (n) => (Number.isFinite(n) && n <= 0x10ffff ? String.fromCodePoint(n) : "");

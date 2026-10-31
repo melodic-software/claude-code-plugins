@@ -59,6 +59,11 @@ name: work-unblock
 # re-fires and relabels are never paced. Its label-unblocked job runs one at
 # a time, so two runs cannot each admit the whole room.
 #
+# A blocked issue admission parked at status: confirmed is never labeled: when
+# a blocker closes after it parked, the App removes status: confirmed, which
+# starts intake-reenter.yml, so intake judges it again. An issue in a
+# `cordoned-milestones` milestone of admission-rules.json stays parked.
+#
 # To stop the lane on one issue, remove its agent-ready label or add a hold
 # label: no later run labels an issue whose agent-ready label a person removed
 # until it is marked `status: ready` again.

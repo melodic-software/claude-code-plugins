@@ -38,7 +38,8 @@
 // re-triage then would only refuse again. Not exact: the comment
 // asks numbered questions, each with a `RECOMMENDED:` answer and its basis,
 // shows the reply to copy (DECISION_REPLY) above its footer, and the issue
-// keeps or gets `status: needs-decision`, which a person's
+// keeps or gets `status: needs-decision`, in place of any `status: confirmed`
+// so one status stands, which a person's
 // `**Decision recorded.**` sends back through intake-reenter.yml. An exact
 // output that names a duplicate or fixing change becomes not exact, with one
 // question whether to close the issue. It never adds `agent-ready` or
@@ -92,7 +93,7 @@ import { appendFileSync } from "node:fs";
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, GitHubError, loadTrustedList, paginate } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
-import { ADMIT_MARKER, authorAdmitted, bodyVersion, CONFIRMED, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
+import { ADMIT_MARKER, admissionParked, authorAdmitted, bodyVersion, CONFIRMED, decisionStays, EXTERNAL_STATE, hasTrustedCriteria, loadRules, ownedLines, REFINE_FOOTERS, REFINE_MARKER, refusalText, SPEC_COMMENTS, specOf, splitItemsLine, taskItems, unrunnableCriteria, unrunnableReason } from "./admit.mjs";
 import { LANES_APP_LOGIN, MARKER } from "./apply-verdict.mjs";
 import { linesDigest, renderSplitRecord, SCOPE_PREFIX, scopeTarget, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING, SPLIT_CHILD_MARKER, splitChildHeader, splitRecord, splitSourceLine, splitTaskLines, taskText } from "./admit.mjs";
 
@@ -770,15 +771,17 @@ export async function applyRefinement({ github, repository, number, appId, human
     if (!labels.includes(NEEDS_DECISION)) {
       await github("POST", `${base}/labels`, { labels: [NEEDS_DECISION] });
     }
+    // After the add, so no read sees the issue with no status: one stands.
+    if (labels.includes(CONFIRMED)) {
+      await removeLabel(github, base, CONFIRMED);
+    }
     await post();
     log(`refine: #${number} is not exact; it waits at ${NEEDS_DECISION} with recommended answers`);
     return { outcome: "needs-decision", redispatch: false };
   }
   // Admission parks a refusal no person must answer at status: confirmed
   // (admit.mjs): it resumes like the App's own needs-decision below.
-  const parked = !labels.includes(NEEDS_DECISION) && !labels.includes(READY) && !labels.includes(AGENT_READY) && labels.includes(CONFIRMED) &&
-    comments.some((comment) => appId !== undefined && comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER));
-  if (parked) {
+  if (admissionParked(labels, comments, appId)) {
     if (await untrusted()) {
       return { outcome: "exact", redispatch: false };
     }

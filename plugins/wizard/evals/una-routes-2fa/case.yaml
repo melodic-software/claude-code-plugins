@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: una-routes-2fa
+graders:
+  - name: routes-generate
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:wizard:)?generate"'
+    arm: 'both'
+  - name: no-ps-script
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.ps1"'
+    min: 0
+    max: 0
+    arm: 'both'

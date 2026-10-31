@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Cross-platform contract wrapper for the landscape age engine test suite.
 # test-scope: plugins/harness-ops/.claude-plugin/plugin.json
+# test-scope: plugins/harness-ops/skills/audit-plugin-landscape/scripts/test_landscape_ages.py plugins/harness-ops/skills/audit-plugin-landscape/scripts/fixtures/gh-responses.json
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

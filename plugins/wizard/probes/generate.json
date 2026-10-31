@@ -1,0 +1,121 @@
+{
+  "skill": "wizard:generate",
+  "plugin": "wizard",
+  "skill_dir": "plugins/wizard/skills/generate",
+  "ranking_note": "Authored from the before descriptions at commit 4803086565, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Sibling wizard:unattended is in this plugin; the other competitors live in other plugins, and plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "competitors": [
+    "wizard:unattended",
+    "discipline:hold-my-hand",
+    "session-flow:continue-in-background"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need to add the Postmark API token to our GitHub repo secrets, but only I can log in to Postmark. Write me a script I run that tells me what to click and checks the token I paste."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our DNS lives at a registrar you can't access. Make me an interactive bash thing I can run that prompts me to add the SPF and DKIM records and verifies each one with dig."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Create a terminal helper for whoever onboards next: they have to create an Azure service principal in the portal, copy the client secret, and paste it in. They'll run it themselves."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We're moving the domain to Cloudflare this weekend and some parts need me in the Cloudflare and GoDaddy consoles. Build a script that pauses at each manual step and checks before moving on."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm stuck: the next step needs a code from my authenticator app to create the npm publish token. Write something I can run that prompts me for it and stores the token in the keychain."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Turn these vendor onboarding notes into a bash wizard I run in my own terminal; halfway through I have to approve the OAuth app on the Slack admin page."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you script the Stripe webhook setup as a prompt-driven walkthrough? I have to grab the signing secret from their site since you don't have the login."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The next teammate who sets up staging will need to request an AWS SSO account and click through approval. Give them a resumable shell script that leads them through it."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The database switchover needs me to flip a toggle in the hosting provider's UI between steps. Put together a bash script I execute that guides me through the whole move with checks."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "This registry change needs an elevated PowerShell and you can't get past UAC. Write the script so I launch it once as admin and you read the result afterwards."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Just talk me through rotating the GitHub token here in chat, one step at a time. No script please."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I'm heading out for the afternoon. Keep working on this refactor in the background while I'm gone."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write a bash script that renames every .jpeg in this folder to .jpg."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run npm test and tell me what fails."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "I need to unregister and reimport my WSL distro, but that has to come from an admin shell on Windows. Prepare it so I kick it off once and it reports back JSON."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Guide me through configuring SSO in the Azure portal one phase at a time, and wait for me to say done before the next."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a PowerShell script that lists the ten largest files under my user folder, then run it."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add the DATABASE_URL secret to the repo with gh secret set; the value is already in .env."
+    }
+  ]
+}

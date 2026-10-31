@@ -4,6 +4,7 @@
 # come from the schema's allowed values (path, live, strict) and the script's stated
 # exit codes, not from the script's output.
 # test-scope: plugins/verification/lib/parse-concern-value.sh
+# test-scope: plugins/verification/lib/resolve-convention-home.sh
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG

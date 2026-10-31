@@ -944,6 +944,17 @@ describe("run", () => {
     assert.deepEqual(writes(fake.calls)[1].body, { labels: [NEEDS_DECISION] });
   });
 
+  // A manual dispatch skips intake-reenter, so a parked issue reaches a held
+  // verdict still at status: confirmed; the status goes after the hold lands.
+  test("a held verdict replaces a parked status: confirmed, the hold first", async () => {
+    const fake = fakeGitHub({ issue: { labels: [{ name: "status: confirmed" }] }, comments: [laneComment(ESCALATED_BODY)] });
+    assert.equal((await go(fake)).outcome, "needs-decision");
+    assert.deepEqual(
+      writes(fake.calls).map(({ method, path, body }) => `${method} ${path}${body?.labels ? ` ${body.labels}` : ""}`),
+      ["POST /repos/o/r/issues/7/comments", "POST /repos/o/r/issues/7/labels status: needs-decision", "DELETE /repos/o/r/issues/7/labels/status%3A%20confirmed"],
+    );
+  });
+
   test("an older lane comment is refused: this run's triage wrote none", async () => {
     const fake = fakeGitHub({
       comments: [laneComment(laneBody(), { updated_at: "2026-10-22T11:59:59Z" })],
