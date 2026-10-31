@@ -42,7 +42,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from babysit_risk import Floor, LONG_LINE_BYTES, LaneEvidence, floor_for, glob_match
+from babysit_risk import Floor, LONG_LINE_BYTES, LaneEvidence, glob_match
 
 # Lane id -> (caller workflow path, lane job name suffix). Fixed in code: a
 # weaker table could only come from a file a pull request can edit.
@@ -330,7 +330,7 @@ def bind(
     base_sha: str | None = None,
     main_reviews: Sequence[Mapping[str, Any]] | None = None,
     main_context: Mapping[str, Any] | None = None,
-    floor: Floor = floor_for(),
+    floor: Floor,
 ) -> tuple[LaneEvidence, ...]:
     """Evidence for every lane in `LANES`, in that order.
 

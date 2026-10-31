@@ -3252,7 +3252,7 @@ def _main_reviews(
     pull_request_heads: Sequence[str] = (),
     *,
     main: bool | None = None,
-    floor: babysit_risk.Floor = babysit_risk.floor_for(),
+    floor: babysit_risk.Floor,
 ) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
     """The main-run reviews `bind()` reads for a pull request that changes a
     lane source, with the context it checks them against (the head's tree,

@@ -252,6 +252,7 @@ jobs:
       hold-paths: |
         .github/standards/trusted-actors/**
         **/CODEOWNERS
+        docs/conventions/pr-pipeline.yaml
         **/.gitmodules
         plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py
         plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py
@@ -303,7 +304,6 @@ jobs:
         .github/scripts/pr-merge/listing-carry.mjs
         .github/actions/report-check-run/posting-run.mjs
         scripts/sync-hold-floor.py
-        docs/conventions/pr-pipeline.yaml
         .github/scripts/pr-unblock/address-feedback.mjs
         .github/scripts/pr-unblock/escalation-routes.mjs
         .github/scripts/pr-unblock/escalation-routes.json

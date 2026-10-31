@@ -2502,7 +2502,8 @@ class MainReviewInputTests(unittest.TestCase):
             ),
         ):
             reviews, context = merge._main_reviews(
-                "owner/repo", 5, HEAD, changed, None, None, None, [HEAD]
+                "owner/repo", 5, HEAD, changed, None, None, None, [HEAD],
+                floor=merge.babysit_risk.floor_for(),
             )
         calls.extend(read.call_args_list)
         return reviews, context, calls

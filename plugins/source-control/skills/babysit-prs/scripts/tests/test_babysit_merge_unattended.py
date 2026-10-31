@@ -3640,8 +3640,7 @@ class ReasonsComment(Unattended):
             "created_at": "2026-10-12T10:00:00Z",
         }
         lanes = merge.review_evidence.bind(
-            HEAD, [running], [], [], is_human=lambda actor: False, changed_paths=()
-        )
+            HEAD, [running], [], [], is_human=lambda actor: False, changed_paths=(), floor=merge.babysit_risk.floor_for())
         self.assertEqual(lanes[0].unbound_reason, "run-not-success")
         self.lanes = lanes
         _, out = self.run_main()
@@ -4584,6 +4583,7 @@ class AttachEdits(unittest.TestCase):
             [],
             is_human=evidence_tests.is_human,
             changed_paths=(),
+            floor=merge.babysit_risk.floor_for(),
         )
         reasons = {lane.lane: lane.unbound_reason for lane in lanes}
         self.assertEqual(reasons["claude-security-review"], "comment-edited")
@@ -4653,6 +4653,7 @@ class HeadFileFailure(unittest.TestCase):
                         is_human=ev_tests.is_human,
                         changed_paths=(),
                         head_file=merge._head_file("owner/repo", ev_tests.S),
+                        floor=merge.babysit_risk.floor_for(),
                     )
                 )
             return lanes["claude-review"], [c.args[0][-1] for c in read.call_args_list]
@@ -4712,6 +4713,7 @@ class HeadFileFailure(unittest.TestCase):
                     is_human=ev_tests.is_human,
                     changed_paths=(),
                     head_file=merge._head_file("owner/repo", ev_tests.S),
+                    floor=merge.babysit_risk.floor_for(),
                 )
             )
         self.assertTrue(lanes["claude-review"].bound)

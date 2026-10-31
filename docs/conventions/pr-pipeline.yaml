@@ -1194,8 +1194,6 @@ merge:
         class: gate
       - glob: "scripts/sync-hold-floor.py"
         class: trust
-      - glob: "docs/conventions/pr-pipeline.yaml"
-        class: trust
       - glob: ".github/scripts/pr-unblock/address-feedback.mjs"
         class: enforcement
       - glob: ".github/scripts/pr-unblock/escalation-routes.mjs"

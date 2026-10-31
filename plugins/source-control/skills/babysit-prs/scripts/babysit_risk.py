@@ -321,6 +321,10 @@ class RiskResult:
 # ci-status's hold_patterns, and test_merge_holds_sync.py runs its --check.
 FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("**/CODEOWNERS", "trust"),
+    # The pipeline config every consumer's merge gate reads
+    # (`babysit_merge_policy.CONFIG_PATH`), so the row that holds it never sits
+    # inside it.
+    ("docs/conventions/pr-pipeline.yaml", "trust"),
     ("**/.gitmodules", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),

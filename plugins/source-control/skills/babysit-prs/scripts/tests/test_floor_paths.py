@@ -43,6 +43,7 @@ SHARED = {
     "**/CLAUDE.local.md",
     "**/AGENTS.md",
     "REVIEW.md",
+    "docs/conventions/pr-pipeline.yaml",
 }
 REVIEW_SURFACE = (
     ".github/scripts/pr-review-main/**",
@@ -164,11 +165,18 @@ class TheBuiltInFloorIsShared(unittest.TestCase):
             if g not in SHARED and not g.startswith(BABYSIT)
         ]
         self.assertEqual(moved, [])
-        self.assertEqual(len(risk.FLOOR_CLASSES), 27)
+        self.assertEqual(len(risk.FLOOR_CLASSES), 28)
 
     def test_every_other_row_sits_in_the_config(self):
-        self.assertEqual(len(ROWS), 117 - 27)
+        self.assertEqual(len(ROWS), 117 - 28)
         self.assertFalse(table(ROWS) & set(risk.FLOOR_CLASSES))
+
+    def test_the_config_every_consumer_reads_is_held_by_a_built_in_row(self):
+        self.assertEqual(
+            dict(risk.FLOOR_CLASSES).get(policy.CONFIG_PATH), "trust"
+        )
+        self.assertIn(policy.CONFIG_PATH, floor_for().high)
+        self.assertNotIn(policy.CONFIG_PATH, floor_for().author_review)
 
     def test_no_author_lift_names_no_path_of_this_repository(self):
         self.assertLessEqual(risk._NO_AUTHOR_LIFT, SHARED)

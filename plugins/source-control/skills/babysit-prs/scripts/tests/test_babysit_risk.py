@@ -2337,8 +2337,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         path = B + "babysit_verify_evidence.py"
         caller = ".github/workflows/pr-review-security-hosted.yml"
         lanes = babysit_review_evidence.bind(
-            "a" * 40, [], [], [], is_human=lambda _: False, changed_paths=[path, caller]
-        )
+            "a" * 40, [], [], [], is_human=lambda _: False, changed_paths=[path, caller], floor=babysit_risk.floor_for())
         self.assertEqual(
             {lane.unbound_reason for lane in lanes}, {"lane-source-changed"}
         )
