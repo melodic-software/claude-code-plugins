@@ -74,7 +74,7 @@ No typography fix requires a new typeface. Smoothing, wrap modes, tabular figure
 tuning: all of it operates inside whatever family the project already uses. Only swap or add a face
 when the task explicitly asks for one, and never pull in a commercial font to tick a review box.
 
-When a face change *is* the task, two honest options:
+When a face change *is* the task, there are two options:
 
 ```css
 /* Native feel: hand rendering to the operating system */

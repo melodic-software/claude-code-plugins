@@ -24,8 +24,8 @@ CSS now offers per-role control over how lines break:
 - `text-wrap: pretty`: spends a little layout budget to avoid ugly breaks, most visibly the single
   orphaned word on a final line. Right for standfirsts, card blurbs, empty-state copy.
 
-Together (balance on the heading, pretty on the supporting text) they cover the hero-section
-problem completely. Neither belongs on long-form paragraphs: `balance` applies only up to a line
+Together (balance on the heading, pretty on the supporting text) they cover the usual
+hero-section case. Neither belongs on long-form paragraphs: `balance` applies only up to a line
 count each browser sets (the pointer below) and bails beyond it, and a fully evened-out paragraph
 trades away width that reading actually uses. `pretty` is the exception for long-form text, as
 `../typography.md` "Pick a wrap mode per role" states.
@@ -79,7 +79,7 @@ twice.
 
 Truncation deletes information from view. That's acceptable only when the reader has another route
 to the whole string: a tooltip, a `title` attribute, an expandable row, a detail page. A clipped ID
-with no way to read the rest is a data-loss bug wearing CSS.
+with no way to read the rest is a data-loss bug.
 
 ## Casing
 
