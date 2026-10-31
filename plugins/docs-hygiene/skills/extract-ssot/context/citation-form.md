@@ -9,7 +9,9 @@
 - [Worked examples](#worked-examples)
 - [Cross-references](#cross-references)
 
-How markdown callers (rule files, skills, docs) cite an SSOT after extraction. Code and config callers use the idiomatic form instead, such as `import`, `using`, a YAML anchor, or JSON `$ref`.
+Exact contract for how callers cite an SSOT after extraction. Applies to markdown citations between rule files / skills / docs. Code and config callers use the language's idiomatic form instead, such as `import`, `using`, a YAML anchor, or JSON `$ref`, not this contract.
+
+SKILL.md cites the headline form; this file covers the full template, line-wrap edge case, and rename discipline.
 
 ## Headline contract
 
@@ -19,7 +21,7 @@ Cite by **exact H3 heading text** + **1-line inline summary** at every call site
 <short scope phrase> per `<rule-file>.md` "<exact heading text>".
 ```
 
-Concrete shapes:
+Concrete shapes the template produces:
 
 ```text
 <workflow step> per `<workflow-rule>.md` "<step heading>".
@@ -27,7 +29,7 @@ Concrete shapes:
 <API verb> per `<api-vocabulary>.md` "<verb heading>".
 ```
 
-Three rules:
+Three rules baked in:
 
 1. **Backticked filename**: `` `<file>.md` `` not `<file>.md`. Disambiguates filename from prose; lets grep find the citation deterministically
 2. **Quoted heading text**: `"<heading>"` not `<heading>` or `'<heading>'`. Quote characters are stable; heading capitalization matches the SSOT exactly
@@ -35,18 +37,18 @@ Three rules:
 
 ## 1-line inline summary template
 
-For non-trivial citations, append a 1-line summary AFTER the citation so a reader skimming the caller understands the shape without clicking through:
+For non-trivial citations, append a 1-line summary AFTER the citation so the reader can skim the caller and understand the shape without clicking through:
 
 ```text
 <scope phrase> per `<file>.md` "<heading>": <≤80 char shape description>.
 ```
 
-Examples (substitute the actual rule file and heading):
+Examples of the shape pattern (substitute the actual rule file and heading at the call site):
 
 - A workflow step citation might look like: `<step name> per <workflow>.md "<step heading>": short cadence/cycle description.`
 - A naming citation might look like: `<naming concern> per <style-guide>.md "<rule heading>": short rule shape (kebab-case, 40-char cap, etc).`
 
-Summary format: `: <≤80 char description>`. The colon is the separator, not an em dash: this repository's house style admits a colon where a definition or description follows and admits no em dash at all. Give the SHAPE of the cited rule, not its full content.
+Summary format: `: <≤80 char description>`. The colon is the separator, not an em dash: this repository's house style admits a colon where a definition or description follows and admits no em dash at all. Aim for the SHAPE of the cited rule, not its full content.
 
 When to inline a summary:
 
@@ -59,7 +61,7 @@ When to inline a summary:
 
 ## Line-wrap edge case
 
-Heading text MUST stay on one line at the citation site, even past line width. The literal heading is the grep token; a line-wrapped citation is unrecoverable.
+Heading text MUST stay on one line at the citation site, even if it pushes the surrounding sentence past line width. The literal heading is the grep token; line-wrapped citations are unrecoverable.
 
 ❌ Wrong (heading wraps across lines):
 
@@ -75,7 +77,7 @@ part 2)">.
 "<full heading text on one line>": <summary>.
 ```
 
-If the heading contains characters that confuse grep (parens, em-dashes, quote marks), the SSOT author should rename it to something greppable as-is.
+If the heading itself contains characters that confuse grep (parens, em-dashes, quote marks), the SSOT author should rename the heading to something simpler. Heading text should be greppable as-is.
 
 ## Rename discipline
 
@@ -100,7 +102,7 @@ Headings in an SSOT file are stable contracts. After ANY heading edit in an SSOT
 
 ### Headline form across multiple call sites (good)
 
-Call sites citing different verbs from the same vocabulary rule all use the same shape:
+When several call sites cite different verbs from the same vocabulary rule, every citation uses the same shape:
 
 ```text
 <verb 1> per `<vocabulary-rule>.md` "<verb 1 heading>".
@@ -109,15 +111,17 @@ Call sites citing different verbs from the same vocabulary rule all use the same
 <verb 4> per `<vocabulary-rule>.md` "<verb 4 heading>".
 ```
 
-Same shape across all: easy to grep, rename, and skim.
+Same shape across all: easy to grep, easy to rename, easy to skim.
 
 ### With 1-line summary (good)
 
-A skill orchestrating a multi-skill flow cites another skill's mode:
+When a skill orchestrates a multi-skill flow and cites another skill's mode:
 
 ```text
 <scope phrase> per `<other-skill>/SKILL.md` "<mode name>": <one-line description of what that mode does at a high level>.
 ```
+
+Reader skims, sees the scope phrase, understands what the cited mode will do without clicking.
 
 ### Refused (anti-pattern: chain prose)
 
@@ -128,7 +132,7 @@ The <pattern> pattern (covered in `<wrapper-rule>.md` "<pattern>",
 which itself cites `<base-rule>.md` for the underlying shapes) ...
 ```
 
-Chain prose hides the citation in narrative; pure-token grep finds the heading but the rename sweep needs context match. Rewrite as a direct citation to the canonical SSOT:
+The chain prose form hides the citation in narrative; pure-token grep can find the heading but the rename sweep needs context match. Rewrite as a direct citation to the canonical SSOT:
 
 ```text
 <pattern> per `<base-rule>.md` "<pattern>".

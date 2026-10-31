@@ -9,12 +9,13 @@
 - [Cadence and commits](#cadence-and-commits)
 - [Cross-references](#cross-references)
 
-Defaults for running the extract-ssot pipeline at whole-repo scale
-(hundreds to thousands of tracked markdown files, dozens of candidate
-clusters), where identify/verify/execute becomes a multi-agent batch.
-Loaded by the confirm-scope gate (SKILL.md "Bare invocation: confirm
-scope first") when the user opts into a whole-repo run, and by
-`actions/batch.md` Step 6 when sizing dispatches.
+Defaults for running the extract-ssot pipeline at whole-repo scale,
+meaning hundreds to thousands of tracked markdown files and dozens of
+candidate clusters, where identify/verify/execute becomes a multi-agent
+batch rather than a handful of inline actions. Loaded by the confirm-scope
+gate (SKILL.md "Bare invocation: confirm scope first") when the user
+opts into a whole-repo run, and by `actions/batch.md` Step 6 when
+sizing dispatches.
 
 Private surface. External consumers invoke
 `/docs-hygiene:extract-ssot`, never cite this file directly (contract:
@@ -30,8 +31,8 @@ Private surface. External consumers invoke
   in the run.
 - **Inventory is ONE read-only survey subagent**, not a fan-out. The
   survey's output is unverified synthesis whatever its size, so extra
-  survey workers multiply lead lists, not evidence; breadth belongs in
-  the verify phase.
+  survey workers multiply lead lists, not evidence; the verify phase is
+  where breadth belongs.
 - **Verify and execute run as worker agents.** Verify workers are
   read-only; execute workers edit call sites per the wave plan.
 
@@ -39,23 +40,23 @@ Private surface. External consumers invoke
 
 Verify and execute are judgment stages (gate rulings, wrong-abstraction calls, prose rewrites), so
 workers there run a strong general-purpose tier; resolve the current tier names from the platform's
-model docs at run time. Mechanical stages (phrase sweeps, lint passes, count scripts) run cheaper
-tiers or plain scripts. Never let the whole fleet silently inherit the orchestrator's tier: at fleet
+model docs at run time. Mechanical stages such as phrase sweeps, lint passes, and count scripts run
+cheaper tiers or plain scripts. Never let the whole fleet silently inherit the orchestrator's tier: at fleet
 volume, every notch of over-provisioning multiplies.
 
 ## Concurrency: static, conservative, capped
 
-Default worker concurrency is **2**, a hard cap in the dispatch loop
-(pairs of workers, sequential between pairs). It is deliberately static
-and low:
+Default worker concurrency is **2**, applied as a hard cap in the
+dispatch loop (pairs of workers, sequential between pairs). The default
+is deliberately static and low:
 
 - Most consumers run under **shared subscription rate-limit windows**
   (5-hour and 7-day). The windows are machine- and account-wide: other
   concurrent sessions draw on them invisibly, so an orchestrator that
   cannot observe the windows must assume contention.
 - Enterprise and API-key auth expose no window data at all
-  (capability-detect fails open to "unknown"), a reason for MORE
-  conservatism, not less.
+  (capability-detect fails open to "unknown"), which is a reason for
+  MORE conservatism, not less.
 - Remote/cloud containers cannot see machine-scope guard state (below),
   so they always operate in unknown mode.
 
@@ -66,12 +67,13 @@ fully sequential for its remainder.
 ## Rate-limit guard integration (when present)
 
 When the consuming machine runs the `rate-limit-guard` plugin, its
-snapshot file makes the windows observable. Before dispatching each
-wave (and each pair within a wave), read the snapshot and apply the
-floor's drain-then-pause: with the opt-in, finish in-flight workers,
-dispatch nothing new, and pause until the pause end; without it, report
-the window and the options and keep dispatching. The operable floor
-below is inlined **verbatim** per the loop-lane convention's inline-floor rule (byte-identical across consumers and to the reader
+snapshot file makes the windows observable, and this mode consumes it
+between wave dispatches: before dispatching each wave (and each pair
+within a wave), read the snapshot and apply the floor's drain-then-pause:
+with the opt-in, finish in-flight workers, dispatch nothing new, and
+pause until the pause end; without it, report the window and the
+options and keep dispatching. The operable floor below is inlined
+**verbatim** per the loop-lane convention's inline-floor rule (byte-identical across consumers and to the reader
 contract's floor); provenance is the `rate-limit-guard` plugin's reader
 contract (`plugins/rate-limit-guard/reference/reader-contract.md` in
 the marketplace repository), cited for provenance only, since an
@@ -144,13 +146,13 @@ lands on every session on the machine.
 
 Waves land **wave-committed**: each wave's migrations are one
 conventional-format commit on the task branch, so the batch reviews
-wave-by-wave and a mid-run abort loses at most one wave. `actions/batch.md`
-owns sequencing within and between waves (overlap matrix,
-sequential-by-default); this file adds only the concurrency ceiling and
-the guard check between dispatches.
+wave-by-wave and a mid-run abort loses at most one wave. Sequencing
+within and between waves stays owned by `actions/batch.md` (overlap
+matrix, sequential-by-default); this file only adds the concurrency
+ceiling and the guard check between dispatches.
 
 **Caller-owned commit granularity.** `--commit-mode` hands the commit cadence to
-a caller, such as an orchestrator wanting one commit per step on its own branch:
+a caller such as an orchestrator that wants one commit per step on its own branch:
 
 | Value | Commits |
 |-------|---------|

@@ -19,7 +19,7 @@
 - [Recheck triggers](#recheck-triggers)
 - [Cross-references](#cross-references)
 
-Filters candidates with refuse-fast `verify`, then runs `plan`/`execute` in non-overlapping parallel waves OR strict sequential order (concurrent-write risk → sequential by default), accumulating lessons in `context/lessons.md` between dispatches.
+Multi-candidate orchestration. Computes a file-overlap matrix across candidates, dispatches refuse-fast `verify` to filter, then runs `plan`/`execute` in non-overlapping parallel waves OR strict sequential order (concurrent-write risk → sequential by default). Accumulates lessons in `context/lessons.md` between subagent dispatches.
 
 Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface. Invoke via `/docs-hygiene:extract-ssot batch`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
 
@@ -32,7 +32,7 @@ Loaded by `/docs-hygiene:extract-ssot batch <cluster-list>`. Private surface. In
 | Single candidate | NO. Use `/docs-hygiene:extract-ssot plan <name>` directly |
 | < 3 candidates | NO. Manual sequential dispatch is simpler |
 
-This is NOT the bundled Claude Code `/batch` skill (codebase-wide parallel change orchestration); this action orchestrates local SSOT clusters.
+This is NOT the bundled Claude Code `/batch` skill, which is codebase-wide parallel change orchestration. This `batch` action is local SSOT-cluster orchestration instead.
 
 - **Pointer**: for what bundled `/batch` does, read its entry at [All commands](https://code.claude.com/docs/en/commands#all-commands) live.
 - **As of**: 2026-10-11
@@ -48,12 +48,12 @@ This is NOT the bundled Claude Code `/batch` skill (codebase-wide parallel chang
 
 OR resume from working notes if a `batch` phase is mid-flight.
 
-Candidate names match the cluster names in `/docs-hygiene:extract-ssot identify` output.
+Candidate names match `/docs-hygiene:extract-ssot identify` output's cluster names.
 
-`--min-instances`, `--buckets`, `--fix`, `--dry-run`, and `--yes` pass through with the semantics
-in `actions/identify.md` "Flags": `--min-instances` / `--buckets` filter which buckets enter the
-dispatch list; `--fix` / `--dry-run` / `--yes` govern the non-abstracting remedy sweep. `--fix`
-never creates an artifact in any wave. `--commit-mode` sets
+`--min-instances`, `--buckets`, `--fix`, `--dry-run`, and `--yes` pass through to the batch surface
+with the semantics defined in `actions/identify.md` "Flags": `--min-instances` / `--buckets` filter
+which buckets enter the dispatch list, and `--fix` / `--dry-run` / `--yes` govern the
+non-abstracting remedy sweep. `--fix` never creates an artifact in any wave. `--commit-mode` sets
 how many commits the batch lands (`context/orchestrated-mode.md` "Cadence and commits").
 
 ## Steps
@@ -73,20 +73,20 @@ how many commits the batch lands (`context/orchestrated-mode.md` "Cadence and co
 
 ## Step 1: Pre-flight
 
-Read `context/lessons.md` once at batch start. This snapshot is the lesson set injected into every dispatch in the batch, so two subagents never append at once.
+Read `context/lessons.md` once at batch start. The snapshot is the lesson set injected into all subagent dispatches in this batch. Avoids race conditions where subagent A and B both append simultaneously.
 
 ## Step 2: Verify filter (HARD GATE for batches ≥5)
 
-For each candidate, invoke `verify` (a private action, see `actions/verify.md`) and capture its output.
+For each candidate, invoke `verify` (a private action, see `actions/verify.md`). Capture per-candidate output.
 
-**HARD GATE rule (per Lesson 10):** when `<cluster-list>` size ≥ 5, `verify` is MANDATORY before any `plan`/`execute` dispatch. Without per-cluster Tier 0 verification, subagent identify passes routinely produce ~95% FP rates; refusing fast here avoids dispatching on them. Smaller batches (1-4 candidates) may skip `verify` per user discretion (the action is still OPTIONAL there).
+**HARD GATE rule (per Lesson 10):** when `<cluster-list>` size ≥ 5, `verify` is MANDATORY before any `plan`/`execute` dispatch. Refuse fast at this step rather than spawning subagents on false-positive candidates. Subagent identify passes routinely produce ~95% FP rates without per-cluster Tier 0 verification; gating here prevents wasted dispatches. Smaller batches (1-4 candidates) may skip `verify` per user discretion (the action is still OPTIONAL there).
 
-If the batch fails the verify-gate (≥80% candidates REFUSE), abort and surface the diagnostic to the user: the identify pass likely needs hardening per the Discrimination rules in `actions/identify.md`. Don't dispatch `plan`/`execute` on the surviving 20%; the user picks scope manually.
+If the batch fails the verify-gate (≥80% candidates REFUSE), abort the batch and surface the diagnostic to the user. It likely signals the identify pass needs hardening per the Discrimination rules in `actions/identify.md`. Don't dispatch `plan`/`execute` on the surviving 20%; the user picks scope manually.
 
-Each verdict carries the bucket `verify` Gate 1 assigned. A sub-three bucket is not a refusal: an
+Each verdict carries the bucket `verify` Gate 1 assigned. A sub-three bucket is not a refusal. An
 N=1 or N=2 candidate PROCEEDs with its non-abstracting remedies and stays in the dispatch list.
-`verify` Gate 1 counts a semantic candidate (`identify` forms c2/i) by reading, not by phrase grep,
-so this filter must not drop it as `REFUSE-not-found` on a one-file grep hit.
+A semantic candidate (`identify` forms c2/i) is counted by `verify` Gate 1's reading-derived roster,
+not by phrase grep, so this filter must not drop it as `REFUSE-not-found` on a one-file grep hit.
 
 ```yaml
 candidate: <name>
@@ -100,18 +100,19 @@ Output forms the batch summary's first two columns.
 
 ## Step 3: Filter
 
-Drop `REFUSE-*` candidates; keep `PROCEED` + `WARN` at every bucket. N=1 and N=2 candidates
-dispatch with their bucket's non-abstracting remedies, never an artifact-creating one. Apply
-`--min-instances` / `--buckets` here as a second, caller-chosen filter; record what they excluded so
-a suppressed bucket does not read as an empty one. List dropped candidates with reasons in the batch
-audit log so the user sees the refuse-fast savings.
+Drop candidates with `REFUSE-*` status from the dispatch list. Keep `PROCEED` + `WARN` at every
+bucket. N=1 and N=2 candidates survive the filter and dispatch with the non-abstracting remedies
+their bucket permits, never an artifact-creating one. Apply `--min-instances` / `--buckets` here as
+a second, caller-chosen filter; record what they excluded so a suppressed bucket does not read as an
+empty one. Surface the dropped candidates with reasons in the batch audit log so the user sees the
+refuse-fast savings.
 
-The ≥80%-refusal abort check counts only `REFUSE-*` verdicts. A roster that is mostly N=1 is a
-healthy finding, not a failed identify pass.
+The ≥80%-refusal abort check counts only `REFUSE-*` verdicts. Bucket distribution is a reporting
+fact, not a refusal. A roster that is mostly N=1 is a healthy finding, not a failed identify pass.
 
 ## Step 4: File-overlap matrix
 
-For each surviving candidate, list the files it would touch:
+For each surviving candidate, identify the file set the candidate would touch:
 
 - ALLOWED list from the candidate spec (output target file + sweep call sites)
 - FORBIDDEN list (other candidates' territory; previous-batch territory)
@@ -128,11 +129,11 @@ Compute overlap:
 
 `X` = at least one shared file (write conflict); `∅` = disjoint.
 
-For each pair (Ci, Cj), intersect the ALLOWED files from both candidate specs; a non-empty intersection is `X`. Capture the full intersection list in the audit log.
+Implementation: for each pair (Ci, Cj), grep both candidate specs for ALLOWED files, intersect sets. If the intersection is non-empty, mark `X`. Capture the full intersection list in the audit log.
 
 ## Step 5: Wave grouping (graph coloring)
 
-Nodes = candidates, edges = `X` overlaps. Color greedily; each color is one wave.
+Build an undirected graph: nodes = candidates, edges = `X` overlaps. Color with greedy graph-coloring; nodes of the same color = one wave.
 
 Naive heuristic when N < 10:
 
@@ -165,16 +166,16 @@ waves:
 - No candidate touches files already edited in earlier waves
 - All candidates have `verify-status: PROCEED` (HIGH confidence)
 
-Default: sequential. Parallel is opt-in via `--parallel-waves`.
+Default: sequential. Parallel is opt-in via the batch-action argument `--parallel-waves`. Parallel collisions are a real bug class (no file locking); the default conservatism is intentional.
 
 **Worker concurrency and rate limits.** Whatever the wave grouping allows, concurrent worker
 dispatches stay under the `context/orchestrated-mode.md` ceiling (default 2, static) and honor its
 between-dispatch rate-limit-guard check when the consuming machine exposes the guard's snapshot.
-Wave grouping decides *what may* run together; the ceiling decides *how much* does.
+Wave grouping decides *what may* run together; the ceiling decides *how much* actually does.
 
 ## Step 7: Lesson injection
 
-Each subagent's prompt carries the Step 1 lesson snapshot:
+Each subagent dispatched in this batch receives the lesson snapshot from Step 1 in its prompt:
 
 ```text
 ## Empirical lessons from prior batches
@@ -185,11 +186,11 @@ Lesson 1: Discriminating-phrase grep beats keyword density
 ... (full lessons.md body)
 ```
 
-The subagent applies lessons as advisory but does NOT modify `lessons.md`; it returns new lessons in its deliverable summary.
+The subagent treats lessons as advisory. It applies them in its own decision-making but does NOT modify `lessons.md` directly. New lessons from THIS subagent's run are returned in the deliverable summary, not committed by the subagent.
 
 ## Step 8: Per-dispatch capture
 
-Each subagent returns:
+Each subagent return value contains:
 
 ```yaml
 candidate: <name>
@@ -199,24 +200,25 @@ new-lessons: [free-form patterns observed]
 sanity-check-evidence: [...]
 ```
 
-`REMEDIED-{remedy}` marks a completed non-abstracting remedy, `{remedy}` one of
-`trim-to-citation` / `normalize-wording` / `name-an-owner` / `edit-existing-rule`: the outcome of a
-sub-three bucket. `EXTRACTED` is the N≥3 artifact-creation outcome.
+`REMEDIED-{remedy}` is the verdict for a completed non-abstracting remedy, `{remedy}` one of
+`trim-to-citation` / `normalize-wording` / `name-an-owner` / `edit-existing-rule`. It is the outcome
+a sub-three bucket produces, since none of those creates an artifact. `EXTRACTED` remains the N≥3
+artifact-creation outcome.
 
-`new-lessons` carries empirical patterns for the orchestrator to codify.
+`new-lessons` is the field where empirical patterns surface for the orchestrator to codify.
 
 ## Step 9: Lesson append
 
-After all waves complete, the orchestrator (main session) reviews every dispatch's `new-lessons`:
+After all waves complete, the orchestrator (main session) reviews `new-lessons` from all dispatches:
 
 - Cross-check against existing lessons.md (avoid duplicate Lesson N entries)
 - For genuinely novel patterns: append `## Lesson N+1: <name>` per `context/lessons.md` "Append guidance for future batches"
 - The Source field references THIS batch's audit log
 - The Encoded-in field documents which downstream artifacts (anti-patterns.md, verify gates) should consume the new lesson
 
-Subagent-reported lessons are synthesis: re-verify each novel-lesson claim with your own grep before the lessons.md append.
+Subagent-reported lessons are synthesis until the orchestrator re-verifies them with its own grep. Verify each novel-lesson claim before the lessons.md append.
 
-No novel patterns, no append.
+If no novel patterns surface, no append. Don't force.
 
 ## Step 10: Batch audit log
 
@@ -255,14 +257,14 @@ batch-size: <N>
 <n> candidates refused at verify; <n> subagent dispatches saved
 ```
 
-The log doubles as the batch retrospective and PR-description source.
+The log doubles as the batch retrospective and as source material for the PR description.
 
 ## Side observations
 
 Keep side notes to the ones a reader must act on now:
 
-- If multiple candidates hit the SAME refuse-pattern (e.g. 3 candidates REFUSE-already-cites-canonical for the same canonical file), surface ONE side observation suggesting the canonical file document a stable heading for its audience; batch the rest into the log
-- If all candidates in a wave PROCEED but its parallel-vs-sequential choice was nontrivial, surface the rationale so the user can adjust `--parallel-waves` next time
+- If multiple candidates surface the SAME refuse-pattern (e.g. 3 candidates REFUSE-already-cites-canonical for the same canonical file), surface ONE side observation suggesting the canonical file document a stable heading for its audience; batch the rest into the log
+- If all candidates in a wave PROCEED but the wave's parallel-vs-sequential choice was nontrivial, surface the rationale (so the user can adjust `--parallel-waves` next time)
 
 ## Recheck triggers
 
@@ -282,4 +284,4 @@ Keep side notes to the ones a reader must act on now:
 - `context/anti-patterns.md` #11 / #12 / #13: REFUSE patterns the verify filter encodes
 - SKILL.md "Evidence discipline": subagent return values are synthesis by default; the orchestrator MUST verify novel-lesson claims before the lessons.md append
 - `/docs-hygiene:extract-ssot identify`: produces the ranked candidate list this batch action consumes
-- Bundled Claude Code `/batch` skill: a distinct concern; dated record above Inputs, boundary in SKILL.md "What this skill does NOT do"
+- Bundled Claude Code `/batch` skill: a distinct concern (worktree-parallelized polyglot refactor); the dated record for what it does sits above the Inputs section of this file, and SKILL.md "What this skill does NOT do" carries the same boundary
