@@ -1,0 +1,34 @@
+{
+  "skill": "testing:check-visual-parity",
+  "plugin": "testing",
+  "skill_dir": "plugins/testing/skills/check-visual-parity",
+  "ranking_note": "Authored by a fresh agent from the before description at commit 480308656535791fd9959cf259b49239f1186992, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Near-misses target testing:run-e2e (does the flow work), playwright:playwright (browser driving, screenshots as evidence, mocking), verification:measure (performance before and after) and testing:write (authoring UI tests).",
+  "competitors": [
+    "testing:run-e2e",
+    "playwright:playwright",
+    "verification:measure",
+    "testing:write"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "I'm about to refactor the dashboard CSS into design tokens. Grab screenshots of the main states first so I can prove afterward that nothing moved."},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "Did my change to the Button component alter how the settings page renders? Compare against the screenshots we took before I started."},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "This phase of the plan says the screens must stay identical. Take a baseline of the login, empty-state and error screens before touching any code."},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "We're swapping the date picker library and the look must not shift by a single pixel. Set up a before and after image comparison."},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "Tests are green after the layout rewrite. Re-shoot the listed screens and count how many pixels differ from the baseline."},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "Make sure the rendered checkout page stays exactly the same through this Tailwind migration."},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "pixel diff the modal states against the baseline now that the refactor compiles"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "Moving from styled-components to CSS modules. The rendered output has to match exactly, so capture what it looks like right now."},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "Is the sidebar still pixel-identical after I renamed all the classes?"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "Before I start restructuring the header markup, snapshot every header variant as PNG images so we can diff later."},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "Spin up the app and click through the signup flow to confirm it really works end to end."},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "Open the staging site in a browser, log in, and screenshot the account page for the PR description."},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "Did the bundle optimization make the page load any faster? Measure before and after."},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "Write a Playwright test asserting the cart badge shows the right item count."},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "Redesign the pricing page so it looks more modern."},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "Capture the browser console errors and network traffic while the dashboard loads."},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "Smoke test the new API endpoints and the UI that calls them on the running server."},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "Benchmark the table component's render time before and after adding memoization."},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "Add unit tests for the formatDate helper."},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "Mock the /api/user response in the browser and see how the profile page handles a 500."}
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "skill": "testing:cleanup",
+  "plugin": "testing",
+  "skill_dir": "plugins/testing/skills/cleanup",
+  "ranking_note": "Authored by a fresh agent from the before description at commit 480308656535791fd9959cf259b49239f1186992, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Near-misses target testing:audit (report-only detection), testing:write (new tests), testing:diagnose (a failing test), mutation-testing:audit (mutation score) and code-tidying:audit-dead-code (dead production code).",
+  "competitors": [
+    "testing:audit",
+    "testing:write",
+    "testing:diagnose",
+    "mutation-testing:audit",
+    "code-tidying:audit-dead-code"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "Last week's scan flagged about 40 tests in tests/orders as unable to fail. Go through them and actually fix or remove them."},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "Our utils test folder is full of junk tests that assert nothing meaningful. Prune them, but ask me before deleting any."},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "Plan out a cleanup of worthless tests across the whole monorepo, batched per project."},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "These three specs are flaky and the rest of the folder is tautological garbage. Sort it out; rewrite where you can."},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "Act on the can't-fail report instead of listing the tests again. I want the suite actually trimmed."},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "Tidy the tests in packages/api: merge duplicates, quarantine the flaky ones, and drop the vacuous ones once I sign off."},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "can you get rid of the pointless tests in src/legacy/__tests__? make sure we don't lose any real coverage"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "The judge pass FLAGged a bunch of tests in billing. Rewrite them so they check real values."},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "Delete only the tests in this directory that provably can't fail; we don't have mutation testing set up."},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "Go through every project's tests in the repo and get rid of the dead weight, one batch at a time."},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "List the tests in this repo that would pass no matter what. Report only, don't change any of them."},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "Write tests for the new discount calculator."},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "test_refund fails with a KeyError since this morning. Figure out why."},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "Run mutation testing on the payments module and show me the surviving mutants."},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "Find dead code: unused functions and exports nobody imports anymore."},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "Rename the variable usr to user across the codebase."},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "Add a CI gate that fails when a test with no assertions is committed."},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "Remove unreachable branches and unused helpers from src/core."},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "Why does this integration test hang only on Windows?"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "Set up Stryker for the frontend so we can see our mutation score."}
+  ]
+}

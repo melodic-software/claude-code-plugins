@@ -1,9 +1,9 @@
 # The bundled `run` skill: verification record
 
-Detail behind the `## Native step: run` section of [own-driving.md](own-driving.md) and the `## Boundary` section of [SKILL.md](../SKILL.md). Each row is a four-part
-record: the claim, the basis it rests on, the date it was checked, and the event that makes it
-worth checking again. The `/verify` handoff keeps its own dated record in the body's Handoff
-section.
+Detail behind the `## Native step: run` section of [own-driving.md](own-driving.md) and the
+`## Boundary` section of [SKILL.md](../SKILL.md). Each row is a four-part record: claim, basis,
+date checked, and recheck trigger. The `/verify` handoff keeps its own dated record in the body's
+Handoff section.
 
 | Claim | Basis | As of | Recheck when |
 |---|---|---|---|
@@ -16,18 +16,16 @@ section.
 
 ## Why the verdict is complementary and the integration is wrap
 
-The verdict is complementary because the surfaces overlap without one replacing the other: `/run`
-launches the project so a change can be looked at, while this skill's job is the record. It checks
-prerequisites, drives UI and API flows, and captures evidence under the contract in
-[e2e.md](e2e.md), then hands off. Its non-UI smoke lane ([non-ui.md](non-ui.md)) has no native
-counterpart at all.
+Complementary: the surfaces overlap without one replacing the other. `/run` launches the project
+so a change can be looked at; this skill's job is the record. It checks prerequisites, drives UI
+and API flows, captures evidence under the contract in [e2e.md](e2e.md), then hands off. Its
+non-UI smoke lane ([non-ui.md](non-ui.md)) has no native counterpart.
 
-The integration is wrap: where the app's start is not governed by the consuming project's
-orchestrator configuration, this skill composes `run` for the launch (the Native step in
-[own-driving.md](own-driving.md)) and layers the evidence contract on top. Where an orchestrator governs the
-start, or the target has no app to launch, the step is skipped and the orchestrator path runs
-unchanged. One launch path runs per verification, never both, and an app that is already
-running is not launched again.
+Wrap: where the consuming project's orchestrator configuration does not govern the app's start,
+this skill composes `run` for the launch (the Native step in [own-driving.md](own-driving.md)) and
+layers the evidence contract on top. Where an orchestrator governs the start, or the target has no
+app to launch, the step is skipped and the orchestrator path runs unchanged. One launch path runs
+per verification, never both, and an app already running is not launched again.
 
 ## Presence
 
@@ -40,5 +38,5 @@ this skill's own launch playbook, which is complete on its own.
 ## Extraction record
 
 The probe rows above rest on the observations their Basis cells name: the registry row's evidence
-line and a string search of the installed 2.1.263 binary, both on 2026-09-11, and a string search of the installed 2.1.284 binary on
-2026-09-29. The docs rows were re-read live on 2026-10-11.
+line and a string search of the installed 2.1.263 binary, both on 2026-09-11, and a string search
+of the installed 2.1.284 binary on 2026-09-29. The docs rows were re-read live on 2026-10-11.

@@ -1,6 +1,6 @@
 # Feedback Loop: Reproduce -> Fix -> Retest -> Regression
 
-The disciplined cycle for fixing test failures. Activates when a bug has been identified and needs to be fixed with verification. Where Kent Beck's Red-Green-Refactor meets the engineering discipline of "prove it's fixed."
+The cycle for fixing an identified bug and proving it fixed.
 
 ## The Loop
 
@@ -20,18 +20,18 @@ The disciplined cycle for fixing test failures. Activates when a bug has been id
 
 ### Step 1: Reproduce
 
-Write a test that fails for the exact same reason as the bug. The test name should describe the bug:
+Write a test that fails for the exact same reason as the bug, named for the bug:
 
 - `Should_ReturnError_When_InputIsNull` (good)
 - `TestFix42` (bad)
 
-If you can't reproduce it in a test, you can't prove you fixed it. For intermittent failures, instrument the code path to capture the race condition or timing dependency.
+A bug you can't reproduce in a test, you can't prove fixed. For intermittent failures, instrument the code path to capture the race condition or timing dependency.
 
-**Commit the failing test.** This proves the bug exists in git history. Optional but valuable for traceability.
+**Commit the failing test** (optional): it proves the bug existed in git history.
 
 ### Step 2: Isolate
 
-Don't fix the symptom. Find the root cause:
+Fix the root cause, not the symptom:
 
 - **Null check at the call site** is fixing the symptom. **Fix why the value is null** is fixing the cause
 - Trace backward from the failure to the origin of the incorrect state
@@ -55,7 +55,7 @@ The failing test from step 1 must now pass. If it still fails:
 
 ### Step 5: Regression
 
-Run the full test suite for the affected project(s), not only the test you wrote, because the fix can have side effects elsewhere. `/toolchain:check` is SSOT for the exact per-ecosystem command (or the project's own test command when the `toolchain` plugin is absent); the block below is illustrative (.NET):
+Run the full test suite for the affected project(s), not only the test you wrote: the fix can have side effects elsewhere. `/toolchain:check` is SSOT for the exact per-ecosystem command (or the project's own test command when the `toolchain` plugin is absent); the block below is illustrative (.NET):
 
 ```bash
 # Single project
@@ -68,12 +68,12 @@ dotnet test
 ### Step 6: Evaluate
 
 - **All green** → remove tagged debug instrumentation first (grep the `[DEBUG-...]` prefix), then commit fix + test together (atomic). Exit loop. Suggest `/verification:confirm` for comprehensive validation
-- **New failure** → you've found a sibling bug or a side effect. Loop back to step 1 with the new failure
-- **Same test still fails** → re-examine the root cause. The fix was insufficient
+- **New failure** → a sibling bug or a side effect. Loop back to step 1 with the new failure
+- **Same test still fails** → the fix was insufficient; re-examine the root cause
 
 ## Check for siblings
 
-After fixing one instance, ask: is this a pattern? Could the same bug exist in similar code paths? If yes:
+After fixing one instance, ask whether the same bug exists in similar code paths. If yes:
 
 - Write tests for each sibling case
 - Fix them all in the same commit
@@ -91,7 +91,7 @@ If after 3 iterations the fix keeps breaking other things:
 
 - The code may need redesign, not a patch
 - Route back to the planning skill (invoke `/planning:plan review` via the Skill tool when enabled) for a broader replanning
-- Don't push through. That's how technical debt compounds
+- Don't push through: that is how technical debt compounds
 
 ## Integration with /implementation:implement
 

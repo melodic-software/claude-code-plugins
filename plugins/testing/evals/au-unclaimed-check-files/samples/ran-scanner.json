@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"/p/testing/skills/audit/scripts/cant-fail-scan.sh\""
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "checks/ledger_checks.py"
+          }
+        }
+      ],
+      "why": "read by eye only"
+    }
+  ]
+}

@@ -1,16 +1,16 @@
 # End-to-End (E2E) App Testing
 
-Autonomous application testing: start the app, navigate, interact, take screenshots, verify behavior. This mode activates when end-to-end live verification of a running application is needed (UI flows, API contracts, distributed traces, structured logs).
+Autonomous application testing: start the app, navigate, interact, screenshot, verify behavior. Used when a running application needs end-to-end live verification (UI flows, API contracts, distributed traces, structured logs).
 
 ## Prerequisites check
 
 Before live testing, verify tool availability. The e2e orchestrator and any prerequisite MCP come from the consuming project's conventions (Aspire, docker-compose, tilt, a dev-server script). Universal browser-automation tooling stays prose.
 
 The Playwright CLI row's version floor was verified 2026-09-06 against the package registry entry
-for `@playwright/cli`, whose latest published version that day is 0.1.19. Two names exist and only
-one is live: the unscoped `playwright-cli` package is deprecated and sits at a different, much
-higher version, so a floor read against that name means nothing. Recheck the floor when the scoped
-package publishes a 0.2 or 1.0 release, or when the binary the row invokes stops resolving to it.
+for `@playwright/cli`, whose latest published version that day is 0.1.19. Only the scoped name is
+live: the unscoped `playwright-cli` package is deprecated and sits at a different, much higher
+version, so a floor read against it means nothing. Recheck the floor when the scoped package
+publishes a 0.2 or 1.0 release, or when the binary the row invokes stops resolving to it.
 
 | Requirement | How to check | Required? | Purpose |
 |------------|-------------|-----------|---------|
@@ -20,9 +20,9 @@ package publishes a 0.2 or 1.0 release, or when the binary the row invokes stops
 | Claude in Chrome | `mcp__claude-in-chrome__tabs_context_mcp` | Optional | The user's logged-in browser and GIF demos, on a native host, or from WSL under `claude --chrome` (see the rubric) |
 | App running | orchestrator's resource-list call shows healthy resources | YES | Something to test |
 
-**If the project's orchestrator MCP is not connected:** STOP. Report what's missing and how to fix it. Do not attempt workarounds. A substitute path produces unverified pass/fail results, defeating live verification.
+**If the project's orchestrator MCP is not connected:** STOP. Report what's missing and how to fix it. Attempt no workaround: a substitute path produces unverified pass/fail results, defeating live verification.
 
-**If app not running:** when the default branch declares a Workspace environment entry, start it with that entry's `up` (see [Workspace environment](#workspace-environment)); otherwise suggest starting via the project's documented start command, then re-check via the orchestrator's health/resource-list call.
+**If app not running:** when the default branch declares a Workspace environment entry, start it with that entry's `up` (see [Workspace environment](#workspace-environment)); otherwise suggest the project's documented start command, then re-check via the orchestrator's health/resource-list call.
 
 **If Playwright CLI missing:** tell the user to install it (`npm install -g @playwright/cli`) rather than substituting another automation surface; when the `playwright` plugin is enabled, invoke `/playwright:playwright` via the Skill tool for usage. It owns defaults, sessions, and per-scenario references.
 
@@ -44,7 +44,7 @@ Contract: `docs/contracts/workspace-environment/README.md` in the marketplace re
 4. **Run `up`, then `info`**, unless an app already answers and the Already running table in [own-driving.md](own-driving.md) says to reuse it. Under `false`, or `auto` on an unattended run, an answering app is never driven: this run starts its own instance here and drives only the URL its own `info` reports. Each verb runs once from the worktree root: `cd '<WORKSPACE_ROOT>' && env WORKSPACE_ID='<WORKSPACE_ID>' WORKSPACE_ROOT='<WORKSPACE_ROOT>' <command>`, the command exactly as the entry names it. A non-zero exit from either stops the run with the gap report naming the verb, the command, the commit SHA and the exit code.
 5. **Read `info` as data.** Keep only lines matching `^[A-Z][A-Z0-9_]*=`; never `source`, `eval` or execute the output, and never put a value in a command unquoted. Drive a URL value only when all of these hold: the scheme is `http` or `https`; parsed as a URL, its host is exactly `localhost` or `127.0.0.1`; it has no userinfo (no `@` before the host, so `http://localhost@evil.example/` and `http://user:pw@127.0.0.1/` are rejected); and it holds no whitespace or shell metacharacters. Pass it as one quoted argument. Use it wherever the steps below write `http://localhost:{port}`, and name the line it came from in the evidence. When no such URL line is present, stop with the gap report naming what `info` printed.
 
-**No entry:** start through the project's documented start command as before, and say once in the report that parallel workspaces may collide on ports, containers and databases.
+**No entry:** start through the project's documented start command, and say once in the report that parallel workspaces may collide on ports, containers and databases.
 
 `down` is not this skill's: `/source-control:worktree cleanup` runs it before removing the worktree.
 
@@ -85,24 +85,23 @@ flows after that.
 Under `auto`, the first that fits the target drives:
 
 1. `harness`: the repository's own end-to-end spec or script, when one covers the changed flow.
-   A suite that exists but never exercises the change does not count. The evidence names the spec
-   or script that ran.
+   A suite that never exercises the change does not count. The evidence names the spec or script
+   that ran.
 2. `run`: for a CLI, a TUI or a service with no UI, the pseudo-terminal and HTTP recipe in
    [non-ui.md](non-ui.md). The bundled `run` skill is asked only to launch, and never on an
    `unattended` run, so it is not this driver.
 3. `playwright`: for a browser, the playwright CLI path in the Browser-tool rubric above, through
-   `/playwright:playwright` when the playwright plugin is enabled. This was the only browser path
-   before the key existed.
+   `/playwright:playwright` when the playwright plugin is enabled.
 
 `auto` never picks `chrome`. Claude in Chrome runs on the host, outside any isolation boundary, in
 the person's own browser with their sign-ins, so it drives only when the person asks for something
 it fits (see Browser-tool fit triage), and never on an `unattended` run.
 
-Which tools happen to be installed does not reorder this list: a missing tool for the chosen driver
-is a prerequisite gap ([own-driving.md](own-driving.md), Prerequisites). A pinned value the target cannot use (`playwright` for a CLI,
-`harness` with no spec covering the flow, `chrome` on an `unattended` run) stops with the gap report
-naming the value, the layer that set it, and the target; the run never switches to another driver
-on its own.
+Installed tools do not reorder this list: a missing tool for the chosen driver is a prerequisite
+gap ([own-driving.md](own-driving.md), Prerequisites). A pinned value the target cannot use
+(`playwright` for a CLI, `harness` with no spec covering the flow, `chrome` on an `unattended` run)
+stops with the gap report naming the value, the layer that set it, and the target; the run never
+switches to another driver on its own.
 
 Two drivers are not values: CPU-profile and heap-snapshot capture over the DevTools protocol, and
 the Chrome DevTools MCP server as a flow driver. Neither has a path here that drives a flow and
@@ -123,10 +122,9 @@ Basis: LLM test generators, measured on benchmark repositories, mostly write ora
 
 ### Inspect the render
 
-A screenshot on disk is not an inspection. Agents verifying UI changes have reported "looks good"
-over misaligned or ugly buttons, clipped text, overlap and low contrast (user report, 2026-10-04).
-For every changed screen, run these checks in order and report each one's result, or why it did not
-run:
+A screenshot on disk is not an inspection: agents have reported "looks good" over misaligned
+buttons, clipped text, overlap and low contrast. For every changed screen, run these checks in
+order and report each one's result, or why it did not run:
 
 1. **Accessibility scan.** Run axe (`@axe-core/playwright` with WCAG tags) when the project has
    it; otherwise report the scan as not run and name the package. A clean scan is necessary, not
@@ -164,11 +162,11 @@ No per-check catch rate is measured yet; measured browser evals are tracked in
 [#7137](https://github.com/melodic-software/claude-code-plugins/issues/7137). Any catch rate quoted
 here names the harness path it measured, CLI or MCP.
 
-Capture more than the path where everything succeeds. For each changed screen, also drive and capture its error state (a rejected input, a failed request), its empty state (no rows, no search results) and the feedback it gives after an action (a spinner, a toast, an inline message). A state the run could not reach is listed as not driven, with the reason.
+Capture more than the happy path. For each changed screen, also drive and capture its error state (a rejected input, a failed request), its empty state (no rows, no search results) and the feedback it gives after an action (a spinner, a toast, an inline message). A state the run could not reach is listed as not driven, with the reason.
 
 ### Recording tier (optional)
 
-Recording is off by default. The screenshot evidence above is the floor. When the `recording` key ([e2e-config.md](e2e-config.md)) is set, a run also captures a moving record; it supplements the screenshots, never replaces them. A trace is not a recording tier: every UI drive starts one before the first step (workflow step 5), whatever `recording` says, so a failed scenario carries one.
+Recording is off by default; the screenshot evidence above is the floor. When the `recording` key ([e2e-config.md](e2e-config.md)) is set, a run also captures a moving record that supplements the screenshots, never replaces them. A trace is not a recording tier: every UI drive starts one before the first step (workflow step 5), whatever `recording` says, so a failed scenario carries one.
 
 | `recording` | Capture path | Fits |
 |---|---|---|
@@ -238,7 +236,7 @@ playwright-cli -s=<session> open http://localhost:{port}/health
 
 ### 5. Test UI flows (if applicable)
 
-Navigate to the app and interact using Playwright CLI in a named session (keeps browser alive across commands). `<session>` is the run's own session name, built as the Session names section of [own-driving.md](own-driving.md) defines; the run closes only the sessions it opened. Start the trace before the first step, so a failure carries the state that led to it:
+Drive the app with Playwright CLI in a named session (keeps the browser alive across commands). `<session>` is the run's own session name, built as the Session names section of [own-driving.md](own-driving.md) defines; the run closes only the sessions it opened. Start the trace before the first step, so a failure carries the state that led to it:
 
 ```bash
 playwright-cli -s=<session> tracing-start                  # trace from the first step, not from the failure
@@ -254,12 +252,12 @@ playwright-cli -s=<session> tracing-stop                   # writes the trace; l
 playwright-cli -s=<session> close                          # close session
 ```
 
-Artifacts land in `.playwright-cli/` **relative to CWD when each command runs** (gitignored). Read the YAML snapshot file directly to locate element refs. Do not dump it into context blindly; keep the token savings.
+Artifacts land in `.playwright-cli/` **relative to CWD when each command runs** (gitignored). Read the YAML snapshot file directly to locate element refs; do not dump it into context blindly.
 
-**Use semantic locators** (the snapshot's element refs `e2`, `e37` etc. are stable accessibility-based handles; CSS selectors break on cosmetic changes):
+**Use semantic locators**: the snapshot's element refs (`e2`, `e37`) are stable accessibility-based handles; CSS selectors break on cosmetic changes.
 
 - `click e48` where the snapshot shows `- button "Submit" [ref=e48]` (good)
-- CSS selectors like `#submit-btn` (bad: breaks on cosmetic changes)
+- CSS selectors like `#submit-btn` (bad)
 
 ### 6. Capture evidence
 
@@ -271,11 +269,11 @@ For each verified scenario:
 - The render checks in [Inspect the render](#inspect-the-render), each with its result
 - The trace path
 
-When `recording` resolves to `gif`, record the sequence with Claude in Chrome's `gif_creator`; when it resolves to `video`, record via the playwright CLI. See the recording tier above. Under `off`, the screenshots are the evidence.
+When `recording` resolves to `gif`, record the sequence with Claude in Chrome's `gif_creator`; when it resolves to `video`, record via the playwright CLI (recording tier above). Under `off`, the screenshots are the evidence.
 
 #### Failure packet
 
-A failed scenario, a failed spec from step 3 or a failed drive from step 5, gets one packet written to the evidence output, shaped so it can be the next agent's input as it stands, with every field the app produced inside the app-output block and the framing line above that block kept with it. Every field is filled, or says why it is empty:
+A failed scenario (a failed spec from step 3 or a failed drive from step 5) gets one packet written to the evidence output, usable as the next agent's input as it stands: every field the app produced goes inside the app-output block, with the framing line above that block kept. Every field is filled, or says why it is empty:
 
 ```text
 Scenario: <name>
@@ -304,7 +302,7 @@ Redact when the packet is written, not later: strip the query string from every 
 
 ### 7. Check distributed traces (for multi-service flows)
 
-When the orchestrator exposes trace MCP calls (e.g. `list_traces` + `list_trace_structured_logs`), use them to find the trace for the request and inspect the full request path. Skip when no orchestrator-side tracing available. Degrade to per-service log inspection.
+When the orchestrator exposes trace MCP calls (e.g. `list_traces` + `list_trace_structured_logs`), use them to find the trace for the request and inspect the full request path. With no orchestrator-side tracing, degrade to per-service log inspection.
 
 ## Self-Healing Locators
 
