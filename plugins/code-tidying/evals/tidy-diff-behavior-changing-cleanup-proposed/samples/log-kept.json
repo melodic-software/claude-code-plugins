@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "import { parseOrder, type Order } from \"./order-schema\";\n\nexport async function loadOrders(url: string): Promise<Order[]> {\n  try {\n    const response = await fetch(url);\n    const payload = await response.json();\n    console.log(\"here\");\n    return [parseOrder(payload)];\n  } catch {\n    return [];\n  }\n}\n",
+      "why": "log kept"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import { parseOrder, type Order } from \"./order-schema\";\n\nexport async function loadOrders(url: string): Promise<Order[]> {\n  try {\n    const response = await fetch(url);\n    const payload = await response.json();\n    return [parseOrder(payload)];\n  } catch {\n    return [];\n  }\n}\n",
+      "why": "log removed"
+    }
+  ]
+}

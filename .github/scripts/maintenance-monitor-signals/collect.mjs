@@ -9,6 +9,11 @@ import { parseBudget, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE
 
 export const LIMITS = {
   prMergeRuns: 12,
+  // Lane runs whose jobs the lanes App quota read lists, newest first, and the
+  // jobs with a successful mint step whose annotations it reads, in all: at
+  // most 1 + 10 + 10 calls. A sample, not every mint in the window.
+  laneRuns: 10,
+  laneMintJobs: 10,
   inProgressRuns: 30,
   failedRuns: 12,
   failedRunPages: 5,
@@ -91,6 +96,13 @@ const QUEUE_BRANCH = /^gh-readonly-queue\/[^/]+\/pr-(\d+)-[0-9a-f]+$/;
 // fork or branch run can upload an artifact or annotation of the same name.
 const TRUSTED_EVENTS = new Set(["schedule", "workflow_dispatch"]);
 const PR_MERGE_PATH = ".github/workflows/pr-merge.yml";
+// The step name every lane workflow gives request-lane-token in token mode.
+const MINT_STEP = "Request the lane token";
+// Events whose run takes its workflow code from the default branch; a push
+// or a dispatch counts only on main. A pull_request or review event runs a
+// branch's code, which could write a notice of the same shape.
+const DEFAULT_BRANCH_EVENTS = new Set(["schedule", "workflow_run", "pull_request_target", "issues", "issue_comment"]);
+const MAIN_ONLY_EVENTS = new Set(["push", "workflow_dispatch"]);
 const RUN_ID = /^[0-9]+$/;
 // A run is read in the window it completes in, so the list reaches back to
 // runs created this long before the window opened.
@@ -151,6 +163,35 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       }
     }
     if (ownRate) data.budgetReadings.push({ phase: "now", name: "github-token", ...ownRate, runId: null, url: null });
+  });
+
+  // The lanes App's own REST quota, which this job's GITHUB_TOKEN cannot
+  // read: request-lane-token's `mint lanes-app` api-budget notice, from any
+  // run of this repository's own head that completed in the window on an
+  // event that runs the default branch's workflow code. Only a job whose
+  // mint step succeeded is read, and a trusted pr-merge run's merge job is
+  // left to the source above.
+  const defaultBranchCode = (r) => DEFAULT_BRANCH_EVENTS.has(r.event) || (MAIN_ONLY_EVENTS.has(r.event) && r.head_branch === "main");
+  await source("lane api budget", async () => {
+    data.budgetReadings ??= [];
+    const runs = (await get(`/repos/${repo}/actions/runs?status=completed&created=${created}&per_page=100`)).workflow_runs;
+    const lanes = runs.filter((r) => defaultBranchCode(r) && !SKIP_FAILED_PATHS.has(r.path) && ownHead(r) && completedInWindow(r));
+    let read = 0;
+    for (const run of lanes.slice(0, LIMITS.laneRuns)) {
+      if (read >= LIMITS.laneMintJobs) return;
+      const alreadyRead = (job) => run.path === PR_MERGE_PATH && trustedPrMerge(run) && job.name === "merge";
+      const minted = (await jobsOf(run.id)).filter(
+        (j) => !alreadyRead(j) && (j.steps ?? []).some((s) => s.name === MINT_STEP && s.conclusion === "success"),
+      );
+      for (const job of minted) {
+        if (read >= LIMITS.laneMintJobs) return;
+        read += 1;
+        for (const a of await annotationsOf(job.id)) {
+          const reading = a.title === "api-budget" ? parseBudget(a.message) : null;
+          if (reading?.phase === "mint" && reading.name === "lanes-app") data.budgetReadings.push({ ...reading, runId: run.id, url: run.html_url });
+        }
+      }
+    }
   });
 
   if (ownRate) {

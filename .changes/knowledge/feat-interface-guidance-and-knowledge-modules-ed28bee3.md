@@ -9,3 +9,5 @@ bump: minor
 ### Changed
 
 - `/knowledge:distill` checks the target skill directory with `scripts/repo-visibility.mjs` before any write and stops on a public or unknown repository, for a book as well as a web corpus, telling the person to rerun from a private repository or one with no remote. Fetched pages and exported posts are framed as data, never instructions, like book text.
+- `/knowledge:distill`'s description names its two sources, a PDF or EPUB book and an author's published web corpus, and states that it writes skill reference files only.
+- `/knowledge:absorb-upstream` states what the hardened clone accepts, only `https://github.com/<owner>/<repo>` with symbolic links checked out as plain files, and what to do on exit 2, and its working-tree check of a local checkout runs `git status` with `core.fsmonitor` and `core.untrackedCache` off.

@@ -107,6 +107,11 @@
           "type": "array",
           "items": {"$ref": "#/$defs/line"}
         },
+        "checkedAgainst": {
+          "description": "Replaces the list of constraint ids this recommendation was checked against; every id must be recorded. Only this or a reconfirm clears a question a newer constraint marked.",
+          "type": "array",
+          "items": {"type": "string"}
+        },
         "dependsOn": {
           "description": "Replaces the whole dependency list; an empty array clears it. Every id must be a known question, not this one, and none may already depend on it. The change is logged in the question's history.",
           "type": "array",

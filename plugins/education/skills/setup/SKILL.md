@@ -134,7 +134,25 @@ Report a PASS/INFO/WARN table. Write nothing.
    the operator that diff and ask whether to write it. Only on an explicit yes, re-run the same
    call with `--yes`; on anything else, stop with the file unchanged. A request to "set it" is not
    a yes to a diff the operator has not seen.
-5. **Verify.** Re-run `check` and report the value from its table, not from the write. Then the
+   When the convention-home offer prints below the diff, ask about it too (the next step) before
+   any re-run, since `--yes` writes both.
+5. **The convention-home offer.** When the repository's `AGENTS.md` or `CLAUDE.md` binds no
+   convention home, the script prints an offer: with the operator's confirmation it adds a
+   convention-home pointer region to that instruction file (creating `AGENTS.md` when neither
+   exists or `CLAUDE.md` only imports it) and the overlay ignore line
+   `docs/conventions/**/*.local.*` to `.gitignore`, the only files `apply` writes outside
+   `docs/conventions/`. It prints the offer at the end of an exit 0 run and below the diff of an
+   exit 3 run, so show the operator stdout on exit 0 too. Ask whether to add the region and the
+   ignore line. Only on an explicit yes, re-run the same call with `--yes`, which also writes any
+   diff shown with it. On a no, run `"${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --decline`
+   alone: it records the decline in the instruction file, and the next run does not offer again.
+   To write a shown diff without the region, run `--decline` first, then the same call with
+   `--yes`. When the instruction file or `.gitignore` is a symlink or hard link the script will
+   not write through, it prints a one-line refusal in place of the offer, with the same exit
+   code: show it, and do not re-run with `--yes`, which that refusal stops with exit 1. A refused
+   instruction file refuses `--decline` too, so the operator fixes the link or adds the region by
+   hand.
+6. **Verify.** Re-run `check` and report the value from its table, not from the write. Then the
    tracked-file pair: `git check-ignore -v docs/conventions/education.yaml` reports no match (a
    match means the team never receives the file: say so, and leave `.gitignore` to the operator),
    and `git ls-files --error-unmatch docs/conventions/education.yaml` exits 0. Non-zero right after

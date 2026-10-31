@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": ":root {\n  --brand-50: oklch(0.97 0.014 277);\n  --brand-500: oklch(0.51 0.23 277);\n  --brand-950: oklch(0.22 0.06 277);\n}",
+      "why": "every step in oklch"
+    },
+    {
+      "answer": "--brand-50:oklch(97% 0.01 277);\n--brand-950:oklch(22% 0.06 277);",
+      "why": "percent lightness, no spaces after the colon"
+    },
+    {
+      "answer": ":root {\n  --brand-hue: 277;\n  --brand-50: oklch(0.97 0.014 var(--brand-hue));\n  --brand-950: oklch(0.22 0.06 var(--brand-hue) / 1);\n}",
+      "why": "hue from a shared custom property and an explicit alpha, still oklch"
+    },
+    {
+      "answer": "Before (your HSL habit):\n\n```css\n--brand-50: hsl(243 75% 97%);\n--brand-950: hsl(243 75% 15%);\n```\n\nAfter:\n\n```css\n:root {\n  --brand-50: oklch(0.97 0.014 277);\n  --brand-500: oklch(0.51 0.23 277);\n  --brand-950: oklch(0.22 0.06 277);\n}\n```",
+      "why": "an HSL before block the reply replaces; the proposed scale is all oklch"
+    },
+    {
+      "answer": ":root {\n  --brand-50: oklch(0.97 0.014 277);\n  --brand-500: oklch(0.51 0.23 277);\n  --brand-950: oklch(0.22 0.06 277);\n  --brand-primary: var(--brand-500);\n  --brand-surface-50: var(--brand-50);\n}",
+      "why": "alias tokens point at steps with var()"
+    },
+    {
+      "answer": ":root {\n  --brand-50: oklch(0.97 0.014 277);\n  --brand-950: oklch(0.22 0.06 277);\n  --space-200: 8px;\n  --radius-100: 4px;\n}",
+      "why": "other numbered custom properties that are not the color scale"
+    },
+    {
+      "answer": ":root {\n  --brand-50: #f5f5ff;\n  --brand-950: #1e1b4b;\n}\n\n@supports (color: oklch(1 0 0)) {\n  :root {\n    --brand-50: oklch(0.97 0.014 277);\n    --brand-950: oklch(0.22 0.06 277);\n  }\n}",
+      "why": "a hex fallback layer beneath an oklch value for each step"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ":root {\n  --brand-50: hsl(243 75% 97%);\n  --brand-950: hsl(243 75% 15%);\n}",
+      "why": "an HSL ramp"
+    },
+    {
+      "answer": ":root {\n  --brand-50: oklch(0.97 0.014 277);\n  --brand-500: hsl(243 75% 59%);\n  --brand-950: oklch(0.22 0.06 277);\n}",
+      "why": "oklch endpoints with an HSL middle step"
+    },
+    {
+      "answer": ":root {\n  --brand-50: oklch(0.97 0.014 277);\n  --brand-950: #1e1b4b;\n}",
+      "why": "the dark endpoint left in hex with no oklch value"
+    },
+    {
+      "answer": ":root {\n  --brand-50: oklch(0.97 0.014 277);\n  --brand-500: oklch(0.51 0.23 277);\n}",
+      "why": "no 950 step"
+    },
+    {
+      "answer": ":root {\n  --brand-500: oklch(0.51 0.23 277);\n  --brand-950: oklch(0.22 0.06 277);\n}",
+      "why": "no 50 step"
+    },
+    {
+      "answer": "I would write these in oklch.\n\n```css\n:root {\n  --brand-50: hsl(243 75% 97%);\n  --brand-950: hsl(243 75% 15%);\n}\n```",
+      "why": "oklch only in prose; the proposed scale is HSL"
+    }
+  ]
+}
