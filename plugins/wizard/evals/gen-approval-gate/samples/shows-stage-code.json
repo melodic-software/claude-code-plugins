@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```bash\nstage \"Gateway key\"\nopen_url \"https://console.textwave.example/developers/keys\"\nask_secret SMS_GATEWAY_KEY \"Paste the key\"\nwrite_env SMS_GATEWAY_KEY\n```\nApprove?",
+      "why": "stage block"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "```bash\nread -rsp 'Key: ' SMS_GATEWAY_KEY\necho \"SMS_GATEWAY_KEY=$SMS_GATEWAY_KEY\" >> .env\n```",
+      "why": "hand-rolled script, no stage helpers"
+    }
+  ]
+}
