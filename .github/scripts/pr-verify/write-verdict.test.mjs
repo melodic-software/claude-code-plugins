@@ -264,7 +264,8 @@ test("a summary or note shaped like an Anthropic key or OAuth token throws", () 
   }
 });
 
-test("a fail holding credential-shaped text stands, with none of the model's text", () => {
+test("a fail holding credential-shaped text stands, with none of the model's text", (t) => {
+  const log = t.mock.method(console, "log", () => {});
   const half = "a".repeat(18);
   const short = "sk-ant-abcdefgh";
   for (const [label, summary, notes] of [
@@ -278,6 +279,9 @@ test("a fail holding credential-shaped text stands, with none of the model's tex
     ["a token over two notes", "fine", [`see ghp_${half}`, `${half} there`, "c.md: keep me out"]],
     ["a token over a fold", "fine", [`see ghp_${half}\n\\ continued: ${half} there`, "c.md: keep me out"]],
     ["a token over two diff lines", "fine", [`+ghp_${half}\n+${half}`, "c.md: keep me out"]],
+    ["a token over diff lines in a pathed note", "fine", [`a.md:1 adds +ghp_${half}\n+${half}`, "c.md: keep me out"]],
+    ["a whole token after a fold", "fine", [`see\n\\ continued: ${TOKEN}`, "c.md: keep me out"]],
+    ["a whole token before a fold", "fine", [`see ${TOKEN}\n\\ continued: rest`, "c.md: keep me out"]],
     // run-claude-cli's scan fails its step on a shorter key than findSecret's.
     ["a short Anthropic key", "fine", [`b.md: ${short}`]],
   ]) {
@@ -286,6 +290,10 @@ test("a fail holding credential-shaped text stands, with none of the model's tex
     assert.match(built.summary, /withheld/, label);
     assert.doesNotMatch(JSON.stringify(built), /ghp_|sk-ant-|MIIE|keep me out|src\/a\.mjs|there/, label);
     assert.equal(built.notes.length, notes.length === 0 ? 0 : 1, label);
+  }
+  assert.ok(log.mock.calls.length > 0);
+  for (const { arguments: [line] } of log.mock.calls) {
+    assert.match(line, /^::warning title=pr-verify credential::kind=[A-Za-z0-9 ]+$/);
   }
   assert.throws(() => buildVerdict({ ...ids, output: JSON.stringify({ verdict: "pass", summary: `b.md: ${short}`, notes: [] }) }), /credential/);
   assert.throws(() => buildVerdict({ ...ids, output: JSON.stringify({ verdict: "pass-notes", summary: "fine", notes: [`see ghp_${half}`, `${half} there`] }) }), /credential/);

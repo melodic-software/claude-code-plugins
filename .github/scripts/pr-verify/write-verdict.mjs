@@ -133,12 +133,14 @@ export function buildEvidence({ capture, prBody } = {}) {
 // than findSecret's shape, so this script holds text to the same line.
 const KEY_SHAPE = /sk-ant-[A-Za-z0-9_-]{8,}/;
 // chunk-diff.sh's fold, which a quoted line carries through the middle of a token.
-const FOLD = /\s*\\ continued: ?/g;
-// The texts in order, so a credential split between two of them, over a fold or
-// over two quoted diff lines still reads.
+const FOLD = /(?:\r?\n[ \t]*)?\\ continued: ?/g;
+const scan = (text) => findSecret(text)?.[0] ?? (KEY_SHAPE.test(text) ? "Anthropic key" : deeperLeak(text));
+// The texts in order, so a credential split between two of them still reads.
+// The raw text keeps the word boundaries a whole token needs; the second pass
+// joins a token split over a fold or over two quoted diff lines.
 const credentialIn = (texts) => {
-  const text = texts.join("\n").replace(FOLD, "");
-  return findSecret(text)?.[0] ?? (KEY_SHAPE.test(text) ? "Anthropic key" : (deeperLeak(text) ?? deeperLeak(text, true)));
+  const text = texts.join("\n");
+  return scan(text) ?? scan(text.replace(FOLD, "").replace(/\n[-+ ]/g, "\n"));
 };
 
 // A fail with none of the model's text: no mask finds where a credential ends.
