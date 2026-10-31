@@ -317,11 +317,15 @@ For each candidate, provide:
   A `PASS` or `CONDITIONAL` without a plan cannot be persisted, because the plan is precisely what
   `--implement` reads back in a later session
 
-**Size** is Small, Medium or Large, with what makes it that size (files, moving parts, unknowns).
-State it in minutes, hours, days, weeks or a named span such as an afternoon only when the
-`time_units` plugin option is on: its value is `${user_config.time_units}`, and only `true` turns
-it on (unset, empty, `false`, or the placeholder unexpanded leaves it off). The report states the
-resolved value, `on` or `off`. A time budget the user states is quoted in the user's words.
+**Size.** The `time_units` plugin option is `${user_config.time_units}`. Only `true` turns it on;
+anything else (empty, `false`, or the placeholder unexpanded) leaves it off. State the resolved
+value, `on` or `off`, at the top of the report.
+
+- **Off:** Small, Medium or Large, with what makes it that size (files, moving parts, unknowns).
+- **On:** an estimate in minutes, hours, days, weeks or a named span such as an afternoon, with
+  what makes it that size.
+
+Either way, a time budget the user states is quoted in the user's words.
 
 **Order by value/impact**, highest value first. Value = frequency × severity × ease of implementation.
 
