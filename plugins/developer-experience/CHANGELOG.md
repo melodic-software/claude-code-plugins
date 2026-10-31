@@ -3,6 +3,17 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-10-31
+
+### Added
+
+- `/developer-experience:setup` `check` step 5 runs the new `lib/check-convention-facts.mjs` on the conventions file first. It lists each `every`, `all`, `always`, `never` or `each` claim outside `## Not yet` with its line, for the model to verify against the repository alongside its own reading.
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
 ## [0.2.12] - 2026-10-31
 
 ### Added

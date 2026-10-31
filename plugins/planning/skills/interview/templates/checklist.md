@@ -9,7 +9,7 @@ Planning version: <the `version` in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin
 - [ ] Step 1: Survey before you ask. Read existing context, the topic's memory slice, conversation history; identify what's already settled
 - [ ] Step 1.5: Auto-detect (default action only). If intent already crisp from survey, route to direct synthesis (skip Q&A loop)
 - [ ] Step 2: Drive the frontier-rounds loop. Each round asks every settled-prerequisite question as one numbered set in **inline prose** (`AskUserQuestion` only via the `use_ask_user_question` opt-in; `lock` asks only its one problem question); order rounds by blast radius; restate decided/open after each round
-- [ ] Step 2 exit: Assumption sweep (`me` and `auto` with a register, the `auto` Mixed path included; not `lock`, not a ship-it exit). Once the frontier is empty, a fresh-context sub-agent inventories undecided details, hidden defaults, contradictions, coined terms, and hedged or free-text rows; each becomes a register row at the next `Q<N>` or a stated fact, and an `open` row returns the run to Step 2 (`context/assumption-sweep.md`)
+- [ ] Step 2 exit: Assumption sweep (`me` and `auto` with a register, the `auto` Mixed path included; not `lock`, not a ship-it exit). Once the frontier is empty, a fresh-context sub-agent inventories undecided details, hidden defaults, contradictions, coined terms, and hedged or free-text rows; each becomes a register row at the next `Q<N>` or a stated fact, and an `open` row returns the run to Step 2; every item is recorded in `## Assumption sweep` below with its disposition (`context/assumption-sweep.md`)
 - [ ] Step 3: Recognize the stop condition. The open-question register grades clean (`check-open-questions.sh` exits 0; skipped only when the run asked no question at all and so wrote no register), the frontier is empty (every unknown the task depends on resolved or captured as a named assumption) AND user has confirmed the restated shared understanding, which opens with the register recap and cites the `--procedure` check's exit code (`me`/`auto`; `lock` confirms the problem with one question, registered like any row; its invocation confirms the rest)
 - [ ] Step 4: Persist the contract. Engineering: write the PLAN.md Brief section with goal + constraints + acceptance criteria + captured assumptions; general: write the shared-understanding summary, never a Brief (`me` mode: persist each answer incrementally as it locks in, so the session can continue elsewhere at any round boundary with nothing lost)
 - [ ] Every round boundary: bigger-than-you-thought check (`context/routing.md`). Two rounds running with more branches opened than closed → recommend `/planning:wayfind chart`; a worsened context zone with no such fog → recommend routing the continuation with `/session-flow:workflow`, never wayfind. Recommend only; the user decides
@@ -63,7 +63,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" \
 
 One line per candidate question the self-answer step answered instead of asking: no register row, `- F<N> | answered-from-<tag> | <question> | <fact> | <basis>`. Rules: `context/loop.md` "Self-answer gate". Replace the example line with this run's facts.
 
-- F1 | answered-from-codebase | Which queue library is in use? | BullMQ 5 | package.json:14
+- F1 | answered-from-codebase | Which queue library is in use? | BullMQ 5 | package.json:14 "bullmq": "^5.1.0"
+
+## Assumption sweep
+
+Before each sweep, `- sweep <M> | register through Q<N>`, where `sweep <M>` counts the sweeps from 1 and `Q<N>` is the register's last row. Then one row per item the sweep returned, `- S<N> | sweep <M> | <category> | <class> | <source> | <disposition>`, where `S<N>` is the sub-agent's id within that sweep. The disposition is the `Q<N>` register row the item became, the `F<N>` line above that settles it (its basis quotes the source with a file:line or a URL), or `deferred: <where>`. A `decision` or `person` item takes a `Q<N>` (a `hedged` one may also be `deferred: confirmation restate`). Only a `hedged` item points at the row it came from; every other item gets a new row, above that sweep's `register through` row. A sweep that returned nothing gets `- none`. Rules: `context/assumption-sweep.md` "Disposition". Replace the example rows with this run's items.
+
+- sweep 1 | register through Q2
+- S1 | sweep 1 | undecided | decision | Q1 recommendation, who moderates comments | Q3
 
 ## Decision tree (`me` mode only)
 
@@ -79,6 +86,7 @@ No question cap. If branches outgrow the session, route the next step with `/ses
 
 - Step 2 SKIPPED when Step 1.5 auto-detect routes to direct synthesis
 - Step 2 assumption sweep SKIPPED on a ship-it exit: the user's yes deferred the open rows (`context/routing.md` "Small after all: ship it")
+- A skipped Step-exit box is still ticked, with `SKIPPED: <reason>` appended (for example `SKIPPED: lock`): the `--procedure` gate fails on any unchecked `Step <N> exit` box and needs the `## Assumption sweep` section for a ticked one without that marker
 - Step 1.5 SKIPPED when user explicit-mode (`lock` forces synthesis; `me` forces Q&A loop)
 - Step 3 confirmation gate narrowed only for `lock` (it confirms the problem with one question, registered like any row; its invocation confirms the rest); direct synthesis in `auto` still passes through it
 - Step 3 **register** gate SKIPPED only when the run asked no question and wrote no register (`auto` routing to synthesize-directly with no open decision; `lock` always writes its problem row). Any question at all, whether asked, surfaced mid-synthesis, or blocked unattended, means a register exists and the gate applies. This is about the absence of questions, not about the action

@@ -30,6 +30,12 @@ import re
 import sys
 from typing import NoReturn
 
+sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir, "lib")
+)
+from gates import headings  # noqa: E402  (the plugin's shared gate primitives)
+
 SCHEMA = "node-manifest/v1"
 EXTRACTOR_NAME = "extract_nodes.py"
 EXTRACTOR_VERSION = "1.0.0"
@@ -79,10 +85,10 @@ def split_lines(data: bytes, base: int) -> list:
     return lines
 
 
-ATX_RE = re.compile(rb"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$")
-ATX_TRAIL_RE = re.compile(rb"[ \t]+#+[ \t]*$")
-FENCE_OPEN_RE = re.compile(rb"^( {0,3})(`{3,}|~{3,})(.*)$")
-SETEXT_RE = re.compile(rb"^ {0,3}(=+|-+)[ \t]*$")
+ATX_RE = headings.atx_heading(binary=True)
+ATX_TRAIL_RE = headings.closing_sequence(binary=True)
+FENCE_OPEN_RE = headings.fence(indent=headings.INDENT_COMMONMARK, binary=True)
+SETEXT_RE = headings.setext_underline(binary=True)
 
 
 def decode_title(raw: bytes) -> str:
@@ -121,8 +127,7 @@ def markdown_boundaries(data: bytes):
 
     boundaries = []  # (byte offset, level, title)
     in_fence = False
-    fence_char = b""
-    fence_len = 0
+    fence_run = b""
     consumed = set()  # line indexes already used as heading/underline/fence
 
     i = idx
@@ -132,12 +137,7 @@ def markdown_boundaries(data: bytes):
 
         m = FENCE_OPEN_RE.match(text)
         if in_fence:
-            if (
-                m
-                and m.group(2)[0:1] == fence_char
-                and len(m.group(2)) >= fence_len
-                and m.group(3).strip() == b""
-            ):
+            if headings.closes_fence(m, fence_run):
                 in_fence = False
             consumed.add(i)
             i += 1
@@ -145,8 +145,7 @@ def markdown_boundaries(data: bytes):
 
         if m:
             in_fence = True
-            fence_char = m.group(2)[0:1]
-            fence_len = len(m.group(2))
+            fence_run = m.group(1)
             consumed.add(i)
             i += 1
             continue
@@ -191,7 +190,7 @@ HTML_MASK_RES = [
     re.compile(rb"<pre\b.*?</pre\s*>", re.DOTALL | re.IGNORECASE),
     re.compile(rb"<textarea\b.*?</textarea\s*>", re.DOTALL | re.IGNORECASE),
 ]
-HTML_HEADING_RE = re.compile(rb"<h([1-6])(\s[^>]*)?>", re.IGNORECASE)
+HTML_HEADING_RE = headings.html_heading(binary=True)
 HTML_TAG_RE = re.compile(rb"<[^>]+>")
 WS_RUN_RE = re.compile(r"\s+")
 

@@ -57,7 +57,7 @@
     "animation": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Animation taste defaults read by /user-interface:write-animation, /user-interface:audit-animation and /user-interface:write-css. The project's own tokens beat every layer.",
+      "description": "Animation taste defaults read by /user-interface:write-animation, /user-interface:audit and /user-interface:write-css. The project's own tokens beat every layer.",
       "properties": {
         "easing": {
           "type": "object",
@@ -87,6 +87,14 @@
             "velocity_threshold": {"type": "number", "minimum": 0, "description": "Release speed in px/ms above which a small element's swipe dismisses it, whatever the distance."}
           }
         }
+      }
+    },
+    "design": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Settings read by /user-interface:design.",
+      "properties": {
+        "concern_spoke_cap": {"type": "integer", "minimum": 1, "description": "The most concern spokes from reference/concerns.json one design pass loads; the rest are named as next steps."}
       }
     },
     "routing": {
