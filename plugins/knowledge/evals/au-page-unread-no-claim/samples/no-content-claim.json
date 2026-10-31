@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The page is unread (reason: fetch-failed). It supports no claim, so I wrote no record."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The page describes three retry patterns: exponential backoff, jitter and a retry budget. I marked backoff as take."
+    },
+    {
+      "answer": "The page could not be read, and it has no section on idempotency."
+    }
+  ]
+}

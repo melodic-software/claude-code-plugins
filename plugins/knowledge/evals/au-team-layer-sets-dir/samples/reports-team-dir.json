@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Record directory: docs/provenance (team layer, docs/conventions/knowledge.yaml)."
+    },
+    {
+      "answer": "`upstream_records_dir: docs/provenance` in docs/conventions/knowledge.yaml set the directory."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Record directory: docs/upstream (default layer); team layer skipped."
+    },
+    {
+      "answer": "The file sets docs/provenance, but the team layer was skipped because the root is $HOME; using docs/upstream."
+    },
+    {
+      "answer": "Record directory: docs/provenance."
+    }
+  ]
+}

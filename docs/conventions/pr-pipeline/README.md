@@ -443,8 +443,8 @@ whose head's `ci-lanes` commit status from `github-actions[bot]` is `failure` or
 verdict ci-status records, not ci-status itself, which also fails on a hold, a pending review or the
 PR contract, none of which a CI fix mends. It dispatches those whose head has no `pr-unblock / fix-ci` run yet (an
 untrusted-trigger skip or a skip while held aside), or only failed ones and `Skipped: not-applicable`
-ones (no failing check found), fewer than `limits.limit-stops-per-head` of them, and since the base
-tip was committed (the same query reads it) no `not-applicable` one and at most
+or `Skipped: stop-resolved` ones (no failing check found), fewer than `limits.limit-stops-per-head`
+of them, and since the base tip was committed (the same query reads it) no such skip and at most
 `limits.fix-ci-restarts` failed ones; a new head starts with none. No `fix-ci` run for the PR may
 still be queued or going, and it sends at most `limits.fix-ci-per-run` per run,
 lowest number first. Their run ids join the dispatched-runs record. The dispatcher job's
@@ -718,12 +718,13 @@ rung up (`escalate-to`), read in the run from the head's own stop record, never 
 input; the others retry as a fresh session. A retry that acts and does not stop posts success over the
 failing status (`report-escalation.sh clear`); one that ends on a skip, such as a reply job with no
 model turn, leaves it. A select job that finds the stop gone on its head also posts success
-(`stop-resolved`): `address-feedback` once no hold and no unresolved review thread is left,
+and skips `stop-resolved`: `address-feedback` once no hold and no unresolved review thread is left,
 `fix-ci` once a whole listing of the head's checks, every one completed, has none failing (round
 cap included). So a thread resolved by hand, or CI fixed by hand or re-run green, frees the same
 head at the next dispatch of that activity (the one the lane-stopped comment gives); on a lanes App
 pull request the dispatchers above start it once per stop, on any other a person does, and a `ci-status` that already failed stays failed until something
-re-runs it (the next review lane's `rerun-ci-status`, or a person). Once the retries are spent, the monitoring lane's
+re-runs it (the next review lane's `rerun-ci-status`, or a person). Once the retries are spent, and
+until a `stop-resolved` skip ends the stop, the monitoring lane's
 `stalled lane stop` signal names the PR. A new head carries no status, so the lane's next run
 there starts clean.
 
@@ -921,7 +922,8 @@ round whose base merge left no conflict, so no model ran and the push job commit
 job's activity check it ends the head; on a push, reply or verdict job's check the dispatcher
 retries the head under its per-head cap), `pass-only` (a pass-only address-feedback round's reply
 job, which ran no model and only resolved fail-note threads a pr-verify pass superseded; the
-dispatcher's release reads skip it), or, for an issue run under
+dispatcher's release reads skip it), `stop-resolved` (an address-feedback or fix-ci select job found
+no stop standing on its head, whether or not one ever did), or, for an issue run under
 `models.issue-dimensions`, `research-first` or `probe-first` (its Uncertainty), or
 `split-required` (its Size is `split`). Issue mode posts no check, so work-resolve-issue.yml reports those three dimension skips
 on the issue instead, to no person: `research-first` and `probe-first` lose `agent-ready` and
@@ -2852,7 +2854,7 @@ findings listed by key. Its scripts and tests are in
 | 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational; listed in the run summary only, never filed, since nothing in this repository acts on it | `platform:<incident>`, `platform:actions` |
 | 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
 | 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap\|failed ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap`, `lane-stop:failed` |
-| 10 stalled lane stop | an open pull request into main, of any author, carries a pr-unblock lane-stopped comment by `merge.agent-identity` naming its current head, or a `needs-human-cleared` comment for that head whose reason now routes to a failing status, older than 2 hours (four `pr-unblock-dispatch.yml` ticks), with no `pr-unblock / <activity>` check run but a skip started on that head since, and no `not-applicable` skip since that ends it (address-feedback on a non-draft pull request; fix-ci only once a whole listing of the head's checks is settled with none failing): its same-head retries are spent; one issue lists each such stop | `stalled-lane-stop` |
+| 10 stalled lane stop | an open pull request into main, of any author, carries a pr-unblock lane-stopped comment by `merge.agent-identity` naming its current head, or a `needs-human-cleared` comment for that head whose reason now routes to a failing status, older than 2 hours (four `pr-unblock-dispatch.yml` ticks), with no `pr-unblock / <activity>` check run but a skip started on that head since, and no `stop-resolved` skip since: its same-head retries are spent; one issue lists each such stop | `stalled-lane-stop` |
 | 11 post-merge unreadable | each of the newest 4 post-merge reports (`pr-merge-post-merge-report`, kept by `post-merge-dispatch` in a trusted scheduled or manual `pr-merge` run on `main`) has exit code 3: the post-merge check could not read lane merges, so merges hold with only a warning; the issue names the newest report's reason, each monitoring run prints it as an `::error` while it holds, and it only notifies and clears on a readable report. A run that kept no report neither counts nor resets; no report within 70 minutes leaves the signal unread | `post-merge-unreadable` |
 
 A rolling issue, titled `Monitoring: <signal>`, has the first body line

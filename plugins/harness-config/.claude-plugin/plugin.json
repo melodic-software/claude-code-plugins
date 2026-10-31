@@ -7,6 +7,14 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
+  "userConfig": {
+    "time_units": {
+      "type": "boolean",
+      "title": "Time units in estimates",
+      "description": "When on, /harness-config:audit-automation-gaps may state the size of an implementation plan in minutes, hours, days or weeks; when off it gives a relative size (Small, Medium, Large) instead. A time budget you state is kept in your words either way. Default: off.",
+      "default": false
+    }
+  },
   "keywords": [
     "settings",
     "configuration",

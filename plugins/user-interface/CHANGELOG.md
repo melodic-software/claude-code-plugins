@@ -3,6 +3,16 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-10-31
+
+### Added
+
+- A layout-stability concern for `/user-interface:design` and `/user-interface:audit`: reserved space for async content and media, equal-width digits on changing numbers, labels that swap without changing width, constant font weight on interaction, persisted state right on first paint, late banners that overlay rather than push, and long user text that cannot break the layout, with audit severities.
+
+- `/user-interface:design` and `/user-interface:audit` gain web performance guidance: preloading the hero image and lazy-loading the rest, images sized to how they're shown, virtualized long lists, pausing work out of view, inline autoplaying video, static content routes, debounced search requests, splitting out heavy rarely-seen UI, and no state update per frame.
+
+- Web accessibility guidance for `/user-interface:design` and `/user-interface:audit`: keyboard reach, visible focus, names for icon buttons and images, modal focus, hidden panels kept out of the tab order, errors not told by color alone, focus that is never lost, DOM order that matches the screen, landmarks and skip links, announced async changes, timers that pause in a hidden tab and per-platform shortcut hints, plus a `scripts/focus-path.mjs` check that flags where a page's tab order jumps backward.
+
 ## [0.12.0] - 2026-10-31
 
 ### Added

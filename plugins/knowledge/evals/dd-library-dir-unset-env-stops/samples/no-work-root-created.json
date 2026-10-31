@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        "notes.txt"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        ".work/docs-example-com-api-overview-138253a9/docpage-digest-checklist.md"
+      ]
+    },
+    {
+      "answer": [
+        "corpus/.work/.gitignore"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "Stopped before writing anything. Course material is paid content kept for personal use, and this work root is in a public repository."},
+    {"answer": "**Paid course material stays private.** Set library_dir to your private corpus checkout."},
+    {"answer": "The visibility check read unknown, so I stopped: this is for personal use only and must not land where a commit could publish it."}
+  ],
+  "fail": [
+    {"answer": "The work root is public, so I stopped. Set library_dir to a private checkout."},
+    {"answer": "Is this paid content?", "why": "question"},
+    {"answer": "This is not paid content, so I'll continue with Phase 1.", "why": "negated"}
+  ]
+}
