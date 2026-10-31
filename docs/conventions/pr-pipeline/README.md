@@ -600,8 +600,9 @@ Each leaf declares:
 - `verify-scripts` (optional, `skill` only): exact repository-relative paths of scripts, each `scripts/<name>.sh`, `plugins/<plugin>/scripts/<name>.sh` or
   `plugins/<plugin>/skills/<skill>/scripts/<name>.sh`, that the skill may run with any arguments
   but a path outside the checkout. The runner that gives the skill its edit tools runs each from a read-only base copy of its plugin (or of `scripts/`) against
-  the checkout, with `GH_TOKEN` and `GITHUB_TOKEN` unset; code it runs can still read the token
-  from an ancestor process's `/proc/<pid>/environ`
+  the checkout, with `GH_TOKEN` and `GITHUB_TOKEN` unset. In the write runner no ancestor holds the
+  token either; under run-claude-cli, code it runs can still read the job's token from an ancestor
+  process's `/proc/<pid>/environ`
   ([`pr-run-activity.md`](pr-run-activity.md#skill-activities)). The arguments are the model's, so
   a script that changes files, runs code from the checkout or reaches the network hands the run
   that power: list one only when it limits itself, as `scripts/run-test-file.sh` (one test file
@@ -1724,10 +1725,13 @@ head-ref map and run cache and one artifact listing for the run, which its first
 and every later one uses at any age, an allow included (`evidence --shared-listing`), since the
 merge queue runs the reader again at the head it merges; an event run reads no link or verdict,
 never arms, and
-only disarms on a hold, so a pull request waits up to one scheduled interval to be armed. `ci-status`
-turns an armed lanes App pull request's auto-merge off on each push to its head, so a new head is
-armed only after the reader judges it. It turns auto-merge off on an armed one that now fails
-any of those, and does not turn it back on once a person has turned it off. A scheduled or
+only disarms on a hold, so a pull request waits up to one scheduled interval to be armed. An arm
+survives a push to its head: turning auto-merge off needs `contents: write`, which the lanes App's
+arming token holds and `ci-status`'s `GITHUB_TOKEN` deliberately lacks. The merge queue's
+`ci-status` holds a new head until a pr-verify pass stands at the exact head it merges. That check
+reads the pull request's live head, not the SHA in the queue ref, and relies on GitHub dequeuing an
+entry when its head branch is pushed. `enable-auto-merge` turns auto-merge off on an armed one that
+now fails any of those, and does not turn it back on once a person has turned it off. A scheduled or
 hand-started run that leaves a lanes App pull request unarmed on report-outcome's own
 `Hold: a human merges this` line, a hold path, a cost hold, the gate's verdict or its risk score
 says why in one `<!-- babysit-merge-risk -->` comment, edited in place, and adds the human-gated

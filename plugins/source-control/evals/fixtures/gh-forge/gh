@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Offline stand-in for the GitHub CLI in pull-request eval runs. It serves one pull request from the
-# state install.sh wrote and never reaches a network or the real gh: any command it does not serve
+# state install.sh wrote (or, under --no-pr, opens it on `pr create`), the issues in issues/<n>.json,
+# and the REST reads the create phase makes, and never reaches a network or the real gh: any command it does not serve
 # exits 1 naming itself, so a run cannot touch GitHub through it. `pr merge`, `pr review` and the
 # resolve-thread mutation only append a line to calls.jsonl in the forge state. `pr update-branch` is refused on
 # purpose: the ready phase then takes its documented local-merge fallback, which the graders read.
@@ -59,6 +60,7 @@ emit() {
 # The pull request a positional names: its number, #number, URL, or head branch; none means the
 # current branch.
 pr_matches() {
+  [[ -f "$forge/created" ]] || return 1
   local sel="${1:-$(git branch --show-current 2>/dev/null)}"
   sel="${sel#\#}"
   sel="${sel##*/pull/}"
@@ -111,7 +113,7 @@ case "$cmd $sub" in
   "pr list")
     shift 2
     parse "$@"
-    if [[ -z "$head" || "$head" == "$PR_HEAD" ]]; then doc="[$(pr_doc)]"; else doc="[]"; fi
+    if [[ -f "$forge/created" && (-z "$head" || "$head" == "$PR_HEAD") ]]; then doc="[$(pr_doc)]"; else doc="[]"; fi
     if [[ -n "$json" ]]; then
       json_list="$json"
       json=""
@@ -128,6 +130,73 @@ case "$cmd $sub" in
     else
       git --git-dir="$origin" diff "refs/heads/$PR_BASE...refs/heads/$PR_HEAD"
     fi
+    ;;
+  "pr create")
+    shift 2
+    [[ -f "$forge/created" ]] && {
+      echo "a pull request for branch \"$PR_HEAD\" into branch \"$PR_BASE\" already exists:" >&2
+      echo "https://github.com/eval-fixture/app/pull/$PR_NUMBER" >&2
+      exit 1
+    }
+    create_args=("$@")
+    is_draft=false new_head="" new_base="$PR_BASE" title="" body_file=""
+    while (($#)); do
+      case "$1" in
+        -d | --draft) is_draft=true ;;
+        -H | --head)
+          new_head="$2"
+          shift
+          ;;
+        --head=*) new_head="${1#--head=}" ;;
+        -B | --base)
+          new_base="$2"
+          shift
+          ;;
+        --base=*) new_base="${1#--base=}" ;;
+        -t | --title)
+          title="$2"
+          shift
+          ;;
+        --title=*) title="${1#--title=}" ;;
+        -F | --body-file)
+          body_file="$2"
+          shift
+          ;;
+        --body-file=*) body_file="${1#--body-file=}" ;;
+        -b | --body)
+          printf '%s' "$2" >"$forge/pr-body.md"
+          shift
+          ;;
+        -R | --repo | -r | --reviewer | -a | --assignee | -l | --label | -m | --milestone | -p | --project) shift ;;
+        *) ;;
+      esac
+      shift
+    done
+    new_head="${new_head:-$(git branch --show-current)}"
+    [[ "$new_head" == "$PR_HEAD" && "$new_base" == "$PR_BASE" ]] || refuse pr create --head "$new_head" --base "$new_base"
+    git --git-dir="$origin" rev-parse -q --verify "refs/heads/$PR_HEAD" >/dev/null || {
+      echo "aborted: you must first push the current branch to a remote, or use the --head flag" >&2
+      exit 1
+    }
+    [[ -z "$body_file" ]] || cp -- "$body_file" "$forge/pr-body.md" || exit 1
+    [[ -n "$title" ]] || title="$PR_TITLE"
+    printf 'PR_NUMBER=%q\nPR_HEAD=%q\nPR_BASE=%q\nPR_TITLE=%q\n' "$PR_NUMBER" "$PR_HEAD" "$PR_BASE" "$title" >"$state"
+    echo "$is_draft" >"$forge/draft"
+    : >"$forge/created"
+    record "pr create" "${create_args[@]}"
+    echo "https://github.com/eval-fixture/app/pull/$PR_NUMBER"
+    ;;
+  "issue view")
+    shift 2
+    parse "$@"
+    n="${args[0]:-}"
+    n="${n#\#}"
+    n="${n##*/issues/}"
+    [[ "$n" =~ ^[0-9]+$ && -f "$forge/issues/$n.json" ]] || {
+      echo "GraphQL: Could not resolve to an issue or pull request with the number of $n. (repository.issue)" >&2
+      exit 1
+    }
+    emit "$(cat "$forge/issues/$n.json")"
     ;;
   "pr ready")
     shift 2
@@ -197,6 +266,7 @@ case "$cmd $sub" in
       case "$a" in
         query=*) gql="${a#query=}" ;;
         id=*) thread_id="${a#id=}" ;;
+        *) ;;
       esac
     done
     if [[ "$gql" == *resolveReviewThread* ]]; then
@@ -226,6 +296,59 @@ case "$cmd $sub" in
       doc=$(jq -c --arg f "$json_list" 'map(. as $d | reduce ($f | split(",")[]) as $k ({}; .[$k] = $d[$k]))' <<<"$doc")
     fi
     emit "$doc"
+    ;;
+  "api "*)
+    # REST reads: the repository, an issue and its sub-issues, and a file at a ref. Any method but
+    # GET, and any other path, is refused.
+    shift
+    path="" method=GET
+    while (($#)); do
+      case "$1" in
+        -X | --method)
+          method="$2"
+          shift
+          ;;
+        --method=*) method="${1#--method=}" ;;
+        -q | --jq)
+          jq_expr="$2"
+          shift
+          ;;
+        --jq=*) jq_expr="${1#--jq=}" ;;
+        -H | --header) shift ;;
+        repos/*) path="$1" ;;
+        *) ;;
+      esac
+      shift
+    done
+    [[ "$method" == GET ]] || refuse api --method "$method" "$path"
+    path="${path/#repos\/\{owner\}\/\{repo\}/repos/eval-fixture/app}"
+    ref="$PR_BASE"
+    [[ "$path" == *"?ref="* ]] && ref="${path##*\?ref=}" && path="${path%%\?*}"
+    not_found() {
+      echo "gh: Not Found (HTTP 404)" >&2
+      exit 1
+    }
+    case "$path" in
+      repos/eval-fixture/app)
+        emit "$(jq -n --arg base "$PR_BASE" '{name: "app", full_name: "eval-fixture/app", owner: {login: "eval-fixture"}, default_branch: $base, private: true, html_url: "https://github.com/eval-fixture/app"}')"
+        ;;
+      repos/eval-fixture/app/issues/*/sub_issues)
+        n="${path#repos/eval-fixture/app/issues/}"
+        n="${n%/sub_issues}"
+        [[ -f "$forge/issues/$n.json" ]] || not_found
+        emit "$(jq -c '[.subIssues.nodes[]? | {number, title, state: (.state | ascii_downcase)}]' "$forge/issues/$n.json")"
+        ;;
+      repos/eval-fixture/app/issues/*)
+        n="${path#repos/eval-fixture/app/issues/}"
+        [[ "$n" =~ ^[0-9]+$ && -f "$forge/issues/$n.json" ]] || not_found
+        emit "$(jq -c '{number, title, body, state: (.state | ascii_downcase), html_url: .url}' "$forge/issues/$n.json")"
+        ;;
+      repos/eval-fixture/app/contents/*)
+        # Served raw, as with an Accept: application/vnd.github.raw header.
+        git --git-dir="$origin" show "refs/heads/$ref:${path#repos/eval-fixture/app/contents/}" 2>/dev/null || not_found
+        ;;
+      *) refuse api "$path" ;;
+    esac
     ;;
   "--version "*) echo "gh version 0.0.0-eval-fixture" ;;
   *) refuse "$@" ;;

@@ -1,6 +1,7 @@
 ---
 description: The drafted PR body carries the PLAN.md Brief's acceptance criteria under an Acceptance criteria section
 tags: [pull-request, source-control, intent-ladder]
+plugins: ["../..", "gh-forge-path"]
 runs: 3
 max_turns: 30
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]

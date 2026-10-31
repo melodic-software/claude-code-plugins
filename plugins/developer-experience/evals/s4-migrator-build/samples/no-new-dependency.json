@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "[project]\nname = \"bfk\"\nversion = \"0.4.0\"\ndescription = \"Account tooling for the brackenfold team\"\nrequires-python = \">=3.11\"\ndependencies = []\n\n[project.scripts]\nbfk = \"bfk.cli:main\"\n",
+      "why": "the seeded file"
+    },
+    {
+      "answer": "[project]\nname = \"bfk\"\nversion = \"0.5.0\"\nrequires-python = \">=3.11\"\ndependencies = []\n\n[project.scripts]\nbfk = \"bfk.cli:main\"\nbfk-migrate = \"bfk.migrate:main\"\n",
+      "why": "a new entry point, still no dependency"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "[project]\nname = \"bfk\"\nversion = \"0.4.0\"\nrequires-python = \">=3.11\"\ndependencies = [\"click>=8\"]\n",
+      "why": "adds a dependency"
+    },
+    {
+      "answer": "[project]\nname = \"bfk\"\nrequires-python = \">=3.11\"\ndependencies = [\n  \"jsonlines\",\n]\n",
+      "why": "near miss: a dependency on its own line"
+    },
+    {
+      "answer": "# brackenfold\n\nAccount tooling for the brackenfold team. Standard library only.\n",
+      "why": "answer to a different question: README text"
+    }
+  ]
+}
