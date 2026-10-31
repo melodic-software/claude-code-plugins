@@ -28,7 +28,7 @@ it is blind.
 
 | Rung | Source | Gate | Yields |
 |---|---|---|---|
-| 1 | `/harness-ops:inventory` | if that plugin is enabled | Every **installed** skill across every marketplace, manual-only included; reconcile against the enabled set, below |
+| 1 | `/harness-ops:inventory` in its `--skills-index` mode | if that plugin is enabled | Every skill across every added marketplace, manual-only included, each with its `state`: `enabled`, `disabled` or `not-installed` |
 | 2 | An operator-supplied catalog file | if the consuming project provides one | Whatever the project chose to publish |
 | 3 | The in-context listing | always available | Every *name*, minus manual-only skills |
 
@@ -40,23 +40,24 @@ as of 2026-10-11; recheck trigger: a docs page documents the cache layout as sta
 version directory changes on every update. The consuming marketplace's own `skill-quality:check` refuses
 that move on exactly those grounds.
 
-**Rung 1 supplies names only.** Verified against its output: entries are bare leaf names under a
-plugin key, with a version and a manifest flag: no descriptions, no `metadata.*`. That is why
-Ladder B exists rather than being folded into this one.
+**Rung 1 carries descriptions, not stage metadata.** Per inventory's "Skills index" section, each
+record holds `plugin`, `skill`, `name`, `description`, `when_to_use`, `state` and `source`, and no
+`metadata.*`. A remote plugin that is not installed is one plugin-level row with `skill: null`:
+name the plugin, annotated `(not installed)`. Stage metadata comes from reading the shortlisted
+SKILL.md files, which is why Ladder B stays separate.
 
 **Read its output from stdout; never pass `--out` into the consuming project.** Inventory's own
-documented example writes `./claude-inventory.json` into the working directory. `recommend-skills`
+default run writes `./claude-inventory.json` into the working directory. `recommend-skills`
 advertises the Spotlight ledger as its only write, so leaving an untracked artifact in a consumer's
 repository just to render a menu would break that promise. If a temporary file is unavoidable in
 some environment, it belongs in a temp path that is cleaned up, never in the project tree.
 
-**Installed is not invocable, so reconcile against the enabled set.** Inventory reports
-`installed_plugins` and `enabled_plugins` as distinct keys, and its own contract asks callers to
-"report the one the question is actually about, and say which you used". A plugin can sit in the
-cache while `enabledPlugins` does not load it, so its skills cannot run. Following rule 1, a skill
-from an installed-but-disabled plugin is **named with a `(plugin not enabled)` annotation**, never
-silently listed as runnable and never silently dropped, the same annotate-don't-omit treatment a
-`skillOverrides: "off"` skill gets. State which set the pool was built from.
+**Present is not invocable, so carry the state.** A `disabled` skill sits on disk but does not
+load; a `not-installed` one is in an added marketplace but not on this machine. Following rule 1,
+each is **named with a `(disabled)` or `(not installed)` annotation**, never listed as runnable and
+never silently dropped, the same annotate-don't-omit treatment a `skillOverrides: "off"` skill
+gets. Only the operator's `recommend_skills_exclude` setting drops a state, and the output says
+which states it dropped.
 
 **Rung 2's shape.** The consuming project publishes a catalog at a documented path it declares; a
 marketplace that generates one already has the right artifact shape. In the source marketplace here,
@@ -72,7 +73,7 @@ have it. Resolve whatever path the project declares; if none is declared, this r
 
 | Rung | Source | Yields |
 |---|---|---|
-| 1 | Frontmatter read, where the SKILL.md files are reachable | Full untruncated `description` plus `metadata.workflow-stage` / `summary` |
+| 1 | The index row, plus a frontmatter read of each shortlisted SKILL.md that is on disk | Full untruncated `description` and `when_to_use`; `metadata.workflow-stage` / `summary` for the shortlist |
 | 2 | The in-context listing's surviving descriptions | Whatever escaped the budget |
 | 3 | Nothing | Name only |
 

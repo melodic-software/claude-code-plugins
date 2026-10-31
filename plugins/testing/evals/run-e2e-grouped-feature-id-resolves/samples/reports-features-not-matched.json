@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "touched features not matched (app-control not installed)",
+      "why": "the literal report line"
+    },
+    {
+      "answer": "- **Touched features not matched (app-control not installed).** Nothing was refreshed.",
+      "why": "capitalized and bold"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "## Next\n\n- All scenarios pass: /review:quality-gate.",
+      "why": "says nothing about the match"
+    },
+    {
+      "answer": "billing/export | changed: shop/billing/export/csv.py | control skill not refreshed (app-control not installed)",
+      "why": "matches the feature itself, the removed report line"
+    },
+    {
+      "answer": "## Next\n\n- `/app-control:map refresh billing/export`",
+      "why": "the removed refresh step"
+    }
+  ]
+}

@@ -1,11 +1,11 @@
 ---
-description: "CI security review rates a kill-switch change that lets every lane run when its variable is unset CRITICAL, though the description calls it a refactor"
+description: "CI security review reports a kill-switch change that lets every lane run when its variable is unset, though the description calls it a refactor, and rates it IMPORTANT, the kill switch's cap"
 tags: [review, security-review, trust-controls]
 runs: 3
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports that .github/actions/check-kill-switch/decide.mjs now lets a lane run when the variable is unset, empty or any value but true or 1, where main stopped every lane unless it read exactly false, so the kill switch no longer stops lanes when it cannot be read. It rates that finding CRITICAL and its summary's critical-findings line counts at least one"
+expected_outcome: "The review reports that .github/actions/check-kill-switch/decide.mjs now lets a lane run when the variable is unset, empty or any value but true or 1, where main stopped every lane unless it read exactly false, so the kill switch no longer stops lanes when it cannot be read. It rates that finding IMPORTANT, since a kill switch on its own never reaches CRITICAL and this change opens no path to a leak, a compromise or a charge, and its summary's critical-findings line is 0"
 ---
 
 /review:security-review

@@ -173,6 +173,13 @@
       "default": "offer",
       "options": ["off", "offer"]
     },
+    "recommend_skills_exclude": {
+      "type": "string",
+      "title": "Recommend-skills exclusions",
+      "description": "Which skill states /session-flow:recommend-skills leaves out of its menu: none (default) names every skill, annotating disabled and not-installed ones; the others drop disabled skills, skills not installed, or both. The menu says which states it dropped.",
+      "default": "none",
+      "options": ["none", "disabled", "not-installed", "disabled,not-installed"]
+    },
     "orient_catch_up_word_cap": {
       "type": "number",
       "title": "Orient catch-up word cap",
