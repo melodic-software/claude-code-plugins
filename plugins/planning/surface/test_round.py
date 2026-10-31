@@ -5232,7 +5232,9 @@ class TestConstraintRecheck(DirCase):
         self.assertEqual(self.status(), {})
         self.new_constraint()
         self.assertEqual(self.status(), {"Q1": ["C2"], "Q2": ["C2"]})
-        self.assertEqual(self.state("Q1"), "stale")
+        # Both wait on Claude: only a revise or reconfirm clears the mark, so an answered
+        # question must not read stale, which asks the user to pick again.
+        self.assertEqual(self.state("Q1"), "upstream-changed")
         self.assertEqual(self.state("Q2"), "upstream-changed")
 
     def test_revise_naming_the_constraint_clears_only_that_question(self):

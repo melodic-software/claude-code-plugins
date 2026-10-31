@@ -548,7 +548,11 @@ print(json.dumps({"live": len(live), "answered": sum(r[1] == "answered" for r in
     grun 11
     printf '%s' '{"ops": [{"op": "constraint", "text": "Builds stop at ten minutes."}, {"op": "constraint", "text": "Stdlib only."}]}' >"$pg/ops/k.json"
     bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/k.json" >/dev/null || bad "page: constraint ops refused"
+    printf '%s' '{"ops": [{"op": "revise", "id": "Q1", "checkedAgainst": ["C1"], "force": true}]}' >"$pg/ops/k1.json"
+    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/k1.json" >/dev/null || bad "page: checkedAgainst revise refused"
     grun 12
+    printf '%s' '{"ops": [{"op": "revise", "id": "Q1", "checkedAgainst": ["C1", "C2"], "force": true}]}' >"$pg/ops/k2.json"
+    bash "$here/round.sh" --dir "$pg" apply --file "$pg/ops/k2.json" >/dev/null || bad "page: checkedAgainst revise refused"
     # Phases 13 and 14, the frontier lock: Q11 is open in round 2 and Q12 in round 3 depends on it.
     # Phase 13 runs the default confirm; the shell then sets the data dir's lock to hard.
     printf '%s' '{"ops": [{"op": "add", "question": {"id": "Q11", "group": "g1", "stage": "interview", "round": 2, "short": "Rollout", "title": "How wide is the first rollout?", "recommendation": "One region.", "dependsOn": [], "commits": [], "alternatives": [{"key": "a", "text": "Every region"}, {"key": "b", "text": "Staff only"}]}},

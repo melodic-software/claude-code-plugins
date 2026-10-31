@@ -757,7 +757,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     let ev = null; for (const e of events()) if (e.id === q.id && DEC.has(e.kind) && !e.withdrawn && (!ev || e.seq > ev.seq)) ev = e;
     return ev && ev.kind !== "reopen" ? ev.outOfOrder || [] : [];
   }
-  const isCons = id => /^C[0-9]+$/.test(id), consOf = q => (q.changedBy || []).filter(isCons); // the constraints q's recommendation was not checked against
+  const isCons = id => /^C[0-9]+$/.test(id); // a changedBy id naming a constraint q's recommendation was not checked against
   function staleBy(q){ // the prerequisites decided after this question was, or the questions whose recommendation changed
     if ((q.upstreamChanged || []).length) return q.upstreamChanged;
     const ps = [...new Set([...(q.dependsOn || []), ...aheadOf(q)])].filter(p => Q[p]), mine = lastDecisionSeq(q.id), c = ps.filter(p => lastDecisionSeq(p) > mine); // an out-of-order answer stays owed to a prerequisite its dependsOn has since dropped
@@ -827,7 +827,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   }
   const lockText = q => "Locked: waits on " + joinIds(openPrereqs(q)) + ", still open. " + lockAdvice(q);
   const upLock = q => lockMode() === "off" ? [] : changedBy(q); // the server refuses a decision on it under confirm and hard
-  const upText = q => "The answer to " + joinIds(changedBy(q)) + " changed or was reopened, and Claude has not revised or reconfirmed " + q.id + " yet." + (upLock(q).length ? " Save stays locked until it does; Ask, Rephrase and Research this still work." : " You can still answer.");
+  const upCause = (q, list) => { // why q is upstream-changed: answers that changed, constraints added since its recommendation
+    const ids = changedBy(q), ans = ids.filter(i => !isCons(i)), cons = ids.filter(isCons);
+    return [ans.length ? "the answer to " + list(ans) + " changed or was reopened" : "", cons.length ? "constraint " + joinIds(cons) + " was added after this recommendation" : ""].filter(Boolean).join(", and ");
+  };
+  const upText = q => { const c = upCause(q, joinIds); return c[0].toUpperCase() + c.slice(1) + ", and Claude has not revised or reconfirmed " + q.id + " yet." + (upLock(q).length ? " Save stays locked until it does; Ask, Rephrase and Research this still work." : " You can still answer."); };
   const settled = q => isAnswered(stateOf(q)) && !needsYou(q);
   function wrapFreeze(){ // ms left in the wrap-up freeze on decision saves
     const w = events().filter(e => e.kind === "wrapup" && !e.withdrawn).pop();
@@ -1382,9 +1386,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (links) h += '<div class="links">' + links + "</div>";
     h += reconcilesHtml(q);
     if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer " + refHtml(chainEnd(q)) + " instead." : q.archived ? lineHtml(q.archived.why || "off the current path") : q.proposed ? "you declined Claude's proposal." : "off the current path") + "</div>"; // a replacement named here is the one banner for a superseded, archived card
-    if (consOf(q).length) h += '<div class="banner"><b>Upstream changed:</b> ' + esc(consOf(q).join(", ")) + " was added after this recommendation was written, and Claude has not checked it against it yet. The interview cannot lock until Claude revises or reconfirms " + esc(q.id) + ".</div>";
-    else if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
-    else if (upChanged(q)) h += '<div class="lockban" id="upstreamChanged">' + (upLock(q).length ? LOCK_SVG : "") + "<b>Upstream changed, not handled yet:</b> the answer to " + changedBy(q).map(refHtml).join(" ") + " changed or was reopened, and Claude has not revised or reconfirmed " + esc(q.id) + " yet. " + (upLock(q).length ? "Save stays locked until it does; Ask, Rephrase and Research this still work." : "You can still answer.") + "</div>";
+    if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
+    else if (upChanged(q)) h += '<div class="lockban" id="upstreamChanged">' + (upLock(q).length ? LOCK_SVG : "") + "<b>Upstream changed, not handled yet:</b> " + upCause(q, ids => ids.map(refHtml).join(" ")) + ", and Claude has not revised or reconfirmed " + esc(q.id) + " yet. " + (upLock(q).length ? "Save stays locked until it does; Ask, Rephrase and Research this still work." : "You can still answer.") + "</div>";
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + waitOn(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. Reconfirm " + esc(waitOn(q).join(", ")) + " (under Review), or answer this one anyway.</div>";
     const planned = planChange(q);
     if (planned && !(d && d.decision && !d.aside)) h += '<div class="banner" id="planban"><b>/planning:plan changed your answer.</b> Was: ' + lineHtml(planned.was) + ". Plan proposes: " + lineHtml(planned.proposes) + ". Reconfirm the proposal or keep yours.</div>";

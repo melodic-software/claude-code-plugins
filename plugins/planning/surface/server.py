@@ -397,9 +397,9 @@ def derive_states(doc, r):
     happened, so an undo clears what it caused. A question with a stale ancestor further up is
     upstream-pending, and upstream_stale maps it to every stale ancestor, nearest first and ties
     by id; `archived` wins over all three, then stale, then upstream-changed. A question whose
-    `checkedAgainst` lacks a recorded constraint (unchecked_constraints) is stale when it holds a
-    live decision, else upstream-changed; the constraint ids join upstream_changed and changed_by,
-    and only a revise or reconfirm that fills the list clears it. A question the
+    `checkedAgainst` lacks a recorded constraint (unchecked_constraints) is upstream-changed even
+    with a live decision: only a revise or reconfirm that fills the list clears it, so it waits on
+    Claude, never on a new pick. The constraint ids join changed_by. A question the
     propose op added is `proposed` until a live proposal event answers it, `archived` once the
     latest one declines it, and derived as any other question once it accepts or edits it
     (proposal_answer). `revising` marks a question with its own delivered, unhandled decision
@@ -536,9 +536,7 @@ def derive_states(doc, r):
         if qid in archived or qid in proposed:
             continue
         pending[qid] = [*pending.get(qid, []), *missing]
-        if live.get(qid):
-            stale.add(qid)
-            changed[qid] = [*changed.get(qid, []), *missing]
+        stale.discard(qid)
 
     def upstream(qid):  # stale ancestors, nearest first, ties by id
         seen, level, found = {qid}, list(deps.get(qid, [])), []
