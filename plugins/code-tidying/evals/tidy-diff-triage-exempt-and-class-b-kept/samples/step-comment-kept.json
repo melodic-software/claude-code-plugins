@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "import { db } from \"./db\";\n\n/**\n * Loads a user.\n * @param userId - the ID of the user\n */\nexport async function loadUser(userId: string) {\n  return db.users.find(userId);\n}\n\nexport function importUsers(raw: string) {\n  // Step 1: parse input\n  const records = raw\n    .split(\"\\n\")\n    .filter((line) => line.trim() !== \"\")\n    .map((line) => line.split(\",\"));\n  // NOT thread-safe; callers serialize imports\n  records.sort((a, b) => a[0].localeCompare(b[0]));\n  for (const record of records) {\n    db.users.insert({ id: record[0], name: record[1] });\n  }\n}\n",
+      "why": "step comment kept"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "import { db } from \"./db\";\n\n/**\n * Loads a user.\n * @param userId - the ID of the user\n */\nexport async function loadUser(userId: string) {\n  return db.users.find(userId);\n}\n\nexport function importUsers(raw: string) {\n  const records = raw\n    .split(\"\\n\")\n    .filter((line) => line.trim() !== \"\")\n    .map((line) => line.split(\",\"));\n  // NOT thread-safe; callers serialize imports\n  records.sort((a, b) => a[0].localeCompare(b[0]));\n  for (const record of records) {\n    db.users.insert({ id: record[0], name: record[1] });\n  }\n}\n",
+      "why": "step comment deleted"
+    },
+    {
+      "answer": "import { db } from \"./db\";\n\n/**\n * Loads a user.\n * @param userId - the ID of the user\n */\nexport async function loadUser(userId: string) {\n  return db.users.find(userId);\n}\n\nexport function importUsers(raw: string) {\n  const records = parseInput(raw);\n  // NOT thread-safe; callers serialize imports\n  records.sort((a, b) => a[0].localeCompare(b[0]));\n  for (const record of records) {\n    db.users.insert({ id: record[0], name: record[1] });\n  }\n}\n",
+      "why": "extracted"
+    }
+  ]
+}
