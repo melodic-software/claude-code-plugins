@@ -23,7 +23,7 @@
       "id": "pos-train-03",
       "split": "train",
       "expect_trigger": true,
-      "request": "I get overwhelmed by long answers. Going forward, number the steps and give me a time estimate for each."
+      "request": "I get overwhelmed by long answers. Going forward, number the steps and tell me how big each one is."
     },
     {
       "id": "pos-train-04",

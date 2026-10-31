@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: uc3-error-states-name-recovery
+description: "Use case 3 error boundaries: each error state in the sign-up to first-recipe flow says what went wrong and names a specific recovery action. Written from MB:plugins/user-experience/reference/flows-ia.md:65-67 (the base contract: errors at every step boundary say what went wrong and how to fix it). Head words this as a specific recovery action on error pages; both versions require the same outcome."
+tags: [use-case, uc3, errors]
+runs: 3
+expected_outcome: "A sign-up to first saved recipe flow built from docs/PRD.md and the app routes in which every error state named (for example an expired verification link, an email already registered, a failed URL import, a failed save) says what went wrong and gives the person a specific way to recover, such as resending the link, signing in instead, or typing the recipe in by hand with the imported part kept."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Map the sign-up to first-success flow for this app, from a new visitor opening the sign-up page to saving their first recipe. For each step, list the errors it can hit and what the person sees and can do when each one happens. This run cannot write files, so put everything in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900

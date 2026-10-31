@@ -3,6 +3,18 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-10-31
+
+### Changed
+
+- `/performance:go-faster` takes `--unattended` in place of the bare word `unattended`, accepted anywhere in its arguments; the bare word leaves the run attended. The flag still sets `MODE` and `findings.py`'s `--mode` to `unattended` and reaches neither the script nor the sweeper itself. The argument hint lists `--unattended`, and the evals pass the flag.
+
+## [0.12.11] - 2026-10-31
+
+### Fixed
+
+- `/performance:go-faster`'s orchestration area points at the upstream section behind the older `Task` tool name.
+
 ## [0.12.10] - 2026-10-31
 
 ### Changed

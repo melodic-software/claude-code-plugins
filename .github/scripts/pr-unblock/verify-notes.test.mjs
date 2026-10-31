@@ -3,7 +3,9 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { WITHHELD_SUMMARY } from "../pr-verify/write-verdict.mjs";
 import { keepThreads, staleVerifyNotes, threadAuthors, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { CREDENTIAL_HOLD } from "./gate-source.mjs";
 import { failComment, main, noteComments, notePath, postNotes, readVerdict } from "./verify-notes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -112,6 +114,7 @@ test("the verdict must be the fail its artifact name names", () => {
     verdict: "fail",
     summary: "Spec item 2 is unmet.",
     notes: ["`plugins/x/a.py:12` returns early.", "No test covers it."],
+    withheld: false,
   });
   for (const [name, text] of [
     [`pr-verify-42-${HEAD}-pass`, verdictText()],
@@ -154,6 +157,98 @@ test("a name that carries issue numbers must carry the ones the verdict records"
   ]) {
     assert.throws(() => readVerdict(name, verdictText({ head_ref: "feat/x", linked_issues: recorded })), name);
   }
+});
+
+const WITHHELD = { pr: 42, head: HEAD, verdict: "fail", summary: WITHHELD_SUMMARY, notes: [], withheld: true };
+const credentialComment = (body = `${CREDENTIAL_HOLD}\n\npr-verify withheld its fail at head \`${HEAD}\`: see above.`, id = ACTIONS_BOT) => ({ id: 1, user: { id }, body });
+const ops = (api) => api.writes.map(({ op }) => op);
+
+test("readVerdict carries the recorded withheld flag, and only that", () => {
+  assert.equal(readVerdict(NAME, verdictText({ withheld: true })).withheld, true);
+  assert.equal(readVerdict(NAME, verdictText({ summary: WITHHELD_SUMMARY })).withheld, false);
+  for (const withheld of [false, "true", 1, null]) {
+    assert.throws(() => readVerdict(NAME, verdictText({ withheld })), /does not record/, String(withheld));
+  }
+});
+
+test("a withheld fail holds for a person with a security reason, even after the head moved", async () => {
+  const verdict = { ...WITHHELD, summary: `Chunk 1 of 2, fail: ${WITHHELD_SUMMARY}` };
+  for (const pull of [{}, { user: { id: 7 } }, { head: { sha: OLD_HEAD } }]) {
+    const api = fakeApi({ pull });
+    await postNotes({ api, verdict, appId: APP, humanGatedLabel: () => "held-for-person", log: () => {} });
+    const [label, comment] = api.writes;
+    assert.deepEqual(label, { op: "label", pr: 42, names: ["held-for-person"] });
+    assert.equal(comment.op, "comment");
+    assert.equal(comment.body.split("\n")[0], CREDENTIAL_HOLD);
+    assert.match(comment.body, /^<!-- stop-reason lane=pr-verify reason=security -->\nReason: `security`\n/);
+    assert.match(comment.body, /rotate any that is real/);
+    assert.ok(comment.body.includes(`head \`${HEAD}\``));
+  }
+});
+
+test("a fail that only quotes the withheld sentence gets no hold", async () => {
+  const api = fakeApi();
+  await postNotes({ api, verdict: { ...WITHHELD, withheld: false }, appId: APP, log: () => {} });
+  assert.deepEqual(api.writes, []);
+});
+
+test("the security comment posts once per head, under a label already on for another reason", async () => {
+  const run = async (fake) => {
+    const api = fakeApi({ labels: ["needs-human"], ...fake });
+    await postNotes({ api, verdict: WITHHELD, appId: APP, log: () => {} });
+    return ops(api);
+  };
+  assert.deepEqual(await run({}), ["comment"]);
+  assert.deepEqual(await run({ issueComments: [credentialComment()] }), [], "a re-run posts nothing twice");
+  assert.deepEqual(await run({ labels: [], issueComments: [credentialComment()] }), ["label"], "a re-run resends the label alone");
+  assert.deepEqual(await run({ issueComments: [credentialComment(`${CREDENTIAL_HOLD}\n\npr-verify withheld its fail at head \`${OLD_HEAD}\`: see above.`)] }), ["comment"], "another head's comment");
+  assert.deepEqual(await run({ issueComments: [credentialComment(undefined, PERSON)] }), ["comment"], "a person's copy");
+  assert.deepEqual(await run({ issueComments: [credentialComment(`A quote.\n${CREDENTIAL_HOLD} \`${HEAD}\``)] }), ["comment"], "the marker off the first line");
+});
+
+test("a hold leaves the merge queue at any head, after the label", async () => {
+  const api = fakeApi({ pull: { head: { sha: OLD_HEAD } }, queued: true });
+  await postNotes({ api, verdict: WITHHELD, appId: APP, log: () => {} });
+  assert.deepEqual(ops(api), ["label", "comment", "dequeue"]);
+});
+
+test("a closed or merged pull request gets the label and the comment, and no queue step", async () => {
+  for (const pull of [{ state: "closed" }, { state: "closed", merged: true }]) {
+    const api = { ...fakeApi({ pull, queued: true }), readQueueEntry: async () => assert.fail("a closed pull request has no queue entry") };
+    assert.equal(await postNotes({ api, verdict: WITHHELD, appId: APP, humanGatedLabel: () => "held-for-person", log: () => {} }), false);
+    assert.deepEqual(ops(api), ["label", "comment"]);
+    assert.deepEqual(api.writes[0].names, ["held-for-person"]);
+  }
+});
+
+test("a failed hold step leaves the other steps, the fail comment and the notes done, then fails", async () => {
+  const refused = (api, method) => ({
+    ...api,
+    [method]: async () => {
+      throw new Error(`${method} refused`);
+    },
+  });
+  // A lanes App pull request: each hold step refused in turn, notes posted.
+  for (const [method, left] of [
+    ["addLabels", ["comment", "dequeue"]],
+    ["createIssueComment", ["label", "dequeue"]],
+    ["dequeuePull", ["label", "comment"]],
+  ]) {
+    const api = fakeApi({ queued: true });
+    await assert.rejects(postNotes({ api: refused(api, method), verdict: WITHHELD, appId: APP, log: () => {} }), new RegExp(`${method} refused`));
+    assert.deepEqual(ops(api), left, method);
+    assert.equal(api.created.length, 1, `${method} leaves the notes`);
+  }
+  // A person's pull request: its fail comment and label still land.
+  const person = fakeApi({ pull: { user: { id: 7 } } });
+  await assert.rejects(postNotes({ api: person, verdict: WITHHELD, appId: APP, humanGatedLabel: () => assert.fail("the config is unreadable"), log: () => {} }));
+  assert.deepEqual(ops(person), ["comment", "comment", "label"]);
+  assert.deepEqual(person.writes[2].names, ["pr-verify-failed"]);
+  // Both failing: the hold's error is the one thrown, and the other is logged.
+  const lines = [];
+  const both = refused(refused(fakeApi(), "addLabels"), "createReviewComment");
+  await assert.rejects(postNotes({ api: both, verdict: WITHHELD, appId: APP, log: (line) => lines.push(line) }), /addLabels refused/);
+  assert.ok(lines.includes("::error::createReviewComment refused"), lines.join("\n"));
 });
 
 test("the notes are posted as file comments on the judged head, once", async () => {
@@ -324,6 +419,17 @@ test("main names the PR and head only once the notes are on the PR", async () =>
   // A person's PR starts no round: the label holds it.
   await main(env, { api: fakeApi({ pull: { user: { id: PERSON } } }), log: () => {} });
   assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "");
+  // A tracker config no one can read stops only the label a withheld fail needs.
+  const broken = join(dir, "tracker.json");
+  writeFileSync(broken, "{");
+  const malformed = { ...env, TRACKER_CONFIG: broken };
+  await main(malformed, { api: fakeApi(), log: () => {} });
+  assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `pr-number=42\nhead-sha=${HEAD}\n`);
+  writeFileSync(env.VERDICT_FILE, verdictText({ withheld: true }));
+  const api = fakeApi();
+  await assert.rejects(main(malformed, { api, log: () => {} }), /cannot read/);
+  assert.deepEqual(ops(api), ["comment"]);
+  assert.equal(api.created.length, 1, "the notes still post");
 });
 
 // A review thread as address-feedback.mjs listThreads reads it: `root` is its

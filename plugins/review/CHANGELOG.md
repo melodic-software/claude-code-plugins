@@ -3,6 +3,33 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.8] - 2026-10-31
+
+### Changed
+
+- Shared `publish-gate.mjs` synced where this plugin carries it: the page stamp it removes before scanning now matches only the builders' own stamp names, so a token inside a look-alike comment is still found; no other change to this plugin.
+
+## [2.0.7] - 2026-10-31
+
+### Fixed
+
+- The publish gate now catches a credential that a line break splits in two: it also reads each pair of adjacent lines joined, raw and normalized. A password or secret assignment split across two lines is caught too. The OpenAI key and the R2 key pair patterns still read one line at a time, so an `sk-` word ending a line or an md5 line above a sha256 line raises nothing. Machine paths and hostnames are still read one line at a time.
+
+## [2.0.6] - 2026-10-31
+
+### Fixed
+
+- The publish gate now catches a credential or machine path hidden by fullwidth look-alike characters, zero-width characters or soft hyphens, JSON `\uXXXX` escapes, nested tags or double-encoded entities, or a markdown backslash escape such as `\_`. A backslash before `/`, `.`, `"` or `'` is still read as written. The lanes' leak scan now also reads each file as UTF-8, so a credential hidden by a zero-width character, a soft hyphen or a fullwidth look-alike blocks there too.
+
+## [2.0.5] - 2026-10-31
+
+### Fixed
+
+- `/review:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
 ## [2.0.4] - 2026-10-31
 
 ### Fixed

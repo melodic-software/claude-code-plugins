@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Before I collect anything, here is the run:\n\n- Window: 2026-10-20 to today, one fixed window for every source\n- Providers: Northwind, Contoso\n- Source classes: official vendor blogs and release notes, GitHub releases, RSS feeds, secondary reporting\n- Profile: default\n- Output: markdown\n\n",
+      "why": "Profile: default"
+    },
+    {
+      "answer": "Using the default profile (no --profile given).",
+      "why": "default profile"
+    },
+    {
+      "answer": "Selected profile: `default`",
+      "why": "selected profile"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Window: 2026-10-20. Providers: Northwind, Contoso. Format: markdown. Proceed?",
+      "why": "profile missing"
+    },
+    {
+      "answer": "Profile: team-sync",
+      "why": "different profile"
+    }
+  ]
+}

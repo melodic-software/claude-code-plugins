@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".work/youtube-watch/QUEUE.md"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        "QUEUE.md"
+      ]
+    },
+    {
+      "answer": [
+        "my-library/.work/youtube-watch/QUEUE.md"
+      ]
+    },
+    {
+      "answer": [
+        ".work/QUEUE.md"
+      ]
+    }
+  ]
+}

@@ -50,12 +50,16 @@
 # real commands and was rejected on that measurement. This guard does not
 # inherit that objection: it reads a cheap substring first, so a command whose
 # text holds none of `rm`, `-delete`, `.delete`, `unlink`, `rsync`,
-# `robocopy`, `worktree` and `remove` never reaches the parse at all. The
+# `robocopy`, `worktree`, `remove`, `mv`, `truncate`, `shred`, `of=`, the
+# decoder names (`base64`, `base32`, `basenc`, `xxd`) and `cmd` followed by
+# `rd` never reaches the parse at all. The
 # prefilter is a SUBSTRING match, not a token one, so `npm run format` does
 # reach the tokenizer and is allowed there on its command word. The path question is
 # asked only once a recursive `rm`, a deleting find, a deleting rsync, a
-# deleting robocopy, a forced git worktree remove or an interpreter's deleter
-# call, run directly or by xargs or parallel, is established.
+# deleting robocopy, a forced git worktree remove, an interpreter's deleter
+# call, a move or a content destroyer, run directly or by xargs or parallel,
+# is established. A decoder sink asks no path question: it is refused
+# outright.
 #
 # FIND DELETES. `find -delete`, and a find whose expression runs `rm`, `rmdir`
 # or `unlink` as the command word of an -exec, -execdir, -ok or -okdir action,
@@ -189,6 +193,160 @@
 # or parallel item included) is not a target: a deleter given one is refused
 # above as a path the code computes.
 #
+# DECODER SINKS. A decoder feeding an execution sink is refused outright,
+# whatever the decoded text targets, because that text never appears in the
+# command and no arm can judge it; an attended session is denied too. The
+# decoders: base64, base32 and basenc with -d, -D or a prefix of --decode,
+# xxd with -r, and PowerShell's [Convert]::FromBase64String. A decoder writes
+# decoded text unless its stdout is redirected or it is given an output file
+# (-o or --output; xxd's second operand), so `base64 -d x > out.bin`, `xxd -r
+# dump.hex out.bin` and `base64 -d x | less` pass. Bash sinks: a shell (bash,
+# sh, zsh, dash, ksh, mksh) or a source of /dev/stdin reading its program from
+# a pipe a decoder feeds, through any stage but a pager (`echo <b64> | base64
+# -d | tr -d '\r' | sh`), the first command of a -c operand or an eval text
+# included (`... | sh -c sh`); and, in a parse holding a paren or a backtick,
+# a decoder after a command whose program a substitution supplies: eval, a
+# shell's -c operand, a shell or source with no operand (`bash <(...)`,
+# `source <(...)`), a command word that is itself an unquoted `$(...)`, and a
+# backtick where a command starts. The program an eval or a -c operand runs,
+# a here-string a stdin shell reads as its program, and a command interpreter
+# code runs are parsed as commands, so `eval "$(echo <b64> | base64 -d)"`,
+# `bash -c "$(base64 -d <<< <b64>)"` and `bash <<< "$(base64 -d x)"` are
+# refused, and so is a decoder piped into a shell inside a substitution body.
+# PowerShell: a
+# statement is decoded when a word of it is the [Convert]::FromBase64String (or
+# [System.Convert]::FromBase64String) call, a grouping or `$( )` inside it is,
+# or a decoded stage pipes into it, and Invoke-Expression or iex given one is
+# refused (`iex ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b)))`,
+# `... | iex`). A decoder named inside quoted prose (`git commit -m "base64 -d
+# | sh"`) is one argv word, never a command, and stays allowed.
+#
+# POWERSHELL INDIRECTION AND PIPELINES (#9765). On the PowerShell tool a
+# delete run through another command is judged as the delete itself, each
+# target through every arm below:
+#   * Invoke-Expression (iex): its -Command string, positional or named, is
+#     walked as PowerShell, and so is a string a pipe hands it from a stage
+#     of one word or a Write-Output, echo or write of one (Invoke-Expression,
+#     learn.microsoft.com).
+#   * pwsh -Command and powershell -Command: -Command (-c, or a prefix of it)
+#     runs every word after it joined by spaces, -CommandWithArgs (-cwa) the
+#     word after it, and the first word that is no option starts -Command
+#     text too; each is walked as PowerShell. -EncodedCommand (-e, -ec, or a prefix of it) is
+#     base64 of UTF-16LE (about_Pwsh, about_PowerShell_exe), decoded with
+#     bash builtins and walked; a value that is not literal base64, or that
+#     decodes to anything but printable ASCII, tab and line breaks, is denied
+#     whether or not the session is attended, as a decoder sink is.
+#   * Start-Process (saps, start): -FilePath is the program and -ArgumentList
+#     is joined by spaces into the one command line it gets (Start-Process,
+#     learn.microsoft.com), split as cmd splits one and judged as that
+#     program's statement (cmd /c rd /s, robocopy, rm, pwsh, powershell).
+#     A literal -WorkingDirectory on Start-Process, pwsh or powershell adds a
+#     directory a relative target may land from, as a literal cd does in the
+#     Bash lane; one it cannot place changes nothing.
+#   * Pipeline removals (`gci X | Remove-Item`): a Remove-Item stage (any
+#     alias) with no path of its own, recursive or not, and a stage whose
+#     scriptblock removes the pipeline item (`% { $_.Delete() }`,
+#     `$PSItem.Delete()`, Remove-Item of `$_` or `$_.FullName`) remove what
+#     the stage before lists. When that
+#     stage is a Get-ChildItem or Get-Item (gci, dir, ls, gi), through
+#     Where-Object, Sort-Object or a Select-Object that only keeps some items,
+#     each path it lists from is judged (each element of a comma list), `.`
+#     when it names none and no pipe feeds it. A recursive removal or an item
+#     removal fed by anything else, a listing a pipe feeds included, is
+#     refused, because its target cannot be named.
+#   * .NET deletes: [IO.Directory]::Delete and [IO.File]::Delete (any
+#     `[<type>]::Delete(` call) have their first argument judged, and
+#     `(Get-Item X).Delete()` its listing's path, with or without the
+#     recursive flag (System.IO.Directory.Delete, learn.microsoft.com). A
+#     grouping, array, subexpression or call as that argument is refused, and
+#     so is .Delete() on a grouping that is not one listing statement; another
+#     expression is judged by its first word.
+# The nested text counts toward MAX_SEGMENT_DEPTH and toward the
+# MAX_COMMAND_LEN total eval text reads, and past either it refuses. Each
+# source was read 2026-10-31; recheck when pwsh changes its -Command or
+# -EncodedCommand reading. A mechanism named inside quoted prose (`git commit
+# -m "Start-Process cmd '/c rd /s /q C:\'"`) is one word of another command
+# and stays allowed.
+#
+# MOVES AND CONTENT DESTROYERS (#9767). A move takes what it names away from
+# where it was, and a content destroyer keeps the file but not what it held,
+# so each such target is judged as an operand of a recursive rm, through every
+# arm below:
+#   * mv: each source, which is every operand but the last, or every operand
+#     with -t or --target-directory, whose argument is the directory moved
+#     into (mv(1)). A move onto /dev/null is judged by its source like any
+#     other (`mv ~ /dev/null`). A last word that can become several words (an
+#     unquoted brace, glob, `$` or backtick, or a quoted "$@" or "${a[@]}")
+#     makes all but its final word sources, so with one every operand is
+#     judged.
+#   * truncate, which shrinks or extends each file to a size, and shred, which
+#     overwrites each file (truncate(1), shred(1)): every operand. The word
+#     after -r or -s (truncate), or -n or -s (shred), is that option's
+#     argument, and so is the one after its long name written without `=`.
+#   * dd: the file each of= names, which dd writes instead of standard output
+#     (dd(1)), unless it is /dev/null, /dev/stdout or /dev/stderr.
+#   * On the PowerShell tool, Move-Item (mi, move, and mv on Windows),
+#     Clear-Content (clc) and a Set-Content that writes several files: each
+#     -Path or -LiteralPath (PSPath, LP) element, or the first positional
+#     argument when neither is named, every element of a comma list
+#     included (Move-Item, Clear-Content, Set-Content, learn.microsoft.com).
+#     Set-Content is judged only with more than one element, a -Path holding
+#     `*`, `?` or `[`, or the pipeline item as its path, because writing one
+#     named file is an ordinary write, as `>` is in Bash. With no path and a
+#     pipe into it, the Get-ChildItem or Get-Item stage before it is judged
+#     as a pipeline removal's is. Move-Item moves a directory's children with
+#     it, so it refuses any other feed, as a recursive Remove-Item does. A
+#     grouping as a judged path is refused.
+# Options are read as getopt_long reads them, anywhere up to `--`, an
+# unambiguous prefix of a long option included; a word an option takes after
+# an operand is judged as an operand too, because under POSIXLY_CORRECT options
+# end at the first operand. Items xargs or parallel hand one of these commands
+# are judged as a recursive rm's are, and there mv's last written word is
+# judged too, because the items may follow it; a dd whose every of= names a
+# stream writes nothing, so its items are not judged. The coreutils 9.11
+# pages (man7.org) and the PowerShell 7.6 pages were read 2026-10-31; recheck
+# when mv gains another option that names its destination, or Set-Content or
+# Clear-Content gains an alias.
+#
+# SHELLS AND LAUNCHERS FROM BASH (#9768). On the Bash tool a delete run
+# through one of these is judged as the delete itself, each target through
+# every arm below, as the `sh -c`, `su -c` and `env -S` unwrapping judges one:
+#   * eval: its words joined by spaces, as eval joins them, parsed as shell
+#     text.
+#   * watch: the words after its options (getopt `+bCcefd::ghq:n:prs:twvx` in
+#     procps-ng src/watch.c, where -n, -q and -s take an argument), joined by
+#     spaces and parsed as the text it hands `sh -c`, or with -x or --exec
+#     read as the argv it runs (watch(1), man7.org).
+#   * wsl and wsl.exe: the command line it hands the distribution's shell, or
+#     with -e or --exec its argv (hook::wsl_operand). A target is judged as
+#     written, against this host's roots and allowed roots.
+#   * cmd /c or /k, `cmd //c` included (a switch's leading `//` is read as
+#     `/`): one word after the switch is the whole command line, split as cmd
+#     splits one; several are its words, which are also judged as that
+#     command from the Bash tool (rm, robocopy). Each statement of the line,
+#     ended by a word that is `&`, `&&`, `|` or `||`, is judged as the
+#     PowerShell lane judges cmd's: rd or rmdir with /s, and robocopy (cmd
+#     and rd, learn.microsoft.com).
+#   * A code heredoc, and a shell piped its program: a shell or source that
+#     reads its program from stdin (no -c and no script operand, or -s, `-` or
+#     /dev/stdin) runs the heredoc or here-string its last redirection of fd 0
+#     names, or else what the command before it writes into the pipe: the
+#     words an echo writes, read once more with the backslash escapes a POSIX
+#     echo decodes (echo(1p), man7.org), what a printf writes when its format
+#     holds no conversion but %s, %b and %%, and the heredoc or here-string a
+#     cat with no operand writes. That program is parsed as shell text, its
+#     substitutions included (`bash <<'EOF'`, `echo 'rm -rf /' | sh`, `cat
+#     <<'EOF' | sh`). A heredoc program is read once the parse has its body,
+#     and its relative targets are judged from every directory the command
+#     may run from, the ones its own cd lines reach included.
+# The nested text counts toward the MAX_COMMAND_LEN total eval text reads,
+# and all of it but a heredoc program toward MAX_SEGMENT_DEPTH too; past
+# either it refuses. Each
+# source was read 2026-10-31; recheck when watch changes its getopt string or
+# cmd how /c reads its string. A mechanism named inside quoted prose (`git
+# commit -m "echo 'rm -rf /' | sh"`) is one word of another command and stays
+# allowed.
+#
 # PIPELINE-FED DELETES. `xargs` and `parallel` run a command on the items they
 # read, so when that command is a recursive rm or a deleting find (named
 # directly, through a launcher, or in a child shell) the items are its targets.
@@ -282,9 +440,14 @@
 #     direct child of its directory whose name extends the prefix by at least
 #     one character passes, and never one that is itself a symlink, ends in
 #     a dot or a space (Win32 trims them), or is named with a trailing slash
-#     before it exists (a link the same command creates). An entry
-#     that is relative, empty, UNC, holds any other glob character, a line
-#     break or a `..` component, or resolves
+#     before it exists (a link the same command creates). An entry whose `*`
+#     is one whole segment followed by one literal name
+#     (`D:/worktrees/*/.work`) is a SEGMENT entry: only a path strictly under
+#     that name exactly one directory level below its directory passes, never
+#     the name itself, a symlink, a one-level name or a target ending in a
+#     dot or a space, or a target named with a trailing slash before it
+#     exists. An entry that is relative, empty, UNC, holds any other glob
+#     character, a line break or a `..` component, or resolves
 #     to a filesystem root or HOME grants nothing, and no listed root lets
 #     through a filesystem root, HOME or a directory holding HOME. Every other
 #     refusal in this guard runs before this judgment and ignores the key.
@@ -358,7 +521,33 @@
 # perl `unlink glob '*.tmp'`, ruby `%w[...]`), a literal path holding a `$`
 # (`rmtree('a$b')`) or an escape this reading does not decode (`'\x2f'`), a
 # perl hash key named unlink or rmdir (`$h{unlink}`, read as a call on `$_`),
-# and the three launcher lines decided below.
+# a decoder writing to stdout anywhere before a shell on its own across `;`
+# or `&&` (`base64 -d x; ls; bash`, read as a pipe), a decoder writing to
+# stdout anywhere after an unquoted substitution an eval, a -c, a source or a
+# stdin shell runs, or after a substitution in command position (`eval
+# $(ssh-agent -s); base64 -d x`, `source <(kubectl completion bash); base64 -d
+# x`, `` `npm bin`/x; base64 -d f | less ``) or a backtick after a separator
+# inside a quoted string, xargs handing decoded items to a shell (`base64 -d x
+# | xargs sh`), a PowerShell listing of the git toplevel piped into a removal
+# (`gci -Recurse -Filter *.pyc | Remove-Item`, judged as `.`), an item removal
+# fed by anything but a listing (`$files | % { $_.Delete() }`), a .NET delete
+# whose path is an expression judged by its first word
+# (`[IO.Directory]::Delete($env:TEMP + '\x')` as `$env:TEMP`), .Delete() on
+# a grouping that is not one Get-Item or Get-ChildItem statement (a WMI
+# object's), an -EncodedCommand holding text outside printable ASCII, a move
+# into the tree from outside it (`mv ~/Downloads/x.zip .`, whose source is
+# judged as moved away), a bare variable as a move's source or a file a
+# content destroyer names (`mv "$f" out/`, refused as `rm -rf "$f"` is), an
+# unquoted expansion as mv's last word (`mv out.log $TMPDIR/`: it may split
+# into several words, so every operand is judged and `$TMPDIR/` is refused as
+# a bare variable), an option's argument written after an operand (`mv a -t
+# /opt/x`, judged as an operand too), a truncate that only extends a file
+# (`truncate -s +1M /opt/x.img`, judged as if it shrank), an echo, printf or
+# cat ahead of a shell that reads stdin across `;` or `&&` (`echo 'rm -rf /';
+# bash`, read as a pipe), a relative target in a heredoc a shell reads that a
+# later cd in the command moves (`bash <<'EOF'` over `rm -rf build`, then `cd
+# /`: build is judged from `/` too), and the three launcher lines decided
+# below.
 #
 # LAUNCHER LINES REFUSED BY DECISION (#4681). Each is refused although the
 # launcher does not delete the host root, and each stays refused on purpose:
@@ -398,7 +587,10 @@
 #     classifier's sink-attempt budget). Matched: Remove-Item and its aliases
 #     (ri, rm, del, erase, rd, rmdir) with -Recurse on any unambiguous prefix
 #     (-r, -rec, -Recurse) or the bash-in-PS cluster -rf; cmd /c (and /k)
-#     rd /s and rmdir /s; a pipeline into Remove-Item -Recurse with no path.
+#     rd /s and rmdir /s; a pipeline into Remove-Item with no path; the
+#     indirection forms POWERSHELL INDIRECTION AND PIPELINES lists; and
+#     Move-Item, Clear-Content and a Set-Content of several files (MOVES AND
+#     CONTENT DESTROYERS).
 #     A statement ends at `; | & && ||` and at an unquoted newline (LF, CRLF or
 #     a bare CR) that no backtick continues. An unquoted `(`, `$(` or `{`
 #     opens a nested level whose statements are judged on their own, so a
@@ -420,15 +612,42 @@
 #     old one, which still reads every `$` as an expansion, so a literal
 #     `'$env:TEMP'` or `'$HOME\x'` is refused as before. A target holding a
 #     `$` PowerShell expands is left alone, as in Bash.
-#     Still uncovered: Start-Process/iex wrapping a delete, a command word
-#     supplied only by a variable (`& $cmd -Recurse C:\`), nested PowerShell
-#     (`pwsh -Command '...'`), a `$( )` inside a double-quoted string, a
-#     command that is not the first word of its statement (`$r = Remove-Item
-#     -Recurse C:\`), a comma list of targets (`Remove-Item -Recurse ./x,C:\`),
-#     and a here-string, which is read as ordinary quoting: its body is not
-#     judged, and a quote character inside it ends the span early, so the code
-#     after it is not judged either.
-#   * Other delete verbs: `shred`.
+#     Still uncovered: a command word supplied only by a variable (`& $cmd
+#     -Recurse C:\`), a `$( )` inside a double-quoted string, a command that
+#     is not the first word of its statement (`$r = Remove-Item -Recurse
+#     C:\`), a comma list of targets (`Remove-Item -Recurse ./x,C:\`), and a
+#     here-string, which is read as ordinary quoting: its body is not judged,
+#     and a quote character inside it ends the span early, so the code after
+#     it is not judged either. Of the indirection forms (#9765): an iex string
+#     or a Start-Process program or argument list held in a variable or built
+#     by a grouping or `@( )` (one word in a grouping is read as iex's
+#     string), a -WorkingDirectory that is not a literal path, whose program's
+#     relative targets are judged from the payload cwd, a pipe into iex from
+#     any stage but one word or Write-Output of one, `pwsh
+#     -Command -` (stdin) and -File, Start-Process of a shell that is not
+#     PowerShell (`bash -c`), a .Delete() on an object held in a variable or
+#     built another way (`[IO.DirectoryInfo]::new(x).Delete($true)`,
+#     `New-Object`), items a ForEach-Object stage changes before a removal, a
+#     Set-Location before the delete, and an argument list whose quoted
+#     element holds a comma (read as two words).
+#   * In a move or content destroyer: the file mv or Move-Item overwrites at
+#     its destination (only what it moves away is judged), an output
+#     redirection (`> file`), a Set-Content of one file or of a path a
+#     variable or grouping holds, an of= a brace builds (`dd {of=x,if=y}`), a
+#     find action that runs mv, truncate or shred (`-exec mv {} out \;`), mv,
+#     truncate, shred and dd on the PowerShell tool (where `mv` is read as
+#     Move-Item), and Move-Item, Clear-Content and Set-Content from the Bash
+#     tool.
+#   * In a decoder sink: a decoder this guard does not name (openssl base64
+#     -d, uudecode, an interpreter's base64 module), one behind a launcher
+#     (`sudo base64 -d`), decoded text carried through a variable or a file
+#     to the sink (`x=$(base64 -d f); eval "$x"`, `$b = ...; iex $s`), a sink
+#     this guard does not name (an interpreter reading stdin, `pwsh -c -`,
+#     `[scriptblock]::Create`, `&` or `.` of a decoded scriptblock), a quoted
+#     substitution after source or a shell (`source "$(...)"`, read as a file
+#     name), and a backtick after a launcher (`sudo` before one). A heredoc or
+#     here-string a shell reads as its program is parsed as that program
+#     (SHELLS AND LAUNCHERS FROM BASH), so a decoder sink inside it is refused.
 #   * In interpreter code: a script file an interpreter runs, and a program
 #     piped into its stdin (`cat x.py | python3`) or redirected to it from
 #     outside its own command (`{ python3 -; } <<'EOF'`, `0<&3`); an
@@ -484,14 +703,18 @@
 #     PowerShell tool, which is not read. A `--no-force` after -f is read as
 #     forced. Items xargs or parallel hand it are judged as rm operands,
 #     without the trailing-components lookup.
-#   * From the Bash tool, a delete run by a Windows program instead of rm:
-#     `cmd /c rd /s /q <dir>` (or `cmd //c`, `rmdir`) and `powershell -Command
-#     Remove-Item -Recurse <dir>`, and `cmd /c robocopy`. The Bash lane
-#     matches the rm, find, rsync, robocopy, git and interpreter command
-#     words only, and its prefilter passes only text holding `rm`, `-delete`,
-#     `.delete`, `unlink`, `rsync`, `robocopy`, `worktree` or `remove`; cmd
-#     rd /s, cmd /c robocopy and Remove-Item are judged in the PowerShell lane
-#     (#6626).
+#   * From the Bash tool, `powershell -Command Remove-Item -Recurse <dir>`,
+#     which is judged in the PowerShell lane only (#6626), and in a cmd /c
+#     line: a command other than rd, rmdir and robocopy (`del /s`), a
+#     `%NAME%` cmd expands (read as a literal name), a relative target after a
+#     `cd` on the line (judged from the payload cwd), and a separator written
+#     inside a word (`x&rd`), whose two statements are read as one.
+#   * In a shell reading its program from stdin: a file (`sh < x.sh`, `cat
+#     x.sh | sh`), text a filter changes on its way (`echo x | tr a b | sh`),
+#     a printf conversion other than %s and %b, an echo or cat behind a
+#     launcher (`sudo cat <<EOF | sh`), a heredoc a cat pipes to a child
+#     shell whose own command reads it (`cat <<EOF | bash -c sh`), and a
+#     program eval reads (`eval "$(cat)"`).
 #   * Expansion-built targets AND an expansion-built command word. Detection
 #     never evaluates a shell expansion. A bare variable operand is refused
 #     (above), but `rm -rf "$X/build"` is left alone, and so are an unquoted
@@ -543,7 +766,8 @@
 #     `link/..` is read as the directory holding `link`.
 #   * A child shell this guard does not recognize as one. `bash -c`, `sh -c`,
 #     their siblings, `su`'s `-c` / `--command` / `--session-command` operand,
-#     and GNU `env`'s `-S` / `--split-string` operand ARE unwrapped and
+#     GNU `env`'s `-S` / `--split-string` operand, and what eval, watch, wsl
+#     and cmd /c run (SHELLS AND LAUNCHERS FROM BASH) ARE unwrapped and
 #     re-parsed; an interpreter that is not a shell (`python -c`, `perl -e`)
 #     is read by INTERPRETER DELETES instead, for its deleter calls and the
 #     commands it runs.
@@ -580,8 +804,8 @@
 # bare-variable operand, of a protected tree, of a target outside the allowed
 # roots, on items no confined listing produced, or on an interpreter deleter
 # whose path is not a plain string literal, asks the user when the session is attended and exits 2
-# otherwise (hook::refuse, refuse.sh). A command it cannot finish reading is
-# denied either way.
+# otherwise (hook::refuse, refuse.sh). A command it cannot finish reading, a
+# decoder sink and an -EncodedCommand it cannot decode are denied either way.
 
 set -uo pipefail
 
@@ -799,7 +1023,7 @@ rdt_block() {
   outside-tree)
     printf -v msg '%s\n' \
       "BLOCKED: recursive delete of $target, outside the working tree, the temp directories, the session scratchpad and the roots in block_root_delete_target_allowed_roots." \
-      'Fix: delete only strictly under one of those (put scratch work in the session scratchpad), and do not retry the delete with another tool (find -delete, rmtree, git clean).' \
+      'Fix: delete only strictly under one of those (put scratch work under the working tree, for example a gitignored .work/), and do not retry the delete with another tool (find -delete, rmtree, git clean).' \
       'Otherwise the user runs it, or lists its root in block_root_delete_target_allowed_roots (only the user can).'
     ;;
   protected-tree)
@@ -868,6 +1092,19 @@ rdt_block() {
       'BLOCKED: judging where this recursive delete lands failed unexpectedly.' \
       'Fix: simplify the command, or run the delete on its own.'
     ;;
+  decoder-sink)
+    # Denied in an attended session too: the decoded text never appears in the
+    # command, so there is nothing a person could judge from it.
+    printf -v msg '%s\n' \
+      'BLOCKED: decoded text (base64 -d, base32 -d, basenc -d, xxd -r or [Convert]::FromBase64String) is run as a command, by a shell, eval, source, Invoke-Expression or a substitution in command position, so this guard cannot read what would run.' \
+      'Fix: decode to a file, read it, and run the commands it holds as commands of their own.'
+    ;;
+  encoded-unreadable)
+    # Denied in an attended session too, for the reason decoder-sink gives.
+    printf -v msg '%s\n' \
+      'BLOCKED: this -EncodedCommand is not a literal base64 string of UTF-16LE text this guard can read (printable ASCII, tab and line breaks), so a delete inside it cannot be ruled out.' \
+      'Fix: pass the command as -Command text, or run what it holds as a command of its own.'
+    ;;
   *)
     # Single-quoted on purpose: the Fix line must show a literal $HOME to the
     # agent rather than expanding it in the hook process.
@@ -906,27 +1143,33 @@ fi
 # the whole guard rather than a missed spelling.
 #
 # Bash: a substring `rm`, `-delete`, `.delete`, `unlink`, `rsync`,
-# `robocopy`, `worktree` or `remove`, the text a recursive rm, a deleting
-# find, rsync, robocopy, git worktree remove or interpreter delete must hold
-# (`npm run format` still reaches the tokenizer and is allowed on its command
-# word).
-# PowerShell: Remove-Item, rmdir, erase, cmd, rd, del, rm, robocopy, and `ri`
-# as a command word (not the `ri` inside Write/string). Over-inclusive on
-# purpose; the tokenizer decides.
+# `robocopy`, `worktree`, `remove`, `mv`, `truncate`, `shred` or `of=`, the
+# text a recursive rm, a deleting find, rsync, robocopy, git worktree remove,
+# interpreter delete, move or content destroyer must hold (`npm run format`
+# still reaches the tokenizer and is allowed on its command word),
+# `base64`, `base32`, `basenc` or `xxd`, which a decoder sink holds, or `cmd`
+# followed by `rd`, which a `cmd /c rd /s` holds.
+# PowerShell: Remove-Item, rmdir, erase, cmd, rd, del (which `.Delete(`
+# holds), rm, robocopy, FromBase64, pwsh and powershell (an -EncodedCommand
+# hides its text), move, mv, Clear-Content and Set-Content, and `ri`, `mi` or
+# `clc` as a command word (not the `ri` inside Write/string). Over-inclusive
+# on purpose; the tokenizer decides.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   rdt_ps_pre="${COMMAND,,}"
   rdt_ps_hit=0
   case "$rdt_ps_pre" in
-  *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del* | *robocopy*) rdt_ps_hit=1 ;;
+  *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del* | *robocopy* | *frombase64* | *pwsh* | *powershell* | \
+    *move* | *mv* | *clear-content* | *set-content*) rdt_ps_hit=1 ;;
   *) ;;
   esac
-  if ((rdt_ps_hit == 0)) && [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])ri([^[:alnum:]_]|$) ]]; then
+  if ((rdt_ps_hit == 0)) && [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])(ri|mi|clc)([^[:alnum:]_]|$) ]]; then
     rdt_ps_hit=1
   fi
   ((rdt_ps_hit)) || exit 0
 else
   case "${COMMAND,,}" in
-  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove*) ;;
+  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *mv* | *truncate* | \
+    *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd* | *cmd*rd*) ;;
   *) exit 0 ;;
   esac
 fi
@@ -2145,10 +2388,11 @@ rdt_tree_to() {
 # temp root is enough. Last, strictly under a user-listed allowed root (the
 # same rule as a temp root), or a direct child of a name-prefix entry's
 # directory whose name extends the prefix by at least one character and that
-# is not itself a symlink (<link> 1), but never a root, HOME, or a directory
-# holding HOME, whatever is listed.
+# is not itself a symlink (<link> 1), or strictly under <dir>/<one name>/<name>
+# for a segment entry when the target is not a symlink, but never a root,
+# HOME, or a directory holding HOME, whatever is listed.
 rdt_allowed() {
-  local t="$1" deep="$2" link="${3:-0}" c i rest
+  local t="$1" deep="$2" link="${3:-0}" c i rest seg
   if ((deep == 0)); then
     [[ -n "$RDT_SPC" && "$t" == "$RDT_SPC" ]] && return 1
     for c in ${RDT_TEMPC[@]+"${RDT_TEMPC[@]}"}; do
@@ -2160,7 +2404,7 @@ rdt_allowed() {
     [[ "$t" == "$c"/* || (deep -eq 1 && "$t" == "$c") ]] && return 0
   done
   [[ -n "$RDT_TREEC" && ("$t" == "$RDT_TREEC" || "$t" == "$RDT_TREEC"/*) ]] && return 0
-  ((${#RDT_ALLOWC[@]} + ${#RDT_PDIRC[@]})) || return 1
+  ((${#RDT_ALLOWC[@]} + ${#RDT_PDIRC[@]} + ${#RDT_SDIRC[@]})) || return 1
   { rdt_root_like "$t" || rdt_is_root "${t,,}"; } && return 1
   [[ "$t" == "$RDT_HOMEC" || "$RDT_HOMEC" == "$t"/* ]] && return 1
   for c in ${RDT_ALLOWC[@]+"${RDT_ALLOWC[@]}"}; do
@@ -2174,6 +2418,19 @@ rdt_allowed() {
     # Win32 trims a trailing dot or space, so `.tmp-.` names `.tmp-` and
     # `.tmp-n.` names `.tmp-n` past the symlink test: such a name is refused.
     [[ "$rest" != */* && "$rest" != *[.\ ] && "$rest" == "${RDT_PNAME[i]}"?* ]] && return 0
+  done
+  for ((i = 0; i < ${#RDT_SDIRC[@]}; i++)); do
+    c="${RDT_SDIRC[i]}"
+    [[ "$t" == "$c"/?*/* ]] || continue
+    rest="${t#"$c"/}"
+    seg="${rest%%/*}"
+    rest="${rest#*/}"
+    # The one-level segment may not end in a dot or a space, which Win32
+    # trims (`...` would name the directory before the `*`).
+    [[ "$seg" != *[.\ ] ]] || continue
+    # So may the leaf, or `.work/...` would name `.work` itself.
+    [[ "$rest" == "${RDT_SNAME[i]}"/* && "${rest##*/}" != *[.\ ] ]] && return 0
+    [[ deep -eq 1 && "$rest" == "${RDT_SNAME[i]}" ]] && return 0
   done
   return 1
 }
@@ -2621,10 +2878,13 @@ rdt_judge_pending() {
   # glob character, a line break or a `..` component grants nothing. One
   # trailing `*` after a literal name makes a NAME-PREFIX entry instead
   # (`D:/worktrees/.tmp-*`): its directory follows the same rules, and the name
-  # before the `*` may hold no glob character. HOME is resolved with them, and
-  # an unusable HOME leaves the whole list unused.
-  local -a allow=() pdir=() pname=()
-  local home="${HOME:-}" roots="${CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS:-}" x pfx
+  # before the `*` may hold no glob character. A `*` that is one whole
+  # segment followed by one literal name makes a SEGMENT entry
+  # (`D:/worktrees/*/.work`): its directory follows the same rules, and the
+  # name may hold no glob character and is not `.` or `..`. HOME is resolved
+  # with them, and an unusable HOME leaves the whole list unused.
+  local -a allow=() pdir=() pname=() sdir=() sname=()
+  local home="${HOME:-}" roots="${CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS:-}" x pfx sfx
   home="${home//\\//}"
   if ! rdt_is_abs "$home" || rdt_is_unc "$home"; then roots=""; fi
   while [[ -n "$roots" ]]; do
@@ -2635,28 +2895,38 @@ rdt_judge_pending() {
     c="${c%"${c##*[![:space:]]}"}"
     c="${c//\\//}"
     pfx=""
+    sfx=""
     if [[ "$c" == */?*'*' ]]; then
       pfx="${c##*/}"
       pfx="${pfx%'*'}"
       c="${c%/*}"
       [[ -n "$pfx" && "$pfx" != *[*?[]* ]] || continue
+    elif [[ "$c" == */'*'/?* ]]; then
+      sfx="${c##*/}"
+      c="${c%/*}"
+      c="${c%/'*'}"
+      [[ "$sfx" != *[*?[]* && "$sfx" != . && "$sfx" != .. ]] || continue
     fi
     x="${c//[^\/]/}"
     [[ -n "$c" && "$c" != *[$'\n\r*?[']* && "/$c/" != */../* ]] || continue
-    ((${#c} + ${#pfx} <= MAX_OPERAND_LEN && ${#x} <= MAX_OPERAND_DEPTH)) || continue
+    ((${#c} + ${#pfx} + ${#sfx} <= MAX_OPERAND_LEN && ${#x} <= MAX_OPERAND_DEPTH)) || continue
     if ! rdt_is_abs "$c" || rdt_is_unc "$c"; then continue; fi
     ((RDT_WIN)) || [[ ! "$c" =~ ^[A-Za-z]: ]] || continue
     if [[ -n "$pfx" ]]; then
       ((RDT_WIN)) && pfx="${pfx,,}"
       pdir+=("$c")
       pname+=("$pfx")
+    elif [[ -n "$sfx" ]]; then
+      ((RDT_WIN)) && sfx="${sfx,,}"
+      sdir+=("$c")
+      sname+=("$sfx")
     else
       allow+=("$c")
     fi
   done
   local hcl=""
   if rdt_is_abs "$home" && ! rdt_is_unc "$home"; then hcl="${home%/}/.claude"; fi
-  ((${#allow[@]} + ${#pdir[@]})) || home=""
+  ((${#allow[@]} + ${#pdir[@]} + ${#sdir[@]})) || home=""
 
   # The protected trees, judged ahead of every allowed root (rdt_protected):
   # the worktrees git keeps for the cwd's repository, ~/.claude, and the
@@ -2712,7 +2982,8 @@ rdt_judge_pending() {
   # the allowed roots, HOME and the protected trees. A `*/` operand then has
   # its symlink matches added, each resolved whole, and on Windows one cygpath
   # maps every full target and root onto one spelling.
-  rdt_resolve_all ${tp[@]+"${tp[@]}"} ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} "$home" \
+  rdt_resolve_all ${tp[@]+"${tp[@]}"} ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} \
+    ${sdir[@]+"${sdir[@]}"} "$home" \
     ${wts[@]+"${wts[@]}"} "$hcl" ${prot[@]+"${prot[@]}"}
   local n0=${#tp[@]} l
   for ((k = 0; k < n0; k++)); do
@@ -2737,8 +3008,8 @@ rdt_judge_pending() {
     targets[k]="$p"
   done
   local -a others=()
-  for c in ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} "$home" \
-    ${wts[@]+"${wts[@]}"} "$hcl" ${prot[@]+"${prot[@]}"}; do
+  for c in ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} \
+    ${sdir[@]+"${sdir[@]}"} "$home" ${wts[@]+"${wts[@]}"} "$hcl" ${prot[@]+"${prot[@]}"}; do
     [[ -n "$c" ]] && others+=("${RDT_RES[$c]}")
   done
   rdt_winmap_all ${targets[@]+"${targets[@]}"} ${others[@]+"${others[@]}"}
@@ -2762,23 +3033,36 @@ rdt_judge_pending() {
     rdt_canon_to t "${RDT_WMAP[${RDT_RES[$tree]}]}"
     rdt_root_like "$t" || RDT_TREEC="$t"
   fi
-  # An allowed root, or a name-prefix entry's directory, that is a filesystem
-  # root or HOME itself is dropped.
+  # An allowed root, or a name-prefix or segment entry's directory, that is a
+  # filesystem root or HOME itself is dropped. A `/` entry is dropped on every
+  # host, even where `/` maps to the Git install directory, so it is judged
+  # before the mapping as well as after it.
   RDT_ALLOWC=()
   RDT_PDIRC=()
   RDT_PNAME=()
+  RDT_SDIRC=()
+  RDT_SNAME=()
   RDT_HOMEC=""
   if [[ -n "$home" ]]; then
     rdt_canon_to RDT_HOMEC "${RDT_WMAP[${RDT_RES[$home]}]}"
     for c in ${allow[@]+"${allow[@]}"}; do
+      [[ "${RDT_RES[$c]}" == / ]] && continue
       rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
       rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]] || RDT_ALLOWC+=("$t")
     done
     for ((k = 0; k < ${#pdir[@]}; k++)); do
+      [[ "${RDT_RES[${pdir[k]}]}" == / ]] && continue
       rdt_canon_to t "${RDT_WMAP[${RDT_RES[${pdir[k]}]}]}"
       { rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]]; } && continue
       RDT_PDIRC+=("$t")
       RDT_PNAME+=("${pname[k]}")
+    done
+    for ((k = 0; k < ${#sdir[@]}; k++)); do
+      [[ "${RDT_RES[${sdir[k]}]}" == / ]] && continue
+      rdt_canon_to t "${RDT_WMAP[${RDT_RES[${sdir[k]}]}]}"
+      { rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]]; } && continue
+      RDT_SDIRC+=("$t")
+      RDT_SNAME+=("${sname[k]}")
     done
   fi
   # The protected trees in the compared spelling. A toplevel or worktree root
@@ -2838,7 +3122,7 @@ rdt_judge_pending() {
     rdt_canon_to c "$p"
     # A symlink, or a leaf rm would follow through a trailing slash that does
     # not exist yet (a link the same command may create), never passes a
-    # name-prefix entry.
+    # name-prefix or segment entry.
     l=0
     [[ -L "${targets[k]}" ]] && l=1
     [[ ! -e "${targets[k]}" && "${tw[k]}" =~ [/\\]\.?$ ]] && l=1
@@ -2848,6 +3132,151 @@ rdt_judge_pending() {
     fi
     rdt_allowed "$c" "${td[k]}" "$l" || rdt_block "outside-tree" "'$p' (the operand '${tw[k]}')"
   done
+  return 0
+}
+
+# rdt_sink_check <index of the command word>: DECODER SINKS for one command. A
+# shell reading its program from stdin (no -c and no script operand, -s, or
+# /dev/stdin) and a source or `.` of /dev/stdin are refused when a decoder
+# feeds them (rdt_dec_feed), and a here-string they read as their program that
+# holds a substitution is parsed as that program. In a parse holding a paren
+# or a backtick, a command whose program a substitution the tokenizer split
+# off may supply opens the sink for the rest of the parse (rdt_sink): a shell
+# or source with no operand (`bash <(...)`), eval with none (`eval` before a
+# backtick), and eval, a -c operand or the command word itself ending in an
+# unquoted `$` (`eval $(...)`, `$(...)`). Reads words, n and HOOK_SEG_* from
+# rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_sink_check() {
+  local k=$(($1 + 1)) b w c=0 s=0 stdin=0 last=$((n - 1)) split=0 open=0
+  local -a herestr=() q0=()
+  ((${rdt_flat:-1})) || open=1
+  [[ "${words[last]}" == *'$' && "${HOOK_SEG_WORD_QUOTED[last]:-0}" == 0 ]] && split=$open
+  if (($1 == last && split)); then
+    rdt_sink=1
+    return 0
+  fi
+  b="${words[$1]##*/}"
+  b="${b,,}"
+  b="${b%.exe}"
+  case "$b" in
+  eval)
+    ((open && (k >= n || split))) && rdt_sink=1
+    return 0
+    ;;
+  source | .)
+    ((k >= n)) || [[ "${words[k]}" == /dev/stdin || "${words[k]}" == /dev/fd/0 || "${words[k]}" == /proc/self/fd/0 ]] && stdin=1
+    ;;
+  bash | sh | zsh | dash | ksh | mksh)
+    while ((k < n)); do
+      w="${words[k]}"
+      case "$w" in
+      -- | -)
+        k=$((k + 1))
+        break
+        ;;
+      -o | +o | -O | +O | --rcfile | --init-file) k=$((k + 2)) ;;
+      [-+]?*)
+        if [[ "$w" =~ ^-[A-Za-z]+$ ]]; then
+          [[ "$w" == *c* ]] && c=1
+          [[ "$w" == *s* ]] && s=1
+        fi
+        k=$((k + 1))
+        ;;
+      *) break ;;
+      esac
+    done
+    if ((c)); then
+      ((open && (k >= n || (split && k == last)))) && rdt_sink=1
+      return 0
+    fi
+    ((s || k >= n)) || [[ "${words[k]}" == /dev/stdin || "${words[k]}" == /dev/fd/0 || "${words[k]}" == /proc/self/fd/0 ]] && stdin=1
+    ;;
+  *) return 0 ;;
+  esac
+  ((stdin)) || return 0
+  ((${rdt_dec_feed:-0})) && rdt_block "decoder-sink"
+  ((open && k >= n)) && rdt_sink=1
+  # The program it reads (SHELLS AND LAUNCHERS FROM BASH in the header): the
+  # last redirection of fd 0, else the text the command before writes into the
+  # pipe. A heredoc body is judged once the parse has it (rdt_ix_heredocs).
+  local r=-1 nh=0 hd=0 prog="" has=0 dec=0
+  for ((c = 0; c < ${#HOOK_SEG_REDIR_OP[@]}; c++)); do
+    [[ "${HOOK_SEG_REDIR_OP[c]}" == '<<' || "${HOOK_SEG_REDIR_OP[c]}" == '<<-' ]] && nh=$((nh + 1))
+    [[ "${HOOK_SEG_REDIR_OP[c]}" == '<'* && "${HOOK_SEG_REDIR_FD[c]:-0}" == 0 ]] || continue
+    r=$c
+    hd=$((nh - 1))
+  done
+  if ((r >= 0)); then
+    case "${HOOK_SEG_REDIR_OP[r]}" in
+    '<<' | '<<-') [[ -n "${rdt_hd_at-}" ]] && rdt_hd_shell "$((rdt_hd_at + hd))" "${HOOK_SEG_REDIR_TARGET[r]-}" ;;
+    '<<<')
+      prog="${HOOK_SEG_REDIR_TARGET[r]-}"
+      has=1
+      ;;
+    *) ;;
+    esac
+  else
+    case "${rdt_text_feed:-}" in
+    [et]*)
+      prog="${rdt_text_feed:1}"
+      has=1
+      [[ "$rdt_text_feed" == e* ]] && dec=1
+      ;;
+    h*)
+      w="${rdt_text_feed:1}"
+      rdt_hd_shell "${w%%:*}" "${w#*:}"
+      ;;
+    x) rdt_block "eval-too-long" ;;
+    *) ;;
+    esac
+  fi
+  for ((c = 0; c < ${#HOOK_SEG_REDIR_OP[@]}; c++)); do
+    ((c == r && has)) && continue
+    [[ "${HOOK_SEG_REDIR_OP[c]}" == '<<<' && "${HOOK_SEG_REDIR_FD[c]:-0}" == 0 ]] || continue
+    # shellcheck disable=SC2016  # a literal `$(` and backtick, not an expansion
+    case "${HOOK_SEG_REDIR_TARGET[c]}" in
+    *'$('* | *'`'*) herestr+=("${HOOK_SEG_REDIR_TARGET[c]}") ;;
+    *) ;;
+    esac
+  done
+  ((${#herestr[@]} || has)) || return 0
+  q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
+  for w in ${herestr[@]+"${herestr[@]}"}; do
+    rdt_scanned=$((rdt_scanned + ${#w}))
+    ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
+    rdt_parse "$w"
+  done
+  ((has)) && rdt_shell_prog "$prog" "$dec"
+  HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]}"})
+  return 0
+}
+
+# rdt_hd_shell <heredoc index> <delimiter>: the heredoc a shell reads as its
+# program, judged as shell text once the parse has its body, under the
+# directory-change state of the shell that reads it (rdt_ix_heredocs).
+# shellcheck disable=SC2329  # invoked from rdt_sink_check
+rdt_hd_shell() {
+  rdt_hd_lang[$1]='sh'
+  rdt_hd_st[$1]="${#RDT_ORIGINS[@]} $rdt_cd_unknown $rdt_cd_refuse $2"
+}
+
+# rdt_shell_prog <text> <decode>: judge a program a shell reads on its stdin,
+# its substitutions included, charged to the eval budget. The shell has read
+# its stdin as the program, so its first command's feed is `none`, as the
+# top-level parse's is. With <decode> 1 (an echo wrote it), also the text its
+# backslash escapes stand for, which a POSIX echo writes.
+# shellcheck disable=SC2329  # invoked from rdt_sink_check and rdt_ix_heredocs
+rdt_shell_prog() {
+  local rdt_text_feed="" rdt_seg_feed=none rdt_dec_feed=0 t="$1" d
+  rdt_scanned=$((rdt_scanned + ${#t}))
+  ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
+  rdt_scan_substitutions "$t" nested
+  rdt_parse "$t"
+  if (($2)) && [[ "$t" == *\\* ]]; then
+    printf -v d '%b' "$t"
+    [[ "$d" == "$t" ]] || rdt_shell_prog "$d" 0
+  fi
   return 0
 }
 
@@ -3201,6 +3630,8 @@ rdt_check_segment() {
   done
   ((i < n)) || return 0
 
+  rdt_sink_check "$i"
+
   # A child shell runs its operand as a full command, so one process is every
   # command inside it. Re-parse that operand with the same tokenizer, which is
   # what block-no-verify.sh does for `git`. Asked AFTER the launcher walk, from
@@ -3334,8 +3765,23 @@ rdt_check_segment() {
   # DELETES in the header), an rsync or a robocopy removes from its
   # destination or its sources (RSYNC DELETES, ROBOCOPY DELETES), xargs and
   # parallel run their command on the items they read (PIPELINE-FED DELETES),
-  # and an interpreter runs the code it is given (INTERPRETER DELETES).
+  # an interpreter runs the code it is given (INTERPRETER DELETES), mv,
+  # truncate, shred and dd move away or destroy what they name (MOVES AND
+  # CONTENT DESTROYERS), and watch and cmd /c run the command they are given
+  # (SHELLS AND LAUNCHERS FROM BASH).
   case "$base" in
+  mv | truncate | shred | dd)
+    rdt_content_check "$i" "$base"
+    return 0
+    ;;
+  watch)
+    rdt_watch_check "$i"
+    return 0
+    ;;
+  cmd)
+    rdt_cmd_check "$i"
+    return 0
+    ;;
   python | python[0-9]* | py | pypy | pypy[0-9]* | node | nodejs | perl | perl[0-9]* | ruby | ruby[0-9]*)
     rdt_interp_check "$i" "$base"
     return 0
@@ -3482,6 +3928,185 @@ rdt_delete_operand() {
     fi
   fi
   rdt_check_operand "$w" "$q"
+}
+
+# rdt_watch_check <index of the watch word>: the command watch runs (SHELLS AND
+# LAUNCHERS FROM BASH in the header). Its options end at the first word that
+# is not one (getopt `+bCcefd::ghq:n:prs:twvx` and the long options, any
+# unambiguous prefix included): -n, -q and -s (--interval, --equexit,
+# --shotsdir) take an argument, and -d one attached to it. The rest is joined
+# by spaces and run through `sh -c`, so it is parsed as shell text, a dropped
+# trailing backslash restored as for eval; with -x or --exec it is the argv
+# itself. Reads words, n and HOOK_SEG_WORD_QUOTED from rdt_check_segment
+# through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_watch_check() {
+  local k=$(($1 + 1)) x=0 w j c l hit text
+  local -a q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"}) ev=()
+  while ((k < n)); do
+    w="${words[k]}"
+    case "$w" in
+    --)
+      k=$((k + 1))
+      break
+      ;;
+    --?*)
+      l="${w#--}"
+      if [[ "$l" != *=* ]]; then
+        hit=""
+        for c in beep color no-color differences errexit follow chgexit equexit exec help interval precise \
+          no-rerun shotsdir no-title no-wrap version; do
+          if [[ "$c" == "$l" ]]; then
+            hit=$c
+            break
+          fi
+          [[ "$c" == "$l"* ]] && hit+="$c "
+        done
+        case "${hit% }" in
+        exec) x=1 ;;
+        interval | equexit | shotsdir) k=$((k + 1)) ;;
+        *) ;;
+        esac
+      fi
+      ;;
+    -?*)
+      for ((j = 1; j < ${#w}; j++)); do
+        c="${w:j:1}"
+        case "$c" in
+        x) x=1 ;;
+        d) break ;;
+        n | q | s)
+          ((j + 1 < ${#w})) || k=$((k + 1))
+          break
+          ;;
+        *) ;;
+        esac
+      done
+      ;;
+    *) break ;;
+    esac
+    k=$((k + 1))
+  done
+  ((k < n)) || return 0
+  if ((x)); then
+    HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]:k}"})
+    rdt_check_segment "${words[@]:k}"
+  else
+    for ((j = k; j < n; j++)); do
+      if [[ -z "${words[j]}" ]] && ((${q0[j]:-0} == 1)); then
+        # shellcheck disable=SC1003  # a literal backslash character, not a quote escape
+        ev+=('\')
+      else
+        ev+=("${words[j]}")
+      fi
+    done
+    text="${ev[*]}"
+    rdt_scanned=$((rdt_scanned + ${#text}))
+    ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
+    rdt_parse "$text"
+  fi
+  HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]}"})
+  return 0
+}
+
+# rdt_cmd_check <index of the cmd word>: from the Bash tool, the command line
+# cmd runs after /c or /k (SHELLS AND LAUNCHERS FROM BASH in the header), a
+# switch's leading `//` read as `/` (`cmd //c`). Each statement of the line
+# ends at a word that is `&`, `&&`, `|` or `||`. One word after the switch
+# (or a command attached to it, `/crd`) is the whole line, split as cmd
+# splits one, and each statement is judged as the PowerShell lane judges
+# cmd's (rdt_ps_cmd_rd: rd and rmdir with /s, robocopy). Several are its
+# words, and each statement is judged as that command is from the Bash tool
+# (rm, robocopy) and, when it is rd or rmdir, by rdt_cmd_rd_bash. Reads words, n and
+# HOOK_SEG_WORD_QUOTED from rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_cmd_check() {
+  local k o w j s
+  local -a cw=() st=() q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
+  for ((k = $1 + 1; k < n; k++)); do
+    o="${words[k]}"
+    [[ "$o" =~ ^//[^/] ]] && o="${o:1}"
+    case "${o,,}" in
+    /c | /k) break ;;
+    /c?* | /k?*)
+      rdt_ps_cmd_split_to cw "${o:2}"
+      break
+      ;;
+    *) ;;
+    esac
+  done
+  k=$((k + 1))
+  if ((${#cw[@]} == 0 && k < n - 1)); then
+    s=$k
+    for ((j = k; j <= n; j++)); do
+      w='&'
+      ((j < n)) && w="${words[j]}"
+      case "$w" in
+      '&' | '&&' | '|' | '||')
+        if ((j > s)); then
+          HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]:s:j-s}"})
+          rdt_check_segment "${words[@]:s:j-s}"
+          HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]}"})
+          rdt_cmd_rd_bash "$s" "$j"
+        fi
+        s=$((j + 1))
+        ;;
+      *) ;;
+      esac
+    done
+    return 0
+  fi
+  if ((${#cw[@]} == 0 && k == n - 1)); then
+    rdt_ps_cmd_split_to cw "${words[k]}"
+  elif ((${#cw[@]} && k < n)); then
+    for w in "${words[@]:k}"; do
+      [[ "$w" =~ ^//[^/]+$ ]] && w="${w:1}"
+      cw+=("$w")
+    done
+  fi
+  for w in ${cw[@]+"${cw[@]}"} '&'; do
+    case "$w" in
+    '&' | '&&' | '|' | '||')
+      ((${#st[@]})) && rdt_ps_cmd_rd "${st[@]}"
+      st=()
+      ;;
+    *) st+=("$w") ;;
+    esac
+  done
+  return 0
+}
+
+# rdt_cmd_rd_bash <first index> <index past the last>: one statement of the
+# words cmd /c runs from the Bash tool, when it is rd or rmdir. Its switches
+# are /s and /q, alone or run together (`/s/q`), and any word with two leading
+# slashes; every other word is a path, a POSIX one included, which MSYS
+# converts before cmd reads it. With a switch holding `s`, each path is
+# judged as an operand of a recursive rm, and none at all is an empty
+# operand. Reads words and q0 from rdt_cmd_check through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_cmd_check
+rdt_cmd_rd_bash() {
+  local j b lw rec=0
+  local -a pi=()
+  b="${words[$1]##*[\\/]}"
+  b="${b,,}"
+  case "${b%.exe}" in
+  rd | rmdir) ;;
+  *) return 0 ;;
+  esac
+  for ((j = $1 + 1; j < $2; j++)); do
+    lw="${words[j],,}"
+    if [[ "$lw" =~ ^//[^/]+$ || "$lw" =~ ^(/[sq?]+)+$ ]]; then
+      [[ "${lw//\//}" == *s* ]] && rec=1
+    else
+      pi+=("$j")
+    fi
+  done
+  ((rec)) || return 0
+  ((${#pi[@]})) || rdt_block "empty-operand"
+  for j in ${pi[@]+"${pi[@]}"}; do
+    rdt_delete_operand "${words[j]}" "${q0[j]:-0}"
+  done
+  return 0
 }
 
 # rdt_find_check <index of the find word>: a find whose expression deletes has
@@ -3805,6 +4430,126 @@ rdt_git_worktree_check() {
   return 0
 }
 
+# rdt_gnu_scan <index of the command word> <letters> <letter:long name>...: the
+# words after a coreutils command word, read as getopt_long reads them, into
+# RDT_GNU_OP (the index of each operand) and RDT_GNU_SEEN (the letter of each
+# option met that takes an argument). Options stand anywhere up to `--`. A
+# short cluster letter in <letters> takes the rest of the word, or the next
+# word when it ends the cluster; a long option that is a prefix of a listed
+# name takes the next word unless written with `=`. Under POSIXLY_CORRECT,
+# which a command inherits unseen, options end at the first operand, so a word
+# an option takes after an operand is an operand too. Reads words and n from
+# rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_content_check, under a parser callback
+rdt_gnu_scan() {
+  local k=$1 c w x long letters="$2" eoo=0 take
+  shift 2
+  RDT_GNU_OP=()
+  RDT_GNU_SEEN=""
+  for ((k = k + 1; k < n; k++)); do
+    w="${words[k]}"
+    if ((eoo == 0)); then
+      take=0
+      case "$w" in
+      --)
+        eoo=1
+        continue
+        ;;
+      --?*)
+        long="${w#--}"
+        long="${long%%=*}"
+        for x in "$@"; do
+          if [[ "${x#?:}" == "$long"* ]]; then
+            RDT_GNU_SEEN+="${x%%:*}"
+            [[ "$w" == *=* ]] || take=1
+            break
+          fi
+        done
+        ;;
+      -?*)
+        for ((c = 1; c < ${#w}; c++)); do
+          x="${w:c:1}"
+          if [[ "$letters" == *"$x"* ]]; then
+            RDT_GNU_SEEN+="$x"
+            ((c + 1 < ${#w})) || take=1
+            break
+          fi
+        done
+        ;;
+      *)
+        RDT_GNU_OP+=("$k")
+        continue
+        ;;
+      esac
+      if ((take)); then
+        k=$((k + 1))
+        ((k < n && ${#RDT_GNU_OP[@]})) && RDT_GNU_OP+=("$k")
+      fi
+      continue
+    fi
+    RDT_GNU_OP+=("$k")
+  done
+  return 0
+}
+
+# rdt_content_check <index of the command word> <its name>: each source an mv
+# moves away, and each file a truncate, shred or dd `of=` destroys the content
+# of, is judged as an operand of a recursive rm (MOVES AND CONTENT DESTROYERS
+# in the header). Reads words, n and HOOK_SEG_WORD_QUOTED from
+# rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_content_check() {
+  local k w every=0 of=0
+  local -a tg=()
+  # Under xargs or parallel the items read are appended as operands, so they
+  # are judged as this command's targets whatever it names itself. A dd whose
+  # every of= names a stream writes nothing the items could change.
+  if [[ "$2" == dd ]]; then
+    for ((k = $1 + 1; k < n; k++)); do
+      w="${words[k]}"
+      [[ "$w" == of=* ]] || continue
+      of=1
+      # The null and standard streams hold no content to lose.
+      case "${w#of=}" in
+      /dev/null | /dev/stdout | /dev/stderr) continue ;;
+      '')
+        rdt_block "empty-operand"
+        continue
+        ;;
+      *) ;;
+      esac
+      rdt_deleter=1
+      rdt_delete_operand "${w#of=}" "${HOOK_SEG_WORD_QUOTED[k]:-0}"
+    done
+    ((of)) || rdt_deleter=1
+    return 0
+  fi
+  rdt_deleter=1
+  case "$2" in
+  mv) rdt_gnu_scan "$1" tS t:target-directory S:suffix ;;
+  truncate) rdt_gnu_scan "$1" rs r:reference s:size ;;
+  *) rdt_gnu_scan "$1" ns n:iterations _:random-source s:size ;;
+  esac
+  tg=(${RDT_GNU_OP[@]+"${RDT_GNU_OP[@]}"})
+  # mv moves into its last operand unless -t names the directory. A last word
+  # that can become several words makes all but its final word sources, and so
+  # do the items xargs or parallel may append after it, so with either every
+  # operand is judged.
+  if [[ "$2" == mv && "$RDT_GNU_SEEN" != *t* ]] && ((${#tg[@]} > 1 && rdt_fed == 0)); then
+    k="${tg[${#tg[@]} - 1]}"
+    w="${words[k]}"
+    if [[ "$w" == *'$@'* || "$w" == *'[@]}'* ]] ||
+      { ((${HOOK_SEG_WORD_QUOTED[k]:-0} != 2)) && [[ "$w" == *['{*?[$`']* ]]; }; then
+      every=1
+    fi
+    ((every)) || unset "tg[$((${#tg[@]} - 1))]"
+  fi
+  for k in ${tg[@]+"${tg[@]}"}; do
+    rdt_delete_operand "${words[k]}" "${HOOK_SEG_WORD_QUOTED[k]:-0}"
+  done
+  return 0
+}
+
 # --- Interpreter deletes (INTERPRETER DELETES in the header) -----------------
 #
 # The code is read as masked text: each string literal is replaced by \001,
@@ -3961,14 +4706,16 @@ rdt_interp_check() {
 }
 
 # rdt_ix_heredocs <text>: after the parse of <text>, judge each heredoc body an
-# interpreter reads as its program, in the language rdt_hd_lang records for
-# its index, under the directory-change state rdt_hd_st recorded where the
-# interpreter ran. The index is trusted only when the parse reports as many
-# bodies as the segments carried openers and each recorded index holds a body
-# with the recorded delimiter; otherwise (an opener on a segment with no word,
-# or one with no body) every body is judged in each recorded language. A
-# directory change the judged code makes is dropped afterwards: it ran in the
-# interpreter's child.
+# interpreter or a shell reads as its program, in the language rdt_hd_lang
+# records for its index (sh for a shell, read by rdt_shell_prog), under the
+# directory-change state rdt_hd_st recorded where the interpreter ran. The
+# index is trusted only when the parse reports as many bodies as the segments
+# carried openers and each recorded index holds a body with the recorded
+# delimiter; otherwise (an opener on a segment with no word, or one with no
+# body) every body is judged in each recorded language. A directory change an
+# interpreter's code makes is dropped afterwards: it ran in the interpreter's
+# child. A shell body is judged from every origin the command has, and the
+# ones its cd lines add are kept, since its targets index them.
 # shellcheck disable=SC2329  # invoked from rdt_parse
 rdt_ix_heredocs() {
   local k m every=0 st e no d0="$rdt_deleter" unk0="$rdt_cd_unknown" ref0="$rdt_cd_refuse"
@@ -4002,6 +4749,14 @@ rdt_ix_heredocs() {
     [[ "$no" =~ ^[0-9]+$ ]] || no=${#orig[@]}
     [[ "$rdt_cd_unknown" =~ ^[01]$ ]] || rdt_cd_unknown="$unk0"
     [[ "$rdt_cd_refuse" =~ ^[01]$ ]] || rdt_cd_refuse="$ref0"
+    if [[ "${lg[k]}" == sh ]]; then
+      # A shell's own cd lines add origins its later targets are judged
+      # from, by index, so the list is not cut here: they land after every
+      # origin the command has, and the body is judged from all of them.
+      rdt_shell_prog "${bodies[k]-}" 0
+      orig=(${RDT_ORIGINS[@]+"${RDT_ORIGINS[@]}"})
+      continue
+    fi
     RDT_ORIGINS=(${orig[@]+"${orig[@]:0:no}"})
     rdt_ix_code "${lg[k]}" "${bodies[k]-}"
     RDT_ORIGINS=(${orig[@]+"${orig[@]}"})
@@ -4056,7 +4811,8 @@ rdt_ix_code() {
   local lang="$1" ix_m="" ix_cm="" ix_ri k
   local -a ix_v=() ix_k=() ix_re=()
   case "${2,,}" in
-  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove*) ;;
+  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *mv* | *truncate* | \
+    *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd* | *cmd*rd*) ;;
   *) return 0 ;;
   esac
   rdt_ix_lex "$2"
@@ -4785,6 +5541,9 @@ rdt_feed_in=none
 rdt_prev=""
 rdt_flat=1
 rdt_deleter=0
+# 1 while xargs or parallel runs the command being judged, which may append
+# the items it reads after the words written (rdt_content_check).
+rdt_fed=0
 
 # rdt_parse <text>: judge each simple command of <text> through rdt_segment,
 # with this parse's own pipe state: the feed of the command that runs it
@@ -4795,10 +5554,19 @@ rdt_deleter=0
 # not its stages. rdt_hd_n counts the heredoc openers the segments carried,
 # and rdt_hd_lang maps the index of each heredoc an interpreter reads as its
 # program to that interpreter's language, and rdt_hd_st to the state it is
-# read in, judged once the parse has the bodies (rdt_ix_heredocs).
+# read in, judged once the parse has the bodies (rdt_ix_heredocs). The first
+# command inherits the program text its parse is fed (rdt_text_feed), unless
+# that text is a heredoc of another parse, whose index means nothing here.
 rdt_parse() {
   local rdt_feed_in="$rdt_seg_feed" rdt_prev="" rdt_flat=1 b=$'\\' t="$1" rdt_hd_n=0
+  local rdt_dec_prev="${rdt_dec_feed:-0}" rdt_sink=0 rdt_text_prev="${rdt_text_feed:-}"
+  [[ "$rdt_text_prev" == h* ]] && rdt_text_prev=""
+  local rdt_bq=$'(^|[;&|(\n])[[:space:]]*((then|do|else|elif|if|while|until|!|\\{)[[:space:]]+)*`'
   local -a rdt_hd_lang=() rdt_hd_st=()
+  # The first command of a text another command feeds (a -c operand, eval)
+  # reads that command's stdin, and a backtick where a command starts runs
+  # its body's output as that command (DECODER SINKS).
+  [[ "$1" =~ $rdt_bq ]] && rdt_sink=1
   if [[ "$t" == *"$b"* ]]; then
     t="${t//"$b$b"/}"
     t="${t//"$b("/}"
@@ -4826,7 +5594,8 @@ rdt_parse() {
 # command's first heredoc opener.
 # shellcheck disable=SC2329  # invoked as the hook::bash_parse_segments callback
 rdt_segment() {
-  local rdt_seg_feed="$rdt_feed_in" j rdt_hd_at="$rdt_hd_n"
+  local rdt_seg_feed="$rdt_feed_in" j rdt_hd_at="$rdt_hd_n" rdt_dec_feed="$rdt_dec_prev" rdt_dec_out=0
+  local rdt_text_feed="$rdt_text_prev" rdt_text_out=""
   if ((rdt_flat == 0)); then
     rdt_seg_feed=open
   elif [[ -n "$rdt_prev" ]]; then
@@ -4837,10 +5606,166 @@ rdt_segment() {
     [[ "${HOOK_SEG_REDIR_OP[j]}" == '<<' || "${HOOK_SEG_REDIR_OP[j]}" == '<<-' ]] && rdt_hd_n=$((rdt_hd_n + 1))
     if [[ "${HOOK_SEG_REDIR_OP[j]}" == '<'* && "${HOOK_SEG_REDIR_FD[j]:-0}" == 0 ]]; then
       rdt_seg_feed=open
+      rdt_dec_feed=0
+      rdt_text_feed=""
     fi
   done
+  # Read before rdt_check_segment, whose re-parse rebuilds HOOK_SEG_REDIR_*.
+  rdt_dec_class "$@"
+  ((rdt_dec_out && rdt_sink)) && rdt_block "decoder-sink"
   rdt_feed_class "$@"
+  rdt_text_class "$@"
   rdt_check_segment "$@"
+  rdt_dec_prev=$rdt_dec_out
+  rdt_text_prev=$rdt_text_out
+}
+
+# rdt_text_class <argv word>...: rdt_text_out is the program text this command
+# writes into a pipe, for a shell after it that reads its program from stdin
+# (SHELLS AND LAUNCHERS FROM BASH in the header): `e` and the words an echo
+# writes, whose backslash escapes a POSIX echo reads, `t` and what a printf
+# writes when its format holds no conversion but %s, %b and %%, or what a cat
+# with no operand writes from a here-string, `h`, the index of the heredoc
+# that cat writes, `:` and its delimiter, or `x` for a printf whose output
+# could pass MAX_COMMAND_LEN. Empty for any other command and for one whose
+# stdout is redirected. Reads rdt_hd_at from rdt_segment.
+# shellcheck disable=SC2329  # invoked from rdt_segment
+rdt_text_class() {
+  rdt_text_out=""
+  case "${*,,}" in
+  *echo* | *printf* | *cat*) ;;
+  *) return 0 ;;
+  esac
+  local -a words=("$@")
+  local n=$# i=0 b k w out nh=0 hd=0 r=-1
+  while ((i < n)) && [[ "${words[i]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do
+    i=$((i + 1))
+  done
+  ((i < n)) || return 0
+  b="${words[i]##*/}"
+  b="${b,,}"
+  b="${b%.exe}"
+  case "$b" in
+  echo | printf | cat) ;;
+  *) return 0 ;;
+  esac
+  for ((k = 0; k < ${#HOOK_SEG_REDIR_OP[@]}; k++)); do
+    [[ "${HOOK_SEG_REDIR_OP[k]}" == '>'* && "${HOOK_SEG_REDIR_FD[k]:-1}" == 1 ]] && return 0
+    [[ "${HOOK_SEG_REDIR_OP[k]}" == '<<' || "${HOOK_SEG_REDIR_OP[k]}" == '<<-' ]] && nh=$((nh + 1))
+    [[ "${HOOK_SEG_REDIR_OP[k]}" == '<'* && "${HOOK_SEG_REDIR_FD[k]:-0}" == 0 ]] || continue
+    r=$k
+    hd=$((nh - 1))
+  done
+  i=$((i + 1))
+  case "$b" in
+  echo)
+    while ((i < n)) && [[ "${words[i]}" =~ ^-[neE]+$ ]]; do
+      i=$((i + 1))
+    done
+    rdt_text_out="e${words[*]:i}"
+    ;;
+  printf)
+    [[ "${words[i]-}" == -- ]] && i=$((i + 1))
+    ((i < n)) || return 0
+    w="${words[i]}"
+    # `-v NAME` writes a variable, not stdout. A conversion other than %s and
+    # %b (a width, a number, a time) is not emulated. The format repeats once
+    # per argument at most, so past MAX_COMMAND_LEN the output is not built
+    # and a shell reading it refuses (`x`).
+    [[ "$w" == -* || "$w" =~ %[^sb%] || "$w" =~ %$ ]] && return 0
+    if ((${#w} * (n - i) + ${#*} > MAX_COMMAND_LEN)); then
+      rdt_text_out=x
+      return 0
+    fi
+    # shellcheck disable=SC2059  # the command's own format, written out as that printf would
+    printf -v out -- "$w" ${words[@]+"${words[@]:i+1}"} 2>/dev/null || return 0
+    rdt_text_out="t$out"
+    ;;
+  *)
+    for ((; i < n; i++)); do
+      [[ "${words[i]}" == - ]] || return 0
+    done
+    ((r >= 0)) || return 0
+    case "${HOOK_SEG_REDIR_OP[r]}" in
+    '<<' | '<<-') [[ -n "${rdt_hd_at-}" ]] && rdt_text_out="h$((rdt_hd_at + hd)):${HOOK_SEG_REDIR_TARGET[r]-}" ;;
+    '<<<') rdt_text_out="t${HOOK_SEG_REDIR_TARGET[r]-}" ;;
+    *) ;;
+    esac
+    ;;
+  esac
+  return 0
+}
+
+# rdt_dec_class <argv word>...: rdt_dec_out is 1 when the command writes
+# decoded text to its stdout (DECODER SINKS): base64, base32 or basenc with
+# -d, -D or a prefix of --decode, or xxd with -r, given no output file (-o or
+# --output; xxd's second operand) and no redirection of stdout. Any other
+# command but a pager (less, more, most) passes on what it reads
+# (rdt_dec_feed), since a filter of decoded text is decoded text still.
+# shellcheck disable=SC2329  # invoked from rdt_segment
+rdt_dec_class() {
+  # Most commands neither decode nor read decoded text: skip the copy below.
+  if ((rdt_dec_feed == 0)); then
+    case "${*,,}" in
+    *base64* | *base32* | *basenc* | *xxd*) ;;
+    *) return 0 ;;
+    esac
+  fi
+  local -a words=("$@")
+  local n=$# i=0 b k w c dec=0 ops=0
+  while ((i < n)) && [[ "${words[i]}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do
+    i=$((i + 1))
+  done
+  ((i < n)) || return 0
+  for ((k = 0; k < ${#HOOK_SEG_REDIR_OP[@]}; k++)); do
+    [[ "${HOOK_SEG_REDIR_OP[k]}" == '>'* && "${HOOK_SEG_REDIR_FD[k]:-1}" == 1 ]] && return 0
+  done
+  b="${words[i]##*/}"
+  b="${b,,}"
+  b="${b%.exe}"
+  case "$b" in
+  base64 | base32 | basenc)
+    for ((k = i + 1; k < n; k++)); do
+      w="${words[k]}"
+      case "$w" in
+      --) break ;;
+      --d*) dec=1 ;;
+      --o*) return 0 ;;
+      --*) ;;
+      -?*)
+        for ((c = 1; c < ${#w}; c++)); do
+          case "${w:c:1}" in
+          [dD]) dec=1 ;;
+          o) return 0 ;;
+          [bw]) break ;;
+          *) ;;
+          esac
+        done
+        ;;
+      *) ;;
+      esac
+    done
+    ;;
+  xxd)
+    for ((k = i + 1; k < n; k++)); do
+      w="${words[k]}"
+      if ((ops == 0)) && [[ "$w" == -?* ]]; then
+        case "$w" in
+        -r*) dec=1 ;;
+        -[cglosnR] | -cols | -groupsize | -len | -offset | -seek | -name) k=$((k + 1)) ;;
+        *) ;;
+        esac
+      else
+        ops=$((ops + 1))
+        ((ops == 2)) && [[ "$w" != - ]] && return 0
+      fi
+    done
+    ;;
+  less | more | most) ;;
+  *) dec="$rdt_dec_feed" ;;
+  esac
+  rdt_dec_out=$dec
+  return 0
 }
 
 # rdt_feed_class <argv word>...: what this command writes to a pipe after it,
@@ -4954,7 +5879,7 @@ rdt_feed_judge() {
 # HOOK_SEG_WORD_QUOTED from rdt_check_segment through bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_xargs_check() {
-  local k=$(($1 + 1)) c w x name hit src="$rdt_seg_feed" rdt_deleter=0
+  local k=$(($1 + 1)) c w x name hit src="$rdt_seg_feed" rdt_deleter=0 rdt_fed=1
   local -a q0=()
   while ((k < n)); do
     w="${words[k]}"
@@ -5026,7 +5951,7 @@ rdt_xargs_check() {
 # rdt_check_segment through bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_parallel_check() {
-  local k j e=$n w pk=p text args=0 files=0 rdt_deleter=0
+  local k j e=$n w pk=p text args=0 files=0 rdt_deleter=0 rdt_fed=1
   local -a starts=() q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
   for ((k = $1 + 1; k < n; k++)); do
     case "${words[k]}" in
@@ -5082,7 +6007,8 @@ rdt_parallel_check() {
   for ((k = e + 1; k < n; k++)); do
     case "${words[k],,}" in
     ::: | :::+ | :::: | ::::+) ;;
-    *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove*) rdt_parse "${words[k]}" ;;
+    *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *mv* | *truncate* | \
+      *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd* | *cmd*rd*) rdt_parse "${words[k]}" ;;
     *) ;;
     esac
   done
@@ -5332,9 +6258,9 @@ rdt_brace_rec() {
 
 # rdt_scan_body <body>: tokenize one substitution body, under two budgets.
 #
-# A body whose TEXT holds none of `rm`, `-delete` and `unlink` cannot carry a
-# delete the matcher recognizes, so it is not tokenized at all: the same
-# reasoning as the prefilter in front of the whole guard.
+# A body whose TEXT holds none of the prefilter's words cannot carry a delete
+# or a decoder sink the matcher recognizes, so it is not tokenized at all: the
+# same reasoning as the prefilter in front of the whole guard.
 #
 # The rest are charged against ONE MAX_COMMAND_LEN budget, because the depth cap
 # bounds the nesting and not the WORK. Nesting multiplies the text to tokenize,
@@ -5356,10 +6282,11 @@ rdt_brace_rec() {
 # its feed is open (PIPELINE-FED DELETES in the header).
 rdt_scanned=0
 rdt_scan_body() {
-  local b="$1" rdt_seg_feed=open
+  local b="$1" rdt_seg_feed=open rdt_dec_feed=0 rdt_text_feed=""
   [[ -n "$b" ]] || return 0
   case "${b,,}" in
-  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove*) ;;
+  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove* | *mv* | *truncate* | \
+    *shred* | *of=* | *base64* | *base32* | *basenc* | *xxd* | *cmd*rd*) ;;
   *) return 0 ;;
   esac
   rdt_scanned=$((rdt_scanned + ${#b}))
@@ -5658,8 +6585,9 @@ rdt_scan_substitutions() {
 # shared sink-attempt budget this guard must not touch. Backslash is literal;
 # backtick is the escape. Parameters match on any unambiguous prefix of
 # Remove-Item's names. cmd /c rd /s and rmdir /s are judged as cmd grammar.
-# A pipeline into Remove-Item -Recurse with no path is refused: the target
-# arrived through the pipe and cannot be named. So is a target that is a
+# A pipeline into Remove-Item with no path judges what the stage before lists
+# (#9765), and with -Recurse is refused when that stage is no listing: the
+# target arrived through the pipe and cannot be named. So is a target that is a
 # `( )`, `$( )` or `@( )` grouping: its value is not known. A statement ends
 # at `;`, `|`, `&`, `&&`, `||` and an unquoted newline (LF, CR or CRLF, unless a
 # backtick continues the line). An unquoted `(`, `$(` or `{` opens a nested
@@ -5969,12 +6897,26 @@ rdt_ps_ri_check() {
     fi
     __i=$((__i + 1))
   done
+  local __p
+  # A target that is the pipeline item (`$_`, `$PSItem`, or a property of
+  # either) makes the scriptblock it sits in a pipeline removal (#9765).
+  for __p in ${__paths[@]+"${__paths[@]}"}; do
+    case "${__p,,}" in
+    '$_' | '$_.'* | '$psitem' | '$psitem.'*) rdt_ps_lvl_item=1 ;;
+    *) ;;
+    esac
+  done
+  # Fed by a pipe with no path of its own, it removes what the stage before
+  # lists, recursive or not; a feed that is no listing names nothing.
+  if ((${#__paths[@]} == 0 && rdt_ps_piped)); then
+    rdt_ps_list_judge "$rdt_ps_feed_in" ${rdt_ps_feed[@]+"${rdt_ps_feed[@]}"} && return 0
+    ((__rec)) && rdt_block "pipeline-target"
+    return 0
+  fi
   ((__rec)) || return 0
   if ((${#__paths[@]} == 0)); then
-    ((rdt_ps_piped)) && rdt_block "pipeline-target"
     rdt_block "empty-operand"
   fi
-  local __p
   for __p in "${__paths[@]}"; do
     if [[ -z "$__p" ]]; then
       rdt_block "empty-operand"
@@ -5997,10 +6939,557 @@ rdt_ps_rest() {
   fi
 }
 
-# rdt_ps_statement: one pipeline stage's words.
+# rdt_ps_take: the argument that starts at __w[__i] in the caller, joined
+# across the words a comma or an `@` carries it on to, into RDT_PS_ARG; __i is
+# left on its last word. Reads and moves __w and __i through bash's dynamic
+# scope.
+rdt_ps_take() {
+  RDT_PS_ARG="${__w[__i]}"
+  while ((__i + 1 < ${#__w[@]})) && [[ "$RDT_PS_ARG" == *, || "$RDT_PS_ARG" == @ || "${__w[__i + 1]}" == ,* ]]; do
+    __i=$((__i + 1))
+    RDT_PS_ARG+="${__w[__i]}"
+  done
+}
+
+# rdt_ps_move_check <kind> <word>...: the words after a Move-Item (move),
+# Clear-Content (clear) or Set-Content (set) command word (MOVES AND CONTENT
+# DESTROYERS in the header). Each -Path or -LiteralPath element, or the first
+# positional argument when neither is named, is judged as a recursive
+# Remove-Item target, every element of a comma list included. Set-Content is
+# judged only when it writes several files: more than one element, a -Path
+# holding a wildcard, or the pipeline item. With no path and a pipe into it,
+# the listing before it is judged; Move-Item, which moves a directory's
+# children with it, refuses any other feed, as a recursive removal does.
+# shellcheck disable=SC2016  # a literal `$(` grouping
+rdt_ps_move_check() {
+  local __kind="$1" __i __n __v __e __fp="" __pos=0 __multi=0
+  shift
+  local -a __w=("$@") __names=() __pv=() __pw=()
+  case "$__kind" in
+  move) __names=(path literalpath pspath lp destination force filter include exclude passthru credential whatif confirm) ;;
+  clear) __names=(path literalpath pspath lp filter include exclude force credential whatif confirm stream) ;;
+  *) __names=(path literalpath pspath lp value passthru filter include exclude force credential whatif confirm nonewline encoding asbytestream stream) ;;
+  esac
+  for ((__i = 0; __i < ${#__w[@]}; __i++)); do
+    if [[ "${__w[__i]}" == -?* ]]; then
+      __v="${__w[__i]}"
+      rdt_ps_pick_to __n "$__v" "${__names[@]}" "${RDT_PS_COMMON[@]}"
+      case "$__n" in
+      path | literalpath | pspath | lp | destination | value | filter | include | exclude | credential | stream | encoding) ;;
+      *) rdt_ps_common_val "$__n" || continue ;;
+      esac
+      if [[ "$__v" == *:?* ]]; then
+        RDT_PS_ARG="${__v#*:}"
+      elif ((__i + 1 < ${#__w[@]})); then
+        __i=$((__i + 1))
+        rdt_ps_take
+      else
+        continue
+      fi
+      case "$__n" in
+      path) __pv+=("$RDT_PS_ARG") __pw+=(1) ;;
+      literalpath | pspath | lp) __pv+=("$RDT_PS_ARG") __pw+=(0) ;;
+      *) ;;
+      esac
+      continue
+    fi
+    rdt_ps_take
+    __pos=$((__pos + 1))
+    ((__pos == 1)) && __fp="$RDT_PS_ARG"
+  done
+  if ((${#__pv[@]} == 0 && __pos > 0)); then
+    __pv=("$__fp")
+    __pw=(1)
+  fi
+  if ((${#__pv[@]} == 0)); then
+    ((rdt_ps_piped)) || return 0
+    rdt_ps_list_judge "$rdt_ps_feed_in" ${rdt_ps_feed[@]+"${rdt_ps_feed[@]}"} && return 0
+    [[ "$__kind" == move ]] && rdt_block "pipeline-target"
+    return 0
+  fi
+  local -a __el=()
+  for ((__i = 0; __i < ${#__pv[@]}; __i++)); do
+    __v="${__pv[__i]}"
+    if [[ -z "$__v" ]]; then
+      __el+=("")
+      continue
+    fi
+    while [[ -n "$__v" ]]; do
+      __e="${__v%%,*}"
+      if [[ "$__v" == *,* ]]; then
+        __v="${__v#*,}"
+      else
+        __v=""
+      fi
+      [[ -n "$__e" ]] || continue
+      ((__pw[__i])) && [[ "$__e" == *['*?[']* ]] && __multi=1
+      __el+=("$__e")
+    done
+  done
+  ((${#__el[@]} > 1)) && __multi=1
+  for __e in ${__el[@]+"${__el[@]}"}; do
+    # The pipeline item makes the scriptblock it sits in a pipeline removal
+    # (#9765), and a write to it writes each item the listing before lists.
+    case "${__e,,}" in
+    '$_' | '$_.'* | '$psitem' | '$psitem.'*) __multi=2 ;;
+    *) ;;
+    esac
+  done
+  [[ "$__kind" == set ]] && ((__multi == 0)) && return 0
+  ((__multi == 2)) && rdt_ps_lvl_item=1
+  for __e in ${__el[@]+"${__el[@]}"}; do
+    if [[ -z "$__e" ]]; then
+      rdt_block "empty-operand"
+      continue
+    fi
+    case "$__e" in
+    '(' | '{' | '@' | '('* | '$('* | '@('*) rdt_block "pipeline-target" "$__e" ;;
+    *) ;;
+    esac
+    rdt_ps_operand "$__e"
+  done
+  return 0
+}
+
+# --- PowerShell deletes behind indirection and pipelines (#9765) -------------
+# The common parameters every cmdlet takes, so a prefix is matched against them
+# too; rdt_ps_common_val says which take a value.
+RDT_PS_COMMON=(debug verbose erroraction warningaction informationaction progressaction
+  errorvariable warningvariable informationvariable outvariable outbuffer pipelinevariable
+  db vb ea wa infa proga ev wv iv ov ob pv)
+rdt_ps_common_val() {
+  case "$1" in
+  erroraction | warningaction | informationaction | progressaction | errorvariable | \
+    warningvariable | informationvariable | outvariable | outbuffer | pipelinevariable | \
+    ea | wa | infa | proga | ev | wv | iv | ov | ob | pv) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+# rdt_ps_pick_to <var> <token> <name>...: the name a parameter token binds,
+# exactly or as a unique prefix, the way PowerShell binds one; empty when it
+# names none or several. The token keeps its dash; a :value suffix is ignored.
+rdt_ps_pick_to() {
+  local __pk_dest="$1" __pk_t="${2#-}" __pk_hit="" __pk_hits=0 __pk_n
+  __pk_t="${__pk_t%%:*}"
+  __pk_t="${__pk_t,,}"
+  shift 2
+  for __pk_n in "$@"; do
+    if [[ "$__pk_n" == "$__pk_t" ]]; then
+      printf -v "$__pk_dest" '%s' "$__pk_n"
+      return 0
+    fi
+    if [[ -n "$__pk_t" && "$__pk_n" == "$__pk_t"* ]]; then
+      __pk_hit="$__pk_n"
+      __pk_hits=$((__pk_hits + 1))
+    fi
+  done
+  ((__pk_hits == 1)) || __pk_hit=""
+  printf -v "$__pk_dest" '%s' "$__pk_hit"
+}
+
+# rdt_ps_list_judge <piped> <word>...: when the words are a Get-ChildItem or
+# Get-Item stage (gci, dir, ls, gi), each path it lists from is judged as a
+# recursive delete operand, because a removal it feeds deletes there. With no
+# path it lists `.`, unless <piped> is 1: then its paths are what a pipe hands
+# it, which name nothing. Get-ChildItem's second positional argument is its
+# -Filter. A comma, or an `@` before its grouping, carries one argument on to
+# the next word, and each comma-separated element is judged. Returns 1 when
+# the words are no such listing.
+rdt_ps_list_judge() {
+  local __lin="$1"
+  shift
+  local -a __lw=("$@") __lp=()
+  local __i=0 __c __v __e __n="" __pos=0 __gci=0 __join=0 __dest=0
+  while ((__i < ${#__lw[@]})) && [[ "${__lw[__i]}" == "&" ]]; do
+    __i=$((__i + 1))
+  done
+  ((__i < ${#__lw[@]})) || return 1
+  __c="${__lw[__i],,}"
+  __c="${__c##*[\\/]}"
+  __c="${__c%.exe}"
+  case "$__c" in
+  get-childitem | gci | dir | ls) __gci=1 ;;
+  get-item | gi) ;;
+  *) return 1 ;;
+  esac
+  for ((__i = __i + 1; __i < ${#__lw[@]}; __i++)); do
+    __v="${__lw[__i]}"
+    if ((__join == 0)) && [[ "$__v" == -?* ]]; then
+      rdt_ps_pick_to __n "$__v" path literalpath lp pspath filter include exclude depth \
+        attributes stream credential recurse force name directory file hidden readonly system \
+        followsymlink "${RDT_PS_COMMON[@]}"
+      case "$__n" in
+      path | literalpath | lp | pspath) __dest=1 ;;
+      filter | include | exclude | depth | attributes | stream | credential) __dest=0 ;;
+      *)
+        rdt_ps_common_val "$__n" || continue
+        __dest=0
+        ;;
+      esac
+      if [[ "$__v" == *:?* ]]; then
+        __v="${__v#*:}"
+      elif ((__i + 1 < ${#__lw[@]})); then
+        __i=$((__i + 1))
+        __v="${__lw[__i]}"
+      else
+        continue
+      fi
+    elif ((__join == 0)); then
+      __pos=$((__pos + 1))
+      __dest=0
+      ((__pos == 1 || __gci == 0)) && __dest=1
+    fi
+    __join=0
+    [[ "$__v" == *, || "$__v" == @ || "${__lw[__i + 1]-}" == ,* ]] && __join=1
+    ((__dest)) && __lp+=("$__v")
+  done
+  if ((${#__lp[@]} == 0)); then
+    ((__lin)) && return 1
+    __lp=(".")
+  fi
+  for __v in "${__lp[@]}"; do
+    if [[ -z "$__v" ]]; then
+      rdt_block "empty-operand"
+      continue
+    fi
+    while [[ -n "$__v" ]]; do
+      __e="${__v%%,*}"
+      if [[ "$__v" == *,* ]]; then
+        __v="${__v#*,}"
+      else
+        __v=""
+      fi
+      [[ -n "$__e" ]] || continue
+      # shellcheck disable=SC2016  # a literal `$(` grouping
+      case "$__e" in
+      '(' | '{' | '@' | '('* | '$('* | '@('*) rdt_block "pipeline-target" "$__e" ;;
+      *) rdt_ps_operand "$__e" ;;
+      esac
+    done
+  done
+  return 0
+}
+
+# rdt_ps_wd <dir>: a -WorkingDirectory value, added as a directory a relative
+# target may land from, as a literal cd adds one. One this reading cannot
+# place leaves the directories as they were, so it never stops a later
+# relative target from being judged.
+rdt_ps_wd() {
+  ((RDT_ARM)) || return 0
+  local __wd_u=$rdt_cd_unknown
+  rdt_add_origin "$1" 0
+  rdt_cd_unknown=$__wd_u
+}
+
+# rdt_ps_select <word>...: true when a Select-Object stage only keeps some of
+# the items piped to it (-First, -Last, -Skip, -SkipLast, -Unique, -Index), so
+# what it passes on still comes from the stage before.
+rdt_ps_select() {
+  local __v __n="" __re='^[0-9,]+$'
+  for __v in "$@"; do
+    [[ "$__v" =~ $__re ]] && continue
+    [[ "$__v" == -?* ]] || return 1
+    rdt_ps_pick_to __n "$__v" first last skip skiplast unique index wait
+    [[ -n "$__n" ]] || return 1
+  done
+  return 0
+}
+
+# rdt_ps_call_arg <word> [next word]: the first argument of a .NET delete call
+# ([IO.Directory]::Delete, [IO.File]::Delete), the path it deletes, judged as a
+# recursive delete operand up to the comma that ends it. A grouping, an array,
+# a subexpression or a call there (`[Environment]::GetFolderPath(...)`, a word
+# a grouping follows) is refused, because its value is not known; another
+# expression is judged by its first word.
+rdt_ps_call_arg() {
+  local __ca="$1"
+  # shellcheck disable=SC2016  # a literal `$(` grouping
+  case "$__ca" in
+  '(' | '{' | '@' | '('* | '$('* | '@('*)
+    rdt_block "pipeline-target" "$__ca"
+    return 0
+    ;;
+  *) ;;
+  esac
+  if [[ "$__ca" != *,* && "${2-}" == "(" ]]; then
+    rdt_block "pipeline-target" "$__ca"
+    return 0
+  fi
+  __ca="${__ca%%,*}"
+  if [[ -z "$__ca" ]]; then
+    rdt_block "empty-operand"
+    return 0
+  fi
+  rdt_ps_operand "$__ca"
+}
+
+# rdt_ps_nested <text>: PowerShell text a statement runs (an Invoke-Expression
+# string, a pwsh -Command, a decoded -EncodedCommand), walked as statements of
+# its own. A `$` the outer walk read as literal is a `$` again here, because the
+# text expands it when it runs. Nesting depth and the text read in total are
+# bounded as eval and child shells are in the Bash lane, and the bound refuses.
+rdt_ps_nested() {
+  local __t="$1"
+  [[ -n "$RDT_PS_LIT" ]] && __t="${__t//"$RDT_PS_LIT"/\$}"
+  local rdt_depth=$((rdt_depth + 1))
+  ((rdt_depth > MAX_SEGMENT_DEPTH)) && rdt_block "nesting-too-deep-launcher"
+  rdt_scanned=$((rdt_scanned + ${#__t}))
+  ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
+  rdt_ps_walk "$__t"
+}
+
+# rdt_ps_b64_utf16_to <var> <text>: an -EncodedCommand value decoded as pwsh
+# reads it, base64 of UTF-16LE (about_Pwsh), with bash builtins only. Returns 1
+# for a value that is not literal base64, or one that decodes to anything but
+# printable ASCII, tab, LF and CR, which the walk cannot read faithfully.
+rdt_ps_b64_utf16_to() {
+  local __bd_dest="$1" __bd_in="${2//[[:space:]]/}" __bd_out="" __bd_c __bd_pre __bd_x
+  local __bd_al='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+  local __bd_re='^[A-Za-z0-9+/]+={0,2}$'
+  local -i __bd_acc=0 __bd_bits=0 __bd_lo=-1 __bd_b=0 __bd_i
+  [[ "$__bd_in" =~ $__bd_re ]] || return 1
+  __bd_in="${__bd_in%%=*}"
+  for ((__bd_i = 0; __bd_i < ${#__bd_in}; __bd_i++)); do
+    __bd_c="${__bd_in:__bd_i:1}"
+    __bd_pre="${__bd_al%%"$__bd_c"*}"
+    ((${#__bd_pre} < 64)) || return 1
+    __bd_acc=$(((__bd_acc << 6) | ${#__bd_pre}))
+    __bd_bits=$((__bd_bits + 6))
+    ((__bd_bits >= 8)) || continue
+    __bd_bits=$((__bd_bits - 8))
+    __bd_b=$(((__bd_acc >> __bd_bits) & 255))
+    __bd_acc=$((__bd_acc & ((1 << __bd_bits) - 1)))
+    if ((__bd_lo < 0)); then
+      __bd_lo=$__bd_b
+      continue
+    fi
+    # One UTF-16LE code unit: the low byte, then a high byte of 0 for ASCII.
+    ((__bd_b == 0 && ((__bd_lo >= 32 && __bd_lo < 127) || __bd_lo == 9 || __bd_lo == 10 || __bd_lo == 13))) || return 1
+    printf -v __bd_x '%02x' "$__bd_lo"
+    # shellcheck disable=SC2059  # the format is the one byte's \x escape
+    printf -v __bd_c "\\x$__bd_x"
+    __bd_out+="$__bd_c"
+    __bd_lo=-1
+  done
+  ((__bd_lo < 0)) || return 1
+  printf -v "$__bd_dest" '%s' "$__bd_out"
+}
+
+# rdt_ps_shell_from <word>...: the words after a pwsh or powershell command
+# word (about_Pwsh, about_PowerShell_exe). -Command (-c, or a prefix of it)
+# runs every word after it joined by spaces, -CommandWithArgs (-cwa) runs the
+# word after it, and -EncodedCommand (-e, -ec, or a prefix of it) runs the word
+# after it decoded; each is walked as PowerShell, and an -EncodedCommand this
+# walk cannot decode is refused. A word before any of them that is no option
+# starts -Command text too: powershell.exe's default, and for pwsh, whose
+# default is -File, a script name and its arguments read as harmless text.
+# -File (-f) runs a script, which is not read. -WorkingDirectory adds the
+# directory a relative target may land from.
+rdt_ps_shell_from() {
+  local -a __sa=("$@")
+  local __k=0 __v __n __t="" __full __pos=0
+  while ((__k < ${#__sa[@]})); do
+    __v="${__sa[__k]}"
+    # The first word that is no option starts the text; the scan goes on, so
+    # a -Command after an option this reading does not know is read as well.
+    if [[ "$__v" != -* && "$__v" != /?* ]]; then
+      if ((__pos == 0)); then
+        __pos=1
+        __t=""
+        for __full in "${__sa[@]:__k}"; do
+          __t+="${__t:+ }$__full"
+        done
+        rdt_ps_nested "$__t"
+      fi
+      __k=$((__k + 1))
+      continue
+    fi
+    __n="${__v#/}"
+    __n="${__n#-}"
+    __n="${__n#-}"
+    __n="${__n%%:*}"
+    __n="${__n,,}"
+    __k=$((__k + 1))
+    [[ -z "$__n" || "$__n" == "%" ]] && continue
+    if [[ "$__n" == cwa || ("$__n" == commandw* && "commandwithargs" == "$__n"*) ]]; then
+      ((__k < ${#__sa[@]})) && rdt_ps_nested "${__sa[__k]}"
+      return 0
+    fi
+    if [[ "command" == "$__n"* ]]; then
+      __t=""
+      for __full in ${__sa[@]+"${__sa[@]:__k}"}; do
+        __t+="${__t:+ }$__full"
+      done
+      [[ -n "$__t" ]] && rdt_ps_nested "$__t"
+      return 0
+    fi
+    if [[ "$__n" == ec || "encodedcommand" == "$__n"* ]]; then
+      ((__k < ${#__sa[@]})) || return 0
+      rdt_ps_b64_utf16_to __t "${__sa[__k]}" || rdt_block "encoded-unreadable"
+      rdt_ps_nested "$__t"
+      return 0
+    fi
+    [[ "file" == "$__n"* ]] && return 0
+    if [[ "$__n" == wd || ("$__n" == wo* && "workingdirectory" == "$__n"*) ]]; then
+      if ((__k < ${#__sa[@]})); then
+        rdt_ps_wd "${__sa[__k]}"
+        __k=$((__k + 1))
+      fi
+      continue
+    fi
+    case "$__n" in
+    ex | ep | w | o | of | inp | if | config | settings | v) __k=$((__k + 1)) ;;
+    *)
+      for __full in executionpolicy windowstyle outputformat inputformat configurationname \
+        configurationfile custompipename settingsfile psconsolefile version encodedarguments; do
+        if ((${#__n} >= 3)) && [[ "$__full" == "$__n"* ]]; then
+          __k=$((__k + 1))
+          break
+        fi
+      done
+      ;;
+    esac
+  done
+  return 0
+}
+
+# rdt_ps_iex <word>...: the words after Invoke-Expression or iex. Its -Command
+# (position 0, or a prefix of the name) is walked as PowerShell. Without one,
+# the string a pipe hands it (Invoke-Expression, learn.microsoft.com) is walked
+# when the stage before is one word or a Write-Output, echo or write of one; a
+# feed of any other shape, like a variable it is given, names nothing. A
+# grouping given as the string is read when it holds one word (`iex ('...')`),
+# the grouping that closed last in the statement.
+rdt_ps_iex_run() {
+  if [[ "$1" != "(" ]]; then
+    rdt_ps_nested "$1"
+  elif ((${#rdt_ps_grp[@]} == 1)); then
+    rdt_ps_nested "${rdt_ps_grp[0]}"
+  fi
+  return 0
+}
+rdt_ps_iex() {
+  local -a __ia=("$@") __f=()
+  local __k=0 __v __n=""
+  while ((__k < ${#__ia[@]})); do
+    __v="${__ia[__k]}"
+    __k=$((__k + 1))
+    if [[ "$__v" != -?* ]]; then
+      rdt_ps_iex_run "$__v"
+      return 0
+    fi
+    rdt_ps_pick_to __n "$__v" command "${RDT_PS_COMMON[@]}"
+    if [[ "$__n" == command ]]; then
+      if [[ "$__v" == *:?* ]]; then
+        rdt_ps_iex_run "${__v#*:}"
+      elif ((__k < ${#__ia[@]})); then
+        rdt_ps_iex_run "${__ia[__k]}"
+      fi
+      return 0
+    fi
+    rdt_ps_common_val "$__n" && [[ "$__v" != *:* ]] && __k=$((__k + 1))
+  done
+  ((rdt_ps_piped)) || return 0
+  __f=(${rdt_ps_feed[@]+"${rdt_ps_feed[@]}"})
+  if ((${#__f[@]} == 1)); then
+    rdt_ps_nested "${__f[0]}"
+  elif ((${#__f[@]} == 2)); then
+    case "${__f[0],,}" in
+    write-output | echo | write) rdt_ps_nested "${__f[1]}" ;;
+    *) ;;
+    esac
+  fi
+  return 0
+}
+
+# rdt_ps_start <word>...: the words after Start-Process, saps or start. Its
+# -FilePath (position 0) is the program, and its -ArgumentList (position 1, an
+# array its commas join) is joined by spaces into the one command line the
+# program gets (Start-Process, learn.microsoft.com). That line is split as cmd
+# splits one and judged as the program's statement: cmd /c rd /s, robocopy, a
+# Remove-Item spelling such as rm, or pwsh and powershell. -WorkingDirectory
+# adds the directory a relative target may land from. A program or argument
+# list held in a variable names nothing.
+rdt_ps_start() {
+  local rdt_depth=$((rdt_depth + 1))
+  ((rdt_depth > MAX_SEGMENT_DEPTH)) && rdt_block "nesting-too-deep-launcher"
+  local -a __pa=("$@") __pr=() __pp=()
+  local __k=0 __v __n __fp=0 __al=0 __prog="" __line="" rdt_ps_piped=0 rdt_ps_item=0
+  local __re='^-[A-Za-z][A-Za-z0-9]*(:|$)'
+  while ((__k < ${#__pa[@]})); do
+    __v="${__pa[__k]}"
+    __k=$((__k + 1))
+    __n=""
+    # A parameter is a dash and a name; a word holding a blank or a comma is a
+    # quoted string even when it starts with a dash (`'-c','...'`).
+    if [[ "$__v" =~ $__re ]]; then
+      rdt_ps_pick_to __n "$__v" filepath path pspath argumentlist args workingdirectory \
+        credential redirectstandarderror redirectstandardinput redirectstandardoutput rse rsi rso \
+        windowstyle verb environment wait nonewwindow nnw passthru loaduserprofile lup \
+        usenewenvironment whatif wi confirm cf "${RDT_PS_COMMON[@]}"
+      case "$__n" in
+      filepath | path | pspath | argumentlist | args | workingdirectory) ;;
+      credential | redirectstandard* | rse | rsi | rso | windowstyle | verb | environment)
+        [[ "$__v" == *:* ]] || __k=$((__k + 1))
+        continue
+        ;;
+      *)
+        rdt_ps_common_val "$__n" && [[ "$__v" != *:* ]] && __k=$((__k + 1))
+        continue
+        ;;
+      esac
+      if [[ "$__v" == *:?* ]]; then
+        __v="${__v#*:}"
+      elif ((__k < ${#__pa[@]})); then
+        __v="${__pa[__k]}"
+        __k=$((__k + 1))
+      else
+        continue
+      fi
+    else
+      # A positional word binds the first of the two not yet named.
+      if ((!__fp)); then
+        __n=filepath
+      elif ((!__al)); then
+        __n=argumentlist
+      fi
+    fi
+    case "$__n" in
+    filepath | path | pspath)
+      __prog="$__v"
+      __fp=1
+      ;;
+    workingdirectory) rdt_ps_wd "$__v" ;;
+    argumentlist | args)
+      __al=1
+      __pr+=("$__v")
+      # An array goes on across the commas that join its elements.
+      while ((__k < ${#__pa[@]})) && [[ "${__pr[${#__pr[@]} - 1]}" == *, || "${__pa[__k]}" == ,* ]]; do
+        __pr+=("${__pa[__k]}")
+        __k=$((__k + 1))
+      done
+      ;;
+    *) ;;
+    esac
+  done
+  [[ -n "$__prog" ]] || return 0
+  for __v in ${__pr[@]+"${__pr[@]}"}; do
+    __line+="${__line:+ }${__v//,/ }"
+  done
+  rdt_ps_cmd_split_to __pp "$__line"
+  rdt_ps_statement "$__prog" ${__pp[@]+"${__pp[@]}"}
+}
+
+# rdt_ps_statement: one pipeline stage's words. A scriptblock in the stage that
+# removes the pipeline item (rdt_ps_item) removes what the stage before lists,
+# and a feed that is no listing names nothing, so it is refused.
 rdt_ps_statement() {
   local -a __w=("$@")
   ((${#__w[@]})) || return 0
+  if ((rdt_ps_item && rdt_ps_piped)); then
+    rdt_ps_list_judge "$rdt_ps_feed_in" ${rdt_ps_feed[@]+"${rdt_ps_feed[@]}"} || rdt_block "pipeline-target"
+  fi
   local __i=0 __cmd
   while ((__i < ${#__w[@]})) && [[ "${__w[__i]}" == "&" ]]; do
     __i=$((__i + 1))
@@ -6034,8 +7523,48 @@ rdt_ps_statement() {
       rdt_ps_robocopy_check "${__w[@]:__i}"
     fi
     ;;
+  move-item | mi | move | mv) rdt_ps_move_check move "${__w[@]:__i}" ;;
+  clear-content | clc) rdt_ps_move_check clear "${__w[@]:__i}" ;;
+  set-content) rdt_ps_move_check set "${__w[@]:__i}" ;;
+  invoke-expression | iex) rdt_ps_iex "${__w[@]:__i}" ;;
+  start-process | saps | start) rdt_ps_start "${__w[@]:__i}" ;;
+  pwsh | powershell) rdt_ps_shell_from "${__w[@]:__i}" ;;
+  # A filter passes on items of the stage before, so what a removal after it
+  # deletes is still what that stage lists (rdt_ps_feed is kept).
+  where-object | where | '?' | sort-object | sort) ((rdt_ps_piped)) && rdt_ps_pass=1 ;;
+  select-object | select) ((rdt_ps_piped)) && rdt_ps_select "${__w[@]:__i}" && rdt_ps_pass=1 ;;
   *) ;;
   esac
+  return 0
+}
+
+# rdt_ps_decoded <word>...: one pipeline stage, for DECODER SINKS. The stage is
+# decoded when a word of it is [Convert]::FromBase64String (the `(` of the call
+# ends the word, so a quoted string that names it is never that whole word), a
+# level closed inside it was (rdt_ps_dec), or a decoded stage pipes into it
+# (rdt_ps_pipe_dec). A decoded stage taints its level (rdt_ps_lvl_dec), and
+# Invoke-Expression or iex given decoded text is refused.
+rdt_ps_decoded() {
+  local d=$rdt_ps_dec w c=""
+  rdt_ps_dec=0
+  ((rdt_ps_after_pipe && rdt_ps_pipe_dec)) && d=1
+  rdt_ps_after_pipe=0
+  for w in "$@"; do
+    case "${w,,}" in
+    '[convert]::frombase64string' | '[system.convert]::frombase64string') d=1 ;;
+    *) ;;
+    esac
+    [[ -z "$c" && "$w" != "&" ]] && c="$w"
+  done
+  rdt_ps_pipe_dec=$d
+  ((d)) || return 0
+  rdt_ps_lvl_dec=1
+  c="${c##*\\}"
+  c="${c##*/}"
+  c="${c,,}"
+  c="${c%.exe}"
+  [[ "$c" == iex || "$c" == invoke-expression ]] && rdt_block "decoder-sink"
+  return 0
 }
 
 # rdt_ps_walk <command>: PowerShell quoting (backtick escape, backslash
@@ -6047,9 +7576,18 @@ rdt_ps_statement() {
 # many words each holds) and __svp (their pipeline state).
 rdt_ps_walk() {
   local __s="$1" __n=${#1} __i=0
-  local -a __words=() __sv=() __svn=() __svp=() __svk=()
+  local -a __words=() __sv=() __svn=() __svp=() __svk=() __svd=() __sf=() __sfn=()
   local __word="" __in=0 __q="" __c __nxt __cont=0
-  rdt_ps_piped=0
+  # Local, so a walk of nested text (rdt_ps_nested) keeps the outer state.
+  # rdt_ps_feed is the stage that last ended, which feeds the next one after a
+  # `|`, and rdt_ps_feed_in says a pipe fed that stage too; rdt_ps_item marks a stage whose scriptblock removes the pipeline item
+  # and rdt_ps_lvl_item a level holding such a removal; rdt_ps_call a level
+  # that is a .NET delete call's arguments; rdt_ps_nst counts the statements
+  # of a level (two means more), and rdt_ps_grp holds the one statement of the
+  # grouping that closed last.
+  local rdt_ps_piped=0 rdt_ps_dec=0 rdt_ps_lvl_dec=0 rdt_ps_pipe_dec=0 rdt_ps_after_pipe=0
+  local rdt_ps_item=0 rdt_ps_lvl_item=0 rdt_ps_call=0 rdt_ps_nst=0 rdt_ps_pass=0 rdt_ps_feed_in=0
+  local -a rdt_ps_feed=() rdt_ps_grp=()
 
   rdt_ps_flush_word() {
     if ((__in)); then
@@ -6061,24 +7599,62 @@ rdt_ps_walk() {
   rdt_ps_end_stmt() {
     rdt_ps_flush_word
     if ((${#__words[@]})); then
+      if ((rdt_ps_call)); then
+        rdt_ps_call=0
+        rdt_ps_call_arg "${__words[0]}" "${__words[1]-}"
+      fi
+      rdt_ps_decoded "${__words[@]}"
       rdt_ps_statement "${__words[@]}"
+      if ((!rdt_ps_pass)); then
+        rdt_ps_feed=("${__words[@]}")
+        rdt_ps_feed_in=$rdt_ps_piped
+      fi
+      ((rdt_ps_item && !rdt_ps_piped)) && rdt_ps_lvl_item=1
+      ((rdt_ps_nst < 2)) && rdt_ps_nst=$((rdt_ps_nst + 1))
       __words=()
-      rdt_ps_piped=0
+      rdt_ps_piped=0 rdt_ps_item=0 rdt_ps_pass=0
     fi
   }
   # A `(`, `$(` or `{` (its kind is the argument) opens a level: the statement
-  # so far is parked and what follows is judged on its own.
+  # so far is parked and what follows is judged on its own. A `(` right after
+  # a word is a call, and three calls delete: [<type>]::Delete( makes the
+  # level a .NET delete's arguments, $_.Delete( or $PSItem.Delete( removes the
+  # pipeline item, and .Delete( after a grouping removes what the grouping
+  # lists.
   rdt_ps_open() {
     rdt_ps_flush_word
     ((${#__svn[@]} < MAX_SUBST_DEPTH)) || rdt_block "nesting-too-deep"
-    if ((${#__words[@]})); then
+    local __call=0 __nw=${#__words[@]}
+    if [[ "$1" == "(" ]] && ((__nw)); then
+      # shellcheck disable=SC2016  # literal `$_` and `$PSItem` member calls
+      case "${__words[__nw - 1],,}" in
+      *']::delete') __call=1 ;;
+      '$_.delete' | '$psitem.delete') rdt_ps_lvl_item=1 ;;
+      .delete)
+        # A grouping that is not one listing statement names nothing.
+        if ((__nw > 1)) && [[ "${__words[__nw - 2]}" == "(" ]]; then
+          rdt_ps_list_judge 0 ${rdt_ps_grp[@]+"${rdt_ps_grp[@]}"} || rdt_block "pipeline-target"
+        fi
+        ;;
+      *) ;;
+      esac
+    fi
+    if ((__nw)); then
       __sv+=("${__words[@]}")
     fi
-    __svn+=("${#__words[@]}")
+    __svn+=("$__nw")
     __svp+=("$rdt_ps_piped")
     __svk+=("$1")
+    __svd+=("$rdt_ps_dec$rdt_ps_lvl_dec$rdt_ps_pipe_dec$rdt_ps_after_pipe$rdt_ps_item$rdt_ps_lvl_item$rdt_ps_call$rdt_ps_nst$rdt_ps_feed_in")
+    __sfn+=("${#rdt_ps_feed[@]}")
+    if ((${#rdt_ps_feed[@]})); then
+      __sf+=("${rdt_ps_feed[@]}")
+    fi
     __words=()
+    rdt_ps_feed=()
     rdt_ps_piped=0
+    rdt_ps_dec=0 rdt_ps_lvl_dec=0 rdt_ps_pipe_dec=0 rdt_ps_after_pipe=0
+    rdt_ps_item=0 rdt_ps_lvl_item=0 rdt_ps_call=$__call rdt_ps_nst=0 rdt_ps_feed_in=0
   }
   # A `)` or `}` judges the innermost level and hands its parked statement back
   # with one placeholder word, the kind the level was opened with (`(` or
@@ -6086,8 +7662,10 @@ rdt_ps_walk() {
   # statement.
   rdt_ps_close() {
     rdt_ps_end_stmt
-    local __k=${#__svn[@]} __cnt __tot __kind
+    local __k=${#__svn[@]} __cnt __tot __kind __d
     ((__k)) || return 0
+    rdt_ps_grp=()
+    ((rdt_ps_nst == 1)) && rdt_ps_grp=(${rdt_ps_feed[@]+"${rdt_ps_feed[@]}"})
     __cnt=${__svn[__k - 1]}
     __kind=${__svk[__k - 1]}
     __tot=${#__sv[@]}
@@ -6097,8 +7675,28 @@ rdt_ps_walk() {
     else
       __words=()
     fi
+    __cnt=${__sfn[__k - 1]}
+    __tot=${#__sf[@]}
+    if ((__cnt)); then
+      rdt_ps_feed=("${__sf[@]:__tot-__cnt:__cnt}")
+      __sf=("${__sf[@]:0:__tot-__cnt}")
+    else
+      rdt_ps_feed=()
+    fi
     rdt_ps_piped=${__svp[__k - 1]}
-    unset "__svn[__k - 1]" "__svp[__k - 1]" "__svk[__k - 1]"
+    # A level that held decoded text, or removed the pipeline item, marks the
+    # statement it hands back to.
+    __d=${__svd[__k - 1]}
+    rdt_ps_dec=$((${__d:0:1} | rdt_ps_lvl_dec))
+    rdt_ps_item=$((${__d:4:1} | rdt_ps_lvl_item))
+    rdt_ps_lvl_dec=${__d:1:1}
+    rdt_ps_pipe_dec=${__d:2:1}
+    rdt_ps_after_pipe=${__d:3:1}
+    rdt_ps_lvl_item=${__d:5:1}
+    rdt_ps_call=${__d:6:1}
+    rdt_ps_nst=${__d:7:1}
+    rdt_ps_feed_in=${__d:8:1}
+    unset "__svn[__k - 1]" "__svp[__k - 1]" "__svk[__k - 1]" "__svd[__k - 1]" "__sfn[__k - 1]"
     __words+=("$__kind")
     if [[ "$__kind" == "{" ]]; then
       case "${__words[0],,}" in
@@ -6229,15 +7827,17 @@ rdt_ps_walk() {
         rdt_ps_end_stmt
       fi
       ;;
+    # A separator ends the stage first, so a stage a pipe feeds is judged as
+    # piped whatever ends it, and then clears the pipe for what follows.
     '|')
       if [[ "$__nxt" == '|' ]]; then
-        rdt_ps_piped=0
         rdt_ps_end_stmt
+        rdt_ps_piped=0
         __i=$((__i + 1))
       else
-        rdt_ps_piped=0
         rdt_ps_end_stmt
         rdt_ps_piped=1
+        rdt_ps_after_pipe=1
       fi
       ;;
     '&')
@@ -6245,17 +7845,17 @@ rdt_ps_walk() {
         rdt_ps_flush_word
         __words+=("&")
       elif [[ "$__nxt" == '&' ]]; then
-        rdt_ps_piped=0
         rdt_ps_end_stmt
+        rdt_ps_piped=0
         __i=$((__i + 1))
       else
-        rdt_ps_piped=0
         rdt_ps_end_stmt
+        rdt_ps_piped=0
       fi
       ;;
     ';')
-      rdt_ps_piped=0
       rdt_ps_end_stmt
+      rdt_ps_piped=0
       ;;
     [[:space:]])
       rdt_ps_flush_word

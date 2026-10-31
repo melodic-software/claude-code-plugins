@@ -1,5 +1,5 @@
 ---
-description: "One online documentation page turned into a verified knowledge slice: the original, section digests, independent verification records and an interview-ready handoff. Use when the user supplies a single documentation URL or asks to digest one vendor docs page into the knowledge base. Several pages or a whole site go to /knowledge:map-corpus; a book file to /knowledge:book-distill."
+description: "One online documentation page turned into a verified knowledge slice: the original, section digests, independent verification records and an interview-ready handoff. Use when the user supplies a single documentation URL or asks to digest one vendor docs page into the knowledge base. Several pages or a whole site go to /knowledge:map-corpus; a book file to /knowledge:distill."
 argument-hint: "[url]"
 user-invocable: true
 disable-model-invocation: false
@@ -17,33 +17,16 @@ pointer to that publisher's recorded pages) lives in a separable publisher profi
 
 ## Work root
 
-This skill's `.work/` root resolves through the knowledge plugin's own `library_dir` setting.
-Configured library dir: `${user_config.library_dir}`
+The work root follows the knowledge plugin's one rule, `${CLAUDE_PLUGIN_ROOT}/reference/work-root.md`.
+**Resolve it once, before the first write**, from the session's working directory:
 
-**Resolve the root once, before the first write**, and record the resolved absolute path in the
-checklist's Provenance block. Every `<work-root>` path below is relative to it; a resumed session
-reads it back instead of re-deriving it. Resolve the rendered value above as follows (the README's
-option table owns the value forms):
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/work-root.mjs" --library-dir '${user_config.library_dir}'
+```
 
-- **Unset**, empty, or a surviving literal `${user_config.library_dir}` token: use the default
-  `.`; never create a directory named after the token.
-- **Relative** (including the default `.`): resolve against the session's own working tree,
-  `git rev-parse --show-toplevel` run in the session's working directory, or that directory itself
-  outside git. Never resolve against the `CLAUDE_PROJECT_DIR` project root: in a worktree session
-  it can name a checkout other than the one the session writes to.
-  - **Pointer**: for where `CLAUDE_PROJECT_DIR` points after a session enters a worktree, see
-    <https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree>; for the write
-    refusal, see <https://code.claude.com/docs/en/worktrees#how-claude-code-enforces-isolation>.
-  - **As of**: 2026-10-11
-  - **Recheck trigger**: either section changes where `CLAUDE_PROJECT_DIR` points inside a
-    worktree session or which writes the isolation checks refuse.
-- **Absolute**. Use verbatim, with no project-directory prefix.
-- **Leading `~`**, the home directory, with no project-directory prefix.
-- **`${NAME}` / `%NAME%` env-var reference**. Read the variable yourself (`printenv NAME` in
-  bash, `$env:NAME` in PowerShell) and use its value with no project-directory prefix. **An unset
-  variable fails the run loudly**. Report it and stop. Never hand the reference to a shell for
-  expansion: an unset variable expands to the empty string there, silently writing the slice to
-  the wrong root.
+Record the printed absolute path in the checklist's Provenance block. Every `<work-root>` path below
+is relative to it; a resumed session reads it back instead of re-deriving it. A non-zero exit (an
+unset variable in the value) fails the run: report it and stop.
 
 The slice lands at `<resolved-root>/.work/<slug>/`. The root self-ignores (a `.gitignore`
 containing `*`); never commit it. Graduating a slice to a tracked corpus repository is a separate,

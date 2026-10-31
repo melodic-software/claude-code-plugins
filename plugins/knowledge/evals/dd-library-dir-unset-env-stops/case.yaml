@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: dd-library-dir-unset-env-stops
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-unset-variable
+    type: regex
+    pattern: '^(?![^\n]*\?[ \t*_]*$)[^\n]*?(?:\bEVAL_KNOWLEDGE_CORPUS_DIR\b[^\n]{0,80}?(?<!\bnot )(?<!\bisn[’'']t )\b(?:unset|not set|undefined|empty|missing)\b|(?<!\bnot )\b(?:unset|undefined|empty|missing)\b[^\n]{0,60}?\bEVAL_KNOWLEDGE_CORPUS_DIR\b)'
+    flags: 'mi'
+    target: last_message
+  - name: reports-stop
+    type: regex
+    pattern: '^(?![^\n]*\?[ \t*_]*$)[^\n]*?(?<!\bnot )(?<!n[’'']t )(?<!\bwithout )(?<!\bno )(?<!\bbefore )(?<!\bneed for )(?<!\bneed to )(?<!\bnever )(?<!\bnothing )(?<!ould have )\b(?:abort(?:ed|ing)|stop(?:ped|ping)|halt(?:ed|ing)|refus(?:ed|ing)|declin(?:ed|ing)|fail(?:ed|s|ing) (?:loudly|the run))\b|^[ \t#>*_-]*(?:abort|stop|halt|refus(?:e|ed))\b(?![^\n]*\?[ \t*_]*$)|\b(?:will not|won[’'']t|cannot|can[’'']t|did not|didn[’'']t)[ \t]+(?:(?:continue|proceed)(?![ \t]+to\b)|resolve|fetch|write)\b'
+    flags: 'mi'
+    target: last_message
+  - name: checks-variable
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?EVAL_KNOWLEDGE_CORPUS_DIR'
+    min: 1
+  - name: no-work-root-created
+    type: file_exists
+    path: '**/.work/**'
+    exists: false
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-page-fetch
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?\b(?:curl|wget)\b(?:[^"\\]|\\.)*?docs\.example\.com'
+    min: 0
+    max: 0
+    arm: both

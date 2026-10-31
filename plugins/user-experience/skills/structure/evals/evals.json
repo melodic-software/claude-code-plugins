@@ -46,6 +46,19 @@
       "expectations": [
         "No Skill call reaches user-experience:structure"
       ]
+    },
+    {
+      "id": 5,
+      "name": "menu-depth",
+      "prompt": "Structure the navigation for our project tool. Today a file sits at Workspace > Teams > Design > Projects > 2026 > Brand refresh, reached through nested dropdowns. Is that too deep, and what should the tree be?",
+      "expected_output": "A navigation tree that names the six-level path as past the three-level limit, counts levels in the tree rather than clicks, proposes a flatter tree or wayfinding such as breadcrumbs, and treats three levels as a point to review rather than a hard limit by naming that a too-flat structure also fails.",
+      "files": [],
+      "expectations": [
+        "The response says the six-level path is deeper than the three-level limit",
+        "The response proposes a flatter tree, breadcrumbs, or both",
+        "The response counts the levels in the tree rather than the clicks",
+        "The response says a structure that is too flat also fails, so three levels is not a hard limit"
+      ]
     }
   ]
 }

@@ -3,6 +3,18 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0] - 2026-10-31
+
+### Added
+
+- `/debugging:debug` takes an optional `--unattended` modifier, accepted anywhere in its arguments. With it, the run records the `/debug` offer in its output instead of asking; without it, the run asks. The argument hint lists it.
+
+## [0.14.6] - 2026-10-31
+
+### Changed
+
+- `debug` offers the bundled `/debug` as a suggest sentence, `If /debug is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when the offer is deleted or reworded.
+
 ## [0.14.5] - 2026-10-30
 
 ### Changed

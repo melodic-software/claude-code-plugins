@@ -89,23 +89,24 @@ goes through the `mechanical` workload, which runs the worker on `sonnet` by
 default. The hardest stage that one agent runs (a final synthesis, a judge, a
 design decision) takes the role's `single` variant, which keeps the role's own
 model. Everything else takes the role's default for its workload. The bundled
-`mechanical` model rests on
+`mechanical` model is this repository's judgment; for the context it weighs, see
 [costs: choose the right model](https://code.claude.com/docs/en/costs#choose-the-right-model),
-as of 2026-10-04; recheck when that section changes its model split.
+as of 2026-10-31; recheck when that section changes its model split.
 
 ## Where effort applies
 
 Role effort reaches workflow `agent()` calls, which pass `opts.effort`
 explicitly, and Agent tool dispatches with no named type, which pass it as the
 per-spawn `effort` parameter (route's Output section). A named agent runs at
-its `effort` frontmatter unless its dispatcher passes `effort` on the call, or
-at the session's level when it sets none. route reads no settings file, so the
+its `effort` frontmatter unless its dispatcher passes `effort` on the call or
+a source ranked above both applies, or at the session's level when it sets
+none. route reads no settings file, so the
 effort it prints is the level a caller asks for, before any cap. A loop lane's
 level is its own `lanes[].effort`, not the `orchestrator` role.
 
 - Pointer: [sub-agents: choose an effort level](https://code.claude.com/docs/en/sub-agents#choose-an-effort-level)
   and [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
-- As of: 2026-10-10
+- As of: 2026-10-31
 - Recheck: either section changes which source wins for a subagent's effort,
   or what an unset `effort` field inherits.
 
@@ -130,9 +131,14 @@ Every role resolves to two variants. `single` serves a stage that runs one
 agent (a final synthesis or judge); `fanout` serves a stage that runs more than
 one. With `fanout.frontier_guard: true`, a fan-out variant whose model would be
 `inherit` under a frontier session, or under a session the caller did not name,
-or that names a frontier alias, takes `fanout.model` instead. So a frontier
-session never fans out on its own model. Under an Opus session `opus` and
-`inherit` name the same model, so the guard changes nothing there.
+or that names a frontier alias, takes `fanout.model` instead. So the resolver
+never emits a frontier session's own model for a fan-out stage. What the agent
+runs on is the harness's call: see
+[sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model) and
+[run every subagent on one model](https://code.claude.com/docs/en/sub-agents#run-every-subagent-on-one-model)
+(as of 2026-10-31; recheck when either section changes how an alias, a blocked
+value or a forced model resolves). Under an Opus session `opus` and `inherit`
+name the same model, so the guard changes nothing there.
 
 Setting `fanout.frontier_guard: false` is an explicit opt-in to frontier
 fan-outs. Set it on the layer whose scope you mean: the overlay for one

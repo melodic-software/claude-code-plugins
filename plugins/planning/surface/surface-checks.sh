@@ -25,7 +25,7 @@ bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 # The browser groups of each part, and each group's check count for the SKIP line.
 declare -A PARTS=([main]="ab e live" [page]="page" [ui-c]="c" [ui-c-listen]="c_listen" [ui-c-ledger]="c_ledger" [journey]="journey")
-declare -A CHECKS=([ab]=97 [c]=176 [c_listen]=21 [c_ledger]=10 [e]=22 [journey]=235 [live]=18 [page]=118)
+declare -A CHECKS=([ab]=97 [c]=176 [c_listen]=21 [c_ledger]=10 [e]=22 [journey]=235 [live]=18 [page]=122)
 part=main
 case "$#:${1:-}" in
   0:) ;;
@@ -48,7 +48,7 @@ fi
 cd "$here" || exit 1
 if [[ "$part" == main || "$part" == all ]]; then
   files=()
-  for f in server.py round.py round.sh watch.sh wake.sh index.html exporters.py schema.py schema/*.schema.json tests/*.js; do
+  for f in interview_server.py round.py round.sh watch.sh wake.sh index.html exporters.py schema.py schema/*.schema.json tests/*.js; do
     [[ -f "$f" ]] && files+=("$f")
   done
 

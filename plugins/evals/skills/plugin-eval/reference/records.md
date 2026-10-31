@@ -71,7 +71,7 @@ re-read the page.
   - A peer isolated session also had routine Bash refused for the bare word (`grep -i eval`).
   Recheck: re-run `claude plugin eval --help` in a `--worktree` session and in a normal session
   started in a worktree.
-- Recheck on Claude Code 2.1.312, Linux/WSL2, 2026-10-29 (#5696), same probe shape: `claude -p
+- Recheck on Claude Code 2.1.316, Linux/WSL2, 2026-10-31 (#5696), same probe shape: `claude -p
   --worktree` still refused, same message; a normal session in a `git worktree add` worktree
   allowed.
 - The CLI's linked-worktree refusal (`registers more linked worktrees than can be screened`):
@@ -105,6 +105,12 @@ Kept traces (`--keep-temp`):
   `plugins/planning/reference/artifact-protocol.md`, with no `Read` denied, verified 2026-10-04.
   At that version a skill's `context/`, `reference/`, `actions/` and `templates/` reads succeeded
   with no grant.
+- 2.1.316, one with-arm run each of this plugin's `grading-method-choice`: copied to a directory
+  named `evals`, the `Read` of `skills/methodology/reference/grading.md` was denied with the text
+  above and listed in `permission_denials`; copied to `evals-plugin`, the same `Read` succeeded,
+  verified 2026-10-31. The run's sandbox settings listed the plugin root under `denyRead`. Every
+  denial above is this plugin, whose directory is named `evals` like the default eval directory,
+  so the earlier entries do not show a version boundary.
 
 For what a grant covers, see <https://code.claude.com/docs/en/plugin-evals#grant-tools>, as of
 2026-10-02. Recheck: re-run one case with `--keep-temp` and read the with-arm trace.

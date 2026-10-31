@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Manifest: interview-data/staging/r1/manifest.json",
+      "why": "path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Open file:///tmp/x.html",
+      "why": "file url"
+    }
+  ]
+}

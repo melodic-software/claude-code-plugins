@@ -3,6 +3,21 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.13] - 2026-10-31
+
+### Changed
+
+- `/education:teach` routes book extraction to `/knowledge:distill`, the knowledge plugin's new name for its book distillation skill.
+
+## [0.20.12] - 2026-10-31
+
+### Fixed
+
+- `/education:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
 ## [0.20.11] - 2026-10-31
 
 ### Fixed

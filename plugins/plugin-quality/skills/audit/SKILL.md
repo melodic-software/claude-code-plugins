@@ -170,7 +170,8 @@ selects one; a model that thinks a session earns the pass offers it in one line 
   in this plugin's data directory. Nothing is audited.
 - **`session`**, at session end: read `plugin_usage` from the session's running-retro ledger,
   session-flow's documented artifact (no ledger or no key: tell the operator to run
-  `/session-flow:running-retro` and re-run), show the discovered plugin and skill list, and wait for
+  `/session-flow:running-retro` and re-run, never a second parser), show the discovered plugin and
+  skill list, and wait for
   the operator to confirm it. The confirmed list is the resolved target list above; steps 1 to 6
   then run over the union unchanged, and step 6's egress gate is untouched (unattended: rung 4).
 

@@ -5,10 +5,10 @@ Prompt body and return contract for the `compare` action. Private to this skill;
 
 ## Dispatch shape
 
-Spawn one `docs-hygiene:compare-labeler` agent via the `Agent` tool; it is read-only (Read,
-Grep, Glob). Never substitute `general-purpose`, which can edit. Pass the prompt body
-below with `{ORIG_DIR}`, `{NEW_DIR}` and `{REASONS}` (a path, or `none`) substituted. The calling
-session never labels a difference itself, least of all its own cuts.
+Spawn one read-only `docs-hygiene:compare-labeler` agent (Read, Grep, Glob) via the `Agent`
+tool; never substitute `general-purpose`, which can edit. Pass the prompt body below with
+`{ORIG_DIR}`, `{NEW_DIR}` and `{REASONS}` (a path, or `none`) substituted. The calling session
+never labels a difference itself, least of all its own cuts.
 
 ## Prompt body
 
@@ -57,7 +57,8 @@ Quote only text you read this turn. Do not propose rewrites. Label only.
 
 ## Return contract
 
-The caller copies the rows and the `VERDICT:` line through unchanged. A return without a
-`VERDICT:` line, or a row with any label outside the six above, is a
-dispatch failure: report it and re-dispatch; never fill the gap in-session. AMBIGUITY rows do not
-block; a human rules on each.
+The caller prints the labeler's rows and its literal `VERDICT: PASS` or `VERDICT: BLOCK` line
+verbatim, as returned: no restyling, reformatting, reordering, bolding, recasing or paraphrase.
+Any summary of its own goes after them. A return without a `VERDICT:` line, or a row with any
+label outside the six above, is a dispatch failure: report it and re-dispatch; never fill the gap
+in-session. AMBIGUITY rows do not block; a human rules on each.

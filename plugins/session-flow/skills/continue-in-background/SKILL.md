@@ -1,6 +1,6 @@
 ---
 description: "Delegate the task to a fresh background agent that continues it NOW. Produce a save-point, then launch a detached claude --bg (or --cloud) session seeded with the resume prompt. Use when: 'continue in the background', 'continue this in the background', 'keep working in the background', 'delegate to a background agent', or the user is going AFK and explicitly wants the work to keep moving. Launches only on the user's explicit request, never self-elected."
-argument-hint: "[--cloud] [file|prompt] [topic] [purpose...]"
+argument-hint: "[--unattended] [--cloud] [file|prompt] [topic] [purpose...]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Delegate the task to a fresh background agent now
 ---
 
-**Arguments.** `[--cloud] [file|prompt] [topic] [purpose...]`. e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended, /continue-in-background --cloud prompt fix-flaky-test
+**Arguments.** `[--unattended] [--cloud] [file|prompt] [topic] [purpose...]`. e.g., /continue-in-background, /continue-in-background prompt, /continue-in-background file phase-3 finish the migration unattended, /continue-in-background --cloud prompt fix-flaky-test
 
 ## Context. Gather first
 
@@ -43,8 +43,10 @@ for the launch or run `/session-flow:continue-in-background` themselves.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[--cloud] [file|prompt] [topic] [purpose...]`, all optional and positional.
-A leading `--cloud` selects the cloud delivery below and is consumed before the rest parses. The
+`$ARGUMENTS` carries `[--unattended] [--cloud] [file|prompt] [topic] [purpose...]`, all optional,
+the non-flag tokens positional. `--unattended`, anywhere in the arguments, is the caller declaring
+that nobody is present (it governs the offer under "Boundary") and is consumed first; the bare word
+in a purpose is purpose text. A leading `--cloud` selects the cloud delivery below and is consumed before the rest parses. The
 rest has the same semantics as `handoff`: method (`file` | `prompt`) recognized only as the first token,
 otherwise auto-detect; topic is the kebab slug for the save-point filename, inferred when omitted;
 everything after the topic token is optional natural-language purpose text ("what will the next
@@ -65,6 +67,14 @@ in the shared engine doc
 Walk it top to bottom; do not restate or improvise any of its steps. On the full path the file is
 shape 2: `save_point.py validate <file>` must exit 0 before anything launches (an unfinished
 skeleton, one still carrying `<!-- FILL` slots, fails there and cannot be launched from).
+
+The launched session has its own session id, so hand it this session's worktree claims exactly as
+the sibling `handoff` skill's "Hand worktree claims to the resuming session" does. On the full
+path the payload ends at the `Read @` directive, so the file carries the handover: the Environment
+to re-establish entry and the first item of `Remaining actions, in order`. On prompt-only the first
+remaining-work bullet carries it, in the resume region the payload includes. Either way the
+successor runs the handover before `check-enter`. `--cloud` skips it: the cloud session has no
+local worktree to re-lock.
 
 ## Completion condition gate
 
@@ -364,6 +374,8 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   inline `Purpose:` line between the rails, never discarded (the launched agent receives exactly
   the rails prompt); a goal-conflicting purpose flagged rather than obeyed; never embedded in the
   launch command. No purpose given → nothing to tick
+- [ ] Worktree claims handed to the successor ("Produce the save-point"): each worktree whose
+  lock names this session carries the handover before `check-enter` (OR none held)
 - [ ] Dirty-tree gate evaluated this turn: `git rev-parse --is-inside-work-tree` first, then
   `git status --porcelain -uall` when it says `true`, ignoring save-point files under the handoff
   location; effective `worktree.bgIsolation` read before judging other changes, and `none` → launch with the
@@ -412,11 +424,17 @@ can mean any of them.
   payload, so the continuation carries no conversation history, survives on disk, and ends on a
   checked condition.
 
-**Routing.** At the start of the run, offer them to the person: you can run `/background` to
-detach this session as it is, `/fork` to copy it into a background session, or `/subtask` for a
-side task whose result should come back here, instead of or alongside this skill. Prefer this
-skill when the continuation should start clean from a durable save-point. An unattended run
-records the offer in its output instead of asking.
+**Routing.** At the start of the run, offer them to the person, each instead of or alongside this
+skill. If /background is available in your session (gate basis: gated, per **Availability is
+never assumed** below; records in
+[native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)),
+you can run it to detach this session as it is. If /fork is available in your session (gate basis:
+gated, per the same paragraph and records), you can run it to copy this session into a background
+session. If /subtask is available in your session (gate basis: gated, per the same paragraph and
+records), you can run it for a side task whose result should come back here. Prefer this skill
+when the continuation should start clean from a durable save-point. When the caller passes
+`--unattended`, the run records the offer in its output instead of asking;
+without that flag it asks.
 
 **Mutation gate.** This skill writes the save-point and launches one session, only on explicit
 request. It never runs a native command on the person's behalf.

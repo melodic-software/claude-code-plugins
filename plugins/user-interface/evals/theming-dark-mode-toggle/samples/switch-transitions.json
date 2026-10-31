@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "```js\nfunction setTheme(theme) {\n  const root = document.documentElement;\n  root.classList.add(\"no-transitions\");\n  root.setAttribute(\"data-theme\", theme);\n  requestAnimationFrame(() => {\n    requestAnimationFrame(() => root.classList.remove(\"no-transitions\"));\n  });\n}\n```\n\n```css\n.no-transitions,\n.no-transitions * { transition: none !important; }\n```",
+      "why": "suppressed for the swap, restored after paint with a double rAF"
+    },
+    {
+      "answer": "```js\nconst toggle = () => {\n  document.body.dataset.switching = \"\";\n  document.documentElement.classList.toggle(\"dark\");\n  window.getComputedStyle(document.body).opacity;\n  setTimeout(() => delete document.body.dataset.switching, 1);\n};\n```\n\n```css\n[data-switching] * { transition: none !important; }\n```",
+      "why": "an attribute turns transitions off, a forced style read applies the new theme, then a timeout removes it"
+    },
+    {
+      "answer": "```js\nfunction setTheme(theme) {\n  const root = document.documentElement;\n  root.classList.add(\"no-transitions\");\n  root.dataset.theme = theme;\n  void root.offsetHeight;\n  root.classList.remove(\"no-transitions\");\n}\n```\n\n```css\n.no-transitions * { transition: none !important; }\n```",
+      "why": "a forced layout read through offsetHeight before the removal"
+    },
+    {
+      "answer": "```js\nfunction setTheme(theme) {\n  const css = document.createElement(\"style\");\n  css.textContent = \"*,*::before,*::after{transition:none!important}\";\n  document.head.appendChild(css);\n  document.documentElement.dataset.theme = theme;\n  window.getComputedStyle(document.body);\n  setTimeout(() => document.head.removeChild(css), 1);\n}\n```",
+      "why": "an injected style element and a getComputedStyle call before the timeout, as next-themes does it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "function toggle() {\n  document.documentElement.classList.toggle(\"dark\");\n}",
+      "why": "switches with every component transition still active"
+    },
+    {
+      "answer": "```js\nfunction setTheme(theme) {\n  document.documentElement.classList.add(\"no-transitions\");\n  document.documentElement.setAttribute(\"data-theme\", theme);\n}\n```\n\n```css\n.no-transitions * { transition: none !important; }\n```",
+      "why": "near miss: suppression added and never removed"
+    },
+    {
+      "answer": "```js\nconst toggle = () => {\n  document.body.dataset.switching = \"\";\n  document.documentElement.classList.toggle(\"dark\");\n  setTimeout(() => delete document.body.dataset.switching, 0);\n};\n```\n\n```css\n[data-switching] * { transition: none !important; }\n```",
+      "why": "near miss: a bare setTimeout with no forced style read, so the removal can land before the new styles apply"
+    },
+    {
+      "answer": "Install next-themes:\n\n```bash\nnpm install next-themes\n```\n\n```jsx\n<ThemeProvider attribute=\"data-theme\" disableTransitionOnChange>\n  <App />\n</ThemeProvider>\n```",
+      "why": "near miss: disableTransitionOnChange, but next-themes added as a new dependency the app does not use"
+    },
+    {
+      "answer": ".header, .card, .button { transition: none; }\nfunction toggle() { document.documentElement.classList.toggle(\"dark\"); }",
+      "why": "the components' transitions deleted permanently"
+    },
+    {
+      "answer": "Remember to disable transitions while the theme changes.\n\n```js\nconst toggle = () => document.documentElement.classList.toggle(\"dark\");\n```",
+      "why": "suppression only in prose; the code switches with transitions on"
+    }
+  ]
+}

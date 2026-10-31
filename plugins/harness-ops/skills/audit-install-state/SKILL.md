@@ -1,6 +1,6 @@
 ---
 description: "Read-only audit of `~/.claude` and `~/.claude.json`: the deep inventory of unmanaged files. Use when: 'what is in my ~/.claude', 'why is my Claude Code install so big', 'does Claude Code clean up after itself', 'check cleanupPeriodDays', 'is this lock file dead', 'tidy my Claude Code install'. Deleting: /disk-hygiene:clean."
-argument-hint: "[unattended] [root]"
+argument-hint: "[--unattended] [root]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -9,7 +9,7 @@ metadata:
   cadence: weekly
 ---
 
-**Arguments.** `[unattended] [root]`. `root` is the tree to audit and reaches the engine as `--root`; it defaults to `$CLAUDE_CONFIG_DIR`, else `~/.claude`. Always pass `--csv` to the engine. The token `unattended` is consumed by the skill, is never passed to the engine script and never read as a root path; under it the suggestion is recorded in the report instead of asked.
+**Arguments.** `[--unattended] [root]`. `root` is the tree to audit and reaches the engine as `--root`; it defaults to `$CLAUDE_CONFIG_DIR`, else `~/.claude`. Always pass `--csv` to the engine. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present: the skill takes it out before reading `root`, never passes it to the engine script (whose parser does not accept it) and never reads it as a root path; under it the suggestion is recorded in the report instead of asked. The bare word `unattended` is neither this flag nor a root: stop and name `--unattended`.
 
 ## Purpose
 
@@ -35,7 +35,7 @@ shedding project state belongs to `claude purge`.
 | Is this machine's Claude Code install directory healthy? | **this skill** |
 | Are a repo's project-scope config FILES correct? | `/harness-config:audit` |
 | Are permission grants portable and durable? | `/harness-config:audit-permission-grants` |
-| Is the plugin fleet current, and at what scope? | `/harness-ops:plugins audit` |
+| Is the plugin fleet current, and at what scope? | `/harness-ops:plugins-audit` |
 | Delete a genuinely unmanaged leftover | `/disk-hygiene:clean` |
 
 Rationale and handoffs: [reference/scope-and-handoffs.md](reference/scope-and-handoffs.md).
@@ -225,7 +225,7 @@ Relay the sentence below to the user and do not run `/doctor` yourself: it is re
 
 If /doctor is available in your session (gate basis: **Boundary, the bundled `doctor` skill** above), run it for the quick health-and-fix pass this read-only inventory does not perform.
 
-**`unattended`:** record this suggestion in the report's final section; do not ask.
+**`--unattended`:** record this suggestion in the report's final section; do not ask.
 
 ## Next
 
@@ -237,7 +237,7 @@ Consumes a genuinely unmanaged leftover this report surfaced; the audit itself n
 - **A number in a filename is not a PID until proven otherwise.** The most expensive error in this
   problem space, and the reason the liveness gate is code rather than advice.
 - **`enabledPlugins: false` does not mean disabled.** Enablement spans several scopes and is read at
-  session start; `recent_writers` is behavioral evidence, `/harness-ops:plugins audit` the verdict.
+  session start; `recent_writers` is behavioral evidence, `/harness-ops:plugins-audit` the verdict.
 - **An empty directory may be deliberate**, and **a cloud-session tree is the common experimental
   state.** Phases 0 and 1 exist so neither is graded as decay.
 - **`commands/`, `todos/`, `statsig/`, `logs/` being absent is good news.** It is positive evidence

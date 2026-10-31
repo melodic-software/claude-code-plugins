@@ -173,8 +173,8 @@ Run rounds until the stop condition is met. Each round:
 
 The sources, order, framing and outcomes are in [`self-answer.md`](../../../context/self-answer.md). In this skill:
 
-- **Answered:** no register row. Write `- F<N> | answered-from-<tag> | <question> | <fact> | <basis>` into the ledger's `## Self-answered facts` section and state it in the round header. A sweep item answered the same way gets the same line.
-- **Needs access:** the offer to connect is asked in the round, and each question it would settle is registered `open` at ask-time with the resolution `awaiting access: <system>`; on the page, hold it with `wait` and `by: user` ([`surface.md`](surface.md)). Once the system is connected, look each one up and resolve it `answered` with `answered-from-mcp:<server>: <fact>` (or `cli:<tool>`) and its basis. A question the user answers by hand resolves as usual.
+- **Answered:** no register row. Write `- F<N> | answered-from-<tag> | <question> | <fact> | <basis>` into the ledger's `## Self-answered facts` section and state it in the round header. A sweep item answered the same way gets the same line. A contact address or identity is the exception: the found literal is the recommendation of an `open` row, never an `F<N>` line (SKILL.md "Recommended answers").
+- **Needs access:** the offer to connect is asked in the round, and each question it would settle is registered `open` at ask-time with the resolution `awaiting access: <system>`; on the page, hold it with `wait` and `by: user` ([`surface.md`](surface.md)). Once the system is connected, look each one up and resolve it `answered` with `answered-from-mcp:<server>: <fact>` (or `cli:<tool>`) and its basis. A contact address or identity is the exception here too: the row stays `open`, with the found literal as its recommendation, until the user confirms it. A question the user answers by hand resolves as usual.
 - **Unattended:** each question that needs access is `blocked` with `named blocker: no access to <system>; connect via <route>`, written to the Brief's `### Deferred questions` under its `Q<N>` with its arbiter tag, and named as a blocker in the output. Never wait for access.
 - **A decision stays a decision.** The gate never resolves one; the auto-guard (SKILL.md Step 1.5) is unchanged.
 
@@ -366,6 +366,8 @@ Fields: `Q<N> | status | round | question | resolution`. Statuses:
 The register, not the transcript, is the authority here. After a compaction the question may no longer be in context at all; the row still is.
 
 Two shapes of restate, both one line: *"Still open: Q3 (content format)"* when the reply simply moved on, and *"Q3 is still open; your answer covered Q4"* when the reply addressed a different registered question. Cost is a line when the question was answered anyway; the alternative is the entire failure.
+
+**Read back an answer that departs from the recommendation.** In the same check, an answer that departs from the recommendation, or that arrives dictated or unclear, is restated in your own words, one line per question, naming each interpretation you made (a misheard term, such as "fee chair flag" taken as "feature flag"), and its row stays `open` until the user confirms or corrects that restatement. An answer that accepts the recommendation, dictated or not, needs no read-back and resolves at once, and a hedged reply follows "Hedged flag" instead. The page lane's narrower counterpart is R-D in [`surface.md`](surface.md), the read-back of a long or unclear dictated answer. Eval evidence: `interview-readback-dictated-answer`.
 
 `superseded-by-plan` rows get the same check and the same restate as `open` rows, with the proposed and displaced answers: *"Q11 still superseded by plan: plan proposes a rollback tag; was: redeploy previous artifact"*.
 

@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: ssot-commit-subject-three-recaps
+context:
+  scaffold_script: scaffold.sh

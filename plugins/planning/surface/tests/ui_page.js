@@ -196,6 +196,53 @@ async page => { // the question page itself: choices, chips, banners, header and
     });
     ok("#7970: at 1568x744 the Decide list has no inner scroll and shows the whole Rec text and both alternatives", fit.inner <= 1 && fit.alts === 2 && fit.unseen.length === 0 && fit.recWhole, JSON.stringify(fit));
     await page.setViewportSize({width: 1440, height: 900}); await page.waitForTimeout(250);
+
+    // #11649: at 1280x720 a Decide list with hidden rows fades the edge they sit past, and a Rec row at the 500-character cap fits the list.
+    // A second tab, polling /api/state through a route, gives Q1 that Rec and four long alternatives and makes Q2 withheld with none.
+    const REC = "Ship it on Monday once the freeze lifts and the error budget holds. ".repeat(8).slice(0, 499) + ".";
+    const tab = await page.context().newPage();
+    tab.on("console", m => { if (m.type() === "error") errors.push(m.text()); });
+    tab.on("pageerror", e => errors.push(String(e)));
+    await tab.addInitScript(() => { window.EventSource = undefined; });
+    await tab.route(base + "api/state*", async route => {
+      const res = await route.fetch(), s = await res.json(), qs = s.questions.questions, q1 = qs.find(q => q.id === "Q1"), q2 = qs.find(q => q.id === "Q2");
+      Object.assign(q1, {recommendation: REC, alternatives: ["a", "b", "c", "d"].map(k => ({key: k, text: "Hold the release until the next maintenance window opens and the on-call rota is staffed for the whole week (" + k + ")."}))});
+      Object.assign(q2, {withheld: true, alternatives: []});
+      await route.fulfill({response: res, json: s});
+    });
+    await tab.setViewportSize({width: 1280, height: 720});
+    await tab.goto(base); await tab.waitForSelector(".qbtn", {state: "attached"}); await tab.waitForTimeout(300);
+    if (await tab.$eval("#fly", el => el.classList.contains("open"))) { await tab.click("#flyClose"); await tab.waitForTimeout(150); }
+    const tpick = async id => {
+      if (await tab.$eval('.rail-list .qbtn[data-q="' + id + '"]', el => !el.offsetParent).catch(() => false)) await tab.click('.sec:has(.qbtn[data-q="' + id + '"]) .sec-h');
+      await tab.click('.rail-list .qbtn[data-q="' + id + '"]'); await tab.waitForTimeout(250);
+    };
+    const cue = () => tab.evaluate(() => { const c = document.getElementById("choices"), s = getComputedStyle(c); return {rows: c.querySelectorAll(".choice").length, hidden: c.scrollHeight > c.clientHeight + 1, mask: s.maskImage || s.webkitMaskImage}; });
+    const recFit = () => tab.evaluate(() => { const c = document.getElementById("choices"), r = c.querySelector(".choice.rec"), t = r.querySelector(".t"), all = document.getElementById("recAll");
+      return {row: Math.round(r.getBoundingClientRect().height), list: c.clientHeight, clamped: t.scrollHeight > t.clientHeight + 1, readAll: !!all && !all.hidden}; });
+    await tpick("Q1");
+    const rest = await cue();
+    await tab.$eval("#choices", c => { c.scrollTop = c.scrollHeight; }); await tab.waitForTimeout(150);
+    const end = await cue();
+    await tab.$eval("#choices", c => { c.scrollTop = 0; }); await tab.waitForTimeout(150);
+    ok("#11649: at 1280x720 a Decide list with hidden rows shows a fade, and the fade follows the scroll to the end", rest.hidden && rest.mask !== "none" && end.mask !== "none" && end.mask !== rest.mask, JSON.stringify({rest, end}));
+    const recAlone = await recFit();
+    await tab.click('.strip [data-panel="terms"]'); await tab.waitForTimeout(300);
+    const unpinned = (await tab.getAttribute("#pinBtn", "aria-pressed")) !== "true";
+    if (unpinned) { await tab.click("#pinBtn"); await tab.waitForTimeout(250); } // pinned, the panel narrows the Decide pane
+    const recPanel = await recFit();
+    if (unpinned) { await tab.click("#pinBtn"); await tab.waitForTimeout(150); } // the stored Unpin the rest of the run expects
+    await tab.click("#flyClose"); await tab.waitForTimeout(150);
+    ok("#11649: at 1280x720 a Rec row at the 500-character cap fits the Decide list, with or without a side panel, and offers Read all", recAlone.clamped && recAlone.readAll && recAlone.row <= recAlone.list && recPanel.readAll && recPanel.row <= recPanel.list, JSON.stringify({recAlone, recPanel}));
+    await tab.click("#recAll"); await tab.waitForTimeout(150);
+    const read = await tab.evaluate(want => { const d = document.getElementById("recDlg"), r = d.getBoundingClientRect(); return {open: d.open, whole: document.getElementById("recBody").textContent === want, scrolls: d.scrollHeight > d.clientHeight + 1, inView: r.top >= 0 && r.bottom <= innerHeight}; }, REC);
+    await tab.keyboard.press("Escape"); await tab.waitForTimeout(150);
+    const shut = await tab.$eval("#recDlg", d => !d.open);
+    ok("#11649: Read all shows the whole recommendation in a dialog read without scrolling, and Escape closes it", read.open && read.whole && !read.scrolls && read.inView && shut, JSON.stringify({read, shut}));
+    await tpick("Q2");
+    const none = await cue();
+    ok("#11649: at 1280x720 a Decide list with no hidden row shows no fade", none.rows > 0 && !none.hidden && none.mask === "none", JSON.stringify(none));
+    await tab.close();
   }
   if (PHASE === 2) { // the shell revised Q1's recommendation with no why while Q8 was not open
     const banner = () => page.$$eval("#dscroll .banner", els => els.map(e => e.textContent).join(" | "));
@@ -238,6 +285,10 @@ async page => { // the question page itself: choices, chips, banners, header and
   }
   if (PHASE === 5) { // the shell revised Q3's recommendation after its kept accept
     await page.waitForTimeout(600);
+    // #11584: the revision set the accept aside, so Q3 reads open, under Show: Open and no longer under Review.
+    const inShow = async v => { await page.selectOption("#filter", v); await page.waitForTimeout(150); return !!(await page.$('.rail-list .qbtn[data-q="Q3"]')); };
+    const underReview = await inShow("review"), underOpen = await inShow("open");
+    ok("#11584: a revision that sets the accept aside moves Q3 from Show: Review to Show: Open", !underReview && underOpen, JSON.stringify({underReview, underOpen}));
     await pick("Q3");
     const cs = await page.$$eval("#choices .choice", els => els.map(e => e.textContent));
     ok("#5910: no Reconfirm once the recommendation changed since the accept; Rec shows the revised text", !cs.some(t => /Reconfirm/.test(t)) && /pinned by digest/.test(await text("#choices .choice.rec")), JSON.stringify(cs));

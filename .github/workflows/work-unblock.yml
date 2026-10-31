@@ -25,6 +25,15 @@ name: work-unblock
 # scheduled run applies the same rules to every issue a listed human or a
 # merge (a merged pull request or a commit) closed in the last three hours, so one missed run loses nothing.
 #
+# A listed human closing the marker issue, the one labeled
+# `work-unblock-sweep` (SWEEP_LABEL in the script), runs that sweep at once
+# instead of the close path, behind the same closer check: the hub reopens and
+# closes it after a rate-limit breaker clears, so issues the kill switch
+# stopped at broker-check are re-fired without waiting for the schedule (one
+# stopped at a token mint still waits limits.reset-clamp-min). A second kick
+# is one more sweep, queued behind the first; it re-fires no issue twice. Each
+# kick logs a `sweep-kick` notice with the close time.
+#
 # The hourly sweep also restarts an issue the usage limit stopped: once the
 # limit has reset, the App removes and re-adds agent-ready (at most five a run);
 # after three limit stops since a person added agent-ready it adds needs-human.
@@ -58,6 +67,11 @@ name: work-unblock
 # each hourly sweep admits the deferred issues oldest first. Restarts,
 # re-fires and relabels are never paced. Its label-unblocked job runs one at
 # a time, so two runs cannot each admit the whole room.
+#
+# A blocked issue admission parked at status: confirmed is never labeled: when
+# a blocker closes after it parked, the App removes status: confirmed, which
+# starts intake-reenter.yml, so intake judges it again. An issue in a
+# `cordoned-milestones` milestone of admission-rules.json stays parked.
 #
 # To stop the lane on one issue, remove its agent-ready label or add a hold
 # label: no later run labels an issue whose agent-ready label a person removed
@@ -217,7 +231,8 @@ jobs:
           audience: ${{ vars.LANES_BROKER_AUDIENCE }}
           lane: work-unblock
           activity: label-unblocked
-          # A scheduled sweep names no issue.
+          # A scheduled sweep names no issue; any close, the marker's included,
+          # names its issue, which the broker needs on an issues event.
           issue-number: ${{ github.event_name == 'issues' && format('{0}', github.event.issue.number) || '' }}
           effect: ${{ steps.config.outputs.effect }}
           contents: ${{ steps.config.outputs.contents }}
@@ -226,8 +241,9 @@ jobs:
 
       # The script re-reads every blocked issue, its labels, blockers and
       # comments from the API; nothing is taken from the event but the closed
-      # issue's number and who closed it (a sweep lists the closed issues from
-      # the API too). It gets the kill switch answer from
+      # issue's number, labels and close time and who closed it (a sweep, the
+      # marker's included, lists the closed issues from the API too). It gets
+      # the kill switch answer from
       # the first step and stops on anything but `proceed`.
       - name: Label the unblocked issues
         if: steps.lane-token.outputs.token != ''

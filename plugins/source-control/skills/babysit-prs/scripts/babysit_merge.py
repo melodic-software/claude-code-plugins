@@ -1174,6 +1174,18 @@ def human_blocking_logins(
     )
 
 
+def vetoing_logins(items: Iterable[tuple[str, str, str]]) -> list[str]:
+    """The logins, sorted, whose newest (login, time, body) item with text
+    says "do not merge"."""
+    newest: dict[str, tuple[str, str]] = {}
+    for login, at, body in items:
+        if body.strip() and (login not in newest or at >= newest[login][0]):
+            newest[login] = (at, body)
+    return sorted(
+        login for login, (_, body) in newest.items() if HUMAN_MERGE_VETO_RE.search(body)
+    )
+
+
 def human_veto_logins(
     repo: str,
     number: int,
@@ -1192,18 +1204,12 @@ def human_veto_logins(
     MEMBER or COLLABORATOR counts: on a public repository anyone else's
     comment holds nothing.
     """
-    newest: dict[str, tuple[str, str]] = {}
-    for login, at, body, association in _human_comments(
-        repo, number, reviews, review_comments, actor_config
-    ):
-        if association not in merge_policy.BLOCKER_ASSOCIATIONS:
-            continue
-        if not body.strip():
-            continue
-        if login not in newest or at >= newest[login][0]:
-            newest[login] = (at, body)
-    return sorted(
-        login for login, (_, body) in newest.items() if HUMAN_MERGE_VETO_RE.search(body)
+    return vetoing_logins(
+        (login, at, body)
+        for login, at, body, association in _human_comments(
+            repo, number, reviews, review_comments, actor_config
+        )
+        if association in merge_policy.BLOCKER_ASSOCIATIONS
     )
 
 
@@ -3112,6 +3118,7 @@ def _lane_evidence(
     self_logins: frozenset[str],
     permission: Callable[[str], str | None],
     changed_paths: Sequence[str] | None,
+    floor: babysit_risk.Floor,
 ) -> tuple[tuple[LaneEvidence, ...], list[dict[str, Any]]]:
     """Each lane's evidence for the pull request's head, and its comments.
     `changed_paths` is `bind()`'s: None when the changed files are unproven.
@@ -3190,7 +3197,7 @@ def _lane_evidence(
     # A lane-source pull request binds the code lane on a main-run review
     # alone (`bind()`), so only the security lane's runs, which its carried
     # blocking count reads, are listed.
-    main = review_evidence.needs_main_review(changed_paths, head_file, base_sha)
+    main = review_evidence.needs_main_review(changed_paths, head_file, base_sha, floor)
     runs = collect_lane_runs(
         repo,
         number,
@@ -3221,6 +3228,7 @@ def _lane_evidence(
         read_env,
         [str(item.get("sha")) for item in commits],
         main=main,
+        floor=floor,
     )
     lanes = review_evidence.bind(
         head_sha,
@@ -3234,6 +3242,7 @@ def _lane_evidence(
         base_sha=base_sha,
         main_reviews=main_reviews,
         main_context=main_context,
+        floor=floor,
     )
     return lanes, comments
 
@@ -3249,6 +3258,7 @@ def _main_reviews(
     pull_request_heads: Sequence[str] = (),
     *,
     main: bool | None = None,
+    floor: babysit_risk.Floor,
 ) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
     """The main-run reviews `bind()` reads for a pull request that changes a
     lane source, with the context it checks them against (the head's tree,
@@ -3258,7 +3268,9 @@ def _main_reviews(
     (None, None) when the pull request changes none, so no read is spent.
     `main` is the caller's `needs_main_review` answer, computed when None."""
     if main is None:
-        main = review_evidence.needs_main_review(changed_paths, head_file, base_sha)
+        main = review_evidence.needs_main_review(
+            changed_paths, head_file, base_sha, floor
+        )
     if not main:
         return None, None
     branch = repository_default_branch(repo)
@@ -3536,7 +3548,6 @@ def score_unattended(
             str(inputs["branch"]),
             max_fails=config.max_verify_fails,
             agent_identity=config.agent_identity,
-            cap_attempts=config.verify_cap_attempts,
         )
         # Provisional: an allow is judged again on a listing of this gate
         # run's own below, once nothing else refuses.
@@ -3563,6 +3574,7 @@ def score_unattended(
             [p for f in files for p in (f.path, f.previous_path) if p]
             if complete
             else None,
+            config.floor,
         )
     except HeadPusherUnproven as exc:
         # Fail closed: refused, and its own queued entry leaves.
@@ -3582,6 +3594,7 @@ def score_unattended(
             pr,
             frozenset(p for f in files for p in (f.path, f.previous_path) if p),
             None if eligible.body_is_intent else merge_policy.MODEL_APP_OWN,
+            floor=config.floor,
         )
         if eligible.adoption
         else frozenset()
@@ -3596,6 +3609,7 @@ def score_unattended(
             frozenset(p for f in files for p in (f.path, f.previous_path) if p),
             inputs.get("trusted_humans") or (),
             reader is not None,
+            config.floor,
         )
         if complete
         else frozenset()
@@ -3628,6 +3642,7 @@ def score_unattended(
         public=True if private is False else None,
         pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
         base_sha=json_object(pr.get("base")).get("sha"),
+        floor_rows=config.floor_paths,
         **lane_switches,
     )
     risk = babysit_risk.score(risk_input)
@@ -3977,7 +3992,7 @@ def close_capped(
     label hold it open, and the issue's hold labels
     (`merge_policy.issue_hold_labels`) keep it so. Any hold the gate reads on
     a queued entry (`merge_policy.entry_hold`: a hold label, a body hold, a
-    member's blocking comment; an unreadable one holds) keeps it open first,
+    member's veto; an unreadable one holds) keeps it open first,
     as enable-auto-merge.mjs decide() does. An unreadable human-gated label
     raises `PostMergeReadError`: a default could miss the mapped one."""
     if hold := merge_policy.entry_hold(
@@ -3987,6 +4002,7 @@ def close_capped(
         self_logins=inputs.get("self_logins") or frozenset(),
         permission=inputs.get("permission"),
         queued=False,
+        authority=inputs.get("authority"),
     ):
         return {"closed": False, "reason": f"held: {hold}"}
     head = str(json_object(json_object(inputs.get("pr")).get("head")).get("sha"))
@@ -3996,7 +4012,6 @@ def close_capped(
         branch,
         max_fails=config.max_verify_fails,
         agent_identity=identity,
-        cap_attempts=config.verify_cap_attempts,
     )
     return verify_evidence.capped_close(
         reader,
@@ -4287,7 +4302,6 @@ def unattended_writes(
                     branch,
                     max_fails=config.max_verify_fails,
                     agent_identity=config.agent_identity,
-                    cap_attempts=config.verify_cap_attempts,
                 )
                 if inputs.get("authority") == merge_policy.PR_MERGE
                 and config is not None
@@ -4308,6 +4322,7 @@ def unattended_writes(
                         identity,
                         self_logins=inputs.get("self_logins") or frozenset(),
                         permission=inputs.get("permission"),
+                        authority=inputs.get("authority"),
                     ) or (
                         _queued_verify_hold(verifier, n)
                         if verifier is not None and n != number
@@ -4929,7 +4944,14 @@ def unattended_enqueue(
     if entries is None or number not in numbers[: max(room, 0)]:
         # Earlier entries (another host's) fill the room, or the order cannot
         # be read: this entry leaves so no more than `merge.max-in-flight`
-        # unattended merges are in flight.
+        # unattended merges are in flight. Two hosts enqueuing at about the
+        # same time each count before seeing the other's entry; the queue
+        # order then decides, and the later entry removes itself here. An
+        # entry that lands between the gate's count and this re-read is
+        # neither queued nor unverified to it, so that window can still pass
+        # the cap (reference/safety.md). Under `merge.lane-prs: native` the
+        # lane's own pull requests are armed by enable-auto-merge.mjs and
+        # never reach this check.
         mine = next(
             (
                 e

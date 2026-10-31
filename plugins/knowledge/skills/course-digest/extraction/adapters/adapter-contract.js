@@ -74,7 +74,7 @@ export async function createAdapter(platform, platformCfg) {
   const adapterModule = await resolveAdapter(platform);
   if (!adapterModule) {
     return fail(
-      `No adapter found for platform "${platform}". Expected: adapters/${platform}.js`,
+      `No adapter found for platform "${platform}". Register it in adapters/registry.js`,
       "create-adapter",
       null,
       0,

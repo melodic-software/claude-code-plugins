@@ -1,6 +1,7 @@
 # test-scope: plugins/planning/shared/schema/*.schema.json
 # test-scope: plugins/planning/shared/tests/fixtures/*.json
 # test-scope: plugins/planning/shared/session.py plugins/planning/skills/interview/context/question-shape.md
+# test-scope: plugins/planning/surface/schema/*.schema.json
 """The shared session schemas accept the sample files and refuse the shapes the contract forbids."""
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ SCHEMA_DIR = SHARED / "schema"
 FIXTURES = HERE / "fixtures"
 SURFACE = SHARED.parent / "surface"
 QUESTION_SHAPE_DOC = SHARED.parent / "skills" / "interview" / "context" / "question-shape.md"
-# Appended, as session.py does: prepended, surface/test_server.py would shadow ours at discovery.
+# Appended, as session.py does: prepended, surface/session_bridge.py would shadow ours.
 if str(SURFACE) not in sys.path:
     sys.path.append(str(SURFACE))
 

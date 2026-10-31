@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: vd-queue-lands-at-session-root
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: queue-at-session-root
+    type: file_exists
+    path: '.work/youtube-watch/QUEUE.md'
+  - name: queue-has-template-header
+    type: regex
+    pattern: '^\|[ \t]*#[ \t]*\|[ \t]*URL[ \t]*\|[ \t]*video-id[ \t]*\|'
+    flags: 'm'
+    target: { source: file, path: .work/youtube-watch/QUEUE.md }
+  - name: creates-claims-dir
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bmkdir\b(?:[^"\\]|\\.)*?\.work/youtube-watch/claims\b'
+    min: 1
+  - name: no-download
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?run-watch\.js|(?:[^"\\]|\\.)*?\b(?:curl|wget)\b(?:[^"\\]|\\.)*?(?:youtube\.com|youtu\.be)|(?:(?:[^"\\]|\\.)*?(?:[;&|(]|\\n))?[ \t]*(?:[\w./~-]*/)?yt[-_]dlp\b(?![ \t]+(?:--version|--help)\b)(?!(?:[^"\\]|\\.)*?--skip-download))'
+    min: 0
+    max: 0
+    arm: both

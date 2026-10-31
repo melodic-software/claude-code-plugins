@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "body { font-family: system-ui, -apple-system, \"Segoe UI\", Roboto, sans-serif; line-height: 1.5; }",
+      "why": "system-ui stack"
+    },
+    {
+      "answer": "body { font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif; }",
+      "why": "platform stack"
+    },
+    {
+      "answer": "body { font-family: \"IBM Plex Sans\", system-ui, sans-serif; font-variant-numeric: tabular-nums; }\n\nI chose IBM Plex Sans because its tabular figures keep stock counts aligned in the tables.",
+      "why": "a web font with a reason specific to the app"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "@import url(\"https://fonts.googleapis.com/css2?family=Inter\");\nbody { font-family: Inter, sans-serif; }",
+      "why": "a web font with no reason"
+    },
+    {
+      "answer": "body { font-family: \"Inter\", system-ui, sans-serif; }\n\nInter looks more modern than the system font.",
+      "why": "near miss: led by Inter, with only a taste reason"
+    },
+    {
+      "answer": "h1 { font-size: 1.5rem; }",
+      "why": "no body font-family"
+    }
+  ]
+}

@@ -33,6 +33,12 @@ The basis, the withheld question, wording so yes accepts, the one verdict marker
 (the first three), "One verdict marker, at most one context line" and "A recommendation that fixes
 more than one decision lists every part".
 
+In every lane, a recommendation that reuses an existing value (an email address, account,
+subscription, region, secret name, repository) states the literal value in `recommendation` (in the option text,
+for a shared-lane `format` other than `text`) and where it was read from in `basis`; "the existing X" alone is not allowed. A contact address or
+identity is also an owner-reserved fact the user confirms before anything is created with it.
+SKILL.md's "Recommended answers" owns both rules.
+
 ## Per lane
 
 | Lane | Where each field goes |

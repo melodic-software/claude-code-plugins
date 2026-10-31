@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "| tdd-csharp-ferreira | complete |\n| event-driven-dotnet-quill | in progress (extract done, extractFrames onward null) |"},
+    {"answer": "event-driven-dotnet-quill (teachable): status extracting; next phase is extractFrames."},
+    {"answer": "**event-driven-dotnet-quill**\n- extract: completed 2026-09-20\n- extractFrames through analyze: not started"}
+  ],
+  "fail": [
+    {"answer": "event-driven-dotnet-quill: complete.\ntdd-csharp-ferreira: in progress.", "why": "states swapped"},
+    {"answer": "One course is complete and one is in progress.", "why": "no slug"},
+    {"answer": "event-driven-dotnet-quill is fully digested.", "why": "wrong state"}
+  ]
+}

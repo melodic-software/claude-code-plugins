@@ -235,6 +235,7 @@ Classified per `melodic-software/standards` `standards/engineering/enforceabilit
 | `/session-flow:orient`, `/session-flow:continue-in-background`, `/session-flow:retro` | `## Boundary` sections for `/recap`, for `/subtask`, `/fork` and `/background`, and for `/insights` (integration `suggest`, verdict `complementary`); no description phrase |
 | `/planning:draft-goal-condition`, `/planning:plan` | `## Boundary` sections for `/goal` and `/plan` (integration `suggest`, verdict `complementary`); no description phrase |
 | `/instruction-placement:migrate` | `## Boundary` section for the plugin-backed built-in `cc-plugin-agents-md` plugin (integration `route`, verdict `complementary`, the loader of `AGENTS.md` versus the migration into it); detail in the skill's `reference/sources.md`; no description phrase |
+| `/discovery:read-docs` | Description phrase + `## Boundary` section for the bundled `claude-code-docs` skill (integration `route`, verdict `complementary`, a quick answer about a Claude Code feature versus a named page's own text); detail in the skill's `reference/` file |
 | `/discovery:explore`, `/planning:plan`, `/firecrawl:firecrawl` | `## Boundary` sections for the built-in `Explore` and `Plan` agents and the built-in `WebFetch` and `WebSearch` tools (integration `route`, verdict `complementary`); the `discovery:explorer` agent's `Explore` row is registry-only; detail in each skill's `reference/` or `context/` file; no description phrase |
 
 Applying **description phrases** fleet-wide is a reserved, separately gated sweep: one plugin per
@@ -299,8 +300,10 @@ In order, the section carries:
    restates the step as the full procedure). Each state names the axis line `settings or
    environment, plan, platform or provider, host surface` and the enable path.
 6. A note that the wrapped body enters context once and stays there.
-7. The bare `unattended` argument, declared by the caller, under which the skill records
-   instead of asks and never invokes a mutating surface.
+7. The `--unattended` flag, accepted anywhere in the arguments and passed by the caller, under
+   which the skill records instead of asks and never invokes a mutating surface. Its spelling
+   and placement follow
+   [`skill-argument-shape`](../skill-argument-shape/README.md).
 
 ## The suggest sentence
 

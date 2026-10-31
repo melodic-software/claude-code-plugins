@@ -67,7 +67,8 @@ gate:
 
 1. Move each `open` row to `deferred`, with the user's reply as its resolution, so the
    register gate passes without inventing an answer. Skip the assumption sweep: it exists to find
-   more questions, which the user just declined; say so in the restatement.
+   more questions, which the user just declined; say so in the restatement, and tick the ledger's
+   Step 2 exit box with `SKIPPED: ship-it`, since the `--procedure` check fails on an unchecked one.
 2. **Step 3 still runs, confirmation gate included.** The yes to ship it drops the remaining
    questions; it does not confirm the shared understanding. Run the register gate and the
    `--procedure` check, restate with the register recap (the deferred rows visible in it), and get

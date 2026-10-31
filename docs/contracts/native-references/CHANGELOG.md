@@ -6,6 +6,24 @@ major change; additive guidance is minor; clarification is a patch. The doc ship
 unnumbered, which this file reads as **1.0**; the entry below is the first recorded change and lands
 the changelog the README said would arrive with it.
 
+## [3.4.3] - 2026-10-31
+
+Patch: clarification. No required part of the description phrase, no canonical gate token and no
+enforceability verdict changes.
+
+- **The Native step's item 7 names the `--unattended` flag.** It said "the bare `unattended`
+  argument", which contradicted the skill-argument-shape contract's rule that an orthogonal
+  modifier is a `--flag` accepted anywhere in the arguments
+  ([#11572](https://github.com/melodic-software/claude-code-plugins/issues/11572)).
+
+## [3.4.2] - 2026-10-31
+
+Patch: clarification.
+
+- **The Adopters table records `/discovery:read-docs`'s description phrase and `## Boundary`
+  section** for the bundled `claude-code-docs` skill (integration `route`)
+  ([#9105](https://github.com/melodic-software/claude-code-plugins/issues/9105)).
+
 ## [3.4.1] - 2026-10-27
 
 Patch: clarification. The enforceability verdict stays reasoning-only.

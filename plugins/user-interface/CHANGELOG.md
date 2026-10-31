@@ -3,6 +3,106 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0] - 2026-10-31
+
+### Added
+
+- Touch and mobile web guidance for `/user-interface:design` and `/user-interface:audit`: a symptom table, hover gated by pointer capability, tap highlight and instant taps, 44px targets, long press, 16px inputs, the on-screen keyboard, no zoom lock, dynamic viewport units, safe areas, anchors under sticky headers, scroll chaining, gesture axes and nothing scrolling sideways, plus a document head for web pages and `/user-interface:write-css` recipes for full-height layouts, gesture surfaces, sideways overflow, small scrollbars and edge fades, a card that links from its own call to action, and scroll fades that clear when nothing is left to scroll.
+
+- `/user-interface:audit`'s motion lane reviews an animation from its captured frame state: slow it down, record and scrub it, annotate the frame that feels wrong, and read a pasted export as data (its frame, recorded speed, per-element values and the timing between an input and a change). With nothing pasted it offers a capture through `/app-control:drive capture --kind animation` and runs it only after a yes. An ungated `:hover` rule is left to the `touch` lane, and the motion catalog now grades an ease-in on an exit that is not permanent as Important.
+
+- `/user-interface:audit` reviews a diff the way a design engineer would, leading with a verdict and a Before, After, Why table and naming what needs a real device, applies the plain-language copy rules at every scope, and its `launch` scope adds a pre-launch sweep: recon, a leftovers pass (dev tools, scaffolding routes, debug output, secrets, stale markers), a Ship or Not yet verdict, and the keyboard, screen reader, form, theme and phone checks a person still has to run.
+
+- `/user-interface:design` and `/user-interface:audit` principles gain plain-language copy rules (buttons that name their outcome, errors that say how to fix them, sentence case, no "please") with audit severities, a stop-the-prompt-loop step that proposes `/prototype:build-generator` for the person to run after one missed round of variants, a delegate-or-build rule, restraint and habits-versus-conventions lines, a system font stack kept as the app UI default, a fuller reduced-motion list, and style-imposing tools offered only on a marketing page or for a requested redesign.
+
+- `/user-interface:design` gains an "Order of work": which skill or concern to run for a screen and in what order (decide, start with layout, type and color, build the pieces, refine, check, then the launch sweep), the overlaps that get confused, a complaint-to-skill table and what to say when no skill fits, in its own reference file; it now sits in the design stage of the workflow, offers a style-imposing tool only where the principles' "Project first" allows, and names the glossary, the audit, `/planning:design` and `/prototype:build-generator` as next steps.
+
+- Trigger probe files `probes/audit.json`, `probes/design.json` and `probes/write-css.json`. The audit probes cover the motion lane, the launch sweep and a non-motion lane; the design probes cover the component API, the design-system note and the order of work; the write-css probes include requests for a style whose value has no matching token.
+
+- `reference/component-libraries.md` gains a table of React primitives libraries by how each lets a part render another element, with a configurable default for a project that has none.
+
+### Changed
+
+- `/user-interface:write-css`'s text-and-media recipes name the concern rules they implement.
+
+- Motion guidance for `/user-interface:write-animation`, `/user-interface:audit` and `/user-interface:write-css` grows: graded findings for frequency, purpose, easing, duration, origin, paired timing, interruption, missing exits, page-load entrances, stagger, reduced motion, hover motion and frame cost; permanent exits accelerate away on their own curve and run shorter than their entrance; element-scale motion stays under 300ms with a separate page duration; a named easing library; component recipes for section entrances, exits, icon swaps and tooltip groups; and write-css recipes for a popover that scales from its trigger, a popover inside a modal, a reduced-motion swap and a hover that keeps its hit area.
+
+- The `/user-interface:write-css` recipe `concentric-nested-radius` now takes the outer radius as input and subtracts the parent's border width and padding, floored at zero.
+
+- The write-css layout recipes link to the web layout spoke.
+
+- The animation glossary moved from `reference/animation/glossary.md` to the glossary skill's `reference/motion.md`; the animation catalog now points at `/user-interface:glossary` for effect names.
+
+### Fixed
+
+- `/user-interface:write-css` now fires on a request to add a variant whose color or value has no matching token, and asks before inventing one.
+
+## [0.14.0] - 2026-10-31
+
+### Removed
+
+- The `design.concern_spoke_cap` setting. `/user-interface:design` now reads every concern spoke whose `read_when` holds in one pass instead of stopping at two and listing the rest as next steps. No observed failure backed the cap. A team or local file that still sets it gets an unknown-key error for `design`, and the rest of the file still loads.
+
+## [0.13.0] - 2026-10-31
+
+### Added
+
+- A layout-stability concern for `/user-interface:design` and `/user-interface:audit`: reserved space for async content and media, equal-width digits on changing numbers, labels that swap without changing width, constant font weight on interaction, persisted state right on first paint, late banners that overlay rather than push, and long user text that cannot break the layout, with audit severities.
+
+- `/user-interface:design` and `/user-interface:audit` gain web performance guidance: preloading the hero image and lazy-loading the rest, images sized to how they're shown, virtualized long lists, pausing work out of view, inline autoplaying video, static content routes, debounced search requests, splitting out heavy rarely-seen UI, and no state update per frame.
+
+- Web accessibility guidance for `/user-interface:design` and `/user-interface:audit`: keyboard reach, visible focus, names for icon buttons and images, modal focus, hidden panels kept out of the tab order, errors not told by color alone, focus that is never lost, DOM order that matches the screen, landmarks and skip links, announced async changes, timers that pause in a hidden tab and per-platform shortcut hints, plus a `scripts/focus-path.mjs` check that flags where a page's tab order jumps backward.
+
+## [0.12.0] - 2026-10-31
+
+### Added
+
+- `/user-interface:design` and `/user-interface:audit` gain forms and inputs guidance for the web (associated labels, the right input type and `autocomplete`, decorations over the input, autofocus gated on a coarse pointer, a wrapping `<form>` with Enter and Cmd or Ctrl+Enter submit, real buttons that disable while submitting, failed submits that keep what was typed, late validation with errors beside their field, dead-zone-free checkbox rows, confirmed destructive actions, prefilled fields and drafts that survive a refresh), each audit-checked rule with its severity.
+
+- `/user-interface:design` and `/user-interface:audit` gain icon and illustration guidance for the web (an icon size ladder with stroke weights per size, thinner strokes at small sizes and filled variants below 12px, one icon library per surface, round caps, single-path icons, one meaning per icon, labels for ambiguous metaphors, icon-to-label gaps, and illustrations matched to the icon stroke, the color tokens, a small palette and the interface's light direction), each audit-checked rule with its severity.
+
+- `/user-interface:design` and `/user-interface:audit` gain interface state guidance for web screens: empty states that teach and create the first item, failed requests with a specific recovery, delayed wait indicators, skeletons that hold the page's shape, optimistic updates that revert on failure, copy confirmations, feedback while the user acts, toast durations from word count, and badges versus tags.
+
+- `/user-interface:design` and `/user-interface:audit` gain component API guidance for shared web components (composition over configuration, compound parts, finite variants typed as unions, platform prop names, controlled and uncontrolled state, refs and prop spreading, safe defaults) with React implementation patterns.
+
+- `/user-interface:design` and `/user-interface:audit` gain marketing page guidance for landing pages, pricing, docs sites, blogs and changelogs: motion that follows the visitor, page titles, descriptions and link previews, crawler files and icons, header submenus kept in the DOM, auth-aware calls to action, a working conversion path, copyable docs, feeds, and code-built illustrations, each rule with its audit severity.
+
+- Theming and dark mode guidance for web interfaces in `reference/types/web/theming.md`: declaring only the color schemes that were designed, finishing or turning off a half-built dark mode, flipping one variable scale at the theme root instead of per-component `dark:` overrides, hardcoded colors, images and third-party widgets that miss the second theme, `theme-color` and autofill in both themes, and theme switches that do not animate every color, each with the severity `/user-interface:audit` reports.
+
+- Generic-defaults guidance for `/user-interface:design` and `/user-interface:audit`: a pass that deletes what nothing needs, then replaces the tells that make a web screen look generated (unchosen indigo, stacked gradients, gradient headlines, glass over nothing, template heroes and feature grids, emoji as icons), flags placeholder content and invented social proof as blocking, and gives marketing and brand surfaces a point of view while application UI keeps the system font stack.
+
+- A design-system note procedure behind `/user-interface:design` filling gaps: inventory the real tokens, components and variant unions first, size the note to the system, document each component with when to use it and its alternative, a closed variant set, the default, a correct and an incorrect example and a flowchart for three or more options, write rules as numbers with their why, then test the note by prompting for a real screen and fix the note, not the output, with a worked example `DESIGN.md`.
+
+## [0.11.0] - 2026-10-31
+
+### Added
+
+- A shape-and-depth concern for `/user-interface:design` and `/user-interface:audit`: nested radii, shadows over borders, hairlines, eased gradients and mask fades, and image outlines, with audit severities, plus `scripts/nested-radius.mjs`, which works out a nested element's radius and says when the gap is too wide for the rule to apply.
+
+- `/user-interface:design` and `/user-interface:audit` gain web layout guidance: settle hierarchy, spacing and alignment first, one primary action per view, spacing from a scale with `gap` on the parent, optical alignment, capped content containers and content-driven breakpoints, sticky headers capped against the viewport, text beside rather than over full-bleed images, `z-index` from a token scale or a local stacking context, and decorative layers that never take clicks.
+
+- `/user-interface:design` and `/user-interface:audit` gain web color guidance: oklch for new colors, contrast repaired by moving lightness only against the WCAG 2.2 AA bar with APCA as an advisory second check, every text pair checked in both themes, tonal scales with one fixed hue and per-hue chroma, dark-mode colors from a remap of the scale's roles, value-for-value conversion from hex, `rgb()` and `hsl()` with `none` as the hue of grays, gamut clamping with a Display P3 layer, a `--focus-ring` token held to 3:1 in both themes, and Tailwind `@theme` color tokens read only in Tailwind projects.
+
+- `/user-interface:design` and `/user-interface:audit` gain web typography guidance (font files and synthesized styles, variable axes and OpenType features, type scale, leading and tracking, line length, wrap modes, truncation, the right typographic characters, underlines, selection, smoothing and size floors), with a Tailwind map read only when the project uses Tailwind.
+
+## [0.10.0] - 2026-10-31
+
+### Added
+
+- `reference/concerns.json`, the interface concern table, with `reference/concerns.schema.json` and `scripts/lib/concerns-validate.mjs`. Each row names the reference files (spokes) a concern reads, its routing concerns and its audit order; the first row is `motion`.
+- `design.concern_spoke_cap` (default 2, an integer of at least 1) bounds how many concern spokes one `/user-interface:design` pass loads.
+
+- `/user-interface:glossary`, a model-invoked reverse term lookup: given an effect, visual detail or behavior someone can describe but not name, it answers with the term, separates near-synonyms, turns a vague feel request into named terms, and asks for a reference image when no term fits. Its term files cover typography, color, icons, layout, interaction, motion, easing and springs, rendering performance, accessibility, information architecture, copywriting, design tools, analytics, components and front-end engineering; each entry gives the term, a definition and the line against its nearest near-synonym.
+
+### Changed
+
+- The animation audit skill is now `/user-interface:audit`. It takes a scope, `diff` (the default), `tree`, or `launch`, which walks every lane in the concern table's audit order, one pass each, and reviews one concern lane per pass. The motion lane keeps the `opportunities` and `performance` sub-modes, now in its procedure file `skills/audit/reference/motion.md`. `--fix` still applies one finding at a time after a yes, at every scope.
+- `/user-interface:design` Step 3 loads spokes for the concerns the project's own system does not cover from the concern table, up to the cap, and names the rest as next steps.
+
+### Fixed
+
+- `/user-interface:design` now applies the routing-as-data 2.0.0 team-row limits. A team `routing.rows` entry is dropped when its id matches neither a bundled row nor its own installed plugin or skill, when it adds a `kind: tool` row, or when it reuses a bundled id but changes that row's `kind`, `detect` or `account`. When the installed list cannot be read, a row whose id matches no bundled row is also dropped. `scripts/detect.mjs --config` names each dropped row and the rule it broke in `routing_notes`. `reference/team.schema.json` states the three rules.
+
 ## [0.9.6] - 2026-10-31
 
 ### Fixed

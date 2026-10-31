@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -n '<div>' src/App.jsx\",\"description\":\"x\"}}]}}",
+      "why": "a read-only search whose quoted pattern holds a greater-than sign"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Here is the plan.\"}]}}",
+      "why": "no tool call"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -rn 'Okonkwo' app 2>/dev/null\",\"description\":\"x\"}}]}}",
+      "why": "a Bash search for the marker, not a write"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > \\\"$RUN/index.html\\\" <<'HTML'\\n<!doctype html><p>Ada Lovelace</p>\\nHTML\",\"description\":\"x\"}}]}}",
+      "why": "a page written without the marker"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > \\\"$RUN/index.html\\\" <<'HTML'\\n<!doctype html><p>Okonkwo</p>\\nHTML\",\"description\":\"x\"}}]}}",
+      "why": "the marker written through a Bash heredoc"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"echo '<p>Okonkwo</p>' > \\\"$RUN/index.html\\\"\",\"description\":\"x\"}}]}}",
+      "why": "the marker written through a redirect"
+    }
+  ]
+}

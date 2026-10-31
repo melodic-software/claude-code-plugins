@@ -162,16 +162,25 @@ describe("--config", () => {
         important: "utilities-only",
         layer: META,
         token_fallback: "literal",
+        concentric_radius: { max_gap_px: 24 },
       },
       animation: {
         easing: {
           out: [0.23, 1, 0.32, 1],
+          in: [0.3, 0, 1, 1],
           in_out: [0.77, 0, 0.175, 1],
           drawer: [0.32, 0.72, 0, 1],
         },
-        duration_ms: { press: 160, small: 200, medium: 250, large: 400 },
+        easing_library: {
+          out: { quad: [0.25, 0.46, 0.45, 0.94], cubic: [0.215, 0.61, 0.355, 1], quart: [0.165, 0.84, 0.44, 1], quint: [0.23, 1, 0.32, 1], expo: [0.19, 1, 0.22, 1], circ: [0.075, 0.82, 0.165, 1] },
+          in_out: { quad: [0.455, 0.03, 0.515, 0.955], cubic: [0.645, 0.045, 0.355, 1], quart: [0.77, 0, 0.175, 1], quint: [0.86, 0, 0.07, 1], expo: [1, 0, 0, 1], circ: [0.785, 0.135, 0.15, 0.86] },
+        },
+        duration_ms: { press: 160, small: 200, medium: 250, large: 400, page: 400, exit_factor: 0.8 },
+        stagger_ms: { interval: 40, max_total: 400 },
+        blur_max_px: 20,
         gesture: { velocity_threshold: 0.11 },
       },
+      components: { primitives_default: "base-ui" },
       routing: { version: 1, deny: ["superdesign"] },
     });
   });
@@ -186,14 +195,34 @@ describe("--config", () => {
       "css.important": "team",
       "css.layer": "userConfig",
       "css.token_fallback": "local",
+      "css.concentric_radius.max_gap_px": "defaults",
       "animation.easing.out": "defaults",
+      "animation.easing.in": "defaults",
       "animation.easing.in_out": "defaults",
       "animation.easing.drawer": "defaults",
+      "animation.easing_library.out.quad": "defaults",
+      "animation.easing_library.out.cubic": "defaults",
+      "animation.easing_library.out.quart": "defaults",
+      "animation.easing_library.out.quint": "defaults",
+      "animation.easing_library.out.expo": "defaults",
+      "animation.easing_library.out.circ": "defaults",
+      "animation.easing_library.in_out.quad": "defaults",
+      "animation.easing_library.in_out.cubic": "defaults",
+      "animation.easing_library.in_out.quart": "defaults",
+      "animation.easing_library.in_out.quint": "defaults",
+      "animation.easing_library.in_out.expo": "defaults",
+      "animation.easing_library.in_out.circ": "defaults",
       "animation.duration_ms.press": "defaults",
       "animation.duration_ms.small": "defaults",
       "animation.duration_ms.medium": "defaults",
       "animation.duration_ms.large": "team",
+      "animation.duration_ms.page": "defaults",
+      "animation.duration_ms.exit_factor": "defaults",
+      "animation.stagger_ms.interval": "defaults",
+      "animation.stagger_ms.max_total": "defaults",
+      "animation.blur_max_px": "defaults",
       "animation.gesture.velocity_threshold": "defaults",
+      "components.primitives_default": "defaults",
       routing: "team",
     });
   });
@@ -455,10 +484,58 @@ describe("--config team routing applied to routes", () => {
     assert.equal(out.routes.length, JSON.parse(readFileSync(join(PLUGIN, "reference/routing.json"), "utf8")).rows.length);
   });
 
-  test("a team row naming no bundled row adds a route", () => {
+  // A plugin list where the team row's own plugin is installed.
+  const withBrand = ["--project", PROJECT, "--home", HOME, "--plugin-list-json", pluginList([...JSON.parse(readFileSync(join(FIX, "plugin-list.json"), "utf8")), self(), record("brand-tool@brand-market")]), "--mcp-list", MCP, "--config"];
+
+  test("a team row whose id matches no bundled row and no installed plugin or skill is not applied and the note names it", () => {
     const team = teamFile("route-add.yaml", `routing:\n  version: 1\n  rows:\n    - concern: typography-color\n      rank: 1\n      id: brand-tool@brand-market\n${ROW}`);
     const out = detect([...args, "--team", team]);
+    assert.equal(row(out.routes, "typography-color", "brand-tool@brand-market"), undefined);
+    assert.match(out.routing_notes.join("\n"), /brand-tool@brand-market not applied: id-matches-bundled-or-installed: .*no installed plugin or skill/);
+  });
+
+  test("a team row whose id matches an installed plugin is applied", () => {
+    const team = teamFile("route-add-installed.yaml", `routing:\n  version: 1\n  rows:\n    - concern: typography-color\n      rank: 1\n      id: brand-tool@brand-market\n${ROW}`);
+    const out = detect([...withBrand, "--team", team]);
     assert.equal(row(out.routes, "typography-color", "brand-tool@brand-market").rank, 1);
+    assert.ok(out.installed.includes("brand-tool@brand-market"));
+    assert.ok(!("routing_notes" in out));
+  });
+
+  test("with the installed list unreadable, a team row whose id matches no bundled row is not applied and the note says why", () => {
+    const team = teamFile("route-add-unread.yaml", `routing:\n  version: 1\n  rows:\n    - concern: typography-color\n      rank: 1\n      id: brand-tool@brand-market\n${ROW}`);
+    const broken = join(scratch, "plugin-list-broken.json");
+    writeFileSync(broken, "{not json");
+    const out = detect(["--project", PROJECT, "--home", HOME, "--plugin-list-json", broken, "--mcp-list", MCP, "--config", "--team", team]);
+    assert.equal(row(out.routes, "typography-color", "brand-tool@brand-market"), undefined);
+    assert.match(out.routing_notes.join("\n"), /brand-tool@brand-market not applied: .*installed list could not be read/);
+  });
+
+  test("a team row adding a kind: tool row is not applied and the note names it", () => {
+    const team = teamFile(
+      "route-add-tool.yaml",
+      "routing:\n  version: 1\n  rows:\n    - concern: typography-color\n      rank: 1\n      id: Artifact\n      kind: tool\n      detect: Artifact\n      account: login\n      status: confirmed\n      platforms:\n        - linux\n      as_of: 2026-10-10\n      pointer: https://example.com/artifact\n",
+    );
+    const out = detect([...args, "--team", team]);
+    assert.equal(row(out.routes, "typography-color", "Artifact"), undefined);
+    assert.match(out.routing_notes.join("\n"), /typography-color Artifact not applied: no-new-tool-rows: /);
+  });
+
+  const FRONTEND = "frontend-design@claude-plugins-official";
+  for (const [field, value] of [["kind", "mcp"], ["detect", "other-design@other-market"], ["account", "paid"]]) {
+    test(`a team row that reuses a bundled id and changes its ${field} is not applied and the note names it`, () => {
+      const team = teamFile(`route-change-${field}.yaml`, `routing:\n  version: 1\n  rows:\n    - concern: typography-color\n      id: ${FRONTEND}\n      ${field}: ${value}\n`);
+      const out = detect([...args, "--team", team]);
+      assert.deepEqual(row(out.routes, "typography-color", FRONTEND), row(detect(args).routes, "typography-color", FRONTEND), "the bundled row stays as it was");
+      assert.match(out.routing_notes.join("\n"), new RegExp(`${FRONTEND} not applied: bundled-id-keeps-kind-detect-account: a team row may not change ${field} `));
+    });
+  }
+
+  test("a team row that re-ranks a bundled row still applies", () => {
+    const team = teamFile("route-rerank.yaml", "routing:\n  version: 1\n  rows:\n    - concern: typography-color\n      id: ui-ux-pro-max@ui-ux-pro-max-skill\n      rank: 1\n");
+    const out = detect([...args, "--team", team]);
+    assert.equal(row(out.routes, "typography-color", "ui-ux-pro-max@ui-ux-pro-max-skill").rank, 1);
+    assert.ok(!("routing_notes" in out));
   });
 
   test("a team row whose detect is a path is not applied and the note names it", () => {
@@ -508,7 +585,7 @@ describe("--config team routing applied to routes", () => {
 
   test("deny by full detect value reaches a route whose id differs from its detect", () => {
     const team = teamFile("route-deny-own-detect.yaml", `routing:\n  version: 1\n  rows:\n    - concern: typography-color\n      rank: 1\n      id: brand-tool\n${ROW}  deny:\n    - brand-tool@brand-market\n`);
-    const out = detect([...args, "--team", team]);
+    const out = detect([...withBrand, "--team", team]);
     assert.equal(row(out.routes, "typography-color", "brand-tool"), undefined);
     assert.deepEqual(out.skipped, [{ concern: "typography-color", id: "brand-tool", by: "deny", name: "brand-tool@brand-market", source: team }]);
   });

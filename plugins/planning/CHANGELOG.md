@@ -3,6 +3,178 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.133.1] - 2026-10-31
+
+### Fixed
+
+- The interview surface now sets aside an accept when the session revises the recommendation the
+  user accepted. `reply --rec` and `revise --rec` set aside a counted accept or hedged accept
+  whose recommendation the revision changes, and record the accepted text. The question reads
+  open until the user accepts again: the page shows it as needing reconfirmation and quotes the
+  accepted text, and `export-ledger` writes an open row whose `aside::` names that text, never the
+  revised one. `import-ledger` restores such a row still set aside. Before this, the export and
+  the page recorded the revised text as the user's answer
+  ([#11584](https://github.com/melodic-software/claude-code-plugins/issues/11584)).
+
+## [0.133.0] - 2026-10-31
+
+### Added
+
+- `/planning:interview product <idea>` stress-tests a product or feature idea one question at a time against twenty product principles and ends in a verdict; `/planning:prd` and `/planning:brainstorm` point to it.
+
+### Changed
+
+- `/planning:design` names `/user-interface:design` as the next step when the contract being designed is a UI component's props API.
+
+## [0.132.5] - 2026-10-31
+
+### Fixed
+
+- The interview page's Decide list now fades its top or bottom edge when rows are scrolled out of view past that edge. With every row in view, it shows no fade. The Rec row clamps to four lines, so a long recommendation no longer fills the list. When the clamp cuts the text, a Read all button opens the whole recommendation in a dialog ([#11649](https://github.com/melodic-software/claude-code-plugins/issues/11649)).
+
+## [0.132.4] - 2026-10-31
+
+### Fixed
+
+- The interview page's Finish no longer warns that you have not answered Claude in Notes just because Claude's reply was the last Notes entry. It warns only while a Claude note sent with `needsAnswer` has no answer. Each such note stays pinned in Loose ends until a note from you answers it, and each note you send answers the oldest one still open. A second `needsAnswer` note posted in the same apply is now pinned too, and one reply no longer clears both. The Brief's `asked in Notes, not answered` lines follow the same rule ([#11585](https://github.com/melodic-software/claude-code-plugins/issues/11585)).
+
+## [0.132.3] - 2026-10-31
+
+### Fixed
+
+- `/planning:interview`'s page Brief lists a decision once, in its final status, when its commitments are ticked at Confirm. `export-brief` rewrites a Decisions recap line taken while unticked commitments held the row `open` as `answered`, with the row's whole answer (also when the recap cut that answer short), so the row adds no second Constraints line.
+- SKILL.md and the page surface guide now agree that on the page the restate goes out over a procedure-check exit 1 when the only `open` rows are accepted questions waiting on commitment ticks, since the page offers those ticks in the restatement box.
+
+## [0.132.2] - 2026-10-31
+
+### Fixed
+
+- `ledger-check` now checks the ledger that `sync-ledger` or `add-round --sync-ledger` last wrote, recorded as `meta.syncedLedger`, before the ledger the page was seeded from. Both commands also record the check in `meta.ledgerSync`, so the page header shows its ledger line on an interview that was never imported from a ledger ([#11586](https://github.com/melodic-software/claude-code-plugins/issues/11586)).
+
+## [0.132.1] - 2026-10-31
+
+### Changed
+
+- The interview page's `round.sh` now gives each outcome its own exit code: 1 for a refusal (a usage error included, which used to exit 2), 2 for a missing prerequisite (Python 3, or curl for `ensure-running`, which used to exit 1 while `watch.sh` exited 2), 5 when `ensure-running` cannot start the page server, and 6 when `export-ledger --diff` or `ledger-check` finds the page and the ledger disagree, or a ledger merge keeps a conflicting row. `round.sh --help`, the interview skill and its page protocol list the codes.
+
+## [0.132.0] - 2026-10-31
+
+### Added
+
+- `scripts/repin-digests.sh` re-pins the digest pins of `tests/interview-defenses.test.sh` from
+  the files alone. It takes the same arguments as `tests/repin.sh`, reads the test file as text,
+  and computes each pin's digest itself. It runs neither the test nor any other file from the
+  checkout. A pin argument that is not a plain quoted string, or that names a file outside the
+  plugin, refuses the pin and leaves the file unchanged. The issue lane can run it, so a lane
+  change to a pinned interview section no longer stops for a host session to re-pin.
+
+### Changed
+
+- The digest computations move to `scripts/lib/pin-digests.sh`, which the test and
+  `repin-digests.sh` both source, so a re-pin computes each digest the same way the test grades
+  it. `tests/repin.sh` now calls `repin-digests.sh` and then runs the test, and keeps its exit
+  codes.
+
+### Fixed
+
+- `/planning:plan`, `/planning:draft-goal-condition` and `/planning:interview` point at the exact upstream sections behind their workflow, teammate and advisor claims, and the advisor default and the upload reader's model pin are labeled as this repository's judgment.
+
+## [0.131.3] - 2026-10-31
+
+### Fixed
+
+- Text fixes in the interview page's exports and question history:
+  - A `revise` that changes `checkedAgainst` logs `Revised constraints checked.`, not `Revised checkedAgainst.`
+  - A restated `deferred` or `planningOwned` bullet that says only `none` no longer exports as a Deferred questions entry.
+  - The `why:` line of a row that a restated constraints or decisions line carries now sits under that line, not as a separate bullet in Constraints.
+  - `sync-ledger` leaves a blank line between the rows it writes into an empty register and the text after them.
+  - `export-brief` keeps the restated goal's `-` lines (Intent, Vision and the tiebreak) as bullets, so PLAN.md's Goal no longer needs a hand edit after Confirm.
+  - The `revise` op row in the interview's surface reference now lists `checkedAgainst`.
+
+## [0.131.2] - 2026-10-31
+
+### Changed
+
+- The `interview-ears-convention-tags` eval case grants Bash, and a new `resolver-ran` grader requires a Bash call to `resolve-convention-home.sh`, so the case covers the convention-home resolver path the EARS ladder names instead of a hand-read of `AGENTS.md`.
+
+## [0.131.1] - 2026-10-31
+
+### Changed
+
+- `/planning:interview` and `/planning:wayfind`: reworded phrases the interview text shared with an upstream skill set. The confirmation gate now opens with Step 3's stop wording ("no question is left to ask"), and "the frontier is empty" now reads "no open question remains on the frontier" (or "the frontier holds no item" in wayfind) across the skill bodies, the assumption sweep, the checklist template and the evals. No rule changed.
+
+- The interview round's closing probe is now worded "something else", never "anything else": "Is there something else that would change these recommendations?" The eval case `interview-closing-probe-something-else` grades the wording.
+
+### Fixed
+
+- `/planning:interview` in the terminal now reads back an answer that departs from the recommendation, or that arrives dictated or unclear, in its own words and keeps the question open until the user confirms or corrects it. An answer that accepts the recommendation still resolves at once.
+
+- When every answer was accepted as recommended or confirmed after its read-back, `/planning:interview`'s final confirmation no longer re-lists the unchanged accepted answers, even at the first confirmation. A recap saved once each round's read-backs are confirmed lets the pasted `--changed` recap list only the answers changed since, and the restatement adds the intent, the hedged answers and the assumptions the user has not seen. A host run of the `interview-final-brief-changes-only` eval case on 2026-10-30 scored 0 of 3 with-plugin runs on its changes-only and omits-unchanged graders before this rule.
+
+## [0.131.0] - 2026-10-31
+
+### Added
+
+- `/planning:plan` and `/planning:draft-goal-condition` take an optional `--unattended` modifier, accepted anywhere in their arguments. With it, the run records its native offer (`/plan`, or the paste-ready `/goal` line) in its output instead of asking; without it, the run asks. Both argument hints list it.
+
+### Changed
+
+- `/planning:plan`'s argument hint writes its first slot as `[task description|review|close-out]`, so the hint stays within the 100-character budget with `[--unattended]` added.
+
+## [0.130.2] - 2026-10-31
+
+### Fixed
+
+- The interview surface's `server.py` and `test_server.py` are now `interview_server.py` and
+  `test_interview_server.py`, so `pytest plugins/planning` no longer stops on an import file
+  mismatch, and a surface module can no longer import the shared `server.py` in its place.
+
+## [0.130.1] - 2026-10-31
+
+### Fixed
+
+- `/planning:interview` requires a recommendation that reuses an existing value (an email address,
+  account, subscription, region, secret name or repository) to state the literal value and where
+  it was read; "the existing X" alone is not enough. Contact addresses and identities are
+  owner-reserved: the user confirms the literal before anything is created with it.
+- The assumption sweep flags an `unstated-value` item, a reference to an existing value whose
+  literal the ledger never states, and asks the user to confirm the literal in a register row.
+  The `--procedure` gate accepts the category and fails such an item that a fact line settles.
+
+## [0.130.0] - 2026-10-31
+
+### Added
+
+- An unattended planning run counts an item's stated problem as confirmed when a comment on the item has a line reading exactly `Pre-confirmed: a person confirms this item's problem`, with no setting or label. Before the marker counts, the run checks that the author is a user listed as `kind: human` on the repository's trusted-actor list (matched by account id), that the comment was not posted through an App, that the author has `admin` or `write` permission, that every edit to the comment is the author's, and that the item's body is unedited since. A marker from an agent, an App or any other account, or one inside quoted or fenced text, never counts. The rule is in `context/problem-framing.md` "Pre-confirmed" and `reference/config.md`; two `/planning:plan` evals cover a trusted human's marker and a bot's marker.
+
+### Changed
+
+- `draft-goal-condition` and `plan` offer `/goal` and `/plan` as suggest sentences, `If /<name> is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when an offer is deleted or reworded.
+
+### Fixed
+
+- `/planning:interview` no longer lets a session settle an assumption-sweep `decision` item with an
+  uncited fact and still pass the gate. Each sweep item is now recorded in the ledger's
+  `## Assumption sweep` section with its disposition: a `Q<N>` register row, an `F<N>` fact whose
+  basis quotes its source with a file:line or URL, or `deferred: <where>`. A fresh-context check
+  confirms each quote before the item counts as settled. `check-open-questions.sh --procedure` now
+  fails on an item with no disposition, a `decision` or `person` item settled outside the register,
+  an unquoted fact, a non-hedged item whose `Q<N>` is not above the register's last row when that
+  sweep ran (each sweep records it as `- sweep <M> | register through Q<N>`), and any unchecked
+  `Step <N> exit` box. A skipped exit step is ticked with `SKIPPED: <reason>`.
+
+## [0.129.1] - 2026-10-31
+
+### Fixed
+
+- `/planning:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
+- interview: the gather-block record link now points at the gather-block convention doc, at the
+  same heading, instead of a file inside source-control's worktree skill.
+
 ## [0.129.0] - 2026-10-31
 
 ### Added

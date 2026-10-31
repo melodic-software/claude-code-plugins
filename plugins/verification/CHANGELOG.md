@@ -3,6 +3,51 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.2] - 2026-10-31
+
+### Fixed
+
+- `/verification:confirm` adds `--unattended` to its `/app-control:map refresh` call only when its own caller passed `--unattended`. A pipeline lane that omits the flag gets a refresh that may ask ([#11578](https://github.com/melodic-software/claude-code-plugins/issues/11578)).
+
+## [0.15.1] - 2026-10-31
+
+### Fixed
+
+- `/verification:confirm` points its worker usage line at the section that defines the Agent result, and its model override at the subagent model section.
+
+## [0.15.0] - 2026-10-31
+
+### Added
+
+- `/verification:confirm` takes an optional `--unattended` modifier, accepted anywhere in its arguments. With it, the run records the `/verify` offer in its output instead of asking; without it, the run asks. The argument hint lists it.
+
+## [0.14.0] - 2026-10-31
+
+### Added
+
+- `/verification:confirm` records its verdict and each `MISSING` or `PARTIAL` plan item for the
+  head commit it judged, through the new `scripts/confirm-verdict.sh`, so the pull request `ready`
+  report can name it. A commit after the record leaves the new head with no verdict.
+
+- `/verification:measure` records its `compare` verdict and the improvement claim it judged for
+  the head commit it measured, through `scripts/confirm-verdict.sh record --of measure`, so the
+  pull request `ready` report can name it. With no baseline captured before the change the
+  recorded verdict is `CANNOT QUANTIFY`. A commit after the record leaves the new head with no
+  verdict.
+
+### Changed
+
+- `confirm` offers `/verify` as a suggest sentence, `If /verify is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when the offer is deleted or reworded.
+
+## [0.13.9] - 2026-10-31
+
+### Fixed
+
+- `/verification:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
 ## [0.13.8] - 2026-10-31
 
 ### Fixed

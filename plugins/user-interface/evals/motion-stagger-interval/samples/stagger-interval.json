@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": ".card { animation: rise 250ms cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: calc(var(--i) * 40ms); }",
+      "why": "40ms between steps"
+    },
+    {
+      "answer": ".card { animation: rise 200ms ease-out both; animation-delay: calc(var(--i) * 0.06s); }\n\nI used 60ms rather than 150ms: longer gaps feel slow.",
+      "why": "60ms, inside the base range shared by both versions, with the reason; head would rate a list stagger over 50ms a Suggestion"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".card { animation: rise 300ms ease-out both; animation-delay: calc(var(--i) * 150ms); }",
+      "why": "the 150ms the prompt asked for"
+    },
+    {
+      "answer": ".card { animation: rise 300ms ease-out both; animation-delay: calc(var(--i) * 100ms); }",
+      "why": "near miss: 100ms, over the 80ms ceiling"
+    },
+    {
+      "answer": ".card { animation: rise 250ms ease-out both; }",
+      "why": "no per-step delay"
+    }
+  ]
+}

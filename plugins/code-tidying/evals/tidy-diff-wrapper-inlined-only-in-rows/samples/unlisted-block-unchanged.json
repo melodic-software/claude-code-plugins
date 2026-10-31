@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "from csvtools import read_csv_rows, read_json_rows\n\n\ndef _load_events(path):\n    return read_json_rows(path)\n\n\ndef count_events(path):\n    return len(_load_events(path))\n\n\ndef summarize(path):\n    rows = read_csv_rows(path)\n    return len(rows)\n",
+      "why": "unlisted block intact"
+    },
+    {
+      "answer": "from csvtools import read_csv_rows, read_json_rows\n\n\ndef _load_events(path):\n    return read_json_rows(path)\n\n\ndef count_events(path):\n    return len(_load_events(path))\n\n\ndef _load_rows(path):\n    return read_csv_rows(path)\n\n\ndef summarize(path):\n    rows = _load_rows(path)\n    return len(rows)\n",
+      "why": "seeded file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "from csvtools import read_csv_rows, read_json_rows\n\n\ndef count_events(path):\n    return len(read_json_rows(path))\n\n\ndef summarize(path):\n    rows = read_csv_rows(path)\n    return len(rows)\n",
+      "why": "unlisted wrapper inlined too"
+    }
+  ]
+}

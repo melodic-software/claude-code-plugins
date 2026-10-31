@@ -16,6 +16,9 @@ keeps one event per friction moment:
 - `correction` and `approve-reply`: a short typed turn of that class that answered no detected ask.
 - `interrupt`: the person interrupted a turn.
 
+A `denied` or `prompt-approved` event carries the call's `tool_use_id`, and a session keeps one such
+event per call and kind: a repeated result record is skipped and counted in `duplicates_dropped`.
+
 The ask, hand-off and approve patterns are English heuristics: high precision, low recall. Events
 past `EVENT_CAP` per session are counted in `events_dropped`; `counts` always covers every event.
 Secondary performance signals are counts in `perf`. Stdlib only; Python 3.10+.
@@ -57,6 +60,13 @@ APPROVE_RE = re.compile(
 POLL_RE = re.compile(r"\bsleep\s+\d|\buntil\b.*\bdo\b|\bwhile\b.*\bdo\b|--watch\b|\bwatch\s", re.S)
 CI_WAIT_RE = re.compile(r"\bgh\s+(run\s+watch|pr\s+checks\b.*--watch)|\bglab\s+ci\s+status\b.*--live", re.S)
 CONFLICT_RE = re.compile(r"^CONFLICT \(|Automatic merge failed", re.M)
+# A git subcommand that can stop on a conflict, after any `-C <dir>`, `-c <key=value>`, `-p`, `--git-dir <path>`
+# or `--flag[=value]` global options.
+CONFLICT_COMMAND_RE = re.compile(
+    r"\bgit(?:\.exe)?[\"']?"
+    r"(?:\s+(?:-[Cc]\s+(?:\"[^\"]*\"|'[^']*'|\S+)|-[pP]|--(?:git-dir|work-tree|namespace|config-env)\s+\S+|--[\w-]+(?:=\S+)?))*\s+"
+    r"(?:merge|rebase|pull|cherry-pick|revert|am|stash\s+(?:pop|apply))(?![\w-])"
+)
 PERF_COUNTS = ("tool_waits_gt5m", "polling_calls", "ci_wait_calls", "merge_conflicts")
 # MultiEdit stays listed on purpose: transcripts recorded by older Claude Code
 # versions carry MultiEdit calls, and they must still count as file-tool calls.
@@ -69,7 +79,7 @@ SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
 SUBCOMMAND = re.compile(r"[a-z][a-z0-9-]{0,30}")
 GIT_ARG_FLAGS = frozenset({"-C", "-c"})
 # Event fields holding transcript or metadata text, scrubbed before storage; the rest are enums this module sets.
-SCRUBBED_FIELDS = ("reason", "hook", "shape", "tool", "agent", "source", "reason_type", "next_tool")
+SCRUBBED_FIELDS = ("reason", "hook", "shape", "tool", "agent", "source", "reason_type", "next_tool", "tool_use_id")
 
 
 def _epoch(value: object) -> float | None:
@@ -169,6 +179,8 @@ class FrictionScan:
         self.dropped = 0
         self.calls: dict[str, tuple[str, dict, float | None, str]] = {}
         self.denied_ids: set[str] = set()
+        self.seen: set[tuple[str, str]] = set()
+        self.duplicates = 0
         # Hook-block denials of the current file still waiting for the next tool call, and the calls
         # already taken as a next call whose result has not arrived: tool_use id -> denials it answers.
         self.awaiting_next: list[dict] = []
@@ -201,6 +213,16 @@ class FrictionScan:
             self.dropped += 1
         return event
 
+    def _first(self, use_id: str | None, kind: str) -> bool:
+        """Whether this is the session's first `kind` event for the call; a repeat is counted as a duplicate."""
+        if use_id is None:
+            return True
+        if (use_id, kind) in self.seen:
+            self.duplicates += 1
+            return False
+        self.seen.add((use_id, kind))
+        return True
+
     def add(self, record: dict) -> None:
         if self.cwd is None and isinstance(record.get("cwd"), str):
             self.cwd = record["cwd"]
@@ -214,13 +236,17 @@ class FrictionScan:
             self._user(record, ts)
         elif kind == "result":
             for denial in transcript_reader.permission_denials(record):
+                # Keyed apart from tool-result denials, so a later tool-result record still keeps its richer event.
                 if denial["tool_use_id"] in self.denied_ids:
+                    self.duplicates += 1
+                    continue
+                if not self._first(denial["tool_use_id"], "denied/result"):
                     continue
                 cause = denial["reason_type"] if denial["reason_type"] in ("classifier", "hook") else "rule"
                 shape, flags, target = tool_shape(denial["tool_name"] or "?", denial["tool_input"], self.cwd)
                 self._event(
-                    "denied", ts, tool=denial["tool_name"], shape=shape, flags=flags, target=target,
-                    cause=cause, reason=denial["reason_type"], hook=None, source="result",
+                    "denied", ts, tool_use_id=denial["tool_use_id"], tool=denial["tool_name"], shape=shape, flags=flags,
+                    target=target, cause=cause, reason=denial["reason_type"], hook=None, source="result",
                 )
 
     def _assistant(self, record: dict, ts: float | None) -> None:
@@ -242,12 +268,12 @@ class FrictionScan:
                         denial["next_tool"] = name
                     self.next_calls[block["id"]] = self.awaiting_next
                     self.awaiting_next = []
-                command = tool_input.get("command") if name in SHELL_TOOLS else None
+                # A Monitor command counts as polling only when it is itself a poll loop: a
+                # tail -f or another event wait is the wait the harness recommends.
+                command = tool_input.get("command") if name in SHELL_TOOLS or name == "Monitor" else None
                 if isinstance(command, str):
                     self.perf["ci_wait_calls"] += bool(CI_WAIT_RE.search(command))
                     self.perf["polling_calls"] += bool(POLL_RE.search(command)) and not CI_WAIT_RE.search(command)
-                if name == "Monitor":
-                    self.perf["polling_calls"] += 1
 
     def _user(self, record: dict, ts: float | None) -> None:
         use_id = transcript_reader.tool_result_id(record)
@@ -291,7 +317,8 @@ class FrictionScan:
             self.max_tool_wait_s = max(self.max_tool_wait_s, wait)
             self.perf["tool_waits_gt5m"] += wait > TOOL_WAIT_S
         text = transcript_reader.tool_result_text(record)
-        if CONFLICT_RE.search(text[:20000]):
+        command = tool_input.get("command") if name in SHELL_TOOLS else None
+        if isinstance(command, str) and CONFLICT_COMMAND_RE.search(command) and CONFLICT_RE.search(text[:20000]):
             self.perf["merge_conflicts"] += 1
         permission = transcript_reader.permission_event(record)
         for denial in self.next_calls.pop(use_id, ()):
@@ -306,9 +333,11 @@ class FrictionScan:
             return
         shape, flags, target = tool_shape(name, tool_input, self.cwd)
         if permission["outcome"] == "denied":
+            if not self._first(use_id, "denied"):
+                return
             self.denied_ids.add(use_id)
             event = self._event(
-                "denied", ts, tool=name, shape=shape, flags=flags, target=target,
+                "denied", ts, tool_use_id=use_id, tool=name, shape=shape, flags=flags, target=target,
                 cause=permission["cause"], reason=permission["reason"], hook=permission["hook"],
                 source=permission["source"], reason_type=permission["reason_type"],
             )
@@ -316,8 +345,14 @@ class FrictionScan:
                 # next_tool stays None when no call follows; next_ok stays None until that call's result.
                 event["next_tool"] = event["next_ok"] = None
                 self.awaiting_next.append(event)
-        elif (permission["source"] or "").startswith("user") and permission["reason_type"] != "rule":
-            self._event("prompt-approved", ts, tool=name, shape=shape, flags=flags, target=target, source=permission["source"])
+        elif (
+            (permission["source"] or "").startswith("user") and permission["reason_type"] != "rule"
+            and self._first(use_id, "prompt-approved")
+        ):
+            self._event(
+                "prompt-approved", ts, tool_use_id=use_id, tool=name, shape=shape, flags=flags, target=target,
+                source=permission["source"],
+            )
 
     def block(self, scrub, excerpt_chars: int) -> dict:
         """The record's `friction` block; every transcript string goes through `scrub` (collect.Scrubber)."""
@@ -335,6 +370,7 @@ class FrictionScan:
         return {
             "events": events,
             "events_dropped": self.dropped,
+            "duplicates_dropped": self.duplicates,
             "counts": {
                 side: scrub.keys(Counter({key: n for (s, key), n in self.counts.items() if s == side}))
                 for side in ("main", "sub")

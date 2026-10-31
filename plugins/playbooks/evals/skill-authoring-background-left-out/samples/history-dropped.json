@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Setup\n\n- Pin the Node version in `.nvmrc` before running the install.",
+      "why": "meets the outcome"
+    },
+    {
+      "answer": "## Setup\n\n- Pin the Node version in `.nvmrc` before the install: other Node versions break the native image addon build.",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Setup\n\n- Pin the Node version in `.nvmrc` before the install. Added after Priya lost two days to a Node 22 install.",
+      "why": "history kept"
+    },
+    {
+      "answer": "## Setup\n\n- Pin the Node version in `.nvmrc` before the install (the platform team asked for this after an incident).",
+      "why": "history kept, reworded"
+    },
+    {
+      "answer": "## Setup\n\n- Run the install.",
+      "why": "pin instruction dropped"
+    }
+  ]
+}

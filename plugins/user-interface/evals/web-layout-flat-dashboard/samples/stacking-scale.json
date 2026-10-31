@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": ":root {\n  --z-sticky: 50;\n  --z-modal: 200;\n  --z-toast: 400;\n}\n.modal { z-index: var(--z-modal); }\n.toast { z-index: var(--z-toast); }",
+      "why": "z-index tokens defined and used"
+    },
+    {
+      "answer": "Before:\n\n```css\n.toast { position: fixed; z-index: 9999; }\n```\n\nAfter:\n\n```css\n:root { --z-modal: 200; --z-toast: 400; }\n.modal { z-index: var(--z-modal); }\n.toast { z-index: var(--z-toast); }\n```",
+      "why": "the original 9999 appears only in a block marked as before"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".modal { z-index: 1000; }\n.toast { z-index: 9999; }",
+      "why": "the random large values kept"
+    },
+    {
+      "answer": ":root { --z-modal: 200; }\n.modal { z-index: var(--z-modal); }\n.toast { position: fixed; z-index: 9999 }",
+      "why": "keeps 9999 on the toast with no trailing semicolon"
+    },
+    {
+      "answer": ".actions { position: relative; isolation: isolate; }\n.toast { z-index: 9999; }",
+      "why": "isolates the actions but leaves the toast on a random large value"
+    }
+  ]
+}

@@ -77,8 +77,11 @@ else
   echo '{}' >"$t/package.json"
   echo 22 >"$t/.node-version"
   echo '*.log' >"$t/.gitignore"
+  echo '* text=auto' >"$t/.gitattributes"
+  mkdir -p "$t/.github"
+  echo 'fetch-retries=1' >"$t/.github/npm-fetch.npmrc"
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt data/recorded.txt data/named.txt data/unmapped.txt data/untracked.txt data/broken.txt' \
-    'cat package.json .node-version .gitignore' >"$t/suites/reader.test.sh"
+    'cat package.json .node-version .gitignore .gitattributes .github/npm-fetch.npmrc' >"$t/suites/reader.test.sh"
   printf '%s\n' '#!/usr/bin/env bash' 'true' >"$t/suites/quiet.test.sh"
   # Reads the unmapped file too, but the fallback corpus does not run it.
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/unmapped.txt' >"$t/suites/zz-outside.test.sh"

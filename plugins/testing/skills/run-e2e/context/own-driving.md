@@ -108,7 +108,7 @@ State: ran | resolved but degraded (<disclosure>) | did not resolve in this sess
 Outside-scope changes: none | <paths>
 ```
 
-**`unattended`:** never invoke `run`; this skill's own launch playbook runs, and the result block
+**`--unattended`:** never invoke `run`; this skill's own launch playbook runs, and the result block
 records `State: skipped (unattended)` without asking.
 
 ## Drive

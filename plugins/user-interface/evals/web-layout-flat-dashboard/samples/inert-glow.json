@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": ".hero-glow {\n  position: absolute;\n  inset: -20px;\n  pointer-events: none;\n}",
+      "why": "the glow is inert"
+    },
+    {
+      "answer": "<div class=\"hero-glow absolute -inset-5 pointer-events-none\"></div>",
+      "why": "Tailwind utility on the glow element"
+    },
+    {
+      "answer": "Before:\n\n```css\n.hero-glow { position: absolute; inset: -20px; }\n```\n\nAfter:\n\n```css\n.hero-glow { position: absolute; inset: -20px; pointer-events: none; }\n```",
+      "why": "the before block lacks it, the proposed rule has it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".hero-glow { position: absolute; inset: -20px; z-index: -1; }",
+      "why": "moves the glow behind the actions, which the request rules out, and leaves it a hit target"
+    },
+    {
+      "answer": ".hero-glow { pointer-events: auto; }",
+      "why": "pointer-events set, but not to none"
+    },
+    {
+      "answer": ".actions { position: relative; pointer-events: none; }\n.hero-glow { position: absolute; inset: -20px; }",
+      "why": "pointer-events: none on the container kills the buttons and leaves the glow a hit target"
+    },
+    {
+      "answer": "Add pointer-events: none to the glow so it stops eating clicks.\n\n```css\n.hero-glow { position: absolute; inset: -20px; }\n```",
+      "why": "only the prose says it; the proposed rule does not"
+    },
+    {
+      "answer": "Removed the decorative glow; it was covering the buttons.\n\n```css\n.actions { display: flex; gap: 12px; }\n```",
+      "why": "deletes the glow the request asks to keep"
+    }
+  ]
+}

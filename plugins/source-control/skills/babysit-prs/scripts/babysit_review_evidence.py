@@ -42,7 +42,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from babysit_risk import FLOOR, LONG_LINE_BYTES, LaneEvidence, glob_match
+from babysit_risk import Floor, LONG_LINE_BYTES, LaneEvidence, glob_match
 
 # Lane id -> (caller workflow path, lane job name suffix). Fixed in code: a
 # weaker table could only come from a file a pull request can edit.
@@ -330,6 +330,7 @@ def bind(
     base_sha: str | None = None,
     main_reviews: Sequence[Mapping[str, Any]] | None = None,
     main_context: Mapping[str, Any] | None = None,
+    floor: Floor,
 ) -> tuple[LaneEvidence, ...]:
     """Evidence for every lane in `LANES`, in that order.
 
@@ -373,8 +374,8 @@ def bind(
             raise Unbound("changed-files-unread")
         sources = [path for path in changed_paths if lane_source(path)]
         # Paths first, so no file is read when one source can never clear.
-        if not all(_readonly_candidate(path) for path in sources) or not all(
-            readonly_workflow(path, head_file, base_sha) for path in sources
+        if not all(_readonly_candidate(path, floor) for path in sources) or not all(
+            readonly_workflow(path, head_file, base_sha, floor) for path in sources
         ):
             return tuple(
                 _main_lane(
@@ -410,6 +411,7 @@ def needs_main_review(
     changed_paths: Sequence[str] | None,
     head_file: Callable[[str, str], str | None] | None,
     base_sha: str | None,
+    floor: Floor,
 ) -> bool:
     """Whether `bind()` would read only a main-run review for these changed
     paths: some lane source that `readonly_workflow` does not clear. An
@@ -417,8 +419,8 @@ def needs_main_review(
     if not isinstance(changed_paths, list | tuple):
         return True
     sources = [path for path in changed_paths if lane_source(path)]
-    return not all(_readonly_candidate(path) for path in sources) or not all(
-        readonly_workflow(path, head_file, base_sha) for path in sources
+    return not all(_readonly_candidate(path, floor) for path in sources) or not all(
+        readonly_workflow(path, head_file, base_sha, floor) for path in sources
     )
 
 
@@ -628,15 +630,15 @@ def lane_source(path: Any) -> bool:
     )
 
 
-def _readonly_candidate(path: Any) -> bool:
+def _readonly_candidate(path: Any, floor: Floor) -> bool:
     """A lane source `readonly_workflow` may clear by its content: a workflow
-    that is neither a review caller nor on the merge floor
-    (`babysit_risk.FLOOR`), whose text no rewrite may clear."""
+    that is neither a review caller nor on the merge floor (`floor`), whose
+    text no rewrite may clear."""
     return (
         isinstance(path, str)
         and bool(WORKFLOW_PATH_RE.match(path))
         and path not in REVIEW_CALLERS
-        and not any(glob_match(glob, path) for glob in FLOOR)
+        and not any(glob_match(glob, path) for glob in floor.all)
     )
 
 
@@ -644,13 +646,14 @@ def readonly_workflow(
     path: str,
     head_file: Callable[[str, str], str | None] | None,
     base_sha: str | None,
+    floor: Floor,
 ) -> bool:
     """Whether a changed workflow file cannot post as github-actions[bot] with
     write access, nor reach a credential that could: a head copy that passes
     `_readonly_workflow_text`. A deleted workflow is not cleared, since what it
     enforced goes with it; nor is a review caller, a floor workflow, any other
     lane source, or any doubt (no reader, no base, a read that fails)."""
-    if not _readonly_candidate(path) or head_file is None:
+    if not _readonly_candidate(path, floor) or head_file is None:
         return False
     if not isinstance(base_sha, str) or not SHA_RE.match(base_sha):
         return False

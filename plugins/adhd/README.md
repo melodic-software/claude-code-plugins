@@ -7,7 +7,7 @@ it. `shape` sets a standing house style; `clarify` rescues one specific artifact
 
 | Skill | What it does |
 |---|---|
-| `/adhd:shape` | Shape responses to lead with the next action, number multi-step work, restate state, cap and rank lists, estimate time concretely, make wins visible, and cut preamble, recap, and closers |
+| `/adhd:shape` | Shape responses to lead with the next action, number multi-step work, restate state, cap and rank lists, size work concretely, make wins visible, and cut preamble, recap, and closers |
 | `/adhd:clarify` | Faithfully restructure a dense, decision-heavy message already on screen. Chunk it one-decision-at-a-time, define the session's jargon, and surface what you must decide; renders an HTML decision table for big content |
 
 ## What it does
@@ -18,8 +18,8 @@ The skill re-anchors ten output rules grounded in five facts about how an ADHD
 brain reads: working memory is small, knowing is not doing, starting is the
 hardest step, time reads as uniform, and dopamine is scarce. It shapes output
 to lead with a concrete next action, number multi-step work, restate state
-across turns, cap and rank lists at five, give time estimates in real units,
-make finished work visible, keep an error tone flat, and drop preamble, recap,
+across turns, cap and rank lists at five, size work as Small, Medium or Large
+with what makes it that size, make finished work visible, keep an error tone flat, and drop preamble, recap,
 and closing pleasantries.
 
 It knows when **not** to compress: an "explain / walk me through" request runs
@@ -123,9 +123,93 @@ between the plugins to enforce this. It is a usage guideline.)
 
 ## Configuration
 
-None. The plugin is zero-config and zero-prerequisite. No `userConfig`, no
-setup skill, no external tools. Enable it and invoke `/adhd:shape` or
-`/adhd:clarify`.
+One optional setting and no setup skill or external tools. Enable the plugin
+and invoke `/adhd:shape` or `/adhd:clarify`.
+
+**`time_units`** (default off). Off, `/adhd:shape` sizes work relatively and
+states no minutes, hours, days or weeks in an estimate. On, it may estimate in
+time units. A time budget you state is kept in your words either way. Set it
+per user with the `userConfig` option, or for a repository with a `time_units`
+key in `docs/conventions/adhd.yaml` (schema: `schemas/adhd.schema.json`), which
+wins over the option.
+
+<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
+
+### Options reference
+
+Generated from this plugin's `.claude-plugin/plugin.json`. Every option Claude Code
+will prompt for when the plugin is enabled, with the environment variable each hook
+reads it from.
+
+| Option | Type | Default | Environment variable | Description |
+| --- | --- | --- | --- | --- |
+| `time_units` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TIME_UNITS` | When on, /adhd:shape may state an estimate of work in minutes, hours, days or weeks; when off it gives a relative size (Small, Medium, Large) instead. A time budget you state is kept in your words either way. Default: off. |
+
+### How to set these
+
+Three supported routes:
+
+1. **Interactively.** Open this plugin's options dialog ([`/plugin` in a session](https://code.claude.com/docs/en/plugins/cli-reference#plugin-in-a-session)):
+   `/plugin configure adhd@<marketplace>`.
+2. **Headless.** Save the values with [`claude plugin configure`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure),
+   run from the project the plugin is installed in. Replace
+   `<marketplace>` with the marketplace you installed this plugin from:
+
+   ```shell
+   claude plugin configure adhd@<marketplace> --values-stdin < values.json
+   ```
+
+   `values.json` holds a JSON object of strings, booleans included:
+
+   ```json
+   {"time_units": "<value>"}
+   ```
+
+   This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
+   limits: the Claude Code version it needs, which install it finds, how it rejects a bad
+   value, and why a session started before the change keeps the old value until a fresh
+   session starts. Do **not** `claude plugin uninstall` to reconfigure: see
+   [What an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps).
+
+   The fallback the convention names, for a Claude Code release without
+   `plugin configure`, reruns the install with the new value, passing the scope
+   `claude plugin list` reports for this plugin:
+
+   ```shell
+   claude plugin install adhd@<marketplace> -s <scope> --config time_units=<value>
+   ```
+
+3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
+   settings (`~/.claude/settings.json`):
+
+   ```json
+   {
+     "pluginConfigs": {
+       "adhd@<marketplace>": {
+         "options": {
+           "time_units": <value>
+         }
+       }
+     }
+   }
+   ```
+
+   The [`pluginConfigs`](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
+   entry names the settings scopes Claude Code reads this key from.
+
+Do not set the `CLAUDE_PLUGIN_OPTION_*` variables yourself; set the value through one
+of the routes above.
+
+### Upstream documentation
+
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure): the `--values-stdin` flag's reference entry
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
+- [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
+- [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
+- [Manage installed plugins](https://code.claude.com/docs/en/plugins/install#manage-installed-plugins): enabling, disabling, `/plugin list`
+
+<!-- END GENERATED: plugin options -->
 
 ## Attribution
 

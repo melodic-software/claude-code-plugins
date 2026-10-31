@@ -304,7 +304,12 @@ legend{font:500 13px var(--sans);color:var(--muted);padding:0 4px}
 .choice.armed{border-color:var(--accent);background:var(--accent-soft)}
 .choice.rec .t b{color:var(--ok)}
 .choice.armed.rec .t b{color:var(--ok-ink)}
-.choice.rec .t{display:block;-webkit-line-clamp:unset;line-clamp:none}
+.choice.rec .t{-webkit-line-clamp:4;line-clamp:4} /* a long recommendation still leaves the list room; Read all opens the whole text */
+.recall{justify-self:start}
+.choices.cue-down{-webkit-mask-image:linear-gradient(#000 calc(100% - 32px),transparent);mask-image:linear-gradient(#000 calc(100% - 32px),transparent)} /* the edge a hidden row sits past fades */
+.choices.cue-up{-webkit-mask-image:linear-gradient(transparent,#000 32px);mask-image:linear-gradient(transparent,#000 32px)}
+.choices.cue-up.cue-down{-webkit-mask-image:linear-gradient(transparent,#000 32px,#000 calc(100% - 32px),transparent);mask-image:linear-gradient(transparent,#000 32px,#000 calc(100% - 32px),transparent)}
+#recBody{margin:0 0 8px;overflow-wrap:anywhere}
 .choice .yours{font-size:11px;font-weight:600;color:var(--accent);margin-right:6px}
 .choices.nudge{animation:flash 1.2s ease-out}
 .cg{display:contents}
@@ -441,7 +446,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   .cline:not(.wline) #clText{min-width:0;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;text-overflow:ellipsis}
   .cline:not(.wline) .age{flex:none} /* only the text is clamped, so the age stays inline beside it; the full line is in Activity; two lines keep the question title on the first screen */
   .cline[hidden]{display:none}
-  button.act,.choice{min-height:44px}
+  button.act,.choice,.tbtn.recall{min-height:44px}
   :root :is(textarea,input:not([type=checkbox],[type=radio]),select){font-size:16px} /* below 16px, iOS Safari zooms into a field on focus */
   .notice{max-width:100%}
   aside.fly.open,.layout.pinned aside.fly.open{position:fixed;inset:var(--vv-top,0px) 0 auto;height:var(--vv-h,100dvh);width:auto;border-radius:0}
@@ -552,6 +557,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 <div class="ntoast" id="needToast" role="status" aria-live="polite" hidden></div>
 <dialog id="dlg"><h3 id="dlgTitle"></h3><div id="dlgBody"></div>
   <div class="arow"><button class="act primary" id="dlgOk" data-submit="1">Accept these</button><button class="act" id="dlgAlt" title="The other choice" hidden></button><button class="act" id="dlgCancel">Cancel</button></div></dialog>
+<dialog id="recDlg" aria-labelledby="recTitle"><h3 id="recTitle">Recommendation (Rec)</h3><p id="recBody"></p>
+  <div class="arow"><button class="act" id="recClose">Close</button></div></dialog>
 <dialog id="finDlg" aria-labelledby="finTitle"><h3 id="finTitle">Interview complete</h3><div id="finBody"></div>
   <div class="arow"><button class="act primary" id="finClose">Close</button></div></dialog>
 <dialog id="keysDlg" aria-labelledby="keysTitle"><h3 id="keysTitle">Keyboard shortcuts</h3><div class="keys" id="keysBody"></div>
@@ -706,6 +713,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return c[0] || null;
   }
   const counted = q => { const d = decisionOf(q); return d && d.decision && !d.aside ? d : null; };
+  function asideRec(q, d){ // the recommendation a set-aside accept was given against, when a revision set it aside (exporters.aside_rec)
+    const a = q.asideRecommendation;
+    return a && d && d.aside && a.decidedAt === d.updatedAt && (a.seq ?? null) === (d.seq ?? null) ? a.text : "";
+  }
   function stateOf(q){ // a hold wins over a recorded decision
     if (q.state === "archived" || q.archived) return "arch";
     if (q.state === "proposed") return "prop"; // Claude proposes it: the user accepts, edits or declines it before it is a question
@@ -795,6 +806,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const toConfirm = q => { const cf = confirmed(q); return (q.commits || []).filter((c, i) => !cf.has(String(i))).length; }; // commitments of q not yet ticked
   function stateLabel(q){ // LABEL for q's state; an accepted question with unticked commitments says how many
     const st = stateOf(q), n = st === "accept" ? toConfirm(q) : 0;
+    if (st === "open" && asideRec(q, decisionOf(q))) return "Reconfirm"; // a revised recommendation set the user's accept aside
     return LABEL[st] + (n ? ", " + n + " to confirm" : "");
   }
   const talks = h => h.by === "claude" && (!!h.replyTo || ["reply", "rephrase", "note", "revise"].includes(h.kind)); // the asked, hold, supersede and confirm lines carry neither
@@ -1323,6 +1335,17 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (!w) c.push({kind: "hedged", label: "Hedged", text: "accept, the note is the condition"});
     return c.map((x, i) => Object.assign(x, {n: i + 1}));
   }
+  const isRec = c => !c.re && !c.wn && c.kind === "accept";
+  function fitChoices(){ // Read all shows only when the Rec row's clamp cuts its text; a fade marks each edge with a row past it
+    const c = $("choices"), t = c.querySelector(".choice.rec .t"), all = $("recAll");
+    if (all) all.hidden = t.scrollHeight <= t.clientHeight + 1;
+    c.classList.toggle("cue-up", c.scrollTop > 1);
+    c.classList.toggle("cue-down", c.scrollTop + c.clientHeight < c.scrollHeight - 1);
+  }
+  function openRec(){
+    const q = Q[S.sel], c = q && choicesOf(q).find(isRec); if (!c) return;
+    $("recBody").innerHTML = lineHtml(c.rich || c.text); $("recDlg").showModal(); $("recClose").focus();
+  }
   function armedOf(cs){ // the armed choice by identity, never by the number it had when armed
     const a = S.armed;
     return a ? cs.find(c => c.kind === a.kind && (c.alt ?? null) === a.alt && !!c.re === a.re && !!c.wn === !!a.wn && !!c.who === !!a.who) : undefined;
@@ -1454,7 +1477,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const d = decisionOf(q), text = note.value.trim(), shut = closed(), can = !S.busy && !shut;
     const last = lastEventSeq(q.id);
     const st = stateOf(q), off = !live(q), end = q.supersededBy ? chainEnd(q) : ""; // an archived or superseded question takes no decision; Ask, Rephrase and Research this still work
-    $("cur").innerHTML = d && d.decision && d.aside // one action: the earlier answer no longer counts
+    const was = asideRec(q, d);
+    $("cur").innerHTML = was // the accepted text changed: the earlier accept waits on the user's reconfirmation
+      ? '<span class="aside-why" id="reconfirm">Needs your reconfirmation: Claude revised the recommendation after you chose ' + LABEL[d.decision] + ". You accepted: <q>" + esc(trunc(was, 120)) + "</q>" + (d.text ? ", with the note <q>" + esc(trunc(d.text, 80)) + "</q>" : "") + ". It no longer counts until you accept again.</span>" + (off ? "" : '<button class="act primary" data-again="1">Answer again</button>')
+      : d && d.decision && d.aside // one action: the earlier answer no longer counts
       ? '<span class="aside-why">Claude set your earlier answer (' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.text ? ": <q>" + esc(trunc(d.text, 80)) + "</q>" : "") + ") aside" +
         (st === "need" ? " because it needs your decision." : ". It no longer counts.") + "</span>" + (off ? "" : '<button class="act primary" data-again="1">Answer again</button>')
       : d && d.decision
@@ -1467,9 +1493,11 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const letter = c => c.re ? " a" : c.kind === "accept" ? (cs[0].re || c.wn ? "" : " a") : c.kind === "own" ? " o" : c.kind === "defer" && !c.who ? " d" : c.kind === "hedged" ? " h" : "";
     const armed = armedOf(cs);
     const other = c => !c.re && ["own", "defer", "hedged"].includes(c.kind); // the answers that rest on the note: the second column of a wide Decide pane, in the same row order
-    const row = c => '<label class="choice' + (!c.re && !c.wn && c.kind === "accept" ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
-      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can && !off ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + lineHtml(c.label) + "</b> " + lineHtml(c.rich || c.text) + "</span></label>";
+    const row = c => '<label class="choice' + (isRec(c) ? " rec" : "") + (armed === c || (!armed && cur === c) ? " armed" : "") + (cur === c ? " current" : "") + '" title="' + esc(c.text) + '">' +
+      '<input type="radio" name="choice" value="' + c.n + '" aria-keyshortcuts="' + (c.n <= 9 ? c.n : "") + letter(c) + '"' + (armed === c || (!armed && cur === c) ? " checked" : "") + (can && !off ? "" : " disabled") + '><span class="t">' + (cur === c ? '<span class="yours">Your answer</span>' : "") + "<b>" + lineHtml(c.label) + "</b> " + lineHtml(c.rich || c.text) + "</span></label>" +
+      (isRec(c) ? '<button type="button" class="tbtn small recall" id="recAll" hidden>Read all</button>' : "");
     $("choices").innerHTML = '<div class="cg">' + cs.filter(c => !other(c)).map(row).join("") + '</div><div class="cg">' + cs.filter(other).map(row).join("") + "</div>";
+    fitChoices();
     const needText = armed && needsNote(armed) && !(armed.who ? named(text) : text), frozen = wrapFreeze() > 0;
     const hardLock = lockMode() === "hard" ? openPrereqs(q) : [], ul = upLock(q); // only a decision waits; Ask, Rephrase and Research this stay enabled
     const label = armed ? (st === "wait" ? "Answer anyway: " : "Save: ") + (armed.kind === "accept" && !armed.re && (armed.wn || withNote(q, armed)) ? "Accept with note" : armed.label) : "Save";
@@ -1540,9 +1568,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 
   // ---------- summary / completion ----------
   function noteThread(){
-    const mine = events().filter(e => e.kind === "note").map(e => ({by: "you", at: e.at, text: e.text, seq: e.seq}));
+    const mine = events().filter(e => e.kind === "note").map(e => ({by: "you", at: e.at, text: e.text, seq: e.seq, withdrawn: !!e.withdrawn}));
     const claude = (S.doc.notes || []).map(n => Object.assign({by: "claude"}, n));
     return mine.concat(claude).sort((a, b) => String(a.at).localeCompare(String(b.at)) || ((a.seq || 0) - (b.seq || 0)));
+  }
+  function openAsks(nt){ // Claude's needsAnswer notes still waiting on you: each note you send answers the oldest one open before it, as exporters.unanswered_asks reads them
+    const open = [];
+    nt.forEach(n => { if (n.by === "claude" && n.needsAnswer) open.push(n); else if (n.by === "you" && !n.withdrawn) open.shift(); });
+    return open;
   }
   function looseEnds(){
     const out = [];
@@ -1555,10 +1588,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     });
     const nt = noteThread();
     nt.filter(n => n.by === "you" && midSentence(n.text)).forEach(n => out.push("A note to Claude ends mid-sentence: <q>" + esc(trunc(n.text.trim().slice(-60), 60)) + "</q>"));
-    const askAt = nt.map(n => n.by === "claude" && n.needsAnswer).lastIndexOf(true); // pinned until a note from you follows it
-    const ask = askAt >= 0 && !nt.slice(askAt + 1).some(n => n.by === "you") ? nt[askAt] : null;
-    if (ask) out.unshift('<div class="ask"><div><b>Claude needs an answer in Notes:</b> ' + lineHtml(trunc(ask.text, 300)) + '</div><textarea id="looseReply" rows="2" aria-label="Your answer to Claude"' + (S.api >= 2 ? "" : " disabled") + ">" + esc(S.looseDraft || "") + '</textarea><div class="arow"><button type="button" class="tbtn primary" data-looseans="1" data-submit="1"' + (S.api >= 2 ? "" : " disabled") + ">Send answer</button></div></div>");
-    else if (nt.length && nt[nt.length - 1].by === "claude") out.push('Claude replied in <button type="button" class="ref" data-panel="notes">Notes</button> and you have not answered.');
+    const asks = openAsks(nt); // each stays pinned until a note from you answers it; the reply box answers the oldest
+    out.unshift(...asks.map((ask, i) => '<div class="ask"><div><b>' + (i ? "Claude also needs an answer in Notes, after the one above:" : "Claude needs an answer in Notes:") + "</b> " + lineHtml(trunc(ask.text, 300)) + "</div>" + (i ? "" : '<textarea id="looseReply" rows="2" aria-label="Your answer to Claude"' + (S.api >= 2 ? "" : " disabled") + ">" + esc(S.looseDraft || "") + '</textarea><div class="arow"><button type="button" class="tbtn primary" data-looseans="1" data-submit="1"' + (S.api >= 2 ? "" : " disabled") + ">Send answer</button></div>") + "</div>"));
     return out;
   }
   function finishedBody(f){ // the closing event: what ended, where the Brief is, what happens next
@@ -1578,7 +1609,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (S.doc.restatement && !(u && u.alt === "confirm")) out.push(u ? "The understanding is not confirmed: you flagged something off" : "The understanding is not confirmed");
     commitRows().filter(r => !r.on).forEach(r => by.set(r.q.id, (by.get(r.q.id) || 0) + 1));
     by.forEach((n, id) => out.push(id + ": " + n + (n === 1 ? " commitment" : " commitments") + " not ticked"));
-    if (nt.length && nt[nt.length - 1].by === "claude") out.push("Claude posted in Notes and you have not answered");
+    const asks = openAsks(nt).length; // only a note that asked for an answer: Claude replies to every note, so a reply alone is not a loose end
+    if (asks) out.push(asks === 1 ? "Claude asked for an answer in Notes and you have not given one" : asks + " Claude questions in Notes have no answer from you");
     const open = S.doc.questions.filter(q => live(q) && !isAnswered(stateOf(q)) && stateOf(q) !== "wait").map(q => q.id).sort(idCmp);
     if (open.length) out.push(open.length + (open.length === 1 ? " question is" : " questions are") + " still open: " + open.join(", "));
     return out;
@@ -2466,6 +2498,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const ch = t.closest("[data-challenge]"); if (ch) { challenge(+ch.dataset.challenge); return; }
     if (t.closest("[data-sheet]")) { openSheet(); return; }
     if (t.closest("#keysClose")) { $("keysDlg").close(); return; }
+    if (t.closest("#recAll")) { openRec(); return; }
+    if (t.closest("#recClose")) { $("recDlg").close(); return; }
     if (t.closest("#finClose")) { $("finDlg").close(); return; }
     if (t.closest("[data-sum]")) { select(SUMMARY, {animate: true}); return; }
     const pk = t.closest("[data-pick]"); if (pk) { togglePick(pk.dataset.pick, pk.checked); return; }
@@ -2550,7 +2584,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     else if (e.target.id === "propText") S.propDraft = e.target.value;
   });
   document.addEventListener("paste", e => { // dictation tools insert by paste: text pasted with no text box focused lands in the current question's note
-    if (textFocused() || $("dlg").open || $("keysDlg").open || $("finDlg").open || !Q[S.sel] || stateOf(Q[S.sel]) === "prop") return; // a proposal shows no note box
+    if (textFocused() || dialogOpen() || !Q[S.sel] || stateOf(Q[S.sel]) === "prop") return; // a proposal shows no note box
     const note = $("note"), add = (e.clipboardData && e.clipboardData.getData("text/plain")) || "";
     if (!add || note.disabled) return;
     e.preventDefault();
@@ -2571,7 +2605,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   /** Ctrl or Cmd + Enter: send the Notes panel's note from there, else save the armed choice (with Shift, ask Claude);
    *  never behind a dialog or a full-screen visual. */
   function ctrlEnter(target, shift){
-    if ($("dlg").open || $("keysDlg").open || $("finDlg").open || !$("fs").hidden) return;
+    if (dialogOpen() || !$("fs").hidden) return;
     if (target.id === "noteText") sendNote();
     else if (target.id === "propText") proposalAct("edit");
     else if (S.sel === SUMMARY || !Q[S.sel] || stateOf(Q[S.sel]) === "prop") return;
@@ -2579,12 +2613,13 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     else submitArmed();
   }
   /** Escape in a note box: close a full-screen visual first, else leave the box and keep its draft. */
+  const dialogOpen = () => !!document.querySelector("dialog[open]");
   function escText(ta){ if (!$("fs").hidden) fsClose(); else ta.blur(); }
   document.addEventListener("keydown", e => {
     if (e.defaultPrevented) return; // a note box's composer sent or left it
     if (e.isComposing || e.keyCode === 229) return; // IME composition, including Safari
     const inText = textFocused();
-    const modal = $("dlg").open || $("keysDlg").open || $("finDlg").open, fullScreen = !$("fs").hidden;
+    const modal = dialogOpen(), fullScreen = !$("fs").hidden;
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); ctrlEnter(e.target, e.shiftKey); return; }
     if (e.key === "Escape") {
       if (fullScreen) { fsClose(); e.preventDefault(); return; }
@@ -2624,6 +2659,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   });
   window.addEventListener("hashchange", () => { const id = hashId(); if (S.loaded && id && id !== S.sel) goTo(id); });
   window.addEventListener("resize", () => Kit.grow($("note")));
+  $("choices").addEventListener("scroll", fitChoices, {passive: true});
+  new ResizeObserver(() => requestAnimationFrame(fitChoices)).observe($("choices")); // the next frame: Read all showing can resize the list it measures
   let vvH = 0; // the keyboard coming or going (question-shape.js refits the page) keeps the focused note box in view
   window.addEventListener("core-viewport", () => {
     const h = window.visualViewport.height, a = document.activeElement; if (h === vvH) return; vvH = h;

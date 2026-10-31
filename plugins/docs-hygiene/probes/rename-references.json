@@ -1,0 +1,122 @@
+{
+  "skill": "docs-hygiene:rename-references",
+  "plugin": "docs-hygiene",
+  "skill_dir": "plugins/docs-hygiene/skills/rename-references",
+  "ranking_note": "Authored from the before descriptions at commit 4803086565, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the name-generation skill, the file-name casing audit, the skill-encapsulation audit and the SSOT extraction sibling.",
+  "competitors": [
+    "naming:name-it-better",
+    "docs-naming:audit-file-names",
+    "docs-hygiene:audit-encapsulation",
+    "docs-hygiene:extract-ssot"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I moved the deploy skill to release with git mv. What still mentions deploy?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Before I rename the 'triage' mode to 'intake', how many places would I have to touch?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "We changed the plugin name from lint-kit to lint-tools. Some docs still use the old one; catch all of them, including the glob in the rules frontmatter."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Change every reference to /verify so it says /verify-changes."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Half the repo says onboarding.md and half says getting-started.md since I renamed it. Which files mention both?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "After renaming context/old-flow.md to context/flow.md, are there links pointing at a file that no longer exists?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Rename the 'audit' action to 'scan' across the docs and the skill tables."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I renamed a skill earlier in this session; make sure no table or arrow chain still uses its old name before I open the PR."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "A search for /publish came back empty but I am sure renaming it left some behind. Do a proper sweep."
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "The settings key moved from review.depth to review.level. Find any lingering mentions."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I need a better name for this skill, 'helper' says nothing. Suggest a few."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check that every file under docs/ uses kebab-case names."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which skills reach into another skill's context folder instead of invoking it?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The same retry rule is pasted into four skills; consolidate it into one place."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "What should we call the new module that merges invoices? Give me options."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Go through the repo's markdown filenames and flag any that break our lowercase-with-hyphens rule."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find citations that point at private files inside another plugin's skill directory."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "That name you proposed for the cache helper is wrong. Try again with something clearer."
+    }
+  ]
+}

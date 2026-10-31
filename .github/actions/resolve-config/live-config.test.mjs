@@ -421,8 +421,12 @@ test("live config: resolve-issue self-checks its uncommitted work with check-aff
 
 // Code a verify-script runs can read the lane's token from any same-user
 // process's /proc/<pid>/environ, so no listed script runs checkout code.
-const RUNS_CHECKOUT_CODE = ["scripts/run-test-file.sh", "plugins/skill-quality/scripts/check-skill.sh"];
-test("live config: resolve-issue may run the can't-fail scan, git mv or rm, the evals check, the shared-copy sync and the fragment writer, and no script that runs checkout code; no other activity lists verify-scripts", () => {
+const RUNS_CHECKOUT_CODE = [
+  "scripts/run-test-file.sh",
+  "plugins/skill-quality/scripts/check-skill.sh",
+  "plugins/planning/tests/repin.sh",
+];
+test("live config: resolve-issue may run the can't-fail scan, git mv or rm, the evals check, the shared-copy sync, the fragment writer and the data-only digest repin, and no script that runs checkout code; no other activity lists verify-scripts", () => {
   const scripts = selected("work-resolve-issue", "resolve-issue", ISSUE)["verify-scripts"];
   assert.deepEqual(scripts, [
     "plugins/testing/skills/audit/scripts/cant-fail-scan.sh",
@@ -430,6 +434,7 @@ test("live config: resolve-issue may run the can't-fail scan, git mv or rm, the 
     "plugins/skill-quality/scripts/check-evals-quality.sh",
     "scripts/sync-shared-copies.sh",
     "scripts/new-changelog-fragment.sh",
+    "plugins/planning/scripts/repin-digests.sh",
   ]);
   for (const script of RUNS_CHECKOUT_CODE) assert.ok(!scripts.includes(script), script);
   const doc = parse(FILES.config);
@@ -509,6 +514,24 @@ test("live config: resolve-issue with a write effect is refused", () => {
     (error) => error.code === "forbidden-by-activity",
   );
 });
+
+// A row the floor cannot use is refused at the schema, as the risk scorer's
+// loader refuses it: the plain-string form the key once took, and `author-lift`
+// anywhere but a `gate` row.
+const FLOOR_ROW = '      - glob: ".github/actions/check-trusted-trigger/**"\n        class: trust\n';
+for (const [name, row] of Object.entries({
+  "a plain string": '      - ".github/actions/check-trusted-trigger/**"\n',
+  "author-lift on a trust row": `${FLOOR_ROW}        author-lift: false\n`,
+  "a misspelled field": `${FLOOR_ROW}        author_lift: false\n`,
+})) {
+  test(`live config: a floor-paths row with ${name} is refused`, () => {
+    assert.ok(FILES.config.includes(FLOOR_ROW));
+    assert.throws(
+      () => resolve({ ...FILES, config: FILES.config.replace(FLOOR_ROW, row) }, { lane: "work-resolve-issue", activity: "resolve-issue", configPath: CONFIG_PATH, basePath: ".base", facts: { ...FACTS, ...ISSUE } }),
+      /fails the schema/,
+    );
+  });
+}
 
 test("live config: work-resolve-issue runs resolve-issue, then apply-issue-patch, then report-outcome", () => {
   const { lane } = resolve(FILES, {

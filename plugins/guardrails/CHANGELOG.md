@@ -3,6 +3,54 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.77.1] - 2026-10-31
+
+### Fixed
+
+- **block-root-delete-target outside-tree fix line.** The refusal now says to put scratch work under the working tree, for example a gitignored `.work/`. It used to name the session scratchpad, which sits under the OS temp directory that every concurrent session shares.
+
+- The `workflow-resilience-check` description says the fan-out it flags has no wave cap of its own, in place of calling it un-throttled, and points at the workflow runtime's concurrency limit.
+
+## [0.77.0] - 2026-10-31
+
+### Added
+
+- `block_root_delete_target_allowed_roots` accepts a segment entry, `<dir>/*/<name>`, such as `D:/worktrees/*/.work`. A recursive delete passes only when its target is strictly under `<name>` exactly one directory level below `<dir>`, so agents can clean the scratch under every worktree without the whole worktree root being allowed. The named directory itself, its siblings (`<dir>/wt-a/src`), the same name at another depth and a symlink stay refused, and the protected trees are still judged first. An entry whose `*` shares a segment with other text, or that holds a second `*`, still grants nothing, and every existing entry shape behaves as before.
+
+## [0.76.0] - 2026-10-31
+
+### Added
+
+- `block-root-delete-target` judges a delete run through `eval`, `watch`, `wsl`, `cmd /c` or a shell that reads its program from stdin the way it judges a recursive `rm`: one aimed at a root or at HOME is refused, and when the payload carries a cwd the target must sit under the git toplevel or strictly under a temp root, the session scratchpad or an allowed root. That covers the words `eval` joins, the command `watch` runs through `sh -c` (or as its argv with `-x`), the command line `wsl` hands the distribution's shell, `rd /s`, `rmdir /s` and `robocopy` in the line `cmd /c` or `cmd //c` runs from the Bash tool, a heredoc or here-string a shell reads as its program (`bash <<'EOF'`), and the text `echo`, `printf` or a `cat` of a heredoc pipes into a shell (`echo 'rm -rf /' | sh`). A mechanism named inside quoted prose, such as a `git commit -m` message, stays allowed.
+
+## [0.75.0] - 2026-10-31
+
+### Added
+
+- `block-root-delete-target` judges a move and a content destroyer the way it judges a recursive `rm`: one aimed at a root or at HOME is refused, and when the payload carries a cwd the target must sit under the git toplevel or strictly under a temp root, the session scratchpad or an allowed root. That covers each source an `mv` moves away, a move onto `/dev/null` included, each file `truncate` or `shred` names, the file `dd of=` writes, and on the PowerShell tool each `Move-Item` and `Clear-Content` path and a `Set-Content` that writes several files (a comma list, or a wildcard in `-Path`). A `Set-Content` of one file, a `dd` writing to `/dev/null`, and a mechanism named inside quoted prose, such as a `git commit -m` message, stay allowed.
+
+## [0.74.0] - 2026-10-31
+
+### Added
+
+- `block-root-delete-target` judges a PowerShell delete run through another command as the delete itself, so its target must sit strictly inside the git toplevel, the session scratchpad or an allowed root, and one aimed at a root, at HOME or outside them is refused. That covers the string `Invoke-Expression` or `iex` runs, the `-Command` text of `pwsh` or `powershell`, an `-EncodedCommand` decoded from base64 of UTF-16LE, the program and argument list of `Start-Process`, a pipeline removal (`gci X | Remove-Item`, `gci X | % { $_.Delete() }`) judged by the `Get-ChildItem` or `Get-Item` path that feeds it, and a .NET delete (`[IO.Directory]::Delete`, `[IO.File]::Delete`, `(Get-Item X).Delete()`) judged by its path argument. A removal fed by anything but such a listing is refused, and an `-EncodedCommand` that is not literal base64 of printable ASCII text is denied whether or not the session is attended. A mechanism named inside quoted prose, such as a `git commit -m` message, stays allowed.
+
+### Changed
+
+- `block-root-delete-target` no longer refuses every PowerShell pipeline into `Remove-Item -Recurse` with no path: when a `Get-ChildItem` or `Get-Item` feeds it, that listing's path is judged instead, so `gci build | Remove-Item -Recurse` from a repository passes.
+
+## [0.73.0] - 2026-10-31
+
+### Added
+
+- `block-root-delete-target` refuses a decoder feeding an execution sink outright, whatever the decoded text targets, and denies it in an attended session too, because the decoded text never appears in the command. On the Bash tool that is `base64 -d`, `base32 -d`, `basenc -d` or `xxd -r` whose output a shell reading stdin, `source /dev/stdin`, `eval`, a `-c` operand or a substitution in command position runs, so `echo <b64> | base64 -d | sh`, `eval "$(echo <b64> | base64 -d)"` and `bash <(xxd -r -p dump.hex)` are refused. On the PowerShell tool it is `[Convert]::FromBase64String` reaching `Invoke-Expression` or `iex`. Decoded output written to a file or shown in a pager (`base64 -d x > out.bin`, `base64 -d x | less`) passes, and so does a decoder named inside quoted prose, such as a `git commit -m` message.
+
+### Fixed
+
+- `block-root-delete-target` drops a `/` entry in `block_root_delete_target_allowed_roots`, or a name-prefix entry whose directory is `/`, on every host. Under Git Bash `/` maps to the Git install directory, so the entry was kept and allowed a recursive delete of every path under that directory, such as `/opt/...`.
+
+- The plugin description's Blocks list now names the PR-fix lane request that `block_fix_request_post_enabled` blocks, and lists cross-domain paths with the other blocks. The guard count stays fifteen.
+
 ## [0.72.0] - 2026-10-31
 
 ### Added

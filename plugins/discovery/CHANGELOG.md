@@ -1,5 +1,34 @@
 # Changelog: discovery plugin
 
+## [0.43.1] - 2026-10-31
+
+### Changed
+
+- `/discovery:research` judges a practitioner source by proof of shipped work (something they built that people use), falls back to a hard-to-join employer, and never treats followers or likes as authority.
+
+## [0.43.0] - 2026-10-31
+
+### Added
+
+- `/discovery:research` takes an optional `--unattended` modifier, accepted anywhere in its arguments, which is not part of the topic. With it, the run records the `/deep-research` offer in its output instead of asking, and dispatches; without it, the run asks. The argument hint lists it.
+
+## [0.42.0] - 2026-10-31
+
+### Changed
+
+- `/discovery:read-docs`: its description now routes a quick question about a Claude Code feature to the bundled `claude-code-docs` skill when that skill resolves in the session, and keeps this skill for an answer that must rest on a named page's own text. A new `## Boundary` section states the split and the mutation gate, and `reference/bundled-claude-code-docs.md` records the basis. ([#9105](https://github.com/melodic-software/claude-code-plugins/issues/9105))
+
+- `research` offers `/deep-research` as a suggest sentence, `If /deep-research is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when the offer is deleted or reworded.
+
+## [0.41.1] - 2026-10-31
+
+### Fixed
+
+- `/discovery:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
 ## [0.41.0] - 2026-10-31
 
 ### Changed

@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/lib/parse-concern-value.sh
 """The unattended merge policy readers.
 
 Every reader fails closed: an unreadable answer is off, refuse or not clear,
@@ -49,6 +50,13 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_gh  # noqa: E402
 import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
 import babysit_postmerge  # noqa: E402
+
+# This repository's rows, which the floor paths below sit on.
+FLOOR_ROWS = policy.floor_paths_in(
+    (pathlib.Path(__file__).resolve().parents[6] / "docs/conventions/pr-pipeline.yaml").read_text(encoding="utf-8")
+)
+REPO_FLOOR = policy.floor_for(FLOOR_ROWS)
+
 
 REPO = "owner/repo"
 SHA = "a" * 40
@@ -273,11 +281,41 @@ class ReadConfigAt(unittest.TestCase):
             ["api", f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={SHA}"], gh.calls
         )
 
+    def test_a_cap_over_the_ceiling_fails_closed_at_one(self) -> None:
+        over = policy.MAX_IN_FLIGHT_CEILING + 1
+        config_fake(
+            self, PIPELINE.replace("merge:\n", f"merge:\n  max-in-flight: {over}\n")
+        )
+        head = policy.read_config_at(REPO, SHA)
+        self.assertEqual(
+            policy._run_max_in_flight(REPO, "main", SHA, head, shared=False),
+            (1, "default-branch"),
+        )
+        self.assertTrue(any(str(over) in note for note in head.notes))
+        base = dataclasses.replace(head, max_in_flight=10, notes=())
+        self.assertEqual(policy.stricter_config(base, head).max_in_flight, 1)
+
     def test_max_in_flight_defaults_to_one_and_reads_a_count(self) -> None:
         for text, expected, noted in (
             (PIPELINE, 1, False),
             (PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: 5\n"), 5, False),
             (PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: 0\n"), 1, True),
+            (
+                PIPELINE.replace(
+                    "merge:\n",
+                    f"merge:\n  max-in-flight: {policy.MAX_IN_FLIGHT_CEILING}\n",
+                ),
+                policy.MAX_IN_FLIGHT_CEILING,
+                False,
+            ),
+            (
+                PIPELINE.replace(
+                    "merge:\n",
+                    f"merge:\n  max-in-flight: {policy.MAX_IN_FLIGHT_CEILING + 1}\n",
+                ),
+                1,
+                True,
+            ),
             (PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: two\n"), 1, True),
         ):
             with self.subTest(expected=expected, noted=noted):
@@ -2714,6 +2752,40 @@ class EntryHold(unittest.TestCase):
             }
         ]
         self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
+
+    def member_says(self, *bodies: str) -> None:
+        gh = self.fake()
+        gh.rest[f"repos/{REPO}/pulls/5/comments?per_page=100"] = [
+            {
+                "user": {"login": OPERATOR, "type": "User"},
+                "author_association": "MEMBER",
+                "created_at": f"2026-10-12T10:0{minute}:00Z",
+                "body": body,
+            }
+            for minute, body in enumerate(bodies)
+        ]
+
+    def lane_hold(self) -> str | None:
+        return policy.entry_hold(REPO, 5, IDENTITY, authority=policy.PR_MERGE)
+
+    def test_the_lane_keeps_an_entry_a_member_only_mentions_blocking_in(self) -> None:
+        # enable-auto-merge arms on the veto rule, so any wider hold here
+        # dequeues and re-arms the entry every run (#11519).
+        self.member_says("A team that wants blocking sets `enforce`.")
+        self.assertIsNone(self.lane_hold())
+        self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
+
+    def test_the_lane_holds_a_members_newest_veto(self) -> None:
+        self.member_says("looks fine", "don't merge this")
+        self.assertEqual(self.lane_hold(), f"human-blocking-comment:{OPERATOR}")
+
+    def test_the_lane_lets_a_member_lift_their_own_veto(self) -> None:
+        self.member_says("don't merge this", "go ahead")
+        self.assertIsNone(self.lane_hold())
+
+    def test_an_empty_review_item_does_not_lift_a_lane_veto(self) -> None:
+        self.member_says("don't merge this", "  ")
+        self.assertEqual(self.lane_hold(), f"human-blocking-comment:{OPERATOR}")
 
     def test_a_strangers_blocking_text_is_no_hold(self) -> None:
         # #7339 item 4: this repository is public, so anyone can comment.
@@ -6241,10 +6313,10 @@ class ForeignPaths(unittest.TestCase):
                 mock.patch.object(policy, "foreign_paths", return_value=frozenset()),
             ):
                 self.assertEqual(
-                    policy.own_paths(REPO, owner_pr(user=user), changed), own
+                    policy.own_paths(REPO, owner_pr(user=user), changed, floor=REPO_FLOOR), own
                 )
         with mock.patch.object(policy, "foreign_paths", return_value=None):
-            self.assertEqual(policy.own_paths(REPO, owner_pr(), changed), frozenset())
+            self.assertEqual(policy.own_paths(REPO, owner_pr(), changed, floor=REPO_FLOOR), frozenset())
 
     def test_a_model_app_owns_only_its_script_lines(self) -> None:
         # Owner decision Q14 (c): plugins/*/scripts/, less the never-exempt
@@ -6266,8 +6338,7 @@ class ForeignPaths(unittest.TestCase):
         with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
             self.assertEqual(
                 policy.own_paths(
-                    REPO, owner_pr(user=user), changed, only=policy.MODEL_APP_OWN
-                ),
+                    REPO, owner_pr(user=user), changed, only=policy.MODEL_APP_OWN, floor=REPO_FLOOR),
                 {"plugins/x/scripts/y.py", "Plugins/X/Scripts/Z.SH"},
             )
 
@@ -6308,8 +6379,7 @@ class AuthorReviewedPaths(unittest.TestCase):
         pr = owner_pr() if user is None else owner_pr(user=user)
         with mock.patch.object(policy, "foreign_paths", return_value=others):
             return policy.author_reviewed_paths(
-                REPO, pr, self.CHANGED, humans, verified
-            )
+                REPO, pr, self.CHANGED, humans, verified, REPO_FLOOR)
 
     def test_a_trusted_persons_own_gate_paths_on_a_passed_head(self) -> None:
         self.assertEqual(self.reviewed(), frozenset({self.GATE}))
@@ -6345,8 +6415,7 @@ class AuthorReviewedPaths(unittest.TestCase):
         }
         with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
             reviewed = policy.author_reviewed_paths(
-                REPO, owner_pr(), {self.GATE, *token_scope}, (OWNER_ID,), True
-            )
+                REPO, owner_pr(), {self.GATE, *token_scope}, (OWNER_ID,), True, REPO_FLOOR)
         self.assertEqual(reviewed, frozenset({self.GATE}))
 
     def test_a_gate_path_another_commit_touched_or_unread_commits_get_none(

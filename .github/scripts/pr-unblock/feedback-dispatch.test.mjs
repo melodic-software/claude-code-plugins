@@ -94,6 +94,7 @@ function fakeApi({
   labelEvents = [],
   reviewComments = [],
   reviews = [],
+  timeline = [],
 } = {}) {
   const calls = { dispatch: [], permission: [], labelEvents: 0, reviewReads: [] };
   return {
@@ -126,6 +127,8 @@ function fakeApi({
       return reviewComments;
     },
     listReviews: async () => reviews,
+    listTimeline: async () => timeline,
+    listRequestHistory: async () => ({ deletions: [], reviewEdits: {} }),
     async getPermission(login) {
       calls.permission.push(login);
       return permissions[login] ?? "none";
@@ -680,9 +683,9 @@ const eventFile = (dir, run = upstreamRun()) => {
   writeFileSync(path, JSON.stringify({ action: "completed", workflow_run: run }));
   return path;
 };
-const noActors = (dir) => {
+const noActors = (dir, actors = []) => {
   const path = join(dir, "actors.json");
-  writeFileSync(path, JSON.stringify({ actors: [] }));
+  writeFileSync(path, JSON.stringify({ actors }));
   return path;
 };
 
@@ -1251,7 +1254,7 @@ test("on a gated head only a workable thread dispatches; an untaken one does not
   assert.deepEqual(api.calls.dispatch, []);
 });
 
-test("the API client reads each thread's review and its commit", async () => {
+test("the API client reads each thread's id, its review, the review's commit and when it was submitted", async () => {
   const bodies = [];
   const fetch = async (url, init) => {
     bodies.push(JSON.parse(init.body));
@@ -1259,7 +1262,8 @@ test("the API client reads each thread's review and its commit", async () => {
   };
   const api = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
   await api.listReviewThreads(42);
-  assert.match(bodies[0].query, /pullRequestReview \{ author \{ \.\.\. on Bot \{ databaseId \} \.\.\. on User \{ databaseId \} \} commit \{ oid \} \}/);
+  assert.match(bodies[0].query, /pullRequestReview \{ author \{ \.\.\. on Bot \{ databaseId \} \.\.\. on User \{ databaseId \} \} commit \{ oid \} submittedAt \}/);
+  assert.match(bodies[0].query, /nodes \{\s+id isResolved/);
 });
 
 // The record one run leaves for the next at the same head. `counting` wraps
@@ -1416,14 +1420,14 @@ test("a recorded run that finished, started before this review, or cannot be rea
 const TICK = { id: 500, path: ".github/workflows/pr-unblock-dispatch.yml", event: "schedule", status: "completed", head_sha: "3".repeat(40), repository: { full_name: REPOSITORY } };
 const SECOND_HEAD = "4".repeat(40);
 const failedRound = roundRun("address-feedback", "failure", "Failed", "2026-10-17T10:00:00Z");
-function sweepApi({ openPulls = pull(), checksAt = { [HEAD]: [failedRound, noModelTurn()] }, reviewRuns = { [HEAD]: [upstreamRun({ id: 13 })] } } = {}) {
-  const api = fakeApi();
+function sweepApi({ openPulls = pull(), checksAt = { [HEAD]: [failedRound, noModelTurn()] }, reviewRuns = { [HEAD]: [upstreamRun({ id: 13 })] }, threads = null, permissions = undefined, workflowRuns = [] } = {}) {
+  const api = fakeApi({ permissions, workflowRuns });
   api.listOpenPulls = async () => openPulls;
   api.pullsForCommit = async (sha) => openPulls.filter((p) => p.head.sha === sha);
   // Both review lanes marked each PR's head reviewed.
   const headOf = (number) => openPulls.find((p) => p.number === number).head.sha;
   api.listIssueComments = async (number) => [marker("claude-review", headOf(number)), marker("claude-security-review", headOf(number))];
-  api.listReviewThreads = async (number) => [thread([CLAUDE], false, headOf(number))];
+  api.listReviewThreads = async (number) => threads ?? [thread([CLAUDE], false, headOf(number))];
   api.listCheckRuns = async ({ sha, checkName }) => (checksAt[sha] ?? []).filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName);
   api.listCompletedRuns = async (path, head) => (path.endsWith("pr-review-hosted.yml") ? (reviewRuns[head] ?? []) : []);
   api.listStatuses = async () => [];
@@ -1433,7 +1437,7 @@ function sweepApi({ openPulls = pull(), checksAt = { [HEAD]: [failedRound, noMod
   return api;
 }
 
-async function sweepMain(t, api, tick = TICK, now = undefined) {
+async function sweepMain(t, api, tick = TICK, now = undefined, actors = []) {
   const dir = tempDir("pr-feedback-dispatch-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const output = join(dir, "output");
@@ -1447,7 +1451,7 @@ async function sweepMain(t, api, tick = TICK, now = undefined) {
       GITHUB_OUTPUT: output,
       GITHUB_EVENT_PATH: eventFile(dir, tick),
       APP_SENDER_ID: String(APP_ID),
-      TRUSTED_ACTORS: noActors(dir),
+      TRUSTED_ACTORS: noActors(dir, actors),
       DISPATCH_RECORD: join(dir, "record.json"),
     },
     { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line), now },
@@ -1863,7 +1867,7 @@ test("a deferred record is found by name, however many runs the window holds", a
 
 test("a deferred record any other run uploaded, or an expired one, sends nothing", async (t) => {
   for (const [label, rerun, record] of [
-    ["another workflow's run", deferredRerun({ path: ".github/workflows/pr-test-windows.yml" }), deferredRecord("fail")],
+    ["another workflow's run", deferredRerun({ path: ".github/workflows/pr-test-platforms.yml" }), deferredRecord("fail")],
     ["a pull_request run", deferredRerun({ event: "pull_request", head_branch: "work-resolve-issue/issue-1-2-3" }), deferredRecord("fail")],
     ["a first attempt", deferredRerun({ run_attempt: 1 }), deferredRecord("fail")],
     ["a person's re-run", deferredRerun({ triggering_actor: { login: "kyle-sexton", id: 153232337 } }), deferredRecord("fail")],
@@ -2335,7 +2339,7 @@ const ownerApi = (options = {}, committedAt = "2026-10-28T08:00:00Z") => {
   };
   return api;
 };
-async function decideOwner(api, { adoption = ADOPTION, passOnly = false, verifyCapped } = {}) {
+async function decideOwner(api, { adoption = ADOPTION, passOnly = false, verifyCapped, reviewerIds = [] } = {}) {
   const lines = [];
   const result = await dispatchFeedback({
     api,
@@ -2344,6 +2348,7 @@ async function decideOwner(api, { adoption = ADOPTION, passOnly = false, verifyC
     upstream: api.upstream,
     appSenderId: APP_ID,
     trustedHumans: new Set([KYLE.databaseId]),
+    reviewerIds,
     resolveSlot: async () => resolvedLane(),
     adoption,
     passOnly,
@@ -2628,4 +2633,184 @@ test("ownerAdoption reads the base adoption section and the trusted list's peopl
   const lines = [];
   assert.equal(await ownerAdoption({ BASE_PATH: "/nonexistent-base" }, (line) => lines.push(line)), NO_ADOPTION);
   assert.match(lines[0], /no owner PR is served this run/);
+});
+
+// A fix request on a head an earlier round handled: the reviewer bot's thread,
+// then REQUEST at 20:01, after a round that answered at 10:00 and 10:05, so
+// only the request can send the head.
+const answeredReply = roundRun("publish-feedback", "success", "Passed", "2026-10-17T10:05:00Z");
+const requestApi = ({ thread: asked = askedThread({ author: KYLE_LOGIN, body: REQUEST }), checks = [answeredRound, answeredReply], ...options } = {}) =>
+  sweepApi({ threads: [asked], checksAt: { [HEAD]: checks }, ...options });
+const requestMain = (t, api) => sweepMain(t, api, TICK, undefined, [{ id: KYLE.databaseId, login: "kyle-sexton", kind: "human" }]);
+
+test("a scheduled tick dispatches a head a round handled when a fix request came after that round", async (t) => {
+  const api = requestApi();
+  const { output } = await requestMain(t, api);
+  assert.deepEqual(api.calls.dispatch, [
+    { workflow: "pr-unblock.yml", ref: "refs/heads/main", inputs: { "pr-number": "42", activity: "address-feedback", "dispatcher-run-id": RUN_ID } },
+  ]);
+  assert.equal(output, "run-id=38779200001\nupstream-run-id=13\n");
+  assert.deepEqual(api.calls.permission, ["kyle-sexton", "kyle-sexton"]);
+});
+
+test("a scheduled tick dispatches a fix request on an escalated thread and on a needs-human PR with no round", async (t) => {
+  for (const [label, options] of [
+    ["an answer after the lane's escalation", { thread: decidedThread({ author: KYLE_LOGIN, body: REQUEST }) }],
+    ["no round at the head of a needs-human PR", { checks: [], openPulls: humanGated() }],
+  ]) {
+    const api = requestApi(options);
+    await requestMain(t, api);
+    assert.equal(api.calls.dispatch.length, 1, label);
+  }
+});
+
+test("a fix request's dispatch goes before a released head, and takes the tick", async (t) => {
+  const second = pull({ number: 43, head: { sha: SECOND_HEAD, repo: { full_name: REPOSITORY } } })[0];
+  const api = requestApi({
+    openPulls: [second, ...pull()],
+    reviewRuns: { [HEAD]: [upstreamRun({ id: 13 })], [SECOND_HEAD]: [upstreamRun({ id: 14, head_sha: SECOND_HEAD })] },
+  });
+  api.listCheckRuns = async ({ sha, checkName }) => (sha === HEAD ? [answeredRound, answeredReply] : [failedRound, noModelTurn()]).filter((run) => run.name === checkName);
+  api.listReviewThreads = async (number) => (number === 42 ? [askedThread({ author: KYLE_LOGIN, body: REQUEST })] : []);
+  await requestMain(t, api);
+  assert.deepEqual(api.calls.dispatch.map((request) => request.inputs["pr-number"]), ["42"]);
+});
+
+test("the sweep sends no fix request that does not qualify", async (t) => {
+  const requested = (body, author = KYLE_LOGIN) => askedThread({ author, body });
+  const opened = (root, reply) => ({
+    isResolved: false,
+    comments: {
+      nodes: [root, reply].map((node, i) => ({ createdAt: `2026-10-17T20:0${i}:00Z`, lastEditedAt: null, editor: null, ...node })),
+      pageInfo: { hasNextPage: false },
+    },
+  });
+  const onlyAfter = "2026-10-17T20:30:00Z";
+  for (const [label, options] of [
+    ["a requester without write access", { permissions: { "kyle-sexton": "read" } }],
+    ["an untrusted requester", { thread: requested(REQUEST, STRANGER_LOGIN), permissions: { stranger: "admin" } }],
+    ["the line inside a fenced block", { thread: requested("```\nPR-fix lane: please fix this finding.\n```") }],
+    ["the line inside a quote", { thread: requested("> PR-fix lane: please fix this finding.") }],
+    ["a free-form comment", { thread: requested("Please fix this one.") }],
+    ["a thread a trusted person opened", { thread: opened({ author: KYLE_LOGIN, body: REQUEST, ...onReview(KYLE_LOGIN) }, { author: KYLE_LOGIN, body: REQUEST }) }],
+    ["a thread a stranger opened", { thread: opened({ author: STRANGER_LOGIN, body: "finding", ...onReview(STRANGER_LOGIN) }, { author: KYLE_LOGIN, body: REQUEST }) }],
+    ["a request older than the head's newest round", { checks: [answeredRound, answeredReply, roundRun("address-feedback", "success", "Passed", onlyAfter)] }],
+    ["a do-not-merge PR", { openPulls: pull({ labels: [{ name: "do-not-merge" }] }) }],
+    ["a resolved thread", { thread: { ...requested(REQUEST), isResolved: true } }],
+    ["a run of the activity since the request", { workflowRuns: [{ id: 9, status: "completed", display_title: TITLE_42, created_at: onlyAfter }] }],
+  ]) {
+    const api = requestApi(options);
+    const { output } = await requestMain(t, api);
+    assert.deepEqual(api.calls.dispatch, [], label);
+    assert.equal(output, "", label);
+  }
+});
+
+test("a run of the activity from before the fix request does not hold it", async (t) => {
+  const api = requestApi({ workflowRuns: [{ id: 9, status: "completed", display_title: TITLE_42, created_at: "2026-10-17T09:59:00Z" }] });
+  await requestMain(t, api);
+  assert.equal(api.calls.dispatch.length, 1);
+});
+
+test("SWEEP_HEAD_CAP bounds a fix request's head, by rounds and by releases", async (t) => {
+  const roundAt = (hour) => roundRun("address-feedback", "success", "Passed", `2026-10-17T1${hour}:00:00Z`);
+  const rounds = (count) => Array.from({ length: count }, (_, i) => roundAt(i));
+  const atCap = requestApi({ checks: rounds(SWEEP_HEAD_CAP) });
+  const { lines } = await requestMain(t, atCap);
+  assert.deepEqual(atCap.calls.dispatch, []);
+  assert.ok(lines.some((line) => line.includes("reached the sweep's cap")), lines.join("\n"));
+
+  const released = requestApi({ checks: [answeredRound, ...["10", "11", "12"].map((hour) => noModelTurn(`2026-10-17T${hour}:05:00Z`))] });
+  await requestMain(t, released);
+  assert.deepEqual(released.calls.dispatch, []);
+
+  const under = requestApi({ checks: rounds(SWEEP_HEAD_CAP - 1) });
+  await requestMain(t, under);
+  assert.equal(under.calls.dispatch.length, 1);
+});
+
+test("a fix request does not lift a limit stop's reset hold", async () => {
+  const limited = failedRun("lane=pr-unblock activity=address-feedback class=rate-limit resets=2026-10-18T02:00:00Z", "2026-10-17T22:00:00Z");
+  const stop = { ...limited, started_at: "2026-10-17T20:00:00Z" };
+  const decideAt = (now) => {
+    const api = fakeApi({ checkRuns: [stop] });
+    return decide(api, resolvedLane(), { requestSince: Date.parse("2026-10-17T20:01:00Z"), now: Date.parse(now) });
+  };
+  assert.equal((await decideAt("2026-10-18T01:00:00Z")).result, null);
+  assert.equal((await decideAt("2026-10-18T03:00:00Z")).result.number, 42);
+});
+
+test("a fix request's round is not one sent for pr-verify's FAIL", async (t) => {
+  const asked = [];
+  const verifyCapped = async ({ expected }) => {
+    asked.push(expected);
+    return null;
+  };
+  const api = requestApi();
+  const dir = tempDir("pr-feedback-dispatch-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const output = join(dir, "output");
+  writeFileSync(output, "");
+  await main(
+    { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: REPOSITORY, GITHUB_RUN_ID: RUN_ID, GITHUB_OUTPUT: output, GITHUB_EVENT_PATH: eventFile(dir, TICK), APP_SENDER_ID: String(APP_ID), TRUSTED_ACTORS: noActors(dir, [{ id: KYLE.databaseId, login: "kyle-sexton", kind: "human" }]) },
+    { api, resolveSlot: async () => resolvedLane(), verifyCapped, log: () => {} },
+  );
+  assert.deepEqual(asked, [[]]);
+});
+
+// #8284: on an owner PR only a thread the select job keeps starts a round, and
+// the select job keeps a listed bot's thread no trusted person directed only
+// when a trusted person's `@codex` request is behind the bot's review.
+const CODEX_REVIEWED = "2026-10-28T08:00:00Z";
+const codexThread = () => ({
+  id: "PRRT_9",
+  isResolved: false,
+  comments: {
+    nodes: [{ author: CODEX, body: "finding", createdAt: CODEX_REVIEWED, lastEditedAt: null, editor: null, pullRequestReview: { author: CODEX, commit: { oid: HEAD }, submittedAt: CODEX_REVIEWED } }],
+    pageInfo: { hasNextPage: false },
+  },
+});
+const codexAsk = (id, created = "2026-10-28T07:00:00Z") => ({ user: { id, login: id === KYLE.databaseId ? "kyle-sexton" : "stranger" }, created_at: created, updated_at: created, body: "@codex review" });
+const codexOwner = (asks, { openedAt, timeline = [] } = {}) =>
+  ownerApi({
+    pulls: ownerPull({ created_at: openedAt }),
+    timeline,
+    threads: [codexThread()],
+    comments: [marker("claude-review"), marker("claude-security-review"), ...asks],
+    reviews: [{ user: { id: CODEX.databaseId }, commit_id: HEAD, submitted_at: CODEX_REVIEWED, body: 'Reviews are triggered when you comment "@codex review".' }],
+  });
+
+test("an owner PR's Codex thread dispatches when a trusted person asked Codex for the review", async () => {
+  const api = codexOwner([codexAsk(KYLE.databaseId)]);
+  const { result, lines } = await decideOwner(api, { reviewerIds: [CODEX.databaseId] });
+  assert.equal(result?.number, 42, lines.join("\n"));
+  assert.equal(api.calls.dispatch.length, 1);
+});
+
+test("an owner PR's automatic Codex review, on the owner's opening or ready flip, dispatches", async () => {
+  for (const [label, triggers] of [
+    ["opened by the owner", { openedAt: "2026-10-28T06:00:00Z" }],
+    ["readied by the owner", { openedAt: "2026-10-28T06:00:00Z", timeline: [{ event: "ready_for_review", actor: { id: KYLE.databaseId }, created_at: "2026-10-28T07:00:00Z" }] }],
+  ]) {
+    const api = codexOwner([], triggers);
+    const { result, lines } = await decideOwner(api, { reviewerIds: [CODEX.databaseId] });
+    assert.equal(result?.number, 42, `${label}\n${lines.join("\n")}`);
+  }
+});
+
+test("an owner PR's Codex thread answering an untrusted or missing @codex request starts no round, with the reason logged", async () => {
+  for (const [label, asks, reason, triggers] of [
+    ["a stranger's request", [codexAsk(STRANGER.databaseId)], /^skip thread PRRT_9: codex-request-untrusted \(.*account 4242/],
+    ["a stranger's request beside a trusted one", [codexAsk(KYLE.databaseId), codexAsk(STRANGER.databaseId, "2026-10-28T07:30:00Z")], /^skip thread PRRT_9: codex-request-untrusted/],
+    ["no request and no readable opening time", [], /^skip thread PRRT_9: codex-request-not-found/],
+    ["a request after the review", [codexAsk(KYLE.databaseId, "2026-10-28T09:00:00Z")], /^skip thread PRRT_9: codex-request-not-found/],
+    ["an automatic review after a stranger's ready flip", [], /^skip thread PRRT_9: codex-request-untrusted \(the ready-for-review event .*account 4242/, { openedAt: "2026-10-28T06:00:00Z", timeline: [{ event: "ready_for_review", actor: { id: STRANGER.databaseId }, created_at: "2026-10-28T07:00:00Z" }] }],
+  ]) {
+    const api = codexOwner(asks, triggers);
+    const { result, lines } = await decideOwner(api, { reviewerIds: [CODEX.databaseId] });
+    assert.equal(result, null, label);
+    assert.ok(lines.some((line) => reason.test(line)), `${label}\n${lines.join("\n")}`);
+    assert.match(lines.at(-1), /has no thread the lane works/, label);
+    assert.deepEqual(api.calls.dispatch, [], label);
+  }
 });

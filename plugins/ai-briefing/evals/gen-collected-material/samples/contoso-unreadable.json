@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "| contoso-feed | unreadable | timed out after 30 s |",
+      "why": "status table"
+    },
+    {
+      "answer": "- Contoso feed: unreadable (request timed out)",
+      "why": "list"
+    },
+    {
+      "answer": "Unreadable: contoso-feed (timeout, 0 bytes).",
+      "why": "state first"
+    },
+    {
+      "answer": "## Contoso\n\n**No data.** The feed fetch timed out after 30 seconds and returned 0 bytes, so nothing was parsed. Coverage is missing, not a quiet week.",
+      "why": "heading then timed out, without the word unreadable"
+    },
+    {
+      "answer": "**Contoso**\n\n**Unreadable:** the feed request timed out after 30 seconds and returned 0 bytes.",
+      "why": "bold provider heading, status on the next line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "- Contoso feed: empty (nothing in the window)",
+      "why": "reported empty"
+    },
+    {
+      "answer": "Contoso had a quiet week.",
+      "why": "quiet day"
+    },
+    {
+      "answer": "- contoso-feed: data",
+      "why": "wrong state"
+    },
+    {
+      "answer": "## Contoso\n\n**No data.** Nothing published since 2026-10-20.",
+      "why": "reported as empty"
+    },
+    {
+      "answer": "**Contoso**\n\n**No data.** Nothing published since 2026-10-20.",
+      "why": "bold heading, reported as empty"
+    }
+  ]
+}

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { readingLine, recordReading } from "./api-budget.mjs";
@@ -104,21 +103,70 @@ test("the gh wrapper keeps stdout, stderr and the exit status, and reads the hea
     }
   }));
 
-test("api_budget_emit writes the hub line for the last reading, cost since the first with the same reset", () =>
+test("api_budget_emit writes the hub line for each reset's last reading, cost since the first with the same reset", () =>
   withDir((dir) => {
     readEach(dir, "github-token", head({ used: 13 }), head({ used: 100, reset: 1792748100 }), head({ used: 328, reset: 1792748100 }));
     assert.equal(
       bash(dir, "api_budget_emit github-token").stdout,
-      `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4672 used=328 reset=1792748100 resource=core cost=228\n`,
+      `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4987 used=13 reset=1792748042 resource=core cost=na\n` +
+        `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4672 used=328 reset=1792748100 resource=core cost=228\n`,
     );
   }));
 
-test("api_budget_emit writes cost=na when the last reading has no earlier one in its window", () =>
+test("api_budget_emit writes cost=na for a reset with one reading", () =>
   withDir((dir) => {
     readEach(dir, "lanes-app", head({ used: 900 }), head({ used: 3, reset: 1792751642 }));
     assert.equal(
       bash(dir, "api_budget_emit lanes-app").stdout,
-      `${NOTICE}token=lanes-app ${WHERE} limit=5000 remaining=4997 used=3 reset=1792751642 resource=core cost=na\n`,
+      `${NOTICE}token=lanes-app ${WHERE} limit=5000 remaining=4100 used=900 reset=1792748042 resource=core cost=na\n` +
+        `${NOTICE}token=lanes-app ${WHERE} limit=5000 remaining=4997 used=3 reset=1792751642 resource=core cost=na\n`,
+    );
+  }));
+
+test("api_budget_emit shows both core counters of one token, the job's latest core reading last", () =>
+  withDir((dir) => {
+    const [A, B] = [1792748042, 1792748500];
+    readEach(
+      dir,
+      "github-token",
+      head({ used: 3800, reset: B }),
+      head({ used: 1200, reset: A }),
+      head({ used: 7, reset: A, resource: "graphql" }),
+      head({ used: 3805, reset: B }),
+      head({ used: 1210, reset: A }),
+    );
+    const out = bash(dir, `lines=$(api_budget_emit github-token); printf "%s\\n" "$lines"; echo "last cost \${lines##*cost=}"`).stdout;
+    assert.deepEqual(
+      out
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => (line.startsWith(NOTICE) ? line.slice(line.indexOf(" used=")) : line)),
+      [
+        ` used=7 reset=${A} resource=graphql cost=na`,
+        ` used=3805 reset=${B} resource=core cost=5`,
+        ` used=1210 reset=${A} resource=core cost=10`,
+        "last cost 10",
+      ],
+    );
+  }));
+
+test("api_budget_emit keeps a refused reading that is not its counter's last, and does not repeat one that is", () =>
+  withDir((dir) => {
+    const [A, B] = [1792748042, 1792748500];
+    readEach(
+      dir,
+      "github-token",
+      head({ status: 403, used: 5000, reset: A }),
+      head({ used: 3900, reset: B }),
+      head({ status: 403, used: 3950, reset: B }),
+      head({ used: 3960, reset: B }),
+    );
+    assert.deepEqual(
+      bash(dir, "api_budget_emit github-token")
+        .stdout.split("\n")
+        .filter(Boolean)
+        .map((line) => line.slice(line.indexOf(" used="))),
+      [` used=3950 reset=${B} resource=core cost=50`, ` used=5000 reset=${A} resource=core cost=na`, ` used=3960 reset=${B} resource=core cost=60`],
     );
   }));
 
@@ -169,6 +217,7 @@ test("the action emits each named token, the call count as an api-calls notice t
         PATH: process.env.PATH,
         ...RUNNER,
         RUNNER_TEMP: dir,
+        TMPDIR: dir,
         GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname,
         GITHUB_STEP_SUMMARY: join(dir, "summary"),
         GITHUB_OUTPUT: join(dir, "output"),
@@ -193,7 +242,7 @@ test("the action emits each named token, the call count as an api-calls notice t
     writeFileSync(join(dir, "output"), "");
     execFileSync("bash", ["-c", run], {
       encoding: "utf8",
-      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: "", GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname, GITHUB_STEP_SUMMARY: join(dir, "summary"), GITHUB_OUTPUT: join(dir, "output"), TOKENS: "github-token" },
+      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: "", TMPDIR: dir, GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname, GITHUB_STEP_SUMMARY: join(dir, "summary"), GITHUB_OUTPUT: join(dir, "output"), TOKENS: "github-token" },
     });
     assert.equal(readFileSync(join(dir, "output"), "utf8"), "calls=github-token-calls=unknown\n");
     assert.doesNotMatch(ACTION + readFileSync(LIB, "utf8"), /gh api[^\n]*rate_limit/);
@@ -206,7 +255,7 @@ test("ci-status ends with the same api-budget and api-calls notices the action w
     assert.ok(block, "ci-status emits its notices in one block");
     const out = execFileSync("bash", ["-c", block[1]], {
       encoding: "utf8",
-      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") },
+      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: dir, TMPDIR: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") },
     });
     assert.equal(
       out,
@@ -216,7 +265,7 @@ test("ci-status ends with the same api-budget and api-calls notices the action w
     // With no reading, no api-budget line and an api-calls count of 0, as the action writes.
     rmSync(join(dir, "api-budget"), { recursive: true });
     assert.equal(
-      execFileSync("bash", ["-c", block[1]], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") } }),
+      execFileSync("bash", ["-c", block[1]], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, TMPDIR: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") } }),
       "::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n",
     );
   }));
@@ -228,7 +277,7 @@ test("api_budget_classify decides every rate-guard vector", () => {
   const floor = apiLimits({ resolvedPath: "" })["github-token"]["read-floor"];
   for (const vector of vectors.vectors) {
     const input = { ...vector.input, now: vectors.vector_now * 1000, pool: poolOf(vector.input.url), floor, cap: vector.limit_cap ?? null };
-    const out = bash(tmpdir(), 'jq -c "$API_BUDGET_CLASSIFY"', { input: JSON.stringify(input) });
+    const out = withDir((dir) => bash(dir, 'jq -c "$API_BUDGET_CLASSIFY"', { input: JSON.stringify(input) }));
     assert.deepEqual(JSON.parse(out.stdout), vector.expect, `${vector.name}: ${out.stderr}`);
   }
 });
@@ -740,7 +789,7 @@ test("api_budget_is_content judges a gh call as rate-guard.mjs's isContentWrite 
     "api --method=GET repos/o/r/issues/7/comments -f per_page=1",
     "pr view 7",
   ];
-  const judge = (args) => bash(tmpdir(), `api_budget_is_content ${args}`).status === 0;
+  const judge = (args) => withDir((dir) => bash(dir, `api_budget_is_content ${args}`)).status === 0;
   for (const args of writes) {
     assert.equal(judge(args), true, args);
   }
@@ -775,6 +824,7 @@ test("the action writes the content-creation notice after the token lines", () =
         PATH: process.env.PATH,
         ...RUNNER,
         RUNNER_TEMP: dir,
+        TMPDIR: dir,
         GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname,
         GITHUB_STEP_SUMMARY: join(dir, "summary"),
         GITHUB_OUTPUT: join(dir, "output"),
@@ -866,9 +916,9 @@ test("pr-review-main's record job ends with its own api-calls notice in the emit
     const emitted = (count) => {
       if (count !== undefined) writeFileSync(join(dir, "pr-review-main-calls"), `${count}\n`);
       // As Actions runs `shell: bash`: -e ends the step on any failing command.
-      return execFileSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", run], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir } });
+      return execFileSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", run], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, TMPDIR: dir } });
     };
-    const shape = execFileSync("bash", ["-c", `. "${lib}"; api_budget_emit_calls github-token`], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir } });
+    const shape = execFileSync("bash", ["-c", `. "${lib}"; api_budget_emit_calls github-token`], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, TMPDIR: dir } });
     assert.equal(emitted(), shape, "no count file is 0, as the emitter writes with no reading");
     assert.equal(emitted(2), shape.replace("github-token=0", "github-token=2"));
     assert.equal(emitted("2; rm"), shape, "anything but a count is 0");
@@ -880,10 +930,11 @@ test("pr-review-main's record job ends with its own api-calls notice in the emit
 test("each job that holds the job token and calls no guarded client ends with the log-api-budget step", () => {
   const windows = ["select-tests-windows", ...["rename-1", "rename-2", "secrets", "guards", "hooks", "lib", "worktree"].map((s) => `test-windows-${s}`), "test-macos-planning-shared"];
   const jobs = {
-    "pr-test-windows.yml": Object.fromEntries(windows.map((job) => [job, "./"])),
+    "pr-test-platforms.yml": Object.fromEntries(windows.map((job) => [job, "./"])),
     "post-merge-detect-silent-revert.yml": { "detect-silent-revert": "./" },
     "release-publish-plugins.yml": { merge: "./", build: "./" },
     "dependabot-fragments.yml": { write: "./" },
+    "pr-require-checks.yml": { "lint-repo": "./", "lint-shell": "./", "check-plugins": "./", "check-skills": "./" },
   };
   for (const [file, byJob] of Object.entries(jobs)) {
     const text = readFileSync(new URL(`../../workflows/${file}`, import.meta.url), "utf8");
@@ -892,7 +943,8 @@ test("each job that holds the job token and calls no guarded client ends with th
       const last = block.split(/\n {6}- name: /).at(-1).replace(/(\n *(#[^\n]*)?)+$/, "");
       assert.equal(
         last,
-        "Log the API budget at the end\n        if: always()\n        continue-on-error: true\n        timeout-minutes: 1\n" +
+        // check-lane-coverage reads a continue-on-error step in this workflow as a gate.
+        `Log the API budget at the end\n        if: always()\n${file === "pr-require-checks.yml" ? "" : "        continue-on-error: true\n"}        timeout-minutes: 1\n` +
           `        uses: ${root}.github/actions/log-api-budget # zizmor: ignore[self-repository]\n        with:\n          tokens: github-token`,
         `${file} ${job}`,
       );
@@ -932,12 +984,59 @@ test("ci-status sets the shell read floor to the read-floor default", () => {
   assert.equal(Number(floor[1]), apiLimits({ resolvedPath: "" })["github-token"]["read-floor"]);
 });
 
-test("ci-status carries api-budget.bash verbatim in its API_BUDGET_SH env", () => {
-  const block = /\n {6}API_BUDGET_SH: \|\n((?: {8}[^\n]*\n|\n)+)/.exec(CI);
-  assert.ok(block, "ci-status sets API_BUDGET_SH as a block scalar");
-  const carried = block[1].replace(/^ {8}/gm, "").replace(/\n+$/, "\n");
-  assert.equal(carried, readFileSync(LIB, "utf8"));
+test("ci-status and mark-lanes carry api-budget.bash verbatim in their API_BUDGET_SH env", () => {
+  const blocks = [...CI.matchAll(/\n( +)API_BUDGET_SH: \|\n((?:\1 {2}[^\n]*\n|\n)+)/g)];
+  assert.deepEqual(
+    blocks.map(([, pad]) => pad.length),
+    [10, 6],
+    "the mark-lanes step, then the ci-status job, set API_BUDGET_SH as a block scalar",
+  );
+  for (const [, pad, body] of blocks) {
+    const carried = body.replace(new RegExp(`^${pad} {2}`, "gm"), "").replace(/\n+$/, "\n");
+    assert.equal(carried, readFileSync(LIB, "utf8"));
+  }
 });
+
+// The mark-lanes step as shipped, against a gh that answers `api -i`, failing
+// its first `fails` calls. RUNNER_TEMP holds the fake and the readings.
+function markLanes(dir, fails) {
+  const job = CI.slice(CI.indexOf("\n  mark-lanes:\n"), CI.indexOf("\n  select-tests:\n"));
+  const body = /\n {8}run: \|\n((?: {10}[^\n]*\n)+)/.exec(job)[1].replace(/^ {10}/gm, "").replace(/sleep \$\(\(attempt \* 5\)\)/, ":");
+  const answer = head({ used: 12 }).replace(/\r/g, "\\r").replace(/\n/g, "\\n");
+  writeFileSync(
+    join(dir, "gh"),
+    `#!/usr/bin/env bash\nn=$(($(cat "${dir}/n" 2>/dev/null || echo 0) + 1)); echo "$n" >"${dir}/n"\n` +
+      `[[ $1 == api && $2 == -i ]] || exit 9\n[ -z "\${GH_DEBUG:-}" ] || echo "* Request to https://api.github.com/x" >&2\n` +
+      `printf '${answer}{}'\n((n > ${fails}))\n`,
+  );
+  chmodSync(join(dir, "gh"), 0o755);
+  return spawnSync("bash", ["-e", "-c", body], {
+    encoding: "utf8",
+    env: { PATH: `${dir}:${process.env.PATH}`, ...RUNNER, RUNNER_TEMP: dir, TMPDIR: dir, API_BUDGET_SH: readFileSync(LIB, "utf8"), HEAD_SHA: "a", GITHUB_REPOSITORY: "o/r", GITHUB_SERVER_URL: "s", GH_TOKEN: "t" },
+  });
+}
+
+test("mark-lanes counts its status write, and each retry of it", () =>
+  withDir((dir) => {
+    const once = markLanes(dir, 0);
+    assert.equal(once.status, 0, once.stderr);
+    assert.match(once.stdout, /^Marked ci-lanes pending on a\.$/m);
+    assert.match(once.stdout, /used=12 reset=1792748042 resource=core cost=na\n/);
+    assert.match(once.stdout, /^::notice title=api-calls::github-token=1 not-modified=0 graphql=0$/m);
+    rmSync(join(dir, "api-budget"), { recursive: true });
+    rmSync(join(dir, "n"));
+    const retried = markLanes(dir, 1);
+    assert.equal(retried.status, 0, retried.stderr);
+    assert.match(retried.stdout, /^::notice title=api-calls::github-token=2 not-modified=0 graphql=0$/m);
+  }));
+
+test("mark-lanes still fails, and still reports its calls, when every attempt fails", () =>
+  withDir((dir) => {
+    const out = markLanes(dir, 3);
+    assert.equal(out.status, 1);
+    assert.match(out.stdout, /^::error::could not mark ci-lanes pending on a;/m);
+    assert.match(out.stdout, /^::notice title=api-calls::github-token=3 not-modified=0 graphql=0$/m);
+  }));
 
 test("ci-status emits the api-calls notice beside its api-budget notice", () => {
   assert.match(CI, /api_budget_emit github-token; api_budget_emit_calls github-token; /);
@@ -992,7 +1091,7 @@ test("pr-feedback-dispatch.yml: the wrapper setup keeps the step's stderr for an
       const result = spawnSync("bash", ["-c", `${setup}\nx=$(gh api repos/o/r) || true\ngh api repos/o/r >/dev/null || true\necho reached`], {
         cwd: dir,
         encoding: "utf8",
-        env: { PATH: `${dir}:${process.env.PATH}`, RUNNER_TEMP: dir },
+        env: { PATH: `${dir}:${process.env.PATH}`, RUNNER_TEMP: dir, TMPDIR: dir },
       });
       assert.equal(readFileSync(join(dir, "calls"), "utf8").split("\n").filter(Boolean).length, 1, setup);
       assert.doesNotMatch(result.stdout, /reached/, setup);
@@ -1019,7 +1118,7 @@ test("pr-feedback-dispatch.yml: post-verify-notes keeps the reading of its artif
     const result = spawnSync("bash", ["-e", "-c", body], {
       cwd: dir,
       encoding: "utf8",
-      env: { PATH: `${join(dir, "bin")}:${process.env.PATH}`, RUNNER_TEMP: join(dir, "rt"), RUN_ID: "77", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out") },
+      env: { PATH: `${join(dir, "bin")}:${process.env.PATH}`, RUNNER_TEMP: join(dir, "rt"), TMPDIR: dir, RUN_ID: "77", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out") },
     });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout, "::notice::run 77 uploaded no verdict; nothing to post\n");

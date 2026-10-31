@@ -7,6 +7,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.14.1] - 2026-10-31
+
+### Changed
+
+- The README's Hook section no longer says an upstream report tracks the hook `if` tool-name gap, and its recheck trigger is now only a Claude Code release note saying a hook `if` `Edit(...)` rule matches Write tool calls. The settings checkpoint row stays unconditioned ([#8985](https://github.com/melodic-software/claude-code-plugins/issues/8985)).
+
+## [0.14.0] - 2026-10-31
+
+### Added
+
+- `/context-budget:audit` takes an optional `--unattended` modifier, accepted anywhere in its arguments. With it, the run records the `/context` and `/skill-doctor` offers in its output instead of asking; without it, the run asks. The argument hint lists it.
+
 ## [0.13.11] - 2026-10-30
 
 ### Changed

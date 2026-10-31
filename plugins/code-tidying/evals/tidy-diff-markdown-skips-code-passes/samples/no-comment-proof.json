@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/setup.md"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls docs",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "no proof run"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/plugins/code-tidying/skills/tidy-diff/scripts/change-shape.sh docs/setup.md /tmp/setup.md",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "ran the comment proof on markdown"
+    }
+  ]
+}

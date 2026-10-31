@@ -2,13 +2,13 @@
 description: "When the bundled pr skill or built-in commit-push-pr command resolves in this session, prefer pr for a one-shot PR from committed work and commit-push-pr to commit, push and open one at once, only when no draft, body contract, or later ready, monitor, or merge step applies; this skill otherwise. Orchestrate the full PR lifecycle: prep (review + verify), create, ready (merge the base, security review + verify, flip), monitor CI + review comments, merge, and fetch CI logs. Use when: 'create pr', 'ship it', 'pr prep', 'mark ready', 'ready for review', 'fix CI', 'address comments', 'monitor PR', 'merge this', 'check pr status', not for the all-PR babysit loop (use /babysit-prs), branch/worktree lifecycle (use /worktree), or committing without a PR (use /commit)."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[prep|create|ready|monitor|comments|ci|merge|status|full|fetch-logs|view|list|review-venue] [args]"
+argument-hint: "[prep|create|ready|monitor|comments|ci|merge|status|full|fetch-logs|view…] [--unattended] [args]"
 metadata:
   workflow-stage: pr
   summary: Full PR lifecycle. Prep, create, monitor CI, address reviews, merge
 ---
 
-**Arguments.** `[prep|create|ready|monitor|comments|ci|merge|status|full|fetch-logs|view|list|review-venue] [args]`. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>, /pull-request view <pr> --diff, /pull-request list --head <branch>, /pull-request review-venue
+**Arguments.** `[prep|create|ready|monitor|comments|ci|merge|status|full|fetch-logs|view…] [--unattended] [args]`. Full set: the Arguments table below. e.g., /pull-request prep, /pull-request create, /pull-request ready, /pull-request monitor, /pull-request comments, /pull-request merge, /pull-request status, /pull-request full, /pull-request fetch-logs <pr|run>, /pull-request view <pr> --diff, /pull-request list --head <branch>, /pull-request review-venue
 
 ## Repository context. Gather first
 
@@ -104,7 +104,10 @@ After resolving once at phase entry, **pass `<pr_number>` explicitly to all subs
 
 ## Phase 0: Parse action and detect state
 
-Parse `$ARGUMENTS` to extract the action (first token) and any sub-arguments.
+Parse `$ARGUMENTS` to extract the action (first token) and any sub-arguments, after taking out
+`--unattended` wherever it appears: it is the caller declaring that nobody is present. Pass it on
+to `ready` (which takes it as its own flag) and to no script; with nothing else left, the action
+is the smart default.
 
 **Smart default** (empty args): read live state from the forge to determine the right phase:
 
@@ -283,9 +286,14 @@ monitor, or merge.
 made, pick between this skill's monitor, a background agent, `/background`, `/autofix-pr` and the
 babysit loop by whether the person is staying and whether the machine stays on, after reading the
 plan's rate-limit windows: at 95% or above, report the window and the options, and the person decides. For a route only
-the person can start, print it ready to run; `/autofix-pr` gets a filled-in prompt carrying this
-skill's review discipline. The matrix and the prompt:
-[reference/watch-handoff.md](reference/watch-handoff.md).
+the person can start, print it ready to run. If /autofix-pr is available in your session (gate
+basis: it registers gated and needs forge CLI and cloud-session access; records in
+[reference/native-surfaces.md](reference/native-surfaces.md)), the person can run it instead of or
+alongside this skill's monitor, with a filled-in prompt carrying this skill's review discipline. The
+matrix and the prompt:
+[reference/watch-handoff.md](reference/watch-handoff.md). When the caller passes `--unattended`,
+with any action, the run records that recommendation and the `/autofix-pr` prompt in its output
+and does not ask the person; without that flag it asks.
 
 **Mutation gate.** `pr` and `/commit-push-pr` commit, push, and open a PR; `/autofix-pr` pushes
 fixes to the PR branch from a cloud session. This skill never chains into any of them on its own

@@ -1,7 +1,7 @@
 ---
 description: "Prove a change achieved its intended outcome: a mechanical build+test+lint prerequisite (delegated to /toolchain:check and /toolchain:lint, STOPs if broken), then outcome verification. Does the change match the plan/intent and function correctly, with the criterion auto-detected by change-type (feature, fix, refactor). Use when: 'verify changes', 'prove this works', 'did we build the right thing', 'is this done', 'check my work', 'did the fix actually work'; for quick mechanical-only checks use /toolchain:check, for measurable-improvement claims use /verification:measure."
 user-invocable: true
-argument-hint: "[outcome|fix|refactor] [dotnet|python|typescript|bash|powershell|all]"
+argument-hint: "[outcome|fix|refactor] [--unattended] [dotnet|python|typescript|bash|powershell|all]"
 disable-model-invocation: false
 effort: high
 metadata:
@@ -9,7 +9,7 @@ metadata:
   summary: Prove the change achieved its intended outcome with evidence
 ---
 
-**Arguments.** `[outcome|fix|refactor] [dotnet|python|typescript|bash|powershell|all]`. e.g., /verification:confirm, /verification:confirm outcome, /verification:confirm fix, /verification:confirm refactor, /verification:confirm dotnet
+**Arguments.** `[outcome|fix|refactor] [--unattended] [dotnet|python|typescript|bash|powershell|all]`. e.g., /verification:confirm, /verification:confirm outcome, /verification:confirm fix, /verification:confirm refactor, /verification:confirm dotnet
 
 ## Repository context. Gather first
 
@@ -62,7 +62,9 @@ There is **no standalone "mechanical pass" mode**. That role belongs to `/toolch
 
 ## Mode dispatch
 
-Parse `$ARGUMENTS` for a mode keyword first, then an ecosystem filter.
+Parse `$ARGUMENTS` for a mode keyword first, then an ecosystem filter. `--unattended`, anywhere in the arguments, is
+consumed before both: the caller declaring that nobody is present, which governs the `/verify`
+offer under "Routing" and whether the touched-feature refresh in Stage 2 step 1 passes `--unattended`.
 
 | Signal | Mode | Read |
 |--------|------|------|
@@ -165,7 +167,7 @@ Read the criterion context file for the dispatched mode, then run the flow below
 
    When `/testing:run-e2e` reports per entry point (the repository has a feature map), an entry point the map lists for a changed feature that is missing from that report holds the verdict below `CONFIRMED`.
 
-   **Keep touched features current.** `/testing:run-e2e` owns this step (its Step 4, Keep touched features current). When it ran, carry its refresh or drift lines into the report and refresh nothing again. When the drive was split across workers, tell each worker to skip that step, then run it once here over the merged report. When it did not run and the repository has a control skill (`.claude/skills/control-<app>/`), run the step here: a touched feature is one whose index line's `sources` globs match a changed file (a matched hub line naming a module's `README.md` sends the match to the index lines under that README's `## Sub-features`), and its id is that line's path between `features/` and `/README.md` (`features/cart/total/README.md` is `cart/total`). Call `/app-control:map refresh <feature id>` per touched feature when `/app-control:map` resolves, adding `--unattended` when no one is present (a pipeline lane), carrying that feature's lesson (Lessons, below) in the same call; otherwise report the drift and name `/app-control:map refresh <feature id>` in `## Next`. Neither the drift nor app-control's absence holds the verdict, and this skill never edits a control skill.
+   **Keep touched features current.** `/testing:run-e2e` owns this step (its Step 4, Keep touched features current). When it ran, carry its refresh or drift lines into the report and refresh nothing again. When the drive was split across workers, tell each worker to skip that step, then run it once here over the merged report. When it did not run and the repository has a control skill (`.claude/skills/control-<app>/`), run the step here: a touched feature is one whose index line's `sources` globs match a changed file (a matched hub line naming a module's `README.md` sends the match to the index lines under that README's `## Sub-features`), and its id is that line's path between `features/` and `/README.md` (`features/cart/total/README.md` is `cart/total`). Call `/app-control:map refresh <feature id>` per touched feature when `/app-control:map` resolves, adding `--unattended` only when this skill's caller passed `--unattended`, carrying that feature's lesson (Lessons, below) in the same call; otherwise report the drift and name `/app-control:map refresh <feature id>` in `## Next`. Neither the drift nor app-control's absence holds the verdict, and this skill never edits a control skill.
 
    **Split the drive across `live_workers`.** When the live drive runs and `live_workers` (see Live workers above) resolves above 1, it is split across workers; at 1 it runs as one worker, as before.
    - **Split by entry point.** List the feature-map entry points the drive must cover and give each worker a disjoint share, never more workers than entry points. Each worker invokes `/testing:run-e2e` for its share only. With no feature map there is nothing to split by: one worker runs, and the report says so.
@@ -174,8 +176,8 @@ Read the criterion context file for the dispatched mode, then run the flow below
    - **Merged report.** The missing-entry-point check above reads the merged per-entry-point report of every worker: an entry point no worker reported holds the verdict exactly as it would in a single drive.
    - **Measured usage per worker.** For each worker the report lists its entry points, its result and its usage as measured: the tokens and wall time the Agent tool's result reports for that worker, never an estimate, and never a price or cost figure.
    - **Cloud host.** When this run is on a cloud execution target (`CLAUDE_CODE_REMOTE` is `true` in the session, or the stage's `execution_target` in `docs/conventions/execution-target.yaml` resolved to a cloud value), the report adds the line `live-UI step unverified on this host`.
-     - **Pointer**: the `CLAUDE_CODE_REMOTE` row of <https://code.claude.com/docs/en/env-vars>; for the subagent result whose usage each worker line reports, <https://code.claude.com/docs/en/sub-agents>.
-     - **As of**: 2026-10-04
+     - **Pointer**: the `CLAUDE_CODE_REMOTE` row of <https://code.claude.com/docs/en/env-vars>; for the subagent result whose usage each worker line reports, <https://code.claude.com/docs/en/agent-sdk/typescript#agent-2>.
+     - **As of**: 2026-10-31
      - **Recheck trigger**: the env-vars row changes, or a Claude Code release changes the Agent tool result or its usage format.
 
    **Three rules for the live drive.**
@@ -188,7 +190,25 @@ Read the criterion context file for the dispatched mode, then run the flow below
 5. **Evidence collection**. Stage-1 results, E2E results, test names + assertions proving the claimed behavior. For UI changes: the UI evidence artifacts per [context/outcome.md](context/outcome.md) (pre/action/post snapshot, console, network, behavior assertion, and the render-check results: axe, geometry, pixel baseline, vision review as leads only. "screenshot looks fine" is NOT an assertion). When the plan states a measurable goal: the `/verification:measure` comparison table. Rank the test evidence by independence and label each test the producing session wrote as self-authored, per [context/outcome.md](context/outcome.md) "Evidence ranking".
 6. **Report + verdict**. Emit the outcome report (the proof-level line, the worker line, the proof boxes under `strict`, intent-match table, mechanical results with every skip named and its reason, E2E + UI-evidence tables when triggered, evidence table, measurements when applicable, and the lessons the run learned, each with its scope and route in the Lessons table) and a `CONFIRMED` / `NEEDS WORK` / `NOT VERIFIED` verdict. Report template and verdict criteria in [context/outcome.md](context/outcome.md). The report also states the effort level this run used: `${CLAUDE_EFFORT}`. The skill pins `effort: high`, a verdict lane's level, and no higher; an environment variable or an effort cap can still put the run at another level, which is why the report states it (pointer: the `effort` field in <https://code.claude.com/docs/en/skills#frontmatter-reference> and the `CLAUDE_EFFORT` row in <https://code.claude.com/docs/en/skills#available-string-substitutions>; as of 2026-10-02; recheck trigger: either row is renamed or removed, or the field stops overriding the session level). We pin the model-config row the pointer here names, and the fresh-context verifier below is raised to the model that produced the work whenever that model is known and stronger than this session's (see Independence of the verdict; pointer: the `high` row of <https://code.claude.com/docs/en/model-config#choose-an-effort-level> and the advisor capability rule in <https://platform.claude.com/docs/en/agents-and-tools/tool-use/advisor-tool#model-compatibility>; as of 2026-10-10; recheck trigger: next model release).
 
-**Independence of the verdict.** This skill usually runs in the context that produced the changes, and that context carries the assumptions that produced any defect, converging on approval rather than detection. Stage 1's mechanical pass/fail is objective and needs no escalation, but for the Stage 2 outcome verdict on anything beyond a mechanical, behavior-preserving change, render `CONFIRMED` / `NEEDS WORK` from an agent that did NOT produce the artifact: dispatch a fresh-context verifier with the acceptance criteria and the diff, withholding your rationale so it audits the artifact and not your story. The verifier checks the provenance of every test it cites (`/testing:test-value`): a test added or changed in the diff under review is a producer claim until its expected value names an independent source. This is stricter than the `implementation:phase-verifier` agent, which reports an unsourced expected value as a finding without changing its verdict: here a criterion proved only by such a test is not COMPLETE ([context/outcome.md](context/outcome.md) "Evidence ranking"). When the work was produced on a model stronger than this session's (a security-surface phase routed to the frontier alias, say) and you know that model, pass the dispatch a per-invocation `model` at or above it; this override routes upward only and keeps the checked-work rule in the marketplace's `docs/plugin-philosophy.md` "Model tiers". When the producing model is not known, the report says the verifier's model was not matched to it. Where the outcome is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor verifier above as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
+**Independence of the verdict.** This skill usually runs in the context that produced the changes, and that context carries the assumptions that produced any defect, converging on approval rather than detection. Stage 1's mechanical pass/fail is objective and needs no escalation, but for the Stage 2 outcome verdict on anything beyond a mechanical, behavior-preserving change, render `CONFIRMED` / `NEEDS WORK` from an agent that did NOT produce the artifact: dispatch a fresh-context verifier with the acceptance criteria and the diff, withholding your rationale so it audits the artifact and not your story. The verifier checks the provenance of every test it cites (`/testing:test-value`): a test added or changed in the diff under review is a producer claim until its expected value names an independent source. This is stricter than the `implementation:phase-verifier` agent, which reports an unsourced expected value as a finding without changing its verdict: here a criterion proved only by such a test is not COMPLETE ([context/outcome.md](context/outcome.md) "Evidence ranking"). When the work was produced on a model stronger than this session's (a security-surface phase routed to the frontier alias, say) and you know that model, pass the dispatch a per-invocation `model` at or above it (for the aliases that call accepts, see <https://code.claude.com/docs/en/sub-agents#choose-a-model>, as of 2026-10-31; recheck when that list or the resolution order changes); this override routes upward only and keeps the checked-work rule in the marketplace's `docs/plugin-philosophy.md` "Model tiers". When the producing model is not known, the report says the verifier's model was not matched to it. Where the outcome is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor verifier above as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
+
+**Record the verdict for the head it judged.** Once the verdict is final (including a
+`NOT VERIFIED` from the Stage 1 gate), store it for the commit it judged, so the pull request
+`ready` report can name it:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/confirm-verdict.sh" record --head <sha> --verdict '<verdict>' --missing '<item>' --partial '<item>'
+```
+
+- `<sha>` is the full `git rev-parse HEAD`, run as its own call.
+- Pass one `--missing` per `MISSING` plan item and one `--partial` per `PARTIAL` one, each a single
+  line naming the requirement, and none for `COMPLETE` items.
+- Skip the record when the gathered working-tree status was not empty: the verdict then judged
+  uncommitted changes, not that head. The report says the verdict was not recorded and why.
+- A non-zero exit leaves no record; the report names it and the verdict stands.
+
+The record is advisory. It never gates the `ready` flip, and a commit after it leaves the new head
+with no verdict.
 
 When `/testing:run-e2e` ran, persist an assertion-only evidence manifest (what was asserted, at which commit. Record `verified_at_sha`) to the topic's memory slice at `<memory_dir>/<slug>/verification/` (default `.work/`), placed per the lifecycle artifact protocol ([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)). The manifest is never committed; paste it into the pull request body or the linked issue, its publication surface. It carries distilled assertions only, because the paste is shared. No raw command captures, no machine-local paths, no usernames or credentials; cite a `## Reproduction` block instead. Raw captures stay in the memory tier at `<memory_dir>/<slug>/scratch/` (default `.work/`), never committed.
 
@@ -235,10 +255,12 @@ either.
   evidence table, and an independent verdict.
 
 **Routing.** When the change has a runtime surface to drive (an `e2e-*` category above, or any
-product source), offer it to the person at the end of the run, beside the report: "you can run
-`/verify` alongside this skill to drive the change end to end". Skip the offer for a diff touching
-only tests, docs, or code with no runtime surface. An unattended run records the offer in its
-output instead of asking. Its result is added evidence; it replaces neither Stage 1 nor the verdict.
+product source), offer it to the person at the end of the run, beside the report:
+If /verify is available in your session (gate basis: `disableBundledSkills` or a `skillOverrides`
+entry hides it; records in [reference/native-verify.md](reference/native-verify.md)), you can run
+it alongside this skill to drive the change end to end. Skip the offer for a diff touching
+only tests, docs, or code with no runtime surface. When the caller passes `--unattended`, the run records the offer in its output instead of asking; without that flag
+it asks. Its result is added evidence; it replaces neither Stage 1 nor the verdict.
 
 **Mutation gate.** `/verify` may write a project verify skill on first use. This skill never
 triggers it on its own behalf.

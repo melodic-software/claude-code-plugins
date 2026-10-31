@@ -400,6 +400,30 @@ export STUB_CLOSING='{"data":{"repository":{"pullRequest":{"closingIssuesReferen
 STUB_PR="{\"number\":6419,\"created_at\":\"2026-10-23T05:00:00Z\",\"head\":{\"ref\":\"fix/cost\",\"sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"body\":\"Closes #9306\\n\\n- Cost decision: [Q50]($LINK)\"}"
 expect "a Closes line GitHub does not record as closing clears nothing" no no no
 
+# pr-verify's credential stop adds no label event to a label already on, and a
+# cost decision does not answer it.
+# shellcheck disable=SC2016 # the backticks are the comment's text
+CREDENTIAL_HOLD='<!-- stop-reason lane=pr-verify reason=security -->
+Reason: `security`'
+reset
+STUB_COMMENTS="[$(comment "$LANE" 2026-10-23T13:21:00Z "$CREDENTIAL_HOLD")]"
+export STUB_COMMENTS
+expect "a credential stop since the trusted removal keeps the label" no no no
+reset
+lifted
+STUB_COMMENTS="[$(comment "$LANE" 2026-10-23T13:14:00Z "$CREDENTIAL_HOLD")]"
+export STUB_COMMENTS
+expect "a credential stop a trusted person lifted keeps nothing" yes yes yes
+reset
+STUB_COMMENTS="[$(comment "$OWNER" 2026-10-23T13:21:00Z "$CREDENTIAL_HOLD")]"
+export STUB_COMMENTS
+expect "the marker in a person's comment keeps nothing" yes yes yes
+reset
+STUB_COMMENTS="[$(comment "$LANE" 2026-10-23T13:21:00Z "A quote of
+$CREDENTIAL_HOLD")]"
+export STUB_COMMENTS
+expect "the marker below a first line keeps nothing" yes yes yes
+
 # A decision binds to one pull request: one on the linked issue counts only
 # when it names the pull request, and with no closing issue the linked issue is the one
 # plain Refs: issue.

@@ -1,3 +1,4 @@
+# test-scope: .claude/source-control.md .github/workflows/*
 """Table tests for the unattended-merge diff risk scorer.
 
 `babysit_risk.score` is a pure function, so every case builds a `RiskInput` and
@@ -19,6 +20,7 @@ import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_merge_policy
 import babysit_risk
 from babysit_risk import (
     ChangedFile,
@@ -34,6 +36,14 @@ from babysit_risk import (
 
 
 _UNSET = object()
+
+
+# This repository's effective floor: the built-in rows joined to its config.
+PIPELINE = (
+    pathlib.Path(__file__).resolve().parents[6] / "docs/conventions/pr-pipeline.yaml"
+)
+ROWS = babysit_merge_policy.floor_paths_in(PIPELINE.read_text(encoding="utf-8"))
+FLOOR = babysit_risk.floor_for(ROWS)
 
 
 def _file(
@@ -98,6 +108,7 @@ def _input(**changes):
         max_changed_lines=200,
         high_paths=(),
         lanes=BOTH_LANES_CLEAN,
+        floor_rows=ROWS,
     )
     return dataclasses.replace(base, **changes)
 
@@ -281,16 +292,16 @@ class HighReasonTests(unittest.TestCase):
         # The rows are what test_merge_holds_sync.py's closure checks and the
         # generated copies hold; here the count of each class.
         self.assertEqual(
-            Counter(c for _, c in babysit_risk.FLOOR_CLASSES),
-            {"trust": 19, "gate": 48, "enforcement": 50},
+            Counter(c for _, c in FLOOR.classes),
+            {"trust": 19, "gate": 50, "enforcement": 50},
         )
         self.assertEqual(
-            babysit_risk.HIGH_FLOOR,
-            tuple(g for g, c in babysit_risk.FLOOR_CLASSES if c in {"trust", "gate"}),
+            FLOOR.high,
+            tuple(g for g, c in FLOOR.classes if c in {"trust", "gate"}),
         )
         self.assertEqual(
-            babysit_risk.REVIEW_FLOOR,
-            tuple(g for g, c in babysit_risk.FLOOR_CLASSES if c == "enforcement"),
+            FLOOR.review,
+            tuple(g for g, c in FLOOR.classes if c == "enforcement"),
         )
         cases = [
             (".gitmodules", "**/.gitmodules"),
@@ -353,11 +364,7 @@ class HighReasonTests(unittest.TestCase):
                         _input(files=(_file(path),), high_floor=on, lanes=unreviewed)
                     )
                     self.assertEqual(result.score, Risk.HIGH)
-                    code = (
-                        "review-path"
-                        if glob in babysit_risk.REVIEW_FLOOR
-                        else "high-path"
-                    )
+                    code = "review-path" if glob in FLOOR.review else "high-path"
                     self.assertIn(f"{code}:{glob}", _codes(result))
 
     def test_trusted_paths_off_the_floor_hold_only_when_configured(self):
@@ -385,7 +392,7 @@ class HighReasonTests(unittest.TestCase):
             "plugins/foo/requirements.txt",
             # Workflows with no write token, secret or lane token; one that
             # holds any is a `gate` path.
-            ".github/workflows/pr-test-windows.yml",
+            ".github/workflows/pr-test-platforms.yml",
             ".github/workflows/pr-check-managed-files-hosted.yml",
         ):
             with self.subTest(path):
@@ -1303,7 +1310,7 @@ class LanePathFloorTests(unittest.TestCase):
             "package.json",
             "plugins/foo/package-lock.json",
             ".github/requirements-ci.txt",
-            ".github/workflows/pr-test-windows.yml",
+            ".github/workflows/pr-test-platforms.yml",
             ".github/workflows/pr-check-managed-files-hosted.yml",
         ):
             with self.subTest(path):
@@ -1881,7 +1888,7 @@ class TrustGateTests(unittest.TestCase):
             "plugins/source-control/scripts/source-control-babysit-merge",
             "plugins/source-control/skills/babysit-prs/SKILL.md",
             ".github/scripts/pr-merge/gate.mjs",
-            ".github/workflows/pr-test-windows.yml",
+            ".github/workflows/pr-test-platforms.yml",
             ".github/standards/trusted-actors/README.md",
             "plugins/foo/trusted-actors/trusted-actors.json",
         ):
@@ -2015,7 +2022,7 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
     (scripts/sync-hold-floor.py `gate_workflows`), never kept by hand."""
 
     def gate(self):
-        return {g for g, c in babysit_risk.FLOOR_CLASSES if c == "gate"}
+        return {g for g, c in FLOOR.classes if c == "gate"}
 
     def test_the_gate_is_exactly_the_credentialed_and_review_workflows(self):
         found = sorted((_REPO / ".github/workflows").glob("*.yml"))
@@ -2042,7 +2049,7 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
         # It posts ci-status and holds the hold step: a model verdict, or a
         # trusted author's own commits, never clear it.
         path = ".github/workflows/pr-require-checks.yml"
-        self.assertEqual(dict(babysit_risk.FLOOR_CLASSES).get(path), "gate")
+        self.assertEqual(dict(FLOOR.classes).get(path), "gate")
         result = score(_input(files=(_file(path),), author_reviewed=frozenset({path})))
         self.assertIn(f"high-path:{path}", _codes(result))
         self.assertTrue(holds(result))
@@ -2158,8 +2165,8 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             workflows = pathlib.Path(tmp)
             for wf in (_REPO / ".github/workflows").glob("*.yml"):
                 shutil.copy(wf, workflows / wf.name)
-            plain = workflows / "pr-test-windows.yml"
-            self.assertNotIn(".github/workflows/pr-test-windows.yml", self.gate())
+            plain = workflows / "pr-test-platforms.yml"
+            self.assertNotIn(".github/workflows/pr-test-platforms.yml", self.gate())
             plain.write_text(
                 plain.read_text() + "\n# added\nenv:\n  K: ${{ secrets.NEW_KEY }}\n"
             )
@@ -2169,7 +2176,7 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                 rows = dict(sync.floor_classes())
             finally:
                 sync.WORKFLOWS = original
-            self.assertEqual(rows.get(".github/workflows/pr-test-windows.yml"), "gate")
+            self.assertEqual(rows.get(".github/workflows/pr-test-platforms.yml"), "gate")
 
     def test_dropping_a_review_workflow_from_the_class_fails_the_check(self):
         # The committed table must match what the generator derives, so a
@@ -2178,12 +2185,8 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             path = f".github/workflows/{name}.yml"
             with self.subTest(name):
                 self.assertIn(path, self.gate())
-                risk_file = (
-                    _REPO
-                    / "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py"
-                )
-                text = risk_file.read_text()
-                row = f'    ("{path}", "gate"),\n'
+                text = (_REPO / "docs/conventions/pr-pipeline.yaml").read_text()
+                row = f'      - glob: "{path}"\n        class: gate\n'
                 self.assertIn(row, text)
                 import importlib.util
 
@@ -2194,7 +2197,9 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                 spec.loader.exec_module(sync)
                 tampered = text.replace(row, "")
                 self.assertNotEqual(
-                    sync.generate(sync.RISK, tampered), tampered, "the check passes"
+                    sync.generate(sync.PIPELINE, tampered),
+                    tampered,
+                    "the check passes",
                 )
 
     def test_what_agents_may_do_or_reviews_judge_against_holds(self):
@@ -2256,8 +2261,8 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(babysit_risk.REVIEW_FLOOR), 50)
-        for glob in babysit_risk.REVIEW_FLOOR:
+        self.assertEqual(len(FLOOR.review), 50)
+        for glob in FLOOR.review:
             with self.subTest(glob):
                 result = self._score(glob, (_lane("claude-security-review"),))
                 self.assertEqual(result.score, Risk.LOW, _codes(result))
@@ -2311,7 +2316,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         self.assertEqual(babysit_risk.person_reasons(result.reasons), [])
 
     def test_each_gate_and_trust_path_holds_even_with_a_clean_review(self):
-        for glob in babysit_risk.HIGH_FLOOR:
+        for glob in FLOOR.high:
             with self.subTest(glob):
                 result = self._score(
                     _floor_sample(glob), (_lane("claude-security-review"),)
@@ -2333,8 +2338,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         path = B + "babysit_verify_evidence.py"
         caller = ".github/workflows/pr-review-security-hosted.yml"
         lanes = babysit_review_evidence.bind(
-            "a" * 40, [], [], [], is_human=lambda _: False, changed_paths=[path, caller]
-        )
+            "a" * 40, [], [], [], is_human=lambda _: False, changed_paths=[path, caller], floor=babysit_risk.floor_for())
         self.assertEqual(
             {lane.unbound_reason for lane in lanes}, {"lane-source-changed"}
         )
@@ -2432,7 +2436,7 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
         ):
             path = f".github/scripts/pr-merge/{name}.mjs"
             with self.subTest(path=path):
-                self.assertNotIn(path, babysit_risk.AUTHOR_REVIEW_FLOOR)
+                self.assertNotIn(path, FLOOR.author_review)
                 result = self._score(path, (_lane("claude-security-review"),))
                 self.assertEqual(_codes(result), (f"high-path:{path}",))
                 self.assertTrue(holds(result))
@@ -2523,17 +2527,11 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
         for path in paths:
             with self.subTest(path=path):
                 self.assertTrue(
-                    any(
-                        babysit_risk.glob_match(g, path)
-                        for g in babysit_risk.HIGH_FLOOR
-                    ),
+                    any(babysit_risk.glob_match(g, path) for g in FLOOR.high),
                     path,
                 )
                 self.assertFalse(
-                    any(
-                        babysit_risk.glob_match(g, path)
-                        for g in babysit_risk.AUTHOR_REVIEW_FLOOR
-                    )
+                    any(babysit_risk.glob_match(g, path) for g in FLOOR.author_review)
                 )
                 result = self._score(path, (_lane("claude-security-review"),))
                 self.assertTrue(

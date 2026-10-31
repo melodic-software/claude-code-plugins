@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "WebFetch",
+          "input": {
+            "url": "https://northwind.example/blog",
+            "prompt": "List posts since 2026-10-20"
+          }
+        }
+      ],
+      "why": "collected before confirming"
+    }
+  ]
+}

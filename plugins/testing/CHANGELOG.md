@@ -3,6 +3,29 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-10-31
+
+### Fixed
+
+- `/testing:cleanup` no longer says `model: opus` keeps its classifier off the session's model, and `/testing:audit` and the test judge point at the upstream model section.
+
+## [2.0.0] - 2026-10-31
+
+### Changed
+
+- `/testing:run-e2e` takes `--unattended` in place of a leading bare `unattended`, accepted anywhere in its arguments; the bare word is scenario text and the run is attended. The run still passes `--unattended` on to `/app-control:drive` and `/app-control:map refresh`. The argument hint lists the action first, shortened to `[worst-case…]` to stay within the 100-character budget, then `--unattended`; the Arguments section gives the full form. `worst-case` is also accepted as the first token, ahead of `app=`, `base=` and `trusted-root=`. The evals pass the flag.
+
+## [1.7.2] - 2026-10-31
+
+### Fixed
+
+- **run-e2e:** `e2e-summary.json`'s `publishable` list is no longer always empty. It takes the
+  paths from the `publishable` list in each drive run's `report.json`, then adds
+  `e2e-summary.json` only when a scan of its text finds no hit. The scan uses the same sources as
+  `/app-control:drive`'s "Mask post-check": the control skill hub's `## Mask` `values:` and the
+  generic credential pattern. A hit or an unresolved value source keeps the summary out
+  ([#11388](https://github.com/melodic-software/claude-code-plugins/issues/11388)).
+
 ## [1.7.1] - 2026-10-31
 
 ### Fixed
