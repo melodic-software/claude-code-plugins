@@ -10,6 +10,18 @@
     {
       "answer": "## Slide 2: Hartwell customer quote\n> [__]\n> Pending from marketing; do not paraphrase a customer.\n\n**Missing:** the Hartwell quote, the Q3 churn rate.",
       "why": "a blockquote holding the placeholder and a pending note"
+    },
+    {
+      "answer": "## Slide 2: Hartwell customer quote\n> Quote to come from marketing (Hartwell survey).\n\n**Missing:** the Hartwell quote, the Q3 churn rate.",
+      "why": "a blockquote saying the quote is still to come"
+    },
+    {
+      "answer": "## Slide 2: Customer voice\n> To be supplied by marketing once the survey closes.\n\n**Missing:** the Hartwell quote, the Q3 churn rate.",
+      "why": "a blockquote naming who will supply the quote"
+    },
+    {
+      "answer": "## Slide 2: Customer voice\n> Quote goes here when marketing sends it.\n\n**Missing:** the Hartwell quote, the Q3 churn rate.",
+      "why": "a blockquote marking where the quote goes"
     }
   ],
   "fail": [
