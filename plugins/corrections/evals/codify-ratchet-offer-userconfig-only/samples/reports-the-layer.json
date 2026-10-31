@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "ratchet_offer: false (userConfig)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "ratchet_offer: true (nowhere)"
+    }
+  ]
+}

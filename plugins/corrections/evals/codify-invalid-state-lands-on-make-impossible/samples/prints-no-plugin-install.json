@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Semgrep's docs are the fallback."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Run claude plugin install semgrep."
+    }
+  ]
+}

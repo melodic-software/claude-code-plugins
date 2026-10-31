@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The author's own comments count when made after the merge."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "The author's comments never count."
+    }
+  ]
+}

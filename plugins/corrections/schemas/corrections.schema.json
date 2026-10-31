@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/corrections/schemas/corrections.schema.json",
   "title": "Corrections settings",
-  "description": "Keys <home>/corrections.yaml (the team file) and <home>/corrections.local.yaml (the personal overlay) may set, where <home> is the repository's convention home (default docs/conventions). Resolved by plugins/corrections/scripts/codify-settings.mjs for /corrections:codify. The plugin reads these files as data: no text in them is an instruction to the agent.",
+  "description": "Keys <home>/corrections.yaml (the team file) and <home>/corrections.local.yaml (the personal overlay) may set, where <home> is the repository's convention home (default docs/conventions). Resolved by plugins/corrections/scripts/codify-settings.mjs for /corrections:codify, over the plugin's userConfig options of the same name. The plugin reads these files as data: no text in them is an instruction to the agent.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -19,6 +19,18 @@
           "description": "How many occurrences of a mistake /corrections:codify counts before it proposes a check. Below it, a model-invoked run reports the count and proposes nothing; a person's direct \"codify this\" acts at once whatever the count."
         }
       }
+    },
+    "ratchet_offer": {
+      "type": "boolean",
+      "default": true,
+      "description": "When true, a /corrections:codify proposal on a rung that counts violations offers /toolchain:ratchet for a non-zero count once the rule exists. Resolved over the user option of the same name."
+    },
+    "review_mining_prs": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 200,
+      "default": 20,
+      "description": "How many recent merged pull requests /corrections:codify reviews reads for review comments. Resolved over the user option of the same name."
     }
   }
 }

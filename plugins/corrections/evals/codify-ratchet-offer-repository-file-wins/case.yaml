@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: codify-ratchet-offer-repository-file-wins
+description: 'The team file''s true beats the user''s false, so counting rungs carry the offer.'
+tags: [codify, ported]
+plugins: ["../.."]
+expected_outcome: 'The team file''s true beats the user''s false, so counting rungs carry the offer.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings findings.md The settings reader printed {"min_occurrences":2,"layer":"defaults","path":null,"ratchet_offer":{"value":true,"layer":"team","path":"docs/conventions/corrections.yaml"},"review_mining_prs":{"value":20,"layer":"defaults","path":null}} The user option is false. This run has no Bash tool: skip the proof and report each row''s check as unproven, and present the proposals in the report, writing nothing.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 480
+graders:
+  - name: reports-the-layer
+    type: 'regex'
+    pattern: 'ratchet_offer:?`?\s*`?true`?\s*\(`?docs/conventions/corrections\.yaml'
+    flags: 'i'
+    arm: 'both'
+  - name: ratchet-offered
+    type: 'regex'
+    pattern: '/toolchain:ratchet[\s\S]*(?:zero|0)|(?:zero|0)[\s\S]*/toolchain:ratchet'
+    flags: 'i'
+    arm: 'both'

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Migration down step (PRs 503, 509): REVIEW.md, automated-review."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Migration: CLAUDE.md."
+    }
+  ]
+}

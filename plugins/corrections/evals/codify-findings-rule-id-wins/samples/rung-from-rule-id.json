@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Row 2: defined-diagnostic, class-basis rule-id, rung analyzer-pack-rule."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Row 2 lands on editorconfig-severity by judgment."
+    }
+  ]
+}

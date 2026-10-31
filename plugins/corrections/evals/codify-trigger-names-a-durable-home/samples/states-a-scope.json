@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Scope: project rule, because a fresh clone needs it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Saved."
+    }
+  ]
+}

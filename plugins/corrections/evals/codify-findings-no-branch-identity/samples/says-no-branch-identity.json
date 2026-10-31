@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "No branch identity resolved, so nothing is written."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Writing to .work/codify/main/."
+    }
+  ]
+}

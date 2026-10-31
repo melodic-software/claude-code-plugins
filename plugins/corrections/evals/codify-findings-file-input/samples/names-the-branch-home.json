@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Writing to .work/codify/fixture/."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Writing to .work/enforceability/fixture/."
+    }
+  ]
+}

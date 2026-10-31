@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "review_mining_prs: 40 (docs/conventions/corrections.yaml)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "review_mining_prs: 30 (userConfig)"
+    }
+  ]
+}

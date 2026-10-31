@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": ".work/codify/feat-billing-retry/20261031T120000Z-proposal.md"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": ".work/codify/feat/Billing-Retry/20261031T120000Z-proposal.md"
+    }
+  ]
+}
