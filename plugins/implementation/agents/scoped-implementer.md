@@ -154,7 +154,7 @@ the effort-pin owner's ruling of 2026-10-01.
 - **Pointer**: for the model split, see
   <https://code.claude.com/docs/en/costs#choose-the-right-model>; for the effort levels, see
   <https://code.claude.com/docs/en/model-config#adjust-effort-level> and
-  <https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-sonnet-5-5>;
+  <https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels>;
   for the subagent model order and allowlist substitution, see
   <https://code.claude.com/docs/en/sub-agents#choose-a-model>; for the per-spawn `effort` and
   every source that ranks over the pin, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>.
