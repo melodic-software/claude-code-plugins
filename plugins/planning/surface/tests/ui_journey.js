@@ -421,6 +421,43 @@ async page => { // the user journey in order on one page, no reload after phase 
     const cu = await last();
     ok("Confirm posts confirm-understanding and the summary reads Confirmed with its time", cu.kind === "confirm-understanding" && cu.alt === "confirm" && cu.contentRev === 2 && /^Confirmed \S/.test(await text("#uDone")) && !(await page.$("#unconfWarn")), JSON.stringify(cu) + " " + await text("#uDone"));
     ok("a Confirm clears the banner", await page.$eval("#reBanner", el => el.hidden));
+    // #11585: Finish warns only for a Claude note that asked for an answer and has none. Both real asks
+    // are answered by now; a second tab's routed state appends Notes lines after them and reads the confirm list.
+    {
+      const kept5 = await page.evaluate(() => JSON.stringify(localStorage)), tab = await page.context().newPage(), tabErrors5 = [];
+      tab.on("pageerror", e => tabErrors5.push(String(e)));
+      const t5 = Date.now(), at = ms => new Date(t5 + ms).toISOString();
+      const ask = (ms, t) => ({at: at(ms), by: "claude", text: t, needsAnswer: true}), plain = (ms, t) => ({at: at(ms), by: "claude", text: t});
+      let extra = {notes: [], mine: []};
+      await tab.addInitScript(() => { window.EventSource = undefined; });
+      await tab.route(base + "api/state", async route => {
+        const res = await route.fetch(), s = await res.json(), ev = s.responses.events || [], n = Math.max(0, ...ev.map(e => e.seq));
+        s.questions.notes = [...(s.questions.notes || []), ...extra.notes];
+        s.responses.events = [...ev, ...extra.mine.map((ms, i) => ({seq: n + 1 + i, kind: "note", text: "Keep it at three.", at: at(ms)}))];
+        await route.fulfill({response: res, json: s});
+      });
+      const confirmList = async x => { // the Finish confirm list the tab shows for these extra Notes lines
+        extra = x;
+        await tab.goto(base);
+        await tab.waitForFunction(() => /^[1-9]\d* before wrap-up$/.test(document.getElementById("wrapChip").textContent), null, {timeout: 8000}).catch(() => {});
+        await tab.click("#wrapChip").catch(() => {});
+        await tab.waitForSelector("dialog#dlg[open]", {timeout: 4000}).catch(() => {});
+        const all = await tab.$$eval("#dlgBody li", ls => ls.map(l => l.textContent));
+        await tab.click("#dlgCancel").catch(() => {});
+        return {all: all.length, notes: all.filter(t => /in Notes/.test(t))};
+      };
+      const one = await confirmList({notes: [ask(-900, "Should the cache key include the branch?")], mine: []});
+      ok("Finish lists the Notes line while a Claude ask has no answer", one.all > 1 && one.notes.length === 1 && one.notes[0] === "Claude asked for an answer in Notes and you have not given one", JSON.stringify(one));
+      const two = await confirmList({notes: [ask(-900, "Should the cache key include the branch?"), ask(-600, "And the runner image?")], mine: []});
+      ok("Finish counts two unanswered Claude asks in one Notes line", two.all > 1 && two.notes.length === 1 && two.notes[0] === "2 Claude questions in Notes have no answer from you", JSON.stringify(two));
+      const answered = await confirmList({notes: [ask(-900, "Should the cache key include the branch?")], mine: [-600]});
+      ok("Finish lists no Notes line once you answer the ask", answered.all > 0 && answered.notes.length === 0, JSON.stringify(answered));
+      const replied = await confirmList({notes: [ask(-900, "Should the cache key include the branch?"), plain(-300, "Noted, keeping it at three.")], mine: [-600]});
+      ok("Finish lists no Notes line when Claude's newest Notes entry is an ordinary reply", replied.all > 0 && replied.notes.length === 0, JSON.stringify(replied));
+      await tab.close();
+      await page.evaluate(s => { localStorage.clear(); for (const [k, v] of Object.entries(JSON.parse(s))) localStorage.setItem(k, v); }, kept5);
+      ok("the Notes-check tab raised no page errors", tabErrors5.length === 0, tabErrors5.join(" | "));
+    }
     const w0 = (await events()).length, chip = await text("#wrapChip");
     ok("the header chip counts what is outstanding before wrap-up", /^\d+ before wrap-up$/.test(chip) && !(await page.$eval("#wrapChip", el => el.hidden)), chip);
     await tap("#wrapChip", 300);
