@@ -757,6 +757,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     let ev = null; for (const e of events()) if (e.id === q.id && DEC.has(e.kind) && !e.withdrawn && (!ev || e.seq > ev.seq)) ev = e;
     return ev && ev.kind !== "reopen" ? ev.outOfOrder || [] : [];
   }
+  const isCons = id => /^C[0-9]+$/.test(id), consOf = q => (q.changedBy || []).filter(isCons); // the constraints q's recommendation was not checked against
   function staleBy(q){ // the prerequisites decided after this question was, or the questions whose recommendation changed
     if ((q.upstreamChanged || []).length) return q.upstreamChanged;
     const ps = [...new Set([...(q.dependsOn || []), ...aheadOf(q)])].filter(p => Q[p]), mine = lastDecisionSeq(q.id), c = ps.filter(p => lastDecisionSeq(p) > mine); // an out-of-order answer stays owed to a prerequisite its dependsOn has since dropped
@@ -1120,7 +1121,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     setHtml($("hoBanner"), S.handoff ? "<b>The interview continues:</b> " + esc(S.handoff.text) : ""); $("hoBanner").hidden = !S.handoff;
     renderNotice(); renderReBanner(); renderNeedToast();
     const cons = S.doc.constraints || []; // the constraint ledger: absent in a file written before the constraint op
-    $("consPanel").hidden = !cons.length; $("consSum").textContent = "Constraints (" + cons.length + ")";
+    const qs = S.doc.questions || [], unchecked = qs.filter(q => (q.changedBy || []).some(isCons)).length; // a question's changedBy holds a constraint id when it was not checked against that constraint
+    $("consPanel").hidden = !cons.length; $("consSum").textContent = "Constraints (" + cons.length + ")" + (unchecked ? ": " + unchecked + (unchecked === 1 ? " recommendation" : " recommendations") + " not re-checked" : qs.some(q => q.checkedAgainst) ? ": recommendations current" : "");
     setHtml($("consList"), cons.map(c => "<li><b>" + esc(c.id) + "</b>" + esc(c.text) + "</li>").join(""));
     const na = openAssumptions(), ac = $("assumeCount"), u = uState(), sure = !!(u && u.alt === "confirm"), unticked = na + (na === 1 ? " commitment" : " commitments");
     ac.hidden = !na; ac.classList.toggle("long", sure); // confirming the understanding ticks no commitment: say so, so the count does not read as a failed Confirm
@@ -1380,7 +1382,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (links) h += '<div class="links">' + links + "</div>";
     h += reconcilesHtml(q);
     if (st === "arch") h += '<div class="sup-banner"><b>Archived:</b> ' + (q.supersededBy ? "superseded by " + refHtml(q.supersededBy) + ". Answer " + refHtml(chainEnd(q)) + " instead." : q.archived ? lineHtml(q.archived.why || "off the current path") : q.proposed ? "you declined Claude's proposal." : "off the current path") + "</div>"; // a replacement named here is the one banner for a superseded, archived card
-    if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
+    if (consOf(q).length) h += '<div class="banner"><b>Upstream changed:</b> ' + esc(consOf(q).join(", ")) + " was added after this recommendation was written, and Claude has not checked it against it yet. The interview cannot lock until Claude revises or reconfirms " + esc(q.id) + ".</div>";
+    else if (isStale(q)) h += '<div class="banner"><b>' + ((q.upstreamChanged || []).length ? "Upstream changed:</b> the recommendation of " + staleBy(q).map(refHtml).join(" ") + " was revised. " : "Stale:</b> " + staleBy(q).map(p => refHtml(p) + (firstDecided(p, q) ? " was decided after you answered this" : " changed")).join("; ") + ". ") + (reconfirmOf(q) ? "Your decision is kept: Reconfirm it (key a) or pick again." : "Pick an answer.") + "</div>";
     else if (upChanged(q)) h += '<div class="lockban" id="upstreamChanged">' + (upLock(q).length ? LOCK_SVG : "") + "<b>Upstream changed, not handled yet:</b> the answer to " + changedBy(q).map(refHtml).join(" ") + " changed or was reopened, and Claude has not revised or reconfirmed " + esc(q.id) + " yet. " + (upLock(q).length ? "Save stays locked until it does; Ask, Rephrase and Research this still work." : "You can still answer.") + "</div>";
     else if (q.state === "upstream-pending" && st !== "arch") h += '<div class="lockban"><b>Waiting on ' + waitOn(q).map(refHtml).join(" ") + ":</b> an earlier answer on this path changed. Reconfirm " + esc(waitOn(q).join(", ")) + " (under Review), or answer this one anyway.</div>";
     const planned = planChange(q);

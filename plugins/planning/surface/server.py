@@ -348,6 +348,29 @@ def decision_value(e, recs):
     return (kind, recs, text) if kind == "hedged" else (kind, text)
 
 
+def unchecked_constraints(doc):
+    """{question id: the recorded constraints its `checkedAgainst` lacks}. A question with no
+    `checkedAgainst` list predates the field and is not judged."""
+    ids = [
+        c["id"]
+        for c in doc.get("constraints") or []
+        if isinstance(c, dict) and c.get("id")
+    ]
+    gaps = {}
+    for q in doc.get("questions") or []:
+        if (
+            isinstance(q, dict)
+            and q.get("id")
+            and isinstance(q.get("checkedAgainst"), list)
+            and not q.get("archived")
+            and not q.get("supersededBy")
+        ):
+            missing = [c for c in ids if c not in q["checkedAgainst"]]
+            if missing:
+                gaps[q["id"]] = missing
+    return gaps
+
+
 def derive_states(doc, r):
     """(states, upstream_changed, upstream_stale, changed_by). states maps each question id to
     (state, revising); none of the four is written to questions.json.
@@ -373,7 +396,10 @@ def derive_states(doc, r):
     a live decision on it replays. A withdrawn event never
     happened, so an undo clears what it caused. A question with a stale ancestor further up is
     upstream-pending, and upstream_stale maps it to every stale ancestor, nearest first and ties
-    by id; `archived` wins over all three, then stale, then upstream-changed. A question the
+    by id; `archived` wins over all three, then stale, then upstream-changed. A question whose
+    `checkedAgainst` lacks a recorded constraint (unchecked_constraints) is stale when it holds a
+    live decision, else upstream-changed; the constraint ids join upstream_changed and changed_by,
+    and only a revise or reconfirm that fills the list clears it. A question the
     propose op added is `proposed` until a live proposal event answers it, `archived` once the
     latest one declines it, and derived as any other question once it accepts or edits it
     (proposal_answer). `revising` marks a question with its own delivered, unhandled decision
@@ -506,6 +532,13 @@ def derive_states(doc, r):
     proposed = {qid for qid, a in answers.items() if a == "pending"} - archived
     stale -= archived
     pending = {c: ids for c, ids in pending.items() if c not in archived}
+    for qid, missing in unchecked_constraints(doc).items():
+        if qid in archived or qid in proposed:
+            continue
+        pending[qid] = [*pending.get(qid, []), *missing]
+        if live.get(qid):
+            stale.add(qid)
+            changed[qid] = [*changed.get(qid, []), *missing]
 
     def upstream(qid):  # stale ancestors, nearest first, ties by id
         seen, level, found = {qid}, list(deps.get(qid, [])), []

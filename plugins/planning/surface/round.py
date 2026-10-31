@@ -127,6 +127,7 @@ from server import (  # noqa: E402
     chain_end,
     check_alt,
     derive_states,
+    unchecked_constraints,
     is_handled,
     load_json,
     open_prereqs,
@@ -446,12 +447,21 @@ def set_aside_own(r, doc, q):
         )
 
 
+def checked_list(doc, ids):
+    """`ids` as a stored `checkedAgainst` list; refuses one the constraint ledger does not hold."""
+    known = {c["id"] for c in doc.get("constraints") or []}
+    if not isinstance(ids, list) or not set(map(str, ids)) <= known:
+        sys.exit(f"refused: checkedAgainst {ids!r} names no recorded constraint")
+    return list(dict.fromkeys(ids))
+
+
 def add_question(doc, q, repoint=False, latest=None, earlier=None):
     """Validate and append one question; returns (the questions whose rev must bump, notes about
     the dependents of a question it supersedes). `latest` is the newest round before the write
     began (default: now), so questions added in one write date against the same round; `earlier`
     is the question ids that existed before it (default: now), which `reconciles` may name.
     Exits before any write."""
+    q["checkedAgainst"] = checked_list(doc, q.get("checkedAgainst") or [])
     for req, gloss in REQUIRED_FIELDS:
         if not q.get(req):
             name = q.get("id") or (
@@ -1420,6 +1430,11 @@ def op_revise(d, doc, a):
     if alts is not None:
         q["alternatives"] = alts
         changed.append("alternatives")
+    if a.checkedAgainst is not None:
+        listed = checked_list(doc, a.checkedAgainst)
+        if listed != q.get("checkedAgainst"):
+            q["checkedAgainst"] = listed
+            changed.append("checkedAgainst")
     if commits is not None and commits != (q.get("commits") or []):
         q["commits"] = commits
         q.pop("commitsConfirmed", None)
@@ -1587,7 +1602,8 @@ def op_archive(d, doc, a):
 def op_reconfirm(d, doc, a):
     """Record that upstream-changed questions stand as asked after the answers they depend on
     changed: a history line with `reviewSeq` (the page's seq now), which the server reads as
-    clearing the mark. Refuses a question that is not upstream-changed."""
+    clearing the mark, and for a constraint the question was not checked against, that constraint
+    on its `checkedAgainst`. Refuses a question that is not upstream-changed."""
     why = capped("reconfirm why", (a.why or "").strip(), LINE_CAP)
     if not why:
         sys.exit("refused: reconfirm needs a why")
@@ -1601,7 +1617,10 @@ def op_reconfirm(d, doc, a):
             f"refused: {', '.join(idle)} not upstream-changed; nothing to reconfirm"
         )
     at = now()
+    unchecked = unchecked_constraints(doc)
     for q in qs:
+        if q["id"] in unchecked:
+            q["checkedAgainst"] = [*q["checkedAgainst"], *unchecked[q["id"]]]
         q.setdefault("history", []).append(
             {
                 "at": at,
@@ -2084,6 +2103,7 @@ OP_ARGS = {
             "text": None,
             "alternatives": None,
             "commits": None,
+            "checkedAgainst": None,
             "dependsOn": None,
             "group": None,
             "seq": None,

@@ -360,7 +360,7 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.setViewportSize({width: 1440, height: 900});
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     const sum = await text("#consSum");
-    ok("the header shows \"Constraints (2)\" for two recorded constraints", sum === "Constraints (2)" && await page.$eval("#consPanel", el => !el.hidden), sum);
+    ok("the header shows \"Constraints (2)\" for two recorded constraints", sum.startsWith("Constraints (2)") && await page.$eval("#consPanel", el => !el.hidden), sum);
     await page.click("#consSum"); await page.waitForTimeout(150);
     const items = await page.$$eval("#consList li", els => els.map(li => li.textContent));
     ok("the open panel lists each constraint with its id", items.length === 2 && items[0] === "C1Builds stop at ten minutes." && items[1] === "C2Stdlib only.", JSON.stringify(items));
