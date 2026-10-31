@@ -109,10 +109,15 @@ read the matching file on demand. These apply in every session:
 A rule that changes what a stage produces or permits belongs in this repository or a plugin, not
 in user scope. User scope keeps only personal style, meaning the voice, length and format of
 replies to the user, set in the user CLAUDE.md, user rules or an output style.
-Marketplace plugin contracts live in `docs/contracts/<name>/`; the `<concern>.yaml` and `.md`
-files in `docs/conventions/` hold this repository's plugin settings (ADR 0064). The PR pipeline
-contract stays in `docs/conventions/pr-pipeline/` until it moves under its own gate. Team
-standards live in `docs/standards/`.
+Marketplace plugin contracts live in `docs/contracts/<name>/`. Team standards live in
+`docs/standards/`.
+
+<!-- BEGIN GENERATED: convention-home -->
+Team conventions live in `docs/conventions`: its `<concern>.yaml` and `.md` files hold this repository's plugin settings (ADR 0064).
+<!-- END GENERATED: convention-home -->
+
+The PR pipeline contract stays in `docs/conventions/pr-pipeline/` until it moves under its own
+gate.
 
 ## Code Review Rules
 
