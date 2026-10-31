@@ -547,3 +547,4 @@ lib/resolve-convention-home.sh plugins/attribution/lib/resolve-convention-home.s
 lib/prerequisites.mjs plugins/app-control/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/app-control/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/app-control/lib/prerequisites.ps1
+lib/check-convention-facts.mjs plugins/developer-experience/lib/check-convention-facts.mjs
