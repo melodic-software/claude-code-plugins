@@ -510,6 +510,24 @@ test("live config: resolve-issue with a write effect is refused", () => {
   );
 });
 
+// A row the floor cannot use is refused at the schema, as the risk scorer's
+// loader refuses it: the plain-string form the key once took, and `author-lift`
+// anywhere but a `gate` row.
+const FLOOR_ROW = '      - glob: ".github/actions/check-trusted-trigger/**"\n        class: trust\n';
+for (const [name, row] of Object.entries({
+  "a plain string": '      - ".github/actions/check-trusted-trigger/**"\n',
+  "author-lift on a trust row": `${FLOOR_ROW}        author-lift: false\n`,
+  "a misspelled field": `${FLOOR_ROW}        author_lift: false\n`,
+})) {
+  test(`live config: a floor-paths row with ${name} is refused`, () => {
+    assert.ok(FILES.config.includes(FLOOR_ROW));
+    assert.throws(
+      () => resolve({ ...FILES, config: FILES.config.replace(FLOOR_ROW, row) }, { lane: "work-resolve-issue", activity: "resolve-issue", configPath: CONFIG_PATH, basePath: ".base", facts: { ...FACTS, ...ISSUE } }),
+      /fails the schema/,
+    );
+  });
+}
+
 test("live config: work-resolve-issue runs resolve-issue, then apply-issue-patch, then report-outcome", () => {
   const { lane } = resolve(FILES, {
     lane: "work-resolve-issue",

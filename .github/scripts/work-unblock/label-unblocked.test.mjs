@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, renderSplitRecord, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING } from "../intake-triage/admit.mjs";
+import { ADMIT_MARKER, doneReason, loadRules, REFINE_MARKER, refusalText, renderSplitRecord, SIZE_SPLIT_DONE, SIZE_SPLIT_MARKER, SIZE_SPLIT_PENDING } from "../intake-triage/admit.mjs";
 import { parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { createGitHub } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -4117,10 +4117,10 @@ test("a stranded issue whose re-fired run failed again is re-fired on a backoff 
 // every sub-issue (31 and 32) is closed by a listed human or a merge; the App
 // posted the split record listing them. Only that close by the App counts.
 const SPLIT_PARENT_URL = `${API}/repos/${REPO}/issues/30`;
-const splitRecordComment = (user = LANES_BOT) => ({
+const splitRecordComment = (user = LANES_BOT, { parts = [[1], [2]], filed = [31, 32] } = {}) => ({
   id: 77,
   user,
-  body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [31, 32] })}\nSplit at intake.`,
+  body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts, order: [], filed })}\nSplit at intake.`,
   created_at: STAMP,
 });
 const subIssue = (number, overrides = {}) => ({ ...issue(number, { state: "closed" }), parent_issue_url: SPLIT_PARENT_URL, ...overrides });
@@ -4128,14 +4128,15 @@ const closeParentWrites = [
   `POST /repos/${REPO}/issues/30/comments`,
   `PATCH /repos/${REPO}/issues/30 {"state":"closed","state_reason":"completed"}`,
 ];
-function splitWorld({ second = subIssue(32, { closed_by: LANES_BOT, graphCloser: mergedPr({ number: 932 }) }), record = splitRecordComment() } = {}) {
+const mergedSecond = (overrides = {}) => subIssue(32, { closed_by: LANES_BOT, graphCloser: mergedPr({ number: 932 }), ...overrides });
+function splitWorld({ second = mergedSecond(), record = splitRecordComment(), parent = issue(30), comments = [] } = {}) {
   const first = subIssue(31, { closed_at: "2026-10-16T11:30:00Z" });
   return world({
     closedList: [first],
-    issues: { 30: issue(30), 31: first, 32: second },
-    parents: { 31: issue(30) },
+    issues: { 30: parent, 31: first, 32: second },
+    parents: { 31: parent },
     subIssues: { 30: [first, second] },
-    comments: { 30: record === null ? [] : [record] },
+    comments: { 30: [...(record === null ? [] : [record]), ...comments] },
   });
 }
 const writtenPaths = (calls) => writes(calls).map((call) => (call.includes("/comments ") ? call.slice(0, call.indexOf(" {")) : call));
@@ -4160,6 +4161,72 @@ test("a split parent stays open while a sub-issue is open, or closed by someone 
     const { github, calls } = splitWorld(setup);
     assert.equal(await sweep({ github }), 0);
     assert.deepEqual(writes(calls), [], JSON.stringify(setup));
+  }
+});
+
+test("a split parent stays open, and a later sweep writes nothing, when a sub-issue closed as not planned, as a duplicate or with no close reason", async () => {
+  for (const reason of ["not_planned", "duplicate", null]) {
+    const { github, calls } = splitWorld({ second: mergedSecond({ state_reason: reason }) });
+    assert.equal(await sweep({ github }), 0);
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], String(reason));
+  }
+});
+
+const EARLIER = "2026-10-01T00:00:00Z";
+const LATER = "2026-10-16T13:00:00Z";
+test("a split record stays open when it leaves an item out or does not match the sub-issues", async () => {
+  const threeItems = { ...issue(30), body: "- [ ] One\n- [ ] Two\n- [ ] Three" };
+  for (const setup of [
+    { record: splitRecordComment(LANES_BOT, { parts: [[1], [3]] }) },
+    { parent: threeItems },
+    { record: splitRecordComment(LANES_BOT, { parts: [[1], [2], [3]] }), parent: threeItems },
+    { record: splitRecordComment(LANES_BOT, { filed: [31, 33] }) },
+  ]) {
+    const { github, calls } = splitWorld(setup);
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], JSON.stringify(setup));
+  }
+});
+
+test("an open task item a listed human left in a comment on the parent keeps it open", async () => {
+  const stays = { id: 78, user: OWNER, body: "Staying here, not in any part:\n\n- [ ] The broker change.", created_at: LATER };
+  const { github, calls } = splitWorld({ comments: [stays] });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writes(calls), []);
+  const edited = splitWorld({ comments: [{ ...stays, created_at: EARLIER, updated_at: LATER }] });
+  assert.equal(await sweep({ github: edited.github }), 0);
+  assert.deepEqual(writes(edited.calls), []);
+});
+
+test("a split parent still closes when every sub-issue completed and every item is covered", async () => {
+  for (const setup of [
+    { parent: { ...issue(30), body: "## Done when\n\n- [ ] One\n- [ ] Two" } },
+    { record: splitRecordComment(LANES_BOT, { parts: [[1, 2], [1, 2]] }), parent: { ...issue(30), body: "- [ ] One\n- [ ] Two" } },
+    { comments: [{ id: 78, user: OWNER, body: "- [ ] #32\n- [x] Settled.", created_at: LATER }] },
+    // The split took a listed human's lines from a comment written before it.
+    { comments: [{ id: 78, user: OWNER, body: "- [ ] A line a part holds.", created_at: EARLIER }] },
+    { comments: [{ id: 78, user: LANES_BOT, body: "- [ ] A refinement line a part holds.", created_at: STAMP }] },
+  ]) {
+    const { github, calls } = splitWorld(setup);
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writtenPaths(calls), closeParentWrites, JSON.stringify(setup));
+  }
+});
+
+test("the App's close of a split parent does not count for what it blocks when a sub-issue closed any way but completed", async () => {
+  for (const reason of ["not_planned", "duplicate", null]) {
+    const parent = issue(30, { state: "closed", closer: LANES_BOT, at: "2026-10-16T11:30:00Z" });
+    const { github, calls } = world({
+      closedList: [parent],
+      blockingOf: { 30: [issue(20)] },
+      issues: { 20: issue(20), 30: parent, 31: subIssue(31), 32: subIssue(32, { state_reason: reason }) },
+      blockedBy: { 20: [parent] },
+      subIssues: { 30: [subIssue(31), subIssue(32, { state_reason: reason })] },
+      comments: { 20: [note()], 30: [splitRecordComment()] },
+    });
+    assert.equal(await sweep({ github }), 0);
+    assert.deepEqual(writes(calls), [], String(reason));
   }
 });
 
@@ -4209,7 +4276,8 @@ const linked = (number, actor = OWNER, repo = REPO) => ({
   created_at: "2026-10-15T00:00:00Z",
   sub_issue: { number, repository: { full_name: repo } },
 });
-function handSplitWorld({ parent = issue(30), links = [linked(31), linked(32)], failOn } = {}) {
+const HAND_PARENT = { ...issue(30), body: "- [ ] #31\n- [ ] #32" };
+function handSplitWorld({ parent = HAND_PARENT, links = [linked(31), linked(32)], comments = [], failOn } = {}) {
   const first = subIssue(31, { closed_at: "2026-10-16T11:30:00Z" });
   const second = subIssue(32, { closed_by: LANES_BOT, graphCloser: mergedPr({ number: 932 }) });
   return world({
@@ -4217,6 +4285,7 @@ function handSplitWorld({ parent = issue(30), links = [linked(31), linked(32)], 
     issues: { 30: parent, 31: first, 32: second },
     parents: { 31: parent },
     subIssues: { 30: [first, second] },
+    comments: { 30: comments },
     events: { 30: links },
     failOn,
   });
@@ -4242,7 +4311,11 @@ test("a split made by hand stays open on an untrusted or missing link, an open t
     [{ links: [linked(31)] }, 0],
     [{ links: [linked(31), linked(32, OWNER, "melodic-software/other")] }, 0],
     [{ parent: { ...issue(30), body: "Split by hand.\n\n- [ ] One item left here." } }, 0],
-    [{ parent: issue(30, { labels: ["recurring"] }) }, 0],
+    [{ parent: { ...HAND_PARENT, labels: [{ name: "recurring" }] } }, 0],
+    // No task list at all: nothing shows a sub-issue carried the done-when.
+    [{ parent: { ...issue(30), body: "## Acceptance\n\n- A dispatched run opens one pull request." } }, 0],
+    [{ parent: issue(30) }, 0],
+    [{ comments: [{ id: 78, user: OWNER, body: "- [ ] The broker change stays here.", created_at: STAMP }] }, 0],
     [{ failOn: (method, path) => method === "GET" && path.startsWith(`/repos/${REPO}/issues/30/events`) }, 1],
   ]) {
     const { github, calls } = handSplitWorld(setup);
@@ -4251,12 +4324,19 @@ test("a split made by hand stays open on an untrusted or missing link, an open t
   }
 });
 
+test("a split made by hand whose every box is ticked closes", async () => {
+  const { github, calls } = handSplitWorld({ parent: { ...issue(30), body: "- [x] The parser\n- [X] The writer" } });
+  assert.equal(await sweep({ github }), 0);
+  assert.deepEqual(writtenPaths(calls), closeParentWrites);
+});
+
 test("the App's close of a split made by hand counts as done for what it blocks", async () => {
-  for (const [links, expected] of [
+  for (const [links, expected, body = HAND_PARENT.body] of [
     [[linked(31), linked(32)], [labeled(20)]],
     [[linked(31)], []],
+    [[linked(31), linked(32)], [], "## Acceptance\n\n- Prose only."],
   ]) {
-    const parent = issue(30, { state: "closed", closer: LANES_BOT, at: "2026-10-16T11:30:00Z" });
+    const parent = { ...issue(30, { state: "closed", closer: LANES_BOT, at: "2026-10-16T11:30:00Z" }), body };
     const { github, calls } = world({
       closedList: [parent],
       blockingOf: { 30: [issue(20)] },
@@ -4565,6 +4645,22 @@ test("a failed admission-comment refresh on a sub-issue close is a warning, not 
   });
   assert.equal(await sweep({ github }), 0);
   assert.ok(calls.some((call) => call.startsWith(`PATCH /repos/${REPO}/issues/comments/88 `)), "the refresh was tried");
+});
+
+// GitHub's sub_issues_summary leaves a duplicate close out of `completed`, so
+// the summary alone would keep this parent waiting with nothing open.
+test("a Size large parent whose every sub-issue is closed, one as a duplicate, is refused once by the rotation, with the split-done reason", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const parent = (number) => readyIssue(number, { sub_issues_summary: { total: 2, completed: 1 }, issue_dependencies_summary: { blocked_by: 0 } });
+  const subs = [subIssue(41), subIssue(42, { state_reason: "duplicate" })];
+  const refusal = `${ADMIT_MARKER}\n${refusalText(SIZE_SPLIT_DONE)}`;
+  const first = readyWorld({ items: [parent(36)], fields: LARGE_LOW_KNOWN, extra: { comments: { 36: [admissionNote("sub-issue #42 is open")] }, subIssues: { 36: subs } } });
+  assert.equal(await sweep({ github: first.github, admission: admissionFor() }, PAUSING), 0);
+  assert.ok(writes(first.calls).includes(`PATCH /repos/${REPO}/issues/comments/88 ${JSON.stringify({ body: refusal })}`), writes(first.calls).join("\n"));
+  assert.ok(writes(first.calls).some((call) => call.startsWith(`DELETE /repos/${REPO}/issues/36/labels/`)));
+  const again = readyWorld({ items: [parent(36)], fields: LARGE_LOW_KNOWN, extra: { comments: { 36: [{ ...admissionNote("x"), body: refusal }] }, subIssues: { 36: subs } } });
+  assert.equal(await sweep({ github: again.github, admission: admissionFor() }, PAUSING), 0);
+  assert.ok(!writes(again.calls).some((call) => call.includes("/comments")));
 });
 
 test("the sweep's rotation reads no comments of a held or queued parent", async () => {

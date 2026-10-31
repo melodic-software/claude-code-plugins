@@ -40,9 +40,14 @@ PR = {
     "base": {"sha": BASE, "repo": {"private": False}},
 }
 # Path holds on: these tests read what lifts one.
+# This repository's rows, which the floor paths below sit on.
+FLOOR_ROWS = policy.floor_paths_in(
+    (pathlib.Path(__file__).resolve().parents[6] / "docs/conventions/pr-pipeline.yaml").read_text(encoding="utf-8")
+)
 CONFIG = policy.PipelineConfig(
     "c" * 40, "C2", "pr-merge", "agent-lanes[bot]", None, (), "c2-mechanical",
     path_holds=True,
+    floor_paths=FLOOR_ROWS,
 )  # fmt: skip
 DOC = ChangedFile(
     "docs/guide.md",
@@ -150,7 +155,7 @@ def scored(
         return ve.lane_risk_refusal(REPO, 41, PR, config, 7, humans=lambda: humans)
 
 
-# A path on the floor (babysit_risk.HIGH_FLOOR), held as `high-path:` until a
+# A path on the floor (`Floor.high`), held as `high-path:` until a
 # trusted person approves the head, as ci-status lifts it (merge-holds.mjs
 # pathLifters). Kyle (id 5) is trusted, id 9 is not.
 FLOORED = dataclasses.replace(DOC, path=".github/actions/resolve-config/resolve.mjs")
@@ -377,9 +382,9 @@ def carried(
     with mock.patch.object(policy, "_get", side_effect=get):
         rows = [approval()] if reviews is None else reviews
         if not any(r.get("state") == "DISMISSED" for r in rows):
-            return policy.carried_lifters(REPO, pr, rows, TRUSTED)
+            return policy.carried_lifters(REPO, pr, rows, TRUSTED, floor=policy.floor_for(FLOOR_ROWS))
         with mock.patch.object(policy, "_paginated", side_effect=paginated):
-            return policy.carried_lifters(REPO, pr, rows, TRUSTED)
+            return policy.carried_lifters(REPO, pr, rows, TRUSTED, floor=policy.floor_for(FLOOR_ROWS))
 
 
 class ALiftCarriesOverABaseMerge(unittest.TestCase):
@@ -570,7 +575,7 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
         for answer in ((404, None), (200, {"object": {"sha": "main"}})):
             with self.subTest(answer), mock.patch.object(policy, "_get", return_value=answer):
                 self.assertEqual(
-                    policy.carried_lifters(REPO, CARRIED_PR, [approval()], TRUSTED), []
+                    policy.carried_lifters(REPO, CARRIED_PR, [approval()], TRUSTED, floor=policy.floor_for(FLOOR_ROWS)), []
                 )
 
     def test_a_label_removal_lifts_nothing(self) -> None:
@@ -668,7 +673,7 @@ class LaneRiskRefusal(unittest.TestCase):
                 self.assertIs(held[1], person, held)
 
 
-# An enforcement floor path (babysit_risk.REVIEW_FLOOR) the gate holds as
+# An enforcement floor path (`Floor.review`) the gate holds as
 # `review-path:` until the security review binds clean (owner decision Q26
 # option B), as pull request #10908 was held: its security lane bound to the
 # head with open findings below CRITICAL that the lanes App resolved, which

@@ -120,7 +120,10 @@ set, distribution facts, recheck triggers: [reference/bundled-claude-api.md](ref
 - **This skill (marketplace plugin).** Report-only catalog audit that adds over-prescription with
   target-model scope, stale Claude Code behavior claims, and the cross-surface conflict pass.
 
-**Routing.** At the end of the run, offer it to the person: you can run `/doctor prompt-audit`
+**Routing.** At the end of the run, offer it to the person:
+If /doctor is available in your session (gate basis: `DISABLE_DOCTOR_COMMAND` or a
+`skillOverrides` entry hides it, and its `prompt-audit` needs the bundled `claude-api` skill; records in
+[reference/native-doctor.md](reference/native-doctor.md)), you can run `/doctor prompt-audit`
 alongside this skill. An unattended run records the offer in its output instead of asking.
 **Mutation gate.** Never ask the audit to apply its proposals, and never chain into `/doctor`.
 **Availability is never assumed.** Offer it only when `doctor` and the bundled `claude-api` skill

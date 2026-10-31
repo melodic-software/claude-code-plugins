@@ -475,6 +475,48 @@ else
 fi
 rm -rf "$f"
 
+# --- a branch behind its base is judged on its own changes ------------------
+# The base moves on with an unbumped vendor edit to alpha after the branch
+# forks. Against the base's tip that edit reads as the branch's; against the
+# merge base it is not in the change set at all.
+base_fixture f
+fork="$(git -C "$f" rev-parse HEAD)"
+echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
+git -C "$f" add -A
+git_test_config "$f" commit -qm 'base moves on'
+base_tip="$(git -C "$f" rev-parse HEAD)"
+git -C "$f" checkout -q "$fork"
+echo tweak >"$f/plugins/alpha/README.md"
+if out="$(run_gate "$f" --check-bump "$base_tip" 2>&1)" && grep -q "No plugin vendor/ tree changed vs $base_tip" <<<"$out"; then
+  ok "a branch behind its base is not judged on the base's later vendor edit"
+else
+  fail "a branch behind its base should pass on its own unvendored change, got: $out"
+fi
+echo 'module.exports = 2;' >"$f/plugins/beta/vendor/pkg/index.js"
+if out="$(run_gate "$f" --check-bump "$base_tip" 2>&1)"; then
+  fail "a behind branch's own unbumped vendor edit should fail, got success: $out"
+elif grep -q "STALE VERSION: a vendor/ tree of plugins/beta/ changed vs $base_tip" <<<"$out" && ! grep -q "plugins/alpha/" <<<"$out"; then
+  ok "a behind branch's own unbumped vendor edit still fails, naming the ref as given"
+else
+  fail "expected STALE VERSION for beta only, vs $base_tip, got: $out"
+fi
+rm -rf "$f"
+
+# --- no merge base with HEAD is a loud exit, not a pass ---------------------
+base_fixture f
+base_tip="$(git -C "$f" rev-parse HEAD)"
+git -C "$f" checkout -q --orphan unrelated
+git_test_config "$f" commit -qm unrelated
+echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
+status=0
+out="$(run_gate "$f" --check-bump "$base_tip" 2>&1)" || status=$?
+if [[ "$status" -eq 2 && "$out" == *"git merge-base"*"failed"* ]]; then
+  ok "a base ref with no merge base with HEAD exits 2"
+else
+  fail "no merge base should exit 2 naming git merge-base, got status $status: $out"
+fi
+rm -rf "$f"
+
 # --- usage and unresolvable base ref exit 2 ---------------------------------
 base_fixture f
 expect_exit_2() {

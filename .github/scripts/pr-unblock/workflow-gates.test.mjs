@@ -183,6 +183,13 @@ test("pr-feedback-dispatch.yml sweeps only after a scheduled pr-unblock-dispatch
   }
 });
 
+// A needs-human unlabel reaches pr-feedback-dispatch.yml only through this
+// run's completion, so dropping the type strands a head the human gate skipped.
+test("pr-merge.yml wakes on a pull request's unlabeled event", () => {
+  const text = readFileSync(new URL("../../workflows/pr-merge.yml", import.meta.url), "utf8");
+  assert.match(text, /\n {2}pull_request_target:.*\n {4}types: \[unlabeled\]\n/);
+});
+
 test("pr-feedback-dispatch.yml decides a lane branch's head again after a pull_request_target run of pr-merge.yml, whatever its conclusion", () => {
   const gate = jobIf("pr-feedback-dispatch.yml", "dispatch");
   const repo = "melodic-software/claude-code-plugins";
