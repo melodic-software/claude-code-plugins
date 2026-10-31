@@ -30,7 +30,7 @@ r=""
 STUB="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 cat >"$STUB" <<'EOF'
 #!/usr/bin/env bash
-printf 'args=%s root=%s base=%s descbaseline=[%s]\n' "$*" "$CHECK_SKILL_SKILLS_ROOT" "$CHECK_SKILL_BASE_REF" "${CHECK_SKILL_DESC_FIELD_BASELINE-}" >>"$CHECK_LOG"
+printf 'args=%s root=%s base=%s\n' "$*" "$CHECK_SKILL_SKILLS_ROOT" "$CHECK_SKILL_BASE_REF" >>"$CHECK_LOG"
 for arg in "$@"; do
   [[ "$arg" == "broken" ]] && exit 1
 done
@@ -436,39 +436,7 @@ else
 fi
 rm -rf "$r"
 
-# --- description field-cap baseline is handed to the checker (#3845) -------
-# The gate owns WHERE the recorded pre-existing breaches live; check-skill.sh owns
-# what a row means. These two cases pin the handoff: present file goes through as
-# an absolute path, absent file goes through EMPTY rather than as a path that is
-# not there — empty means "no downgrades", which is the strict direction.
-mk_repo r
-add_skill "$r" p1 alpha
-commit_all "$r" base >/dev/null
-b="$(base_sha "$r")"
-add_skill "$r" p1 alpha SKILL.md
-printf '%s\n' 'plugins/p1/skills/alpha' >"$r/scripts/skill-description-cap-baseline.txt"
-run "$r" "$b" >/dev/null 2>&1
-if grep -q "descbaseline=\[$r/scripts/skill-description-cap-baseline.txt\]" "$r/checklog" 2>/dev/null; then
-  ok "the recorded description-cap baseline is passed to the checker"
-else
-  fail "expected the baseline path in the checker env, got: $(cat "$r/checklog" 2>/dev/null)"
-fi
-rm -rf "$r"
-
-mk_repo r
-add_skill "$r" p1 alpha
-commit_all "$r" base >/dev/null
-b="$(base_sha "$r")"
-add_skill "$r" p1 alpha SKILL.md
-run "$r" "$b" >/dev/null 2>&1
-if grep -q 'descbaseline=\[\]' "$r/checklog" 2>/dev/null; then
-  ok "no baseline file means an empty setting (no downgrades), not a missing path"
-else
-  fail "expected an empty baseline setting, got: $(cat "$r/checklog" 2>/dev/null)"
-fi
-rm -rf "$r"
-
-# --- integration: an over-cap description fails the gate, baselined passes --
+# --- integration: an over-cap description fails the gate --------------------
 # End to end through the real checker, because the acceptance this covers is
 # that a breach fails in the repository's NORMAL validation path, not that a
 # constant somewhere reads 1024.
@@ -514,19 +482,6 @@ else
   else
     fail "gate failed but not on the field cap: $out"
   fi
-fi
-rm -rf "$r"
-
-mk_over_cap_repo r
-printf '%s\n' 'plugins/p1/skills/wordy' >"$r/scripts/skill-description-cap-baseline.txt"
-commit_all "$r" base >/dev/null
-b="$(base_sha "$r")"
-printf '\n## Notes\n\nTouched.\n' >>"$r/plugins/p1/skills/wordy/SKILL.md"
-if (cd "$r" && CHECK_SKILL_BIN="$r/plugins/skill-quality/scripts/check-skill.sh" \
-  bash scripts/check-changed-skills.sh "$b") >/dev/null 2>&1; then
-  ok "a recorded pre-existing breach passes the changed-skill gate"
-else
-  fail "a baselined over-cap description should pass the changed-skill gate"
 fi
 rm -rf "$r"
 
