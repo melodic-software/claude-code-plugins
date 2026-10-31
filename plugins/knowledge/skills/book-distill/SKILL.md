@@ -9,7 +9,7 @@ disable-model-invocation: false
 
 Transform technical books into structured skill reference files that provide the WHY behind decisions during development. This is a multi-session process. Each session handles ~3 chapters. The skill produces concept-organized reference files with author attribution, suitable for progressive disclosure in Claude Code skills.
 
-Write the files into the **target skill** named at invocation, an existing skill to extend or a new one, at `${CLAUDE_PROJECT_DIR}/.claude/skills/<target-slug>/`. **Slugify the target name** (lowercase alphanumerics and hyphens only; strip `/`, `\`, and `..`) before building any path, and verify the resolved directory stays under `${CLAUDE_PROJECT_DIR}/.claude/skills/` before writing.
+Write the files into the **target skill** named at invocation, an existing skill to extend or a new one, at `<session-root>/.claude/skills/<target-slug>/`. `<session-root>` follows the knowledge plugin's one rule, `${CLAUDE_PLUGIN_ROOT}/reference/work-root.md`, with no `library_dir` join; resolve it once from the session's working directory with `node "${CLAUDE_PLUGIN_ROOT}/scripts/work-root.mjs"`. **Slugify the target name** (lowercase alphanumerics and hyphens only; strip `/`, `\`, and `..`) before building any path, and verify the resolved directory stays under `<session-root>/.claude/skills/` before writing.
 
 The `context/` and `templates/` files write the plugin data directory as `<plugin-data>`. Put the `${CLAUDE_PLUGIN_DATA}` path this body shows in its place before a path from those files goes into a command or a file write.
 
@@ -31,7 +31,7 @@ This tool is a neutral distiller: it applies a method, it does not judge what yo
 
 ## Emit checklist
 
-For multi-session book distillation (Phases 1-5 split across sessions), copy `${CLAUDE_PLUGIN_ROOT}/skills/book-distill/templates/checklist.md` into `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-checklist.md`. Derive `{project-slug}` per Phase 1.4 (basename + path-hash discriminator) and `{target-skill-slug}` from the target skill name (Phase 1.1), each slugified to lowercase alphanumerics and hyphens. Tick each phase as completed; the ticked state IS the cross-session resume pointer. We keep cross-session state in `${CLAUDE_PLUGIN_DATA}` so it outlives the session. Phase 3 SKIPPED for thin / single-chapter books.
+For multi-session book distillation (Phases 1-5 split across sessions), copy `${CLAUDE_PLUGIN_ROOT}/skills/book-distill/templates/checklist.md` into `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-checklist.md`. `{project-slug}` is the progress key (Phase 1.4); derive `{target-skill-slug}` from the target skill name (Phase 1.1), slugified to lowercase alphanumerics and hyphens. Tick each phase as completed; the ticked state IS the cross-session resume pointer. We keep cross-session state in `${CLAUDE_PLUGIN_DATA}` so it outlives the session. Phase 3 SKIPPED for thin / single-chapter books.
 
 - **Pointer**: when deciding whether state under `${CLAUDE_PLUGIN_DATA}` will still be there next session, fetch <https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables> live.
 - **As of**: 2026-10-11
@@ -45,7 +45,7 @@ Run this phase once at the start of a new book.
 
 Extend an existing skill when the book's discipline matches one; otherwise create one. Keep one skill per discipline, never a catch-all.
 
-When the target skill does not exist, create it before writing any reference file: `${CLAUDE_PROJECT_DIR}/.claude/skills/{target-skill-slug}/` with an empty `reference/` subdirectory and a minimal `SKILL.md` (frontmatter `name` + `description` naming the discipline, plus an empty routing table for Phase 4 to extend). Without this skeleton, Phase 2 and Phase 4 fail or orphan files.
+When the target skill does not exist, create it before writing any reference file: `<session-root>/.claude/skills/{target-skill-slug}/` with an empty `reference/` subdirectory and a minimal `SKILL.md` (frontmatter `name` + `description` naming the discipline, plus an empty routing table for Phase 4 to extend). Without this skeleton, Phase 2 and Phase 4 fail or orphan files.
 
 ### 1.2 Survey the book
 
@@ -62,7 +62,7 @@ Map chapters to output files. Group related chapters into single files when they
 
 ### 1.4 Create the progress file
 
-Save a progress file under `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/` (named by book slug, e.g. `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-progress.md`) capturing book title/author/path/page-offset, a File plan table (File · Chapters · PDF pages · Status), and a Session log. Derive `{project-slug}` from the basename of `${CLAUDE_PROJECT_DIR}` slugified to lowercase alphanumerics and hyphens, then append `-` plus the first 8 hex chars of the SHA-256 of the resolved absolute project path (`printf '%s' "<resolved-project-path>" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8`, the fallback covers stock macOS, which ships `shasum` but not GNU `sha256sum`), the basename alone collides when two clones or worktrees share a directory name (`/tmp/api` vs `~/work/api`). Derive `{target-skill-slug}` from the target skill name (Phase 1.1), slugified the same way, so distilling the same book in different projects or into different target skills never collides. Its lifetime is the data directory's (record under [Emit checklist](#emit-checklist); as of 2026-10-11; recheck trigger: that heading is renamed or the record leaves it). Fill-in template in [context/templates.md](context/templates.md) "Progress file".
+Save a progress file under `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/` (named by book slug, e.g. `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-progress.md`) capturing book title/author/path/page-offset, a File plan table (File · Chapters · PDF pages · Status), and a Session log. `{project-slug}` is the progress key `node "${CLAUDE_PLUGIN_ROOT}/scripts/work-root.mjs" --progress-key` prints, run from the session's working directory: the session root's slugified basename plus a hash of its path (rule in `${CLAUDE_PLUGIN_ROOT}/reference/work-root.md`), so two clones or worktrees that share a directory name (`/tmp/api` vs `~/work/api`) never share state. Derive `{target-skill-slug}` from the target skill name (Phase 1.1), slugified the same way, so distilling the same book in different projects or into different target skills never collides. Its lifetime is the data directory's (record under [Emit checklist](#emit-checklist); as of 2026-10-11; recheck trigger: that heading is renamed or the record leaves it). Fill-in template in [context/templates.md](context/templates.md) "Progress file".
 
 ### 1.5 Session budget
 
