@@ -154,12 +154,13 @@ function parseOutput(output) {
   return parsed;
 }
 
-// One output from each chunk's: the worst verdict, each chunk's summary, and
-// the notes, unprefixed since each starts with its path (verify-notes.mjs
-// noteComments). The worst chunks come first, so the cuts in buildVerdict
-// never drop a fail's notes for a pass-notes chunk's. A single chunk is its
-// own output.
-export function mergeChunks(outputs) {
+// One output from each chunk's and the whole-spec judgment's: the worst
+// verdict, each summary, and the notes, unprefixed since each starts with its
+// path (verify-notes.mjs noteComments). The worst come first, so the cuts in
+// buildVerdict never drop a fail's notes for a pass-notes chunk's. A single
+// chunk is its own output; two or more never stand without `final`, so no
+// chunk's pass or pass-notes becomes the head's alone.
+export function mergeChunks(outputs, final) {
   if (!Array.isArray(outputs) || outputs.length === 0) {
     throw new Error("no chunk left an output");
   }
@@ -167,15 +168,37 @@ export function mergeChunks(outputs) {
   if (chunks.length === 1) {
     return chunks[0];
   }
-  const worst = chunks
-    .map((chunk, i) => ({ ...chunk, k: i + 1 }))
-    .sort((a, b) => VERDICTS.indexOf(b.verdict) - VERDICTS.indexOf(a.verdict) || a.k - b.k);
-  const room = Math.floor(SUMMARY_MAX / chunks.length) - 1;
+  if (final === undefined || final === null) {
+    throw new Error("the whole-spec judgment left no output");
+  }
+  const worst = [...chunks.map((chunk, i) => ({ ...chunk, label: `Chunk ${i + 1} of ${chunks.length}` })), { ...parseOutput(final), label: "Whole spec" }].sort(
+    (a, b) => VERDICTS.indexOf(b.verdict) - VERDICTS.indexOf(a.verdict),
+  );
+  const room = Math.floor(SUMMARY_MAX / worst.length) - 1;
   return {
     verdict: worst[0].verdict,
-    summary: worst.map(({ k, verdict, summary }) => `Chunk ${k} of ${chunks.length}, ${verdict}: ${summary}`.slice(0, room)).join("\n"),
+    summary: worst.map(({ label, verdict, summary }) => `${label}, ${verdict}: ${summary}`.slice(0, room)).join("\n"),
     notes: worst.flatMap((chunk) => chunk.notes),
   };
+}
+
+// The most one chunk's result file holds, so one Read returns it whole
+// (pr-verify.yml PART_BYTES).
+const RESULT_BYTES = 15000;
+
+// What the whole-spec judgment reads of one chunk: its checked output, cut to
+// one Read, with the count of notes that did not fit.
+function chunkResult(output, k, count) {
+  const { verdict, summary, notes } = parseOutput(output);
+  const result = { chunk: k, of: count, verdict, summary: summary.slice(0, SUMMARY_MAX), notes: [], notes_left_out: 0 };
+  for (const note of notes.map((text) => text.slice(0, NOTE_MAX))) {
+    if (Buffer.byteLength(JSON.stringify({ ...result, notes: [...result.notes, note] })) > RESULT_BYTES) {
+      result.notes_left_out += 1;
+    } else {
+      result.notes.push(note);
+    }
+  }
+  return result;
 }
 
 export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [], capture, prBody }) {
@@ -271,12 +294,14 @@ export function checkKeyLeg(env = process.env) {
       throw new Error(`${key} is not set`);
     }
   }
-  // Every chunk listed here ran, so a blank line is a leg that left no log.
-  const logs = env.LOG_FILES.replace(/\n$/, "").split("\n");
-  if (logs.some((line) => line.trim() === "")) {
+  // Every chunk listed ran, so a blank line is a leg that left no log. The
+  // whole-spec leg lists every slot, and CHUNKS says how many ran before it.
+  const lines = env.LOG_FILES.replace(/\n$/, "").split("\n");
+  const logs = fileList(env.LOG_FILES);
+  if (logs.length !== (env.CHUNKS ? Number(env.CHUNKS) + 1 : lines.length)) {
     throw new Error("the run log is unreadable");
   }
-  logs.forEach((line) => checkLog(line.trim()));
+  logs.forEach(checkLog);
   appendFileSync(env.GITHUB_OUTPUT, "clean=true\n");
 }
 
@@ -353,6 +378,78 @@ export function retentionDays(verdict, mayRelink = true) {
   return ["pass", "pass-notes"].includes(verdict) && mayRelink === false ? 7 : 90;
 }
 
+// Each chunk's checked output, in order: every chunk ran, read all its parts
+// whole and hit no denial, or this throws.
+function chunkOutputs(env) {
+  const executions = fileList(env.EXECUTION_FILES);
+  const logs = fileList(env.LOG_FILES);
+  const chunkDirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-[1-9]$/.test(name));
+  const count = Number(env.CHUNKS);
+  if (!/^[1-9]$/.test(env.CHUNKS) || executions.length !== count || logs.length !== count || chunkDirs.length !== count) {
+    throw new Error(`the chunk count does not match ${executions.length} run(s), ${logs.length} log(s) and ${chunkDirs.length} chunk(s) of the diff`);
+  }
+  const outputs = executions.map((file, i) => {
+    try {
+      const messages = readExecution(file);
+      const dir = path.join(env.DIFF_DIR, `chunk-${i + 1}`);
+      readCoverage(
+        messages,
+        readdirSync(dir).map((name) => path.join(dir, name)),
+      );
+      const output = structuredOutput(messages);
+      checkLog(logs[i]);
+      return output;
+    } catch (error) {
+      throw new Error(`chunk ${i + 1} of ${count}: ${error.message}`);
+    }
+  });
+  return { count, outputs };
+}
+
+function readExecution(file) {
+  try {
+    return JSON.parse(readFileSync(file, "utf8"));
+  } catch {
+    throw new Error("the execution file is unreadable");
+  }
+}
+
+// The whole-spec judgment's output: it ran, read every chunk's result whole
+// and hit no denial, or this throws.
+function finalOutput(env, count) {
+  try {
+    for (const key of ["FINAL_EXECUTION_FILE", "FINAL_LOG_FILE", "RESULTS_DIR"]) {
+      if (!env[key]) {
+        throw new Error(`${key} is not set`);
+      }
+    }
+    const messages = readExecution(env.FINAL_EXECUTION_FILE);
+    readCoverage(
+      messages,
+      Array.from({ length: count }, (_, i) => path.join(env.RESULTS_DIR, `chunk-${i + 1}.json`)),
+    );
+    const output = structuredOutput(messages);
+    checkLog(env.FINAL_LOG_FILE);
+    return output;
+  } catch (error) {
+    throw new Error(`the whole-spec judgment: ${error.message}`);
+  }
+}
+
+// The files the whole-spec judgment reads, one per chunk, written only when
+// every chunk's output holds.
+export function writeChunkResults(env = process.env) {
+  for (const key of ["EXECUTION_FILES", "LOG_FILES", "CHUNKS", "DIFF_DIR", "RESULTS_DIR"]) {
+    if (!env[key]) {
+      throw new Error(`${key} is not set`);
+    }
+  }
+  const { count, outputs } = chunkOutputs(env);
+  const results = outputs.map((output, i) => chunkResult(output, i + 1, count));
+  mkdirSync(env.RESULTS_DIR, { recursive: true });
+  results.forEach((result) => writeFileSync(path.join(env.RESULTS_DIR, `chunk-${result.chunk}.json`), `${JSON.stringify(result)}\n`));
+}
+
 export function main(env = process.env) {
   for (const key of [
     "EXECUTION_FILES",
@@ -372,34 +469,8 @@ export function main(env = process.env) {
       throw new Error(`${key} is not set`);
     }
   }
-  const executions = fileList(env.EXECUTION_FILES);
-  const logs = fileList(env.LOG_FILES);
-  const chunkDirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-[1-9]$/.test(name));
-  const count = Number(env.CHUNKS);
-  if (!/^[1-9]$/.test(env.CHUNKS) || executions.length !== count || logs.length !== count || chunkDirs.length !== count) {
-    throw new Error(`the chunk count does not match ${executions.length} run(s), ${logs.length} log(s) and ${chunkDirs.length} chunk(s) of the diff`);
-  }
-  const outputs = executions.map((file, i) => {
-    try {
-      let messages;
-      try {
-        messages = JSON.parse(readFileSync(file, "utf8"));
-      } catch {
-        throw new Error("the execution file is unreadable");
-      }
-      const dir = path.join(env.DIFF_DIR, `chunk-${i + 1}`);
-      readCoverage(
-        messages,
-        readdirSync(dir).map((name) => path.join(dir, name)),
-      );
-      const output = structuredOutput(messages);
-      checkLog(logs[i]);
-      return output;
-    } catch (error) {
-      throw new Error(`chunk ${i + 1} of ${count}: ${error.message}`);
-    }
-  });
-  const output = mergeChunks(outputs);
+  const { count, outputs } = chunkOutputs(env);
+  const output = mergeChunks(outputs, count > 1 ? finalOutput(env, count) : undefined);
   let linkedIssues;
   try {
     linkedIssues = JSON.parse(readFileSync(env.SPEC_FILE, "utf8"));
@@ -459,6 +530,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     if (process.argv[2] === "check-key-leg") {
       checkKeyLeg();
+    } else if (process.argv[2] === "chunk-results") {
+      writeChunkResults();
     } else {
       main();
     }

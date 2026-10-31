@@ -2215,7 +2215,11 @@ is split at file boundaries into at most 4 chunks of at most 300000 bytes, each 
 (`chunk-diff.sh`, `split-diff.py`; the same budget as `pr-review-main`), and each chunk gets its own
 judge step with the same spec, cut into parts one Read returns whole. A chunk counts only when it
 read every part whole and hit no permission denial. Any chunk's `fail` fails the head, with that
-chunk's notes first; a `pass-notes` makes it `pass-notes`. A chunk that fails, leaves no verdict or
+chunk's notes first; a `pass-notes` makes it `pass-notes`. A head of two chunks or more also needs
+a final judge step, `Judge the whole spec`, denied the diff: it reads the spec and every chunk's
+checked result as untrusted data (`spec-prompt.md`) and fails any done-when item no chunk says it
+delivers. With no output from it, off the schema, or with a denial, the head gets no verdict, so
+no chunk's `pass-notes` passes a chunked head alone. A single chunk has no final step. A chunk that fails, leaves no verdict or
 is off the schema leaves no verdict for the head, and a handoff from any chunk hands the whole
 judgment to the next leg, which judges every chunk again. A file over 300000 bytes, or a diff that
 needs more than 4 chunks (over about 1.2 MB), ends the run red with no verdict and an error naming
