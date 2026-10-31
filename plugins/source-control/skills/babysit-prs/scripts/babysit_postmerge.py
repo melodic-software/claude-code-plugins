@@ -165,14 +165,17 @@ UNATTRIBUTABLE_GATES = frozenset({"gitleaks failed"})
 # affected set of the merges since the branch's last green full run, or no
 # suite can be named. The unit is the suite (a test file). Only a test leg
 # whose one failed step is its suite step names its suites, from its log: the
-# runner's `FAIL: <suite>` lines, or each pytest invocation's summary. The
+# runner's `FAIL: <suite>` lines, or the exit line the step prints after each
+# pytest invocation, which carries the step's nonce. The
 # affected set is scripts/plan-test-lanes.sh, the PR runs' own selector, over
 # the paths changed since the last green full run's SHA, run from a worktree
 # of that green SHA (so no merge judged can narrow its own set) with no token
 # in its environment; a window that changes the selector, or a plan that
 # picks nothing, has no set. A suite inside the set always
-# demotes, quarantined or not. A suite outside it demotes nothing and is
-# quarantined: with no open quarantine issue it gets one (`file_quarantines`);
+# demotes, quarantined or not. A suite outside it that failed again on a
+# re-run demotes unless it shows non-determinism: it passed on an earlier
+# attempt, or it also failed at that green SHA (`_Context._nondeterministic`).
+# Any other suite outside it demotes nothing and is quarantined: with no open quarantine issue it gets one (`file_quarantines`);
 # an open one older than `merge.quarantine-days` (the smaller of its value at
 # that green SHA and at the red run's, `_Context._quarantine_days`) makes it
 # demote again. The
@@ -928,18 +931,20 @@ _BASH_ADVISORY = re.compile(
     r"(?:::warning(?: title=[^:]*)?::|##\[warning\])(\S+) failed \(exit \d+\) but is advisory"
     r" on this run \(nonce ([0-9a-f]{16})[;)]"
 )
-_PYTEST_CALL = re.compile(r"python -m pytest .* -- (\S+)")
-_PYTEST_SUMMARY = re.compile(
-    r"=*\s*(no tests ran|\d+ [a-z]+(?:, \d+ [a-z]+)*) in \d+(?:\.\d+)?s\b.*"
-)
+# The Python step prints the same nonce line and repeats the nonce in its call
+# and exit lines: a suite's captured output cannot carry it, so pytest's own
+# output, its summary included, names nothing.
+_PYTEST_CALL = re.compile(r"python -m pytest .* -- (\S+) # nonce ([0-9a-f]{16})")
+_PYTEST_EXIT = re.compile(r"pytest exit (\d+) -- (\S+) # nonce ([0-9a-f]{16})")
 
 
 def suite_failures(log: str, kind: str) -> frozenset[str] | None:
     """The suites a test leg's log shows failing, or None when the log cannot
     name every one: a suite with no result, a discriminating skip (which
     fails the leg with no suite failed), or no failing suite at all.
-    `kind` is "bash" (scripts/run-plugin-tests.sh) or "python" (one pytest
-    invocation per suite, echoed by `xargs -t`)."""
+    `kind` is "bash" (scripts/run-plugin-tests.sh) or "python" (the test-python
+    leg's step in pr-require-checks.yml, whose nonce must appear exactly once:
+    a second line means a suite printed one, and a log with none is unframed)."""
     lines = [_LOG_STAMP.sub("", line.rstrip("\r")) for line in log.split("\n")]
     failed: set[str] = set()
     if kind == "bash":
@@ -969,21 +974,19 @@ def suite_failures(log: str, kind: str) -> frozenset[str] | None:
         failed &= started
         failed -= advisory
     else:
-        suite: str | None = None
-        outcome: str | None = None
-        for line in [*lines, None]:
-            m = _PYTEST_CALL.fullmatch(line) if line is not None else None
-            if line is None or m:
-                if suite is not None:
-                    if outcome is None:
-                        return None
-                    if outcome == "failed":
-                        failed.add(suite)
-                suite, outcome = (m[1], None) if m else (None, None)
-            elif suite is not None and (s := _PYTEST_SUMMARY.fullmatch(line)):
-                words = {w.split(" ")[-1] for w in s[1].split(", ")}
-                bad = s[1] == "no tests ran" or words & {"failed", "error", "errors"}
-                outcome = "failed" if bad else "passed"
+        nonces = [m[1] for line in lines if (m := _BASH_NONCE.fullmatch(line))]
+        if len(nonces) != 1:
+            return None
+        called: set[str] = set()
+        exits: dict[str, str] = {}
+        for line in lines:
+            if (m := _PYTEST_CALL.fullmatch(line)) and m[2] == nonces[0]:
+                called.add(m[1])
+            elif (m := _PYTEST_EXIT.fullmatch(line)) and m[3] == nonces[0]:
+                exits[m[2]] = m[1]
+        if called != set(exits):
+            return None
+        failed = {suite for suite, code in exits.items() if code != "0"}
     if not failed or not all(_SUITE_RE.fullmatch(f) for f in failed):
         return None
     return frozenset(failed)
@@ -1170,6 +1173,7 @@ class _Context:
     quarantine_days: int | None = None
     quarantine_days_cache: dict[int, int] = field(default_factory=dict)
     green_cache: dict[int, Run | None] = field(default_factory=dict)
+    full_runs_cache: dict[str, list[Run]] = field(default_factory=dict)
     # The full runs the check already listed, which `superseded` reads
     # instead of a listing of its own.
     held_full_runs: dict[int, tuple[str, Run]] = field(default_factory=dict)
@@ -1315,9 +1319,10 @@ class _Context:
         """The checks among `checks` (failing on `attempt` of `run`) that
         demote: any whose suites cannot be named, and any with a failing
         suite that is a gate suite, is in the merges' affected set (or no set
-        can be computed), or is outside it under an expired quarantine
-        issue. Each other failing suite, outside the set, is recorded in
-        `quarantines`."""
+        can be computed), failed again on a re-run with no evidence of
+        non-determinism (`_nondeterministic`), or is outside the set under an
+        expired quarantine issue. Each other failing suite, outside the set,
+        is recorded in `quarantines`."""
         key = (run.id, attempt, checks)
         if key in self.demoting_cache:
             return self.demoting_cache[key]
@@ -1335,6 +1340,10 @@ class _Context:
                         is_gate_suite(suite)
                         or (affected := self.affected(run)) is None
                         or suite in affected
+                        or (
+                            attempt > 1
+                            and not self._nondeterministic(run, attempt, check, suite)
+                        )
                     ):
                         demote.add(check)
                         continue
@@ -1354,6 +1363,47 @@ class _Context:
             self.quarantines[(q.suite, q.run_url)] = q
         self.demoting_cache[key] = frozenset(demote)
         return self.demoting_cache[key]
+
+    def _nondeterministic(self, run: Run, attempt: int, check: str, suite: str) -> bool:
+        """Whether `suite`, failing `check` again on re-run `attempt` of `run`,
+        shows non-determinism: an earlier attempt of the same commit names
+        other failures but not it, or a full run at the last green commit
+        failed it on some attempt. An attempt whose suites cannot be named
+        shows neither."""
+        for earlier in range(1, attempt):
+            names = self.failing_suites(run.id, earlier, check)
+            if names is not None and suite not in names:
+                return True
+        green = self._last_green(run)
+        return green is not None and any(
+            suite in (self.failing_suites(r.id, n, failing) or ())
+            for r in self._full_runs_at(green.head_sha)
+            for n in range(1, r.attempt + (r.conclusion != "success"))
+            for failing in self.failing_checks(r.id, n)
+        )
+
+    def _full_runs_at(self, commit: str) -> list[Run]:
+        """The branch's full runs at `commit`, of both events. A failed read
+        raises."""
+        if commit not in self.full_runs_cache:
+            self.full_runs_cache[commit] = [
+                r
+                for event in FULL_RUN_EVENTS.values()
+                for r in _run_rows(
+                    _paginated(
+                        f"repos/{self.owner}/{self.name}/actions/workflows/{FULL_RUN_WORKFLOW}"
+                        f"/runs?event={event}&branch={quote(self.branch, safe='')}"
+                        f"&head_sha={commit}&per_page=100",
+                        f"{FULL_RUN_WORKFLOW} {event} runs at {commit[:12]}",
+                        "workflow_runs",
+                    ),
+                    event,
+                    self.owner,
+                    self.name,
+                )
+                if r.head_branch == self.branch
+            ]
+        return self.full_runs_cache[commit]
 
     def excuse_until(self, ends: datetime) -> None:
         """Note a quarantine excuse that holds until `ends`."""
