@@ -10,20 +10,18 @@
 - [Failure recovery](#failure-recovery)
 - [Cross-references](#cross-references)
 
-Per-phase checks for the `execute` action. SKILL.md ships the phase header (identify-cluster → architect-plan → execute-migration → sweep-references → verify); this file covers what to verify before, during, and after each call site is migrated.
-
-Composes with `decision-framework.md` (gate before extraction), `citation-form.md` (form at each call site), `/docs-hygiene:audit-encapsulation` (remediation paths for violations), `anti-patterns.md` (failure modes to guard against), and SKILL.md "Evidence discipline" (Tier 0 evidence).
+Per-phase checks for the `execute` action (identify-cluster → architect-plan → execute-migration → sweep-references → verify): what to verify before, during, and after each call site is migrated.
 
 ## Pre-extraction (before writing or extending the SSOT)
 
-Run ALL of these. Any failure means STOP. Do not proceed to writing or extending the SSOT.
+Run ALL of these. Any failure means STOP: do not write or extend the SSOT.
 
 | # | Check | Evidence required | Source |
 |---|-------|-------------------|--------|
 | 1 | 3+ instances confirmed via grep | Tier 0 grep output captured this turn (NOT recall); count + file list recorded in the working notes | SKILL.md "Evidence discipline" + `decision-framework.md` test #1 |
 | 2 | All 6 extraction-gate tests pass (Rule of Three, namable, stable, self-contained, bounded size, one level deep) | Decision-framework checklist marked in the working notes; one bullet per test with PASS/FAIL annotation | `decision-framework.md` "EXTRACT into shared SSOT only when ALL six tests pass" |
 | 3 | Output type chosen | Consolidate-into-existing-home / rule file / skill / new action decided; rationale recorded in the working notes | `decision-framework.md` "Output type: rule file vs skill" |
-| 4 | Stable headings list drafted | Headings the SSOT will expose are pre-named; the working notes capture them so callers can be migrated atomically | `citation-form.md` "Rename discipline" |
+| 4 | Stable headings list drafted | Headings the SSOT will expose are pre-named in the working notes so callers can be migrated atomically | `citation-form.md` "Rename discipline" |
 | 5 | Encapsulation classification done | Each consumer marked as "vocabulary citer" (cite-by-name OK) vs "behavior caller" (route via `/name` needed) | `/docs-hygiene:audit-encapsulation` |
 | 6 | User has reviewed the plan | Phase-boundary user gate: the user diff-reviewed the plan before execute; never auto-stage or auto-commit | SKILL.md "What this skill does NOT do" |
 
@@ -44,11 +42,11 @@ Run for EACH call site. The callsite list is locked in the working notes from th
 | 7 | No leaky-abstraction context-bleed introduced | Markdown: no `prior`, `earlier`, `above`, `as discussed`, `the X we mentioned` referring outside the call site. Code: no implicit dependency on caller-side global state. Config: no implicit variable inheritance | `anti-patterns.md` #3 (leaky abstraction) |
 | 8 | Lint clean on the edited file (per file class) | Markdown: `npx markdownlint-cli2 <file>` (or the repo's markdown linter) exits 0. Code/config: the repo's language-native linter | The consuming repository's lint conventions |
 
-If a callsite fails any check, fix in place before moving to the next callsite. Do NOT batch failures across callsites, because single-callsite review is the smallest reviewable unit.
+If a callsite fails any check, fix it in place before moving on. Do NOT batch failures across callsites, because single-callsite review is the smallest reviewable unit.
 
 ## Sweep references (after all callsites migrated)
 
-After every callsite is migrated, run the rename sweep across the WHOLE repo to catch citations that weren't in the pre-extraction inventory.
+After every callsite is migrated, run the rename sweep across the WHOLE repo to catch citations missing from the pre-extraction inventory.
 
 **Consolidate-into-existing-home branch:** when the migration only adds citations to a stable existing heading (no identifier renamed), the `/docs-hygiene:rename-references` sweep is a no-op, so skip it; the work is straggler-migration + de-recap only (consistent with `verify` Gate 2's SOME-cite straggler path and anti-pattern Shape C "no identifier change → no sweep"). Gates below that assume a freshly-written file (size bound, "SSOT file exists") apply to creation outputs only.
 
@@ -58,7 +56,7 @@ After every callsite is migrated, run the rename sweep across the WHOLE repo to 
 | 2 | Pure-token grep returns no orphans | `grep -rn 'OldText\|OldIdentifier'` across all tracked files returns clean | `citation-form.md` "Rename discipline" |
 | 3 | New SSOT is grep-discoverable | `grep -rn '<new-filename-or-identifier>'` across tracked files shows the expected callsites | Tier 0 verification |
 | 4 | No violation patterns reintroduced | Re-invoke `/docs-hygiene:audit-encapsulation detect` via the Skill tool | `/docs-hygiene:audit-encapsulation` |
-| 5 | Code/config: language-aware refactor cross-checked | If applicable, run the IDE rename refactor and confirm the result matches the grep sweep, since the IDE catches typed call sites grep misses | `anti-patterns.md` #1 |
+| 5 | Code/config: language-aware refactor cross-checked | If applicable, run the IDE rename refactor and confirm it matches the grep sweep, since the IDE catches typed call sites grep misses | `anti-patterns.md` #1 |
 
 ## Post-extraction (before declaring done)
 
@@ -77,7 +75,7 @@ Final gates before the phase-boundary user gate.
 
 ## Sanity-check format for the working notes
 
-Every phase ends with a Sanity Check item in the working notes. For an `execute` phase the format is:
+Every phase ends with a Sanity Check item in the working notes. For an `execute` phase:
 
 ```markdown
 - [ ] **Sanity Check:**
@@ -105,7 +103,7 @@ If post-extraction gates fail:
 | Gate 6-7 (working notes not updated) | Update; re-run the gate |
 | Gate 8 (no side observations surfaced when new candidates were found) | Surface as one-line callouts at the end of the response |
 
-If failure compounds (3+ gates fail), invoke the `unwind` action and re-evaluate via `identify`. The extraction shape was probably wrong.
+If failure compounds (3+ gates fail), invoke the `unwind` action and re-evaluate via `identify`; the extraction shape was probably wrong.
 
 ## Cross-references
 

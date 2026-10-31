@@ -15,7 +15,7 @@
 - [Sanity checks](#sanity-checks)
 - [Cross-references](#cross-references)
 
-Default mode dispatches a read-only exploration subagent (or, on a small corpus or under `--inline`, surveys in the main session) that runs 30+ duplication heuristics across all markdown surfaces, emits a ranked candidate roster, computes a file-overlap matrix, and returns a batch-sequencing recommendation ready to feed `/docs-hygiene:extract-ssot batch`.
+Default mode runs 30+ duplication heuristics across all markdown surfaces and returns a ranked candidate roster, a file-overlap matrix and a batch-sequencing recommendation ready to feed `/docs-hygiene:extract-ssot batch`.
 
 Private surface. External consumers invoke `/docs-hygiene:extract-ssot identify`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
 
@@ -27,7 +27,7 @@ Private surface. External consumers invoke `/docs-hygiene:extract-ssot identify`
 | `/docs-hygiene:extract-ssot identify` + confirmed path/glob scope | Exhaustive (path-scoped) | Same survey heuristics and roster shape as whole-repo exhaustive, but the subagent's search roots are the named directories / globs only (tracked markdown under that pathspec). Not a single-cluster grep |
 | `/docs-hygiene:extract-ssot identify <cluster-name>` | Targeted | Tier 0 grep on a named cluster only. Returns instance count + Tier 0 evidence + suggested output type. No subagent dispatch |
 
-User signals like "find ANY and ALL", "deep dive", "exhaustive", "full list", or `/docs-hygiene:extract-ssot identify` with no args = default to exhaustive mode. Path/glob scope from the confirm-scope gate (SKILL.md) keeps exhaustive mode and narrows roots. It does not switch to targeted.
+User signals like "find ANY and ALL", "deep dive", "exhaustive", "full list", or `/docs-hygiene:extract-ssot identify` with no args = exhaustive mode. Path/glob scope from the confirm-scope gate (SKILL.md) keeps exhaustive mode and narrows roots; it does not switch to targeted.
 
 ## When to invoke
 
@@ -41,10 +41,9 @@ User signals like "find ANY and ALL", "deep dive", "exhaustive", "full list", or
 ## Multiplicity buckets
 
 `identify` rosters candidates at EVERY multiplicity. The Rule of Three gates which remedies a
-candidate may be offered, never whether the candidate reaches the user. `N` is the count of full
-reproductions under the evidence discipline below (discriminating-phrase grep for literal clusters,
-reading-driven canonical-truth clustering for semantic ones), not keyword density and not
-section-header count.
+candidate may be offered, never whether it reaches the user. `N` counts full reproductions under the
+evidence discipline below (discriminating-phrase grep for literal clusters, reading-driven
+canonical-truth clustering for semantic ones), not keyword density and not section-header count.
 
 | Bucket | What it means | Permitted `Suggested output` | Creates a new artifact? |
 |---|---|---|---|
@@ -53,9 +52,9 @@ section-header count.
 | **N≥3** | Rule of Three met | all of the above, plus `rule-file` / `new-skill` / `new-action` | only behind the 6-test gate (`context/decision-framework.md`) |
 
 **The N=1 bucket is NOT "report every paragraph".** A lone paragraph with no existing canonical
-home is not duplication, because nothing is being duplicated, and is NOT rostered. The N=1 bucket admits
-a candidate only when the SSOT-existence check finds a canonical home the site should be citing.
-That precondition is what keeps a rule-of-one default from degenerating into report-everything.
+home duplicates nothing and is NOT rostered. The N=1 bucket admits a candidate only when the
+SSOT-existence check finds a canonical home the site should be citing; that precondition keeps a
+rule-of-one default from degenerating into report-everything.
 
 **N=1 and N=2 candidates can NEVER be routed to `rule-file` / `new-skill` / `new-action`.** A
 sub-three candidate carrying an artifact-creating suggested output is a roster defect; correct it
@@ -71,8 +70,8 @@ to the bucket's permitted set before emitting. `verify` Gate 1 refuses it indepe
 
 ## Flags
 
-Read-only is the default. A bare invocation (no flags) rosters the buckets, reports, and stops.
-It applies no edits. `batch` accepts the same flags and passes them through.
+Read-only is the default: a bare invocation (no flags) rosters the buckets, reports, and stops,
+applying no edits. `batch` accepts the same flags and passes them through.
 
 | Flag | Default | Behavior |
 |------|---------|----------|
@@ -84,8 +83,8 @@ It applies no edits. `batch` accepts the same flags and passes them through.
 | `--inline` | off | Survey in the main session with a Tier 0 grep per candidate instead of dispatching the survey subagent, whatever the corpus size. A small corpus already surveys inline without it (step 2) |
 
 **Per-bucket review gate.** With `--fix` and without `--yes`, present the proposed edits one bucket
-at a time and take the user's decision per bucket before writing. This keeps the N=1 sweep, the
-highest-volume bucket, from landing as one unreviewable diff.
+at a time and take the user's decision per bucket before writing, so the N=1 sweep, the
+highest-volume bucket, does not land as one unreviewable diff.
 
 ## Exhaustive mode steps
 
@@ -338,10 +337,9 @@ Do NOT edit files.
 
 Main session presents to user:
 
-Every candidate table carries the bucket and the instance count per row, and the roster is grouped
-into the three labeled bucket sections. Bucket sections the flags filtered out are still named,
-with a one-line note saying they were suppressed and by which flag, because a silently missing bucket
-reads as "nothing found there".
+Every table row carries the bucket and instance count; the roster is grouped into the three labeled
+bucket sections. Still name a bucket section the flags filtered out, with a one-line note saying
+which flag suppressed it, because a silently missing bucket reads as "nothing found there".
 
 ```markdown
 # Duplication survey: N candidates (N=1: a | N=2: b | N≥3: c)
@@ -382,7 +380,7 @@ reads as "nothing found there".
 `/docs-hygiene:extract-ssot batch <Wave-1-cluster-list>`
 ```
 
-When at least one candidate is actionable, the ranked table + wave plan is then persisted to working notes so the user can reset context and resume from durable state. An all-refused survey is recorded as a closed record instead (step 8).
+When at least one candidate is actionable, persist the ranked table + wave plan to working notes so the user can reset context and resume; an all-refused survey gets a closed record instead (step 8).
 
 ## Targeted mode steps
 
@@ -402,12 +400,12 @@ No subagent dispatch. No batch sequencing. Single-cluster sanity check only.
 ## Anti-patterns guarded
 
 - **Premature exhaustive mode**: dispatching a survey subagent when the user already has 1-2 clusters in mind wastes a dispatch. Detect via the argument.
-- **Subagent survey on a small corpus**: dispatching the survey subagent over a corpus smaller than its own evidence-verification cost. The brief alone can outweigh the corpus, and every returned lead still needs a Tier 0 re-grep. Survey inline instead (step 2).
-- **Synthesis-only output**: a subagent return is unverified synthesis, not Tier 0 evidence. Each cluster MUST be promoted to Tier 0 (grep this turn) before `/docs-hygiene:extract-ssot plan` or `execute` runs. The `verify` action enforces this.
-- **Skipping the user-review gate**: exhaustive mode can emit a roster of dozens of candidates. NEVER auto-dispatch the whole roster without user confirmation. Default policy: present roster + recommend top wave; user picks scope.
+- **Subagent survey on a small corpus**: the brief alone can outweigh the corpus, and every returned lead still needs a Tier 0 re-grep. Survey inline instead (step 2).
+- **Synthesis-only output**: a subagent return is unverified synthesis, not Tier 0 evidence. Each cluster MUST be promoted to Tier 0 (grep this turn) before `/docs-hygiene:extract-ssot plan` or `execute` runs; the `verify` action enforces this.
+- **Skipping the user-review gate**: a roster can hold dozens of candidates. NEVER auto-dispatch the whole roster without user confirmation. Default policy: present roster + recommend top wave; user picks scope.
 - **Roster decay**: the survey is point-in-time. If `/docs-hygiene:extract-ssot batch` partial-completes and the user resumes weeks later, re-run `identify` rather than trusting a stale roster.
-- **Rule-of-one as report-everything**: rostering a lone paragraph that no canonical home duplicates. The N=1 bucket admits a candidate only when the SSOT-existence check finds the home it should be citing; without that, there is no duplication to report.
-- **Bucket leakage**: offering `rule-file` / `new-skill` / `new-action` to an N=1 or N=2 candidate. The reporting threshold moved; the abstraction threshold did not. Constrain the suggested output to the bucket's permitted set before emitting.
+- **Rule-of-one as report-everything**: rostering a lone paragraph that no canonical home duplicates (see "Multiplicity buckets").
+- **Bucket leakage**: offering `rule-file` / `new-skill` / `new-action` to an N=1 or N=2 candidate. The reporting threshold moved; the abstraction threshold did not.
 
 ## Sanity checks
 

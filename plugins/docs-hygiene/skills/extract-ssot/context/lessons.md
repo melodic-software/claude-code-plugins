@@ -7,14 +7,14 @@ schema-version: 1
 
 # Empirical lessons: `/docs-hygiene:extract-ssot`
 
-Jump by number: `grep -n '^## Lesson' context/lessons.md`. An enumerated table of contents is
-deliberately omitted (append-only file; a list would drift on every append).
+Jump by number: `grep -n '^## Lesson' context/lessons.md`. No table of contents: this file is
+append-only, and a list would drift on every append.
 
-Append-only record of patterns observed during real `/docs-hygiene:extract-ssot` runs. Distinct from `decision-framework.md` (a-priori 6+5 gate) and `anti-patterns.md` (failure-mode taxonomy with mitigations), this file captures **empirical observations** from running the skill on real candidates and learning what the survey heuristic over-counts, what categorical-shape signals indicate distinct concerns, and what extraction shapes succeed vs refuse.
+Append-only record of what real `/docs-hygiene:extract-ssot` runs taught: what the survey heuristic over-counts, which categorical-shape signals indicate distinct concerns, and which extraction shapes succeed vs refuse. `decision-framework.md` holds the a-priori 6+5 gate and `anti-patterns.md` the failure-mode taxonomy.
 
-Lessons 1-11 were seeded from batch runs in the repository where this skill was developed (sources below are genericized). Consuming repositories append their own lessons as batches run.
+Lessons 1-11 were seeded from batch runs in the repository where this skill was developed (sources genericized). Consuming repositories append their own lessons as batches run.
 
-Each lesson has a stable identifier (`Lesson N`) so anti-patterns + decision-framework + verify gates can cite by number. Appending a new lesson means adding `## Lesson N+1` at the bottom. Never re-number.
+Each lesson has a stable identifier (`Lesson N`) that anti-patterns, decision-framework, and verify gates cite by number. Append a new lesson as `## Lesson N+1` at the bottom. Never re-number.
 
 ## How this file is consumed
 
@@ -23,23 +23,23 @@ Each lesson has a stable identifier (`Lesson N`) so anti-patterns + decision-fra
 - `decision-framework.md` "Pre-extraction Tier 0 checklist": lessons surfaced as a-priori discipline AFTER the 6-test gate
 - Manual review: a human surveying a candidate cluster reads these to short-circuit obvious refusals
 
-This file is PRIVATE surface. External consumers don't cite `lessons.md "Lesson N"` directly. They invoke `/docs-hygiene:extract-ssot verify` or read the codified anti-pattern. Keeps audience boundaries clean.
+This file is PRIVATE surface. External consumers don't cite `lessons.md "Lesson N"` directly; they invoke `/docs-hygiene:extract-ssot verify` or read the codified anti-pattern.
 
 ## Lesson 1: Discriminating-phrase grep beats keyword density
 
-**Observation.** Survey heuristics that count "any mention of <keyword>" (e.g. `subagent`, `rate limit`, `worktree`) systematically over-count duplication. A keyword appearing in 21 files does NOT imply 21 reproductions of the same cluster: most are 1-line teaching mentions, not full reproductions.
+**Observation.** Surveys counting "any mention of <keyword>" (e.g. `subagent`, `rate limit`, `worktree`) systematically over-count. A keyword in 21 files does NOT mean 21 reproductions: most are 1-line teaching mentions.
 
 **Trigger.** Pre-extraction surveys that count via keyword density.
 
 **Mitigation.** Identify a verbatim phrase ≥ 8 words that uniquely characterizes the cluster body. Grep for that. Count distinct full reproductions, NOT teaching mentions.
 
-**Source.** A 13-candidate batch, of which 10 were REFUSED in part because the keyword-density survey over-counted by 4-5×. Examples: workflow-chain prose (claimed 18+ instances; 1 full reproduction in the canonical), a resume-protocol cluster (claimed 6 instances; 1 full reproduction), an environment-detection cluster (claimed 21 mentions; 2 distinct full reproductions).
+**Source.** A 13-candidate batch: 10 REFUSED, partly because keyword density over-counted by 4-5×. Workflow-chain prose claimed 18+ instances (1 full reproduction, in the canonical); a resume-protocol cluster claimed 6 (1); an environment-detection cluster claimed 21 mentions (2 distinct full reproductions).
 
 **Encoded in.** `verify` action Gate 1; `decision-framework.md` Pre-extraction Tier 0 checklist; `anti-patterns.md` #7 (premature extraction) supplement.
 
 ## Lesson 2: Pre-existing canonical citation = no extraction work remains
 
-**Observation.** When call sites ALREADY cite the canonical SSOT (e.g. `per X.md "Y"`), the SSOT-extraction work is already done. The candidate appears in the survey because the keyword surfaces, not because new extraction is needed.
+**Observation.** When call sites ALREADY cite the canonical SSOT (e.g. `per X.md "Y"`), the extraction is done; the candidate surfaces only because the keyword does.
 
 **Trigger.** Surveys produced from `identify` runs against repos with mature SSOT layers.
 
@@ -51,91 +51,91 @@ This file is PRIVATE surface. External consumers don't cite `lessons.md "Lesson 
 
 ## Lesson 3: Off-by-one step count signals distinct concerns
 
-**Observation.** When two clusters look superficially similar but differ in step count or variant shape, they're typically NOT the same cluster. They're distinct concerns the survey conflated.
+**Observation.** Clusters that look similar but differ in step count or variant shape are typically distinct concerns the survey conflated.
 
 **Trigger.** Multi-step or numbered-list clusters that "look the same" by keyword overlap.
 
 **Mitigation.** Compare step counts, step names, and ordering across instances. If counts diverge non-trivially, these are different concerns; refuse extraction; flag for a narrower discriminating-phrase grep.
 
-**Source.** Same batch: a claimed "7-step lifecycle" candidate; the canonical lifecycle rule was 6-step. The survey's "7" came from a sibling rule documenting a different lifecycle entirely (naming gates, not the state machine). Off-by-one was the diagnostic.
+**Source.** Same batch: a claimed "7-step lifecycle" candidate against a 6-step canonical lifecycle rule. The "7" came from a sibling rule documenting a different lifecycle (naming gates, not the state machine).
 
 **Encoded in.** `verify` action Gate 5.
 
 ## Lesson 4: Path 1 / Path 2 bifurcation is intentional, so preserve it
 
-**Observation.** Some sibling files document INTENTIONAL bifurcation: two related but distinct lifecycles, two related but distinct workflows. They look like duplicates to a naive sweep but collapsing them loses semantic distinction.
+**Observation.** Some sibling files document INTENTIONAL bifurcation: two related but distinct lifecycles or workflows. A naive sweep sees duplicates; collapsing them loses the distinction.
 
 **Trigger.** A cluster spans 2 sibling files in the same rules directory with similar headings but distinct subject names.
 
-**Mitigation.** Read both in full. If one says "Path 1" / "Path 2", or names two distinct flows in its own intro, REFUSE extraction; the bifurcation is intentional. Document why preservation matters in the working notes.
+**Mitigation.** Read both in full. If one says "Path 1" / "Path 2", or names two distinct flows in its own intro, REFUSE extraction; the bifurcation is intentional. Record why preservation matters in the working notes.
 
-**Source.** Same batch: a branch-naming rule's Path 1 (rename lifecycle) ↔ Path 2 (post-merge reuse lifecycle) pair. The survey conflated them with a separate 6-step lifecycle canonical; preservation was correct.
+**Source.** Same batch: a branch-naming rule's Path 1 (rename lifecycle) ↔ Path 2 (post-merge reuse lifecycle) pair, conflated by the survey with a separate 6-step lifecycle canonical; preservation was correct.
 
 **Encoded in.** `verify` action Gate 5 adjacent rationale; `anti-patterns.md` #6 (wrong abstraction) supplement.
 
 ## Lesson 5: LOW-ROI threshold, where single-sentence + low-drift = inline
 
-**Observation.** Some clusters technically pass Rule of Three (3+ instances) and pass categorical-shape (same single sentence verbatim) but the cluster body is so small + stable that abstraction maintenance dominates the duplication cost.
+**Observation.** Some clusters pass Rule of Three (3+ instances) and categorical-shape (same single sentence verbatim) but are so small and stable that abstraction maintenance outweighs the duplication cost.
 
 **Trigger.** Cluster body ≤ 1 short paragraph (~80 words / single sentence) AND drift rate ≤ 1×/year.
 
 **Mitigation.** Refuse extraction. Inline at each call site. Document the LOW-ROI verdict + a recheck trigger ("if drift increases").
 
-**Source.** Same batch: a squash-merge-derives-commit-from-PR-title fact (3 instances of a single sentence describing vendor product behavior with near-zero drift); a second candidate at n=2 (below Rule of Three, but the LOW-ROI argument would have applied had it passed).
+**Source.** Same batch: a squash-merge-derives-commit-from-PR-title fact (3 instances of one sentence on vendor product behavior, near-zero drift); a second candidate at n=2 (below Rule of Three, but LOW-ROI would have applied).
 
 **Encoded in.** `verify` action Gate 6; `decision-framework.md` keep-inline test E supplement.
 
 ## Lesson 6: Primary-source citation gate, so don't replace primary URLs with internal SSOT
 
-**Observation.** When all call sites cite a primary-source URL (vendor doc, RFC, language spec) directly, an internal SSOT cannot improve on that. Internal SSOT is for repeated *internal-vocabulary* claims, not re-statements of primary facts.
+**Observation.** When all call sites cite a primary-source URL (vendor doc, RFC, language spec) directly, an internal SSOT cannot improve on it. Internal SSOT is for repeated *internal-vocabulary* claims, not re-statements of primary facts.
 
 **Trigger.** Call sites contain canonical URLs from `code.claude.com`, `platform.claude.com`, `anthropic.com`, `tools.ietf.org/rfc`, `learn.microsoft.com`, etc.
 
 **Mitigation.** REFUSE-primary-source-citation-gate. Surface a side note that the URL should be re-verified for resolution + suggest documenting the primary-source dependency at the rule top.
 
-**Source.** Same batch: a metric-formula candidate where 3/3 sites cited the vendor doc URL directly; the verbatim fraction was 0% because each site stated the formula differently per its concern context.
+**Source.** Same batch: a metric-formula candidate where 3/3 sites cited the vendor doc URL directly; verbatim fraction 0%, because each site stated the formula for its own concern.
 
 **Encoded in.** `verify` action Gate 3; `anti-patterns.md` #12 (primary-source citation gate).
 
 ## Lesson 7: Concern-driven drift is intentional
 
-**Observation.** Multiple sites can carry the "same fact" with different surface phrasings because each site addresses a different concern (schema field shape vs framing prose vs query pipeline operator). The drift is signal, not noise: collapsing forces wrong-abstraction.
+**Observation.** Sites can carry the "same fact" in different phrasings because each addresses a different concern (schema field shape vs framing prose vs query pipeline operator). The drift is signal: collapsing forces wrong-abstraction.
 
 **Trigger.** Cluster instances differ in framing but share an underlying fact; consumers serve distinct audiences (schema validators vs cost-attribution writers vs query authors).
 
 **Mitigation.** REFUSE single-unit extraction. Preserve each consumer's framing inline. If centralization is desired, extract at MOST a 1-line "prescribed upstream" statement plus URL, NOT the multi-form derivation.
 
-**Source.** Same batch, the metric-formula candidate again: 3 instances each in a distinct shape (a schema row with `× 100` integer percent, a query with full field names, ratio prose with short field names; mathematically distinct re aggregation: single-sample vs sum-aggregation).
+**Source.** Same batch, the metric-formula candidate again: 3 instances in distinct shapes (a schema row with `× 100` integer percent, a query with full field names, ratio prose with short field names), mathematically distinct in aggregation (single-sample vs sum-aggregation).
 
 **Encoded in.** `decision-framework.md` keep-inline test D (instances differ in non-trivial ways) supplement; `anti-patterns.md` #6 (wrong abstraction) supplement.
 
 ## Lesson 8: Source-of-truth bifurcation across tiers is legitimate
 
-**Observation.** A concept can originate in the top-tier always-loaded instruction file (`CLAUDE.md`/`AGENTS.md`) AND be aggregated in a scoped rule file (deep-disclosure for hook/skill/script authors). Both are first-class canonicals. Each serves a distinct audience. Forcing the instruction file to cite the rule creates a citation cycle (instruction file → rule → instruction file).
+**Observation.** A concept can originate in the top-tier always-loaded instruction file (`CLAUDE.md`/`AGENTS.md`) AND be aggregated in a scoped rule file (deep disclosure for hook/skill/script authors). Both are first-class canonicals serving distinct audiences. Forcing the instruction file to cite the rule creates a citation cycle (instruction file → rule → instruction file).
 
 **Trigger.** A cluster originates in CLAUDE.md/AGENTS.md AND is also documented in a rule file with deeper detail.
 
 **Mitigation.** REFUSE-source-of-truth-bifurcation. Document both canonicals + their respective audiences in the rule file if not already explicit.
 
-**Source.** Same batch, an environment-detection cluster: the instruction file carried the session-facing sentinels for the full-session audience; a scoped rule aggregated the env-var matrix for hook/script authors who need the detection ladder.
+**Source.** Same batch, an environment-detection cluster: the instruction file carried session-facing sentinels for the full-session audience; a scoped rule aggregated the env-var matrix for hook/script authors needing the detection ladder.
 
 **Encoded in.** `verify` action Gate 4; `anti-patterns.md` #11 (source-of-truth bifurcation).
 
 ## Lesson 9: Shape C dedup-by-deletion (positive pattern)
 
-**Observation.** When the SSOT already exists and consumers paraphrase it, the right action is NOT extraction (the SSOT is already there). It is DELETION of the redundant paraphrasers in consumer files. Keep required directives (e.g. `Read X.md first`); delete redundant tail prose.
+**Observation.** When the SSOT already exists and consumers paraphrase it, the right action is NOT extraction but DELETION of the redundant paraphrases in consumer files. Keep required directives (e.g. `Read X.md first`); delete redundant tail prose.
 
 **Trigger.** The cluster body in consumers reads as a TL;DR of an existing canonical SSOT, not as inlined content.
 
 **Mitigation.** Shape C action: delete the redundant tails from each consumer; preserve the required directive. The SSOT is unchanged. No new file; no migration sweep needed (just deletion). Per-consumer deltas (intentional variations) preserved inline.
 
-**Source.** Same batch, a bootstrap-preamble candidate: a dozen automation prompts carried the same descriptor tail; a shared doc was already canonical with the full content; deletion was correct vs. extraction-and-citation.
+**Source.** Same batch, a bootstrap-preamble candidate: a dozen automation prompts carried the same descriptor tail restating an already-canonical shared doc; deletion was correct vs. extraction-and-citation.
 
 **Encoded in.** `anti-patterns.md` #13 (Shape C dedup-by-deletion, a positive pattern).
 
 ## Lesson 10: Identify subagent over-counts ~95% on broad surveys without verbatim-block discrimination
 
-**Observation.** When `/docs-hygiene:extract-ssot identify` runs in exhaustive mode (read-only subagent over 30+ heuristics), the subagent's roster routinely flags 60+ candidates with a ~95% false-positive rate at Tier 0 verify. Failure modes:
+**Observation.** In exhaustive mode (read-only subagent over 30+ heuristics), `/docs-hygiene:extract-ssot identify` routinely flags 60+ candidates with a ~95% false-positive rate at Tier 0 verify. Failure modes:
 
 1. **Section-header presence** counted as duplicate (e.g. 18 skills have a `## What this skill does NOT do` header; bodies are unique per skill, so this is a template, not duplication)
 2. **Concept mention** counted as block reproduction (a file mentions a verification tier once → flagged as a duplicate of the full tier-ladder definition)
@@ -143,7 +143,7 @@ This file is PRIVATE surface. External consumers don't cite `lessons.md "Lesson 
 4. **Language-native dedup** flagged as duplication (bash `source utils.sh` in 34 files counted as code duplication; that IS the dedup mechanism)
 5. **Per-prompt/per-skill unique lists** confused with shared boilerplate (an exclusion list per prompt has UNIQUE scope-specific entries; template structure ≠ content duplication)
 
-The subagent ALSO under-counts in some cases: a verbatim 5-place reproduction of a dependency-direction rule was flagged as 2 instances. Heuristic asymmetry: keyword-density inflates structural matches, deflates verbatim-rule clusters.
+The subagent also under-counts: a verbatim 5-place reproduction of a dependency-direction rule was flagged as 2 instances. Keyword density inflates structural matches and deflates verbatim-rule clusters.
 
 **Trigger.** Bare-subagent survey dispatch with broad heuristics and no Tier 0 verification at identify-time.
 
@@ -155,17 +155,17 @@ The subagent ALSO under-counts in some cases: a verbatim 5-place reproduction of
 4. Per-language native dedup (bash `source`, Python `import`, JSON `$ref`, MSBuild `<Import>`) is already-extracted; flag as out-of-scope, not as a candidate
 5. The `verify` action becomes a HARD GATE for batches ≥5 candidates (not an optional pre-filter), refusing fast before any plan/execute
 
-**Source.** An exhaustive-mode session in which the survey subagent produced a 60-candidate roster. Tier 0 manual verify on the top 15 candidates yielded 1 PROCEED (a verbatim 5-instance dependency-direction rule), 14 REFUSE. Spot checks on the remaining ~45 candidates confirmed the pattern (header-only matches, concept mentions, SSOT-cites, language-native dedup). Overall ~95% FP rate. Cost: ~30+ Tier 0 grep calls to disprove the subagent synthesis.
+**Source.** An exhaustive-mode session whose survey produced a 60-candidate roster. Tier 0 verify on the top 15 yielded 1 PROCEED (a verbatim 5-instance dependency-direction rule), 14 REFUSE; spot checks on the remaining ~45 confirmed the pattern. Overall ~95% FP rate, ~30+ Tier 0 grep calls to disprove.
 
 **Encoded in.** `actions/identify.md` prompt template (Discrimination rules + scope hardening); `actions/batch.md` Step 2 (verify-as-hard-gate for size ≥5).
 
 ## Lesson 11: Stability + reader-burden combined test for semantic-equivalent paraphrase
 
-**Observation.** Verbatim-only Rule of Three misses semantic-equivalent paraphrases, the same
-canonical truth restated in different wording across N files. What matters is the maintenance
-burden: if changing the canonical truth would force more than one place to update, one source of
-truth should own it and everything else should point at that. A verbatim-only test under-counts
-semantic dupes; a pure semantic-similarity test over-counts coincidental similarity.
+**Observation.** Verbatim-only Rule of Three misses semantic-equivalent paraphrases: the same
+canonical truth restated in different wording across N files. What matters is maintenance burden:
+if changing the truth would force more than one place to update, one source should own it and
+everything else should point at it. A verbatim-only test under-counts semantic dupes; a pure
+semantic-similarity test over-counts coincidental similarity.
 
 **Trigger.** A cluster surfaces N≥3 instances that share canonical meaning but differ in surface phrasing.
 
@@ -182,59 +182,58 @@ If only ONE passes, extraction is borderline: run an adversarial-review round. I
 - A section-header pattern is shared but the bodies are skill-specific data (e.g. "What this skill does NOT do" lists). Keep it; this is convention/template
 - The SSOT designer EXPLICITLY chose to keep a portion inline (e.g. a shared template that keeps examples per-consumer by design). Respect the architectural decision; surface as a side observation if you disagree
 
-**Source.** A duplication-taxonomy review session. A 5-consumer identical framing template with unique per-consumer examples was considered for extraction and deferred per the architectural intent stated in the SSOT body. A 5-instance verbatim dependency-direction rule was extracted successfully. A "What this does NOT do" candidate was REFUSED as a section-header pattern with unique non-goals per skill.
+**Source.** A duplication-taxonomy review. A 5-consumer identical framing template with unique per-consumer examples was deferred per the architectural intent stated in the SSOT body; a 5-instance verbatim dependency-direction rule was extracted; a "What this does NOT do" candidate was REFUSED as a section-header pattern with unique non-goals per skill.
 
 **Encoded in.** `decision-framework.md` 6+5 gate (extends Rule of Three with the combined test); `actions/identify.md` prompt template (distinguishing form (e) per-instance unique data with shared framing).
 
 ## Lesson 12: Changelog correction entries are refutation evidence, so read them before canonicalizing a mechanism
 
-**Observation.** An execute worker drafted a new SSOT unifying two empirically-described refusal mechanisms; the consuming plugin's own CHANGELOG recorded a LATER adversarial re-probe refuting exactly that unification. The worker read the skills' body prose (already corrected) and the roster, but not the changelog's correction entry, and re-contaminated seven deliberately-corrected files plus the authoring playbook. Only a fresh-context adversarial diff review caught it pre-commit.
+**Observation.** An execute worker drafted an SSOT unifying two empirically-described refusal mechanisms, though the consuming plugin's CHANGELOG recorded a LATER adversarial re-probe refuting exactly that unification. The worker read the (already corrected) body prose and the roster, not the changelog's correction entry, and re-contaminated seven deliberately-corrected files plus the authoring playbook. Only a fresh-context adversarial diff review caught it pre-commit.
 
 **Trigger.** Any extraction whose cluster asserts an empirical mechanism (what triggers a refusal, what a tool actually does) rather than a policy.
 
 **Mitigation.** Before canonicalizing an empirical claim, grep the owning plugin's CHANGELOG for the newest entry touching that claim and treat a recorded refutation or dispute as binding: record the dispute in the SSOT or refuse, never silently resolve it. For WARN-borderline clusters, the adversarial-review round is mandatory and runs as a fresh-context diff review before commit.
 
-**Source.** A whole-repo batch. One cluster (a context-gather preamble) drew 4 blocking review findings, its edits were reverted, and it was deferred pending a fresh probe of the disputed mechanism.
+**Source.** A whole-repo batch: one cluster (a context-gather preamble) drew 4 blocking review findings, its edits were reverted, and it was deferred pending a fresh probe of the disputed mechanism.
 
 **Encoded in.** Candidate additions: `context/execution-checklist.md` (pre-edit changelog check), `actions/verify.md` WARN semantics (review round is a defined step, not advice).
 
 ## Lesson 13: Portability inverts the output type on plugin runtime surfaces
 
-**Observation.** For clusters whose call sites are plugin runtime surfaces (skills, agents, references shipped to consumers without the marketplace repo), trim-to-citation is structurally unavailable, because an installed plugin cannot read the marketplace `docs/`. 6 of 8 executed clusters inverted at plan/execute time to normalize-inline + provenance-only citation, with near-zero net line reduction; the ROI is drift elimination and one greppable canonical string, not size. The provenance budget is once per file, not per cluster, so later clusters in the same files add zero new citations.
+**Observation.** When call sites are plugin runtime surfaces (skills, agents, references shipped to consumers without the marketplace repo), trim-to-citation is structurally unavailable: an installed plugin cannot read the marketplace `docs/`. 6 of 8 executed clusters inverted at plan/execute time to normalize-inline + provenance-only citation, with near-zero net line reduction; the ROI is drift elimination and one greppable canonical string, not size. The provenance budget is once per file, not per cluster, so later clusters in the same files add zero new citations.
 
 **Trigger.** Any cluster whose sites match `plugins/*/skills/**`, `plugins/*/agents/**`, `plugins/*/context/**`, `plugins/*/reference/**` and whose proposed SSOT lives in the consuming repo's `docs/`.
 
 **Mitigation.** At `plan`, run a citation-target-reachability test: can every call site read the SSOT at its own runtime? If not, the output type is normalize-inline (byte-identical canonical sentence, the per-site slots each consumer fills preserved, provenance-only reference in the established form) and orchestrators must not rank the cluster by expected line reduction.
 
-**Source.** A whole-repo batch. Six of eight executed clusters inverted to this shape at plan or execute time; a seventh refused its residual sites partly on this ground.
+**Source.** A whole-repo batch: six of eight executed clusters inverted to this shape at plan or execute time; a seventh refused its residual sites partly on this ground.
 
 **Encoded in.** `context/orchestrated-mode.md` (portability constraint); candidate addition: `context/decision-framework.md` output-type table (reachability row).
 
 ## Lesson 14: Re-count dependent clusters after their predecessor executes; never count the SSOT or generated blocks as call sites
 
-**Observation.** A cluster verified WARN before its overlapping predecessor ran was fully exhausted by that predecessor's deletions: the execute-time re-count returned 0 migratable sites and a clean refusal. Separately, the survey's claimed 32 sites for that cluster were exactly the 32 files carrying the generator-owned options block, so the SSOT itself counted as call sites. Separately again, a document-scope ownership declaration made a "restating" file an already-citing one that the line-scoped Gate 2 grep missed.
+**Observation.** A cluster verified WARN before its overlapping predecessor ran was exhausted by that predecessor's deletions: the execute-time re-count returned 0 migratable sites and a clean refusal. The survey's claimed 32 sites were exactly the 32 files carrying the generator-owned options block, so the SSOT itself counted as call sites. And a document-scope ownership declaration made a "restating" file an already-citing one that the line-scoped Gate 2 grep missed.
 
 **Trigger.** Batch sequencing where clusters share files; clusters whose canonical lives inside a generated block; consumers with document-top ownership declarations.
 
 **Mitigation.** Execute workers on dependent clusters re-run Gate 0/1 counts before editing (the verify verdict is a snapshot, not a warrant). Identify and verify exclude generator-owned regions (split on BEGIN/END GENERATED markers) and the SSOT's own file from reproduction counts. Gate 2 checks document scope (a top-of-file ownership statement covers every downstream restatement in that file), not just ±10 lines.
 
-**Source.** A whole-repo batch. One cluster verified WARN was fully exhausted by an overlapping predecessor: its roster claimed 32 sites, the Tier 0 re-count found 4, and after the predecessor ran, 0 were migratable.
+**Source.** A whole-repo batch: the roster claimed 32 sites, the Tier 0 re-count found 4, and after the predecessor ran, 0 were migratable.
 
 **Encoded in.** Candidate additions: `actions/identify.md` scope rules (generated-region split), `actions/verify.md` Gate 2 (document-scope pass), `actions/batch.md` (dependent-cluster re-count rule).
 
 ## Lesson 15: Replaying a reviewed batch onto a moved main re-derives everything except the canonical text
 
-**Observation.** Re-applying a fully-reviewed extraction batch after ~200 commits of main drift, every cluster needed its site roster re-derived: clusters grew (new plugins shipped un-normalized reproductions; one new site's own release note declared intent to conform), shrank (a predecessor's deletions or an upstream rewrite superseded reference hunks), and one reference slot was self-refuting against the plugin's own runtime. Whole-file hashes called 20 of 31 files "drifted" while hunk-level pre-image containment showed 30 of 31 target paragraphs still byte-identical, so file-level drift is a near-useless replay signal. Reference OMISSIONS proved deliberate (sites present-and-skipped at the reference commit were skipped again for cause), and refutation checks came back positive-confirming as often as refuting (a consumer CHANGELOG independently moved toward the canonical wording).
+**Observation.** Re-applying a reviewed extraction batch after ~200 commits of main drift, every cluster's site roster had to be re-derived: clusters grew (new plugins shipped un-normalized reproductions), shrank (a predecessor's deletions or an upstream rewrite superseded reference hunks), and one reference slot was self-refuting against the plugin's own runtime. Whole-file hashes called 20 of 31 files "drifted" while hunk-level pre-image containment showed 30 of 31 target paragraphs still byte-identical, so file-level drift is a near-useless replay signal. Reference OMISSIONS proved deliberate (sites present-and-skipped at the reference commit were skipped again for cause), and refutation checks confirmed the canonical wording as often as they refuted it.
 
 **Trigger.** Any re-application of a reviewed extraction batch whose base has moved substantially (a closed PR's branch, a long-parked worktree).
 
 **Mitigation.** Treat the reference as the canonical-text source only. Re-derive the site roster from the current base with fresh greps; explain every delta against the reference's file list. Verify pre-images hunk-by-hunk, not by file hash. Before skipping or adding a site, check whether the reference already saw it (present-and-skipped is a decision, not a gap). Re-run the Lesson 12 refutation check per cluster, and record corroborating CHANGELOG entries alongside refuting ones, since both are evidence about whether the canonical form is the live doctrine.
 
-**Source.** A replay of a fully-reviewed whole-repo batch onto a base that had moved by roughly 200
-commits. Across four adversarially-reviewed waves the site roster changed in every direction: one
-cluster gained a site from a newly-ported plugin, one gained two sites and applied 33, one lost a
-superseded hunk and gained two sites, and one gained two sites plus a reference slot that was
-self-refuting against the plugin's own runtime and had to be rewritten from it.
+**Source.** A replay of a reviewed whole-repo batch onto a base moved by roughly 200 commits: across
+four adversarially-reviewed waves the site roster changed in every direction: one cluster gained
+two sites and applied 33; another gained two sites plus a reference slot rewritten from the
+plugin's own runtime.
 
 **Encoded in.** `context/orchestrated-mode.md` (candidate replay section); this file (consumed by future batch/replay runs).
 
@@ -242,7 +241,7 @@ self-refuting against the plugin's own runtime and had to be rewritten from it.
 
 When a future `/docs-hygiene:extract-ssot batch` execution surfaces a new empirical pattern:
 
-1. **Confirm novelty.** Cross-check the existing lessons. If the new observation is a variant of an existing lesson, expand that lesson's scope rather than adding a new one.
+1. **Confirm novelty.** Cross-check the existing lessons. If the observation is a variant of an existing lesson, expand that lesson's scope rather than adding a new one.
 2. **Confirm Tier 0 evidence.** An empirical lesson requires concrete batch references: date + cluster name + outcome. NOT speculation.
 3. **Append `## Lesson N+1`** at the end of the file. Schema: name (one-line), Observation, Trigger, Mitigation, Source (date + cluster + outcome), Encoded in (which downstream artifacts cite this lesson).
 4. **Cross-reference.** If the lesson should drive a new `verify` gate, anti-pattern, or decision-framework row, append that addition in the same PR.

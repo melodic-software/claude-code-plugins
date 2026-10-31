@@ -11,22 +11,19 @@
 - [Worked examples](#worked-examples)
 - [Cross-references](#cross-references)
 
-Full 6-test extraction gate + 5-test keep-inline gate, plus output-type criteria. SKILL.md cites the headline gate (Rule of Three) and links here for the full matrix.
-
-Applies to any repeated text content: markdown (rules, skills, docs), code (constants, helpers, types), config (CI workflows, settings, MCP entries), or mixed clusters that span all three. The principle is the coding Rule of Three / DRY: mint a new shared artifact when 3+ instances exist; below that, fix the duplication in place.
+Full 6-test extraction gate + 5-test keep-inline gate, plus output-type criteria. Applies to any repeated text: markdown (rules, skills, docs), code (constants, helpers, types), config (CI workflows, settings, MCP entries), or mixed clusters. Mint a new shared artifact when 3+ instances exist; below that, fix the duplication in place.
 
 ## Reporting gate vs abstraction gate
 
-Two different questions ride on one threshold if they are not separated. They are separate:
+Two questions ride on one threshold unless separated:
 
 - **Reporting gate**: *should the user be told this duplication exists?* Always yes. Withholding a
   finding does not prevent an abstraction; it prevents a fix.
 - **Abstraction gate**: *may a NEW SSOT artifact be minted for it?* Rule of Three, plus
   the full 6-test gate below.
 
-Rule of Three gates the second question only. The evidence it rests on is evidence about the cost of
-*creating* a shared artifact too early. It is not evidence that a maintainer should be kept from
-seeing a drifting pair of files.
+Rule of Three gates the second question only: its evidence is about the cost of *creating* a shared
+artifact too early, not a reason to hide a drifting pair of files from a maintainer.
 
 **The SkillsBench record.** SkillsBench comprises 84 tasks across 11 domains, and 16 of those 84
 come out worse with a curated skill than without one, about 19 percent. The same paper reports that
@@ -42,16 +39,16 @@ skills is stated here, because no reachable publication establishes one.
 | **N=2**, two consumers recap a canonical home that already exists (trim both to citations), or two files assert the same contract and neither is the declared owner (name one) | always | `trim-to-citation`, `edit-existing-rule`, `name-an-owner`, `normalize-wording` | never |
 | **N≥3**, Rule of Three met | always | all of the above, plus `rule-file` / `new-skill` / `new-action` | only when ALL six tests below pass |
 
-**Lowering the reporting threshold does not lower the abstraction threshold.** The sub-three buckets
-offer only non-abstracting remedies. Every one of them edits files that already exist and adds no
-new indirection hop, so none of them can produce the premature abstraction the Rule of Three exists
-to prevent. Reporting a sub-three candidate is what makes its in-place remedy available.
+**Lowering the reporting threshold does not lower the abstraction threshold.** Every sub-three
+remedy edits files that already exist and adds no indirection hop, so none can produce the premature
+abstraction the Rule of Three prevents. Reporting a sub-three candidate is what makes its in-place
+remedy available.
 
 Two constraints keep the rule-of-one default honest:
 
 1. **N=1 requires an existing canonical home.** A lone paragraph nothing else duplicates is not a
-   duplication finding and is not rostered. The bucket is specifically "inline recap of an existing
-   SSOT": the defect is the consumer restating what it should be citing.
+   duplication finding and is not rostered. The defect is the consumer restating what it should be
+   citing.
 2. **Sub-three candidates can never be routed to `rule-file` / `new-skill` / `new-action`.**
    `verify` Gate 1 refuses that pairing with `REFUSE-rule-of-three-fails`.
 
@@ -59,12 +56,12 @@ Two constraints keep the rule-of-one default honest:
 
 | # | Test | Why | Evidence |
 |---|------|-----|----------|
-| 1 | **Rule of Three**: duplication appears in 3+ places | Premature abstraction creates the wrong-abstraction trap; 1-2 instances are usually coincidence, not pattern, and when they are not, the N=1 / N=2 buckets remedy them in place instead of minting an artifact. Same principle whether the duplicated unit is a markdown heading, a string constant, a helper function, or a CI step | Don Roberts / Fowler *Refactoring* §1; Sandi Metz "The Wrong Abstraction" |
-| 2 | **Namable as a stable canonical unit**: the cluster has an identity that can be given one name and referenced by that name | For markdown: a heading or rule name. For code: a function/constant/type identifier. For config: an anchor/include/`$ref` target. Without a stable name, callers can't cite/import unambiguously and the SSOT becomes a grab-bag. For markdown specifically, the unit should also be categorical (vocabulary, constraints, IF-THEN) rather than nuanced reasoning. MDEval finding: providing an external markdown reference does NOT improve a model's Markdown Awareness vs well-designed inline rules ("feeding a reference to an LLM does not bring any benefit for Markdown Awareness; this unexpected finding challenges prevalent assumptions") | Anthropic best-practices "Avoid offering too many options"; MDEval arxiv 2501.15000; Endor Labs anti-pattern avoidance. See "The external-evidence records" below |
-| 3 | **Stable**: content does NOT change more than 1×/quarter | High churn drives heading/identifier rename frequency, which compounds the citation-rot risk captured in test #6 below; and every edit to an always-loaded file reaches sessions already running only at the next `/clear`, `/compact`, or restart, so a volatile SSOT ships corrections its live consumers do not see (anti-pattern #9). Not a caching cost: a mid-session edit to an always-loaded file keeps the cached prefix. Code-side equivalent: high churn means callers chase signature changes constantly | Claude Code prompt caching, [editing CLAUDE.md mid-session](https://code.claude.com/docs/en/prompt-caching#editing-claude-md-mid-session) (verified 2026-08-04; recheck when that section changes how a mid-session CLAUDE.md edit affects the cached prefix); Sandi Metz wrong-abstraction (volatile = signal that the abstraction shape is not yet stable) |
-| 4 | **Self-contained**: content has no implicit dependency on caller context | Leaky abstraction = silent failure. For markdown: the extracted block must not say "the prior step" or "as discussed earlier". For code: the helper must not depend on global state the caller happens to set. For config: the include must not reference variables the includer happens to define | Joel Spolsky "Law of Leaky Abstractions"; elements.cloud agent-instruction antipatterns |
-| 5 | **Bounded size**: extracted markdown file within the line cap `/playbooks:skill-authoring` `## Body` records (`/skill-quality:check` enforces it on skills); extracted code module sized per language idiom | Over-long files force partial reads and downstream-session cache pressure. For code: each language has its own conventions (small composable modules over monoliths) | `/playbooks:skill-authoring` `## Body` (owns the cap and its upstream record); GitHub Copilot 4000-char hard truncation |
-| 6 | **One level deep**: referenced directly from caller, never via another reference | Markdown: A.md → B.md → C.md chains compound failure rates (5-20% per step). Code/config: the equivalent rule is no transitive re-export chains; the call site imports/cites the canonical SSOT directly | `/playbooks:skill-authoring` `## Reference files` (owns the depth rule and its upstream record) |
+| 1 | **Rule of Three**: duplication appears in 3+ places | Premature abstraction creates the wrong-abstraction trap; 1-2 instances are usually coincidence, and when they are not, the N=1 / N=2 buckets remedy them in place. Same for a markdown heading, string constant, helper function, or CI step | Don Roberts / Fowler *Refactoring* §1; Sandi Metz "The Wrong Abstraction" |
+| 2 | **Namable as a stable canonical unit**: the cluster has an identity that can be given one name and referenced by that name | Markdown: a heading or rule name. Code: a function/constant/type identifier. Config: an anchor/include/`$ref` target. Without a stable name, callers can't cite/import unambiguously and the SSOT becomes a grab-bag. For markdown, the unit should also be categorical (vocabulary, constraints, IF-THEN), not nuanced reasoning. MDEval finding: an external markdown reference does NOT improve a model's Markdown Awareness vs well-designed inline rules ("feeding a reference to an LLM does not bring any benefit for Markdown Awareness; this unexpected finding challenges prevalent assumptions") | Anthropic best-practices "Avoid offering too many options"; MDEval arxiv 2501.15000; Endor Labs anti-pattern avoidance. See "The external-evidence records" below |
+| 3 | **Stable**: content does NOT change more than 1×/quarter | High churn drives heading/identifier renames, compounding the citation-rot risk in test #6; and an edit to an always-loaded file reaches running sessions only at the next `/clear`, `/compact`, or restart, so a volatile SSOT ships corrections its live consumers do not see (anti-pattern #9). Not a caching cost: a mid-session edit to an always-loaded file keeps the cached prefix. Code: high churn means callers chase signature changes | Claude Code prompt caching, [editing CLAUDE.md mid-session](https://code.claude.com/docs/en/prompt-caching#editing-claude-md-mid-session) (verified 2026-08-04; recheck when that section changes how a mid-session CLAUDE.md edit affects the cached prefix); Sandi Metz wrong-abstraction (volatile = signal that the abstraction shape is not yet stable) |
+| 4 | **Self-contained**: content has no implicit dependency on caller context | Leaky abstraction = silent failure. Markdown: no "the prior step" or "as discussed earlier". Code: no dependence on global state the caller happens to set. Config: no variables the includer happens to define | Joel Spolsky "Law of Leaky Abstractions"; elements.cloud agent-instruction antipatterns |
+| 5 | **Bounded size**: extracted markdown file within the line cap `/playbooks:skill-authoring` `## Body` records (`/skill-quality:check` enforces it on skills); extracted code module sized per language idiom | Over-long files force partial reads and downstream-session cache pressure. Code: small composable modules over monoliths, per language convention | `/playbooks:skill-authoring` `## Body` (owns the cap and its upstream record); GitHub Copilot 4000-char hard truncation |
+| 6 | **One level deep**: referenced directly from caller, never via another reference | Markdown: A.md → B.md → C.md chains compound failure rates (5-20% per step). Code/config: no transitive re-export chains; the call site imports/cites the canonical SSOT directly | `/playbooks:skill-authoring` `## Reference files` (owns the depth rule and its upstream record) |
 
 ### The external-evidence records
 
@@ -84,30 +81,29 @@ Code](https://www.endorlabs.com/learn/anti-pattern-avoidance-a-simple-prompt-pat
 read 2026-09-06. Recheck when that post is revised or withdrawn.
 
 ALL six must pass, and they gate ONE thing: creating a new SSOT artifact (`rule-file` /
-`new-skill` / `new-action`). They do not gate reporting, and they do not gate the non-abstracting
-remedies (`trim-to-citation`, `normalize-wording`, `name-an-owner`, `edit-existing-rule`), which
-edit existing files and introduce no new indirection.
+`new-skill` / `new-action`). They gate neither reporting nor the non-abstracting remedies
+(`trim-to-citation`, `normalize-wording`, `name-an-owner`, `edit-existing-rule`).
 
-Failing one means: keep the content where it is, OR refactor the candidate before extracting (e.g. split categorical bits from reasoning bits, then extract only the categorical bits). Either way the candidate stays on the roster in its bucket with the remedies that bucket allows.
+Failing one means: keep the content where it is, OR refactor the candidate before extracting (e.g. split categorical bits from reasoning bits, then extract only the categorical bits). Either way the candidate stays on the roster in its bucket with that bucket's remedies.
 
 ## KEEP INLINE when ANY of these is true
 
-"Keep inline" here means "do not lift this into a new artifact", not "say nothing". A candidate
-kept inline is still rostered in its bucket and still gets that bucket's non-abstracting remedies.
+"Keep inline" means "do not lift this into a new artifact", not "say nothing". A candidate kept
+inline is still rostered in its bucket with that bucket's non-abstracting remedies.
 
 | # | Test | Why |
 |---|------|-----|
-| A | Single use site OR < 3 instances of duplication | No new artifact, because that is premature abstraction; wait for the third instance. The content stays where it is, and the candidate is rostered as N=1 or N=2 with `trim-to-citation` / `normalize-wording` / `name-an-owner` / `edit-existing-rule` on the table |
+| A | Single use site OR < 3 instances of duplication | No new artifact (premature abstraction); wait for the third instance. Rostered as N=1 or N=2 with `trim-to-citation` / `normalize-wording` / `name-an-owner` / `edit-existing-rule` on the table |
 | B | Markdown content is reasoning, decision logic, or tradeoff explanation | Indirection breaks down on nuanced content (MDEval finding); for code/config this test usually doesn't apply because the unit is mechanical |
 | C | Content is volatile (changes more than monthly) | Citation rot guaranteed (heading/function/anchor renames); and corrections ship that live consumers do not see until their next `/clear`, `/compact`, or restart (anti-pattern #9) |
-| D | Instances differ in non-trivial ways and would force conditionals/flags inside the SSOT | Sandi Metz wrong-abstraction trap; params/conditionals proliferating IS the signal that the unit is NOT yet stable |
-| E | Cluster is small (< ~10 lines) AND specific to one consumer's behavior | Indirection cost > duplication cost; the cite-by-name / import overhead wins |
+| D | Instances differ in non-trivial ways and would force conditionals/flags inside the SSOT | Sandi Metz wrong-abstraction trap; proliferating params/conditionals signal the unit is NOT yet stable |
+| E | Cluster is small (< ~10 lines) AND specific to one consumer's behavior | Indirection cost > duplication cost |
 
 Any ONE failure here = no new artifact. Don't extract just because you can, and don't go quiet just because you didn't.
 
 ## Pre-extraction Tier 0 checklist (lessons-derived discipline)
 
-After the 6-test gate passes a-priori, run these 6 empirical checks BEFORE writing any SSOT file. Each maps to a `context/lessons.md` lesson + an `actions/verify.md` gate. They're additive to the 6+5 framework above. The framework is "is this extractable in principle?", this checklist is "should we actually extract right now, given how the codebase already cites things?".
+After the 6-test gate passes a-priori, run these 6 empirical checks BEFORE writing any SSOT file. Each maps to a `context/lessons.md` lesson + an `actions/verify.md` gate. The 6+5 framework asks "is this extractable in principle?"; this checklist asks "should we extract right now, given how the codebase already cites things?".
 
 Run via `/docs-hygiene:extract-ssot verify <cluster>` for a one-shot result, or apply manually for fast informal checks.
 
@@ -120,7 +116,7 @@ Run via `/docs-hygiene:extract-ssot verify <cluster>` for a one-shot result, or 
 | E | **Off-by-one heuristic: different concerns** | Lessons 3+4 | Gate 5 | Step counts / variant shapes diverge non-trivially across instances → REFUSE-off-by-one-different-concern; intentional Path 1/Path 2 bifurcations are preserved |
 | F | **LOW-ROI threshold** | Lesson 5 | Gate 6 | Single-sentence body (≤80 words) AND drift ≤ 1×/year → REFUSE-low-roi (inline beats abstraction maintenance) |
 
-If a check fails → REFUSE the extraction with the matching reason code; do NOT silently proceed. Document the refusal in your working notes so future-self knows the cluster was evaluated and rejected with cause. Check A is the exception in shape rather than in force: it refuses the artifact, not the finding, so the candidate keeps its bucket and its non-abstracting remedies.
+If a check fails → REFUSE the extraction with the matching reason code; do NOT silently proceed. Record the refusal and its cause in the working notes. Check A refuses the artifact, not the finding: the candidate keeps its bucket and its non-abstracting remedies.
 
 If ALL checks pass → proceed to the `architect-plan` phase.
 
@@ -132,13 +128,13 @@ Per Sandi Metz "The Wrong Abstraction" (2016), reverse the extraction in three s
 2. Within each caller, keep ONLY the subset that caller actually needs (delete bits that aren't used)
 3. Re-isolate genuine duplication and re-extract with corrected shape
 
-The `unwind` action implements this. Trigger signal: the SSOT has 5+ callers passing different boolean flags or conditional branches. Params + conditionals proliferating IS the wrong-abstraction signal.
+The `unwind` action implements this. Trigger signal: the SSOT has 5+ callers passing different boolean flags or conditional branches.
 
 ## Output type: rule file vs skill
 
-Choose the SSOT shape from the candidate's bucket first, then its content shape. **Check whether an existing file already owns the concept** (top rows). If so, consolidate into it rather than creating anything. The first six rows are the markdown branch this skill ships a citation contract for; the bottom three rows are escape-hatch cases the skill flags during `identify` but defers to language-idiomatic tooling (compiler / linter / IDE refactor / schema-validate are the rename safety net there, not this skill's `/docs-hygiene:rename-references` sweep).
+Choose the SSOT shape from the candidate's bucket first, then its content shape. **Check whether an existing file already owns the concept** (top rows); if so, consolidate into it rather than creating anything. The first six rows are the markdown branch this skill ships a citation contract for; the bottom three are escape-hatch cases flagged during `identify` but deferred to language-idiomatic tooling (compiler / linter / IDE refactor / schema-validate are the rename safety net there, not this skill's `/docs-hygiene:rename-references` sweep).
 
-The **Artifact?** column is the abstraction gate made visible: only the rows marked YES are reachable at N≥3, and only after all six tests pass.
+The **Artifact?** column is the abstraction gate: only rows marked YES are reachable, at N≥3, and only after all six tests pass.
 
 | Shape | Artifact? | Target | Trigger signals |
 |-------|-----------|--------|-----------------|
@@ -147,20 +143,20 @@ The **Artifact?** column is the abstraction gate made visible: only the rows mar
 | **`name-an-owner`** (markdown) | no new artifact | One of the two existing files, declared canonical; the other rewritten to cite it | Accidental source-of-truth bifurcation: two files assert the same contract for the same audience and neither is declared the owner (anti-pattern #11, accidental branch). The N=2 bucket's default remedy. Minting a third file to own the contract is NOT this remedy |
 | **Rule file** (markdown) | **YES, N≥3 only** | Wherever the consuming repository's own conventions place shared rules, defaulting to `.claude/rules/<topic>.md` (always-loaded) OR a path-scoped rule file | Vocabulary, IF-THEN rules, hard constraints, within the line cap of `/playbooks:skill-authoring` `## Body`, consumers cite by H3 heading and don't need procedural orchestration |
 | **New skill** (markdown + workflow) | **YES, N≥3 only** | `.claude/skills/<name>/SKILL.md`, authored via the consumer's skill-authoring workflow (e.g. the skill-creator plugin) | Workflow with 3+ discrete actions, has its own anti-patterns/evals, consumers invoke `/<name>` to run the workflow rather than read content |
-| **Extend existing skill** | **YES, N≥3 only** | New action on an existing action-router skill | The workflow maps cleanly onto an existing skill's concern, meaning the same domain, triggers, and output surface, rather than warranting a new top-level skill |
+| **Extend existing skill** | **YES, N≥3 only** | New action on an existing action-router skill | The workflow maps cleanly onto an existing skill's concern (same domain, triggers, and output surface) rather than warranting a new top-level skill |
 | **Code module / constants file** | advisory, out of scope | Idiomatic location per language (constants file, shared module, helper class) | Repeated literal, magic number, regex, helper function in source code; callers import by name |
 | **Config include / anchor** | advisory, out of scope | Reusable workflow, composite action, YAML anchor + alias, JSON `$ref`, settings include | Repeated stanza in CI / MCP / settings; the tooling supports the include construct |
 | **Mixed-canonical** | advisory, out of scope | One canonical owner (usually code or schema), with cross-references from other file classes | Cluster spans 2+ file classes for the same conceptual unit; the canonical definition lives where the runtime authority lives |
 
-Skill-vs-rule heuristic: if the SSOT body is mostly nouns (named units the caller cites), it's a rule file or constants module. If the SSOT body is mostly verbs (steps the caller invokes), it's a skill.
+Skill-vs-rule heuristic: an SSOT body of mostly nouns (named units the caller cites) is a rule file or constants module; mostly verbs (steps the caller invokes) is a skill.
 
 ## Worked examples
 
-Each example is generic, pattern-shaped, not tied to one specific extraction. Substitute the actual cluster names and counts when running the framework on a real cluster.
+Generic, pattern-shaped examples; substitute the actual cluster names and counts.
 
 ### Example 1: markdown vocabulary → rule file (PASSES gate)
 
-**Cluster:** A vocabulary of CLI verbs / API shapes appears inlined across many prompts, skills, and rules. Each call site reproduces some variation of the same command shape with the same flags.
+**Cluster:** A vocabulary of CLI verbs / API shapes is inlined across many prompts, skills, and rules, each reproducing a variation of the same command shape and flags.
 
 **6-test gate:**
 
@@ -175,7 +171,7 @@ Each example is generic, pattern-shaped, not tied to one specific extraction. Su
 
 ### Example 2: code constants → shared module (PASSES gate)
 
-**Cluster:** The same string literal (or magic number, or regex) appears in many source files. Examples: an error message text, a default timeout, a path prefix, a header name.
+**Cluster:** The same string literal, magic number, or regex appears in many source files: an error message, a default timeout, a path prefix, a header name.
 
 **6-test gate:**
 
@@ -186,11 +182,11 @@ Each example is generic, pattern-shaped, not tied to one specific extraction. Su
 5. ✅ Bounded: single declaration
 6. ✅ One level deep: callers import the constant directly, no re-export chains
 
-**Output:** constants module / static class / enum at the language's idiomatic location. Callers replace literals with the named import. Compiler/linter catches missed call sites, so citation rot is structurally prevented in code, unlike markdown.
+**Output:** constants module / static class / enum at the language's idiomatic location; callers replace literals with the named import. Compiler/linter catches missed call sites, so citation rot is structurally prevented in code, unlike markdown.
 
 ### Example 3: mixed cluster spanning code, doc, and config (PASSES gate)
 
-**Cluster:** The same identifier (e.g. an environment variable name, default port, feature-flag key) appears as a string literal in source files, an example in documentation, and a default value in CI / settings YAML.
+**Cluster:** The same identifier (e.g. an environment variable name, default port, feature-flag key) appears as a string literal in source, an example in documentation, and a default in CI / settings YAML.
 
 **6-test gate:**
 
@@ -201,7 +197,7 @@ Each example is generic, pattern-shaped, not tied to one specific extraction. Su
 5. ✅ Bounded: the canonical definition is one line / one row
 6. ✅ One level deep: each call site references the canonical location directly
 
-**Output:** ONE canonical definition (typically in code as a constant or in a settings schema), THEN call sites in other file classes cite/reference it in their native form: code via import, doc via inline mention, config via include / environment substitution. The SSOT artifact may be small (one constant), but the migration touches every file class.
+**Output:** ONE canonical definition (typically a code constant or a settings schema), THEN call sites in other file classes reference it natively: code via import, doc via inline mention, config via include / environment substitution. The SSOT may be one constant, but the migration touches every file class.
 
 ### Example 4: large cluster with workflow shape → skill (PASSES gate, but procedural)
 
@@ -216,13 +212,11 @@ Each example is generic, pattern-shaped, not tied to one specific extraction. Su
 5. ⚠️ Bounded: body pushes against the line cap if all variants are captured inline; needs progressive disclosure to `context/`
 6. ✅ One level deep
 
-**Output:** new skill at `.claude/skills/<name>/SKILL.md` with an action menu, NOT a rule file. The skill body holds the orchestration shape; longer reference content goes to `context/`. Callers refactor to `/<skill-name>` invocations with per-instance params.
-
-Skill-vs-rule heuristic restated: if the SSOT body is mostly nouns (named units the caller cites), it's a rule file or constants module. If the SSOT body is mostly verbs (steps the caller invokes), it's a skill.
+**Output:** new skill at `.claude/skills/<name>/SKILL.md` with an action menu, NOT a rule file. The body holds the orchestration shape; longer reference content goes to `context/`. Callers refactor to `/<skill-name>` invocations with per-instance params.
 
 ### Example 5: two instances → N=2 bucket, no new artifact (FAILS the abstraction gate, PASSES reporting)
 
-**Cluster:** Two files assert the same contract in similar (not identical) wording. Neither is declared the owner. A third instance might appear later, or might not.
+**Cluster:** Two files assert the same contract in similar (not identical) wording. Neither is declared the owner. A third instance may or may not appear later.
 
 **6-test gate (gates artifact creation only):**
 
@@ -233,21 +227,21 @@ Skill-vs-rule heuristic restated: if the SSOT body is mostly nouns (named units 
 5. ✅ Bounded
 6. ✅ One level deep
 
-**Output:** the candidate is **rostered in the N=2 bucket** with its instance count. It is not discarded. Creating a `rule-file` / `new-skill` / `new-action` for it is REFUSED (`REFUSE-rule-of-three-fails`); cite Rule of Three. What IS offered:
+**Output:** the candidate is **rostered in the N=2 bucket** with its instance count, not discarded. Creating a `rule-file` / `new-skill` / `new-action` for it is REFUSED (`REFUSE-rule-of-three-fails`); cite Rule of Three. What IS offered:
 
 - `name-an-owner`: declare the better-placed of the two files canonical, rewrite the other to cite it. This resolves the drift without adding a third file.
 - `edit-existing-rule`: if one of the two is already the natural home, extend it where the other carries nuance it lacks.
 - `normalize-wording`: if the two have already drifted, align them before (or instead of) naming an owner.
 
-Also record a tracking note in the working notes so future-self knows to revisit if a third instance lands. Do NOT silently proceed to an artifact, because premature abstraction is a wrong-abstraction trap that's expensive to reverse, and do NOT silently drop the finding: two undeclared canonicals asserting one contract is exactly the bifurcation that drifts (anti-pattern #11, accidental branch).
+Also record a tracking note in the working notes to revisit if a third instance lands. Do NOT silently proceed to an artifact, because premature abstraction is a wrong-abstraction trap that's expensive to reverse, and do NOT silently drop the finding: two undeclared canonicals asserting one contract is exactly the bifurcation that drifts (anti-pattern #11, accidental branch).
 
 ### Example 6: one instance → N=1 bucket, trim to a citation (no gate to run)
 
-**Cluster:** A canonical rule file already owns a constraint. One skill body restates it in a paragraph of its own instead of citing it, and the restatement has drifted a word or two from the home's wording.
+**Cluster:** A canonical rule file already owns a constraint. One skill body restates it in its own paragraph instead of citing it, drifted a word or two from the home's wording.
 
 **Abstraction gate:** not run. Nothing would be created, because the SSOT already exists.
 
-**Output:** rostered in the **N=1 bucket** (the SSOT-existence check is what admits it; a lone paragraph with no canonical home would not be). Remedies: `trim-to-citation`, which replaces the recap with `per <rule>.md "<exact heading>"` plus a ≤80-char inline summary, and `normalize-wording` if the drifted phrasing must survive anywhere. If the site ALREADY cites the home correctly, there is no work: `verify` Gate 2 returns `REFUSE-already-cites-canonical`.
+**Output:** rostered in the **N=1 bucket** (the SSOT-existence check admits it; a lone paragraph with no canonical home would not be). Remedies: `trim-to-citation`, which replaces the recap with `per <rule>.md "<exact heading>"` plus a ≤80-char inline summary, and `normalize-wording` if the drifted phrasing must survive anywhere. If the site ALREADY cites the home correctly, there is no work: `verify` Gate 2 returns `REFUSE-already-cites-canonical`.
 
 ## Cross-references
 

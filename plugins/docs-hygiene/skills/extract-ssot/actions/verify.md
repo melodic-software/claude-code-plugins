@@ -12,7 +12,7 @@
 - [Cross-references](#cross-references)
 - [Recheck triggers](#recheck-triggers)
 
-Cheap pre-extraction gate. Assigns the candidate's multiplicity bucket, then refuses fast on candidates that wouldn't survive `plan`/`execute` anyway. Surfaces the bucket plus a PROCEED/refusal verdict from a single grep plus a citation check, without spawning a subagent. For a semantic cluster, a short read of the candidate files replaces the grep. A sub-three bucket is a remedy constraint, not a refusal.
+Cheap pre-extraction gate. Assigns the candidate's multiplicity bucket, then refuses fast on candidates that wouldn't survive `plan`/`execute` anyway, from a single grep plus a citation check and no subagent. For a semantic cluster, a short read of the candidate files replaces the grep. A sub-three bucket is a remedy constraint, not a refusal.
 
 Private surface. External consumers invoke `/docs-hygiene:extract-ssot verify <cluster>`, never cite this file directly (contract: `/docs-hygiene:audit-encapsulation`).
 
@@ -26,7 +26,7 @@ Private surface. External consumers invoke `/docs-hygiene:extract-ssot verify <c
 | You already have HIGH confidence the cluster passes the 6+5 gate | OPTIONAL. `plan` will re-verify Tier 0 |
 | Cluster has 1 or 2 instances | YES. `verify` assigns the bucket and returns the bucket-appropriate non-abstracting remedies |
 
-`verify` is OPTIONAL. It does NOT gate `plan`/`execute` automatically, which preserves user agency. Skipping `verify` and going straight to `plan` is supported.
+`verify` is OPTIONAL: it does NOT gate `plan`/`execute` automatically, so the user may go straight to `plan`.
 
 ## Inputs
 
@@ -53,8 +53,8 @@ next-action: <one of the recommended next steps>
 notes: <optional 1-line context>
 ```
 
-`bucket:` is emitted on EVERY verdict, refusals included. The caller needs it to file the candidate
-in the right roster section.
+Emit `bucket:` on EVERY verdict, refusals included, so the caller can file the candidate in the
+right roster section.
 
 Status values:
 
@@ -78,37 +78,36 @@ Each gate has Tier 0 evidence requirements: direct grep/read output captured thi
 bash "${CLAUDE_SKILL_DIR}/scripts/emit-verify-facts.sh" --phrase "<discriminating phrase>"
 ```
 
-Map the script output to gate evidence; emit the `status: PROCEED | REFUSE-* | WARN` YAML in the skill. The script never emits verdicts. The script takes a phrase, so it serves literal clusters; a semantic cluster has no shared phrase, and its Gate 1 count comes from reading the candidate files (Gate 1, semantic shape).
+Map the script output to gate evidence; emit the `status: PROCEED | REFUSE-* | WARN` YAML in the skill. The script never emits verdicts. It takes a phrase, so it serves literal clusters only; a semantic cluster's Gate 1 count comes from reading the candidate files (Gate 1, semantic shape).
 
 Gate 1 assigns the bucket and gates artifact-creating remedies against it. Gate 4 splits intentional
 bifurcation (refuses, any bucket) from accidental (the N=2 bucket's own defect). Gates 0, 3, 5, and 6
-are unchanged and multiplicity-independent: they judge cluster validity and ROI, so their refusals
-apply in every bucket.
+are multiplicity-independent: they judge cluster validity and ROI, so their refusals apply in every
+bucket.
 
 ### Gate 0: Cluster resolution
 
-Before any gate runs, confirm the cluster exists in the repo. Resolution is evidence-shape-aware,
-matching the two shapes `actions/identify.md` "Per-candidate evidence requirement" defines.
+Before any gate runs, confirm the cluster exists, using the two evidence shapes
+`actions/identify.md` "Per-candidate evidence requirement" defines.
 
-- Step 1: classify the cluster's shape. For a **literal** cluster (identify forms a, e), identify a
+- Step 1: classify the cluster's shape. For a **literal** cluster (identify forms a, e), pick a
   discriminating phrase from the cluster body (≥ 8 words, unique enough to grep cleanly). For a
   **semantic** cluster (identify forms c2, i, whose reproductions share no verbatim ≥ 8-word
-  phrase), state the canonical truth in one sentence instead; there is no phrase to grep for
+  phrase), state the canonical truth in one sentence instead
 - Step 2: literal → grep the phrase across the repo's tracked markdown. Semantic → read the
   candidate files and collect the paragraphs that reproduce that canonical truth in any phrasing
 - Step 3: `REFUSE-not-found` fires ONLY when NEITHER the literal grep NOR the semantic reading
-  resolves any instance. A semantic cluster is **not** "not found" merely because its phrase grep
-  hits one file. That is the expected grep result for a paraphrase cluster; carry it to Gate 1 and
-  count it there by reading
+  resolves any instance. A phrase grep hitting one file is the expected result for a paraphrase
+  cluster, **not** "not found"; carry it to Gate 1 and count it there by reading
 
 ### Gate 1: Bucket assignment from an evidence-shape-aware count
 
 **Lesson 1**: keyword density over-counts; use discriminating-phrase grep instead.
 
-This gate ASSIGNS the bucket. It does not refuse on count alone. Count by the cluster's evidence
-shape, mirroring `actions/identify.md`: discriminating-phrase grep for literal clusters,
-reading-driven canonical-truth clustering for semantic ones. Phrase grep applied to a semantic
-cluster undercounts it to 1 and files a real N=2/N≥3 paraphrase cluster in the wrong bucket.
+This gate ASSIGNS the bucket; it does not refuse on count alone. Count by evidence shape, as
+`actions/identify.md` does: discriminating-phrase grep for literal clusters, reading-driven
+canonical-truth clustering for semantic ones. Phrase grep undercounts a semantic cluster to 1 and
+files a real N=2/N≥3 paraphrase cluster in the wrong bucket.
 
 **Literal clusters (identify forms a, e):**
 
@@ -119,9 +118,9 @@ cluster undercounts it to 1 and files a real N=2/N≥3 paraphrase cluster in the
 **Semantic clusters (identify forms c2, i, with no shared verbatim ≥ 8-word phrase):**
 
 - Read the candidate files; do not rely on phrase grep, which finds only the instance the phrase was lifted from
-- Count distinct files whose paragraph reproduces the canonical truth in ANY phrasing, the same reading-derived canonical-truth roster `identify` Pass B builds
-- Grep still helps as a file-shortlist (topic keywords, cited concept names); the COUNT comes from the reading
-- Exclusions are unchanged: 1-line teaching mentions, citation-only references, and form (h) domain-specific applications are not reproductions
+- Count distinct files whose paragraph reproduces the canonical truth in ANY phrasing, the same roster `identify` Pass B builds
+- Grep can shortlist files (topic keywords, cited concept names); the COUNT comes from the reading
+- Same exclusions: 1-line teaching mentions, citation-only references, and form (h) domain-specific applications are not reproductions
 
 **Both shapes:**
 
@@ -168,9 +167,8 @@ Artifact creation: permitted (N>=3, subject to the 6-test gate) | refused (N<3)
 - If ALL call sites already cite a canonical SSOT → `REFUSE-already-cites-canonical`
 - If SOME do but not all → continue (the `execute` action would sweep stragglers); proceed to Gate 3
 
-This gate is the natural terminal for the N=1 bucket: a single site that recaps a canonical home
-PROCEEDs with `trim-to-citation`; a single site that already cites it correctly has no work left and
-refuses here.
+For the N=1 bucket this gate is terminal: a single site that recaps a canonical home PROCEEDs with
+`trim-to-citation`; one that already cites it correctly refuses here.
 
 Tier 0 evidence form:
 
@@ -187,7 +185,7 @@ Canonical file(s) referenced: <list>
 - For each call site, grep ~5 lines around it for primary-source URLs: `code.claude.com`, `platform.claude.com`, `anthropic.com`, `tools.ietf.org/rfc`, `developer.mozilla.org`, `learn.microsoft.com`, or whatever primary hosts the repo's domain relies on
 - If ALL call sites cite a primary-source URL within ~5 lines → `REFUSE-primary-source-citation-gate`
 
-Rationale: an internal SSOT cannot improve on a primary URL the consumer already inlines. Internal SSOT is for repeated *internal-vocabulary* claims, not re-statements of primary facts.
+An internal SSOT cannot improve on a primary URL the consumer already inlines; it is for repeated *internal-vocabulary* claims, not re-statements of primary facts.
 
 Tier 0 evidence form:
 
@@ -208,15 +206,14 @@ Detect the bifurcation pattern, then split intentional from accidental:
 - If both: forcing the instruction file to cite the rule = citation cycle. Each tier serves a different audience legitimately.
 
 **Intentional bifurcation**: two tiers, two named audiences, the split reads as deliberate →
-`REFUSE-source-of-truth-bifurcation`. Document both canonicals + their respective audiences in the
-output `notes:` field. This is the case anti-pattern #11 protects and it refuses at any bucket.
+`REFUSE-source-of-truth-bifurcation`. Document both canonicals + their audiences in the output
+`notes:` field. Anti-pattern #11 protects this case; it refuses at any bucket.
 
 **Accidental bifurcation**: two files assert the same contract, serve the SAME audience, and
-NEITHER is declared the owner. This is not the protected case; it is the N=2 bucket's defect.
-Emit `PROCEED` with `bucket: N=2` and `permitted-remedies: [name-an-owner, edit-existing-rule,
-normalize-wording]`. This branch has no canonical home yet, so `trim-to-citation` (the other N=2
-shape's remedy) has no target until an owner is named. Creating a third file to own the contract is
-NOT among them.
+NEITHER is declared the owner: the N=2 bucket's defect, not the protected case. Emit `PROCEED`
+with `bucket: N=2` and `permitted-remedies: [name-an-owner, edit-existing-rule,
+normalize-wording]`. `trim-to-citation` has no target until an owner is named. Creating a third
+file to own the contract is NOT among them.
 
 Tier 0 evidence form:
 
@@ -240,7 +237,7 @@ Forcing single citation would create: cycle (instruction file → rule → instr
 - For workflow chain prose, compare step names + ordering
 - If counts/shapes diverge non-trivially across instances → these are NOT the same cluster; `REFUSE-off-by-one-different-concern`
 
-Adjacent Lesson 4: an intentional Path 1 / Path 2 bifurcation (two related but distinct lifecycles documented side by side) is the canonical example: 2 lifecycles, intentionally distinct, must NOT collapse.
+Adjacent Lesson 4: the canonical example is an intentional Path 1 / Path 2 bifurcation, 2 related but distinct lifecycles documented side by side, which must NOT collapse.
 
 Tier 0 evidence form:
 
@@ -261,7 +258,7 @@ Two heuristics combined:
 - **Size**: cluster body ≤ 1 short paragraph (≤ ~80 words OR single sentence)
 - **Drift rate**: cluster content changes ≤ 1×/year (verifiable via `git log -p <files>` if needed)
 
-If BOTH true → `REFUSE-low-roi`. Inline at each call site is the disciplined call; the abstraction's overhead would dominate.
+If BOTH true → `REFUSE-low-roi`: keep it inline at each call site, since the abstraction's overhead would dominate.
 
 Tier 0 evidence form:
 
@@ -287,14 +284,14 @@ ROI verdict: LOW (size + drift indicate inline is cheaper)
 10. Optionally append a dated verify entry to the working notes (audit trail)
 ```
 
-If ANY gate REFUSES, stop and emit. Don't run remaining gates. Output the first refusal reason. (Avoids overspecified output that obscures the actual blocker.)
+If ANY gate REFUSES, stop and emit the first refusal reason without running the remaining gates, so extra output does not obscure the actual blocker.
 
 If ALL gates pass, emit `PROCEED` with summary evidence, the assigned `bucket:`, and the bucket's
 `permitted-remedies`. User runs `/docs-hygiene:extract-ssot plan <cluster>` next.
 
 ## Side observations
 
-When a gate REFUSES with high confidence, the cluster may still warrant action, just not the action `/docs-hygiene:extract-ssot` provides. Emit ONE side observation per refusal:
+A confidently refused cluster may still warrant action other than what `/docs-hygiene:extract-ssot` provides. Emit ONE side observation per refusal:
 
 | Refusal | Side observation form |
 |---------|----------------------|
@@ -305,11 +302,11 @@ When a gate REFUSES with high confidence, the cluster may still warrant action, 
 | `REFUSE-off-by-one-different-concern` | `Side note: <n> distinct concerns; consider /docs-hygiene:extract-ssot identify with a narrower discriminating phrase per concern.` |
 | `REFUSE-rule-of-three-fails` | `Side note: bucket <N=1\|N=2> — no new artifact, but <permitted remedies> still apply; the candidate stays on the roster.` |
 
-Keep side notes to the ones a reader must act on now. Everything else goes into the working-notes entry rather than the reply.
+Keep side notes to the ones a reader must act on now; everything else goes into the working-notes entry.
 
 ## Audit trail (optional)
 
-When `verify` runs as part of `/docs-hygiene:extract-ssot batch`, it MUST append a verify audit entry to the batch working notes so the batch summary can aggregate verdicts. When run standalone, an audit entry is OPTIONAL but recommended for non-trivial clusters.
+Inside `/docs-hygiene:extract-ssot batch`, `verify` MUST append a verify audit entry to the batch working notes so the batch summary can aggregate verdicts. Standalone, an entry is OPTIONAL but recommended for non-trivial clusters.
 
 Entry format:
 
