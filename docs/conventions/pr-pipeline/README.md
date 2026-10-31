@@ -3415,7 +3415,11 @@ Before the lane has reviewed the head, the dispute waits: the round escalates no
 round cap such a finding goes to the fresh fixer round as a code-review lane finding does, unless
 a trusted person directed it or the security-review lane held its head as `CRITICAL`, which goes
 to a person ([Loop caps](#loop-caps)). The bot's later comments in its thread
-count as the reviewer bot's; anyone else's leaves the thread alone. The list is matched on the
+count as the reviewer bot's; anyone else's leaves the thread alone. A listed bot's thread that no
+trusted person directed is worked only when the `@codex` request behind the bot's review came
+from a person on the trusted-actor list: any untrusted request since the bot's previous review,
+or no trusted one (an automatic review included), leaves it for a person, with the reason logged
+(`codex-request-untrusted`, `codex-request-not-found`). The list is matched on the
 account id GitHub records for each comment and its review, never on a login, so another account
 using the same name matches nothing. The comment text stays data in every model prompt, as the
 reviewer bot's does. This repository lists `chatgpt-codex-connector[bot]` (199175422). The
