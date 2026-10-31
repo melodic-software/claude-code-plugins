@@ -37,7 +37,7 @@ ops, and supersede and resolve read their text from a file.
                   --ledger merges
   ledger-check    compare the page with the ledger it was seeded from (or --ledger F) as
                   export-ledger --diff does; records meta.ledgerSync for the page header and logs
-                  an Activity line when the rows that disagree change; exit 1 when any does
+                  an Activity line when the rows that disagree change; exit 6 when any does
                   (session-bridge.conf runs it after each apply, AFTER_APPLY)
   supersede       set an answered register row of --ledger F to superseded-by-plan with the proposal
                   read from --proposes-file P (needs no data dir): the row's resolution becomes `was`,
@@ -67,6 +67,18 @@ status, lease, doctor and validate take --json: one JSON object on stdout in pla
   lease --json     {lease: {watcher, since, lastWaitAt, waiting, ...}|null}
   doctor --json    {ok, running, missing[], notes[], notChecked}
   validate --json  {valid: true, files[], rebuildMatches} or, with exit 1, {valid: false, error}
+
+Exit codes, one per outcome, the same for every command:
+  0  done
+  1  refused: bad arguments, an input or state file that does not load, a refused write or op,
+     or a doctor or validate check that found a defect; stderr names the cause
+  2  a prerequisite is missing: Python 3 (round.sh) or curl (ensure-running), the code watch.sh
+     also exits with when curl is missing
+  5  ensure-running started the page server, but it did not answer within 3 s
+  6  the page and a ledger disagree: export-ledger --diff finds a change or a conflict,
+     ledger-check finds a row out of sync, or export-ledger --ledger, sync-ledger or
+     add-round --sync-ledger kept a conflicting ledger row
+lease --takeover ends with watch.sh's own exit code (0, 2, 3 or 4), so round.sh uses neither 3 nor 4.
 
 Every write validates questions.json against schema/questions.schema.json and holds the sidecar
 lock questions.json.lock (ROUND_LOCK_TIMEOUT seconds, default 10).
@@ -143,6 +155,11 @@ DECISIONS = ("accept", "alt", "own", "defer", "hedged")
 LOCK_NAME = "questions.json.lock"
 LOCK_SECONDS = 10
 START_SECONDS = 3
+# The exit codes the module docstring lists. A bare sys.exit("message") is EXIT_REFUSED.
+EXIT_REFUSED = 1
+EXIT_MISSING_PREREQUISITE = 2
+EXIT_SERVER_DID_NOT_START = 5
+EXIT_LEDGER_DIFFERS = 6
 # The server pushes a state frame within 0.3 s of a write; stop waits this long so open tabs get the finish.
 FINISH_SECONDS = 1
 REC_BUDGET = 200
@@ -243,6 +260,12 @@ def now():
 
 def warn(msg):
     print(f"warning: {msg}", file=sys.stderr)
+
+
+def exit_with(code, msg):
+    """Print msg to stderr and exit with code, for the outcomes that are not a refusal."""
+    print(msg, file=sys.stderr)
+    sys.exit(code)
 
 
 def load(d):
@@ -2640,12 +2663,12 @@ def cmd_export(d, a):
 
 
 def report_notes(notes, kinds):
-    """Print the merge notes of the given kinds; exit 1 when any is a change or a conflict."""
+    """Print the merge notes of the given kinds; exit 6 when any is a change or a conflict."""
     shown = [(k, line) for k, line in notes if k in kinds]
     for _, line in shown:
         print(line)
     if any(k != "kept" for k, _ in shown):
-        sys.exit(1)
+        sys.exit(EXIT_LEDGER_DIFFERS)
 
 
 def last_recap_path(ledger):
@@ -2713,7 +2736,7 @@ def cmd_export_ledger(d, a):
 def cmd_ledger_check(d, a):
     """Compare the page with the ledger it was seeded from (or --ledger), as `export-ledger --diff`
     does, and record the result in meta.ledgerSync for the page header. A change in which rows
-    disagree adds an Activity Log line; exit 1 when any row does."""
+    disagree adds an Activity Log line; exit 6 when any row does."""
     with sidecar_lock(d):
         doc = load(d)
         ledger = a.ledger or (doc["meta"].get("seededFrom") or {}).get("ledger")
@@ -2751,7 +2774,7 @@ def cmd_ledger_check(d, a):
         else f"ledger in sync, rev {doc['rev']}"
     )
     if rows:
-        sys.exit(1)
+        sys.exit(EXIT_LEDGER_DIFFERS)
 
 
 def capped_text(text, cap):
@@ -2945,7 +2968,10 @@ def record_emoji_markers(d, want):
 
 def cmd_ensure_running(d, a):
     if not shutil.which("curl"):
-        sys.exit("missing prerequisite: curl (the watcher needs it on PATH)")
+        exit_with(
+            EXIT_MISSING_PREREQUISITE,
+            "missing prerequisite: curl (the watcher needs it on PATH)",
+        )
     d.mkdir(parents=True, exist_ok=True)
     with sidecar_lock(d):
         flag = a.emoji_markers
@@ -2984,8 +3010,9 @@ def cmd_ensure_running(d, a):
             if s is None:
                 if proc.poll() is None:
                     proc.kill()
-                sys.exit(
-                    f"the server did not start within {START_SECONDS} s (data dir {d})"
+                exit_with(
+                    EXIT_SERVER_DID_NOT_START,
+                    f"the server did not start within {START_SECONDS} s (data dir {d})",
                 )
         if layers and s.get("userSettings") != layers:
             s["userSettings"] = layers
@@ -3116,8 +3143,17 @@ EXAMPLES = """examples:
 """
 
 
+class Parser(argparse.ArgumentParser):
+    """argparse exits 2 on a usage error, the code a missing prerequisite takes here, so a usage
+    error exits as a refusal instead. Subparsers take this class too."""
+
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        self.exit(EXIT_REFUSED, f"{self.prog}: error: {message}\n")
+
+
 def main(argv=None):
-    p = argparse.ArgumentParser(
+    p = Parser(
         description=__doc__,
         epilog=EXAMPLES,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -3258,7 +3294,7 @@ def main(argv=None):
         "--diff",
         metavar="LEDGER",
         help="print each row and column the merge would change in LEDGER, plus status "
-        "conflicts and the text it keeps, and write nothing; exit 1 on any change or conflict",
+        "conflicts and the text it keeps, and write nothing; exit 6 on any change or conflict",
     )
     s.add_argument(
         "--recap",
@@ -3279,7 +3315,7 @@ def main(argv=None):
     s = sub.add_parser(
         "ledger-check",
         help="compare the page with its ledger as export-ledger --diff does, record the result "
-        "for the page header, and log the rows that disagree; exit 1 when any does",
+        "for the page header, and log the rows that disagree; exit 6 when any does",
     )
     s.add_argument(
         "--ledger",
