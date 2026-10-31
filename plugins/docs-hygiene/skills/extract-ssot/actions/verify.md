@@ -75,7 +75,7 @@ Status values:
 Each gate has Tier 0 evidence requirements: direct grep/read output captured this turn per SKILL.md "Evidence discipline". For Gates 1–3 partial facts, run:
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/emit-verify-facts.sh" --phrase "<discriminating phrase>"
+bash "<skill-dir>/scripts/emit-verify-facts.sh" --phrase "<discriminating phrase>"
 ```
 
 Map the script output to gate evidence; emit the `status: PROCEED | REFUSE-* | WARN` YAML in the skill. The script never emits verdicts. The script takes a phrase, so it serves literal clusters; a semantic cluster has no shared phrase, and its Gate 1 count comes from reading the candidate files (Gate 1, semantic shape).
