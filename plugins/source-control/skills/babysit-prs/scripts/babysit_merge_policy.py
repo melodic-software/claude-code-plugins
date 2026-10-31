@@ -93,6 +93,10 @@ CONFIG_PATH = "docs/conventions/pr-pipeline.yaml"
 FLOOR_PATHS_KEY = "merge.diff-check.floor-paths"
 SOURCE_CONTROL_PATH = repo_config.CONFIG_PATH
 LOOP_MERGE_KEY = "babysit_loop_merge"
+# The largest `merge.max-in-flight` the gate takes, as the schema's maximum:
+# over twice the 11 the sizing formula gives for the day recorded in
+# `merge.in-flight-sizing` (judgment). Above it the value reads as unset.
+MAX_IN_FLIGHT_CEILING = 24
 PARSER = Path(__file__).resolve().parents[3] / "lib" / "parse-concern-value.sh"
 
 RUNG_RANK = {"off": 0, "C2": 2, "C3": 3}
@@ -1061,9 +1065,13 @@ def read_config_at(
         )
         dependabot_majors = "hold"
     in_flight_cap = scalar("merge.max-in-flight")
-    if in_flight_cap is not None and not re.fullmatch(r"[1-9][0-9]*", in_flight_cap):
+    if in_flight_cap is not None and not (
+        re.fullmatch(r"[1-9][0-9]*", in_flight_cap)
+        and int(in_flight_cap) <= MAX_IN_FLIGHT_CEILING
+    ):
         notes.append(
-            f"merge.max-in-flight {in_flight_cap!r} is not a count of 1 or more"
+            f"merge.max-in-flight {in_flight_cap!r} is not a count from 1 to "
+            f"{MAX_IN_FLIGHT_CEILING}"
         )
         in_flight_cap = None
     ejections = scalar("merge.max-queue-ejections")

@@ -31,6 +31,18 @@ metrics on that attribute never sets `OTEL_METRICS_INCLUDE_RESOURCE_ATTRIBUTES=f
 - **Recheck trigger**: a Claude Code changelog entry touching resource attributes or
   `OTEL_METRICS_INCLUDE_RESOURCE_ATTRIBUTES`, or that section is renamed or removed.
 
+## Cloud session identity
+
+A binding that groups or filters telemetry by cloud session keys on `ccr.session.id`, never
+`session.id`.
+
+- **Pointer**: when attributing telemetry to a cloud or Claude Tag session, fetch the "Attribute
+  telemetry to cloud sessions" section,
+  <https://code.claude.com/docs/en/monitoring-usage#attribute-telemetry-to-cloud-sessions>, live.
+- **As of**: 2026-10-31
+- **Recheck trigger**: a Claude Code changelog entry touching `ccr.session.id` or cloud-session
+  attributes, or that section is renamed or removed.
+
 ## Inbound trace context in headless sessions
 
 The slice's join is `autonomy.work_item.url`, never inbound trace context. Where a dispatched
