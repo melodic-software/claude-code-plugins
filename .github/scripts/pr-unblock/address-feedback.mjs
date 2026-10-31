@@ -710,10 +710,14 @@ const ANY_CODEX_MENTION = /@codex(?![\w-])/i;
 // With no `@codex` comment the review is automatic, asked for by whoever
 // triggered it: the PR's author on opening, or the actor of a ready-for-review
 // event (`triggers`, readTriggers). Which one cannot be told apart, so every
-// such event in the window must be a trusted person's or one of `ownIds` (the
-// lanes App, APP_SENDER_ID); one by anyone else fails it. An event with no
-// readable time is not counted, and unreadable triggers (null) count none.
-export function codexRequest({ authorId, submittedAt, reviews, mentions, triggers = null, reviewerIds = [], trustedHumans = new Set(), ownIds = new Set() }) {
+// such event in the window must be a trusted person's or the lanes App's
+// (`appId`, APP_SENDER_ID); one by anyone else, github-actions[bot] included,
+// fails it. An event with no readable time is not counted, and unreadable
+// triggers (null) fail the check. Our own bots (the lanes App and
+// github-actions[bot], whose review lanes edit their marker in place) are
+// exempt from the edited and deleted comment rules, never trusted by them.
+export function codexRequest({ authorId, submittedAt, reviews, mentions, triggers = null, reviewerIds = [], trustedHumans = new Set(), appId }) {
+  const ourBot = (id) => id === appId || id === MARKER_AUTHOR_ID;
   const at = Date.parse(submittedAt ?? "");
   // Unreadable triggers (readTriggers' null) leave edits and deletions unseen.
   if (Number.isNaN(at) || triggers === null) {
@@ -735,14 +739,14 @@ export function codexRequest({ authorId, submittedAt, reviews, mentions, trigger
       trusted ||= CODEX_MENTION.test(body) && within(created);
     } else if (ANY_CODEX_MENTION.test(body) && (Number.isNaN(created) || within(created) || within(edited))) {
       return untrusted(mention.authorId, "@codex request");
-    } else if (!ownIds.has(mention.authorId) && created <= at && edited > created && edited > since) {
+    } else if (!ourBot(mention.authorId) && created <= at && edited > created && edited > since) {
       // Edited since the window opened: it may have held a request then.
       return untrusted(mention.authorId, "edited comment");
     }
   }
   for (const deletion of triggers.deletions ?? []) {
     const id = deletion.authorId;
-    if (!(Date.parse(deletion.at ?? "") <= since) && !trustedHumans.has(id) && !ownIds.has(id) && !reviewerIds.includes(id)) {
+    if (!(Date.parse(deletion.at ?? "") <= since) && !trustedHumans.has(id) && !ourBot(id) && !reviewerIds.includes(id)) {
       return untrusted(id, "deleted comment");
     }
   }
@@ -751,7 +755,7 @@ export function codexRequest({ authorId, submittedAt, reviews, mentions, trigger
     if (!within(Date.parse(event.at ?? ""))) {
       continue;
     }
-    if (!trustedHumans.has(event.actorId) && !ownIds.has(event.actorId)) {
+    if (!trustedHumans.has(event.actorId) && event.actorId !== appId) {
       return { reason: "codex-request-untrusted", requester: event.actorId, via: event.via };
     }
     trusted = true;
@@ -812,14 +816,14 @@ export const anyListed = (authorIds, reviewerIds = []) => reviewerIds.length > 0
 // person directed is checked, at each listed bot's comment (`comments`, each
 // { authorId, review: { authorId, submittedAt } }). The select step and the
 // reply job (keepThreads) and the dispatcher (feedback-dispatch.mjs) all ask.
-export function requestSkip({ authors, comments, reviews, mentions, triggers = null, reviewerIds = [], trustedHumans, ownIds = new Set() }) {
+export function requestSkip({ authors, comments, reviews, mentions, triggers = null, reviewerIds = [], trustedHumans, appId }) {
   if (authors.some((author) => author.direction === true)) {
     return null;
   }
   for (const comment of comments) {
     if (reviewerIds.includes(comment.authorId)) {
       const submittedAt = comment.review?.authorId === comment.authorId ? comment.review.submittedAt : undefined;
-      const skip = codexRequest({ authorId: comment.authorId, submittedAt, reviews, mentions, triggers, reviewerIds, trustedHumans, ownIds });
+      const skip = codexRequest({ authorId: comment.authorId, submittedAt, reviews, mentions, triggers, reviewerIds, trustedHumans, appId });
       if (skip) {
         return skip;
       }
@@ -912,7 +916,7 @@ export function keepThreads({ threads, reviewComments, reviews, heads, security 
       triggers,
       reviewerIds,
       trustedHumans,
-      ownIds: new Set([appId, MARKER_AUTHOR_ID]),
+      appId,
     });
     if (skip) {
       log(requestSkipLine(thread.id, skip));

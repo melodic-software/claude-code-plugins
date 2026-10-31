@@ -273,7 +273,7 @@ function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHuman
     triggers,
     reviewerIds,
     trustedHumans,
-    ownIds: new Set([appId, DEFAULTS.markerAuthorId]),
+    appId,
   });
   if (skip) {
     log(requestSkipLine(thread.id, skip));

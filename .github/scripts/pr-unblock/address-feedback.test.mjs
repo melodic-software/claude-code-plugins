@@ -1874,6 +1874,9 @@ test("an automatic Codex review a stranger triggered is skipped, and an untruste
     // Which event triggered the review cannot be told apart, so every one in
     // the window must be trusted.
     ["a stranger's PR an owner marked ready", [], { opener: STRANGER, openedAt: OPENED, timeline: [readied(HUMAN)] }, untrusted("opening of the pull request")],
+    // github-actions[bot]'s edits are exempt (the lanes' markers), but it is
+    // no trusted trigger: only the lanes App is.
+    ["a ready flip by github-actions[bot]", [], { opener: HUMAN, openedAt: OPENED, timeline: [readied(ACTIONS_BOT)] }, untrusted("ready-for-review event").replace(String(STRANGER), String(ACTIONS_BOT))],
     ["a stranger's @codex on an owner PR", [codexAsk(STRANGER)], { opener: HUMAN, openedAt: OPENED }, untrusted("@codex request")],
   ]) {
     const { result, lines } = await codexLogged(askedBy(asks, extra));
