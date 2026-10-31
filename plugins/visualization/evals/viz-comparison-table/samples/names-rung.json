@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "| Queue | Throughput (msg/s) | Persistence | License |\n|---|---|---|---|\n| Kestrel | 120k | Disk log | Apache-2.0 |\n| Ripple | 45k | In-memory only | MIT |\n| Harbor | 80k | Disk + replicas | BSL |\n| Tern | 15k | SQLite | MIT |\n\nForm: a markdown table, since this compares attributes across items. Medium: terminal, chosen by the shipped default (no argument or preference set)."
+    },
+    {
+      "answer": "Medium: inline in the terminal (auto, the default tier: a small static table needs no page).\n\n| | Kestrel | Ripple | Harbor | Tern |\n|:--|:--|:--|:--|:--|\n| Throughput | 120k/s | 45k/s | 80k/s | 15k/s |\n| Persistence | disk log | memory | disk + replicas | SQLite |\n| License | Apache-2.0 | MIT | BSL | MIT |"
+    },
+    {
+      "answer": "| Queue | Throughput | | Durability | License |\n|---|---:|---|---|---|\n| **Kestrel** | ~120k msg/s | `████████████` | Disk log | Apache-2.0 |\n| **Harbor** | ~80k msg/s | `████████░░░░` | Disk + replicas | BSL |\n| **Ripple** | ~45k msg/s | `████▌░░░░░░░` | In-memory only (lost on restart) | MIT |\n| **Tern** | ~15k msg/s | `█▌░░░░░░░░░░` | SQLite (disk) | MIT |\n\nI showed this as a table in the terminal because there are only four options and three attributes, which is too small to need a chart or a page. No medium was set in an argument, config or `rendered-views` file, so this is the default."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Queue | Throughput (msg/s) | Persistence | License |\n|---|---|---|---|\n| Kestrel | 120k | Disk log | Apache-2.0 |\n| Ripple | 45k | In-memory only | MIT |\n| Harbor | 80k | Disk + replicas | BSL |\n| Tern | 15k | SQLite | MIT |\n\nHere's the comparison as a table."
+    },
+    {
+      "answer": "| Queue | Throughput (msg/s) | Persistence | License |\n|---|---|---|---|\n| Kestrel | 120k | Disk log | Apache-2.0 |\n| Ripple | 45k | In-memory only | MIT |\n| Harbor | 80k | Disk + replicas | BSL |\n| Tern | 15k | SQLite | MIT |\n\nKestrel leads on throughput; Ripple and Tern are MIT."
+    },
+    {
+      "answer": "| Queue | Throughput | | Durability | License |\n|---|---:|---|---|---|\n| **Kestrel** | ~120k msg/s | `████████████` | Disk log | Apache-2.0 |\n| **Harbor** | ~80k msg/s | `████████░░░░` | Disk + replicas | BSL |\n| **Ripple** | ~45k msg/s | `████▌░░░░░░░` | In-memory only (lost on restart) | MIT |\n| **Tern** | ~15k msg/s | `█▌░░░░░░░░░░` | SQLite (disk) | MIT |\n\nNo medium-sized queue here replicates by default; only Harbor copies data to other machines. No medium was set."
+    }
+  ]
+}

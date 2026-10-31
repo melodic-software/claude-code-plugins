@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Plan the test lanes from the change's suite selection: which suites each lane
 # of pr-require-checks.yml runs, on how many legs and with which optional toolchains, and which
-# jobs and steps of pr-test-windows.yml run.
+# jobs and steps of pr-test-platforms.yml run.
 #
 #   scripts/plan-test-lanes.sh                 the whole tree
 #   scripts/plan-test-lanes.sh --base <ref>    the change since the merge base with <ref>
@@ -19,8 +19,8 @@
 #                             (the guardrails remote's end-to-end suite), demovideo (the
 #                             demo-video shell suite: its locked requirements and ffmpeg)
 #   node_packages             the Node packages to install and test, space-separated
-#   windows_jobs              the pr-test-windows.yml jobs to run, a JSON list
-#   windows_steps             the pr-test-windows.yml steps to run, a JSON list of the keys
+#   windows_jobs              the pr-test-platforms.yml jobs to run, a JSON list
+#   windows_steps             the pr-test-platforms.yml steps to run, a JSON list of the keys
 #                             in scripts/test-windows-plan.txt
 #   unmapped                  how many changed files mapped to no suite
 #
@@ -42,7 +42,7 @@
 #   - the whole tree (no base and no paths: a schedule, a dispatch, a push with no
 #     usable base), or a change to pr-require-checks.yml or
 #     .github/actions/download-full-history/, the one local action every lane
-#     runs: every suite of every pr-require-checks.yml lane. pr-test-windows.yml,
+#     runs: every suite of every pr-require-checks.yml lane. pr-test-platforms.yml,
 #     that action and .python-version (every Windows job sets up its Python
 #     from it) do the same for the Windows plan. The other local actions are
 #     Node packages the selector maps like any other code.
@@ -154,7 +154,7 @@ fi
 for f in ${changed[@]+"${changed[@]}"}; do
   case "$f" in
   .github/workflows/pr-require-checks.yml) whole=1 ;;
-  .github/workflows/pr-test-windows.yml | "$WINDOWS_INERT") whole_windows=1 ;;
+  .github/workflows/pr-test-platforms.yml | "$WINDOWS_INERT") whole_windows=1 ;;
   .github/actions/download-full-history/*)
     whole=1
     whole_windows=1

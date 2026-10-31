@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.14.0] - 2026-10-31
+
+### Added
+
+- `/context-budget:audit` takes an optional `--unattended` modifier, accepted anywhere in its arguments. With it, the run records the `/context` and `/skill-doctor` offers in its output instead of asking; without it, the run asks. The argument hint lists it.
+
 ## [0.13.11] - 2026-10-30
 
 ### Changed

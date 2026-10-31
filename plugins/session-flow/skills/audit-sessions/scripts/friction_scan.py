@@ -242,12 +242,12 @@ class FrictionScan:
                         denial["next_tool"] = name
                     self.next_calls[block["id"]] = self.awaiting_next
                     self.awaiting_next = []
-                command = tool_input.get("command") if name in SHELL_TOOLS else None
+                # A Monitor command counts as polling only when it is itself a poll loop: a
+                # tail -f or another event wait is the wait the harness recommends.
+                command = tool_input.get("command") if name in SHELL_TOOLS or name == "Monitor" else None
                 if isinstance(command, str):
                     self.perf["ci_wait_calls"] += bool(CI_WAIT_RE.search(command))
                     self.perf["polling_calls"] += bool(POLL_RE.search(command)) and not CI_WAIT_RE.search(command)
-                if name == "Monitor":
-                    self.perf["polling_calls"] += 1
 
     def _user(self, record: dict, ts: float | None) -> None:
         use_id = transcript_reader.tool_result_id(record)

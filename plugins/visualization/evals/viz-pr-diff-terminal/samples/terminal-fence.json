@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "I'm keeping this in the terminal rather than writing an HTML page: content from a pull-request diff from another repository isn't rendered to HTML.\n\n```\npayments-api/\n├── billing/\n│   ├── invoice.py        # adds late-fee calculation\n│   └── late_fee.py       # new: fee rules per plan\n└── tests/\n    └── test_late_fee.py  # new: covers grace period\n```\n\nMedium: the `file` argument asked for a page, overridden by the diff exception."
+    },
+    {
+      "answer": "No page this time, since the source is a PR diff (fetched, third-party content stays a terminal fence).\n\n```text\nbilling/invoice.py         modified  late-fee hook in total()\nbilling/late_fee.py        added     LateFeePolicy\ntests/test_late_fee.py     added     grace-period tests\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The PR touches billing/invoice.py, adds billing/late_fee.py and tests/test_late_fee.py. A page isn't produced for PR diffs."
+    },
+    {
+      "answer": "Wrote the page to /tmp/visualize-q8r2/visualize.html and opened it. It shows invoice.py, late_fee.py and the new test."
+    }
+  ]
+}

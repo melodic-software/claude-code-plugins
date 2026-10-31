@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: viz-comparison-table
+graders:
+  - name: markdown-table
+    type: regex
+    pattern: '^[ \t]*\|[^\n]*\|[ \t]*\n[ \t]*\|?[ \t]*:?-+:?[ \t]*\|'
+    flags: m
+    target: last_message
+  - name: names-rung
+    type: regex
+    pattern: 'shipped[ \t]+default|\bauto\b[^\n]{0,60}?(?:default|rung|tier|terminal|inline)|(?:default|rung|tier|terminal|inline)[^\n]{0,60}?\bauto\b|no (?:medium )?(?:argument|preference|override)s?[^\n]{0,80}?(?:default|terminal|inline)|no (?:medium|argument|preference|override|configuration|config|setting)s?\b[^\n]{0,30}?\b(?:set|given|passed|specified|configured|named)\b[^\n]{0,100}?\bdefault\b'
+    flags: i
+    target: last_message
+  - name: no-page
+    type: regex
+    pattern: '<!doctype\s+html|<html\b|<body\b|<head\b|<div\b|<section\b|<svg\b|<x-embed\b|<script\b|visualize\.html|claude\.ai/(?:code/)?artifact'
+    flags: i
+    match: not_contains
+    target: last_message
