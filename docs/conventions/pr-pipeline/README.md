@@ -3446,7 +3446,7 @@ and reports by run and attempt.
 
 | Key | Default | What it sets |
 |---|---|---|
-| `dry-run` | `true` | Report only: the step summary and one comment per confirmed red on the log issue (first body line `<!-- red-main-revert-log -->`), each starting `<!-- red-main-report run=<id> attempt=<n> culprit=<sha or none> decision=<auto-revert, human or none> -->`. Nothing is pushed, opened or merged. This version has no revert path, so `false` reports too. |
+| `dry-run` | `true` | Report only: the step summary and one comment per confirmed red on the log issue (first body line `<!-- red-main-revert-log -->`), each starting `<!-- red-main-report run=<id> attempt=<n> culprit=<sha or none> decision=<auto-revert, human or none> -->`. A run that posts no report, because its red is unconfirmed or the log already reports it, adds a note naming any unreported red full runs, starting `<!-- red-main-unreported-note run=<id> attempt=<n> -->`; a note counts as neither a report nor a cap decision, and none creates the log issue. Nothing is pushed, opened or merged. This version has no revert path, so `false` reports too. |
 | `daily-cap` | 3 | Auto-reverts decided in any 24 hours; 0 to 10, and 0 sends every culprit to a person. |
 | `max-culprit-age-hours` | 24 | Hours since the culprit merged past which a person decides; 1 to 168. |
 | `confirm-wait-minutes` | 40 | Minutes the job waits for the re-run to finish; 0 to 45. |
