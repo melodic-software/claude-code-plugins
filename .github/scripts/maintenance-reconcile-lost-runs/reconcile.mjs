@@ -198,7 +198,7 @@ export const LANE_LOST = new Set([...LOST, "failure"]);
 export const GATED_REVIEWS = new Set([".github/workflows/pr-review-hosted.yml", ".github/workflows/pr-review-security-hosted.yml"]);
 export const CI_WORKFLOWS = new Set([
   ".github/workflows/pr-require-checks.yml",
-  ".github/workflows/pr-test-windows.yml",
+  ".github/workflows/pr-test-platforms.yml",
   ".github/workflows/pr-check-managed-files-hosted.yml",
   ...GATED_REVIEWS,
 ]);
