@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Seeds the eval workspace with a git repo whose feature branch is one commit ahead of main, an
-# offline forge (fixtures/gh-forge, --no-pr) that takes the push and opens the PR, and a team config
+# offline forge (fixtures/gh-forge, --no-pr) that holds the head and opens the PR, and a team config
 # that requires a Verification section.
 set -euo pipefail
 
