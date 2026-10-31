@@ -179,7 +179,7 @@ const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision"]);
 // A body line opening with `Hold:`, as the merge gate reads one in a pull
 // request body a person wrote (pr-merge/merge-holds.mjs BODY_HOLD).
 export const BODY_HOLD = /^[^\S\r\n]*hold:/im;
-const LISTS = ["types", "types-under-parent", "types-parent-if-present", "sizes", "uncertainty", "refuse-labels"];
+const LISTS = ["types", "types-under-parent", "types-parent-if-present", "sizes", "uncertainty", "refuse-labels", "cordoned-milestones"];
 
 // The rules file, each list checked to hold strings.
 export function loadRules(path) {
