@@ -138,8 +138,9 @@ export function buildEvidence({ capture, prBody } = {}) {
 const KEY_SHAPE = /\bsk-ant-[A-Za-z0-9_-]{8,}/;
 // chunk-diff.sh's fold, which a quoted line carries through the middle of a
 // token, with the white space a quote leaves before it, on the line or across a
-// line end.
-const FOLD = /\s*\\ continued: ?/g;
+// line end. The lookbehind starts a match only at the head of a white space run,
+// so a long run is not read again from each of its characters.
+const FOLD = /(?<!\s)\s*\\ continued: ?/g;
 // The credential formats, which scanLeak blocks on. findSecret alone would name
 // an assignment first and hide a format later on its line or after it.
 const FORMATS = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
