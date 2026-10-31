@@ -691,7 +691,7 @@ before. Per-run paired median, after minus before:
 | `git config --get user.name` | +0.8 to +1.6 ms; +0.5 to +1.9 ms | +0.1 to +1.7 ms; +0.6 to +1.4 ms |
 | `git config --global user.email …` (denied) | +1.0 to +2.7 ms; +0.6 to +1.9 ms | +0.6 to +1.9 ms; +0.9 to +1.3 ms |
 
-The common call is unchanged, inside the 8 to 10 ms p10 to p90 spread of each arm. A
+The common call is unchanged, inside the 6 to 11 ms p10 to p90 spread of each arm. A
 command holding `git` and `config` pays the parse, up to +2.7 ms (2.7 S on this host), at
 k = 0: builtin work, inside the k × S plus measured-work budget, as the #9744 entry read
 its +1.9 ms. The map's one recompile to format 4 was not timed. Builtin work does not scale
