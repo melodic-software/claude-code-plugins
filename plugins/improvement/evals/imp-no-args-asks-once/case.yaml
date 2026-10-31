@@ -25,7 +25,7 @@ graders:
     arm: both
   - name: asks-target-focus-done
     type: regex
-    pattern: '(?=[\s\S]*\btarget\b)(?=[\s\S]*\bfocus\b)(?=[\s\S]*(?:\bdone\b|\b(?:success|successful)\b|\bgood outcome\b))[\s\S]*\?'
+    pattern: '(?=[\s\S]*\btarget\b)(?=[\s\S]*\bfocus\b)(?=[\s\S]*(?:\bdone\b|\b(?:success|successful)\b|\bgood outcome\b))[\s\S]*(?:\?|\bplease (?:confirm|choose|pick|reply)\b|\bconfirm or (?:redirect|change|correct)\b|\breply with\b)'
     flags: 'i'
     arm: both
   - name: offers-recommended-answer

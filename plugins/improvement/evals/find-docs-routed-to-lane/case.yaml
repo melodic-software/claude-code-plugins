@@ -30,7 +30,7 @@ graders:
     arm: both
   - name: docs-candidate-not-ranked
     type: regex
-    pattern: '^[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))(?!(?:docs-hygiene|codebase-health))[\s\S])*?(?:README|ledger\.yaml)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))(?!(?:docs-hygiene|codebase-health))[\s\S])*(?:(?=\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))|(?![\s\S]))'
+    pattern: '^[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))(?!(?:docs-hygiene|codebase-health))[\s\S])*?(?:README[^\n]{0,200}?(?:ledger\.(?:ya?ml|json)|config(?:uration)? (?:path|file)|settings)|ledger\.(?:ya?ml|json)[^\n]{0,200}?README|ledger\.ya?ml)(?:(?!\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))(?!(?:docs-hygiene|codebase-health))[\s\S])*(?:(?=\n[ \t]*(?:\|\s*\**#?\d{1,2}\**\s*\||[-*]?\s*\**#?\d{1,2}[.)]\**\s|#{1,4}\s*\**(?:#|rank\s*|candidate\s*)?\d{1,2}\b))|(?![\s\S]))'
     flags: 'im'
     match: 'not_contains'
     arm: both

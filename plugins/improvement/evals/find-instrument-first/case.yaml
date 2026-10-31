@@ -30,6 +30,6 @@ graders:
     arm: both
   - name: records-evidence-gaps
     type: regex
-    pattern: '(?<!\bno\s)\b(?:evidence[- ])?gaps?\b[^\n]{0,160}?\b(?:telemetry|CI|history|git|metrics?|latency|GitHub|measurements?|tests?)\b|\bno (?:telemetry|CI|git history|metrics|latency data|measurements?|timing data)\b[^\n]{0,80}?\b(?:available|configured|found|exists?|present|recorded|to rank)\b'
+    pattern: '(?<!\bno\s)\b(?:evidence[- ])?gaps?\b[^\n]{0,160}?\b(?:telemetry|CI|history|git|metrics?|latency|GitHub|measurements?|tests?)\b|\bno (?:telemetry|CI|git history|metrics|latency data|measurements?|timing data)\b[^\n]{0,80}?\b(?:available|configured|found|exists?|present|recorded|to rank)\b|\b(?:couldn\x27t|could not|can\x27t|cannot|didn\x27t|did not) see\b[\s\S]{0,400}?\b(?:telemetry|CI|history|git|metrics?|measurements?)\b'
     flags: 'i'
     arm: both

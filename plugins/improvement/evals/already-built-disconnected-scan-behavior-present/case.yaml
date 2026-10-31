@@ -13,7 +13,7 @@ execution:
 graders:
   - name: dead-import-exportRowsToCsv
     type: regex
-    pattern: '(?=[\s\S]*routes\.js)(?=[\s\S]*csv-exporter\.js)[\s\S]*?(?:exportRowsToCsv[^\n]{0,240}?(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)\b(?:never (?:call(?:s|ed)?|use[sd]?|invoke[sd]?|wired)|not (?:called|used|invoked|wired)|(?:does not|doesn\x27t|is not|isn\x27t) (?:call|use|invoke)|unused|unreferenced|imported but (?:never|not)|dead (?:import|code)|no (?:callers?|call sites?|calls))|(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)\b(?:never (?:call(?:s|ed)?|use[sd]?|invoke[sd]?|wired)|not (?:called|used|invoked|wired)|(?:does not|doesn\x27t|is not|isn\x27t) (?:call|use|invoke)|unused|unreferenced|imported but (?:never|not)|dead (?:import|code)|no (?:callers?|call sites?|calls))[^\n]{0,160}?exportRowsToCsv)'
+    pattern: '(?=[\s\S]*routes\.js)(?=[\s\S]*csv-exporter\.js)[\s\S]*?(?:exportRowsToCsv[^\n]{0,240}?(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)\b(?:never (?:call(?:s|ed)?|use[sd]?|invoke[sd]?|wired)|not (?:called|used|invoked|wired)|(?:does not|doesn\x27t|is not|isn\x27t) (?:call|use|invoke)|unused|unreferenced|imported but (?:never|not)|dead (?:import|code)|no (?:callers?|call sites?|calls)|nothing (?:calls|uses|invokes|references))|(?<!\bnot\s)(?<!n\x27t\s)(?<!\bno\s)\b(?:never (?:call(?:s|ed)?|use[sd]?|invoke[sd]?|wired)|not (?:called|used|invoked|wired)|(?:does not|doesn\x27t|is not|isn\x27t) (?:call|use|invoke)|unused|unreferenced|imported but (?:never|not)|dead (?:import|code)|no (?:callers?|call sites?|calls)|nothing (?:calls|uses|invokes|references))[^\n]{0,160}?exportRowsToCsv)'
     flags: 'i'
     arm: both
   - name: dark-flag-adminBulkExport
