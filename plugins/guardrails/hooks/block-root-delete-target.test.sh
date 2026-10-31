@@ -2949,6 +2949,167 @@ guard_invoke --tool PowerShell "${RDT_CWD[@]}" --command "Start-Process cmd -Arg
 assert_exit 'PS indirection: Start-Process of an outside rd /s exits 2' 2 "$GUARD_RC"
 assert_contains 'PS indirection: the refusal says the target is outside the tree' "$GUARD_ERR" 'outside the working tree'
 
+# --- 2n. moves and content destroyers (#9767) ----------------------------------
+# An mv source, the file a truncate, shred or dd of= destroys, and on the
+# PowerShell tool a Move-Item or Clear-Content path or a Set-Content of several
+# files are each judged as a recursive rm operand. Every form runs against a
+# root, HOME, a path outside the allowed roots and a path strictly inside the
+# tree. No case runs the command.
+RDT_MV_FORMS=(
+  'mv TGT build/rdt-out'
+  'mv TGT /dev/null'
+  'mv -f build/rdt-x TGT build/rdt-out/'
+  'mv -t build/rdt-out TGT'
+  'mv --target-directory build/rdt-out TGT'
+  'mv -S .bak TGT build/rdt-out'
+  'sudo mv -- TGT build/rdt-out'
+  'truncate -s 0 TGT'
+  'truncate --size 0 TGT'
+  'truncate -r build/rdt-ref TGT'
+  'shred -u TGT'
+  'shred -n 3 -z TGT'
+  'dd if=/dev/zero of=TGT bs=1M count=1'
+)
+RDT_MVP_FORMS=(
+  'Move-Item TGT build\rdt-out'
+  'Move-Item -Path TGT -Destination build\rdt-out -Force'
+  'Move-Item -Destination build\rdt-out TGT'
+  'mi -LiteralPath TGT build\rdt-out'
+  'move TGT build\rdt-out'
+  'mv build\rdt-x, TGT build\rdt-out'
+  'Get-ChildItem TGT | Move-Item -Destination build\rdt-out'
+  'Clear-Content TGT'
+  'clc -Path TGT -Force'
+  'gci TGT | Clear-Content'
+  'Set-Content -Path TGT, build\rdt-x -Value x'
+  'Set-Content build\rdt-x,TGT x'
+)
+rdt_mv() { # <label> <want> <bash target> <PowerShell target> [guard_invoke option ...]: every form
+  local label="$1" want="$2" t="$3" tp="$4" f
+  shift 4
+  for f in "${RDT_MV_FORMS[@]}"; do
+    expect_both "moves: $label: ${f//TGT/$t}" "$want" --command "${f//TGT/$t}" "$@"
+  done
+  for f in "${RDT_MVP_FORMS[@]}"; do
+    expect_both "moves: PS $label: ${f//TGT/$tp}" "$want" --tool PowerShell --command "${f//TGT/"$tp"}" "$@"
+  done
+}
+# portability-ok: Windows path strings in test fixtures, not regex/sed constructs
+rdt_mv 'a root blocks' 2 / 'C:\'
+rdt_mv 'HOME blocks' 2 '$HOME' '$HOME'
+rdt_mv 'outside the tree blocks' 2 /opt/nonexistent-rdt/x 'D:\rdt-x\y' "${RDT_CWD[@]}"
+rdt_mv 'inside the tree allowed' 0 plugins/rdt-nonexistent 'build\rdt-x' "${RDT_CWD[@]}"
+expect_both 'moves: mv ~ /dev/null blocks' 2 --command 'mv ~ /dev/null'
+
+# Strictly inside the scratchpad or an allowed root passes; the root itself
+# does not.
+expect_both 'moves: a source under the scratchpad allowed' 0 \
+  --payload "$(rdt_pl "mv '$RDT_SPT/x' build/rdt-out" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'moves: truncate under the scratchpad allowed' 0 \
+  --payload "$(rdt_pl "truncate -s 0 '$RDT_SPT/x.log'" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'moves: the scratchpad itself moved away blocks' 2 \
+  --payload "$(rdt_pl "mv '$RDT_SPT' build/rdt-out" "$RDT_TOP" "$RDT_SPT")"
+while IFS='|' read -r rdt_want rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  rdt_cmd="${rdt_cmd//SPT/"$RDT_SPT"}"
+  expect_both "moves: PS scratchpad: $rdt_cmd" "$rdt_want" --payload "$(rdt_pspl "$rdt_cmd")"
+done <<'EOF'
+0|Move-Item 'SPT/x' build\rdt-out
+0|Clear-Content 'SPT/x.log'
+2|Move-Item 'SPT' build\rdt-out
+EOF
+rdt_ar 'moves: unset key, a source under the root blocks' 2 "mv '$RDT_AR/child' '$RDT_AR/moved'"
+rdt_ar 'moves: a source under the root allowed' 0 "mv '$RDT_AR/child' '$RDT_AR/moved'" "$RDT_AR"
+rdt_ar 'moves: the root itself moved away blocks' 2 "mv '$RDT_AR' '$RDT_AR2/moved'" "$RDT_AR"
+rdt_ar 'moves: dd of= under the root allowed' 0 "dd if=/dev/zero of='$RDT_AR/child/x.img' count=1" "$RDT_AR"
+rdt_arp 'unset key: Clear-Content under the root blocks' 2 "Clear-Content '$RDT_AR/child/x.txt'"
+rdt_arp 'Clear-Content under the root allowed' 0 "Clear-Content '$RDT_AR/child/x.txt'" "$RDT_AR"
+rdt_arp 'Move-Item of the root itself blocks' 2 "Move-Item '$RDT_AR' '$RDT_AR2/moved'" "$RDT_AR"
+
+# The mechanism as quoted prose, a move out of the tree, a write to the null
+# device, and a Set-Content of one file.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "moves: $rdt_cmd allowed" 0 --command "$rdt_cmd"
+  expect_both "moves: $rdt_cmd allowed with a cwd" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+git commit -m "mv ~ /dev/null"
+git commit -m "truncate -s 0 /etc/hosts; shred -u /etc/passwd"
+echo 'dd if=/dev/zero of=/dev/sda'
+mv build/rdt-x build/rdt-out
+mv build/rdt-x /opt/nonexistent-rdt/x
+mv -t /opt/nonexistent-rdt/x build/rdt-x
+mv build/*.o /opt/nonexistent-rdt/x/
+truncate -s 0 build/rdt-x.log
+shred -n 1 -s 4K build/rdt-x
+dd if=/opt/nonexistent-rdt/x of=/dev/null bs=1M
+dd if=/dev/zero bs=1M count=1
+mvn -q package
+find build -name '*.o' | xargs mv -t build/rdt-out
+ls *.img | xargs -I{} dd if={} of=/dev/null
+EOF
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "moves: PS $rdt_cmd allowed" 0 --tool PowerShell --command "$rdt_cmd"
+  expect_both "moves: PS $rdt_cmd allowed with a cwd" 0 --tool PowerShell "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+git commit -m "Move-Item C:\ D:\x"
+Write-Output 'Clear-Content C:\x.txt'
+git commit -m "Set-Content -Path C:\*.txt -Value x"
+Set-Content -Path D:\rdt-x\y.txt -Value x
+Set-Content D:\rdt-x\y.txt (Get-Date)
+Set-Content (Join-Path $a b) x
+'text' | Set-Content D:\rdt-x\y.txt
+Move-Item build\rdt-x D:\rdt-x\y
+Move-Item -Destination D:\rdt-x\y -Path build\rdt-x
+EOF
+
+# A source or file outside the tree, the toplevel or a .git moved away, a last
+# word that can become several, an empty or bare-variable target, a feed no
+# listing produced, a grouping as a path, a Set-Content of several files, and
+# the same commands in a substitution or a child shell.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "moves: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+mv /opt/nonexistent-rdt/x build/rdt-out
+mv build/rdt-x /opt/nonexistent-rdt/x build/rdt-out
+mv build/rdt-x /opt/nonexistent-rdt/{a,b}
+mv --t=build/rdt-out /opt/nonexistent-rdt/x
+mv .git build/rdt-git
+mv . ../rdt-out
+truncate -s 0 /opt/nonexistent-rdt/x
+shred -u /opt/nonexistent-rdt/x
+dd if=/dev/zero of=/opt/nonexistent-rdt/x
+dd if=/dev/zero of=""
+mv "$f" build/rdt-out
+echo "$(mv ~ /dev/null)"
+x="$(shred -u /opt/nonexistent-rdt/x)"
+bash -c 'shred -u /opt/nonexistent-rdt/x'
+python3 -c "import os; os.system('shred -u /opt/nonexistent-rdt/x')"
+cat list | xargs mv -t build/rdt-out
+find build/rdt-out -maxdepth 0 | xargs mv build/rdt-x ~
+parallel mv build/rdt-x ~ ::: build/rdt-out
+parallel ::: 'mv ~ /dev/null'
+POSIXLY_CORRECT=1 shred -u build/rdt-x -n /opt/nonexistent-rdt/x
+EOF
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "moves: PS $rdt_cmd blocks" 2 --tool PowerShell "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+Move-Item (Get-Item build\rdt-x) build\rdt-out
+$files | Move-Item -Destination build\rdt-out
+Clear-Content (Join-Path $a b)
+Set-Content -Path D:\rdt-x\*.txt -Value x
+Set-Content -LiteralPath build\rdt-x, D:\rdt-x\y -Value x
+gci D:\rdt-x | % { Set-Content $_.FullName x }
+iex 'Move-Item C:\ build\rdt-out'
+EOF
+
+guard_invoke "${RDT_CWD[@]}" --command 'mv /opt/nonexistent-rdt/x build/rdt-out'
+assert_exit 'moves: an outside source exits 2' 2 "$GUARD_RC"
+assert_contains 'moves: the refusal names the source' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
+
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"
