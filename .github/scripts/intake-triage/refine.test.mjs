@@ -410,8 +410,6 @@ describe("applyRefinement", () => {
     assert.equal(done.length, 3);
   });
 
-  // The pilot's defect: admission parked at status: confirmed, then a refinement
-  // with open questions added needs-decision and left confirmed on.
   test("a refinement with open questions replaces a parked status: confirmed with needs-decision, hold first", async () => {
     const parked = { id: 61, body: `${ADMIT_MARKER}\nNot admitted to the issue lane: no trusted-human acceptance criteria.`, user: { id: APP, type: "Bot" } };
     const fake = fakeGitHub({ issue: issueOf({ labels: [{ name: "status: confirmed" }] }), comments: [laneComment(), parked], events: [], spec: CONFIRMED });
