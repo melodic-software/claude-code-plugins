@@ -801,11 +801,12 @@ def same_as_clean(run, found, runs, roots):
 
 
 def probe_denial(run, found, root):
-    """True when a run of an invocation-probe case was denied only calls other than
-    Skill: the probe grades whether the Skill call fired, which loads the skill
-    without Read, Glob or Grep, so the denial hid nothing the grader reads."""
+    """True when a run of an invocation-probe case was denied only calls named and
+    other than Skill: the probe grades whether the Skill call fired, which loads the
+    skill without Read, Glob or Grep, so the denial hid nothing the grader reads. A
+    denial naming no tool may have been the Skill call, so it does not qualify."""
     return is_probe(run.case, root) and all(
-        name != SKILL_TOOL for _, _, name in found[run]
+        name is not None and name != SKILL_TOOL for _, _, name in found[run]
     )
 
 

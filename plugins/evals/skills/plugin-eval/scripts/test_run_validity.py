@@ -547,9 +547,10 @@ class RunValidityTest(unittest.TestCase):
             "  case measurable-criterion, with-arm run 1: Grep x", proc.stdout
         )
 
-    def denied_probe(self, tool, tags="tags: [invocation-probe, train]"):
-        """measurable-criterion's with-arm run denied one `tool` call aimed at the
-        plugin's own directory, its prompt.md carrying tags."""
+    def denied_probe(self, *tools, tags="tags: [invocation-probe, train]"):
+        """measurable-criterion's with-arm run denied one call per entry of tools, each
+        aimed at the plugin's own directory (None: a denial naming no tool), its
+        prompt.md carrying tags."""
         result = self.clean()
         case = result["cases"][1]
         prompt = self.dir / "suite" / case["dir"] / "prompt.md"
@@ -557,16 +558,23 @@ class RunValidityTest(unittest.TestCase):
             "---\ndescription: invocation probe x\n%s\nmax_turns: 8\n---\n\nQ\n" % tags,
             encoding="utf-8",
         )
-        tool_input = (
-            {"skill": "evals:methodology"}
-            if tool == "Skill"
-            else {"pattern": "**/SKILL.md", "path": str(self.dir / "suite")}
-        )
+        entries = []
+        for i, tool in enumerate(tools):
+            entry = {
+                "tool_use_id": "d%d" % i,
+                "tool_input": {"skill": "evals:methodology"}
+                if tool in ("Skill", None)
+                else {"pattern": "**/SKILL.md", "path": str(self.dir / "suite")},
+            }
+            if tool is not None:
+                entry["tool_name"] = tool
+            entries.append(entry)
         trace = self.dir / "denied-probe.jsonl"
         trace.write_text(
             '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
-            + json.dumps({"type": "result", "is_error": False, "permission_denials": [
-                {"tool_name": tool, "tool_use_id": "d1", "tool_input": tool_input}]})
+            + json.dumps(
+                {"type": "result", "is_error": False, "permission_denials": entries}
+            )
             + "\n",
             encoding="utf-8",
         )
@@ -578,11 +586,22 @@ class RunValidityTest(unittest.TestCase):
 
     def test_a_probe_denied_a_search_inside_the_plugin_is_a_warning(self):
         proc = self.denied_probe("Glob")
+        self.assertVerdict(proc, "VALID", 0)
         self.assertIn("check permission denials: WARN", proc.stdout)
         self.assertNotIn("permission denial in the traces", proc.stdout)
 
     def test_a_probe_denied_its_skill_call_is_invalid(self):
         proc = self.denied_probe("Skill")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check permission denials: FAIL", proc.stdout)
+
+    def test_a_probe_denied_a_search_and_its_skill_call_is_invalid(self):
+        proc = self.denied_probe("Glob", "Skill")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check permission denials: FAIL", proc.stdout)
+
+    def test_a_probe_denial_naming_no_tool_is_invalid(self):
+        proc = self.denied_probe(None)
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("check permission denials: FAIL", proc.stdout)
 
