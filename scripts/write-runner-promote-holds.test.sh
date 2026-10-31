@@ -169,7 +169,7 @@ writeFileSync(${JSON.stringify(seen)}, JSON.stringify({ label: process.env.LABEL
 ${recheck === "fail" ? "process.exit(1);" : `appendFileSync(process.env.GITHUB_OUTPUT, "lane-escalation=${recheck}\\n");`}
 `);
     try {
-      execFileSync("bash", ["-e", "-c", holdStep.run], { cwd: dir, stdio: "pipe", env: { PATH: process.env.PATH, RESOLVED: resolved, HUMAN_GATE: gate, ACTIVITY: "fix-ci", PR_NUMBER: "7", HEAD_SHA: "a".repeat(40), GITHUB_OUTPUT: out } });
+      execFileSync("bash", ["-e", "-c", holdStep.run], { cwd: dir, stdio: "pipe", env: { PATH: process.env.PATH, TMPDIR: dir, RESOLVED: resolved, HUMAN_GATE: gate, ACTIVITY: "fix-ci", PR_NUMBER: "7", HEAD_SHA: "a".repeat(40), GITHUB_OUTPUT: out } });
     } catch {
       return { failed: true, seen: existsSync(seen) ? JSON.parse(readFileSync(seen, "utf8")) : null };
     }
