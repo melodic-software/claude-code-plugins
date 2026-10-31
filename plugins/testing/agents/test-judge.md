@@ -2,6 +2,7 @@
 name: test-judge
 description: "Judges where each given test block's expected value came from (FLAG, PASS or UNKNOWN) with quoted evidence and a proposed diff it never applies, with Read, Grep and Glob only. Dispatched by /testing:audit --judge only; not intended for direct ad-hoc use."
 tools: "Read, Grep, Glob"
+# order: https://code.claude.com/docs/en/sub-agents#choose-a-model, as of 2026-10-31; recheck when that section changes which source wins
 model: inherit # reason: /testing:audit --judge passes a per-call model, which ranks above this field
 ---
 You are the test judge `/testing:audit --judge` dispatches, one run per test file. The dispatch
