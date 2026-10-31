@@ -5,6 +5,14 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.4.1] - 2026-10-31
+
+### Changed
+
+- `/harness-config:audit-automation-gaps`: the inventory's enablement note now sends you to
+  `/harness-ops:plugins-audit`, the read-only plugin audit's own skill, instead of
+  `/harness-ops:plugins audit`.
+
 ## [2.4.0] - 2026-10-31
 
 ### Added
