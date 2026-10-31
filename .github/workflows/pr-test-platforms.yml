@@ -1,7 +1,8 @@
-name: pr-test-windows
+name: pr-test-platforms
 
-# The informational Windows lane, in its own workflow, and the one macOS job
-# (`test-macos-planning-shared`), which shares its selection and its standing.
+# The informational lane for tests that need a Windows or macOS runner: the
+# Windows jobs and the macOS job (`test-macos-planning-shared`), which share one
+# selection and one standing.
 #
 # WHY IT LEFT pr-require-checks.yml. It is not in `ci-status.needs` and is not a required
 # check, so nothing waits on it — but it is the longest job in the run at 355 to

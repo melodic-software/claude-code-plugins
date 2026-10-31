@@ -1863,7 +1863,7 @@ test("a deferred record is found by name, however many runs the window holds", a
 
 test("a deferred record any other run uploaded, or an expired one, sends nothing", async (t) => {
   for (const [label, rerun, record] of [
-    ["another workflow's run", deferredRerun({ path: ".github/workflows/pr-test-windows.yml" }), deferredRecord("fail")],
+    ["another workflow's run", deferredRerun({ path: ".github/workflows/pr-test-platforms.yml" }), deferredRecord("fail")],
     ["a pull_request run", deferredRerun({ event: "pull_request", head_branch: "work-resolve-issue/issue-1-2-3" }), deferredRecord("fail")],
     ["a first attempt", deferredRerun({ run_attempt: 1 }), deferredRecord("fail")],
     ["a person's re-run", deferredRerun({ triggering_actor: { login: "kyle-sexton", id: 153232337 } }), deferredRecord("fail")],

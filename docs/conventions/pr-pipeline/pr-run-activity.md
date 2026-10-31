@@ -1248,7 +1248,7 @@ model text, and only on an `UNCERTAIN` reply to a finding that is not security-r
 head before any fix). The select job holds `checks: read`, so it records
 the head's CI in `run.json`'s `ci` (`address-feedback.mjs` `ciSnapshot`): it runs the base copy of
 `scripts/plan-test-lanes.sh` over the pull request's files and reads the latest real run of each github-actions check its lanes post (`test-bash (<leg>)` and
-`test-python (<leg>)` for each leg the plan lists, `test-node` and each `pr-test-windows.yml` job it
+`test-python (<leg>)` for each leg the plan lists, `test-node` and each `pr-test-platforms.yml` job it
 names). The plan reads the base tree, so it can name fewer lanes than the head ran. The state is
 `red` when any `test-*` run on the head failed, planned or not (a cancelled run is `unsettled`, since fix-ci does not take a cancelled-only head), `green` when every
 planned check has a run, each one passed, and no unplanned `test-*` lane ran, and
