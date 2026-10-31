@@ -9,16 +9,22 @@
     }
   ],
   "adjudication": {
-    "verdict": "CLEARED",
-    "panel": "three blind judges, unanimous on verdict and on failing C3 and C4",
+    "verdict": "STANDS",
+    "panel": "three blind judges, unanimous on verdict and class",
     "rubric": "copy",
-    "rubric_version": 4,
-    "real_source": "https://code.claude.com/docs/en/mcp.md"
+    "rubric_version": 5
   },
   "notes": {
+    "prior_adjudication": {
+      "verdict": "CLEARED",
+      "panel": "three blind judges, unanimous on verdict and on failing C3 and C4",
+      "rubric": "copy",
+      "rubric_version": 4,
+      "real_source": "https://code.claude.com/docs/en/mcp.md"
+    },
     "shape": "A table row whose how-to-evaluate cell reproduces the source's ceiling sentence, in a file whose opening record names the row's two values, cites the page, dates the check and states a recheck trigger. The row also carries a local severity scheme the source does not have.",
     "carve_outs": "None applied: the record sits above the row and not beside it, and the panel did not carve the row out on it.",
-    "rubric": "C1 holds and C2 holds: the ceiling sentence corresponds to the source's and its numbers are the source's. The 0.8.2 and 0.14.4 panels on this case returned STANDS, which needs every criterion to hold, so they graded C3 and C4 as holding; the adjudication block records the earlier panel on the real passage, which failed both. The 0.8.2 record gives its C3 reading: the stamped record covers the two numbers it claims, not the sentences lifted beside them.",
+    "rubric": "C1 holds and C2 holds: the ceiling sentence corresponds to the source's and its numbers are the source's. The 0.8.2 and 0.14.4 panels on this case returned STANDS, which needs every criterion to hold, so they graded C3 and C4 as holding; the adjudication block records the 0.14.4 panel, and prior_adjudication records the earlier panel on the real passage, which failed both. The 0.8.2 record gives its C3 reading: the stamped record covers the two numbers it claims, not the sentences lifted beside them.",
     "measured": "fingerprint.mjs at k=5: containment 0.086, jaccard 0.056, longest matched span 15 words at local line 12. The span limb fires only just, which is why the candidate reaches judgment.",
     "owner_decision": "Recorded as a hard negative, from a rubric v4 panel that cleared the real repository passage, until the 0.8.2 and 0.14.4 (copy rubric v5) panels on this case each returned a unanimous near-verbatim finding on line 12. Converted under the owner's rule of 2026-10-26 that a unanimous blind label is accepted, recorded at https://github.com/melodic-software/claude-code-plugins/issues/5654#issuecomment-6417188551.",
     "carries": "This case fails a run that clears a lifted sentence because a record elsewhere in the file names the sentence's numbers. A record covers what it names.",
