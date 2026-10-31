@@ -190,6 +190,26 @@ when it resolves `true`, autonomous lanes start each tracker item and comment
 they create with the AI disclaimer. The key, its layers and the prefix are
 stated once in [`reference/ai-disclaimer.md`](reference/ai-disclaimer.md).
 
+`work_priority_order` lives only in the repository file: a list of `priority:`
+label names, highest first, defaulting to `priority: critical`,
+`priority: high`, `priority: medium`, `priority: low`. `/work-items:work` ranks
+the candidates in each selection tier by it, and the tier's own order
+(`next_due`, the guardrails preference, or oldest-first) breaks ties. The
+work-loop lane ranks its admitted items the same way before its `created_at`
+order. An item with no listed `priority:` label ranks last in its tier. Quote
+each item, since an unquoted `- priority: high` parses as a mapping and drops
+out of the list:
+
+```yaml
+work_priority_order:
+  - "priority: critical"
+  - "priority: high"
+  - "priority: medium"
+  - "priority: low"
+```
+
+The work skill's "Selection Priority" section says how it is read.
+
 Everything else is project-specific behavior that routes through the consuming
 repo's own surfaces: the bound provider in `.work-item-tracker.json` (including
 the optional `config.role_labels` canonical-role → label remap), its labels

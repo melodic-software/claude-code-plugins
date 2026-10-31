@@ -25,7 +25,11 @@
 # region with no backticks are prose and are ignored. A backticked path
 # anywhere outside the region is not a pointer. The home is a repo-relative
 # directory: one or more segments of [A-Za-z0-9._-]+ joined by `/`, no segment
-# equal to `.` or `..`, an optional trailing `/` which is dropped on output.
+# equal to `.`, `..` or `.git` (any case, so the home is never git's own
+# directory, trailing dots ignored as NTFS ignores them), an optional trailing
+# `/` which is dropped on output. In the working tree the home is its own
+# physical path: a symlink on the way to it, or a spelling whose case differs
+# from the disk, is a FAIL, as --ref reads only a committed tree.
 # Anything else — an absolute path, a leading `~`, a backslash, a drive letter,
 # whitespace, or an empty token — is an invalid pointer, never a best-effort
 # parse. A line inside the region that is exactly `declined` (surrounding
@@ -79,7 +83,8 @@
 #   2  usage error, an unusable --root, or an invalid or unresolvable --ref
 #   3  FAIL, each with a distinct stderr message: two pointer lines in one
 #      region; an unterminated or nested region; an invalid pointer path; a
-#      pointer whose target directory is missing; `declined` beside a pointer
+#      pointer whose target directory is missing or reached through a symlink;
+#      `declined` beside a pointer
 #   4  a region holds a `declined` line: the repository declined a home, so the
 #      caller uses the bundled defaults and does not ask again
 #   5  not applicable: the root is $HOME, an ancestor of it, or not a git work
@@ -121,7 +126,7 @@ Usage:
 
 Exit: 0 resolved (home on stdout); 1 no pointer anywhere (ask); 2 usage;
       3 FAIL — two pointers in one region, unterminated region, invalid path,
-      target directory missing, or `declined` beside a pointer;
+      target directory missing or a symlink, or `declined` beside a pointer;
       4 declined (a `declined` line in the region; do not ask again);
       5 not applicable (root is $HOME, an ancestor of it, or not a git work tree).
 EOF
@@ -224,9 +229,9 @@ phys() {
     n=$((n + 1))
   done
   if [[ -d "$p" ]]; then
-    (cd "$p" && pwd -P)
+    (CDPATH='' cd -- "$p" && pwd -P)
   else
-    dir="$(cd "$(dirname "$p")" && pwd -P)" || return 1
+    dir="$(CDPATH='' cd -- "$(dirname "$p")" && pwd -P)" || return 1
     printf '%s/%s\n' "$dir" "$(basename "$p")"
   fi
 }
@@ -345,7 +350,7 @@ scan_file() {
 # valid_home <token>: the grammar above. Returns 1 with a reason in
 # INVALID_REASON otherwise.
 valid_home() {
-  local t="$1" seg rest backslash
+  local t="$1" seg bare rest backslash
   backslash=$(printf '%b' '\134')
   INVALID_REASON=""
   if [[ -z "$t" ]]; then INVALID_REASON="empty"; return 1; fi
@@ -363,6 +368,13 @@ valid_home() {
   while [[ -n "$rest" ]]; do
     seg="${rest%%/*}"
     rest="${rest#*/}"
+    # NTFS drops trailing dots, so `.git.` names .git there too.
+    bare="$seg"
+    while [[ "$bare" == ?*. ]]; do bare="${bare%.}"; done
+    case "$bare" in
+    [.][Gg][Ii][Tt]) INVALID_REASON="a .git segment"; return 1 ;;
+    *) ;;
+    esac
     case "$seg" in
     "") INVALID_REASON="empty path segment"; return 1 ;;
     . | ..) INVALID_REASON="dot segment ($seg)"; return 1 ;;
@@ -512,6 +524,9 @@ elif [[ $HAS_REF -eq 1 ]]; then
   fi
 elif [[ ! -d "$ROOT/$HOME_DIR" ]]; then
   echo "FAIL: pointer target directory missing: $HOME_DIR (named in $CHOSEN, not found under $ROOT)" >&2
+  exit 3
+elif [[ "$(phys "$ROOT/$HOME_DIR")" != "$(phys "$ROOT")/$HOME_DIR" ]]; then
+  echo "FAIL: pointer target is reached through a symlink, or named in a case other than on disk: $HOME_DIR (named in $CHOSEN); bind the real directory as spelled on disk" >&2
   exit 3
 fi
 
