@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: ed-design-canvas-offer
+description: "Base design-canvas boundary: on the mockup host the skill offers /design as a person-run alternative, names the lifecycle difference, and never invokes design itself."
+tags: [explore-directions, hard]
+runs: 3
+expected_outcome: "Before building, the reply offers /design <scope> as an alternative the person can run themselves, says the canvas is a published, persistent artifact while the HTML mockup is throwaway and local, says this skill builds the mockup either way, and makes no Skill call to design."
+execution:
+  prompt: "/prototype:explore-directions empty state for the team inbox in a new app with no UI yet. Before building, tell me how you plan to do it."
+  allowed_tools: [Read, Glob, Grep, Bash, Skill, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 600

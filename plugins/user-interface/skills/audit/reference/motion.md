@@ -16,8 +16,13 @@ first; this file adds what only motion needs.
 ## CSS pre-pass
 
 For CSS-styled files in scope, invoke `/user-interface:write-css review` with the Skill tool on
-those paths. Its `duration` findings are already judged against the configured roles; keep the rest
-of its motion findings (`ease-in`, `transition-all`, `motion`, `hover`) as findings of this lane.
+those paths. The linter's `duration` check uses fixed limits, not the configured roles, so judge
+every duration yourself under "Role durations" below, the ones it flagged and the ones it missed.
+Keep the rest of its motion findings (`ease-in`, `transition-all`, `motion`) as findings of this
+lane; an `ease-in` finding's fix is the one catalog.md "Easing" gives (the configured `in` curve on
+a permanent exit, else an ease-out curve), not the linter's message. Keep a
+`hover` finding only when it is about the animation (hover motion, catalog.md "Pointer gating"); an
+ungated `:hover` rule itself is the `touch` concern's finding.
 
 ## Review
 
@@ -30,16 +35,25 @@ properties, physicality, easing, duration, interruption, reduced motion, pointer
   against `large`, anything else against the role catalog.md "Duration" and behaviors.md give its
   component (`medium` when unclear).
 - The accordion height exception in catalog.md "Properties" is not a finding.
+- **A captured frame.** When a frame-state export is pasted, or a finding turns on frames (an
+  interruption, a page-load entrance), read or capture it as [frame-capture.md](frame-capture.md)
+  says; a capture runs only after the user's yes to the command it names.
 
 ## Severity
 
 Place an untagged motion finding on the audit ladder this way:
 
-- **Blocking**: movement under reduced motion, motion on a keyboard or many-times-an-hour action,
-  input locked during a transition, a layout animation on a hot path.
-- **Important**: ease-in, scale from zero, a duration over its role, a trigger-anchored element
-  growing from its center, a restarting keyframe on something rapid.
-- **Suggestion**: a weak curve, missing stagger, an asymmetric exit.
+- **Blocking**: input locked during a transition.
+- **Important**: a trigger-anchored element growing from its center.
+- **Suggestion**: a weak curve, missing stagger.
+
+A finding a spoke tag covers keeps that tag. In catalog.md: motion on a keyboard or
+many-times-a-day action ("Should it animate"), scale from zero ("Physicality"), a duration over its
+role and an exit's length ("Duration"), a keyframe animation that restarts on a toggle or a rapid
+trigger ("Interruption and exit"), movement with no reduced-motion handling ("Reduced motion"), and
+every ease-in finding, an exit that is not a permanent one included ("Easing"; its **permanent
+exit** paragraph, before the numbered list, says which exits are). In performance.md: an animated
+layout property ("Swap down a tier").
 
 ## Sub-modes
 

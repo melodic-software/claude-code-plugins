@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Steps\n\n1. Run `npm run build:api-index`. Required: `scripts/publish.sh` uploads whatever is in `dist/api-index.json`, so skipping this publishes the previous index.\n2. Run `scripts/publish.sh`.",
+      "why": "meets the outcome"
+    },
+    {
+      "answer": "## Steps\n\n1. Build the index with `npm run build:api-index` before every publish; publish.sh ships the existing dist/api-index.json as-is, and without a fresh build that file is stale.\n2. Run `scripts/publish.sh`.",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Steps\n\n1. Optionally run `npm run build:api-index`; publish.sh uploads dist/api-index.json, so a skipped build ships the old index.\n2. Run `scripts/publish.sh`.",
+      "why": "reason given but the step is still optional"
+    },
+    {
+      "answer": "## Steps\n\n1. Run `npm run build:api-index`.\n2. Run `scripts/publish.sh`.",
+      "why": "required but no reason beside it"
+    },
+    {
+      "answer": "## Steps\n\n1. Run `scripts/publish.sh`.",
+      "why": "build step dropped"
+    }
+  ]
+}

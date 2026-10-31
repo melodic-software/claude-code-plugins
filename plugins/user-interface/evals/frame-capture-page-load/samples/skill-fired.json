@@ -1,0 +1,55 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:audit"
+          }
+        }
+      ],
+      "why": "the audit skill fired; its frame-capture spoke covers page-load captures"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit",
+            "args": "motion"
+          }
+        }
+      ],
+      "why": "the audit skill fired by its bare name, with arguments"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "playwright:playwright"
+          }
+        }
+      ],
+      "why": "near miss: the capture recipe's skill, without the audit that reviews the motion"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:write-animation"
+          }
+        }
+      ],
+      "why": "the skill that writes animation, not the audit"
+    }
+  ]
+}

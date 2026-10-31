@@ -1,0 +1,134 @@
+{
+  "skill": "user-interface:write-css",
+  "plugin": "user-interface",
+  "skill_dir": "plugins/user-interface/skills/write-css",
+  "ranking_note": "Written from the write-css description at the merge base. Near-misses aim at the other user-interface skills: write-animation builds motion, audit reviews built interface code one concern lane at a time (motion included) without editing it, glossary names an effect, and design owns a component's variant API (neg-train-04 asks which variants a component offers, not their styles).",
+  "competitors": [
+    "user-interface:write-animation",
+    "user-interface:audit",
+    "user-interface:glossary",
+    "user-interface:design"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Style the pricing card so it uses our spacing and color tokens."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Write styles for the sidebar nav in our Tailwind setup."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Look over the stylesheet in this PR and flag anything outside our browser support list."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Lay out the settings page as a two-column form; I need the stylesheet for it."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our toast uses Emotion. Give it styles that pull colors and spacing from the theme object."
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Move the header's styled-components styles to modern CSS with container queries."
+    },
+    {
+      "id": "pos-train-07",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Restyle the login page so it lays out properly on narrow screens."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Animate the dropdown opening from its trigger button."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Review the animations on my branch for jank."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "What is the term for the gap between two particular letters?"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Which variants should our Badge component offer, and how should consumers pick one?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make the modal feel smoother when it closes."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check the product grid's CSS module against our design tokens and say where it hard-codes values."
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Go over src/styles/forms.css and tell me what our stylelint setup and house style would object to."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Swap the floats in gallery.css for grid, staying inside the browsers our browserslist covers."
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Write the scoped styles for this Vue component's dropdown."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Audit the interface on this branch for accessibility problems before we ship."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is it called a skeleton or a shimmer?"
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Design the colors for our terminal tool's error messages."
+    },
+    {
+      "id": "neg-validation-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Add a bounce when the item lands in the cart."
+    }
+  ]
+}

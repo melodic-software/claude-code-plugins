@@ -27,7 +27,7 @@ once the gap between layers (the border width plus the padding) passes
 independent, so pick each radius on its own merits.
 
 The subtraction holds for a child that sits at the parent's content edge; a margin on the child adds
-to the gap.
+to the gap. Recipe: `concentric-nested-radius`.
 
 - **Pointer**: CSS Backgrounds and Borders 3, corner shaping,
   <https://www.w3.org/TR/css-backgrounds-3/#corner-shaping>
@@ -74,13 +74,14 @@ The precise ask:
 > zero) minus padding, floored at zero
 
 With it the photo gets 12px (20px − 0px border − 8px padding), and its corners run
-parallel to the card's with an even 8px gap all the way around. The vague ask may or may not
-produce the right radius. The precise ask hands the agent the formula, so the result can be
-checked against it.
+parallel to the card's with an even 8px gap all the way around. If you say that the corners look
+off, the agent might get it right, but it also might not. You could give it the right formula to
+calculate the correct radius instead. Way more precise, leaves no room for error.
 
-Nested border radii are easy to get wrong, and the formula is mechanical, so a tool can check that the
-correct value is applied. The plugin's [`scripts/nested-radius.mjs`](../../../scripts/nested-radius.mjs) does
-that for a pair of values. `<plugin root>` below is the directory `/user-interface:design` or
+Nested border radii are a common source of frustration. They are easy to get wrong. But there's a
+formula to calculate the correct value, so why not build a tool that checks whether the correct
+value is applied? The plugin's [`scripts/nested-radius.mjs`](../../../scripts/nested-radius.mjs)
+does that for a pair of values. `<plugin root>` below is the directory `/user-interface:design` or
 `/user-interface:audit` reads `reference/` from. A frame with 16px corners inset 4px around its card,
 border width zero:
 
@@ -94,8 +95,8 @@ Pass the project's resolved `css.concentric_radius.max_gap_px` (from `detect.mjs
 `past_max_gap: true` means the rule has lost force for that pair.
 
 The rule here covers the code. For a quick visual check, or a review of someone else's work on a
-preview URL, a tool that inspects the rendered page fits, and a person can have an agent build a
-throwaway one from an ask like this:
+preview URL, a tool that inspects the rendered page fits, and a person can build a throwaway one
+with `/prototype:build-generator` from an ask like this:
 
 > Build me a mountable inspector for nested border radii. Hovering a nested rounded element should
 > show me actual vs expected per corner, the inner radius should equal the outer radius minus the
@@ -258,7 +259,7 @@ overlay; rebuild it with `mask-image`.
 
 Every image gets a `1px` low-opacity outline for consistent depth. Light mode: black at 10%. Dark
 mode: white at 10%. Never a tinted neutral (slate, zinc, `#111827`) and never the accent color: a
-tinted line inherits whatever surface sits behind it and ends up looking like grime along the edge
+tinted line inherits whatever surface sits behind it and ends up as a muddy edge
 instead of a clean boundary.
 
 Photos and screenshots should carry the same edge treatment as every other surface: a 1px

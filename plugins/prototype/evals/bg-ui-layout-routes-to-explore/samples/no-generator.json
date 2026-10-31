@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "This is product UI with three nameable directions, so it belongs to explore-directions: I'm building side tabs, one long page and a wizard as switchable variants.",
+      "why": "routed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I'll build /lab/settings with sliders for column count and spacing.",
+      "why": "generator"
+    }
+  ]
+}

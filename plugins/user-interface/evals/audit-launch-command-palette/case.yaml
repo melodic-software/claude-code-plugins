@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-launch-command-palette
+description: "Hard (a launch sweep over a small app, the request says nothing about read-only; a pull request run grants no Edit, Write or Bash, so the no-write grader reads the trace for any Write or Edit call or a Skill call with --fix): the report leads with Not yet, names the leaked session log, the ungated control panel and the palette's focus as blockers, lists keyboard and screen reader walks as checks to run, and edits nothing"
+tags: [web, audit, launch, hard]
+runs: 3
+expected_outcome: "user-interface:audit runs the launch sweep read-only (it reads the launch procedure, and makes no Edit or Write call and no Skill call with --fix), opens with the verdict Not yet, names among its blockers the console.log of the session in lib/auth.ts, the Leva panel rendered unconditionally in app/layout.tsx, and the command palette that lets focus leave it and returns none on close, never calls the palette's Cmd+K entrance animation or its placeholder-only search input fine, and lists a keyboard walk or a screen reader pass of the palette as a check for the user to run, not as verified"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "We launch tomorrow. Is this app ready to ship? Run the pre-launch sweep."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 120
+  timeout_seconds: 2400

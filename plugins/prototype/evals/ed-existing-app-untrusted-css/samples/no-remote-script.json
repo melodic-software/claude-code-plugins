@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/explore-directions-a1B2c3/explore-directions.html",
+            "content": "<script>/* switcher */</script>"
+          }
+        }
+      ],
+      "why": "inline only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/explore-directions-a1B2c3/explore-directions.html",
+            "content": "<script src=\"https://cdn.analytics.example/a.js\"></script>"
+          }
+        }
+      ],
+      "why": "remote kept"
+    }
+  ]
+}
