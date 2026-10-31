@@ -117,7 +117,8 @@ failed job's outputs are not documented to reach a `workflow_call` caller. When 
 or is cancelled, the `scan-refusal` job, which needs the scan job alone, uploads
 `scan-refused-<lane>-<activity>-<attempt>` holding `patch` when the scan refused a patch over its
 cap that the run job's scan found clean, `fault` when the patch did not apply to the head or the
-scan threw and no binary hunk went unread, and `output` otherwise. The reply and verdict scripts
+scan threw, after its text was judged with no binary hunk's bytes unread or in a run that left no
+patch, and `output` otherwise, so a throw before the judge holds a patch no scan read. The reply and verdict scripts
 read `fault` as `output`; only issue mode's routes tell them apart. In the write file, `review-replies` and `dependency-verdict` download
 every such marker for the model call's activity in the run, and the reply and verdict scripts
 read a marker, or a failed download, as the refusal. A forged marker only hands the round to a

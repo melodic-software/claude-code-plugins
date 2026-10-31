@@ -2416,8 +2416,9 @@ jobs:
       # PR to a person.
       collect-refused: ${{ steps.decode.outputs.collect-refused == 'true' && 'true' || '' }}
       # Set only by this job's own steps: `patch`, an oversize patch the carry
-      # step scanned clean; `fault`, a scan fault that leaves no patch bytes
-      # unread; `output`, any other refusal. A forged run job output can add
+      # step scanned clean; `fault`, a scan fault after the patch's text was
+      # judged, with no binary hunk's bytes unread, or in a run that left no
+      # patch; `output`, any other refusal. A forged run job output can add
       # one, or forge that clean and turn an oversize hold into a retry.
       refused: >-
         ${{ steps.decode.outputs.refused
@@ -2679,9 +2680,12 @@ jobs:
       # patch that does not apply, or a scan that does not finish (the
       # timeout included), fails it with no rotation; every upload and
       # summary after it needs clean == 'true'. Those two faults find no
-      # credential, so they set refused=fault, which retries, unless the patch
-      # reached the apply stage with a binary hunk, whose bytes may be unread;
-      # a timeout sets no output, so it holds. The one broad label, a
+      # credential, so they set refused=fault, which retries, once the patch's
+      # text was judged with no binary hunk's bytes unread, or when the run
+      # left no patch; any other fault holds, and a timeout sets no output, so
+      # it holds too. A 5xx from the gate's two API calls retries in the step,
+      # so a blip does not hold an unjudged patch for a person; a rate-limit
+      # status does not. The one broad label, a
       # password or secret assignment, is a warning naming the kind of
       # source, never a path.
       - name: Scan the outputs for credentials
@@ -2697,7 +2701,9 @@ jobs:
           # read as text only.
           TEXT_PATCH: ${{ inputs.merge-conflict-tree != '' }}
         with:
-          retries: 0
+          retries: 2
+          # The action's default list, plus the rate limit it leaves out.
+          retry-exempt-status-codes: 400,401,403,404,422,429
           script: |
             const fs = require('fs');
             const os = require('os');
@@ -2719,6 +2725,7 @@ jobs:
             };
             let hit = null;
             let scratch = null;
+            let judged = false;
             let binary = false;
             try {
               if (!/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no head');
@@ -2820,6 +2827,7 @@ jobs:
               judge('the outcome', outcome);
               judge('lane.json', lane);
               judge('the patch', patch, true);
+              judged = true;
               // A merge-base patch applies to a conflict tree only the apply job
               // rebuilds, so it is held to text hunks, whose every added byte
               // the text scan above read; a binary hunk blocks.
@@ -2859,7 +2867,7 @@ jobs:
             }
             core.setOutput('clean', hit ? 'false' : 'true');
             if (hit) {
-              if (hit.fault && !binary) core.setOutput('refused', 'fault');
+              if (hit.fault && !binary && (judged || !read(PATCH_FILE))) core.setOutput('refused', 'fault');
               core.setFailed(`leak-scan: ${hit.label}; nothing is uploaded or summarized${hit.credential ? '\nrotate this credential' : ''}`);
             }
 

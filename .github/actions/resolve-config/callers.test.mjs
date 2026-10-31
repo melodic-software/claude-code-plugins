@@ -2912,7 +2912,13 @@ test("pr-run-activity-read.yml: the leak scan resolves the default branch tip it
   assert.doesNotMatch(script, /require\(['"]\.|import\(['"]\.|GITHUB_WORKSPACE[^)]*publish-gate|\.base\/|RUNNER_TEMP/);
   assert.match(script, /mkdtempSync/);
   assert.equal(step.env.GITHUB_TOKEN, undefined);
-  assert.equal(Object.keys(step.with).toSorted().join(","), "retries,script", "no token input beyond the job's default");
+  assert.equal(Object.keys(step.with).toSorted().join(","), "retries,retry-exempt-status-codes,script", "no token input beyond the job's default");
+  // A 5xx blip retries, so it never holds an unjudged patch for a person; a
+  // rate limit is exempt, which the action's default list leaves out for 429.
+  assert.ok(step.with.retries > 0);
+  const exempt = String(step.with["retry-exempt-status-codes"]).split(",").map(Number);
+  for (const status of [403, 429]) assert.ok(exempt.includes(status), `${status} is not retried`);
+  assert.ok(!exempt.some((status) => status >= 500), "a 5xx is retried");
   for (const value of Object.values(step.env)) assert.doesNotMatch(String(value), /secrets\./);
 });
 
@@ -3428,10 +3434,10 @@ test("leak scan: a key only the patch's binary hunk carries blocks, and a patch 
   assert.equal(stale.failed, "leak-scan: the patch does not apply to the head; nothing is uploaded or summarized");
 });
 
-// A fault names no credential, so it retries (refused `fault`), unless the
-// patch's blobs are unread: a binary hunk that does not apply, or a throw past
-// the apply stage. A label with credential: false that is no fault still holds.
-test("leak scan: a scan fault retries unless a binary hunk's bytes went unread, and a throw never replaces a hit", async (t) => {
+// A fault names no credential, so it retries (refused `fault`), only once the
+// patch's text was judged or the run left no patch, and with no binary hunk's
+// bytes unread. A label with credential: false that is no fault still holds.
+test("leak scan: a scan fault retries only for a judged patch with no unread binary hunk, or a run with no patch, and a throw never replaces a hit", async (t) => {
   const textDiff = "diff --git a/gone.txt b/gone.txt\n--- a/gone.txt\n+++ b/gone.txt\n@@ -1 +1 @@\n-a\n+b\n";
   const gate = read("../../../lib/publish-gate.mjs");
   const throwing = (first) => gate.replace("export function* changedBytes(git, from, to) {\n", `export function* changedBytes(git, from, to) {\n${first}\n  throw new Error("git died");\n`);
@@ -3445,7 +3451,15 @@ test("leak scan: a scan fault retries unless a binary hunk's bytes went unread, 
   assert.equal(binaryStale.outputs.refused, undefined, "a binary hunk that does not apply holds");
   const api = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), Buffer.from([0, 1, 0])), "import 'data:text/javascript,1';\n");
   assert.match(api.failed, /^leak-scan: no finished scan/);
-  assert.equal(api.outputs.refused, "fault", "a fault before the apply stage, even with a binary hunk in the patch");
+  assert.equal(api.outputs.refused, undefined, "a throw before the judge leaves a binary hunk's patch unjudged");
+  const plaintext = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), `${KEY}\n`), "import 'data:text/javascript,1';\n");
+  assert.ok(readFileSync(join(plaintext.temp, "patch", "patch.diff")).includes(KEY), "the token is plaintext in the patch");
+  assert.match(plaintext.failed, /^leak-scan: no finished scan/);
+  assert.equal(plaintext.outputs.refused, undefined, "a throw before the judge leaves a plaintext token unjudged");
+  const patchless = await scanWith(t, () => {}, "import 'data:text/javascript,1';\n");
+  assert.ok(!existsSync(join(patchless.temp, "patch", "patch.diff")), "the run left no patch file");
+  assert.match(patchless.failed, /^leak-scan: no finished scan/);
+  assert.equal(patchless.outputs.refused, "fault", "a throw with no patch to judge");
   const text = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "benign\n"), throwing(""));
   assert.match(text.failed, /^leak-scan: no finished scan/);
   assert.equal(text.outputs.refused, "fault", "a throw past the apply stage on a scanned text-only patch");
