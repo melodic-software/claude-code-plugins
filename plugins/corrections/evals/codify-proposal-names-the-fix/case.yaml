@@ -1,0 +1,25 @@
+schema_version: "1.1"
+name: codify-proposal-names-the-fix
+description: 'Each proposal''s check message names the fix; earliest-stage went with the stub shape.'
+tags: [codify, ported]
+plugins: ["../.."]
+expected_outcome: 'Row 1 lands on editorconfig-severity and row 6 on a blocking rung for edits to generated files; each check message says what to change. No earliest-stage field.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings findings.md For row 1 and row 6: which rung, and what message does each check print when it fires? This run has no Bash tool: skip the proof and report each row''s check as unproven, and present the proposals in the report, writing nothing.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: rungs-by-id
+    type: 'regex'
+    pattern: '^(?=[\s\S]*editorconfig-severity)(?=[\s\S]*(?:action-guard|harness-setting|architecture-test|Tests\b))'
+    flags: 'i'
+    arm: 'both'
+  - name: no-earliest-stage
+    type: 'regex'
+    pattern: 'earliest-stage'
+    flags: 'i'
+    match: 'not_contains'
+    arm: 'both'

@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: codify-ratchet-offer-empty-list-is-invalid
+description: 'An empty list is a present but invalid value, not an unset key.'
+tags: [codify, ported]
+plugins: ["../.."]
+expected_outcome: 'An empty list is a present but invalid value, not an unset key.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings findings.md The settings reader printed {"min_occurrences":2,"layer":"defaults","path":null,"ratchet_offer":{"value":true,"layer":"defaults","path":null},"review_mining_prs":{"value":20,"layer":"defaults","path":null}} On stderr: team (docs/conventions/corrections.yaml): ratchet_offer: expected boolean, got []. The user option is false. This run has no Bash tool: skip the proof and report each row''s check as unproven, and present the proposals in the report, writing nothing.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 480
+graders:
+  - name: names-the-invalid-value
+    type: 'regex'
+    pattern: '^(?=[\s\S]*corrections\.yaml)(?=[\s\S]*\[\])'
+    flags: 'i'
+    arm: 'both'
+  - name: reports-the-layer
+    type: 'regex'
+    pattern: 'ratchet_offer:?`?\s*`?true`?\s*\(`?defaults?'
+    flags: 'i'
+    arm: 'both'

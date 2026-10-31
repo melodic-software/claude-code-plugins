@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": ".work/codify/feat-billing-retry/t-proposal.md"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Added to CLAUDE.md."
+    }
+  ]
+}

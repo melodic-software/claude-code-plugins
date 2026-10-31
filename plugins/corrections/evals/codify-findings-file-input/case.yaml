@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: codify-findings-file-input
+description: 'A findings file''s seven rows each become a described mistake with a rung and a proposal, strongest rung first; the By dimension section does not double the count.'
+tags: [codify, ported]
+plugins: ["../.."]
+expected_outcome: 'The run reads the seven rows under ## Findings, names a rung for each by strongest first, writes one proposal per row under .work/codify/fixture/ and reports 7 findings to 7 proposals.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify findings findings.md'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: seven-findings-seven-proposals
+    type: 'regex'
+    pattern: '\b7 findings\s*(?:→|->|to)\s*7 proposals\b'
+    flags: 'i'
+    arm: 'both'
+  - name: names-the-branch-home
+    type: 'regex'
+    pattern: '\.work/codify/fixture/'
+    flags: 'i'
+    arm: 'both'
+  - name: rungs-by-id
+    type: 'regex'
+    pattern: '^(?=[\s\S]*editorconfig-severity)(?=[\s\S]*analyzer-pack-rule)(?=[\s\S]*automated-review)'
+    flags: 'i'
+    arm: 'both'
+  - name: seven-proposal-files
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '-proposal\.md'
+    min: 7
+    arm: 'both'

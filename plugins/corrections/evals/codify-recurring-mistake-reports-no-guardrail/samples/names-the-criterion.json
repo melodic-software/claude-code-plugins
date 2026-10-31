@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The Guardrail criterion section sets the bar."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Fine."
+    }
+  ]
+}

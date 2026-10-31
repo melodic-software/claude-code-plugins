@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: codify-review-only-lesson-goes-to-review-md
+description: 'A lesson only a reviewer applies takes the automated-review rung and a REVIEW.md line, not CLAUDE.md or a new setting.'
+tags: [codify, ported]
+plugins: ["../.."]
+expected_outcome: 'The migration lesson (PRs 503, 509) is a REVIEW.md line; the withRetry lesson (PRs 501, 507) is a check; each names its PRs and source labels.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/corrections:codify reviews For the review-comment lessons, put each one where it belongs. This run has no forge access: the review-comments read''s output is in review-comments.jsonl, so read that file instead of calling the read. This run has no Bash tool: skip the proof and report each row''s check as unproven, and present the proposals in the report, writing nothing.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 20
+  timeout_seconds: 480
+graders:
+  - name: migration-to-review-md
+    type: 'regex'
+    pattern: '^(?=[\s\S]*REVIEW\.md)(?=[\s\S]*503)(?=[\s\S]*509)'
+    flags: 'i'
+    arm: 'both'
+  - name: names-source-labels
+    type: 'regex'
+    pattern: 'human'
+    flags: 'i'
+    arm: 'both'

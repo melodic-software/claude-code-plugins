@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Seen once, not routed: rename tmp2 (PR 512)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "tmp2: routed."
+    }
+  ]
+}

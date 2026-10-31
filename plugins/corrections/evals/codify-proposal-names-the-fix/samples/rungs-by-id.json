@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Row 1: editorconfig-severity. Row 6: action-guard."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Row 1: instruction."
+    }
+  ]
+}

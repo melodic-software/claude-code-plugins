@@ -17,6 +17,20 @@
     "recurring-findings"
   ],
   "userConfig": {
+    "ratchet_offer": {
+      "type": "boolean",
+      "title": "Ratchet offers",
+      "description": "When on (default), a /corrections:codify proposal on a rung that counts violations offers /toolchain:ratchet for a non-zero count once the rule exists. Off leaves the offer out. A repository's <home>/corrections.yaml wins over this option.",
+      "default": true
+    },
+    "review_mining_prs": {
+      "type": "number",
+      "title": "Review mining window (merged PRs)",
+      "description": "How many recent merged pull requests /corrections:codify reviews reads for review comments; default 20, from 2 to 200. A repository's <home>/corrections.yaml wins over this option.",
+      "default": 20,
+      "min": 2,
+      "max": 200
+    },
     "findings_buffer_adapter_repository": {
       "type": "directory",
       "title": "Findings-buffer adapter repository",

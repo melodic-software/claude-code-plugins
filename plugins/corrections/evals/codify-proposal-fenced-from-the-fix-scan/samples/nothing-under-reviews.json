@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/codify/fixture/t-01-proposal.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/reviews/fixture/t-01-proposal.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

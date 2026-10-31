@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Rung: semgrep-rule."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Rung: instruction."
+    }
+  ]
+}

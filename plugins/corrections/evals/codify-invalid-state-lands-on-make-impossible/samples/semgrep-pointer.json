@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Row 2: semgrep-rule, https://docs.semgrep.dev/writing-rules/overview"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Row 2: instruction."
+    }
+  ]
+}

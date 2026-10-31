@@ -7,6 +7,8 @@ mistake it targets and to pass on the current code.
 | Skill | What it does |
 |---|---|
 | `/corrections:codify "<description>" [#PR]` | Counts how often the mistake recurs, picks the strongest enforcement-ladder rung, places the lesson by scope, and proposes a check proven with `prove-check.sh` |
+| `/corrections:codify findings <findings-file>` | Takes each row of one review findings file through the same steps, ending in one proposal per row |
+| `/corrections:codify reviews` | Mines recent merged pull requests' review comments, through `/source-control:pull-request review-comments`, and takes each lesson that recurs through the same steps |
 | `/corrections:codify note "<observation>" [#PR \| <commit>]` | Appends one observation to the findings buffer |
 | `/corrections:codify group [--by <field>[,<field>...]] [--since <UTC ISO-8601>]` | Reads the buffer and groups its rows by the named fields (default `producer`) and by mistake, naming the keys, each mistake's count next to the threshold; writes nothing |
 
@@ -15,12 +17,14 @@ mistake it targets and to pass on the current code.
 there for yourself), or at once on a person's direct "codify this". A person's
 invocation writes the proposal; a model invocation only proposes. It asks before installing any
 blocking check, and reports a check whose proof did not fail on the old ref and pass on the new one as
-unproven.
+unproven. `ratchet_offer` (default on) adds the `/toolchain:ratchet` offer to a proposal on a counting
+rung, and `review_mining_prs` (default 20, from 2 to 200) sets how many merged pull requests `reviews`
+reads. Each is a plugin option, and `corrections.yaml` wins over it.
 
 | Script | What it does |
 |---|---|
 | `scripts/prove-check.sh` | Runs a proposed check in temporary worktrees at two refs and exits 0 only when it fails at the old ref and passes at the new one |
-| `scripts/codify-settings.mjs` | Prints `recurrence.min_occurrences` and the layer that set it, resolved through the config cascade (schema `schemas/corrections.schema.json`) |
+| `scripts/codify-settings.mjs` | Prints `recurrence.min_occurrences`, `ratchet_offer` and `review_mining_prs` and the layer that set each, resolved through the config cascade (schema `schemas/corrections.schema.json`) |
 | `scripts/group-findings.mjs [--by <field>[,<field>...]] [--since <UTC ISO-8601>] [--rows]` | Runs `buffer.sh read` and prints its rows grouped by the named top-level fields (default `producer`): the keys first, then each group with its row and occurrence counts (distinct `source_id`) and its members |
 
 ## prove-check
@@ -83,6 +87,8 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
+| `ratchet_offer` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATCHET_OFFER` | When on (default), a /corrections:codify proposal on a rung that counts violations offers /toolchain:ratchet for a non-zero count once the rule exists. Off leaves the offer out. A repository's <home>/corrections.yaml wins over this option. |
+| `review_mining_prs` | number<br>*min 2, max 200* | `20` | `CLAUDE_PLUGIN_OPTION_REVIEW_MINING_PRS` | How many recent merged pull requests /corrections:codify reviews reads for review comments; default 20, from 2 to 200. A repository's <home>/corrections.yaml wins over this option. |
 | `findings_buffer_adapter_repository` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_FINDINGS_BUFFER_ADAPTER_REPOSITORY` | Git common directory (git rev-parse --path-format=absolute --git-common-dir) of the one repository whose own findings-buffer adapter you trust. Applies in that repository's checkout and worktrees only. Unset: only adapters the plugin ships run. |
 | `findings_buffer_adapter_path` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_FINDINGS_BUFFER_ADAPTER_PATH` | That repository's adapter directory, relative to the checkout root, holding executable append.sh and read.sh and a capabilities.json with schema_version 1.x. Set both options or neither. A path out of the checkout or into a nested repository is refused. |
 
@@ -103,7 +109,7 @@ Three supported routes:
    `values.json` holds a JSON object of strings, booleans included:
 
    ```json
-   {"findings_buffer_adapter_repository": "<value>"}
+   {"ratchet_offer": "<value>"}
    ```
 
    This is the preferred headless route in the [plugin-reconfiguration convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md), which records its
@@ -117,7 +123,7 @@ Three supported routes:
    `claude plugin list` reports for this plugin:
 
    ```shell
-   claude plugin install corrections@<marketplace> -s <scope> --config findings_buffer_adapter_repository=<value>
+   claude plugin install corrections@<marketplace> -s <scope> --config ratchet_offer=<value>
    ```
 
 3. **By hand, in settings.** Add the value under `pluginConfigs` in your **user**
@@ -128,7 +134,7 @@ Three supported routes:
      "pluginConfigs": {
        "corrections@<marketplace>": {
          "options": {
-           "findings_buffer_adapter_repository": <value>
+           "ratchet_offer": <value>
          }
        }
      }

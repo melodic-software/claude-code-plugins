@@ -12,7 +12,7 @@ metadata:
 
 ## Repository context. Gather first
 
-The read actions `view`, `list` and `review-venue`, `comments --ci`, `dependency --ci` and `ci --ci` skip this section. For every other action, collect these with
+The read actions `view`, `list`, `review-comments` and `review-venue`, `comments --ci`, `dependency --ci` and `ci --ci` skip this section. For every other action, collect these with
 **individual** Bash calls, one command per call, never combined into a single invocation:
 
 - Current branch, `git branch --show-current`
@@ -78,6 +78,7 @@ For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pul
 | `fetch-logs <pr\|run> [--raw\|--job <job-id>]` | CI log retrieval | Pull failed-CI evidence: default = `::error`/`::warning` annotations only (cheapest); `--raw` = full ZIP dump for archive review; `--job <id>` = per-job plain text |
 | `view [<pr>] [--repo <owner/repo>] [--diff] [--out <file>]` | Read only | One PR's facts as JSON, or its diff with `--diff`; no number reads the current branch's PR. See [reference/read.md](reference/read.md) |
 | `list [--head <branch>\|--head-match <ERE>] [--search <text>] [--state open\|closed\|merged\|all] [--repo <owner/repo>]` | Read only | PRs as a JSON array, open by default |
+| `review-comments --prs <n> [--repo <owner/repo>]` | Read only | The review comments of the last `<n>` merged PRs as JSON lines. See [reference/read.md](reference/read.md) |
 | `review-venue [--repo <owner/repo>] [--max-age-days <n>] [--head <sha>]` | Read only | Per AI review lane (code, security): `ci` when the repository's CI lane is present and healthy, so no local review runs for it, else `local`; with `--head`, a `tests` line: `ci` when CI's test lanes passed on that commit. See [reference/review-venue.md](reference/review-venue.md) |
 
 For the all-PR continuous loop (discover every open PR, work each to readiness, self-pace), use

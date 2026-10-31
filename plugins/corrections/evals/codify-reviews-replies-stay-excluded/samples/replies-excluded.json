@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Replies are excluded."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "I counted the replies."
+    }
+  ]
+}

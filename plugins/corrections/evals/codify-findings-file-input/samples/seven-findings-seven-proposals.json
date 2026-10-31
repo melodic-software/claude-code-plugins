@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "7 findings → 7 proposals in .work/codify/fixture/"
+    },
+    {
+      "answer": "7 findings -> 7 proposals"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "14 findings → 14 proposals"
+    },
+    {
+      "answer": "7 findings → 5 proposals"
+    }
+  ]
+}

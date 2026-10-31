@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "PRs 501, 507: human."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "PRs 501, 507."
+    }
+  ]
+}

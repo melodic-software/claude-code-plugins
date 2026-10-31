@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Finding: \"no guardrail\"."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Added a rule."
+    }
+  ]
+}
