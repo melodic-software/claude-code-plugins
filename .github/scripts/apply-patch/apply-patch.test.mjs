@@ -6,7 +6,8 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select, sharedCopiesFrom } from "./apply-patch.mjs";
+import { PREDICATES } from "./predicates.mjs";
 import { CREDENTIAL_SHAPES as GATE_SHAPES, findSecret, scanLeak } from "../../../lib/publish-gate.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -2683,4 +2684,66 @@ test("createGitHubApi reads a comparison and a tree", async () => {
   await api.compare("a".repeat(40), "b".repeat(40));
   await api.getTree("c".repeat(40));
   assert.deepEqual(sent, [`GET https://api/repos/o/r/compare/${"a".repeat(40)}...${"b".repeat(40)}`, `GET https://api/repos/o/r/git/trees/${"c".repeat(40)}`]);
+});
+
+// The shared-copies row: a clean merge of the pinned base that takes the base
+// sync script's patch, of copies the base-tip registry lists only.
+const COPY = "plugins/p/lib/shared.sh";
+const copyPush = (fix, api, sharedCopies, extra = {}) =>
+  pushWith(fix, api, {
+    row: row("shared-copies"),
+    context: { merge: mergeFrom(mergeEnv(fix), { cwd: fix.repo, gitBin: "git" }), sharedCopies },
+    baseRef: "main",
+    lane: "pr-unblock",
+    activity: "sync-shared-copies",
+    patchFile: fix.patchFile,
+    patchSha256: fix.sum,
+    ...extra,
+  });
+const copyFixture = (t, resolve) =>
+  mergeFixture(t, { base: { "lib/shared.sh": "one\n", [COPY]: "one\n" }, pr: { "p.txt": "pr\n" }, main: { "lib/shared.sh": "two\n" }, resolve });
+
+test("shared-copies: a clean merge with the regenerated copy pushes one merge commit of the head and the base", async (t) => {
+  const fix = copyFixture(t, (repo) => writeFileSync(join(repo, COPY), "two\n"));
+  assert.deepEqual([fix.state, fix.patchState], ["clean", "written"]);
+  const api = fakeApi(fix.repo, fix.head);
+  assert.deepEqual(await copyPush(fix, api, new Set([COPY])), { outcome: "pushed", commit: "c".repeat(40), branch: "feat/x" });
+  const { createCommit } = api.calls.find((call) => call.createCommit);
+  assert.deepEqual(createCommit.parents, [fix.head, fix.base]);
+  assert.equal(createCommit.message, "Merge main into feat/x and regenerate shared copies\n\nLane-Activity: pr-unblock/sync-shared-copies\n");
+});
+
+test("shared-copies: a path the base registry does not list, the registry itself included, is refused before any write", async (t) => {
+  const stray = copyFixture(t, (repo) => {
+    writeFileSync(join(repo, COPY), "two\n");
+    writeFileSync(join(repo, "notes.md"), "x\n");
+  });
+  const api = fakeApi(stray.repo, stray.head);
+  assert.deepEqual(await copyPush(stray, api, new Set([COPY])), { outcome: "escalate", escalationReason: "unexpected-path-staged" });
+  assert.equal(api.calls.some((call) => call.createCommit), false);
+  // A head-side registry edit carried in the patch is not a registered copy.
+  const registry = copyFixture(t, (repo) => {
+    mkdirSync(join(repo, "scripts"), { recursive: true });
+    writeFileSync(join(repo, "scripts/shared-copies.txt"), `lib/shared.sh ${COPY}\nlib/shared.sh notes.md\n`);
+  });
+  assert.deepEqual(await copyPush(registry, fakeApi(registry.repo, registry.head), new Set([COPY])), { outcome: "escalate", escalationReason: "unexpected-path-staged" });
+});
+
+test("shared-copies: sharedCopiesFrom reads the base registry's copy column, and the predicate needs it", (t) => {
+  const baseDir = scratch(t);
+  mkdirSync(join(baseDir, "scripts"));
+  writeFileSync(join(baseDir, "scripts/shared-copies.txt"), `# header\nlib/shared.sh ${COPY}\n\nbad line here\n`);
+  assert.deepEqual([...sharedCopiesFrom(baseDir)], [COPY]);
+  assert.throws(() => PREDICATES["shared-copies"]({}), /needs the base registry's copies/);
+  assert.equal(PREDICATES["shared-copies"]({ sharedCopies: new Set([COPY]) })("scripts/shared-copies.txt"), false);
+});
+
+test("shared-copies: select takes only a written patch on a clean merge, and checkRow keeps clean-patch to that row", () => {
+  const sel = (mergeState, patchState) =>
+    select({ row: row("shared-copies"), patchState, patchSha256: "a".repeat(64), patchHeadSha: "a".repeat(40), headSha: "a".repeat(40), patchDir: "/nonexistent", reportDir: "/nonexistent", mergeState });
+  assert.equal(sel("conflicted", "written").escalationReason, "conflict-patch-invalid");
+  assert.equal(sel("clean", "").escalationReason, "conflict-patch-invalid");
+  assert.equal(sel("clean", "empty").escalationReason, "conflict-patch-invalid");
+  assert.throws(() => checkRow({ ...row("shared-copies"), allow: ["merge-result"] }), /shared-copies alone/);
+  assert.throws(() => checkRow({ ...row("default"), "clean-patch": true }), /does not commit a merge/);
 });

@@ -419,15 +419,17 @@ export function checkRow(row) {
   const parents = JSON.stringify(row.commit?.parents);
   if (parents === '["head","base"]') {
     // A merge commit only for a PR, and only of the conflicted paths' resolutions.
-    if (JSON.stringify(row.allow) !== '["merge-result"]' || row.target !== "pr") {
-      fail("commits a merge but does not allow merge-result alone on a pull request");
+    // A clean-patch row takes a patch on a clean merge, of registered copies only.
+    const only = row["clean-patch"] === true ? '["shared-copies"]' : '["merge-result"]';
+    if (JSON.stringify(row.allow) !== only || row.target !== "pr") {
+      fail(`commits a merge but does not allow ${JSON.parse(only)[0]} alone on a pull request`);
     }
     if (!(Number.isInteger(row["max-blobs"]) && row["max-blobs"] > 0)) {
       fail("commits a merge with no max-blobs");
     }
   } else if (parents !== '["head"]') {
     fail("commits with parents this apply-patch does not support");
-  } else if (row.allow?.includes("merge-result") || row["max-blobs"] !== undefined) {
+  } else if (row.allow?.includes("merge-result") || row["max-blobs"] !== undefined || row["clean-patch"] !== undefined) {
     fail("allows merge-result or sets max-blobs but does not commit a merge");
   }
   if (!row.escalations?.some((reason) => reason.endsWith("-invalid"))) {
@@ -554,7 +556,10 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
     if (!SHA.test(String(patchHeadSha)) || !SHA.test(String(headSha)) || patchHeadSha !== headSha) {
       return decide(false, "superseded-sha", "");
     }
-    if (mergeState === "clean") {
+    if (row["clean-patch"] === true && (mergeState !== "clean" || patchState !== "written")) {
+      return decide(false, "awaiting-human", reasonFor(row, "invalid"));
+    }
+    if (mergeState === "clean" && row["clean-patch"] !== true) {
       return patchState === "" ? decide(true, "", "") : decide(false, "awaiting-human", reasonFor(row, "invalid"));
     }
     if (patchState === "empty") {
@@ -764,7 +769,7 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     // P: the patch on T0, or T0 itself for a clean merge.
     let tree = merge.conflictTree;
     let entries = [];
-    if (merge.state === "conflicted") {
+    if (merge.state === "conflicted" || row["clean-patch"] === true) {
       const problem = patchProblem(patchFile, patchSha256);
       if (problem) {
         return escalate(problem.kind, problem.why);
@@ -1199,6 +1204,22 @@ export function fixedThreadsFrom(file, kept) {
 
 // The base dependabot.yml's [ecosystem, directory] pairs, or null when the
 // file does not read; the dependency-manifests predicate then throws.
+// The copies the base checkout's scripts/shared-copies.txt registers: the
+// second field of each `<canonical> <copy>` line, comments and blanks skipped.
+export function sharedCopiesFrom(baseDir) {
+  if (!baseDir) {
+    throw new Error("BASE_DIR is not set; the shared-copies allow reads the base registry");
+  }
+  const copies = new Set();
+  for (const line of readFileSync(join(baseDir, "scripts/shared-copies.txt"), "utf8").split("\n")) {
+    const fields = line.trim().split(/\s+/);
+    if (fields.length === 2 && !fields[0].startsWith("#")) {
+      copies.add(fields[1]);
+    }
+  }
+  return copies;
+}
+
 export function dependabotPairs(baseDir) {
   try {
     return parseConfig(readFileSync(join(baseDir, DEPENDABOT_PATH), "utf8"));
@@ -1311,6 +1332,7 @@ export async function main(argv, env, { api, cwd = process.cwd(), gitBin, log = 
       dependencyVerdict: env.DEPENDENCY_VERDICT ?? "",
       // Read from the trusted base copy, and only for a row that needs it.
       dependabotConfig: row.allow.includes("dependency-manifests") ? dependabotPairs(env.BASE_DIR) : undefined,
+      sharedCopies: row.allow.includes("shared-copies") ? sharedCopiesFrom(env.BASE_DIR) : undefined,
       merge,
     },
     [target.number]: Number(env[numberKey]),
