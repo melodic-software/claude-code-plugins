@@ -236,9 +236,10 @@ class FakeGitHub:
         # (number, repository), and a totalCount that cuts them.
         self.closers: dict[int, list[tuple[int, str]]] = {}
         # Each closing pull request's state: the one judged is open, others
-        # closed unless named; and its closedAt, unless named none.
+        # closed unless named; its closedAt and author, unless named none.
         self.closer_states: dict[int, str] = {}
         self.closed_at: dict[int, str] = {}
+        self.closer_authors: dict[int, dict[str, Any]] = {}
         # The REST record of a pull request no issue lists, by number: closed
         # and unmerged unless named.
         self.pulls: dict[int, dict[str, Any]] = {}
@@ -400,6 +401,7 @@ class FakeGitHub:
                             pr, "OPEN" if pr == PR else "CLOSED"
                         ),
                         "closedAt": self.closed_at.get(pr),
+                        "author": self.closer_authors.get(pr),
                         "repository": {"nameWithOwner": repo},
                     }
                     for pr, repo in self.closers.get(n, [(PR, REPO)])
@@ -1484,21 +1486,39 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         ]
         self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
 
-    def test_a_hand_close_starts_the_count_again(self) -> None:
-        # A pull request for the issue closed unmerged, with no record.
+    def test_a_hand_close_of_a_lanes_app_attempt_starts_the_count_again(
+        self,
+    ) -> None:
+        # A lanes App pull request for the issue closed unmerged, no record.
         fake = self.sibling_fails(*SIBLING_HEADS)
         fake.closers[7] = [(SIBLING, REPO), (SIBLING + 2, REPO), (PR, REPO)]
+        fake.closer_authors[SIBLING + 2] = LANES_APP_ACTOR
         for closed, refusal in (
             ("2026-10-05T00:00:00Z", None),
             ("2026-09-01T00:00:00Z", "verify:repeated-fail"),
         ):
             with self.subTest(closed):
                 fake.closed_at[SIBLING + 2] = closed
-                self.assertEqual(read(fake).refusal, refusal)
+                self.assertEqual(read_as_lane(fake).refusal, refusal)
         # A merge ends no attempt.
         fake.closer_states[SIBLING + 2] = "MERGED"
         fake.closed_at[SIBLING + 2] = "2026-10-05T00:00:00Z"
-        self.assertEqual(read(fake).refusal, "verify:repeated-fail")
+        self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
+
+    def test_anyone_elses_closed_pull_request_resets_nothing(self) -> None:
+        # Anyone can open a pull request naming the issue and close it.
+        for author in (
+            {"__typename": "User", "login": "someone", "databaseId": 3},
+            {"__typename": "Bot", "login": "other-app", "databaseId": 2},
+            None,
+        ):
+            with self.subTest(author):
+                fake = self.sibling_fails(*SIBLING_HEADS)
+                fake.closers[7] = [(SIBLING, REPO), (SIBLING + 2, REPO), (PR, REPO)]
+                fake.closed_at[SIBLING + 2] = "2026-10-05T00:00:00Z"
+                if author is not None:
+                    fake.closer_authors[SIBLING + 2] = author
+                self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
 
     def test_a_capped_close_record_anyone_else_wrote_or_edited_resets_nothing(
         self,
@@ -1595,6 +1615,7 @@ class AFreshAttemptAfterIssue9241sAttemptsStartsItsOwnCount(unittest.TestCase):
             )
         fake.closers[7] = [(10451, REPO), (11170, REPO), (PR, REPO)]
         fake.closed_at = {10451: "2026-09-27T21:08:59Z", 11170: "2026-09-30T14:13:02Z"}
+        fake.closer_authors = {10451: LANES_APP_ACTOR, 11170: LANES_APP_ACTOR}
         fake.pulls = {
             10525: {"merged_at": "2026-09-28T01:09:36Z"},
             10583: {"merged_at": "2026-09-29T15:38:17Z"},
@@ -1617,6 +1638,10 @@ class AFreshAttemptAfterIssue9241sAttemptsStartsItsOwnCount(unittest.TestCase):
             )
         ]
         self.assertIsNone(read_as_lane(fake).refusal)
+        # Every FAIL predates the record: no pull request's state is read.
+        self.assertFalse(
+            [c for c in fake.calls if any(re.search(r"/pulls/[0-9]+$", a) for a in c)]
+        )
 
     def test_the_attempts_own_three_fails_still_cap(self) -> None:
         fake = self.attempt()

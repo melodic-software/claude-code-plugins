@@ -459,7 +459,7 @@ ISSUE_FIELDS = (
     "comments(first:100){totalCount nodes{databaseId createdAt updatedAt lastEditedAt "
     "body author{...actor} editor{...actor}}} "
     "closedByPullRequestsReferences(first:50,includeClosedPrs:true){totalCount "
-    "nodes{number state closedAt repository{nameWithOwner}}}"
+    "nodes{number state closedAt author{...actor} repository{nameWithOwner}}}"
 )
 # The issue parts `_closing_issues` reads whole: a cut list refuses.
 ISSUE_LISTS = ("comments", "closedByPullRequestsReferences")
@@ -886,21 +886,29 @@ def _started_attempt(body: Any) -> int | None:
     return int(match[1])
 
 
+def _by_lane(actor: Any, identity: str | None) -> bool:
+    """Whether `actor` is the lanes App (`identity`, `merge.agent-identity`);
+    no identity, never."""
+    bot = _bot_login(identity)
+    actor = json_object(actor)
+    return (
+        bool(bot)
+        and actor.get("__typename") == "Bot"
+        and str(actor.get("login") or "").lower() == bot
+    )
+
+
 def _capped_records(live: dict[Any, Any], identity: str | None) -> list[Any]:
     """When each capped-close record on one of the `live` issues was written
     (`CAPPED_CLOSE_RE`, first line, parked or not), counting only a comment
     the lanes App (`identity`) wrote and nobody else edited: anyone can write
     the marker, and one that reset the cap would buy re-rolls. No identity,
     none."""
-    bot = _bot_login(identity)
-    if not bot:
+    if not _bot_login(identity):
         return []
 
-    def by_lane(actor: dict[str, Any]) -> bool:
-        return (
-            actor.get("__typename") == "Bot"
-            and str(actor.get("login") or "").lower() == bot
-        )
+    def by_lane(actor: Any) -> bool:
+        return _by_lane(actor, identity)
 
     return [
         node.get("createdAt")
@@ -1138,6 +1146,8 @@ class Reader:
     # A pass run's `updated_at`, its completion (`_superseded`).
     _updated: dict[int, Any] = field(default_factory=dict)
     _digests: dict[str, str | None] = field(default_factory=dict)
+    # Whether a pull request no issue lists is open (`_elsewhere`).
+    _open: dict[int, bool] = field(default_factory=dict)
     # Runs whose standing came from the run cache (`_run_state`).
     _shared_runs: set[int] = field(default_factory=set)
     _on_branch: dict[str, bool] = field(default_factory=dict)
@@ -2418,36 +2428,14 @@ class Reader:
         request's FAILs count only so), from the listing already read. A
         merged or closed pull request's FAILs never count, so each fresh
         attempt starts its own count (owner decision 2026-10-29), and of an
-        open one's only those uploaded after the issue's newest close
-        (`_attempt_floor`). A pull request no issue lists has its own state
-        read, a failed read raising `_Unreadable`. A FAIL of an open one whose
-        run cannot be read raises `_Unreadable` (`SIBLING_UNREADABLE`)."""
+        open one's only those uploaded after the issue's newest close of an
+        attempt (`_attempt_floor`). A pull request no issue lists has its own
+        state read, once per `Reader` and only when one of its FAILs could
+        count, a failed read raising `_Unreadable`. A FAIL of an open one
+        whose run cannot be read raises `_Unreadable` (`SIBLING_UNREADABLE`)."""
         live = self._closing_issues(number)
-        states = self._closer_states(live)
-        named = {
-            pr_n
-            for n in live
-            for pr_n, _ in failed_by_issue.get(n, set())
-            | {(p, "") for p in unread_issues.get(n, set())}
-        }
-        for other in sorted(named - set(states) - {number}):
-            try:
-                pull = merge_policy.pull_request(self.repo, other)
-            except merge_policy.PolicyReadError as exc:
-                raise _Unreadable(f"#{other} state: {exc}") from exc
-            states[other] = (
-                "OPEN"
-                if pull.get("state") == "open"
-                else "MERGED"
-                if pull.get("merged_at")
-                else "CLOSED",
-                pull.get("closed_at"),
-            )
-        floor = self._attempt_floor(live, states)
-        others = {n for n, (state, _) in states.items() if state == "OPEN"} - {number}
-        unread = set().union(*(unread_issues.get(n, set()) for n in live)) & others
-        if others & unread_prs or unread:
-            raise _Unreadable(SIBLING_UNREADABLE)
+        listed = self._closer_states(live)
+        floor = self._attempt_floor(live, listed)
 
         def after(pr_n: int, sha: str) -> bool:
             # A time that cannot be read counts the FAIL.
@@ -2459,20 +2447,46 @@ class Reader:
                     return True
             return False
 
+        by_name = [p for n in live for p in failed_by_issue.get(n, set())]
+        unread_named = set().union(*(unread_issues.get(n, set()) for n in live))
+        others = {n for n, (state, _, _) in listed.items() if state == "OPEN"}
+        for other in sorted({p for p, _ in by_name} | unread_named):
+            if other == number or other in listed:
+                continue
+            if other not in unread_named and not any(
+                after(p, sha) for p, sha in by_name if p == other
+            ):
+                continue
+            if other not in self._open:
+                try:
+                    pull = merge_policy.pull_request(self.repo, other)
+                except merge_policy.PolicyReadError as exc:
+                    raise _Unreadable(f"#{other} state: {exc}") from exc
+                self._open[other] = pull.get("state") == "open"
+            if self._open[other]:
+                others.add(other)
+        others.discard(number)
+        if others & (unread_prs | unread_named):
+            raise _Unreadable(SIBLING_UNREADABLE)
         return live, {
             sha
             for pr_n, sha in (
                 *((n, sha) for n in others for sha in failed_by_pr.get(n, set())),
-                *(p for n in live for p in failed_by_issue.get(n, set())),
+                *by_name,
             )
             if pr_n in others and after(pr_n, sha)
         }
 
-    def _closer_states(self, live: dict[Any, Any]) -> dict[int, tuple[str, Any]]:
+    def _closer_states(self, live: dict[Any, Any]) -> dict[int, tuple[Any, Any, Any]]:
         """Each pull request in this repository that closes one of the `live`
-        issues: its state (`OPEN`, `CLOSED` or `MERGED`) and `closedAt`."""
+        issues: its state (`OPEN`, `CLOSED` or `MERGED`), `closedAt` and
+        author."""
         return {
-            node["number"]: (node.get("state"), node.get("closedAt"))
+            node["number"]: (
+                node.get("state"),
+                node.get("closedAt"),
+                node.get("author"),
+            )
             for issue in live.values()
             for node in map(
                 json_object,
@@ -2483,16 +2497,22 @@ class Reader:
         }
 
     def _attempt_floor(
-        self, live: dict[Any, Any], states: dict[int, tuple[str, Any]]
+        self, live: dict[Any, Any], listed: dict[int, tuple[Any, Any, Any]]
     ) -> datetime | None:
         """The newest close of an attempt at the `live` issues: a capped-close
         record the lanes App wrote and nobody else edited (`_capped_records`),
-        or the close of a pull request for them that did not merge. FAILs of
-        an open pull request uploaded before it judged an attempt that is
-        over. A time that cannot be read is left out, so it lowers nothing."""
+        or the unmerged close of a lanes App pull request that closes one of
+        them. Only the App's count, as anyone can open and close a pull
+        request that names the issue. FAILs of an open pull request uploaded
+        before it judged an attempt that is over. A time that cannot be read
+        is left out, so it lowers nothing."""
         stamps = [
             *_capped_records(live, self.agent_identity),
-            *(at for state, at in states.values() if state == "CLOSED"),
+            *(
+                at
+                for state, at, author in listed.values()
+                if state == "CLOSED" and _by_lane(author, self.agent_identity)
+            ),
         ]
         times = []
         for stamp in stamps:
