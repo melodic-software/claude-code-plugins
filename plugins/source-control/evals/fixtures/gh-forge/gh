@@ -2,8 +2,8 @@
 # Offline stand-in for the GitHub CLI in pull-request eval runs. It serves one pull request from the
 # state install.sh wrote (or, under --no-pr, opens it on `pr create`), the issues in issues/<n>.json,
 # and the REST reads the create phase makes, and never reaches a network or the real gh: any command it does not serve
-# exits 1 naming itself, so a run cannot touch GitHub through it. `pr merge`, `pr review` and the
-# resolve-thread mutation only append a line to calls.jsonl in the forge state. `pr update-branch` is refused on
+# exits 1 naming itself, so a run cannot touch GitHub through it. `pr merge`, `pr review`, `pr comment`
+# and the resolve-thread mutation only append a line to calls.jsonl in the forge state. `pr update-branch` is refused on
 # purpose: the ready phase then takes its documented local-merge fallback, which the graders read.
 # shellcheck disable=SC2154 # PR_* come from the state file sourced below
 set -uo pipefail
@@ -251,6 +251,13 @@ case "$cmd $sub" in
     pr_matches "${args[0]:-}" || refuse pr review "$@"
     record "pr review" "$@"
     echo "✓ Reviewed pull request eval-fixture/app#$PR_NUMBER"
+    ;;
+  "pr comment")
+    shift 2
+    parse "$@"
+    pr_matches "${args[0]:-}" || refuse pr comment "$@"
+    record "pr comment" "$@"
+    echo "https://github.com/eval-fixture/app/pull/$PR_NUMBER#issuecomment-1"
     ;;
   "api graphql")
     shift 2
