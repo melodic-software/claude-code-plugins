@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchFeedback, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
+import { createGitHubApi, dispatchFeedback, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
@@ -1691,9 +1691,14 @@ const lostRun = (overrides = {}) => ({
 const startedJobs = [
   { id: 1, name: "dispatch", conclusion: "cancelled", steps: [{ name: "Set up job", conclusion: "success" }, { name: "Dispatch", conclusion: "cancelled" }] },
 ];
-function recoveryApi({ runs = [lostRun()], jobs = { 600: startedJobs }, ...options } = {}) {
+function recoveryApi({ runs = [lostRun()], jobs = { 600: startedJobs }, finished = [], ...options } = {}) {
   const api = sweepApi({ checksAt: {}, ...options });
   api.listings = [];
+  api.finishedReads = [];
+  api.listFinishedRunsSince = async (workflow, since) => {
+    api.finishedReads.push({ workflow, since });
+    return finished;
+  };
   api.jobReads = [];
   api.pullReads = 0;
   api.listRecentRuns = async (workflow, since) => {
@@ -1892,16 +1897,83 @@ test("a lost run that already dispatched is not dispatched again", async (t) => 
 // sends at most one round per PR: a finished run of the activity for the PR
 // created after it holds the PR.
 test("a lost run sends one round per PR: a finished round for the PR created after it holds the PR", async (t) => {
-  for (const [label, created, sent] of [
-    ["after the lost run", "2026-10-17T13:20:00Z", []],
-    ["before the lost run", "2026-10-17T12:50:00Z", ["42"]],
+  // The listing is filtered to runs created since the lost run.
+  for (const [label, finished, sent] of [
+    ["a finished round since the lost run", [{ id: 7, status: "completed", conclusion: "failure", display_title: TITLE_42, created_at: "2026-10-17T13:20:00Z" }], []],
+    ["none since the lost run", [], ["42"]],
   ]) {
-    const api = recoveryApi({ runs: [lostRun({ conclusion: "failure" })], jobs: { 600: [{ ...startedJobs[0], conclusion: "failure" }] } });
-    api.listWorkflowRuns = async () => [{ id: 7, status: "completed", conclusion: "failure", display_title: TITLE_42, created_at: created }];
+    const api = recoveryApi({ runs: [lostRun({ conclusion: "failure" })], jobs: { 600: [{ ...startedJobs[0], conclusion: "failure" }] }, finished });
     const { lines } = await sweepMain(t, api, TICK, NOW);
     assert.deepEqual(api.calls.dispatch.map((call) => call.inputs["pr-number"]), sent, label);
     assert.equal(lines.some((line) => line.includes("run 7") && line.includes("after lost run 600")), sent.length === 0, `${label}\n${lines.join("\n")}`);
   }
+});
+
+// A POST the API rejects starts no round, so no finished run holds the PR, and
+// the tick logs the error and ends green, so the failed run stays the same one
+// on every tick until its age ends the retries.
+test("a dispatch the API keeps rejecting is retried only within FAILED_RUN_WINDOW_HOURS of the failed run", async (t) => {
+  const failed = lostRun({ conclusion: "failure" });
+  const api = recoveryApi({ runs: [failed], jobs: { 600: [{ ...startedJobs[0], conclusion: "failure" }] } });
+  const dispatch = api.dispatchWorkflow;
+  api.dispatchWorkflow = async (request) => {
+    await dispatch(request);
+    throw new Error("POST dispatches returned 422");
+  };
+  const created = Date.parse(failed.created_at);
+  for (let tick = 1; tick <= 47; tick += 1) {
+    const at = created + tick * 1_800_000;
+    const { output, lines } = await sweepMain(t, api, TICK, at);
+    assert.equal(output, "");
+    assert.equal(lines.some((line) => line.startsWith("::warning::") && line.includes("422")), at <= created + FAILED_RUN_WINDOW_HOURS * 3_600_000, lines.join("\n"));
+  }
+  assert.equal(api.calls.dispatch.length, FAILED_RUN_WINDOW_HOURS * 2);
+});
+
+test("a cancelled run stays recoverable past FAILED_RUN_WINDOW_HOURS: the bound is on failed runs", async (t) => {
+  const api = recoveryApi();
+  await sweepMain(t, api, TICK, Date.parse(lostRun().created_at) + (FAILED_RUN_WINDOW_HOURS + 1) * 3_600_000);
+  assert.equal(api.calls.dispatch.length, 1);
+});
+
+test("the sent-round guard reads one listing a tick, from the lost run's creation, only with a lost run in the window", async (t) => {
+  const second = { ...pull()[0], number: 43, head: { sha: SECOND_HEAD, repo: { full_name: REPOSITORY } } };
+  const sent = [TITLE_42, pr_unblockTitle("address-feedback", 43)].map((display_title, i) => ({ id: 7 + i, status: "completed", display_title, created_at: "2026-10-17T13:20:00Z" }));
+  const api = recoveryApi({ openPulls: [...pull(), second], finished: sent });
+  await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.finishedReads, [{ workflow: "pr-unblock.yml", since: "2026-10-17T13:00:00Z" }]);
+  assert.deepEqual(api.calls.dispatch, []);
+  const quiet = recoveryApi({ runs: [lostRun({ conclusion: "success" })] });
+  await sweepMain(t, quiet, TICK, NOW);
+  assert.deepEqual(quiet.finishedReads, []);
+});
+
+test("a sent-round listing that cannot be read holds the PR", async (t) => {
+  const api = recoveryApi();
+  api.listFinishedRunsSince = async () => {
+    throw new Error("pr-unblock.yml has more than 1000 finished runs");
+  };
+  const { lines } = await sweepMain(t, api, TICK, NOW);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes("more than 1000")), lines.join("\n"));
+});
+
+test("the finished-run listing reads every page of the window, and refuses a window past the API's 1,000 results", async () => {
+  const urls = [];
+  let rows = (page) => Array.from({ length: page === 1 ? 100 : 1 }, (_, i) => ({ id: page * 1000 + i }));
+  const fetch = async (url) => {
+    urls.push(url);
+    return new Response(JSON.stringify({ workflow_runs: rows(Number(new URL(url).searchParams.get("page"))) }));
+  };
+  const api = createGitHubApi({ token: "t", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  const since = "2026-10-17T13:00:00Z";
+  assert.equal((await api.listFinishedRunsSince("pr-unblock.yml", since)).length, 101);
+  const base = `https://api.example/repos/${REPOSITORY}/actions/workflows/pr-unblock.yml/runs?event=workflow_dispatch&status=completed&created=%3E%3D2026-10-17T13%3A00%3A00Z&per_page=100`;
+  assert.deepEqual(urls, [`${base}&page=1`, `${base}&page=2`]);
+  rows = () => Array.from({ length: 100 }, (_, i) => ({ id: i + 1 }));
+  urls.length = 0;
+  await assert.rejects(api.listFinishedRunsSince("pr-unblock.yml", since), /more than 1000 finished runs/);
+  assert.equal(urls.length, 10);
 });
 
 test("the recovery leaves a head the sweep has capped alone", async (t) => {

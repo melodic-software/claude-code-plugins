@@ -93,11 +93,12 @@
 // re-runs stay person-only. When the sweep dispatched nothing, the tick
 // recovers it instead (recoverLost): one listing of this workflow's runs
 // created within the reconciler's LOOKBACK_HOURS finds a run that ended in
-// the reconciler's LOST set or failed, with its dispatch job lost or failed
-// after it started (a run replaced in its concurrency group never started
-// one), and then each open lanes App PR into main short of SWEEP_HEAD_CAP,
-// with no finished run of the activity created since that run, is decided as
-// above with its head's newest completed review run as the upstream. The
+// the reconciler's LOST set, or failed within FAILED_RUN_WINDOW_HOURS, with
+// its dispatch job lost or failed after it started (a run replaced in its
+// concurrency group never started one), and then each open lanes App PR into
+// main short of SWEEP_HEAD_CAP, with no finished run of the activity created
+// since that run, is decided as above with its head's newest completed review
+// run as the upstream. The
 // dispatch is this tick's own attempt-1 run, which the gate already trusts,
 // and dispatchFeedback's check-run and queued-run skips keep a head the lost
 // run dispatched from a second dispatch.
@@ -549,7 +550,8 @@ export async function dispatchFeedback({
     // The connection broke before any answer, so GitHub may still have taken
     // the POST: a run it started for this PR holds the second send, as the
     // listing above would. This run never sends an HTTP error answer again;
-    // the run fails, and a later tick's recovery (recoverLost) may.
+    // the run fails, and recoverLost may send it within
+    // FAILED_RUN_WINDOW_HOURS.
     const since = new Date(now - 60_000).toISOString().replace(/\.\d{3}Z$/, "Z");
     const started = (await api.listRecentRuns(settings.workflow, since)).find((run) => holds(run, number));
     log(`::warning::#${number}: the ${settings.workflow} dispatch got no answer (${errorLabel(error)}); ${started ? `run ${started.id} for it is listed, so it is not sent again` : "sending it once more"}`);
@@ -776,15 +778,22 @@ const jobStarted = (job) => (Array.isArray(job?.steps) ? job.steps : []).some((s
 // nothing else sends it again, so it is recovered as a lost one is. LOST stays
 // the reconciler's set: it re-runs what it holds.
 const RECOVERABLE = new Set([...LOST, "failure"]);
+// Hours after a failed run during which the tick retries it (judgment: four
+// half-hourly ticks, as IDLE_OWNER_WINDOW_HOURS, so a dropped tick does not
+// lose it). A POST the API rejects starts no round to hold the PR, and the
+// tick logs it and ends green (sweepPulls), so this age is the only bound.
+export const FAILED_RUN_WINDOW_HOURS = 2;
 const dispatchLost = (job) => job?.name === DISPATCH_JOB && RECOVERABLE.has(job.conclusion) && jobStarted(job);
 
 // The newest run of DISPATCH_WORKFLOW other than this one, created within
-// LOOKBACK_HOURS, that ended in RECOVERABLE with its dispatch job lost or
-// failed after it started; null when none, or when the listing cannot be
+// LOOKBACK_HOURS (FAILED_RUN_WINDOW_HOURS for a failed one), that ended in
+// RECOVERABLE with its dispatch job lost or failed after it started; null when
+// none, or when the listing cannot be
 // read. One listing call when none ended in RECOVERABLE; then one jobs read per such run, newest
 // first, until one matches.
 export async function lostDispatchRun({ api, runId, log, now = Date.now() }) {
   const since = now - LOOKBACK_HOURS * 3_600_000;
+  const failedSince = now - FAILED_RUN_WINDOW_HOURS * 3_600_000;
   let runs;
   try {
     runs = await api.listRecentRuns(DISPATCH_WORKFLOW, new Date(since).toISOString().replace(/\.\d{3}Z$/, "Z"));
@@ -793,7 +802,7 @@ export async function lostDispatchRun({ api, runId, log, now = Date.now() }) {
     return null;
   }
   const lost = runs
-    .filter((run) => String(run.id) !== String(runId) && run.status === "completed" && RECOVERABLE.has(run.conclusion) && Date.parse(run.created_at ?? "") >= since)
+    .filter((run) => String(run.id) !== String(runId) && run.status === "completed" && RECOVERABLE.has(run.conclusion) && Date.parse(run.created_at ?? "") >= (run.conclusion === "failure" ? failedSince : since))
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
   for (const run of lost) {
     try {
@@ -826,12 +835,13 @@ export async function recoverLost({ api, repository, appSenderId, log, settings 
   // A round that ended before posting its check does not handle the head, and
   // the lost run stays in the window for a day, so each lost run sends at most
   // one round per PR: a finished run of the activity for the PR created after
-  // it holds the PR. A run still going is dispatchFeedback's to skip.
-  const lostAt = Date.parse(lost.created_at);
-  const sentSince = async (number) =>
-    (await api.listWorkflowRuns(settings.workflow)).find(
-      (run) => run.status === "completed" && run.display_title === runTitle(settings.activity, number) && !(Date.parse(run.created_at ?? "") < lostAt),
-    );
+  // it holds the PR. A run still going is dispatchFeedback's to skip. One
+  // listing a tick, read when the first PR asks.
+  let finished;
+  const sentSince = async (number) => {
+    finished ??= api.listFinishedRunsSince(settings.workflow, lost.created_at);
+    return (await finished).find((run) => run.display_title === runTitle(settings.activity, number));
+  };
   const dispatched = await sweepPulls(context, async (pull) => {
     const sent = await sentSince(pull.number);
     if (sent) {
@@ -1085,6 +1095,22 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     async listRecentRuns(path, since) {
       const query = new URLSearchParams({ created: `>=${since}`, per_page: "100" });
       return (await request(`${repo}/actions/workflows/${path.split("/").at(-1)}/runs?${query}`)).workflow_runs ?? [];
+    },
+    // Every finished workflow_dispatch run of a workflow created since `since`,
+    // newest first. The API returns at most 1,000 for a filtered listing
+    // (https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow),
+    // so a window past that is an error, not a shorter answer.
+    async listFinishedRunsSince(workflow, since) {
+      const query = new URLSearchParams({ event: "workflow_dispatch", status: "completed", created: `>=${since}`, per_page: "100" });
+      const runs = [];
+      for (let page = 1; page <= 10; page += 1) {
+        const batch = (await request(`${repo}/actions/workflows/${workflow}/runs?${query}&page=${page}`)).workflow_runs ?? [];
+        runs.push(...batch);
+        if (batch.length < 100) {
+          return runs;
+        }
+      }
+      throw new Error(`${workflow} has more than 1000 finished runs since ${since}`);
     },
     // The repository's artifacts with exactly this name, newest first.
     async listArtifactsNamed(name) {
