@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.130.2] - 2026-10-31
+
+### Fixed
+
+- The interview surface's `server.py` and `test_server.py` are now `interview_server.py` and
+  `test_interview_server.py`, so `pytest plugins/planning` no longer stops on an import file
+  mismatch, and a surface module can no longer import the shared `server.py` in its place.
+
 ## [0.130.1] - 2026-10-31
 
 ### Fixed
