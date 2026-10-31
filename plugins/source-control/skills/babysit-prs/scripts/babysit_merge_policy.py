@@ -4879,14 +4879,12 @@ ENTRY_HOLD_QUERY = (
 )
 
 
-def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[str]:
-    """Logins of humans whose comment, review or inline comment on the pull
-    request reads as blocking, by the autopilot tier's predicates. Only an
-    owner, member or collaborator counts: on a public repository anyone can
+def _member_discussion(
+    owner: str, name: str, number: int, identity: str
+) -> Iterator[dict[str, Any]]:
+    """Each human's comment, review or inline comment on the pull request. Only
+    an owner, member or collaborator counts: on a public repository anyone can
     comment, and a stranger's text must not dequeue the identity's entry."""
-    from babysit_merge import HUMAN_MERGE_VETO_RE  # noqa: PLC0415 - import cycle
-
-    found = set()
     for item in _discussion(owner, name, number):
         author = _rest_actor(item.get("user"))
         login = str((author or {}).get("login") or "")
@@ -4900,14 +4898,43 @@ def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[s
             not in BLOCKER_ASSOCIATIONS
         ):
             continue
-        body = str(item.get("body") or "")
-        if (
-            has_blocking_text(body)
+        yield item
+
+
+def _discussion_login(item: dict[str, Any]) -> str:
+    return str((_rest_actor(item.get("user")) or {}).get("login") or "unknown")
+
+
+def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[str]:
+    """Logins of members whose item on the pull request reads as blocking, by
+    the autopilot tier's predicates."""
+    from babysit_merge import HUMAN_MERGE_VETO_RE  # noqa: PLC0415 - import cycle
+
+    return sorted(
+        {
+            _discussion_login(item)
+            for item in _member_discussion(owner, name, number, identity)
+            if has_blocking_text(body := str(item.get("body") or ""))
             or has_blocking_severity(body)
             or HUMAN_MERGE_VETO_RE.search(body)
-        ):
-            found.add(login or "unknown")
-    return sorted(found)
+        }
+    )
+
+
+def _member_vetoes(owner: str, name: str, number: int, identity: str) -> list[str]:
+    """Logins of members whose newest item with text says "do not merge", the
+    rule enable-auto-merge.mjs arms on and `babysit_merge.human_veto_logins`
+    gates on."""
+    from babysit_merge import vetoing_logins  # noqa: PLC0415 - import cycle
+
+    return vetoing_logins(
+        (
+            _discussion_login(item),
+            str(item.get("submitted_at") or item.get("created_at") or ""),
+            str(item.get("body") or ""),
+        )
+        for item in _member_discussion(owner, name, number, identity)
+    )
 
 
 def _opt_in_hold(
@@ -4963,13 +4990,16 @@ def entry_hold(
     self_logins: Collection[str] = frozenset(),
     permission: Permission | None = None,
     queued: bool = True,
+    authority: str | None = None,
 ) -> str | None:
     """Why a queued entry of the agent identity must leave the queue (D3): the
     `do-not-merge` or human-gated label, a body hold, a human blocking comment, or the opt-in
     label removed since the enqueue or put back by a non-human. An unreadable
     entry is a hold. Not `queued` (a pull request never enqueued, as the
     gate's capped close reads it), no queue event is needed and the opt-in
-    label is not compared; a failed read still holds."""
+    label is not compared; a failed read still holds. The pr-merge lane's
+    `authority` counts only a member veto: a wider read than the one its arm
+    path takes would dequeue what the next run arms again."""
     from babysit_merge import (  # noqa: PLC0415
         BODY_MERGE_HOLD_RE,
         human_gated_label,
@@ -4998,7 +5028,8 @@ def entry_hold(
             return held_by
         if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
             return "body-hold"
-        blockers = _human_blockers(owner, name, number, identity)
+        read = _member_vetoes if authority == PR_MERGE else _human_blockers
+        blockers = read(owner, name, number, identity)
         if blockers:
             return f"human-blocking-comment:{','.join(blockers)}"
         if not queued:

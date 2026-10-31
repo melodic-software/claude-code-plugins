@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.22.1] - 2026-10-31
+
+### Fixed
+
+- plugins `reset-refresh.sh refresh`: on Git Bash, where there is no `pgrep`, the running-session check reads `tasklist.exe` for `claude.exe` instead of refusing every run.
+
 ## [4.22.0] - 2026-10-31
 
 ### Changed

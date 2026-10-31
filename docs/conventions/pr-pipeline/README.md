@@ -2505,8 +2505,8 @@ a fresh attempt at its issue (`babysit_verify_evidence.py` `capped_close`, run b
 lanes App's, not open at that head, or carries `do-not-merge` or the human-gated label, and one
 whose issue link the arm path refuses (one closing issue or the `Refs:` one, clearing the trust
 hold) or whose issue carries an issue hold label. The gate also leaves open one its entry-hold
-check names, read as a pull request never enqueued (a hold label, a body hold, a member's blocking
-comment, or a failed read), and one whose human-gated label it cannot read. A pull request reopened after its record stays open: it closes at the cap once. In
+check names, read as a pull request never enqueued (a hold label, a body hold, a member's newest comment
+saying "do not merge", or a failed read), and one whose human-gated label it cannot read. A pull request reopened after its record stays open: it closes at the cap once. In
 order,
 so a failed write leaves the pull request open for the next run, which finds its records and
 writes the rest: a comment on the pull request opening with
