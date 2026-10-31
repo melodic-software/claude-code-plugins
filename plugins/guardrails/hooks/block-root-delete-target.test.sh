@@ -2263,6 +2263,266 @@ guard_invoke "${RDT_CWD[@]}" --command 'rsync -a --delete src/ /opt/nonexistent-
 assert_exit 'rsync: an outside destination exits 2' 2 "$GUARD_RC"
 assert_contains 'rsync: the refusal names the destination' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
 
+# --- 2i. robocopy deletes (#9758) ----------------------------------------------
+# /MIR or /PURGE deletes in the destination, the second operand; /MOVE or /MOV
+# deletes from the source, the first. Each is judged as a recursive rm operand,
+# from the Bash and the PowerShell tool. Every form runs against a root, HOME,
+# a path outside the allowed roots and a path strictly inside the tree.
+RDT_ROBOCOPY_FORMS=(
+  'robocopy src TGT /MIR'
+  'robocopy src TGT /mir /R:2 /W:5'
+  'robocopy src TGT /E /PURGE'
+  'robocopy src TGT //MIR'
+  'robocopy /MIR src TGT'
+  'robocopy src TGT a.txt /XF a.tmp b.tmp /MIR'
+  'robocopy.exe src TGT /MIR /LOG:build/rdt.log'
+  'robocopy TGT build/rdt-out /MOVE'
+  'robocopy TGT build/rdt-out /E /MOV'
+)
+rdt_robocopy() { # <label> <want> <target> [guard_invoke option ...]: every form, both tools
+  local label="$1" want="$2" t="$3" f c
+  shift 3
+  for f in "${RDT_ROBOCOPY_FORMS[@]}"; do
+    c="${f//TGT/$t}"
+    expect_both "robocopy: $label: $c" "$want" --command "$c" "$@"
+    expect_both "robocopy: PS $label: $c" "$want" --tool PowerShell --command "$c" "$@"
+  done
+}
+rdt_robocopy 'a root blocks' 2 /
+rdt_robocopy 'HOME blocks' 2 '$HOME'
+rdt_robocopy 'outside the tree blocks' 2 /opt/nonexistent-rdt/x "${RDT_CWD[@]}"
+rdt_robocopy 'inside the tree allowed' 0 plugins/rdt-nonexistent "${RDT_CWD[@]}"
+expect_both 'robocopy: PS a mirror into a drive root blocks' 2 \
+  --tool PowerShell --command 'robocopy src C:\ /MIR'
+expect_both 'robocopy: PS a mirror outside the tree blocks' 2 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'robocopy src D:\rdt-x\y /PURGE'
+expect_both 'robocopy: PS cmd /c robocopy into a drive root blocks' 2 \
+  --tool PowerShell --command 'cmd /c robocopy src C:\ /MIR'
+expect_both 'robocopy: PS cmd /c robocopy inside the tree allowed' 0 \
+  --tool PowerShell "${RDT_CWD[@]}" --command 'cmd /c "robocopy src build\rdt-out /MIR"'
+expect_both 'robocopy: a mirror under /tmp allowed' 0 "${RDT_CWD[@]}" --command 'robocopy src /tmp/rdt-x /MIR'
+expect_both 'robocopy: a mirror under the scratchpad allowed' 0 \
+  --payload "$(rdt_pl "robocopy src '$RDT_SPT/x' /MIR" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'robocopy: a mirror into the scratchpad itself blocks' 2 \
+  --payload "$(rdt_pl "robocopy src '$RDT_SPT' /MIR" "$RDT_TOP" "$RDT_SPT")"
+rdt_ar 'robocopy: unset key, a mirror under the root blocks' 2 "robocopy src '$RDT_AR/child' /MIR"
+rdt_ar 'robocopy: a mirror under the root allowed' 0 "robocopy src '$RDT_AR/child' /MIR" "$RDT_AR"
+rdt_ar 'robocopy: a mirror into the root itself blocks' 2 "robocopy src '$RDT_AR' /MIR" "$RDT_AR"
+rdt_ar 'robocopy: a move from under the root allowed' 0 "robocopy '$RDT_AR/child' build/rdt-out /MOVE" "$RDT_AR"
+expect_both 'robocopy: PS a mirror under an allowed root allowed' 0 --tool PowerShell --cwd / \
+  --command "robocopy src '$RDT_AR/child' /MIR" -- "HOME=$RDT_AH" "$RDT_KEY=$RDT_AR"
+expect_both 'robocopy: a mirror into the toplevel blocks' 2 "${RDT_CWD[@]}" --command 'robocopy src . /MIR'
+# The items xargs appends are the robocopy's operands.
+expect_both 'robocopy: xargs fed by an unconfined listing blocks' 2 "${RDT_CWD[@]}" \
+  --command 'cat list | xargs robocopy src /MIR'
+
+# A robocopy that deletes nothing, a side it does not delete from, a /XF list
+# entry, a fully quoted glob, and the mechanism as quoted prose.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "robocopy: $rdt_cmd allowed" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+  expect_both "robocopy: PS $rdt_cmd allowed" 0 --tool PowerShell "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+robocopy src /opt/nonexistent-rdt/x /E
+robocopy /opt/nonexistent-rdt/x build/rdt-out /MIR
+robocopy build/rdt-x /opt/nonexistent-rdt/x /MOVE
+robocopy src build/rdt-out /XF / /MIR
+robocopy '/opt/nonexistent-rdt/*' build/rdt-out /MIR
+git commit -m "robocopy src / /MIR"
+echo 'robocopy / build/rdt-out /MOVE'
+EOF
+
+# From the Bash tool a brace or a glob can change which word is the source or
+# the destination, so every operand is judged; a substitution body is judged.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "robocopy: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+robocopy /opt/nonexistent-rdt/* build/rdt-out /MIR
+robocopy {src,/} /MIR
+robocopy $UNSET src / /MIR
+robocopy "$@" /MIR
+robocopy src / -MIR
+echo "$(robocopy src / /MIR)"
+EOF
+
+# From the Bash tool MSYS rewrites a single-slash one-letter word to that
+# drive's root, so `/e` is an operand there and never the /E option; from the
+# PowerShell tool it is the option, and the robocopy names no destination.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "robocopy: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+robocopy src /e /MIR
+robocopy src /S /PURGE
+robocopy src /x /e /MIR
+robocopy /e build/rdt-out /MOVE
+EOF
+expect_both 'robocopy: PS robocopy src /e /MIR allowed' 0 --tool PowerShell "${RDT_CWD[@]}" \
+  --command 'robocopy src /e /MIR'
+
+# A prefix that turns MSYS path conversion off for the robocopy makes `/e` the
+# /E option again, so the destination is the word after the source. A bare
+# assignment in its own segment is not exported, and an exclusion list that
+# does not cover the word leaves it converted.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "robocopy: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+MSYS_NO_PATHCONV=1 robocopy /e empty /opt/nonexistent-rdt/x /MIR
+MSYS2_ARG_CONV_EXCL='*' robocopy /e empty /opt/nonexistent-rdt/x /MIR
+MSYS2_ARG_CONV_EXCL='--x;/e' robocopy /e empty /opt/nonexistent-rdt/x /MIR
+env MSYS_NO_PATHCONV=1 robocopy /e empty /opt/nonexistent-rdt/x /MIR
+MSYS_NO_PATHCONV=1; robocopy src /e /MIR
+MSYS2_ARG_CONV_EXCL=--x robocopy src /e /MIR
+MSYS2_ARG_CONV_EXCL= robocopy src /e /MIR
+EOF
+
+# A suppressor value that expands at run time, or an env option that can drop
+# the suppressor before robocopy starts, leaves the conversion state unknown,
+# so every operand is judged, each single-slash one-letter word included.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "robocopy: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+MSYS2_ARG_CONV_EXCL=$X robocopy /e empty /opt/nonexistent-rdt/x /MIR
+MSYS_NO_PATHCONV=1 env -u MSYS_NO_PATHCONV robocopy /e /opt/nonexistent-rdt/x empty /MIR
+MSYS_NO_PATHCONV=1 env -i robocopy /e /opt/nonexistent-rdt/x empty /MIR
+EOF
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "robocopy: $rdt_cmd allowed" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+MSYS_NO_PATHCONV=1 robocopy src /e /MIR
+MSYS2_ARG_CONV_EXCL='*' robocopy src /e /MIR
+MSYS_NO_PATHCONV=1 robocopy /e empty build/rdt-out /MIR
+EOF
+
+# From the PowerShell tool an array, an unset variable or a grouping can
+# change which word is the destination, and `--%` is dropped before robocopy
+# sees its arguments.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "robocopy: PS $rdt_cmd blocks" 2 --tool PowerShell "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+robocopy --% src C:\ /MIR
+robocopy $null src C:\ /MIR
+robocopy $pair /MIR
+robocopy (Get-Pair) /MIR
+EOF
+
+guard_invoke "${RDT_CWD[@]}" --command 'robocopy src /opt/nonexistent-rdt/x /MIR'
+assert_exit 'robocopy: an outside destination exits 2' 2 "$GUARD_RC"
+assert_contains 'robocopy: the refusal names the destination' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
+
+# --- 2j. git worktree remove --force (#9760) ---------------------------------
+# -f or --force removes the worktree's directory even when it holds changes.
+# Its <worktree> operand is judged as a recursive rm operand, and so is every
+# registered worktree root whose path ends in it. Every form runs against a
+# root, HOME, a path outside the allowed roots and a path inside the tree.
+RDT_GWT_FORMS=(
+  'git worktree remove --force TGT'
+  'git worktree remove -f TGT'
+  'git worktree remove -f -f TGT'
+  'git worktree remove TGT --force'
+  'git worktree remove --forc -- TGT'
+  'git -c core.x=1 --no-pager worktree remove -ff TGT'
+)
+rdt_gwt() { # <label> <want> <target> [guard_invoke option ...]: every form
+  local label="$1" want="$2" t="$3" f c
+  shift 3
+  for f in "${RDT_GWT_FORMS[@]}"; do
+    c="${f//TGT/$t}"
+    expect_both "git worktree: $label: $c" "$want" --command "$c" "$@"
+  done
+}
+rdt_gwt 'a root blocks' 2 /
+rdt_gwt 'HOME blocks' 2 '$HOME'
+rdt_gwt '~ blocks' 2 '~'
+rdt_gwt 'outside the tree blocks' 2 /opt/nonexistent-rdt/x "${RDT_CWD[@]}"
+rdt_gwt 'inside the tree allowed' 0 build/rdt-wt-nonexistent "${RDT_CWD[@]}"
+expect_both 'git worktree: the toplevel blocks' 2 "${RDT_CWD[@]}" --command 'git worktree remove --force .'
+expect_both 'git worktree: under /tmp allowed' 0 "${RDT_CWD[@]}" --command 'git worktree remove --force /tmp/rdt-wt-x'
+expect_both 'git worktree: under the scratchpad allowed' 0 \
+  --payload "$(rdt_pl "git worktree remove --force '$RDT_SPT/wt'" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'git worktree: the scratchpad itself blocks' 2 \
+  --payload "$(rdt_pl "git worktree remove --force '$RDT_SPT'" "$RDT_TOP" "$RDT_SPT")"
+rdt_ar 'git worktree: unset key, under the root blocks' 2 "git worktree remove --force '$RDT_AR/child'"
+rdt_ar 'git worktree: under the root allowed' 0 "git worktree remove --force '$RDT_AR/child'" "$RDT_AR"
+rdt_ar 'git worktree: the root itself blocks' 2 "git worktree remove --force '$RDT_AR'" "$RDT_AR"
+
+# Without a force flag git refuses an unclean worktree; other subcommands, and
+# the mechanism as quoted prose, delete nothing.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "git worktree: $rdt_cmd allowed" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+git worktree remove /opt/nonexistent-rdt/x
+git worktree add /opt/nonexistent-rdt/x
+git worktree list
+git worktree prune
+git commit -m "git worktree remove --force /"
+git commit -m 'drop it' -m "git worktree remove --force ~"
+echo 'git worktree remove --force /'
+EOF
+
+# Launchers, child shells, substitutions, braces, and a relative name under
+# an option that selects another repository.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "git worktree: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+sudo git worktree remove --force /
+bash -c 'git worktree remove --force ~'
+echo "$(git worktree remove --force /)"
+git worktree remove --force {build/rdt-x,/}
+git -C /opt/nonexistent-rdt worktree remove --force wt
+git --git-dir=/opt/nonexistent-rdt/.git worktree remove --force wt
+GIT_DIR=/opt/nonexistent-rdt/.git git worktree remove --force wt
+env GIT_DIR=/opt/nonexistent-rdt/.git git worktree remove --force wt
+X=wt; git -C /opt/nonexistent-rdt worktree remove --force "$X"
+cd /opt/nonexistent-rdt && git worktree remove --force wt
+cat list | xargs git worktree remove --force
+EOF
+
+# Registered worktrees, on the fixture of section 2e: under the suite's temp
+# directory a linked worktree is strictly under a temp root, so removing it
+# passes, by path or by its trailing name; the toplevel, a directory holding a
+# worktree, and the worktree the session runs in stay refused.
+rdt_wt 'git worktree remove of a linked worktree allowed' 0 "git worktree remove --force '$RDT_WF/wt1'"
+rdt_wt 'git worktree remove by trailing name allowed' 0 'git worktree remove --force wt1'
+rdt_wt 'git worktree remove of the toplevel blocks' 2 "git worktree remove --force '$RDT_WF/main'"
+rdt_wt 'git worktree remove of a directory holding one blocks' 2 "git worktree remove --force '$RDT_WF/holder'"
+rdt_wt 'from a linked worktree: git worktree remove of itself blocks' 2 \
+  "git worktree remove --force '$RDT_WF/wt1'" "$RDT_WF/wt1"
+rdt_wt 'from a linked worktree: git worktree remove of itself by name blocks' 2 \
+  'git worktree remove --force wt1' "$RDT_WF/wt1"
+
+# Outside every temp root (the checkout's .work), a registered worktree stays
+# protected, a trailing name included and one inside the toplevel too, until
+# an allowed root other than the toplevel holds it.
+RDT_GW="$RDT_AB/gwt"
+mkdir -p "$RDT_GW/main/.git/worktrees/n1" "$RDT_GW/main/.git/worktrees/n2" "$RDT_GW/n1" "$RDT_GW/main/n2"
+printf '%s\n' "$RDT_GW/n1/.git" >"$RDT_GW/main/.git/worktrees/n1/gitdir"
+printf 'gitdir: %s\n' "$RDT_GW/main/.git/worktrees/n1" >"$RDT_GW/n1/.git"
+printf '%s\n' "$RDT_GW/main/n2/.git" >"$RDT_GW/main/.git/worktrees/n2/gitdir"
+printf 'gitdir: %s\n' "$RDT_GW/main/.git/worktrees/n2" >"$RDT_GW/main/n2/.git"
+rdt_gw() { # <label> <want> <command> [roots]: from the fixture's main worktree
+  local -a env=("PATH=$TEST_TMPDIR/bin-git-top:$PATH" "RDT_STUB_TOP=$RDT_GW/main" "HOME=$RDT_AH")
+  [[ -z "${4:-}" ]] || env+=("$RDT_KEY=$4")
+  expect_both "git worktree: $1" "$2" --cwd "$RDT_GW/main" --command "$3" -- "${env[@]}"
+}
+rdt_gw 'a worktree outside temp blocks' 2 "git worktree remove --force '$RDT_GW/n1'"
+rdt_gw 'a worktree outside temp by trailing name blocks' 2 'git worktree remove --force n1'
+rdt_gw 'a worktree outside temp by a trailing glob blocks' 2 'git worktree remove --force n*'
+rdt_gw 'a worktree inside the toplevel blocks' 2 'git worktree remove --force n2'
+rdt_gw 'a worktree under an allowed root allowed' 0 "git worktree remove --force '$RDT_GW/n1'" "$RDT_GW"
+rdt_gw 'a worktree under an allowed root by trailing name allowed' 0 'git worktree remove --force n1' "$RDT_GW"
+
+guard_invoke "${RDT_CWD[@]}" --command 'git worktree remove --force /opt/nonexistent-rdt/x'
+assert_exit 'git worktree: an outside worktree exits 2' 2 "$GUARD_RC"
+assert_contains 'git worktree: the refusal names the worktree' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
+
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"

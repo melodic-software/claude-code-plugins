@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [2.0.4] - 2026-10-31
+
+### Changed
+
+- Repointed the dead best-practices anchors to the current headings on that page.
+
 ## [2.0.3] - 2026-10-30
 
 ### Changed

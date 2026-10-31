@@ -19,8 +19,8 @@ evidence only when the harness recorded the run. In order of preference:
    or mark the entry `unverified`.
 
 Basis: the evidence guidance in
-[best practices: give Claude a way to verify its work](https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work)
-(as of 2026-10-11; recheck when that section changes what it asks a verification to show); the
+[best practices: give Claude a check to run](https://code.claude.com/docs/en/best-practices#give-claude-a-check-to-run)
+(as of 2026-10-30; recheck when that section changes what it asks a verification to show); the
 oracle-independence research slice behind this plugin's 2026-10-06 change found no artifact in
 this pipeline written by the harness rather than the agent.
 
@@ -36,8 +36,8 @@ never arrives records every run as green.
 - **Pointer**: [hooks: PostToolUse](https://code.claude.com/docs/en/hooks#posttooluse) and
   [hooks: PostToolUseFailure](https://code.claude.com/docs/en/hooks#posttoolusefailure), and the
   evidence guidance in
-  [best practices: give Claude a way to verify its work](https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work).
-- **As of**: 2026-10-11.
+  [best practices: give Claude a check to run](https://code.claude.com/docs/en/best-practices#give-claude-a-check-to-run).
+- **As of**: 2026-10-30.
 - **Recheck trigger**: the hooks reference adds an exit-code field to Bash tool output, changes
   when PostToolUseFailure fires, or a probe in a consuming project shows a non-zero exit arriving
   differently than documented; or the best-practices section changes what it asks a verification

@@ -1029,8 +1029,20 @@ the rules that only tighten in
   open or not, once main is green at a later commit: a green `pr-require-checks` run on main,
   attempt 1, from a schedule or a `github-actions[bot]` dispatch, created after the record, at a
   commit ahead of the record's SHA and on main's history. The earliest such run's creation is the
-  clear time, read from every such run since the record, so newer runs never move it. Canary and
-  read-back records stay human-close. The wrapper finds these issues by author (the agent identity
+  clear time, read from every such run since the record, so newer runs never move it. Canary,
+  revert and read-back records stay human-close. A push to main files a `revert` record when one
+  of its commits names a pull request it reverts and the lanes App enqueued that pull request or
+  its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
+  on a line of its squash message: `Reverts` (optionally after a `-` or `*` bullet) followed by `#N`
+  or `<owner>/<repo>#N` references, each counted; a GitHub revert-button subject
+  `Revert "... (#N)" (#M)`; or `This reverts commit <sha>` or the red-main bot's
+  `<!-- red-main-revert culprit=<sha> -->`, through that commit's `(#N)` subject. Every canary push
+  run, whatever it concluded and on every attempt, reads every commit the push brought, a
+  merge-queue batch included: main's first-parent range since the previous canary push run's head,
+  at most 20 commits, and the newest 20 when that head cannot be read or is not on the push's
+  history, read from main's full history. A revert commit any revert record already lists, in any
+  state, is skipped, so a commit is filed once and never again after a person closes its record. A
+  reverted commit whose pull request cannot be read is an unproven revert and files the record. The wrapper finds these issues by author (the agent identity
   or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
@@ -2200,8 +2212,16 @@ an artifact name holding `"`, `:`, `<`, `>`, `|`, `*`, `?`, `\`, `/`, a carriage
 line feed
 ([`validateArtifactName`](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts)),
 so digits, `-` and `.` are safe, and the longest name is 194 characters. The JSON holds `pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
-account type, `verdict`, `summary`, `notes` and `run_id`. The head SHA is the one `pr-require-checks`
-ran on, never the pull request's live head. A model error, an output that fails the schema, a
+account type, `verdict`, `summary`, `notes`, `evidence` and `run_id`. The head SHA is the one `pr-require-checks`
+ran on, never the pull request's live head. `evidence` records per head the app capture's outcome,
+`capture` (`ran`, `skipped`, `blocked`, `not-applicable` or `no-app`), with its `reason`,
+`capture_count` and `features`, and `local_loop`, the count `k` from an `Evidence loop: k/3` line
+in the trusted pull request body, which the author reports and the writer reads as data only (`null`
+with no such line or a withheld body). With no capture summary the writer records `no-app` ("no app
+check ran"); a summary it cannot read, that fails its schema, or whose text matches a shared
+credential pattern records `blocked`, so a capture never fails the verdict. `merge.verify-capture` configures the capture: `app`, the app it drives (unset:
+no capture runs), and `retention-days` (default 30, at most 90), how long each capture artifact
+lasts. A model error, an output that fails the schema, a
 summary or note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or a run with any permission denial
 uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
 pull request number) is not judged again, unless its only verdicts are passes the spec has since
@@ -2807,6 +2827,7 @@ findings listed by key. Its scripts and tests are in
 | 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
 | 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap\|failed ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap`, `lane-stop:failed` |
 | 10 stalled lane stop | an open pull request into main, of any author, carries a pr-unblock lane-stopped comment by `merge.agent-identity` naming its current head, or a `needs-human-cleared` comment for that head whose reason now routes to a failing status, older than 2 hours (four `pr-unblock-dispatch.yml` ticks), with no `pr-unblock / <activity>` check run but a skip started on that head since, and no `not-applicable` skip since that ends it (address-feedback on a non-draft pull request; fix-ci only once a whole listing of the head's checks is settled with none failing): its same-head retries are spent; one issue lists each such stop | `stalled-lane-stop` |
+| 11 post-merge unreadable | each of the newest 4 post-merge reports (`pr-merge-post-merge-report`, kept by `post-merge-dispatch` in a trusted scheduled or manual `pr-merge` run on `main`) has exit code 3: the post-merge check could not read lane merges, so merges hold with only a warning; the issue names the newest report's reason, each monitoring run prints it as an `::error` while it holds, and it only notifies and clears on a readable report. A run that kept no report neither counts nor resets; no report within 70 minutes leaves the signal unread | `post-merge-unreadable` |
 
 A rolling issue, titled `Monitoring: <signal>`, has the first body line
 `<!-- factory-monitor key=family:<signal> fp=<state> -->`; the body names the signal and its state
@@ -2829,7 +2850,7 @@ label exists, never `needs-triage`: a rolling issue is a status record, and the 
 no `intake-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
 cannot read is listed in the step summary and the other signals still run. Failed runs are read 100
 to a page, up to 5 pages, until 12 lane runs are kept, so fork and pull-request runs dropped after
-the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3.
+the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3. Signal 11 reuses the `pr-merge` run list the budget read makes, lists the report artifacts once, and downloads reports newest first until one is readable: 2 calls while the check reads, at most 5 while it does not.
 
 It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull-requests` read,
 `issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no

@@ -59,8 +59,8 @@ git -C "$NAME_PROBE_REPO" init -q
 host_can_name() {
   local name="$1" rc=1
   if : >"$NAME_PROBE_REPO/$name" 2>/dev/null && [[ -f "$NAME_PROBE_REPO/$name" ]]; then
-    if git -C "$NAME_PROBE_REPO" status --porcelain -z 2>/dev/null |
-      tr '\0' '\n' | grep -qxF "?? $name"; then
+    if grep -qxF "?? $name" < <(git -C "$NAME_PROBE_REPO" status --porcelain -z 2>/dev/null |
+      tr '\0' '\n'); then
       rc=0
     fi
   fi

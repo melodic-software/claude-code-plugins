@@ -3,6 +3,26 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0] - 2026-10-31
+
+### Added
+
+- The control-skill contract gains `## Mask` ([#11387](https://github.com/melodic-software/claude-code-plugins/issues/11387)): mask lines (`- <label> | <regex>`) or `none: <reason>` for what a `screenshot` or `video` must hide, and an optional `values:` line naming the config fields or read-only `cli/` commands that give the literal values to look for. A `screenshot` or `video` Capture command applies the mask lines and writes an `<artifact>.txt` sidecar holding the text the capture still shows.
+- `/app-control:drive` writes redacted `report.public.md` and `report.public.json`, then scans each sidecar and both public reports for the `values:` values and a generic credential pattern, with line wraps joined and box-drawing characters stripped. `report.json` gains `capture_count`, `artifacts` (each with `mask`: `applied`, `none-declared`, `not-checked` or `hit`, and `publishable`) and `publishable`, the paths safe to upload. A hit, a missing sidecar, no `## Mask` line or an unresolved value keeps a file out; a raw capture and any file with a `secrets_mark` entry are never publishable.
+- A `## Launch` command may name `<changed files>`: one argument per file in the run directory's `affected.json`.
+- `/app-control:map check` reports a hub whose `## Capture` records a `screenshot` or `video` and whose `## Mask` holds no mask line, under the new `mask-missing` rule, and `/app-control:map create` writes a `## Mask` for such a hub.
+
+## [0.18.0] - 2026-10-31
+
+### Added
+
+- `/app-control:drive affected --base <ref> [--head <ref>]` maps a diff to the control skill's features and writes `affected.json`, launching nothing ([#11384](https://github.com/melodic-software/claude-code-plugins/issues/11384)). `scripts/affected_features.py` does the matching. With no control skill it writes empty features and the note `No control skill: nothing matched`.
+- `--trusted-root <dir>` on every drive action reads control skills only from `<dir>` and from plugins whose folder sits under it, so a checkout under test cannot supply its own control skill.
+
+### Changed
+
+- The control-skill contract fixes the `sources` glob syntax: `**` matches across `/`, `*` and `?` match within one path segment. A plugin control skill's globs resolve against the root of the repository under verification.
+
 ## [0.17.12] - 2026-10-30
 
 ### Changed

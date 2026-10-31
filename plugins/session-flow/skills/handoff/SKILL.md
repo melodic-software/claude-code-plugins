@@ -34,8 +34,8 @@ clears is decided by the continuation router in
 
 - **Pointer**: for when context fills up, see
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>; for executing a
-  finished spec, see <https://code.claude.com/docs/en/best-practices#let-claude-interview-you>.
-- **As of**: 2026-10-02
+  finished spec, see <https://code.claude.com/docs/en/best-practices#brainstorm-with-claude-first>.
+- **As of**: 2026-10-30
 - **Recheck trigger**: either section changes how it splits work between compaction and a fresh
   session, or moves.
 

@@ -16,8 +16,8 @@ metadata:
 As models improve, instruction surfaces written for older models become the ceiling: the model reads
 every standing line every session, and lines that correct mistakes it no longer makes cost context
 and constrain behavior. We take the official pruning test as the premise (Pointer: when citing it,
-fetch [best practices: write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md)
-live. As of: 2026-10-11. Recheck trigger: that section drops or changes its per-line pruning test);
+fetch [best practices: keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short)
+live. As of: 2026-10-30. Recheck trigger: that section drops or changes its per-line pruning test);
 the strongest form of that test is empirical: delete, run, watch. This skill operationalizes the experiment its sibling
 `audit-instructions` can only reason about: instead of judging instruction *text* against doctrine,
 it measures the *model* against the repo with the instructions gone, and lets observed stumbles,

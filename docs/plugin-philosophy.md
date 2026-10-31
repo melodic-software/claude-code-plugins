@@ -550,7 +550,7 @@ written for it and deliberately dropped rather than kept for symmetry.
 
 The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true`, because
 setup has side effects a person should trigger by hand (Pointer:
-<https://code.claude.com/docs/en/best-practices#create-skills>. As of: 2026-08-10. Recheck trigger:
+<https://code.claude.com/docs/en/best-practices#put-team-procedures-in-skills>. As of: 2026-10-30. Recheck trigger:
 that section stops tying the flag to manually triggered side effects), and offers `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. This
 contract is exception class (ii) of the fleet's invocation-mode rubric
 ([`docs/contracts/invocation-mode/`](contracts/invocation-mode/README.md)), which owns the
@@ -954,8 +954,8 @@ always-loaded listing at all is the invocation-mode choice, owned by the rubric 
 [`docs/contracts/invocation-mode/`](contracts/invocation-mode/README.md).) We keep a standing
 line only if removing it would cause a mistake, and we delete or convert to a hook any instruction
 the model already follows unaided. Pointer: for pruning standing instructions, see
-<https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md> and
-<https://code.claude.com/docs/en/best-practices#avoid-common-failure-patterns>. As of: 2026-08-10.
+<https://code.claude.com/docs/en/best-practices#keep-claude-md-short> and
+<https://code.claude.com/docs/en/best-practices#what-you-can-stop-doing>. As of: 2026-10-30.
 Recheck trigger: either section moves or stops recommending pruning. Anthropic reports applying
 the same doctrine to Claude Code's own system prompt for the Claude 5 generation; no docs page
 covers that as of 2026-08-08
@@ -1045,10 +1045,10 @@ invoker cannot be relied on to remember it.
 - **Pointer**: for what a fork inherits, see
   <https://code.claude.com/docs/en/sub-agents#how-forks-differ-from-other-subagents>; for
   fresh-context review, see
-  <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step>,
-  <https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work>, and
-  <https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions>.
-- **As of**: 2026-08-10
+  <https://code.claude.com/docs/en/best-practices#review-against-your-spec>,
+  <https://code.claude.com/docs/en/best-practices#give-claude-a-check-to-run>, and
+  <https://code.claude.com/docs/en/best-practices#run-sessions-in-parallel>.
+- **As of**: 2026-10-30
 - **Recheck trigger**: a fork stops inheriting the parent conversation, or those sections stop
   recommending a fresh-context reviewer.
 
@@ -1101,8 +1101,8 @@ this rule instead of restating it.
    tests, red then green, in the same context. Giving tests to one session and code to another is a
    choice a consumer can make, not a default this marketplace imposes; upstream describes it as one
    option among several multi-session patterns.
-   - **Pointer**: <https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions>.
-   - **As of**: 2026-10-04.
+   - **Pointer**: <https://code.claude.com/docs/en/best-practices#run-sessions-in-parallel>.
+   - **As of**: 2026-10-30.
    - **Recheck trigger**: that section drops the separate test-writer option or recommends it as
      the default.
 3. **Mechanical phases keep their carve-out.** In `/implementation:implement-dispatch`, a mechanical,
@@ -1163,8 +1163,8 @@ A dispatch prompt at any rung:
 - **bounds what counts as a finding**: correctness and the stated requirements, everything else
   optional. An unbounded adversarial prompt returns many low-value findings at full cost, and chasing
   every reported gap over-engineers the work. Pointer:
-  <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step>. As of:
-  2026-08-10. Recheck trigger: that section stops recommending a bounded review.
+  <https://code.claude.com/docs/en/best-practices#review-against-your-spec>. As of:
+  2026-10-30. Recheck trigger: that section stops recommending a bounded review.
 
 ### Named-agent bar
 
