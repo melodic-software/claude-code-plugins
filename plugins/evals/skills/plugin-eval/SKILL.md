@@ -1,5 +1,5 @@
 ---
-description: "Guided practice around the `claude plugin eval` CLI, which runs and scores a plugin's eval suite: preflight, no-spend validation, a cost estimate under the ceiling, the run, and reading the with-versus-without delta. Use when: 'run my plugin evals', 'plugin eval', 'evaluate this plugin', 'eval my skill', 'does my skill actually fire', 'what is the delta', 'read my eval results', 'compare two eval runs', 'did my change make the skill better', 'is this gain real', 'aggregate-result.json', 'eval CI gate', 'can this machine run evals', 'how much will this eval cost', 'Bash refuses claude plugin eval', 'plugin eval blocked in a worktree', 'plugin eval refuses: too many worktrees', 'can plugin eval measure CLAUDE.md or rules'. Not for designing success criteria (/evals:design) or the skill-creator evals.json format."
+description: "Guided practice around the `claude plugin eval` CLI, which runs and scores a plugin's eval suite: preflight, no-spend validation, a cost estimate under the ceiling, the run, and reading the with-versus-without delta. Use when: 'run my plugin evals', 'plugin eval', 'evaluate this plugin', 'eval my skill', 'does my skill actually fire', 'what is the delta', 'read my eval results', 'compare two eval runs', 'did my change make the skill better', 'is this gain real', 'aggregate-result.json', 'eval CI gate', 'can this machine run evals', 'how much will this eval cost', 'Bash refuses claude plugin eval', 'plugin eval blocked in a worktree', 'plugin eval refuses: too many worktrees', 'can plugin eval measure CLAUDE.md or rules'. Not for designing success criteria (/evals:design) or the skill-creator JSON eval format."
 argument-hint: "[preflight|validate|run|read <json>|ci|init] [target]"
 user-invocable: true
 disable-model-invocation: false
@@ -432,9 +432,9 @@ reader which one happened and whether the arms were comparable at all (pointer: 
   command is available. This skill owns what surrounds a spend: the preflight, the no-spend
   validation, the estimate and ceiling, target routing and the reading discipline. It never re-implements grading and never simulates a run or a score.
 - Success criteria and case design belong to `/evals:design`; come here once a suite exists.
-- `evals/evals.json`, the skill-creator format, is a different, non-interchangeable format:
-  validate it with `/skill-quality:check validate-evals` when the `skill-quality` plugin is
-  installed; otherwise state that the file follows that format and validation was skipped.
+- The skill-creator JSON eval format is not a suite this command reads. Convert its cases to case
+  directories (`/evals:design skill <name>` writes them), check those with `/evals:validate`, then
+  run them here.
 
 ## Next
 
