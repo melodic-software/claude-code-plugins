@@ -283,11 +283,17 @@ test("a fail holding credential-shaped text stands, with none of the model's tex
     ["a token over diff lines in a pathed note", "fine", [`a.md:1 adds +ghp_${half}\n+${half}`, "c.md: keep me out"]],
     ["a whole token after a fold", "fine", [`see\n\\ continued: ${TOKEN}`, "c.md: keep me out"]],
     ["a whole token before a fold", "fine", [`see ${TOKEN}\n\\ continued: rest`, "c.md: keep me out"]],
+    ["a token over a same-line fold after a space", "fine", [`see ghp_${half} \\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a token over a same-line fold after a tab", "fine", [`see ghp_${half}\t\\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a token over a fold after a trailing space", "fine", [`see ghp_${half} \n\\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a token over a fold after a bare CR", "fine", [`see ghp_${half}\r\\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a short Anthropic key over a same-line fold", "fine", [`b.md: ${short.slice(0, 10)} \\ continued: ${short.slice(10)}`]],
     // run-claude-cli's scan fails its step on a shorter key than findSecret's.
     ["a short Anthropic key", "fine", [`b.md: ${short}`]],
   ]) {
     const built = buildVerdict({ ...ids, output: JSON.stringify({ verdict: "fail", summary, notes }) });
     assert.equal(built.verdict, "fail", label);
+    assert.equal(built.withheld, true, label);
     assert.match(built.summary, /withheld/, label);
     assert.doesNotMatch(JSON.stringify(built), /ghp_|sk-ant-|MIIE|keep me out|src\/a\.mjs|there/, label);
     assert.equal(built.notes.length, notes.length === 0 ? 0 : 1, label);
@@ -300,11 +306,23 @@ test("a fail holding credential-shaped text stands, with none of the model's tex
   assert.throws(() => buildVerdict({ ...ids, output: JSON.stringify({ verdict: "pass-notes", summary: "fine", notes: [`see ghp_${half}`, `${half} there`] }) }), /credential/);
 });
 
-test("a withheld fail's text survives the chunk merge, which is how verify-notes reads it", (t) => {
+test("a withheld fail stays recorded through the chunk merge into the verdict", (t) => {
   t.mock.method(console, "log", () => {});
   const merged = mergeChunks([{ ...CHUNK_PASS, verdict: "fail", summary: KEY, notes: [] }, CHUNK_PASS], FINAL_PASS);
   assert.equal(merged.verdict, "fail");
-  assert.ok(merged.summary.includes(WITHHELD_SUMMARY), merged.summary);
+  assert.equal(buildVerdict({ ...ids, output: merged }).withheld, true);
+  const final = mergeChunks([CHUNK_PASS, CHUNK_PASS], { ...CHUNK_PASS, verdict: "fail", summary: KEY, notes: [] });
+  assert.equal(buildVerdict({ ...ids, output: final }).withheld, true);
+});
+
+test("a fail quoting the withheld sentence is not withheld, and no model can claim to be", () => {
+  const quoting = { verdict: "fail", summary: `The docs must say: ${WITHHELD_SUMMARY}`, notes: ["a.md: wrong sentence"] };
+  const built = buildVerdict({ ...ids, output: JSON.stringify(quoting) });
+  assert.equal(built.summary, quoting.summary);
+  assert.equal("withheld" in built, false);
+  for (const output of [{ ...quoting, withheld: true }, JSON.stringify({ ...quoting, withheld: true })]) {
+    assert.throws(() => buildVerdict({ ...ids, output }), /verdict schema/);
+  }
 });
 
 test("naming the key prefix alone is not a credential", () => {
@@ -640,6 +658,7 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
   main(leaked);
   const leakedText = readFileSync(path.join(leaked.VERDICT_DIR, "verdict.json"), "utf8");
   assert.equal(JSON.parse(leakedText).verdict, "fail");
+  assert.equal(JSON.parse(leakedText).withheld, true);
   assert.doesNotMatch(leakedText, /sk-ant-|a\.mjs/);
   // A chunk whose step failed writes no model text, whatever a scan here finds.
   const unscanned = "the lane's scan found what this one does not";
@@ -647,6 +666,7 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
   main(stepFailed);
   const stepText = readFileSync(path.join(stepFailed.VERDICT_DIR, "verdict.json"), "utf8");
   assert.equal(JSON.parse(stepText).verdict, "fail");
+  assert.equal(JSON.parse(stepText).withheld, true);
   assert.ok(!stepText.includes(unscanned));
   // Beside a counted fail, a failed step's pass counts for nothing.
   const passFailed = run("pass-failed", chunk(0, CHUNK_FAIL), chunk(1, { ...CHUNK_PASS, summary: unscanned }), undefined, { JUDGE_OUTCOMES: "success\nfailure\n\n\n" });
@@ -656,7 +676,9 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
   // and nothing else does.
   const finalLeak = run("final-leak", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_OUTCOME: "failure", FINAL_EXECUTION_FILE: final({ ...FINAL_FAIL, items: [], notes: [`item 2: ${KEY}`] }) });
   main(finalLeak);
-  assert.equal(JSON.parse(readFileSync(path.join(finalLeak.VERDICT_DIR, "verdict.json"), "utf8")).verdict, "fail");
+  const finalLeakVerdict = JSON.parse(readFileSync(path.join(finalLeak.VERDICT_DIR, "verdict.json"), "utf8"));
+  assert.equal(finalLeakVerdict.verdict, "fail");
+  assert.equal(finalLeakVerdict.withheld, true);
   const finalStep = run("final-step", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_OUTCOME: "failure", FINAL_EXECUTION_FILE: final({ ...FINAL_FAIL, items: [], summary: unscanned }) });
   main(finalStep);
   assert.ok(!readFileSync(path.join(finalStep.VERDICT_DIR, "verdict.json"), "utf8").includes(unscanned));
@@ -675,6 +697,7 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
   main(short);
   const shortVerdict = JSON.parse(readFileSync(path.join(short.VERDICT_DIR, "verdict.json"), "utf8"));
   assert.equal(shortVerdict.verdict, "fail");
+  assert.equal("withheld" in shortVerdict, false);
   assert.match(shortVerdict.summary, /read 0 of 2 parts/);
   const oneDir = path.join(dir, "one-chunk");
   mkdirSync(path.join(oneDir, "chunk-1"), { recursive: true });
@@ -685,6 +708,21 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
   // A fail that read short and names no defect counts for nothing.
   const bare = { ...CHUNK_FAIL, notes: [] };
   assert.throws(() => main(run("bare", execution([], { structured_output: bare }), "", [log(0)], { CHUNKS: "1", DIFF_DIR: oneDir })), /names no defect/);
+  assert.throws(() => main(run("claimed", execution([], { structured_output: { ...bare, withheld: true } }), "", [log(0)], { CHUNKS: "1", DIFF_DIR: oneDir })), /verdict schema/);
+  // A withheld fail needs no note to stand on a short read, on one chunk or
+  // beside another chunk's fail.
+  for (const [name, env] of [
+    ["bare-withheld", run("bare-withheld", execution([], { structured_output: { ...bare, summary: KEY } }), "", [log(0)], { CHUNKS: "1", DIFF_DIR: oneDir })],
+    ["bare-step", run("bare-step", execution([], { structured_output: bare }), "", [log(0)], { CHUNKS: "1", DIFF_DIR: oneDir, JUDGE_OUTCOMES: "failure\n\n\n\n" })],
+    ["bare-chunks", run("bare-chunks", execution([], { structured_output: { ...bare, summary: KEY } }), chunk(1, CHUNK_FAIL))],
+  ]) {
+    main(env);
+    const stood = JSON.parse(readFileSync(path.join(env.VERDICT_DIR, "verdict.json"), "utf8"));
+    assert.equal(stood.verdict, "fail", name);
+    assert.equal(stood.withheld, true, name);
+    assert.ok(stood.summary.includes(WITHHELD_SUMMARY), name);
+    assert.doesNotMatch(stood.summary, /sk-ant-/, name);
+  }
   const covered = run("covered", execution([path.join(oneDir, "chunk-1", "part-001.patch")], { structured_output: bare }), "", [log(0)], { CHUNKS: "1", DIFF_DIR: oneDir });
   main(covered);
   assert.equal(JSON.parse(readFileSync(path.join(covered.VERDICT_DIR, "verdict.json"), "utf8")).summary, bare.summary);
@@ -794,7 +832,8 @@ test("checkChunk stops the slots only on a fail the head can count", () => {
     ["a pass holding a credential", result({ ...CHUNK_PASS, summary: KEY }), cleanLog, "false"],
     ["a fail that read short, with notes", [{ type: "result", structured_output: CHUNK_FAIL }], cleanLog, "true"],
     ["a fail that read short, with no notes", [{ type: "result", structured_output: { ...CHUNK_FAIL, notes: [] } }], cleanLog, "false"],
-    ["a fail that read short, holding a credential in its summary alone", [{ type: "result", structured_output: { ...CHUNK_FAIL, summary: KEY, notes: [] } }], cleanLog, "false"],
+    ["a fail that read short, holding a credential in its summary alone", [{ type: "result", structured_output: { ...CHUNK_FAIL, summary: KEY, notes: [] } }], cleanLog, "true"],
+    ["a fail that read short claiming to be withheld", [{ type: "result", structured_output: { ...CHUNK_FAIL, notes: [], withheld: true } }], cleanLog, "false"],
     ["a fail from a failed step", result(CHUNK_FAIL), cleanLog, "true", "failure"],
     ["a pass from a failed step", result(CHUNK_PASS), cleanLog, "false", "failure"],
   ]) {

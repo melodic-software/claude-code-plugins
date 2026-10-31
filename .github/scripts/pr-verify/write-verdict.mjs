@@ -15,7 +15,9 @@
 // (pr-review-main readCoverage) with no defect in its notes. A fail stands on a
 // denial, since no fail can pass the head, and with a fixed text in place of
 // the model's when that text or its step's credential scan shows a credential,
-// so the head is not sampled again and no part of it is published.
+// so the head is not sampled again and no part of it is published. Only this
+// script records such a fail as `withheld: true`, which is what verify-notes.mjs
+// reads to hold the pull request.
 // The file also records the head
 // branch and the linked issues with their authors, as the resolver read them
 // (number, author and last body editor login, id and type, last_edited_at;
@@ -132,8 +134,10 @@ export function buildEvidence({ capture, prBody } = {}) {
 // run-claude-cli's own scan, which fails its step on a shorter Anthropic key
 // than findSecret's shape, so this script holds text to the same line.
 const KEY_SHAPE = /sk-ant-[A-Za-z0-9_-]{8,}/;
-// chunk-diff.sh's fold, which a quoted line carries through the middle of a token.
-const FOLD = /(?:\r?\n[ \t]*)?\\ continued: ?/g;
+// chunk-diff.sh's fold, which a quoted line carries through the middle of a
+// token, with the white space a quote leaves before it, on the line or across a
+// line end.
+const FOLD = /\s*\\ continued: ?/g;
 const scan = (text) => findSecret(text)?.[0] ?? (KEY_SHAPE.test(text) ? "Anthropic key" : deeperLeak(text));
 // The texts in order, so a credential split between two of them still reads.
 // The raw text keeps the word boundaries a whole token needs; the second pass
@@ -143,18 +147,24 @@ const credentialIn = (texts) => {
   return scan(text) ?? scan(text.replace(FOLD, "").replace(/\n[-+ ]/g, "\n"));
 };
 
-// What a withheld fail says; verify-notes.mjs reads it to hold the pull request.
+// What a withheld fail says. Its text decides nothing: a genuine fail may quote it.
 export const WITHHELD_SUMMARY = "The verifier returned fail, and its text is withheld: the text was shaped like a credential, or its step stopped on the credential scan.";
 
+// Marks a checked output as withheld. Outputs pass through parseOutput more than
+// once, and a symbol key survives a spread, stays out of its exact-key check, and
+// is one no model's JSON can carry. buildVerdict writes it as `withheld: true`.
+const WITHHELD = Symbol("withheld");
+
 // A fail with none of the model's text: no mask finds where a credential ends.
-// Empty notes stay empty, so a fail that read short still has to name a defect.
-// The annotation names the kind alone, so the run shows a credential to rotate.
+// Empty notes stay empty. The annotation names the kind alone, so the run shows
+// a credential to rotate.
 const withheld = ({ verdict, notes }, kind) => {
   console.log(`::warning title=pr-verify credential::kind=${kind}`);
   return {
     verdict,
     summary: WITHHELD_SUMMARY,
     notes: notes.length > 0 ? ["The verifier's notes are withheld with its summary. Check the diff for a committed credential, and rotate any that is real."] : [],
+    [WITHHELD]: true,
   };
 };
 
@@ -215,6 +225,7 @@ function mergeEntries(entries) {
     verdict: worst[0].verdict,
     summary: worst.map(({ label, verdict, summary }) => `${label}, ${verdict}: ${summary}`.slice(0, room)).join("\n"),
     notes: worst.flatMap((entry) => entry.notes),
+    ...(entries.some((entry) => entry[WITHHELD]) ? { [WITHHELD]: true } : {}),
   };
 }
 
@@ -333,6 +344,7 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
     verdict: parsed.verdict,
     summary: parsed.summary.slice(0, SUMMARY_MAX),
     notes: parsed.notes.slice(0, NOTES_MAX).map((note) => note.slice(0, NOTE_MAX)),
+    ...(parsed[WITHHELD] ? { withheld: true } : {}),
     evidence: buildEvidence({ capture, prBody }),
     run_id: Number(runId),
   };
@@ -531,7 +543,8 @@ function readJudgment(file, logFile, outcome, parse = parseOutput) {
 
 // What a judgment's output counts as, given the files it had to read. A pass
 // or pass-notes needs every one read whole. A fail stands on less, but only
-// with a defect in its notes, and it records how much it read.
+// with a defect in its notes or withheld, whose hold needs no note, and it
+// records how much it read.
 function countedOutput({ messages, output }, files) {
   if (output.verdict !== "fail") {
     readCoverage(messages, files);
@@ -549,7 +562,7 @@ function countedOutput({ messages, output }, files) {
   if (read === files.length) {
     return output;
   }
-  if (output.notes.length === 0) {
+  if (output.notes.length === 0 && !output[WITHHELD]) {
     throw new Error(`a fail that read ${read} of ${files.length} parts names no defect`);
   }
   return { ...output, summary: `This judgment read ${read} of ${files.length} parts. ${output.summary}` };
