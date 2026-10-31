@@ -45,6 +45,8 @@ installed. When neither is, say the capability exists as an installable plugin a
 imitation. Keep questions about how the user's own screen should be laid out here.
 
 **Mutation gate.** A playground writes its own page; this skill never builds one on its behalf.
+Routing ends the turn: no offer to write the explorer as a plain task or a one-off page either,
+since that is the imitation the routing rule declines.
 
 **Availability is never assumed.** The plugin is present only where it is installed from its
 marketplace; this section states what to do when it resolves, never that it is present. The
