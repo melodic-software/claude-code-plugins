@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "# Setup\n\nBasically, in order to get started, you will really just need to install the CLI first.\n\n```js\n// increment the counter\ncount++;\nconsole.log(\"here\");\n```\n\nRun `orders-cli init` in the project root.\n",
+      "why": "seeded file"
+    },
+    {
+      "answer": "# Setup\n\nInstall the CLI first.\n\n```js\n// increment the counter\ncount++;\nconsole.log(\"here\");\n```\n\nRun `orders-cli init` in the project root.\n",
+      "why": "prose tightened, fence intact"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Setup\n\nBasically, in order to get started, you will really just need to install the CLI first.\n\n```js\ncount++;\nconsole.log(\"here\");\n```\n\nRun `orders-cli init` in the project root.\n",
+      "why": "comment in the fence deleted"
+    },
+    {
+      "answer": "# Setup\n\nBasically, in order to get started, you will really just need to install the CLI first.\n\n```js\n// increment the counter\ncount++;\n```\n\nRun `orders-cli init` in the project root.\n",
+      "why": "log in the fence deleted"
+    }
+  ]
+}

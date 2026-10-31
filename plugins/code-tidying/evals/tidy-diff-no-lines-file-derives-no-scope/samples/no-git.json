@@ -1,0 +1,41 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/cart.py"
+          }
+        }
+      ],
+      "why": "no git call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff --unified=0",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "derived scope from git"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C . status --porcelain",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "ran git"
+    }
+  ]
+}
