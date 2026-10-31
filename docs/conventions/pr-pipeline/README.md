@@ -2226,8 +2226,12 @@ requirement, and the spec trust rules below are unchanged. resolve-pr marks each
 `spec_kind` (`closes`, `refs` or `pull-request`), and the verdict records it, so the gate refuses a
 pass (`verify:spec-changed`) when the issue is now linked the other way. The model runs
 on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)), with the Read
-tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The diff
-is split at file boundaries into at most 4 chunks of at most 300000 bytes, each file whole
+tool alone, allowed only on the data files in the working directory's `pr-verify-data`. One of
+them, `upstream-jobs.json` (`upstream-jobs.mjs`), lists the jobs of the pr-require-checks run the
+judgment was started by, each with its name and conclusion, read with the job's own token: the
+verifier judges from it whether the suites that cover the changed files ran, and runs no test or
+eval itself. A label or body-edit re-run skips `select-tests` and every suite, so its list is no
+evidence either way. The diff is split at file boundaries into at most 4 chunks of at most 300000 bytes, each file whole
 (`chunk-diff.sh`, `split-diff.py`; the same budget as `pr-review-main`), and each chunk gets its own
 judge step with the same spec, cut into parts one Read returns whole; a line over 1800 bytes carries
 on across lines that start `\ continued:`, so every byte of the diff is read. The manifest
