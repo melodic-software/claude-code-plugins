@@ -296,6 +296,8 @@ test("a fail holding credential-shaped text stands, with none of the model's tex
     ["a token over a same-line fold after a tab", "fine", [`see ghp_${half}\t\\ continued: ${half} there`, "c.md: keep me out"]],
     ["a token over a fold after a trailing space", "fine", [`see ghp_${half} \n\\ continued: ${half} there`, "c.md: keep me out"]],
     ["a token over a fold after a bare CR", "fine", [`see ghp_${half}\r\\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a token over two folds in a row", "fine", [`see ghp_${half} \\ continued: \\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a token over two folds on their own lines", "fine", [`see ghp_${half}\n\\ continued: \n\\ continued: ${half} there`, "c.md: keep me out"]],
     ["a short Anthropic key over a same-line fold", "fine", [`b.md: ${short.slice(0, 10)} \\ continued: ${short.slice(10)}`]],
     // run-claude-cli's scan fails its step on a shorter key than findSecret's.
     ["a short Anthropic key", "fine", [`b.md: ${short}`]],
