@@ -421,3 +421,36 @@ test("listLabelEvents maps GraphQL label events to timeline items across pages",
     { owner: "o", name: "r", number: 7, after: "c1" },
   ]);
 });
+
+// pr-merge's shared-copy escalation as babysit_merge.py writes it: the comment,
+// then the label.
+const sharedCopy = (head = HEAD, reason = "shared-copy-sources-changed:lib/x.sh changed on main since merge base c", at = "2026-10-18T09:59:58Z") =>
+  commented(
+    APP,
+    `<!-- babysit-merge-shared-copy-escalation -->\nUnattended merge: the shared-library canonical source \`lib/x.sh\` changed on \`main\` since merge base \`c\`, so the generated copies this pull request carries are stale at head \`${head}\`.\n\nRefusal: \`${reason}\`\n\nUpdating the branch from the base cannot regenerate them.`,
+    at,
+  );
+const refused = (comment = sharedCopy()) => [comment, label("labeled", APP, "2026-10-18T10:00:00Z")];
+
+test("pr-merge's shared-copy refusal lets sync-shared-copies past the label, and no other activity", () => {
+  assert.equal(allows(refused(), "sync-shared-copies"), true);
+  for (const activity of ["resolve-conflicts", "fix-ci", "fix-docs", "address-feedback"]) {
+    assert.equal(allows(refused(), activity), false, activity);
+  }
+});
+
+test("sync-shared-copies stays held unless the refusal names this head, this reason, and the lanes App paired it with the label", () => {
+  assert.equal(allows(refused(sharedCopy(OLD)), "sync-shared-copies"), false);
+  assert.equal(allows(refused(sharedCopy(HEAD, "check-inputs-changed:x changed on main")), "sync-shared-copies"), false);
+  assert.equal(allows(refused(sharedCopy(HEAD, undefined, "2026-10-18T09:50:00Z")), "sync-shared-copies"), false);
+  assert.equal(allows([sharedCopy(), label("labeled", OWNER, "2026-10-18T10:00:00Z")], "sync-shared-copies"), false);
+  assert.equal(allows(refused({ ...sharedCopy(), user: OWNER }), "sync-shared-copies"), false);
+  // A pr-unblock escalation alone is not pr-merge's refusal.
+  assert.equal(allows([label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("unresolved-conflict")], "sync-shared-copies"), false);
+});
+
+test("sync-shared-copies stays held once a person spoke or another lane marked the PR since the label", () => {
+  assert.equal(allows([...refused(), commented(OWNER, "wait", "2026-10-18T11:00:00Z")], "sync-shared-copies"), false);
+  assert.equal(allows(refused(), "sync-shared-copies", { reviews: [{ user: OWNER, submitted_at: "2026-10-18T11:00:00Z" }] }), false);
+  assert.equal(allows([...refused(), escalated("unresolved-conflict", "2026-10-18T11:00:00Z")], "sync-shared-copies"), false);
+});

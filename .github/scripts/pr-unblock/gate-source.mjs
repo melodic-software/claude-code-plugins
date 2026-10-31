@@ -226,6 +226,45 @@ export function gateSource({ timeline, label, head, isLanesApp, trusted }) {
   return result("lane-escalation", `${escalations.length} lane escalation(s) by the lanes App since it added ${label}`);
 }
 
+// pr-merge's refusal of a head whose generated shared-library copies are stale
+// (babysit_merge.py), which only the sync-shared-copies activity works past.
+export const SHARED_COPY_ACTIVITY = "sync-shared-copies";
+export const SHARED_COPY_MARKER = "<!-- babysit-merge-shared-copy-escalation -->";
+const SHARED_COPY_REFUSAL = /^Refusal: `shared-copy-sources-changed:/;
+
+// Where the human-gated `label` came from, read for sync-shared-copies alone:
+// "shared-copy-refusal" when the lanes App added it last, the lanes App comment
+// with a marker written last at or before then carries SHARED_COPY_MARKER as
+// its only marker, came within PAIRED_MS of the label, names `head` (``at head
+// `<sha>` ``) and refuses with the `shared-copy-sources-changed:` prefix, and
+// no lanes App comment since carries a marker but report-escalation.sh's
+// lane-stopped; "unknown" for anything else.
+export function sharedCopyGate({ timeline, label, head, isLanesApp }) {
+  const result = (source, reason) => ({ source, reason });
+  const { labeled, since } = labelHistory(timeline, label);
+  if (!isLanesApp(labeled?.actor) || Number.isNaN(since)) {
+    return result("unknown", `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App`);
+  }
+  const marked = timeline.filter((item) => item.event === "commented" && isLanesApp(item.user) && lines(item.body).some((line) => line.includes("<!--")));
+  const before = newest(marked.filter((item) => writtenAt(item) <= since));
+  const body = lines(before?.body).map((line) => line.trim());
+  const paired =
+    before !== undefined &&
+    since - writtenAt(before) <= PAIRED_MS &&
+    body[0] === SHARED_COPY_MARKER &&
+    body.filter((line) => line.includes("<!--")).length === 1 &&
+    body.some((line) => line.includes(`at head \`${head}\``)) &&
+    body.some((line) => SHARED_COPY_REFUSAL.test(line));
+  if (!paired) {
+    return result("unknown", `no shared-copy refusal at ${head} by the lanes App right before it added ${label}`);
+  }
+  const foreign = foreignMarker(marked.filter((item) => item !== before), since, (line) => LANE_STOPPED.test(line));
+  if (foreign !== undefined) {
+    return result("unknown", `a lanes App comment since ${label} went on carries a marker this does not read: ${foreign.slice(0, 120)}`);
+  }
+  return result("shared-copy-refusal", `pr-merge refused head ${head} as shared-copy-sources-changed`);
+}
+
 // The Reason line report-escalation.sh writes into its escalation comment.
 const REASON_LINE = /^- Reason: `([a-z][a-z-]*)`$/;
 
@@ -314,8 +353,9 @@ export const sinceParam = (since) => new Date(since).toISOString().replace(/\.\d
 // pulls/<n>/reviews; either not an array (unread) disallows. `why` is a fixed
 // phrase, safe to log.
 export function laneEscalationAllows({ timeline, reviewComments, reviews, label, head, isLanesApp, activity }) {
-  const gate = gateSource({ timeline, label, head, isLanesApp });
-  if (gate.source !== "lane-escalation") {
+  const shared = activity === SHARED_COPY_ACTIVITY;
+  const gate = shared ? sharedCopyGate({ timeline, label, head, isLanesApp }) : gateSource({ timeline, label, head, isLanesApp });
+  if (gate.source !== (shared ? "shared-copy-refusal" : "lane-escalation")) {
     return { allowed: false, why: `${label} is not a lane escalation (${gate.source})` };
   }
   if (!Array.isArray(reviewComments) || !Array.isArray(reviews)) {
