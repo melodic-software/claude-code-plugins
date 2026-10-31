@@ -32,6 +32,7 @@ import {
   readIssueStop,
   readOutcome,
   readScanRefusal,
+  SCAN_REFUSALS,
   readTurnCap,
   RESUMABLE,
   reusePlan,
@@ -4257,6 +4258,89 @@ test("main on a rerun after its own retry marker posts nothing again", async () 
     assert.equal(await main({ env: env(dir), fetch }), 0);
     assert.deepEqual(calls.filter((c) => c.method !== "GET"), []);
   });
+});
+
+// The owner's rule: a patch not proven clear of a credential holds, whatever
+// exit or forgeable record the run left beside it.
+test("a patch-credential escalation and a scan's output refusal hold past any exit or record", () => {
+  const unread = () => readOutcome("/nonexistent/work-outcome.json");
+  const refused = () => ({ ...unread(), stop: "scan-refused-output", reason: SCAN_REFUSALS.output });
+  const base = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human", runId: "555" };
+  const records = { turnCap: { cap: 50 }, turnCapRestarts: 0, limits: { ...LIMIT_DEFAULTS, "turn-cap-restarts": 1 } };
+  for (const [name, args] of [
+    ["stopped", { outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" }, escalation: "patch-credential" }],
+    ["turn cap", { outcome: unread(), escalation: "patch-credential", ...records }],
+    ["limit", { outcome: unread(), escalation: "patch-credential", limit: { resets: null } }],
+    ["funding", { outcome: unread(), escalation: "patch-credential", funding: { regain: null } }],
+  ]) {
+    const plan = decide({ ...base, ...args });
+    assert.equal(plan.action, "hand-back", name);
+    assert.equal(plan.stop, "patch-credential", name);
+    assert.deepEqual(plan.addLabels, ["needs-human"], name);
+    assert.match(plan.comment, /credential shape/, name);
+    assert.doesNotMatch(plan.comment, /reported done/, name);
+  }
+  for (const [name, args] of [
+    ["turn cap", records],
+    ["limit", { limit: { resets: null } }],
+    ["funding", { funding: { regain: null } }],
+  ]) {
+    const plan = decide({ ...base, outcome: refused(), ...args });
+    assert.equal(plan.action, "hand-back", name);
+    assert.equal(plan.stop, "scan-refused-output", name);
+    assert.deepEqual(plan.addLabels, ["needs-human"], name);
+  }
+});
+
+test("an escalation that does not hold still yields to the turn-cap restart", () => {
+  const plan = decide({
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    humanLabel: "needs-human",
+    runId: "555",
+    outcome: readOutcome("/nonexistent/work-outcome.json"),
+    escalation: "patch-invalid",
+    turnCap: { cap: 50 },
+    turnCapRestarts: 0,
+    limits: { ...LIMIT_DEFAULTS, "turn-cap-restarts": 1 },
+  });
+  assert.notEqual(plan.stop, "patch-invalid");
+  assert.deepEqual(plan.addLabels ?? [], []);
+});
+
+test("a scan fault retries with no person, up to limits.stop-retries, and every scan refusal has a route", () => {
+  for (const kind of Object.keys(SCAN_REFUSALS)) assert.ok(Object.hasOwn(STOP_ROUTES, `scan-refused-${kind}`), kind);
+  const outcome = { ...readOutcome("/nonexistent/work-outcome.json"), stop: "scan-refused-fault", reason: SCAN_REFUSALS.fault };
+  const plan = decide({ issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human", runId: "555", outcome });
+  assert.equal(plan.action, "retry");
+  assert.equal(plan.stop, "scan-refused-fault");
+  assert.deepEqual(plan.addLabels ?? [], []);
+  assert.equal(capRetries(plan, 1, { "stop-retries": 2 }).action, "retry");
+  const spent = capRetries(plan, 2, { "stop-retries": 2 });
+  assert.equal(spent.action, "fail");
+  assert.deepEqual(spent.addLabels ?? [], []);
+});
+
+test("scan markers: only fault, or fault beside patch, reads as fault; anything else beside either reads as output", () => {
+  for (const [base, rungUp, want] of [
+    ["fault", "", "fault"],
+    ["fault", "patch", "fault"],
+    ["patch", "fault", "fault"],
+    ["fault", "output", "output"],
+    ["output", "fault", "output"],
+    ["fault", "forged", "output"],
+  ]) {
+    const dir = tempDir("scan-refused-");
+    try {
+      writeFileSync(join(dir, "scan-refused-1.txt"), `${base}\n`);
+      if (rungUp) writeFileSync(join(dir, "scan-refused-1-rung-up.txt"), `${rungUp}\n`);
+      assert.equal(readScanRefusal(dir, "1"), want, `${base} then ${rungUp}`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
 });
 
 test("a current attempt with a patch and an output scan marker reads as output, in either order", () => {

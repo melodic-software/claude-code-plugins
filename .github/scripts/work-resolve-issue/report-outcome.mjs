@@ -378,8 +378,10 @@ export function heldPaths(path) {
 // The read runner's scan refusal markers, the ones address-feedback.mjs
 // scanRefusal reads; the runner copies only this script's directory, so it
 // cannot import that one. `patch` when every marker names a patch over its
-// cap, `output` when any names another (it may be a credential shape), so a
-// mixed set fails closed; '' for none or an unreadable directory: a failed
+// cap, `fault` when they name only that or a mix of it and `patch` (the scan
+// faulted, finding no credential), `output` when any names another (it may be
+// a credential shape), so a mixed set fails closed; '' for none or an
+// unreadable directory: a failed
 // download claims no refusal here, since the hand-back would name a false cause. Only
 // the current attempt's markers count (the download pattern spans every
 // attempt's), and with no readable attempt none does. A
@@ -397,13 +399,16 @@ export function readScanRefusal(dir, attempt) {
   } catch {
     return "";
   }
-  return kinds.length === 0 ? "" : kinds.every((kind) => kind === "patch") ? "patch" : "output";
+  if (kinds.length === 0) return "";
+  if (kinds.every((kind) => kind === "patch")) return "patch";
+  return kinds.every((kind) => kind === "patch" || kind === "fault") ? "fault" : "output";
 }
 
 // The scan job's refusals, as its decode step names them.
 export const SCAN_REFUSALS = {
   patch: "The scan job refused the run's output, so nothing was published: too-large: the patch was over its 262144-byte cap. The run's log names its size.",
   output: "The scan job refused the run's output, so nothing was published. The run's log names why.",
+  fault: "The scan job could not finish, or the patch did not apply to the head it scans, so nothing was published. The run's log names which; neither says anything about a credential.",
 };
 
 // The scan job's collect-refused output, as collect-patch.sh's exit 3 sets it.
@@ -1043,6 +1048,27 @@ export function decide({
   if (collectRefused) {
     return routeStop("collect-refused", { outcome: stopped(COLLECT_REFUSED), issueNumber, branch: "", humanLabel, runUrl, runId });
   }
+  // apply-issue-patch refused the run's patch: its work never landed, so no
+  // PR opens, from a resumed branch either.
+  const patchRefused = (lead) =>
+    routeStop(escalation, {
+      outcome: stopped(`${lead}, but apply-issue-patch did not commit its patch (\`${escalation}\`): ${PATCH_REASONS[escalation]}. The run's log names the path or check.`),
+      issueNumber,
+      branch: branch || resumed,
+      humanLabel,
+      runUrl,
+      runId,
+      onResumed,
+    });
+  // A refusal that holds comes before the records below for the same reason,
+  // and before any exit: a run that stopped or hit its turn cap can still
+  // leave a patch not proven clear of a credential.
+  if (escalation && stopRoute(escalation) === "hold") {
+    return patchRefused(outcome.exit === "done" ? "The run reported done" : "The run left a patch");
+  }
+  if (outcome.stop === "scan-refused-output") {
+    return routeStop(outcome.stop, { outcome, issueNumber, branch: branch || resumed, humanLabel, runUrl, runId, onResumed });
+  }
   // A funding, limit or turn-cap record counts only for a run that left no
   // outcome of its own: any code the run executed can forge the record, so it
   // must not hide a stop or pushback the skill reported from the person it
@@ -1058,21 +1084,9 @@ export function decide({
     const restart = turnCapRestarts < limits["turn-cap-restarts"];
     return turnCapPlan({ issueNumber, branch, cap: turnCap.cap, timeout: turnCap.timeout === true, restart, humanLabel, runId, runUrl, onResumed });
   }
-  // apply-issue-patch refused the run's patch: its work never landed, so no
-  // PR opens, from a resumed branch either.
   // patch-apply-failed is only the job's result, so a branch it did make wins.
   if (outcome.exit === "done" && escalation && escalation !== "patch-empty" && !(escalation === "patch-apply-failed" && branch)) {
-    return routeStop(escalation, {
-      outcome: stopped(
-        `The run reported done, but apply-issue-patch did not commit its patch (\`${escalation}\`): ${PATCH_REASONS[escalation]}. The run's log names the path or check.`,
-      ),
-      issueNumber,
-      branch: branch || resumed,
-      humanLabel,
-      runUrl,
-      runId,
-      onResumed,
-    });
+    return patchRefused("The run reported done");
   }
   // A resumed run that committed nothing of its own: its work is the
   // resumed branch's. main passes checks for that branch only once run-checks

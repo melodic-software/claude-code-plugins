@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, mergeFrom, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
 import { CREDENTIAL_SHAPES as GATE_SHAPES, findSecret, scanLeak } from "../../../lib/publish-gate.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -1202,6 +1202,7 @@ test("issue target: a blob-only credential in a patch over max-files escalates p
 
 test("issue target: a blob-only credential in a patch over the row's real file cap escalates patch-credential", async (t) => {
   const cap = issueRow()["max-files"];
+  assert.equal(typeof cap, "number");
   const fix = repoWithPatch(t, (repo) => {
     writeFileSync(join(repo, "blob.bin"), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])]));
     mkdirSync(join(repo, "gen"));
@@ -1213,6 +1214,81 @@ test("issue target: a blob-only credential in a patch over the row's real file c
   const api = fakeApi(fix.repo, fix.head, { labels: READY });
   assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-credential" });
   assert.deepEqual(api.calls, []);
+});
+
+// The count is refused after every blob was read, so a clean binary hunk there
+// is proven clear and retries.
+test("issue target: the same patch over the file cap with a clean blob escalates patch-invalid", async (t) => {
+  const cap = issueRow()["max-files"];
+  assert.equal(typeof cap, "number");
+  const fix = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "blob.bin"), Buffer.from([0, 1, 2, 0, 3, 4, 5]));
+    mkdirSync(join(repo, "gen"));
+    for (let i = 0; i < cap; i += 1) {
+      writeFileSync(join(repo, `gen/f${i}.md`), `${i}\n`);
+    }
+  });
+  assert.match(readFileSync(fix.patchFile, "latin1"), /^GIT binary patch$/m);
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-invalid" });
+  assert.deepEqual(api.calls, []);
+});
+
+// A binary hunk's bytes are compressed in the patch text, so a patch refused
+// or unapplied before its blob exists is not proven clear.
+const BINARY_BLOB = Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])]);
+const binaryFix = (t) => repoWithPatch(t, (repo) => writeFileSync(join(repo, "blob.bin"), BINARY_BLOB));
+const textFix = (t) => repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+
+test("patchProblem: a refusal of a patch with a binary hunk is kind credential, of a text-only patch invalid", (t) => {
+  const binary = binaryFix(t);
+  assert.match(readFileSync(binary.patchFile, "latin1"), /^GIT binary patch$/m);
+  assert.doesNotMatch(readFileSync(binary.patchFile, "latin1"), /ghp_/);
+  assert.equal(patchProblem(binary.patchFile, "0".repeat(64)).kind, "credential", "a wrong SHA-256");
+  assert.equal(patchProblem(binary.patchFile, "").kind, "credential", "no SHA-256");
+  const text = textFix(t);
+  assert.equal(patchProblem(text.patchFile, "0".repeat(64)).kind, "invalid", "a wrong SHA-256");
+  assert.equal(patchProblem(text.patchFile, "").kind, "invalid", "no SHA-256");
+  for (const [fix, kind] of [[binary, "credential"], [text, "invalid"]]) {
+    writeFileSync(fix.patchFile, Buffer.concat([readFileSync(fix.patchFile), Buffer.alloc(MAX_PATCH_BYTES + 1, "\n")]));
+    assert.equal(patchProblem(fix.patchFile, "0".repeat(64)).kind, kind, "over the size cap");
+  }
+  const far = textFix(t);
+  writeFileSync(far.patchFile, Buffer.concat([Buffer.alloc(MAX_PATCH_BYTES * 3, "\n"), Buffer.from("GIT binary patch\n")]));
+  assert.equal(patchProblem(far.patchFile, "0".repeat(64)).kind, "credential", "a binary hunk past the first chunk");
+});
+
+test("select: a refused patch with a binary hunk gives patch-credential, a text-only one patch-invalid", (t) => {
+  for (const [fix, reason] of [[binaryFix(t), "patch-credential"], [textFix(t), "patch-invalid"]]) {
+    const dir = dirname(fix.patchFile);
+    const args = { row: issueRow(), patchState: "written", patchSha256: "0".repeat(64), patchHeadSha: "a".repeat(40), headSha: "a".repeat(40), patchDir: dir };
+    assert.equal(select(args).escalationReason, reason, "a wrong SHA-256");
+    assert.equal(select({ ...args, patchSha256: sha256(readFileSync(fix.patchFile)) }).proceed, true);
+    writeFileSync(join(dir, "extra.txt"), "x\n");
+    assert.equal(select({ ...args, patchSha256: sha256(readFileSync(fix.patchFile)) }).escalationReason, reason, "an extra file");
+  }
+});
+
+test("issue target: a patch that does not apply holds with a binary hunk and is not-applied without one", async (t) => {
+  const run = async (fix, file) => {
+    writeFileSync(join(fix.repo, file), "moved on\n");
+    const moved = commitAll(fix.repo, "moved on");
+    const api = fakeApi(fix.repo, moved, { labels: READY });
+    const result = await pushIssue(fix, api, { headSha: moved, patchHeadSha: moved });
+    assert.deepEqual(api.calls, []);
+    return result.escalationReason;
+  };
+  const binary = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), BINARY_BLOB));
+  assert.equal(await run(binary, "scripts/x.sh"), "patch-credential");
+  const text = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\necho ok\n"));
+  assert.equal(await run(text, "scripts/x.sh"), "patch-not-applied");
+});
+
+test("a row with no credential reason keeps its not-applied reason for a binary hunk", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), BINARY_BLOB));
+  writeFileSync(join(fix.repo, "scripts/x.sh"), "moved on\n");
+  const moved = commitAll(fix.repo, "moved on");
+  assert.deepEqual(await ciPush(fix, fakeApi(fix.repo, moved), { headSha: moved, patchHeadSha: moved }), { outcome: "escalate", escalationReason: "ci-fix-not-applied" });
 });
 
 // A blob over MAX_BLOB_BYTES is read whole before its size is refused, so the
@@ -1468,10 +1544,18 @@ test("issue target: an oversized patch escalates patch-credential for a token pa
   }
 });
 
-// A patch made on another commit whose blobs cannot be read there, the commit
-// missing or the patch not applying to it, holds as an unread blob does.
-test("issue target: a moved head whose producer commit is missing or rejects the patch escalates patch-credential", async (t) => {
-  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+// A patch made on another commit whose binary hunk cannot be read there, the
+// commit missing or the patch not applying to it, holds as an unread blob does;
+// a text-only one was scanned whole, so it is the invalid refusal.
+test("issue target: a moved head whose producer commit is missing or rejects the patch escalates patch-credential with a binary hunk, else patch-invalid", async (t) => {
+  const text = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  writeFileSync(join(text.repo, "README.md"), "# moved\n");
+  const movedText = commitAll(text.repo, "moved");
+  assert.deepEqual(await pushIssue(text, fakeApi(text.repo, movedText, { labels: READY }), { headSha: movedText, patchHeadSha: "f".repeat(40) }), { outcome: "escalate", escalationReason: "patch-invalid" });
+  writeFileSync(join(text.repo, "notes.md"), "moved again\n");
+  const tipText = commitAll(text.repo, "moved again");
+  assert.deepEqual(await pushIssue(text, fakeApi(text.repo, tipText, { labels: READY }), { headSha: tipText, patchHeadSha: movedText }), { outcome: "escalate", escalationReason: "patch-invalid" }, "a producer commit the patch does not apply to");
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), BINARY_BLOB));
   writeFileSync(join(fix.repo, "README.md"), "# moved\n");
   const moved = commitAll(fix.repo, "moved");
   const lines = [];

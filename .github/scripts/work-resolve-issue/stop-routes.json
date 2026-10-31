@@ -1,8 +1,9 @@
 {
   "outcome-unread": { "route": "retry", "why": "the run wrote no readable outcome file: it crashed or was cut off, which says nothing about the issue" },
   "outcome-invalid": { "route": "retry", "why": "the run's outcome file names no known exit, a fault in the run, not a finding about the issue" },
-  "scan-refused-patch": { "route": "retry", "why": "the scan job refused the run's patch for its size, so a fresh run may make a smaller one" },
-  "scan-refused-output": { "route": "hold", "why": "the scan job refused the run's output for a reason only its log names, which may be a credential shape, a security judgment", "class": "security-risk" },
+  "scan-refused-patch": { "route": "retry", "why": "the scan job refused the run's patch for its size, and the run job's scan of it found no credential shape or binary hunk, so a fresh run may make a smaller one" },
+  "scan-refused-fault": { "route": "retry", "why": "the scan job could not finish, or a patch with no binary hunk, its added text scanned, did not apply to the head: a job fault that says nothing about a credential, so a fresh run scans again" },
+  "scan-refused-output": { "route": "hold", "why": "the scan job refused the run's output for a reason only its log names, which may be a credential shape, or a patch it could not prove clear of one, a security judgment", "class": "security-risk" },
   "collect-refused": { "route": "hold", "why": "the patch collector refused a file the run left at a stub name such as .npmrc or .env, which may be a planted credential or config file, a security judgment", "class": "security-risk" },
   "issue-file": { "route": "retry", "why": "the runner could not write the issue file, a runner fault before any model ran" },
   "issue-edited": { "route": "hold", "why": "the issue's title or body changed after agent-ready was added, and only a listed human's new agent-ready admits the edited text", "class": "security-risk" },
