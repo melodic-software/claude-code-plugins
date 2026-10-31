@@ -25,3 +25,8 @@ graders:
     pattern: "\"?seven_day_pct\"?\\s*:\\s*null\\b"
     target: last_message
     arm: both
+  - name: five-hour-pct-null
+    type: regex
+    pattern: "\"?five_hour_pct\"?\\s*:\\s*null\\b"
+    target: last_message
+    arm: both
