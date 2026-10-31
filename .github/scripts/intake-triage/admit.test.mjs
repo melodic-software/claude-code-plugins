@@ -708,6 +708,86 @@ describe("decide", () => {
       });
     }
 
+    // A clause that says a protected path is left alone asks for no push to it.
+    const negated = [
+      // #7540's refinement criterion.
+      "- [ ] No file under .github/workflows is edited.",
+      // #8279's 2026-10-30T15:05Z record.
+      "- [ ] `scripts/sync-hold-floor.py` reads the built-in rows plus the config rows. Run on the branch, it leaves every generated copy byte-identical to main, so the diff touches no `.github/workflows`, `.github/scripts` or `.github/trust-path-hold.json` file.",
+      "- [ ] The diff changes no .github/workflows/a.yml line.",
+      "- [ ] The fix edits no file in `.github/workflows`.",
+      "- [ ] The script does not edit .github/workflows/a.yml.",
+      "- [ ] It doesn’t touch .github/CODEOWNERS.",
+      "- [ ] The run leaves .github/workflows/a.yml unchanged.",
+      "- [ ] The script never writes to .github/workflows/a.yml.",
+      "- [ ] No changes to .github/workflows/a.yml.",
+      "- [ ] No edits to `.github/workflows`.",
+      "- [ ] No change to .gitmodules is made.",
+      "- [ ] The script MUST NOT modify .github/workflows.",
+      "- [ ] The fix should not touch .github/CODEOWNERS.",
+      "- [ ] It mustn't edit .github/workflows/a.yml.",
+      "- [ ] It shouldn’t change .gitmodules.",
+      "- [ ] The lane can't modify .github/workflows/a.yml.",
+      "- [ ] The lane cannot edit .github/workflows/a.yml.",
+      "- [ ] Do not edit .github/workflows/a.yml.",
+      "- [ ] It didn't touch .github/workflows/a.yml.",
+      "- [ ] .github/workflows/a.yml is not edited.",
+      "- [ ] `.github/CODEOWNERS` isn't modified.",
+      "- [ ] No file under .github/workflows should be edited.",
+      "- [ ] The docs change. .github/workflows/a.yml must not be modified.",
+    ];
+    for (const line of negated) {
+      test(`admits the negated ${line}`, () => {
+        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "admit", reasons: [] });
+      });
+    }
+
+    test("admits #7540: its App refinement names .github/workflows only in a negated criterion", () => {
+      const thin = issueOf({ body: "Bind the convention home." });
+      const refinement = written(APP_ACTOR, { body: `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] AGENTS.md binds docs/conventions.\n- [ ] No file under .github/workflows is edited.` });
+      assert.deepEqual(decide(facts({ issue: thin, spec: humanSpec(thin, [refinement]) })), { verdict: "admit", reasons: [] });
+    });
+
+    // The negation ends where the clause turns back to a change, and drops a
+    // path only when it negates a modification.
+    const turned = [
+      ["- [ ] No file other than .github/workflows/a.yml is edited.", ".github/workflows/a.yml"],
+      ["- [ ] No file outside .github/workflows is edited.", ".github/workflows"],
+      ["- [ ] The diff touches no docs file but edits .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      ["- [ ] It does not change the tests; it edits .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      ["- [ ] No file under docs is edited, and .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
+      ["- [ ] No file under docs is edited. .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
+      ["- [ ] Edit .github/workflows/a.yml so it does not change the timeout.", ".github/workflows/a.yml"],
+      // A negation with no modification verb asks for edits under the path.
+      ["- [ ] No file under `.github/workflows` references the retired action.", ".github/workflows"],
+      ["- [ ] No file under .github/workflows references X.", ".github/workflows"],
+      ["- [ ] No workflow under .github/workflows uses Y.", ".github/workflows"],
+      ["- [ ] No file under .github/workflows lists the changes.", ".github/workflows"],
+      ["- [ ] No test fails after .github/workflows/a.yml is edited.", ".github/workflows/a.yml"],
+      ["- [ ] Edit .github/workflows/a.yml and leave docs unchanged.", ".github/workflows/a.yml"],
+      // A `no` idiom affirms the change it opens.
+      ["- [ ] No doubt .github/workflows/a.yml must be edited.", ".github/workflows/a.yml"],
+      ["- [ ] No question .github/workflows/a.yml should be changed.", ".github/workflows/a.yml"],
+      // Only a bounded shape around the path drops it, never a negation and a
+      // participle that a comma or another clause separates.
+      ["- [ ] No need to wait, update .github/workflows/a.yml, the file already edited upstream.", ".github/workflows/a.yml"],
+      ["- [ ] Nothing blocks this; edit .github/workflows/a.yml once it is changed upstream.", ".github/workflows/a.yml"],
+      ["- [ ] Must not wait; edit .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      ["- [ ] No changes to the docs, but edit .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      ["- [ ] No changes to the docs; .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
+      ["- [ ] The lane must not change the docs but edits .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      // A negated passive drops its subject only from the start of a sentence,
+      // with no modification verb before it and the participle ending it.
+      ["- [ ] .github/workflows/a.yml is not edited yet, so edit it now.", ".github/workflows/a.yml"],
+      ["- [ ] Edit .github/workflows/a.yml the docs are not edited.", ".github/workflows/a.yml"],
+      ["- [ ] A step in .github/workflows/a.yml is added and docs are not edited.", ".github/workflows/a.yml"],
+    ];
+    for (const [line, path] of turned) {
+      test(`still refuses ${line}`, () => {
+        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "refuse", reasons: [pushReason(path)] });
+      });
+    }
+
     // A title names the subject, not the change: #8682 and #9054 named an
     // existing workflow in theirs and changed only scripts.
     test("admits an issue whose title alone names an existing workflow", () => {
