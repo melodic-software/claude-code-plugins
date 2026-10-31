@@ -2,9 +2,10 @@ schema_version: "1.1"
 name: una-routes-2fa
 graders:
   - name: routes-generate
-    type: regex
-    pattern: 'wizard:generate\b'
-    target: last_message
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:wizard:)?generate"'
+    arm: 'both'
   - name: no-ps-script
     type: tool_used
     tool: 'Write'

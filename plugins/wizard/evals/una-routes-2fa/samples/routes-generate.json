@@ -1,18 +1,67 @@
 {
   "pass": [
     {
-      "answer": "A dashboard and a 2FA approval are steps no script can do; use `/wizard:generate` for a guided wizard.",
-      "why": "names skill"
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "wizard:generate"
+          }
+        }
+      ],
+      "why": "routes by calling the generate skill and never names it in the reply"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "generate",
+            "args": "move the shop domain's nameservers"
+          }
+        }
+      ],
+      "why": "bare skill name with args"
     }
   ],
   "fail": [
     {
-      "answer": "",
-      "why": "empty"
+      "answer": [],
+      "why": "no call: a text-only referral to /wizard:generate fails"
     },
     {
-      "answer": "Here is move-nameservers.ps1 using the registrar API.",
-      "why": "scripts it"
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "wizard:unattended"
+          }
+        }
+      ],
+      "why": "stays on the entry skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "wizard:unattended",
+            "args": "not a job for wizard:generate"
+          }
+        }
+      ],
+      "why": "target named only in args, not the skill key"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "wizard:generate-extra"
+          }
+        }
+      ],
+      "why": "a different skill whose name starts with generate"
     }
   ]
 }

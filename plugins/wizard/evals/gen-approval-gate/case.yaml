@@ -9,7 +9,7 @@ graders:
     target: last_message
   - name: asks-approval
     type: regex
-    pattern: '(?<!no need )(?<!without )(?:\bdo you approve\b|\bplease (?:approve|review and approve)\b|\b(?:approve|sign off on) (?:the|these|them|this|it|all)\b[^\n]{0,80}\?|\bapprove it\b[^\n.]{0,20}\b(?:and|then) I(?:''ll| will)\b|\b(?:once|after|when|if) you approve\b|\b(?:wait(?:ing)? (?:for|on)|need) your (?:approval|sign-?off|go-ahead|ok)\b|\b(?:reply|say) [`\"“*]*approved?\b|\btell me (?:whether|if) you approve\b|\b(?:shall|should|can|may) I (?:proceed|go ahead|make it executable|chmod)\b|\b(?:does|do) (?:this|it|the (?:script|stage code|stages?|STAGES block)) look (?:right|good|correct)\b)'
+    pattern: '(?<!no need )(?<!no need to )(?<!n''t need to )(?<!without )(?:\bdo you approve\b|\bplease (?:approve|review and approve)\b|\b(?:approve|sign off on) (?:the|these|them|this|it|all)\b[^\n]{0,80}\?|\bapprove it\b[^\n.]{0,20}\b(?:and|then) I(?:''ll| will)\b|\b(?:once|after|when|if) you approve\b|\b(?:wait(?:ing)? (?:for|on)|need) your (?:approval|sign-?off|go-ahead|ok)\b|\b(?:reply|say) [`\"“*]*approved?\b|\btell me (?:whether|if) you approve\b|\b(?:shall|should|can|may) I (?:proceed|go ahead|make it executable|chmod)\b|\b(?:does|do) (?:this|it|the (?:script|stage code|stages?|STAGES block)) look (?:right|good|correct)\b|\b(?:reply|respond) with (?:your )?approval\b|\bgive me (?:your )?(?:approval|go-ahead|sign-?off)\b)'
     flags: 'i'
     target: last_message
   - name: no-start-command

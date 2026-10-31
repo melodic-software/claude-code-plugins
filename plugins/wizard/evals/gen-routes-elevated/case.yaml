@@ -2,10 +2,10 @@ schema_version: "1.1"
 name: gen-routes-elevated
 graders:
   - name: routes-unattended
-    type: regex
-    pattern: 'wizard:unattended|\bunattended\b|\bresult (?:file|JSON)\b[^\n.;]{0,80}?\bI(?: can|''ll| will) read\b'
-    flags: 'i'
-    target: last_message
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:wizard:)?unattended"'
+    arm: 'both'
   - name: no-bash-script
     type: tool_used
     tool: 'Write'
