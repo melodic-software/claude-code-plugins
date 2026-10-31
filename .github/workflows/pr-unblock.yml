@@ -172,7 +172,9 @@ jobs:
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
       # Every job merges the default branch tip, so a PR stacked on another
-      # branch skips not-applicable here, as the dispatcher leaves it out.
+      # branch skips not-applicable here, as the dispatcher leaves it out. The
+      # dispatcher leaves out a fork's PR too; a hand dispatch of one stops
+      # here, with no sha output for a later job to post a status on.
       - name: Read the PR head
         id: head
         if: steps.kill.outputs.proceed == 'true'
@@ -185,9 +187,13 @@ jobs:
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          { read -r sha && read -r base; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .base.ref') || true
+          { read -r sha && read -r base && read -r head_repo; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .base.ref, .head.repo.full_name') || true
           if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
+            exit 1
+          fi
+          if [[ ${head_repo:-} != "$GITHUB_REPOSITORY" ]]; then
+            echo "::error::the PR's head is not in this repository"
             exit 1
           fi
           if [[ -z ${base:-} || -z ${DEFAULT_BRANCH:-} ]]; then
@@ -781,9 +787,13 @@ jobs:
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
-          if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+          { read -r sha && read -r head_repo; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .head.repo.full_name') || true
+          if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
+            exit 1
+          fi
+          if [[ ${head_repo:-} != "$GITHUB_REPOSITORY" ]]; then
+            echo "::error::the PR's head is not in this repository"
             exit 1
           fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
@@ -1673,9 +1683,13 @@ jobs:
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
-          if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+          { read -r sha && read -r head_repo; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .head.repo.full_name') || true
+          if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
+            exit 1
+          fi
+          if [[ ${head_repo:-} != "$GITHUB_REPOSITORY" ]]; then
+            echo "::error::the PR's head is not in this repository"
             exit 1
           fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"

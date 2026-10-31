@@ -821,9 +821,9 @@ the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
 `GIT_NO_REPLACE_OBJECTS=1`.
 
 1. `resolve-conflicts-select` runs only default-branch-tip code with a read-only token. It reads
-   the PR head, resolves the slot (`applied-by-supported: patch`), pins the default branch tip as
-   the round's base, checks the head out with full history and no persisted credentials, and runs
-   `prepare.sh`: it escalates `repeat-cap` before merging, runs
+   the PR head, failing with no head output when the head is in another repository, resolves the
+   slot (`applied-by-supported: patch`), pins the default branch tip as the round's base, checks
+   the head out with full history and no persisted credentials, and runs `prepare.sh`: it escalates `repeat-cap` before merging, runs
    `git merge --no-commit --no-ff <pinned base>` and the version-bump script (under `LC_ALL=C`),
    snapshots the index, and escalates `protected-path-conflict` (a conflicted path under
    `.github/workflows/`, a `.gitmodules` or a `settings*.json`) or `unresolved-conflict` (a
@@ -915,7 +915,7 @@ App's missing `workflows` permission: sandbox probe run 38148710292 pushed it by
 A round of review-thread answers is five jobs of `pr-unblock.yml`, so no model ever holds a write
 token, and the broker mints one token per job (one with both `contents: write` and
 `pull-requests: write` could enqueue a PR). `address-feedback-select` runs only base code with a
-read-only token. The model job is a `read` skill leaf whose config sets `prepare: review-threads`
+read-only token, and fails with no head output when the head is in another repository. The model job is a `read` skill leaf whose config sets `prepare: review-threads`
 and `applied-by` `patch` and `feedback-replies`, called on this read file twice
 ([Two calls on one credential each](#two-calls-on-one-credential-each)); it posts and commits
 nothing. The push job, `apply-feedback-patch`, is the write file's
@@ -1297,8 +1297,8 @@ also apply the [registry provenance](README.md#registry-provenance) gate, and th
 warns of a [classifier gap](README.md#classifier-gaps).
 
 1. pr-unblock's `review-dependency-select` job, which runs only default-branch-tip code with a
-   read-only token, reads the PR head, resolves the slot (`applied-by-supported: patch
-   dependency-verdict`) and runs `review-dependency.mjs select`. A pull request whose author is
+   read-only token, reads the PR head, failing with no head output when the head is in another
+   repository, resolves the slot (`applied-by-supported: patch dependency-verdict`) and runs `review-dependency.mjs select`. A pull request whose author is
    not `dependabot[bot]` (by id, from the base's trusted-actors list) or that sorts `auto` skips
    `not-applicable`; one whose head is no longer the head read skips `superseded-sha`.
    `loop.dependency-review-rounds` earlier rounds escalate `dependency-round-cap` and skip

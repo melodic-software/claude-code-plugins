@@ -6057,8 +6057,8 @@ test("pr-unblock.yml: resolve-conflicts-select skips a PR whose base is not the 
   const select = workflow("pr-unblock.yml").jobs["resolve-conflicts-select"];
   const step = (id) => select.steps.find((s) => s.id === id);
   const dir = tempDir("pr-unblock-base-");
-  // A stand-in gh answering the pulls read's --jq with the head SHA and base ref.
-  writeFileSync(join(dir, "gh"), `#!/usr/bin/env bash\nprintf '%s\\n' "${"d".repeat(40)}" "$FAKE_BASE"\n`, { mode: 0o755 });
+  // A stand-in gh answering the pulls read's --jq with the head SHA, base ref and head repository.
+  writeFileSync(join(dir, "gh"), `#!/usr/bin/env bash\nprintf '%s\\n' "${"d".repeat(40)}" "$FAKE_BASE" o/r\n`, { mode: 0o755 });
   const head = (base) => {
     const out = join(dir, `out-${base.replaceAll("/", "-")}`);
     writeFileSync(out, "");
