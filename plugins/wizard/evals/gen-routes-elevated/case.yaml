@@ -3,7 +3,7 @@ name: gen-routes-elevated
 graders:
   - name: routes-unattended
     type: regex
-    pattern: 'wizard:unattended|\bunattended\b'
+    pattern: 'wizard:unattended|\bunattended\b|\bresult (?:file|JSON)\b[^\n.;]{0,80}?\bI(?: can|''ll| will) read\b'
     flags: 'i'
     target: last_message
   - name: no-bash-script

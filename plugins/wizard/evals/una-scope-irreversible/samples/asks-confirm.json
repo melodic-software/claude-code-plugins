@@ -19,6 +19,10 @@
     {
       "answer": "Let me know if any row is wrong or missing; nothing is written yet.",
       "why": "let me know if wrong"
+    },
+    {
+      "answer": "Once you answer and approve the table, I'll write the script.",
+      "why": "answer and approve"
     }
   ],
   "fail": [
@@ -41,6 +45,10 @@
     {
       "answer": "The wizard asks you to confirm the target repository before it writes the CI secret.",
       "why": "describes the wizard's own prompt"
+    },
+    {
+      "answer": "I wrote the script. Once you run it and approve the UAC prompt, the table updates.",
+      "why": "approves a UAC prompt, not the plan"
     }
   ]
 }

@@ -47,6 +47,18 @@
         }
       ],
       "why": "stage count"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "S=/work/scripts/setup-sms.sh; grep -n STAGES \"$S\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "path in a variable, then a read-only grep"
     }
   ],
   "fail": [
@@ -97,6 +109,18 @@
         }
       ],
       "why": "piped answers"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /work && S=1 ./scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "env prefix then run"
     }
   ]
 }

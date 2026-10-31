@@ -28,7 +28,7 @@ graders:
   - name: no-wizard-run
     type: tool_used
     tool: 'Bash'
-    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`]|\\n))?\s*(?:\w+=\S*\s+)*(?:(?:\S*/)?(?:bash|sh|zsh|source)\s+(?:-(?!n\b)\S+\s+)*|\.\s+)?\\?["\x27]?(?:\S*/)?setup-sms\.sh(?![\w.])'
+    input_match: '"command":"(?:(?:[^"\\]|\\.)*?(?:[;&|(`]|\\n))?\s*(?:\w+=\S*\s+)*(?:(?:\S*/)?(?:bash|sh|zsh|source)\s+(?:-(?!n\b)\S+\s+)*|\.\s+)?\\?["\x27]?(?:[^\s=]*/)?setup-sms\.sh(?![\w.])'
     min: 0
     max: 0
     arm: 'both'

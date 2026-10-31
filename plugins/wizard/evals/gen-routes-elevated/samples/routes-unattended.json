@@ -7,6 +7,10 @@
     {
       "answer": "An interactive wizard is the wrong tool; an unattended PowerShell script you launch once elevated fits better.",
       "why": "describes route"
+    },
+    {
+      "answer": "Every step runs without you. It writes a JSON result file that I can read afterwards, so you don't paste the output back.",
+      "why": "unattended scope step after the Skill call"
     }
   ],
   "fail": [
@@ -17,6 +21,14 @@
     {
       "answer": "Here is swap-portal.ps1. Run it from an admin PowerShell.",
       "why": "no routing"
+    },
+    {
+      "answer": "Here is swap-portal.ps1. It writes a result file to D:\\logs; run it elevated and paste the output back so I can read it.",
+      "why": "no routing, paste-back"
+    },
+    {
+      "answer": "Here is swap-portal.ps1; the result file is in D:\\logs and you can read it.",
+      "why": "no routing, user reads"
     }
   ]
 }
