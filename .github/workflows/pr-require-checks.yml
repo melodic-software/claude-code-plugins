@@ -3316,6 +3316,15 @@ jobs:
         with:
           path: ~/.cache/ci-tools-ffmpeg
           key: ${{ steps.ffmpeg_cache.outputs.cache-primary-key }}
+      # The Chromium the animation and browser legs drive shares test-python's cache entry,
+      # keyed on the locked playwright version (the lockfile hash); a hit skips the download.
+      - name: Restore the Playwright browser
+        id: playwright_cache
+        if: contains(fromJSON(env.LEG_PLAN)[env.LEG], 'animation') || contains(fromJSON(env.LEG_PLAN)[env.LEG], 'browser')
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       # The animation wheels (numpy and opencv; the speech suites need their
       # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
       # inventory's parser packages go only on a leg whose suites need them,
@@ -3325,6 +3334,9 @@ jobs:
       # INVENTORY_REQUIRE_ACORN).
       - name: Install locked plugin test toolchains
         timeout-minutes: 5
+        id: toolchains
+        env:
+          PLAYWRIGHT_CACHE_HIT: ${{ steps.playwright_cache.outputs.cache-hit }}
         run: |
           # Each lock must hold every pin its requirements.in declares, so an edit to the .in
           # without regenerating the lock fails here instead of testing a stale lock.
@@ -3350,7 +3362,12 @@ jobs:
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
           # The animation render tests and the shared-page UI suite drive the locked playwright's headless Chromium.
           if [[ "$leg_needs" == *animation* || "$leg_needs" == *browser* ]]; then
-            node node_modules/playwright/cli.js install --only-shell chromium
+            if [[ "$PLAYWRIGHT_CACHE_HIT" == "true" ]]; then
+              echo "The Playwright browser cache hit; no Chromium download."
+            else
+              node node_modules/playwright/cli.js install --only-shell chromium
+              echo "browser_downloaded=true" >> "$GITHUB_OUTPUT"
+            fi
           fi
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
@@ -3377,6 +3394,12 @@ jobs:
         with:
           path: ~/.cache/pip
           key: ${{ steps.pip_cache.outputs.cache-primary-key }}
+      - name: Save the Playwright browser
+        if: github.ref == 'refs/heads/main' && steps.playwright_cache.outputs.cache-hit != 'true' && steps.toolchains.outputs.browser_downloaded == 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright_cache.outputs.cache-primary-key }}
       # The harness-ops observability suites (prune-otel-store, hook-latency,
       # session-compare) query fixture stores with the DuckDB CLI and skip those
       # cases without it, so the plan names every harness-ops suite for it.
