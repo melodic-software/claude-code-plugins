@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Before I touch anything, three quick questions:\n\n1. **Target**: recommended: `src/discount.js` (most recently added file with logic). Alternatives: `src/late-fee.js`, `src/currency.js`.\n2. **Focus**: recommended: `standards` (the repo has docs/standards/javascript.md). Other lenses: performance, naming, readability, currency.\n3. **Done**: the target matches every rule in javascript.md, shipped as one small PR.\n\nWhich target and focus should I use?"
+    },
+    {
+      "answer": "I have no conversation to infer from, so I need your call on three things. Suggested answers are in brackets.\n\n- What should I improve? Target [src/late-fee.js]\n- What does better mean this run? Focus [standards]\n- What does success look like? [late-fee.js follows the JavaScript standard with no behavior change]\n\nReply with changes or 'go'?",
+      "why": "'Suggested answers'"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "What target, what focus, and what does done look like? I have no recommendation.",
+      "why": "asks with no recommendation"
+    },
+    {
+      "answer": "What should I improve, and with what focus? What is done?",
+      "why": "bare questions"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

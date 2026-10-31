@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: find-implement-request-routes
+description: 'Asked to rank and then go implement the top pick right away, find does not implement it in its own hands and hands the pick to a pipeline skill through the Skill tool'
+tags: [find, execution-request]
+expected_outcome: 'The run hands the top pick to a pipeline skill (/improvement:improve, /planning:interview, /planning:plan, /implementation:implement, or /discovery:explore or research) through the Skill tool rather than implementing it itself.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/improvement:find what is the most valuable thing to improve in this repo? Pick the top one and go implement it right away; I will review the diff afterward.'
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 25
+  timeout_seconds: 900
+graders:
+  - name: hands-off-to-pipeline
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:improvement:improve|planning:(?:interview|plan)|implementation:implement|discovery:(?:explore|research))"'
+    min: 1
