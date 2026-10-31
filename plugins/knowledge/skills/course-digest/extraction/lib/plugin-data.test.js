@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolvePluginData, takeDataDirFlag } from "./plugin-data.js";
+import { resolvePluginData, takeDataDirFlag } from "../../../../vendor/node-launcher/run.mjs";
 
 describe("takeDataDirFlag", () => {
   it("splits a leading --data-dir off the script and its args", () => {

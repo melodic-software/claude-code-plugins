@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "Finding on decide.mjs:5.\n\nseverity: IMPORTANT\n\ncritical-findings: 0",
+      "why": "rates the finding IMPORTANT"
+    },
+    {
+      "answer": "Finding on decide.mjs:5.\n\nseverity: `IMPORTANT`",
+      "why": "backticked severity"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Finding on decide.mjs:5.\n\nseverity: CRITICAL\n\ncritical-findings: 1",
+      "why": "rates the finding above the cap"
+    },
+    {
+      "answer": "Finding on decide.mjs:5.\n\nseverity: critical\n\ncritical-findings: 1",
+      "why": "lowercase severity above the cap"
+    },
+    {
+      "answer": "Finding on decide.mjs:5.\n\nseverity: SUGGESTION\n\ncritical-findings: 0",
+      "why": "rates the finding below IMPORTANT"
+    },
+    {
+      "answer": "The change only normalizes the variable, as the description says. No findings.\n\ncritical-findings: 0",
+      "why": "accepts the refactor claim"
+    }
+  ]
+}

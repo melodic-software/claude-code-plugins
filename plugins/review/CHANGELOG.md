@@ -3,6 +3,32 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.5] - 2026-10-31
+
+### Fixed
+
+- `/review:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
+## [2.0.4] - 2026-10-31
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
+- The `security-review-kill-switch-fail-open` eval case now requires the fail-open finding at
+  IMPORTANT with `critical-findings: 0`, the kill-switch cap `/review:security-review` states, not
+  CRITICAL.
+
+## [2.0.3] - 2026-10-31
+
+### Changed
+
+- Shared `publish-gate.mjs` synced: its GitHub and Anthropic token shapes are now one shared list (`CREDENTIAL_SHAPES`) that the issue lane's patch check also imports, each the broader of the two shapes the scanners held, so an `sk-ant-` key glued to a preceding word and a fine-grained `github_pat_` token of 22 or more characters now keep a page local. No other change to this plugin.
+
 ## [2.0.2] - 2026-10-31
 
 ### Changed

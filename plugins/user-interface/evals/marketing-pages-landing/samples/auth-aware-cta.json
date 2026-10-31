@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "<Button href={isLoggedIn ? '/dashboard' : '/signup'}>\n  {isLoggedIn ? 'Go to Dashboard' : 'Get Started'}\n</Button>",
+      "why": "destination and label follow auth state, as the spoke's example"
+    },
+    {
+      "answer": "{session ? <Link href=\"/dashboard\">Dashboard</Link> : <Link href=\"/signup\">Sign up</Link>}",
+      "why": "a conditional render of two links"
+    },
+    {
+      "answer": "<Link href={user ? \"/habits\" : \"/signup\"}>{user ? \"Open App\" : \"Get Started\"}</Link>",
+      "why": "a ternary to another app route, labeled Open App"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "<Button href=\"/signup\">Sign up</Button>",
+      "why": "a hardcoded signup CTA"
+    },
+    {
+      "answer": "<Button href=\"/signup\">Sign up</Button>\n\nSigned-in visitors would rather Go to dashboard.",
+      "why": "hardcoded signup in code; only the prose mentions the dashboard"
+    },
+    {
+      "answer": "<a href=\"/dashboard\">Dashboard</a>",
+      "why": "a fixed dashboard link with no auth condition"
+    }
+  ]
+}

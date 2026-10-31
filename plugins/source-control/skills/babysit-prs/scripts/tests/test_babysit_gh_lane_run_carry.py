@@ -27,6 +27,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import babysit_gh as gh
 import babysit_review_evidence as review_evidence
+import babysit_risk
 
 HERE = pathlib.Path(__file__).resolve().parent
 FIXTURE = HERE / "fixtures" / "lane_runs" / "run_and_latest_attempt.json"
@@ -153,6 +154,7 @@ class LaneRunCarryTests(unittest.TestCase):
             [],
             is_human=lambda actor: False,
             changed_paths=[],
+            floor=babysit_risk.floor_for(),
         )
 
     def warm(self) -> pathlib.Path:

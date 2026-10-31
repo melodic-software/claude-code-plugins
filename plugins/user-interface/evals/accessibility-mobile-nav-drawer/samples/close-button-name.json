@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "<button type=\"button\" aria-label=\"Close menu\" onClick={close}>\n  <XIcon aria-hidden=\"true\" />\n</button>",
+      "why": "the label names the action"
+    },
+    {
+      "answer": "<button type=\"button\" onClick={close}>\n  <XIcon aria-hidden=\"true\" />\n  <span className=\"sr-only\">Close navigation</span>\n</button>",
+      "why": "visually hidden text names the action"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "<button type=\"button\" onClick={close}>\n  <XIcon />\n</button>",
+      "why": "no accessible name, only the icon"
+    },
+    {
+      "answer": "<button type=\"button\" aria-label=\"close icon\" onClick={close}>\n  <XIcon aria-hidden=\"true\" />\n</button>",
+      "why": "near miss: a name, but it names the icon instead of the action"
+    },
+    {
+      "answer": "Give the X button an aria-label so screen readers can announce it.",
+      "why": "the name only in prose, no code"
+    }
+  ]
+}

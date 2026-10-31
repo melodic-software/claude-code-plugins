@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /p/code-tidying/skills/tidy-diff/scripts/change-shape.sh src/users.ts /tmp/users.ts",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "proof ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "src/users.ts",
+            "old_string": "  // loop over the records\n",
+            "new_string": ""
+          }
+        }
+      ],
+      "why": "deleted without proof"
+    }
+  ]
+}

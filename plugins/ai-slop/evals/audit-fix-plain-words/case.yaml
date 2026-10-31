@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-fix-plain-words
+description: "Fix replaces leverage, facilitate and numerous with plain words in the sentences it rewrites, without a fancier synonym, and keeps every fact. Written from MB:plugins/ai-slop/skills/audit/reference/rewrite-guide.md:93-94 and 114-122, MB:plugins/ai-slop/skills/audit/SKILL.md:249-250 (the base contract)."
+tags: [fix, rewrite-guide, plain-words]
+runs: 3
+expected_outcome: "After an explicit fix, docs/cache.md has no filler phrase ('in order to', 'it is worth noting that', 'due to the fact that'), no 'leverage', 'facilitate' or 'numerous', and no fancier synonym such as 'employ', 'utilize' or 'harness'; it still states that each worker opens one connection at startup, that the helper retries when the cache is cold, and that the size limit is 512 MB."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/ai-slop:audit fix docs/cache.md"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent]
+  max_turns: 80
+  timeout_seconds: 1500

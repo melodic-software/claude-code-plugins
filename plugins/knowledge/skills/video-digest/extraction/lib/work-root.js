@@ -1,3 +1,4 @@
+import { sessionRoot } from "../../../../scripts/work-root.mjs";
 import { resolveEnvWithLegacy } from "./env-compat.js";
 
 /**
@@ -6,22 +7,17 @@ import { resolveEnvWithLegacy } from "./env-compat.js";
  *
  * Under plugin cache isolation the pipeline scripts live in a per-version cache
  * dir, so a climb from the script location cannot reach the consumer's repo.
- * The base is resolved from the environment instead, honoring the
- * knowledge plugin's `library_dir` seam:
+ * The base follows the knowledge plugin's one work-root rule
+ * (`reference/work-root.md`):
  *
- * 1. `VIDEO_DIGEST_WORK_ROOT` — explicit override the invoking skill wires in from
- *    the resolved `library_dir` (when it is not the repo-root default) by passing
- *    `run.mjs --work-root <dir>`, which sets this var for the extraction child.
+ * 1. `VIDEO_DIGEST_WORK_ROOT`: the work root the invoking skill resolved from a
+ *    non-default `library_dir` and passed as `run.mjs --work-root <dir>`, which
+ *    sets this var for the extraction child.
  *    The deprecated `YOUTUBE_WORK_ROOT` spelling still works with a warning.
- * 2. `CLAUDE_PROJECT_DIR` — the consuming project root the harness provides.
- * 3. `process.cwd()` — fallback when invoked directly from the project root.
+ * 2. The git top-level of the working directory, or that directory outside git.
  *
  * @returns {string}
  */
 export function resolveWorkRoot() {
-  return (
-    resolveEnvWithLegacy("VIDEO_DIGEST_WORK_ROOT", "YOUTUBE_WORK_ROOT") ||
-    process.env.CLAUDE_PROJECT_DIR ||
-    process.cwd()
-  );
+  return resolveEnvWithLegacy("VIDEO_DIGEST_WORK_ROOT", "YOUTUBE_WORK_ROOT") || sessionRoot(process.cwd());
 }

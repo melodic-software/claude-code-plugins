@@ -3,6 +3,54 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.6.0] - 2026-10-31
+
+### Added
+
+- The `ready` report has a confirm verdict line: the `/verification:confirm` verdict recorded for
+  the head it flipped, with each `MISSING` or `PARTIAL` item, or that none is recorded for that
+  head. The line is advisory, so a `NEEDS WORK` verdict or a missing one never holds the PR in
+  draft, and the `verify` gate is unchanged.
+
+- `worktree-claim.sh handover <path> --session-id <old> --to <new>` moves a worktree claim to the
+  session that resumes a handoff. It re-locks only when the lock reason names `<old>`, writes a
+  reason naming `<new>` that keeps the creator script the old reason named, and exits 4 when the
+  lock names any other session. `/source-control:worktree` documents it next to the claim gate,
+  so a session resumed after `/clear` no longer meets `FOREIGN CLAIM` on its own lane's worktree.
+
+- The `ready` report has a measure verdict line when `/verification:measure` recorded one for the
+  head it flipped: the verdict with the claim it judged, reading `CANNOT QUANTIFY` when no
+  baseline was captured before the change. A head with no measure verdict gets no line. The line
+  is advisory, so no measure verdict holds the PR in draft.
+
+### Changed
+
+- The babysit path floor's built-in table holds only paths every consumer shares: `CODEOWNERS`, `.gitmodules`, the agent settings and instruction files, the babysit scripts, and `docs/conventions/pr-pipeline.yaml`, the config every consumer's merge gate reads. A repository adds its own rows in `merge.diff-check.floor-paths`, read at the base and the default branch head, and a row can add to the floor and never drop or loosen a built-in row.
+
+- `pull-request` and `babysit-prs` offer `/autofix-pr` as a suggest sentence, `If /autofix-pr is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when either offer is deleted or reworded.
+
+## [4.5.3] - 2026-10-31
+
+### Fixed
+
+- The post-merge demotion judge no longer excuses a suite outside the affected set that failed
+  again on a re-run unless it passed on an earlier attempt of the same commit, or a full run at the
+  last green commit failed it on some attempt. Otherwise it demotes, an open quarantine issue
+  included.
+- The judge names a Python leg's failing suites only from the call and exit lines that carry the
+  step's nonce, so a pytest summary or call line in a failing test's captured output credits
+  nothing to another suite. A Python leg's log with no nonce line, or with a second one, names no
+  suite, so the run demotes.
+- A quarantine issue whose body was edited after filing, or whose title no longer names its
+  marker's suite, excuses nothing: the suite demotes, so an edit cannot move or extend a
+  quarantine.
+
+## [4.5.2] - 2026-10-31
+
+### Changed
+
+- The babysit hold floor lists `.github/scripts/lib/admission-comment.mjs` as an enforcement path: intake admission and the issue lane's park route import it, so a change to it waits for the security review as their own files do.
+
 ## [4.5.1] - 2026-10-31
 
 ### Fixed

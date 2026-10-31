@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "```jsx\nimport { useEffect, useRef, useState } from 'react';\nimport { useVirtualizer } from '@tanstack/react-virtual';\n\nexport function LogList() {\n  const [rows, setRows] = useState([]);\n  const parentRef = useRef(null);\n  useEffect(() => {\n    fetch('/api/logs?limit=5000').then((r) => r.json()).then(setRows);\n  }, []);\n  const virtualizer = useVirtualizer({\n    count: rows.length,\n    getScrollElement: () => parentRef.current,\n    estimateSize: () => 32,\n  });\n  return (\n    <div ref={parentRef} className=\"log-list\" style={{ height: 480, overflow: 'auto' }}>\n      <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>\n        {virtualizer.getVirtualItems().map((item) => (\n          <div key={item.key} className=\"log-row\" style={{ position: 'absolute', top: item.start, height: item.size, width: '100%' }}>\n            {rows[item.index].message}\n          </div>\n        ))}\n      </div>\n    </div>\n  );\n}\n```",
+      "why": "useVirtualizer on the existing scroller, mapping only the virtual items"
+    },
+    {
+      "answer": "Only the visible rows should exist in the DOM, so use the virtualizer you already have.\n\n```jsx\nconst parentRef = useRef(null);\nconst v = useVirtualizer({ count: rows.length, getScrollElement: () => parentRef.current, estimateSize: () => 32, overscan: 8 });\n\nreturn (\n  <div ref={parentRef} style={{ height: 480, overflow: 'auto' }}>\n    <div className=\"relative w-full\" style={{ height: v.getTotalSize() }}>\n      {v.getVirtualItems().map((item) => (\n        <div key={item.key} className=\"absolute left-0 top-0 w-full\" style={{ height: 32, transform: `translateY(${item.start}px)` }}>\n          {rows[item.index].message}\n        </div>\n      ))}\n    </div>\n  </div>\n);\n```",
+      "why": "virtualizes with overscan and a transform offset, still through getVirtualItems"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "```jsx\nconst Row = React.memo(function Row({ message }) {\n  return <div className=\"log-row\" style={{ height: 32 }}>{message}</div>;\n});\n\nreturn (\n  <div className=\"log-list\" style={{ height: 480, overflow: 'auto' }}>\n    {rows.map((row) => <Row key={row.id} message={row.message} />)}\n  </div>\n);\n```",
+      "why": "near miss: memoized rows, but all 5,000 are still mounted"
+    },
+    {
+      "answer": "```jsx\nconst [count, setCount] = useState(100);\nreturn (\n  <div className=\"log-list\" style={{ height: 480, overflow: 'auto' }}>\n    {rows.slice(0, count).map((row) => (\n      <div key={row.id} className=\"log-row\" style={{ height: 32 }}>{row.message}</div>\n    ))}\n    <button onClick={() => setCount((c) => c + 100)}>Load more</button>\n  </div>\n);\n```",
+      "why": "near miss: shows the first N rows with load more instead of virtualizing"
+    },
+    {
+      "answer": "```jsx\nimport { FixedSizeList } from 'react-window';\n\nreturn (\n  <FixedSizeList height={480} itemCount={rows.length} itemSize={32} width=\"100%\">\n    {({ index, style }) => <div style={style}>{rows[index].message}</div>}\n  </FixedSizeList>\n);\n```",
+      "why": "near miss: virtualizes, but adds react-window when @tanstack/react-virtual is already installed"
+    },
+    {
+      "answer": "Virtualize this list with @tanstack/react-virtual so only the visible rows render.",
+      "why": "the fix only in prose"
+    }
+  ]
+}

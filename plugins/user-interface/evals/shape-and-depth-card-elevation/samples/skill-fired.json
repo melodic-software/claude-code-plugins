@@ -1,0 +1,65 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:design"
+          }
+        }
+      ],
+      "why": "the design skill fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:audit"
+          }
+        }
+      ],
+      "why": "the audit skill fired"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:write-css"
+          }
+        }
+      ],
+      "why": "write-css alone never loads the shape-and-depth spoke"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "planning:design"
+          }
+        }
+      ],
+      "why": "the planning design skill instead"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "frontend-design:frontend-design"
+          }
+        }
+      ],
+      "why": "a different design skill"
+    }
+  ]
+}

@@ -21,10 +21,10 @@
       "id": 2,
       "name": "scope-routing-book-goes-to-sibling",
       "prompt": "Use /knowledge:docpage-digest to extract knowledge from this PDF book I downloaded: C:/books/ddd.pdf",
-      "expected_output": "Declines and routes to /knowledge:book-distill — this skill ingests online documentation pages by URL, not local book files.",
+      "expected_output": "Declines and routes to /knowledge:distill — this skill ingests online documentation pages by URL, not local book files.",
       "expectations": [
         "Does not run the pipeline on a local book file",
-        "Names /knowledge:book-distill as the correct sibling"
+        "Names /knowledge:distill as the correct sibling"
       ]
     },
     {

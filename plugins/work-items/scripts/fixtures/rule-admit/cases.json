@@ -276,6 +276,30 @@
       "expect": { "verdict": "refuse", "reason": "cost hit in title or body: spending limit" }
     },
     {
+      "name": "a measured pass on the subscription admits",
+      "source": "owner cost definition: model usage under the Claude subscriptions is not cost",
+      "issue": { "body": "Every shipped change is backed by a valid measured pass on the subscription." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "a measured pass run on the subscription admits, in any case",
+      "source": "owner cost definition: model usage under the Claude subscriptions is not cost",
+      "issue": { "body": "Every shipped change is backed by a valid Measured Pass Run on the Subscription." },
+      "expect": { "verdict": "admit", "rule": "R2" }
+    },
+    {
+      "name": "a subscription upgrade still refuses as a cost hit",
+      "source": "owner cost definition: a plan change is a charge",
+      "issue": { "body": "Take the subscription upgrade for the lane." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription" }
+    },
+    {
+      "name": "a word between escaped backticks is prose and refuses",
+      "source": "CommonMark: a backslash-escaped backtick opens no code span",
+      "issue": { "body": "Buy a \\`subscription\\` for the lane." },
+      "expect": { "verdict": "refuse", "reason": "cost hit in title or body: subscription" }
+    },
+    {
       "name": "a job name in an inline code span admits",
       "source": "owner standing direction: cost is anything that can bill the owner; a stop that is not a real cost risk is a defect",
       "issue": { "body": "Two rows in the install table read awkwardly; the `pr-retention.yml` job reports them." },

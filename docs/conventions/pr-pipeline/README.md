@@ -695,7 +695,8 @@ the review could not finish (its cap, an unlanded fix, an unreadable config, a c
 an uncited control, a workflow change beyond a pin swap). `review-dependency` and
 `apply-dependency-patch` do not apply while `needs-session` is on (their `labels-absent` in
 `pr-pipeline.yaml`), so such a stop gets no same-head model re-run and no fresh round budget on a
-rebased head until a session removes the label. It also puts the PR in the
+rebased head until a session removes the label, or `clear-escalations.mjs` does once a same-head
+retry cleared the stop's failing status. It also puts the PR in the
 session-builder queue with that label, which no merge gate reads, so a session builder makes the
 change instead of a person; a person arms it only where the merge gate already asks for one. Every
 other reason is a defect the lane's bounded retries (the
@@ -1065,13 +1066,16 @@ the rules that only tighten in
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
-- **Narrow path floor.** A fixed set of globs in the wrapper's code, each with a class
-  (`babysit_risk.FLOOR_CLASSES`, the one table; `scripts/sync-hold-floor.py` writes its copies into
+- **Narrow path floor.** A set of globs, each with a class: `babysit_risk.FLOOR_CLASSES`, the paths
+  every consumer shares, joined to the repository's `merge.diff-check.floor-paths` rows
+  (`glob`, `class`, and on a `gate` row an optional `author-lift: false`, which keeps the row with a
+  person). A row can add to the floor and never drop or loosen a built-in row, and a row the loader
+  cannot use turns the rung off. `scripts/sync-hold-floor.py` writes the joined table's copies into
   `merge-holds.mjs` `HOLD_PATH_CLASSES`, the review callers' `hold-paths` and ci-status's
-  `hold_patterns`, and `test_merge_holds_sync.py` runs its `--check`; owner decisions
+  `hold_patterns`, and `test_merge_holds_sync.py` runs its `--check` (owner decisions
   Q-FLOOR (B),
   [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)
-  and Q26 option B), matched case-insensitively whatever `high-path-floor` says, while
+  and Q26 option B). The floor matches case-insensitively whatever `high-path-floor` says, while
   `merge.diff-check.path-holds` is true (owner decision Q15 turns it off here):
   - `trust`, a person merges it: `.github/actions/request-lane-token/**`, which mints the lanes
     App token, `.github/actions/resolve-config/**`, whose code the token broker runs from main in
@@ -1115,7 +1119,7 @@ the rules that only tighten in
     request a person on the trusted-actor list opened, a `gate` path only that person's own
     commits touched clears as an `enforcement` path does (owner direction 2026-10-27: such pull
     requests merge without a person's review), on a head pr-verify passed
-    (`babysit_merge_policy.author_reviewed_paths`, `babysit_risk.AUTHOR_REVIEW_FLOOR`). A lanes App
+    (`babysit_merge_policy.author_reviewed_paths`, `babysit_risk.Floor.author_review`). A lanes App
     or other bot pull request, a lane's fix commit on a gate path, commits that do not read, and
     a path a `trust` glob or a configured denied path also matches keep the person's hold, so a
     lane changing its own powers is still merged by a person. The review's own surface above
@@ -1146,7 +1150,7 @@ the rules that only tighten in
     changes one binds its reviews only from main (see "Main-run review" below). A changed workflow file is
     not one when its head copy cannot post as `github-actions[bot]` with a write token nor reach a
     secret: a top-level `.yml` other than the two review callers and the floor workflows
-    (`babysit_risk.FLOOR`), present at the head, with every job's `permissions:` read-only and
+    (`babysit_risk.Floor.all`), present at the head, with every job's `permissions:` read-only and
     set explicitly, no `pull_request_target`, `workflow_run` or `workflow_call` trigger, no
     `secrets` reference but `secrets.GITHUB_TOKEN`, and `name:` equal to its file stem. A deleted
     workflow stays a lane source, and so does every floor workflow whatever its content. The `merge` and
@@ -1385,16 +1389,25 @@ the rules that only tighten in
   `scripts/plan-test-lanes.sh`, the pull request runs' selector, over the paths changed since that
   run's SHA, run from a worktree of that green SHA with no token in its environment, so no merge
   judged can narrow its own set. A window that changes the selector's own files, or a plan that
-  picks no suite, has no set. A suite is named from its test leg's log; a failed job whose
-  suites cannot be named, a set that cannot be computed, and the merge gate's own suites
-  (`GATE_SUITE_PREFIXES` in `babysit_postmerge.py`) demote as before. A suite outside the set
+  picks no suite, has no set. A suite is named from its test leg's log, in a Python leg only from
+  lines carrying the nonce that step prints; a failed job whose suites cannot be named (a token
+  without GitHub's `Actions` read permission cannot read the log, so it names none), a set that
+  cannot be computed, and the merge gate's own suites
+  (`GATE_SUITE_PREFIXES` in `babysit_postmerge.py`) demote as before. A suite outside the set that
+  failed again on a re-run also demotes, unless it passed on an earlier attempt of the same commit
+  (it is non-deterministic) or a full run at the last green commit failed it on some attempt (the
+  merges did not cause it).
+  Any other suite outside the set
   demotes nothing, the window counts as verified (its `max-in-flight` slots free), and the suite
   is quarantined: an issue marked `<!-- post-merge-quarantine suite=<path> -->`, labeled
   needs-human and assigned to the suite's CODEOWNERS user when a rule names one, filed by the
   agent identity's `--remediate` or by post-merge-demotion-alert.yml. While that issue is open
   and younger than `merge.quarantine-days` (default 7, at most 30), the suite's out-of-set failures
   demote nothing; after that they demote again, even when the suite was already failing before the
-  merge. A failure inside the set demotes whether or not the suite
+  merge. An issue whose body was edited after filing, or whose title no longer names its marker's
+  suite, excuses nothing from then on: the suite demotes until the issue is closed. Closing the
+  issue ends the quarantine, and the suite's next failure outside the set files a new issue whose
+  days start again, so closing an expired issue restarts its quarantine. A failure inside the set demotes whether or not the suite
   is quarantined, and an excused run gets no red-main report. Quarantine never changes a pull request's `ci-status` and starts no
   re-run.
 - **Repeat queue ejections.** `merge.max-queue-ejections` (default 2, at most 20) stops the
@@ -1675,7 +1688,7 @@ and carries no hold: no `Hold:` line or "do not merge" in its body
 collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
 `merge.diff-check.denied-paths` or on the [path floor](#merge-authority) (`merge-holds.mjs`
-`HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `babysit_risk.HIGH_FLOOR`), read on the files the head changes at each
+`HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `babysit_risk.Floor.high`), read on the files the head changes at each
 run, unless a person on the trusted-actor list approved that head, or an earlier head it carries to, as `ci-status` reads it, and whose
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
@@ -1753,8 +1766,9 @@ the body must still close, or with no closing issue name by a plain `Refs:` line
 pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `linkHold`), so a body
 edited after arming to drop its link or name another issue does not merge on that pass. The
 15-minute schedule arms a pull request the issue lane opened, so it waits up to one scheduled
-interval, and arms or disarms what the events missed; a listed human's edit, unlabel or ready
-wakes it too, so adding a `Hold:` line disarms at once. The issue lane finishing does not wake it:
+interval, and arms or disarms what the events missed; a listed human's unlabel wakes it too. A
+`Hold:` line added after arming fails `ci-status` on that edit, on the pull request and in the
+merge queue, and the next scheduled run disarms. The issue lane finishing does not wake it:
 an event run never arms, and a pull request the lane just opened is not armed, so there is nothing
 to disarm. The token broker mints `merge` only for `pr-merge.yml`, and outside the schedule only
 for a listed human's run. While `merge.report-only` is true it reports each decision and writes
@@ -1869,7 +1883,7 @@ back to them:
 The approval lifts no body hold or veto, and a read that fails lifts nothing. `enable-auto-merge`
 reads the same approvals and stops holding the pull request on the hold path, and the gate's risk
 score (`evidence --lane-reviews`, `lane_risk_refusal`) drops its `high-path:` reasons for a path
-on `babysit_risk.HIGH_FLOOR` or in `merge.diff-check.denied-paths` on the same approvals
+on `babysit_risk.Floor.high` or in `merge.diff-check.denied-paths` on the same approvals
 (`babysit_merge_policy.path_lifters` and `carried_lifters`, which `test_merge_holds_sync.py`
 holds equal to `pathLifters`, `liftsOf` and `baseMergeCarry`), so its other checks decide. The
 approval lifts no aliasing path, symlink, submodule or mode change (`high-path:**`), cost,
@@ -2072,11 +2086,12 @@ The class is `babysit_dependabot.py` beside the wrapper. Auto-merge armed with `
 entry such an arm makes never gets its `ci-status` run and never lands (#6717, #7512).
 
 `.github/workflows/pr-merge.yml` runs the lane's `merge-pr` activity with no model and no head
-checkout. A label, body or ready change on a PR, a manual dispatch and a schedule every 15 minutes
-each only wake it; it lists the candidates from the API and runs the gate on each under the lanes
-App token the broker mints for that file on `main`. A finished `ci-status` or review run is picked
-up by the next scheduled run, not by a wake-up of its own: runs are serialized, and the triggers
-must start them more slowly than they finish to stay under GitHub's cap on queued runs.
+checkout. A label coming off a PR, a manual dispatch and a schedule every 15 minutes each only
+wake it; it lists the candidates from the API and runs the gate on each under the lanes App token
+the broker mints for that file on `main`. A body or ready change on a PR, or a finished `ci-status`
+or review run, is picked up by the next scheduled run, not by a wake-up of its own: runs are
+serialized, and the triggers must start them more slowly than they finish to stay under GitHub's
+cap on queued runs.
 
 After the gate, a `gate-check` job of its own writes each candidate's verdict on its head as one
 `pr-merge / gate` check run with its `GITHUB_TOKEN`, from the gate's rows the merge job hands it as
@@ -2582,12 +2597,12 @@ defines it) or `critical-security`. `hold-paths` only flags the files it names f
 scrutiny; a match never holds by itself. The security lane reads such a file's whole change and
 what it gates, and only a CRITICAL finding there holds. The callers name
 `.github/standards/trusted-actors/**`, every entry of the narrow path floor above
-(`babysit_risk.FLOOR`, every class), and the security review's own criteria and eval cases
+(`Floor.all`, every class), and the security review's own criteria and eval cases
 (`plugins/review/skills/security-review/**`, `plugins/review/evals/security-review-*/**`). All but
 those last two are also the trust-gate paths ci-status's exempt-author and agent App check below
 fails on.
 `scripts/sync-hold-floor.py` writes both callers' `hold-paths` and that check's `hold_patterns`
-from `babysit_risk.FLOOR`, and `test_merge_holds_sync.py` checks that each matches every floor
+from that floor, and `test_merge_holds_sync.py` checks that each matches every floor
 entry.
 
 No ruleset requires a review check (github-iac ADR 0017); ci-status, the one required check, enforces
@@ -2612,8 +2627,12 @@ them on every `pull_request` run, contract-only runs included:
   `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or
   one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
   the cause named. A lane a kill switch stopped (the switch was on when the review run started)
-  fails too: the kill switch pauses review and never waives it. Once it is off, a person on the
-  trusted-actor list re-runs all jobs of that review run, and its completion re-runs ci-status.
+  fails too: the kill switch pauses review and never waives it. Once it is off, the lost-run
+  reconciler re-runs that review run, one lane per head per half-hourly pass, and its completion
+  re-runs ci-status; a person on the trusted-actor list can re-run all its jobs sooner. A review
+  switch stops no merge of its own: a head with no review is red here, the merge gate holds it
+  (`evidence-unbound`), and a head already reviewed needs no further review. To stop merges, set
+  the lanes switch.
   No admin bypass exists: the ruleset requires ci-status and the merge queue even for an admin
   merge. Only runs from this repository's head count, never a
   fork's run on the same commit, and a PR whose head is a fork fails as a fork before any run is read. A kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's
@@ -2825,7 +2844,7 @@ findings listed by key. Its scripts and tests are in
 | Signal | Fires when | Key |
 |---|---|---|
 | 1 main red | the newest dispatched or scheduled `pr-require-checks` run on `main` failed, read from each failed job's failure-level annotations; the flake class is named only from GitHub's own runner messages (a timeout, a lost runner) | `main-red:<job>` |
-| 2 ceiling | a reading in the window is over 90%: the lanes App and `GITHUB_TOKEN` REST quotas from pr-merge's `api-budget` notices plus the lane's own `GET /rate_limit`, and this repository's in-progress Actions jobs against 60 | `ceiling:lanes-app-rest`, `ceiling:github-token`, `ceiling:actions-jobs` |
+| 2 ceiling | a reading in the window is over 90%: the lanes App and `GITHUB_TOKEN` REST quotas from pr-merge's `api-budget` notices, the lanes App quota from `request-lane-token`'s `mint lanes-app` notice in lane runs (when the broker returns `rate_limit`), plus the lane's own `GET /rate_limit`, and this repository's in-progress Actions jobs against 60 | `ceiling:lanes-app-rest`, `ceiling:github-token`, `ceiling:actions-jobs` |
 | 3 throttling | a failure annotation in a failed lane run (not a `pr-require-checks` or `pr-test-windows` suite run) names a rate limit, a 429 or `github-rate-limited`, or a reading shows 0 remaining; or the broker refused a lane token (any status except `workflow-modified`, which pr-merge re-fires) or was unreachable | `throttle:rate-limited`, `broker-deny:<status>-<reason>` |
 | 4 merge-queue ejections | more than 2 merge groups failed in the last 24 hours, each listed with its PR and failing steps | `merge-queue-ejections` |
 | 5 held PRs | pr-merge's newest `pr-merge-summary` lists PRs blocked and untouched for over 24 hours, batched | `held-over-24h` |
@@ -2964,6 +2983,17 @@ body version (marker `<!-- intake-triage size-split-decline reason=<code> -->`):
 (a listed human did not file it), `few-lines` (fewer than 2 trusted lines even with the
 refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target), or
 `no-type` (an Issue Type admission does not take).
+
+work-unblock closes a split parent as completed only when every sub-issue closed with
+`state_reason` `completed` by a listed human or a merge and the parent's done-when is covered
+(`admit.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
+for what the parent blocks. A sub-issue closed as not planned, as a duplicate or with no reason
+leaves the parent open. A split record covers the done-when when its parts number every item and
+match the filed sub-issues; a split by hand when its body has a task list whose open items each
+cite a sub-issue. An open task item in a listed human's comment on the parent stays the parent's
+work, unless a split record took it because the comment was last written before the record. A
+parent left open goes through admission's rules like any issue, and a Size Large one is refused
+with `SIZE_SPLIT_DONE`.
 
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
 triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh

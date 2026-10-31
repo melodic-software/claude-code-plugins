@@ -149,7 +149,7 @@ assert_contains "case 7: names the path" "$ERR" "docs/nowhere"
 backslash=$(printf '%b' '\134')
 tilde=$(printf '%b' '\176')
 i=0
-for bad in "/etc/conventions" "../escape" "${tilde}/conventions" "docs${backslash}conventions" "" "C:/conventions" "./docs/conventions" "docs/../conventions" 'docs/conv entions'; do
+for bad in "/etc/conventions" "../escape" "${tilde}/conventions" "docs${backslash}conventions" "" "C:/conventions" "./docs/conventions" "docs/../conventions" 'docs/conv entions' 'docs/a;b' 'docs/a*b' 'docs/a+b'; do
   i=$((i + 1))
   r="$(mkrepo "invalid-$i")"
   { region "$(pointer "$bad")"; } >"$r/AGENTS.md"
@@ -434,6 +434,48 @@ assert_eq "case 28a: prints the toplevel's home" "docs/conventions" "$OUT"
 { region "Not bound."; } >"$r/packages/app/AGENTS.md"
 OUT="$(cd "$TEST_TMPDIR" && CLAUDE_PROJECT_DIR="$r/packages/app" bash "$SCRIPT" 2>/dev/null)"
 assert_eq "case 28b: the subdirectory's own AGENTS.md is not consulted" "docs/conventions" "$OUT"
+
+# --- Case 29: a pointer at .git or inside it is a FAIL -------------------------
+for bad in .git .git/ .git/hooks .GIT sub/.git/info .git. .Git../hooks; do
+  r="$(mkrepo "dot-git-$CASE_NUM")"
+  mkdir -p "$r/sub/.git/info"
+  { region "$(pointer "$bad")"; } >"$r/AGENTS.md"
+  run "$r"
+  assert_exit "case 29: pointer [$bad] exits 3" 3 "$RC"
+  assert_contains "case 29: pointer [$bad] names the .git segment" "$ERR" ".git segment"
+done
+r="$(mkrepo dot-gitlike)"
+mkdir -p "$r/.github"
+{ region "$(pointer .github)"; } >"$r/AGENTS.md"
+run "$r"
+assert_exit "case 29: a segment that only starts with .git resolves" 0 "$RC"
+
+# --- Case 30: a home reached through a symlink is a FAIL ------------------------
+r="$(mkrepo symlinked-home)"
+mkdir -p "$r/Real"
+ln -s Real "$r/Alias"
+{ region "$(pointer Alias)"; } >"$r/AGENTS.md"
+run "$r"
+assert_exit "case 30a: a symlinked home exits 3" 3 "$RC"
+assert_contains "case 30a: names the symlink" "$ERR" "through a symlink"
+r="$(mkrepo symlinked-parent)"
+mkdir -p "$r/real/conventions"
+ln -s real "$r/link"
+{ region "$(pointer link/conventions)"; } >"$r/AGENTS.md"
+run "$r"
+assert_exit "case 30b: a home under a symlinked directory exits 3" 3 "$RC"
+r="$(mkrepo symlinked-outside)"
+ln -s "$TEST_TMPDIR" "$r/out"
+{ region "$(pointer out)"; } >"$r/AGENTS.md"
+run "$r"
+assert_exit "case 30c: a symlink out of the repository exits 3" 3 "$RC"
+r="$(mkrepo symlinked-root)"
+{ region "$(pointer docs/conventions)"; } >"$r/AGENTS.md"
+ln -s "$r" "$TEST_TMPDIR/root-link"
+OUT="$(bash "$SCRIPT" --root "$TEST_TMPDIR/root-link" 2>/dev/null)"; RC=0
+bash "$SCRIPT" --root "$TEST_TMPDIR/root-link" >/dev/null 2>&1 || RC=$?
+assert_exit "case 30d: a symlinked --root with a real home resolves" 0 "$RC"
+assert_eq "case 30d: prints the home" "docs/conventions" "$OUT"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

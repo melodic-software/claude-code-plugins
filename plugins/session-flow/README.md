@@ -390,11 +390,16 @@ complete remainder by bare name with an explicit count, so nothing is off-screen
 
 Its contract is two rules: **never omit a candidate's name**, and **never invent one**. A skill the
 evidence says already ran is ranked normally and annotated `(ran this session)`, the model's judgment
-reaches rank and annotations, never presence. Candidates resolve from the full installed catalog
-(`/harness-ops:inventory` when enabled, else a project-supplied catalog, else the in-context listing
-*with its truncation disclosed*), because that listing omits every manual-only skill and drops
-descriptions starting with the least-invoked ones, the very skills worth surfacing. Durable state is
-the primary signal; it builds no probe of its own and routes to `orient` for that.
+reaches rank and annotations, never presence. Candidates resolve from a frontmatter index of every
+skill, enabled, disabled and not installed (`/harness-ops:inventory --skills-index` when enabled,
+else a project-supplied catalog, else the in-context listing *with its truncation disclosed*).
+The in-context listing comes last because it omits every manual-only skill and drops descriptions
+starting with the least-invoked ones, the very skills worth surfacing. The skill shortlists from
+the index, reads only the shortlisted SKILL.md files, asks at most one question, and never enables
+or installs a skill. The
+`recommend_skills_exclude` option drops disabled or not-installed skills; by default it keeps them,
+annotated. Durable state is the primary signal; it builds no probe of its own and routes to
+`orient` for that.
 
 Distinct from `workflow`, which routes to exactly one next **stage**: this one lays out the menu and
 lets the human choose. Writes only its small Spotlight rotation ledger; otherwise read-only.
@@ -608,6 +613,7 @@ reads it from.
 | `transcript_scope` | string | `"worktree"` | `CLAUDE_PLUGIN_OPTION_TRANSCRIPT_SCOPE` | How far /session-flow:find-handoff and /session-flow:recall read transcripts: worktree widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins. |
 | `retro_lenses` | string | `"1"` | `CLAUDE_PLUGIN_OPTION_RETRO_LENSES` | How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins. |
 | `cloud_route` | string | `"offer"` | `CLAUDE_PLUGIN_OPTION_CLOUD_ROUTE` | Whether /session-flow:workflow's end-of-phase continuation advice offers a cloud session when the next chunk of work fits one. offer (default) names it with the reason; off never mentions it. Advice only: nothing launches a cloud session unless you ask. |
+| `recommend_skills_exclude` | string | `"none"` | `CLAUDE_PLUGIN_OPTION_RECOMMEND_SKILLS_EXCLUDE` | Which skill states /session-flow:recommend-skills leaves out of its menu: none (default) names every skill, annotating disabled and not-installed ones; the others drop disabled skills, skills not installed, or both. The menu says which states it dropped. |
 | `orient_catch_up_word_cap` | number<br>*min 150* | `250` | `CLAUDE_PLUGIN_OPTION_ORIENT_CATCH_UP_WORD_CAP` | Most words /session-flow:orient catch-up may use in its reply, visuals excluded; default 250, minimum 150. The reply opens with what needs you, then what happened, then each decision. |
 
 ### How to set these
