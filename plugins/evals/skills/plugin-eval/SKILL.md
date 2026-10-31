@@ -434,7 +434,11 @@ reader which one happened and whether the arms were comparable at all (pointer: 
 - Success criteria and case design belong to `/evals:design`; come here once a suite exists.
 - `evals/evals.json`, the skill-creator format, is a different, non-interchangeable format:
   validate it with `/skill-quality:check validate-evals` when the `skill-quality` plugin is
-  installed; otherwise state that the file follows that format and validation was skipped.
+  installed; otherwise state that the file follows that format and validation was skipped. To
+  move one plugin's `evals.json` cases into its suite, run
+  `python3 "${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/convert-evals-json.py" <plugin-dir>`
+  (`--dry-run` prints the case count and writes nothing; `--help` prints what it writes), then
+  `/evals:validate` on the plugin's `evals/`.
 
 ## Next
 
