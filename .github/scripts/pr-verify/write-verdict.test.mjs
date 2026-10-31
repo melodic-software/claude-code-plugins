@@ -276,6 +276,8 @@ test("a fail holding credential-shaped text stands, with none of the model's tex
     // Only deeperLeak reads a token across two lines or two notes.
     ["a token over a line break", `see ghp_${half}\n${half} there`, []],
     ["a token over two notes", "fine", [`see ghp_${half}`, `${half} there`, "c.md: keep me out"]],
+    ["a token over a fold", "fine", [`see ghp_${half}\n\\ continued: ${half} there`, "c.md: keep me out"]],
+    ["a token over two diff lines", "fine", [`+ghp_${half}\n+${half}`, "c.md: keep me out"]],
     // run-claude-cli's scan fails its step on a shorter key than findSecret's.
     ["a short Anthropic key", "fine", [`b.md: ${short}`]],
   ]) {

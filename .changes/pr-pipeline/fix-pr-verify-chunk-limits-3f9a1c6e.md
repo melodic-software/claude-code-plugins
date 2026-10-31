@@ -12,7 +12,9 @@ bump: patch
 - A `pr-verify` `fail` that holds credential-shaped text, or that hit a permission denial, is now
   written instead of leaving no verdict and a second sample of the head. A fail with such text, or
   from a judge step `run-claude-cli` failed on its own credential scan, publishes a fixed text and
-  none of the model's. A denial or credential-shaped text still voids a `pass` or `pass-notes`.
+  none of the model's, and logs the credential's kind alone as a warning. A denial or
+  credential-shaped text still voids a `pass` or `pass-notes`. The scan reads through the
+  `\ continued:` fold and across two quoted diff lines, and the prompts forbid quoting a credential.
 - On a `refs` entry, a `pr-verify` final judge's `pass` or `pass-notes` needs the context read
   whole, in parts one Read returns, since the delivered part is named there. Chunk results over
   300000 bytes stop with no verdict before the final judge runs.

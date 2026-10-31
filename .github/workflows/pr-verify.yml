@@ -372,7 +372,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-1.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -492,7 +492,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-2.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -590,7 +590,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-3.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -689,7 +689,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-4.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -828,7 +828,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-spec.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -1271,7 +1271,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-1.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -1388,7 +1388,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-2.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -1484,7 +1484,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-3.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -1581,7 +1581,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-4.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -1718,7 +1718,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-spec.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -2148,7 +2148,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-1.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -2245,7 +2245,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-2.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -2328,7 +2328,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-3.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -2411,7 +2411,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-4.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}
@@ -2533,7 +2533,7 @@ jobs:
           prompt-file: ${{ runner.temp }}/pr-verify-prompt-spec.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
-            nothing you write is posted.
+            your summary and notes are public, so never quote a credential.
           fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
           model: ${{ steps.models.outputs.model }}
           effort: ${{ steps.models.outputs.effort }}

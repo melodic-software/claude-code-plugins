@@ -468,7 +468,7 @@ test("the subscription job takes check-intent's pre-judge reads and still runs t
   assert.equal(index("Hand the reads on", FB), -1);
 });
 
-test("the model reads only the data directory, with Read alone, and is told nothing is posted", () => {
+test("the model reads only the data directory, with Read alone, and is told never to quote a credential", () => {
   for (const job of JOBS) {
     const judge = step("Judge the pull request", job);
     assert.equal(input(judge, "tools"), "Read", job);
@@ -479,7 +479,7 @@ test("the model reads only the data directory, with Read alone, and is told noth
     }
     const preamble = /^ {10}preamble: >-\n((?: {12}.*\n)+)/m.exec(judge)?.[1].replace(/\s+/g, " ").trim();
     assert.match(preamble ?? "", /unattended/, job);
-    assert.match(preamble ?? "", /nothing you write is posted/, job);
+    assert.match(preamble ?? "", /never quote a credential/, job);
   }
 });
 

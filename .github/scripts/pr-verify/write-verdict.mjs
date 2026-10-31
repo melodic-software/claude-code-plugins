@@ -132,19 +132,26 @@ export function buildEvidence({ capture, prBody } = {}) {
 // run-claude-cli's own scan, which fails its step on a shorter Anthropic key
 // than findSecret's shape, so this script holds text to the same line.
 const KEY_SHAPE = /sk-ant-[A-Za-z0-9_-]{8,}/;
-// The texts in order, so a credential split between two of them still reads.
+// chunk-diff.sh's fold, which a quoted line carries through the middle of a token.
+const FOLD = /\s*\\ continued: ?/g;
+// The texts in order, so a credential split between two of them, over a fold or
+// over two quoted diff lines still reads.
 const credentialIn = (texts) => {
-  const text = texts.join("\n");
-  return findSecret(text)?.[0] ?? (KEY_SHAPE.test(text) ? "Anthropic key" : deeperLeak(text));
+  const text = texts.join("\n").replace(FOLD, "");
+  return findSecret(text)?.[0] ?? (KEY_SHAPE.test(text) ? "Anthropic key" : (deeperLeak(text) ?? deeperLeak(text, true)));
 };
 
 // A fail with none of the model's text: no mask finds where a credential ends.
 // Empty notes stay empty, so a fail that read short still has to name a defect.
-const withheld = ({ verdict, notes }) => ({
-  verdict,
-  summary: "The verifier returned fail, and its text is withheld: the text was shaped like a credential, or its step stopped on the credential scan.",
-  notes: notes.length > 0 ? ["The verifier's notes are withheld with its summary. A person reads the sealed transcript for the defect."] : [],
-});
+// The annotation names the kind alone, so the run shows a credential to rotate.
+const withheld = ({ verdict, notes }, kind) => {
+  console.log(`::warning title=pr-verify credential::kind=${kind}`);
+  return {
+    verdict,
+    summary: "The verifier returned fail, and its text is withheld: the text was shaped like a credential, or its step stopped on the credential scan.",
+    notes: notes.length > 0 ? ["The verifier's notes are withheld with its summary. Check the diff for a committed credential, and rotate any that is real."] : [],
+  };
+};
 
 // One run's structured output, parsed and checked against the verdict schema.
 function parseOutput(output) {
@@ -173,7 +180,7 @@ function parseOutput(output) {
   if (parsed.verdict !== "fail") {
     throw new Error(`the structured output holds text shaped like a credential (${kind})`);
   }
-  return withheld(parsed);
+  return withheld(parsed, kind);
 }
 
 // One output from each chunk's and the whole-spec judgment's: the worst
@@ -355,7 +362,13 @@ const logDenials = (logText) =>
   logText
     .split("\n")
     .filter((line) => line.trim() !== "")
-    .reduce((sum, line) => sum + (JSON.parse(line)?.denials?.count ?? 0), 0);
+    .reduce((sum, line) => {
+      try {
+        return sum + (JSON.parse(line)?.denials?.count ?? 0);
+      } catch {
+        throw new Error("the run log is unreadable");
+      }
+    }, 0);
 
 export function earlierDenials(logText) {
   const total = logDenials(logText);
@@ -498,7 +511,7 @@ function readJudgment(file, logFile, outcome, parse = parseOutput) {
     if (output.verdict !== "fail") {
       throw new Error("the step failed");
     }
-    output = withheld(output);
+    output = withheld(output, "credential scan stop");
   }
   const denied = resultDenials(result).length + logDenials(readLog(logFile));
   if (denied === 0) {
