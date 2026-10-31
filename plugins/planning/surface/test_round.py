@@ -4666,7 +4666,7 @@ class TestLedgerCheck(DirCase):
         self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], [])
         self.drift_one_row()
         rc, out, err = self.rp("ledger-check")
-        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(rc, 6, out + err)
         self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], ["Q2"])
 
     def test_wake_logs_the_disagreeing_row_after_apply(self):
