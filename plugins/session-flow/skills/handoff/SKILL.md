@@ -46,15 +46,12 @@ save-point engine, different delivery.
 
 ## Arguments
 
-`$ARGUMENTS` carries `[file|prompt] [--unattended] [topic] [purpose...]`, all optional, the
-non-flag tokens positional:
+`$ARGUMENTS` carries `[file|prompt] [--unattended] [topic] [purpose...]`, all optional, the non-flag tokens positional:
 
-- **`--unattended`**, anywhere in the arguments: the caller declares that nobody is present. Take
-  it out of `$ARGUMENTS` before method detection; the rules below read what is left. It changes
-  only the steps that would ask the user: the `/export` step (record the suggestion in output, do
-  not ask) and stuck dependent work ("Settle in-flight work before writing"). The bare word
-  `unattended` is not this flag: the rules below read it as the topic or purpose text, like any
-  other word.
+- **`--unattended`**, anywhere in the arguments: the caller declares that nobody is present. Take it out of
+  `$ARGUMENTS` before method detection; the rules below read what is left. It changes only the steps that would
+  ask the user: the `/export` step (record the suggestion in output, do not ask) and stuck dependent work
+  ("Settle in-flight work before writing"). The bare word `unattended` is not this flag: the rules below read it as topic or purpose text, like any word.
 - **Method** (`file` | `prompt`). Recognized ONLY as the first token. `file` forces the full
   durable handoff; `prompt` forces prompt-only. Omitted → auto-detect (engine doc, "Choosing the
   path").
