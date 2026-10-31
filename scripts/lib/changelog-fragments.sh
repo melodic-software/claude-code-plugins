@@ -294,6 +294,8 @@ changelog_fragments::dependabot_only() {
   from="$(git merge-base "$base" "$tip" 2>/dev/null)" || return 1
   commits="$(git log --format='%H%x09%an%x09%ae%x09%ce' "$from..$tip")" || return 1
   [[ -n "$commits" ]] || return 1
+  # shellcheck source=/dev/null
+  [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
   while IFS=$'\t' read -r sha an ae ce; do
     [[ "$ce" == 'noreply@github.com' && "$an" == 'dependabot[bot]' && "$ae" == '49699333+dependabot[bot]@users.noreply.github.com' ]] || return 1
     verified="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.commit.verification.verified' 2>/dev/null)" || return 1
