@@ -5,6 +5,15 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.22.14] - 2026-10-31
+
+### Fixed
+
+- `/discipline:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
 ## [0.22.13] - 2026-10-31
 
 ### Fixed
