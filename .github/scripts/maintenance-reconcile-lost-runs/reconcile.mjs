@@ -95,7 +95,7 @@
 //   record. Only attempt 2 binds in the merge
 //   gate (babysit_review_evidence `_kill_switch_stopped`), so the one re-run
 //   waits until nothing would stop it again: the lane's own switch, read as its
-//   caller reads it (REVIEW_SWITCHES, only `true` stops), and the upstream
+//   caller reads it (REVIEW_SWITCHES, only `true`, in any case, stops), and the upstream
 //   gate. One lane per head per pass, so a place holds one record; the other
 //   lane goes on the next pass. No lookback: a switch may be on for days, up
 //   to GitHub's RERUN_WINDOW_DAYS.
@@ -140,7 +140,7 @@
 //                        resolve-pr; LANE_IDENTITY also names the lanes App
 //   KILL_SWITCH         `proceed` from the kill-switch step; anything else stops
 //   CLAUDE_REVIEW_DISABLED, CLAUDE_SECURITY_REVIEW_DISABLED  each lane's switch,
-//                        as its caller reads it: only `true` stops, and unset
+//                        as its caller reads it: only `true`, in any case, stops, and unset
 //                        reads empty
 //   STATUS_URL           the status page's components endpoint (default githubstatus.com)
 //   SETTLED_PATH         plan reads the last pass's settled runs, then writes
@@ -814,7 +814,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           if (!isUnreviewed(r)) {
             continue;
           }
-          if (env[name] === "true") {
+          if (env[name]?.toLowerCase() === "true") {
             say(`#${pull.number}: review run ${r.id} (${r.path}) waits for ${name}`);
             continue;
           }

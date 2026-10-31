@@ -166,7 +166,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
-          # Read as the review callers read them: only `true` stops the lane.
+          # Read as the review callers read them: only `true`, in any case, stops the lane.
           CLAUDE_REVIEW_DISABLED: ${{ vars.CLAUDE_REVIEW_DISABLED }}
           CLAUDE_SECURITY_REVIEW_DISABLED: ${{ vars.CLAUDE_SECURITY_REVIEW_DISABLED }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json

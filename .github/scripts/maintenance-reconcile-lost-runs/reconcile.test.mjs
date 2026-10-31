@@ -1981,6 +1981,14 @@ test("a lane's own switch keeps its re-run, with no read, and leaves the other l
   assert.ok(!calls.some((c) => c.includes("/runs/201/jobs")), JSON.stringify(calls));
 });
 
+test("a lane's switch stops at true in any case, as its caller's expression compares it", async () => {
+  for (const value of ["true", "TRUE", "True"]) {
+    const runs = [redChecks(101, sha(1)), stoppedRun(201, sha(1))];
+    const { reruns } = await reconcile({ pulls: [pr(1)], runs, env: { CLAUDE_REVIEW_DISABLED: value } });
+    assert.deepEqual(reruns, [], value);
+  }
+});
+
 test("each lane's switch stops only at true, as its caller reads it", async () => {
   for (const value of ["", "false", "1"]) {
     const env = { CLAUDE_REVIEW_DISABLED: value };
