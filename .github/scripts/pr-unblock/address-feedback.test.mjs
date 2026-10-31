@@ -1686,12 +1686,31 @@ test("claimsSecurity holds the reviewer bot's rated or security-lane finding wha
     "**severity: CRITICAL**\n\nThe token leaks.",
     "**Severity:** CRITICAL\n\nThe token leaks.",
     "Severity: CRITICAL (token leak)\n\nThe token leaks.",
+    "**Severity**: CRITICAL\n\nThe token leaks.",
+    "- severity: CRITICAL\n\nThe token leaks.",
+    "### Severity: CRITICAL\n\nThe token leaks.",
+    "`severity: CRITICAL`\n\nThe token leaks.",
+    "Severity - CRITICAL\n\nThe token leaks.",
+    "_Severity_: CRITICAL\n\nThe token leaks.",
     "The token leaks.\n\nclaude-lane: claude-security-review",
     "The token leaks.\n\nclaude-lane: claude-security-review, rated by hand",
+    "The token leaks.\n\n`claude-lane: claude-security-review`",
   ]) {
     assert.equal(claimsSecurity(body), true, body);
     assert.equal(holds(body), true, body);
     assert.equal(holds(body, "CRITICAL"), true, body);
+  }
+  // Prose that only mentions the security lane's name, or the word severity,
+  // is no claim: it is the code lane's finding at either floor.
+  for (const body of [
+    "The check compares against 'claude-security-review' but the footer is trimmed first.",
+    "The claude-security-review lane skips this file.\n\nclaude-lane: claude-review",
+    "Severity of the leak depends on the log level.",
+    "Severity-wise this is minor.",
+  ]) {
+    assert.equal(claimsSecurity(body), false, body);
+    assert.equal(holds(body), false, body);
+    assert.equal(holds(body, "CRITICAL"), false, body);
   }
   // A readable SUGGESTION, footed or not, is no claim a person decides.
   for (const body of ["severity: SUGGESTION\n\nNo change is required.", "severity: SUGGESTION\n\nNo change is required.\n\nclaude-lane: claude-security-review"]) {

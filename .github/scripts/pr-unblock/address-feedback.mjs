@@ -237,11 +237,18 @@ export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID 
 // lowest one a person decides: this repository counts IMPORTANT as HIGH.
 export const SECURITY_SEVERITIES = Object.freeze(["SUGGESTION", "IMPORTANT", "CRITICAL"]);
 export const SECURITY_PERSON_SEVERITY = "IMPORTANT";
-// Any line shaped like a rating, wherever it sits, a bold or `>`-quoted one
-// included; the lane's own line is unindented, outside a fence, and the
+// Any line shaped like a rating, wherever it sits: the word behind any run of
+// leading markup (indent, `>`, bold or italic, a code span, a heading, a list
+// bullet or number), closing markup after it, then a colon or a spaced dash,
+// so `**Severity**: X`, `- severity: X`, `### Severity: X` and `Severity - X`
+// all count; the lane's own line is unindented, outside a fence, and the
 // comment's first line or the last one above its `claude-lane:` footer (blank
 // lines skipped).
-const SEVERITY_SHAPED = /^[ \t>*]*severity:/i;
+const SEVERITY_SHAPED = /^[ \t>*_`#+\-\d.]*severity[*_`]*[ \t]*(?::|[-–—][ \t])/i;
+// A line that names the security-review lane as a `claude-lane:` label, a
+// trailed or marked-up footer included; prose that only mentions the lane's
+// name is no claim.
+const SECURITY_LANE_NAMED = /claude-lane:[ \t*_`]*claude-security-review/i;
 const SEVERITY_LINE = /^severity:[ \t]*([A-Za-z]+)[ \t]*$/i;
 const FENCE = /^[ \t]*(```|~~~)/;
 // A lane comment's one rating, upper-cased, or null (unrated, so a person
@@ -293,15 +300,15 @@ export const securityNeedsPerson = (body, floor = SECURITY_PERSON_SEVERITY) => {
 // Whether the reviewer bot's own finding claims a security rating a person
 // decides at `floor`. Its footer is model text, so the claim is read from the
 // content, never from an exact footer: a body that names the security-review
-// lane on any line (a missing, malformed or trailed footer included) or holds
-// any rating-shaped line is a security claim, and securityNeedsPerson rules
+// lane in a `claude-lane:` label on any line (a malformed or trailed footer
+// included) or holds any rating-shaped line is a security claim, and securityNeedsPerson rules
 // it: a rating it can read at or above `floor`, or none it can read, keeps the
 // hold such a lane finding has. Only a body with neither is the code lane's,
 // so ruling the bot's findings as the code lane's loosens no security hold
 // however the model writes its footer or rating.
 export const claimsSecurity = (body, floor = SECURITY_PERSON_SEVERITY) => {
   const text = String(body ?? "");
-  const claims = text.includes("claude-security-review") || text.split("\n").some((line) => SEVERITY_SHAPED.test(line));
+  const claims = text.split("\n").some((line) => SECURITY_LANE_NAMED.test(line) || SEVERITY_SHAPED.test(line));
   return claims && securityNeedsPerson(text, floor);
 };
 
