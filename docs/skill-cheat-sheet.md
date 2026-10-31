@@ -175,7 +175,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/review:security-review`](../plugins/review/skills/security-review/SKILL.md) | `review` | Org CI security-review lane command for a GitHub pull request |
 | [`/skill-quality:check`](../plugins/skill-quality/skills/check/SKILL.md) | `skill-quality` | Static QA gate for skill frontmatter, caps, and evals |
 | [`/toolchain:ratchet`](../plugins/toolchain/skills/ratchet/SKILL.md) | `toolchain` | Hold a count in CI with a checked-in ceiling a human merges |
-| [`/user-interface:audit-animation`](../plugins/user-interface/skills/audit-animation/SKILL.md) | `user-interface` | Review interface animation read-only, with severity and evidence per finding |
+| [`/user-interface:audit`](../plugins/user-interface/skills/audit/SKILL.md) | `user-interface` | Review interface code read-only by concern lane, with severity and evidence per finding |
 
 ## 11. Verify outcome
 
