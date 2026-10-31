@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "A count above zero goes to /toolchain:ratchet; a zero count lands the rule."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "No offer on any row."
+    }
+  ]
+}
