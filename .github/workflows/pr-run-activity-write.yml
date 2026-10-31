@@ -73,8 +73,10 @@ on:
         description: >-
           Issue mode, report-outcome: the issue-dimension skip reason
           (split-required, research-first or probe-first) that
-          kept the run from starting, where report-outcome hands the issue to a
-          person with the next step; or outside-author, the admit job's stop on
+          kept the run from starting, where report-outcome routes the issue
+          with the next step and to no person (research-first and probe-first
+          park at status: confirmed, split-required goes back through
+          intake's size split); or outside-author, the admit job's stop on
           an issue neither a listed human nor the lanes App wrote, where it
           removes agent-ready and asks a listed human to re-file the work.
           Empty otherwise.
@@ -476,7 +478,7 @@ on:
           ci-fix-weaken-retry or ci-fix-weaken-required, and from its
           script ci-fix-invalid, ci-fix-protected-path or ci-fix-not-applied;
           for issue-mode apply-patch, patch-empty, patch-invalid,
-          patch-not-applied or patch-protected-path; for apply-patch under
+          patch-credential, patch-not-applied or patch-protected-path; for apply-patch under
           patch-prepare merge-base, unresolved-conflict, workflow-staged,
           unexpected-path-staged, conflict-patch-invalid,
           conflict-patch-not-applied or conflict-patch-protected-path; empty
@@ -683,7 +685,7 @@ jobs:
             ci-fix-round-cap | ci-fix-empty | ci-fix-invalid | ci-fix-escalated) ;;
             ci-fix-protected-path | ci-fix-not-applied | ci-fix-weaken-retry | ci-fix-weaken-required) ;;
             conflict-patch-invalid | conflict-patch-not-applied | conflict-patch-protected-path) ;;
-            patch-empty | patch-invalid | patch-not-applied | patch-protected-path | patch-apply-failed)
+            patch-empty | patch-invalid | patch-credential | patch-not-applied | patch-protected-path | patch-apply-failed)
               if [ -z "$ISSUE_NUMBER" ]; then
                 echo "::error::a patch-* escalation-reason input is for issue mode only"
                 exit 1
@@ -2122,7 +2124,7 @@ jobs:
               ?*:feedback-partial | ?*:feedback-incomplete | ?*:feedback-disputed) ;;
               ?*:feedback-unadjudicated | ?*:feedback-question-intent | ?*:feedback-question-design) ;;
               ?*:feedback-question-security | ?*:feedback-stood-open | ?*:feedback-verifier-open) ;;
-              :ci-fix-invalid | :ci-fix-protected-path | :ci-fix-not-applied | :patch-invalid | :patch-protected-path | :patch-not-applied | :patch-empty)
+              :ci-fix-invalid | :ci-fix-protected-path | :ci-fix-not-applied | :patch-invalid | :patch-credential | :patch-protected-path | :patch-not-applied | :patch-empty)
                 [ "$PREPARE" = apply-patch ] || { echo "::error::the escalation reason file holds no reason this script may give"; exit 1; }
                 ;;
               *)

@@ -11,8 +11,9 @@
 //   select  before the mint and the head checkout, with no token: checks the
 //           downloaded artifact (exactly one regular patch.diff, at most 1 MiB,
 //           with the model job's SHA-256 and no credential shape) and reads the
-//           row's producer report. An empty or invalid patch hands the work to
-//           a person.
+//           row's producer report. An empty, invalid or credential-shaped patch
+//           stops with the row's reason, and the lane's routes for that reason
+//           decide whether it retries or a person holds it.
 //   (none)  after the checkout of the start commit, with the lane token:
 //           checks the row and builds its allow predicates (an unknown name
 //           throws before any write), checks the row's requirements and the
@@ -63,7 +64,7 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, existsSync, lstatSync, mkdtempSync, openSync, readdirSync, readFileSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -80,7 +81,7 @@ export { segments } from "./protected-paths.mjs";
 
 export const MAX_PATCH_BYTES = 1024 * 1024;
 // A compressed binary patch inflates: any one patched blob, and all of them
-// together, are capped before any is read.
+// together, are capped once leakedBlob has scanned them.
 export const MAX_BLOB_BYTES = 5 * 1024 * 1024;
 export const MAX_TOTAL_BLOB_BYTES = 20 * 1024 * 1024;
 export const RULES_PATH = ".github/actions/resolve-config/patch-rules.json";
@@ -130,17 +131,41 @@ export const REFUSALS = {
 export const refusalsOf = (entry, names = Object.keys(REFUSALS).filter((name) => !REFUSALS[name].optional)) => names.filter((name) => REFUSALS[name].test(entry));
 
 // Credential shapes: any match in the patch or a patched blob refuses it all.
-// GitHub prefixes from
-// https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-// and the ghs_ regex GitHub recommends for current and stateless installation tokens from
-// https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
-// (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
-export const CREDENTIALS = [
-  { name: "Anthropic API key", pattern: /sk-ant-(?:api|admin)\d{2}-[A-Za-z0-9_-]{20,}/ },
-  { name: "Anthropic OAuth token", pattern: /sk-ant-oat\d{2}-[A-Za-z0-9_-]{20,}/ },
-  { name: "GitHub token", pattern: /\b(?:gh[pousr]_[A-Za-z0-9]{36,}|ghs_[A-Za-z0-9._-]{36,}|github_pat_[A-Za-z0-9_]{22,})/ },
-];
-export const credentialIn = (text) => CREDENTIALS.find((credential) => credential.pattern.test(text))?.name ?? "";
+// The source is lib/publish-gate.mjs CREDENTIAL_SHAPES, the read runner's scan
+// job's list. This script runs from a staged copy that cannot reach root lib/,
+// so it keeps this copy; apply-patch.test.mjs fails when the two differ.
+export const CREDENTIAL_SHAPES = Object.freeze([
+  ["GitHub token", /\b(?:ghs_[A-Za-z0-9._-]{36,}|gh[pousr]_[0-9A-Za-z]{36,}|github_pat_[0-9A-Za-z_]{22,})/],
+  ["Anthropic key", /sk-ant-[A-Za-z0-9_-]{20,}/],
+]);
+export const credentialIn = (text) => CREDENTIAL_SHAPES.find(([, pattern]) => pattern.test(text))?.[0] ?? "";
+
+// The whole file is scanned in chunks that overlap by far more than the
+// shortest text `find` matches (a shape's prefix and minimum run, at most 40
+// bytes, or a binary hunk's line), so no match is cut at a chunk's edge.
+const SCAN_CHUNK_BYTES = MAX_PATCH_BYTES;
+const SCAN_OVERLAP_BYTES = 4096;
+function findInFile(file, find) {
+  const fd = openSync(file, "r");
+  try {
+    const buffer = Buffer.alloc(SCAN_CHUNK_BYTES);
+    for (let position = 0; ; position += SCAN_CHUNK_BYTES - SCAN_OVERLAP_BYTES) {
+      const read = readSync(fd, buffer, 0, SCAN_CHUNK_BYTES, position);
+      const found = find(buffer.subarray(0, read).toString("latin1"));
+      if (found || read < SCAN_CHUNK_BYTES) return found;
+    }
+  } finally {
+    closeSync(fd);
+  }
+}
+
+// A binary hunk's bytes are compressed in the patch text, so only the file the
+// hunk makes shows them. A patch refused or unapplied before that file exists
+// is therefore not proven clear when it holds a binary hunk: `kind` becomes
+// `credential`. A text-only patch keeps `kind`, since every added byte of it
+// was scanned as text.
+const BINARY_HUNK = /^GIT binary patch$/m;
+const unscannedKind = (file, kind) => (existsSync(file) && lstatSync(file).isFile() && findInFile(file, (text) => BINARY_HUNK.test(text)) ? "credential" : kind);
 
 const REASONS = "not-reproducible|flaky|protected-path|weaken-required|unfixed";
 const ESCALATED_LINE = new RegExp(`^(.+?): escalated (?:${REASONS})(?: |$)`);
@@ -445,22 +470,66 @@ export function commitMessage(row, values, threads = []) {
 
 const sha256Of = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
-// Why the patch file is not to be applied, or "" when it is: a regular file of
-// at most MAX_PATCH_BYTES with the SHA-256 given and no credential shape.
+// At most `cap` bytes from the start of a regular file.
+function readCapped(file, cap) {
+  const fd = openSync(file, "r");
+  try {
+    const buffer = Buffer.alloc(cap);
+    return buffer.subarray(0, readSync(fd, buffer, 0, cap, 0));
+  } finally {
+    closeSync(fd);
+  }
+}
+
+// The first written blob of `entries` that carries a credential shape, or
+// undefined. Each blob is read whole, so the size refusals come after it, as
+// does every invalid refusal once the patch applies (a symlink, a path count,
+// a blob's size, a patch made on another commit), so a fault beside a
+// credential never turns its hold into a retry. A blob too large for the
+// runner's buffer cannot be cleared, so it counts as leaked (`unread`). A
+// gitlink names a commit, not a blob, and is skipped.
+export function leakedBlob(git, entries) {
+  for (const entry of entries) {
+    if (ZERO.test(entry.newSha) || entry.newMode === GITLINK) continue;
+    try {
+      if (credentialIn(git(["cat-file", "blob", entry.newSha]).toString("latin1"))) return entry;
+    } catch (error) {
+      if (error?.code === "ENOBUFS") return { ...entry, unread: true };
+      throw error;
+    }
+  }
+  return undefined;
+}
+// The log line for a leakedBlob hit.
+const leakWhy = (leaked) => `the patched ${leaked.path} ${leaked.unread ? "is too large to scan, so it may carry" : "carries"} a credential shape`;
+
+// Why the patch file is not to be applied, as {kind, why}, or null when it is:
+// a regular file of at most MAX_PATCH_BYTES with the SHA-256 given and no
+// credential shape. A credential shape anywhere in a regular file's bytes,
+// past the size cap included, is kind `credential` whatever else is wrong with
+// it, and so is any refusal of a patch with a binary hunk (unscannedKind);
+// anything else is `invalid`.
 export function patchProblem(file, expected) {
-  if (!/^[0-9a-f]{64}$/.test(String(expected)) || !existsSync(file)) {
-    return "the patch or its SHA-256 is missing";
+  const invalid = (why) => ({ kind: "invalid", why });
+  if (!existsSync(file)) {
+    return invalid("the patch or its SHA-256 is missing");
   }
-  const stat = lstatSync(file);
-  if (!stat.isFile() || stat.size === 0 || stat.size > MAX_PATCH_BYTES) {
-    return "the patch is not one regular file of at most 1 MiB";
+  if (!lstatSync(file).isFile()) {
+    return invalid("the patch is not one regular file of at most 1 MiB");
   }
-  const bytes = readFileSync(file);
-  if (sha256Of(bytes) !== expected) {
-    return "the patch does not match its SHA-256";
+  const credential = findInFile(file, credentialIn);
+  if (credential) {
+    return { kind: "credential", why: `the patch carries a ${credential} shape` };
   }
-  const credential = credentialIn(bytes.toString("latin1"));
-  return credential ? `the patch carries a ${credential} shape` : "";
+  const refused = (why) => ({ kind: unscannedKind(file, "invalid"), why });
+  const bytes = readCapped(file, MAX_PATCH_BYTES + 1);
+  if (!/^[0-9a-f]{64}$/.test(String(expected))) {
+    return refused("the patch or its SHA-256 is missing");
+  }
+  if (bytes.length === 0 || bytes.length > MAX_PATCH_BYTES) {
+    return refused("the patch is not one regular file of at most 1 MiB");
+  }
+  return sha256Of(bytes) === expected ? null : refused("the patch does not match its SHA-256");
 }
 
 // `rung` is the producer's model rung (0 or 1): at 0, an empty patch whose
@@ -513,8 +582,12 @@ export function select({ row, patchState, patchSha256, patchHeadSha, headSha, pa
   } catch {
     names = [];
   }
-  if (names.length !== 1 || names[0] !== "patch.diff" || patchProblem(join(patchDir, "patch.diff"), patchSha256)) {
-    return decide(false, "awaiting-human", reasonFor(row, "invalid"));
+  // A patch.diff not proven clear holds even with another file beside it.
+  const patch = join(patchDir, "patch.diff");
+  const found = names.includes("patch.diff") ? patchProblem(patch, patchSha256) : null;
+  const problem = found?.kind === "credential" ? found : names.length === 1 && names[0] === "patch.diff" ? found : { kind: unscannedKind(patch, "invalid") };
+  if (problem) {
+    return decide(false, "awaiting-human", reasonFor(row, problem.kind));
   }
   // A written patch pushes a new head, and the report's escalations are about
   // the old one: the new head's CI decides. A red new head gets its own run,
@@ -694,7 +767,7 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     if (merge.state === "conflicted") {
       const problem = patchProblem(patchFile, patchSha256);
       if (problem) {
-        return escalate("invalid", problem);
+        return escalate(problem.kind, problem.why);
       }
       tree = applyOnto(git, merge.conflictTree, patchFile, false);
       if (!tree) {
@@ -703,6 +776,10 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
       entries = changes(git(["diff-tree", "-r", "-z", "--no-renames", merge.conflictTree, tree]));
       if (entries.length === 0) {
         return escalate("empty", "the patch changes nothing in the conflict tree");
+      }
+      const leaked = leakedBlob(git, entries);
+      if (leaked) {
+        return escalate("credential", leakWhy(leaked));
       }
     } else if (patchFile) {
       return escalate("invalid", "a clean merge takes no patch");
@@ -732,10 +809,6 @@ async function pushMerge({ api, cwd, gitBin, row, context, number, target, headS
     }
     if (sizes.reduce((sum, size) => sum + size, 0) > MAX_TOTAL_BLOB_BYTES) {
       return escalate("invalid", `the patched blobs total over ${MAX_TOTAL_BLOB_BYTES} bytes`);
-    }
-    const leaked = written.find((entry) => credentialIn(git(["cat-file", "blob", entry.newSha]).toString("latin1")));
-    if (leaked) {
-      return escalate("invalid", `the patched ${leaked.path} carries a credential shape`);
     }
     // Every conflicted path still in the tree is resolved.
     const listed = merge.unmerged.size === 0 ? [] : git(["ls-tree", "-z", "--full-tree", "-r", tree, "--", ...merge.unmerged]).toString("utf8").split("\0").filter(Boolean);
@@ -863,7 +936,7 @@ export async function push({
   }
   const problem = patchProblem(patchFile, patchSha256);
   if (problem) {
-    return escalate("invalid", problem);
+    return escalate(problem.kind, problem.why);
   }
   const git = gitRunner(cwd, gitBin);
   const moved = patchHeadSha !== headSha;
@@ -872,7 +945,21 @@ export async function push({
     return { outcome: "superseded" };
   }
   if (moved && !target.movedHead) {
-    return escalate("invalid", `the patch was made on ${patchHeadSha}, not the start commit ${headSha}`);
+    // Refused, but only once its blobs on the commit it was made on are
+    // scanned. With that commit missing, or the patch not applying to it, a
+    // binary hunk's blob cannot be read, so, as leakedBlob counts an unread
+    // blob, it holds.
+    const elsewhere = `the patch was made on ${patchHeadSha}, not the start commit ${headSha}`;
+    const atProducer = SHA.test(String(patchHeadSha)) && hasCommit(git, patchHeadSha) ? applyOnto(git, patchHeadSha, patchFile, false) : "";
+    if (!atProducer) {
+      const kind = unscannedKind(patchFile, "invalid");
+      return escalate(kind, kind === "credential" ? `the patch's blobs cannot be read on ${patchHeadSha}, so they may carry a credential shape` : elsewhere);
+    }
+    const leaked = leakedBlob(git, changes(git(["diff-tree", "-r", "-z", "--no-renames", patchHeadSha, atProducer])));
+    if (leaked) {
+      return escalate("credential", leakWhy(leaked));
+    }
+    return escalate("invalid", elsewhere);
   }
   if (moved) {
     // The moved commits may touch no path the patch changes.
@@ -892,11 +979,17 @@ export async function push({
   }
   let tree = applyOnto(git, headSha, patchFile, moved);
   if (!tree) {
-    return escalate("not-applied", "the patch does not apply to the gated head");
+    // A row with no credential reason keeps its not-applied reason.
+    const holds = row.escalations.some((reason) => reason.endsWith("-credential"));
+    return escalate(holds ? unscannedKind(patchFile, "not-applied") : "not-applied", "the patch does not apply to the gated head");
   }
   const entries = changes(git(["diff-tree", "-r", "-z", "--no-renames", headSha, tree]));
   if (entries.length === 0) {
     return escalate("empty", "the patch changes nothing");
+  }
+  const leaked = leakedBlob(git, entries);
+  if (leaked) {
+    return escalate("credential", leakWhy(leaked));
   }
   // A start commit that is not on the default branch (a resumed lane
   // branch's tip) brings its own commits to the new branch, so the refusals
@@ -942,10 +1035,6 @@ export async function push({
     return escalate("invalid", `the patched blobs total over ${MAX_TOTAL_BLOB_BYTES} bytes`);
   }
   const blobs = written.map((entry) => ({ entry, bytes: git(["cat-file", "blob", entry.newSha]) }));
-  const leaked = blobs.find(({ bytes }) => credentialIn(bytes.toString("latin1")));
-  if (leaked) {
-    return escalate("invalid", `the patched ${leaked.entry.path} carries a credential shape`);
-  }
   // Before any tree or commit is built: each file's change must also meet the
   // row's content rule.
   const contentRefusal = row["content-rule"] === undefined ? null : await CONTENT_RULES[row["content-rule"]]({ entries, git, context, api, pr, headSha });
