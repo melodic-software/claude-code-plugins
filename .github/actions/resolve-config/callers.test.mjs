@@ -5347,16 +5347,18 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   }
   const slot = select.steps.find((s) => s.id === "slot");
   assert.deepEqual([slot.with.lane, slot.with.activity, slot.with["prepare-supported"], slot.with["applied-by-supported"]], ["pr-unblock", "address-feedback", "true", "patch feedback-replies"]);
-  const starts = (activity, sender = "1") =>
+  const starts = (activity, sender = "1", stale = "") =>
     evaluate(select.if, {
       "inputs.pr-number": "7",
       "inputs.activity": activity,
       "format('{0}', github.event.sender.id)": sender,
       "vars.AUTOMATION_LANES_APP_SENDER_ID": "2",
+      "needs.dispatcher-current.outputs.stale": stale,
     });
   assert.equal(starts("address-feedback"), true);
   assert.equal(starts("fix-ci"), false);
   assert.equal(starts("address-feedback", "2"), false, "the lanes App's own dispatch");
+  assert.equal(starts("address-feedback", "1", "true"), false, "a dispatcher on an older copy of its file");
   const proceed = (upload, applies, decided, resolveOnly = "") =>
     evaluate(select.outputs.proceed, {
       "steps.upload.outcome": upload,

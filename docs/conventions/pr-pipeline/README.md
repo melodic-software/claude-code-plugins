@@ -248,7 +248,15 @@ that head, and only the comments that head does not hold yet, by file. A PR a pe
 review comment: GitHub lets only a PR's author or a writer resolve a thread, the lanes App is
 neither, and every conversation must be resolved to merge. It gets one PR comment instead, starting
 with the same marker and edited in place on a later fail, and the `pr-verify-failed` label, which
-`ci-status` holds in the merge queue. No round starts there. A note that starts with a path the PR changes goes on
+`ci-status` holds in the merge queue. No round starts there. A withheld fail (a verdict whose text
+is shaped like a credential, or whose step stopped on the credential scan, which `write-verdict.mjs`
+alone records as `withheld: true`) also holds for a person, and no fix round works past it, since a later clean commit rotates nothing: at
+whatever head the PR has moved to, and in any state, so a closed PR that reopens stays held, it takes
+the human-gated label and, once per head, a comment with a `security` stop reason, and an open PR
+leaves the merge queue. That
+comment keeps the label through every clear path (`clear-escalations`, `enable-auto-merge`'s lift,
+`ci-status`'s cost-hold clear) until a person removes the label. A failure in the hold still posts
+the notes, then fails the job. A note that starts with a path the PR changes goes on
 that file; the summary and the other notes go on the first such file, or on the PR's first changed
 file. `address-feedback` keeps such a thread as the `verifier`'s finding, as it keeps the reviewer
 bot's, when its review is `github-actions[bot]`'s on a head the reviewed-head markers name. The
@@ -2238,20 +2246,25 @@ eval itself. A label or body-edit re-run skips `select-tests` and every suite, s
 evidence either way. The diff is split at file boundaries into as many chunks of at most 300000
 bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each file
 whole (`chunk-diff.sh`, `split-diff.py`; the same chunk budget as `pr-review-main`), and each chunk
-gets its own judge step with the same spec, cut into parts one Read returns whole. `manifest.txt` names the part
-each file starts in, so a judge reads another chunk's part when its change references a file there
-and judges both sides. A `pass` or `pass-notes` counts only when the run read every part whole with
-no permission denial; a `fail` needs the schema, no denial and, when it read short, a defect in its
-notes, and it stands whatever follows:
+gets its own judge step with the same spec, cut into parts one Read returns whole; a line over 1800
+bytes carries on across lines that start `\ continued:`, so every byte of the diff is read. The manifest
+(`manifest/part-*.txt`) names the part each file starts in, so a judge reads another chunk's part when
+its change references a file there and judges both sides. A `pass` or `pass-notes` counts only when the
+run read every part whole with no permission denial. A `fail` needs the schema and, when it read short,
+a defect in its notes. It counts on a denial, which it records, since no fail can pass the head, and
+it stands whatever follows:
 the step after each judge stops the later chunks, the final judge and any handoff, and
 `Write the verdict` runs on it, so a re-run cannot sample that head. A `pass-notes` makes the head
 `pass-notes`. A head of two chunks or more also needs a final judge step, `Judge the whole spec`,
-denied the diff: it reads the spec and every chunk's checked result as untrusted data
-(`spec-prompt.md`) and maps each done-when item to the chunk that delivers it, and a script fails
-the head on an item mapped to none. It must read the spec, the manifest and every result whole.
-With no output from it, off the schema, or with a denial, and no counted fail, the head gets no
-verdict, so no chunk's `pass-notes` passes a chunked head alone. A single chunk has no final step. A chunk that fails, leaves no verdict or
-is off the schema leaves no verdict for the head, and a handoff from any chunk hands the whole
+denied the diff: it reads the spec and every chunk's checked result, whole, in as many files as that
+takes, as untrusted data (`spec-prompt.md`), and maps each done-when item to the chunk that delivers
+it, and a script fails the head on an item mapped to none. It must read the spec, the manifest and
+every result whole, and on a spec entry whose `spec_kind` is `refs` the context too, cut into the
+same parts. With no output
+from it, off the schema, or with a denial on anything but a `fail`, and no counted fail, the head gets
+no verdict, so no chunk's `pass-notes` passes a chunked head alone. A single chunk has no final step. A
+chunk that passes short of a part, leaves no output or is off the schema leaves no verdict for the
+head, and a handoff from any chunk hands the whole
 judgment to the next leg, which judges every chunk again. A file over 300000 bytes, or a diff that
 needs more than 12 chunks (over about 3.6 MB), ends the run red with no verdict and an error naming
 the file or the chunk count, so size alone writes no `fail`. With no verdict `verdictHold` holds the
@@ -2287,9 +2300,15 @@ with no such line or a withheld body). With no capture summary the writer record
 check ran"); a summary it cannot read, that fails its schema, or whose text matches a shared
 credential pattern records `blocked`, so a capture never fails the verdict. `merge.verify-capture` configures the capture: `app`, the app it drives (unset:
 no capture runs), and `retention-days` (default 30, at most 90), how long each capture artifact
-lasts. A model error, an output that fails the schema, a
-summary or note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or a run with any permission denial
-uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
+lasts. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
+permission denial uploads nothing, and the run fails. A `fail` with a summary or note matching a
+shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), a `pass` or `pass-notes` holding a
+credential format (those patterns less the secret assignment, the set `scanLeak` blocks on), or any
+verdict from a judge step `run-claude-cli` failed on its own credential scan, is written as a `fail`
+with a fixed text in place of all the model's, which counts toward the repeated-fail cap, so the head
+is not judged twice. A `pass` or `pass-notes` holding only a secret assignment, which may be a
+fixture, uploads nothing, and the run fails. The chunk-results step stops with no verdict, before the final
+judge runs, on results over 300000 bytes. A head that already has a counted verdict from a completed run (a `fail` under any
 pull request number) is not judged again, unless its only verdicts are passes the spec has since
 changed under (below). The resolver first looks up the names without issues;
 only when none holds a counted verdict does it read the pull request's linked issues, which the
