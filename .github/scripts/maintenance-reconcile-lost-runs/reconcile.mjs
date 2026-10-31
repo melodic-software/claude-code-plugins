@@ -76,9 +76,8 @@
 //   while GitHub Actions or npm listed an outage, so the head has no review.
 //   Its failed jobs are re-run once, inside the lookback, only while that gate
 //   would now let it run (check-upstream-status.mjs). The re-run carries a
-//   record. Until pr-feedback-dispatch.yml's rerun-ci-status reads it, the
-//   ci-status re-run the review's completion causes is unrecorded and
-//   pr-verify's gate refuses it: ci-status asks a person to re-run ci-status.
+//   record, which pr-feedback-dispatch.yml's rerun-ci-status reads, so
+//   pr-verify's gate accepts the ci-status re-run the review's completion causes.
 //   A person's re-run of the review becomes attempt 3, which the merge gate
 //   never binds. The reusable's bot check reads `github.actor`, which a
 //   re-run keeps
