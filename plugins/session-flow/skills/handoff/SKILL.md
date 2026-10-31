@@ -221,14 +221,13 @@ from git, one command per call:
 Write the list NUL-separated to a file with the Write tool, check each entry against
 `git diff --name-only -z` output, and stage with
 `git add -u --pathspec-from-file=<list> --pathspec-file-nul`, which never picks up an untracked
-file. A tracked file changed outside this work stays out of the commit, and
-the save-point lists it as left uncommitted. Commit with the subject
-`chore(wip): <one-line state of the work>` and the repository's usual body and trailer rules,
-with every commit hook running. When a hook rejects the commit, do not retry it with hooks
-skipped and do not reword it to get past the hook: unstage the paths this step staged
-(`git restore --staged --pathspec-from-file=<list> --pathspec-file-nul`, the list holding only
-the paths that had no staged change before), leave the
-work in the working tree, and state the hook's message in the save-point. Never push.
+file. A tracked file changed outside this work stays out of the commit, and the save-point lists it
+as left uncommitted. Commit with the subject `chore(wip): <one-line state of the work>` and the
+repository's usual body and trailer rules, with every commit hook running. When a hook rejects the
+commit, do not retry it with hooks skipped and do not reword it to get past the hook: unstage the
+paths this step staged (`git restore --staged --pathspec-from-file=<list> --pathspec-file-nul`, the
+list holding only the paths that had no staged change before), leave the work in the working tree,
+and state the hook's message in the save-point. Never push.
 
 **Record it.** Put the commit SHA and subject under "Side effects already applied", or the refusal
 and its reason there instead, and list every untracked path under "File roles in this work",
@@ -237,13 +236,12 @@ into the resume prompt as one bullet.
 
 ## Hand worktree claims to the resuming session
 
-`/clear` starts a new session id, and a worktree lock names the session that holds it, so without a
+`/clear` starts a new session id while a worktree lock names the session holding it, so without a
 handover the resumed session's claim gate stops on its own lane's worktree. For each worktree this
-session holds a claim on, record the old session id under Environment to re-establish and make the
-handover the first remaining action, which leads the resume prompt's `Next:` headlines, as the
-structure doc's "Worktree claims" paragraph says. On
-the prompt-only path the first remaining-work bullet carries the path, this session's id and the
-handover step, since no file holds them. Release nothing: the claim moves, it is never dropped.
+session claims, record the old session id under Environment to re-establish and make the handover
+the first remaining action, leading the resume prompt's `Next:` headlines (structure doc,
+"Worktree claims"). On the prompt-only path, which writes no file, the first remaining-work bullet
+carries the path, this session's id and the handover. Release nothing: the claim moves, never drops.
 
 ## Produce the save-point
 
@@ -254,8 +252,7 @@ in the shared engine doc
 Walk it top to bottom; do not restate or improvise any of its steps.
 
 On the full path the file is shape 3, a hot file plus its hop file, and a script owns every
-deterministic field
-(engine doc, "Writing the handoff file"; procedure in its structure doc): resolve `memory_dir`,
+deterministic field (engine doc, "Writing the handoff file"; procedure in its structure doc): resolve `memory_dir`,
 run the guards, run `save_point.py new` through the interpreter ladder with `-X utf8`, write one JSON object
 holding the values for the `<!-- FILL: … -->` slots that skeleton carries, apply them all with
 `save_point.py fill <file> --slots <json>`, run `save_point.py validate` until it exits 0, then
@@ -348,11 +345,10 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   with `TodoWrite` instead, from the latest `TodoWrite` call; with neither, a line saying this
   session has no task tools (OR, in every case, an explicit statement that there is nothing to
   recreate)
-- [ ] Worktree claims read this turn ("Hand worktree claims to the resuming session"): each
-  worktree whose lock names this session has an Environment to re-establish entry with its path,
-  this session's id and the handover before `check-enter`, and the handover is the first item of
-  `Remaining actions, in order`, so it leads `Next:` unless the handoff is closed (OR a line
-  saying this session holds no worktree claim)
+- [ ] Worktree claims read this turn ("Hand worktree claims to the resuming session"): each worktree
+  whose lock names this session has an Environment to re-establish entry with its path, this
+  session's id and the handover before `check-enter`; the handover is first in
+  `Remaining actions, in order`, leading `Next:` unless the handoff is closed (OR none held)
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
   names the previous handoff recorded as deliberately left running. For each one, read its
   actual output or transcript per
@@ -426,8 +422,7 @@ to wait for dependent work ("Settle in-flight work before writing") wrote no sav
   [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
 - [ ] Worktree claims read this turn: each worktree whose lock names this session is the first
-  remaining-work bullet, with its path, this session's id and the handover before `check-enter`
-  (OR none held)
+  remaining-work bullet: path, this session's id, handover before `check-enter` (OR none held)
 - [ ] `wip_commit` line reported, as on the full path; a commit, refusal or hook rejection is one
   bullet in the prompt, nothing pushed
 - [ ] If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`unattended`:** record the suggestion; do not ask.
