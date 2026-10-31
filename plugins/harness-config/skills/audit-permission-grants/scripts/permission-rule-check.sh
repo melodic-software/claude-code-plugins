@@ -879,7 +879,18 @@ coverage_block
 #   any error-tier finding (P2, P2b, P4)          -> 1 in both gate modes
 #   any warning-tier finding (P1, P3)             -> 1 in --strict only
 #   a PARTIALLY BLIND scan (blocked > 0)          -> 2, never 0
+#   NO FRONTMATTER AUDITED (every candidate excluded as non-loadable)
+#                                                 -> 0, advisory only
 #   otherwise                                     -> 0
+#
+# NO FRONTMATTER AUDITED is the one "NOT A CLEAN BILL" outcome that still
+# exits 0, deliberately: its warning is printed, not gated. It is reached only
+# with blocked == 0, so no input was unreadable — every candidate was judged
+# non-loadable by its path, and a non-loadable file's allowed-tools never take
+# effect. A layout this detector does not recognize is a coverage question for
+# the reader of the printed warning, not a "cannot determine" that exit 2 means.
+# A CI step that must fail on it has to match the printed string. Case 6g pins
+# this exit code so a change to it is a decision, not drift.
 #
 # The blind-scan limb is the same rule as NOTHING TO AUDIT, applied where it was
 # missing: `audited == 0` is only the total case of it. With `audited > 0` and

@@ -312,6 +312,14 @@ OUT_EXCL=$(run "$D6G")
 assert_contains "all-excluded run prints the coverage warning" "$OUT_EXCL" "NO FRONTMATTER AUDITED, NOT A CLEAN BILL"
 assert_not_contains "all-excluded run is not a clean bill" "$OUT_EXCL" "No fragile permission grants found."
 assert_contains "all-excluded run still prints the coverage block" "$OUT_EXCL" "1 excluded as non-loadable"
+# The warning is advisory: the gate modes print it and still exit 0 (see the
+# gate-exit comment block in the script).
+for gate_flag in --check --strict; do
+  rc=0
+  OUT_EXCL_GATE=$(run "$D6G" "$gate_flag" 2>&1) || rc=$?
+  assert_exit "all-excluded run: $gate_flag exits 0 (advisory warning)" 0 "$rc"
+  assert_contains "all-excluded run: $gate_flag still prints the warning" "$OUT_EXCL_GATE" "NO FRONTMATTER AUDITED, NOT A CLEAN BILL"
+done
 
 # --- Case 7: P3 plugin self-grant -------------------------------------------
 D7="$TEST_TMPDIR/p3"
