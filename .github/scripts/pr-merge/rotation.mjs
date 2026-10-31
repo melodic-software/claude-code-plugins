@@ -50,10 +50,11 @@ export function rotate(candidates, last) {
   return start <= 0 ? sorted : [...sorted.slice(start), ...sorted.slice(0, start)];
 }
 
-// A scheduled or hand-started run of main's copy of pr-merge.yml.
-export function trustedRun(run) {
+// A scheduled or hand-started run of main's copy of pr-merge.yml, or of the
+// workflow at `path`.
+export function trustedRun(run, path = WORKFLOW_PATH) {
   return (
-    run?.path === WORKFLOW_PATH &&
+    run?.path === path &&
     (run.event === "schedule" || run.event === "workflow_dispatch") &&
     run.head_branch === "main"
   );
@@ -117,21 +118,23 @@ async function artifactsNamed({ repo, actions, runId, name }) {
   return Array.isArray(found?.artifacts) ? found.artifacts : [];
 }
 
-// The id of the newest trusted run, this one aside, holding an unexpired
-// artifact named `name` and passing `accept`, or undefined when there is none.
-export async function newestTrustedRun({ repo, runId, actions, name, accept = async () => true }) {
+// The id of the newest trusted run of `workflow` (pr-merge.yml unless named),
+// this one aside, holding an unexpired artifact named `name` and passing
+// `accept`, or undefined when there is none.
+export async function newestTrustedRun({ repo, runId, actions, name, accept = async () => true, workflow = WORKFLOW_PATH }) {
+  const file = workflow.slice(workflow.lastIndexOf("/") + 1);
   let asked = 0;
   for (let page = 1; page <= MAX_PAGES; page += 1) {
     const listing = await actions(
       "GET",
-      `/repos/${repo}/actions/workflows/pr-merge.yml/runs?branch=main&exclude_pull_requests=true&per_page=100&page=${page}`,
+      `/repos/${repo}/actions/workflows/${file}/runs?branch=main&exclude_pull_requests=true&per_page=100&page=${page}`,
     );
     if (!Array.isArray(listing?.workflow_runs)) {
-      throw new Error("the pr-merge run listing has an unexpected shape");
+      throw new Error(`the ${file.replace(/\.yml$/, "")} run listing has an unexpected shape`);
     }
     // The API lists runs newest first.
     for (const run of listing.workflow_runs) {
-      if (!trustedRun(run) || String(run.id) === runId) {
+      if (!trustedRun(run, workflow) || String(run.id) === runId) {
         continue;
       }
       if (asked === MAX_RUNS) {
