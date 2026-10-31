@@ -2377,6 +2377,18 @@ MSYS_NO_PATHCONV=1; robocopy src /e /MIR
 MSYS2_ARG_CONV_EXCL=--x robocopy src /e /MIR
 MSYS2_ARG_CONV_EXCL= robocopy src /e /MIR
 EOF
+
+# A suppressor value that expands at run time, or an env option that can drop
+# the suppressor before robocopy starts, leaves the conversion state unknown,
+# so every operand is judged, each single-slash one-letter word included.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "robocopy: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+MSYS2_ARG_CONV_EXCL=$X robocopy /e empty /opt/nonexistent-rdt/x /MIR
+MSYS_NO_PATHCONV=1 env -u MSYS_NO_PATHCONV robocopy /e /opt/nonexistent-rdt/x empty /MIR
+MSYS_NO_PATHCONV=1 env -i robocopy /e /opt/nonexistent-rdt/x empty /MIR
+EOF
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "robocopy: $rdt_cmd allowed" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"

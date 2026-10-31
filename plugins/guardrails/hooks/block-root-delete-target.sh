@@ -112,7 +112,9 @@
 # that turns it off for the robocopy (`MSYS_NO_PATHCONV=<any>`, or an
 # `MSYS2_ARG_CONV_EXCL` entry that is `*` or a prefix of the word) makes the
 # word an option again (`MSYS_NO_PATHCONV=1 robocopy /e empty <dest> /MIR`
-# mirrors onto <dest>). An exported suppressor is
+# mirrors onto <dest>). When that state is unknown, a suppressor value with a
+# `$` or a backtick, or an env option (`env -u`, `env -i`) that can drop the
+# suppressor, every operand is judged. An exported suppressor is
 # block-exported-msys-pathconv.sh's to refuse; the words after /XF, /XD or /IF up to the next option are its list. Of the
 # other words the first is the source and the second the destination. A word that can become several words or none changes which
 # word comes first or second, so with one every operand is judged instead:
@@ -3491,19 +3493,41 @@ rdt_robocopy_scan() {
 # bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_robocopy_check() {
-  local k msys=1 excl=''
+  local k w msys=1 excl='' unknown=0 envw=0
   local -a op=() tg=()
   # A prefix assignment is in the environment the MSYS runtime spawns
   # robocopy from: MSYS_NO_PATHCONV, set to anything, turns path conversion
   # off, and MSYS2_ARG_CONV_EXCL lists the words it leaves alone. The last
-  # assignment of a name is the one robocopy gets.
+  # assignment of a name is the one robocopy gets. An assignment whose value
+  # holds a `$` or a backtick is not known until it runs, and an env option
+  # (`env -u NAME`, `env -i`) can drop an assignment made before it, so with
+  # either the conversion state is unknown: every operand is then judged, each
+  # single-slash one-letter word included.
   for ((k = 0; k < $1; k++)); do
-    case "${words[k]}" in
-    MSYS_NO_PATHCONV=*) msys=0 ;;
-    MSYS2_ARG_CONV_EXCL=*) excl="${words[k]#*=}" ;;
-    *) ;;
+    w="${words[k]}"
+    case "$w" in
+    MSYS_NO_PATHCONV=* | MSYS2_ARG_CONV_EXCL=*)
+      [[ "${w#*=}" == *['$`']* ]] && unknown=1
+      if [[ "$w" == MSYS_NO_PATHCONV=* ]]; then
+        msys=0
+      else
+        excl="${w#*=}"
+      fi
+      ;;
+    *)
+      w="${w##*/}"
+      w="${w,,}"
+      if [[ "${w%.exe}" == env ]]; then
+        envw=1
+      elif ((envw)) && [[ "${words[k]}" == -* ]]; then
+        unknown=1
+      fi
+      ;;
     esac
   done
+  if ((unknown)); then
+    msys=1 excl=''
+  fi
   rdt_robocopy_scan "$msys" "$excl" ${words[@]+"${words[@]:$1+1}"}
   ((RDT_RC_DEST || RDT_RC_SRC)) || return 0
   rdt_deleter=1
@@ -3512,7 +3536,9 @@ rdt_robocopy_check() {
   done
   # A brace, a glob or an unquoted expansion can become more words or none,
   # and so can a quoted "$@" or "${a[@]}", so which word is the source or the
-  # destination is not known: every operand is then judged.
+  # destination is not known: every operand is then judged. So it is when the
+  # conversion state is unknown.
+  ((unknown)) && tg=(${op[@]+"${op[@]}"})
   for k in ${op[@]+"${op[@]}"}; do
     if [[ "${words[k]}" == *'$@'* || "${words[k]}" == *'[@]}'* ]] ||
       { ((${HOOK_SEG_WORD_QUOTED[k]:-0} != 2)) && [[ "${words[k]}" == *['{*?[$`']* ]]; }; then
