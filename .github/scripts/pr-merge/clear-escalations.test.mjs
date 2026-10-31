@@ -1234,14 +1234,18 @@ const REVIEWER_AUTHOR = { __typename: "Bot", login: "github-actions" };
 const severityThread = (severity) => ({ ...reviewThread(false, [REVIEWER_AUTHOR]), opening: { nodes: [{ body: `Finding.\n\n${severity}\n\nclaude-lane: claude-security-review` }] } });
 const WAITING = `a push no trusted person made moved the head; waiting for clean review lanes at ${HEAD}`;
 
-test("feedback-not-landed comes off after a lanes App push once both review lanes read the new head clean", async () => {
-  const w = world({ timeline: notLandedTimeline(), reader: laneReader(), reviewThreads: () => threadPage([reviewThread(true, [LANE_AUTHOR]), severityThread("severity: SUGGESTION")]) });
-  const { code } = await run(w, TRUST_ENV);
-  assert.equal(code, 0);
-  const [comment, removal] = w.writes();
-  assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=feedback-not-landed head=${HEAD} -->`);
-  assert.match(comment.body.body, /both review lanes completed a review of it/);
-  assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+// An open SUGGESTION or IMPORTANT finding is reported, not held: only a
+// CRITICAL one holds (owner decision on #11020).
+test("feedback-not-landed comes off after a lanes App push once both review lanes read the new head clean, an open SUGGESTION or IMPORTANT thread included", async () => {
+  for (const severity of ["severity: SUGGESTION", "severity: IMPORTANT"]) {
+    const w = world({ timeline: notLandedTimeline(), reader: laneReader(), reviewThreads: () => threadPage([reviewThread(true, [LANE_AUTHOR]), severityThread(severity)]) });
+    const { code } = await run(w, TRUST_ENV);
+    assert.equal(code, 0, severity);
+    const [comment, removal] = w.writes();
+    assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=feedback-not-landed head=${HEAD} -->`, severity);
+    assert.match(comment.body.body, /both review lanes completed a review of it/);
+    assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined }, severity);
+  }
 });
 
 test("feedback-not-landed stays after a lanes App push while the review lanes have not reviewed the new head", async () => {
@@ -1261,8 +1265,8 @@ test("feedback-not-landed stays after a lanes App push while the review lanes ha
   }
 });
 
-test("feedback-not-landed stays after a lanes App push while an unresolved review thread carries a CRITICAL, IMPORTANT or unreadable severity", async () => {
-  for (const severity of ["severity: IMPORTANT", "severity: CRITICAL", "", "severity: SUGGESTION\nseverity: IMPORTANT"]) {
+test("feedback-not-landed stays after a lanes App push while an unresolved review thread carries a CRITICAL or unreadable severity", async () => {
+  for (const severity of ["severity: CRITICAL", "", "severity: SUGGESTION\nseverity: IMPORTANT"]) {
     const w = world({ timeline: notLandedTimeline(), reader: laneReader(), reviewThreads: () => threadPage([severityThread(severity)]) });
     const { logs } = await run(w, TRUST_ENV);
     assert.deepEqual(w.writes(), [], severity);
