@@ -1009,15 +1009,20 @@ for (const [job, written] of [
 });
 
 // With no head-sha output, no later job posts a status on that head.
-for (const activity of ["resolve-conflicts", "address-feedback", "review-dependency"]) test(`pr-unblock.yml: ${activity}-not-run posts nothing with no head-sha output`, () => {
+for (const [activity, select] of [
+  ["resolve-conflicts", "resolve-conflicts-select"],
+  ["address-feedback", "address-feedback-select"],
+  ["review-dependency", "review-dependency-select"],
+  ["fix-ci", "fix-ci-context"],
+]) test(`pr-unblock.yml: ${activity}-not-run posts nothing with no head-sha output`, () => {
   const { gate } = jobGate(UNBLOCK, `${activity}-not-run`);
   for (const proceed of ["", "false"]) {
     assert.equal(
       evaluate(gate, {
         "inputs.activity": activity,
-        [`needs.${activity}-select.outputs.proceed`]: proceed,
-        [`needs.${activity}-select.outputs.skip-reason`]: "",
-        [`needs.${activity}-select.outputs.head-sha`]: "",
+        [`needs.${select}.outputs.proceed`]: proceed,
+        [`needs.${select}.outputs.skip-reason`]: "",
+        [`needs.${select}.outputs.head-sha`]: "",
       }),
       false,
       proceed,
