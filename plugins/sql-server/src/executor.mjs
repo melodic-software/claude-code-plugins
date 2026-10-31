@@ -6,8 +6,8 @@
 
 export const APP_NAME = 'sql-server-plugin (agent session)';
 
-// Provisional until measured against a container with a concurrent writer
-// (ADR 0086 section 1).
+// The row chosen in reference/read-safety-measurement.md; test/defaults.test.mjs
+// holds them to it.
 export const DEFAULT_LIMITS = Object.freeze({ requestTimeoutMs: 30_000, lockTimeoutMs: 5_000, rowCap: 1_000 });
 export const POOL_MAX = 2;
 export const IDLE_TIMEOUT_MS = 30_000;
