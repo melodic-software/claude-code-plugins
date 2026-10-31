@@ -1574,6 +1574,7 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
                             based,
                             dismissal,
                             trees,
+                            floor=FLOOR,
                         ),
                     ],
                     js,
@@ -1688,25 +1689,23 @@ class TheUngatedCarryIsTheGates(unittest.TestCase):
         ):
             with self.subTest(name):
                 self.assertEqual(js, expected)
-                self.assertEqual(policy.ungated_since(merges, hold_paths), expected)
+                self.assertEqual(policy.ungated_since(merges, hold_paths, floor=FLOOR), expected)
                 self.assertEqual(
                     policy.approval_carry(
-                        None, None, _OLD, set(), merges, None, None, None, hold_paths
-                    ),
+                        None, None, _OLD, set(), merges, None, None, None, hold_paths, floor=FLOOR),
                     expected,
                 )
         # A stale dismissal must be by a commit the push made.
         docs = _pushed(["docs/a.md"])
         self.assertTrue(
-            policy.approval_carry(None, None, _OLD, set(), docs, None, _H1, None, [])
+            policy.approval_carry(None, None, _OLD, set(), docs, None, _H1, None, [], floor=FLOOR)
         )
         self.assertFalse(
             policy.approval_carry(
-                None, None, _OLD, set(), docs, None, "c" * 40, None, []
-            )
+                None, None, _OLD, set(), docs, None, "c" * 40, None, [], floor=FLOOR)
         )
         # No hold paths read: only the base-merge path decides.
-        self.assertFalse(policy.approval_carry(None, None, _OLD, set(), docs, None))
+        self.assertFalse(policy.approval_carry(None, None, _OLD, set(), docs, None, floor=FLOOR))
 
 
 # Every local file a hold-path file loads: the floor entries' JS closure and
@@ -1823,4 +1822,13 @@ class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
                     ),
                     f"{path} is loaded by a hold path but neither held nor in CARRY_REFUSES",
                 )
-                self.assertFalse(policy.ungated_since(_pushed([path]), []), path)
+                self.assertFalse(policy.ungated_since(_pushed([path]), [], floor=FLOOR), path)
+
+    def test_the_carry_reads_the_config_rows_from_its_floor(self) -> None:
+        # The caller's hold paths are empty, and CARRY_REFUSES does not cover
+        # this path: only `floor` holds a config row.
+        path = "docs/standards/REVIEW.md"
+        self.assertFalse(policy.ungated_since(_pushed([path]), [], floor=FLOOR))
+        self.assertTrue(
+            policy.ungated_since(_pushed([path]), [], floor=risk.floor_for())
+        )

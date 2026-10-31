@@ -2890,7 +2890,8 @@ def lane_risk_refusal(
                     pr,
                     reviews,
                     trusted,
-                    [*config.denied_paths, *config.floor.all],
+                    list(config.denied_paths),
+                    floor=config.floor,
                 )
             )
         except Exception:  # noqa: BLE001 - an unread approval lifts nothing

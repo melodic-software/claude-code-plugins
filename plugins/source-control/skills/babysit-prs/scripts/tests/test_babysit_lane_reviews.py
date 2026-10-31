@@ -382,9 +382,9 @@ def carried(
     with mock.patch.object(policy, "_get", side_effect=get):
         rows = [approval()] if reviews is None else reviews
         if not any(r.get("state") == "DISMISSED" for r in rows):
-            return policy.carried_lifters(REPO, pr, rows, TRUSTED)
+            return policy.carried_lifters(REPO, pr, rows, TRUSTED, floor=policy.floor_for(FLOOR_ROWS))
         with mock.patch.object(policy, "_paginated", side_effect=paginated):
-            return policy.carried_lifters(REPO, pr, rows, TRUSTED)
+            return policy.carried_lifters(REPO, pr, rows, TRUSTED, floor=policy.floor_for(FLOOR_ROWS))
 
 
 class ALiftCarriesOverABaseMerge(unittest.TestCase):
@@ -575,7 +575,7 @@ class ALiftCarriesOverABaseMerge(unittest.TestCase):
         for answer in ((404, None), (200, {"object": {"sha": "main"}})):
             with self.subTest(answer), mock.patch.object(policy, "_get", return_value=answer):
                 self.assertEqual(
-                    policy.carried_lifters(REPO, CARRIED_PR, [approval()], TRUSTED), []
+                    policy.carried_lifters(REPO, CARRIED_PR, [approval()], TRUSTED, floor=policy.floor_for(FLOOR_ROWS)), []
                 )
 
     def test_a_label_removal_lifts_nothing(self) -> None:

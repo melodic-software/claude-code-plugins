@@ -3115,12 +3115,13 @@ CARRY_REFUSES: tuple[str, ...] = (
 )
 
 
-def ungated_since(merges: Any, hold_paths: Sequence[str] | None) -> bool:
+def ungated_since(
+    merges: Any, hold_paths: Sequence[str] | None, *, floor: Floor
+) -> bool:
     """Whether the compare start...H' `merges` touches no hold path and no
     file a hold path loads, old paths of renames included (merge-holds.mjs
-    `ungatedSince`): `hold_paths` and the built-in floor and
-    CARRY_REFUSES. The caller's `hold_paths` carry the repository's own floor
-    rows. H' ahead with nothing behind, its commit list read whole
+    `ungatedSince`): `hold_paths`, the effective `floor` and CARRY_REFUSES.
+    H' ahead with nothing behind, its commit list read whole
     and fewer than the compare API's 300 files listed, each named."""
     compare = json_object(merges)
     files = compare.get("files")
@@ -3142,7 +3143,7 @@ def ungated_since(merges: Any, hold_paths: Sequence[str] | None) -> bool:
         previous = json_object(f).get("previous_filename")
         if isinstance(previous, str):
             paths.append(previous)
-    globs = (*floor_for().all, *hold_paths, *CARRY_REFUSES)
+    globs = (*floor.all, *hold_paths, *CARRY_REFUSES)
     return not any(glob_match(g, p) for g in globs for p in paths)
 
 
@@ -3156,6 +3157,8 @@ def approval_carry(
     dismissal: str | None = None,
     trees: Any = None,
     hold_paths: Sequence[str] | None = None,
+    *,
+    floor: Floor,
 ) -> bool:
     """Whether an approval of `start` carries to the head `now` was read at
     (merge-holds.mjs `approvalCarry`), by either of two paths: every commit
@@ -3180,7 +3183,7 @@ def approval_carry(
     )
     return merged or (
         hold_paths is not None
-        and ungated_since(merges, hold_paths)
+        and ungated_since(merges, hold_paths, floor=floor)
         and pushed(_listed_commits(json_object(merges)))
     )
 
@@ -3308,6 +3311,8 @@ def carried_lifters(
     reviews: Sequence[Any],
     humans: Collection[int],
     hold_paths: Sequence[str] | None = None,
+    *,
+    floor: Floor,
 ) -> list[str]:
     """The trusted people whose approval (`lifts_of` over the REST `reviews`)
     is of the pull request's head or carries to it over merges of its base
@@ -3405,7 +3410,9 @@ def carried_lifters(
             ):
                 merges, based = compare(f"{lifted}...{sha}"), compare(f"{start}...{end}")
                 trees = [tree(sha), tree(end)]
-            if approval_carry(then, now, lifted, in_base, merges, based, dismissal, trees):
+            if approval_carry(
+                then, now, lifted, in_base, merges, based, dismissal, trees, floor=floor
+            ):
                 lifters.add(login)
                 continue
             # Q10's path reads start...H' when the base-merge path did not; a
@@ -3416,7 +3423,16 @@ def carried_lifters(
                 except PolicyReadError:
                     merges = None
             if hold_paths is not None and approval_carry(
-                then, now, lifted, in_base, merges, based, dismissal, trees, hold_paths
+                then,
+                now,
+                lifted,
+                in_base,
+                merges,
+                based,
+                dismissal,
+                trees,
+                hold_paths,
+                floor=floor,
             ):
                 lifters.add(login)
     except PolicyReadError:
