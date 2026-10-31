@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "You can still run `/plugin-quality:audit <plugin>:<component>`.",
+      "why": "placeholder"
+    },
+    {
+      "answer": "Try /plugin-quality:audit source-control:commit instead.",
+      "why": "concrete"
+    },
+    {
+      "answer": "You can still audit a component by name.",
+      "why": "prose"
+    },
+    {
+      "answer": "Name the plugin or component you want audited.",
+      "why": "imperative"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`/plugin-quality:audit session` stops here.",
+      "why": "session form only"
+    },
+    {
+      "answer": "/plugin-quality:audit stops because the parser is missing.",
+      "why": "no target form"
+    }
+  ]
+}

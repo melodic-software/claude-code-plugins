@@ -4,4 +4,4 @@ bump: patch
 
 ### Fixed
 
-- `/plugin-quality:audit session` again forbids a second parser at the no-ledger stop, so an operator's push no longer gets a usage count taken over the transcript. ([#5819](https://github.com/melodic-software/claude-code-plugins/issues/5819))
+- `/plugin-quality:audit session` again forbids a second parser when the ledger or its `plugin_usage` key is missing: it takes no usage count over the transcript, even when the operator urges one. ([#5819](https://github.com/melodic-software/claude-code-plugins/issues/5819))
