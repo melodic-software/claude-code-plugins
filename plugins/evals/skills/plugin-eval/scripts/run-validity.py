@@ -553,16 +553,15 @@ def skill_called(run):
     )
 
 
-def trace_error_text(run):
-    """The errors the trace's erroring result lines carry, as one string."""
-    return json.dumps(
-        [
-            line.get(TRACE_ERRORS)
-            for line in run.trace or []
-            if line.get(LINE_TYPE) == TRACE_RESULT
-            and line.get(TRACE_RESULT_ERROR) is True
-        ]
-    )
+def trace_errors(run):
+    """Each error the trace's erroring result lines carry, as text."""
+    out = []
+    for line in run.trace or []:
+        if line.get(LINE_TYPE) == TRACE_RESULT and line.get(TRACE_RESULT_ERROR) is True:
+            errors = line.get(TRACE_ERRORS)
+            for e in errors if isinstance(errors, list) else [errors]:
+                out.append(e if isinstance(e, str) else json.dumps(e))
+    return out
 
 
 def check_errors(runs, root):
@@ -573,21 +572,22 @@ def check_errors(runs, root):
         errors = []
         if r.row.get(RUN_ERROR) is not None:
             text = str(r.row.get(RUN_ERROR))
-            errors.append(("%s: error %s" % (r.where, text), text))
+            errors.append(("%s: error %s" % (r.where, text), [text]))
         if r.row.get(RUN_ABORTED):
             errors.append(
-                ("%s: aborted %s" % (r.where, json.dumps(r.row.get(RUN_ABORTED))), "")
+                ("%s: aborted %s" % (r.where, json.dumps(r.row.get(RUN_ABORTED))), [])
             )
         if trace_errored(r):
             errors.append(
                 (
                     "%s: its trace ends in an error (%s)" % (r.where, r.trace_path),
-                    trace_error_text(r),
+                    trace_errors(r),
                 )
             )
         capped = bool(errors) and is_probe(r.case, root) and skill_called(r)
-        for detail, text in errors:
-            if capped and MAX_TURNS_ERROR.search(text):
+        for detail, texts in errors:
+            # Exempt only when every error this detail carries is the turn cap.
+            if capped and texts and all(MAX_TURNS_ERROR.search(t) for t in texts):
                 details.append(
                     detail + "; an invocation probe capped after its Skill call"
                 )

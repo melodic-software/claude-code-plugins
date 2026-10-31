@@ -945,7 +945,8 @@ class RunValidityTest(unittest.TestCase):
                 {"type": "tool_result", "tool_use_id": "c1", "content": "ok"}]}})
             + "\n"
             + json.dumps({"type": "result", "subtype": "error_max_turns",
-                          "is_error": True, "errors": [trace_error]})
+                          "is_error": True,
+                          "errors": trace_error if isinstance(trace_error, list) else [trace_error]})
             + "\n",
             encoding="utf-8",
         )
@@ -977,6 +978,13 @@ class RunValidityTest(unittest.TestCase):
         self.assertIn("check run errors: FAIL", proc.stdout)
         proc = self.capped_probe(trace_error="API error")
         self.assertVerdict(proc, "INVALID", 1)
+
+    def test_a_turn_cap_beside_another_trace_error_is_invalid(self):
+        proc = self.capped_probe(
+            trace_error=["Reached maximum number of turns (8)", "API error: overloaded"]
+        )
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
 
     def test_a_non_probe_capped_at_max_turns_after_a_skill_call_is_invalid(self):
         proc = self.capped_probe(tags="tags: [knowledge]")
