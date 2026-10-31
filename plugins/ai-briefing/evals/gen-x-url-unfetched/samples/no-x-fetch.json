@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "WebFetch",
+          "input": {
+            "url": "https://northwind.example/blog",
+            "prompt": "Find the post the CTO linked at x.com/northwind_cto"
+          }
+        }
+      ],
+      "why": "prompt mentions X, url is not X"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "WebFetch",
+          "input": {
+            "url": "https://x.com/northwind_cto/status/1849200000000000001",
+            "prompt": "What does the post say?"
+          }
+        }
+      ],
+      "why": "fetched X"
+    }
+  ]
+}

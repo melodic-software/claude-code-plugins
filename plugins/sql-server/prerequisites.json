@@ -1,0 +1,23 @@
+{
+  "requires": [
+    {
+      "id": "docker",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "docker"
+        ]
+      },
+      "degrade": "Without docker, the integration test (integration/read-path.mjs) prints `SKIP: docker not available` and exits 0; the MCP server and its tools still work.",
+      "install": {
+        "docs": "https://docs.docker.com/get-started/get-docker/",
+        "winget": "Docker.DockerDesktop"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

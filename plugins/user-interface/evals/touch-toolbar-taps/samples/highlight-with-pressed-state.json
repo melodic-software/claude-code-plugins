@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": ".toolbar button, .toolbar a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }\n.toolbar button:active, .toolbar a:active { transform: scale(0.96); }",
+      "why": "highlight off, :active on every button and on the Profile link"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".icon-btn { -webkit-tap-highlight-color: transparent; }",
+      "why": "highlight off with no pressed state"
+    },
+    {
+      "answer": "button.icon-btn { -webkit-tap-highlight-color: transparent; }\nbutton.icon-btn:active { opacity: 0.7; }\na.icon-btn { -webkit-tap-highlight-color: transparent; }",
+      "why": "near miss: the Profile link loses the highlight and has no pressed state"
+    }
+  ]
+}

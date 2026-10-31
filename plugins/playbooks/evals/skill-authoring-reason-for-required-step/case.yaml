@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: skill-authoring-reason-for-required-step
+description: "State the action: a required step that reads as optional gets its reason beside it. Written from MB:plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md:78-79 (the base contract)."
+tags: [skill-authoring, state-the-action]
+expected_outcome: "The rewritten section makes building the API index a required step before publishing and states beside it why: publish.sh uploads whatever dist/api-index.json holds, so skipping the build publishes the previous index."
+execution:
+  allowed_tools: [Read, Skill]
+  max_turns: 20
+  timeout_seconds: 600

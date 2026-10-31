@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "```css\n.rec-dot { animation: pulse 1.6s cubic-bezier(0.37, 0, 0.63, 1) infinite alternate; }\n```\n\nThis is easeInOutSine from easings.net, a default you can tune by eye.",
+      "why": "named collection curve, offered as a default"
+    },
+    {
+      "answer": "```css\n.rec-dot { animation: pulse 1.6s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite alternate; }\n```\n\nThat is the quad in-out curve from the easing library, a starting point to adjust by eye.",
+      "why": "a named library family, offered as a default"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```css\n.rec-dot { animation: pulse 1.6s cubic-bezier(0.4, 0.1, 0.6, 0.9) infinite alternate; }\n```\n\nI picked a soft custom curve.",
+      "why": "invented control points with no named source"
+    },
+    {
+      "answer": "```css\n.rec-dot { animation: pulse 1.6s linear infinite alternate; }\n```",
+      "why": "linear on a pulse"
+    },
+    {
+      "answer": "```css\n.rec-dot { animation: pulse 1.6s ease-in-out infinite alternate; }\n```\n\nThe built-in ease-in-out is soft and sine-like.",
+      "why": "near miss: the built-in keyword, not a curve from a collection"
+    },
+    {
+      "answer": "```css\n.rec-dot { animation: pulse 1.6s cubic-bezier(0.36, 0.02, 0.64, 0.98) infinite alternate; }\n```\n\nA gentle sine-like shape.",
+      "why": "near miss: sine-like in prose, but no named curve or collection"
+    }
+  ]
+}

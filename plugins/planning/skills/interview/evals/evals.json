@@ -572,6 +572,39 @@
         "The new question states the literal `alerts-old@example.com` and cites `infra/Pulumi.production.yaml:14` as where it was read, never only \"the existing budget's address\"",
         "The address found in config is not stated as a settled fact with no register row; the run returns to Step 2 and does not lock the contract while that row is `open`"
       ]
+    },
+    {
+      "id": 41,
+      "name": "product-first-reply-is-one-question-with-strong-answer",
+      "prompt": "/planning:interview product a habit tracker for dog walkers",
+      "expected_output": "The `product` action reads context/product.md and opens with one question and nothing else: no survey paragraph, no quality-bar or intake question, no session-config recommendation, and no assessment of the idea, plan, or praise. The question comes from a Reason to exist principle (1 to 5), the one the pitch looks weakest on, and it carries what a strong answer sounds like in one or two lines, with a Basis line citing the principle by number and name. The reply asks no second question and pays the idea no compliment.",
+      "files": [],
+      "expectations": [
+        "The first reply opens with a question, with no assessment, plan, or praise of the idea before it",
+        "The reply asks exactly one question, not a numbered round of several",
+        "The question comes from a Reason to exist principle (1 to 5)",
+        "The question carries what a strong answer sounds like, in one or two lines, with its principle number as the basis",
+        "The reply contains no compliment on the idea",
+        "Nothing precedes the question: no \"Here is what I see\" survey paragraph, no quality-bar or starting-point question, and no model or effort recommendation"
+      ]
+    },
+    {
+      "id": 42,
+      "name": "product-run-ends-in-six-item-verdict",
+      "prompt": "/planning:interview product a habit tracker for dog walkers\n\n[Session state: the `product` action, terminal lane. Fourteen questions have been asked, one per turn, Q1 to Q14, and each was registered `open` at ask-time with round field `round <N>`. Q1 to Q11, Q13 and Q14 are `answered`. Q12 (principle 11: which requests the product will refuse categorically) is still `open`: the user replied \"skip that one\" and the restate did not get an answer. In the reply to Q4 the user named a walker who has the problem, Dana Reyes, with her email dana.reyes@example.com; the ledger recorded Q4 as answered with \"a named walker the user can message today\". Q15 (principle 13: the chain of must-be-trues) was asked and registered `open`. The user has just answered Q15 with four links: walkers log walks daily, owners check the log, owners pay for the log, walkers recruit other walkers, and said the first link is the one under test this month.]",
+      "expected_output": "Q15's answer resolves its row and the fifteen-question cap is reached, so the interview ends and asks no sixteenth question. Before the verdict, Q12, the one row still `open`, is retired as `deferred` with the resolution `carried into verdict item 6`, and the register gate (check-open-questions.sh --ledger) runs and exits 0. The verdict then has exactly six items in order: the product's one idea in one sentence; the chain of four must-be-trues with the first link marked as under test; the biggest unanswered risk with the cheapest test for it; this month's 100% work and deliberate half-builds; violated principles by number; and what the interview did not resolve, which names Q12's refusal question. Neither the verdict nor the ledger carries Dana Reyes's name or email. No PLAN.md Brief, ADR or glossary entry is written, and the next step is recommended, never invoked.",
+      "files": [],
+      "expectations": [
+        "No sixteenth question is asked: the run moves to the verdict after Q15's answer",
+        "Q12 is retired as `deferred` with the resolution `carried into verdict item 6` before the verdict is written",
+        "The register gate (check-open-questions.sh --ledger) runs and exits 0 before the verdict is written",
+        "The verdict has exactly six items, in this order: the one idea in a sentence, chain of must-be-trues, biggest unanswered risk with its cheapest test, this month, violated principles by number, what the interview did not resolve",
+        "The chain item lists the four links in order and marks the first one as the link under test",
+        "Item 6 names the unanswered Q12 question about which requests to refuse",
+        "Neither the verdict nor the ledger contains the name Dana Reyes or the address dana.reyes@example.com",
+        "No PLAN.md Brief, ADR or glossary entry is written",
+        "The next step is recommended by name and no other skill is invoked"
+      ]
     }
   ]
 }

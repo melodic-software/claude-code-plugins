@@ -1,0 +1,71 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:audit-derivability"
+          }
+        }
+      ],
+      "why": "qualified"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/commands.md"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit-derivability",
+            "args": "docs"
+          }
+        }
+      ],
+      "why": "bare name with args"
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/commands.md"
+          }
+        }
+      ],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:audit-noise"
+          }
+        }
+      ],
+      "why": "line-level sibling"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:extract-ssot"
+          }
+        }
+      ],
+      "why": "dedup sibling"
+    }
+  ]
+}

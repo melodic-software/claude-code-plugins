@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: bug-report-motion-drawer-jump
+graders:
+  - name: asks-for-frame-state
+    type: llm
+    criteria: "PASS only if the reply asks the reporter for the frame state of the jump, or lists it under Notes as evidence still needed: a frame-state export (for example from /app-control:drive capture --kind animation), or the values at the frame where the drawer jumps (at least the animating property's current value and its from and to values, or its progress) and the playback speed it was seen at. FAIL if it asks only for a screenshot, still frames or a video, asks for no evidence about the motion at all, or treats a screen recording as the evidence to attach."
+  - name: no-invented-motion-values
+    type: llm
+    criteria: "The reporter gave no duration, easing, opacity or position value. PASS only if the report states none as fact: any such value appears only as something to ask for, a placeholder, or a value the reporter must confirm. FAIL if the report states a specific duration (such as 300ms), easing curve, opacity or transform value of the drawer as observed or as the current code's value."

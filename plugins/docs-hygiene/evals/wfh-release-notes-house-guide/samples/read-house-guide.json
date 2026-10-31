@@ -1,0 +1,73 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/case/docs/contributing/writing.md"
+          }
+        }
+      ],
+      "why": "absolute path"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "**/*.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/contributing/writing.md",
+            "limit": 80
+          }
+        }
+      ],
+      "why": "relative path after glob"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no reads"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "CONTRIBUTING.md"
+          }
+        }
+      ],
+      "why": "stopped at CONTRIBUTING.md"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "Breaking changes",
+            "path": "docs/contributing/writing.md"
+          }
+        }
+      ],
+      "why": "grep, not a read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "README.md"
+          }
+        }
+      ],
+      "why": "different file"
+    }
+  ]
+}

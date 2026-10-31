@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "The page clock steps the `requestAnimationFrame` counter, but not your CSS keyframes. Right after `goto`, pause and seek them:\n\n```js\nawait page.evaluate(ms => {\n  for (const a of document.getAnimations()) { a.pause(); a.currentTime = ms; }\n  const s = getComputedStyle(document.querySelector('.hero'));\n  return { opacity: s.opacity, transform: s.transform };\n}, t);\n```\nRepeat for each t, alongside `page.clock.runFor(t)` for the counter.",
+      "why": "pauses and seeks the declarative entrance and reads computed style"
+    },
+    {
+      "answer": "Hold the hero's keyframes from an init script, then for each sample set `currentTime` on each of `hero.getAnimations()` to the frame's time and read `getComputedStyle(hero).opacity` and `.transform`. Step the counter with `page.clock.runFor(40)` between samples.",
+      "why": "seeks the paused entrance per frame and reads computed style"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Install the clock before `goto`, then call `page.clock.runFor(40)` in a loop and read `getComputedStyle(hero)` after each step; the clock drives the CSS keyframes and the counter alike.",
+      "why": "near miss: armed correctly, but expects the page clock alone to step the CSS keyframes"
+    },
+    {
+      "answer": "After load, take a screenshot every 50ms with `page.waitForTimeout(50)` and compare the images.",
+      "why": "samples the entrance by waiting real time between screenshots"
+    },
+    {
+      "answer": "Each frame, read `document.querySelector('.hero').style.opacity` and `.style.transform`.",
+      "why": "reads element.style, which a CSS keyframe entrance never writes"
+    }
+  ]
+}

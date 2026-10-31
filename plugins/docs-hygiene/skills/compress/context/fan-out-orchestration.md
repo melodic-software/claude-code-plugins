@@ -1,8 +1,8 @@
 # Compress fan-out orchestration
 
-Read this when batch-compressing N markdown files via parallel subagents. Codifies the multi-phase split that keeps the mandatory semantic-diff in a SEPARATE fresh-context auditor. A fresh-context verifier beats self-critique, and a subagent cannot be relied on to spawn its own verifier, so the auditor phase stays a main-session dispatch.
+Read this when batch-compressing N markdown files via parallel subagents. The multi-phase split keeps the mandatory semantic-diff in a SEPARATE fresh-context auditor, dispatched by the main session: a fresh-context verifier beats self-critique, and a subagent cannot be relied on to spawn its own verifier.
 
-**Why this exists:** `/docs-hygiene:compress` "Hard rules" mandate semantic-diff dispatch. A subagent that invokes `/docs-hygiene:compress` must NOT run that dispatch as a self-audit in its own context. Self-audit by the same model that produced the edits drifts toward EXPANSION ("preserve clarity" re-adds words just removed; an observed failure, see ## History). Fix: move the semantic-diff into a separate fresh-context subagent dispatched by the main session.
+**Why this exists:** `/docs-hygiene:compress` "Hard rules" mandate semantic-diff dispatch. A subagent that invokes `/docs-hygiene:compress` must NOT run that dispatch as a self-audit in its own context: self-audit by the model that produced the edits drifts toward EXPANSION ("preserve clarity" re-adds words just removed; an observed failure, see ## History).
 
 ## Architecture (three phases per wave)
 
@@ -41,15 +41,15 @@ If nothing safely droppable after one read-through: <basename>: no-op (reason)
 
 ### Phase B: auditor subagents (parallel, one per Phase-A modified file)
 
-Main session dispatches via the Agent tool. Each subagent applies `/docs-hygiene:compress`'s semantic-diff prompt template against ONE file's diff. The main session has the Agent tool; this dispatch succeeds.
+The main session dispatches via the Agent tool, which it has. Each subagent applies `/docs-hygiene:compress`'s semantic-diff prompt template against ONE file's diff.
 
 Main session preparation per subagent:
 
-- ORIGINAL content via `git show HEAD:<file>` (free, no disk overhead; requires the user pre-staged the baseline)
+- ORIGINAL content via `git show HEAD:<file>` (no disk overhead; requires the user pre-staged the baseline)
 - CONDENSED content via the current file body
 - Prompt body: the semantic-diff prompt owned by this skill (`context/semantic-diff-prompt.md`, which substitutes `{ORIG}` / `{COND}` / `{ARTICLES}` placeholders into a FINDING-block + TOTAL-summary contract); `{ARTICLES}` is the same `compress_articles` value Phase A used
 
-Subagent returns FINDING blocks + a TOTAL summary line per the semantic-diff-prompt contract. Forbidden citation tokens (training-recall markers) invalidate the dispatch, so revert that file's candidate.
+The subagent returns FINDING blocks + a TOTAL summary line per the semantic-diff-prompt contract. A forbidden citation token (training-recall marker) invalidates the dispatch: revert that file's candidate.
 
 ### Phase C: main-session reconciliation
 
@@ -62,12 +62,12 @@ Per FINDING block returned in Phase B:
 
 ## Request budget
 
-Two requests per file: one compress dispatch and one audit dispatch. At a wave width of 4 that is 8 requests per wave. The rate is comparable to the in-skill dispatch path, and the auditor cannot self-modify the file it grades.
+Two requests per file: one compress dispatch and one audit dispatch, so 8 requests per wave at a width of 4. The rate is comparable to the in-skill dispatch path, and the auditor cannot self-modify the file it grades.
 
 ## Orchestration rules
 
 - **Phase A scope fence**: each compressor subagent's prompt names exactly ONE allowed file; any other file, git operation, or path is forbidden (the template above encodes this)
-- **Phase A does NOT invoke `/docs-hygiene:compress`** as a slash command from subagents, because self-audit in the compressor context caused reverse-direction edits (see ## History)
+- **Phase A does NOT invoke `/docs-hygiene:compress`** as a slash command from subagents: self-audit in the compressor context caused reverse-direction edits (see ## History)
 - **Refuse-fast threshold**: 5 consecutive Phase A or Phase B ERROR returns aborts the batch
 - **Yield circuit breaker**: 5 consecutive auto-reverts in a wave (sub-3% / 0-SL successful outcomes that still discard the edit) → pause, report observed yield, and re-confirm with the user before the next wave. Reverts are not ERROR returns; without this breaker a misclassified COMPRESS cohort burns two dispatches per file to completion.
 - **Phase B returns are unverified synthesis**, so the main session reverts per finding rather than verifying each by hand; a forbidden citation token invalidates the whole dispatch

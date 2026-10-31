@@ -3,7 +3,7 @@ description: "Routine case with a planted defect. One case's prompt.md frontmatt
 tags: [validate, scaffold, routine]
 runs: 3
 max_turns: 10
-allowed_tools: [Skill, Bash, Read, Glob, Grep]
+allowed_tools: [Skill, Read, Glob, Grep]
 expected_outcome: "The reply says the suite will not load (a FAIL), names `timeout` as the unknown key, and names `timeout_seconds` as the right one"
 ---
 

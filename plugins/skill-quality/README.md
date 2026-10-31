@@ -219,7 +219,9 @@ configuration is needed:
 
 ## Evals schema + quality lint
 
-`validate-evals` checks a skill's `evals/evals.json` against the bundled
+A skill's new evals are `case.yaml` cases in its plugin's `evals/` directory, written by
+`/evals:design` and checked by `/evals:validate`. `validate-evals` checks the skill-creator file a
+skill may still carry, `evals/evals.json`, against the bundled
 `reference/evals.schema.json`. Every case requires `id`, `prompt`, and at least one non-empty
 grading criterion: `expected_output`, `expectations`, or `assertions` (a case that cannot be
 graded is not an eval); the rich form adds `name` (kebab-case) and `files`. Any case may add

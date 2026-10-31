@@ -20,9 +20,11 @@ Contents: `respond-at-once`, `direct-manipulation`, `interruptible`, `spring-par
 
 - Feedback starts on press-down, not on release.
 - Remove every delay on the input path that is not essential: debounces, artificial timers, waits
-  for a transition to finish, a platform tap delay.
-- During a drag, slider or drawer gesture, the interface updates continuously with the pointer the
-  whole way through, never only when the gesture ends.
+  for a transition to finish, a platform tap delay. This is the feedback the hand sees; debouncing
+  a search request sent to a server is the `web-performance` concern.
+- During a drag or drawer gesture, the interface updates continuously with the pointer the whole
+  way through, never only when the gesture ends. A slider's value updating live during drag is the
+  `states` concern.
 
 ## Direct manipulation: `direct-manipulation`
 
@@ -33,18 +35,47 @@ Contents: `respond-at-once`, `direct-manipulation`, `interruptible`, `spring-par
 
 ## Interruptible: `interruptible`
 
+Transitions for reversible state and keyframes for one-shots are `catalog.md`
+`interruption-and-exit`; this section adds what a gesture needs.
+
+**Interruptibility is the killer feature:** when a gesture reverses mid-flight, a spring carries the
+current velocity into the new animation. A CSS keyframe animation restarts from zero and looks
+broken. If the interaction is gesture-driven, that alone justifies a spring.
+
 - Never lock out input during a transition. A closing sheet the user grabs again follows the
   pointer instead of finishing its close first.
 - Start any new motion from the element's current on-screen value, never from its logical target;
   starting from the target causes a visible jump.
-- When a gesture reverses, carry the velocity through the retarget instead of cutting it; a cut
-  reads as hitting a wall. Springs that retarget from the current velocity do this.
 - Animate the two axes of a 2D motion as independent springs; one spring on the combined distance
   falls out of sync when the axes move at different speeds.
 
 ## Spring parameters: `spring-parameters`
 
-Think in two parameters:
+Springs have no fixed duration: they simulate physics, which makes them feel alive and lets them
+preserve velocity when interrupted.
+
+**When to use a spring instead of a curve:**
+
+- Drag interactions with momentum (sheets, swipe-to-dismiss, sliders)
+- Gestures the user can interrupt mid-motion
+- Elements meant to feel physical/alive (Dynamic Island-style morphs)
+- Playful, organic interfaces
+
+**Configuration: prefer the duration + bounce API** (far easier to reason about than
+mass/stiffness/damping):
+
+```js
+{ type: "spring", duration: 0.5, bounce: 0.2 }
+// vs the physics API you rarely need:
+{ type: "spring", mass: 1, stiffness: 100, damping: 10 }
+```
+
+**Bounce rules:** default to `bounce: 0` in product UI. Add bounce only for playful, physical
+interactions (drag-to-dismiss release, a toy-like toggle) and keep it subtle: 0.1-0.3, never more.
+Default spring: `{ type: "spring", duration: 0.5, bounce: 0 }`; the `bounce: 0.2` above shows the
+form for a playful case, not the default.
+
+Whatever form the library takes, think in two parameters:
 
 - **Damping ratio** controls overshoot: 1.0 settles with no bounce; below 1.0 overshoots and
   oscillates, more as it drops.
@@ -57,7 +88,8 @@ Think in two parameters:
 | After a flick, throw or drag release | about 0.8 | 0.3 to 0.4 |
 | Moving or repositioning an element | 1.0 | 0.4 |
 | Rotation | 0.8 | 0.4 |
-| Drawer or sheet | 0.8 | 0.3 |
+| Drawer or sheet released from a drag | 0.8 | 0.3 |
+| Drawer or sheet opened by a control | 1.0 | 0.3 |
 
 - Overshoot on something the user flicked feels right; overshoot on a menu that simply opened feels
   wrong.

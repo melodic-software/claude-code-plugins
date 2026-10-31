@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: an-rule-file-residue-beside-guardrail
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:docs-hygiene:)?audit-noise"'
+  - name: flags-conversational-aside
+    type: regex
+    pattern: '^(?=[^\n]*\bas you asked\b)[^\n]*(?:\n[^\n]*){0,2}?\b(?:delete|deleting|drop|remove|cut|strip|conversational|residue|address|aside)\b'
+    flags: 'im'
+  - name: flags-pr-back-reference
+    type: regex
+    pattern: '^(?=[^\n]*PR #45)[^\n]*\b(?:delete|deleting|drop|remove|cut|strip|relocate|move|sources|history|back-?reference|residue|ticket|tracker)\b'
+    flags: 'im'
+  - name: flags-ghost-ref
+    type: regex
+    pattern: '^(?=[^\n]*payments-retry-spike)[^\n]*(?:\n[^\n]*){0,2}?\b(?:ghost|dangling|broken|slice|promote|permalink|strip|durable|ephemeral|temporary|delete|remov(?:e|ed|ing)|replace)\b'
+    flags: 'im'
+  - name: leaves-token-guardrail
+    type: regex
+    pattern: '^(?![^\n]*\b(?:guardrail|carve-?out|not (?:a )?(?:finding|flagged|noise|clutter)|leave|keep|fine|legitimate|exempt|no change|unchanged|stays?|no positive)\b)(?=[^\n]*API tokens)[^\n]*\b(?:negation|rewrite|reword|rephrase|positive|delete|remove|clutter)\b'
+    flags: 'im'
+    match: not_contains
+  - name: leaves-handoffs-root
+    type: regex
+    pattern: '^(?![^\n]*\b(?:convention|carve-?out|not (?:a )?(?:finding|flagged|ghost|noise|clutter)|leave|keep|fine|legitimate|exempt|no change|unchanged|stays?|reserved)\b)(?=[^\n]*\.work/handoffs/)[^\n]*\b(?:ghost|dangling|broken|strip|delete|remove|ephemeral|temporary|clutter)\b'
+    flags: 'im'
+    match: not_contains
+  - name: leaves-open-task-item
+    type: regex
+    pattern: '^(?![^\n]*\b(?:carve-?out|outstanding|open work|not (?:a )?(?:finding|flagged|noise|clutter)|leave|keep|fine|legitimate|exempt|no change|unchanged|stays?)\b)(?=[^\n]*#123)[^\n]*\b(?:delete|remove|drop|strip|relocate|back-?reference|residue|tracker|clutter)\b'
+    flags: 'im'
+    match: not_contains

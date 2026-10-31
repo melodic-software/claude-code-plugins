@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "Before I collect anything, here is the run:\n\n- Window: 2026-10-20 to today, one fixed window for every source\n- Providers: Northwind, Contoso\n- Source classes: official vendor blogs and release notes, GitHub releases, RSS feeds, secondary reporting\n- Profile: default\n- Output: markdown\n\nShall I proceed?",
+      "why": "shall I proceed"
+    },
+    {
+      "answer": "Before I collect anything, here is the run:\n\n- Window: 2026-10-20 to today, one fixed window for every source\n- Providers: Northwind, Contoso\n- Source classes: official vendor blogs and release notes, GitHub releases, RSS feeds, secondary reporting\n- Profile: default\n- Output: markdown\n\nReply yes to start collecting.",
+      "why": "reply yes"
+    },
+    {
+      "answer": "Before I collect anything, here is the run:\n\n- Window: 2026-10-20 to today, one fixed window for every source\n- Providers: Northwind, Contoso\n- Source classes: official vendor blogs and release notes, GitHub releases, RSS feeds, secondary reporting\n- Profile: default\n- Output: markdown\n\nDoes this look right? Once you confirm I will start the search.",
+      "why": "once you confirm"
+    },
+    {
+      "answer": "Before I collect anything, here is the run:\n\n- Window: 2026-10-20 to today, one fixed window for every source\n- Providers: Northwind, Contoso\n- Source classes: official vendor blogs and release notes, GitHub releases, RSS feeds, secondary reporting\n- Profile: default\n- Output: markdown\n\nOK to proceed?",
+      "why": "ok to proceed"
+    },
+    {
+      "answer": "Before I collect anything, here is the run:\n\n- Window: 2026-10-20 to today, one fixed window for every source\n- Providers: Northwind, Contoso\n- Source classes: official vendor blogs and release notes, GitHub releases, RSS feeds, secondary reporting\n- Profile: default\n- Output: markdown\n\nWant me to go ahead with this scope?",
+      "why": "want me to go ahead"
+    },
+    {
+      "answer": "Before I collect anything, here is the run:\n\n- Window: 2026-10-20 to today, one fixed window for every source\n- Providers: Northwind, Contoso\n- Source classes: official vendor blogs and release notes, GitHub releases, RSS feeds, secondary reporting\n- Profile: default\n- Output: markdown\n\nPlease confirm, or tell me what to change.",
+      "why": "please confirm"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "## AI briefing (profile default, since 2026-10-20, markdown)\n\nSources: official vendor blogs, GitHub releases.\n\n### Northwind\n\n- HIGH: Northwind ships Atlas 2.\n\n### Contoso\n\nNo items in this window.",
+      "why": "ran without asking"
+    },
+    {
+      "answer": "No need to confirm since you are in a hurry; collecting now.",
+      "why": "skips gate"
+    },
+    {
+      "answer": "The setup skill installs the build tree; run /ai-briefing:setup apply install-build-deps.",
+      "why": "different question"
+    }
+  ]
+}
