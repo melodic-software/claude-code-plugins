@@ -37,9 +37,18 @@
 #        intended, and a single writer identity owns a given marker.
 #
 # WRITE IDENTITY (both tiers). "My comments" is the lanes' write identity,
-# resolved in the order restart-consumer.sh and the babysit-loop upsert use:
+# resolved in the order restart-consumer.sh and the babysit-loop upsert use, with
+# one added check on step 2:
 #   1. `gh api user` reports a User: that login (a personal or machine-user token).
-#   2. that call fails or reports a Bot: SLUG[bot] from --app-slug SLUG.
+#   2. that call reports a Bot, or fails under an App installation token: SLUG[bot]
+#      from --app-slug SLUG. A failed call counts as an installation token only
+#      when `gh api installation/repositories` then succeeds. Any other result,
+#      a transient failure included, resolves no identity: under a personal
+#      token SLUG[bot] would miss that token's own comment, and the create would
+#      duplicate it. Which token types reach that endpoint, as of 2026-10-31
+#      (recheck when either list adds or drops it):
+#      https://docs.github.com/en/rest/authentication/endpoints-available-for-github-app-installation-access-tokens#apps
+#      https://docs.github.com/en/rest/authentication/endpoints-available-for-fine-grained-personal-access-tokens#apps
 #   3. a Bot report with no --app-slug: the reported login, plus `[bot]` when
 #      missing.
 # Anything else, or a login outside [A-Za-z0-9_-] plus an optional [bot], exits 4
@@ -145,8 +154,9 @@
 #      size floor, or starting with a literal `@`) — NOTHING was written
 #   4  prerequisite missing (gh or jq), or the repo / safe body dir / write
 #      identity unresolved (nothing was written)
-#   5  a gh API call (list / create / update) failed, or the comment list did
-#      not parse as a JSON array (nothing was written)
+#   5  a gh API call (list / create / update) failed, the comment list was empty
+#      or not a JSON array of objects, or detection could not read it (nothing
+#      was written)
 #   6  the write went through but its read-back did not verify (or could not be
 #      performed) — the comment on the issue is NOT confirmed telemetry
 
@@ -384,11 +394,13 @@ fi
 # The login whose comments count as mine (WRITE IDENTITY in the header). Returns 1
 # when none resolves; the caller writes nothing.
 WRITE_IDENTITY=""
+installation_token() { gh api 'installation/repositories?per_page=1' >/dev/null 2>&1; }
 resolve_write_identity() {
-  local who=""
-  if who="$(gh api user --jq '.login + " " + .type' 2>/dev/null | tr -d '\r')" && [[ "$who" == *" User" ]]; then
+  local who="" user_ok=1
+  who="$(gh api user --jq '.login + " " + .type' 2>/dev/null | tr -d '\r')" || user_ok=0
+  if ((user_ok)) && [[ "$who" == *" User" ]]; then
     WRITE_IDENTITY="${who% User}"
-  elif [[ -n "$APP_SLUG" ]]; then
+  elif [[ -n "$APP_SLUG" ]] && { ((user_ok)) || installation_token; }; then
     WRITE_IDENTITY="${APP_SLUG}[bot]"
   elif [[ "$who" == *" Bot" ]]; then
     WRITE_IDENTITY="${who% Bot}"
@@ -409,7 +421,7 @@ resolve_write_identity() {
 # existing comment on page 2 of a busy tracking issue visible; without it we
 # would POST a duplicate, the exact failure this script exists to prevent.
 resolve_write_identity || {
-  err "cannot resolve the lanes' write identity (gh api user failed or reported no User); pass --app-slug under an App token. Nothing was written."
+  err "cannot resolve the lanes' write identity (gh api user failed or reported no User, and the token is not an App installation token); pass --app-slug under an App token. Nothing was written."
   exit 4
 }
 
@@ -418,9 +430,18 @@ raw_pages="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments?per_page=100"
   exit 5
 }
 # A list that does not parse is not an empty list: reading it as one would POST
-# a duplicate of the comment it failed to show.
-comments="$(jq -se 'add // [] | if type == "array" then . else error("not an array") end' <<<"$raw_pages" 2>/dev/null)" || {
-  err "comment list on $REPO#$ISSUE did not parse as a JSON array. Nothing was written."
+# a duplicate of the comment it failed to show. An issue with no comments still
+# answers `[]`, so no output at all, a `null` or a `false` is an error too, and
+# a non-object element would make detection below match nothing.
+comments="$(jq -se '
+  if length > 0 and all(.[]; type == "array") then add else error("not an array") end
+  | if all(.[]; type == "object") then . else error("not an object") end
+' <<<"$raw_pages" 2>/dev/null)" || {
+  err "comment list on $REPO#$ISSUE did not parse as a JSON array of comment objects. Nothing was written."
+  exit 5
+}
+detect_failed() {
+  err "could not read the comment list on $REPO#$ISSUE (detection jq failed). Nothing was written."
   exit 5
 }
 
@@ -428,7 +449,7 @@ comments="$(jq -se 'add // [] | if type == "array" then . else error("not an arr
 target_id="$(jq -r --arg s "$SENTINEL" --arg me "$WRITE_IDENTITY" '
   [ .[] | select((.user.login // "") == $me and (.body // "" | contains($s))) ]
   | sort_by(.created_at) | last | .id // empty
-' <<<"$comments")"
+' <<<"$comments")" || detect_failed
 detect="sentinel"
 
 # Fallback: no sentinel yet — the newest of MY comments carrying the raw marker
@@ -448,7 +469,7 @@ if [[ -z "$target_id" ]]; then
         | select((.user.login // "") == $me
             and ((.body // "") | test("(?<![A-Za-z0-9:@._-])" + $mre + "(?![A-Za-z0-9:@._-])"))) ]
     | sort_by(.created_at) | last | .id // empty
-  ' <<<"$comments")"
+  ' <<<"$comments")" || detect_failed
   [[ -n "$target_id" ]] && detect="marker-fallback"
 fi
 

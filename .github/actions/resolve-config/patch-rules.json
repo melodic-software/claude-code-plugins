@@ -80,6 +80,6 @@
     "script-exec-bit": true,
     "commit": { "parents": ["head"], "message": "Resolve issue #{issue}", "trailer": "Lane-Activity: {lane}/{activity}" },
     "reads-report": null,
-    "escalations": ["patch-empty", "patch-invalid", "patch-not-applied", "patch-protected-path"]
+    "escalations": ["patch-empty", "patch-invalid", "patch-credential", "patch-not-applied", "patch-protected-path"]
   }
 }

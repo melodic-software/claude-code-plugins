@@ -26,12 +26,16 @@
 //             admission and refinement decide it as the owner settled, up
 //             to limits.stop-retries, or the row's `retries` when fewer;
 //             past that it takes retry-spent's route.
+//   park      removes agent-ready, status: ready and admission-deferred and
+//             adds status: confirmed beside the lanes App's admission comment
+//             naming the reason, as admission parks a refusal no person
+//             answers; intake takes it again once the reason is met.
 //   close     closes the issue as completed with the run's words.
 //   fail      removes agent-ready and adds no label: the comment's outcome
 //             marker is the visible stop the maintenance monitor reports.
 import { readFileSync } from "node:fs";
 
-const ROUTE_NAMES = new Set(["hold", "host-run", "attended", "retry", "wait", "intake", "close", "fail"]);
+const ROUTE_NAMES = new Set(["hold", "host-run", "attended", "retry", "wait", "intake", "park", "close", "fail"]);
 // The routes a row's `retries` may cap.
 const COUNTED_ROUTES = new Set(["retry", "wait", "intake"]);
 // The owner's reasons for a person (owner direction 2026-10-27).

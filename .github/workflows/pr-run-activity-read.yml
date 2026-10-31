@@ -618,6 +618,7 @@ jobs:
       carry-reply-bytes: ${{ steps.carry.outputs.reply-bytes }}
       carry-act-turns-bytes: ${{ steps.carry.outputs.act-turns-bytes }}
       carry-patch-bytes: ${{ steps.carry.outputs.patch-bytes }}
+      carry-patch-scan: ${{ steps.carry.outputs.patch-scan }}
       carry-replies-bytes: ${{ steps.carry.outputs.replies-bytes }}
       carry-dependency-verdict-bytes: ${{ steps.carry.outputs.dependency-verdict-bytes }}
       carry-work-outcome-bytes: ${{ steps.carry.outputs.work-outcome-bytes }}
@@ -1260,6 +1261,7 @@ jobs:
         run: |
           mkdir -p "$DEST" "$SEAL_DIR"
           cp .base/.github/scripts/read-patch/collect-patch.sh .base/.github/scripts/read-patch/check-permission-mode.sh "$DEST/"
+          cp .base/lib/publish-gate.mjs "$DEST/"
           cp .base/.github/actions/seal-lane-output/action.yml .base/.github/actions/seal-lane-output/seal.mjs \
             .base/.github/lane-keys/scan-carrier.pub "$SEAL_DIR/"
 
@@ -2032,7 +2034,13 @@ jobs:
       # private key. This step stages each payload within its cap
       # and sets its byte count; an absent payload sets nothing, and one
       # over its cap sets only its byte count, which the scan job refuses as
-      # too large. The seal step then seals the staged copies (the sealer
+      # too large. A patch over its cap never reaches that job's leak scan,
+      # so this step runs the same scan on it before removing the copy, and
+      # patch-scan says which refusal the scan job gives: clean (no block and
+      # no binary hunk, whose bytes a text scan cannot read) retries, and hit,
+      # for a block, a binary hunk or a scan that failed, holds. Head code may
+      # forge clean, which only turns that hold into a retry; this step adds no
+      # token. The seal step then seals the staged copies (the sealer
       # copied from the base, placed where a uses: can reach it) into at
       # most five chunks of 98304 characters, each fitting one environment
       # variable, bound to this run and the run job. Every output here is
@@ -2057,9 +2065,20 @@ jobs:
           OUTCOME_DIR: ${{ inputs.issue-number != '' && format('{0}/work-outcome', runner.temp) || '' }}
           CARRY_DIR: ${{ runner.temp }}/carry
           SEAL_DIR: ${{ runner.temp }}/seal-lane-output
+          PATCH_GATE: ${{ runner.temp }}/read-patch/publish-gate.mjs
         run: |
           rm -rf "$CARRY_DIR"
           mkdir -p "$CARRY_DIR"
+          patch_is_clean() {
+            timeout 120 node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              import { pathToFileURL } from "node:url";
+              const { scanLeak } = await import(pathToFileURL(process.env.PATCH_GATE).href);
+              const bytes = readFileSync(process.argv[1]);
+              const held = scanLeak(bytes, { diff: true }).block || /^GIT binary patch$/m.test(bytes.toString("latin1"));
+              process.exit(held ? 1 : 0);
+            ' "$1"
+          }
           carry() {
             local name=$1 file=$2 copy=$CARRY_DIR/$3 cap=$4 bytes
             if [ -L "$file" ] || [ ! -f "$file" ]; then return 0; fi
@@ -2067,6 +2086,14 @@ jobs:
             bytes=$(stat -c %s "$copy")
             echo "$name-bytes=$bytes" >>"$GITHUB_OUTPUT"
             if [ "$bytes" -gt "$cap" ]; then
+              if [ "$name" = patch ]; then
+                if patch_is_clean "$copy"; then
+                  echo "patch-scan=clean" >>"$GITHUB_OUTPUT"
+                else
+                  echo "patch-scan=hit" >>"$GITHUB_OUTPUT"
+                  echo "::error::the oversize patch holds a credential shape or a binary hunk, or its scan failed, so it may carry a credential"
+                fi
+              fi
               rm -f "$copy"
               echo "::error::too-large: the $name is $bytes bytes, over its $cap-byte cap, so nothing is published"
             fi
@@ -2388,10 +2415,14 @@ jobs:
       # output, held to its closed set, so a forged one can only hand the
       # PR to a person.
       collect-refused: ${{ steps.decode.outputs.collect-refused == 'true' && 'true' || '' }}
-      # Set only by this job's own steps: a refused patch over its cap, or
-      # any other refusal; a forged run job output can only add one.
+      # Set only by this job's own steps: `patch`, an oversize patch the carry
+      # step scanned clean; `fault`, a scan fault after the patch's text was
+      # judged, with no binary hunk's bytes unread, or in a run that left no
+      # patch; `output`, any other refusal. A forged run job output can add
+      # one, or forge that clean and turn an oversize hold into a retry.
       refused: >-
         ${{ steps.decode.outputs.refused
+        || steps.leak-scan.outputs.refused
         || (steps.open.outcome == 'failure' || steps.decode.outcome == 'failure' || steps.leak-scan.outcome == 'failure') && 'output'
         || '' }}
     steps:
@@ -2500,6 +2531,7 @@ jobs:
           REPLY_BYTES: ${{ needs.run.outputs.carry-reply-bytes }}
           ACT_TURNS_BYTES: ${{ needs.run.outputs.carry-act-turns-bytes }}
           PATCH_BYTES: ${{ needs.run.outputs.carry-patch-bytes }}
+          PATCH_SCAN: ${{ needs.run.outputs.carry-patch-scan }}
           REPLIES_BYTES: ${{ needs.run.outputs.carry-replies-bytes }}
           DEPENDENCY_VERDICT_BYTES: ${{ needs.run.outputs.carry-dependency-verdict-bytes }}
           WORK_OUTCOME_BYTES: ${{ needs.run.outputs.carry-work-outcome-bytes }}
@@ -2525,6 +2557,7 @@ jobs:
               ACT_OUTCOME: OUTCOME,
               DIRTY_TREE: ['true', 'false'],
               PATCH_COLLECTED: ['written', 'empty', 'refused'],
+              PATCH_SCAN: ['clean', 'hit'],
               KILL_REASON: NAME,
               TRIGGER_REASON: NAME,
               GATE_REASON: NAME,
@@ -2573,8 +2606,9 @@ jobs:
                 const bytes = Number(bytesText);
                 if (bytes > cap) {
                   // A lockfile fix over the patch cap never lands: the verdict
-                  // job names it (refused `patch`).
-                  if (name === 'patch') core.setOutput('refused', 'patch');
+                  // job names it (refused `patch`). Only the carry step's clean
+                  // scan makes it that; any other patch here holds (`output`).
+                  if (name === 'patch') core.setOutput('refused', env.PATCH_SCAN === 'clean' ? 'patch' : 'output');
                   refuse(`too-large: the ${name} is ${bytes} bytes, over its ${cap}-byte cap; nothing is published`);
                 }
                 if (size !== bytes) refuse(`payload-mismatch: the ${name} does not match its byte count; nothing is published`);
@@ -2645,7 +2679,13 @@ jobs:
       # step naming the pattern, never the value, and says to rotate it; a
       # patch that does not apply, or a scan that does not finish (the
       # timeout included), fails it with no rotation; every upload and
-      # summary after it needs clean == 'true'. The one broad label, a
+      # summary after it needs clean == 'true'. Those two faults find no
+      # credential, so they set refused=fault, which retries, once the patch's
+      # text was judged with no binary hunk's bytes unread, or when the run
+      # left no patch; any other fault holds, and a timeout sets no output, so
+      # it holds too. A 5xx from the gate's two API calls retries in the step,
+      # so a blip does not hold an unjudged patch for a person; a rate-limit
+      # status does not. The one broad label, a
       # password or secret assignment, is a warning naming the kind of
       # source, never a path.
       - name: Scan the outputs for credentials
@@ -2661,7 +2701,9 @@ jobs:
           # read as text only.
           TEXT_PATCH: ${{ inputs.merge-conflict-tree != '' }}
         with:
-          retries: 0
+          retries: 2
+          # The action's default list, plus the rate limit it leaves out.
+          retry-exempt-status-codes: 400,401,403,404,422,429
           script: |
             const fs = require('fs');
             const os = require('os');
@@ -2683,6 +2725,8 @@ jobs:
             };
             let hit = null;
             let scratch = null;
+            let judged = false;
+            let binary = false;
             try {
               if (!/^[0-9a-f]{40}$/.test(HEAD_SHA ?? '')) throw new Error('no head');
               scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-scan-'));
@@ -2783,6 +2827,7 @@ jobs:
               judge('the outcome', outcome);
               judge('lane.json', lane);
               judge('the patch', patch, true);
+              judged = true;
               // A merge-base patch applies to a conflict tree only the apply job
               // rebuilds, so it is held to text hunks, whose every added byte
               // the text scan above read; a binary hunk blocks.
@@ -2797,6 +2842,7 @@ jobs:
               // not apply blocks. A missing or blank patch file is no patch: the
               // collector writes none for no change.
               if (!hit && TEXT_PATCH !== 'true' && patch && patch.toString('latin1').trim() !== '') {
+                binary = /^GIT binary patch$/m.test(patch.toString('latin1'));
                 const head = repo('head', true);
                 const apply = repo('apply', false);
                 apply(['index-pack', '--stdin'], head(['pack-objects', '--stdout', '-q'], head(['rev-list', '--objects', '--no-walk', HEAD_SHA])));
@@ -2806,7 +2852,7 @@ jobs:
                   apply(['apply', '--cached', '--binary', '-'], patch);
                   made = apply(['write-tree']).toString('latin1').trim();
                 } catch {
-                  hit = { label: 'the patch does not apply to the head', credential: false };
+                  hit = { label: 'the patch does not apply to the head', credential: false, fault: true };
                 }
                 if (made) for (const bytes of changedBytes(apply, HEAD_SHA, made)) judge('the patch', bytes);
               }
@@ -2814,12 +2860,14 @@ jobs:
                 for (const kind of warned) core.warning(`leak-scan: ${WARN_ONLY} in ${kind}; not blocking, check it is no real credential`);
               }
             } catch (error) {
-              hit = { label: `no finished scan (${error.name})`, credential: false };
+              // A throw after a hit never replaces it: the hit still holds.
+              hit ??= { label: `no finished scan (${error.name})`, credential: false, fault: true };
             } finally {
               if (scratch) fs.rmSync(scratch, { recursive: true, force: true });
             }
             core.setOutput('clean', hit ? 'false' : 'true');
             if (hit) {
+              if (hit.fault && !binary && (judged || !read(PATCH_FILE))) core.setOutput('refused', 'fault');
               core.setFailed(`leak-scan: ${hit.label}; nothing is uploaded or summarized${hit.credential ? '\nrotate this credential' : ''}`);
             }
 
@@ -2997,9 +3045,12 @@ jobs:
   # (address-feedback.mjs scanRefusal), and in issue mode so does
   # report-outcome, which names the refusal in the issue's hand-back. The
   # scan's own result decides it (a failed or cancelled scan published
-  # nothing); the scan's outputs only name an oversize patch. It reads nothing from the run job, so head
-  # code can only fail the scan or add a marker, either of which hands the
-  # round to a person. always(), since cancelled() is true once the scan was
+  # nothing); the scan's outputs only name a refusal that retries, an oversize
+  # patch or a scan fault, and anything else writes `output`, which holds. It
+  # reads nothing from the run job, so head code can fail the scan, add a
+  # marker that hands the round to a person, or forge the carry step's clean
+  # scan and get the retry a clean oversize patch gets. always(), since
+  # cancelled() is true once the scan was
   # cancelled, and !cancelled() would skip that arm.
   scan-refusal:
     needs: scan
@@ -3012,7 +3063,7 @@ jobs:
     steps:
       - name: Write the scan refusal marker
         env:
-          REFUSED: ${{ needs.scan.outputs.refused == 'patch' && 'patch' || 'output' }}
+          REFUSED: ${{ needs.scan.outputs.refused == 'patch' && 'patch' || needs.scan.outputs.refused == 'fault' && 'fault' || 'output' }}
           MARKER: ${{ runner.temp }}/scan-refused/scan-refused-${{ github.run_attempt }}${{ inputs.model-rung == '1' && '-rung-up' || '' }}.txt
         run: |
           mkdir -p "$(dirname "$MARKER")"
