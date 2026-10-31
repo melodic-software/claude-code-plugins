@@ -22,6 +22,14 @@
     {
       "answer": [{"tool": "Bash", "input": {"command": "mkdir -p evidence && node ./tools/anim-capture.mjs --frames --out evidence", "description": "Capture animation"}}],
       "why": "runs the recorder after a separator"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cd app && timeout 60 node tools/anim-capture.mjs --frames --out evidence", "description": "Capture animation"}}],
+      "why": "runs the recorder through a timeout wrapper"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "ANIM_FPS=60 node tools/anim-capture.mjs --frames", "description": "Capture animation"}}],
+      "why": "runs the recorder with an environment assignment"
     }
   ]
 }
