@@ -1763,14 +1763,14 @@ test("a needs-session a person added, or one with no lane stop since it went on,
 // when the head is none of the stops' heads, the new head carries no failing
 // status for their activities, and its checks pass; ci-status, which the
 // label keeps red, is not counted.
-const GREEN = [check("test-node", "success"), check("ci-status", "failure", { id: 2 })];
+const NEW_HEAD_GREEN = [check("test-node", "success"), check("ci-status", "failure", { id: 2 })];
 const laneContext = (reason) => `pr-unblock/${escalationActivity(reason)}`;
 
 test("a needs-session stop on an older head comes off once the new head carries no failing status and its checks pass", async () => {
   for (const reason of ["ci-fix-escalated", "dependency-round-cap"]) {
     assert.equal(ROUTES[reason].label, "needs-session");
     const keyStatuses = [status("failure", ACTIONS_BOT, "2026-10-18T10:00:01Z", laneContext(reason))];
-    const w = sessionWorld({ timeline: [sessionLabeled(BOT), stopped(reason, KEY)], keyStatuses, headChecks: GREEN });
+    const w = sessionWorld({ timeline: [sessionLabeled(BOT), stopped(reason, KEY)], keyStatuses, headChecks: NEW_HEAD_GREEN });
     const { code, logs } = await run(w);
     assert.equal(code, 0);
     assert.deepEqual(w.writes(), [{ method: "DELETE", path: `/repos/${REPO}/issues/8/labels/needs-session`, body: undefined }], reason);
@@ -1781,8 +1781,8 @@ test("a needs-session stop on an older head comes off once the new head carries 
 
 test("a new head keeps needs-session while the stop's status fails there or its checks do not pass", async () => {
   for (const [options, kept] of [
-    [{ statuses: [status("failure")], headChecks: GREEN }, /pr-unblock\/fix-ci reads failure at the new head/],
-    [{ statuses: [status("pending"), status("success")], headChecks: GREEN }, /pr-unblock\/fix-ci reads pending at the new head/],
+    [{ statuses: [status("failure")], headChecks: NEW_HEAD_GREEN }, /pr-unblock\/fix-ci reads failure at the new head/],
+    [{ statuses: [status("pending"), status("success")], headChecks: NEW_HEAD_GREEN }, /pr-unblock\/fix-ci reads pending at the new head/],
     [{ headChecks: RED }, /stays at the new head: a check other than ci-status fails/],
     [{ headChecks: [check("ci-status", "failure")] }, /stays at the new head/],
     [{ headChecks: [{ ...check("test-node", "success"), status: "in_progress", conclusion: null }] }, /stays at the new head/],
@@ -1800,7 +1800,7 @@ test("a dependency-workflow-unpinned stop keeps needs-session on a new head; onl
   const reason = "dependency-workflow-unpinned";
   const context = laneContext(reason);
   const failed = status("failure", ACTIONS_BOT, "2026-10-18T10:00:01Z", context);
-  const kept = sessionWorld({ timeline: [sessionLabeled(BOT), stopped(reason, KEY)], keyStatuses: [failed], headChecks: GREEN });
+  const kept = sessionWorld({ timeline: [sessionLabeled(BOT), stopped(reason, KEY)], keyStatuses: [failed], headChecks: NEW_HEAD_GREEN });
   const { logs } = await run(kept);
   assert.deepEqual(kept.writes(), []);
   assert.ok(logs.some((line) => /#8 needs-session kept: dependency-workflow-unpinned stopped at .*only its lane's clear on that head/.test(line)), logs.join("\n"));
