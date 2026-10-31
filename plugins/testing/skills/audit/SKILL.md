@@ -199,7 +199,9 @@ check included.
    changed the file, the model of every subagent this session dispatched that changed it, plus
    every model named in a `Co-Authored-By` trailer of a commit touching it
    since the base: `git log --format='%(trailers:key=Co-Authored-By,valueonly)' "$MB"..HEAD --
-   <path>`. Map each to its class (`fable`, `opus`, `sonnet`, `haiku`). When neither source names
+   <path>`. Map each to its class (`fable`, `opus`, `sonnet`, `haiku`; for the aliases a call accepts,
+   see <https://code.claude.com/docs/en/sub-agents#choose-a-model>, as of 2026-10-31; recheck when that list changes).
+   When neither source names
    a model, judge with the fallback class `opus` and say in the report that the writer is unknown.
 4. **Judge.** Dispatch the `testing:test-judge` agent, never `general-purpose`, once per file,
    with `effort: medium` (the calibrated default in `evals/judge-calibration/calibration.md`) and a
