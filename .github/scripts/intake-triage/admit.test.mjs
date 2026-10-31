@@ -765,6 +765,9 @@ describe("decide", () => {
       ["- [ ] No file under .github/workflows lists the changes.", ".github/workflows"],
       ["- [ ] No test fails after .github/workflows/a.yml is edited.", ".github/workflows/a.yml"],
       ["- [ ] Edit .github/workflows/a.yml and leave docs unchanged.", ".github/workflows/a.yml"],
+      // A `no` idiom affirms the change it opens.
+      ["- [ ] No doubt .github/workflows/a.yml must be edited.", ".github/workflows/a.yml"],
+      ["- [ ] No question .github/workflows/a.yml should be changed.", ".github/workflows/a.yml"],
       // Only a bounded shape around the path drops it, never a negation and a
       // participle that a comma or another clause separates.
       ["- [ ] No need to wait, update .github/workflows/a.yml, the file already edited upstream.", ".github/workflows/a.yml"],

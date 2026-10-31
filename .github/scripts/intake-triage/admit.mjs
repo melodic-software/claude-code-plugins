@@ -753,9 +753,12 @@ const MODAL = String.raw`must|should|shall|will|can`;
 const NOT = String.raw`(?:${MODAL})\s+not|cannot|(?:mustn|shouldn|shan|can)['’]t`;
 const ACT = String.raw`(?!(?:${VERB}|update|updating|add|remov|delete|deleting|creat|replac|renam|mov|fix)\w*(?=[\s,;:!?.]|$))`;
 const SUBJECT = String.raw`${ACT}${WORD}(?:\s+${ACT}${WORD}){0,5}`;
+// The idioms where `no` opens an affirmation, not a negation: "No doubt X
+// must be edited" asks for the edit, so shape 1 never starts at one.
+const IDIOM = String.raw`(?:doubt|question|wonder|way|matter|one)(?=[\s,;:!?.]|$)`;
 const NEGATED = new RegExp(
   [
-    String.raw`\b(?:no|none\s+of)\s+${PHRASE}\s+(?:is|are|was|were|gets?|(?:${MODAL})\s+be)\s+(?:${DONE})\b`,
+    String.raw`\b(?:no(?!\s+${IDIOM})|none\s+of)\s+${PHRASE}\s+(?:is|are|was|were|gets?|(?:${MODAL})\s+be)\s+(?:${DONE})\b`,
     String.raw`\b(?:${VERB})\s+no\s+(?:${LIST}|${PHRASE})`,
     String.raw`\b(?:(?:does|do|did)\s+not|never|(?:won|doesn|don|didn)['’]t|${NOT})\s+(?:${VERB})\s+${PHRASE}`,
     String.raw`\bleav(?:e|es|ing)\s+${PHRASE}\s+(?:unchanged|untouched|as\s+is)\b`,
