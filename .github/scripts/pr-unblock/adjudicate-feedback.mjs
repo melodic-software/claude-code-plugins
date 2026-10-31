@@ -111,7 +111,7 @@ export const directed = (comments) => (comments ?? []).some((comment) => comment
 // bot's finding the lane held goes to a person (feedback-question-security);
 // one the lane has not reviewed yet waits for the next round
 // (settleDisputes). A CRITICAL finding, a security-review finding a person
-// decides, one of no tagged lane, and a pr-verify verifier note (resolving it
+// decides (CRITICAL or unrated), one of no tagged lane, and a pr-verify verifier note (resolving it
 // leaves the verifier's FAIL holding the merge, and pr-verify judges each
 // head once) always go to a person.
 const listedState = (comments) => (comments?.[0]?.listed === true ? comments[0].security ?? "pending" : null);
@@ -671,7 +671,7 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   it at the PR head (`headSha`, which headMoved checks before the reply)
 //   against the marketplace and the cited call sites at the PR's base, the fixed hardRequireReply, then the thread is resolved (left open, as LEFT_OPEN,
 //   where the lanes App cannot resolve it), with no verdict and no person;
-//   otherwise feedback-disputed;
+//   otherwise it is settled as any other DISPUTED thread below;
 // - any other DISPUTED thread that is not adjudicable (a CRITICAL finding, a
 //   security-review finding rated at or above SECURITY_PERSON_SEVERITY or
 //   with no readable rating, or one of unknown lane) goes to a person:
@@ -793,20 +793,20 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       } catch (error) {
         found = { why: `a read failed: ${String(error?.message ?? error).slice(0, 300)}` };
       }
-      if (!found.sites) {
-        log(`${thread}: a dependencies flag hardRequire does not settle (${found.why}); it goes to a person`);
-        raise("feedback-disputed");
+      if (found.sites) {
+        const outcome = await answer(thread, hardRequireReply(path, found.sites, headSha), true);
+        if (outcome === "failed") {
+          raise("feedback-partial");
+          break;
+        }
+        if (outcome === "resolved" || outcome === LEFT_OPEN) {
+          log(`${thread}: a dependencies flag on hard requires in this marketplace; ${outcome === LEFT_OPEN ? "left open for the person" : "resolved"}`);
+        }
         continue;
       }
-      const outcome = await answer(thread, hardRequireReply(path, found.sites, headSha), true);
-      if (outcome === "failed") {
-        raise("feedback-partial");
-        break;
-      }
-      if (outcome === "resolved" || outcome === LEFT_OPEN) {
-        log(`${thread}: a dependencies flag on hard requires in this marketplace; ${outcome === LEFT_OPEN ? "left open for the person" : "resolved"}`);
-      }
-      continue;
+      // Rated below CRITICAL, an unsettled flag is no person's: it took no
+      // adjudicator slot (disputes), so it ends as feedback-unadjudicated.
+      log(`${thread}: a dependencies flag hardRequire does not settle (${found.why})`);
     }
     if (!adjudicable(comments)) {
       log(`${thread}: not a non-CRITICAL code-review finding or a security-review finding rated below ${SECURITY_PERSON_SEVERITY}; it goes to a person, not to an adjudicator`);
