@@ -18,7 +18,7 @@
 
 ## Trust boundaries
 
-The target path, optional policy, model-authored plan, filesystem metadata, Git output, and process
+The target path, optional policy, `--plan` file, filesystem metadata, Git output, and process
 handle output are untrusted inputs. The Python boundary parses them without shell interpolation,
 canonicalizes every selected path under the snapshot root, and rejects absolute paths, traversal,
 overlap, and entries absent from the snapshot.

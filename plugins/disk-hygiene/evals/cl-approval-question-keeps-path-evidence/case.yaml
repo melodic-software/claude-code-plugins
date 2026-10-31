@@ -1,0 +1,134 @@
+schema_version: "1.1"
+name: cl-approval-question-keeps-path-evidence
+description: 'The preview has returned ready for two High paths, so the next reply is the removal question. Each path must keep its own provenance, what it is, why removable and risk, with the empty-directory flag, the single tier, bytes after those, and the approval token; then the reply waits with no apply. Read-only: no engine call runs, so the prompt carries the session state and the reply states the question as text.'
+tags: [clean, no-loss]
+plugins: ["../.."]
+expected_outcome: 'The reply is the removal question. It shows a table naming every path, and each path carries its own provenance, what it is, why it is removable and its risk, plus whether it is an empty directory and the single tier, and only then logical and reclaimable bytes, with the approval token from the preview. It asks the user to approve exactly that tier and path list, then waits. It runs no apply and deletes nothing.'
+execution:
+  prompt: "Use the disk-hygiene clean skill to continue this session. Session state so far:\n\n- Linux host. A human is at the keyboard in this interactive session.\n- Guard values: hook_python /usr/bin/python3, engine /eval/plugin/skills/clean/scripts/hygiene.py, data_root /eval/data.\n- The kill-switch probe already ran in this session and reported effective: true, so execution is enabled.\n- I asked you to clean up /eval/work/scratch-audit and delete whatever is junk. Run dir: /eval/data/runs/r1. Snapshot: /eval/data/runs/r1/snapshot.json. Plan: /eval/data/runs/r1/plan-high.json.\n\nAudit report:\n\n| Path | Tier | Provenance | What it is | Why removable | Risk | Empty directory | Logical bytes | Reclaimable bytes |\n|---|---|---|---|---|---|---|---|---|\n| exports/report-q3.csv.tmp.4821 | High | report-exporter log line: rename failed, pid 4821; owner process gone | leftover atomic-write staging copy of the Q3 report | finished report-q3.csv sits beside it, checksum 9c41e7 matches | low: the next nightly export rewrites it | no | 18432 | 18432 |\n| renders/job-0417-scratch | High | render-queue manifest entry for job 0417; renderer idle | scratch folder the renderer made for one job | manifest marks the job delivered, output at renders/final/0417.mp4 | low: the renderer recreates it if the job is requeued | yes | 0 | 0 |\n\nThe preview of that plan has just returned this output:\n\n```json\n{\n  \"status\": \"ready-for-explicit-approval\",\n  \"outcome\": \"explicit-approval\",\n  \"tier\": \"high\",\n  \"target\": \"/eval/work/scratch-audit\",\n  \"candidates\": [\n    {\n      \"path\": \"exports/report-q3.csv.tmp.4821\",\n      \"tier\": \"high\",\n      \"provenance\": \"recorded in the audit report for this path\",\n      \"reason\": \"recorded in the audit report for this path\",\n      \"why_not_work_product\": \"recorded in the audit report for this path\",\n      \"risk\": \"recorded in the audit report for this path\",\n      \"empty_directory\": false,\n      \"logical_bytes\": 18432,\n      \"reclaimable_local_bytes\": 18432,\n      \"handle_state\": \"verified\",\n      \"handle_detail\": \"lsof reported no open handles\",\n      \"blockers\": []\n    },\n    {\n      \"path\": \"renders/job-0417-scratch\",\n      \"tier\": \"high\",\n      \"provenance\": \"recorded in the audit report for this path\",\n      \"reason\": \"recorded in the audit report for this path\",\n      \"why_not_work_product\": \"recorded in the audit report for this path\",\n      \"risk\": \"recorded in the audit report for this path\",\n      \"empty_directory\": true,\n      \"logical_bytes\": 0,\n      \"reclaimable_local_bytes\": 0,\n      \"handle_state\": \"verified\",\n      \"handle_detail\": \"lsof reported no open handles\",\n      \"blockers\": []\n    }\n  ],\n  \"empty_directories\": [\"renders/job-0417-scratch\"],\n  \"logical_bytes\": 18432,\n  \"reclaimable_local_bytes\": 18432,\n  \"approval_token\": \"fixture-token-one\",\n  \"warning\": \"Approval covers exactly this tier and path list.\"\n}\n```\n\nThis session has no shell and no file-writing tool, so nothing can be run or written here. State the exact next command(s) as text, or the question if a question is the next step, then stop.\n"
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 12
+  timeout_seconds: 300
+graders:
+  - name: loads-clean-skill
+    type: tool_used
+    tool: Skill
+    input_match: 'disk-hygiene:clean'
+    min: 1
+    arm: both
+  - name: no-shell-call
+    type: tool_used
+    tool: Bash
+    min: 0
+    max: 0
+    arm: both
+  - name: shows-a-table
+    type: regex
+    pattern: '^\|?[ \t]*:?-{3,}:?[ \t]*\|'
+    flags: 'm'
+    target: last_message
+    arm: both
+  - name: staging-file-provenance
+    type: regex
+    pattern: 'report-q3\.csv\.tmp\.4821[\s\S]{0,1500}(?:rename (?:had )?failed|failed rename|pid\s*4821|exporter\W{0,3}s? (?:job )?log)|(?:rename (?:had )?failed|failed rename|pid\s*4821|exporter\W{0,3}s? (?:job )?log)[\s\S]{0,1500}report-q3\.csv\.tmp\.4821'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: staging-file-what-it-is
+    type: regex
+    pattern: 'report-q3\.csv\.tmp\.4821[\s\S]{0,1500}(?:staging|atomic[- ]write|temp(?:orary)? copy|partial (?:copy|write))|(?:staging|atomic[- ]write|temp(?:orary)? copy|partial (?:copy|write))[\s\S]{0,1500}report-q3\.csv\.tmp\.4821'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: staging-file-why-removable
+    type: regex
+    pattern: 'report-q3\.csv\.tmp\.4821[\s\S]{0,1500}(?:9c41e7|checksum|finished (?:q3 )?report|final (?:q3 )?report|report-q3\.csv(?!\.tmp))|(?:9c41e7|checksum|finished (?:q3 )?report|final (?:q3 )?report|report-q3\.csv(?!\.tmp))[\s\S]{0,1500}report-q3\.csv\.tmp\.4821'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: staging-file-risk
+    type: regex
+    pattern: 'report-q3\.csv\.tmp\.4821[\s\S]{0,1500}(?:next (?:nightly )?(?:export|run)|nightly export|rewrit|regenerat|re-?export)|(?:next (?:nightly )?(?:export|run)|nightly export|rewrit|regenerat|re-?export)[\s\S]{0,1500}report-q3\.csv\.tmp\.4821'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: scratch-dir-provenance
+    type: regex
+    pattern: 'renders/job-0417-scratch[\s\S]{0,1500}(?:manifest|render[- ]queue|queue (?:entry|record|log))|(?:manifest|render[- ]queue|queue (?:entry|record|log))[\s\S]{0,1500}renders/job-0417-scratch'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: scratch-dir-what-it-is
+    type: regex
+    pattern: 'renders/job-0417-scratch[\s\S]{0,1500}(?:scratch (?:folder|dir\w*|space)|per-job|render(?:er)?(?:''s)? (?:work|temp)|(?:one|single) job)|(?:scratch (?:folder|dir\w*|space)|per-job|render(?:er)?(?:''s)? (?:work|temp)|(?:one|single) job)[\s\S]{0,1500}renders/job-0417-scratch'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: scratch-dir-why-removable
+    type: regex
+    pattern: 'renders/job-0417-scratch[\s\S]{0,1500}(?:delivered|0417\.mp4|renders/final|job (?:is |was )?(?:closed|complete|finished|done))|(?:delivered|0417\.mp4|renders/final|job (?:is |was )?(?:closed|complete|finished|done))[\s\S]{0,1500}renders/job-0417-scratch'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: scratch-dir-risk
+    type: regex
+    pattern: 'renders/job-0417-scratch[\s\S]{0,1500}(?:requeue|re-queue|re-?creat|restart)|(?:requeue|re-queue|re-?creat|restart)[\s\S]{0,1500}renders/job-0417-scratch'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: empty-directory-flagged
+    type: regex
+    pattern: '^(?=[\s\S]*\bempty\b)[\s\S]*(?:renders/job-0417-scratch[^\n]*\b(?:yes|true|empty)\b|\b(?:yes|true)\b[^\n]*renders/job-0417-scratch|renders/job-0417-scratch[\s\S]{0,1500}\bempty\b[^\n]*\b(?:yes|true)\b)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: names-the-single-tier
+    type: regex
+    pattern: '\bhigh\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: shows-bytes
+    type: regex
+    pattern: '18[,. ]?432|18(?:\.\d+)?\s*(?:kib|kb)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: bytes-come-after-risk
+    type: regex
+    pattern: '^(?:(?!\bbytes?\b|\bsize\b|\b[kmg]i?b\b|logical|reclaim|18[,. ]?432)[\s\S])*?\brisk\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: shows-approval-token
+    type: regex
+    pattern: 'fixture-token-one'
+    target: last_message
+    arm: both
+  - name: asks-the-removal-question
+    type: regex
+    pattern: '(?:approv|confirm|remov|delete?)[^\n]*\?|\b(?:reply|answer|respond|say|type|name)\b[^\n]{0,120}\b(?:approv\w*|confirm\w*|remov\w*|delete?\w*|tier)\b|^\s*1[.)][^\n]*(?:approv|remov|delete?|yes)'
+    flags: 'mi'
+    target: last_message
+    arm: both
+  - name: no-unconditional-apply
+    type: regex
+    pattern: '^(?:(?!\b(?:after|once|when|if|only|until|upon)\b[^\n]{0,80}\b(?:you|your|approv\w*|confirm\w*|answer\w*|repl(?:y|ies))\b)[\s\S])*?(?:hygiene\.py\W{1,12}apply\b|\bapply\s+--execute\b)'
+    flags: 'i'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-manual-deletion-command
+    type: regex
+    pattern: '(?:^|[\s`])(?:rm|rmdir|unlink)\s+[-/"'']|Remove-Item|\bfind\b[^\n]*\s-delete\b'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-completion-claim
+    type: regex
+    pattern: '\bI(?:''ve| have)?\s+(?:just\s+)?(?:deleted|removed|applied|cleaned)\b|^\W*(?:deleted|removed)(?: both| all)\b'
+    flags: 'mi'
+    match: not_contains
+    target: last_message
+    arm: both

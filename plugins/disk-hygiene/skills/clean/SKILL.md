@@ -293,7 +293,7 @@ Report every finding with these fields, in this order, size last:
 1. **Provenance**. Where it came from, resolved from evidence (a manifest, a config's own
    contents, an owning repository's source, a documented naming contract), never guessed from the
    name alone.
-2. **What it is**. Intent / role of the entry (`reason` in engine plans).
+2. **What it is**. Intent / role of the entry (`reason` in a `--plan` file; an inline preview's is fixed prose).
 3. **Why removable**. Why it is not work product, plus owner / native-GC result.
 4. **Risk**. What could go wrong if it is removed (and why that risk is acceptable at this tier).
 5. Path, tier, evidence, disposition; `policy_rule` and `preselected` when a rule matched.
