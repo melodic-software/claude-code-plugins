@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.131.0] - 2026-10-31
+
+### Added
+
+- `/planning:plan` and `/planning:draft-goal-condition` take an optional `--unattended` modifier, accepted anywhere in their arguments. With it, the run records its native offer (`/plan`, or the paste-ready `/goal` line) in its output instead of asking; without it, the run asks. Both argument hints list it.
+
+### Changed
+
+- `/planning:plan`'s argument hint writes its first slot as `[task description|review|close-out]`, so the hint stays within the 100-character budget with `[--unattended]` added.
+
 ## [0.130.2] - 2026-10-31
 
 ### Fixed

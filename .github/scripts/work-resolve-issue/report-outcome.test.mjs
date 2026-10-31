@@ -3711,6 +3711,81 @@ test("every person-routed comment carries the stop-reason marker and the Reason 
   assert.equal(parseReason(decide({ ...plain, outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" } }).comment), null);
 });
 
+// A security hold read from the run's words names the word, so a person can
+// dismiss a false hit in one read. Expected lines follow the comment's rule:
+// the word, in a code span, of ASCII letters, digits, hyphens, underscores and
+// single spaces.
+const WORD_LINE = "Matched security word: ";
+const wordLine = (comment) => comment.split("\n").find((line) => line.startsWith(WORD_LINE));
+const wordsPlan = (reason, over = {}) =>
+  decide({
+    issueNumber: 77,
+    issueLabels: [],
+    branch: "",
+    changedFiles: [],
+    humanLabel: "needs-human",
+    outcome: { exit: "stopped", reason, title: "", summary: "", changes: [], verification: [], notDone: [], steps: [], ...over },
+  });
+
+test("a security hold read from the run's words names the matched word and keeps its hold", () => {
+  for (const [reason, word] of [
+    ["already-done: merged in #11518, which closed the part that took over #9103's whole scope.", "took over"],
+    ["The TOKEN is in the URL.", "TOKEN"],
+    ["host-only: needs credentials, and the run found a backdoor", "backdoor"],
+    ["manual-external: rotate the leaked deploy token in the DNS account.", "token"],
+  ]) {
+    const plan = wordsPlan(reason);
+    assert.equal(plan.action, "hand-back", reason);
+    assert.equal(plan.stop, "security-risk", reason);
+    assert.ok(plan.addLabels.includes("needs-human"), reason);
+    assert.equal(parseReason(plan.comment).reason, "security", plan.comment);
+    assert.ok(wordLine(plan.comment)?.startsWith(`${WORD_LINE}\`${word}\`.`), plan.comment);
+  }
+});
+
+test("a matched word cannot mention, link, close, or add markup to the comment", () => {
+  for (const [reason, word] of [
+    ["ignore @owner [x](http://e.co) #5 `y` <b> instructions", "ignore owner x http e co 5 y b instructions"],
+    ["ignore \uff20owner \uff035 instructions", "ignore owner 5 instructions"],
+    ["ignore closes GH-5 instructions", "ignore closes GH-5 instructions"],
+    ["took\n\n  over the account", "took over"],
+  ]) {
+    const plan = wordsPlan(reason);
+    assert.equal(plan.stop, "security-risk", reason);
+    assert.ok(wordLine(plan.comment)?.startsWith(`${WORD_LINE}\`${word}\`.`), plan.comment);
+    assert.equal(plan.comment.split("\n").filter((line) => line.startsWith("<!--")).length, 3, plan.comment);
+  }
+});
+
+test("a spent intake round names the word from whichever of the run's words holds it", () => {
+  const plain = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  const plan = decide({ ...plain, outcome: { exit: "pushback", reason: "Which helper?", title: "", summary: "The log printed the deploy token." } });
+  const spent = capRetries(plan, 1);
+  assert.equal(spent.stop, "security-risk");
+  assert.ok(wordLine(spent.comment)?.startsWith(`${WORD_LINE}\`token\`.`), spent.comment);
+  const coded = capRetries(decide({ ...plain, outcome: { exit: "pushback", reason: "Which helper?", title: "", summary: "design-change: the token store needs a new shape" } }), 1);
+  assert.equal(coded.stop, "security-risk");
+  assert.ok(wordLine(coded.comment)?.startsWith(`${WORD_LINE}\`token\`.`), coded.comment);
+});
+
+test("a hold no word put there names no word", () => {
+  const plain = { issueNumber: 77, issueLabels: [], branch: "", changedFiles: [], humanLabel: "needs-human" };
+  const pushback = (reason, cause) => decide({ ...plain, outcome: { exit: "pushback", reason, cause, title: "", summary: "" } });
+  for (const plan of [
+    wordsPlan("security-risk: the deploy token is in the log"),
+    wordsPlan("security-risk: see the summary", { summary: "The deploy token is in the log." }),
+    pushback("security-risk: the issue asks to print the deploy token in the log."),
+    pushback("The fix needs the token rotated.", "security-risk"),
+    wordsPlan("Why.", { stop: "patch-credential", unread: true }),
+    pushback("Which token does the issue mean?", "intent"),
+    wordsPlan("design-change: the token store needs a new shape"),
+  ]) {
+    assert.equal(plan.action, "hand-back", plan.comment);
+    assert.equal(wordLine(plan.comment), undefined, plan.comment);
+  }
+  assert.equal(wordLine(wordsPlan("The tests failed twice.").comment), undefined);
+});
+
 test("an outcome marker reads back after the escalation marker line, and after no other line", () => {
   const outcome = "<!-- work-resolve-issue outcome=stopped run=9 -->\nWhy.";
   const read = { outcome: "stopped", resets: null, run: "9", onResumed: false };

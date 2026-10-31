@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { LOG_MARKER, MARKER_PATTERN } from "./red-main.mjs";
 import { report } from "./report.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
@@ -174,16 +175,22 @@ test("a range with no evidence run at its oldest merge pins no culprit and opens
   assert.doesNotMatch(result.body, /The revert it would open/);
 });
 
-test("a re-run that passed is no confirmed red: nothing is written", async () => {
-  const w = world({
-    merges: [{ sha: HEAD, number: 101, by: LANES }],
-    head: { attempts: [[failedJob(1, "test-node")], []] },
-  });
-  // The fake's run reads `failure`; the re-run attempt's conclusion is what decides.
-  w.call = ((inner) => async (method, path, body) => {
+// A world whose re-run of run 500 passed. The fake's run reads `failure`; the
+// re-run attempt's conclusion is what decides.
+function unconfirmedWorld(options) {
+  const w = world({ ...options, head: { attempts: [[failedJob(1, "test-node")], []] } });
+  const inner = w.call;
+  w.reads = [];
+  w.call = async (method, path, body) => {
+    if (method === "GET") w.reads.push(path);
     const value = await inner(method, path, body);
     return /\/actions\/runs\/500$/.test(path) ? { ...value, conclusion: "success" } : value;
-  })(w.call);
+  };
+  return w;
+}
+
+test("a re-run that passed is no confirmed red: nothing is written", async () => {
+  const w = unconfirmedWorld({ merges: [{ sha: HEAD, number: 101, by: LANES }] });
   const result = await run(ENV, w);
   assert.equal(result.posted, false);
   assert.deepEqual(w.writes, []);
@@ -333,4 +340,88 @@ test("a red full run the log already reports is not named again", async () => {
     comments: [logged(sha("a"), "auto-revert", "2026-10-20T07:30:00Z", 41)],
   });
   assert.doesNotMatch((await run(ENV, w)).body, /no report on this log/);
+});
+
+// An early return posts no report, so it notes the dropped reds on the log
+// rather than leaving them unnamed until the next confirmed red.
+const noteOn = (write) => {
+  assert.equal(write.method, "POST");
+  assert.match(write.path, /\/issues\/77\/comments$/);
+  return write.body.body;
+};
+
+test("the unconfirmed return notes each unreported red on the log, under a marker that is neither a report nor the log's", async () => {
+  const w = unconfirmedWorld({ merges: midRangeRed(), issues: [LOG], comments: [] });
+  const result = await run(ENV, w);
+  assert.equal(result.posted, false);
+  assert.equal(w.writes.length, 1);
+  const note = noteOn(w.writes[0]);
+  assert.match(note, /run-41 at `a{12}`/);
+  const first = note.split("\n")[0];
+  assert.equal(MARKER_PATTERN.exec(first), null);
+  assert.notEqual(first, LOG_MARKER);
+  assert.match(result.summary, /not confirmed/);
+  assert.match(result.summary, /noted 1 unreported red .*#77/i);
+});
+
+test("the unconfirmed return posts nothing and reads no issue when no red is unreported", async () => {
+  const w = unconfirmedWorld({ merges: [{ sha: HEAD, number: 101, by: LANES }], issues: [LOG] });
+  const result = await run(ENV, w);
+  assert.deepEqual(w.writes, []);
+  assert.doesNotMatch(result.summary, /noted/i);
+  assert.equal(w.reads.filter((path) => /\/issues/.test(path)).length, 0);
+});
+
+test("the unconfirmed return does not note a red the log already reports", async () => {
+  const w = unconfirmedWorld({
+    merges: midRangeRed(),
+    issues: [LOG],
+    comments: [logged(sha("a"), "auto-revert", "2026-10-20T07:30:00Z", 41)],
+  });
+  await run(ENV, w);
+  assert.deepEqual(w.writes, []);
+});
+
+test("with no log issue yet the unconfirmed return creates none, and its summary names the reds", async () => {
+  const w = unconfirmedWorld({ merges: midRangeRed(), issues: [] });
+  const result = await run(ENV, w);
+  assert.deepEqual(w.writes, []);
+  assert.match(result.summary, /not confirmed/);
+  assert.match(result.summary, /no log issue/i);
+  assert.match(result.summary, /run-41/);
+});
+
+test("the already-reports return notes each unreported red on the log", async () => {
+  const w = world({
+    merges: midRangeRed(),
+    issues: [LOG],
+    comments: [logged(HEAD, "auto-revert", "2026-10-20T11:30:00Z", 500)],
+  });
+  const result = await run(ENV, w);
+  assert.equal(result.posted, false);
+  assert.equal(w.writes.length, 1);
+  assert.match(noteOn(w.writes[0]), /run-41 at `a{12}`/);
+  assert.equal(MARKER_PATTERN.exec(noteOn(w.writes[0]).split("\n")[0]), null);
+  assert.match(result.summary, /already reports/);
+  assert.match(result.summary, /noted 1 unreported red .*#77/i);
+});
+
+test("a note is no report: its run stays unreported and unlogged, and it neither fills the cap nor names a culprit", async () => {
+  const first = unconfirmedWorld({ merges: midRangeRed(), issues: [LOG], comments: [] });
+  await run(ENV, first);
+  const note = { user: BOT, created_at: "2026-10-20T11:30:00Z", body: noteOn(first.writes[0]) };
+
+  const again = unconfirmedWorld({ merges: midRangeRed(), issues: [LOG], comments: [note] });
+  await run(ENV, again);
+  assert.match(noteOn(again.writes[0]), /run-41 at `a{12}`/);
+
+  const w = world({
+    merges: midRangeRed(),
+    issues: [LOG],
+    comments: [logged(sha("b"), "auto-revert", "2026-10-20T10:00:00Z", 1), logged(sha("c"), "auto-revert", "2026-10-20T10:30:00Z", 2), note],
+  });
+  const result = await run(ENV, w);
+  assert.equal(result.posted, true, "the note's run is not already reported");
+  assert.match(result.body, /run-41 at `a{12}`/);
+  assert.equal(decisionOf(result.body), "auto-revert", "two decisions and a note stay under the cap of three");
 });

@@ -175,6 +175,17 @@ export const reportMarker = ({ runId, attempt, culprit, decision }) =>
 export const MARKER_PATTERN =
   /^<!-- red-main-report run=(\d+) attempt=(\d+) culprit=([0-9a-f]{40}|none) decision=(auto-revert|human|none) -->$/;
 
+// A note on the log for a run that posts no report. MARKER_PATTERN does not
+// match its marker, so a note counts as neither a report nor a cap decision.
+export const noteMarker = ({ runId, attempt }) => `<!-- red-main-unreported-note run=${runId} attempt=${attempt} -->`;
+const unreportedList = (unreported) => unreported.map((r) => `${r.url} at \`${r.sha.slice(0, 12)}\``).join(", ");
+export const renderUnreportedNote = ({ run, unreported }) =>
+  [
+    noteMarker({ runId: run.id, attempt: run.attempt }),
+    "",
+    `${run.url}/attempts/${run.attempt} posts no report, so this note names the red full runs since the last green one with no report on this log (dropped, unconfirmed or skipped): ${unreportedList(unreported)}. The next confirmed report names them again and decides over their merges.`,
+  ].join("\n");
+
 // Text from commits and pull requests reaches the report only as inert lines
 // inside a text fence.
 const inert = (text) => String(text ?? "").replaceAll("`", "'").split("\n")[0];
@@ -223,7 +234,7 @@ export function renderReport({ run, verdict, base, range, attribution, culprit, 
   if (record) lines.push(`- Post-merge record: #${record}`);
   if (unreported.length > 0) {
     lines.push(
-      `- Red full runs since the last green one with no report on this log (dropped, unconfirmed or skipped): ${unreported.map((r) => `${r.url} at \`${r.sha.slice(0, 12)}\``).join(", ")}. ${range ? "Their merges are in this report's range, so this decision covers them." : "The range could not be read, so a person checks their merges."}`,
+      `- Red full runs since the last green one with no report on this log (dropped, unconfirmed or skipped): ${unreportedList(unreported)}. ${range ? "Their merges are in this report's range, so this decision covers them." : "The range could not be read, so a person checks their merges."}`,
     );
   }
   if (range) {

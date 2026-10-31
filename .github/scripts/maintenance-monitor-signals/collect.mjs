@@ -78,7 +78,7 @@ export const AUDIT_WORKFLOWS = ["maintenance-audit-test-selection", "maintenance
 const SKIP_FAILED_EVENTS = new Set(["pull_request", "merge_group"]);
 // The test-suite runs hold no lane token either, and their failure annotations
 // name tests, some of them for rate limits; signal 1 reads main's suite.
-const SKIP_FAILED_PATHS = new Set([".github/workflows/pr-require-checks.yml", ".github/workflows/pr-test-windows.yml"]);
+const SKIP_FAILED_PATHS = new Set([".github/workflows/pr-require-checks.yml", ".github/workflows/pr-test-platforms.yml"]);
 const QUEUE_BRANCH = /^gh-readonly-queue\/[^/]+\/pr-(\d+)-[0-9a-f]+$/;
 // Only main's own scheduled or dispatched pr-merge runs are trusted: a PR,
 // fork or branch run can upload an artifact or annotation of the same name.
