@@ -278,6 +278,13 @@ test("an open code-lane thread at CRITICAL keeps the hold, and so does an unrate
   await assertKept(world({ timeline: [baseTimeline()[0], codeHold, summary()] }), "1 unresolved claude-review finding\\(s\\) at CRITICAL or with no one readable severity");
 });
 
+test("an open IMPORTANT security-lane thread no longer keeps the hold", async () => {
+  const w = world({ threads: [...baseThreads(), securityThread("severity: IMPORTANT")] });
+  const { code } = await run(w);
+  assert.equal(code, 0);
+  assert.deepEqual(w.writes().at(-1), { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
 // A kept label gets no comment saying it came off (threads PRRT_kwDOTCGFQM6xqa-M, PRRT_kwDOTCGFQM6xqmzn).
 test("a hold written, or a head pushed, after the judgment keeps the label with no clear comment", async () => {
   const after = (later) => world({ later });

@@ -969,8 +969,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    person directed, or a listed review bot's finding the security lane's `security` state marks
    `held`. Otherwise one more round runs on every kept thread (the fresh fixer), its thread file
    carrying `retry.brief`, a fixed no-weaken brief the read runner adds to the skill's preamble.
-   Once it has run, the select job escalates `feedback-round-cap` when a security lane `IMPORTANT`
-   finding opened by that round's end is still open, else `feedback-verifier-open` when every kept
+   Once it has run, the select job escalates `feedback-verifier-open` when every kept
    thread is a pr-verify note, else `feedback-not-converging`; those two route to a failing status
    and skip `lane-stopped`. No escalation or skip runs a
    model job. A round-cap escalation also writes `not-run-detail` (`round <N> of max <M>`, M being
@@ -1173,16 +1172,16 @@ reply that leaves it open escalates `feedback-disputed` with no adjudication. On
 github-actions[bot] review comment whose footer names the code-review lane
 (`claude-lane: claude-review`; the select job tags the thread file's comment with that `lane`, and
 a footer in a claude[bot] comment, whose body the model writes, names none), one whose footer names
-the security-review lane and whose rating is below `IMPORTANT` (`SUGGESTION`; this repository
-counts `IMPORTANT` as HIGH, `SECURITY_PERSON_SEVERITY` in `address-feedback.mjs`), or a
+the security-review lane and whose rating is below `CRITICAL` (`SUGGESTION` or `IMPORTANT`;
+only `CRITICAL` holds, `SECURITY_PERSON_SEVERITY` in `address-feedback.mjs`), or a
 listed review
 bot's comment (`review-threads.reviewer-ids`, tagged `listed: true` from the comment's account
 id), that carries no `severity: CRITICAL` line is adjudicated. The listed bot's own severity badge
 decides nothing, and it is adjudicated only once the security-review lane reviewed the head the
 bot reviewed and holds nothing. A `critical-security` hold on that head, or one posted after the
 bot's review, escalates `feedback-question-security`; before the lane's review the dispute waits
-and the round skips `finding-stands`. A CRITICAL finding, a security-review finding rated
-`IMPORTANT` or `CRITICAL` or unrated, and one
+and the round skips `finding-stands`. A CRITICAL finding, an unrated security-review finding,
+and one
 whose lane its root comment does not name go to a person. The rating is the lane's own line
 (`severityOf`): the body's only `severity:`-shaped line, unindented, outside any fenced block, and
 the comment's first non-blank line or the last one above the footer. Any other shape is unrated,
@@ -1212,8 +1211,9 @@ contraction and the like) within two lines of it: a hard require
 worded with one of them escalates. The call-site evidence is read at both
 the base and the head: the cited line holds up at the head, and the cited file already exists at
 the PR's base with at least one such unguarded `/<entry>:` line, so a pull request cannot supply
-its own call site. Anything else, a failed read included,
-escalates `feedback-disputed`. An `UNCERTAIN` or `VALID-defer` reply on the flag goes on as above.
+its own call site. Anything else, a failed read included, takes no adjudicator slot and ends
+`feedback-unadjudicated`, a failing status, not a person. An `UNCERTAIN` or `VALID-defer` reply on
+the flag goes on as above.
 A pr-verify verifier note is never adjudicated because
 resolving its thread clears nothing: the FAIL still holds the merge, and pr-verify judges each
 head once; a reply that leaves one open ends `feedback-verifier-open`, a failing status and no
