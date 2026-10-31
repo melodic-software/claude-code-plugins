@@ -5268,6 +5268,12 @@ class Session:
         self._notify(r["by"], "report", f"The host {said}.", actor=pid)
         return {"id": fid, "status": action}
 
+    def fault_spike(self, fault, count, window, threshold):
+        """The server's fault count crossed its threshold (server.py App.note_fault): writes `fault-spike` with the
+        server's own numbers only, so no text a person sent reaches Claude without the owner."""
+        with self._tx():
+            self._event("fault-spike", fault=fault, count=count, window=window, threshold=threshold)
+
     def report_image(self, pid, body):
         """GET /api/report/image?id=[&pic=N|&add=N]: owner only. A report's first picture, its Nth one sent with it, or
         its Nth addition's, as a data: URL."""

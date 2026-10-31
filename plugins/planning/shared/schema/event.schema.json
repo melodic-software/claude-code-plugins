@@ -11,7 +11,7 @@
     {"$ref": "#/$defs/request-cancelled"},
     {"$ref": "#/$defs/session-ended"},
     {"$ref": "#/$defs/upload-received"}, {"$ref": "#/$defs/upload-removed"}, {"$ref": "#/$defs/report-filed"},
-    {"$ref": "#/$defs/person-joined"}
+    {"$ref": "#/$defs/person-joined"}, {"$ref": "#/$defs/fault-spike"}
   ],
   "$defs": {
     "seq": {"type": "integer", "minimum": 1},
@@ -195,6 +195,22 @@
             }
           }
         }
+      }
+    },
+    "fault-spike": {
+      "description": "The server counted `threshold` or more faults of one kind within `window` seconds: client `error`, `rejection` or `api` entries, or `request` entries with a 5xx status. Only the server's own counts: never a fault's message, source, route, fingerprint or pid, which any joined person can write. No other one follows until the server's cooldown ends.",
+      "type": "object",
+      "required": ["seq", "at", "kind", "fault", "count", "window", "threshold"],
+      "additionalProperties": false,
+      "properties": {
+        "seq": {"$ref": "#/$defs/seq"},
+        "at": {"$ref": "#/$defs/at"},
+        "deliveredAt": {"$ref": "#/$defs/at"},
+        "kind": {"enum": ["fault-spike"]},
+        "fault": {"enum": ["error", "rejection", "api", "request"]},
+        "count": {"type": "integer", "minimum": 1},
+        "window": {"type": "integer", "minimum": 1, "description": "Seconds."},
+        "threshold": {"type": "integer", "minimum": 1}
       }
     },
     "reactionCounts": {

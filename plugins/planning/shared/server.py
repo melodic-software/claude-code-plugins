@@ -166,6 +166,16 @@ SUMMARY_MIN_SENDERS = 2  # judgment: a batch is written only once this many gues
 # one's. Any other token with one of these prefixes is dropped, so no text rides along; that includes an older page's
 # `rep:<fp>` repeat, whose fingerprint is also on its fault entry, which names the person.
 COUNT_PREFIXES = ("rep:", "use:", "rage:", "dead:")
+# A fault spike (README "Logs"): SPIKE_THRESHOLD faults of one kind within SPIKE_WINDOW seconds write one `fault-spike`
+# event for Claude, then none until SPIKE_COOLDOWN seconds pass. A kind is a SPIKE_KINDS client entry or `request`, an
+# answer with a 5xx status; `layout` also carries the phone keyboard readout, which is no fault. Kept logs of three real
+# sessions held at most 2 faults of a kind in any 300 s window, so 3 fires on none of them.
+SPIKE_KINDS = ("error", "rejection", "api")
+SPIKE_REFUSALS = (501, 505)  # http.server's refusals of a malformed request, sent before any Host check: no fault
+SPIKE_THRESHOLD = 3
+SPIKE_WINDOW = 300  # judgment: the logs above stay under the threshold in every window from 60 to 600 s
+SPIKE_COOLDOWN = 600  # judgment, as SUMMARY_BATCH_SECONDS: those logs hold no spike to measure
+SPIKE_KEPT = 1000  # the most fault times kept per kind, so a flood of 503s costs bounded memory; a count stops there
 COUNT_TOKEN = re.compile(r"((?:use|rage|dead):(?:vf|core)-[a-z-]{1,60})=(\d{1,6})", re.ASCII)
 DEVICES = ("phone", "tablet", "computer")  # web/core.js deviceKind(); a summary keeps only this word of its ua
 TUNNEL_POLL = 1.0  # seconds between tunnel checks
@@ -819,6 +829,7 @@ class GuestServer(ThreadingHTTPServer):
         if not self.slots.acquire(blocking=False):
             # No request was read, so the entry has no method, route or pid, and no traceback: nothing failed.
             self.app.log.error("%s", entry("request", method="-", route="-", status=503, ms="0.0", code="busy", message=self.BUSY_MESSAGE))
+            self.app.note_fault("request", background=True)  # this thread accepts every connection
             if self.drains.acquire(blocking=False):
                 threading.Thread(target=self.refuse, args=(request,), daemon=True).start()
             else:
@@ -895,6 +906,8 @@ class GuestHandler(BaseHTTPRequestHandler):
             self.send_header(k, v)
         self.end_headers()
         self.log_request_entry(code)  # before the body goes out, so a client that has its answer finds the entry
+        if code >= 500 and code not in SPIKE_REFUSALS:
+            self.app.note_fault("request")  # likewise its fault-spike event
         if code != 304:
             with contextlib.suppress(*session_bridge.DISCONNECTS):
                 self.wfile.write(raw)
@@ -1242,6 +1255,8 @@ class GuestHandler(BaseHTTPRequestHandler):
             self.unlogged = True
         else:
             self.app.log.warning("%s", entry("client", pid=pid, **fields))
+            if fields["kind"] in SPIKE_KINDS:
+                self.app.note_fault(fields["kind"])
         return self.send(200, {"ok": True})
 
     def refuse_method(self):
@@ -1279,6 +1294,7 @@ class App:
         self.summary_bucket = Bucket(SUMMARY_PER_MINUTE / 60, SUMMARY_PER_MINUTE)  # keyed by pid, kept in memory only
         self._summary_lock, self._summaries, self._counts, self._senders, self._summary_bytes, self._dropped = threading.Lock(), [], collections.Counter(), set(), 0, 0
         self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS
+        self._spike_lock, self._faults, self._spike_quiet_until = threading.Lock(), {}, 0.0  # fault kind -> recent times
         self.watch_tunnel = watch_tunnel
         self.public_url = ""
         self.tunnel_host = ""
@@ -1374,6 +1390,35 @@ class App:
         kept log, and the sections its plain text prints."""
         s = share_cli.summarize(share_cli.log_lines(self.dir))
         return {"summary": s, "sections": share_cli.summary_sections(s)}
+
+    def note_fault(self, kind, background=False):
+        """Count one fault of `kind` and, once SPIKE_THRESHOLD of it fall within SPIKE_WINDOW seconds outside the
+        cooldown, write `fault-spike` from these counts alone. `background` writes it on its own thread, for a caller
+        that must not wait on the session lock."""
+        now = time.monotonic()
+        with self._spike_lock:
+            seen = self._faults.setdefault(kind, collections.deque(maxlen=SPIKE_KEPT))
+            seen.append(now)
+            while seen and seen[0] <= now - SPIKE_WINDOW:
+                seen.popleft()
+            if len(seen) < SPIKE_THRESHOLD or now < self._spike_quiet_until:
+                return
+            self._spike_quiet_until = now + SPIKE_COOLDOWN
+            count = len(seen)
+        if background:
+            threading.Thread(target=self._write_spike, args=(kind, count), daemon=True).start()
+        else:
+            self._write_spike(kind, count)
+
+    def _write_spike(self, kind, count):
+        try:
+            self.session.fault_spike(kind, count, SPIKE_WINDOW, SPIKE_THRESHOLD)
+        except Exception:  # a spike event that fails to write is logged; the request it rode on is still answered
+            self.log.exception("fault-spike: the event was not written")
+            with self._spike_lock:
+                self._spike_quiet_until = 0.0  # no event went out, so the next fault may try again
+            return
+        self.changed()
 
     def hold_summary(self, message, ua, sender=None):
         """Keep a usage summary for the next batch: its count tokens (COUNT_TOKEN) added to the batch's counts, the
