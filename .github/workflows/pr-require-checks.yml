@@ -4260,6 +4260,7 @@ jobs:
             /.github/scripts/work-resolve-issue/stop-routes.json
             /.github/scripts/lib/done-evidence.mjs
             /.github/scripts/lib/stop-reason.mjs
+            /.github/scripts/lib/admission-comment.mjs
             /.github/actions/check-trusted-trigger/check-trusted-trigger.mjs
             /.github/actions/check-kill-switch/check-kill-switch.mjs
             /.github/actions/log-api-budget/rate-guard.mjs
