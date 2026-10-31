@@ -120,18 +120,20 @@
       "id": 9,
       "name": "purpose-argument-tailors-emphasis-only",
       "prompt": "Earlier in this session I worked on the api-refactor task. That work is recorded in evals/fixtures/api-refactor-session-state.md (relative to the skill directory): the goal in my words, what is done, the decisions, the uncommitted change, the open questions and the remaining work. The draft it produced is evals/fixtures/api-refactor-endpoint-design.md. Treat that record as this session's history. If the current working directory is not inside a git work tree, use `.work` in the current working directory as the memory dir. Now run exactly: /session-flow:handoff file api-refactor the next session will be used to review the new endpoint design with the platform team before any more code is written",
-      "expected_output": "The session's prior work comes from the fixture record, so the handoff summarizes it rather than refusing for lack of history. The trailing free text after the topic token is parsed as the purpose argument — no quoting needed. It tailors emphasis only: the Resumption brief leads with the design-review purpose, Suggested skills are selected for that review use, and Remaining actions are ordered to put the review-relevant items first where ordering is otherwise free. Every mandatory body section is still present in the structure doc's order, and the resume prompt between the rails keeps its standard shape (Read directive, Prior session line, Handoff origin line) — purpose changes what is emphasized, never what is emitted.",
+      "expected_output": "Grade the written hot file, not the trace or the final reply: the handoff the run created at `.work/handoffs/<TS>-handoff-api-refactor.md` (a direct child of `handoffs/`, not a hop file under `handoffs/archive/`). Every expectation below is checked against that file's contents. The session's prior work comes from the fixture record, so the file summarizes it rather than the run refusing for lack of history. The trailing free text after the topic token is the purpose argument, needing no quoting, and it tailors emphasis only: the Resumption brief leads with the design-review purpose, Suggested skills are selected for that review, and Remaining actions put the review items first where order is otherwise free. Every shape-3 section is still present in the order `validate` checks, and the `## Resume prompt` section keeps its standard rails block. Purpose changes what is emphasized, never what is emitted.",
       "files": [
         "evals/fixtures/api-refactor-session-state.md",
         "evals/fixtures/api-refactor-endpoint-design.md"
       ],
       "expectations": [
-        "Everything after the topic token (api-refactor) is read as natural-language purpose text without quoting or new syntax",
-        "The Resumption brief leads with the stated purpose — the framing opens from what the next session is for",
-        "Suggested skills are selected for the review purpose, each still tied to a concrete remaining item",
-        "No mandatory body section is dropped, renamed, or reordered — the full structure-doc section set is present in order",
-        "The resume prompt between the dashed rails keeps the standard shape; the purpose does not alter the directive, rails, or origin line",
-        "The validator ran (`save_point.py validate <file>`) and exited 0 before the rails were printed, and the on-screen rails block is the `save_point.py emit` output, byte-equal to the file's `## Resume prompt` section"
+        "A hot file matching `.work/handoffs/*-handoff-api-refactor.md` exists after the run; a run that wrote no such file fails every expectation below",
+        "The file's Resumption brief opens with a `Purpose:` line carrying the prompt's text after the topic token, 'the next session will be used to review the new endpoint design with the platform team before any more code is written', with no quote marks added and no other syntax around it",
+        "The rest of the file's Resumption brief frames the single next action around that review, not around finishing `src/orders/v2/query.ts` or writing other code",
+        "The file's Suggested skills section names skills chosen for the design review, each tied to a concrete item in the file's Remaining actions",
+        "The file's Remaining actions list every item of the fixture record's remaining work, with the three items the platform-team review settles (the pagination model, the auth scope, the single-order route shape) above the code items (the index migration, the `since` filter and cursor, the handler tests)",
+        "The file's `##` headings are, in this order, with none dropped, renamed or reordered: `Original goal`, `Review before you continue`, `Direction changes`, `Resumption brief`, `Completion criteria`, `Remaining actions, in order`, `Open questions`, `Current rules`, `Observations`, `Pending commands`, `Environment to re-establish`, `Decisions in force`, `Suggested skills`, `This session`, `Prior sessions`, `Standing preferences`, `Resume prompt`",
+        "The file's Original goal quotes the fixture's whole goal sentence verbatim, from 'Replace the three ad-hoc order lookup endpoints' to 'without breaking v1 callers this quarter'; the purpose does not amend or replace it",
+        "The file's last section, `## Resume prompt`, holds two dashed U+2500 rails around a `Read @` directive naming the file's own absolute path, a `Prior session:` line and a `Handoff origin:` line; the purpose does not change that shape"
       ]
     },
     {
