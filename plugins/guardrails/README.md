@@ -668,7 +668,19 @@ directories come from the same `jq` run that compiles the map, and the check rea
 command's assignments and the hook's own environment with builtins, so the strace census
 pins 0 creations for a denied `gh` call. From a `cwd` in a domain of a map with either
 directory, a command whose text holds the word `gh` or `az` is parsed even when it names
-no path or marker; every other command takes the same path as before.
+no path or marker; every other command takes the same path as before. Measured on the WSL2
+host of the #9744 entry (bash 5.3.9, Node 24.21.0), guardrails at `015c415c2` against its
+parent, the row fired as `hooks.json` registers it with a placeholder map whose cwd domain
+has both directories, and with no map: five runs of 30 interleaved rounds per tool, S = 1.0 ms.
+The paired per-run medians moved −0.4 to +2.3 ms on the benign call (`git status --short`,
+`Get-ChildItem -Force`), +0.1 to +1.4 ms on a denied `gh pr list` or `az account show`, and
+up to +2.4 ms on an allowed `gh` that sets `GH_CONFIG_DIR` in a PowerShell statement; with
+no map every arm stayed within −1.5 to +1.6 ms. With `hyperfine -N` (300 runs per arm in
+five alternating blocks, S = 0.74 ms), the mapped row's median went from 43.4 to 43.5 ms on
+`git status --short` and from 43.0 to 43.1 ms on the denied `gh pr list`. The census counts
+`node` and `bash` alone on every arm at both commits. The added work is builtins only, at most
++2.4 ms (2.4 S), inside the k × S plus measured-work budget; the S multiples do not carry to
+the Windows hosts, where builtin work does not scale with S.
 
 **block-cross-domain identity writes (#9748).** k stays 0. With no map a call no longer
 leaves after the file test: it takes the command from the dispatcher's primed fields and
@@ -677,8 +689,25 @@ name of a listed identity file, is parsed, through the parse the dispatcher shar
 the row's other guards. With a map, the identity files come from the same `jq` run that
 compiles it; the cache format moved to 4, so each map is compiled once more after the
 update. The strace census pins 0 creations for a denied identity write, with a map and
-without one. The row's wall time on the reference host has not been measured for this
-change yet.
+without one. Measured on the WSL2 host of the find-delete entry (Node 24.21.0, bash 5.3.9,
+load average 5 to 12 on 24 cores), guardrails at `53badc14e` against its parent
+`62f5db9d3`, with no telemetry sink: the row fired as `hooks.json` registers it, timed with
+`EPOCHREALTIME` beside a `bash -c :` floor (S median 1.0 ms), arm order rotated, five runs
+of 30 rounds per payload, each map compiled before timing. An `strace` count of every arm
+is 2 execs (`node`, `bash`) at both commits, and the write is denied after and allowed
+before. Per-run paired median, after minus before:
+
+| Payload (Bash; PowerShell) | No map | Placeholder map |
+| --- | --- | --- |
+| `git status --short`; `Get-ChildItem -Force` | −0.6 to +0.4 ms; −0.7 to +1.3 ms | −0.2 to +0.9 ms; −1.5 to +0.8 ms |
+| `git config --get user.name` | +0.8 to +1.6 ms; +0.5 to +1.9 ms | +0.1 to +1.7 ms; +0.6 to +1.4 ms |
+| `git config --global user.email …` (denied) | +1.0 to +2.7 ms; +0.6 to +1.9 ms | +0.6 to +1.9 ms; +0.9 to +1.3 ms |
+
+The common call is unchanged, inside the 6 to 11 ms p10 to p90 spread of each arm. A
+command holding `git` and `config` pays the parse, up to +2.7 ms (2.7 S on this host), at
+k = 0: builtin work, inside the k × S plus measured-work budget, as the #9744 entry read
+its +1.9 ms. The map's one recompile to format 4 was not timed. Builtin work does not scale
+with S, so these S multiples do not predict the Windows cost.
 
 **0.41.1, repeat Edit/Write verifiers (#4390).** A second markdown edit at the same
 HEAD does not re-walk deleted-path history, and a second skill reference at the

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Plan: inbox empty state, HTML mockup, A to C. If /design is available you can run `/design inbox empty state` yourself for a hand-editable canvas; it is a published Artifact that persists under your account, while my mockup is a throwaway local file. I build the mockup either way.",
+      "why": "offer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I'll run /design for you and publish the canvas.",
+      "why": "runs it itself"
+    }
+  ]
+}

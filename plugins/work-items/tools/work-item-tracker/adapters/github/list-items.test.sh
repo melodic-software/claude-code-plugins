@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/* plugins/work-items/tools/work-item-tracker/lib/* .work-item-tracker.json
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-items.sh"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"

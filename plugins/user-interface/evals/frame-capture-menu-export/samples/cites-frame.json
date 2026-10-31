@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "At 210ms the dialog has no animation left, it finished at 150ms, but the backdrop is still at 0.71 opacity, 70% through its 300ms fade. That second half is the 'two separate things' you see.",
+      "why": "cites the 210ms frame: dialog done, backdrop still fading"
+    },
+    {
+      "answer": "**Important** `src/settings-menu.css:5`. From the capture: at 120ms the dialog is 80% through its 150ms close while the backdrop is only 40% through, at 0.92 opacity, so the backdrop outlives the dialog by 150ms.",
+      "why": "cites the 120ms frame's progress for both"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "**Important** `src/settings-menu.css:5`: the backdrop closes over 300ms and the dialog over 150ms, so the backdrop will linger. Give them the same duration.",
+      "why": "near miss: a sound finding, but argued from the CSS alone with no value from the capture"
+    },
+    {
+      "answer": "I can't judge how this feels from numbers. Send a screen recording of the close and I'll review it.",
+      "why": "sets the capture aside and asks for a video"
+    },
+    {
+      "answer": "At 210ms the dialog is still fading with the backdrop; both end at 300ms, so the timing is fine and the curve is what feels off.",
+      "why": "misreads the capture: the dialog is gone from the 210ms frame"
+    }
+  ]
+}

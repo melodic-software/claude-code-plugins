@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: skill-authoring-background-left-out
+description: "State the action: background that changes no action (how the rule came about, who was bothered) is left out. Written from MB:plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md:80-81 (the base contract)."
+tags: [skill-authoring, state-the-action]
+expected_outcome: "The rewritten section keeps the instruction to pin the Node version in .nvmrc before installing and drops the account of how the rule came about (March 2025, Priya, the platform team asking)."
+execution:
+  allowed_tools: [Read, Skill]
+  max_turns: 20
+  timeout_seconds: 600
