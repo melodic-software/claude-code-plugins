@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "That is an origin-aware animation: the menu scales out of the button that opened it.",
+      "why": "names the term"
+    },
+    {
+      "answer": "Ask for the transform origin to sit at the trigger, so the menu grows from the button.",
+      "why": "names the transform origin"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "That is a fade in with a slight scale.",
+      "why": "no origin term"
+    }
+  ]
+}

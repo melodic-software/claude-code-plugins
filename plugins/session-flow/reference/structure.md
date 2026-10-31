@@ -340,6 +340,20 @@ was running, the exact command that restores it, and the observable that confirm
 Covers branch and worktree, services and ports, environment variables, background tasks, and the
 in-memory task list, which `/clear` destroys completely.
 
+**Worktree claims.** A worktree lock names the session that holds it, and the resuming session has
+a new session id, so its claim gate reads this session's lock as foreign. Read
+`git worktree list --porcelain` this turn; each `locked` reason containing
+`session <this session id> since` is a claim this session holds. Write one entry per such
+worktree: its absolute path, this session's id as the old session id, the restore step (run
+source-control's `worktree-claim.sh handover <path> --session-id <old> --to <new>` before
+`check-enter`, `<new>` being the resuming session's own id, per `/source-control:worktree`), and
+the observable (`check-enter <path> --session-id <new>` exits 0). Make the handover the first item
+of `Remaining actions, in order` too, so its first words lead the resume prompt's `Next:`
+headlines and the resuming session runs it before any write in the worktree. A closing handoff
+carries no headlines, so the entry here is its only record. Carry forward a predecessor's entry
+whose lock still names the older session id, since this session never took that claim over. No
+such lock: say none is held.
+
 **TaskList.** Branch on which task tools this session has (read its tool list), never on the model
 name:
 

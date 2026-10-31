@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": ".dark { --elevation-raised: 0 0 0 1px oklch(1 0 none / 0.09); }\n.card { border: none; box-shadow: var(--elevation-raised); }",
+      "why": "dark theme gets a low-opacity ring in place of #444"
+    },
+    {
+      "answer": ".dark .card { border-color: #2a2a2a; }",
+      "why": "a quieter solid dark border"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".card { box-shadow: 0 1px 2px oklch(0 0 none / 0.06), 0 4px 12px oklch(0 0 none / 0.08); }\n.dark .card { border-color: #444; }",
+      "why": "light theme fixed, dark border still #444"
+    },
+    {
+      "answer": ".card { border: none; box-shadow: 0 1px 2px oklch(0 0 none / 0.06), 0 4px 12px oklch(0 0 none / 0.08); }",
+      "why": "dark theme left untouched"
+    }
+  ]
+}

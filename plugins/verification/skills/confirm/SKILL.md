@@ -253,8 +253,10 @@ either.
   evidence table, and an independent verdict.
 
 **Routing.** When the change has a runtime surface to drive (an `e2e-*` category above, or any
-product source), offer it to the person at the end of the run, beside the report: "you can run
-`/verify` alongside this skill to drive the change end to end". Skip the offer for a diff touching
+product source), offer it to the person at the end of the run, beside the report:
+If /verify is available in your session (gate basis: `disableBundledSkills` or a `skillOverrides`
+entry hides it; records in [reference/native-verify.md](reference/native-verify.md)), you can run
+it alongside this skill to drive the change end to end. Skip the offer for a diff touching
 only tests, docs, or code with no runtime surface. An unattended run records the offer in its
 output instead of asking. Its result is added evidence; it replaces neither Stage 1 nor the verdict.
 

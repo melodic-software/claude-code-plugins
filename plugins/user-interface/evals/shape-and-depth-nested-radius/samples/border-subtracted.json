@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": ".settings-panel .preview {\n  border-radius: 16px; /* 28 - 2 - 10 */\n}",
+      "why": "the computed value"
+    },
+    {
+      "answer": ".preview { border-radius: calc(28px - 10px - 2px); }",
+      "why": "the subtraction written out, padding first"
+    },
+    {
+      "answer": ".settings-panel { --radius: 28px; --border: 2px; --pad: 10px; }\n.settings-panel > .preview { border-radius: max(0px, var(--radius) - var(--border) - var(--pad)); }",
+      "why": "the floored custom-property form"
+    },
+    {
+      "answer": "<div className=\"preview rounded-[16px]\" />",
+      "why": "Tailwind arbitrary value"
+    },
+    {
+      "answer": ".preview { border-radius: 1rem; /* 16px at a 16px root */ }",
+      "why": "rem value equal to 16px"
+    },
+    {
+      "answer": ":root { --radius-inner: 16px; }\n.settings-panel { border-radius: calc(var(--radius-inner) + 2px + 10px); }\n.settings-panel > .preview { border-radius: var(--radius-inner); }",
+      "why": "inner-radius token, with the 28px outer derived by adding the border and the padding"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".preview { border-radius: 18px; /* 28 - 10 */ }",
+      "why": "forgot the border"
+    },
+    {
+      "answer": ".preview { border-radius: 26px; /* 28 - 2 */ }",
+      "why": "forgot the padding"
+    },
+    {
+      "answer": ".preview { border-radius: 28px; }",
+      "why": "copied the panel's radius"
+    },
+    {
+      "answer": "Some guides say `border-radius: 16px`, but use `.preview { border-radius: 18px; }` so it matches the padding.",
+      "why": "quotes 16px but recommends 18px"
+    },
+    {
+      "answer": ":root { --radius-inner: 18px; }\n.settings-panel { border-radius: calc(var(--radius-inner) + 10px); }\n.settings-panel > .preview { border-radius: var(--radius-inner); }",
+      "why": "inner-radius token that adds only the padding"
+    }
+  ]
+}

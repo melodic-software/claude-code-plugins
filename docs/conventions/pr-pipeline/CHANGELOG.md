@@ -1,5 +1,26 @@
 # Changelog for the PR pipeline convention
 
+## [8.21.0] - 2026-10-31
+
+### Changed
+
+- `merge.diff-check.floor-paths` returns with a new shape: class-tagged rows (`glob`, `class`, and on a `gate` row an optional `author-lift: false`), joined to the built-in path floor. The plain-string list the key held until it was removed fails validation, and a row the loader cannot use turns the rung off. This repository's own floor paths move there, and its effective floor is unchanged.
+
+### Fixed
+
+- A `pr-verify` run the lanes kill switch stopped now gets its re-run on the first reconciler pass
+  after the switch lifts. `maintenance-reconcile-lost-runs` placed every pull request's CI set
+  before any lane run and took lane runs oldest first, so flake re-runs used the three places and
+  the few left went to runs of pull requests that had already moved on. A green lanes App pull
+  request sat on `verify:missing` until someone re-ran `ci-status` by hand. Lane runs now go after
+  every set except a flake-only one, newest first. The deferral note no longer says
+  `3 re-runs in flight` when this pass's own placements took the places.
+
+- The lost-run reconciler now re-runs a hosted review run a kill switch stopped, recorded, once
+  neither the lanes switch, the lane's own switch nor the upstream gate would stop it again. Its
+  completion re-runs ci-status, so a head a review switch left red clears without a person. One
+  lane per head per half-hourly pass, up to GitHub's 30-day re-run window.
+
 ## [8.20.0] - 2026-10-31
 
 ### Added

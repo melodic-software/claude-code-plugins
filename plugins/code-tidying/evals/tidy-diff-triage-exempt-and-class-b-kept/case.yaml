@@ -1,0 +1,43 @@
+schema_version: "1.1"
+name: tidy-diff-triage-exempt-and-class-b-kept
+description: 'the comment pass applies class A only behind the change-shape proof: an exported doc comment is never touched, a step comment (class B) stays as a proposal with no extraction, a thread-safety warning (class C) stays, and the narrating comment is deleted only on a COMMENT-ONLY verdict. Written from MB:plugins/code-tidying/skills/tidy-diff/SKILL.md:58-67, 90-91 and 97-99 (the base contract).'
+tags: [tidy-diff, comments, triage]
+expected_outcome: 'In src/users.ts the exported loadUser doc comment is byte-identical, `// Step 1: parse input` stays and no parseInput function appears, the thread-safety warning stays, every code line is unchanged; change-shape.sh runs at least once; the report ties any deletion of `// loop over the records` to a COMMENT-ONLY verdict or lists it as a proposal quoting the verdict, and lists the step comment as a proposal.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/code-tidying:tidy-diff changed-lines.tsv'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 60
+  timeout_seconds: 1200
+graders:
+  - name: public-doc-kept
+    type: regex
+    pattern: '/\*\*\n \* Loads a user\.\n \* @param userId - the ID of the user\n \*/\nexport async function loadUser\(userId: string\) \{'
+    target: { source: file, path: src/users.ts }
+  - name: step-comment-kept
+    type: regex
+    pattern: '// Step 1: parse input\n'
+    target: { source: file, path: src/users.ts }
+  - name: no-extraction
+    type: regex
+    pattern: 'parseInput'
+    match: not_contains
+    target: { source: file, path: src/users.ts }
+  - name: constraint-kept
+    type: regex
+    pattern: '// NOT thread-safe; callers serialize imports\n'
+    target: { source: file, path: src/users.ts }
+  - name: code-intact
+    type: regex
+    pattern: '  return db\.users\.find\(userId\);\n\}\n\nexport function importUsers\(raw: string\) \{\n[\s\S]*?  const records = raw\n    \.split\("\\n"\)\n    \.filter\(\(line\) => line\.trim\(\) !== ""\)\n    \.map\(\(line\) => line\.split\(","\)\);\n[\s\S]*?  records\.sort\(\(a, b\) => a\[0\]\.localeCompare\(b\[0\]\)\);\n[\s\S]*?  for \(const record of records\) \{\n    db\.users\.insert\(\{ id: record\[0\], name: record\[1\] \}\);\n  \}\n\}\n'
+    target: { source: file, path: src/users.ts }
+  - name: proof-ran
+    type: tool_used
+    tool: Bash
+    input_match: 'change-shape'
+    arm: both
+  - name: deletions-tied-to-verdict
+    type: llm
+    focus: last_message
+    criteria: "src/users.ts holds a narrating comment `// loop over the records` and a step comment `// Step 1: parse input`. PASS only if the final report (a) either lists the deletion of `// loop over the records` with a COMMENT-ONLY verdict from change-shape.sh, or lists that comment as a proposal quoting the verdict that blocked it (for example a missing parser), and (b) lists `// Step 1: parse input` as a proposal (for example extracting a named function), not as an applied edit. FAIL if the report claims a comment deletion without any change-shape verdict, reports the step comment as deleted or the function as extracted, or reports the loadUser doc comment as changed."

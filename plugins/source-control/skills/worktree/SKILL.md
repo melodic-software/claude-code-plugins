@@ -129,6 +129,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-claim.sh" check-enter <path> --sess
 
 Exit 4 prints `FOREIGN CLAIM: <reason>`. Stop; another session holds a live claim. Exit 3 prints `UNCLAIMED`. Claim it (`claim <path> --session-id "${CLAUDE_SESSION_ID}"`) or leave it. Exit 0 is this session's claim, or a path that is not a linked worktree. `report` lists every linked worktree that still has no reason. The lock does not block writes; the reason is the claim other agents can read.
 
+**Resuming a handoff: hand the claim over before the gate.** After a handoff and `/clear` the lock still names the old session, so `check-enter` reports it as foreign; first run the `handover` in [context/create.md § Resuming a handoff](context/create.md#resuming-a-handoff).
+
 ---
 
 ## Action: `status`

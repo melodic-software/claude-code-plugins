@@ -3,6 +3,28 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.130.0] - 2026-10-31
+
+### Added
+
+- An unattended planning run counts an item's stated problem as confirmed when a comment on the item has a line reading exactly `Pre-confirmed: a person confirms this item's problem`, with no setting or label. Before the marker counts, the run checks that the author is a user listed as `kind: human` on the repository's trusted-actor list (matched by account id), that the comment was not posted through an App, that the author has `admin` or `write` permission, that every edit to the comment is the author's, and that the item's body is unedited since. A marker from an agent, an App or any other account, or one inside quoted or fenced text, never counts. The rule is in `context/problem-framing.md` "Pre-confirmed" and `reference/config.md`; two `/planning:plan` evals cover a trusted human's marker and a bot's marker.
+
+### Changed
+
+- `draft-goal-condition` and `plan` offer `/goal` and `/plan` as suggest sentences, `If /<name> is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when an offer is deleted or reworded.
+
+### Fixed
+
+- `/planning:interview` no longer lets a session settle an assumption-sweep `decision` item with an
+  uncited fact and still pass the gate. Each sweep item is now recorded in the ledger's
+  `## Assumption sweep` section with its disposition: a `Q<N>` register row, an `F<N>` fact whose
+  basis quotes its source with a file:line or URL, or `deferred: <where>`. A fresh-context check
+  confirms each quote before the item counts as settled. `check-open-questions.sh --procedure` now
+  fails on an item with no disposition, a `decision` or `person` item settled outside the register,
+  an unquoted fact, a non-hedged item whose `Q<N>` is not above the register's last row when that
+  sweep ran (each sweep records it as `- sweep <M> | register through Q<N>`), and any unchecked
+  `Step <N> exit` box. A skipped exit step is ticked with `SKIPPED: <reason>`.
+
 ## [0.129.1] - 2026-10-31
 
 ### Fixed
