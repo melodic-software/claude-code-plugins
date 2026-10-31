@@ -45,6 +45,8 @@ Two eval formats coexist and are not interchangeable. The CLI reads a plugin's `
 (`prompt.md` plus `graders/*.md`, or `case.yaml`). A Claude Code skill's own `evals/evals.json`, the
 format `/evals:design` scaffolds, belongs to Anthropic's `skill-creator` plugin, which runs it;
 `skill-quality` (this marketplace) statically validates it when installed.
+`skills/plugin-eval/scripts/convert-evals-json.py <plugin-dir>` converts one plugin's `evals.json`
+cases into its `evals/` suite and removes the converted files.
 
 ## Upstream sync
 
