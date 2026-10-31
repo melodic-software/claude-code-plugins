@@ -7,8 +7,8 @@ and the term most often confused with it.
 
 ### Kerning: `kerning`
 
-The space between two specific characters, adjusted manually. Different from tracking, which affects
-all characters equally.
+The space between two specific characters, set by the font's pair metrics, by optical analysis, or
+by hand. Different from tracking, which affects all characters equally.
 
 **Versus:** tracking spaces every character in a run evenly; kerning moves one pair.
 
@@ -44,9 +44,8 @@ Useful when matching fallback fonts or pairing typefaces.
 
 ### Font smoothing: `font-smoothing`
 
-How the browser renders font edges. On Mac, antialiased renders thinner and lighter than the
-default. Designers often apply it globally for a crisper feel, though it reduces fidelity on
-non-retina screens.
+How the browser renders font edges. Designers often apply it globally for a crisper feel; whether
+it takes effect, and what it costs, depends on the platform.
 
 **Versus:** pixel hinting adjusts the shapes to the grid; font smoothing changes how the edges are
 rendered.
@@ -61,11 +60,13 @@ fits.
 
 ### Widow: `widow`
 
-A single word left alone on the last line of a paragraph. `text-wrap: balance` can fix it
-automatically.
+The last line of a paragraph stranded alone at the top of a new column or page. The CSS `widows`
+property sets how many lines must stay together after the break. Interface writing also uses the
+word for a single word alone on a paragraph's last line, which print calls a runt; `text-wrap`
+addresses that case.
 
-**Versus:** an orphan is a single line stranded at the top of a new column or page; a widow is a
-single word on the last line.
+**Versus:** an orphan is a paragraph's first line stranded at the bottom of a column or page; a
+widow is its last line stranded at the top of the next one.
 
 ### Font stack: `font-stack`
 
@@ -100,11 +101,11 @@ whole run.
 
 ### Optical kerning: `optical-kerning`
 
-Spacing adjusted by eye rather than the font's built-in metrics. Removes awkward gaps between
-certain letter pairs that default metrics leave behind.
+Automatic kerning that spaces adjacent characters from their shapes rather than the font's built-in
+metrics. Helps where a font has few kern pairs or its metrics leave awkward gaps.
 
-**Versus:** kerning by the font's built-in pair metrics follows the font file; optical kerning is
-set by eye.
+**Versus:** metrics kerning follows the pair values in the font file; manual kerning is set by eye,
+one pair at a time; optical kerning is automatic and derived from the glyph shapes.
 
 ### Type scale: `type-scale`
 
@@ -147,11 +148,11 @@ and maximum.
 
 ### Orphan: `orphan`
 
-A single line of a paragraph stranded at the top of a new column or page. The CSS `orphans` property
-targets it. Often fixed manually.
+The first line of a paragraph stranded alone at the bottom of a column or page. The CSS `orphans`
+property sets how many lines must stay together before the break. Often fixed manually.
 
-**Versus:** a widow is a single word left on the last line of a paragraph; an orphan is a single
-line stranded at the top of a new column or page.
+**Versus:** a widow is a paragraph's last line stranded at the top of the next column or page; an
+orphan is its first line stranded at the bottom of the one before.
 
 ### Line length: `line-length`
 
@@ -170,14 +171,14 @@ disrupts line spacing. Proper superscripts are manually sized and shifted.
 
 ## Sources
 
-Widow and Orphan name a CSS fix without stating its support.
+Widow and Orphan name CSS controls without stating their support.
 
-- **Pointer**: when a widow or orphan fix must work in the project's browser targets, fetch https://developer.mozilla.org/en-US/docs/Web/CSS/text-wrap#balance and https://developer.mozilla.org/en-US/docs/Web/CSS/orphans#browser_compatibility live.
-- **As of**: 2026-10-28
-- **Recheck trigger**: either page changes the property's values or its compatibility table.
+- **Pointer**: when a widow or orphan fix must work in the project's browser targets, fetch https://developer.mozilla.org/en-US/docs/Web/CSS/text-wrap#values, https://developer.mozilla.org/en-US/docs/Web/CSS/widows#browser_compatibility and https://developer.mozilla.org/en-US/docs/Web/CSS/orphans#browser_compatibility live.
+- **As of**: 2026-10-31
+- **Recheck trigger**: any of the pages changes the property's values or its compatibility table.
 
-Font smoothing names a platform rendering difference without stating where it applies.
+Font smoothing leaves out which platforms honor it and how it renders on each.
 
 - **Pointer**: when font smoothing matters on a target platform, fetch https://developer.mozilla.org/en-US/docs/Web/CSS/font-smooth#browser_compatibility live.
-- **As of**: 2026-10-28
+- **As of**: 2026-10-31
 - **Recheck trigger**: the page changes the property's status or its compatibility table.
