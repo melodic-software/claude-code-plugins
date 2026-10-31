@@ -133,6 +133,28 @@
         }
       ],
       "why": "a listing piped through xargs"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls session-data || grep -c Skill session-data/abc.jsonl"
+          }
+        }
+      ],
+      "why": "a listing chained by ||"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls session-data | grep -c Skill session-data/abc.jsonl"
+          }
+        }
+      ],
+      "why": "a pipe whose grep reads the transcript by name"
     }
   ]
 }

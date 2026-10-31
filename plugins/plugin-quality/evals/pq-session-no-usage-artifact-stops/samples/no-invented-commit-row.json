@@ -7,6 +7,14 @@
     {
       "answer": "- Example: `/plugin-quality:audit <plugin>:<component>`, such as source-control:commit.",
       "why": "a by-name example in a bullet, no count"
+    },
+    {
+      "answer": "Audit it by name: `/plugin-quality:audit source-control:commit` (see #5819).",
+      "why": "a by-name example citing an issue number"
+    },
+    {
+      "answer": "Then run `/plugin-quality:audit source-control:commit` from step 2.",
+      "why": "a by-name example citing a step number"
     }
   ],
   "fail": [
