@@ -293,7 +293,7 @@ Report every finding with these fields, in this order, size last:
 1. **Provenance**. Where it came from, resolved from evidence (a manifest, a config's own
    contents, an owning repository's source, a documented naming contract), never guessed from the
    name alone.
-2. **What it is**. Intent / role of the entry (`reason` in engine plans).
+2. **What it is**. Intent / role of the entry (`reason` in a `--plan` file; an inline preview's is fixed prose).
 3. **Why removable**. Why it is not work product, plus owner / native-GC result.
 4. **Risk**. What could go wrong if it is removed (and why that risk is acceptable at this tier).
 5. Path, tier, evidence, disposition; `policy_rule` and `preselected` when a rule matched.
@@ -344,27 +344,10 @@ low or zero reclaimable-byte figure as a reason to skip a finding that otherwise
 ## 4. Build one exact-tier plan
 
 Only after an execution request (`--execute`, or the in-session request in
-[Arguments and boundaries](#arguments-and-boundaries)), write `<run-dir>/plan-<tier>.json`; never
-mix tiers:
-
-```json
-{
-  "version": 1,
-  "tier": "high",
-  "candidates": [
-    {
-      "path": "relative/exact.tmp",
-      "tier": "high",
-      "provenance": "documented atomic-write staging name; owner process absent",
-      "reason": "failed atomic-write staging file",
-      "evidence": ["documented name shape", "owner process absent"],
-      "why_not_work_product": "generated staging bytes with no durable consumer",
-      "risk": "low: regenerable staging residue; no live consumer",
-      "owner": "unmanaged"
-    }
-  ]
-}
-```
+[Arguments and boundaries](#arguments-and-boundaries)), choose one tier and its exact paths; never mix
+tiers, and write no plan file. Step 5's `preview` takes them inline and the engine writes
+`<run-dir>/plan-<tier>.json` beside the snapshot, each candidate `unmanaged` with fixed prose: your
+step 3 report keeps the provenance, evidence and risk.
 
 Managed state never enters an engine plan, whose paths are unmanaged, snapshot-relative, exact, non-overlapping,
 and never globs. A registry match follows only `reference/managed-state-report.md`; its step 4 shows no destructive
@@ -376,7 +359,7 @@ Run the deterministic gate:
 
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" preview \
-  --snapshot "<run-dir>/snapshot.json" --plan "<run-dir>/plan-<tier>.json" \
+  --snapshot "<run-dir>/snapshot.json" --tier <tier> --path "<relative>" [--path "<relative>"]... \
   --data-root "${CLAUDE_PLUGIN_DATA}"
 ```
 
@@ -393,7 +376,8 @@ the platform one. Invalid input exits 2. `manual-handoff-lane` issues no approva
 `apply` still refuses it.
 
 When status is `ready-for-explicit-approval`, show a table naming every path with provenance, what
-it is, why removable, risk, whether it is an empty directory, the single tier, and only then logical
+it is, why removable and risk from your step 3 report (the preview repeats the plan's fixed prose
+there), whether it is an empty directory, the single tier, and only then logical
 / reclaimable bytes, plus the preview's approval token, then pass the
 [confirmation gate](#confirmation-gate). The approval must name **exactly that tier and list**.
 Process another tier only with a new plan, preview, and question.

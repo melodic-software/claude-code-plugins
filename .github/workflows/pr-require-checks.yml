@@ -3072,11 +3072,18 @@ jobs:
             exit 1
           fi
           rc=0
+          # In a variable no suite inherits, so a suite's output cannot print it:
+          # the post-merge judge reads only the lines carrying it (suite_failures).
+          nonce="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+          echo "Advisory nonce: $nonce"
           while IFS= read -r suite; do
             workers=()
             [[ $suite == plugins/planning/surface/* ]] && workers=(-n auto --dist loadscope)
-            echo "python -m pytest -q -o tmp_path_retention_policy=none ${workers[*]} -- $suite" >&2
-            python -m pytest -q -o tmp_path_retention_policy=none "${workers[@]}" -- "$suite" || rc=1
+            echo "python -m pytest -q -o tmp_path_retention_policy=none ${workers[*]} -- $suite # nonce $nonce" >&2
+            suite_rc=0
+            python -m pytest -q -o tmp_path_retention_policy=none "${workers[@]}" -- "$suite" || suite_rc=$?
+            echo "pytest exit $suite_rc -- $suite # nonce $nonce" >&2
+            [ "$suite_rc" = 0 ] || rc=1
           done <"$RUNNER_TEMP/leg-suites.txt"
           exit "$rc"
 
@@ -5333,7 +5340,7 @@ jobs:
               failed=1
               ;;
             upstream)
-              echo "::error::'$check' did not run on $HEAD_SHA ($url): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, a person re-runs this ci-status job, not the review run, so pr-verify accepts it; after 24 hours, push to the head."
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, its dispatch re-runs this ci-status job under the reconciler's record, so pr-verify accepts it; if that re-run does not come, a person re-runs this ci-status job, not the review run; after 24 hours, push to the head."
               failed=1
               ;;
             gateskipped)

@@ -695,7 +695,8 @@ the review could not finish (its cap, an unlanded fix, an unreadable config, a c
 an uncited control, a workflow change beyond a pin swap). `review-dependency` and
 `apply-dependency-patch` do not apply while `needs-session` is on (their `labels-absent` in
 `pr-pipeline.yaml`), so such a stop gets no same-head model re-run and no fresh round budget on a
-rebased head until a session removes the label. It also puts the PR in the
+rebased head until a session removes the label, or `clear-escalations.mjs` does once a same-head
+retry cleared the stop's failing status. It also puts the PR in the
 session-builder queue with that label, which no merge gate reads, so a session builder makes the
 change instead of a person; a person arms it only where the merge gate already asks for one. Every
 other reason is a defect the lane's bounded retries (the
@@ -1385,16 +1386,25 @@ the rules that only tighten in
   `scripts/plan-test-lanes.sh`, the pull request runs' selector, over the paths changed since that
   run's SHA, run from a worktree of that green SHA with no token in its environment, so no merge
   judged can narrow its own set. A window that changes the selector's own files, or a plan that
-  picks no suite, has no set. A suite is named from its test leg's log; a failed job whose
-  suites cannot be named, a set that cannot be computed, and the merge gate's own suites
-  (`GATE_SUITE_PREFIXES` in `babysit_postmerge.py`) demote as before. A suite outside the set
+  picks no suite, has no set. A suite is named from its test leg's log, in a Python leg only from
+  lines carrying the nonce that step prints; a failed job whose suites cannot be named (a token
+  without GitHub's `Actions` read permission cannot read the log, so it names none), a set that
+  cannot be computed, and the merge gate's own suites
+  (`GATE_SUITE_PREFIXES` in `babysit_postmerge.py`) demote as before. A suite outside the set that
+  failed again on a re-run also demotes, unless it passed on an earlier attempt of the same commit
+  (it is non-deterministic) or a full run at the last green commit failed it on some attempt (the
+  merges did not cause it).
+  Any other suite outside the set
   demotes nothing, the window counts as verified (its `max-in-flight` slots free), and the suite
   is quarantined: an issue marked `<!-- post-merge-quarantine suite=<path> -->`, labeled
   needs-human and assigned to the suite's CODEOWNERS user when a rule names one, filed by the
   agent identity's `--remediate` or by post-merge-demotion-alert.yml. While that issue is open
   and younger than `merge.quarantine-days` (default 7, at most 30), the suite's out-of-set failures
   demote nothing; after that they demote again, even when the suite was already failing before the
-  merge. A failure inside the set demotes whether or not the suite
+  merge. An issue whose body was edited after filing, or whose title no longer names its marker's
+  suite, excuses nothing from then on: the suite demotes until the issue is closed. Closing the
+  issue ends the quarantine, and the suite's next failure outside the set files a new issue whose
+  days start again, so closing an expired issue restarts its quarantine. A failure inside the set demotes whether or not the suite
   is quarantined, and an excused run gets no red-main report. Quarantine never changes a pull request's `ci-status` and starts no
   re-run.
 - **Repeat queue ejections.** `merge.max-queue-ejections` (default 2, at most 20) stops the
@@ -2962,6 +2972,17 @@ body version (marker `<!-- intake-triage size-split-decline reason=<code> -->`):
 (a listed human did not file it), `few-lines` (fewer than 2 trusted lines even with the
 refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target), or
 `no-type` (an Issue Type admission does not take).
+
+work-unblock closes a split parent as completed only when every sub-issue closed with
+`state_reason` `completed` by a listed human or a merge and the parent's done-when is covered
+(`admit.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
+for what the parent blocks. A sub-issue closed as not planned, as a duplicate or with no reason
+leaves the parent open. A split record covers the done-when when its parts number every item and
+match the filed sub-issues; a split by hand when its body has a task list whose open items each
+cite a sub-issue. An open task item in a listed human's comment on the parent stays the parent's
+work, unless a split record took it because the comment was last written before the record. A
+parent left open goes through admission's rules like any issue, and a Size Large one is refused
+with `SIZE_SPLIT_DONE`.
 
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
 triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
