@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": "| File | Line | Stamp | Status |\n|---|---|---|---|\n| docs/retry-policy.md | 7 | 2024-03-04 | expired, 791 days over |",
+      "why": "table row"
+    },
+    {
+      "answer": "- `docs/retry-policy.md:7`: Verified 2024-03-04 is 791 days past the 180-day window.",
+      "why": "days past the window"
+    },
+    {
+      "answer": "### docs/retry-policy.md\n\nThe 2024-03-04 stamp is overdue; recheck it against the retry page.",
+      "why": "heading then overdue"
+    },
+    {
+      "answer": "Expired: docs/retry-policy.md (2024-03-04). docs/cache-layout.md is current.",
+      "why": "label first"
+    },
+    {
+      "answer": "One stamp is stale: retry-policy.md, verified 2024-03-04.",
+      "why": "stale"
+    },
+    {
+      "answer": "### Expired stamps (1)\n\n| File | Line | Stamp | Days over |\n|---|---|---|---|\n| docs/retry-policy.md | 7 | 2024-03-04 | 791 |",
+      "why": "keyword only in the heading above the table"
+    },
+    {
+      "answer": "Ran check-stamps.sh: 1 expired, 0 declined.\n\n- docs/retry-policy.md:7 (2024-03-04, 791 days)",
+      "why": "count line then the file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "docs/retry-policy.md has a stamp from 2024-03-04 and is not expired.",
+      "why": "near-miss negation"
+    },
+    {
+      "answer": "No stamps are expired. Checked docs/retry-policy.md and docs/cache-layout.md.",
+      "why": "says nothing expired"
+    },
+    {
+      "answer": "docs/retry-policy.md is fine. docs/cache-layout.md has expired.",
+      "why": "wrong file; another .md sits between"
+    },
+    {
+      "answer": "No stamps have expired.\n\nChecked docs/retry-policy.md and docs/cache-layout.md.",
+      "why": "negated heading line, file on the next line"
+    },
+    {
+      "answer": "### Expired stamps\n\n- docs/cache-layout.md:6\n\nAlso read docs/retry-policy.md.",
+      "why": "another .md sits between the heading and the file"
+    }
+  ]
+}

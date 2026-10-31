@@ -1,0 +1,82 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "jq -r '.files[]' /tmp/run/corpus.json > /tmp/run/files.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "temp corpus list"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat vendor/widget-sdk/README.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads a vendored file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git check-attr linguist-vendored -- third_party/gizmo/NOTES.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "reads an attribute"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'See upstream.\\n' > vendor/widget-sdk/README.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "overwrites a vendored file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "sed -i 's/branch/topic branch/' docs/guide.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "edits the guide in place"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "echo x | tee -a third_party/gizmo/NOTES.md",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "tee into a vendored file"
+    }
+  ]
+}

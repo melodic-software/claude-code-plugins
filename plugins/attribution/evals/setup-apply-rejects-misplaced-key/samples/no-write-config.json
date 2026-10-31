@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/run/preview.txt",
+            "content": "stamp_expiry_days: 90"
+          }
+        }
+      ],
+      "why": "temp preview"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/conventions/attribution.yaml",
+            "content": "judge_samples: 5"
+          }
+        }
+      ],
+      "why": "team layer"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/conventions/attribution.local.yaml",
+            "content": "judge_samples: 5"
+          }
+        }
+      ],
+      "why": "overlay"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/attribution.json",
+            "content": "{}"
+          }
+        }
+      ],
+      "why": "legacy JSON"
+    }
+  ]
+}

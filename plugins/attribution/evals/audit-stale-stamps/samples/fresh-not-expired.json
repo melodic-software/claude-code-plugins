@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "",
+      "why": "empty says nothing about it"
+    },
+    {
+      "answer": "docs/cache-layout.md (verified today) is within the window, not expired.",
+      "why": "negated"
+    },
+    {
+      "answer": "| docs/cache-layout.md | 2026-10-31 | -180 | ok |",
+      "why": "table row with no expired word"
+    },
+    {
+      "answer": "docs/cache-layout.md is current, but retry-policy.md is stale.",
+      "why": "clause turns to the other file"
+    },
+    {
+      "answer": "cache-layout.md hasn't expired; it was verified today.",
+      "why": "contracted negation"
+    },
+    {
+      "answer": "cache-layout.md is not yet stale.",
+      "why": "not yet"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs/cache-layout.md: expired.",
+      "why": "fresh file called expired"
+    },
+    {
+      "answer": "Expired: docs/cache-layout.md",
+      "why": "label form"
+    },
+    {
+      "answer": "| docs/cache-layout.md | 2026-10-31 | stale |",
+      "why": "table row"
+    }
+  ]
+}

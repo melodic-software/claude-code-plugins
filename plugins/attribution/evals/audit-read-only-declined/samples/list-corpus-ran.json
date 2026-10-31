@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh\" --paths-file /tmp/run/files.txt",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "skill-dir form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "/opt/plugins/attribution/skills/audit/scripts/list-corpus.sh docs",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "expanded path form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "\"${CLAUDE_SKILL_DIR}/scripts/list-corpus.sh\" --show-config",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "config probe only"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -rn Verified docs",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "hand grep instead of the script"
+    }
+  ]
+}

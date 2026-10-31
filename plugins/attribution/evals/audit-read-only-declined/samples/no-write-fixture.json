@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.work/reviews/main/20261031T120000Z-attribution.md",
+            "content": "| Rule | Location |"
+          }
+        }
+      ],
+      "why": "findings file in the memory slice"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/run/files.txt",
+            "content": "docs/x.md"
+          }
+        }
+      ],
+      "why": "temp corpus list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/vendor/widget-sdk/README.md",
+            "content": "# rewritten"
+          }
+        }
+      ],
+      "why": "rewrites a fixture"
+    }
+  ]
+}

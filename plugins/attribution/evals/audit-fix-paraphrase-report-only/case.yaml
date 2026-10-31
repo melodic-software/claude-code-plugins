@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: audit-fix-paraphrase-report-only
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: 'no-write-fixture'
+    type: 'tool_used'
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?docs/retry-defaults\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-edit-fixture'
+    type: 'tool_used'
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?docs/retry-defaults\.md"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'no-shell-write-fixture'
+    type: 'tool_used'
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:(?<=[\s"])&?>>?(?!&)[ \t]*(?:\\")?(?:[^\s;|&"\\]*/)?docs/retry-defaults\.md|\b(?:tee|truncate)\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?docs/retry-defaults\.md|\bsed\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:\s-[a-zA-Z]*i(?![a-zA-Z])|\s--in-place)(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?docs/retry-defaults\.md|\bperl\s+-[a-zA-Z]*i(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?(?:[^\s;|&"\\]*/)?docs/retry-defaults\.md|\b(?:cp|mv|install)\s(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\s(?:\\")?(?:[^\s;|&"\\]*/)?docs/retry-defaults\.md(?:\\")?(?=\s*(?:[;&|"]|\\n)))'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: 'reports-not-fix-eligible'
+    type: 'regex'
+    pattern: '\b(?:not|never|no|nothing|none)\b[^\n]{0,40}?\bfix[- ]eligible\b|\bfix[- ]eligible\b[^\n]{0,40}?\b(?:none|zero|0|no)\b|\breport[- ]only\b|\bnot fingerprint[- ]confirmed\b|\bno (?:span|finding|candidate|match)(?:es|s)?\b[^\n]{0,60}?fingerprint[- ]confirmed|\b(?:made|applied|ran) no (?:edits?|changes|fix(?:es)?)\b|\bno (?:edits?|changes|fix(?:es)?) (?:were |was )?(?:made|applied)\b|\b(?:left|leaving) [^\n]{0,40}?\bunchanged\b|\bnothing (?:to fix|was fixed|fixed|changed|edited)\b|\b(?:did not|didn''t|will not|won''t|cannot|can''t) (?:fix|edit|change|apply|rewrite)\b'
+    flags: 'i'
+    target: 'last_message'

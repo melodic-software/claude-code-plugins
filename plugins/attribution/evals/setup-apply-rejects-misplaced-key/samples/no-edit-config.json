@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/docs/guide.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "not a config file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/docs/conventions/attribution.yaml",
+            "old_string": "stamp_expiry_days: 90",
+            "new_string": "stamp_expiry_days: 90\naccuracy:\n  judge_samples: 5"
+          }
+        }
+      ],
+      "why": "team layer"
+    }
+  ]
+}

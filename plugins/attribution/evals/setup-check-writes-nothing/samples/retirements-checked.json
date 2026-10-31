@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh\" --manifest \"${CLAUDE_PLUGIN_ROOT}/retirements.yaml\"",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "plugin-root form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/attribution/lib/check-retirements.sh --manifest /opt/plugins/attribution/retirements.yaml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "expanded form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh\" --manifest m.yaml --clean attribution-r001 --i-migrated",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "the clean step is apply's, not check's"
+    }
+  ]
+}

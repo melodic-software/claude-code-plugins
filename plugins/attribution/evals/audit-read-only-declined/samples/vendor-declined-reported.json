@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Declined (2):\n\n| Pattern | Count | Reason |\n|---|---|---|\n| `**/vendor/**` | 1 | vendored tree |\n| `linguist-vendored` | 1 | gitattributes |",
+      "why": "declined table"
+    },
+    {
+      "answer": "vendor/widget-sdk/README.md was excluded as a vendored tree (built-in carve-out).",
+      "why": "sentence"
+    },
+    {
+      "answer": "Skipped 2 files: one under vendor/, one marked linguist-vendored.",
+      "why": "skipped with count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Scanned docs/guide.md. No findings.",
+      "why": "silent skip"
+    },
+    {
+      "answer": "Nothing was excluded; vendor/widget-sdk/README.md was scanned too.",
+      "why": "near-miss negation"
+    }
+  ]
+}
