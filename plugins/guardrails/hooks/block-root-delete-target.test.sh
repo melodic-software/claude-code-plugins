@@ -3172,7 +3172,7 @@ EOF
 
 # Strictly inside the scratchpad or an allowed root passes; the root itself
 # does not. The target is quoted, as a real path may hold a space.
-RDT_SLQ_FORMS=(
+RDT_SL_QUOTED_FORMS=(
   "eval \"rm -rf 'TGT'\""
   "watch -n 5 \"rm -rf 'TGT'\""
   "watch -x rm -rf 'TGT'"
@@ -3182,7 +3182,7 @@ RDT_SLQ_FORMS=(
   "echo \"rm -rf 'TGT'\" | sh"
   "bash <<'EOF'${RDT_NL}rm -rf 'TGT'${RDT_NL}EOF"
 )
-for rdt_f in "${RDT_SLQ_FORMS[@]}"; do
+for rdt_f in "${RDT_SL_QUOTED_FORMS[@]}"; do
   expect_both "shells: under the scratchpad allowed: $rdt_f" 0 \
     --payload "$(rdt_pl "${rdt_f//TGT/$RDT_SPT/x}" "$RDT_TOP" "$RDT_SPT")"
   expect_both "shells: the scratchpad itself blocks: $rdt_f" 2 \
