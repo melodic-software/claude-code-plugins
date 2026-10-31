@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, SETTLED_VERSION, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -105,7 +105,7 @@ function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
     const jobs = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/attempts\/1\/jobs\?per_page=100$/.exec(path);
     if (method === "GET" && jobs) {
       const found = byId.get(Number(jobs[1]))?.jobs ?? [];
-      return { total_count: found.length, jobs: found };
+      return { total_count: byId.get(Number(jobs[1]))?.jobsTotal ?? found.length, jobs: found };
     }
     const latest = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/jobs\?filter=latest&per_page=100$/.exec(path);
     if (method === "GET" && latest) {
@@ -135,8 +135,10 @@ function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
 // Runs the workflow's two steps: plan, then, when the plan step succeeds,
 // act. The upload steps between them read the plan's record-N outputs.
 // `carry`, when set, is the settled-runs file the last pass uploaded (null:
-// no trusted pass holds one); the pass then writes its own, returned as `settled`.
-async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK, env = {}, fail, statuses, github: wrap = (g) => g, carry } = {}) {
+// no trusted pass holds one), in run 900 after `carryRuns` in this workflow's
+// listing; the pass then writes its own, returned as `settled`.
+const LAST_PASS = { id: 900, path: ".github/workflows/maintenance-reconcile-lost-runs.yml", event: "schedule", head_branch: "main" };
+async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK, env = {}, fail, statuses, github: wrap = (g) => g, carry, carryRuns = [], download } = {}) {
   const { github, calls } = fakeGitHub({ pulls, runs, fail, statuses });
   const sleeps = [];
   const order = [];
@@ -144,10 +146,10 @@ async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK,
     order.push(method === "GET" ? "read" : "write");
     if (carry !== undefined && path === `/repos/${REPO}/actions/workflows/maintenance-reconcile-lost-runs.yml/runs?branch=main&exclude_pull_requests=true&per_page=100&page=1`) {
       calls.push(`${method} ${path}`);
-      const last = { id: 900, path: ".github/workflows/maintenance-reconcile-lost-runs.yml", event: "schedule", head_branch: "main" };
-      return { workflow_runs: carry === null ? [] : [last] };
+      return { workflow_runs: carry === null ? [] : [...carryRuns, LAST_PASS] };
     }
-    if (carry !== undefined && path === `/repos/${REPO}/actions/runs/900/artifacts?per_page=100`) {
+    const artifacts = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\/([0-9]+)\/artifacts\?per_page=100$/.exec(path);
+    if (carry !== undefined && artifacts) {
       calls.push(`${method} ${path}`);
       return { total_count: 1, artifacts: [{ name: "reconcile-settled-runs", expired: false }] };
     }
@@ -180,10 +182,12 @@ async function reconcile({ pulls, runs, status = STATUS, upstream = UPSTREAM_OK,
           order.push(`sleep ${ms}`);
         },
         now: NOW,
-        download: (id) => {
-          assert.equal(id, 900);
-          return carry;
-        },
+        download:
+          download ??
+          ((id) => {
+            assert.equal(id, 900);
+            return carry;
+          }),
       });
     const planCode = await step("plan");
     const planWrites = calls.filter((c) => c.startsWith("POST ")).length;
@@ -1792,7 +1796,8 @@ test("ci-status's pr-unblock step still writes the stop note the reconciler matc
 
 // A run's attempt-1 jobs never change once it completed, so a run the last
 // pass settled (a held lane run, a failed verdict or floor-label run that is
-// not one to re-run) is not read again; every run to re-run still is.
+// not one to re-run) is not read again; every run to re-run still is. Only a
+// whole, final listing is settled.
 const notStarted = (id) => ({ ...verifyRun(id), jobs: [{ name: "verify", status: "completed", conclusion: "cancelled", steps: [] }] });
 const settledRuns = () => [
   notStarted(202),
@@ -1800,39 +1805,96 @@ const settledRuns = () => [
   verdictRun(402, { jobs: [verdictJob(), { id: 4009, name: "dispatch", status: "completed", conclusion: "failure", steps: [] }] }),
   intakeRun(302, { jobs: [intakeJob("apply-verdict", "failure")] }),
 ];
+const SETTLED = [
+  { id: 202, reason: "before any of its jobs started" },
+  { id: 302, reason: "" },
+  { id: 401, reason: "" },
+  { id: 402, reason: "" },
+];
 const jobReads = (calls) => calls.filter((c) => /\/attempts\/1\/jobs\?/.test(c)).map((c) => Number(/runs\/([0-9]+)\//.exec(c)[1])).sort();
+const ids = (settled) => settled.runs.map((r) => r.id).sort();
+const carryOf = (runs, version = SETTLED_VERSION) => JSON.stringify({ version, repository: REPO, runs });
 
 test("a pass reads the attempt-1 jobs only of runs the last pass did not settle", async () => {
   const toRerun = [verifyRun(201), verdictRun(403)];
   const first = await reconcile({ pulls: [], runs: [...settledRuns(), ...toRerun], carry: null });
   assert.equal(first.code, 0);
   assert.deepEqual(jobReads(first.calls), [201, 202, 302, 401, 402, 403]);
-  assert.deepEqual(first.settled.runs.sort(), [202, 302, 401, 402]);
+  assert.deepEqual([...first.settled.runs].sort((a, b) => a.id - b.id), SETTLED);
   assert.deepEqual(first.reruns, [201]);
   assert.deepEqual(first.failedJobReruns, [403]);
   // The next pass: the same runs, one new verdict run that is not a stop, and
   // a carried id no longer listed, which is dropped.
-  const carry = JSON.stringify({ ...first.settled, runs: [...first.settled.runs, 999] });
+  const carry = carryOf([...first.settled.runs, { id: 999, reason: "" }]);
   const second = await reconcile({ pulls: [], runs: [...settledRuns(), ...toRerun, verdictRun(404, { jobs: [verdictJob("Download the verdict")] })], carry });
   assert.equal(second.code, 0);
   assert.deepEqual(jobReads(second.calls), [201, 403, 404]);
-  assert.deepEqual(second.settled.runs.sort(), [202, 302, 401, 402, 404]);
+  assert.deepEqual(ids(second.settled), [202, 302, 401, 402, 404]);
   assert.deepEqual(second.reruns, [201]);
   assert.deepEqual(second.failedJobReruns, [403]);
 });
 
-test("a verdict job whose steps did not list in full, or a failed run listing no failed job, is not settled", async () => {
-  const cut = { ...verdictJob("Download the verdict"), steps: verdictJob("Download the verdict").steps.slice(0, -1) };
-  const runs = [verdictRun(401, { jobs: [cut] }), verdictRun(402, { jobs: [] }), intakeRun(302, { jobs: [] })];
-  const { settled } = await reconcile({ pulls: [], runs, carry: null });
-  assert.deepEqual(settled.runs, []);
+test("a carried lane hold is still named in the summary with its reason", async () => {
+  const dir = tempDir("reconcile-summary-");
+  try {
+    const summary = path.join(dir, "summary.md");
+    writeFileSync(summary, "");
+    const held = { id: 202, reason: "after its verdict write started, so a re-run would judge the head again" };
+    const { calls } = await reconcile({ pulls: [], runs: [notStarted(202)], carry: carryOf([held]), env: { GITHUB_STEP_SUMMARY: summary } });
+    assert.deepEqual(jobReads(calls), []);
+    const text = readFileSync(summary, "utf8");
+    assert.match(text, /lane run 202 \(\.github\/workflows\/pr-verify\.yml\) ended cancelled after its verdict write started, so a re-run would judge the head again; not re-run/);
+    assert.doesNotMatch(text, /nothing lost/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
-test("a carry that cannot be read, or names another repository, reads every run", async () => {
-  for (const carry of ["not json", JSON.stringify({ version: 1, repository: "other/repo", runs: [202, 302, 401, 402] })]) {
+test("a short or unfinished listing, or a cut step list, is not settled", async () => {
+  const cut = { ...verdictJob("Download the verdict"), steps: verdictJob("Download the verdict").steps.slice(0, -1) };
+  const runs = [
+    { ...notStarted(202), jobs: [], jobsTotal: 1 },
+    { ...notStarted(203), jobsTotal: 2 },
+    { ...notStarted(204), jobs: [{ name: "verify", status: "completed", conclusion: null, steps: [] }] },
+    verdictRun(401, { jobs: [cut] }),
+    verdictRun(402, { jobs: [] }),
+    verdictRun(403, { jobs: [verdictJob("Download the verdict", { conclusion: null })] }),
+    intakeRun(302, { jobs: [] }),
+    intakeRun(303, { jobs: [intakeJob("apply-verdict", null)] }),
+  ];
+  const { code, settled, reruns, failedJobReruns } = await reconcile({ pulls: [], runs, carry: null });
+  assert.equal(code, 0);
+  assert.deepEqual(settled.runs, []);
+  // Held, not re-run, all the same.
+  assert.deepEqual(reruns, []);
+  assert.deepEqual(failedJobReruns, []);
+});
+
+test("a carry that cannot be read, names another repository or has another version reads every run", async () => {
+  for (const carry of ["not json", JSON.stringify({ version: SETTLED_VERSION, repository: "other/repo", runs: SETTLED }), carryOf(SETTLED, SETTLED_VERSION - 1), carryOf([202, 302, 401, 402])]) {
     const { code, calls, settled } = await reconcile({ pulls: [], runs: settledRuns(), carry });
     assert.equal(code, 0);
     assert.deepEqual(jobReads(calls), [202, 302, 401, 402]);
-    assert.deepEqual(settled.runs.sort(), [202, 302, 401, 402]);
+    assert.deepEqual(ids(settled), [202, 302, 401, 402]);
   }
+});
+
+test("a carry is taken from the newest trusted pass, past a pull_request run or another branch's run", async () => {
+  const carryRuns = [
+    { ...LAST_PASS, id: 901, event: "pull_request" },
+    { ...LAST_PASS, id: 902, head_branch: "feat/x" },
+  ];
+  const { code, calls } = await reconcile({ pulls: [], runs: settledRuns(), carry: carryOf(SETTLED), carryRuns });
+  assert.equal(code, 0);
+  assert.deepEqual(jobReads(calls), []);
+  assert.ok(!calls.some((c) => /runs\/90[12]\/artifacts/.test(c)));
+});
+
+test("a carry whose download fails reads every run", async () => {
+  const download = () => {
+    throw new Error("gh run download failed");
+  };
+  const { code, calls } = await reconcile({ pulls: [], runs: settledRuns(), carry: carryOf(SETTLED), download });
+  assert.equal(code, 0);
+  assert.deepEqual(jobReads(calls), [202, 302, 401, 402]);
 });

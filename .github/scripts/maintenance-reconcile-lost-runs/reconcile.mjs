@@ -109,9 +109,8 @@
 //                        resolve-pr; LANE_IDENTITY also names the lanes App
 //   KILL_SWITCH         `proceed` from the kill-switch step; anything else stops
 //   STATUS_URL           the status page's components endpoint (default githubstatus.com)
-//   SETTLED_PATH         plan writes this pass's settled runs there for the
-//                        upload, and only then reads the last pass's; unset
-//                        carries nothing
+//   SETTLED_PATH         plan reads the last pass's settled runs, then writes
+//                        this pass's there for the upload; unset carries nothing
 //   GITHUB_RUN_ID, RUNNER_TEMP  this run, and where the last carry is downloaded
 //   GITHUB_OUTPUT        plan writes record-1 to record-3 there (empty when unused)
 //   GITHUB_STEP_SUMMARY  the outcome is listed there when set
@@ -238,28 +237,41 @@ export const LANE_RUN_PAGES = 5;
 // run that starts between two queries is still listed by the later one.
 export const LANE_LIST_STATUSES = [...LANE_LOST, "requested", "pending", "waiting", "queued", "in_progress"];
 
-// The artifact that carries settled run ids from one pass to the next.
+// The artifact that carries settled runs from one pass to the next.
 export const SETTLED_ARTIFACT = "reconcile-settled-runs";
 export const SETTLED_FILE = "settled.json";
 const WORKFLOW_PATH = ".github/workflows/maintenance-reconcile-lost-runs.yml";
-const SETTLED_VERSION = 1;
+// Bump whenever the rules that settle a run change, so no pass skips a run
+// settled under the old rules.
+export const SETTLED_VERSION = 2;
 
 class RateLimited extends Error {}
 
-// The carried ids, or an error for any other shape.
+// The carried runs, id to hold reason ("" for an intake or verdict run), or
+// an error for any other shape.
 export function parseSettled(text, repo) {
   const data = JSON.parse(text);
-  if (data?.version !== SETTLED_VERSION || data.repository !== repo || !Array.isArray(data.runs) || !data.runs.every((id) => Number.isSafeInteger(id) && id > 0)) {
+  if (
+    data?.version !== SETTLED_VERSION ||
+    data.repository !== repo ||
+    !Array.isArray(data.runs) ||
+    !data.runs.every((r) => Number.isSafeInteger(r?.id) && r.id > 0 && typeof r.reason === "string")
+  ) {
     throw new Error("the settled runs file has an unexpected shape");
   }
-  return new Set(data.runs);
+  return new Map(data.runs.map((r) => [r.id, r.reason]));
 }
 
-// The newest trusted pass's settled ids, empty when no pass carries any.
+// The newest trusted pass's settled runs, empty when no pass carries any.
 async function readSettled({ repo, runId, call, download }) {
   const id = await newestTrustedRun({ repo, runId, actions: call, name: SETTLED_ARTIFACT, workflow: WORKFLOW_PATH });
-  return id === undefined ? new Set() : parseSettled(download(id), repo);
+  return id === undefined ? new Map() : parseSettled(download(id), repo);
 }
+
+// True when a job listing is whole and final: every job it counts is listed,
+// completed, with a conclusion. Only such a read is carried.
+const wholeListing = (listing) =>
+  Array.isArray(listing?.jobs) && listing.jobs.length === listing.total_count && listing.jobs.every((job) => job?.status === "completed" && job.conclusion != null);
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
@@ -411,9 +423,11 @@ const withAnnotations = (call, repo, jobs, wanted = () => true) =>
 
 const NOT_STARTED = "before any of its jobs started";
 
-// Why the run's first attempt must not be re-run, or undefined when it may be:
-// no job started any step, or a verdict write started. An unreadable listing
-// throws.
+// Why the run's first attempt must not be re-run, with whether that hold is
+// final (`settle`), or undefined when it may be re-run: no job started any
+// step, or a verdict write started. An unreadable listing throws. A judge or
+// write hold only grows truer with more data; a not-started hold is final only
+// on a whole listing whose steps all listed.
 async function holdReason(call, repo, runId, judge) {
   const listing = await call("GET", `/repos/${repo}/actions/runs/${runId}/attempts/1/jobs?per_page=100`);
   if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
@@ -433,16 +447,16 @@ async function holdReason(call, repo, runId, judge) {
   // An annotation can be echoed text, so a cut list that reaches the judge
   // step or its predecessor stays held rather than read as a lost runner.
   if (cut.some((job) => job.steps?.some((s) => s?.name === JUDGE_PREDECESSOR || s?.name === judge))) {
-    return "after its judge step may have started";
+    return { reason: "after its judge step may have started", settle: true };
   }
   // The judge step is continue-on-error, so it lists success even when it
   // broke; the verdict write runs only on its true success. Once that write
   // started, the judgment may be a FAIL the run then failed to write or
   // upload, and a re-run would judge the head a second time.
   if (started.some((s) => s.name === WRITE_STEP)) {
-    return "after its verdict write started, so a re-run would judge the head again";
+    return { reason: "after its verdict write started, so a re-run would judge the head again", settle: true };
   }
-  return started.length === 0 ? NOT_STARTED : undefined;
+  return started.length === 0 ? { reason: NOT_STARTED, settle: wholeListing(listing) && cut.length === 0 } : undefined;
 }
 
 // The start times of the runs that uploaded the PR's unexpired pr-verify
@@ -558,9 +572,13 @@ export async function prefilterSpec(call, repo, candidates) {
 // Reads every open PR's head and the recorded lanes' runs, and returns the
 // re-runs to make in order, with a record name on each lane re-run and each
 // recorded CI re-run.
-async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled = new Set() }) {
-  // The ids to carry to the next pass: read and settled now, or carried and still listed.
+async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled = new Map() }) {
+  // The runs to carry to the next pass, {id, reason}: read and settled now, or carried and still listed.
   const settle = [];
+  const sayHeld = (r, held) => {
+    const why = held === NOT_STARTED ? "; a newer run judges the head, so it is not re-run" : "; not re-run";
+    say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}${why}`);
+  };
   const pulls = (await paginate(call, `/repos/${repo}/pulls?state=open&base=main`, 5))
     .filter((p) => p.state === "open" && p.draft !== true && p.base?.ref === "main" && p.head?.repo?.full_name === repo && SHA.test(p.head?.sha ?? ""))
     .sort(byMergeCriticality);
@@ -768,15 +786,17 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const unpublished = [];
       for (const r of runs.filter((run) => isLostLane(run, since))) {
         if (settled.has(r.id)) {
-          settle.push(r.id);
+          settle.push({ id: r.id, reason: settled.get(r.id) });
+          sayHeld(r, settled.get(r.id));
           continue;
         }
         try {
           const held = await holdReason(call, repo, r.id, judge);
           if (held) {
-            settle.push(r.id);
-            const why = held === NOT_STARTED ? "; a newer run judges the head, so it is not re-run" : "; not re-run";
-            say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}${why}`);
+            if (held.settle) {
+              settle.push({ id: r.id, reason: held.reason });
+            }
+            sayHeld(r, held.reason);
           } else {
             unpublished.push(r);
           }
@@ -816,7 +836,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   }
   for (const r of candidates) {
     if (settled.has(r.id)) {
-      settle.push(r.id);
+      settle.push({ id: r.id, reason: "" });
       continue;
     }
     try {
@@ -827,8 +847,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const rerun = listing.jobs.filter((job) => !NOT_RERUN.has(job?.conclusion));
       if (rerun.length > 0 && rerun.every((job) => String(job?.name ?? "").startsWith(`${INTAKE_LABEL_JOB} / `))) {
         intake.push({ kind: "intake", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha });
-      } else if (rerun.length > 0) {
-        settle.push(r.id);
+      } else if (rerun.length > 0 && wholeListing(listing)) {
+        settle.push({ id: r.id, reason: "" });
       }
     } catch (error) {
       noteFailure(`intake run ${r.id}`, error);
@@ -858,7 +878,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   }
   for (const r of stopped) {
     if (settled.has(r.id)) {
-      settle.push(r.id);
+      settle.push({ id: r.id, reason: "" });
       continue;
     }
     try {
@@ -870,10 +890,10 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const failedSteps = (rerun[0]?.steps ?? []).filter((step) => step?.conclusion === "failure").map((step) => step.name);
       if (rerun.length === 1 && rerun[0].name === VERDICT_JOB && failedSteps.length === 1 && failedSteps[0] === VERDICT_STOP_STEP) {
         verdicts.push({ kind: "verdict", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha });
-      } else if (rerun.length > 1 || (rerun.length === 1 && (rerun[0].name !== VERDICT_JOB || stepsKnown(rerun[0])))) {
-        // A listing with no failed job, or a step list read before it was
-        // whole, is read again next pass.
-        settle.push(r.id);
+      } else if (wholeListing(listing) && (rerun.length > 1 || (rerun.length === 1 && (rerun[0].name !== VERDICT_JOB || stepsKnown(rerun[0]))))) {
+        // A listing with no failed job, a job without its conclusion, or a
+        // step list read before it was whole, is read again next pass.
+        settle.push({ id: r.id, reason: "" });
       }
     } catch (error) {
       noteFailure(`verdict run ${r.id}`, error);
@@ -1082,7 +1102,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
           specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
         });
     }
-    let settled = new Set();
+    let settled = new Map();
     if (env.SETTLED_PATH) {
       try {
         download ??= ghDownload({ repo, token: env.GH_TOKEN, dir: env.RUNNER_TEMP, name: SETTLED_ARTIFACT, file: SETTLED_FILE });
@@ -1101,7 +1121,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
     }
     write();
     if (env.SETTLED_PATH) {
-      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Set(settle)] }));
+      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()] }));
     }
     if (lines.length === 0 && result.items.length === 0) {
       say(result.failed > 0 ? `${result.failed} listings failed; what was lost is unknown` : "nothing lost");
