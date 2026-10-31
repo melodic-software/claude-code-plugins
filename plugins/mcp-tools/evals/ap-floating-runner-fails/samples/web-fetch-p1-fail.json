@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| web-fetch | P1 Floating version | FAIL | uvx with no version |",
+      "why": "row"
+    },
+    {
+      "answer": "- web-fetch: FAIL (P1). `mcp-server-fetch` is unversioned under uvx.",
+      "why": "bullet"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| web-fetch | P1 Floating version | WARN | |",
+      "why": "softened"
+    },
+    {
+      "answer": "| docs-search | P1 Floating version | FAIL | |",
+      "why": "wrong server"
+    }
+  ]
+}

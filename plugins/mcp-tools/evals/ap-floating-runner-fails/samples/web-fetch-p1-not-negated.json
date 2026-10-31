@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| web-fetch | P1 Floating version | FAIL | |",
+      "why": "plain verdict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "web-fetch does not FAIL P1.",
+      "why": "negated verdict"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Coverage\n\n- Not read: plugin servers not passed as --config",
+      "why": "verbatim footer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Coverage\n\nEverything was read.",
+      "why": "no not-read line"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

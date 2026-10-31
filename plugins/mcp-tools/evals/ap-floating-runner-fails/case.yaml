@@ -1,0 +1,57 @@
+schema_version: "1.1"
+name: ap-floating-runner-fails
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: issue-tracker-p1-fail
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bissue-tracker\b)(?=[^\n]*(?:\bP1\b|\bfloating\b|@latest))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
+    flags: 'i'
+  - name: web-fetch-p1-fail
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bweb-fetch\b)(?=[^\n]*(?:\bP1\b|\bfloating\b|\bunversioned\b|\bunpinned\b))(?=[^\n]*\bFAIL(?:s|ed|ing|ures?)?\b)'
+    flags: 'i'
+  - name: issue-tracker-not-called-pinned
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bissue-tracker\b)(?=[^\n]*(?:\bP1\b[^\n]*\|\s*\**PASS\**\s*\||\b(?:not|never|no|doesn''t|does\s+not|didn''t|did\s+not|won''t|wouldn''t|isn''t)\s+(?:an?\s+)?FAIL))|\bissue-tracker\b[^\n.;,|]{0,20}?\b(?:(?:is|was)\s+(?:exactly\s+)?pinned\b(?!\s+(?:only|by\s+(?:a\s+)?tag))|(?:is\s+)?not\s+(?:a\s+)?floating\b)'
+    flags: 'i'
+    match: 'not_contains'
+  - name: inventory-has-pin-column
+    type: regex
+    pattern: '\|\s*Scope\s*\|[^\n]*\|\s*Pin\s*\|'
+    flags: 'i'
+  - name: coverage-not-read
+    type: regex
+    pattern: '\bnot\s+read\s*:'
+    flags: 'i'
+  - name: ran-inventory-with-config
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?audit-posture/scripts/inventory\.sh\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?--config(?:\s+|=)\\?["'']?(?:[^\s"''\\]*/)?team\.mcp\.json'
+    min: 1
+  - name: no-shell-config-write
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*\.mcp\.json)(?:[^"\\]|\\.)*?(?:\bsed\s+(?:-\S+\s+)*-[a-zA-Z]*i\b|\bperl\s+-\S*i|>>?\s*\\?["'']?\S*\.mcp\.json|\btee\s+(?:-\S+\s+)*\\?["'']?\S*\.mcp\.json|\b(?:cp|mv|install)\s+(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\S*\.mcp\.json\\?["'']?(?=\s*(?:[;&|)]|\\n|"))|\bdd\s+(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\bof=|\brm\s+(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?\S*\.mcp\.json|\b(?:python3?|node|ruby|perl)\s+(?:-\S+\s+)*-[ceE]\s(?:[^"\\]|\\.)*?(?:\bwrite\w*|\bunlink\w*|\brename\w*|\btruncate\w*|\bos\.remove|\bshutil\.(?:copy|move)\w*))'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-config-write
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:claude\.json|\.mcp\.json|managed-(?:mcp|settings)\.json)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: no-config-edit
+    type: tool_used
+    tool: 'Edit'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?(?:claude\.json|\.mcp\.json|managed-(?:mcp|settings)\.json)"'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: web-fetch-p1-not-negated
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bweb-fetch\b)(?=[^\n]*\b(?:not|never|no|doesn''t|does\s+not|didn''t|did\s+not|won''t|wouldn''t|isn''t)\s+(?:an?\s+)?FAIL)'
+    flags: 'i'
+    match: 'not_contains'

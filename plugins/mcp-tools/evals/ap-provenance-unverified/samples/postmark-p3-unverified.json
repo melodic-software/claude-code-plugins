@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| postmark | P3 Publisher provenance | WARN (unverified) | |",
+      "why": "labeled"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| postmark | P3 Publisher provenance | WARN | checked on npm |",
+      "why": "no label"
+    },
+    {
+      "answer": "| postmark | P3 Publisher provenance | WARN (verified) | |",
+      "why": "claims verified"
+    }
+  ]
+}

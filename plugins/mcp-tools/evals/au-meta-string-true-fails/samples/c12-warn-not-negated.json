@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| C12 readOnlyHint set | SPEC-OPTIONAL | WARN | |",
+      "why": "plain verdict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "C12 readOnlyHint is not a WARN here.",
+      "why": "negated verdict"
+    }
+  ]
+}

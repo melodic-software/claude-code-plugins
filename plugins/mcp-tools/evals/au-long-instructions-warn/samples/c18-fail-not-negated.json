@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| C18 requiresUserInteraction | OPINION | FAIL | `1` |",
+      "why": "fail"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "C18 requiresUserInteraction is not a FAIL since 1 is truthy.",
+      "why": "negated"
+    }
+  ]
+}

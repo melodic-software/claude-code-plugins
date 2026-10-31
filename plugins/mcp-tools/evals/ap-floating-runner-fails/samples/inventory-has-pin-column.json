@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Scope | Name | Effective | Transport | Launcher | Package | Pin | Publisher | Sandboxed | Provided by |",
+      "why": "contract header"
+    },
+    {
+      "answer": "| scope | name | launcher | package | pin |",
+      "why": "lower case subset"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Server | Criterion | Result | Details |",
+      "why": "findings table only"
+    },
+    {
+      "answer": "Pin state: floating",
+      "why": "no table"
+    }
+  ]
+}

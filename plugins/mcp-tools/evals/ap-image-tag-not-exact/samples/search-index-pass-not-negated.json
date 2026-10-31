@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| search-index | P1 Floating version | PASS | digest |",
+      "why": "plain verdict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "search-index does not PASS P1.",
+      "why": "negated verdict"
+    }
+  ]
+}

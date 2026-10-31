@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| postmark | P3 Publisher provenance | WARN (unverified) | |",
+      "why": "warn"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| postmark | P3 Publisher provenance | PASS | |",
+      "why": "pass cell"
+    }
+  ]
+}

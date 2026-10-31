@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| browser | P1 Floating version | WARN | `:1.4` is a mutable tag; pin by digest |",
+      "why": "row"
+    },
+    {
+      "answer": "browser: WARN on P1, the tag can be re-pushed.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| browser | P1 Floating version | PASS | exact tag |",
+      "why": "called pinned"
+    },
+    {
+      "answer": "| search-index | P1 Floating version | WARN | |",
+      "why": "wrong server"
+    }
+  ]
+}

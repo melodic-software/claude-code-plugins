@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "| issue-tracker | P1 Floating version | FAIL | `@latest` |",
+      "why": "correct"
+    },
+    {
+      "answer": "| issue-tracker | P2 Local stdio where remote exists | PASS (unverified) | |",
+      "why": "another criterion"
+    },
+    {
+      "answer": "docs-search is pinned, issue-tracker floats on @latest.",
+      "why": "contrast line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "issue-tracker is not floating; the scope pins it.",
+      "why": "negated name"
+    },
+    {
+      "answer": "| issue-tracker | P1 Floating version | PASS | |",
+      "why": "P1 PASS"
+    },
+    {
+      "answer": "issue-tracker does not FAIL P1.",
+      "why": "negated verdict"
+    }
+  ]
+}

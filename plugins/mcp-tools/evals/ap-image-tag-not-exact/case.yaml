@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: ap-image-tag-not-exact
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: browser-p1-warn
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bbrowser\b)(?=[^\n]*(?:\bP1\b|\bfloating\b|\bmutable\b|\btag\b))(?=[^\n]*\bWARN(?:s|ed|ing|ings)?\b)'
+    flags: 'i'
+  - name: browser-mutable-tag
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bbrowser\b)(?=[^\n]*\bmutable\b)'
+    flags: 'i'
+  - name: browser-not-called-exact
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bbrowser\b)(?=[^\n]*(?:\|\s*`?exact`?\s*\||\bP1\b[^\n]*\|\s*\**PASS\**\s*\|))|\bbrowser\b[^\n.;,|]{0,30}?\b(?:(?:is|are)\s+(?:exactly\s+)?pinned\b(?!\s+(?:only|by\s+(?:a\s+)?tag))|(?:is\s+|isn''t\s+)?not\s+(?:a\s+)?mutable\b)'
+    flags: 'i'
+    match: 'not_contains'
+  - name: search-index-p1-pass
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bsearch-index\b)(?=[^\n]*(?:\bP1\b|\bdigest\b|\bsha256\b))(?=[^\n]*\bPASS(?:es|ed|ing)?\b)'
+    flags: 'i'
+  - name: ran-inventory-with-config
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?audit-posture/scripts/inventory\.sh\b(?:(?![;&|]|\\n)(?:[^"\\]|\\.))*?--config(?:\s+|=)\\?["'']?(?:[^\s"''\\]*/)?containers\.mcp\.json'
+    min: 1
+  - name: browser-warn-not-negated
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bbrowser\b)(?=[^\n]*\b(?:not|never|no|doesn''t|does\s+not|didn''t|did\s+not|won''t|wouldn''t|isn''t)\s+(?:an?\s+)?WARN)'
+    flags: 'i'
+    match: 'not_contains'
+  - name: search-index-pass-not-negated
+    type: regex
+    pattern: '(?:^|\n)(?=[^\n]*\bsearch-index\b)(?=[^\n]*\b(?:not|never|no|doesn''t|does\s+not|didn''t|did\s+not|won''t|wouldn''t|isn''t)\s+(?:an?\s+)?PASS)'
+    flags: 'i'
+    match: 'not_contains'

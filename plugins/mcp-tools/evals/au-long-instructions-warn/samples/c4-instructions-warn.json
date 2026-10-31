@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| C4 Server `instructions` within size budget | OPINION | WARN | 2,6xx characters |",
+      "why": "row"
+    },
+    {
+      "answer": "The server instructions are over the 2,048-character floor: WARN.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C4 Server `instructions` within size budget | OPINION | n/a | |",
+      "why": "n/a"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

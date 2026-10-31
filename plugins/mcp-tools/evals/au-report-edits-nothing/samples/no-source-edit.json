@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/ws/notes.md",
+            "old_string": "a",
+            "new_string": "b",
+            "replace_all": false
+          }
+        }
+      ],
+      "why": "a file the contract does not cover"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/ws/servers/tickets/node/src/server.ts",
+            "old_string": "@latest",
+            "new_string": "@1.2.3",
+            "replace_all": false
+          }
+        }
+      ],
+      "why": "edits the audited file"
+    }
+  ]
+}

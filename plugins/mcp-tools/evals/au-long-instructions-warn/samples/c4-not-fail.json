@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| C4 Server `instructions` within size budget | OPINION | WARN | |",
+      "why": "warn"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C4 Server `instructions` within size budget | OPINION | FAIL | |",
+      "why": "fail cell"
+    },
+    {
+      "answer": "C4 is FAIL: the server instructions are too long.",
+      "why": "prose"
+    }
+  ]
+}

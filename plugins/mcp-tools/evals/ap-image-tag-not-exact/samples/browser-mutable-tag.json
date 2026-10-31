@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| file | browser | yes | stdio | docker | ghcr.io/acme/browser-mcp:1.4 | mutable-tag | ghcr.io/acme | no | - |",
+      "why": "inventory pin cell"
+    },
+    {
+      "answer": "browser's 1.4 tag is mutable: only a digest pins it.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "browser is pinned to 1.4.",
+      "why": "no mutable"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

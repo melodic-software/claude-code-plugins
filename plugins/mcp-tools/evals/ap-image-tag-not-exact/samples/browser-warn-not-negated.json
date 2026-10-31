@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| browser | P1 Floating version | WARN | mutable tag |",
+      "why": "plain verdict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "browser is not a WARN: 1.4 is fixed.",
+      "why": "negated verdict"
+    }
+  ]
+}

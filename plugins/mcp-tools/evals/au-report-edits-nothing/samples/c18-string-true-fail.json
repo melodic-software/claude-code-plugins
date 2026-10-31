@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| C18 requiresUserInteraction is JSON `true` | OPINION | FAIL | `\"true\"` is a string |",
+      "why": "row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C18 requiresUserInteraction | OPINION | PASS | |",
+      "why": "pass"
+    }
+  ]
+}

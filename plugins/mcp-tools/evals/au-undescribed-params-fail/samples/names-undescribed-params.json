@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "`query` and `limit` have no `.describe()`.",
+      "why": "describe"
+    },
+    {
+      "answer": "The limit parameter is missing a description (default 20?).",
+      "why": "missing"
+    },
+    {
+      "answer": "| C6 | ANTHROPIC | FAIL | query and limit lack descriptions |",
+      "why": "lack"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "notes_search has parameter issues.",
+      "why": "unnamed"
+    },
+    {
+      "answer": "`query` has a description.",
+      "why": "affirms a description"
+    },
+    {
+      "answer": "| C4 | OPINION | PASS | description within the 2,048-character limit, no issue |",
+      "why": "bare limit word"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

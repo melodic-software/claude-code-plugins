@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| C4 Server `instructions` within size budget | OPINION | WARN | |",
+      "why": "plain verdict"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "C4: the instructions do not WARN; length is fine.",
+      "why": "negated verdict"
+    }
+  ]
+}

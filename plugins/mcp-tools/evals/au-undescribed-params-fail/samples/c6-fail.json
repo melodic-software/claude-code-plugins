@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| C6 Every parameter has a description | ANTHROPIC | FAIL | `query` and `limit` lack `.describe()` |",
+      "why": "row"
+    },
+    {
+      "answer": "notes_search: undescribed parameters, FAIL.",
+      "why": "prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| C6 Every parameter has a description | ANTHROPIC | PASS | |",
+      "why": "pass"
+    },
+    {
+      "answer": "| C2 Has when | ANTHROPIC | FAIL | |",
+      "why": "other criterion"
+    }
+  ]
+}
