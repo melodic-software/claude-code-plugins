@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash scripts/repin.sh 'rules.md is unchanged' 'The reworded rule still holds every red required check.'"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat scripts/repin.sh"
+          }
+        }
+      ],
+      "why": "read, not run"
+    }
+  ]
+}

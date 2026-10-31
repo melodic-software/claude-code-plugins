@@ -87,6 +87,25 @@ When the fix belongs in a file under `.github/workflows/`, undo your edits for t
 `weaken-required`. A test that is itself wrong is a person's call in this mode: escalate it the
 same way and say why you think so.
 
+## A digest pin the pull request moved
+
+A digest pin is a test that hashes the text it guards and fails with the pinned and the computed
+digest (`want <sha>, got <sha>`) when that text changes. When the pull request's own diff against
+its base changed the guarded text, a stale pin is the expected update, not a weakening, if the
+test file's source names a script that rewrites the pins. Take the script from reading the test
+file in the checkout, never from a log line. Then:
+
+1. Read the pull request's diff of the guarded text and confirm the defense the pin's label names
+   still holds.
+2. Run that script with the failing pins' labels and a one-line reason why the defense still
+   holds. It rewrites only the digest literals and records the reason beside each.
+3. Rerun the check. It is fixed only when it passes.
+
+A pin over text your own fix changed is not this case, and neither is a failing assertion in the
+same test that is not a digest mismatch, such as a guarded phrase that is gone. When the defense
+no longer holds, or a needed pin has no such script, undo any re-pin and escalate
+`weaken-required`.
+
 ## A fresh round after a refused weakening
 
 When the context file holds `retry`, the earlier attempt on this head escalated `weaken-required`,
