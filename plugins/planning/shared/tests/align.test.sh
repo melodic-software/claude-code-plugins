@@ -19,7 +19,7 @@ out=$(node "$here/align.js" 2>&1)
 code=$?
 printf '%s\n' "$out"
 last=$(printf '%s\n' "$out" | tail -n 1)
-if [[ ${CI:-} == true && $last =~ ^SKIP:\ (.*needs\ playwright-core|no\ Chromium\ to\ launch) ]]; then
+if [[ ${CI:-} == true && $last == SKIP:* ]]; then
   echo "FAIL: align.js skipped for want of a browser under CI=true" >&2
   exit 1
 fi

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # align.test.sh passes a browser skip locally and fails it under CI=true. It runs here against a copy of
-# align.test.sh in a throwaway folder beside a stub align.js that prints the skip line a browser-less machine
-# produces.
-# test-scope: plugins/planning/shared/tests/align.test.sh
+# align.test.sh in a throwaway folder beside a stub align.js that prints each SKIP line the real align.js
+# can print, taken from align.js itself.
+# test-scope: plugins/planning/shared/tests/align.test.sh plugins/planning/shared/tests/align.js
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 tmp=$(mktemp -d)
@@ -20,17 +20,17 @@ check() { # <name> <expected exit> <actual exit>
 }
 run() { env -u CI "$@" "$BASH" "$tmp/align.test.sh" >/dev/null 2>&1; }
 
-echo 'console.log("SKIP: no Chromium to launch (stub)");' >"$tmp/align.js"
-run
-check "a missing Chromium skips green on a local run" 0 $?
-run CI=true
-check "a missing Chromium fails under CI=true" 1 $?
+mapfile -t skips < <(grep -oE 'SKIP: [^"`$\\]*' "$here/align.js")
+((${#skips[@]} > 0))
+check "align.js prints at least one SKIP line" 0 $?
 
-echo 'console.log("SKIP: align.js needs playwright-core (stub)");' >"$tmp/align.js"
-run
-check "a missing playwright-core skips green on a local run" 0 $?
-run CI=true
-check "a missing playwright-core fails under CI=true" 1 $?
+for line in "${skips[@]}"; do
+  echo "console.log(\"$line\");" >"$tmp/align.js"
+  run
+  check "'$line' skips green on a local run" 0 $?
+  run CI=true
+  check "'$line' fails under CI=true" 1 $?
+done
 
 echo 'console.log("PASS 3 / 3");' >"$tmp/align.js"
 run CI=true

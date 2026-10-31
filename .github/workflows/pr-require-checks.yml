@@ -3324,7 +3324,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-${{ runner.os }}-only-shell-chromium-${{ hashFiles('package-lock.json') }}
       # The animation wheels (numpy and opencv; the speech suites need their
       # numpy), demo-video's locked numpy and Pillow plus ffmpeg, and the
       # inventory's parser packages go only on a leg whose suites need them,
@@ -3533,7 +3533,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-${{ runner.os }}-only-shell-chromium-${{ hashFiles('package-lock.json') }}
       - name: Install locked plugin test toolchains
         timeout-minutes: 4
         id: toolchains
