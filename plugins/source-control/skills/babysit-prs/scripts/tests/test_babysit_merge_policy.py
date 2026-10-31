@@ -8786,10 +8786,10 @@ class DependabotEligibility(unittest.TestCase):
         self.lane_fix(gh, paths, **options)
         return self.eligibility(hold_majors=False).reason
 
-    def bump_reason(self, after: dict[str, str] | None = None) -> str | None:
-        """The repository's version-bump commit at the head, pushed by
-        github-actions[bot], on Dependabot's minor bump."""
-        bump = dependabot_commit(
+    def test_a_github_actions_commit_is_refused_even_on_covered_files(
+        self,
+    ) -> None:
+        actions = dependabot_commit(
             name="github-actions[bot]",
             email="41898282+github-actions[bot]@users.noreply.github.com",
             message="chore: bump plugin versions [dependabot skip]",
@@ -8803,27 +8803,15 @@ class DependabotEligibility(unittest.TestCase):
             },
             self.PUSHES[1],
         ]
-        paths = ["plugins/p/.claude-plugin/plugin.json", "plugins/p/CHANGELOG.md"]
         gh = self.fake(
-            commits=[dependabot_commit(), bump],
+            commits=[dependabot_commit(), actions],
             pushes=pushes,
-            files=[
-                {"filename": "package-lock.json"},
-                *({"filename": p} for p in paths),
-            ],
+            files=[{"filename": "package-lock.json"}],
         )
-        self.lane_fix(gh, paths, after=after)
-        return self.eligibility(hold_majors=False).reason
-
-    def test_the_version_bump_commit_may_change_only_the_plugin_version(
-        self,
-    ) -> None:
-        self.assertIsNone(self.bump_reason())
-        hooks = {"name": "p", "version": "1.0.1", "hooks": {"PreToolUse": []}}
-        path = "plugins/p/.claude-plugin/plugin.json"
+        self.lane_fix(gh, ["package-lock.json"])
         self.assertEqual(
-            self.bump_reason({path: json.dumps(hooks)}),
-            f"dependabot-bump-content:bump-content:{path}:plugin-json-key",
+            self.eligibility(hold_majors=False).reason,
+            f"commit-not-dependabot:{self.HEAD[:12]}",
         )
 
     def test_a_lanes_app_fix_must_be_a_version_change_of_regular_manifest_files(
