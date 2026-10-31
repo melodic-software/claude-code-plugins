@@ -62,9 +62,10 @@ name: maintenance-reconcile-lost-runs
 # pr-verify's and pr-review-main's trigger checks trust a re-run github-actions[bot] starts only
 # through this run's record of it: the plan step names an artifact
 # reconcile-rerun-<run id>-2-<head sha> for each pr-verify or pr-review-main run it will re-run,
-# for each hosted review run a kill switch stopped, and for each pr-require-checks
-# run whose re-run makes its attempt 2 (pr-verify runs after it), the upload steps below write them, and only then does the act
-# step re-run those runs. That no other run can upload into this run's artifacts is
+# for each pr-require-checks run whose re-run makes its attempt 2 (pr-verify
+# runs after it), and for each hosted review run a kill switch or the
+# upstream-status gate stopped, the upload steps below write them, and only then
+# does the act step re-run those runs. That no other run can upload into this run's artifacts is
 # UNVERIFIED: GitHub does not document that it scopes the runtime upload token
 # to its own run, and the REST API has no endpoint that creates an artifact.
 # A forged record still needs a github-actions[bot] attempt-2 re-run of the
@@ -178,9 +179,9 @@ jobs:
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
           node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
 
-      # One record per pr-verify or pr-review-main run, and per pr-require-checks run made attempt
-      # 2, the act step re-runs, uploaded first. A failed upload fails the job,
-      # so that run is not re-run.
+      # One record per pr-verify or pr-review-main run, per pr-require-checks run made attempt
+      # 2, and per stopped hosted review run the act step re-runs, uploaded
+      # first. A failed upload fails the job, so that run is not re-run.
       - name: Record re-run 1
         if: steps.plan.outputs.record-1 != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
