@@ -5,7 +5,8 @@
 #
 # On a ready pull request, ci-status passes only when the newest pull_request
 # run of each review caller on the head has a successful status job whose
-# `Apply the hold` step ran. Pending, failed, skipped or missing reviews fail
+# `Apply the hold` step ran, or whose no-change skip record leads back to such
+# a review on the pull request. Pending, failed, skipped or missing reviews fail
 # with the cause named, a lane the kill switch stopped among them; Dependabot, the
 # release App and the standards-sync App are exempt by numeric author id, but
 # not from a trust-gate path (with merge.diff-check.path-holds false, only
@@ -48,6 +49,13 @@ if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' 
   ok "step runs on every ready pull_request run, contract-only ones included"
 else
   fail "step lost its ready pull_request condition"
+fi
+# The skip-chain lookup (`lane_at`, `carried`) filters runs to this pull
+# request by PR_NUMBER, so the step's env must set it from the event.
+if [[ "$step" == *$'\n          PR_NUMBER: ${{ github.event.pull_request.number }}\n'* ]]; then
+  ok "step env sets PR_NUMBER from the pull_request event"
+else
+  fail "step env does not set PR_NUMBER from github.event.pull_request.number"
 fi
 if [[ "$step" == *"continue-on-error"* ]]; then
   fail "step must not continue on error: its exit code is the gate"
@@ -237,10 +245,10 @@ CODE=pr-review-hosted.yml
 SEC=pr-review-security-hosted.yml
 CODE_CHECK='pr-review / claude-review-status'
 SEC_CHECK='pr-review-security / security-review'
-# run <id> <file> [status] [sha] [event] [head repository]
+# run <id> <file> [status] [sha] [event] [head repository] [pull request number]
 run() { jq -cn --argjson id "$1" --arg f "$2" --arg st "${3:-completed}" --arg sha "${4:-$HEAD}" --arg ev "${5:-pull_request}" --arg hr "${6:-o/r}" \
-  '{id: $id, path: (".github/workflows/" + $f), status: $st, head_sha: $sha, event: $ev, head_repository: {full_name: $hr},
-    html_url: ("https://github.com/o/r/actions/runs/\($id)")}'; }
+  --argjson pr "${7:-77}" '{id: $id, path: (".github/workflows/" + $f), status: $st, head_sha: $sha, event: $ev, head_repository: {full_name: $hr},
+    pull_requests: [{number: $pr}], html_url: ("https://github.com/o/r/actions/runs/\($id)")}'; }
 runs() { local IFS=,; printf '{"workflow_runs":[%s]}' "$*"; }
 # status <name> <status> <conclusion> [hold-step-conclusion]
 status() { jq -cn --arg n "$1" --arg st "$2" --arg c "$3" --arg h "${4:-success}" \
@@ -317,7 +325,12 @@ done
 JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success skipped)")"
 expect "a green status job whose hold step did not run (summary mode) does not count" 1 \
   "::error::'$CODE_CHECK' passed in https://github.com/o/r/actions/runs/10, but its 'Apply the hold' step did not run"
-if grep -q '/annotations' "$TMP_ROOT/log"; then fail "a listed hold step still read the annotations"; else ok "a listed hold step decides without reading annotations"; fi
+# A skipped hold step reads the job's annotations, for a no-change skip record.
+if grep -qxF "api repos/o/r/check-runs/9/annotations?per_page=100" "$TMP_ROOT/log"; then
+  ok "a skipped hold step reads the status job's annotations"
+else
+  fail "a skipped hold step did not read the annotations: '$(sort -u "$TMP_ROOT/log")'"
+fi
 
 # The jobs API can list a finished job's steps empty or cut short; then the
 # status job's review-complete notice for this lane and head decides.
@@ -364,8 +377,59 @@ expect "the security lane does not count on the code lane's notice" 1 "no review
 JOBS_20="$PASS_SEC"
 # A listed hold step keeps the step rule, whatever the notices say.
 JOBS_10="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 31 '[{"name":"Publish the review","status":"completed","conclusion":"success"},{"name":"Apply the hold","status":"completed","conclusion":"skipped"}]')")" NOTES_31="$GOOD_NOTES"
-expect "a listed skipped hold step stays uncounted despite a notice" 1 "but its 'Apply the hold' step did not run"
-if grep -q '/annotations' "$TMP_ROOT/log"; then fail "a listed hold step read the annotations"; else ok "a listed hold step reads no annotations"; fi
+expect "a listed skipped hold step stays uncounted despite a review notice" 1 "but its 'Apply the hold' step did not run"
+JOBS_10="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 31 '[{"name":"Apply the hold","status":"completed","conclusion":"success"}]')")"
+expect "a listed successful hold step passes" 0 "'$CODE_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/10)." "::error::"
+if grep -q '/annotations' "$TMP_ROOT/log"; then fail "a successful hold step read the annotations"; else ok "a successful hold step reads no annotations"; fi
+
+# A push that changed no file of the pull request since a counted review (a
+# clean base merge) is a no-change skip: its status job succeeds, its hold
+# step is skipped, and its review-complete record names the head it carries
+# forward. ci-status counts it only when that head, followed through any
+# further no-change skips, had a counted review on this pull request.
+T1=1111111111111111111111111111111111111111
+T2=2222222222222222222222222222222222222222
+SKIPPED_HOLD='[{"name":"Publish the review","status":"completed","conclusion":"skipped"},{"name":"Apply the hold","status":"completed","conclusion":"skipped"}]'
+# skip_rec <sha> <through> [suffix]: the no-change skip record notices.
+skip_rec() { notes "$(note notice claude-lane-review-complete "claude-lane-review-complete lane=claude-review sha=$1 skip=no-change through=$2${3:-}")"; }
+export JOBS_12 JOBS_13 NOTES_33 NOTES_34
+JOBS_10="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 33 "$SKIPPED_HOLD")")" NOTES_33="$(skip_rec "$HEAD" "$T1")"
+RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 12 $CODE completed "$T1")")" JOBS_12="$PASS_CODE"
+expect "a merge-only push after a full review carries that review" 0 "'$CODE_CHECK' skipped $HEAD (https://github.com/o/r/actions/runs/10) as unchanged since $T1, whose review counts" "::error::"
+NOTES_33="$(skip_rec "$HEAD" "$T1" " account=fallback")"
+expect "a fallback-account skip record carries the review too" 0 "as unchanged since $T1, whose review counts" "::error::"
+# Two clean merges: the first merge's own run is a no-change skip too.
+PR_NUMBER='' expect "an empty pull request number fails closed before any skip is followed" 1 "::error::the pull request number '' is not a number."
+NOTES_33="$(skip_rec "$HEAD" "$T1")"
+JOBS_12="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 34 "$SKIPPED_HOLD")")" NOTES_34="$(skip_rec "$T1" "$T2")"
+RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 12 $CODE completed "$T1")" "$(run 13 $CODE completed "$T2")")" JOBS_13="$PASS_CODE"
+expect "two merge-only pushes after a full review carry that review" 0 "as unchanged since $T1, whose review counts" "::error::"
+# The through head's review must count on its own terms.
+JOBS_13="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success skipped)")"
+expect "a skip chain ending in a summary-mode run does not count" 1 \
+  "::error::'$CODE_CHECK' skipped $HEAD in https://github.com/o/r/actions/runs/10 as unchanged since $T1, but no counted review of claude-review on #77 covers $T1"
+NOTES_34="$(skip_rec "$T1" "$HEAD")"
+expect "a skip chain that loops does not count" 1 "no counted review of claude-review on #77 covers $T1"
+NOTES_34="$(notes "$(note notice claude-lane-review-complete "claude-lane-review-complete lane=claude-review sha=$T1 skip=docs-only")")"
+expect "a skip chain ending in another kind of skip does not count" 1 "no counted review of claude-review on #77 covers $T1"
+JOBS_12="$PASS_CODE"
+RUNS_CODE="$(runs "$(run 10 $CODE)")"
+expect "a skip through a head with no review run does not count" 1 "no counted review of claude-review on #77 covers $T1"
+RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 12 $CODE completed "$T1" pull_request o/r 78)")"
+expect "a skip through a head reviewed only for another pull request does not count" 1 "no counted review of claude-review on #77 covers $T1"
+RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 12 $CODE completed "$T1" pull_request fork/r)")"
+expect "a skip through a head reviewed only from a fork does not count" 1 "no counted review of claude-review on #77 covers $T1"
+RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 12 $CODE completed "$T1")")"
+NOTES_33="$(skip_rec "$HEAD" "${T1:0:39}")"
+expect "a skip record with a malformed through head stays uncounted" 1 "but its 'Apply the hold' step did not run"
+# The empty-step-list path reads the same record and follows it the same way.
+JOBS_10="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 33 '[]')")" NOTES_33="$(skip_rec "$HEAD" "$T1")"
+expect "an unlisted hold step with a skip record carries a counted review" 0 "as unchanged since $T1, whose review counts" "::error::"
+JOBS_12="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success skipped)")"
+expect "an unlisted hold step with a skip record through an uncounted head fails" 1 "no counted review of claude-review on #77 covers $T1"
+NOTES_33="$(notes "$(note notice claude-lane-review-complete "claude-lane-review-complete lane=claude-review sha=$HEAD skip=docs-only")")"
+expect "an unlisted hold step with any other skip record stays uncounted" 1 "the job records no review-complete notice for claude-review on $HEAD"
+JOBS_10="$PASS_CODE" RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
 
 # A kill-switch job listed without its report step counts as a stop only on
@@ -407,6 +471,40 @@ JOBS_10="$(jobs "$(kill_job failure skipped)")"
 expect "a failed kill-switch job fails" 1 "kill-switch job: failure"
 JOBS_10="$(jobs "$(kill_job success skipped)")"
 expect "a kill-switch job that let the review run, with no review, fails" 1 "did not run on $HEAD"
+
+# An upstream-status skip is named, not read as a fork or an unlisted bot:
+# the hosted callers' `Stop on upstream status` step fails the kill-switch job
+# with its error, and an older run's gate left its notice on a kill-switch job
+# that succeeded with the review skipped (runs 41102428120, 41106612430).
+for caller in pr-review-hosted.yml pr-review-security-hosted.yml; do
+  if grep -qE '^ +echo "::error::an upstream outage stops this (security )?review \(' "$ROOT/.github/workflows/$caller"; then
+    ok "$caller's upstream stop writes the error ci-status reads"
+  else
+    fail "$caller's upstream stop no longer writes 'an upstream outage stops this [security ]review ('"
+  fi
+done
+upstream_job() { jq -cn --argjson id "$1" --arg c "$2" --arg u "$3" --arg r "$4" --arg s "$5" '{id: $id, name: "kill-switch", status: "completed", conclusion: $c,
+  steps: [{name: "Check the kill switch", conclusion: "success"}, {name: "Check upstream status", conclusion: $u},
+    {name: "Report the kill switch", conclusion: $r}, {name: "Stop on upstream status", conclusion: $s}]}'; }
+export NOTES_42 NOTES_43
+JOBS_10="$(jobs "$(upstream_job 42 failure success skipped failure)" "$(status "$CODE_CHECK" completed skipped skipped)")"
+NOTES_42="$(notes "$(note failure '' 'an upstream outage stops this review (Actions major_outage); the lost-run reconciler re-runs it once GitHub Actions is operational')")"
+expect "a review the upstream gate stopped is named, with the reconciler's re-run" 1 \
+  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, a person re-runs this ci-status job, not the review run, so pr-verify accepts it; after 24 hours, push to the head." "a fork, or a bot"
+JOBS_10="$(jobs '{"id":42,"name":"kill-switch","status":"completed","conclusion":"failure","steps":[]}')"
+expect "a failed kill-switch job listed with no steps counts as an upstream stop on its error" 1 "GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler" "a fork, or a bot"
+NOTES_42="$(notes "$(note notice '' 'an upstream outage stops this review (Actions major_outage)')")"
+expect "a notice copying the upstream error is no upstream stop" 1 "kill-switch job: failure"
+JOBS_10="$(jobs "$(upstream_job 42 failure success skipped skipped)")"
+expect "a kill-switch job that failed at another step is no upstream stop" 1 "kill-switch job: failure" "listed an outage"
+JOBS_10="$(jobs "$(upstream_job 43 success success skipped skipped)" "$(status "$CODE_CHECK" completed skipped skipped)")"
+NOTES_43="$(notes "$(note notice '' 'upstream status: www.githubstatus.com lists Actions as degraded_performance; this run is skipped')")"
+expect "an older run's upstream skip notice is named, with a re-run to start" 1 \
+  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): the upstream status gate skipped it when it started. Once GitHub Actions and npm are operational, re-run all jobs of https://github.com/o/r/actions/runs/10; ci-status re-runs when it finishes." "a fork, or a bot"
+NOTES_43="$(notes "$(note notice '' 'upstream status: status.npmjs.org could not be read (offline); the gate fails open for it')")"
+expect "a fail-open upstream notice is no skip" 1 "kill-switch job: success" "upstream status gate skipped"
+NOTES_43="$(notes "$(note warning '' 'upstream status: www.githubstatus.com lists Actions as major_outage; this run is skipped')")"
+expect "a warning copying the skip notice is no skip" 1 "kill-switch job: success" "upstream status gate skipped"
 
 JOBS_10="$PASS_CODE"
 RUNS_SEC="$(runs)"

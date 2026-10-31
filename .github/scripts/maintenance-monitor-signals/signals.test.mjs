@@ -14,6 +14,8 @@ import {
   mainRedFindings,
   parseBudget,
   platformFindings,
+  POST_MERGE_UNREADABLE_SWEEPS,
+  postMergeUnreadableFindings,
   stalledFindings,
   throttleFindings,
   throughputFindings,
@@ -454,4 +456,53 @@ test("stalled stops are one finding, a fact per PR, whose fingerprint moves with
   const [moved] = stalledFindings({ stalledStops: [stop(9, { head: "b".repeat(40) })] });
   assert.notEqual(moved.fingerprint, f.fingerprint);
   assert.ok(detect({ ...base, stalledStops: [stop(9)] }).some((x) => x.key === "stalled-lane-stop"));
+});
+
+// collect.mjs hands on the newest reports, newest first, stopping at the first
+// readable one: code is the post-merge-code file's text.
+// The reason a real exit-3 report carried (pr-merge run 41067582241, 2026-10-30).
+const CAP = "unreadable: post-merge-detect-silent-revert.yml push runs: total_count 1239, 1000 returned, at the 1000-run search cap";
+const report = (runId, code = "3", reason = CAP) => ({
+  runId,
+  url: `https://github.com/o/r/actions/runs/${runId}`,
+  code,
+  reason,
+  createdAt: `2026-10-30T${String(11 + (runId % 10)).padStart(2, "0")}:00:00Z`,
+});
+
+test("signal 11: 3 unreadable sweeps stay quiet, the 4th in a row fires one finding naming the read error", () => {
+  assert.equal(POST_MERGE_UNREADABLE_SWEEPS, 4);
+  assert.deepEqual(postMergeUnreadableFindings({ postMergeReports: [report(3), report(2), report(1)] }), []);
+  const found = detect({ ...base, postMergeReports: [report(4), report(3), report(2), report(1)] });
+  assert.equal(found.length, 1);
+  const [f] = found;
+  assert.equal(f.key, "post-merge-unreadable");
+  assert.equal(f.signal, "11 post-merge unreadable");
+  assert.match(f.summary, /at the 1000-run search cap/);
+  assert.match(f.summary, /actions\/runs\/4/);
+  assert.equal(f.facts.length, 4);
+  assert.equal(f.observedAt, report(4).createdAt);
+});
+
+test("signal 11: a readable sweep among the newest 4 clears it, whatever its code", () => {
+  for (const code of ["0", "5", "1", "2", "4"]) {
+    assert.deepEqual(postMergeUnreadableFindings({ postMergeReports: [report(4, code, null), report(3), report(2), report(1)] }), [], code);
+    assert.deepEqual(postMergeUnreadableFindings({ postMergeReports: [report(4), report(3, code, null), report(2), report(1)] }), [], code);
+  }
+  assert.deepEqual(postMergeUnreadableFindings({}), []);
+});
+
+test("signal 11: the fingerprint holds while the cause holds, through new runs and counts", () => {
+  const fp = (reports) => postMergeUnreadableFindings({ postMergeReports: reports })[0].fingerprint;
+  const later = [5, 4, 3, 2].map((id) => report(id, "3", CAP.replace("1239", "1302")));
+  assert.equal(fp([report(4), report(3), report(2), report(1)]), fp(later));
+  assert.notEqual(fp(later), fp([report(5, "3", "pull requests: HTTP 502"), report(4), report(3), report(2)]));
+});
+
+test("signal 11: a reason from the report reaches the issue inert", () => {
+  const [f] = postMergeUnreadableFindings({
+    postMergeReports: [report(4, "3", "bad ```\n@someone [x](http://e)"), report(3), report(2), report(1)],
+  });
+  assert.doesNotMatch(f.summary, /`|\n/);
+  for (const line of f.facts) assert.doesNotMatch(line, /`|\n/);
 });

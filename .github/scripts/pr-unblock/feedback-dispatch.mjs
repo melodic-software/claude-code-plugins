@@ -124,7 +124,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { fixRequesters, HOLD_LINE, humanGatedLabelFrom, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
@@ -135,7 +135,7 @@ import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from 
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
-import { final as capFinal, verifyCapReader } from "./verify-cap.mjs";
+import { FAIL as VERIFY_FAIL, final as capFinal, deadlineWarning, verifyCapReader } from "./verify-cap.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -505,16 +505,23 @@ export async function dispatchFeedback({
   // later pass clears no cap, and a push past it could never merge, so
   // pr-merge closes the pull request for a fresh attempt. It closes only the
   // lanes App's: an adopted owner's is never skipped.
-  const capped = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha });
+  // A round sent for pr-verify's FAIL at this head (notesSince) expects the
+  // reader's FAIL refusal there.
+  const expected = !passOnly && notesSince !== null ? [VERIFY_FAIL] : [];
+  const capped = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha, expected });
   if (capped) {
     // The cap never clears for the head: later runs skip it before any
     // read. A sibling read that failed is read again next run.
     if (capFinal(capped)) {
       markHandled(record, settings.checkName, head);
     }
+    const warning = deadlineWarning(number, capped);
+    if (warning) {
+      log(warning);
+    }
     return skip(`#${number}: pr-verify's FAILs are at the cap or cannot all be read (${capped}); pr-merge closes it for a fresh attempt, so no ${settings.activity} round`);
   }
-  const { workflowRunId } = await api.dispatchWorkflow({
+  const request = {
     workflow: settings.workflow,
     ref: `refs/heads/${settings.base}`,
     inputs: {
@@ -523,7 +530,22 @@ export async function dispatchFeedback({
       "dispatcher-run-id": String(runId),
       ...(passOnly ? { "verify-pass-head": head } : {}),
     },
-  });
+  };
+  let workflowRunId;
+  try {
+    ({ workflowRunId } = await api.dispatchWorkflow(request));
+  } catch (error) {
+    if (!connectionLost(error)) {
+      throw error;
+    }
+    // The connection broke before any answer, so GitHub may still have taken
+    // the POST: a run it started for this PR holds the second send, as the
+    // listing above would. An HTTP error answer is never sent again.
+    const since = new Date(now - 60_000).toISOString().replace(/\.\d{3}Z$/, "Z");
+    const started = (await api.listRecentRuns(settings.workflow, since)).find((run) => holds(run, number));
+    log(`::warning::#${number}: the ${settings.workflow} dispatch got no answer (${errorLabel(error)}); ${started ? `run ${started.id} for it is listed, so it is not sent again` : "sending it once more"}`);
+    ({ workflowRunId } = started ? { workflowRunId: started.id } : await api.dispatchWorkflow(request));
+  }
   const id = String(workflowRunId);
   if (!RUN_ID.test(id)) {
     throw new Error(`#${number}: dispatch returned no valid workflow_run_id`);
@@ -532,6 +554,11 @@ export async function dispatchFeedback({
   log(`dispatched #${number} head ${head} upstream run ${upstreamRunId} workflow_run_id=${id}`);
   return { number, workflowRunId: id };
 }
+
+// A request whose connection broke before any answer (undici's `fetch failed`
+// with a reset or closed socket); an HTTP answer is never one.
+const LOST_CONNECTION = new Set(["ECONNRESET", "UND_ERR_SOCKET"]);
+const connectionLost = (error) => error?.name === "TypeError" && error.message === "fetch failed" && LOST_CONNECTION.has(error.cause?.code);
 
 // The sweep: the first open lanes App PR into main whose head's newest
 // reply check took a releasing skip, under SWEEP_HEAD_CAP such checks, that
@@ -905,7 +932,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       signal,
     });
     if (!response.ok) {
-      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { rateLimited: response.rateLimited === true });
+      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { rateLimited: response.rateLimited === true, detail: await responseDetail(response) });
     }
     return response.status === 204 ? {} : response.json();
   }
@@ -948,7 +975,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
         return "none";
       }
       if (!response.ok) {
-        throw new Error(`GET ${url} returned ${response.status}`);
+        throw Object.assign(new Error(`GET ${url} returned ${response.status}`), { detail: await responseDetail(response) });
       }
       return (await response.json()).permission;
     },
@@ -1193,13 +1220,19 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
   return 0;
 }
 
+// The step's error annotation for a failed run. A thrown fetch names its
+// cause only in error.cause; the label carries its code, never its message,
+// which can hold a header value. A refused GitHub call adds its answer's detail.
+export const failureAnnotation = (error) =>
+  `::error::pr-feedback dispatch failed: ${error.message}${error?.cause?.code ? ` (${errorLabel(error)})` : ""}${detailSuffix(error)}`;
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main(process.env).then(
     (code) => {
       process.exitCode = code;
     },
     (error) => {
-      console.log(`::error::pr-feedback dispatch failed: ${error.message}`);
+      console.log(failureAnnotation(error));
       process.exitCode = 1;
     },
   );

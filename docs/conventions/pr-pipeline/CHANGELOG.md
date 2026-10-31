@@ -1,5 +1,141 @@
 # Changelog for the PR pipeline convention
 
+## [8.18.3] - 2026-10-31
+
+### Fixed
+
+- A post-merge demotion or failure record now says why it lists no range: main's runs could not be
+  read, no green full run came first, the compare could not be listed, the range passes 300
+  commits, the first-parent walk missed the base, or the last green run is at the failing commit,
+  which implicates no merge. A failed read also emits a `::warning::`. Compare is paged, so a range
+  past GitHub's 250-commit limit is walked, and the record lists 100 commits with an "and N more"
+  compare link. A direct push is called one, its subject is quoted without backticks and cut to 100
+  characters with its backslashes intact, and a commit with no GitHub login reads `unknown`.
+
+### Security
+
+- The write runner's skill step sets `GH_TOKEN` and `GITHUB_TOKEN` to empty in its settings' `env`, so no Bash process holds the effect-scoped App token in its `/proc/<pid>/environ`, the sandbox's pid 1 and the Bash shell above a `verify-scripts` wrapper included. claude-code-action's MCP servers, commit signing among them, still get the token from their own config `env`. Under run-claude-cli, code a listed script runs can still read the job's read-only token from an ancestor ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#skill-activities)).
+
+## [8.18.2] - 2026-10-31
+
+### Changed
+
+- pr-feedback-dispatch.yml and pr-unblock-dispatch.yml no longer run a step that fetches pr-merge's
+  carried artifact listing on every run. `verify-cap.mjs` runs `listing-carry.mjs` (provenance
+  checks unchanged, the same 2-minute limit and its own api-calls notice) on the job's first
+  FAIL-cap read only, so a run that skips before any FAIL-cap read spends none of the carry's
+  calls. A failed fetch warns, and the reader lists every page as before.
+
+### Fixed
+
+- `ci-status` no longer tries to turn off an armed pull request's auto-merge on a push: turning
+  it off needs `contents: write`, which the lanes App's arming token holds and `ci-status`'s
+  `GITHUB_TOKEN` deliberately lacks, so the mutation could not succeed. The merge queue's check for
+  a pr-verify pass at the exact head it merges is what holds a new head.
+
+## [8.18.1] - 2026-10-31
+
+### Fixed
+
+- Only a `CRITICAL` security finding holds a pull request for a person, as the owner decided on
+  #11020. In pr-unblock's address-feedback, a disputed `IMPORTANT` security-review finding goes to
+  the adjudicator instead of `feedback-disputed`, and one the fresh fixer's round leaves open fails
+  the head as `feedback-not-converging` instead of `feedback-round-cap`. A `dependencies` flag
+  rated below `CRITICAL` that `hardRequire` does not settle ends `feedback-unadjudicated`, a
+  failing status. pr-merge's `clear-escalations` no longer keeps `feedback-not-landed` for an open
+  `IMPORTANT` thread; a `CRITICAL` or unreadable one still keeps it.
+
+## [8.18.0] - 2026-10-31
+
+### Added
+
+- `merge.verify-capture` configures pr-verify's evidence capture: `app`, the app it drives (unset: no capture runs), and `retention-days` (default 30, at most 90) for each capture artifact.
+- Every verdict file records an `evidence` block: the capture's outcome (`no-app` when no capture summary exists, `blocked` when one cannot be read) with its reason, capture count and features, and `local_loop`, the author's count from an `Evidence loop: k/3` line in the trusted pull request body, read as data and `null` without one. A capture never fails the verdict.
+
+## [8.17.0] - 2026-10-31
+
+### Added
+
+- **A push to main that reverts a pull request the lanes App put in the merge queue now demotes that lane.** `post-merge-demotion-alert.yml` reads every commit each canary push run brings (up to 20), whatever the run concluded, for a `Reverts #N` line, a revert-button subject, `This reverts commit <sha>` or the red-main bot's culprit marker, and files a `babysit-merge-demotion` record with signal `revert`; babysit makes no unattended merge while it is open, and only a person closing it re-enables the lane. A revert of a pull request a person queued files nothing, and a revert commit an existing record lists is never filed again.
+
+### Fixed
+
+- The dispatchers' FAIL-cap reader (verify-cap.mjs) now runs as an async child process, so it no
+  longer blocks the event loop. While it blocked for a minute or more, a reset on the job's idle
+  connection to GitHub went unread. The address-feedback dispatch POST then went out on the dead
+  socket and failed with `fetch failed` (ECONNRESET), so no round was sent or recorded. A reader
+  past its 2-minute limit is still killed and read as not the cap.
+- feedback-dispatch.mjs sends the dispatch POST once more when its connection broke before any
+  answer (ECONNRESET, UND_ERR_SOCKET), unless a run that POST started is already listed for the
+  pull request. An HTTP error answer is never sent again. A failed run's error line now names the
+  cause code.
+
+## [8.16.0] - 2026-10-31
+
+### Added
+
+- pr-merge's re-fire step (`refire-refused.mjs`) now also pushes an empty commit for a pr-unblock `address-feedback` run whose "Request the lane token" step failed transiently: `broker-unreachable`, or `lane-token-denied` with a 5xx status. The `pr-unblock-dispatch` tick does not dispatch that activity, and its failed check run holds the head, so such a run stranded the pull request until a person re-fired it. The activities that tick dispatches (resolve-conflicts, review-dependency, fix-ci) are left to it, and a token 403 is re-fired only for `workflow-modified`, as before. Each transient re-fire is recorded in a `<!-- pr-lane-refire transient run <id> tree <tree> head <head> -->` marker and capped at one per failed run and two per head tree, so a broker outage cannot chain empty commits on one change.
+
+- The monitoring lane has signal 11, post-merge unreadable: when the newest 4 post-merge reports that `pr-merge`'s `post-merge-dispatch` kept all exited 3 (the check could not read lane merges, so merges hold with only a warning), it files or reopens one rolling issue naming the newest report's reason, and each monitoring run prints it as an `::error` while it holds. It only notifies, and the next readable report closes it. No report within 70 minutes leaves the signal unread rather than clearing it.
+
+### Changed
+
+- The cost hold section names the infrastructure-as-code files the merge gate now holds:
+  - Pulumi project and stack files in their `.yml` and `.json` forms.
+  - `*.tf.json` and `*.tfvars.json`.
+  - The ARM template names `azuredeploy.json`, `azuredeploy.*.json`, `*.azuredeploy.json` and `*.azuredeploy.*.json`.
+  - Any file under a directory that holds a Pulumi project file.
+
+  It also says why a `secrets` reference moved within one file is accepted: the move adds no
+  charge, and where it moved is the review lanes' call.
+
+## [8.15.5] - 2026-10-31
+
+### Changed
+
+- "Dependabot pull requests" and the review-dependency activity no longer list the `[dependabot skip]` version-bump commit as an allowed commit: every commit must be Dependabot's or, after a review, the lanes App's fix commit, and a `github-actions[bot]` push is refused (`pushed-by:github-actions[bot]`).
+
+## [8.15.4] - 2026-10-30
+
+### Fixed
+
+- `clear-escalations.mjs` lifts a stale review-lane hold when an unresolved review thread is at
+  IMPORTANT: only a CRITICAL thread, or a strict lane's thread with no one readable `severity:`
+  line, keeps the hold, as the merge gate already reads a review finding. A high path refused by
+  pr-merge's risk score gets the lanes' comment and no `needs-human` label (owner decision
+  2026-10-30, #11020). The README's `stale-review-hold` row and its lists of the reasons only a
+  person clears say so.
+
+- In the merge queue, `ci-status` reads the counted pass's `verdict.json` again after 5, 15 and 30 s
+  when GitHub answers a 5xx or the request gets no response; any other failure still fails at once.
+  Three 503s over 26 s failed merge-group run
+  [41063238235](https://github.com/melodic-software/claude-code-plugins/actions/runs/41063238235)
+  under the old 5 and 10 s waits.
+- The cold-read headroom check works out a cold read's cost from the live artifact listing, its
+  `total_count` and the FAILs it lists, plus that listing's own pages, in place of a fixed 1,546 sized for 77 pages and 793 FAIL
+  reads. A listing that does not read holds the pull request.
+- `enable-auto-merge.mjs` (verifier reads and `capped-close`) and `verify-cap.mjs` tell the verdict
+  reader the limit they kill it at (240 s, 30 s for a kept-answer lookup, 120 s), so a listing that
+  cannot finish in that time refuses with the pages, the budget and the caller named rather than
+  ending as a bare `verify:unreadable`.
+- `verify-cap.mjs` skips the address-feedback or fix-ci round, for that run only, when the
+  reader's listing does not fit in its 120 s, as it does when a sibling FAIL run cannot be read:
+  either may hide the FAIL cap. Any other refusal still lets the round run, now with a warning
+  naming the refusal and its detail instead of none, except `verify:fail` on an address-feedback
+  round sent for that FAIL, which expects it.
+- `verify-cap.mjs` logs one line per read summarizing the reader's stderr, its
+  `babysit-listing-miss` lines first, so a listing that missed GitHub's live count shows in the
+  dispatch job's log.
+- The address-feedback and fix-ci dispatchers annotate a skip for a listing that does not fit in
+  `verify-cap.mjs`'s limit as `::warning title=verify-deadline-skip::`, with the reader's detail,
+  since that skip recurs every run while pr-merge's carried listing is missing or stale.
+
+## [8.15.3] - 2026-10-30
+
+### Removed
+
+- ci-workflows' `pr-require-checks-trust-paths` hold no longer runs here, by owner direction (trust-path holds come off): its caller workflow and its JSON config are gone, and `scripts/sync-hold-floor.py` no longer writes the config. `merge.trust-path-hold-apps` still feeds ci-status's inline hold.
+
 ## [8.15.2] - 2026-10-30
 
 ### Changed

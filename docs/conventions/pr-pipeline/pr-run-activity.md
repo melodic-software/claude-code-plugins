@@ -449,8 +449,9 @@ read-only, denies `Edit` and `Write` on it, allows `Bash(<copy>/bin/<name> *)`, 
 wrapper in `--append-system-prompt`. The wrapper changes to the checkout, refuses any argument (or
 the value after an `=`) naming an existing path whose real path lies outside the checkout, since a
 script may print lines of a file it reads, unsets `GH_TOKEN` and `GITHUB_TOKEN` in the script's
-own environment (code the script runs can still read the token from the wrapper's or the Bash
-shell's `/proc/<pid>/environ`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
+own environment (in the write runner no Bash process holds the token, since the skill's settings
+clear it; under run-claude-cli, code the script runs can still read the job's token from the
+wrapper's or the Bash shell's `/proc/<pid>/environ`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
 and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, for skill-quality's
 `check-skill.sh` alone sets `HOME` to a fresh `mktemp -d` directory and `CLAUDE_CONFIG_DIR` to its
 `.claude`, since the skill tests it runs write there and the runner's `~/.claude` is read-only,
@@ -968,8 +969,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    person directed, or a listed review bot's finding the security lane's `security` state marks
    `held`. Otherwise one more round runs on every kept thread (the fresh fixer), its thread file
    carrying `retry.brief`, a fixed no-weaken brief the read runner adds to the skill's preamble.
-   Once it has run, the select job escalates `feedback-round-cap` when a security lane `IMPORTANT`
-   finding opened by that round's end is still open, else `feedback-verifier-open` when every kept
+   Once it has run, the select job escalates `feedback-verifier-open` when every kept
    thread is a pr-verify note, else `feedback-not-converging`; those two route to a failing status
    and skip `lane-stopped`. No escalation or skip runs a
    model job. A round-cap escalation also writes `not-run-detail` (`round <N> of max <M>`, M being
@@ -1172,16 +1172,16 @@ reply that leaves it open escalates `feedback-disputed` with no adjudication. On
 github-actions[bot] review comment whose footer names the code-review lane
 (`claude-lane: claude-review`; the select job tags the thread file's comment with that `lane`, and
 a footer in a claude[bot] comment, whose body the model writes, names none), one whose footer names
-the security-review lane and whose rating is below `IMPORTANT` (`SUGGESTION`; this repository
-counts `IMPORTANT` as HIGH, `SECURITY_PERSON_SEVERITY` in `address-feedback.mjs`), or a
+the security-review lane and whose rating is below `CRITICAL` (`SUGGESTION` or `IMPORTANT`;
+only `CRITICAL` holds, `SECURITY_PERSON_SEVERITY` in `address-feedback.mjs`), or a
 listed review
 bot's comment (`review-threads.reviewer-ids`, tagged `listed: true` from the comment's account
 id), that carries no `severity: CRITICAL` line is adjudicated. The listed bot's own severity badge
 decides nothing, and it is adjudicated only once the security-review lane reviewed the head the
 bot reviewed and holds nothing. A `critical-security` hold on that head, or one posted after the
 bot's review, escalates `feedback-question-security`; before the lane's review the dispute waits
-and the round skips `finding-stands`. A CRITICAL finding, a security-review finding rated
-`IMPORTANT` or `CRITICAL` or unrated, and one
+and the round skips `finding-stands`. A CRITICAL finding, an unrated security-review finding,
+and one
 whose lane its root comment does not name go to a person. The rating is the lane's own line
 (`severityOf`): the body's only `severity:`-shaped line, unindented, outside any fenced block, and
 the comment's first non-blank line or the last one above the footer. Any other shape is unrated,
@@ -1211,8 +1211,9 @@ contraction and the like) within two lines of it: a hard require
 worded with one of them escalates. The call-site evidence is read at both
 the base and the head: the cited line holds up at the head, and the cited file already exists at
 the PR's base with at least one such unguarded `/<entry>:` line, so a pull request cannot supply
-its own call site. Anything else, a failed read included,
-escalates `feedback-disputed`. An `UNCERTAIN` or `VALID-defer` reply on the flag goes on as above.
+its own call site. Anything else, a failed read included, takes no adjudicator slot and ends
+`feedback-unadjudicated`, a failing status, not a person. An `UNCERTAIN` or `VALID-defer` reply on
+the flag goes on as above.
 A pr-verify verifier note is never adjudicated because
 resolving its thread clears nothing: the FAIL still holds the merge, and pr-verify judges each
 head once; a reply that leaves one open ends `feedback-verifier-open`, a failing status and no
@@ -1273,9 +1274,8 @@ same inputs: the pull request, its REST commits and files with patches, each non
 commit's files, and the base's `.github/dependabot.yml`. The pr-merge lane's commit and content
 refusals are review reasons here, so the AI review owns the pull request: a commit whose
 `verification.verified` is not `true` (`commit-unverified:<sha>`), whose git committer email is
-not `noreply@github.com` (`commit-not-committed-by-github:<sha>`), or that is neither signed
-`dependabot[bot]` nor the `[dependabot skip]` version-bump commit (`commit-not-dependabot:<sha>`,
-`commit-not-version-bump:<sha>`); no commits (`commits-missing`); a commits listing short of the
+not `noreply@github.com` (`commit-not-committed-by-github:<sha>`), or that is not signed
+`dependabot[bot]` (`commit-not-dependabot:<sha>`); no commits (`commits-missing`); a commits listing short of the
 pull request's commit count, which the dispatcher reads as GraphQL `commits.totalCount`
 (`commits-listed:<listed>-of:<total>`); a commit whose files cannot be
 read whole; a fix commit touching `.github/`. The lanes App admission is left out, so a pull
@@ -1390,8 +1390,7 @@ warns of a [classifier gap](README.md#classifier-gaps).
      full 40-hex SHAs, so only the SHA and the trailing comment differ; unless the pull request's commits are listed whole
      (fewer than 250, the pull request's count, the last one the head) and each is Dependabot's
      own (author id 49699333, committer `web-flow`, a valid signature, Dependabot's name and
-     email), the version-bump commit (only plugins' `plugin.json` `version` and `CHANGELOG.md`
-     changing, as regular files), or a single-parent commit that passes the fix rule against
+     email) or a single-parent commit that passes the fix rule against
      its parent, and arrived in its own author's push (the README's **Pushes** check, read
      from the head branch's repository activity), it posts no merge marker and escalates
      `dependency-fix-refused`; it reads
@@ -1826,8 +1825,10 @@ Claude OAuth token. Two routes reach it and the activity's GitHub token:
   `/proc/<ancestor>/environ`. The skill step sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which
   strips the OAuth token and other credentials from Bash, hook and MCP subprocesses and gives
   Bash its own PID namespace, so an ancestor's `environ` is out of reach. The scrub keeps
-  `GH_TOKEN` and `GITHUB_TOKEN`, so a subprocess still holds the activity's GitHub token: the
-  job `GITHUB_TOKEN` in the read file, the effect-scoped App token in the write file. The action installs
+  `GH_TOKEN` and `GITHUB_TOKEN`, so in the read file a subprocess still holds the job
+  `GITHUB_TOKEN`. The write file's skill step sets both to empty in its settings' `env`, so no Bash
+  process, the sandbox's pid 1 included, holds the effect-scoped App token; the action's MCP
+  servers, commit signing among them, get it from their own config `env`. The action installs
   bubblewrap only for `allowed_non_write_users`, so run job step 9 installs it and fails the job
   when it is missing.
 - Runner memory, with root. A hosted runner holds referenced secrets in the runner's memory.

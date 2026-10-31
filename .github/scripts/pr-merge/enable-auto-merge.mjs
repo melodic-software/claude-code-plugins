@@ -52,9 +52,9 @@
 //   read once for the run, and run cache. An event run (a person's edit,
 //   unlabel or ready) never arms and reads no verdict: it only disarms on a
 //   hold, so a pull request waits up to one scheduled interval to be armed.
-//   ci-status disarms an armed lanes App pull request on each push to its
-//   head, so a new head is armed only after the reader judges it, and in the
-//   merge queue it checks the pass again at the head it merges
+//   An arm survives a push to its head (disarming needs contents: write, which
+//   the arming lanes App token holds and ci-status's GITHUB_TOKEN lacks), so
+//   in the merge queue ci-status checks the pass again at the head it merges
 //   (merge-holds.mjs verdictHold) and runs this reader again there on a
 //   listing of its own (merge-holds.mjs evidenceHold), which holds a FAIL
 //   uploaded after the run's one listing.
@@ -105,8 +105,8 @@
 // comment is the record; only a cause a person must clear
 // (docs/contracts/loop-lane/README.md#when-work-stops-for-the-owner,
 // with cost and trust holds kept: untrusted
-// provenance or an untrusted spec, a security finding, a high path, a
-// trusted-actor widening, a real charge or a listing too long to check, see
+// provenance or an untrusted spec, a security finding, a trusted-actor
+// widening, a real charge or a listing too long to check, see
 // verifyClears; a hold path, a configured denied path
 // or the floor, which only a trusted approval lifts; and the lane's own hold
 // line, owner decision Q-HOLDLINE) also gets the human-gated label, put back
@@ -1104,6 +1104,11 @@ export function cacheLine(number, cache) {
 // merge.verify-cache as the run applies it: `serve` only when it says so.
 export const cacheMode = (env) => (env.VERIFY_CACHE === "serve" ? "serve" : "shadow");
 
+// The reader's env with the limit it is killed at, so it sizes its listing to
+// that limit and names this caller when a listing cannot fit
+// (babysit_verify_evidence.py DEADLINE_ENV and CALLER_ENV).
+const readerEnv = (env, timeoutMs) => ({ ...env, BABYSIT_VERIFY_DEADLINE_SECONDS: String(timeoutMs / 1000), BABYSIT_VERIFY_CALLER: "enable-auto-merge.mjs" });
+
 // The gate's own reader, one process per pull request; the run shares its
 // artifact listing, head-ref map and run cache through the BABYSIT_* files.
 // `--shared-listing`: the first read's listing serves the whole run, an allow
@@ -1115,6 +1120,7 @@ export const cacheMode = (env) => (env.VERIFY_CACHE === "serve" ? "serve" : "sha
 // kept refusal is served (`serve`) only to a pull request not armed, which is
 // always read in full, and never on `fresh`; `cacheOnly` reads only a kept
 // one, returning no `refusal` on a miss or when there is no file to read.
+
 export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) {
   // `rung`: the lane room's effective rung, which the gate scores at.
   const verify = async ({ number, headRefOid: head, baseRefOid: base, autoMergeRequest }, rung, { fresh = false, cacheOnly = false } = {}) => {
@@ -1143,7 +1149,7 @@ export function pythonVerify(env, { spawn = spawnSync, clock = Date.now } = {}) 
     }
     const started = clock();
     const timeout = args.includes("--answers-only") ? CACHE_ONLY_TIMEOUT_MS : VERIFY_TIMEOUT_MS;
-    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout });
+    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env: readerEnv(env, timeout), timeout });
     const cost = { number, calls: ghCalls(done.stderr), ms: clock() - started };
     let evidence;
     if (done.status === 0) {
@@ -1237,7 +1243,7 @@ export function pythonClose(env, spawn = spawnSync) {
     for (const label of holds) {
       args.push("--hold-label", label);
     }
-    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env, timeout: VERIFY_TIMEOUT_MS });
+    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env: readerEnv(env, VERIFY_TIMEOUT_MS), timeout: VERIFY_TIMEOUT_MS });
     let answer = null;
     try {
       answer = JSON.parse(String(done.stdout).trim().split("\n").at(-1));

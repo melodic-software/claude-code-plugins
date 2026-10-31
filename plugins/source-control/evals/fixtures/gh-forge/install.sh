@@ -2,9 +2,11 @@
 # Gives a scaffolded repository an offline forge: a bare `origin` holding the base and head branches,
 # and a gh stand-in that serves one open draft pull request from them. Run it from a case's
 # scaffold.sh in the workspace, after the base and head branches exist:
-#   bash install.sh <number> <head-branch> <base-branch> <title> [--open] [--failing-check <name>] [--thread <id>]...
+#   bash install.sh <number> <head-branch> <base-branch> <title> [--open] [--no-pr] [--failing-check <name>] [--thread <id>]...
 #     [--outdated-bot-thread <id>]...
-# The pull request is a draft unless --open is given. --failing-check adds one failing check with
+# The pull request is a draft unless --open is given. --no-pr serves no pull request until `gh pr create`
+# opens one from <head-branch>, and pushes only the base, so the head is still ahead of origin.
+# Issues the stand-in serves are <git common dir>/eval-forge/issues/<n>.json, written by the scaffold. --failing-check adds one failing check with
 # that name, which `pr checks` and the pull request's status rollup then report. Each --thread adds
 # one unresolved review thread with that id, from a person on the current diff, to what
 # `gh api graphql` serves; each --outdated-bot-thread adds one from a bot (author __typename Bot)
@@ -31,10 +33,11 @@ set -euo pipefail
 
 number="$1" head="$2" base="$3" title="$4"
 shift 4
-draft=true failing="" threads=()
+draft=true failing="" threads=() no_pr=0
 while (($#)); do
   case "$1" in
     --open) draft=false ;;
+    --no-pr) no_pr=1 ;;
     --thread)
       threads+=("user ${2:?--thread needs a thread id}")
       shift
@@ -61,13 +64,14 @@ forge="$(git rev-parse --path-format=absolute --git-common-dir)/eval-forge"
 git remote add origin "https://github.com/eval-fixture/app.git"
 git config remote.origin.vcs evalforge
 
-mkdir -p "$forge/bin"
+mkdir -p "$forge/bin" "$forge/issues"
 cp "$here/gh" "$forge/bin/gh"
 chmod +x "$forge/bin/gh"
 cp "$here/git-remote-evalforge" "$forge/bin/git-remote-evalforge"
 chmod +x "$forge/bin/git-remote-evalforge"
 printf 'PR_NUMBER=%q\nPR_HEAD=%q\nPR_BASE=%q\nPR_TITLE=%q\n' "$number" "$head" "$base" "$title" >"$forge/state"
 echo "$draft" >"$forge/draft"
+((no_pr)) || : >"$forge/created"
 if [[ -n "$failing" ]]; then
   jq -n --arg name "$failing" --arg url "https://github.com/eval-fixture/app/actions/runs/1" \
     '[{name: $name, state: "FAILURE", bucket: "fail", workflow: "ci", link: $url}]' >"$forge/checks"
@@ -90,5 +94,9 @@ git init -q --bare "$forge/eval-fixture/app.git"
 # The base is the repository's default branch, which ls-remote reports as HEAD.
 git -C "$forge/eval-fixture/app.git" symbolic-ref HEAD "refs/heads/$base"
 export PATH="$forge/bin:$PATH"
-git push -q origin "$base" "$head"
-git branch -q --set-upstream-to="origin/$head" "$head"
+if ((no_pr)); then
+  git push -q origin "$base"
+else
+  git push -q origin "$base" "$head"
+  git branch -q --set-upstream-to="origin/$head" "$head"
+fi

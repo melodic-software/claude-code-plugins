@@ -3363,7 +3363,8 @@ jobs:
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
     # 15 s of retry sleeps for each of the hold-lift step's two reads, the
     # review-lane step's six, the lanes-hold step's eight (in the merge
-    # queue the verdict reader's reads more, about 73 with pr-merge's carried
+    # queue 50 s more for its pass record's download, a cold read's listing
+    # more, and the verdict reader's reads more, about 73 with pr-merge's carried
     # reads and about 860 without them, measured 2026-10-25, up to the cold-read
     # headroom check's cold_cost under the listing's caps; its wall time is
     # unmeasured, and a cold one can reach the cap, which fails red) and the pr-unblock status step's one (two in the
@@ -3375,7 +3376,7 @@ jobs:
     # 20: a cold verdict reader in the merge queue takes about 6 to 11
     # minutes (0.4 to 0.7 s a call, as pr-merge's reader logs, for about 860
     # calls), and at most about 15 under the listing's caps (793 per-FAIL
-    # reads at 0.7 s, plus the whole listings' shared 300 s
+    # reads at 0.7 s, plus the whole listings' shared timeout, at most 300 s,
     # LISTING_TIMEOUT_SECONDS), on top of the job's other reads.
     timeout-minutes: 20
     env:
@@ -3957,7 +3958,7 @@ jobs:
           # closed as before. pr_read_put <answer> <args>... keeps an answer a
           # step read its own way; pr_read_forget drops every kept answer, and
           # every step that writes to the pull request runs it after its write
-          # (the cost-hold step and the lanes App step's auto-merge disarm).
+          # (the cost-hold step).
           # check-contract writes before any step reads through this cache.
           pr_read() {
             local file out
@@ -4952,7 +4953,14 @@ jobs:
       # same commit never counts), and that run's latest jobs, which are the GitHub
       # Actions check runs. The lane passes when its status job succeeded and
       # its `Apply the hold` step succeeded, so a summary-mode run or one
-      # without a hold label never counts. A pending, failed or cancelled
+      # without a hold label never counts. A push that changed no file of the
+      # pull request since a review (a clean base merge) is the lane's
+      # no-change skip: its hold step does not run, and its review-complete
+      # record names the head it carries (`skip=no-change through=<head>`).
+      # It passes only when a counted review of that lane on this pull
+      # request covers that head, followed through further no-change skips
+      # up to 10 heads back, the rule and cap babysit_review_evidence.py
+      # binds by (`_skip_target`, `SKIP_HOPS`). Any other skip record never counts. A pending, failed or cancelled
       # review fails, as does a skipped one (a fork, or a bot outside the
       # caller's allowed-bot-sender-ids), with the cause named. A lane the
       # kill switch stopped (its kill-switch job succeeded and ran its
@@ -5190,17 +5198,18 @@ jobs:
             fi
           fi
           failed=0
-          while read -r file lane check; do
-            runs=$(read_api "the $file runs on $HEAD_SHA" \
-              "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$HEAD_SHA&event=pull_request&per_page=100") || exit 1
-            run=$(jq -c --arg path ".github/workflows/$file" --arg sha "$HEAD_SHA" --arg repo "$GITHUB_REPOSITORY" \
+          # lane_at <sha> [pr]: sets run, url and verdict from the newest
+          # pull_request run of $file on <sha> from this repository's head,
+          # with <pr> only one GitHub lists for that pull request; run is empty
+          # when there is none.
+          lane_at() {
+            runs=$(read_api "the $file runs on $1" \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$file/runs?head_sha=$1&event=pull_request&per_page=100") || exit 1
+            run=$(jq -c --arg path ".github/workflows/$file" --arg sha "$1" --arg repo "$GITHUB_REPOSITORY" --arg pr "${2:-}" \
               '[.workflow_runs[] | select(.path == $path and .head_sha == $sha and .event == "pull_request"
-                and .head_repository.full_name == $repo)] | max_by(.id) // empty' <<<"$runs")
-            if [ -z "$run" ]; then
-              echo "::error::'$check' is missing: no $file run on $HEAD_SHA yet. ci-status re-runs when the review finishes."
-              failed=1
-              continue
-            fi
+                and .head_repository.full_name == $repo
+                and ($pr == "" or any(.pull_requests[]?; .number == ($pr | tonumber))))] | max_by(.id) // empty' <<<"$runs")
+            [ -n "$run" ] || return 0
             id=$(jq -r .id <<<"$run")
             url=$(jq -r .html_url <<<"$run")
             jobs=$(read_api "the jobs of run $id" "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100") || exit 1
@@ -5210,35 +5219,124 @@ jobs:
               | if $s != null and $s.status != "completed" then "pending"
                 elif $s.conclusion == "success" then
                   if any($s.steps[]?; .name == "Apply the hold" and .conclusion != null) | not then "unlisted \($s.id)"
-                  elif any($s.steps[]?; .name == "Apply the hold" and .conclusion == "success") then "pass" else "uncounted" end
+                  elif any($s.steps[]?; .name == "Apply the hold" and .conclusion == "success") then "pass" else "uncounted \($s.id)" end
                 elif $s != null and $s.conclusion != "skipped" then "red \($s.conclusion)"
                 elif $k.conclusion == "success" and any($k.steps[]?; .name == "Report the kill switch" and .conclusion == "success") then "stopped"
                 elif $run_status != "completed" then "pending"
+                elif $k.conclusion == "failure" and any($k.steps[]?; .name == "Stop on upstream status" and .conclusion == "failure") then "upstream"
+                elif $k.conclusion == "failure" and (any($k.steps[]?; .name == "Stop on upstream status" and .conclusion != null) | not) then "upstreamunlisted \($k.id)"
                 elif $k.conclusion == "success" and (any($k.steps[]?; .name == "Report the kill switch" and .conclusion != null) | not) then "killunlisted \($k.id)"
+                elif $k.conclusion == "success" and any($k.steps[]?; .name == "Check upstream status" and .conclusion == "success") then "gateskip \($k.id)"
                 else "missing \($k.conclusion // "absent")" end' <<<"$jobs")
+          }
+          # record_at <job> <sha>: sets record from the job's review-complete
+          # notices for $lane on <sha>: `review` for a review, `through <head>`
+          # for a no-change skip carrying <head>'s review, else `none`.
+          record_at() {
+            notes=$(read_api "the annotations of job $1" "repos/$GITHUB_REPOSITORY/check-runs/$1/annotations?per_page=100") || exit 1
+            record=$(jq -r --arg want "claude-lane-review-complete lane=$lane sha=$2" '
+              [.[]? | select(.annotation_level == "notice" and .title == "claude-lane-review-complete") | .message // ""
+                | select(. == $want or startswith($want + " ")) | ltrimstr($want) | sub(" account=fallback$"; "")] as $r
+              | [$r[] | select(test("^ skip=no-change through=[0-9a-f]{40}$")) | .[-40:]] as $t
+              | if any($r[]; . == "" or startswith(" findings=")) then "review"
+                elif ($t | unique | length) == 1 then "through \($t[0])" else "none" end' <<<"$notes")
+          }
+          # carried <sha>: whether a counted review of $lane on this pull
+          # request covers <sha>, following no-change skips (each a push that
+          # changed no file of it, such as a clean base merge) up to 10 heads
+          # back, never round a loop: babysit_review_evidence.py's SKIP_HOPS.
+          carried() {
+            local sha=$1 seen=" $HEAD_SHA " hop
+            for hop in 1 2 3 4 5 6 7 8 9 10; do
+              [[ $seen != *" $sha "* ]] || return 1
+              seen="$seen$sha "
+              run='' verdict=''
+              lane_at "$sha" "$PR_NUMBER"
+              case $verdict in
+              pass) return 0 ;;
+              unlisted\ * | uncounted\ *)
+                record_at "${verdict#* }" "$sha"
+                case $record in
+                review) [[ $verdict == unlisted\ * ]] && return 0 || return 1 ;;
+                through\ *) sha=${record#through } ;;
+                *) return 1 ;;
+                esac
+                ;;
+              *) return 1 ;;
+              esac
+            done
+            echo "::warning::'$check' carries a review back more than $hop heads; ci-status stops there." >&2
+            return 1
+          }
+          while read -r file lane check; do
+            run='' verdict=''
+            lane_at "$HEAD_SHA"
+            if [ -z "$run" ]; then
+              echo "::error::'$check' is missing: no $file run on $HEAD_SHA yet. ci-status re-runs when the review finishes."
+              failed=1
+              continue
+            fi
+            # The hosted callers' `Stop on upstream status` step fails the
+            # kill-switch job with this lane's error while GitHub Actions or
+            # npm lists an outage (.github/actions/check-upstream-status).
+            if [[ $verdict =~ ^upstreamunlisted\ ([1-9][0-9]*)$ ]]; then
+              job=${BASH_REMATCH[1]}
+              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
+              verdict=$(jq -r 'if any(.[]?; .annotation_level == "failure" and ((.message // "") | test("^an upstream outage stops this (security )?review \\(")))
+                then "upstream" else "missing failure" end' <<<"$notes")
+            fi
+            # A run from before that step skipped the review with the gate's
+            # notice and a kill-switch job that succeeded.
+            if [[ $verdict =~ ^gateskip\ ([1-9][0-9]*)$ ]]; then
+              job=${BASH_REMATCH[1]}
+              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
+              verdict=$(jq -r 'if any(.[]?; .annotation_level == "notice" and ((.message // "") | test("^upstream status: .*; this run is skipped$")))
+                then "gateskipped" else "missing success" end' <<<"$notes")
+            fi
             if [[ $verdict =~ ^killunlisted\ ([1-9][0-9]*)$ ]]; then
               job=${BASH_REMATCH[1]}
               notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
               verdict=$(jq -r 'if any(.[]?; .annotation_level == "notice" and ((.message // "") | test("^a kill switch stops this (security )?review \\(")))
                 then "stopped" else "missing success" end' <<<"$notes")
             fi
-            if [[ $verdict =~ ^unlisted\ ([1-9][0-9]*)$ ]]; then
-              job=${BASH_REMATCH[1]}
-              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
-              verdict=$(jq -r --arg want "claude-lane-review-complete lane=$lane sha=$HEAD_SHA" '
-                if any(.[]?; .annotation_level == "notice" and .title == "claude-lane-review-complete"
-                  and ((.message // "") as $m | $m == $want or ($m | startswith($want + " "))))
-                then "pass-notice" else "unproven" end' <<<"$notes")
+            # A status job whose hold step did not succeed, or is not listed,
+            # counts on its review-complete record: a review when the step is
+            # unlisted, or a no-change skip whose head carries a counted review.
+            if [[ $verdict =~ ^(unlisted|uncounted)\ ([1-9][0-9]*)$ ]]; then
+              kind=${BASH_REMATCH[1]}
+              record_at "${BASH_REMATCH[2]}" "$HEAD_SHA"
+              case $record in
+              review) verdict=${kind/unlisted/pass-notice} ;;
+              through\ *)
+                through=${record#through } head_url=$url
+                if carried "$through"; then verdict=pass-skip; else verdict=skip-unproven; fi
+                url=$head_url
+                ;;
+              *) verdict=${kind/unlisted/unproven} ;;
+              esac
             fi
             case $verdict in
             pass) echo "'$check' passed on $HEAD_SHA ($url)." ;;
             pass-notice) echo "'$check' passed on $HEAD_SHA ($url): GitHub listed no 'Apply the hold' step with a conclusion, and the job's review-complete notice names $lane and this head." ;;
+            pass-skip) echo "'$check' skipped $HEAD_SHA ($url) as unchanged since $through, whose review counts." ;;
+            skip-unproven)
+              echo "::error::'$check' skipped $HEAD_SHA in $url as unchanged since $through, but no counted review of $lane on #$PR_NUMBER covers $through, so it is not a review that counts. Re-run the review on $through, or push a change so this head is reviewed."
+              failed=1
+              ;;
             unproven)
               echo "::error::'$check' passed in $url, but GitHub listed no 'Apply the hold' step with a conclusion and the job records no review-complete notice for $lane on $HEAD_SHA, so it is not a review that counts. Re-run this run."
               failed=1
               ;;
             stopped)
               echo "::error::'$check' did not run on $HEAD_SHA ($url): a kill switch was on when it started. Once it is off, re-run all jobs of $url; ci-status re-runs when it finishes."
+              failed=1
+              ;;
+            upstream)
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, a person re-runs this ci-status job, not the review run, so pr-verify accepts it; after 24 hours, push to the head."
+              failed=1
+              ;;
+            gateskipped)
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): the upstream status gate skipped it when it started. Once GitHub Actions and npm are operational, re-run all jobs of $url; ci-status re-runs when it finishes."
               failed=1
               ;;
             pending)
@@ -5706,7 +5804,6 @@ jobs:
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           API_BUDGET_TOKEN: github-token
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          EVENT_ACTION: ${{ github.event.action }}
           GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
           GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
           # The lanes kill switches, as check-kill-switch reads them: only the
@@ -5798,26 +5895,7 @@ jobs:
               exit 0
             fi
             BASE_SHA=$(jq -r '.base.sha' <<<"$pull")
-            # A push gives an armed pull request a head enable-auto-merge's
-            # reader has not judged: turn its auto-merge off until a reader
-            # run arms the new head. A failed mutation only warns: failing
-            # here would hold every push to an armed pull request red if this
-            # token cannot disarm. A missed disarm is backstopped by the merge
-            # queue's check for a pr-verify pass at the exact head it merges
-            # (below) and by enable-auto-merge's scheduled reader, which
-            # disarms a head it refuses within 15 minutes.
-            if [ "${EVENT_ACTION:-}" = synchronize ] && jq -e '.auto_merge != null' <<<"$pull" >/dev/null; then
-              # shellcheck disable=SC2016 # $id is a GraphQL variable
-              # gh-read-exempt: a GraphQL mutation, a write that is not retried; a failure only warns.
-              if gh api graphql -f query='mutation($id: ID!) { disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId } }' \
-                -f id="$(jq -r '.node_id' <<<"$pull")" >/dev/null; then
-                echo "#$pr: a push moved its head, so its native auto-merge is off until enable-auto-merge's next scheduled run judges the new head."
-                # The pull changed: later reads take it live.
-                pr_read_forget
-              else
-                echo "::warning::could not turn off native auto-merge on #$pr after a push to its head; the merge queue still needs a pr-verify pass at the head it merges, and the next scheduled enable-auto-merge run disarms a head its reader refuses."
-              fi
-            fi
+            # An armed pull request's new head is held by the merge queue's check for a pr-verify pass at the exact head it merges (below).
           fi
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
@@ -5881,20 +5959,26 @@ jobs:
             # run cache, or one whose carried sections (carry-run-cache.mjs
             # carry) are all empty, the reader reads every FAIL: 860
             # GITHUB_TOKEN requests measured 2026-10-25, 67 of them the one
-            # whole listing of 6,620 artifacts, so 793 per-FAIL reads. Its
-            # listing is capped by babysit_verify_evidence.py: INCREMENTAL_READS
-            # (3) incremental reads on a carried listing (at most 13 pages each,
-            # LISTING_CARRY_MAX_AGE), then LISTING_READS (3) whole listings, each up to
+            # whole listing of 6,620 artifacts, so 793 per-FAIL reads for 294
+            # FAILs, under the 3 a FAIL can take (its run, a compare and a
+            # download). Its cost comes from the live listing, read here once,
+            # every page: its total_count and the FAILs it lists. The
+            # reader's listing is capped by babysit_verify_evidence.py:
+            # INCREMENTAL_READS (3) incremental reads on a carried listing (at
+            # most 13 pages each, LISTING_CARRY_MAX_AGE), then one count read
+            # and LISTING_READS (3) whole listings, each up to
             # 1 + len(LISTING_WAITS) (3) attempts that page from the first,
-            # and a top-up after each (at most 7 pages: LISTING_OVERLAP's 2 h
-            # at the 255 uploads an hour seen 2026-10-27, plus one). At 77
-            # pages a whole listing (76 at the 7,522-artifact peak of
-            # 2026-10-27, plus one) a cold read costs at most
-            # 793 + 3 x 13 + 3 x (3 x 77 + 7) = 1,546, cold_cost below;
-            # test_babysit_verify_evidence derives it from those caps and fails
-            # when cold_cost differs. It covers this path only: an
+            # and a top-up after each (LISTING_TOP_UP_PAGES, 7). A whole
+            # listing pages ceil(total_count / 100), plus one for uploads while
+            # it pages, so a cold read costs at most
+            # 3 x FAILs + 3 x 13 + 1 + 3 x (3 x pages + 7), plus the pages of
+            # this step's own listing, which every entry the queue builds at
+            # once also reads, cold_cost below: 1,623 at 7,522 artifacts and
+            # 264 FAILs, 2,021 at 10,450 and 300.
+            # test_babysit_verify_evidence runs these lines against those caps
+            # at several sizes. It covers this path only: an
             # entry with a carried run cache but no carried listing pays the
-            # listing's part (up to 753) unguarded. A missing cache is shared,
+            # listing's part unguarded. A listing that does not read holds. A missing cache is shared,
             # so every entry the queue builds at once goes cold together: the
             # cost counts max_entries_to_build of
             # the base branch's merge_queue rule (one read of
@@ -5921,7 +6005,18 @@ jobs:
                 echo "::error::$cold, and the merge queue's max_entries_to_build could not be read, so the headroom for cold reads cannot be judged. Re-queue it."
                 exit 1
               fi
-              cold_cost=1546
+              # The live listing, every page once: GitHub's total_count and the
+              # FAILs it lists (babysit_verify_evidence.py FAIL_PREFIX_RE).
+              # shellcheck disable=SC2016 # jq, not shell
+              listed=$(read_api "the artifact listing" "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --paginate \
+                --jq '"\(.total_count) \([.artifacts[]? | select(.name | test("^pr-verify-[0-9]+-[0-9a-f]{40}-fail"))] | length)"') || listed=
+              if ! read -r total fails < <(awk 'NR == 1 { total = $1 } $2 !~ /^[0-9]+$/ { bad = 1 } { fails += $2 }
+                END { if (NR && !bad && total ~ /^[0-9]+$/) print total, fails; else exit 1 }' <<<"$listed"); then
+                echo "::error::$cold, and the artifact listing could not be read, so the cost of a cold read cannot be judged. Re-queue it."
+                exit 1
+              fi
+              listing_pages=$(((total + 99) / 100 + 1))
+              cold_cost=$((listing_pages + 3 * fails + 3 * 13 + 1 + 3 * (3 * listing_pages + 7)))
               rate=$(read_api "the GITHUB_TOKEN rate limit" rate_limit) || rate=
               if ! remaining=$(jq -er '.resources.core.remaining | numbers | floor' <<<"$rate" 2>/dev/null) ||
                 ! limit=$(jq -er '.resources.core.limit | numbers | floor' <<<"$rate" 2>/dev/null) ||
@@ -5979,16 +6074,26 @@ jobs:
             artifact=$(jq -sr --arg repo "$GITHUB_REPOSITORY" '[.[] | select(.runId as $id | .run | .id == $id and .status == "completed" and .conclusion == "success"
               and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == "main"
               and .repository.full_name == $repo and .head_repository.full_name == $repo)] | first | .artifact // empty' "$RUNNER_TEMP/verdicts.jsonl") || exit 1
+            # A 5xx or a network error with no HTTP response is read again
+            # after each of 5, 15 and 30 s: the grep below takes the reader's
+            # _transient 5xx and NETWORK_ERRORS phrases but the JSON decoder's
+            # (a zip download is not JSON). GitHub answered three downloads
+            # 503 over 26 s in merge group run 41063238235 (judgment on that
+            # run). Any other failure is final.
             record=null
             if [[ $artifact =~ ^[1-9][0-9]*$ ]]; then
-              for attempt in 1 2 3; do
+              for wait in 5 15 30 ''; do
                 # gh-read-exempt: a binary archive, which gh_read's text capture would corrupt.
-                if gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" >"$RUNNER_TEMP/verdict.zip"; then
+                if gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" >"$RUNNER_TEMP/verdict.zip" 2>"$RUNNER_TEMP/verdict.err"; then
                   record=$(unzip -p "$RUNNER_TEMP/verdict.zip" verdict.json | jq -c .) || record=null
                   break
                 fi
-                [ "$attempt" -lt 3 ] || { echo "::error::could not read the verdict of artifact $artifact; re-run this run."; exit 1; }
-                sleep $((attempt * 5))
+                cat "$RUNNER_TEMP/verdict.err" >&2
+                if [ -z "$wait" ] || ! grep -qiE 'HTTP 5[0-9][0-9]|error connecting to|connection reset by peer|connection refused|i/o timeout|tls handshake timeout|unexpected eof' "$RUNNER_TEMP/verdict.err"; then
+                  echo "::error::could not read the verdict of artifact $artifact; re-run this run."
+                  exit 1
+                fi
+                sleep "$wait"
               done
             fi
             # shellcheck disable=SC2016 # GraphQL variables, not shell

@@ -60,7 +60,7 @@ export const FRESH_FIXER_ROUNDS = 1;
 export const FRESH_ROUND_BRIEF =
   "The lane's capped review rounds left these findings open, and this run is their one fresh fixer round before the lane stops. " +
   "Fix each finding in the code it names. Never weaken, skip or delete a test, assertion or check to close a finding. " +
-  "A security finding rated IMPORTANT or above that this round leaves open goes to a person.";
+  "A security finding rated CRITICAL that this round leaves open goes to a person.";
 // How the round marker and the neutral checks show the count.
 export const roundLine = (round, max) => `round ${round} of max ${max}`;
 export { ROUND_MARKER };
@@ -234,9 +234,9 @@ export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID 
 
 // The security-review lane's ratings, lowest first (security-review SKILL.md,
 // "Reporting": one `severity: <rating>` line per inline comment), and the
-// lowest one a person decides: this repository counts IMPORTANT as HIGH.
+// one a person decides: only CRITICAL holds (owner decision on #11020).
 export const SECURITY_SEVERITIES = Object.freeze(["SUGGESTION", "IMPORTANT", "CRITICAL"]);
-export const SECURITY_PERSON_SEVERITY = "IMPORTANT";
+export const SECURITY_PERSON_SEVERITY = "CRITICAL";
 // Any line shaped like a rating, wherever it sits; the lane's own line is
 // unindented, outside a fence, and the comment's first line or the last one
 // above its `claude-lane:` footer (blank lines skipped).
@@ -866,21 +866,15 @@ export async function select({
     if (worked.length === 0) {
       // Otherwise a PR a person gated goes to a person: only a fresh fix
       // request lifts their hold. So does a thread only a person decides
-      // (needsPerson) short of a security finding rated IMPORTANT: that one
-      // is a code fix first. Every other finding goes to a fresh fixer: one
-      // more round with FRESH_ROUND_BRIEF, a new session like every round,
-      // reading only the thread file and the PR head. Once that round has
-      // run, no automatic round ever runs again: an IMPORTANT security
-      // finding it was given (opened by its end, `since`; an unreadable time
-      // counts as given) and left open goes to a person, and otherwise the
-      // head fails: feedback-verifier-open when only verifier notes are left,
-      // feedback-not-converging otherwise.
+      // (needsPerson). Every other finding, a security finding rated below
+      // CRITICAL included, goes to a fresh fixer: one more round with
+      // FRESH_ROUND_BRIEF, a new session like every round, reading only the
+      // thread file and the PR head. Once that round has run, no automatic
+      // round ever runs again: the head fails, feedback-verifier-open when
+      // only verifier notes are left, feedback-not-converging otherwise.
       const rootOf = (thread) => rows.get(thread.root_comment_id);
       const spent = rounds >= bound;
-      const given = (thread) => !(Date.parse(rootOf(thread)?.created_at ?? "") > since);
-      const holds = (thread) =>
-        needsPerson(thread, rootOf(thread)?.user?.id, SECURITY_SEVERITIES.at(-1)) ||
-        (spent && given(thread) && needsPerson(thread, rootOf(thread)?.user?.id));
+      const holds = (thread) => needsPerson(thread, rootOf(thread)?.user?.id);
       if (gated || kept.some(holds)) {
         return { decision: "escalate", escalationReason: "feedback-round-cap", rounds, maxRounds: bound, threads: kept };
       }

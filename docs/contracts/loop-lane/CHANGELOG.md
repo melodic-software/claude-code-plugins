@@ -5,6 +5,30 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [13.0.0] - 2026-10-30
+
+Major: the §4 per-cycle usage sample gains a field every loop-lane body must write, and a change to
+a loop-layer invariant is a major bump (see the top of this file).
+
+- **Seven-day delta (§4).** The `usage_sample` now carries `seven_day_delta_pct` beside
+  `five_hour_delta_pct`, derived the same way from `seven_day_pct`: `null` on a missing reading on
+  either side, a first cycle, or a lower current reading (rollover). An account may report only
+  some of the windows; one that reports no five-hour window left both five-hour fields `null` every
+  cycle, and with them the lanes' only usage-rate measure. The previous rationale, that a seven-day
+  window moves too little per cycle, is removed.
+- **The one permitted readback (§4)** still has one purpose, now deriving both deltas: each
+  subtraction and its rollover comparison. Measure-only is unchanged: no sample field reaches any
+  decision or threshold.
+
+## [12.12.0] - 2026-10-30
+
+Minor. Guidance only; no topology, escalation-contract mechanism, capability-tier or §4 invariant changed.
+
+- **Kept owner holds.** §2 "When work stops for the owner" names the two pr-merge holds the owner
+  keeps, a trusted-actor widening and a file listing past the files API's cap, with the reason for
+  each. A high path still holds a pull request but no longer stops it for the owner, and only a
+  CRITICAL security finding does (owner decision 2026-10-30, #11020).
+
 ## [12.11.1] - 2026-10-30
 
 Patch. Corrects a posting-lanes row; no topology, escalation-contract, capability-tier or §4

@@ -360,6 +360,109 @@
         "Names the skill shop-tools:control-shop and its source as plugin in the report",
         "Asks the user no question"
       ]
+    },
+    {
+      "id": 26,
+      "name": "affected-project-control-skill-match",
+      "prompt": "/app-control:drive affected shop --base main --unattended --out ./evidence. The repository holds .claude/skills/control-shop/SKILL.md, whose frontmatter holds only name and description and whose index has the line `- Cart | features/cart/README.md | entry points: 1 | sources: shop/cart/**`; .claude/skills/control-shop/features/cart/README.md exists. `git diff --name-only main...HEAD` lists shop/cart/basket.py and README.md. `claude plugin list --json` reports no enabled plugin. Nobody is available to answer questions.",
+      "expected_output": "Finds .claude/skills/control-shop/SKILL.md, reads it with the Read tool, launches nothing, and runs affected_features.py with --hub naming that SKILL.md, --source project, --base main and --out ./evidence, so ./evidence/affected.json lists the cart feature with shop/cart/basket.py and leaves README.md unmatched.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs scripts/affected_features.py with --hub .claude/skills/control-shop/SKILL.md and --source project",
+        "Passes --base main and --out ./evidence to the script",
+        "Reports the cart feature as matched by shop/cart/basket.py",
+        "Does NOT launch the app or run the control skill's Launch or Ready command",
+        "Does NOT invoke control-shop or any control-* skill through the Skill tool",
+        "Asks the user no question"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "affected-plugin-control-skill-repo-root-globs",
+      "prompt": "/app-control:drive affected claude-code-plugins --base main --unattended --out ./evidence. The repository has no .claude/skills or .claude/commands folder. `claude plugin list --json` reports harness-ops@melodic-software enabled with installPath ~/.claude/plugins/cache/melodic-software/harness-ops/1.4.0, which holds .claude-plugin/plugin.json with name harness-ops and skills/control-claude-code-plugins/SKILL.md, whose index has the line `- Drive | features/drive/README.md | entry points: 1 | sources: plugins/*/skills/drive/**`. `git diff --name-only main...HEAD` lists plugins/app-control/skills/drive/SKILL.md. Nobody is available to answer questions.",
+      "expected_output": "Finds harness-ops:control-claude-code-plugins under the plugin's install path, reads it with the Read tool, launches nothing, and runs affected_features.py with --source plugin and no --project-dir, so the globs resolve against the repository root and ./evidence/affected.json lists the drive feature.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs scripts/affected_features.py with --hub naming ~/.claude/plugins/cache/melodic-software/harness-ops/1.4.0/skills/control-claude-code-plugins/SKILL.md and --source plugin",
+        "Passes no --project-dir, or one naming the repository root, so the globs resolve against the repository root",
+        "Reports the drive feature as matched by plugins/app-control/skills/drive/SKILL.md",
+        "Does NOT invoke harness-ops:control-claude-code-plugins or any control-* skill through the Skill tool",
+        "Does NOT launch the app or run the control skill's Launch or Ready command"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "affected-no-control-skill-empty-with-note",
+      "prompt": "/app-control:drive affected shop --base main --unattended --out ./evidence. The repository is a small Express server with no control skill of any kind, and `claude plugin list --json` reports no enabled plugin. `git diff --name-only main...HEAD` lists src/cart.js. Nobody is available to answer questions.",
+      "expected_output": "Finds no control skill, runs affected_features.py with no --hub, so ./evidence/affected.json holds empty features, src/cart.js unmatched and the note 'No control skill: nothing matched'; uses no fallback recipe, launches nothing and stops with no error.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs scripts/affected_features.py with no --hub argument",
+        "Reports empty features with the note 'No control skill: nothing matched'",
+        "Does NOT use the run skill or a project-type recipe, and does NOT launch the app",
+        "Does NOT report the run as an error or failure",
+        "Asks the user no question"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "affected-trusted-root-ignores-checkout-control-skill",
+      "prompt": "/app-control:drive affected shop --base main --unattended --out ./evidence --trusted-root /srv/trusted/shop. This checkout is a pull request's head. It holds .claude/skills/control-shop/SKILL.md, whose index line is `- Everything | features/all/README.md | entry points: 1 | sources: **`. /srv/trusted/shop, a checkout of the default branch, holds .claude/skills/control-shop/SKILL.md with the line `- Cart | features/cart/README.md | entry points: 1 | sources: shop/cart/**`. `claude plugin list --json` reports no enabled plugin. `git diff --name-only main...HEAD` lists shop/cart/basket.py and .claude/skills/control-shop/SKILL.md. Nobody is available to answer questions.",
+      "expected_output": "Searches only /srv/trusted/shop for control skills, reads /srv/trusted/shop/.claude/skills/control-shop/SKILL.md, ignores the checkout's own .claude/skills/control-shop/SKILL.md, and runs affected_features.py with --hub naming the trusted SKILL.md, --repo naming this checkout and --trusted-root /srv/trusted/shop, so ./evidence/affected.json lists the cart feature and records the trusted root.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs scripts/affected_features.py with --hub /srv/trusted/shop/.claude/skills/control-shop/SKILL.md and --trusted-root /srv/trusted/shop",
+        "Passes this checkout, not /srv/trusted/shop, as --repo",
+        "Does NOT use this checkout's .claude/skills/control-shop/SKILL.md or its Everything feature",
+        "Reports the cart feature as matched by shop/cart/basket.py",
+        "Asks the user no question"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "mask-email-wrapped-across-two-rows-not-publishable",
+      "prompt": "/app-control:drive account --unattended --out ./evidence. The project's control-shop skill's `## Capture` names the browser driver's screenshot for `screenshot`, and its `## Mask` holds `- account email | [^@ ]+@[^@ ]+` and `values: config.account.email`; config.account.email resolves to dana.ito@example.test. The account feature has one Drive step: open /account and take a screenshot. The screenshot command writes ./evidence/account-profile-01-screenshot.png and its sidecar ./evidence/account-profile-01-screenshot.png.txt, whose text is a bordered panel of two rows: `│ Signed in as dana.ito@exam │` then `│ ple.test                  │`. Nobody is available to answer questions.",
+      "expected_output": "Writes report.public.md and report.public.json, strips the box-drawing characters from the sidecar and joins the wrapped rows, finds the account email, records the screenshot in artifacts with mask hit and publishable false, and leaves it out of report.json's publishable list, never writing the email value into either public report.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records account-profile-01-screenshot.png in artifacts with mask hit",
+        "Records publishable false for account-profile-01-screenshot.png and leaves it out of report.json's publishable list",
+        "Does NOT write dana.ito@example.test into report.public.md or report.public.json",
+        "Asks the user no question"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "mask-org-name-from-runtime-values-not-publishable",
+      "prompt": "/app-control:drive billing --unattended --out ./evidence. The project's control-shop skill's `## Capture` names the browser driver's screenshot for `screenshot`, and its `## Mask` holds the line `- usage meter | Usage: .*` and the line values: config.account.email, `cli/shop whoami --org`. config.account.email resolves to dana.ito@example.test, and the read-only command `cli/shop whoami --org` prints Northwind Traders. The billing feature has one Drive step: open /billing and take a screenshot. The screenshot command writes ./evidence/billing-overview-01-screenshot.png and its sidecar ./evidence/billing-overview-01-screenshot.png.txt, whose text is two rows: `Northwind` then `Traders · Billing overview`. The sidecar holds no email address. Nobody is available to answer questions.",
+      "expected_output": "Resolves the values by reading config.account.email and running cli/shop whoami --org, finds the org name in the sidecar once the wrap is joined, records the screenshot with mask hit and publishable false, and leaves it out of report.json's publishable list, never writing the org name into either public report.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs cli/shop whoami --org to resolve a value for the post-check",
+        "Records billing-overview-01-screenshot.png in artifacts with mask hit and publishable false",
+        "Leaves billing-overview-01-screenshot.png out of report.json's publishable list",
+        "Does NOT write Northwind Traders into report.public.md or report.public.json"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "planted-email-in-report-text-public-report-not-publishable",
+      "prompt": "/app-control:drive cart --unattended --out ./evidence. The project's control-shop skill's `## Capture` names the browser driver's screenshot for `screenshot`, and its `## Mask` holds the single line `none: the shop shows no account or usage text`, with no values line. Its Ready command exits 0 and prints `data: seeded from fixtures by ops-lead@example.test`, which drive records as ready's data. The cart feature has one Drive step: open /cart and take a screenshot. The screenshot command writes ./evidence/cart-basket-01-screenshot.png and its sidecar ./evidence/cart-basket-01-screenshot.png.txt, whose text is `Cart (2 items) Checkout`. Nobody is available to answer questions.",
+      "expected_output": "Writes report.public.md and report.public.json, whose ready data still holds the email, so their scan finds the generic credential pattern and neither goes in report.json's publishable list. The cart screenshot's clean sidecar gives it mask none-declared and publishable true, so it is the only path in publishable.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes report.public.md and report.public.json into ./evidence",
+        "Leaves report.public.md and report.public.json out of report.json's publishable list because their text holds an email address",
+        "Records cart-basket-01-screenshot.png with mask none-declared and publishable true, and lists it in publishable",
+        "Does NOT list report.md or report.json in publishable"
+      ]
     }
   ]
 }

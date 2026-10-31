@@ -262,6 +262,10 @@ class FakeGitHub:
         # Ids each whole listing leaves out in turn, as one that pages while
         # an earlier artifact expires skips the one at a page boundary.
         self.full_skips: list[set[int]] = []
+        # The count reads before whole listings, and a gh error for each.
+        self.count_reads: list[list[str]] = []
+        self.count_timeouts: list[float | None] = []
+        self.count_fail: str | None = None
         # The pull request's RELINK_QUERY answer (its `pullRequest`), or
         # "error" for a failed read; None answers as the closing read does.
         self.relink: Any = None
@@ -283,14 +287,30 @@ class FakeGitHub:
             for c in self.calls
         )
 
+    def probes(self) -> int:
+        """Reads of the live artifact count before whole listings, kept out
+        of `calls` so the listing counts above stay the listings'."""
+        return len(self.count_reads)
+
     def __call__(
         self, args: list[str], **kwargs: Any
     ) -> subprocess.CompletedProcess[str]:
-        self.calls.append(args)
-        self.envs.append((args, kwargs.get("env_overrides")))
-
         def ok(payload: Any) -> subprocess.CompletedProcess[str]:
             return subprocess.CompletedProcess(args, 0, json.dumps(payload), "")
+
+        probe = f"repos/{REPO}/actions/artifacts?per_page=1"
+        if args == ["api", probe]:
+            self.count_reads.append(args)
+            self.count_timeouts.append(kwargs.get("timeout_seconds"))
+            failed = any(k in probe for k in self.fail)
+            if self.count_fail or failed:
+                error = self.count_fail or f"gh: boom (HTTP {self.fail_status})"
+                return subprocess.CompletedProcess(args, 1, "", error)
+            live = len({a.get("id") for a in self.artifacts})
+            total = live if self.live_total is None else self.live_total
+            return ok({"total_count": total})
+        self.calls.append(args)
+        self.envs.append((args, kwargs.get("env_overrides")))
 
         def missing() -> subprocess.CompletedProcess[str]:
             return subprocess.CompletedProcess(args, 1, "", "gh: Not Found (HTTP 404)")
@@ -2597,8 +2617,11 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
             reader = ve.Reader(REPO, "main", now=NOW)
             holds = [reader.queued_hold(n) for n in (PR, PR, PR)]
         self.assertEqual(holds, ["verify:unreadable"] * 3)
+        # The count read before the whole listing fails first, and is read
+        # again after each wait only: no listing starts.
         listings = [c for c in fake.calls if any("actions/artifacts" in a for a in c)]
-        self.assertEqual(len(listings), len(ve.LISTING_WAITS) + 1)
+        self.assertEqual(listings, [])
+        self.assertEqual(fake.probes(), len(ve.LISTING_WAITS) + 1)
 
 
 def listings(fake: FakeGitHub) -> int:
@@ -3305,8 +3328,10 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         self.assertEqual(sleeps, [2.0])
 
     def timed(self, clock: list[float]) -> FlakyListing:
-        """Three 502s, the clock reading `clock` in turn, a 60s listing timeout."""
+        """Three 502s, the clock reading `clock` in turn, a 60s listing timeout
+        (2,000 artifacts: three 27 s listings, so the cap is the timeout)."""
         fake = FlakyListing(["gh: Bad Gateway (HTTP 502)"] * 3)
+        fake.live_total = 2_000
         with (
             mock.patch.object(ve, "_listing_clock", side_effect=clock),
             mock.patch.object(ve, "LISTING_TIMEOUT_SECONDS", 60.0),
@@ -3379,6 +3404,146 @@ class AListingOfManyPagesReadsWhole(unittest.TestCase):
         self.assertEqual(len(sent), self.PAGES)
 
 
+class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
+    """The whole listings' shared timeout comes from GitHub's live
+    `total_count`, read from one page before them: every whole listing and
+    its top-up at 1 s a page (`LISTING_PAGE_SECONDS`), up to the 300 s cap.
+    A listing too long for one whole read and its top-up inside the cap
+    refuses before paging, with the reason in the detail, rather than
+    running into a reader's step timeout as a bare `verify:unreadable`."""
+
+    def first_timeout(self, total: int) -> float | None:
+        fake = FlakyListing([])
+        fake.live_total = total
+        with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+            ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
+        return fake.timeouts[0] if fake.timeouts else None
+
+    def test_the_timeout_is_three_whole_listings_and_top_ups_at_a_second_a_page(
+        self,
+    ) -> None:
+        # 2,000 artifacts: 20 pages, and 7 top-up pages, for each of 3 reads.
+        self.assertEqual(self.first_timeout(2_000), 81.0)
+        # 2,001 artifacts start a 21st page.
+        self.assertEqual(self.first_timeout(2_001), 84.0)
+
+    def test_the_timeout_stops_at_the_cap(self) -> None:
+        # 10,450 artifacts, 105 pages, as on 2026-10-30: 336 s, capped.
+        self.assertEqual(self.first_timeout(10_450), 300.0)
+        # 293 pages and a 7-page top-up read in exactly the cap.
+        self.assertEqual(self.first_timeout(29_300), 300.0)
+
+    def test_a_listing_past_the_cap_refuses_before_paging_with_its_reason(
+        self,
+    ) -> None:
+        fake = passing()
+        fake.live_total = 29_301
+        out = io.StringIO()
+        with (
+            mock.patch.object(policy, "pull_request", return_value=pull()),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+            contextlib.redirect_stdout(out),
+        ):
+            ve.main(["evidence", "--repo", REPO, str(PR), HEAD], now=NOW)
+        report = json.loads(out.getvalue())
+        self.assertEqual(report["refusal"], "verify:unreadable")
+        self.assertIn(
+            "29301 artifacts in 294 pages need 301 s for a whole listing and its "
+            "top-up at 1 s a page, past the 300 s listing cap",
+            report["detail"],
+        )
+        self.assertEqual((fake.probes(), fake.full_listings(), fake.pages()), (1, 0, 0))
+
+    def caller(
+        self, limit: str, total: int, elapsed: float = 0.0
+    ) -> tuple[ve.Evidence, FlakyListing]:
+        """A reader a caller kills at `limit` seconds, `elapsed` seconds in."""
+        fake = FlakyListing([])
+        fake.live_total = total
+        env = {ve.DEADLINE_ENV: limit, ve.CALLER_ENV: "verify-cap.mjs"}
+        with (
+            mock.patch.dict("os.environ", env),
+            mock.patch.object(ve, "_elapsed", return_value=elapsed),
+            mock.patch.object(postmerge, "gh_capture", side_effect=fake),
+        ):
+            evidence = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
+        return evidence, fake
+
+    def test_a_caller_limit_too_short_for_the_listing_refuses_naming_it(
+        self,
+    ) -> None:
+        # verify-cap.mjs kills its reader at 120 s: 120 - 15 leaves 105 s, and
+        # 10,450 artifacts (105 pages and a 7-page top-up) need 112 s.
+        evidence, fake = self.caller("120", 10_450)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertIn(
+            "10450 artifacts in 105 pages need 112 s for a whole listing and its "
+            "top-up at 1 s a page, past the 105 s left of verify-cap.mjs's 120 s "
+            "limit",
+            evidence.detail or "",
+        )
+        self.assertEqual(fake.timeouts, [])
+        # pr-unblock verify-cap.mjs skips the round on this detail, for this
+        # run only; the 300 s cap's own refusal is not the caller's.
+        self.assertTrue((evidence.detail or "").startswith(ve.DEADLINE_UNREADABLE))
+        evidence, _ = self.caller("900", 29_301)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertIn("past the 300 s listing cap", evidence.detail or "")
+        self.assertFalse((evidence.detail or "").startswith(ve.DEADLINE_UNREADABLE))
+
+    def test_the_count_read_fits_in_what_the_caller_leaves(self) -> None:
+        # 60 s into verify-cap.mjs's 120 s: 120 - 60 - 15 leaves 45 s.
+        _, fake = self.caller("120", 2_000, elapsed=60.0)
+        self.assertEqual(fake.count_timeouts, [45.0])
+        # With no caller limit the count read keeps gh's default timeout.
+        _, fake = self.caller("", 2_000)
+        self.assertEqual(fake.count_timeouts, [None])
+
+    def test_a_caller_limit_already_spent_refuses_before_the_count_read(
+        self,
+    ) -> None:
+        # 110 s into a 120 s limit leaves nothing after the 15 s margin.
+        evidence, fake = self.caller("120", 2_000, elapsed=110.0)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertTrue((evidence.detail or "").startswith(ve.DEADLINE_UNREADABLE))
+        self.assertIn("verify-cap.mjs's 120 s limit", evidence.detail or "")
+        self.assertEqual((fake.probes(), fake.timeouts), (0, []))
+
+    def test_a_small_listing_keeps_gh_s_60_s_default_as_its_floor(self) -> None:
+        # 100 artifacts: 1 page and a 7-page top-up, three times, is 24 s,
+        # under gh's 60 s per-call default the listing timeout replaced.
+        self.assertEqual(self.first_timeout(100), 60.0)
+        # The floor never passes what a caller leaves: 50 - 15 is 35 s.
+        _, fake = self.caller("50", 100)
+        self.assertEqual(fake.timeouts[0], 35.0)
+
+    def test_a_caller_limit_bounds_the_listing_timeout(self) -> None:
+        # enable-auto-merge.mjs kills its reader at 240 s: 225 s left, under
+        # the 300 s cap and over the 112 s one whole listing needs.
+        _, fake = self.caller("240", 10_450)
+        self.assertEqual(fake.timeouts[0], 225.0)
+        # A limit past the cap leaves the cap; one that is not a number is
+        # ignored.
+        for limit in ("900", "soon", "0"):
+            with self.subTest(limit):
+                _, fake = self.caller(limit, 10_450)
+                self.assertEqual(fake.timeouts[0], 300.0)
+
+    def test_a_count_that_does_not_read_refuses_without_paging(self) -> None:
+        for error, reads in (
+            ("gh: Not Found (HTTP 404)", 1),
+            ("gh: Service Unavailable (HTTP 503)", 1 + len(ve.LISTING_WAITS)),
+        ):
+            with self.subTest(error):
+                fake = passing()
+                fake.count_fail = error
+                with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
+                    result = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
+                self.assertEqual(result.refusal, "verify:unreadable")
+                self.assertIn(error, result.detail or "")
+                self.assertEqual((fake.probes(), fake.full_listings()), (reads, 0))
+
+
 # The runner's clock while these tests list, and GitHub's `Date` a few seconds
 # later.
 LISTED_AT = datetime(2026, 10, 16, 12, 0, tzinfo=UTC)
@@ -3404,6 +3569,38 @@ def dated(
         "created_at": stamp(created),
         "expires_at": stamp(expires or created + timedelta(days=90)),
     }
+
+
+VERIFY_CAP = (
+    pathlib.Path(__file__).resolve().parents[6]
+    / ".github/scripts/pr-unblock/verify-cap.mjs"
+)
+
+
+def verify_cap_env(reads: int = 1) -> dict[str, str]:
+    """The `BABYSIT_VERIFY_*` environment verify-cap.mjs starts this reader with
+    on read number `reads`, every read before it answering `DEADLINE_UNREADABLE`."""
+    script = f"""
+    import {{ DEADLINE_UNREADABLE, verifyCapReader }} from {json.dumps(VERIFY_CAP.as_uri())};
+    const head = "a".repeat(40);
+    const report = {{ head, refusal: "verify:unreadable", detail: DEADLINE_UNREADABLE }};
+    const spawn = (command, args, options) => {{
+      console.log(JSON.stringify(options.env));
+      return {{ status: 0, stdout: JSON.stringify(report), stderr: "" }};
+    }};
+    const read = verifyCapReader({{}}, {{ spawn, log: () => {{}} }});
+    for (let number = 1; number <= {reads}; number += 1) {{
+      await read({{ number, head }});
+    }}
+    """
+    out = subprocess.run(
+        ["node", "--input-type=module", "-e", script],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    env = json.loads(out.strip().splitlines()[-1])
+    return {k: v for k, v in env.items() if k.startswith("BABYSIT_VERIFY_")}
 
 
 class TheListingBuildsOnACarriedOne(unittest.TestCase):
@@ -3553,9 +3750,9 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
     def test_a_caller_that_skips_the_waits_lists_every_page_after_one_miss(
         self,
     ) -> None:
-        # The same forged carry under BABYSIT_VERIFY_NO_INCREMENTAL_WAITS=1
-        # (verify-cap.mjs): one incremental first page, no wait, then the
-        # whole listing, which still holds the dropped FAIL.
+        # A forged carry under BABYSIT_VERIFY_NO_INCREMENTAL_WAITS=1: one
+        # incremental first page, no wait, then the whole listing, which still
+        # holds the dropped FAIL.
         fail = dated(named(EARLIER, "fail"), 2, 600, self.base_at - timedelta(days=2))
         self.write_carry(self.base)
         fake = self.fake(fail)
@@ -3575,6 +3772,47 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         ):
             self.judge(self.fake(fail))
         self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0, 30.0])
+
+    def verify_cap_read(
+        self, reads: int = 1
+    ) -> tuple[ve.Reader, ve.Evidence, FakeGitHub]:
+        """Read number `reads` of a verify-cap.mjs reader on a carried listing
+        whose pages miss GitHub's live count, a count no whole listing fits in
+        the 105 s its 120 s kill limit leaves. The miss outlasts the waits
+        unless a test ends it."""
+        self.write_carry(self.base)
+        fake = self.miss = self.fake()
+        fake.live_total = 12_000
+        with (
+            mock.patch.dict("os.environ", verify_cap_env(reads)),
+            mock.patch.object(ve, "_elapsed", return_value=0.0),
+        ):
+            reader, evidence = self.judge(fake)
+        return reader, evidence, fake
+
+    def test_a_count_miss_under_verify_cap_settles_on_the_next_read(self) -> None:
+        self.sleep.side_effect = lambda _: setattr(self.miss, "live_total", None)
+        reader, evidence, fake = self.verify_cap_read()
+        self.assertIsNone(evidence.refusal, evidence.detail)
+        self.assertEqual(reader.listing_mode, "incremental")
+        self.assertEqual((fake.pages(), fake.full_listings()), (2, 0))
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0])
+
+    def test_a_miss_that_outlasts_the_waits_still_refuses_for_the_caller_limit(
+        self,
+    ) -> None:
+        _, evidence, fake = self.verify_cap_read()
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertTrue(evidence.detail.startswith(ve.DEADLINE_UNREADABLE))
+        self.assertEqual((fake.pages(), fake.full_listings()), (3, 0))
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0, 30.0])
+
+    def test_a_read_after_a_refusal_for_the_caller_limit_takes_no_waits(self) -> None:
+        _, evidence, fake = self.verify_cap_read(reads=2)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertTrue(evidence.detail.startswith(ve.DEADLINE_UNREADABLE))
+        self.assertEqual((fake.pages(), fake.full_listings()), (1, 0))
+        self.sleep.assert_not_called()
 
     def test_a_failed_first_read_is_not_read_again_on_the_base(self) -> None:
         # A 429, a rate-limit 403 or a timeout on the first incremental page
@@ -4014,26 +4252,55 @@ class AWholeListingMustHoldTheLiveCount(unittest.TestCase):
 
 class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
     """ci-status holds a cold reader unless GITHUB_TOKEN's pool has one cold
-    read's worst case per queue entry (pr-require-checks.yml). That figure
-    must cover the reader's listing caps, so raising `INCREMENTAL_READS`,
-    `LISTING_READS` or `LISTING_WAITS` without it fails here. The other terms
-    are the figures the workflow comment derives: 793 per-FAIL reads (860
-    measured 2026-10-25 less its 67-page listing), at most 13 pages an
-    incremental read, 77 pages a whole listing and a top-up of at most 7."""
+    read's worst case per queue entry (pr-require-checks.yml), which it works
+    out from the live listing: its `total_count` and the FAILs it lists. The
+    workflow's figure must cover the reader's listing caps at any listing
+    size, so raising `INCREMENTAL_READS`, `LISTING_READS`, `LISTING_WAITS`
+    or `LISTING_TOP_UP_PAGES` without it fails here. The other terms are the
+    workflow comment's: 3 reads a FAIL (its run, a compare and a download),
+    at most 13 pages an incremental read, the count read before the whole
+    listings, one page more than the live count fills, and the step's own
+    listing, which each entry the queue builds at once also reads."""
 
-    def test_the_workflow_constant_is_the_capped_worst_case(self) -> None:
+    def cold_cost(self, total: int, fails: int) -> int:
+        """The workflow's own `pages=` and `cold_cost=` lines, run by bash."""
         workflow = (
             pathlib.Path(__file__).resolve().parents[6]
             / ".github/workflows/pr-require-checks.yml"
         ).read_text(encoding="utf-8")
-        found = re.findall(r"^ *cold_cost=(\d+)$", workflow, re.MULTILINE)
-        self.assertEqual(len(found), 1, found)
-        self.assertEqual(
-            len(re.findall(r'printf "%d\\n", cost \* entries', workflow)), 1
+        lines = [
+            re.findall(rf"^ *({name}=\$\(\(.*\)\))$", workflow, re.MULTILINE)
+            for name in ("listing_pages", "cold_cost")
+        ]
+        self.assertEqual([len(found) for found in lines], [1, 1], lines)
+        script = f"total={total} fails={fails}\n{lines[0][0]}\n{lines[1][0]}\n"
+        out = subprocess.run(
+            ["bash", "-c", script + 'echo "$cold_cost"'],
+            capture_output=True,
+            text=True,
+            check=True,
         )
+        return int(out.stdout)
+
+    def test_the_workflow_cost_is_the_capped_worst_case_at_any_size(self) -> None:
         attempts = 1 + len(ve.LISTING_WAITS)
-        worst = 793 + ve.INCREMENTAL_READS * 13 + ve.LISTING_READS * (attempts * 77 + 7)
-        self.assertEqual(int(found[0]), worst)
+        for total, fails in ((7_522, 264), (10_450, 300), (150, 10), (0, 0)):
+            with self.subTest(total=total, fails=fails):
+                pages = ve.listing_pages(total) + 1
+                worst = (
+                    pages
+                    + 3 * fails
+                    + ve.INCREMENTAL_READS * 13
+                    + 1
+                    + ve.LISTING_READS * (attempts * pages + ve.LISTING_TOP_UP_PAGES)
+                )
+                self.assertEqual(self.cold_cost(total, fails), worst)
+
+    def test_the_cost_of_two_listings_differs_by_hand(self) -> None:
+        # 10,450 artifacts (106 pages) and 300 FAILs against 7,522 (77) and
+        # 264: 2,021 against 1,623, worked by hand in ci-lanes-pr-hold.test.sh.
+        self.assertEqual(self.cold_cost(10_450, 300), 2_021)
+        self.assertEqual(self.cold_cost(7_522, 264), 1_623)
 
 
 # --- The --authority pr-merge path ------------------------------------------------

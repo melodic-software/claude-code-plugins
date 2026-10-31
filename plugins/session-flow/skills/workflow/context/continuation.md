@@ -158,15 +158,14 @@ anything carries over and clears when nothing does, work that leaves the session
 
 - **Pointer**: for when context fills up, see
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>; for managing
-  context, see <https://code.claude.com/docs/en/best-practices#manage-context-aggressively>; for
+  context, see <https://code.claude.com/docs/en/best-practices#keep-cost-and-context-down>; for
   the stage boundaries, see
-  <https://code.claude.com/docs/en/best-practices#explore-first-then-plan-then-code>,
-  <https://code.claude.com/docs/en/best-practices#let-claude-interview-you>,
-  <https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions>,
-  <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step> and
-  <https://code.claude.com/docs/en/best-practices#course-correct-early-and-often>; for the cache
+  <https://code.claude.com/docs/en/best-practices#brainstorm-with-claude-first>,
+  <https://code.claude.com/docs/en/best-practices#run-sessions-in-parallel>,
+  <https://code.claude.com/docs/en/best-practices#review-against-your-spec> and
+  <https://code.claude.com/docs/en/best-practices#steer-the-session>; for the cache
   lifetime, see <https://code.claude.com/docs/en/prompt-caching#cache-lifetime>.
-- **As of**: 2026-10-02
+- **As of**: 2026-10-30
 - **Recheck trigger**: either context page changes its `/compact` or `/clear` guidance, a
   best-practices section above changes how it splits sessions, or the cache-lifetime section
   changes.

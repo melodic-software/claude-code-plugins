@@ -10,7 +10,6 @@ The skills of `plugins/review`. Each one is driven with `<plugin-dir>` set to `p
 - `explain-change`: Change digest for a pull request, markdown record plus an interactive view.
 - `fanout`: Fan review out across every reviewer surface into one ranked report.
 - `quality-gate`: Single-lens review checkpoint routed to the matching reviewer.
-- `ratchet`: Hold a count in CI with a checked-in ceiling a human merges.
 - `security-review`: Org CI security-review lane command for a GitHub pull request.
 - `setup`: Check or apply the review plugin's repository setup: the standards index and docs/conventions/review.yaml settings. No plain-words entry.
 

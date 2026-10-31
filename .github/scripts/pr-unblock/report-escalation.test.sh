@@ -133,10 +133,10 @@ context_of() {
 }
 
 # The routes: a person only for the owner's three reasons (an intent or
-# design question, a HIGH or CRITICAL security or billing risk, a person's own
+# design question, a CRITICAL security risk or a billing risk, a person's own
 # thread or hold) and a severity the lane cannot read. feedback-uncertain and
 # feedback-disputed are the findings no adjudicator judges: CRITICAL, a
-# security-review finding rated IMPORTANT or above or unrated, one of no known
+# security-review finding rated CRITICAL or unrated, one of no known
 # lane, or a person's own thread. feedback-round-cap is a person's hold or a
 # thread only a person decides. dependency-fix-refused is a commit of untrusted
 # provenance, a trust hold the owner keeps. Every other stop is a failing

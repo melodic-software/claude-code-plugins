@@ -1,0 +1,13 @@
+{
+  "$schema": "../../schemas/config.v1.schema.json",
+  "schemaVersion": 1,
+  "defaults": { "requestTimeoutMs": 30000, "lockTimeoutMs": 5000, "rowCap": 1000 },
+  "environments": {
+    "local": {
+      "server": "localhost",
+      "port": 1433,
+      "databases": ["app", "app_reporting"],
+      "auth": { "type": "sql-login", "user": { "env": "SQL_READER_USER" }, "password": { "env": "SQL_READER_PASSWORD" } }
+    }
+  }
+}

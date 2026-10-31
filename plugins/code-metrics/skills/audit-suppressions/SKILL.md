@@ -114,7 +114,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/suppression-scan.py" --count
 # unjustified=<n>
 ```
 
-When `/review:ratchet` is among the available skills, it can hold that count as a CI ceiling: it
+When `/toolchain:ratchet` is among the available skills, it can hold that count as a CI ceiling: it
 vendors a copy of the scanner into the repository and ratchets the `suppressions` or `unjustified`
 field. Without it, keep the `--json` document and compare counts by hand.
 
@@ -165,7 +165,7 @@ The marker catalog follows each tool's own directive syntax, read from these pag
 
 ## Next
 
-- Hold the count in CI so it only falls: /review:ratchet.
+- Hold the count in CI so it only falls: /toolchain:ratchet.
 - Work through the rows a `--findings` run wrote: /review:fanout fix.
 - A count needs reading before anyone acts on it: /code-metrics:principles.
 

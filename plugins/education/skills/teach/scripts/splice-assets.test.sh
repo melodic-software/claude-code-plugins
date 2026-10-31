@@ -325,7 +325,7 @@ if [[ "$RC" -ne 0 ]]; then
 else
   fail "asset read error: the build half exits nonzero" "expected a nonzero exit, got $RC"
 fi
-if awk --version 2>/dev/null | head -1 | grep -q 'GNU Awk'; then
+if grep -q 'GNU Awk' < <(awk --version 2>/dev/null | head -1); then
   assert_contains "asset read error: stderr names lesson.css" "$ERR" "lesson.css"
 elif [[ -n "$ERR" ]]; then
   # discriminating-skip-ok: host-gated, only gawk reaches this program's own read-error branch

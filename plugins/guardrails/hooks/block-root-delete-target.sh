@@ -49,11 +49,13 @@
 # guard keyed on PATH SHAPE across every Bash command fired on 45.7% of 14,234
 # real commands and was rejected on that measurement. This guard does not
 # inherit that objection: it reads a cheap substring first, so a command whose
-# text holds none of `rm`, `-delete`, `unlink` and `rsync` never reaches the
-# parse at all. The prefilter is a SUBSTRING match, not a token one, so `npm
-# run format` does reach the tokenizer and is allowed there on its command
-# word. The path question is asked only once a recursive `rm`, a deleting find
-# or a deleting rsync, run directly or by xargs or parallel, is established.
+# text holds none of `rm`, `-delete`, `unlink`, `rsync`, `robocopy` and
+# `worktree` never reaches the parse at all. The prefilter is a SUBSTRING
+# match, not a token one, so `npm run format` does reach the tokenizer and is
+# allowed there on its command word. The path question is asked only once a
+# recursive `rm`, a deleting find, a deleting rsync, a deleting robocopy or a
+# forced git worktree remove, run directly or by xargs or parallel, is
+# established.
 #
 # FIND DELETES. `find -delete`, and a find whose expression runs `rm`, `rmdir`
 # or `unlink` as the command word of an -exec, -execdir, -ok or -okdir action,
@@ -95,6 +97,53 @@
 # `:` that no `/` precedes, none of them a `$`, a backtick or a `{`, or
 # rsync://) names another host and is left alone; a drive path such as `C:/`
 # is judged.
+#
+# ROBOCOPY DELETES. `robocopy <source> <destination> [<file>...] [<options>]`
+# with /MIR or /PURGE deletes destination files and directories that no
+# longer exist in the source, and with /MOVE or /MOV deletes what it copied
+# from the source (robocopy, learn.microsoft.com, read 2026-10-30). That
+# destination or source is judged as an operand of a recursive rm, through
+# every arm below, from the Bash tool and the PowerShell tool (`cmd /c
+# robocopy` included). An option is a documented robocopy option name in any
+# case, `/NAME` or `/NAME:value`, and `//NAME` and `-NAME` are read as
+# `/NAME` too, except that from the Bash tool a one-letter word with a single
+# slash (`/e`) is the drive root MSYS rewrites it to, as the root arm reads it
+# elsewhere, and never an option (`robocopy src /e /MIR` mirrors onto `E:\`).
+# That rewrite runs only while path conversion is on, so a prefix assignment
+# that turns it off for the robocopy (`MSYS_NO_PATHCONV=<any>`, or an
+# `MSYS2_ARG_CONV_EXCL` entry that is `*` or a prefix of the word) makes the
+# word an option again (`MSYS_NO_PATHCONV=1 robocopy /e empty <dest> /MIR`
+# mirrors onto <dest>). When that state is unknown, a suppressor value with a
+# `$` or a backtick, or an env option (`env -u`, `env -i`) that can drop the
+# suppressor, every operand is judged. An exported suppressor is
+# block-exported-msys-pathconv.sh's to refuse; the words after /XF, /XD or /IF up to the next option are its list. Of the
+# other words the first is the source and the second the destination. A word that can become several words or none changes which
+# word comes first or second, so with one every operand is judged instead:
+# from the Bash tool an unquoted brace, glob, `$` or backtick, or a quoted
+# "$@" or "${a[@]}"; from the PowerShell tool an expanding `$` or a grouping.
+# PowerShell's stop-parsing token `--%` is dropped before the words are read.
+#
+# GIT WORKTREE REMOVE. `git worktree remove -f <worktree>` (or --force, or any
+# prefix of it) deletes the worktree's directory even when it holds changes,
+# and with -f twice even when it is locked; without it git refuses a worktree
+# with changes or untracked files (git-worktree(1), git-scm.com, read
+# 2026-10-31), so the unforced form is not judged, although it still removes
+# ignored files. Each <worktree>
+# operand is judged as an operand of a recursive rm, through every arm below,
+# resolved whole because git looks the path up by its real path. git first
+# looks <worktree> up as the trailing path components of a registered worktree,
+# from any directory (find_worktree in git's worktree.c, read 2026-10-31), so
+# every root in the registry the protected-tree arm reads whose path ends in
+# the operand's text (an unquoted glob matched as a pattern), compared in any
+# case, is judged too. Each git global option ahead of `worktree` is stepped
+# over with its argument. With -C, --git-dir or --work-tree, a GIT_DIR,
+# GIT_WORK_TREE or GIT_COMMON_DIR prefix, or after a directory change, an
+# operand that is not absolute (a `$` word included) is refused, because it
+# may name a worktree of a repository whose registry is not read. A registered worktree
+# root stays protected, as for rm, unless it is not the git toplevel and sits
+# strictly under a temp root, the scratchpad or an allowed root: then the
+# worktree root and its `.git` file pass, and a protected tree inside it does
+# not.
 #
 # PIPELINE-FED DELETES. `xargs` and `parallel` run a command on the items they
 # read, so when that command is a recursive rm or a deleting find (named
@@ -252,8 +301,15 @@
 # build -regex '.*\.o' -delete`: the GNU reading then has no start point and
 # judges `.`), an rsync delete run with -n or --dry-run (judged as if it ran),
 # an rsync delete whose sources glob outside the allowed roots (`rsync -a
-# --delete /opt/x/* build/`: with a glob every operand is judged), and the
-# three launcher lines decided below.
+# --delete /opt/x/* build/`: with a glob every operand is judged), a robocopy
+# delete run with /L (judged as if it ran), a robocopy delete with a glob,
+# brace or expansion in any operand (`robocopy /opt/x build *.log /MIR`, or
+# `robocopy $env:SRC build /MIR` on PowerShell, where `$env:SRC` alone is
+# then refused as a bare variable: every operand is judged), an option
+# robocopy's page does not list, written ahead of the source (read as the
+# source), a forced git worktree remove of a relative name after a cd or
+# with git -C (`git -C sub worktree remove -f ../wt`), and the three launcher
+# lines decided below.
 #
 # LAUNCHER LINES REFUSED BY DECISION (#4681). Each is refused although the
 # launcher does not delete the host root, and each stays refused on purpose:
@@ -329,6 +385,11 @@
 #     (`host:/`), the paths a --files-from list names below a source
 #     (the source operand itself is judged), and rsync on the PowerShell tool,
 #     which is not read.
+#   * In a robocopy: the options and paths a /JOB file supplies; a deleting
+#     option that an expansion or a brace builds (`robocopy src / {/MIR,}`),
+#     which is not seen, so nothing is judged; and an option robocopy's page
+#     does not list, written between the source and the destination, which
+#     is read as the destination, so the real one is not judged.
 #   * In a pipeline-fed delete: a `;`, `&&` or `||` between a listing and
 #     xargs, read as a pipe (`find build; xargs rm -rf` reads the shell's own
 #     stdin); xargs splitting a listed path at a blank or a quote, so a
@@ -345,12 +406,21 @@
 #     start points GNU find reads from a file with -files0-from (the BSD
 #     reading of the same words is still judged), and find on the PowerShell
 #     tool, which is not read.
+#   * In a git worktree remove: a git alias that expands to one (`git -c
+#     alias.x='worktree remove -f' x y`), one a find action runs (`-exec git
+#     worktree remove -f {} \;`), a GIT_DIR exported earlier or inherited,
+#     which selects another registry unseen, a worktree registered past
+#     MAX_WORKTREES that a trailing-components name selects, and git on the
+#     PowerShell tool, which is not read. A `--no-force` after -f is read as
+#     forced. Items xargs or parallel hand it are judged as rm operands,
+#     without the trailing-components lookup.
 #   * From the Bash tool, a delete run by a Windows program instead of rm:
 #     `cmd /c rd /s /q <dir>` (or `cmd //c`, `rmdir`) and `powershell -Command
-#     Remove-Item -Recurse <dir>`. The Bash lane matches the rm, find and
-#     rsync command words only, and its prefilter passes only text holding
-#     `rm`, `-delete`, `unlink` or `rsync`; cmd rd /s and Remove-Item are judged in the
-#     PowerShell lane (#6626).
+#     Remove-Item -Recurse <dir>`, and `cmd /c robocopy`. The Bash lane
+#     matches the rm, find, rsync, robocopy and git command words only, and
+#     its prefilter passes only text holding `rm`, `-delete`, `unlink`,
+#     `rsync`, `robocopy` or `worktree`; cmd rd /s, cmd /c robocopy and
+#     Remove-Item are judged in the PowerShell lane (#6626).
 #   * Expansion-built targets AND an expansion-built command word. Detection
 #     never evaluates a shell expansion. A bare variable operand is refused
 #     (above), but `rm -rf "$X/build"` is left alone, and so are an unquoted
@@ -757,16 +827,18 @@ fi
 # A case-SENSITIVE prefilter here would have exited allow first, a bypass of
 # the whole guard rather than a missed spelling.
 #
-# Bash: a substring `rm`, `-delete`, `unlink` or `rsync`, the text a recursive
-# rm, a deleting find or a deleting rsync must hold (`npm run format` still
-# reaches the tokenizer and is allowed on its command word). PowerShell: Remove-Item,
-# rmdir, erase, cmd, rd, del, rm, and `ri` as a command word (not the `ri`
-# inside Write/string). Over-inclusive on purpose; the tokenizer decides.
+# Bash: a substring `rm`, `-delete`, `unlink`, `rsync`, `robocopy` or
+# `worktree`, the text a recursive rm, a deleting find, rsync, robocopy or git
+# worktree remove must hold (`npm run format` still reaches the tokenizer and
+# is allowed on its command word).
+# PowerShell: Remove-Item, rmdir, erase, cmd, rd, del, rm, robocopy, and `ri`
+# as a command word (not the `ri` inside Write/string). Over-inclusive on
+# purpose; the tokenizer decides.
 if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   rdt_ps_pre="${COMMAND,,}"
   rdt_ps_hit=0
   case "$rdt_ps_pre" in
-  *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del*) rdt_ps_hit=1 ;;
+  *rm* | *remove-item* | *erase* | *cmd* | *rd* | *del* | *robocopy*) rdt_ps_hit=1 ;;
   *) ;;
   esac
   if ((rdt_ps_hit == 0)) && [[ "$rdt_ps_pre" =~ (^|[^[:alnum:]_])ri([^[:alnum:]_]|$) ]]; then
@@ -775,7 +847,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   ((rdt_ps_hit)) || exit 0
 else
   case "${COMMAND,,}" in
-  *rm* | *-delete* | *unlink* | *rsync*) ;;
+  *rm* | *-delete* | *unlink* | *rsync* | *robocopy* | *worktree*) ;;
   *) exit 0 ;;
   esac
 fi
@@ -1377,6 +1449,8 @@ RDT_P_NORIG=()
 RDT_P_UNK=()
 RDT_P_REF=()
 RDT_P_SUB=()
+RDT_P_WT=()
+RDT_WTRM=0
 RDT_WIN=0
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) RDT_WIN=1 ;;
@@ -2025,6 +2099,14 @@ rdt_allowed() {
   return 1
 }
 
+# rdt_allowed_beside_tree <canonical target> <link>: rdt_allowed with the
+# payload cwd's tree granting nothing, so only a temp root, the scratchpad or
+# a listed root can allow the target.
+rdt_allowed_beside_tree() {
+  local RDT_TREEC=""
+  rdt_allowed "$1" 0 "$2"
+}
+
 # rdt_within <path> <directory>: true when <path> is <directory> or lies under
 # it. Both canonical; a root keeps its trailing slash.
 rdt_within() {
@@ -2119,7 +2201,7 @@ rdt_worktrees() {
   return 0
 }
 
-# rdt_protected <target> <real target> <deep> <glob> <link>: true when the
+# rdt_protected <target> <real target> <deep> <glob> <link> [wt]: true when the
 # delete removes a protected tree, with what it is in RDT_PROT. Judged ahead of
 # every allowed root, the working tree included. <target> is canonical, <real
 # target> the resolved path tested on disk, and <deep> and <glob> say what the
@@ -2141,12 +2223,21 @@ rdt_worktrees() {
 # Each list is screened with one string test before any call, so a delete of
 # many targets in a repository of many worktrees stays inside the deadline.
 rdt_protected() {
-  local c="$1" real="$2" deep="$3" pat="$4" link="$5" p rest i t intmp
+  local c="$1" real="$2" deep="$3" pat="$4" link="$5" p rest i t intmp free=0
   RDT_PROT=""
   # Win32 trims a trailing dot or space from a name: `.git.` names `.git`.
   if ((RDT_WIN)); then
     while [[ "$c" == */*[.\ ] && "${c##*/}" != . && "${c##*/}" != .. ]]; do c="${c%?}"; done
     while [[ "$real" == */*[.\ ] && "${real##*/}" != . && "${real##*/}" != .. ]]; do real="${real%?}"; done
+  fi
+  # A git worktree remove (<wt> 1) of a registered worktree root other than
+  # the toplevel, strictly under a root rdt_allowed grants without the tree,
+  # is what the command exists to delete: its root and its .git file are not
+  # protected then.
+  if ((${6:-0} && deep == 0)) && [[ -z "$pat" && "$c" != "$RDT_TREEC" ]]; then
+    for p in ${RDT_PROT_B[@]+"${RDT_PROT_B[@]}"}; do
+      [[ "$p" == "$c" ]] && rdt_allowed_beside_tree "$c" "$link" && free=1 && break
+    done
   fi
   # Folded to lower case: a case-insensitive filesystem (the macOS default)
   # removes `.git` through `.GIT`.
@@ -2155,7 +2246,7 @@ rdt_protected() {
     RDT_PROT="a .git"
     return 0
   fi
-  if ((deep == 0 && link == 0)) && [[ -e "$real/.git" || -L "$real/.git" ]]; then
+  if ((deep == 0 && link == 0 && free == 0)) && [[ -e "$real/.git" || -L "$real/.git" ]]; then
     if [[ -z "$pat" ]]; then
       RDT_PROT="a directory holding a .git"
       return 0
@@ -2169,7 +2260,7 @@ rdt_protected() {
     p="${RDT_PROT_B[i]}"
     [[ "$p" == "$c"* ]] || continue
     if [[ "$p" == "$c" ]]; then
-      if [[ -z "$pat" ]] && ((deep == 0)); then
+      if [[ -z "$pat" ]] && ((deep == 0 && free == 0)); then
         RDT_PROT="${RDT_PROT_BW[i]}"
         return 0
       fi
@@ -2307,6 +2398,9 @@ rdt_glob_dirs() {
 # shellcheck disable=SC2034  # the arrays belong to the caller
 rdt_add_pair() {
   local p="$1" mode="$2" last="" key
+  # git resolves a worktree-remove word through every symlink (wtm, set by
+  # rdt_judge_pending), so it is never judged as a leaf rm would unlink.
+  [[ "$mode" == leaf && "${wtm:-0}" == 1 ]] && mode=whole
   if [[ "$mode" == leaf ]]; then
     last="${p##*/}"
     rdt_parent_to p "$p"
@@ -2314,7 +2408,7 @@ rdt_add_pair() {
     [[ -z "$p" ]] && p=/
     [[ "$p" =~ ^[A-Za-z]:$ ]] && p="$p/"
   fi
-  key="$mode|$p|$last|$3|${5:-}"
+  key="$mode|$p|$last|$3|${5:-}|${wtm:-0}"
   [[ -n "${tseen[$key]+x}" ]] && return 0
   tseen[$key]=1
   tp+=("$p")
@@ -2323,6 +2417,7 @@ rdt_add_pair() {
   te+=("$3")
   tw+=("$4")
   tg+=("${5:-}")
+  tx+=("${wtm:-0}")
   ((${#tp[@]} > MAX_TARGETS)) && rdt_block "too-many-targets"
   return 0
 }
@@ -2342,8 +2437,8 @@ rdt_judge_pending() {
   local np=${#RDT_P_TEXT[@]}
   ((np)) || return 0
   ((RDT_ORIGIN_OVERFLOW)) && rdt_block "too-many-origins"
-  local k m no unk cdp t p sp c rc mode enum full slash abs glob base g t2 word lastc e gp
-  local -a tp=() tn=() td=() te=() tw=() tg=() gl=()
+  local k m no unk cdp t p sp c rc mode enum full slash abs glob base g t2 word lastc e gp wtm wtany=0
+  local -a tp=() tn=() td=() te=() tw=() tg=() tx=() gl=()
   local -A tseen=()
   # Every target from every directory it may run from, each distinct one
   # once. In leaf mode the parent is resolved and the name appended as is;
@@ -2351,6 +2446,8 @@ rdt_judge_pending() {
   for ((k = 0; k < np; k++)); do
     rdt_deadline
     word="${RDT_P_TEXT[k]}"
+    wtm="${RDT_P_WT[k]:-0}"
+    ((wtm)) && wtany=1
     rc=0
     rdt_place_to t "$word" "${RDT_P_Q[k]}" || rc=$?
     ((rc == 2)) && rdt_block "unplaceable" "'$word'"
@@ -2418,7 +2515,7 @@ rdt_judge_pending() {
       done
     done
   done
-  ((${#tp[@]})) || return 0
+  ((${#tp[@]} || wtany)) || return 0
 
   # The scratchpad, read only now so the dispatcher cache answers every other
   # call. A NUL byte in it refuses: there is a target to judge, and the
@@ -2491,6 +2588,31 @@ rdt_judge_pending() {
   # component protects nothing.
   rdt_worktrees "$tree"
   local -a wts=(${RDT_WT[@]+"${RDT_WT[@]}"}) prot=()
+  # git worktree remove looks its <worktree> up as the trailing path
+  # components of a registered worktree first, from any directory, so every
+  # registered root a worktree-remove word ends is a target too, compared in
+  # any case.
+  if ((wtany)); then
+    wtm=1
+    for ((k = 0; k < np; k++)); do
+      ((${RDT_P_WT[k]:-0})) || continue
+      word="${RDT_P_TEXT[k]//\\//}"
+      while [[ "$word" == ?*/ ]]; do word="${word%/}"; done
+      [[ -n "$word" ]] || continue
+      # An unquoted glob reaches git as its matches, so it is matched as a
+      # pattern, which only adds roots.
+      g=0
+      ((${RDT_P_Q[k]:-0} != 2)) && [[ "$word" == *[*?[]* ]] && g=1
+      for c in ${wts[@]+"${wts[@]}"}; do
+        # shellcheck disable=SC2053  # the operand is meant to glob when g is 1
+        if [[ "${c,,}" == "${word,,}" || "${c,,}" == */"${word,,}" ]] ||
+          { ((g)) && [[ "${c,,}" == ${word,,} || "${c,,}" == */${word,,} ]]; }; then
+          rdt_add_pair "$c" whole "" "${RDT_P_TEXT[k]}"
+        fi
+      done
+    done
+  fi
+  ((${#tp[@]})) || return 0
   local trees="${CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_PROTECTED_TREES:-}"
   while [[ -n "$trees" ]]; do
     c="${trees%%,*}"
@@ -2524,6 +2646,7 @@ rdt_judge_pending() {
       td+=(0)
       tw+=("${tw[k]}")
       tg+=("")
+      tx+=("${tx[k]}")
       ((${#tp[@]} > MAX_TARGETS)) && rdt_block "too-many-targets"
     done
   done
@@ -2640,7 +2763,7 @@ rdt_judge_pending() {
     l=0
     [[ -L "${targets[k]}" ]] && l=1
     [[ ! -e "${targets[k]}" && "${tw[k]}" =~ [/\\]\.?$ ]] && l=1
-    if rdt_protected "$c" "${targets[k]}" "${td[k]}" "${tg[k]}" "$l"; then
+    if rdt_protected "$c" "${targets[k]}" "${td[k]}" "${tg[k]}" "$l" "${tx[k]}"; then
       rdt_block "protected-tree" "'$p' (the operand '${tw[k]}'), $RDT_PROT"
       continue
     fi
@@ -3129,9 +3252,10 @@ rdt_check_segment() {
   fi
 
   # A find whose expression deletes removes what its start points hold (FIND
-  # DELETES in the header), an rsync removes from its destination or its
-  # sources (RSYNC DELETES), and xargs and parallel run their command on the
-  # items they read (PIPELINE-FED DELETES).
+  # DELETES in the header), an rsync or a robocopy removes from its
+  # destination or its sources (RSYNC DELETES, ROBOCOPY DELETES), and xargs
+  # and parallel run their command on the items they read (PIPELINE-FED
+  # DELETES).
   case "$base" in
   find)
     rdt_find_check "$i"
@@ -3139,6 +3263,14 @@ rdt_check_segment() {
     ;;
   rsync)
     rdt_rsync_check "$i"
+    return 0
+    ;;
+  robocopy)
+    rdt_robocopy_check "$i"
+    return 0
+    ;;
+  git)
+    rdt_git_worktree_check "$i"
     return 0
     ;;
   xargs)
@@ -3382,6 +3514,206 @@ rdt_rsync_check() {
     fi
     rdt_delete_operand "$w" "${HOOK_SEG_WORD_QUOTED[k]:-0}"
   done
+  return 0
+}
+
+# rdt_msys_excluded <word> <list>: status 0 when the MSYS2_ARG_CONV_EXCL value
+# <list> leaves <word> unconverted, that is when one of its `;`-separated
+# entries is `*` or a non-empty prefix of <word>. An empty <list> excludes
+# nothing.
+rdt_msys_excluded() {
+  local e rest="$2;"
+  while [[ -n "$rest" ]]; do
+    e="${rest%%;*}"
+    rest="${rest#*;}"
+    [[ "$e" == '*' || (-n "$e" && "$1" == "$e"*) ]] && return 0
+  done
+  return 1
+}
+
+# rdt_robocopy_scan <msys> <excl> <word> ...: read the words after a robocopy
+# command word into RDT_RC_DEST (it purges its destination: /MIR or /PURGE),
+# RDT_RC_SRC (it deletes from its source: /MOVE or /MOV) and RDT_RC_OP (the
+# 0-based index among the words of each word that is neither an option nor in
+# a /XF, /XD or /IF list), the first of which is the source and the second the
+# destination (ROBOCOPY DELETES in the header). Shared by the Bash and
+# PowerShell lanes. <msys> is 1 for the Bash lane, where MSYS rewrites a
+# single-slash one-letter word (`/e`) to that drive's root before robocopy
+# sees it, so that word is an operand and never an option, unless the
+# MSYS2_ARG_CONV_EXCL value <excl> leaves it unconverted. It is 0 for the
+# PowerShell lane and for a Bash robocopy whose prefix sets MSYS_NO_PATHCONV.
+rdt_robocopy_scan() {
+  local k w msys="$1" excl="$2" list=0
+  shift 2
+  RDT_RC_DEST=0 RDT_RC_SRC=0
+  RDT_RC_OP=()
+  for ((k = 1; k <= $#; k++)); do
+    w="${!k}"
+    if ((msys)) && [[ "$w" =~ ^/[A-Za-z]$ ]] && ! rdt_msys_excluded "$w" "$excl"; then
+      ((list)) || RDT_RC_OP+=("$((k - 1))")
+      continue
+    fi
+    w="${w,,}"
+    [[ "$w" == //* ]] && w="${w#/}"
+    [[ "$w" == -?* ]] && w="/${w#-}"
+    case "${w%%:*}" in
+    /mir | /purge) RDT_RC_DEST=1 list=0 ;;
+    /move | /mov) RDT_RC_SRC=1 list=0 ;;
+    /xf | /xd | /if) list=1 ;;
+    /s | /e | /lev | /z | /b | /zb | /j | /efsraw | /copy | /dcopy | /sec | /copyall | /nocopy | \
+      /secfix | /timfix | /a+ | /a- | /create | /fat | /256 | /mon | /mot | /rh | /pf | /ipg | /sj | \
+      /sl | /mt | /nodcopy | /nooffload | /compress | /sparse | /noclone | /iomaxsize | /iorate | \
+      /threshold | /a | /m | /ia | /xa | /xc | /xn | /xo | /xx | /xl | /im | /is | /it | /max | /min | \
+      /maxage | /minage | /maxlad | /minlad | /xj | /fft | /dst | /xjd | /xjf | /r | /w | /reg | /tbd | \
+      /lfsm | /l | /x | /v | /ts | /fp | /bytes | /ns | /nc | /nfl | /ndl | /np | /eta | /log | /log+ | \
+      /unilog | /unilog+ | /tee | /njh | /njs | /unicode | /job | /save | /quit | /nosd | /nodd)
+      list=0
+      ;;
+    *) ((list)) || RDT_RC_OP+=("$((k - 1))") ;;
+    esac
+  done
+  return 0
+}
+
+# rdt_robocopy_check <index of the robocopy word>: a robocopy carrying /MIR,
+# /PURGE, /MOVE or /MOV has the destination or the source it deletes from
+# judged as an operand of a recursive rm (ROBOCOPY DELETES in the header).
+# Reads words, n and HOOK_SEG_WORD_QUOTED from rdt_check_segment through
+# bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_robocopy_check() {
+  local k w msys=1 excl='' unknown=0 envw=0
+  local -a op=() tg=()
+  # A prefix assignment is in the environment the MSYS runtime spawns
+  # robocopy from: MSYS_NO_PATHCONV, set to anything, turns path conversion
+  # off, and MSYS2_ARG_CONV_EXCL lists the words it leaves alone. The last
+  # assignment of a name is the one robocopy gets. An assignment whose value
+  # holds a `$` or a backtick is not known until it runs, and an env option
+  # (`env -u NAME`, `env -i`) can drop an assignment made before it, so with
+  # either the conversion state is unknown: every operand is then judged, each
+  # single-slash one-letter word included.
+  for ((k = 0; k < $1; k++)); do
+    w="${words[k]}"
+    case "$w" in
+    MSYS_NO_PATHCONV=* | MSYS2_ARG_CONV_EXCL=*)
+      [[ "${w#*=}" == *['$`']* ]] && unknown=1
+      if [[ "$w" == MSYS_NO_PATHCONV=* ]]; then
+        msys=0
+      else
+        excl="${w#*=}"
+      fi
+      ;;
+    *)
+      w="${w##*/}"
+      w="${w,,}"
+      if [[ "${w%.exe}" == env ]]; then
+        envw=1
+      elif ((envw)) && [[ "${words[k]}" == -* ]]; then
+        unknown=1
+      fi
+      ;;
+    esac
+  done
+  if ((unknown)); then
+    msys=1 excl=''
+  fi
+  rdt_robocopy_scan "$msys" "$excl" ${words[@]+"${words[@]:$1+1}"}
+  ((RDT_RC_DEST || RDT_RC_SRC)) || return 0
+  rdt_deleter=1
+  for k in ${RDT_RC_OP[@]+"${RDT_RC_OP[@]}"}; do
+    op+=("$((k + $1 + 1))")
+  done
+  # A brace, a glob or an unquoted expansion can become more words or none,
+  # and so can a quoted "$@" or "${a[@]}", so which word is the source or the
+  # destination is not known: every operand is then judged. So it is when the
+  # conversion state is unknown.
+  ((unknown)) && tg=(${op[@]+"${op[@]}"})
+  for k in ${op[@]+"${op[@]}"}; do
+    if [[ "${words[k]}" == *'$@'* || "${words[k]}" == *'[@]}'* ]] ||
+      { ((${HOOK_SEG_WORD_QUOTED[k]:-0} != 2)) && [[ "${words[k]}" == *['{*?[$`']* ]]; }; then
+      tg=("${op[@]}")
+      break
+    fi
+  done
+  if ((${#tg[@]} == 0)); then
+    ((RDT_RC_SRC && ${#op[@]} > 0)) && tg+=("${op[0]}")
+    ((RDT_RC_DEST && ${#op[@]} > 1)) && tg+=("${op[1]}")
+  fi
+  for k in ${tg[@]+"${tg[@]}"}; do
+    rdt_delete_operand "${words[k]}" "${HOOK_SEG_WORD_QUOTED[k]:-0}"
+  done
+  return 0
+}
+
+# rdt_git_worktree_check <index of the git word>: a `git worktree remove` with
+# -f or --force has each <worktree> operand judged as an operand of a recursive
+# rm, marked so the judgment also reads it as a worktree name (GIT WORKTREE
+# REMOVE in the header). Reads words, n and HOOK_SEG_WORD_QUOTED from
+# rdt_check_segment through bash's dynamic scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_git_worktree_check() {
+  local k w force=0 eoo=0 rel=0
+  local -a op=()
+  # A prefix assignment (`GIT_DIR=… git`, `env GIT_DIR=… git`) selects a
+  # repository the same way the options below do.
+  for ((k = 0; k < $1; k++)); do
+    case "${words[k]}" in
+    GIT_DIR=* | GIT_WORK_TREE=* | GIT_COMMON_DIR=*) rel=1 ;;
+    *) ;;
+    esac
+  done
+  for ((k = $1 + 1; k < n; k++)); do
+    w="${words[k]}"
+    case "$w" in
+    -C | --git-dir | --work-tree) rel=1 k=$((k + 1)) ;;
+    --git-dir=* | --work-tree=*) rel=1 ;;
+    -c | --namespace | --config-env | --super-prefix | --attr-source) k=$((k + 1)) ;;
+    -*) ;;
+    *) break ;;
+    esac
+  done
+  [[ "${words[k]-}" == worktree && "${words[k + 1]-}" == remove ]] || return 0
+  for ((k = k + 2; k < n; k++)); do
+    w="${words[k]}"
+    if ((eoo == 0)); then
+      case "$w" in
+      --)
+        eoo=1
+        continue
+        ;;
+      --?*)
+        [[ "force" == "${w#--}"* ]] && force=1
+        continue
+        ;;
+      -?*)
+        [[ "$w" =~ ^-[A-Za-z]+$ && "$w" == *f* ]] && force=1
+        continue
+        ;;
+      *) ;;
+      esac
+    fi
+    op+=("$k")
+  done
+  ((force)) || return 0
+  rdt_deleter=1
+  RDT_WTRM=1
+  # After a directory change the trailing-components lookup may read another
+  # repository's registry too.
+  ((RDT_ARM && (${#RDT_ORIGINS[@]} > 1 || rdt_cd_unknown || rdt_cd_refuse))) && rel=1
+  for k in ${op[@]+"${op[@]}"}; do
+    # A name that is not absolute may match a worktree of a repository whose
+    # registry this guard does not read. A `$` word may expand to one.
+    w="${words[k]//\\//}"
+    if ((rel && RDT_ARM)); then
+      # shellcheck disable=SC2016,SC2088  # matching the literal text of the operand
+      case "$w" in
+      '~' | '~/'* | '$HOME' | '$HOME/'* | '${HOME}' | '${HOME}/'*) ;;
+      *) rdt_is_abs "$w" || rdt_block "unplaceable" "'${words[k]}' (a worktree named relative to a repository the command selects)" ;;
+      esac
+    fi
+    rdt_delete_operand "${words[k]}" "${HOOK_SEG_WORD_QUOTED[k]:-0}"
+  done
+  RDT_WTRM=0
   return 0
 }
 
@@ -3805,7 +4137,7 @@ rdt_parallel_check() {
   for ((k = e + 1; k < n; k++)); do
     case "${words[k],,}" in
     ::: | :::+ | :::: | ::::+) ;;
-    *rm* | *-delete* | *unlink* | *rsync*) rdt_parse "${words[k]}" ;;
+    *rm* | *-delete* | *unlink* | *rsync* | *robocopy* | *worktree*) rdt_parse "${words[k]}" ;;
     *) ;;
     esac
   done
@@ -3915,6 +4247,7 @@ rdt_check_operand() {
     RDT_P_UNK+=("$rdt_cd_unknown")
     RDT_P_REF+=("$rdt_cd_refuse")
     RDT_P_SUB+=("$rdt_in_subst")
+    RDT_P_WT+=("$RDT_WTRM")
   fi
   return 0
 }
@@ -4081,7 +4414,7 @@ rdt_scan_body() {
   local b="$1" rdt_seg_feed=open
   [[ -n "$b" ]] || return 0
   case "${b,,}" in
-  *rm* | *-delete* | *unlink* | *rsync*) ;;
+  *rm* | *-delete* | *unlink* | *rsync* | *robocopy* | *worktree*) ;;
   *) return 0 ;;
   esac
   rdt_scanned=$((rdt_scanned + ${#b}))
@@ -4516,7 +4849,51 @@ rdt_ps_operand() {
   rdt_check_operand "$w" 0
 }
 
-# rdt_ps_cmd_rd: recursive cmd rd/rmdir. Remaining words are the command line.
+# rdt_ps_robocopy_check <word> ...: the words after a robocopy command word,
+# with the stop-parsing token `--%` dropped, as PowerShell drops it. The first
+# operand is the source and the second the destination (ROBOCOPY DELETES in
+# the header), unless an operand holds an expanding `$` or is a grouping: an
+# array, an unset variable or a command's output can become several
+# arguments or none, so every operand is then judged.
+rdt_ps_robocopy_check() {
+  local -a __w=() __tg=()
+  local __p __k
+  for __p in "$@"; do
+    [[ "$__p" == "--%" ]] || __w+=("$__p")
+  done
+  rdt_robocopy_scan 0 '' ${__w[@]+"${__w[@]}"}
+  ((RDT_RC_DEST || RDT_RC_SRC)) || return 0
+  for __k in ${RDT_RC_OP[@]+"${RDT_RC_OP[@]}"}; do
+    case "${__w[__k]}" in
+    *'$'* | '(' | '{' | '('* | '@('*)
+      for __p in "${RDT_RC_OP[@]}"; do
+        __tg+=("${__w[__p]}")
+      done
+      break
+      ;;
+    *) ;;
+    esac
+  done
+  if ((${#__tg[@]} == 0)); then
+    ((RDT_RC_SRC && ${#RDT_RC_OP[@]} > 0)) && __tg+=("${__w[RDT_RC_OP[0]]}")
+    ((RDT_RC_DEST && ${#RDT_RC_OP[@]} > 1)) && __tg+=("${__w[RDT_RC_OP[1]]}")
+  fi
+  for __p in ${__tg[@]+"${__tg[@]}"}; do
+    [[ -z "$__p" ]] && rdt_block "empty-operand"
+    # The walker's placeholder for a `( )` grouping or a `{ }` scriptblock,
+    # or a grouping it kept in the word: what it evaluates to is not known.
+    # shellcheck disable=SC2016  # a literal `$(` grouping
+    case "$__p" in
+    '(' | '{' | '('* | '$('* | '@('*) rdt_block "pipeline-target" "$__p" ;;
+    *) ;;
+    esac
+    rdt_ps_operand "$__p"
+  done
+  return 0
+}
+
+# rdt_ps_cmd_rd: recursive cmd rd/rmdir, and a robocopy cmd runs. Remaining
+# words are the command line.
 rdt_ps_cmd_rd() {
   local -a __cw=("$@")
   ((${#__cw[@]})) || return 0
@@ -4525,6 +4902,10 @@ rdt_ps_cmd_rd() {
   __base="${__base%.exe}"
   case "$__base" in
   rd | rmdir) ;;
+  robocopy)
+    rdt_ps_robocopy_check "${__cw[@]:1}"
+    return 0
+    ;;
   *) return 0 ;;
   esac
   local -a __paths=()
@@ -4701,6 +5082,11 @@ rdt_ps_statement() {
   cmd)
     if ((__i < ${#__w[@]})); then
       rdt_ps_cmd_from "${__w[@]:__i}"
+    fi
+    ;;
+  robocopy)
+    if ((__i < ${#__w[@]})); then
+      rdt_ps_robocopy_check "${__w[@]:__i}"
     fi
     ;;
   *) ;;

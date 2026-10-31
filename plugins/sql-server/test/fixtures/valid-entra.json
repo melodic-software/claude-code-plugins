@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "environments": {
+    "shared-dev": {
+      "server": "example-dev.database.windows.net",
+      "databases": ["app"],
+      "auth": { "type": "entra-default", "clientId": "00000000-0000-0000-0000-000000000000" },
+      "limits": { "rowCap": 200 }
+    }
+  }
+}

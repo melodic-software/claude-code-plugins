@@ -44,7 +44,7 @@ official target.
 
 - **Pointer**: [Write effective instructions](https://code.claude.com/docs/en/memory#write-effective-instructions),
   [My CLAUDE.md is too large](https://code.claude.com/docs/en/memory#my-claude-md-is-too-large),
-  [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md);
+  [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short);
   third-party: [humanlayer.dev, writing a good CLAUDE.md](https://humanlayer.dev/blog/writing-a-good-claude-md).
 
 ## Context injection clarification
@@ -61,7 +61,7 @@ the system-prompt level, we point to `--append-system-prompt`.
 For each line, the audit asks whether removing it would make Claude make mistakes; a line that
 fails the test is a cut candidate.
 
-- **Pointer**: [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md).
+- **Pointer**: [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short).
 
 ## What to include vs exclude
 
@@ -78,8 +78,8 @@ removal candidates what Claude can infer from the code or that changes often:
 | Setup quirks of the dev environment, such as env vars it needs | A file-by-file tour of the codebase |
 | Traps and surprising behavior | Advice any engineer already follows |
 
-- **Pointer**: the include and exclude table in
-  [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md).
+- **Pointer**: the include list, and its test of what Claude cannot work out from the code, in
+  [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short).
 
 ## Build and test commands
 
@@ -128,7 +128,7 @@ matches, which layers may set it and which files it cannot exclude are read at t
 The audit recommends moving domain knowledge or workflows needed only sometimes out of CLAUDE.md
 and unscoped rules into a skill, which loads on demand.
 
-- **Pointer**: [Create skills](https://code.claude.com/docs/en/best-practices#create-skills),
+- **Pointer**: [Put team procedures in skills](https://code.claude.com/docs/en/best-practices#put-team-procedures-in-skills),
   [Set up rules](https://code.claude.com/docs/en/memory#set-up-rules).
 
 ## Hooks vs CLAUDE.md
@@ -136,7 +136,7 @@ and unscoped rules into a skill, which loads on demand.
 The audit recommends a hook, not a CLAUDE.md line, for anything that must happen every time: a
 CLAUDE.md line is advisory and a hook is deterministic.
 
-- **Pointer**: [Set up hooks](https://code.claude.com/docs/en/best-practices#set-up-hooks).
+- **Pointer**: [Enforce steps with hooks](https://code.claude.com/docs/en/best-practices#enforce-steps-with-hooks).
 
 ## InstructionsLoaded hook
 

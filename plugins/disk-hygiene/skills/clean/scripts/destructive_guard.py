@@ -2626,14 +2626,17 @@ def _bash_denial_guidance(
 
 # Claude Code keeps a skill-frontmatter hook registered for the rest of the
 # session, so the belt itself decides when it applies: only while this
-# session's clean run is open. A run opens when the belt admits a preview, an
-# apply or a handoff-apply, each naming in the session's marker the file whose
-# writing ends that step (the preview's plan, or the --report the mutation
-# writes), and when it admits a handoff-verify, which only the idle timeout
-# ends. The engine deletes the marker when the step ends the run (the report
-# is written, or the preview ends in manual-handoff-lane or blocked) and, on
-# any call, once the marker is past the idle timeout; the guard never deletes
-# one. Any other admitted engine call, a scan included, only restarts the idle
+# session's clean run is open. A handoff-verify opens the manual lane, a run
+# that records no end file, so only the idle timeout ends it. A preview, an
+# apply or a handoff-apply opens a run that names in the session's marker the
+# file whose writing ends that step (the preview's plan, or the --report the
+# mutation writes); while the manual lane is open, or its marker cannot be
+# read, one only restarts the idle clock and names no end file. The check and
+# the write run under the run-marker lock. The engine deletes the calling
+# session's marker when the step ends the run (the report is written, or the
+# preview ends in manual-handoff-lane or blocked) and, on any call, once that
+# marker is past the idle timeout; the guard never deletes one. Any other
+# admitted engine call, a scan included, only restarts the idle
 # clock of an open run, so a completed or refused scan with no preview after
 # it is a scan-only outcome. Releasing the belt opens no engine delete path:
 # the engine gate and the approval token still gate every engine mutation,
@@ -2645,8 +2648,11 @@ _RUN_IDLE_TIMEOUT_SECONDS = engine_grammar.RUN_IDLE_TIMEOUT_SECONDS
 
 
 def _run_marker_path(authority: str, session_id: str) -> Path:
-    safe = "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in session_id)
-    return Path(authority) / _RUN_MARKER_DIRNAME / f"{safe}.json"
+    return (
+        Path(authority)
+        / _RUN_MARKER_DIRNAME
+        / engine_grammar.run_marker_filename(session_id)
+    )
 
 
 def _record_run_step(
@@ -2681,18 +2687,23 @@ def _record_run_step(
             if _run_open(authority, session_id):
                 os.utime(marker)
             return
-        if ends_with is not None and _manual_lane_open(marker, authority, session_id):
-            # A step that did not open the manual lane cannot name its end: a
-            # preview ending in manual-handoff-lane, or a report, would delete
-            # the marker and drop the `ask` on the lane's PowerShell deletes.
-            os.utime(marker)
-            return
         if ends_with is not None:
             ends_with = os.path.abspath(os.path.expanduser(ends_with))
-        marker.parent.mkdir(parents=True, exist_ok=True)
-        marker.write_text(
-            json.dumps({"version": 1, "ends_with": ends_with}), encoding="utf-8"
-        )
+        # The lock spans the check and the write, so a verify admitted in the
+        # same parallel batch cannot land its marker between them.
+        with engine_grammar.run_marker_lock(marker.parent):
+            if ends_with is not None and _manual_lane_open(
+                marker, authority, session_id
+            ):
+                # A step that did not open the manual lane cannot name its
+                # end: a preview ending in manual-handoff-lane, or a report,
+                # would delete the marker and drop the `ask` on the lane's
+                # PowerShell deletes.
+                os.utime(marker)
+                return
+            marker.write_text(
+                json.dumps({"version": 1, "ends_with": ends_with}), encoding="utf-8"
+            )
     except Exception:  # noqa: BLE001 - run bookkeeping never changes a verdict
         # Residual: an unwritable data root leaves no marker, so the belt
         # stays off; the engine writes its snapshot and report there too.

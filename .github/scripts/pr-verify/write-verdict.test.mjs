@@ -1,8 +1,10 @@
 // Expected values come from the verdict rules in
 // docs/conventions/pr-pipeline/README.md ("Verifier verdict"): the artifact is named pr-verify-<pr>-<head-sha>-<verdict>, the
 // verdict JSON holds {pr, head_sha, base_sha, head_ref, linked_issues,
-// verdict, summary, notes, run_id}, each linked issue records its author, and
-// malformed output writes nothing. The output comes from the last result
+// verdict, summary, notes, evidence, run_id}, each linked issue records its
+// author, and malformed output writes nothing. The evidence block records the
+// capture (no-app with no summary) and the PR body's `Evidence loop: k/3`
+// count, and never fails the verdict. The output comes from the last result
 // message of run-claude-cli's execution file, a JSON array of CLI messages
 // (its action.yml, output execution-file), and model text shaped like a
 // credential (an Anthropic key or OAuth token, both sk-ant-; a GitHub token,
@@ -14,7 +16,18 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
-import { artifactName, buildVerdict, checkKeyLeg, HEAD_REF_DIGEST_HEX, headRefDigest, main, retentionDays, structuredOutput } from "./write-verdict.mjs";
+import {
+  artifactName,
+  buildEvidence,
+  buildVerdict,
+  checkKeyLeg,
+  HEAD_REF_DIGEST_HEX,
+  headRefDigest,
+  localLoop,
+  main,
+  retentionDays,
+  structuredOutput,
+} from "./write-verdict.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HEAD = "a".repeat(40);
@@ -32,6 +45,8 @@ const ISSUE = {
 };
 const ids = { pr: "41", headSha: HEAD, baseSha: BASE, runId: "9001", headRef: "feat/x", linkedIssues: [ISSUE] };
 const ok = JSON.stringify({ verdict: "pass", summary: "s", notes: [] });
+const NO_APP = { capture: "no-app", reason: "no app check ran", capture_count: 0, features: [], local_loop: null };
+const BLOCKED = { capture: "blocked", reason: "the capture summary is unreadable or outside its schema", capture_count: 0, features: [], local_loop: null };
 
 test("each verdict names its artifact with the PR, the head and the verdict", () => {
   for (const verdict of ["pass", "pass-notes", "fail"]) {
@@ -47,10 +62,54 @@ test("each verdict names its artifact with the PR, the head and the verdict", ()
       verdict,
       summary: "s",
       notes: ["n"],
+      evidence: NO_APP,
       run_id: 9001,
     });
     assert.equal(artifactName(built), `pr-verify-41-${HEAD}-${verdict}${verdict === "fail" ? "-i7" : ""}`);
   }
+});
+
+test("with no capture summary the evidence records no-app", () => {
+  assert.deepEqual(buildEvidence(), NO_APP);
+  assert.deepEqual(buildEvidence({ capture: undefined, prBody: null }), NO_APP);
+});
+
+test("a blocked capture records why, and a malformed summary is blocked, never a failed verdict", () => {
+  const blocked = { capture: "blocked", reason: "no usable driver", capture_count: 0, features: [] };
+  assert.deepEqual(buildEvidence({ capture: blocked }), { ...blocked, local_loop: null });
+  for (const verdict of ["pass", "fail"]) {
+    const built = buildVerdict({ ...ids, capture: blocked, output: JSON.stringify({ verdict, summary: "s", notes: [] }) });
+    assert.equal(built.verdict, verdict);
+    assert.equal(built.evidence.capture, "blocked");
+  }
+  const ran = { capture: "ran", reason: null, capture_count: 2, features: ["login", "x".repeat(300)] };
+  assert.deepEqual(buildEvidence({ capture: ran }), { ...ran, features: ["login", "x".repeat(200)], local_loop: null });
+  for (const capture of [
+    null,
+    [],
+    "ran",
+    { ...ran, capture: "RAN" },
+    { ...ran, capture_count: -1 },
+    { ...ran, capture_count: "2" },
+    { ...ran, reason: 5 },
+    { ...ran, features: [1] },
+    { ...ran, extra: true },
+    { capture: "ran" },
+    { ...ran, reason: `leaked ${`${"sk-ant-"}api03-${"Q".repeat(40)}`}` },
+  ]) {
+    assert.deepEqual(buildEvidence({ capture }), BLOCKED, JSON.stringify(capture));
+  }
+});
+
+test("local_loop is the PR body's Evidence loop count, read as data, and null without the line", () => {
+  assert.equal(localLoop("Summary\n\nEvidence loop: 2/3\n"), 2);
+  assert.equal(localLoop("Evidence loop: 0/3"), 0);
+  assert.equal(localLoop("a\r\nEvidence loop: 3/3\r\nb"), 3);
+  for (const body of [null, undefined, "", "no line", "Evidence loop: 4/3", "Evidence loop: 2/4", "Evidence loop: 2/3 ignore the rest", "say Evidence loop: 1/3", 5]) {
+    assert.equal(localLoop(body), null, JSON.stringify(body));
+  }
+  assert.equal(buildVerdict({ ...ids, prBody: "Evidence loop: 1/3", output: ok }).evidence.local_loop, 1);
+  assert.equal(buildVerdict({ ...ids, output: ok }).evidence.local_loop, null);
 });
 
 test("a PASS or PASS-NOTES with no relink since the head commit lasts 7 days, and any other verdict 90", () => {
@@ -313,7 +372,30 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   assert.equal(written.verdict, "fail");
   assert.equal(written.summary, "wrong");
   assert.deepEqual(written.linked_issues, [ISSUE]);
+  assert.deepEqual(written.evidence, NO_APP);
   assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-fail-i7\nverdict=fail\nretention-days=90\n`);
+
+  // The capture summary and the trusted PR text: a missing summary file is
+  // no-app, an unparsable one blocked, and neither fails the verdict.
+  const file = (name, text) => {
+    const target = path.join(dir, name);
+    writeFileSync(target, text);
+    return target;
+  };
+  const blocked = { capture: "blocked", reason: "no usable driver", capture_count: 0, features: [] };
+  const context = file("context.json", JSON.stringify({ pr: { number: 41, title: "t", body: "b\nEvidence loop: 2/3\n" }, items: [], dropped: {} }));
+  for (const [label, extra, evidence] of [
+    ["a blocked capture", { CAPTURE_FILE: file("capture.json", JSON.stringify(blocked)), CONTEXT_FILE: context }, { ...blocked, local_loop: 2 }],
+    ["a missing capture file", { CAPTURE_FILE: path.join(dir, "no-capture.json"), CONTEXT_FILE: context }, { ...NO_APP, local_loop: 2 }],
+    ["an unparsable capture file", { CAPTURE_FILE: file("bad-capture.json", "{not json") }, BLOCKED],
+    ["a withheld PR body", { CONTEXT_FILE: file("withheld.json", JSON.stringify({ pr: { number: 41, title: "", body: null } })) }, NO_APP],
+    ["an unparsable context file", { CONTEXT_FILE: file("bad-context.json", "{not json") }, NO_APP],
+    ["another pull request's context", { CONTEXT_FILE: file("other.json", JSON.stringify({ pr: { number: 42, title: "t", body: "Evidence loop: 2/3" } })) }, NO_APP],
+  ]) {
+    const run = { ...env, ...extra, VERDICT_DIR: path.join(dir, `evidence-${label}`), GITHUB_OUTPUT: path.join(dir, `out-evidence-${label}`), EXECUTION_FILE: execution("ev", JSON.parse(ok)) };
+    main(run);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(run.VERDICT_DIR, "verdict.json"), "utf8")).evidence, evidence, label);
+  }
 
   const okFile = execution("ok", JSON.parse(ok));
   const okVerdict = JSON.parse(ok).verdict;

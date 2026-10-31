@@ -104,8 +104,8 @@ disagree on the reference-file length above which a TOC is expected.
   for what belongs in CLAUDE.md, see
   [When to add to CLAUDE.md](https://code.claude.com/docs/en/memory#when-to-add-to-claude-md); for
   the ignored-rule symptom, see
-  [Write an effective CLAUDE.md](https://code.claude.com/docs/en/best-practices#write-an-effective-claude-md).
-- **As of**: 2026-10-01
+  [Keep CLAUDE.md short](https://code.claude.com/docs/en/best-practices#keep-claude-md-short).
+- **As of**: 2026-10-30
 - **Recheck trigger**: one of those sections stops supporting the trigger that cites it.
 
 Mixed-concern signals *(corroborated)*: one category per skill (a skill that straddles several
