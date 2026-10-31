@@ -45,9 +45,9 @@ name: pr-verify
 # A diff over one judgment's read budget is judged in chunks, each its own
 # run-claude-cli step in the same job, on its own prompt, against the same
 # spec (chunk-diff.sh, write-verdict.mjs mergeChunks): any chunk's fail fails
-# the head, and a chunk that fails, skips a part or leaves no verdict leaves
-# none for the head, so size alone never writes a fail. A head of two chunks
-# or more also needs a final judge, with no diff, over the spec and every
+# the head, and a chunk that passes short of every part or leaves no output
+# leaves no verdict for the head, so size alone never writes a fail. A head of
+# two chunks or more also needs a final judge, with no diff, over the spec and every
 # chunk's result (spec-prompt.md): an item no chunk delivers fails the head,
 # and with no output from that judge there is no verdict.
 # The job tokens can only read. Every script and local action comes from the
@@ -227,6 +227,9 @@ jobs:
           # a token is at least a byte, so a part this size comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
+          # Read may cut a long line short, so a longer one continues on
+          # marked lines (chunk-diff.sh), at pr-review-main.yml's length.
+          LONG_LINE_BYTES: "1800"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
@@ -414,7 +417,8 @@ jobs:
           echo "::notice::check-intent-subscription judges on the subscription token"
 
       # One lane record per run: a clean handoff is recorded by the
-      # subscription job; a handoff with a denial on the key leg, here: a
+      # subscription job; a handoff the check above refused, on a denial or
+      # a log it cannot read, here: a
       # credit stop as rate-limit, the class report-lane-outcome knows for
       # it, and auth as auth.
       - name: Report the judgment's outcome
@@ -447,10 +451,13 @@ jobs:
       # A fail the head can count ends the judgment here (write-verdict.mjs
       # checkChunk): the later chunks, the final judge and any handoff are
       # skipped, and "Write the verdict" runs on it, so no later step can lose
-      # it to a re-run. A step that fails before it does not stop the check.
+      # it to a re-run. A step that fails before it does not stop the check,
+      # and a judge step run-claude-cli failed with no lane class, having left
+      # an execution file, stopped on its credential scan, so its fail is read
+      # like any other.
       - name: Read chunk 1's verdict
         id: chunk-fail
-        if: ${{ !cancelled() && steps.judge.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && steps.judge.outputs.lane-class == '' && steps.judge.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
@@ -551,7 +558,7 @@ jobs:
 
       - name: Read chunk 2's verdict
         id: chunk-fail-2
-        if: ${{ !cancelled() && steps.judge-2.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.judge-2.outcome == 'success' || (steps.judge-2.outcome == 'failure' && steps.judge-2.outputs.lane-class == '' && steps.judge-2.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-2.outputs.execution-file }}
@@ -649,7 +656,7 @@ jobs:
 
       - name: Read chunk 3's verdict
         id: chunk-fail-3
-        if: ${{ !cancelled() && steps.judge-3.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.judge-3.outcome == 'success' || (steps.judge-3.outcome == 'failure' && steps.judge-3.outputs.lane-class == '' && steps.judge-3.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-3.outputs.execution-file }}
@@ -748,7 +755,7 @@ jobs:
 
       - name: Read chunk 4's verdict
         id: chunk-fail-4
-        if: ${{ !cancelled() && steps.judge-4.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.judge-4.outcome == 'success' || (steps.judge-4.outcome == 'failure' && steps.judge-4.outputs.lane-class == '' && steps.judge-4.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-4.outputs.execution-file }}
@@ -763,7 +770,7 @@ jobs:
       # chunk's checked result and fails an item no chunk delivers. The results
       # are model text, checked as any verdict is and read as data; a chunk that
       # fails the check fails here, so the head gets no verdict. The deny rule
-      # keeps this judge off the diff, and a denial voids the verdict.
+      # keeps this judge off the diff, and a denial voids a pass or pass-notes.
       - name: Write the chunk results
         id: chunk-results
         if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && steps.chunk-fail.outputs.fail != 'true' && steps.chunk-fail-2.outputs.fail != 'true' && steps.chunk-fail-3.outputs.fail != 'true' && steps.chunk-fail-4.outputs.fail != 'true'
@@ -781,6 +788,8 @@ jobs:
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
+          # The diff step's, so each file is one Read (workflow.test.mjs).
+          PART_BYTES: "15000"
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
@@ -885,7 +894,7 @@ jobs:
       # script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
-        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-fail-2.outputs.fail == 'true' || steps.chunk-fail-3.outputs.fail == 'true' || steps.chunk-fail-4.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-spec.outcome == 'success'))) }}
+        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-fail-2.outputs.fail == 'true' || steps.chunk-fail-3.outputs.fail == 'true' || steps.chunk-fail-4.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-spec.outcome == 'success' || (steps.judge-spec.outcome == 'failure' && steps.judge-spec.outputs.lane-class == '' && steps.judge-spec.outputs.execution-file != ''))))) }}
         env:
           # Each chunk's files in chunk order. A counted fail needs no others;
           # anything else needs every chunk and the final judge.
@@ -904,6 +913,7 @@ jobs:
           # The whole-spec judgment, which a head of two chunks or more must have.
           FINAL_EXECUTION_FILE: ${{ steps.judge-spec.outputs.execution-file }}
           FINAL_LOG_FILE: ${{ steps.judge-spec.outputs.log-file }}
+          FINAL_OUTCOME: ${{ steps.judge-spec.outcome }}
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
@@ -913,6 +923,7 @@ jobs:
           RELINK_SINCE_HEAD: ${{ steps.pr.outputs.relink-since-head }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
@@ -1113,6 +1124,9 @@ jobs:
           # a token is at least a byte, so a part this size comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
+          # Read may cut a long line short, so a longer one continues on
+          # marked lines (chunk-diff.sh), at pr-review-main.yml's length.
+          LONG_LINE_BYTES: "1800"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
@@ -1286,7 +1300,8 @@ jobs:
           echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
 
       # One lane record per run: a clean handoff is recorded by the fallback
-      # job; a handoff with a denial on the subscription leg, here.
+      # job; a handoff the check above refused, on a denial or a log it
+      # cannot read, here.
       - name: Report the judgment's outcome
         if: (steps.judge.outcome == 'success' || steps.judge.outcome == 'failure') && (steps.judge.outputs.handoff != 'true' || steps.sub-leg.outcome == 'failure')
         continue-on-error: true
@@ -1319,10 +1334,13 @@ jobs:
       # A fail the head can count ends the judgment here (write-verdict.mjs
       # checkChunk): the later chunks, the final judge and any handoff are
       # skipped, and "Write the verdict" runs on it, so no later step can lose
-      # it to a re-run. A step that fails before it does not stop the check.
+      # it to a re-run. A step that fails before it does not stop the check,
+      # and a judge step run-claude-cli failed with no lane class, having left
+      # an execution file, stopped on its credential scan, so its fail is read
+      # like any other.
       - name: Read chunk 1's verdict
         id: chunk-fail
-        if: ${{ !cancelled() && steps.judge.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && steps.judge.outputs.lane-class == '' && steps.judge.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
@@ -1421,7 +1439,7 @@ jobs:
 
       - name: Read chunk 2's verdict
         id: chunk-fail-2
-        if: ${{ !cancelled() && steps.judge-2.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.judge-2.outcome == 'success' || (steps.judge-2.outcome == 'failure' && steps.judge-2.outputs.lane-class == '' && steps.judge-2.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-2.outputs.execution-file }}
@@ -1517,7 +1535,7 @@ jobs:
 
       - name: Read chunk 3's verdict
         id: chunk-fail-3
-        if: ${{ !cancelled() && steps.judge-3.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.judge-3.outcome == 'success' || (steps.judge-3.outcome == 'failure' && steps.judge-3.outputs.lane-class == '' && steps.judge-3.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-3.outputs.execution-file }}
@@ -1614,7 +1632,7 @@ jobs:
 
       - name: Read chunk 4's verdict
         id: chunk-fail-4
-        if: ${{ !cancelled() && steps.judge-4.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.judge-4.outcome == 'success' || (steps.judge-4.outcome == 'failure' && steps.judge-4.outputs.lane-class == '' && steps.judge-4.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-4.outputs.execution-file }}
@@ -1629,7 +1647,7 @@ jobs:
       # chunk's checked result and fails an item no chunk delivers. The results
       # are model text, checked as any verdict is and read as data; a chunk that
       # fails the check fails here, so the head gets no verdict. The deny rule
-      # keeps this judge off the diff, and a denial voids the verdict.
+      # keeps this judge off the diff, and a denial voids a pass or pass-notes.
       - name: Write the chunk results
         id: chunk-results
         if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && steps.chunk-fail.outputs.fail != 'true' && steps.chunk-fail-2.outputs.fail != 'true' && steps.chunk-fail-3.outputs.fail != 'true' && steps.chunk-fail-4.outputs.fail != 'true'
@@ -1647,6 +1665,8 @@ jobs:
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
+          # The diff step's, so each file is one Read (workflow.test.mjs).
+          PART_BYTES: "15000"
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
@@ -1749,7 +1769,7 @@ jobs:
       # script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
-        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-fail-2.outputs.fail == 'true' || steps.chunk-fail-3.outputs.fail == 'true' || steps.chunk-fail-4.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-spec.outcome == 'success'))) }}
+        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-fail-2.outputs.fail == 'true' || steps.chunk-fail-3.outputs.fail == 'true' || steps.chunk-fail-4.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-spec.outcome == 'success' || (steps.judge-spec.outcome == 'failure' && steps.judge-spec.outputs.lane-class == '' && steps.judge-spec.outputs.execution-file != ''))))) }}
         env:
           # Each chunk's files in chunk order. A counted fail needs no others;
           # anything else needs every chunk and the final judge.
@@ -1768,6 +1788,7 @@ jobs:
           # The whole-spec judgment, which a head of two chunks or more must have.
           FINAL_EXECUTION_FILE: ${{ steps.judge-spec.outputs.execution-file }}
           FINAL_LOG_FILE: ${{ steps.judge-spec.outputs.log-file }}
+          FINAL_OUTCOME: ${{ steps.judge-spec.outcome }}
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
@@ -1777,6 +1798,7 @@ jobs:
           RELINK_SINCE_HEAD: ${{ steps.pr.outputs.relink-since-head }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
@@ -1968,6 +1990,9 @@ jobs:
           # a token is at least a byte, so a part this size comes back whole.
           PART_BYTES: "15000"
           PART_LINES: "1000"
+          # Read may cut a long line short, so a longer one continues on
+          # marked lines (chunk-diff.sh), at pr-review-main.yml's length.
+          LONG_LINE_BYTES: "1800"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
@@ -2153,10 +2178,13 @@ jobs:
       # A fail the head can count ends the judgment here (write-verdict.mjs
       # checkChunk): the later chunks, the final judge and any handoff are
       # skipped, and "Write the verdict" runs on it, so no later step can lose
-      # it to a re-run. A step that fails before it does not stop the check.
+      # it to a re-run. A step that fails before it does not stop the check,
+      # and a judge step run-claude-cli failed with no lane class, having left
+      # an execution file, stopped on its credential scan, so its fail is read
+      # like any other.
       - name: Read chunk 1's verdict
         id: chunk-fail
-        if: ${{ !cancelled() && steps.judge.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && steps.judge.outputs.lane-class == '' && steps.judge.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
@@ -2242,7 +2270,7 @@ jobs:
 
       - name: Read chunk 2's verdict
         id: chunk-fail-2
-        if: ${{ !cancelled() && steps.judge-2.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.judge-2.outcome == 'success' || (steps.judge-2.outcome == 'failure' && steps.judge-2.outputs.lane-class == '' && steps.judge-2.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-2.outputs.execution-file }}
@@ -2324,7 +2352,7 @@ jobs:
 
       - name: Read chunk 3's verdict
         id: chunk-fail-3
-        if: ${{ !cancelled() && steps.judge-3.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.judge-3.outcome == 'success' || (steps.judge-3.outcome == 'failure' && steps.judge-3.outputs.lane-class == '' && steps.judge-3.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-3.outputs.execution-file }}
@@ -2406,7 +2434,7 @@ jobs:
 
       - name: Read chunk 4's verdict
         id: chunk-fail-4
-        if: ${{ !cancelled() && steps.judge-4.outcome == 'success' }}
+        if: ${{ !cancelled() && (steps.judge-4.outcome == 'success' || (steps.judge-4.outcome == 'failure' && steps.judge-4.outputs.lane-class == '' && steps.judge-4.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-4.outputs.execution-file }}
@@ -2421,7 +2449,7 @@ jobs:
       # chunk's checked result and fails an item no chunk delivers. The results
       # are model text, checked as any verdict is and read as data; a chunk that
       # fails the check fails here, so the head gets no verdict. The deny rule
-      # keeps this judge off the diff, and a denial voids the verdict.
+      # keeps this judge off the diff, and a denial voids a pass or pass-notes.
       - name: Write the chunk results
         id: chunk-results
         if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && steps.chunk-fail.outputs.fail != 'true' && steps.chunk-fail-2.outputs.fail != 'true' && steps.chunk-fail-3.outputs.fail != 'true' && steps.chunk-fail-4.outputs.fail != 'true'
@@ -2439,6 +2467,8 @@ jobs:
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
+          # The diff step's, so each file is one Read (workflow.test.mjs).
+          PART_BYTES: "15000"
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
@@ -2524,7 +2554,7 @@ jobs:
       # script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
-        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-fail-2.outputs.fail == 'true' || steps.chunk-fail-3.outputs.fail == 'true' || steps.chunk-fail-4.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-spec.outcome == 'success'))) }}
+        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-fail-2.outputs.fail == 'true' || steps.chunk-fail-3.outputs.fail == 'true' || steps.chunk-fail-4.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-spec.outcome == 'success' || (steps.judge-spec.outcome == 'failure' && steps.judge-spec.outputs.lane-class == '' && steps.judge-spec.outputs.execution-file != ''))))) }}
         env:
           # Each chunk's files in chunk order. A counted fail needs no others;
           # anything else needs every chunk and the final judge.
@@ -2543,6 +2573,7 @@ jobs:
           # The whole-spec judgment, which a head of two chunks or more must have.
           FINAL_EXECUTION_FILE: ${{ steps.judge-spec.outputs.execution-file }}
           FINAL_LOG_FILE: ${{ steps.judge-spec.outputs.log-file }}
+          FINAL_OUTCOME: ${{ steps.judge-spec.outcome }}
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
@@ -2552,6 +2583,7 @@ jobs:
           RELINK_SINCE_HEAD: ${{ steps.pr.outputs.relink-since-head }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
