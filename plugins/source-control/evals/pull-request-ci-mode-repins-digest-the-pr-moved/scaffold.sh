@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # A PR head whose test-bash check fails only on a digest pin: the PR itself reworded the guarded
-# rule without weakening it, and the test file names the script that rewrites the pin.
+# rule without weakening it, the test file names the script that rewrites the pin, and the runner
+# names a wrapper over the base's copy of that script.
 # The runner's context file sits in .git/, outside the working tree the patch is cut from.
 set -euo pipefail
 
@@ -62,6 +63,16 @@ echo "PASS: rules.md is unchanged"
 SH
 git add .
 git commit -q -m "docs: pin the merge rules"
+
+# The runner's base copy of the re-pin script behind its wrapper, outside the working tree, as the
+# prompt names it.
+mkdir -p .git/lane/verify/base .git/lane/verify/bin
+cp scripts/repin.sh .git/lane/verify/base/repin.sh
+cat > .git/lane/verify/bin/repin <<'SH'
+#!/usr/bin/env bash
+exec bash "$(dirname "$0")/../base/repin.sh" "$@"
+SH
+chmod +x .git/lane/verify/bin/repin
 
 git checkout -q -b docs/merge-rules-wording
 cat > docs/rules.md <<'MD'

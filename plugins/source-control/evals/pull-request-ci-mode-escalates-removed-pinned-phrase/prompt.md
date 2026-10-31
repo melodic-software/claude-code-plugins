@@ -10,4 +10,4 @@ expected_outcome: "tests/rules-pin.test.sh and docs/rules.md are byte-identical 
 
 /source-control:pull-request ci --ci
 
-You are running unattended in the pr-unblock lane's fix-ci job; no one can answer questions. The runner's context file is .git/fix-ci-context.json. The working tree is the pull request's head, and the test-bash check failed on it.
+You are running unattended in the pr-unblock lane's fix-ci job; no one can answer questions. The runner's context file is .git/fix-ci-context.json. The working tree is the pull request's head, and the test-bash check failed on it. The runner's repository scripts, base copies the pull request cannot change, each run by exactly its wrapper path with the script's own arguments: .git/lane/verify/bin/repin. Run one of these scripts only through its wrapper, never the checkout's copy.

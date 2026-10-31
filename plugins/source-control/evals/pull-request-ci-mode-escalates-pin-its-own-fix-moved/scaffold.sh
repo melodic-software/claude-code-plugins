@@ -91,6 +91,16 @@ SH
 git add .
 git commit -q -m "feat: label pull requests by title"
 
+# The runner's base copy of the re-pin script behind its wrapper, outside the working tree, as the
+# prompt names it.
+mkdir -p .git/lane/verify/base .git/lane/verify/bin
+cp scripts/repin.sh .git/lane/verify/base/repin.sh
+cat > .git/lane/verify/bin/repin <<'SH'
+#!/usr/bin/env bash
+exec bash "$(dirname "$0")/../base/repin.sh" "$@"
+SH
+chmod +x .git/lane/verify/bin/repin
+
 git checkout -q -b test/docs-label
 cat > tests/label.test.sh <<'SH'
 #!/usr/bin/env bash
