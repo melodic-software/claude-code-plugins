@@ -42,7 +42,7 @@ and the `reference/` spokes already carry them.
 
 ## Modes and arguments
 
-An invocation is `[mode] [scope]`; mode and scope are orthogonal. Combine them freely (`worker owner/repo`, `worker #87`, etc.).
+An invocation is `[mode] [scope]`; mode and scope are orthogonal. Combine them freely (`worker owner/repo`, `worker #87`, etc.). A leading `unattended` is neither a mode nor a scope: it is the caller declaring that nobody is present, which governs the `/autofix-pr` offer under "Boundary". Take it out first, then parse the rest, so `unattended worker #87` runs the `worker` tier on `#87`.
 
 | Mode | What it does |
 | --- | --- |

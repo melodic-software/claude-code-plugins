@@ -74,7 +74,9 @@ in [reference/native-auto-mode-setup.md](reference/native-auto-mode-setup.md).
 
 The draft is built from **the interview plus the effective merge** (`audit-permission-state`), and
 nothing else. An optional argument, `environment`, `allow`, `soft_deny`, or `hard_deny`, names one
-section to focus the interview on.
+section to focus the interview on. A leading `unattended` is not a section: it is the caller
+declaring that nobody is present, which governs the `/auto-mode-setup` offer under "Routing". Take
+it out first, then read the rest.
 
 There is no history input: a read of "the repo's observed prompt and denial history" names no actual
 location, and an unnamed read surface in a skill shipped to consumers is unreviewable.

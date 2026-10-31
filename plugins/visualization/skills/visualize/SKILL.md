@@ -112,7 +112,8 @@ HTML file → published Artifact**. Selection layers, first hit wins:
 
 1. **Explicit argument**. A `terminal` / `file` / `artifact` argument forces the tier. With
    no argument, the rungs below decide. The argument picks only the medium; name a form in the
-   request itself.
+   request itself. A leading `unattended` is neither a tier nor part of the target: it is the
+   caller declaring that nobody is present. Take it out first, then read the rest.
 2. **Configured preference**. `${user_config.medium}`. Claude Code text-substitutes
    the configured value into this line; if it still shows the literal
    `${user_config.medium}` token, is empty, or is `auto` (the default), the option

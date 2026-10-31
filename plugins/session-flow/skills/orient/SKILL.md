@@ -78,7 +78,9 @@ and point at `/session-flow:reanchor` to verify which still holds.
 ## Catch-up scope. `/session-flow:orient catch-up`
 
 The four-part briefing above stays the default. This scope runs **only** on the explicit
-argument `catch-up`; a bare "catch me up" keeps the four-part briefing. It answers "what
+argument `catch-up`; a bare "catch me up" keeps the four-part briefing. A leading `unattended`
+is not that argument: it is the caller declaring that nobody is present, so take it out first and
+match `catch-up` against the rest. It answers "what
 happened since my last message, and what needs me", still read-only.
 
 **Word cap.** The whole reply stays within `${user_config.orient_catch_up_word_cap}` words,
