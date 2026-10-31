@@ -17,11 +17,11 @@ graders:
     flags: 'im'
   - name: flags-ghost-ref
     type: regex
-    pattern: '^(?=[^\n]*payments-retry-spike)[^\n]*\b(?:ghost|dangling|broken|slice|promote|permalink|strip|durable|ephemeral|temporary|delete|remove|replace)\b'
+    pattern: '^(?=[^\n]*payments-retry-spike)[^\n]*(?:\n[^\n]*){0,2}?\b(?:ghost|dangling|broken|slice|promote|permalink|strip|durable|ephemeral|temporary|delete|remov(?:e|ed|ing)|replace)\b'
     flags: 'im'
   - name: leaves-token-guardrail
     type: regex
-    pattern: '^(?![^\n]*\b(?:guardrail|carve-?out|not (?:a )?(?:finding|flagged|noise|clutter)|leave|keep|fine|legitimate|exempt|no change|unchanged|stays?)\b)(?=[^\n]*API tokens)[^\n]*\b(?:negation|rewrite|reword|rephrase|positive|delete|remove|clutter)\b'
+    pattern: '^(?![^\n]*\b(?:guardrail|carve-?out|not (?:a )?(?:finding|flagged|noise|clutter)|leave|keep|fine|legitimate|exempt|no change|unchanged|stays?|no positive)\b)(?=[^\n]*API tokens)[^\n]*\b(?:negation|rewrite|reword|rephrase|positive|delete|remove|clutter)\b'
     flags: 'im'
     match: not_contains
   - name: leaves-handoffs-root
