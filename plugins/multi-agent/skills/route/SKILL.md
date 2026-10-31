@@ -24,8 +24,8 @@ read it when a note or a user question concerns a key, a layer or the guard.
 - `session=<alias>`: the session model's alias. When the caller did not pass
   one, fill it from your own model ID: the family name in it (`opus`,
   `sonnet`, `haiku`, `fable`) is the alias. When you cannot tell, omit it; the
-  resolver then treats the session as frontier, which keeps fan-out stages off
-  the session model.
+  resolver then treats the session as frontier, so fan-out stages name
+  `fanout.model`.
 
 ## Run
 
@@ -76,9 +76,10 @@ passes its effort as `effort`.
   [sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model)
   and [model config: set the effort level](https://code.claude.com/docs/en/model-config#set-the-effort-level)
   live.
-- **As of**: 2026-10-10
+- **As of**: 2026-10-31
 - **Recheck trigger**: either sub-agents section changes which source wins
-  for a subagent's model or effort, or the model-config section states
+  for a subagent's model or effort or when a family alias resolves to the
+  session's model, or the model-config section states
   whether an effort cap limits the per-call `effort`.
 
 ## What this skill does NOT do
