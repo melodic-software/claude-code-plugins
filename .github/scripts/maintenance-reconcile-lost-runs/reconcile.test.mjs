@@ -1898,3 +1898,29 @@ test("a carry whose download fails reads every run", async () => {
   assert.equal(code, 0);
   assert.deepEqual(jobReads(calls), [202, 302, 401, 402]);
 });
+
+test("a lane run listing no job settles only once its last change is a pass interval old", async () => {
+  const empty = (id, updated) => ({ ...verifyRun(id, { conclusion: "startup_failure", updated }), jobs: [] });
+  const fresh = new Date(NOW - 5 * 60_000).toISOString();
+  const old = new Date(NOW - 60 * 60_000).toISOString();
+  const { code, settled, reruns } = await reconcile({ pulls: [], runs: [empty(205, fresh), empty(206, old)], carry: null });
+  assert.equal(code, 0);
+  assert.deepEqual(ids(settled), [206]);
+  assert.deepEqual(reruns, []);
+});
+
+test("a failed job that lost its runner with no steps listed is held but not settled", async () => {
+  const lost = {
+    id: 5001,
+    name: "verify",
+    status: "completed",
+    conclusion: "failure",
+    runner_id: 7,
+    steps: [],
+    notes: [{ annotation_level: "failure", message: "The self-hosted runner lost communication with the server." }],
+  };
+  const { code, settled, reruns } = await reconcile({ pulls: [], runs: [{ ...verifyRun(207), jobs: [lost] }], carry: null });
+  assert.equal(code, 0);
+  assert.deepEqual(settled.runs, []);
+  assert.deepEqual(reruns, []);
+});

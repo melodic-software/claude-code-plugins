@@ -422,13 +422,19 @@ const withAnnotations = (call, repo, jobs, wanted = () => true) =>
   );
 
 const NOT_STARTED = "before any of its jobs started";
+// The schedule's interval: a listing of no jobs read this long after its run
+// last changed is final, as one read sooner may not yet show them.
+export const PASS_MINUTES = 30;
 
 // Why the run's first attempt must not be re-run, with whether that hold is
 // final (`settle`), or undefined when it may be re-run: no job started any
-// step, or a verdict write started. An unreadable listing throws. A judge or
-// write hold only grows truer with more data; a not-started hold is final only
-// on a whole listing whose steps all listed.
-async function holdReason(call, repo, runId, judge) {
+// step, or a verdict write started. An unreadable listing throws. A judge
+// hold rests on a cut that a lost runner left, which stays cut for good, and
+// a write hold on a step that started, which stays started; both are final.
+// A not-started hold is final only on a whole listing whose steps all listed,
+// and, when it lists no job, only once `settled` (the run's last change is a
+// pass interval old).
+async function holdReason(call, repo, runId, judge, settled) {
   const listing = await call("GET", `/repos/${repo}/actions/runs/${runId}/attempts/1/jobs?per_page=100`);
   if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
     throw new Error("its job listing is not one complete page");
@@ -456,7 +462,7 @@ async function holdReason(call, repo, runId, judge) {
   if (started.some((s) => s.name === WRITE_STEP)) {
     return { reason: "after its verdict write started, so a re-run would judge the head again", settle: true };
   }
-  return started.length === 0 ? { reason: NOT_STARTED, settle: wholeListing(listing) && cut.length === 0 } : undefined;
+  return started.length === 0 ? { reason: NOT_STARTED, settle: wholeListing(listing) && cut.length === 0 && (jobs.length > 0 || settled) } : undefined;
 }
 
 // The start times of the runs that uploaded the PR's unexpired pr-verify
@@ -791,7 +797,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           continue;
         }
         try {
-          const held = await holdReason(call, repo, r.id, judge);
+          const held = await holdReason(call, repo, r.id, judge, now - Date.parse(r.updated_at) >= PASS_MINUTES * 60_000);
           if (held) {
             if (held.settle) {
               settle.push({ id: r.id, reason: held.reason });
