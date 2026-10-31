@@ -369,9 +369,11 @@ threat model: throughput phase"):
 <!-- spellchecker:on -->
 
 Trust holds (untrusted provenance, an untrusted spec) are security controls the owner keeps, and so
-is the issue lane's hold on a patch carrying a credential shape (`patch-credential` in
+is the issue lane's hold on a patch carrying a credential shape or not proven clear of one
+(`patch-credential` and `scan-refused-output` in
 [`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json)), a token-leak
-path under section 10.
+path under section 10. A patch proven clear, or a fault that says nothing about credentials,
+retries.
 
 The pr-merge gate keeps two more holds for the owner, each a reason
 [`babysit_risk.person_reasons`](../../../plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py)

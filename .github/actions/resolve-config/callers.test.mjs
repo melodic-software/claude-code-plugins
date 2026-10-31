@@ -3078,6 +3078,7 @@ test("scan job: a refusal names an oversize patch, and every other refusal `outp
   const at = (decodeRefused, outcomes = {}) =>
     evaluate(refused, {
       "steps.decode.outputs.refused": decodeRefused,
+      "steps.leak-scan.outputs.refused": "",
       "steps.open.outcome": "success",
       "steps.decode.outcome": "success",
       "steps.leak-scan.outcome": "success",
@@ -3087,6 +3088,7 @@ test("scan job: a refusal names an oversize patch, and every other refusal `outp
   assert.equal(at("", { "steps.decode.outcome": "failure" }), "output");
   assert.equal(at("", { "steps.open.outcome": "failure", "steps.decode.outcome": "skipped" }), "output");
   assert.equal(at("", { "steps.leak-scan.outcome": "failure" }), "output");
+  assert.equal(at("", { "steps.leak-scan.outcome": "failure", "steps.leak-scan.outputs.refused": "fault" }), "fault");
   assert.equal(at(""), "");
   assert.equal(at("", { "steps.open.outcome": "skipped", "steps.decode.outcome": "success", "steps.leak-scan.outcome": "skipped" }), "", "a run with nothing to open");
 });
@@ -3124,6 +3126,8 @@ test("scan refusal: a failed or cancelled scan's marker reaches the reply and ve
   assert.equal(runs(ctx("failure", "", "7")), true, "issue mode: report-outcome names the refusal");
   assert.equal(evaluate(write.env.REFUSED, ctx("failure")), "output", "a failed scan whose outputs did not arrive");
   assert.equal(evaluate(write.env.REFUSED, ctx("failure", "patch")), "patch");
+  assert.equal(evaluate(write.env.REFUSED, ctx("failure", "fault")), "fault");
+  assert.equal(evaluate(write.env.REFUSED, ctx("failure", "forged")), "output");
   const sub = (text, values) => text.replace(/\$\{\{([^}]*)\}\}/g, (_, expr) => String(evaluate(`\${{${expr}}}`, values)));
   // The marker's file name is one scanRefusal reads.
   assert.match(sub(write.env.MARKER, { ...ctx("failure"), "runner.temp": "/t" }).split("/").at(-1), /^scan-refused-[1-9][0-9]{0,4}(-rung-up)?\.txt$/);
@@ -3424,6 +3428,38 @@ test("leak scan: a key only the patch's binary hunk carries blocks, and a patch 
   assert.equal(stale.failed, "leak-scan: the patch does not apply to the head; nothing is uploaded or summarized");
 });
 
+// A fault names no credential, so it retries (refused `fault`), unless the
+// patch's blobs are unread: a binary hunk that does not apply, or a throw past
+// the apply stage. A label with credential: false that is no fault still holds.
+test("leak scan: a scan fault retries unless a binary hunk's bytes went unread, and a throw never replaces a hit", async (t) => {
+  const textDiff = "diff --git a/gone.txt b/gone.txt\n--- a/gone.txt\n+++ b/gone.txt\n@@ -1 +1 @@\n-a\n+b\n";
+  const gate = read("../../../lib/publish-gate.mjs");
+  const throwing = (first) => gate.replace("export function* changedBytes(git, from, to) {\n", `export function* changedBytes(git, from, to) {\n${first}\n  throw new Error("git died");\n`);
+  const stale = await scanWith(t, () => {}, undefined, { afterCollect: ({ temp }) => writeFileSync(join(temp, "patch", "patch.diff"), textDiff) });
+  assert.match(stale.failed, /does not apply/);
+  assert.equal(stale.outputs.refused, "fault", "a text-only patch that does not apply");
+  const binaryStale = await scanWith(t, () => {}, undefined, {
+    afterCollect: ({ temp }) => writeFileSync(join(temp, "patch", "patch.diff"), `${textDiff.split("--- a/")[0]}index 000..111\nGIT binary patch\nliteral 1\nHcmZQzU|;\n\n`),
+  });
+  assert.match(binaryStale.failed, /does not apply/);
+  assert.equal(binaryStale.outputs.refused, undefined, "a binary hunk that does not apply holds");
+  const api = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), Buffer.from([0, 1, 0])), "import 'data:text/javascript,1';\n");
+  assert.match(api.failed, /^leak-scan: no finished scan/);
+  assert.equal(api.outputs.refused, "fault", "a fault before the apply stage, even with a binary hunk in the patch");
+  const text = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "benign\n"), throwing(""));
+  assert.match(text.failed, /^leak-scan: no finished scan/);
+  assert.equal(text.outputs.refused, "fault", "a throw past the apply stage on a scanned text-only patch");
+  const binary = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), Buffer.from([0, 1, 0])), throwing(""));
+  assert.match(binary.failed, /^leak-scan: no finished scan/);
+  assert.equal(binary.outputs.refused, undefined, "a throw past the apply stage on a binary hunk holds");
+  const hit = await scanWith(t, ({ work }) => writeFileSync(join(work, "tracked.txt"), "benign\n"), throwing(`  yield Buffer.from(${JSON.stringify(KEY)});`));
+  assert.equal(hit.failed, "leak-scan: Anthropic key; nothing is uploaded or summarized\nrotate this credential");
+  assert.equal(hit.outputs.refused, undefined, "a throw after a hit keeps the hold");
+  const hidden = await scanWith(t, ({ temp }) => writeFileSync(join(temp, "skill-reply", "reply.txt"), `password = ${QUOT}hunter2-zz9${QUOT}\n`));
+  assert.match(hidden.failed, /^leak-scan: assignment hidden by markup or escapes/);
+  assert.equal(hidden.outputs.refused, undefined, "HIDDEN has credential: false and is no fault");
+});
+
 test("leak scan: an object planted under the name of the patch's blob never stands in for the hunk's bytes", async (t) => {
   const { inflateSync, deflateSync } = await import("node:zlib");
   const { createHash } = await import("node:crypto");
@@ -3662,7 +3698,7 @@ function withInputs(step, values) {
 
 // Runs the carry step, then the seal step as the composite runs it, on the
 // given files; returns the two steps' outputs and their log.
-function carry(t, files, { publicLine = CARRIER.publicLine, issue = false } = {}) {
+function carry(t, files, { publicLine = CARRIER.publicLine, issue = false, gate = read("../../../lib/publish-gate.mjs") } = {}) {
   const root = tempDir("carry-");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const temp = join(root, "temp");
@@ -3672,6 +3708,9 @@ function carry(t, files, { publicLine = CARRIER.publicLine, issue = false } = {}
   // The copy step's sealer and key, from the base.
   for (const file of ["action.yml", "seal.mjs"]) writeFileSync(join(temp, "seal-lane-output", file), readFileSync(new URL(`seal-lane-output/${file}`, ACTIONS)));
   writeFileSync(join(temp, "seal-lane-output", "scan-carrier.pub"), publicLine);
+  // The copy step's gate, from the base.
+  mkdirSync(join(temp, "read-patch"));
+  if (gate) writeFileSync(join(temp, "read-patch", "publish-gate.mjs"), gate);
   for (const [name, bytes] of Object.entries(files)) {
     const file = join(temp, name);
     if (bytes === "symlink") symlinkSync("/etc/hostname", file);
@@ -3686,6 +3725,7 @@ function carry(t, files, { publicLine = CARRIER.publicLine, issue = false } = {}
     PATCH_FILE: join(temp, "patch", "patch.diff"),
     CARRY_DIR: join(temp, "carry"),
     SEAL_DIR: join(temp, "seal-lane-output"),
+    PATCH_GATE: join(temp, "read-patch", "publish-gate.mjs"),
     // The step's issue-mode expression, as the runner would expand it.
     OUTCOME_DIR: issue ? join(temp, "work-outcome") : "",
     GITHUB_WORKSPACE: workspace,
@@ -3726,9 +3766,38 @@ test("pr-run-activity-read.yml: the carry step stages each payload within its ca
   assert.doesNotMatch(JSON.stringify(on.workflow_call.outputs), /carry-/);
 });
 
+// A patch over its cap never reaches the scan job, so the carry step's scan
+// says whether the refusal retries (`patch`) or holds (`output`), and only a
+// clean scan retries.
+test("scan job: an oversize patch is refused `patch` only after a clean carry scan; a credential, a binary hunk or a failed scan holds", async (t) => {
+  const over = (line) => Buffer.concat([Buffer.from(line), Buffer.alloc(262145, 0x61)]);
+  for (const [name, files, options, scan, refused] of [
+    ["clean", { "patch/patch.diff": Buffer.alloc(262145, 0x61) }, undefined, "clean", "patch"],
+    ["a credential past the cap", { "patch/patch.diff": Buffer.concat([Buffer.alloc(262145, 0x0a), Buffer.from(`+${KEY}\n`)]) }, undefined, "hit", "output"],
+    ["a binary hunk", { "patch/patch.diff": over("GIT binary patch\nliteral 4\n") }, undefined, "hit", "output"],
+    ["a gate that fails to load", { "patch/patch.diff": Buffer.alloc(262145, 0x61) }, { gate: "throw new Error('broken');\n" }, "hit", "output"],
+    ["no gate", { "patch/patch.diff": Buffer.alloc(262145, 0x61) }, { gate: "" }, "hit", "output"],
+  ]) {
+    const runOutputs = runOutputsAfterCarry(t, files, options);
+    assert.equal(runOutputs["carry-patch-scan"], scan, name);
+    const { failed, outputs } = await scanIn(t, runOutputs);
+    assert.match(failed, /^too-large: the patch /, name);
+    assert.equal(outputs.refused, refused, name);
+  }
+  assert.equal(carry(t, { "patch/patch.diff": Buffer.alloc(262144, 0x61) }).outputs["patch-scan"], undefined, "a patch within its cap has the scan job's scan");
+  const forged = runOutputsAfterCarry(t, { "patch/patch.diff": Buffer.alloc(262145, 0x61) });
+  const { failed, outputs } = await scanIn(t, { ...forged, "carry-patch-scan": "maybe" });
+  assert.match(failed, /^bad-output: the run job's patch-scan output/);
+  assert.equal(outputs.refused, undefined, "the scan job's output map reads a failed decode as output");
+  const missing = await scanIn(t, { ...forged, "carry-patch-scan": "" });
+  assert.equal(missing.outputs.refused, "output", "an oversize patch with no scan answer holds");
+  const copy = runSteps().find((s) => s.name === "Copy the patch collector and the output sealer from the base");
+  assert.match(copy.run, /\.base\/lib\/publish-gate\.mjs/);
+});
+
 test("pr-run-activity-read.yml: a payload over its cap carries only its byte count, an absent one nothing, and the placeholder key seals nothing", (t) => {
   const over = carry(t, { "patch/patch.diff": Buffer.alloc(262145, 0x61), "skill-reply/reply.txt": Buffer.alloc(16385, 0x61) });
-  assert.deepEqual(over.outputs, { "reply-bytes": "16385", "patch-bytes": "262145" });
+  assert.deepEqual(over.outputs, { "reply-bytes": "16385", "patch-bytes": "262145", "patch-scan": "clean" });
   assert.deepEqual(over.seal.outputs, {}, "nothing over a cap is sealed");
   assert.match(over.log, /^::error::too-large: the reply is 16385 bytes, over its 16384-byte cap/m);
   assert.match(over.log, /^::error::too-large: the patch is 262145 bytes, over its 262144-byte cap/m);

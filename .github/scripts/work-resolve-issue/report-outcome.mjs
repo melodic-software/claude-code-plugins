@@ -89,7 +89,9 @@
 //             (ESCALATION_REASON patch-protected-path, patch-credential,
 //             patch-invalid or patch-not-applied), or whose apply job failed
 //             before giving one (patch-apply-failed), stops like stopped,
-//             naming the reason; only patch-credential reaches a person.
+//             naming the reason; only patch-credential reaches a person, and
+//             it does on any exit, ahead of any funding, limit or turn-cap
+//             record.
 //             patch-empty changes nothing, as the run committed nothing.
 //   dimension the issue's dimensions skipped the run before any model turn
 //             (DIMENSION_SKIP): takes the reason's route, naming the next

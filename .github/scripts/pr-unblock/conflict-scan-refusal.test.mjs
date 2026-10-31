@@ -25,6 +25,7 @@ test("the scan refusal marker alone escalates unresolved-conflict", () => {
   assert.equal(run({ "scan-refused-1.txt": "output" }), "escalation-reason=unresolved-conflict\n", "a leak-scan block");
   assert.equal(run({ "scan-refused-2.txt": "patch" }), "escalation-reason=unresolved-conflict\n", "an oversize patch");
   assert.equal(run({ "scan-refused-1-rung-up.txt": "output" }), "escalation-reason=unresolved-conflict\n");
+  assert.equal(run({ "scan-refused-1.txt": "fault" }), "escalation-reason=unresolved-conflict\n", "a scan fault");
 });
 
 test("no marker escalates nothing", () => {
