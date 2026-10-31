@@ -272,9 +272,11 @@ async function blockedRead(lab, limits, holdMs) {
   const blockedMs = Math.round(now() - began);
   clearTimeout(releaser);
   await release();
+  // Sampled before close, so a connection wrongly kept in the pool still counts.
+  const open = await lab.openTransactions(APP_NAME);
   await executor.close();
   const sample = await stopSampler();
-  return { blockedMs, outcome: outcome(error), lockWaits: sample.lockWaits, open: await lab.openTransactions(APP_NAME) };
+  return { blockedMs, outcome: outcome(error), lockWaits: sample.lockWaits, open };
 }
 
 // A raw reader session inside a transaction, cancelled on the client side and
@@ -350,8 +352,9 @@ async function cappedRead(lab, rowCap) {
   const began = now();
   const result = await executor.query({ database: DB, sql: 'SELECT id, payload FROM dbo.items ORDER BY id;' });
   const ms = Math.round(now() - began);
+  const open = await lab.openTransactions(APP_NAME);
   await executor.close();
-  return { ms, rows: result.rowCount, truncated: result.truncated, open: await lab.openTransactions(APP_NAME) };
+  return { ms, rows: result.rowCount, truncated: result.truncated, open };
 }
 
 async function guardOverhead(lab) {
@@ -561,8 +564,9 @@ async function runAll(lab, { image, digest, reader, work }) {
     slowError = caught;
   }
   const slowMs = Math.round(now() - began);
+  const slowOpen = await lab.openTransactions(APP_NAME);
   await slow.close();
-  out.push(`- A cross join that runs past the request timeout: ${outcome(slowError)} after ${slowMs} ms; open transactions after timeout: ${await lab.openTransactions(APP_NAME)}`);
+  out.push(`- A cross join that runs past the request timeout: ${outcome(slowError)} after ${slowMs} ms; open transactions after timeout: ${slowOpen}`);
 
   console.error('process topology');
   out.push('', `### Process topology: N stdio server processes, 4 concurrent \`query\` calls each, pool max ${POOL_MAX}, idle close ${IDLE_TIMEOUT_MS} ms`, '');
