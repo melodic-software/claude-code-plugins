@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": ":root {\n  --elevation-raised:\n    0 0 0 1px oklch(0 0 none / 0.05),\n    0 1px 3px oklch(0 0 none / 0.05),\n    0 4px 10px -4px oklch(0 0 none / 0.05);\n}\n.card { border-radius: 12px; padding: 16px; box-shadow: var(--elevation-raised); }",
+      "why": "three-layer shadow token, border removed"
+    },
+    {
+      "answer": ".card { border: none; border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px oklch(0 0 none / 0.06), 0 4px 12px oklch(0 0 none / 0.08); }",
+      "why": "two layers, solid border dropped"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".card { border: 1px solid #e0e0e0; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px oklch(0 0 none / 0.1); }",
+      "why": "one shadow layer and the solid border kept"
+    },
+    {
+      "answer": ".card { border: 1px solid #d0d0d0; border-radius: 12px; padding: 16px; }",
+      "why": "a darker border, no shadow"
+    }
+  ]
+}
