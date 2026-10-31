@@ -88,7 +88,14 @@ at `status: needs-decision`, removing that label the same way. It dispatches
 `intake-triage.yml` once only when the issue's author is one intake admits on open (a listed human
 or the lanes App); any other issue waits in `needs-triage` for a person, so an outside author
 cannot start a model run with each reply. A dispatch skips the born-triaged check. Removing the status label is the
-claim, so a second answer dispatches nothing. It never adds `agent-ready`, and it holds the job's own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
+claim, so a second answer dispatches nothing. When a blocker of an issue admission parked at
+`status: confirmed` closes after it parked, `work-unblock` removes that label with the lanes App's
+token instead of admitting the issue, and that removal starts this workflow, which adds
+`needs-triage` and dispatches on the same author rule. It acts only when the newest removal is the
+App's and the issue carries no `status:` label, `agent-ready`, `needs-human`, `needs-triage` or
+`admission-deferred`, which leaves out every other App removal; `needs-triage` is the claim there,
+and a failed dispatch leaves the issue with no `status:` label for a re-run or the triage sweep. A
+milestone in `admission-rules.json`'s `cordoned-milestones` keeps an issue parked. It never adds `agent-ready`, and it holds the job's own `GITHUB_TOKEN` (`actions: write`, `contents: read`, `issues: write`), never a lanes App token.
 
 Anyone outside the organization who writes on an issue or pull request is flagged for a person by
 [`security-outside-actor.yml`](../../../.github/workflows/security-outside-actor.yml), a scripted
