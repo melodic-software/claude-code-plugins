@@ -12,9 +12,8 @@ shell: bash
 
 ## The rule
 
-A **workflow** when the work outgrows one context, repeats the same steps over
-many independent items, or needs independent agents to check each other's
-findings before they are reported, so that holding the loop in a script beats
+A **workflow** only when the work outgrows one context or repeats the same
+steps over many independent items, so that holding the loop in a script beats
 holding it in a conversation. A **subagent** when a few delegated tasks fit the
 turn, or when the work is one dependent chain that still needs a fresh context.
 **Single** when the task fits this context and is one dependent chain. Size and
