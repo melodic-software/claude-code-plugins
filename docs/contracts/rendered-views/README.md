@@ -549,8 +549,13 @@ residence are how this convention prices them.
 
 Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`.
 
+Emitters that resolve `medium` from the cascade, keeping their shipped default only when no layer
+sets it: `adhd:clarify`. A `terminal` or `file` from any layer keeps its page local; `artifact`, or
+`hosted` read as `artifact`, publishes only from the argument, the user-global layer, or an
+untracked, gitignored overlay. Its output names the layer that decided, or "shipped default".
+
 Current emitters, grandfathered on their shipped ladder and `medium` only, since the
-content-class rules bind them now (see Content classes): `adhd:clarify`,
+content-class rules bind them now (see Content classes):
 `architecture:improve`, `education:teach` (topic mode),
 `prototype:explore-directions`, `prototype:pressure-test`,
 `machine-health:audit` (its step-6 static report view; the decision page is on the shared builder),

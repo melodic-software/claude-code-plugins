@@ -35,7 +35,7 @@ that is the fragmentation this doc closes
 
 ## Boundary
 
-`melodic-software/standards` `conventions/engineering/documentation-and-citations.md` owns the
+`melodic-software/standards` `standards/engineering/documentation-and-citations.md` owns the
 general org-wide rule: upstream bodies are read-on-demand; prefer citing and fetching at read time
 over storing a snapshot; a time-bound external claim in durable content needs a recheck trigger.
 This doc takes the concept's name from it. This doc owns the repo-level specialization: the
@@ -44,7 +44,7 @@ for the doc pages this fleet depends on most, and the enforceability classificat
 own:
 
 - **In-repo duplication.** Facts this repo owns are governed by pointer-not-copy
-  (`melodic-software/standards` `conventions/engineering/reference-dont-duplicate.md`) and, for
+  (`melodic-software/standards` `standards/engineering/reference-dont-duplicate.md`) and, for
   byte-identical cross-plugin files, `scripts/cross-plugin-source-registry.txt`.
 - **Synced materializations.** A `managed` component from the standards distribution drifts and
   reconciles through its reviewed sync-PR pipeline, not through stamps in prose.
@@ -453,7 +453,7 @@ carry no label; whether and when to run `apply` stays a person's decision.
 
 ## Enforceability
 
-Classified per `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`:
+Classified per `melodic-software/standards` `standards/engineering/enforceability-tiers.md`:
 
 | Judgment | Tier |
 |---|---|
@@ -485,7 +485,7 @@ routine suppression trains authors to bypass it. That is worse than no gate, bec
 real signal into noise with an approved silencer.
 
 - **Pointer**: for the reasoning-only tier and the worth-mechanizing routing rule, see
-  `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`; the worked
+  `melodic-software/standards` `standards/engineering/enforceability-tiers.md`; the worked
   instance is above.
 - **As of**: 2026-08-12
 - **Recheck trigger**: a third unstamped upstream-fact carrier reaches `main` after this decision
@@ -558,9 +558,9 @@ docs-only clarification is a patch.
 
 ## External authority
 
-- `melodic-software/standards` `conventions/engineering/documentation-and-citations.md`: the
+- `melodic-software/standards` `standards/engineering/documentation-and-citations.md`: the
   org-wide read-on-demand rule and the concept's name.
-- `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`: the tier
+- `melodic-software/standards` `standards/engineering/enforceability-tiers.md`: the tier
   vocabulary and the routing rule.
-- `melodic-software/standards` `conventions/engineering/reference-dont-duplicate.md`: the in-repo
+- `melodic-software/standards` `standards/engineering/reference-dont-duplicate.md`: the in-repo
   counterpart this doc's boundary defers to.

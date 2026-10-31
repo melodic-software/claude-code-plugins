@@ -394,7 +394,7 @@ the rubric offline cannot follow a pointer. Each is pinned so it can be re-deriv
 **Prefer the pointer over the snapshot.** This rubric treats a pointer read on demand as the end
 state and a stored snapshot as a candidate, and expects a time-bound external claim in durable
 content to carry a recheck trigger. *Pointer:* `melodic-software/standards`,
-`conventions/engineering/documentation-and-citations.md`, as cited by
+`standards/engineering/documentation-and-citations.md`, as cited by
 `docs/contracts/upstream-drift/README.md` "Boundary" in the marketplace repository. *As of:*
 2026-10-01. *Recheck trigger:* any revision of that org standard, or of the upstream-drift
 convention's Boundary section that cites it.

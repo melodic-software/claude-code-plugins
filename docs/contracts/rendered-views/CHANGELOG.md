@@ -3,6 +3,19 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## `adhd:clarify` resolves `medium` from the cascade, 2026-10-31
+
+- **`adhd:clarify` leaves the grandfathered list.** It reads `medium` from the argument and the
+  three `rendered-views` layers before choosing a rung. `terminal` or `file` from any layer keeps
+  its decision table local, even with the Artifact tool present. `artifact` or `hosted` publishes
+  only from the argument, `~/.claude/rendered-views.md`, or an untracked, gitignored overlay; a
+  team-layer publishing value keeps the page in a local file. With no layer set, its shipped
+  ladder is unchanged.
+- **Four lanes name the source of `medium`.** `adhd:clarify`, `review:explain-change`,
+  `visualization:present` and `visualization:visualize` tell the reader which layer supplied
+  `medium`, or "shipped default". The publish gates in `explain-change` and `present` are
+  unchanged.
+
 ## `machine-health:audit` builds its decision page through the shared builder, 2026-10-21
 
 - **The `machine-health:audit` decision page uses the shared builder.** Each run writes a local

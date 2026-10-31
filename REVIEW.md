@@ -20,7 +20,7 @@ section.
 
 ## Severity
 
-This organization's criteria (`conventions/review/` in `standards`) resolve
+This organization's criteria (`standards/review/` in `standards`) resolve
 to three severities: **Critical**, **Important**, **Suggestion**. On this
 surface's three markers:
 
@@ -36,7 +36,7 @@ to the three-tier vocabulary above and not something a criterion assigns.
 
 A finding tagged `blocking` is always 🔴 Important here, regardless of what
 severity its underlying criterion would otherwise carry in context.
-`blocking` is this file's own tag, not a severity a `conventions/review/`
+`blocking` is this file's own tag, not a severity a `standards/review/`
 criterion assigns.
 
 ## Depth
@@ -45,7 +45,7 @@ Managed Code Review cannot resolve a citation below: `@` imports are not
 expanded and cited files are not read into the prompt. A self-hosted or
 local review using the `review` plugin can follow one into the full
 criterion, its severity nuance, and its sources. A citation is a path of the
-form `conventions/review/<file>.md#<heading>`, resolved relative to wherever
+form `standards/review/<file>.md#<heading>`, resolved relative to wherever
 the `standards` checkout root is available: this repository's own root when
 `standards` reviews itself, or the `--add-dir` mount root everywhere else.
 
@@ -68,14 +68,14 @@ Always check:
 - A high-risk security action, such as authentication, an authorization
   failure, a privilege change, or sensitive-data access, has a
   corresponding audit-log
-  entry (`conventions/review/observability.md#logging`). This is an
+  entry (`standards/review/observability.md#logging`). This is an
   observability completeness check on the logging seam; whether the action
   itself is safe is the security lane's question.
 - A change that writes two or more related records, files, or state
   locations carries an atomicity mechanism spanning them: a transaction,
   an atomic rename, a constraint, or a compensation step. An
   interruption between steps must not leave state no code path expects
-  (`conventions/review/error-handling.md#atomicity`).
+  (`standards/review/error-handling.md#atomicity`).
 - No Dependabot pull request waits on a human. One whose updates are all
   non-major, with GitHub Actions only from `actions/*`, `github/*` or
   `anthropics/*`, and none in the policy's `reviewOnly` security-critical
@@ -99,12 +99,12 @@ Always check:
 - A handler or endpoint that receives an object id (a path segment, body
   field, or query parameter) checks the caller is authorized for that
   specific record, not only that the id is well-formed. Tagged `blocking`
-  (`conventions/review/security.md#object-level-authorization`).
+  (`standards/review/security.md#object-level-authorization`).
 - A data-access path that reaches tenant-owned data carries an explicit
   tenant scope. Tagged `blocking`
-  (`conventions/review/multi-tenancy.md#tenant-scoped-data-access`).
+  (`standards/review/multi-tenancy.md#tenant-scoped-data-access`).
 - No secret, token, or credential is added to tracked source or config.
-  Tagged `blocking` (`conventions/review/security.md#secrets-and-credentials`).
+  Tagged `blocking` (`standards/review/security.md#secrets-and-credentials`).
 - A query or process invocation built from external input is parameterized,
   never string-concatenated. Tagged `blocking`
-  (`conventions/review/security.md#trust-boundaries-and-injection`).
+  (`standards/review/security.md#trust-boundaries-and-injection`).

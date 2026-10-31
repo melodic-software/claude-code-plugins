@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "environments": {
+    "local": {
+      "connectionString": "Data Source=localhost;Initial Catalog=app",
+      "server": "localhost",
+      "databases": ["app"],
+      "auth": { "type": "entra-default" }
+    }
+  }
+}

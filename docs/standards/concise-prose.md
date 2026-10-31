@@ -6,14 +6,14 @@ is a reasoning-only judgment: word or sentence counts can flag a passage for
 review, but they cannot prove that a shorter version is equivalent.
 
 This rule owns wording, not whether content belongs or where it lives.
-[`documentation-existence.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/documentation-existence.md) owns whether a
+[`documentation-existence.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/documentation-existence.md) owns whether a
 page may exist at all;
-[`simpler-code.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/simpler-code.md) owns reductions to executable code;
-[`progressive-disclosure.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/progressive-disclosure.md) owns information
-layering; and [`reference-dont-duplicate.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/reference-dont-duplicate.md) and
-[`documentation-and-citations.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/documentation-and-citations.md) jointly own
-whether a fact stays inline or is cited. [`naming.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/naming.md) owns
-identifiers, and [`legacy-and-migration-debt.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/legacy-and-migration-debt.md)
+[`simpler-code.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/simpler-code.md) owns reductions to executable code;
+[`progressive-disclosure.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/progressive-disclosure.md) owns information
+layering; and [`reference-dont-duplicate.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/reference-dont-duplicate.md) and
+[`documentation-and-citations.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/documentation-and-citations.md) jointly own
+whether a fact stays inline or is cited. [`naming.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/naming.md) owns
+identifiers, and [`legacy-and-migration-debt.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/legacy-and-migration-debt.md)
 owns whether historical narration belongs at all. Apply this convention to the
 prose that remains after those decisions.
 

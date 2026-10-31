@@ -31,7 +31,7 @@ A plugin is a reusable, independently useful vertical slice of one cohesive capa
 outside the repository and organization that produced it. Publisher metadata may identify its source;
 runtime behavior must not depend on publisher names, organization-specific environment variables,
 repository names, absolute machine paths, or an undocumented consumer layout. `melodic-software/standards`
-`conventions/engineering/shareable-artifact-design.md` owns the artifact-agnostic form of this
+`standards/engineering/shareable-artifact-design.md` owns the artifact-agnostic form of this
 doctrine: consumer-agnostic behavior, externalized consumer-varying configuration, consumer tiers,
 explicit adoption. This document specializes it for Claude Code plugins and adds only what is
 plugin-specific. [Hardcoded consumer specifics](#hardcoded-consumer-specifics) routes the
@@ -124,7 +124,7 @@ invocations are part of that isolation, not an implementation detail.
 The rule is the first paragraph of [Design boundary](#design-boundary): no runtime dependence on one
 machine's paths, one organization's repository names, or an undocumented consumer layout. A value
 that varies per environment, operator, or consumer belongs in the consumer's own config layers
-(`melodic-software/standards` `conventions/engineering/shareable-artifact-design.md`,
+(`melodic-software/standards` `standards/engineering/shareable-artifact-design.md`,
 "Externalize what a consumer may decide"). This subsection is the doctrine owner; component-scoped
 audits cite it instead of restating the rule:
 
@@ -1812,7 +1812,7 @@ covering a topic named beside it. The first list is as of 2026-08-10 (the
   tags, bundles.
 - [Claude Code settings](https://code.claude.com/docs/en/settings): settings scopes, precedence, and
   the special storage and read scopes of `pluginConfigs`.
-- `melodic-software/standards` `conventions/engineering/shareable-artifact-design.md`: the
+- `melodic-software/standards` `standards/engineering/shareable-artifact-design.md`: the
   artifact-agnostic consumer-facing design doctrine the design boundary, configuration ownership,
   and setup contract above specialize for plugins.
 - `melodic-software/standards` engineering philosophy and cross-platform review criteria: repository

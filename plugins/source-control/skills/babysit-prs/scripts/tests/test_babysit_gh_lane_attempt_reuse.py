@@ -113,7 +113,8 @@ class LaneAttemptReuseTests(unittest.TestCase):
     def test_an_earlier_attempts_kill_switch_notice_is_read(self) -> None:
         # #10092's attempt 1: the kill-switch job wrote its notice and the
         # reusable's caller job was skipped. The kill-switch job of an attempt
-        # that has a lane job, and one that did not succeed, cost no read.
+        # that has a lane job, and one that neither succeeded nor failed, cost
+        # no read.
         rerun = {**self.run_record, "run_attempt": 2}
         notice = {
             "annotation_level": "notice",
@@ -135,9 +136,33 @@ class LaneAttemptReuseTests(unittest.TestCase):
         self.assertNotIn("annotations", first[1])
         self.assertNotIn("annotations", second[0])
         self.assertEqual(second[1]["annotations"], [])
-        failed = {1: [{"id": 13, "name": "kill-switch", "conclusion": "failure"}]}
-        self.collect(rerun, {1: self.attempt}, failed)
+        cancelled = {1: [{"id": 13, "name": "kill-switch", "conclusion": "cancelled"}]}
+        self.collect(rerun, {1: self.attempt}, cancelled)
         self.assertFalse(any("check-runs" in path for path in self.reads))
+
+    def test_an_earlier_attempts_upstream_stop_is_read(self) -> None:
+        # The upstream-status gate failed attempt 1's kill-switch job with its
+        # error, and the reusable's caller job was skipped
+        # (babysit_review_evidence `_upstream_stopped`).
+        rerun = {**self.run_record, "run_attempt": 2}
+        error = {
+            "annotation_level": "failure",
+            "message": "an upstream outage stops this review (Actions major_outage)",
+        }
+        jobs = {
+            1: [
+                {"id": 11, "name": "kill-switch", "conclusion": "failure"},
+                {"id": 12, "name": "pr-review", "conclusion": "skipped"},
+            ],
+            2: [
+                {"id": 21, "name": "kill-switch", "conclusion": "success"},
+                {"id": 22, "name": "pr-review / claude-review-status"},
+            ],
+        }
+        first_attempt = {**self.attempt, "conclusion": "failure"}
+        runs = self.collect(rerun, {1: first_attempt}, jobs, {11: [error], 22: []})
+        first = runs[0]["attempts"][0]["jobs"]
+        self.assertEqual(first[0]["annotations"], [error])
 
 
 if __name__ == "__main__":
