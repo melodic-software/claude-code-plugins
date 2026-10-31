@@ -1,5 +1,24 @@
 # Changelog for the PR pipeline convention
 
+## [8.16.0] - 2026-10-31
+
+### Added
+
+- pr-merge's re-fire step (`refire-refused.mjs`) now also pushes an empty commit for a pr-unblock `address-feedback` run whose "Request the lane token" step failed transiently: `broker-unreachable`, or `lane-token-denied` with a 5xx status. The `pr-unblock-dispatch` tick does not dispatch that activity, and its failed check run holds the head, so such a run stranded the pull request until a person re-fired it. The activities that tick dispatches (resolve-conflicts, review-dependency, fix-ci) are left to it, and a token 403 is re-fired only for `workflow-modified`, as before. Each transient re-fire is recorded in a `<!-- pr-lane-refire transient run <id> tree <tree> head <head> -->` marker and capped at one per failed run and two per head tree, so a broker outage cannot chain empty commits on one change.
+
+- The monitoring lane has signal 11, post-merge unreadable: when the newest 4 post-merge reports that `pr-merge`'s `post-merge-dispatch` kept all exited 3 (the check could not read lane merges, so merges hold with only a warning), it files or reopens one rolling issue naming the newest report's reason, and each monitoring run prints it as an `::error` while it holds. It only notifies, and the next readable report closes it. No report within 70 minutes leaves the signal unread rather than clearing it.
+
+### Changed
+
+- The cost hold section names the infrastructure-as-code files the merge gate now holds:
+  - Pulumi project and stack files in their `.yml` and `.json` forms.
+  - `*.tf.json` and `*.tfvars.json`.
+  - The ARM template names `azuredeploy.json`, `azuredeploy.*.json`, `*.azuredeploy.json` and `*.azuredeploy.*.json`.
+  - Any file under a directory that holds a Pulumi project file.
+
+  It also says why a `secrets` reference moved within one file is accepted: the move adds no
+  charge, and where it moved is the review lanes' call.
+
 ## [8.15.5] - 2026-10-31
 
 ### Changed
