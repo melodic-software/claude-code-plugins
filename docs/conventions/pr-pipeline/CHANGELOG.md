@@ -1,5 +1,17 @@
 # Changelog for the PR pipeline convention
 
+## [8.22.1] - 2026-10-31
+
+### Fixed
+
+- The README's `verify:repeated-fail` rule now matches the reader. A merged pull request's FAILs,
+  and a lanes App pull request's once it is closed unmerged, whoever closed it, no longer add to
+  another pull request's count. Closing any other pull request resets nothing. Of the FAILs that
+  remain, only ones uploaded after the newest capped-close record on at least one linked issue
+  they are for count, and no other close moves that floor.
+
+- A red-main run that posts no report, because its red is unconfirmed or the log already reports it, notes every unreported red full run on the log, so a report the repository-wide concurrency group cancelled while pending is named before the next confirmed red. The note counts as neither a report nor a cap decision and never creates the log issue.
+
 ## [8.22.0] - 2026-10-31
 
 ### Added
