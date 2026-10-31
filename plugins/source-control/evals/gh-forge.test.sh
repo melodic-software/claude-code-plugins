@@ -85,14 +85,18 @@ THREADED="$TEST_TMPDIR/threaded"
 make_forge threaded --open --thread T_one --thread T_two
 CALLS="$THREADED/.git/eval-forge/calls.jsonl"
 
-refs_before=$(git -C "$THREADED" for-each-ref --format='%(refname) %(objectname)'
-  git -C "$THREADED/.git/eval-forge/eval-fixture/app.git" for-each-ref --format='%(refname) %(objectname)')
+refs_before=$(
+  git -C "$THREADED" for-each-ref --format='%(refname) %(objectname)'
+  git -C "$THREADED/.git/eval-forge/eval-fixture/app.git" for-each-ref --format='%(refname) %(objectname)'
+)
 out=$(run_gh "$THREADED" pr merge 7 --squash --delete-branch 2>&1)
 assert_exit "pr merge: exit 0" 0 "$?"
 assert_eq "pr merge: the call record holds the PR number and arguments" \
   '{"command":"pr merge","pr":7,"args":["7","--squash","--delete-branch"]}' "$(cat "$CALLS")"
-refs_after=$(git -C "$THREADED" for-each-ref --format='%(refname) %(objectname)'
-  git -C "$THREADED/.git/eval-forge/eval-fixture/app.git" for-each-ref --format='%(refname) %(objectname)')
+refs_after=$(
+  git -C "$THREADED" for-each-ref --format='%(refname) %(objectname)'
+  git -C "$THREADED/.git/eval-forge/eval-fixture/app.git" for-each-ref --format='%(refname) %(objectname)'
+)
 assert_eq "pr merge: no ref changed, in the working repository or the fixture origin" "$refs_before" "$refs_after"
 run_gh "$THREADED" pr merge 99 >/dev/null 2>&1
 assert_exit "pr merge: another PR number is refused" 1 "$?"
@@ -134,7 +138,47 @@ assert_exit "pr review: exit 0" 0 "$?"
 assert_eq "pr review: the call is recorded" \
   '{"command":"pr review","pr":7,"args":["7","--approve","--body","ok"]}' "$(tail -n 1 "$CALLS")"
 
-for cmd in "pr close 7" "repo list" "api repos/eval-fixture/app" "auth switch" "run download 1" "gist create"; do
+# --no-pr: the create phase's path. No PR until `pr create`, which takes the body file and opens it.
+CREATE="$TEST_TMPDIR/create"
+make_forge create --no-pr
+CREATE_FORGE="$CREATE/.git/eval-forge"
+out=$(git -C "$CREATE/.git/eval-forge/eval-fixture/app.git" for-each-ref --format='%(refname:short)' refs/heads)
+assert_eq "--no-pr: only the base is pushed, so the head is still ahead of origin" "main" "$out"
+run_gh "$CREATE" pr view >/dev/null 2>&1
+assert_exit "--no-pr: pr view finds no PR before create" 1 "$?"
+assert_eq "--no-pr: pr list is empty before create" "0" "$(run_gh "$CREATE" pr list --head feat/x --json number --jq length)"
+run_gh "$CREATE" pr create --draft --head feat/x --title "feat: x" --body-file /dev/null >/dev/null 2>&1
+assert_exit "pr create: refused while the head is not on origin" 1 "$?"
+(cd "$CREATE" && PATH="$CREATE_FORGE/bin:$PATH" git push -q origin feat/x) >/dev/null 2>&1
+printf 'Refs: #5\n\n## Summary\n\nx\n' >"$TEST_TMPDIR/body.md"
+out=$(run_gh "$CREATE" pr create --draft --head feat/x --title "feat: y" --body-file "$TEST_TMPDIR/body.md" 2>&1)
+assert_eq "pr create: prints the new PR's URL" "https://github.com/eval-fixture/app/pull/7" "$out"
+assert_eq "pr create: the body file is kept for a grader" "$(cat "$TEST_TMPDIR/body.md")" "$(cat "$CREATE_FORGE/pr-body.md")"
+assert_eq "pr create: the PR then reads as an open draft with the given title" "true feat: y" \
+  "$(run_gh "$CREATE" pr view 7 --json isDraft,title --jq '"\(.isDraft) \(.title)"')"
+assert_eq "pr create: the call is recorded" '"pr create"' "$(jq -c .command "$CREATE_FORGE/calls.jsonl")"
+run_gh "$CREATE" pr create --head feat/x --title again >/dev/null 2>&1
+assert_exit "pr create: a second create for the branch is refused" 1 "$?"
+out=$(run_gh "$CREATE" pr ready 7)
+assert_eq "pr ready: flips the created draft" "false" "$(run_gh "$CREATE" pr view 7 --json isDraft --jq .isDraft)"
+
+# Issues from issues/<n>.json, over GraphQL-shaped `issue view` and REST.
+printf '{"number":5,"title":"t","state":"OPEN","body":"b","subIssues":{"nodes":[{"number":6,"title":"s","state":"OPEN"}]},"url":"https://github.com/eval-fixture/app/issues/5"}\n' \
+  >"$CREATE_FORGE/issues/5.json"
+assert_eq "issue view: state and body from the fixture" "OPEN b" "$(run_gh "$CREATE" issue view 5 --json state,body --jq '"\(.state) \(.body)"')"
+run_gh "$CREATE" issue view 9 --json state >/dev/null 2>&1
+assert_exit "issue view: an issue with no fixture exits 1" 1 "$?"
+assert_eq "api issues: REST reports the state in lower case" "open" "$(run_gh "$CREATE" api "repos/{owner}/{repo}/issues/5" --jq .state)"
+assert_eq "api sub_issues: lists the open sub-issue" "6 open" "$(run_gh "$CREATE" api repos/eval-fixture/app/issues/5/sub_issues --jq '.[] | "\(.number) \(.state)"')"
+assert_eq "api repos: the default branch is the base" "main" "$(run_gh "$CREATE" api "repos/{owner}/{repo}" --jq .default_branch)"
+assert_eq "api contents: a file at the base ref is served raw" "a" \
+  "$(run_gh "$CREATE" api "repos/eval-fixture/app/contents/f?ref=main" -H "Accept: application/vnd.github.raw")"
+run_gh "$CREATE" api "repos/eval-fixture/app/contents/docs/conventions/source-control.yaml?ref=main" >/dev/null 2>&1
+assert_exit "api contents: a missing file is a 404, exit 1" 1 "$?"
+run_gh "$CREATE" api --method POST repos/eval-fixture/app/pulls -f title=x >/dev/null 2>&1
+assert_exit "api: a write method is refused" 1 "$?"
+
+for cmd in "pr close 7" "repo list" "api repos/eval-fixture/other" "auth switch" "run download 1" "gist create"; do
   # shellcheck disable=SC2086 # word splitting of the command words is intended
   run_gh "$THREADED" $cmd >/dev/null 2>&1
   assert_exit "unlisted command '$cmd' exits 1" 1 "$?"

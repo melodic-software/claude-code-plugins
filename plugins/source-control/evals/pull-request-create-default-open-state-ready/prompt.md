@@ -1,6 +1,7 @@
 ---
 description: With no setting and no request for a draft, create resolves the open state to ready from the default and runs ready on the new PR
 tags: [pull-request, source-control]
+plugins: ["../..", "gh-forge-path"]
 runs: 3
 max_turns: 30
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]

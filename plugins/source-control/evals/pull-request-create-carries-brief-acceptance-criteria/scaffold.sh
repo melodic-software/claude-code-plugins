@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
-# A git repo whose feature branch is one commit ahead of main, with a bare local origin so the push
-# step succeeds, and one approved PLAN.md in the gitignored memory slice whose Brief lists three
-# acceptance criteria. The branch name does not match the plan's topic slug, and the prompt never
-# mentions the plan.
+# A git repo whose feature branch is one commit ahead of main, an offline forge (fixtures/gh-forge,
+# --no-pr) that takes the push and opens the PR, and one approved PLAN.md in the gitignored memory
+# slice whose Brief lists three acceptance criteria. The branch name does not match the plan's topic
+# slug, and the prompt never mentions the plan.
 set -euo pipefail
 
-git init -q --bare ../eval-origin.git
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-git remote add origin ../eval-origin.git
 mkdir -p .claude src
 printf '.work/\n' > .gitignore
 printf 'export const toCsv = (rows) => rows.join("\\n");\n' > src/export.ts
@@ -17,7 +15,6 @@ printf '# demo\n' > README.md
 printf '# source-control configuration\n\n## pr_body_required_sections\n\n- Summary\n- Verification\n' > .claude/source-control.md
 git add .gitignore .claude src README.md
 git commit -q -m "chore: seed"
-git push -q -u origin main
 
 git checkout -q -b feat/csv-download
 cat > src/export.ts <<'TS'
@@ -27,6 +24,7 @@ export const toCsv = (header, rows) =>
 TS
 git add src/export.ts
 git commit -q -m "feat: quote CSV cells and write a byte order mark"
+bash "$(dirname "${BASH_SOURCE[0]}")/../fixtures/gh-forge/install.sh" 831 feat/csv-download main "feat: quote CSV cells and write a byte order mark" --no-pr
 
 mkdir -p .work/export-csv
 cat > .work/export-csv/PLAN.md <<'MD'
