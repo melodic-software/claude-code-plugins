@@ -2,7 +2,7 @@
 description: "Babysit the user's own open GitHub pull requests as a tiered fleet loop. The safe default discovers the user's own PRs under the current repo's owner, checks readiness, fixes clear branch-owned issues, and reports, it never resolves threads or merges. Explicit 'worker' tier adds auto-resolving outdated bot threads and gate-proven merges; explicit 'autopilot' adds all authors under the watched owners. Use when asked to babysit, watch, or advance open pull requests as a fleet (the safe tier), to run the worker or autopilot tier by name, or when pairing with /loop for continuous coverage; not for the single-PR lifecycle: prep, create, monitor one PR, or merge (use /pull-request)."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[worker|autopilot|help] [owner/repo|#n|owner/repo#n]"
+argument-hint: "[unattended] [worker|autopilot|help] [owner/repo|#n|owner/repo#n]"
 shell: bash
 metadata:
   workflow-stage: operator
@@ -10,7 +10,7 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** `[worker|autopilot|help] [owner/repo|#n|owner/repo#n]`. Full form: [worker|autopilot|help] [owner/repo|#n|owner/repo#n] · default: configured default_tier (safe) over your own PRs; worker=fix+resolve-outdated+merge-ready; autopilot=max autonomy all authors; 'help' lists flows
+**Arguments.** `[unattended] [worker|autopilot|help] [owner/repo|#n|owner/repo#n]`. Full form: [unattended] [worker|autopilot|help] [owner/repo|#n|owner/repo#n] · default: configured default_tier (safe) over your own PRs; worker=fix+resolve-outdated+merge-ready; autopilot=max autonomy all authors; 'help' lists flows
 
 ## Pre-computed context
 
@@ -42,7 +42,7 @@ and the `reference/` spokes already carry them.
 
 ## Modes and arguments
 
-An invocation is `[mode] [scope]`; mode and scope are orthogonal. Combine them freely (`worker owner/repo`, `worker #87`, etc.).
+An invocation is `[mode] [scope]`; mode and scope are orthogonal. Combine them freely (`worker owner/repo`, `worker #87`, etc.). A leading `unattended` is neither a mode nor a scope: it is the caller declaring that nobody is present, which governs the `/autofix-pr` offer under "Boundary". Take it out first, then parse the rest, so `unattended worker #87` runs the `worker` tier on `#87`.
 
 | Mode | What it does |
 | --- | --- |
@@ -433,7 +433,7 @@ either.
 **Routing.** When the person wants one PR watched after this session ends, offer it to the person:
 If /autofix-pr is available in your session (gate basis: it registers hidden and gated and needs forge CLI and cloud-session access;
 records in [reference/native-autofix-pr.md](reference/native-autofix-pr.md)), you can run it instead of or alongside this skill for that PR.
-Prefer this skill for the fleet, for tiered merge authority, and for anything the gates must prove. An unattended run records the offer in its output instead of asking.
+Prefer this skill for the fleet, for tiered merge authority, and for anything the gates must prove. With a leading `unattended` argument, record the offer in the output instead of asking; without it, ask.
 
 **Mutation gate.** Both push to the PR branch. When `/autofix-pr` runs on a PR this skill also
 works, fetch before each fix commit and skip a finding the cloud session already fixed. This skill

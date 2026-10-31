@@ -1,6 +1,6 @@
 ---
 description: "Orchestrated execution of an approved plan or a spec'd work-item list through worker subagents: scope-fenced briefs, capped waves, returns verified against direct evidence, and the build run main-side instead of inline edits. Use when the plan routes phases to worker surfaces, the session runs autonomously, or the user asks for workers: 'dispatch this to workers', 'run this with subagents', 'execute the plan in parallel', 'fan the plan out'. Interactive all-inline execution is /implementation:implement."
-argument-hint: "[phase] [--items <path>] [--base <ref>] [--wave-cap <N>]"
+argument-hint: "[unattended] [phase] [--items <path>] [--base <ref>] [--wave-cap <N>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Orchestrate worker subagents to execute an approved plan
 ---
 
-**Arguments.** `[phase] [--items <path>] [--base <ref>] [--wave-cap <N>]`. e.g., /implementation:implement-dispatch phase-2 --wave-cap 3, /implementation:implement-dispatch --items findings.md --base origin/integration/billing
+**Arguments.** `[unattended] [phase] [--items <path>] [--base <ref>] [--wave-cap <N>]`. e.g., /implementation:implement-dispatch phase-2 --wave-cap 3, /implementation:implement-dispatch --items findings.md --base origin/integration/billing
 
 ## Purpose
 
@@ -57,13 +57,13 @@ Both fan work out to parallel agents in isolated worktrees, so "run this in para
 
 **Lever check before a fan-out.** Before composing worker rows that apply one change across several units, and before the `/batch` offer below, invoke `/discipline:script-the-deterministic-work lever-check <block summary>` via the Skill tool when it is among the available skills, and ask it whether one run of the lever covers every unit. When it is not available, apply its `deterministic` rule (a lever only when each unit's edit follows from that unit's text alone) and say in one line that the check ran on `deterministic` because the discipline skill was unavailable. `build-a-lever` with `one-pass: yes` replaces the per-unit rows with one worker row that builds the lever, makes the change in one unit by hand, diffs the lever's result on that unit against the hand edit, then runs the lever over every unit; no `/batch` offer is made for that change. `edit-by-hand`, or `one-pass: no` for the units it names, keeps one row per unit for those units.
 
-**Routing.** When no approved plan or item list exists and the work is a large mechanical change that splits into independent PRs, offer it to the person at the prerequisite check, before any brief: If /batch is available in your session (gate basis: `disableBundledSkills` or a `skillOverrides` entry hides it, and it needs a git repository or a `WorktreeCreate` hook; records in [reference/native-batch.md](reference/native-batch.md)), you can run `/batch <instruction>` instead of or alongside this skill. With an approved plan or an item list, this skill runs. An unattended run records the offer in its output instead of asking. This skill never triggers `/batch` on its own behalf.
+**Routing.** When no approved plan or item list exists and the work is a large mechanical change that splits into independent PRs, offer it to the person at the prerequisite check, before any brief: If /batch is available in your session (gate basis: `disableBundledSkills` or a `skillOverrides` entry hides it, and it needs a git repository or a `WorktreeCreate` hook; records in [reference/native-batch.md](reference/native-batch.md)), you can run `/batch <instruction>` instead of or alongside this skill. With an approved plan or an item list, this skill runs. When the caller passes `unattended` as the first argument, the run records the offer in its output instead of asking; without that argument it asks. This skill never triggers `/batch` on its own behalf.
 
 **Availability is never assumed.** `disableBundledSkills` or a `skillOverrides` entry hides it, and it needs a git repository or a `WorktreeCreate` hook; this section states what to do when it resolves, never that it is present. The four-part records live in [reference/native-batch.md](reference/native-batch.md).
 
 ## Arguments
 
-`$ARGUMENTS`, an optional phase selector, `--items <path>`, `--base <ref>` and `--wave-cap <N>`, in any order.
+`$ARGUMENTS`, an optional phase selector, `--items <path>`, `--base <ref>` and `--wave-cap <N>`, in any order. A leading `unattended` is the caller declaring that nobody is present, consumed before the rest; it governs the `/batch` offer under "Routing".
 
 The **phase selector** (e.g. `phase-2`) scopes the cadence to that plan phase; it does not combine with `--items`. Otherwise walk the remaining phases in order, never dispatching a later worker-routed phase past an incomplete earlier phase it is not independent of. In interactive mode with `code_writing` resolved `inline`, at the first inline-routed phase hand back by invoking `/implementation:implement` via the Skill tool, and re-enter here when a later worker-routed phase becomes current. Under autonomous mode and `code_writing: dispatch`, every remaining phase dispatches in order, independent phases together, synthesizing worker rows when the routing table lacks them.
 
