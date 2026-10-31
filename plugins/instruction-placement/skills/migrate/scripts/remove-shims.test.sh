@@ -687,12 +687,16 @@ assert_contains "and says discovery did not report" "$OUT" "carries no DIR row"
 # a window where there is nothing to restore and the case proves nothing. `grep
 # -q` exits on its first match, so closing on a "removed" line puts the death
 # exactly inside the window the ignore protects. A canary that then misses
-# means the restore has real work to do either way.
+# means the restore has real work to do either way. Bash does not wait for a
+# process substitution, so `wait` holds the asserts until the restore is done.
+# The braces make this shell, not the forked `grep`, open the substitution, so
+# `$!` names it here.
 PIPED="$TMP/piped"
 build_ready_repo "$PIPED"
-bash "$SCRIPT" --root "$PIPED" --confirm --installed-plugins "$TMP/installed-current.json" \
-  --claude-bin "$TMP/bin/claude-unmet" "${CHECK_ARGS[@]}" 2>/dev/null |
-  grep -q 'removed svc/CLAUDE.md'
+{ grep -q 'removed svc/CLAUDE.md'; } < <(bash "$SCRIPT" --root "$PIPED" --confirm \
+  --installed-plugins "$TMP/installed-current.json" \
+  --claude-bin "$TMP/bin/claude-unmet" "${CHECK_ARGS[@]}" 2>/dev/null)
+wait "$!"
 assert_eq "a reader that closes after a removal still leaves the shims in place" "" \
   "$(cd "$PIPED" && git status --porcelain)"
 assert_eq "and the root shim is the import line again" "@AGENTS.md" "$(cat "$PIPED/CLAUDE.md")"

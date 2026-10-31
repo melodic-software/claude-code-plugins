@@ -3,19 +3,3 @@
 # comment. The default scan skips these files' findings and fails on an entry
 # whose file is gone or no longer offends, so the list only shrinks. Never add
 # a file here: rewrite the pipe as grep ... <<<"$v" or grep ... < <(producer).
-plugins/code-tidying/skills/audit-comment-residue/scripts/detect.test.sh
-plugins/desktop-notification/hooks/desktop-notification.test.sh
-plugins/discovery/scripts/contract.test.sh
-plugins/discovery/scripts/turns-to-complete.test.sh
-plugins/docs-hygiene/skills/audit-noise/scripts/detect.test.sh
-plugins/docs-naming/skills/generate-file-name-gate/scripts/emit-gate.test.sh
-plugins/education/skills/teach/scripts/splice-assets.test.sh
-plugins/instruction-placement/scripts/glob-tools.test.sh
-plugins/instruction-placement/skills/migrate/scripts/remove-shims.test.sh
-plugins/planning/surface/watch.test.sh
-plugins/repo-fleet-hygiene/skills/audit/scripts/audit-fleet.test.sh
-plugins/repo-hygiene/skills/clean/scripts/git-branch-audit.test.sh
-plugins/skill-quality/scripts/check-skill.test.sh
-plugins/songwriting/context/pat-pattison/scripts/datamuse.test.sh
-plugins/source-control/skills/pull-request/scripts/parse-branch-issue.test.sh
-plugins/testing/skills/audit/scripts/cant-fail-scan.test.sh
