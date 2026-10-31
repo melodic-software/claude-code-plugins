@@ -260,6 +260,38 @@ def test_next_tool_is_read_per_file_and_only_for_hook_denials():
 
 
 @pytest.mark.parametrize(
+    "decision",
+    [
+        {"decision": "accept", "source": "user_temporary"},
+        {"decision": "reject", "source": "config", "reasonType": "rule"},
+    ],
+)
+def test_a_repeated_tool_result_record_is_one_event_and_counts_as_a_duplicate(decision):
+    scan = friction_scan.FrictionScan("/w/repo")
+    scan.start_file("main", None)
+    scan.add(call("t1", "Bash", command="git push"))
+    repeated = denial_record("x", kind=None, decision=decision, use_id="t1")
+    scan.add(repeated)
+    scan.add(repeated)
+    assert [(e["kind"], e["tool_use_id"]) for e in scan.events] == [
+        ("prompt-approved" if decision["decision"] == "accept" else "denied", "t1"),
+    ]
+    assert sum(scan.counts.values()) == 1
+    block = scan.block(collect.Scrubber(redact.load_redactor(), 200), 200)
+    assert (block["duplicates_dropped"], block["events"][0]["tool_use_id"]) == (1, "t1")
+
+
+def test_a_denial_repeated_across_result_records_is_one_event():
+    scan = friction_scan.FrictionScan("/w/repo")
+    scan.start_file("main", None)
+    record = {"type": "result", "permission_denials": [{"tool_name": "Bash", "tool_use_id": "h1", "tool_input": {"command": "rm -rf b"}}]}
+    scan.add(record)
+    scan.add(record)
+    assert [(e["kind"], e["tool_use_id"]) for e in scan.events] == [("denied", "h1")]
+    assert scan.duplicates == 1
+
+
+@pytest.mark.parametrize(
     ("decision", "kinds"),
     [
         ({"decision": "accept", "source": "user_temporary"}, ["prompt-approved"]),
