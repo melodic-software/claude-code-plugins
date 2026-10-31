@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Here is the ranked list for evals/fixtures/disconnected-admin-export/.\n\n| Rank | Candidate | Dimension | Size | Evidence | Confidence | Value-to-effort |\n|---|---|---|---|---|---|---|\n| 1 | Wire up the export that already exists instead of building a new one | Code | S | `src/admin/routes.js` imports `exportRowsToCsv` from `src/reports/csv-exporter.js` but never calls it; `adminBulkExport` is `false` in `config/flags.json`, so `POST /admin/orders/export` is never registered; `export_audit` is only written, nothing reads it (rung 3) | Medium | High value, small job |\n| 2 | Build the export service in docs/bulk-export-plan.md | Product | L | approved plan (rung 4, judgment) | Low | Duplicates item 1 |\n\nEvidence gaps: no git history, no CI access, no telemetry."
+    },
+    {
+      "answer": "The approved plan in docs/bulk-export-plan.md assumes nothing exports orders today. That is not true.\n\n1. **Turn on and finish the dormant admin export** (S)\n   - Evidence: dead import: exportRowsToCsv (csv-exporter.js) has no callers in routes.js; the adminBulkExport flag is off in flags.json and gates POST /admin/orders/export; the export_audit table is write-only. Rung 3, structural.\n   - Confidence: medium.\n2. **Add an index on orders.status** (S)\n   - Evidence: judgment only (rung 4).\n3. **Build the new export service from the plan** (L)\n   - Evidence: bulk-export-plan.md; it repeats item 1.\n\ngap: no CI history available."
+    },
+    {
+      "answer": "### 1. Instrument the admin routes so the next scan can rank on data\nEvidence: no telemetry or CI history (gap). Rung 4.\n\n### 2. Reuse the disconnected CSV export\nEvidence: routes.js imports exportRowsToCsv from csv-exporter.js and never calls it; adminBulkExport is disabled in flags.json for /admin/orders/export; export_audit has no readers.\n\n### 3. Greenfield export service (bulk-export-plan.md)\nEvidence: the approved plan. Ranked below 2 because 2 already covers it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Rank | Candidate | Evidence |\n|---|---|---|\n| 1 | Build the export service from bulk-export-plan.md | plan |\n\nroutes.js calls exportRowsToCsv from csv-exporter.js on each request, so it is not unused. adminBulkExport is not false: flags.json enables /admin/orders/export. export_audit is not write-only; the reports job reads it.",
+      "why": "negates the fact while naming it"
+    },
+    {
+      "answer": "Files reviewed: routes.js, csv-exporter.js, flags.json, /admin/orders/export.\n\nexportRowsToCsv looks fine. adminBulkExport looks fine. export_audit looks fine.\n\nSeparately, the orderNotes flag is unused and dark, and the orders table is never read by reports.",
+      "why": "qualifier only in unrelated text"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

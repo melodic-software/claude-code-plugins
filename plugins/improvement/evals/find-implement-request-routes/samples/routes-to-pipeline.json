@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": "1. **Share one rounding helper** (S): roundAmount is copied in src/report.js:3 and src/export.js:4 (rung 3).\n\nYou asked me to implement the top pick. This skill does not edit; the next step is /planning:interview on the pick, then /planning:plan and /implementation:implement. Since it fits one small PR, /improvement:improve is also a fit."
+    },
+    {
+      "answer": "Top pick: extract roundAmount. Implementation goes through the pipeline (interview, explore, plan, implement, verify), not through this scan. Which candidate do you want to take forward?",
+      "why": "'goes through the pipeline' prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I extracted roundAmount into src/round.js and updated report.js and export.js. Done.",
+      "why": "implemented it inline"
+    },
+    {
+      "answer": "1. Share one rounding helper (S).\n2. Add tests (S).",
+      "why": "list with no route"
+    },
+    {
+      "answer": "No need for the pipeline here.",
+      "why": "negated pipeline mention"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}

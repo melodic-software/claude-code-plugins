@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": "| Rank | Candidate | Dimension | Size | Evidence | Confidence |\n|---|---|---|---|---|---|\n| 1 | Instrument checkout: time buildSummary and each pricing/inventory call so future runs rank on data | Performance | S | nothing measures checkout today (rung 4, judgment) | Low |\n| 2 | Run the per-item pricing and stock calls concurrently | Performance | M | sequential awaits in src/checkout.js:6-9 (rung 4, judgment) | Low |\n\nEvidence gaps:\n- gap: no git history in this checkout\n- gap: no CI runs or telemetry configured",
+      "why": "gap: lines"
+    },
+    {
+      "answer": "1. **Add timing around buildSummary and the two fetches** (S). Measurement precedes prioritization; today nothing records checkout latency.\n   Evidence: judgment only.\n2. **Parallelize the awaits in the item loop** (M). Evidence: src/checkout.js, judgment.\n\nNo telemetry configured, and no CI history available to rank on.",
+      "why": "'No telemetry configured' prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. **Instrument checkout timing** (S).\n2. **Parallelize the item loop** (M).\n\nThere are no gaps in our telemetry.",
+      "why": "denies a gap while naming telemetry"
+    },
+    {
+      "answer": "1. Parallelize the item loop (M).",
+      "why": "no gap line"
+    },
+    {
+      "answer": ""
+    }
+  ]
+}
