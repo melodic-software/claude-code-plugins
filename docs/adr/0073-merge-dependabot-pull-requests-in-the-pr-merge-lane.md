@@ -144,3 +144,13 @@ person, and that nothing waits on one otherwise
 `merge.dependabot.majors: review`, so the lanes App's `verdict=merge` marker merges a major, an
 unreadable or a disagreeing update as it does any tier `review` one. `hold` stays the code default
 for consumers that set nothing.
+
+## Addendum (2026-10-30): no github-actions commit is admitted
+
+ADR 0048 phase 5 removed `pr-bump-plugin-version.yml`, the only writer of the `[dependabot skip]`
+version-bump commit that Decision 3 admits. Both merge gates now refuse every
+`github-actions[bot]` commit (`commit-not-dependabot:<sha>`) and every `github-actions[bot]` push
+(`pushed-by:github-actions[bot]`), and the pr-unblock verdict job escalates such a pull request
+`dependency-fix-refused`: a commit must be Dependabot's or, after a review, the lanes App's fix
+commit, and only those two identities may push. The
+rules are in [README, "Dependabot pull requests"](../conventions/pr-pipeline/README.md#dependabot-pull-requests).

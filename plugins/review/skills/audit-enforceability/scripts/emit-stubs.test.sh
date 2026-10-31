@@ -1044,8 +1044,8 @@ for rank in 06 07; do
   assert_not_contains "case 40: flag absent, rank $rank (action-guard or automated-review) has no offer" \
     "$(cat "$OUT1"/"$rank"-*.md)" "$RATCHET_HEADING"
 done
-assert_contains "case 40: the offer hands a non-zero count to /review:ratchet" \
-  "$(cat "$OUT1"/04-*.md)" "/review:ratchet"
+assert_contains "case 40: the offer hands a non-zero count to /toolchain:ratchet" \
+  "$(cat "$OUT1"/04-*.md)" "/toolchain:ratchet"
 # The clause is the one context/stub-shape.md fixes for the section: a count
 # of zero lands the rule with no ceiling.
 assert_contains "case 40: the offer says a zero count lands the rule" \
