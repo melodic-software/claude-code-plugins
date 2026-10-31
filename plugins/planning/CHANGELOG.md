@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.133.0] - 2026-10-31
+
+### Added
+
+- `/planning:interview product <idea>` stress-tests a product or feature idea one question at a time against twenty product principles and ends in a verdict; `/planning:prd` and `/planning:brainstorm` point to it.
+
+### Changed
+
+- `/planning:design` names `/user-interface:design` as the next step when the contract being designed is a UI component's props API.
+
 ## [0.132.5] - 2026-10-31
 
 ### Fixed

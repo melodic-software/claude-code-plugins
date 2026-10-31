@@ -1,5 +1,28 @@
 # Changelog for the PR pipeline convention
 
+## [8.27.2] - 2026-10-31
+
+### Fixed
+
+- pr-merge's `clear-escalations` sweep now also removes `needs-session` after a push that mends the stop. That holds when the head is no longer any stop's head, the newest `pr-unblock/*` status for each stop's activity at the new head, if any, is a success, and its checks pass, not counting `ci-status`, which the label keeps red. Before, only a same-head retry lifted the label, and a session had to remove it by hand after a new head. A `dependency-workflow-unpinned` stop still comes off only on its own head. If the cause still holds, the lane stops again on the new head and labels it again ([#11200](https://github.com/melodic-software/claude-code-plugins/issues/11200)).
+
+- check-wip-cap reads the queued `agent-ready` issues from the repository issues listing
+  (`GET /repos/{repo}/issues`, open, oldest first) in place of the search API, whose results carry
+  no recency guarantee, so parallel apply-verdict admissions count against a fresh queued count.
+  Pull requests and the hold labels (`needs-human`, `needs-owner-decision`,
+  `status: needs-decision`, `status: needs-info`, in any case) are left out client-side. A failed
+  page, or one that is not a list, leaves the queued count unread (`admission_basis`
+  `fail-open`), so intake admission admits nothing, as before. Past 10 pages one more issue
+  counts as unlisted and admissions pause. The pull request searches are unchanged.
+- Intake admission reads the racing admissions' `admission-deferred` listing before the
+  `agent-ready` one. A run that adds `agent-ready` and then drops its claim between the two
+  reads was missing from both, so a parallel admission could take one place past the room.
+  The claim order is unchanged.
+- Intake admission tests run `Promise.all` bursts of 2, 4 and 5 concurrent `admit()` runs
+  against one shared fake GitHub with room 1, 2 and 3: no burst admits past its room, every
+  shuffled burst admits, and a burst whose runs all read the room before any claim admits
+  exactly the room.
+
 ## [8.27.1] - 2026-10-31
 
 ### Fixed

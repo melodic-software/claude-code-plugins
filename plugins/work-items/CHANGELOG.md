@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.15.2] - 2026-10-31
+
+### Fixed
+
+- `/work-items:work` points its model binding and `userConfig` substitution text at the upstream sections behind them.
+
 ## [3.15.1] - 2026-10-31
 
 ### Fixed
