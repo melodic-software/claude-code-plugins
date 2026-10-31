@@ -38,3 +38,4 @@
 .github/scripts/work-resolve-issue
 plugins/knowledge/vendor/repo-analysis
 plugins/knowledge/vendor/video-digestion
+plugins/sql-server
