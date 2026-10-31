@@ -72,7 +72,6 @@ order. Keys and allowed values are in [`reference/team.schema.json`](reference/t
 | `animation.easing.out`, `.in_out`, `.drawer` | four cubic Bezier control points each, in `defaults.yaml` | a list of four numbers |
 | `animation.duration_ms.press`, `.small`, `.medium`, `.large` | `160`, `200`, `250`, `500` | milliseconds |
 | `animation.gesture.velocity_threshold` | `0.11` | px/ms for a small element's swipe to dismiss |
-| `design.concern_spoke_cap` | `2` | the most concern spokes one design pass loads, an integer of at least 1 |
 | `routing` | none | route rows, `disable` and `deny`, team layer only |
 
 The `css` keys are read by `/user-interface:write-css`; its
