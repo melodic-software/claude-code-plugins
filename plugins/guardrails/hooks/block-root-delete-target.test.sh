@@ -1595,13 +1595,8 @@ rdt_rel="$RDT_AR"
 if [[ "$rdt_rel" =~ ^[A-Za-z]:/ ]]; then rdt_rel="${rdt_rel:3}"; else rdt_rel="${rdt_rel#/}"; fi
 rdt_ar 'a relative root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$rdt_rel"
 rdt_ar "the root '/' grants nothing" 2 "rm -rf '$RDT_AR/child'" /
-# Under MSYS `/` is the Git install directory, not a volume root, so /opt lies under it.
-rdt_slash=$(cygpath -m / 2>/dev/null || true)
-if [[ -z "$rdt_slash" || "$rdt_slash" =~ ^([A-Za-z]:)?/$ ]]; then
-  rdt_ar "the root '/' does not allow a top-level path" 2 'rm -rf /opt/rdt-allowed-x/y' /
-else
-  rdt_skip "'/' is $rdt_slash here, not a volume root (1 case)"
-fi
+# The guard drops `/` even where it maps to the Git install directory, which /opt lies under.
+rdt_ar "the root '/' does not allow a top-level path" 2 'rm -rf /opt/rdt-allowed-x/y' /
 rdt_ar 'an empty entry grants nothing' 2 "rm -rf '$RDT_AR/child'" ","
 rdt_ar 'a root equal to HOME grants nothing' 2 "rm -rf '$RDT_AH/x'" "$RDT_AH"
 rdt_ar 'HOME with a trailing slash grants nothing' 2 "rm -rf '$RDT_AH/x'" "$RDT_AH/"
@@ -1654,6 +1649,7 @@ rdt_ar 'prefix: a path outside blocks' 2 "rm -rf '$RDT_AO/x'" "$RDT_PX"
 rdt_ar 'prefix: rm -rf / blocks' 2 'rm -rf /' "$RDT_PX"
 rdt_ar 'prefix: a prefix under HOME grants nothing' 2 "rm -rf '$RDT_AH/.tmp-x'" "$RDT_AH/.tmp-*"
 rdt_ar 'prefix: a root-level prefix grants nothing' 2 'rm -rf /.tmp-rdt-x' '/.tmp-*'
+rdt_ar "prefix: a directory that resolves to '/' grants nothing" 2 'rm -rf /.tmp-rdt-x' '/./.tmp-*'
 rdt_ar 'prefix: an empty name grants nothing' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_PP/*"
 rdt_ar 'prefix: a second glob character grants nothing' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_PP/.tmp-?*"
 rdt_ar 'prefix: a glob in the directory grants nothing' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_AB/w*/.tmp-*"
