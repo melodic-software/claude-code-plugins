@@ -13,7 +13,7 @@ graders:
     target: last_message
   - name: raw-count-not-balance
     type: regex
-    pattern: '\b(?:not|never|ignore|rather than|instead of|(?:don[''’]t|do not) (?:go by|trust|rely on|use))\s+(?:(?:by|from|on|in|the)\s+)*(?:raw[- ])?syllables?(?:[- ]counts?)?\b|\b(?:raw[- ]syllables?(?:[- ]counts?)?|syllable counts?)\b(?:\s+(?:alone|by (?:itself|themselves)|here|totals?))?\s+(?:doesn[''’]t|does not|don[''’]t|do not|isn[''’]t|is not|aren[''’]t|can[''’]t|cannot|won[''’]t|never|says nothing|tells? you nothing|answers a different question|(?:is|are) (?:a )?misleading)\b(?!\s+(?:perfectly|quite|exactly|entirely|completely|totally)\b)'
+    pattern: '\b(?:not|never|ignore|rather than|instead of|(?:don[''’]t|do not) (?:go by|trust|rely on|use))\s+(?:(?:by|from|on|in|the)\s+)*(?:raw[- ])?syllables?(?:[- ]counts?)?\b|\b(?:raw[- ]syllables?(?:[- ]counts?)?|syllable counts?)\b(?:\s+(?:alone|by (?:itself|themselves)|here|totals?))?\s+(?:doesn[''’]t|does not|don[''’]t|do not|isn[''’]t|is not|aren[''’]t|can[''’]t|cannot|won[''’]t|never|says nothing|tells? you nothing|answers a different question|(?:is|are) (?:a )?misleading)\b(?!\s+(?:perfectly|quite|exactly|entirely|completely|totally)\b)|\b(?:doesn[''’]t|does not|don[''’]t|do not|can[''’]t|cannot|won[''’]t|never)\s+(?:measure|show|prove|decide|determine|capture|reflect)\s+(?:the\s+)?(?:balance|line length|length|weight|symmetry|evenness)\b|\b(?:isn[''’]t|is not|aren[''’]t|are not)\s+(?:the|a)\s+(?:measure|metric|yardstick|unit)\b|\b(?:isn[''’]t|is not|aren[''’]t|are not)\s+what\s+(?:shows|measures|decides|determines|proves)\b'
     flags: 'i'
     target: last_message
   - name: no-rewritten-line
