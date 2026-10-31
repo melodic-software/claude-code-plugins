@@ -5,7 +5,7 @@
 import { parseOutcomeMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { escalationActivity, escalationRoute } from "../pr-unblock/escalation-routes.mjs";
 import { failingChecks } from "../pr-unblock/gate-source.mjs";
-import { parseBudget, STALLED_HOURS } from "./signals.mjs";
+import { parseBudget, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE_MINUTES } from "./signals.mjs";
 
 export const LIMITS = {
   prMergeRuns: 12,
@@ -16,6 +16,9 @@ export const LIMITS = {
   mainFailedJobs: 5,
   mergeGroupRuns: 10,
   sweepArtifacts: 5,
+  // pr-merge-post-merge-report artifacts listed in one call, newest first; a
+  // fork's runs can upload under the same name, so the page is wide.
+  postMergeArtifacts: 100,
   commentPages: 5,
   // Open pull requests the stalled-stop read covers, most recently updated
   // first: one GraphQL query lists the first stalledPulls with each one's
@@ -127,11 +130,19 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     }
   };
 
+  // pr-merge's runs on main, any status, listed once for the sources that
+  // read them: post-merge-dispatch keeps its report while the run's merge
+  // jobs still run, so the report source needs runs in progress too; the
+  // budget source keeps completed ones only.
+  let prMergeList = null;
+  const prMergeRuns = async () =>
+    (prMergeList ??= (await get(`/repos/${repo}/actions/workflows/pr-merge.yml/runs?branch=main&created=${created}&per_page=50`))
+      .workflow_runs);
+
   await source("pr-merge api budget", async () => {
-    const runs = (await get(`/repos/${repo}/actions/workflows/pr-merge.yml/runs?branch=main&status=completed&created=${created}&per_page=50`))
-      .workflow_runs;
+    const runs = await prMergeRuns();
     data.budgetReadings = [];
-    for (const run of runs.filter((r) => trustedPrMerge(r) && completedInWindow(r)).slice(0, LIMITS.prMergeRuns)) {
+    for (const run of runs.filter((r) => r.status === "completed" && trustedPrMerge(r) && completedInWindow(r)).slice(0, LIMITS.prMergeRuns)) {
       const merge = (await jobsOf(run.id)).find((j) => j.name === "merge");
       if (!merge) continue;
       for (const a of await annotationsOf(merge.id)) {
@@ -278,6 +289,42 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       refusalCounts: s.refusal_counts ?? {},
       results: Array.isArray(s.results) ? s.results : [],
     };
+  });
+
+  // The report post-merge-dispatch keeps per sweep (pr-merge-post-merge-report:
+  // the post-merge check's exit code and JSON), from trusted pr-merge runs
+  // only, a run still in progress included, newest first, stopping at the first that is not exit 3 or at
+  // POST_MERGE_UNREADABLE_SWEEPS. A run that kept no report (not live, a rate
+  // stop) neither counts nor resets. No report within SWEEP_MAX_AGE_MINUTES
+  // is a gap, so an open issue is not cleared without a readable sweep. Calls:
+  // the shared run list, one artifact list, and one download per report read
+  // (one when the newest is readable, at most POST_MERGE_UNREADABLE_SWEEPS).
+  await source("post-merge reports", async () => {
+    const trusted = new Set((await prMergeRuns()).filter(trustedPrMerge).map((r) => r.id));
+    const artifacts = (await get(`/repos/${repo}/actions/artifacts?name=pr-merge-post-merge-report&per_page=${LIMITS.postMergeArtifacts}`)).artifacts ?? [];
+    const kept = artifacts.filter((a) => !a.expired && Date.parse(a.created_at) <= now.getTime() && trusted.has(a.workflow_run?.id));
+    data.postMergeReports = [];
+    if (kept.length === 0 || now.getTime() - Date.parse(kept[0].created_at) > SWEEP_MAX_AGE_MINUTES * 60_000) {
+      throw new Error(`no report from a trusted pr-merge run in the last ${SWEEP_MAX_AGE_MINUTES} minutes`);
+    }
+    for (const a of kept.slice(0, POST_MERGE_UNREADABLE_SWEEPS)) {
+      const files = await readArtifact(a.id, ["post-merge-code", "post-merge.json"]);
+      const code = String(files["post-merge-code"] ?? "").trim();
+      let reason = null;
+      try {
+        reason = JSON.parse(files["post-merge.json"])?.reason ?? null;
+      } catch {
+        // No JSON: the code alone decides.
+      }
+      data.postMergeReports.push({
+        runId: a.workflow_run.id,
+        url: `https://github.com/${repo}/actions/runs/${a.workflow_run.id}`,
+        code,
+        reason: reason === null ? null : String(reason),
+        createdAt: a.created_at,
+      });
+      if (code !== "3") break;
+    }
   });
 
   await source("lane merges", async () => {

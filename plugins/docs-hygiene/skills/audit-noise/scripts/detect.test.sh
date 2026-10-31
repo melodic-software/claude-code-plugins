@@ -819,7 +819,7 @@ init_fixture_repo "$PORC_REPO"
 # rather than failures. The skip tally and the esc_discriminators guard below exist
 # so that degradation cannot pass silently.
 fixture_landed() { # <repo> <intended-name>
-  git -C "$1" status --porcelain -z 2>/dev/null | tr '\0' '\n' | grep -qF -- "$2"
+  grep -qF -- "$2" < <(git -C "$1" status --porcelain -z 2>/dev/null | tr '\0' '\n')
 }
 
 printf '# plain\n\nEmpirically observed in the plain file.\n' >"$PORC_REPO/plain.md"
