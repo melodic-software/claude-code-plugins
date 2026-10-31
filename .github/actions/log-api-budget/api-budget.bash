@@ -254,9 +254,11 @@ api_budget_pool() {
 
 # Awk functions, rate-guard.mjs's routeOf and routeOk: api_route gives a
 # request's URL or gh api path as a route that holds no query, name or token,
-# by routeOf's rules; api_route_ok says whether a route has only REST path
-# words (rate-guard.mjs's REST_PATH_api v3 repos orgs users user installation app graphql pulls issues comments reviews requested_reviewers git refs ref heads tags trees blobs commits compare merges merge check-runs check-suites statuses status labels assignees milestones events timeline actions runs jobs attempts artifacts logs rerun rerun-failed-jobs workflows dispatches variables secrets contents branches protection rules rulesets collaborators permission teams members hooks deployments environments releases search code reactions files rate_limit annotations repositories installations access_tokens pending_deployments cancel update-branch dismissals readme matching-refs languages notifications, the same list:
-# log-api-budget.test.mjs checks) and placeholders.
+# by routeOf's rules (a URL on a host other than api.github.com and
+# uploads.github.com is other, unless its path starts with /api/, as on
+# GHES); api_route_ok says whether a route has only REST path words
+# (rate-guard.mjs's REST_PATH_WORDS, the same list: log-api-budget.test.mjs
+# checks) and placeholders.
 # shellcheck disable=SC2016 # an awk program
 API_BUDGET_ROUTE='function api_words(   w, i, n) {
     if (api_words_read) return

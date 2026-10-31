@@ -157,7 +157,7 @@ export function readingLine(status, headers, route = "other") {
 export const REST_PATH_WORDS = new Set(
   "api v3 repos orgs users user installation app graphql pulls issues comments reviews requested_reviewers git refs ref heads tags trees blobs commits compare merges merge check-runs check-suites statuses status labels assignees milestones events timeline actions runs jobs attempts artifacts logs rerun rerun-failed-jobs workflows dispatches variables secrets contents branches protection rules rulesets collaborators permission teams members hooks deployments environments releases search code reactions files rate_limit annotations repositories installations access_tokens pending_deployments cancel update-branch dismissals readme matching-refs languages notifications".split(" "),
 );
-const PLACEHOLDERS = new Set(["{n}", "{sha}", "{repo}", "{x}"]);
+export const PLACEHOLDERS = new Set(["{n}", "{sha}", "{repo}", "{x}"]);
 // Whether a route has only path words and placeholders: what each writer and
 // the job-end notice keep.
 export const routeOk = (route) =>
@@ -165,7 +165,8 @@ export const routeOk = (route) =>
 
 // A request's URL as a route that holds no query, name or token, for the
 // job-end api-routes notice; api-budget.bash's API_BUDGET_ROUTE is its twin.
-// A URL on a host that is not GitHub's API is other; scheme, host, /api/v3,
+// A URL on a host other than api.github.com and uploads.github.com is other,
+// unless its path starts with /api/ (GHES); scheme, host, /api/v3,
 // query and fragment go; a GraphQL path is graphql; repos/<owner>/<repo> is
 // repos/{repo}; a number is {n}; hex of 7 or more characters {sha}; the
 // segment after one that names a thing (labels/<name>) and every segment after

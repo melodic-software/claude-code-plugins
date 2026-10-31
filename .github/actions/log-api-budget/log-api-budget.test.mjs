@@ -4,7 +4,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, w
 import { join } from "node:path";
 import { test } from "node:test";
 import { readingLine, recordReading, routeOf } from "./api-budget.mjs";
-import { apiLimits, createRateLimitLatch, poolOf, REST_PATH_WORDS, routeOk } from "./rate-guard.mjs";
+import { apiLimits, createRateLimitLatch, PLACEHOLDERS, poolOf, REST_PATH_WORDS, routeOk } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Root reads and writes past any file mode, so the permission cases skip.
@@ -262,11 +262,15 @@ test("routeOf and the shell's api_route template each request path alike, leakin
     assert.equal(bash(dir, "api_budget_route pr view 1").stdout, "other\n");
   }));
 
-test("api-budget.bash's route word list is rate-guard.mjs's REST_PATH_WORDS", () => {
-  const list = /n = split\("([^"]*)", w, " "\)/.exec(readFileSync(LIB, "utf8"));
-  assert.ok(list, "API_BUDGET_ROUTE splits its word list");
-  assert.deepEqual(list[1].split(" ").sort(), [...REST_PATH_WORDS].sort());
-});
+test("api-budget.bash's route word list is rate-guard.mjs's REST_PATH_WORDS", () =>
+  withDir((dir) => {
+    // Every key api_words loads, whatever line adds it, against the JS words
+    // and placeholders.
+    const keys = bash(dir, `awk "$API_BUDGET_ROUTE"' BEGIN { api_words(); for (k in API_WORD) print k }'`);
+    assert.deepEqual(keys.stdout.split("\n").filter(Boolean).sort(), [...REST_PATH_WORDS, ...PLACEHOLDERS].sort(), keys.stderr);
+    const placeholders = bash(dir, `awk "$API_BUDGET_ROUTE"' BEGIN { api_words(); for (k in API_WORD) if (k ~ /^[{]/) print k }'`);
+    assert.deepEqual(placeholders.stdout.split("\n").filter(Boolean).sort(), [...PLACEHOLDERS].sort());
+  }));
 
 test("both writers append the route last, and every reader keeps its fields", () =>
   withDir((dir) => {
