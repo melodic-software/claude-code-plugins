@@ -16,7 +16,8 @@ bump: patch
   none of the model's, logs the credential's kind alone as a warning, and holds the pull request for a person with the
   human-gated label, a dequeue and a `security` stop reason, since a later clean commit rotates nothing. The verdict
   records `withheld: true` in code, so a fail quoting that text gets no hold and no model can claim one. The comment
-  posts once per head in any pull request state, whatever else the label stands for, and keeps the label through
+  posts once per head and the label goes on in any pull request state, so a closed pull request that reopens stays
+  held, whatever else the label stands for, and the comment keeps the label through
   `clear-escalations`, `enable-auto-merge`'s lift and `ci-status`'s cost-hold clear until a person removes it. A failed
   hold skips no notes, no fix round works past it, and a withheld fail stands on a short read with no
   notes or a scan stop that left no log. A denial alone still voids a `pass` or `pass-notes`. The scan

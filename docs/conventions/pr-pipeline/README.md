@@ -244,8 +244,9 @@ with the same marker and edited in place on a later fail, and the `pr-verify-fai
 `ci-status` holds in the merge queue. No round starts there. A withheld fail (any verdict whose text
 is shaped like a credential, or whose step stopped on the credential scan, which `write-verdict.mjs`
 alone records as `withheld: true`) also holds for a person, and no fix round works past it, since a later clean commit rotates nothing: at
-whatever head the PR has moved to, an open PR takes the human-gated label and leaves the merge
-queue, and in any state, once per head, it takes a comment with a `security` stop reason. That
+whatever head the PR has moved to, and in any state, so a closed PR that reopens stays held, it takes
+the human-gated label and, once per head, a comment with a `security` stop reason, and an open PR
+leaves the merge queue. That
 comment keeps the label through every clear path (`clear-escalations`, `enable-auto-merge`'s lift,
 `ci-status`'s cost-hold clear) until a person removes the label. A failure in the hold still posts
 the notes, then fails the job. A note that starts with a path the PR changes goes on

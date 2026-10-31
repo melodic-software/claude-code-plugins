@@ -155,18 +155,14 @@ async function leaveQueue({ api, pr, log }) {
 
 // A withheld fail may mean a live credential in the pull request's commits,
 // which a later clean commit does not rotate: it holds for a person, at
-// whatever head the pull request has moved to. A closed pull request keeps the
-// record and takes no label or queue step. The label is the hold, so it goes
-// first; the comment, whose first line gate-source.mjs CREDENTIAL_HOLD reads,
+// whatever head the pull request has moved to. The label goes on in any state,
+// so a closed pull request that reopens is still held; only an open one has a
+// queue step. The label is the hold, so it goes first; the comment, whose first line gate-source.mjs CREDENTIAL_HOLD reads,
 // keeps the clear paths off that label. It posts once per head whatever else
 // the label stands for, and names no text.
 async function holdForCredential({ api, pull, verdict: { pr, head }, humanGatedLabel, log }) {
-  const open = pull.state === "open";
   await everyStep(log, [
     async () => {
-      if (!open) {
-        return;
-      }
       const label = humanGatedLabel();
       if (!(await hasLabel(api, pr, label))) {
         await api.addLabels(pr, [label]);
@@ -184,7 +180,7 @@ async function holdForCredential({ api, pull, verdict: { pr, head }, humanGatedL
       }
     },
     async () => {
-      if (open) {
+      if (pull.state === "open") {
         await leaveQueue({ api, pr, log });
       }
     },

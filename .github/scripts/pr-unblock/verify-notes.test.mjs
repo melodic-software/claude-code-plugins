@@ -212,11 +212,12 @@ test("a hold leaves the merge queue at any head, after the label", async () => {
   assert.deepEqual(ops(api), ["label", "comment", "dequeue"]);
 });
 
-test("a closed or merged pull request gets the comment, no label and no queue step", async () => {
+test("a closed or merged pull request gets the label and the comment, and no queue step", async () => {
   for (const pull of [{ state: "closed" }, { state: "closed", merged: true }]) {
-    const api = { ...fakeApi({ pull, queued: true }), readQueueEntry: async () => assert.fail("a closed pull request has no queue entry"), listLabels: async () => assert.fail("no label read") };
-    assert.equal(await postNotes({ api, verdict: WITHHELD, appId: APP, humanGatedLabel: () => assert.fail("no label name"), log: () => {} }), false);
-    assert.deepEqual(ops(api), ["comment"]);
+    const api = { ...fakeApi({ pull, queued: true }), readQueueEntry: async () => assert.fail("a closed pull request has no queue entry") };
+    assert.equal(await postNotes({ api, verdict: WITHHELD, appId: APP, humanGatedLabel: () => "held-for-person", log: () => {} }), false);
+    assert.deepEqual(ops(api), ["label", "comment"]);
+    assert.deepEqual(api.writes[0].names, ["held-for-person"]);
   }
 });
 
