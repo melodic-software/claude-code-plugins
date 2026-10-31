@@ -12,7 +12,10 @@ one line per check, detail lines indented under it:
 
     complete          partial is false
     paid graders      no run skipped its paid graders
-    run errors        no run errored, aborted, or ended its trace in an error
+    run errors        no run errored, aborted, or ended its trace in an error; in
+                      an invocation-probe case, a max-turns error in a run whose
+                      trace holds a Skill call is a warning, since the graded
+                      call already happened
     row count         every case holds N rows per arm; runsPerCase is ignored
     scaffold          no case sets context.scaffold_script in its case.yaml,
                       or the pass ran with --scaffold (--scaffolded); without
@@ -36,7 +39,9 @@ one line per check, detail lines indented under it:
                       suite.plugins path), at a directory above it, or with
                       no absolute path or no known plugin directory, is
                       always a FAIL
-    skill fired       every with-arm run of a should-trigger case fired the skill
+    skill fired       every with-arm run of a should-trigger case fired the skill;
+                      in an invocation-probe case a miss is the trigger rate it
+                      measures, reported per case and overall as a warning
     models            the model and judge model, where the result or traces
                       carry them; runs that disagree are a FAIL
     judge votes       a split llm judge vote is a warning
@@ -50,7 +55,9 @@ does not.
 A should-trigger case has a `tool_used` grader on the Skill tool that requires a
 call. A case is a no-trigger control, and exempt, when its prompt.md tags or
 description mark it one, or it has a max-0 Skill grader with no input_match (or one
-aimed at the plugin's own skills) and no grader requiring a call.
+aimed at the plugin's own skills) and no grader requiring a call. A case is an
+invocation probe when its prompt.md tags include `invocation-probe`, as
+skill-quality's `measure-invocation.sh emit-plugin-eval` writes them.
 
 Exit codes:
 
@@ -146,6 +153,12 @@ CONTROL_DESCRIPTION = re.compile(
     r"\bno[- ]trigger\b|\bwithout invoking\b|\bmust not (?:fire|trigger|invoke)\b",
     re.IGNORECASE,
 )
+# A trigger-measurement case (skill-quality's measure-invocation.sh
+# emit-plugin-eval): a miss is the rate it measures, and a run that hit its turn
+# cap after the Skill call was already graded.
+PROBE_TAG = "invocation-probe"
+MAX_TURNS_ERROR = re.compile(r"Reached maximum number of turns \(\d+\)")
+TRACE_ERRORS = "errors"  # on the result line
 
 # case.yaml's context.scaffold_script, in block or flow form, read without a
 # YAML parser. Any uncommented mention of scaffold_script outside these shapes,
@@ -310,17 +323,28 @@ def skill_graders(case, root):
     return requiring, forbids
 
 
+def prompt_fields(case, root):
+    """The case's prompt.md frontmatter, tags lowercased, or {}."""
+    case_dir = case.get(CASE_DIR)
+    if not root or not isinstance(case_dir, str):
+        return {}
+    fields = frontmatter(os.path.join(root, case_dir, CASE_PROMPT))
+    fields["tags"] = [t.lower() for t in fields.get("tags", [])]
+    return fields
+
+
+def is_probe(case, root):
+    return PROBE_TAG in prompt_fields(case, root).get("tags", [])
+
+
 def is_control(case, root):
     """Control: tagged or described as one, else it forbids own-skill calls and
     requires none (a should-trigger case may also carry a max-0 guard)."""
-    case_dir = case.get(CASE_DIR)
-    if root and isinstance(case_dir, str):
-        fields = frontmatter(os.path.join(root, case_dir, CASE_PROMPT))
-        tags = [t.lower() for t in fields.get("tags", [])]
-        if any(t in CONTROL_TAGS for t in tags) or CONTROL_DESCRIPTION.search(
-            fields.get("description", "")
-        ):
-            return True
+    fields = prompt_fields(case, root)
+    if any(t in CONTROL_TAGS for t in fields.get("tags", [])) or (
+        CONTROL_DESCRIPTION.search(fields.get("description", ""))
+    ):
+        return True
     requiring, forbids = skill_graders(case, root)
     return forbids and not requiring
 
@@ -520,22 +544,67 @@ def shell_failure(run):
     return None
 
 
-def check_errors(runs):
-    details = []
+def skill_called(run):
+    """True when the trace holds a Skill tool_use."""
+    return any(
+        block.get(BLOCK_TYPE) == TOOL_USE and block.get(USE_NAME) == SKILL_TOOL
+        for line in run.trace or []
+        for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT))
+    )
+
+
+def trace_error_text(run):
+    """The errors the trace's erroring result lines carry, as one string."""
+    return json.dumps(
+        [
+            line.get(TRACE_ERRORS)
+            for line in run.trace or []
+            if line.get(LINE_TYPE) == TRACE_RESULT
+            and line.get(TRACE_RESULT_ERROR) is True
+        ]
+    )
+
+
+def check_errors(runs, root):
+    """Every run error FAILs, except in an invocation-probe case whose run hit
+    its turn cap after a Skill call: the graded call happened, so it warns."""
+    details, failed = [], 0
     for r in runs:
+        errors = []
         if r.row.get(RUN_ERROR) is not None:
-            details.append("%s: error %s" % (r.where, r.row.get(RUN_ERROR)))
+            text = str(r.row.get(RUN_ERROR))
+            errors.append(("%s: error %s" % (r.where, text), text))
         if r.row.get(RUN_ABORTED):
-            details.append(
-                "%s: aborted %s" % (r.where, json.dumps(r.row.get(RUN_ABORTED)))
+            errors.append(
+                ("%s: aborted %s" % (r.where, json.dumps(r.row.get(RUN_ABORTED))), "")
             )
         if trace_errored(r):
-            details.append(
-                "%s: its trace ends in an error (%s)" % (r.where, r.trace_path)
+            errors.append(
+                (
+                    "%s: its trace ends in an error (%s)" % (r.where, r.trace_path),
+                    trace_error_text(r),
+                )
             )
-    if details:
-        count = plural(len(details), "run error")
+        capped = bool(errors) and is_probe(r.case, root) and skill_called(r)
+        for detail, text in errors:
+            if capped and MAX_TURNS_ERROR.search(text):
+                details.append(
+                    detail + "; an invocation probe capped after its Skill call"
+                )
+            else:
+                details.append(detail)
+                failed += 1
+    if failed:
+        count = plural(failed, "run error")
         return FAIL, count, details, count
+    if details:
+        return (
+            WARN,
+            "%s, each an invocation probe hitting its turn cap after the Skill call"
+            % plural(len(details), "run error"),
+            details,
+            "invocation probes capped at max turns after the Skill call",
+        )
     return PASS, "no run errored or aborted", [], None
 
 
@@ -756,6 +825,7 @@ def check_denials(runs, roots):
 
 def check_fired(cases, runs, root):
     unfired, unread, controls, unknown, checked = [], [], [], [], 0
+    measured = {}  # invocation-probe case name -> [fired, with-arm runs]
     for case in cases:
         requiring, _ = skill_graders(case, root)
         if is_control(case, root):
@@ -764,6 +834,7 @@ def check_fired(cases, runs, root):
         if not requiring:
             unknown.append(case.get(CASE_NAME))
             continue
+        probe = is_probe(case, root)
         for r in runs:
             if r.case is not case or r.arm != "with":
                 continue
@@ -773,6 +844,10 @@ def check_fired(cases, runs, root):
             ]
             if not verdicts:
                 unread.append("%s: no skill-fired grader result" % r.where)
+            elif probe:
+                tally = measured.setdefault(case.get(CASE_NAME), [0, 0])
+                tally[0] += all(v is True for v in verdicts)
+                tally[1] += 1
             elif all(v is True for v in verdicts):
                 checked += 1
             else:
@@ -782,13 +857,28 @@ def check_fired(cases, runs, root):
         notes.append("exempt as no-trigger controls: %s" % ", ".join(controls))
     if unknown:
         notes.append("no skill-fired grader, so not checked: %s" % ", ".join(unknown))
+    fired = sum(f for f, _ in measured.values())
+    probed = sum(n for _, n in measured.values())
+    if measured:
+        notes.append(
+            "invocation probes fired in %d of %s, the measured rate, not gated"
+            % (fired, plural(probed, "with-arm run"))
+        )
+    rates = [
+        "measured: case %s fired in %d of %s" % (name, f, plural(n, "with-arm run"))
+        for name, (f, n) in measured.items()
+        if f < n
+    ]
     tail = ("; " + "; ".join(notes)) if notes else ""
+    fired_in = "fired in %s" % plural(checked, "with-arm run")
+    if measured and not checked:
+        fired_in = "no should-trigger case outside the invocation probes"
     if unfired:
         return (
             FAIL,
             "%d of %d with-arm runs of should-trigger cases did not fire%s"
             % (len(unfired), len(unfired) + checked + len(unread), tail),
-            ["unfired: " + u for u in unfired] + unread,
+            ["unfired: " + u for u in unfired] + unread + rates,
             (
                 "the skill did not fire in %s of a should-trigger case"
                 % plural(len(unfired), "with-arm run")
@@ -801,8 +891,19 @@ def check_fired(cases, runs, root):
             unread,
             "skill firing unchecked in %s" % plural(len(unread), "run"),
         )
-    if unknown:
-        return WARN, "fired in %s%s" % (plural(checked, "with-arm run"), tail), [], None
+    if unknown or rates:
+        return (
+            WARN,
+            fired_in + tail,
+            rates,
+            (
+                "invocation probes fired in %d of %s" % (fired, plural(probed, "run"))
+                if rates
+                else None
+            ),
+        )
+    if measured and not checked:
+        return PASS, fired_in + tail, [], None
     return (
         PASS,
         "fired in all %s of should-trigger cases%s"
@@ -993,7 +1094,7 @@ def main(argv=None):
     checks = [
         ("complete", check_complete(result, runs)),
         ("paid graders", check_paid(runs)),
-        ("run errors", check_errors(runs)),
+        ("run errors", check_errors(runs, root)),
         ("row count", check_rows(cases, args.runs, arms)),
         ("scaffold", check_scaffold(cases, root, args.scaffolded)),
     ]
