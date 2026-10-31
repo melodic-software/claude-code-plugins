@@ -716,8 +716,12 @@ the review could not finish (its cap, an unlanded fix, an unreadable config, a c
 an uncited control, a workflow change beyond a pin swap). `review-dependency` and
 `apply-dependency-patch` do not apply while `needs-session` is on (their `labels-absent` in
 `pr-pipeline.yaml`), so such a stop gets no same-head model re-run and no fresh round budget on a
-rebased head until a session removes the label, or `clear-escalations.mjs` does once a same-head
-retry cleared the stop's failing status. It also puts the PR in the
+rebased head until a session removes the label, or `clear-escalations.mjs` does: once a same-head
+retry cleared the stop's failing status, or once the head moved off every such stop's head and the
+new head carries no failing status for their activities and passes its checks (`ci-status` aside,
+which the label keeps red). A `dependency-workflow-unpinned` stop is lifted only on its own head,
+since green checks do not judge a workflow change. If the cause holds, the lane stops again on the
+new head and labels it again. It also puts the PR in the
 session-builder queue with that label, which no merge gate reads, so a session builder makes the
 change instead of a person; a person arms it only where the merge gate already asks for one. Every
 other reason is a defect the lane's bounded retries (the
