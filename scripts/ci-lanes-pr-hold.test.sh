@@ -288,7 +288,7 @@ expect() {
     printf '%s\n' "${STUB_CARRIED:-$WARM_CARRIED}" >"$TMP_ROOT/babysit-run-cache.json"
   fi
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_MODULE="${STUB_MODULE:-$MODULE}" \
-    GITHUB_EVENT_NAME="${EVENT:-pull_request}" EVENT_ACTION="${ACTION-synchronize}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
+    GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" \
     GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" GROUP_BASE_REF="${GROUP_BASE_REF-refs/heads/main}" \
     VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
     BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 API_BUDGET_LIMIT_CAP=1000 BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
@@ -667,16 +667,14 @@ else
   fail "a pull request event read a verdict: '$(sort -u "$TMP_ROOT/log")'"
 fi
 
-# disarms: the auto-merge mutations the last run sent. The step's token holds
-# contents: read only, so it sends none; the merge queue's pr-verify check at
-# the head it merges holds an armed pull request's new head.
+# disarms: the auto-merge mutations the last run sent. Disarming needs
+# contents: write, which the step's GITHUB_TOKEN lacks, so it sends none; the
+# merge queue's pr-verify check at the head it merges holds an armed pull
+# request's new head.
 disarms() { grep -c '^api graphql .*disablePullRequestAutoMerge' "$TMP_ROOT/log"; }
-for action in synchronize edited; do
-  STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')" ACTION=$action
-  expect "a $action event on an armed lanes App pull request passes" 0 3 "no hold path"
-  if [[ "$(disarms)" -eq 0 ]]; then ok "a $action event sends no disarm"; else fail "a $action event sent a disarm"; fi
-done
-unset ACTION
+STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
+expect "a push to an armed lanes App pull request passes" 0 3 "no hold path"
+if [[ "$(disarms)" -eq 0 ]]; then ok "a push sends no disarm"; else fail "a push sent a disarm"; fi
 STUB_PULL="$(pull 'Closes #1')"
 
 export EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA="$SHA" WANT_BASE="$SHA"
