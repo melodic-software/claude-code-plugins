@@ -698,23 +698,20 @@ const workSections = (prose, text, workHeadings) => {
   return { known, lines };
 };
 
-// The charge words in what an issue will do, each once: its `title`, the task
-// items of its `body` and of each of `texts` (trustedSpecTexts), and the
-// body's work sections (workSections). A body with no task line and no work
-// heading is read whole. Each text is read alone, so a fence one leaves open
-// never closes in the next. Pure.
-export function workCharges({ title, body, texts }, charges, isPublic, taskList) {
+// The charge words in what an issue will do, each once: its `title`, and its
+// `body`'s task items and work sections (workSections), or the whole body with
+// neither. Each is read alone, so a fence one leaves open never closes in the
+// other. Comments are not read. Pure.
+export function workCharges({ title, body }, charges, isPublic, taskList) {
   const read = (text) => withoutCode(text, charges.code);
-  // An item's extent comes from `text`: a line of code alone blanks to
-  // nothing, which would end the item. Its words come from outside code.
-  const items = (text) => {
-    const lines = read(text).split("\n");
-    return taskItems(text, taskList).flatMap(({ line, more }) => [line, ...more].map((index) => lines[index]));
-  };
   const prose = read(body);
-  const { known, lines } = workSections(prose, body, charges.workHeadings);
-  const whole = !known && !hasTaskLine(prose, taskList);
-  const parts = [read(title), ...[body, ...texts].flatMap(items), ...(whole ? [prose] : lines)];
+  const lines = prose.split("\n");
+  // An item's extent comes from `body`: a line of code alone blanks to
+  // nothing, which would end the item. Its words come from outside code.
+  const items = taskItems(body, taskList).flatMap(({ line, more }) => [line, ...more].map((index) => lines[index]));
+  const sections = workSections(prose, body, charges.workHeadings);
+  const whole = !sections.known && !hasTaskLine(prose, taskList);
+  const parts = [read(title), ...items, ...(whole ? [prose] : sections.lines)];
   return [...new Set(parts.flatMap((part) => chargeWordsIn(part, charges, isPublic)))];
 }
 
@@ -745,67 +742,67 @@ export const titleWraps = (title, events, charges, isPublic) => {
     .flatMap(({ rename, created_at: at }) => wrappedWords(rename?.from, rename?.to, charges, isPublic).filter((word) => now.includes(word)).map((word) => ({ where: "the title", word, at })));
 };
 
-// [{where, word, at}] for each edit in `node` (one EDITS_QUERY answer, whose
-// `diff` is the whole text of a revision, whatever the schema says) that
-// moved a charge word `text` holds in code out of prose. Revisions compare in
-// editedAt order, since no order is documented. A revision set this cannot
-// compare throws: an edit could hide in it. Pure.
-export function revisionWraps({ where, text }, node, charges, isPublic) {
+// What `node` (the issue in an EDITS_QUERY answer, whose `diff` is the whole
+// text of a revision, whatever the schema says) shows of the body `text`:
+// {where, word, at} for each edit that moved a charge word `text` holds in code
+// out of prose, or one {unreadable} when an edit could hide for good: a
+// deleted revision, or a history past one page. Revisions compare in editedAt
+// order, since no order is documented. A read this cannot compare throws. Pure.
+export function revisionWraps(text, node, charges, isPublic) {
   const edits = node?.userContentEdits;
-  if (node?.includesCreatedEdit !== true || !Array.isArray(edits?.nodes) || edits.nodes.length === 0 || edits.pageInfo?.hasNextPage !== false) {
-    throw new Error(`${where} has no complete revision list`);
+  if (node?.includesCreatedEdit !== true || !Array.isArray(edits?.nodes) || edits.nodes.length === 0 || typeof edits.pageInfo?.hasNextPage !== "boolean") {
+    throw new Error("the body has no complete revision list");
+  }
+  if (edits.pageInfo.hasNextPage) {
+    return [{ unreadable: "the body has more than one page of revisions" }];
   }
   if (edits.nodes.some((edit) => edit?.deletedAt != null)) {
-    throw new Error(`a revision of ${where} is deleted`);
+    return [{ unreadable: "a revision of the body is deleted" }];
   }
   if (!edits.nodes.every((edit) => typeof edit?.diff === "string" && Number.isFinite(Date.parse(edit.editedAt)))) {
-    throw new Error(`a revision of ${where} has no text or edit time`);
+    throw new Error("a revision of the body has no text or edit time");
   }
   const revisions = edits.nodes.toReversed().sort((a, b) => Date.parse(a.editedAt) - Date.parse(b.editedAt));
   if (revisions.at(-1).diff !== text) {
-    throw new Error(`the newest revision of ${where} is not its current text`);
+    throw new Error("the newest revision of the body is not its current text");
   }
   const now = chargeWordsInCode(text, charges, isPublic);
   return revisions.slice(1).flatMap((revision, index) =>
     wrappedWords(revisions[index].diff, revision.diff, charges, isPublic)
       .filter((word) => now.includes(word))
-      .map((word) => ({ where, word, at: revision.editedAt })),
+      .map((word) => ({ where: "the body", word, at: revision.editedAt })),
   );
 }
 
 // A separate query, so specOf's callers do not carry every revision's text.
-const EDITS_QUERY = `query($ids: [ID!]!) {
-  nodes(ids: $ids) { id ... on Comment { includesCreatedEdit userContentEdits(first: 100) { pageInfo { hasNextPage } nodes { editedAt deletedAt diff } } } }
+const EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issue(number: $number) { includesCreatedEdit userContentEdits(first: 100) { pageInfo { hasNextPage } nodes { editedAt deletedAt diff } } } }
 }`;
 
-// What the edit history says of a charge word in code, on the texts that feed
-// the check and were edited: the body, and each trusted comment with a task
-// line (`comments` is the REST listing, which gives its node id). [] with no
-// such word, and no read then. {failed} on any failure, so a failed read
-// holds. {where, word, at} for each wrap (revisionWraps).
-export async function chargeEditsOf({ github, issue, spec, comments, humans, taskList, charges, public: isPublic }) {
-  const edited = [
-    { where: "the body", id: issue.node_id, item: spec },
-    ...spec.comments
-      .filter((comment) => humanWritten(comment, humans) && hasTaskLine(comment.body, taskList))
-      .map((comment) => ({ where: `comment ${comment.databaseId}`, id: comments.find(({ id }) => id === comment.databaseId)?.node_id, item: comment })),
-  ].filter(({ item }) => item.lastEditedAt != null && chargeWordsInCode(item.body, charges, isPublic).length > 0);
-  if (edited.length === 0) {
+// What the body's edit history says of a charge word in code: revisionWraps'
+// rows, or {failed} when it does not read. [] with no such word on an edited
+// body, and no read then.
+export async function chargeEditsOf({ github, repository, number, spec, charges, public: isPublic }) {
+  if (spec.lastEditedAt == null || chargeWordsInCode(spec.body, charges, isPublic).length === 0) {
     return [];
   }
+  const [owner, name] = repository.split("/");
   try {
-    const answer = await github("POST", "/graphql", { query: EDITS_QUERY, variables: { ids: edited.map(({ id }) => id) } });
-    return edited.flatMap(({ where, id, item }) => revisionWraps({ where, text: item.body }, answer?.data?.nodes?.find((node) => node?.id === id), charges, isPublic));
+    const answer = await github("POST", "/graphql", { query: EDITS_QUERY, variables: { owner, name, number: Number(number) } });
+    return revisionWraps(spec.body, answer?.data?.repository?.issue, charges, isPublic);
   } catch (error) {
     return [{ failed: String(error?.message ?? error).replaceAll("\n", " ") }];
   }
 }
 
 // The refusal for one chargeEditsOf or titleWraps row.
-const chargeEditReason = ({ where, word, at, failed }) =>
-  failed === undefined
-    ? `an edit of ${where} at ${at} moved a charge word (${word}) from prose into code, which needs an owner decision`
-    : `a charge word in code could not be compared with its edit history (${failed}), which needs an owner decision`;
+const chargeEditReason = ({ where, word, at, unreadable, failed }) => {
+  if (word !== undefined) {
+    return `an edit of ${where} at ${at} moved a charge word (${word}) from prose into code, which needs an owner decision`;
+  }
+  const after = failed === undefined ? "which needs an owner decision" : "which no person must answer: dispatching intake again judges it anew";
+  return `a charge word in code could not be compared with its edit history (${failed ?? unreadable}), ${after}`;
+};
 
 let workflowNames;
 // The file names in the default branch's .github/workflows beside this
@@ -1098,7 +1095,8 @@ export function admissionSettled(labels, events, isMark) {
 // written; a body edited after it refuses, since the verdict judged an older
 // body. The sweep reads no lane comment and passes none. `public` (from
 // admissionFacts) skips the cost_private charge words; `chargeEdits`
-// (admissionFacts, chargeEditsOf) each hold for a person. Pure but for
+// (admissionFacts, chargeEditsOf) each refuse, and hold for a person unless
+// the read failed. Pure but for
 // `pushRefusals` and `charges`, read from patch-rules.json and
 // charge-words.json when not given; a file that does not read, or a
 // patch-rules.json row that refuses no protected path (pushRefusalsOf),
@@ -1221,18 +1219,16 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     refuse.push(`a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`);
   }
   // A metered or renewing charge needs the owner's decision, whatever the
-  // verdict flagged. These texts keep the items a person runs: a charge there
-  // is still one. A word an edit moved into code leaves this read, so that
-  // edit needs the same decision.
-  const stated = { title: issue.title, body: issue.body, texts: trustedSpecTexts(spec, humans, appId, rules["task-list"]) };
-  const charged = workCharges(stated, charges, isPublic, rules["task-list"]);
+  // verdict flagged. A word an edit moved into code leaves this read, so that
+  // edit needs the same decision; a history that fails to read does not.
+  const charged = workCharges({ title: issue.title, body: issue.body }, charges, isPublic, rules["task-list"]);
   if (charged.length > 0) {
     refuse.push(`its title or stated work names a charge (${charged.join(", ")}), which needs an owner decision`);
     hold = true;
   }
   for (const edit of [...titleWraps(issue.title, events, charges, isPublic), ...chargeEdits]) {
     refuse.push(chargeEditReason(edit));
-    hold = true;
+    hold ||= edit.failed === undefined;
   }
   if (BODY_HOLD.test(String(issue.body ?? ""))) {
     refuse.push("a line of its body opens with `Hold:`, a person's hold; removing that line lifts it");
@@ -2072,9 +2068,6 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   }
   const decisionOpen =
     typed && parent !== null && names(parent.labels).includes(NEEDS_DECISION) ? await parentDecisionOpen({ github, repository, parent, humans, appId }) : undefined;
-  // Read for the admission comment's own earlier copy (sayWhy) and each
-  // comment's node id (chargeEditsOf).
-  const comments = await paginate(github, `${base}/comments`);
   // Only a visibility that reads public skips the cost_private charge words;
   // a failed read counts the repository as private.
   const isPublic = await github("GET", `/repos/${repository}`).then(
@@ -2083,7 +2076,8 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   );
   return {
     issue,
-    comments,
+    // Read for the admission comment's own earlier copy (sayWhy).
+    comments: await paginate(github, `${base}/comments`),
     spec,
     schedule: readSchedule(),
     parent: typed && parent !== null ? { ...parent, decisionOpen } : null,
@@ -2095,7 +2089,7 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     doneBy: await (doneBy ?? mergedRefsReader({ github, repository, humans, appId }))(Number(number)),
     events: await paginate(github, `${base}/events`),
     public: isPublic,
-    chargeEdits: await chargeEditsOf({ github, issue, spec, comments, humans, taskList: rules["task-list"], charges: chargePattern(), public: isPublic }),
+    chargeEdits: await chargeEditsOf({ github, repository, number, spec, charges: chargePattern(), public: isPublic }),
   };
 }
 

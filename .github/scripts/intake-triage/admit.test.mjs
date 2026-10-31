@@ -927,9 +927,11 @@ describe("decide", () => {
         admitted(`## Fix\n\nReword line 3.\n\n## Context\n\nThe old seat table.\n\n${DONE}`);
       });
 
-      test("a comment no listed human wrote adds nothing", () => {
-        const spec = humanSpec(issueOf(), [written(USER(OUTSIDER), { body: "- [ ] Buy a seat." })]);
-        assert.deepEqual(decide(facts({ spec })), { verdict: "admit", reasons: [] });
+      test("a comment's task item alone, whoever wrote it", () => {
+        const body = "- [ ] Buy a seat.";
+        for (const comment of [written(USER(HUMAN), { body }), written(USER(OUTSIDER), { body }), written(APP_ACTOR, { body: `${REFINE_MARKER}\n${body}` })]) {
+          assert.deepEqual(decide(facts({ spec: humanSpec(issueOf(), [comment]) })), { verdict: "admit", reasons: [] });
+        }
       });
     });
 
@@ -970,13 +972,6 @@ describe("decide", () => {
         assert.equal(inBody("```\n- [ ] in a fence\n```\n\nThe job needs a seat."), "seat");
       });
 
-      test("a task item of a trusted comment or the counted refinement", () => {
-        const spec = humanSpec(issueOf(), [written(USER(HUMAN), { body: "- [ ] Buy a seat." })]);
-        assert.equal(word({ spec }), "seat");
-        const refined = humanSpec(issueOf(), [written(APP_ACTOR, { body: `${REFINE_MARKER}\n- [ ] Raise the spending limit.` })]);
-        assert.equal(word({ spec: refined }), "spending limit");
-      });
-
       test("a task item of a body no listed human last edited", () => {
         const issue = issueOf({ body: "- [ ] Buy a seat." });
         assert.equal(word({ issue, spec: { ...humanSpec(issue), editor: APP_ACTOR, lastEditedAt: "2026-10-20T00:00:00Z" } }), "seat");
@@ -1009,8 +1004,8 @@ describe("decide", () => {
         }
       });
 
-      test("names each word once across texts", () => {
-        assert.deepEqual(workCharges({ title: "Buy a seat", body: "- [ ] Buy a seat.", texts: ["- [ ] Buy a seat."] }, chargePattern(), false, RULES["task-list"]), ["seat"]);
+      test("names each word once across the title and body", () => {
+        assert.deepEqual(workCharges({ title: "Buy a seat", body: "- [ ] Buy a seat." }, chargePattern(), false, RULES["task-list"]), ["seat"]);
       });
     });
 
@@ -1027,7 +1022,7 @@ describe("decide", () => {
           nodes: texts.map((diff, index) => ({ editedAt: `2026-10-2${9 - index}T05:00:00Z`, deletedAt: null, diff })),
         },
       });
-      const wraps = (text, node) => revisionWraps({ where: "the body", text }, node, charges, true);
+      const wraps = (text, node) => revisionWraps(text, node, charges, true);
 
       test("flags a wrap, naming the edit and the word", () => {
         assert.deepEqual(wraps(WRAPPED, revisionsOf(WRAPPED, PROSE)), [{ where: "the body", word: "subscription", at: "2026-10-29T05:00:00Z" }]);
@@ -1059,16 +1054,23 @@ describe("decide", () => {
         assert.deepEqual(wraps("Plain `seat`.", revisionsOf("Plain `seat`.", PROSE, WRAPPED, PROSE)), []);
       });
 
-      test("refuses a revision list it cannot compare", () => {
+      test("a deleted revision or a history over one page is reported for a hold", () => {
         const deleted = revisionsOf(WRAPPED, PROSE);
         deleted.userContentEdits.nodes[1].deletedAt = "2026-10-30T00:00:00Z";
         deleted.userContentEdits.nodes[1].diff = null;
-        assert.throws(() => wraps(WRAPPED, deleted), /a revision of the body is deleted/);
+        assert.deepEqual(wraps(WRAPPED, deleted), [{ unreadable: "a revision of the body is deleted" }]);
+        const paged = revisionsOf(WRAPPED, PROSE);
+        paged.userContentEdits.pageInfo.hasNextPage = true;
+        assert.deepEqual(wraps(WRAPPED, paged), [{ unreadable: "the body has more than one page of revisions" }]);
+      });
+
+      test("throws on a read it cannot compare", () => {
         // A real patch in `diff` is no longer the text this reads.
         assert.throws(() => wraps(WRAPPED, revisionsOf("@@ -1 +1 @@", "@@ -0,0 +1 @@")), /newest revision of the body is not its current text/);
-        const partial = revisionsOf(WRAPPED, PROSE);
-        partial.userContentEdits.pageInfo.hasNextPage = true;
-        assert.throws(() => wraps(WRAPPED, partial), /no complete revision list/);
+        assert.throws(() => wraps(`${WRAPPED}\n- [ ] Edited between reads.`, revisionsOf(WRAPPED, PROSE)), /newest revision of the body is not its current text/);
+        const empty = revisionsOf(WRAPPED, PROSE);
+        empty.userContentEdits.nodes[1].diff = null;
+        assert.throws(() => wraps(WRAPPED, empty), /a revision of the body has no text or edit time/);
         assert.throws(() => wraps(WRAPPED, undefined), /no complete revision list/);
         assert.throws(() => wraps(WRAPPED, { ...revisionsOf(WRAPPED), includesCreatedEdit: false }), /no complete revision list/);
       });
@@ -1088,26 +1090,33 @@ describe("decide", () => {
         const flagged = decide(facts({ chargeEdits: [{ where: "the body", word: "seat", at: "2026-10-29T05:00:00Z" }] }));
         assert.equal(flagged.hold, true);
         assert.deepEqual(flagged.reasons, ["an edit of the body at 2026-10-29T05:00:00Z moved a charge word (seat) from prose into code, which needs an owner decision"]);
-        const failed = decide(facts({ chargeEdits: [{ failed: "a revision of the body is deleted" }] }));
-        assert.equal(failed.hold, true);
-        assert.match(failed.reasons[0], /could not be compared with its edit history \(a revision of the body is deleted\)/);
-        assert.equal(CHARGE.exec(failed.reasons[0]), null);
+        const unreadable = decide(facts({ chargeEdits: [{ unreadable: "a revision of the body is deleted" }] }));
+        assert.equal(unreadable.hold, true);
+        assert.match(unreadable.reasons[0], /could not be compared with its edit history \(a revision of the body is deleted\), which needs an owner decision/);
+        assert.equal(CHARGE.exec(unreadable.reasons[0]), null);
+      });
+
+      test("a failed read refuses without a hold", () => {
+        const failed = decide(facts({ chargeEdits: [{ failed: "POST /graphql failed with status 502" }] }));
+        assert.equal(failed.verdict, "refuse");
+        assert.equal(failed.hold, undefined);
+        assert.deepEqual(failed.reasons, ["a charge word in code could not be compared with its edit history (POST /graphql failed with status 502), which no person must answer: dispatching intake again judges it anew"]);
       });
 
       describe("chargeEditsOf", () => {
         const edited = { editor: USER(HUMAN), lastEditedAt: "2026-10-29T05:00:00Z" };
-        const read = async ({ spec, comments = [], answer }) => {
+        const WRAPPED_SPEC = { ...written(USER(HUMAN), { body: WRAPPED, ...edited }), comments: [] };
+        const read = async ({ spec, answer }) => {
           const calls = [];
           const github = async (method, path, body) => {
             calls.push(body);
             return answer(body);
           };
-          const found = await chargeEditsOf({ github, issue: { node_id: "I_7" }, spec, comments, humans, taskList: RULES["task-list"], charges, public: true });
-          return { found, calls };
+          return { found: await chargeEditsOf({ github, repository: "o/r", number: 7, spec, charges, public: true }), calls };
         };
-        const nodes = (...list) => () => ({ data: { nodes: list } });
+        const history = (node) => () => ({ data: { repository: { issue: node } } });
 
-        test("reads nothing without a charge word in code on an edited text", async () => {
+        test("reads nothing without a charge word in code on an edited body", async () => {
           for (const spec of [
             { ...written(USER(HUMAN), { body: WRAPPED }), comments: [] },
             { ...written(USER(HUMAN), { body: PROSE, ...edited }), comments: [] },
@@ -1117,42 +1126,45 @@ describe("decide", () => {
         });
 
         test("flags a wrap on the body", async () => {
-          const spec = { ...written(USER(HUMAN), { body: WRAPPED, ...edited }), comments: [] };
-          const { found, calls } = await read({ spec, answer: nodes({ id: "I_7", ...revisionsOf(WRAPPED, PROSE) }) });
+          const { found, calls } = await read({ spec: WRAPPED_SPEC, answer: history(revisionsOf(WRAPPED, PROSE)) });
           assert.deepEqual(found.map(({ where, word }) => [where, word]), [["the body", "subscription"]]);
-          assert.deepEqual(calls.map(({ variables }) => variables.ids), [["I_7"]]);
+          assert.deepEqual(calls.map(({ variables }) => variables), [{ owner: "o", name: "r", number: 7 }]);
         });
 
-        test("flags a wrap on a trusted comment with a task line, and reads no other comment", async () => {
+        test("reads no comment's history, however a comment was edited", async () => {
           const comment = { ...written(USER(HUMAN), { body: WRAPPED, ...edited }), databaseId: 9 };
-          const prose = { ...written(USER(HUMAN), { body: "A `seat` note.", ...edited }), databaseId: 10 };
-          const outsider = { ...written(USER(OUTSIDER), { body: WRAPPED, ...edited }), databaseId: 11 };
-          const spec = { ...humanSpec(issueOf()), comments: [comment, prose, outsider] };
-          const { found, calls } = await read({ spec, comments: [{ id: 9, node_id: "IC_9" }], answer: nodes({ id: "IC_9", ...revisionsOf(WRAPPED, PROSE) }) });
-          assert.deepEqual(found.map(({ where, word }) => [where, word]), [["comment 9", "subscription"]]);
-          assert.deepEqual(calls[0].variables.ids, ["IC_9"]);
+          assert.deepEqual(await read({ spec: humanSpec(issueOf(), [comment]), answer: () => assert.fail("no read") }), { found: [], calls: [] });
         });
 
-        test("a deleted revision and a failed read each come back failed", async () => {
-          const spec = { ...written(USER(HUMAN), { body: WRAPPED, ...edited }), comments: [] };
-          const deleted = revisionsOf(WRAPPED, PROSE);
-          deleted.userContentEdits.nodes[1].deletedAt = "2026-10-30T00:00:00Z";
-          assert.deepEqual((await read({ spec, answer: nodes({ id: "I_7", ...deleted }) })).found, [{ failed: "a revision of the body is deleted" }]);
+        test("a failed read, a null diff and a body edited between reads each come back failed", async () => {
           const refused = () => {
             throw new Error("POST /graphql failed with status 502");
           };
-          assert.deepEqual((await read({ spec, answer: refused })).found, [{ failed: "POST /graphql failed with status 502" }]);
-          assert.deepEqual((await read({ spec, answer: () => ({ data: { nodes: [null] } }) })).found, [{ failed: "the body has no complete revision list" }]);
+          assert.deepEqual((await read({ spec: WRAPPED_SPEC, answer: refused })).found, [{ failed: "POST /graphql failed with status 502" }]);
+          assert.deepEqual((await read({ spec: WRAPPED_SPEC, answer: history(null) })).found, [{ failed: "the body has no complete revision list" }]);
+          const empty = revisionsOf(WRAPPED, PROSE);
+          empty.userContentEdits.nodes[0].diff = null;
+          assert.deepEqual((await read({ spec: WRAPPED_SPEC, answer: history(empty) })).found, [{ failed: "a revision of the body has no text or edit time" }]);
+          const moved = { ...WRAPPED_SPEC, body: `${WRAPPED}\n- [ ] Edited between reads.` };
+          assert.deepEqual((await read({ spec: moved, answer: history(revisionsOf(WRAPPED, PROSE)) })).found, [{ failed: "the newest revision of the body is not its current text" }]);
+        });
+
+        test("a deleted revision comes back to hold", async () => {
+          const deleted = revisionsOf(WRAPPED, PROSE);
+          deleted.userContentEdits.nodes[1].deletedAt = "2026-10-30T00:00:00Z";
+          assert.deepEqual((await read({ spec: WRAPPED_SPEC, answer: history(deleted) })).found, [{ unreadable: "a revision of the body is deleted" }]);
         });
       });
 
-      test("admissionFacts hands decide a failed read as a hold", async () => {
-        const issue = issueOf({ node_id: "I_7" });
+      test("admissionFacts hands decide a failed read, which refuses without a hold", async () => {
+        const issue = issueOf();
         const spec = { ...written(USER(HUMAN), { body: WRAPPED, editor: USER(HUMAN) }), comments: [] };
         const fake = fakeGitHub({ issue, spec, failOn: (method, path, body) => method === "POST" && path === "/graphql" && body.query.includes("userContentEdits") });
         const read = await admissionFacts({ github: fake.github, repository: "o/r", number: 7, issue, rules: RULES, humans, appId: APP, isTrusted: async () => true });
         assert.deepEqual(read.chargeEdits, [{ failed: "POST /graphql failed with status 500" }]);
-        assert.equal(decide({ ...read, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, repository: "o/r" }).hold, true);
+        const result = decide({ ...read, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, repository: "o/r" });
+        assert.equal(result.verdict, "refuse");
+        assert.equal(result.hold, undefined);
       });
     });
   });

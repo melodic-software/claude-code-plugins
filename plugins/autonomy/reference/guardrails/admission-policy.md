@@ -121,17 +121,17 @@ Precedence, top-down, first hit decides:
 5. A rule matches → admit; otherwise refuse.
 
 Intake admission applies the same charge terms, without the spend words, to what the issue will
-do rather than to its background: the title, the task items of the body and of each text pr-verify
-reads as spec, and the sections of the body under a heading the definition's `work_headings` names,
-each up to the next heading at its level or shallower (`#` headings only). A body with no task
-line and no such heading is read whole. A charge named only under another heading, on a body with
-a task line or such a heading, does not refuse there. The evaluator keeps reading the whole title
-and body.
+do rather than to its background: the title and the body's task items and sections under a heading
+the definition's `work_headings` names, each up to the next heading at its level or shallower
+(`#` headings only), or the whole body when it has neither. A charge named only under another
+heading on such a body does not refuse there, and no comment is read. The evaluator keeps reading
+the whole title and body.
 
 Because code is not read, intake also holds an issue, for the owner, when an edit moved a charge
-term from prose into code: a comparison of adjacent revisions of the body or of a trusted comment
-with a task line, and of title renames, for a term the text still holds in code. The hold names the
-edit and the term. A deleted revision, or an edit history that does not read, holds too.
+term from prose into code: a comparison of adjacent revisions of the body, and of title renames,
+for a term the text still holds in code. The hold names the edit and the term. A deleted revision,
+or a history past one page, holds too. A history that fails to read, or a body edited between the
+two reads, refuses without a hold: no person answers it, and intake dispatched again judges it anew.
 
 A rule matches only when every term of the shared predicate holds, each read from provider
 metadata or lane output, never from text an agent controls:
