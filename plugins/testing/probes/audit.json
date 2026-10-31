@@ -1,0 +1,35 @@
+{
+  "skill": "testing:audit",
+  "plugin": "testing",
+  "skill_dir": "plugins/testing/skills/audit",
+  "ranking_note": "Authored by a fresh agent from the before description at commit 480308656535791fd9959cf259b49239f1186992, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Near-misses target testing:cleanup (acting on findings), testing:test-value (judging one assertion), testing:diagnose (a red test), mutation-testing:audit (mutant survival) and review:code-review (PR review).",
+  "competitors": [
+    "testing:test-value",
+    "testing:cleanup",
+    "testing:diagnose",
+    "mutation-testing:audit",
+    "review:code-review"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "Can you sweep the tests under src/ and find any that would still pass if I gutted the implementation? Just report them, don't touch anything."},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "I suspect half our pytest suite has no real assertions in it. Find the ones that check nothing."},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "Our playwright config has retries set to 2. Are flaky failures just sneaking through because of that? Also look for any stray test.only left in the specs."},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "Set up a CI step that fails the build whenever someone commits a test that asserts nothing."},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "Look through the Go and C# test projects for expected values computed by calling the very function under test."},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "Find tests in this repo that only verify mocks got called and never look at real output. Save what you find so we can fix it in a later pass."},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "lots of our jest tests are just toMatchSnapshot() and nothing else. which ones lean only on snapshots?"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "Are there any hollow tests in the bash and powershell suites? stuff like a test body that just echoes or returns true"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "How many of our tests could never go red? I want a count against the total number of tests."},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "Before the release, scan the test folders for assertions stuck inside an if branch that might never execute."},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "Delete the tautological tests in tests/billing that the scan flagged last week, and rewrite the rest."},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "This expected value is computed by the same helper the production code uses. Is that a problem or is it fine?"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "test_invoice_rounding keeps failing on CI with an AssertionError. Can you figure out why?"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "Run mutation testing on the parser module and tell me which mutants survive."},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "Review PR 412 for correctness bugs before I merge it."},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "What's the weather going to be like in Lisbon this weekend?"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "Remove the useless tests from the utils folder, but check them against mutants first so nothing real is lost."},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "Why does this e2e spec time out every third run?"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "What's our mutation score for the auth package, and which lines have surviving mutants?"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "Should I assert that the logger mock was called twice here, or is that overkill?"}
+  ]
+}
