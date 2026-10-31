@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/cart.py"
+          }
+        }
+      ],
+      "why": "no write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "lines.tsv",
+            "content": "4\t6\tsrc/cart.py\n"
+          }
+        }
+      ],
+      "why": "wrote its own lines file"
+    }
+  ]
+}
