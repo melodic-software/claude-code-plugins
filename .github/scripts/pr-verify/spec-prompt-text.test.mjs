@@ -20,7 +20,7 @@ test("the final judge reads the spec under the chunk verifiers' words", () => {
 
 test("the final judge is told what a cut leaves out", () => {
   assert.match(spec, /`notes_left_out` above 0/);
-  assert.match(spec, /a long list ends with a count of the files it leaves out/);
+  for (const text of [spec, flat("./chunk-note.md")]) assert.doesNotMatch(text, /leaves? (it |the path )?out|a count of the files/);
 });
 
 test("a chunk verifier is told to read across chunks, and no text says it cannot", () => {
@@ -28,5 +28,6 @@ test("a chunk verifier is told to read across chunks, and no text says it cannot
   assert.match(note, /Read that part whole and judge both sides/);
   assert.doesNotMatch(note, /no one verifier sees both sides|You have not seen/);
   assert.doesNotMatch(chunk, /A read of any other path is denied/);
+  assert.match(chunk, /a `pass` or `pass-notes` that skips a part, or reads one in pieces, is void/);
   assert.doesNotMatch(flat("./chunk-diff.sh"), /reads only its own parts/);
 });

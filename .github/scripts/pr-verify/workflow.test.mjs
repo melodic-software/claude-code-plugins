@@ -630,7 +630,7 @@ test("the verdict needs every chunk the diff has, and reads each chunk's files",
     const verdict = step("Write the verdict", job);
     assert.equal(
       /^ {8}if: (.*)$/m.exec(verdict)[1],
-      `\${{ !cancelled() && (${SLOTS.map((k) => `steps.chunk-fail${suffix(k)}.outputs.fail == 'true'`).join(" || ")} || (${["steps.judge.outcome == 'success'", ...SLOTS.slice(1).map((k) => `(fromJSON(steps.diff.outputs.chunks || '0') < ${k} || steps.${judgeId(k)}.outcome == 'success')`), "(fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-spec.outcome == 'success')"].join(" && ")})) }}`,
+      `\${{ !cancelled() && (${SLOTS.map((k) => `steps.chunk-fail${suffix(k)}.outputs.fail == 'true'`).join(" || ")} || steps.chunk-results.outcome == 'failure' || (${["steps.judge.outcome == 'success'", ...SLOTS.slice(1).map((k) => `(fromJSON(steps.diff.outputs.chunks || '0') < ${k} || steps.${judgeId(k)}.outcome == 'success')`), "(fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-spec.outcome == 'success')"].join(" && ")})) }}`,
       job,
     );
     for (const k of SLOTS) {
@@ -679,6 +679,10 @@ test("the prompt step gives each chunk its own parts, and a lone chunk no note",
       mkdirSync(path.join(cwd, `data/diff/chunk-${k + 1}`), { recursive: true });
       for (let n = 1; n <= count; n += 1) writeFileSync(path.join(cwd, `data/diff/chunk-${k + 1}/part-00${n}.patch`), "x\n");
     }
+    if (chunks > 1) {
+      mkdirSync(path.join(cwd, "data/manifest"));
+      for (const name of ["part-001.txt", "part-002.txt"]) writeFileSync(path.join(cwd, "data/manifest", name), "x\n");
+    }
     const result = spawnSync("bash", ["-euo", "pipefail", "-c", run], {
       cwd,
       encoding: "utf8",
@@ -688,16 +692,17 @@ test("the prompt step gives each chunk its own parts, and a lone chunk no note",
     return { cwd, prompt: (k) => readFileSync(path.join(cwd, `prompt-${k}.md`), "utf8") };
   };
   const { cwd, prompt } = write(2, [2, 1]);
-  assert.ok(prompt(1).includes(`  - \`${cwd}/data/diff/chunk-1/part-001.patch\`\n  - \`${cwd}/data/diff/chunk-1/part-002.patch\`\n- \`${cwd}/data/manifest.txt\`: `));
+  assert.ok(prompt(1).includes(`  - \`${cwd}/data/diff/chunk-1/part-001.patch\`\n  - \`${cwd}/data/diff/chunk-1/part-002.patch\`\n- `));
+  assert.ok(prompt(1).includes(`  - \`${cwd}/data/manifest/part-001.txt\`\n  - \`${cwd}/data/manifest/part-002.txt\``));
   assert.ok(!prompt(1).includes("chunk-2/part"));
   assert.match(prompt(1), /chunk 1 of 2/);
   assert.match(prompt(2), /chunk 2 of 2/);
   assert.ok(prompt(2).includes(`chunk-2/part-001.patch`));
   const one = write(1, [1]);
-  assert.ok(!one.prompt(1).includes("manifest.txt"));
+  assert.ok(!one.prompt(1).includes("data/manifest"));
   assert.ok(prompt(1).includes(`${cwd}/data/diff/chunk-N`) || prompt(1).includes(`relative to \`${cwd}/data\``));
   for (const text of [prompt(1), prompt(2), one.prompt(1)]) {
-    assert.doesNotMatch(text, /DIFF_PARTS|CHUNK_NOTE|CHUNK_INDEX|CHUNK_COUNT|DATA_DIR|MANIFEST_FILE|SPEC_FILE|SPEC_TEXT_FILE|PR_FILE|CONTEXT_FILE/);
+    assert.doesNotMatch(text, /DIFF_PARTS|CHUNK_NOTE|CHUNK_INDEX|CHUNK_COUNT|DATA_DIR|MANIFEST_PARTS|SPEC_FILE|SPEC_TEXT_FILE|PR_FILE|CONTEXT_FILE/);
   }
   rmSync(cwd, { recursive: true, force: true });
   rmSync(one.cwd, { recursive: true, force: true });
@@ -734,7 +739,7 @@ test("the whole-spec step runs only on a chunked head, after every chunk, and ca
     assert.equal(input(verdict, "FINAL_EXECUTION_FILE"), "${{ steps.judge-spec.outputs.execution-file }}", job);
     assert.equal(input(verdict, "FINAL_LOG_FILE"), "${{ steps.judge-spec.outputs.log-file }}", job);
     assert.equal(input(verdict, "RESULTS_DIR"), "${{ github.workspace }}/pr-verify-data/chunk-results", job);
-    assert.equal(input(verdict, "MANIFEST_FILE"), "${{ github.workspace }}/pr-verify-data/manifest.txt", job);
+    assert.equal(input(verdict, "MANIFEST_DIR"), "${{ github.workspace }}/pr-verify-data/manifest", job);
   }
   for (const [job, name] of [[KEY, "Check the key leg, whole spec"], [SUB, "Check the subscription leg, whole spec"]]) {
     const leg = step(name, job);
@@ -753,6 +758,10 @@ test("after each judge a counted fail stops the slots and reaches the verdict st
       assert.match(check, /^ {8}continue-on-error: true$/m, job);
       assert.equal(input(check, "EXECUTION_FILE"), `\${{ steps.${judgeId(k)}.outputs.execution-file }}`, job);
       assert.equal(input(check, "LOG_FILE"), `\${{ steps.${judgeId(k)}.outputs.log-file }}`, job);
+      assert.equal(input(check, "CHUNK"), `"${k}"`, job);
+      assert.equal(input(check, "CHUNKS"), "${{ steps.diff.outputs.chunks }}", job);
+      assert.equal(input(check, "DIFF_DIR"), "${{ github.workspace }}/pr-verify-data/diff", job);
+      assert.equal(input(check, "MANIFEST_DIR"), "${{ github.workspace }}/pr-verify-data/manifest", job);
       assert.match(check, /write-verdict\.mjs chunk-fail$/m, job);
       const name = k === 1 ? "Judge the pull request" : `Judge chunk ${k}`;
       assert.ok(index(`Read chunk ${k}'s verdict`, job) > index(name, job), job);
@@ -760,4 +769,16 @@ test("after each judge a counted fail stops the slots and reaches the verdict st
     }
     assert.match(step("Summarize the verdict", job), /^ {8}if: \$\{\{ !cancelled\(\) && steps\.verdict\.outcome == 'success' \}\}$/m, job);
   }
+});
+
+test("the report steps only record, so a broken one cannot stop the judgment", () => {
+  for (const job of JOBS) {
+    const reports = STEPS[job].filter((s) => /actions\/report-lane-outcome@/.test(s.block));
+    assert.equal(reports.length, SLOTS.length + 1, job);
+    for (const report of reports) {
+      assert.match(report.block, /^ {8}continue-on-error: true$/m, `${job} ${report.name}`);
+      assert.doesNotMatch(report.block, /^ {8}id: /m, `${job} ${report.name}`);
+    }
+  }
+  assert.doesNotMatch(text, /steps\.report/);
 });

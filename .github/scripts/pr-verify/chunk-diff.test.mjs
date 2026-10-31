@@ -38,6 +38,8 @@ function run(patch, limits = {}) {
   return { ...result, data, outputs: existsSync(output) ? readFileSync(output, "utf8") : "" };
 }
 
+const manifestFiles = (data) => readdirSync(path.join(data, "manifest")).sort().map((name) => path.join(data, "manifest", name));
+const manifestOf = (data) => manifestFiles(data).map((name) => readFileSync(name, "utf8")).join("");
 const partsOf = (data, k) =>
   readdirSync(path.join(data, "diff", `chunk-${k}`)).sort().map((name) => readFileSync(path.join(data, "diff", `chunk-${k}`, name), "utf8"));
 
@@ -51,7 +53,7 @@ test("a diff over the budget splits across files into chunks of whole files", ()
   assert.ok(partsOf(data, 1).join("").startsWith("diff --git a/a.mjs"));
   assert.ok(!partsOf(data, 1).join("").includes("b.mjs"));
   assert.ok(partsOf(data, 1).every((part) => Buffer.byteLength(part) <= 400));
-  assert.match(readFileSync(path.join(data, "manifest.txt"), "utf8"), /^chunk 1 diff\/chunk-1\/part-001\.patch modified a\.mjs\nchunk 2 diff\/chunk-2\/part-001\.patch modified b\.mjs\nchunk 3 diff\/chunk-3\/part-001\.patch modified c\.md\n$/);
+  assert.match(manifestOf(data), /^chunk 1 diff\/chunk-1\/part-001\.patch modified a\.mjs\nchunk 2 diff\/chunk-2\/part-001\.patch modified b\.mjs\nchunk 3 diff\/chunk-3\/part-001\.patch modified c\.md\n$/);
   assert.equal(existsSync(path.join(data, "diff.patch")), false, "the model reads only the parts");
 });
 
@@ -61,6 +63,7 @@ test("a diff under the budget is one chunk with no manifest", () => {
   assert.equal(status, 0);
   assert.equal(outputs, "chunks=1\n");
   assert.equal(partsOf(data, 1).join(""), patch);
+  assert.equal(existsSync(path.join(data, "manifest")), false);
   assert.equal(existsSync(path.join(data, "manifest.txt")), false);
 });
 
@@ -94,18 +97,22 @@ test("a diff that needs more chunks than the job has slots stops and says so", (
   assert.match(stdout, /^::error::.*needs 3 chunks, more than 2/m);
 });
 
-test("the manifest names the part each file starts in, and stays one Read", () => {
-  const two = run(file("a.mjs", 10) + file("b.mjs", 10) + file("c.mjs", 60), { MAX_DIFF_BYTES: "300", PART_BYTES: "200" });
-  assert.equal(two.status, 0);
-  const lines = readFileSync(path.join(two.data, "manifest.txt"), "utf8").trim().split("\n");
-  for (const line of lines.filter((text) => text.startsWith("chunk "))) {
-    const [, k, part] = /^chunk (\d) (\S+) /.exec(line);
+test("the manifest names every file's part, in files of one Read each", () => {
+  const names = Array.from({ length: 200 }, (_, i) => `src/module-${i}.mjs`);
+  const { status, data, stdout } = run(names.map((name) => file(name, 1)).join(""), { MAX_DIFF_BYTES: "8000", PART_BYTES: "1000" });
+  assert.equal(status, 0);
+  assert.match(stdout, /manifest_paths=200\b/);
+  assert.ok(manifestFiles(data).length > 1);
+  for (const name of manifestFiles(data)) assert.ok(Buffer.byteLength(readFileSync(name)) <= 1000, name);
+  const lines = manifestOf(data).trim().split("\n");
+  assert.equal(lines.length, 200);
+  lines.forEach((line, i) => {
+    const [, k, part, name] = /^chunk (\d) (\S+) modified (\S+)$/.exec(line);
+    assert.equal(name, names[i]);
     assert.ok(part.startsWith(`diff/chunk-${k}/part-`), line);
-    assert.ok(existsSync(path.join(two.data, part)), line);
-    assert.ok(readFileSync(path.join(two.data, part), "utf8").includes(`diff --git a/${line.split(" ").at(-1)} `), line);
-  }
-  assert.equal(existsSync(path.join(two.data, "file-parts.txt")), false);
-  const many = run(Array.from({ length: 400 }, (_, i) => file(`src/module-${i}.mjs`, 1)).join(""), { MAX_DIFF_BYTES: "30000", PART_BYTES: "1000" });
-  assert.equal(many.status, 0);
-  assert.ok(Buffer.byteLength(readFileSync(path.join(many.data, "manifest.txt"))) <= 1000);
+    assert.ok(readFileSync(path.join(data, part), "utf8").includes(`diff --git a/${name} `), line);
+  });
+  assert.doesNotMatch(manifestOf(data), /not listed/);
+  assert.equal(existsSync(path.join(data, "manifest.txt")), false);
+  assert.equal(existsSync(path.join(data, "file-parts.txt")), false);
 });

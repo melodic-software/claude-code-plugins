@@ -12,8 +12,9 @@ The files, which you may read with the Read tool and nothing else. A read outsid
 is denied, and a denied read voids the verdict:
 
 - The pull request's diff, from its base to the judged head, split into these parts in order.
-  Read every part whole, each with one Read call and no `offset` or `limit`: a verdict that skips
-  a part, or reads one in pieces, is void.
+  Read every part whole, each with one Read call and no `offset` or `limit`: a `pass` or
+  `pass-notes` that skips a part, or reads one in pieces, is void, and a `fail` that does must
+  name its defect in `notes`.
 
 DIFF_PARTSCHUNK_NOTE
 

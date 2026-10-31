@@ -2216,7 +2216,8 @@ is split at file boundaries into at most 4 chunks of at most 300000 bytes, each 
 judge step with the same spec, cut into parts one Read returns whole. `manifest.txt` names the part
 each file starts in, so a judge reads another chunk's part when its change references a file there
 and judges both sides. A `pass` or `pass-notes` counts only when the run read every part whole with
-no permission denial; a `fail` needs only the schema and no denial, and it stands whatever follows:
+no permission denial; a `fail` needs the schema, no denial and, when it read short, a defect in its
+notes, and it stands whatever follows:
 the step after each judge stops the later chunks, the final judge and any handoff, and
 `Write the verdict` runs on it, so a re-run cannot sample that head. A `pass-notes` makes the head
 `pass-notes`. A head of two chunks or more also needs a final judge step, `Judge the whole spec`,
