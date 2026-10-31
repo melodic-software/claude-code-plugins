@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-fix-voice-invariants
+description: "Fix removes the flagged tells and adds voice only through the facts already in the file: no invented claim, quote or number, and no planted typo. Written from MB:plugins/ai-slop/skills/audit/reference/rewrite-guide.md:84-86, 114-123, 138-140 and 197-203, MB:plugins/ai-slop/skills/audit/SKILL.md:246-250 (the base contract)."
+tags: [fix, rewrite-guide, voice]
+runs: 3
+expected_outcome: "After an explicit fix, docs/build.md has no em dash, no stacked hedge ('could potentially', 'might possibly'), no filler phrase and no chat residue ('I hope this helps', 'Let me know'); it keeps every fact (three runners before, a median build cut from 14 minutes to 9, two builds queuing at peak hours) with at most one hedge on the cache explanation; and it adds no number, name, quote or claim the original lacked and no deliberate typo."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/ai-slop:audit fix docs/build.md"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent]
+  max_turns: 80
+  timeout_seconds: 1500

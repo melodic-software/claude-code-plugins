@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-mechanism-free-claim
+description: "Audit reports a feeling-word sentence under rule-mechanism-free-claims and leaves the measured sentence alone. Written from MB:plugins/ai-slop/skills/audit/reference/catalog.md:1021-1029, MB:plugins/ai-slop/skills/audit/SKILL.md:296-297 (the base contract). Bash, Edit and Write are listed so the no-edit, no-write and fixture-unchanged graders can fail."
+tags: [audit, rubric, mechanism]
+runs: 3
+expected_outcome: "The audit reports 'The CLI feels snappy and modern, and working with it is a joy.' (docs/cli.md line 3) under rule-mechanism-free-claims. The sentence 'The CLI starts in 80 ms on a cold cache and reads its settings from one cli.toml file.' gets no rule-mechanism-free-claims finding. No file is edited."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/ai-slop:audit docs/cli.md"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 40
+  timeout_seconds: 900
