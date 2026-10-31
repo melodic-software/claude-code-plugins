@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "### Not testing (with rationale)\n- `src/models/types.py`: TypedDicts only, a pure contract with no behavior."
+    },
+    {
+      "answer": "src/models/types.py has no logic, so no tests needed."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "- [ ] test src/models/types.py TypedDicts construct correctly",
+      "why": "plans a test for types"
+    }
+  ]
+}

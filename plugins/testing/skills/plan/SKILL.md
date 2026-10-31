@@ -17,9 +17,9 @@ invocation:
 - Working tree status (empty = clean), `git status --porcelain | head -20`
 - Recent commits, `git log --oneline -5`
 
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 20 entries")
-comes too late for whatever the command has already returned inline. What a result returns inline,
-and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
+The pipe is the bound and belongs in the command: a read-time cap ("read only the first 20
+entries") comes too late for whatever the command has already returned inline. What a result
+returns inline, and when it arrives as a saved file instead, is [Tools reference § Output limits](https://code.claude.com/docs/en/tools-reference#output-limits)
 (as of 2026-10-11; recheck when that section changes what a valid result returns inline).
 
 Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Keep these as
@@ -32,11 +32,14 @@ why is the
 
 ## Purpose
 
-Coverage-gap analysis: what needs testing, at what level, and in what priority. Per-ecosystem test structure (frameworks, locations, architecture-test project) comes from the consuming project's testing conventions; infer from existing test projects when undocumented.
+Coverage-gap analysis: what needs testing, at what level, in what priority. Per-ecosystem test
+structure (frameworks, locations, architecture-test project) comes from the consuming project's
+testing conventions; infer it from existing test projects when undocumented.
 
 ## Arguments
 
-`$ARGUMENTS`, optional diff range or scope description. Default: uncommitted changes plus the current branch's commits vs the default branch.
+`$ARGUMENTS`, optional diff range or scope description. Default: uncommitted changes plus the
+current branch's commits vs the default branch.
 
 Examples: /testing:plan, /testing:plan HEAD~3, /testing:plan the auth module.
 
@@ -67,7 +70,9 @@ Classify each changed file:
 
 ### 2. Generate the test plan
 
-For each change area, produce (test-name forms follow the project's documented pattern; when undocumented, mirror the ecosystem's idiom, the PascalCase placeholders below are illustrative (.NET/xUnit)):
+For each change area, produce the plan below. Test names follow the project's documented pattern;
+when undocumented, mirror the ecosystem's idiom (the PascalCase placeholders are illustrative,
+.NET/xUnit):
 
 ```markdown
 ## Test Plan for [branch/PR description]
@@ -110,7 +115,7 @@ Check existing tests against the plan:
 
 ### 4. Prioritize
 
-Not all gaps are equal. Prioritize by:
+Prioritize gaps by:
 
 1. **Regression risk**. Changes to existing behavior that could break silently
 2. **Business criticality**. Core domain logic > utility helpers
@@ -125,7 +130,8 @@ Present the test plan to the user. Then suggest:
 - `/testing:run-e2e` for UI/API verification scenarios
 - `/testing:write organize` if new test projects are needed
 
-For each planned test, name where its expected value will come from: `testing:test-value` (if enabled).
+For each planned test, name where its expected value will come from: `testing:test-value` (if
+enabled).
 
 ## Next
 

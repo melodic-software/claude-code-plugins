@@ -442,7 +442,7 @@ jobs:
             code=0
             out=$(gh api -i -X POST "repos/$REPO/actions/workflows/pr-require-checks.yml/dispatches" \
               -f ref=main -F return_run_details=true 2>"$RUNNER_TEMP/dispatch-stderr") || code=$?
-            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin <<<"$out" >/dev/null
+            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin "repos/{repo}/actions/workflows/{x}/dispatches" <<<"$out" >/dev/null
             cat "$RUNNER_TEMP/dispatch-stderr" >&2
             hdr=$(sed '/^\r\?$/q' <<<"$out")
             body=$(sed '1,/^\r\?$/d' <<<"$out")
@@ -2608,7 +2608,7 @@ jobs:
             code=0
             out=$(gh api -i -X POST "repos/$REPO/actions/workflows/pr-require-checks.yml/dispatches" \
               -f ref=main -F return_run_details=true 2>"$RUNNER_TEMP/dispatch-stderr") || code=$?
-            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin <<<"$out" >/dev/null
+            ! declare -F api_budget_read >/dev/null || api_budget_read github-token /dev/stdin "repos/{repo}/actions/workflows/{x}/dispatches" <<<"$out" >/dev/null
             cat "$RUNNER_TEMP/dispatch-stderr" >&2
             hdr=$(sed '/^\r\?$/q' <<<"$out")
             body=$(sed '1,/^\r\?$/d' <<<"$out")

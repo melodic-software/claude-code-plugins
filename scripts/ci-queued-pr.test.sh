@@ -56,7 +56,7 @@ PR="{\"user\":{\"login\":\"dependabot[bot]\"},\"head\":{\"sha\":\"$HEAD\",\"ref\
 FORK="{\"user\":{\"login\":\"someone\"},\"head\":{\"sha\":\"$HEAD\",\"ref\":\"main\",\"repo\":{\"full_name\":\"someone/r\"}}}"
 
 # The token file's reading of the stub's header block after a passing run.
-READING="200 5000 4990 10 1900000000 core"
+READING="200 5000 4990 10 1900000000 core repos/{repo}/pulls/{n}"
 
 # expect <label> <want-rc> <QUEUE_HEAD_REF> <STUB_PR> <want-output|-> [want-log]
 expect() {

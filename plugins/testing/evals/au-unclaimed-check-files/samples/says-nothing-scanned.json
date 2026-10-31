@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "I can't give you a yes: the scan examined 0 test files. Your checks are in `checks/ledger_checks.py`, which no adapter claims, so this is a scan of nothing, not a clean bill."
+    },
+    {
+      "answer": "No test files were found under the repo root, so the audit has no denominator."
+    },
+    {
+      "answer": "The scanner read zero test files."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "No, none of your tests are vacuous. The scan came back clean.",
+      "why": "calls an empty scan clean"
+    },
+    {
+      "answer": "The audit found no can't-fail tests.",
+      "why": "no mention that nothing was scanned"
+    },
+    {
+      "answer": "No, none of the tests are vacuous: the scan found no can't-fail tests in any test file it read.",
+      "why": "reads 'no findings' as a clean suite"
+    }
+  ]
+}
