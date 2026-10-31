@@ -320,6 +320,29 @@ err_out=$(PATH="$empty_path_dir" "$real_bash" "$SCRIPT" 2>&1) || rc=$?
 assert_exit "exit 2 when jq missing" 2 "$rc"
 assert_contains "jq required message" "$err_out" "jq required"
 
+# The stop names the install command for the platform. CLAUDE_PLUGIN_ROOT is
+# unset so the message library resolves from this checkout, not an installed
+# plugin. A stub apt-get stands in for the WSL Ubuntu host that has python3 and
+# no jq: the reader finds apt-get and names it.
+apt_path_dir="$TEST_TMPDIR/apt-path"
+mkdir -p "$apt_path_dir"
+printf '#!%s\nexit 0\n' "$real_bash" >"$apt_path_dir/apt-get"
+chmod +x "$apt_path_dir/apt-get"
+nojq() { (
+  unset CLAUDE_PLUGIN_ROOT
+  PATH="$1" PERMISSION_STATE_OSTYPE="$2" "$real_bash" "$SCRIPT" 2>&1
+); }
+rc=0
+err_out=$(nojq "$apt_path_dir" linux-gnu) || rc=$?
+assert_exit "exit 2 when jq missing on an apt host" 2 "$rc"
+assert_contains "an apt host is told the apt-get command" "$err_out" "Install it: sudo apt-get install jq"
+assert_contains "the stop points at the prerequisites check" "$err_out" "/harness-ops:prerequisites"
+assert_contains "macOS is told the brew command" "$(nojq "$empty_path_dir" darwin23)" "Install it: brew install jq"
+assert_contains "Windows is told the winget command" "$(nojq "$empty_path_dir" msys)" "Install it: winget install jqlang.jq"
+err_out=$(nojq "$empty_path_dir" linux-gnu)
+assert_not_contains "no package manager found: no guessed command" "$err_out" "Install it:"
+assert_contains "no package manager found: the download page instead" "$err_out" "https://jqlang.org/download/"
+
 # --- Case 14: all four documented local-file exceptions -----------------------
 # The documented list is "outside a git repository, when the repository root is
 # your home directory, on Windows, or when the repository root or its .git or
@@ -356,5 +379,36 @@ assert_contains "a cloud session says which scopes it does not read" "$OUT_CLOUD
 assert_contains "and that the user scope shown is not the operator's" "$OUT_CLOUD" "not yours"
 OUT_LOCAL_SESSION=$(run)
 assert_not_contains "a local session emits no cloud note" "$OUT_LOCAL_SESSION" "CLAUDE_CODE_REMOTE=true"
+
+# --- Case 16: a project root that is the user config dir's parent ------------
+# A session started in the home directory, outside any repository, has the home
+# directory as its project root, so the project path is the user file. Reporting
+# it under both scopes claims two sources where there is one.
+HOMEFX="$TEST_TMPDIR/homefx"
+mkdir -p "$HOMEFX/home/.claude" "$HOMEFX/pol"
+jq -n '{}' >"$HOMEFX/pol/managed-settings.json"
+jq -n '{autoMode:{classifyAllShell:true},permissions:{defaultMode:"auto",allow:["Bash(ls)"]}}' >"$HOMEFX/home/.claude/settings.json"
+home_root() {
+  env -u CLAUDE_CONFIG_DIR -u CLAUDE_CODE_REMOTE "$@" \
+    PERMISSION_STATE_FIXTURE_DIR="$HOMEFX/home" \
+    PERMISSION_STATE_STARTDIR="$HOMEFX/home" \
+    PERMISSION_STATE_MANAGED_PATH="$HOMEFX/pol/managed-settings.json" \
+    PERMISSION_STATE_REGISTRY_KEYS="" PERMISSION_STATE_PLIST_DOMAIN="" \
+    bash "$SCRIPT"
+}
+OUT_HOME=$(home_root HOME="$HOMEFX/home")
+assert_contains "the user file is reported under user" "$OUT_HOME" "user settings present $HOMEFX/home/.claude/settings.json"
+assert_eq "the user file is reported once" 1 "$(count_matching "$OUT_HOME" " present $HOMEFX/home/\.claude/settings\.json$")"
+assert_contains "the project scope is not applicable" "$OUT_HOME" "project settings not-applicable $HOMEFX/home/.claude/settings.json"
+assert_contains "and the skip names its reason" "$OUT_HOME" "project scope skipped: $HOMEFX/home/.claude/settings.json is the user settings file"
+assert_eq "no project rule records" 0 "$(count_matching "$OUT_HOME" '^rule project ')"
+assert_eq "no project conf records" 0 "$(count_matching "$OUT_HOME" '^conf project ')"
+assert_contains "the user rules are still read" "$OUT_HOME" "rule user settings allow Bash(ls)"
+
+# CLAUDE_CONFIG_DIR is the other route to the user file, spelled here through a
+# `..` segment so only the same-file test, not string equality, can match it.
+OUT_CFG=$(home_root HOME="$TEST_TMPDIR/nohome" CLAUDE_CONFIG_DIR="$HOMEFX/pol/../home/.claude")
+assert_contains "a differently spelled CLAUDE_CONFIG_DIR is the same file" "$OUT_CFG" "project settings not-applicable"
+assert_eq "and its file is reported once" 1 "$(count_matching "$OUT_CFG" ' present .*/home/\.claude/settings\.json$')"
 
 report_and_exit

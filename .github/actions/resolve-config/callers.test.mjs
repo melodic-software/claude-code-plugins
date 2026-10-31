@@ -2341,6 +2341,11 @@ test("pr-run-activity-read.yml: the posted check carries the lane record's class
   const post = jobs.report.steps.find((s) => s.name === "Post the check run");
   assert.equal(post.with["lane-class"], "${{ needs.run.outputs.record-class }}");
   assert.equal(post.with["lane-resets"], "${{ needs.run.outputs.record-resets }}");
+  // A run that ended well has no class, so these are what make its record.
+  for (const [input, output] of [["lane-turns", "record-turns"], ["lane-max-turns", "record-max-turns"], ["lane-models", "record-models"], ["lane-profile", "record-profile"]]) {
+    assert.equal(post.with[input], `\${{ needs.run.outputs.${output} }}`);
+    assert.match(jobs.run.outputs[output], /^\$\{\{ steps\.lane-record\.outcome == 'success' && steps\.(act-turns|config)\.outputs\.[a-z-]+ \|\| '' \}\}$/);
+  }
   // The same action, at the same pin, as the write workflow whose record limit-stop.mjs already reads.
   const writeRecord = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.id === "lane-record");
   assert.equal(jobs.run.steps.find((s) => s.id === "lane-record").uses, writeRecord.uses);
@@ -3839,8 +3844,11 @@ test("pr-run-activity-read.yml: the run fields keep at most four local-command s
   writeFileSync(join(root, "execution.json"), JSON.stringify(messages));
   const script = runSteps().find((s) => s.id === "act-turns").with.script;
   const { createRequire } = await import("node:module");
-  const core = { setFailed: (message) => assert.fail(message), info: () => {} };
+  const outputs = {};
+  const core = { setFailed: (message) => assert.fail(message), info: () => {}, setOutput: (name, value) => (outputs[name] = value) };
   await new AsyncFunction("require", "core", "process", script)(createRequire(import.meta.url), core, { env: { EXECUTION_FILE: join(root, "execution.json"), REPLY_DIR: root } });
+  assert.ok(/^[1-9][0-9]*$/.test(outputs.turns), outputs.turns);
+  assert.ok(outputs.models, "the run's models are an output");
   const { local_command_stderr: kept } = JSON.parse(readFileSync(join(root, "act-turns.json"), "utf8"));
   assert.deepEqual(kept, [1, 2, 3, 4].map((n) => `<local-command-stderr>failure ${n}</local-command-stderr>`));
 });
@@ -5339,16 +5347,18 @@ test("pr-unblock.yml: the select job runs only base code with a read-only token 
   }
   const slot = select.steps.find((s) => s.id === "slot");
   assert.deepEqual([slot.with.lane, slot.with.activity, slot.with["prepare-supported"], slot.with["applied-by-supported"]], ["pr-unblock", "address-feedback", "true", "patch feedback-replies"]);
-  const starts = (activity, sender = "1") =>
+  const starts = (activity, sender = "1", stale = "") =>
     evaluate(select.if, {
       "inputs.pr-number": "7",
       "inputs.activity": activity,
       "format('{0}', github.event.sender.id)": sender,
       "vars.AUTOMATION_LANES_APP_SENDER_ID": "2",
+      "needs.dispatcher-current.outputs.stale": stale,
     });
   assert.equal(starts("address-feedback"), true);
   assert.equal(starts("fix-ci"), false);
   assert.equal(starts("address-feedback", "2"), false, "the lanes App's own dispatch");
+  assert.equal(starts("address-feedback", "1", "true"), false, "a dispatcher on an older copy of its file");
   const proceed = (upload, applies, decided, resolveOnly = "") =>
     evaluate(select.outputs.proceed, {
       "steps.upload.outcome": upload,
@@ -6047,8 +6057,8 @@ test("pr-unblock.yml: resolve-conflicts-select skips a PR whose base is not the 
   const select = workflow("pr-unblock.yml").jobs["resolve-conflicts-select"];
   const step = (id) => select.steps.find((s) => s.id === id);
   const dir = tempDir("pr-unblock-base-");
-  // A stand-in gh answering the pulls read's --jq with the head SHA and base ref.
-  writeFileSync(join(dir, "gh"), `#!/usr/bin/env bash\nprintf '%s\\n' "${"d".repeat(40)}" "$FAKE_BASE"\n`, { mode: 0o755 });
+  // A stand-in gh answering the pulls read's --jq with the head SHA, base ref and head repository.
+  writeFileSync(join(dir, "gh"), `#!/usr/bin/env bash\nprintf '%s\\n' "${"d".repeat(40)}" "$FAKE_BASE" o/r\n`, { mode: 0o755 });
   const head = (base) => {
     const out = join(dir, `out-${base.replaceAll("/", "-")}`);
     writeFileSync(out, "");

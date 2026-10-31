@@ -821,9 +821,9 @@ the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
 `GIT_NO_REPLACE_OBJECTS=1`.
 
 1. `resolve-conflicts-select` runs only default-branch-tip code with a read-only token. It reads
-   the PR head, resolves the slot (`applied-by-supported: patch`), pins the default branch tip as
-   the round's base, checks the head out with full history and no persisted credentials, and runs
-   `prepare.sh`: it escalates `repeat-cap` before merging, runs
+   the PR head, failing with no head output when the head is in another repository, resolves the
+   slot (`applied-by-supported: patch`), pins the default branch tip as the round's base, checks
+   the head out with full history and no persisted credentials, and runs `prepare.sh`: it escalates `repeat-cap` before merging, runs
    `git merge --no-commit --no-ff <pinned base>` and the version-bump script (under `LC_ALL=C`),
    snapshots the index, and escalates `protected-path-conflict` (a conflicted path under
    `.github/workflows/`, a `.gitmodules` or a `settings*.json`) or `unresolved-conflict` (a
@@ -915,7 +915,7 @@ App's missing `workflows` permission: sandbox probe run 38148710292 pushed it by
 A round of review-thread answers is five jobs of `pr-unblock.yml`, so no model ever holds a write
 token, and the broker mints one token per job (one with both `contents: write` and
 `pull-requests: write` could enqueue a PR). `address-feedback-select` runs only base code with a
-read-only token. The model job is a `read` skill leaf whose config sets `prepare: review-threads`
+read-only token, and fails with no head output when the head is in another repository. The model job is a `read` skill leaf whose config sets `prepare: review-threads`
 and `applied-by` `patch` and `feedback-replies`, called on this read file twice
 ([Two calls on one credential each](#two-calls-on-one-credential-each)); it posts and commits
 nothing. The push job, `apply-feedback-patch`, is the write file's
@@ -945,7 +945,13 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    every comment after it is by such a `human` (any permission), created after it, whose review
    may also be on any head. A human's
    comment counts only when never edited or last edited by such a human. Every other comment must
-   be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. The
+   be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. A
+   thread holding a `review-threads.reviewer-ids` bot's comment and no such human's direction is
+   kept only when a `human` on that list wrote the `@codex` request behind that bot's review, and
+   no one else wrote one, since the bot's previous review. With no such request, the review is
+   automatic: the pull request's opening and each ready-for-review event since then must be by
+   such a `human` or the lanes App. Otherwise the thread is left alone, logged
+   `codex-request-untrusted` or `codex-request-not-found`. The
    thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and marks
    `direction: true` the replies after the escalation, or with no escalation every human comment
    from the first such fix request on,
@@ -1248,7 +1254,7 @@ model text, and only on an `UNCERTAIN` reply to a finding that is not security-r
 head before any fix). The select job holds `checks: read`, so it records
 the head's CI in `run.json`'s `ci` (`address-feedback.mjs` `ciSnapshot`): it runs the base copy of
 `scripts/plan-test-lanes.sh` over the pull request's files and reads the latest real run of each github-actions check its lanes post (`test-bash (<leg>)` and
-`test-python (<leg>)` for each leg the plan lists, `test-node` and each `pr-test-windows.yml` job it
+`test-python (<leg>)` for each leg the plan lists, `test-node` and each `pr-test-platforms.yml` job it
 names). The plan reads the base tree, so it can name fewer lanes than the head ran. The state is
 `red` when any `test-*` run on the head failed, planned or not (a cancelled run is `unsettled`, since fix-ci does not take a cancelled-only head), `green` when every
 planned check has a run, each one passed, and no unplanned `test-*` lane ran, and
@@ -1297,8 +1303,8 @@ also apply the [registry provenance](README.md#registry-provenance) gate, and th
 warns of a [classifier gap](README.md#classifier-gaps).
 
 1. pr-unblock's `review-dependency-select` job, which runs only default-branch-tip code with a
-   read-only token, reads the PR head, resolves the slot (`applied-by-supported: patch
-   dependency-verdict`) and runs `review-dependency.mjs select`. A pull request whose author is
+   read-only token, reads the PR head, failing with no head output when the head is in another
+   repository, resolves the slot (`applied-by-supported: patch dependency-verdict`) and runs `review-dependency.mjs select`. A pull request whose author is
    not `dependabot[bot]` (by id, from the base's trusted-actors list) or that sorts `auto` skips
    `not-applicable`; one whose head is no longer the head read skips `superseded-sha`.
    `loop.dependency-review-rounds` earlier rounds escalate `dependency-round-cap` and skip
@@ -2297,7 +2303,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `<!-- stop-reason lane=work-resolve-issue reason=<code> -->` and the line ``Reason: `<code>` ``,
   from the shared `.github/scripts/lib/stop-reason.mjs`, which refuses `none` on such a comment.
   collect-base-activity copies `.github/scripts/lib/` beside the script's base copy for that
-  import. `hold` labels the issue with the human-gated
+  import. A `security-risk` hold read from the run's words also names the matched word, reduced to
+  letters, digits, hyphens, underscores and spaces in a code span, so a person can dismiss a false
+  hit in one read; the word changes nothing about the hold. `hold` labels the issue with the human-gated
   role label, removes `agent-ready` and comments why; `host-run` adds the `host-run` label (the host queue's one signal: an unattended
   agent run on a host) and removes `agent-ready`; `attended` adds the `attended` label (a manual
   external step that needs the owner present, which only a listed human lifts) and removes
@@ -2403,6 +2411,11 @@ that a listed human re-files the work as a new issue. What changes from the PR f
 - Any event other than `pull_request` whose run job gated no head SHA, including a read run whose
   `broker-check` job failed: the fallback there would be `github.sha`, the dispatch ref, not the
   PR's commit. The report job notes it in its step summary.
+- A dispatched `pr-unblock.yml` or `pr-refine.yml` run whose dispatcher's file at that run's head
+  differs from the tip's, which the broker would refuse as `workflow-modified`. The caller's
+  `dispatcher-current` job (`dispatcher-current.sh`) compares the two before any select job, so
+  nothing runs and the run ends green with no check and no stop, and the next dispatcher finds the
+  head unhandled. A read it cannot make leaves the run to the broker.
 
 ## Bounds
 

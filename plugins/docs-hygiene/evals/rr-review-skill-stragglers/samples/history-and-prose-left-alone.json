@@ -1,0 +1,37 @@
+{
+  "pass": [
+    {
+      "answer": "Rename audit: review → code-review (identifier mode)\n\nStill needs changing:\n- README.md:3 `/review` → `/code-review` (certain)\n- docs/architecture.md:4 link path `.claude/skills/review/SKILL.md` (certain)\n- .claude/rules/stages.md:3 paths glob `{plan,review,ship}` (certain; the rule no longer loads for the skill)\n- .claude/agents/shipper.md:3 description chain `plan → review → ship` (certain)\n- docs/workflow.md:9 `| 2. review |` (chain-context, confirm)\n\nLeft alone:\n- CHANGELOG.md:5 1.4.0 entry: frozen history.\n- README.md:5 and docs/workflow.md:12: the English verb \"review\", not the skill.",
+      "why": "CHANGELOG kept as history, prose named as the verb"
+    },
+    {
+      "answer": "Stragglers:\n1. README.md line 3: `/review`\n2. docs/architecture.md line 4: ../.claude/skills/review/SKILL.md\n3. .claude/rules/stages.md line 3: `{plan,review,ship}` glob\n4. .claude/agents/shipper.md line 3: plan → review → ship\n5. docs/workflow.md line 9: numbered row `2. review` (ambiguous, likely the skill)\n\nOrdinary prose (\"Maintainers review…\", \"Ask a teammate to review…\") is the verb; not proposed. CHANGELOG.md is not listed: past entries stay as written.",
+      "why": "CHANGELOG deliberately not listed, prose not proposed"
+    },
+    {
+      "answer": "Still pointing at review: README.md:3 `/review`; docs/architecture.md:4 link; .claude/rules/stages.md:3 glob; .claude/agents/shipper.md:3 chain; docs/workflow.md:9 row 2.\n\nExcluded: CHANGELOG.md:5 is a past release entry, kept as history (rerun with --include-historical to include it). The bare verb uses in README.md:5 and docs/workflow.md:12 are not the skill.",
+      "why": "excluded as history with the documented opt-in flag named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rename audit: review → code-review (identifier mode)\n\nStill needs changing:\n- README.md:3 `/review` → `/code-review` (certain)\n- docs/architecture.md:4 link path `.claude/skills/review/SKILL.md` (certain)\n- .claude/rules/stages.md:3 paths glob `{plan,review,ship}` (certain; the rule no longer loads for the skill)\n- .claude/agents/shipper.md:3 description chain `plan → review → ship` (certain)\n- docs/workflow.md:9 `| 2. review |` (chain-context, confirm)\n\n- CHANGELOG.md:5 `/review` → `/code-review` for consistency.\nLeft alone:\n- README.md:5 and docs/workflow.md:12: the English verb \"review\", not the skill.",
+      "why": "tells the user to rewrite the CHANGELOG entry"
+    },
+    {
+      "answer": "Rename audit: review → code-review (identifier mode)\n\nStill needs changing:\n- README.md:3 `/review` → `/code-review` (certain)\n- docs/architecture.md:4 link path `.claude/skills/review/SKILL.md` (certain)\n- .claude/rules/stages.md:3 paths glob `{plan,review,ship}` (certain; the rule no longer loads for the skill)\n- .claude/agents/shipper.md:3 description chain `plan → review → ship` (certain)\n- docs/workflow.md:9 `| 2. review |` (chain-context, confirm)\n\nLeft alone:\n- CHANGELOG.md:5 1.4.0 entry: frozen history.\nAlso change README.md:5 to \"Maintainers code-review every pull request\" and docs/workflow.md:12 to \"Ask a teammate to code-review\".",
+      "why": "rewrites English prose"
+    },
+    {
+      "answer": "Found with a search for /review:\n- README.md:3 `/review`\n- docs/architecture.md:4 `.claude/skills/review/SKILL.md`\n- CHANGELOG.md:5 `/review`\nUpdate all three to code-review.",
+      "why": "CHANGELOG listed for update"
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "To rename a skill, move its folder and update the name field in its frontmatter.",
+      "why": "answers a different question"
+    }
+  ]
+}

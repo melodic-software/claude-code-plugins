@@ -5,6 +5,7 @@
 # Expected values come from the key contract in reference/config.md:
 # explore_output takes auto, change-prep or explain, and the file is
 # docs/conventions/discovery.yaml at the repository root.
+# test-scope: plugins/discovery/lib/resolve-convention-home.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

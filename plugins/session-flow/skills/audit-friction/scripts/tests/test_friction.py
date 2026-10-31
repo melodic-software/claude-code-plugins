@@ -8,12 +8,13 @@ one prompt the person approved, an ask answered "yes, go with recommended", a ha
 900 s of turn time. Its subagent (`general-purpose`) holds a deny-rule denial and a classifier denial
 ([Self-Modification]). `proj-f/sess-f2` (headless, 2026-09-12) holds two rule denials, one of them
 also listed in the closing `result` record's `permission_denials`. `proj-g/sess-g1` (2026-08-01)
-holds one approved prompt.
+holds one approved prompt and two stops, each running two Stop hooks in parallel.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -28,12 +29,16 @@ WINDOW = ("--since", "2026-09-01", "--until", "2026-09-30")
 HOOK_KEY = "denied/hook/shellguard/BLOCKED: file write through the shell. Use the Write tool."
 
 
-def run(script: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([sys.executable, str(script), *args], capture_output=True, text=True, encoding="utf-8", timeout=120)
+def run(script: Path, *args: str, siblings: str = "") -> subprocess.CompletedProcess[str]:
+    # An empty AUDIT_FRICTION_SIBLING_GLOBS turns sibling detection off, so a WSL or Windows test host's own
+    # projects trees never reach these runs.
+    env = {**os.environ, "AUDIT_FRICTION_SIBLING_GLOBS": siblings}
+    return subprocess.run([sys.executable, str(script), *args], capture_output=True, text=True, encoding="utf-8",
+                          timeout=120, env=env)
 
 
-def friction(*args: str) -> subprocess.CompletedProcess[str]:
-    return run(SCRIPTS / "friction.py", *args)
+def friction(*args: str, siblings: str = "") -> subprocess.CompletedProcess[str]:
+    return run(SCRIPTS / "friction.py", *args, siblings=siblings)
 
 
 def data_of(result: subprocess.CompletedProcess[str]) -> dict:
@@ -160,6 +165,17 @@ def test_mine_project_and_session_filters(store):
     assert by_session["sessions"] == 1
 
 
+def test_mine_reports_the_stop_hook_wait_beside_the_parallel_sum(store):
+    # sess-g1's two stops each run two hooks in parallel: 300 and 100 ms, then 50 and 200 ms.
+    args = ("mine", "--data-dir", str(store), "--since", "2026-07-01", "--project", "beta")
+    perf = data_of(friction(*args))["perf"]
+    assert (perf["stop_hook_wait_ms"], perf["stop_hook_ms"]) == (500, 650)
+    markdown = friction(*args, "--format", "md").stdout
+    assert "Stop-hook wait: 500 ms" in markdown
+    assert "parallel hook time, every hook's duration summed: 650 ms" in markdown
+    assert markdown.index("Stop-hook wait") < markdown.index("Perf: ")
+
+
 def test_mine_without_a_store_is_an_error(tmp_path):
     result = friction("mine", "--data-dir", str(tmp_path / "empty"))
     assert result.returncode == 2
@@ -186,6 +202,141 @@ def test_source_collect_uses_the_given_excerpt_limits(tmp_path):
                             "--excerpt-chars", "0", "--excerpt-words", "5"))
     assert data["sources"][0]["status"] == "pass"
     assert stored(Path(data["sources"][0]["store"]), "sess-f1")["excerpt_limits"] == {"chars": 0, "words": 5}
+
+
+def test_mine_warns_about_an_unread_sibling_projects_tree(store, tmp_path):
+    sibling = tmp_path / "mnt" / "c" / "Users" / "someone" / ".claude" / "projects"
+    sibling.mkdir(parents=True)
+    pattern = str(tmp_path / "mnt" / "*" / "Users" / "*" / ".claude" / "projects")
+    result = friction("mine", "--data-dir", str(store), *WINDOW, siblings=pattern)
+    assert result.returncode == 1, result.stdout
+    data = data_of(result)
+    assert data["sibling_roots_unread"] == [str(sibling)]
+    assert f'add it with --source "{sibling}"' in data["warnings"][0]
+    # The store does not record the root it was collected from, so the row says it is the collector's default.
+    assert [r["via"] for r in data["projects_roots"]] == [
+        "machine store, collector default root; the store does not record the root it was collected from"
+    ]
+    markdown = friction("mine", "--data-dir", str(store), *WINDOW, "--format", "md", siblings=pattern).stdout
+    assert f"Warning: sibling projects tree not read: {sibling}" in markdown
+    assert "Projects roots: " in markdown
+    assert "collector default root" in markdown
+
+
+def test_mine_reads_a_sibling_given_as_source_without_warning(tmp_path):
+    machine = copy_projects(tmp_path / "machine", tmp_path, "proj-g")
+    sibling = copy_projects(tmp_path / "mnt" / "c" / "Users" / "someone" / ".claude" / "projects", tmp_path, "proj-f")
+    data_dir = tmp_path / "data"
+    assert run(COLLECT, "collect", "--data-dir", str(data_dir), "--projects-root", str(machine)).returncode == 0
+    pattern = str(tmp_path / "mnt" / "*" / "Users" / "*" / ".claude" / "projects")
+    result = friction("mine", "--data-dir", str(data_dir), "--since", "2026-07-01", "--source", str(sibling), siblings=pattern)
+    assert result.returncode == 0, result.stdout
+    data = data_of(result)
+    assert data["sibling_roots_unread"] == []
+    assert data["projects_roots"][1] == {"root": str(sibling), "via": "--source"}
+
+
+def test_mine_without_a_sibling_lists_only_the_machine_root(store, tmp_path):
+    pattern = str(tmp_path / "mnt" / "*" / "Users" / "*" / ".claude" / "projects")
+    result = friction("mine", "--data-dir", str(store), *WINDOW, siblings=pattern)
+    assert result.returncode == 0, result.stdout
+    data = data_of(result)
+    assert (data["sibling_roots_unread"], data["warnings"]) == ([], [])
+    assert len(data["projects_roots"]) == 1
+
+
+@pytest.fixture
+def module():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("friction_detection_under_test", SCRIPTS / "friction.py")
+    loaded = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loaded)
+    return loaded
+
+
+def test_wsl_distros_decodes_utf16_and_utf8_listings(module, monkeypatch):
+    calls = []
+    outputs = iter([
+        "\ufeffUbuntu\r\nDebian\r\n\r\n".encode("utf-16-le"),
+        b"Ubuntu\nDebian\n",
+    ])
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, stdout=next(outputs))
+
+    monkeypatch.setattr(module, "_wsl_exe", lambda: "C:\\Windows\\System32\\wsl.exe")
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    assert module._wsl_distros("--running") == ["Ubuntu", "Debian"]
+    assert module._wsl_distros() == ["Ubuntu", "Debian"]
+    assert calls == [
+        ["C:\\Windows\\System32\\wsl.exe", "--list", "--quiet", "--running"],
+        ["C:\\Windows\\System32\\wsl.exe", "--list", "--quiet"],
+    ]
+
+
+def test_wsl_distros_is_empty_on_failure_or_without_wsl(module, monkeypatch):
+    monkeypatch.setattr(module, "_wsl_exe", lambda: "wsl")
+    monkeypatch.setattr(module.subprocess, "run", lambda argv, **kw: subprocess.CompletedProcess(argv, 1, stdout=b"x"))
+    assert module._wsl_distros() == []
+
+    def must_not_run(argv, **kwargs):
+        raise AssertionError("wsl.exe ran without a resolved path")
+
+    monkeypatch.setattr(module, "_wsl_exe", lambda: None)
+    monkeypatch.setattr(module.subprocess, "run", must_not_run)
+    assert module._wsl_distros() == []
+
+
+def test_wsl_exe_resolves_under_system_root_only(module, monkeypatch, tmp_path):
+    monkeypatch.setenv("SystemRoot", str(tmp_path))
+    assert module._wsl_exe() is None
+    exe = tmp_path / "System32" / "wsl.exe"
+    exe.parent.mkdir()
+    exe.write_bytes(b"")
+    assert module._wsl_exe() == str(exe)
+
+
+def test_wsl_automount_root_reads_wsl_conf(module, tmp_path):
+    conf = tmp_path / "wsl.conf"
+    conf.write_text('[automount]\nroot = "/win/"\n', encoding="utf-8")
+    assert module._wsl_automount_root(str(conf)) == "/win/"
+    conf.write_text("[network]\nhostname = box\n", encoding="utf-8")
+    assert module._wsl_automount_root(str(conf)) == "/mnt/"
+    conf.write_text("root = /win/\n", encoding="utf-8")
+    assert module._wsl_automount_root(str(conf)) == "/mnt/"
+    assert module._wsl_automount_root(str(tmp_path / "missing.conf")) == "/mnt/"
+
+
+def test_sibling_patterns_on_windows_lists_running_distros_and_skips_stopped(module, monkeypatch):
+    monkeypatch.delenv("AUDIT_FRICTION_SIBLING_GLOBS", raising=False)
+    monkeypatch.setattr(module.sys, "platform", "win32")
+    monkeypatch.setattr(module, "_wsl_distros", lambda *flags: ["Ubuntu"] if "--running" in flags else ["Ubuntu", "Debian"])
+    patterns, stopped = module.sibling_patterns()
+    assert patterns == [
+        "\\\\wsl$\\Ubuntu\\home\\*\\.claude\\projects",
+        "\\\\wsl$\\Ubuntu\\root\\.claude\\projects",
+    ]
+    assert stopped == ["Debian"]
+
+
+def test_sibling_patterns_under_wsl_uses_the_automount_root(module, monkeypatch):
+    monkeypatch.delenv("AUDIT_FRICTION_SIBLING_GLOBS", raising=False)
+    monkeypatch.setattr(module.sys, "platform", "linux")
+    monkeypatch.setattr(module, "_wsl_automount_root", lambda: "/win/")
+    interop: list[str] = []
+    monkeypatch.setattr(module.glob, "glob", lambda pattern: list(interop) if "WSLInterop" in pattern else [])
+    assert module.sibling_patterns() == ([], [])
+    interop.append("/proc/sys/fs/binfmt_misc/WSLInterop-late")
+    assert module.sibling_patterns() == ([str(Path("/win/") / "*" / "Users" / "*" / ".claude" / "projects")], [])
+
+
+def test_root_key_folds_the_two_wsl_unc_spellings(module, monkeypatch):
+    monkeypatch.setattr(module.os.path, "realpath", lambda path: path)
+    assert module._root_key("\\\\wsl.localhost\\Ubuntu\\home\\me\\.claude\\projects\\") == module._root_key(
+        "\\\\wsl$\\Ubuntu\\home\\me\\.claude\\projects"
+    )
 
 
 MERGE = """CAVEAT: synthetic

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Before I collect anything, here is the run:\n\n- Window: 2026-10-20 to today, one fixed window for every source\n- Providers: Northwind, Contoso\n- Source classes: official vendor blogs and release notes, GitHub releases, RSS feeds, secondary reporting\n- Profile: default\n- Output: markdown\n\n",
+      "why": "ISO date"
+    },
+    {
+      "answer": "Window: since Oct 20 (one window for all sources).",
+      "why": "month name"
+    },
+    {
+      "answer": "Timeframe: 20 October 2026 to now.",
+      "why": "day first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Window: per-source bookmarks, 14 days where none exists.",
+      "why": "ignored --since"
+    },
+    {
+      "answer": "Window: last 7 days.",
+      "why": "wrong window"
+    }
+  ]
+}

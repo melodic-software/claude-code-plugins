@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Run /evals:design skill release-notes to write the cases.",
+      "why": "the design skill"
+    },
+    {
+      "answer": "Check the cases with `evals:validate` before a run.",
+      "why": "the validator without the slash"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Run /skill-quality:check validate-evals release-notes.",
+      "why": "near miss: the JSON validator"
+    },
+    {
+      "answer": "Run /evals:plugin-eval on the plugin.",
+      "why": "near miss: the runner, not the writer or the validator"
+    },
+    {
+      "answer": "Release notes usually group changes by type.",
+      "why": "answers a different question"
+    }
+  ]
+}

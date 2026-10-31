@@ -33,7 +33,7 @@ editor (bare invocation mutates nothing at all).
 | Which of our components overlap a native surface, and what should they say about it? | **this skill** |
 | What can this machine actually invoke, and where did each thing come from? | `/harness-ops:inventory` |
 | Is this machine's install directory healthy? | `/harness-ops:audit-install-state` |
-| Is the plugin fleet current, and at what scope? | `/harness-ops:plugins audit` |
+| Is the plugin fleet current, and at what scope? | `/harness-ops:plugins-audit` |
 | What changed in the last CLI release? | `/harness-ops:changelog` |
 | Do our MCP tools duplicate each other or the built-ins? | `/mcp-tools:audit` |
 | Is this SKILL.md structurally sound, and is the listing over budget? | `/skill-quality:check` |

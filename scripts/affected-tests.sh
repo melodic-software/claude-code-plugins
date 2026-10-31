@@ -7,6 +7,8 @@
 # The full corpus is tens of minutes of wall clock on a Windows box
 # (Git Bash pays ~140ms per process spawn, and these suites are spawn-bound),
 # which is long enough that nobody runs it locally and regressions reach CI.
+# The per-suite and per-gate wall-clock baseline, Linux CI beside Windows Git
+# Bash, and how to measure it: docs/test-wall-clock-baseline.md.
 #
 #   scripts/affected-tests.sh                    list the suites covering the diff vs the base ref
 #   scripts/affected-tests.sh --run              ... and run them, sequentially

@@ -73,8 +73,20 @@ if [[ ${1:-} == clear ]]; then
   jq -e --arg a "${ACTIVITY:-}" 'any(.[]; .activity == $a)' "$routes" >/dev/null || die "ACTIVITY is not an activity the table routes"
   if [[ $ACTIVITY == resolve-conflicts ]]; then context=pr-unblock/conflict; else context=pr-unblock/$ACTIVITY; fi
   # Every page, newest first, and failure or error, as ci-status reads the same context.
-  state=$(gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/statuses?per_page=100" | jq -rs --arg c "$context" \
-    '[.[][] | select(.context == $c and .creator.login == "github-actions[bot]")][0].state // ""')
+  # A refused read prints its JSON error on stdout, which jq would die on with
+  # no annotation, so the read is checked before jq sees it.
+  gh_error=$(mktemp)
+  trap 'rm -f "$gh_error"' EXIT
+  if ! statuses=$(gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/statuses?per_page=100" 2>"$gh_error"); then
+    message=$(<"$gh_error")
+    message=${message//'%'/%25}
+    message=${message//$'\r'/%0D}
+    message=${message//$'\n'/%0A}
+    echo "::error::cannot read the statuses of $HEAD_SHA: $message"
+    exit 1
+  fi
+  state=$(jq -rs --arg c "$context" \
+    '[.[][] | select(.context == $c and .creator.login == "github-actions[bot]")][0].state // ""' <<<"$statuses")
   if [[ $state != failure && $state != error ]]; then
     echo "no failing $context on $HEAD_SHA to clear"
     exit 0

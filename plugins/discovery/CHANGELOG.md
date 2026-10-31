@@ -1,5 +1,17 @@
 # Changelog: discovery plugin
 
+## [0.43.1] - 2026-10-31
+
+### Changed
+
+- `/discovery:research` judges a practitioner source by proof of shipped work (something they built that people use), falls back to a hard-to-join employer, and never treats followers or likes as authority.
+
+## [0.43.0] - 2026-10-31
+
+### Added
+
+- `/discovery:research` takes an optional `--unattended` modifier, accepted anywhere in its arguments, which is not part of the topic. With it, the run records the `/deep-research` offer in its output instead of asking, and dispatches; without it, the run asks. The argument hint lists it.
+
 ## [0.42.0] - 2026-10-31
 
 ### Changed

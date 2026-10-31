@@ -106,7 +106,7 @@ const note = () => ({ id: 9, body: "Looks good.", user: OWNER, created_at: STAMP
 // how many open lanes-App PRs, none held, the search lists; null makes the
 // listing fail. `mergedLanePrs` is the search's merged count in the window
 // (24 by default: a WIP cap of 2), null makes it fail.
-// `queuedIssues` are the numbers the open agent-ready issue search lists,
+// `queuedIssues` are the numbers check-wip-cap's open agent-ready listing answers,
 // `deferred` what the open admission-deferred listing answers, and `ready`
 // what the open `status: ready` listing answers.
 // `blobs` maps a path to its blob SHA on main. `done` maps an issue to what
@@ -163,6 +163,12 @@ function world({
         assert.equal(`${params.get("sort")} ${params.get("direction")}`, "updated asc");
         return listed(ready);
       }
+      // check-wip-cap's queued read, oldest first.
+      if (params.get("labels") === "agent-ready" && params.get("sort") === "created") {
+        assert.equal(params.get("state"), "open");
+        assert.equal(params.get("direction"), "asc");
+        return queuedIssues.map((number) => ({ number })).slice((page - 1) * 100, page * 100);
+      }
       return listed(params.get("state") === "open" ? openReady : closedList);
     }
     if (route === `/repos/${REPO}/actions/workflows/work-resolve-issue.yml/runs` && method === "GET") {
@@ -181,10 +187,6 @@ function world({
         return { total_count: 0, incomplete_results: true, items: [] };
       }
       const q = new URL(path, "https://x").searchParams.get("q");
-      if (q.startsWith(`repo:${REPO} is:issue is:open label:agent-ready `)) {
-        const items = queuedIssues.map((number) => ({ number }));
-        return { total_count: items.length, incomplete_results: false, items: items.slice((page - 1) * 100, page * 100) };
-      }
       // The lanes App is whichever LANES_BOT_LOGIN names, so any App author.
       if (new RegExp(`^repo:${REPO} is:pr is:open author:app/[\\w-]+$`).test(q)) {
         if (openLanePrs === null) {
@@ -1747,7 +1749,7 @@ test("a run whose lane token request failed is re-fired an hour after it ended, 
   const { github, actions, calls } = stalledRun();
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
-  // The WIP read's queued search names needs-human; no write does.
+  // No write names needs-human.
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 
@@ -1830,7 +1832,7 @@ test("a failed mint is re-fired again on the same workflow files up to the bound
   const { github, actions, calls } = stalledRun(earlierPumps(2));
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
-  // The WIP read's queued search names needs-human; no write does.
+  // No write names needs-human.
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 
@@ -1866,7 +1868,7 @@ test("a run the WIP cap skipped keeps re-firing past the failed-mint bound", asy
   const { github, actions, calls } = stalledRun({ jobs: WIP_CAPPED, ...earlierPumps(3) });
   assert.equal(await sweep({ github, actions }), 0);
   assert.deepEqual(writes(calls), refired(30));
-  // The WIP read's queued search names needs-human; no write does.
+  // No write names needs-human.
   assert.ok(!writes(calls).some((call) => call.includes("needs-human")));
 });
 
@@ -3739,6 +3741,108 @@ test("a person's mark on an issue a merged Refs pull request may have done parks
   ]);
 });
 
+// Number 20 parked at status: confirmed, blocked by number 10 alone, closed at
+// CLOSED. `parkedAt` is when status: confirmed was added.
+const PARKED_AT = "2026-10-16T11:00:00Z";
+const parkedIssue = ({ labels = ["status: confirmed"], ...rest } = {}) => ({ ...issue(20, { labels }), user: OWNER, ...rest });
+const parkedWorld = ({ labels, parkedAt = PARKED_AT, comments = [{ id: 9, body: `${ADMIT_MARKER}\nNot admitted.`, user: LANES_BOT, created_at: STAMP, updated_at: STAMP }], siblings = [], rest = {}, extra = {} } = {}) =>
+  world({
+    blocking: [parkedIssue({ labels })],
+    issues: { 20: parkedIssue({ labels, ...rest }) },
+    blockedBy: { 20: [issue(10, { state: "closed" }), ...siblings] },
+    comments: { 20: comments },
+    events: { 20: [{ event: "labeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: parkedAt }] },
+    ...extra,
+  });
+const unparked = `DELETE /repos/${REPO}/issues/20/labels/status%3A%20confirmed`;
+const onClose = (world_) => main({ env: envFor(), github: world_.github, admission: admissionFor() });
+
+test("the last blocker closing takes status: confirmed off an issue admission parked, once, and never adds agent-ready", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const parked = parkedWorld();
+  assert.equal(await onClose(parked), 0);
+  assert.deepEqual(writes(parked.calls), [unparked]);
+});
+
+test("a parked issue stays parked for each reason the close does not send it to intake", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const cases = {
+    "an open sibling blocker": { siblings: [issue(11)] },
+    "a re-park after the close": { parkedAt: "2026-10-16T11:45:00Z" },
+    "no admission comment": { comments: [note()] },
+    "the cordoned milestone": { rest: { milestone: { title: "After zero" } } },
+    "an author intake does not admit": { rest: { user: { id: 4242, login: "drive-by" } } },
+    "a refuse label": { labels: ["status: confirmed", "host-run"] },
+    "a hold": { labels: ["status: confirmed", "needs-human"] },
+    "needs-decision beside it": { labels: ["status: confirmed", "status: needs-decision"] },
+  };
+  for (const [name, options] of Object.entries(cases)) {
+    const parked = parkedWorld(options);
+    assert.equal(await onClose(parked), 0, name);
+    assert.deepEqual(writes(parked.calls), [], name);
+  }
+});
+
+test("another milestone does not cordon a parked issue", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const parked = parkedWorld({ rest: { milestone: { title: "Next" } } });
+  assert.equal(await onClose(parked), 0);
+  assert.deepEqual(writes(parked.calls), [unparked]);
+});
+
+test("the sweep reads only issues a closed blocker blocked, and logs the count before the removal", async (t) => {
+  const lines = [];
+  t.mock.method(console, "log", (line) => lines.push(line));
+  const parked = parkedWorld({ extra: { closedList: [issue(10, { state: "closed" })], blockingOf: { 10: [parkedIssue()] } } });
+  assert.equal(await sweep({ github: parked.github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(parked.calls), [unparked]);
+  const count = lines.findIndex((line) => String(line).includes("1 of 1 parked issue(s) go back to intake"));
+  const removal = lines.findIndex((line) => String(line).includes("removed; intake-reenter"));
+  assert.ok(count >= 0 && count < removal, lines.join("\n"));
+});
+
+// Sweep windows overlap, so a sweep reads the same close while intake runs.
+test("an issue sent to intake is not labeled until a status: ready follows the removal", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const removal = { event: "unlabeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: CLOSED };
+  const sent = (labels, events) => parkedWorld({ labels, extra: { closedList: [issue(10, { state: "closed" })], blockingOf: { 10: [parkedIssue({ labels })] }, events: { 20: events } } });
+  for (const labels of [["needs-triage"], []]) {
+    const waiting = sent(labels, [removal]);
+    assert.equal(await sweep({ github: waiting.github, admission: admissionFor() }, PAUSING), 0);
+    assert.deepEqual(writes(waiting.calls), [], String(labels));
+  }
+  const decided = sent(["status: ready"], [removal, { event: "labeled", label: { name: "status: ready" }, actor: LANES_BOT, created_at: STAMP }]);
+  assert.equal(await sweep({ github: decided.github, admission: admissionFor() }, PAUSING), 0);
+  assert.ok(writes(decided.calls).includes(labeled(20)), writes(decided.calls).join("\n"));
+});
+
+test("an issue intake parked again after an unpark goes back to intake when a later blocker closes", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const events = [
+    { event: "labeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: PARKED_AT },
+    { event: "unlabeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: "2026-10-16T11:05:00Z" },
+    { event: "labeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: "2026-10-16T11:10:00Z" },
+  ];
+  const parked = parkedWorld({ extra: { events: { 20: events } } });
+  assert.equal(await onClose(parked), 0);
+  assert.deepEqual(writes(parked.calls), [unparked]);
+});
+
+test("a failed removal fails the run", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const parked = parkedWorld({ extra: { failOn: (method, path) => method === "DELETE" && path.endsWith("status%3A%20confirmed") } });
+  assert.equal(await onClose(parked), 1);
+});
+
+test("a person's mark refused for a person takes a parked status: confirmed off, after the hold", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = markedWorld({ labels: [...MARKED, "status: confirmed"] });
+  assert.equal(await sweep({ github, admission: admissionFor(4242) }, PAUSING), 0);
+  const posted = writes(calls);
+  const hold = posted.indexOf(`POST /repos/${REPO}/issues/25/labels {"labels":["status: needs-decision"]}`);
+  assert.ok(hold >= 0 && posted.indexOf(`DELETE /repos/${REPO}/issues/25/labels/status%3A%20confirmed`) > hold, posted.join("\n"));
+});
+
 test("a person's mark refused for a merged Refs pull request and another reason keeps needs-decision", async (t) => {
   t.mock.method(console, "log", () => {});
   const { github, calls } = markedWorld({ done: { 25: doneNode([41], 25) } });
@@ -4529,6 +4633,17 @@ test("a status: ready issue in no queue that admission refuses parks at status: 
   const stranger = readyWorld({ items: [readyIssue(26, { user: { id: 4242, login: "drive-by" } })] });
   assert.equal(await sweep({ github: stranger.github, admission: admissionFor() }, PAUSING), 0);
   assert.deepEqual(writes(stranger.calls), refused(26, "status: needs-decision", ["the author is neither a listed human nor the lanes App"]));
+});
+
+test("a status: ready issue in no queue refused for a person takes a parked status: confirmed off, after the hold", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const { github, calls } = readyWorld({ items: [readyIssue(26, { labels: ["status: ready", "status: confirmed"], user: { id: 4242, login: "drive-by" } })] });
+  assert.equal(await sweep({ github, admission: admissionFor() }, PAUSING), 0);
+  assert.deepEqual(writes(calls).slice(0, 3), [
+    `POST /repos/${REPO}/issues/26/labels {"labels":["status: needs-decision"]}`,
+    `DELETE /repos/${REPO}/issues/26/labels/status%3A%20ready`,
+    `DELETE /repos/${REPO}/issues/26/labels/status%3A%20confirmed`,
+  ]);
 });
 
 test("a status: ready issue in no queue refused for a manual external step parks at status: confirmed with attended", async (t) => {

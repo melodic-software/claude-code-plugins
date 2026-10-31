@@ -2,7 +2,7 @@
 // lanes App opened, or a trusted actor opened (an App's at once, a person's
 // once idle; the base config's `adoption` section), whose head's lanes failed
 // (the `ci-lanes` commit status ci-status records, not ci-status itself, which
-// a review-lane hold or a pending review also fails) or whose pr-test-windows
+// a review-lane hold or a pending review also fails) or whose pr-test-platforms
 // run failed, from the same
 // dispatcher run
 // as dispatch.mjs (pr-unblock-dispatch.yml), so the trigger gate and the
@@ -23,7 +23,7 @@
 // A head at the cap gets one `::warning::` and goes into the dispatch record
 // (dispatch-record.mjs), so later runs skip it before any read; the next push
 // makes a new head.
-// A head whose lanes passed but whose pr-test-windows run failed is a
+// A head whose lanes passed but whose pr-test-platforms run failed is a
 // candidate too. A head is skipped while a re-run of its tested run is
 // queued or going, while an infra-only first failure's one re-run by the
 // lost-run reconciler is due (infra-failure.mjs reconcilerOwns,
@@ -71,10 +71,10 @@ export const DEFAULTS = Object.freeze({
   // a failed one, which the per-head cap and the restarts retry.
   stopCheckName: "pr-unblock / apply-patch",
   // The run whose failure counts: pr-require-checks when its lanes failed,
-  // else the advisory pr-test-windows, which ci-status does not aggregate but
+  // else the advisory pr-test-platforms, which ci-status does not aggregate but
   // the merge gate holds on.
   requiredWorkflow: ".github/workflows/pr-require-checks.yml",
-  advisoryWorkflow: ".github/workflows/pr-test-windows.yml",
+  advisoryWorkflow: ".github/workflows/pr-test-platforms.yml",
   // The GitHub Actions app, as in dispatch.mjs: only its runs count.
   actionsAppId: 15368,
   holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
@@ -158,6 +158,12 @@ const fromRest = (run) => ({
   completedAt: run.completed_at ?? null,
 });
 
+// A push job check that failed because the broker refused its lane token:
+// report-check-run's summary of the run job's failure-reason, which
+// request-lane-token starts with lane-token-denied.
+const tokenRefused = (run) =>
+  run?.status === "completed" && run.conclusion === "failure" && String(run.output?.summary ?? "").startsWith("The run job did not succeed: lane-token-denied:");
+
 // A rollup check run in the REST shape limit-stop.mjs reads.
 const asRest = (run) => ({
   status: String(run.status ?? "").toLowerCase(),
@@ -170,7 +176,8 @@ const asRest = (run) => ({
 // is one attempt, read from its last check, that spends one place under the
 // per-head cap for each of its checks (`spent`). An attempt a lane-stopped push job
 // check (`stopRuns`, REST) followed reads as a failure: the run stopped, so
-// the head may be retried under the same caps a failed run is. One a
+// the head may be retried under the same caps a failed run is, and so does one
+// whose push job failed on a token refusal, which pushed nothing. One a
 // kill-switch push job check followed reads as that kill-switch skip, which
 // did no work: it is retried like a held skip, spending no restart. A check's
 // attempt is the workflow run attempt postingAttempt names; not its check
@@ -180,7 +187,7 @@ const asRest = (run) => ({
 // fix-ci check started.
 export function withStops(runs, stopRuns) {
   const startOf = (run) => Date.parse(run.started_at ?? "");
-  const stops = stopRuns.filter(laneStop);
+  const stops = stopRuns.filter((run) => laneStop(run) || tokenRefused(run));
   const kills = stopRuns.filter(killSwitchStop);
   const starts = runs.map(startOf).sort((a, b) => a - b);
   const stoppedAt = (run, stops) => {
@@ -403,14 +410,14 @@ export function skipReason(
   if (!lanesFailed(node) && !advisory) {
     return failedState(lanesStatus(node)?.state) ? "ci-lanes failed but the GitHub Actions bot did not set it" : "ci-lanes has not failed";
   }
-  // node.requiredRun, the head's tested pr-require-checks run (pr-test-windows
+  // node.requiredRun, the head's tested pr-require-checks run (pr-test-platforms
   // when only an advisory check failed) and its latest jobs, and, when that run
   // ended cancelled, node.headCheckRuns, every REST check run on the head, are
   // attached by dispatchCiFixes just before it would dispatch.
   const required = node.requiredRun;
   if (required !== undefined) {
     if (advisory && required.run?.conclusion !== "failure") {
-      return "ci-lanes passed and no pr-test-windows run failed";
+      return "ci-lanes passed and no pr-test-platforms run failed";
     }
     const owned = reconcilerOwns(required, now);
     if (owned !== "") {
@@ -431,8 +438,9 @@ export function skipReason(
   }
   // The rollup's newest push job check names no run attempt: when it is a
   // lane or kill-switch stop, which turns the fix-ci run before it into a
-  // failed or paused one (withStops), the REST read decides the head.
-  if (node.fixCiRuns === undefined && runs.every((run) => run.status === "COMPLETED") && checks.some((run) => run.name === stopCheckName && releasesHead(asRest(run)))) {
+  // failed or paused one (withStops), the REST read decides the head. So
+  // does a failed one: the rollup has no summary to tell a token refusal by.
+  if (node.fixCiRuns === undefined && runs.every((run) => run.status === "COMPLETED") && checks.some((run) => run.name === stopCheckName && (run.conclusion === "FAILURE" || releasesHead(asRest(run))))) {
     return "";
   }
   // A held skip (a held PR stopped above) or a kill-switch stop counts toward

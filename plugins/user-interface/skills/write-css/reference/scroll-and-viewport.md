@@ -9,15 +9,18 @@ Each `Baseline:` line links the live compat entry; never copy version numbers fr
 
 Contents: `carousel-on-native-scroll`, `scroll-area-between-a-fixed-header-and-footer`,
 `styles-that-apply-only-when-a-scroller-overflows`, `anchor-targets-that-clear-a-sticky-header`,
-`no-rubber-band-bounce-on-desktop`, `content-clear-of-the-notch`.
+`no-rubber-band-bounce-on-desktop`, `content-clear-of-the-notch`,
+`full-height-that-browser-chrome-cannot-cover`, `gesture-surface-that-claims-only-its-axis`,
+`nothing-wider-than-the-viewport`, `scrollbars-styled-only-inside-small-scrollers`,
+`menu-items-that-fade-at-the-container-edge`.
 
 ## Carousel on native scroll: `carousel-on-native-scroll`
 
 Why: the carousel is a real scroll container, so swipe, trackpad, keyboard and momentum work before
 any script loads.
 
-Baseline: [`scroll-snap-type`](https://developer.mozilla.org/en-US/docs/Web/CSS/scroll-snap-type#browser_compatibility),
-[`::scroll-button()`](https://developer.mozilla.org/en-US/docs/Web/CSS/::scroll-button#browser_compatibility).
+Baseline: [`scroll-snap-type`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scroll-snap-type#browser_compatibility),
+[`::scroll-button()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/::scroll-button#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use it for any horizontal row of cards.
@@ -87,9 +90,9 @@ Rules:
 Why: the panel grows with its content up to a limit, then only the middle scrolls while header and
 footer stay put.
 
-Baseline: [`scrollbar-gutter`](https://developer.mozilla.org/en-US/docs/Web/CSS/scrollbar-gutter#browser_compatibility),
-[`overscroll-behavior`](https://developer.mozilla.org/en-US/docs/Web/CSS/overscroll-behavior#browser_compatibility),
-[`dvh`](https://developer.mozilla.org/en-US/docs/Web/CSS/length#browser_compatibility).
+Baseline: [`scrollbar-gutter`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scrollbar-gutter#browser_compatibility),
+[`overscroll-behavior`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/overscroll-behavior#browser_compatibility),
+[`dvh`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/length#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use it for the body of a modal, a chat list, a drawer or a sidebar.
@@ -132,33 +135,23 @@ Rules:
 Why: a scroll timeline only runs when there is something to scroll, so the edges fade only then,
 replacing a `ResizeObserver` comparing `scrollWidth` with `clientWidth`.
 
-Baseline: [`animation-timeline`](https://developer.mozilla.org/en-US/docs/Web/CSS/animation-timeline#browser_compatibility).
+Baseline: [`animation-timeline`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/animation-timeline#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use it on any row that may or may not fit: tabs, a toolbar, a table wrapper.
 
-```css
-@keyframes overflowing {
-  from, to { --fade: 2rem; }
-}
+A fade over a scrollable list restricts the viewable area and cuts off content the user is
+scrolling to read. A fade on a scroller is allowed only on these terms:
 
-.scroller {
-  --fade: 0px;
-  overflow-x: auto;
-  animation: overflowing linear;
-  animation-timeline: scroll(self inline);
-  mask-image: linear-gradient(
-    to right,
-    transparent,
-    #000 var(--fade),
-    #000 calc(100% - var(--fade)),
-    transparent
-  );
-}
-```
+- Never fade a scroller statically. The fade exists only while there is more to scroll.
+- Clear each edge where no content remains: the start edge is sharp at the start, the end edge at
+  the end.
+- Never make the fade the only scroll cue. Keep a scrollbar, a partly visible next item or an
+  arrow beside it.
+- Keep focus rings outside the masked band, so a focused item at the edge is not faded with it.
 
-To fade only the side that still has content, register the two lengths and give the keyframes
-different ends:
+Register the two lengths and give the keyframes different ends, so only the side that still has
+content fades:
 
 ```css
 @property --fade-start {
@@ -186,8 +179,8 @@ different ends:
   mask-image: linear-gradient(
     to right,
     transparent,
-    #000 var(--fade-start),
-    #000 calc(100% - var(--fade-end)),
+    oklch(0 0 none) var(--fade-start),
+    oklch(0 0 none) calc(100% - var(--fade-end)),
     transparent
   );
 }
@@ -196,7 +189,7 @@ different ends:
 Rules:
 
 - Write `animation-timeline` after `animation`. The shorthand resets the timeline.
-- Declare the default outside the keyframes, as `--fade: 0px` does here.
+- Declare the default outside the keyframes, as the `initial-value` of each `@property` does here.
 - Any value can go in the keyframes, keywords included, such as flipping a row to `row-reverse`
   when it overflows.
 - Write no fallback. Without scroll timelines the row scrolls without the fade.
@@ -207,31 +200,39 @@ Rules:
 
 Why: scroll padding stops an in-page link target from landing under a fixed or sticky header.
 
-Baseline: [`scroll-padding`](https://developer.mozilla.org/en-US/docs/Web/CSS/scroll-padding#browser_compatibility).
-As of 2026-10-11, recheck on a status change.
+Baseline: [`scroll-padding-block-start`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scroll-padding-block-start#browser_compatibility),
+[`scroll-margin-block-start`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scroll-margin-block-start#browser_compatibility).
+As of 2026-10-29, recheck on a status change.
 
 Use it on any page with in-page links and a fixed or sticky header.
 
 ```css
-html { scroll-padding-block-start: var(--header-height, 5rem); }
+html { scroll-padding-block-start: var(--header-height, 4rem); }
 
 @media (prefers-reduced-motion: no-preference) {
   html { scroll-behavior: smooth; }
 }
 ```
 
+The same offset can sit on the targets instead, where one page's header differs from the rest:
+
+```css
+[id] { scroll-margin-block-start: var(--header-height, 4rem); } /* the sticky header's height */
+```
+
 Rules:
 
 - Keep the offset outside the motion query, so people who ask for reduced motion still get it.
-- Tie the value to the header's height: share one custom property between the two.
+- Tie the value to the header's height: share one custom property between the two. Read the height
+  from the code, never guess it.
 
 ## No rubber-band bounce on desktop: `no-rubber-band-bounce-on-desktop`
 
 Why: on a desktop trackpad the page overscroll stretches the whole page past its edge and drags
 fixed UI along; turning it off keeps app-like pages still.
 
-Baseline: [`overscroll-behavior`](https://developer.mozilla.org/en-US/docs/Web/CSS/overscroll-behavior#browser_compatibility),
-[`any-pointer`](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/any-pointer#browser_compatibility).
+Baseline: [`overscroll-behavior`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/overscroll-behavior#browser_compatibility),
+[`any-pointer`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/any-pointer#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use it on app-like pages with fixed UI, such as a sidebar or a sticky header.
@@ -251,13 +252,26 @@ Rules:
 - Give inner scroll containers, such as a sheet, a chat list or a sidebar,
   `overscroll-behavior: contain`. They keep their own bounce and stop the page behind them moving.
   Never use a `touchmove` listener with `preventDefault()` for this.
+- The coarse-pointer reset is for a scrolling document, where pull-to-refresh is welcome on a
+  phone. An app shell with its own scroll areas, a drawer the user drags down or a canvas keeps
+  `none` at every pointer type, and leaves out the `@media (any-pointer: coarse)` block.
+
+```css
+/* App shell: no page bounce or pull-to-refresh on any device */
+html, body { overscroll-behavior-y: none; }
+
+.sheet-content {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+```
 
 ## Content clear of the notch: `content-clear-of-the-notch`
 
 Why: safe-area insets keep fixed bars and sheets out from under a phone's notch and home
 indicator.
 
-Baseline: [`env()`](https://developer.mozilla.org/en-US/docs/Web/CSS/env#browser_compatibility).
+Baseline: [`env()`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/env#browser_compatibility).
 As of 2026-10-11, recheck on a status change.
 
 Use it on fixed headers, bottom bars, toasts and sheets in anything that should feel like an app on
@@ -270,6 +284,12 @@ insets.
 .bottom-bar { padding-block-end: env(safe-area-inset-bottom, 0px); }
 
 .sheet { padding-block-end: calc(1rem + env(safe-area-inset-bottom, 0px)); }
+
+/* Landscape puts the notch on the side */
+.sidebar { padding-inline-start: env(safe-area-inset-left, 0px); }
+.sidebar:dir(rtl) { padding-inline-start: env(safe-area-inset-right, 0px); }
+
+.form-scroll { padding-block-end: calc(var(--cta-height) + env(safe-area-inset-bottom, 0px)); }
 ```
 
 Rules:
@@ -277,3 +297,156 @@ Rules:
 - Without `viewport-fit=cover` every inset is `0px` and the padding does nothing.
 - Give `env()` a fallback of `0px` wherever it sits inside `calc()`.
 - Normal page content needs none of this. The header's padding covers it.
+- `.form-scroll` is the scroll container under a fixed bottom CTA: padding it by the CTA's height
+  plus the inset lets the last field scroll clear of the CTA.
+- The insets are physical: `safe-area-inset-left` stays on the left in right-to-left text, so the
+  `:dir(rtl)` rule takes the right inset for the sidebar's start side.
+
+## Full height that browser chrome cannot cover: `full-height-that-browser-chrome-cannot-cover`
+
+Why: `100vh` is the tallest the viewport gets, so on a phone with the URL bar showing it overflows
+and a bottom-pinned control sits under the bar.
+
+Baseline: [`dvh`, `svh`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Values/length#browser_compatibility).
+As of 2026-10-29, recheck on a status change.
+
+Use it on app shells, drawers, heroes and first screens.
+
+```css
+/* App shell, drawers, anything that should track the visible area as chrome shows/hides */
+.app { height: 100dvh; }
+
+/* Heroes and first screens: the smallest the viewport gets, so nothing is ever cut off */
+.hero { min-height: 100svh; }
+```
+
+Rules:
+
+- In Tailwind: `h-dvh`, `min-h-svh`; `h-screen` and `min-h-screen` are `100vh` and carry the bug.
+  The class names are search tokens: confirm what each compiles to in the pointer below.
+- Keep a `100vh` fallback line above only if the project's support matrix demands it.
+- `dvh` on a marketing hero shifts the layout as the URL bar collapses mid-scroll; heroes take
+  `svh`.
+
+- **Pointer**: Tailwind CSS, `height` and `min-height`, "Quick reference",
+  <https://tailwindcss.com/docs/height#quick-reference> and
+  <https://tailwindcss.com/docs/min-height#quick-reference>
+- **As of**: 2026-10-29
+- **Recheck trigger**: Tailwind renames these classes or changes the unit one compiles to.
+
+## Gesture surface that claims only its axis: `gesture-surface-that-claims-only-its-axis`
+
+Why: `touch-action` tells the browser which pans it keeps, so a swipe on a carousel or a drag on a
+sheet no longer also scrolls the page.
+
+Baseline: [`touch-action`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/touch-action#browser_compatibility).
+As of 2026-10-29, recheck on a status change.
+
+Use it on any element with a hand-built gesture: a carousel driven by script, a drag-to-dismiss
+sheet, a slider, a canvas.
+
+```css
+.carousel {
+  touch-action: pan-y; /* the carousel handles horizontal; the browser keeps vertical */
+}
+.drag-surface {
+  touch-action: none;  /* a custom gesture (a drag-to-dismiss sheet, a slider, a canvas) owns every axis */
+}
+.vertical-sheet-handle {
+  touch-action: pan-x; /* the sheet handles vertical drags; horizontal stays with the browser */
+}
+```
+
+Rules:
+
+- The value names what the browser may still do, not what the element handles.
+- `none` only on an element that handles every direction itself, or the user cannot scroll past
+  it.
+- A carousel on native scroll needs none of this: `carousel-on-native-scroll`.
+
+## Nothing wider than the viewport: `nothing-wider-than-the-viewport`
+
+Why: one element wider than the viewport makes the whole page pan sideways on a phone.
+
+Baseline: [`overflow-wrap`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/overflow-wrap#browser_compatibility).
+As of 2026-10-29, recheck on a status change.
+
+Use it on cards with user text, `<pre>` blocks, tables and anything with a fixed width.
+
+```css
+.card-text { overflow-wrap: break-word; }
+.table-wrap, pre { overflow-x: auto; }
+```
+
+Rules:
+
+- Fix the element that overflows. `overflow-x: hidden` on `body` hides the symptom and breaks
+  `position: sticky`.
+- `the-reset` sets `overflow-wrap: break-word` on `:root`; a component that resets it needs it
+  back.
+- Use `100%`, not `100vw`, for full-width elements: `100vw` includes the vertical scrollbar and
+  overflows by its width.
+- Give a wide table a scrolling wrapper rather than shrinking its text.
+
+## Scrollbars styled only inside small scrollers: `scrollbars-styled-only-inside-small-scrollers`
+
+Why: the page's own scrollbar is the one people know; a styled one inside a small element, such as
+a code block, matches it to the surface without replacing the page's.
+
+Baseline: [`::-webkit-scrollbar`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Selectors/::-webkit-scrollbar#browser_compatibility),
+[`scrollbar-color`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/scrollbar-color#browser_compatibility).
+As of 2026-10-29, recheck on a status change.
+
+Never replace the page scrollbar. Customize scrollbars only inside small elements like code blocks:
+`8px` wide, `rgba(0,0,0,0.2)` thumb, `4px` radius.
+
+Write that thumb as `oklch(0 0 none / 0.2)`: colors here are `oklch()` with `none` as the hue of a
+gray, never a hardcoded `rgba()` (`oklch-color`, `foundations.md`).
+
+```css
+.code-block::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.code-block::-webkit-scrollbar-thumb {
+  background: oklch(0 0 none / 0.2);
+  border-radius: 4px;
+}
+```
+
+Rules:
+
+- `scrollbar-width` and `scrollbar-color` are the standard properties; check the target's compat
+  rows before writing them beside or in place of the prefixed rules.
+- In a dark theme the thumb takes the light form, `oklch(1 0 none / 0.2)`.
+
+## Menu items that fade at the container edge: `menu-items-that-fade-at-the-container-edge`
+
+Why: when items animate past their container's edge and `overflow: hidden` would break the
+animation, a mask fades them out at the edge instead of clipping the whole container.
+
+Baseline: [`mask-image`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/mask-image#browser_compatibility).
+As of 2026-10-29, recheck on a status change.
+
+Use it on a menu, tab panel or carousel whose items slide in and out while something else inside
+must stay unclipped.
+
+```css
+.menu-viewport {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    oklch(0 0 none) var(--edge, 1rem),
+    oklch(0 0 none) calc(100% - var(--edge, 1rem)),
+    transparent
+  );
+}
+```
+
+Rules:
+
+- Keep the fade band inside the container's padding, so items at rest are never faded.
+- Put the mask on the layer the items move in, not on the panel, so the panel's own shadow and
+  border stay sharp.
+- Gradient directions have no logical keyword: for right-to-left text, repeat the `mask-image` with
+  `to left` in a `:dir(rtl)` rule.

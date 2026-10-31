@@ -2,7 +2,7 @@
 # no third-party app and no PAT. It covers full-SHA GitHub Actions, the root locked Node CI
 # toolchain, the standards-managed runner-policy dependency root, the hash-locked Python CI
 # toolchain, the lockfile-backed npm roots of the resolve-config action and the plugin skills and
-# evals, and the miro plugin's Node MCP server. The plugin hooks
+# evals, and the Node MCP servers of the miro and sql-server plugins. The plugin hooks
 # still use each consuming repository's tools; these manifests exist only to make this repository's
 # validation reproducible. The pr-merge lane (.github/workflows/pr-merge.yml, ADR 0073) merges
 # Dependabot PRs of verified commits once `ci-status` passes: a non-major bump from an allowed
@@ -106,6 +106,27 @@ updates:
   # Claude Code's automatic install never runs for it.
   - package-ecosystem: npm
     directory: /plugins/miro/server
+    labels:
+      - dependencies
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+  # The sql-server plugin's database driver (tedious, @azure/identity). Nothing is
+  # vendored, so a bump here is the release (docs/contracts/on-demand-dependencies/).
+  # The code holds SQL credentials, so the standards Dependabot policy lists both under
+  # autoMerge.reviewOnly and their bumps take the review tier, never auto-merge
+  # (docs/conventions/pr-pipeline/README.md#review-only-dependencies).
+  - package-ecosystem: npm
+    directory: /plugins/sql-server
     labels:
       - dependencies
     schedule:

@@ -23,7 +23,7 @@
   },
   "$defs": {
     "limits": {
-      "description": "Per-call limits. Values left out take the server's provisional defaults (ADR 0086 section 1).",
+      "description": "Per-call limits. Values left out take the server's measured defaults (reference/read-safety-measurement.md).",
       "type": "object",
       "additionalProperties": false,
       "properties": {

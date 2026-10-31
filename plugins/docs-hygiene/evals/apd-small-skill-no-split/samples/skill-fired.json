@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-hygiene:audit-progressive-disclosure", "args": ".claude/skills/changelog-entry/SKILL.md"}}], "why": "qualified name with target"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "audit-progressive-disclosure", "args": "audit .claude/skills/changelog-entry"}}], "why": "bare name, explicit audit action"}
+  ],
+  "fail": [
+    {"answer": [], "why": "no Skill call"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "skill-quality:check"}}], "why": "the skill linter"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "playbooks:skill-authoring"}}], "why": "the authoring playbook"},
+    {"answer": [{"tool": "Skill", "input": {"skill": "docs-hygiene:compress"}}], "why": "the compression sibling"}
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Plan: /pricing, HTML mockup, variants A to E, states populated, loading, error. Eight would repeat each other, so I cap at five.\n- A Comparison table (layout)\n- B Single hero plan (hierarchy)\n- C Slider by seats (interaction model)\n- D Calculator first (primary affordance)\n- E Quiet cards (density)",
+      "why": "five named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Plan: variants Option A through Option H for /pricing.",
+      "why": "eight, generic names"
+    }
+  ]
+}

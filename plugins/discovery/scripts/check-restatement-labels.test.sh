@@ -9,6 +9,7 @@
 # summary line, handoff bullet, catalog row or abstract that names a flagged or
 # MEDIUM claim without its label must fail, and the same slice with the labels
 # restored must pass.
+# test-scope: plugins/discovery/tests/fixtures/restatement-labels/*
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

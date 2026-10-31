@@ -102,10 +102,10 @@
       "id": 9,
       "name": "skill-creator-format-routed-elsewhere",
       "prompt": "/evals:plugin-eval validate my skill's evals/evals.json before I run it.",
-      "expected_output": "Names the format boundary: evals/evals.json is the skill-creator format and is not interchangeable with the plugin eval case layout, so it routes to /skill-quality:check validate-evals when the skill-quality plugin is installed and states the fallback when it is not; it does not run the plugin eval case validator against it.",
+      "expected_output": "Names the format boundary: evals/evals.json is the skill-creator format, which claude plugin eval does not read, so its cases are converted to case directories (/evals:design skill <name> writes them), checked with /evals:validate, and only then run; it does not run the plugin eval case validator against the JSON file.",
       "expectations": [
         "Distinguishes the skill-creator evals.json format from the case format this skill runs",
-        "Routes to skill-quality:check validate-evals behind an installed-ness gate",
+        "Routes the evals.json cases to conversion into case directories, checked with /evals:validate",
         "Does not claim to validate or run the evals.json file itself"
       ]
     },

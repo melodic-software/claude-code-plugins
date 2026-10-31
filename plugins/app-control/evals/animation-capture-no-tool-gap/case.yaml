@@ -1,0 +1,46 @@
+schema_version: "1.1"
+name: animation-capture-no-tool-gap
+description: "An unattended animation capture on the launched shop app, whose control skill names no animation tool, is reported as a capability gap with no stand-in recorder. Written from MB:plugins/app-control/skills/drive/SKILL.md:35 and 165-168 and MB:plugins/app-control/reference/control-skill.md:35 (the base contract: capture with the tool the control skill names for the kind, else a capability gap and no stand-in). Base lists no `animation` kind and head adds one with a Playwright recipe in its symptom table; neither lets drive substitute a tool the control skill does not name, so the graders check that shared outcome."
+tags: [drive, animation, unattended]
+runs: 3
+expected_outcome: "Drive reads the control-shop skill and the launch record in evidence/report.json, asks nothing, runs no Playwright command or skill and no other recorder for the animation kind, and records in the report under evidence/ that the shop app's control skill names no tool for an animation capture."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive capture --kind animation --unattended --out ./evidence. Earlier in this run drive launched the shop app on seeded test data; evidence/report.json holds that launch record. Its checkout drawer jumps when the toggle is clicked mid-slide."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, AskUserQuestion]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: no-playwright-command
+    type: tool_used
+    tool: Bash
+    input_match: '"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:\\n|[;&|(`{]))?\s*(?:(?:npx|bunx|pnpm\s+(?:exec|dlx)|yarn)\s+)?(?:[^\s"\;&|()`]*/)?playwright(?:-cli)?\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-playwright-skill
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:playwright:)?playwright"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-still-stand-in
+    type: tool_used
+    tool: Bash
+    input_match: '"command"\s*:\s*"(?:[^"\\]|\\.)*?\bnode\s+(?:[^\s"\;&|]*/)?still\.mjs'
+    min: 0
+    max: 0
+    arm: both
+  - name: asks-nothing
+    type: tool_used
+    tool: AskUserQuestion
+    min: 0
+    max: 0
+    arm: both
+  - name: animation-gap-recorded
+    type: regex
+    target: { source: file, path: evidence/report.json }
+    pattern: '"capability_gaps"\s*:\s*\[[^\]]*animation|animation[^\n]{0,200}(?:capability gap|no tool)|(?:capability gap|no tool)[^\n]{0,200}animation'
+    arm: both

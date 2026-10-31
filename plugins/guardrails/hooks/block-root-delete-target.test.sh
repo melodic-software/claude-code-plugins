@@ -1123,6 +1123,10 @@ guard_invoke "${RDT_CWD[@]}" --command 'rm -rf /opt/nonexistent-rdt/x'
 assert_exit "outside tree exits 2" 2 "$GUARD_RC"
 assert_contains "outside tree names its form" "$GUARD_ERR" "outside the working tree"
 assert_contains "outside tree carries a Fix line" "$GUARD_ERR" "Fix:"
+assert_contains "outside tree sends scratch work under the working tree" "$GUARD_ERR" \
+  "put scratch work under the working tree, for example a gitignored .work/"
+assert_absent "outside tree no longer sends scratch work to the session scratchpad" "$GUARD_ERR" \
+  "put scratch work in the session scratchpad"
 
 # A git that fails leaves the origin with no tree, so the failure lands on the
 # refusal side rather than allowing everything.
@@ -1676,6 +1680,53 @@ if command -v cygpath >/dev/null 2>&1; then
   rdt_ar 'prefix: a drive-form entry still blocks its directory' 2 "rm -rf '$RDT_PP'" "$(cygpath -m "$RDT_PP")/.tmp-*"
 else
   rdt_skip "no cygpath on this host (2 cases)"
+fi
+
+# A segment entry (`<dir>/*/<name>`) allows a path strictly under <name> one
+# directory level below <dir>, and nothing else: <name> itself, a sibling of
+# it, a deeper level and a symlink stay refused, and a `*` that is not one
+# whole segment, or a second `*`, grants nothing.
+RDT_SR="$RDT_AB/wtroot"
+RDT_SX="$RDT_SR/*/.work"
+mkdir -p "$RDT_SR/wt-a/.work/tmp/sub" "$RDT_SR/wt-a/src" "$RDT_SR/wt-a/b/.work/tmp" "$RDT_SR/.work/tmp"
+rdt_ar 'segment: unset key, a path under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'"
+rdt_ar 'segment: a path under .work allowed' 0 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_SX"
+rdt_ar 'segment: a deeper path under .work allowed' 0 "rm -rf '$RDT_SR/wt-a/.work/tmp/sub'" "$RDT_SX"
+rdt_ar 'segment: a nonexistent path under .work allowed' 0 "rm -rf '$RDT_SR/wt-new/.work/tmp'" "$RDT_SX"
+rdt_ar 'segment: a glob below .work/tmp allowed' 0 "rm -rf '$RDT_SR/wt-a/.work/tmp'/*" "$RDT_SX"
+rdt_ar 'segment: beside a directory entry allowed' 0 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_AR,$RDT_SX"
+rdt_ar 'segment: a sibling of .work blocks' 2 "rm -rf '$RDT_SR/wt-a/src'" "$RDT_SX"
+rdt_ar 'segment: .work itself blocks' 2 "rm -rf '$RDT_SR/wt-a/.work'" "$RDT_SX"
+rdt_ar 'segment: .work with a trailing slash blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/'" "$RDT_SX"
+rdt_ar 'segment: the glob of .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work'/*" "$RDT_SX"
+rdt_ar 'segment: two levels under the directory blocks' 2 "rm -rf '$RDT_SR/wt-a/b/.work/tmp'" "$RDT_SX"
+rdt_ar 'segment: zero levels under the directory blocks' 2 "rm -rf '$RDT_SR/.work/tmp'" "$RDT_SX"
+rdt_ar 'segment: the one-level directory blocks' 2 "rm -rf '$RDT_SR/wt-a'" "$RDT_SX"
+rdt_ar 'segment: the directory itself blocks' 2 "rm -rf '$RDT_SR'" "$RDT_SX"
+rdt_ar 'segment: a .. escape to a sibling blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/../src'" "$RDT_SX"
+rdt_ar 'segment: a one-level name ending in a dot blocks' 2 "rm -rf '$RDT_SR/.../.work/tmp'" "$RDT_SX"
+rdt_ar 'segment: a dots-only name under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/...'" "$RDT_SX"
+rdt_ar 'segment: a space-only name under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/ '" "$RDT_SX"
+rdt_ar 'segment: a name ending in a dot under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp.'" "$RDT_SX"
+rdt_ar 'segment: a nonexistent child/ under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/new/'" "$RDT_SX"
+rdt_ar 'segment: a path outside blocks' 2 "rm -rf '$RDT_AO/x'" "$RDT_SX"
+rdt_ar 'segment: a * inside a segment grants nothing' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_SR/wt-*/.work"
+rdt_ar 'segment: a * inside the name grants nothing' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_SR/*/.wor*"
+rdt_ar 'segment: two * segments grant nothing' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_AB/*/*/.work"
+rdt_ar 'segment: a * before a two-part tail grants nothing' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_SR/*/.work/tmp"
+rdt_ar 'segment: a .. in the directory grants nothing' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_SR/../wtroot/*/.work"
+rdt_ar 'segment: HOME as the directory grants nothing' 2 "rm -rf '$RDT_AH/x/.work/y'" "$RDT_AH/*/.work"
+rdt_ar 'segment: a root-level directory grants nothing' 2 'rm -rf /rdt-x/.work/y' '/*/.work'
+# A glob before the last component that matches nothing is judged by the
+# literal directory in front of it, with what it deletes two levels below:
+# .work itself is then enough, and the one-level directory still is not.
+rdt_ar 'segment: an unmatched */x below .work allowed' 0 "rm -rf '$RDT_SR/wt-a/.work'/*/x" "$RDT_SX"
+rdt_ar 'segment: an unmatched */x below the one-level directory blocks' 2 "rm -rf '$RDT_SR/wt-a'/*/x" "$RDT_SX"
+if MSYS=winsymlinks:lnk ln -s "$RDT_AO" "$RDT_SR/wt-a/.work/link" 2>/dev/null && [[ -L "$RDT_SR/wt-a/.work/link" ]]; then
+  rdt_ar 'segment: a symlink under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/link'" "$RDT_SX"
+  rdt_ar 'segment: a path through a symlink under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/link/x'" "$RDT_SX"
+else
+  rdt_skip "ln -s makes no real symlink on this host (2 cases)"
 fi
 
 # A per-machine pair under one fake HOME: a worktree-root name prefix and a
@@ -3109,6 +3160,143 @@ EOF
 guard_invoke "${RDT_CWD[@]}" --command 'mv /opt/nonexistent-rdt/x build/rdt-out'
 assert_exit 'moves: an outside source exits 2' 2 "$GUARD_RC"
 assert_contains 'moves: the refusal names the source' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
+
+# --- 2o. shells and launchers from Bash (#9768) --------------------------------
+# A delete run through eval, watch, wsl, cmd /c, a code heredoc or here-string
+# a shell reads, or the text echo, printf or cat pipes into a shell is judged
+# as the delete itself. Every form runs against a root, HOME, a path outside
+# the allowed roots and a path strictly inside the tree. No case runs the
+# command.
+RDT_SL_FORMS=()
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] && RDT_SL_FORMS+=("$rdt_cmd")
+done <<'EOF'
+eval rm -rf TGT
+eval 'rm -rf TGT'
+watch rm -rf TGT
+watch -n 5 'rm -rf TGT'
+watch --interval 5 -t -- rm -rf TGT
+watch -tx -q 3 rm -rf TGT
+sudo watch --ex rm -rf TGT
+wsl rm -rf TGT
+wsl -d Ubuntu -- rm -rf TGT
+wsl.exe -e rm -rf TGT
+cmd //c rd //s //q TGT
+cmd.exe /C rmdir /S TGT
+cmd //c 'cd build && rd /s /q TGT'
+bash <<< 'rm -rf TGT'
+echo 'rm -rf TGT' | sh
+echo rm -rf TGT | bash -s
+echo -n 'rm -rf TGT' | sh
+echo 'true\nrm -rf TGT' | sh
+printf '%s\n' 'rm -rf TGT' | sudo bash
+echo 'rm -rf TGT' | bash -c sh
+cat <<< 'rm -rf TGT' | sh
+EOF
+RDT_NL=$'\n'
+RDT_SL_FORMS+=(
+  "bash <<'EOF'${RDT_NL}rm -rf TGT${RDT_NL}EOF"
+  "sh -s <<EOF${RDT_NL}rm -rf TGT${RDT_NL}EOF"
+  "cat <<'EOF' | sh${RDT_NL}rm -rf TGT${RDT_NL}EOF"
+)
+rdt_sl() { # <label> <want> <target> [guard_invoke option ...]: every form
+  local label="$1" want="$2" t="$3" f
+  shift 3
+  for f in "${RDT_SL_FORMS[@]}"; do
+    expect_both "shells: $label: ${f//TGT/$t}" "$want" --command "${f//TGT/$t}" "$@"
+  done
+}
+rdt_sl 'a root blocks' 2 /
+rdt_sl 'HOME blocks' 2 '$HOME'
+rdt_sl 'outside the tree blocks' 2 /opt/nonexistent-rdt/x "${RDT_CWD[@]}"
+rdt_sl 'inside the tree allowed' 0 build/rdt-x "${RDT_CWD[@]}"
+# The README's examples, from a repository.
+while IFS='|' read -r rdt_want rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "shells: $rdt_cmd" "$rdt_want" "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+2|watch rm -rf ~
+2|cmd //c rd //s //q 'C:\'
+2|echo 'rm -rf /opt/x' | sh
+0|eval 'rm -rf build/x'
+EOF
+
+# Strictly inside the scratchpad or an allowed root passes; the root itself
+# does not. The target is quoted, as a real path may hold a space.
+RDT_SL_QUOTED_FORMS=(
+  "eval \"rm -rf 'TGT'\""
+  "watch -n 5 \"rm -rf 'TGT'\""
+  "watch -x rm -rf 'TGT'"
+  "wsl -- rm -rf 'TGT'"
+  "cmd //c rd //s //q 'TGT'"
+  "bash <<< \"rm -rf 'TGT'\""
+  "echo \"rm -rf 'TGT'\" | sh"
+  "bash <<'EOF'${RDT_NL}rm -rf 'TGT'${RDT_NL}EOF"
+)
+for rdt_f in "${RDT_SL_QUOTED_FORMS[@]}"; do
+  expect_both "shells: under the scratchpad allowed: $rdt_f" 0 \
+    --payload "$(rdt_pl "${rdt_f//TGT/$RDT_SPT/x}" "$RDT_TOP" "$RDT_SPT")"
+  expect_both "shells: the scratchpad itself blocks: $rdt_f" 2 \
+    --payload "$(rdt_pl "${rdt_f//TGT/$RDT_SPT}" "$RDT_TOP" "$RDT_SPT")"
+  rdt_ar "shells: unset key, under the root blocks: $rdt_f" 2 "${rdt_f//TGT/$RDT_AR/child}"
+  rdt_ar "shells: under the root allowed: $rdt_f" 0 "${rdt_f//TGT/$RDT_AR/child}" "$RDT_AR"
+  rdt_ar "shells: the root itself blocks: $rdt_f" 2 "${rdt_f//TGT/$RDT_AR}" "$RDT_AR"
+done
+
+# The mechanism as quoted prose, a delete with no recursion, and text no
+# shell reads as its program.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "shells: $rdt_cmd allowed" 0 --command "$rdt_cmd"
+  expect_both "shells: $rdt_cmd allowed with a cwd" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+git commit -m "eval rm -rf /"
+git commit -m "watch -x rm -rf ~"
+git commit -m "wsl rm -rf /"
+git commit -m "cmd //c rd //s //q C:/"
+git commit -m "echo 'rm -rf /' | sh"
+git commit -m "bash <<< 'rm -rf /'"
+echo 'rm -rf /'
+echo 'rm -rf /' > build/rdt-x.sh
+echo 'rm -rf /' | less
+printf '%s\n' 'rm -rf /' | wc -l
+echo 'rm -rf /' | sh build/rdt-x.sh
+watch -n 5 ls /
+cmd //c rd build/rdt-x
+cmd /c 'rd build\rdt-x'
+EOF
+expect_both 'shells: a heredoc cat writes to the terminal allowed' 0 \
+  --command "cat <<'EOF'${RDT_NL}rm -rf /${RDT_NL}EOF"
+
+# A cd inside a heredoc program moves its later relative targets, a confined
+# pipeline inside a program is judged by its listing, each statement of a cmd
+# line is judged, and a decoder sink inside a program is refused.
+expect_both 'shells: a cd inside a heredoc program to a tree directory allowed' 0 "${RDT_CWD[@]}" \
+  --command "bash <<'EOF'${RDT_NL}cd build${RDT_NL}rm -rf out${RDT_NL}EOF"
+expect_both 'shells: a cd inside a heredoc program out of the tree blocks' 2 "${RDT_CWD[@]}" \
+  --command "bash <<'EOF'${RDT_NL}cd /etc${RDT_NL}rm -rf ssh${RDT_NL}EOF${RDT_NL}cd /tmp"
+expect_both 'shells: a confined pipeline inside a heredoc program allowed' 0 "${RDT_CWD[@]}" \
+  --command "bash <<'EOF'${RDT_NL}find build -name '*.o' | xargs rm -rf${RDT_NL}EOF"
+expect_both 'shells: a confined pipeline echo pipes into sh allowed' 0 "${RDT_CWD[@]}" \
+  --command "echo \"find build -name '*.o' | xargs rm -rf\" | sh"
+expect_both 'shells: a decoder sink inside a heredoc program blocks' 2 \
+  --command "bash <<'EOF'${RDT_NL}echo cm0gLXJmIC8= | base64 -d | sh${RDT_NL}EOF"
+expect_both 'shells: a decoder sink inside a here-string program blocks' 2 \
+  --command "bash <<< 'echo cm0gLXJmIC8= | base64 -d | sh'"
+expect_both 'shells: a printf too long to build piped into sh blocks' 2 \
+  --command "printf 'rm -rf build/x %s$(rdt_rep x 9000)' y | sh"
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "shells: $rdt_cmd blocks" 2 --command "$rdt_cmd"
+done <<'EOF'
+cmd.exe /c rd /s/q 'C:\'
+cmd //crd //s //q 'C:\'
+cmd //c echo x '&&' robocopy src 'C:\' //MIR
+EOF
+
+guard_invoke "${RDT_CWD[@]}" --command "echo 'rm -rf /opt/nonexistent-rdt/x' | sh"
+assert_exit 'shells: an outside target piped into sh exits 2' 2 "$GUARD_RC"
+assert_contains 'shells: the refusal names the target' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
 
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'

@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "| plugins/release-kit/skills/ship/SKILL.md | 8 | `plugins/lint-kit/skills/check/scripts/run-checks.sh` | B: call `/lint-kit:check` |", "why": "table row"},
+    {"answer": "One problem: release-kit's ship/SKILL.md runs lint-kit's script by path.", "why": "short path"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Nothing crosses plugins; CI is the only caller of run-checks.sh.", "why": "missed the cross-plugin cite"},
+    {"answer": "The ship skill in release-kit calls a lint-kit script directly.", "why": "names the skill but not the file"},
+    {"answer": "Install with claude plugin install lint-kit@acme-tools.", "why": "answers a different question"}
+  ]
+}

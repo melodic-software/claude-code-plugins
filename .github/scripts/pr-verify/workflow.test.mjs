@@ -42,6 +42,11 @@ const list = (block, key) => {
   const body = new RegExp(`^ {10}${key}: \\|\\n((?: {12}.*\\n?)+)`, "m").exec(block)?.[1] ?? "";
   return body.split("\n").map((line) => line.trim()).filter(Boolean);
 };
+// The most chunks a head is judged in: chunk-diff.sh's one MAX_CHUNKS, and
+// each job holds a judge step for every one (the slot tests below).
+const chunkScript = readFileSync(new URL("./chunk-diff.sh", import.meta.url), "utf8");
+const CEILING = Number(/^MAX_CHUNKS=\$\{MAX_CHUNKS:-([1-9][0-9]*)\}$/m.exec(chunkScript)?.[1]);
+const SLOTS = Array.from({ length: CEILING }, (_, i) => i + 1);
 const PIN = /^melodic-software\/ci-workflows\/\.github\/actions\/([a-z-]+)@[0-9a-f]{40} # \S/;
 // The subscription job's one lane record names why the key did not judge,
 // in report-lane-outcome's fallback-reason (ci-workflows intake-triage.yml).
@@ -99,7 +104,9 @@ const glob = (pattern) => {
 };
 const REPO = "melodic-software/claude-code-plugins";
 // A job output read from each chunk's step, chunk 1's id being `first`.
-const chainOf = (build, first) => [first, `${first}-2`, `${first}-3`, `${first}-4`, `${first}-spec`].map(build).join(" || ");
+const chainOf = (build, first) => [first, ...SLOTS.slice(1).map((k) => `${first}-${k}`), `${first}-spec`].map(build).join(" || ");
+// Every leg check of a job left no clean handoff: "&& steps.<leg>-k.outcome != 'success'" for each slot and the spec.
+const legsClear = (first) => chainOf((id) => `steps\\.${id}\\.outcome != 'success'`, first).replaceAll(" || ", " && ");
 const upstreamRun = (overrides = {}) => ({
   github: {
     ref: "refs/heads/main",
@@ -285,7 +292,7 @@ test("the subscription job runs only on a clean handoff or an empty key, on a fi
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
-    [CARRIED, ...Array(5).fill(`          fallback-reason: ${FALLBACK_REASON}`)],
+    [CARRIED, ...Array(SLOTS.length + 1).fill(`          fallback-reason: ${FALLBACK_REASON}`)],
   );
   const key = jobText(KEY);
   const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(key)?.[1];
@@ -339,7 +346,7 @@ test("the fallback job runs only on the subscription job's clean handoff, on a f
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
-    Array(5).fill(`          fallback-reason: ${FB_REASON}`),
+    Array(SLOTS.length + 1).fill(`          fallback-reason: ${FB_REASON}`),
   );
 });
 
@@ -416,11 +423,11 @@ test("the subscription job repeats the key job's steps but for the credential", 
           .replace("\n          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}", "")
           .replace(/PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN/g, "PR_VERIFY_CLAUDE_API_KEY")
           .replace(/^( {10})subscription-token: /m, "$1api-key: ")
-          .replace(/if: \(steps\.(judge(?:-\d|-spec)?)\.outcome == 'success' \|\| steps\.\1\.outcome == 'failure'\) && \(steps\.\1\.outputs\.handoff != 'true' \|\| steps\.(?:key|sub)-leg(?:-\d|-spec)?\.outcome == 'failure'\)/, "if: steps.$1.outcome == 'success' || steps.$1.outcome == 'failure'")
-          .replace(/known-failure-class: \$\{\{ steps\.(judge(?:-\d|-spec)?)\.outputs\.lane-class == 'credit-stop' && 'rate-limit' \|\| steps\.\1\.outputs\.lane-class \}\}/, "known-failure-class: ${{ steps.$1.outputs.lane-class }}")
+          .replace(/if: \(steps\.(judge(?:-\d+|-spec)?)\.outcome == 'success' \|\| steps\.\1\.outcome == 'failure'\) && \(steps\.\1\.outputs\.handoff != 'true' \|\| steps\.(?:key|sub)-leg(?:-\d+|-spec)?\.outcome == 'failure'\)/, "if: steps.$1.outcome == 'success' || steps.$1.outcome == 'failure'")
+          .replace(/known-failure-class: \$\{\{ steps\.(judge(?:-\d+|-spec)?)\.outputs\.lane-class == 'credit-stop' && 'rate-limit' \|\| steps\.\1\.outputs\.lane-class \}\}/, "known-failure-class: ${{ steps.$1.outputs.lane-class }}")
           .replace(`\n          fallback-reason: ${FALLBACK_REASON}`, "")
           .replace(/ && steps\.credential\.outputs\.present != 'false'/, "")
-          .replace(/(?: && steps\.(?:key|sub)-leg(?:-\d|-spec)?\.outcome != 'success')+$/m, ""),
+          .replace(/(?: && steps\.(?:key|sub)-leg(?:-\d+|-spec)?\.outcome != 'success')+$/m, ""),
       );
   assert.deepEqual(normalize(STEPS[SUB]), normalize(STEPS[KEY]));
   // The fallback job reads everything again, as the key job does; its
@@ -468,7 +475,7 @@ test("the subscription job takes check-intent's pre-judge reads and still runs t
   assert.equal(index("Hand the reads on", FB), -1);
 });
 
-test("the model reads only the data directory, with Read alone, and is told nothing is posted", () => {
+test("the model reads only the data directory, with Read alone, and is told never to quote a credential", () => {
   for (const job of JOBS) {
     const judge = step("Judge the pull request", job);
     assert.equal(input(judge, "tools"), "Read", job);
@@ -479,14 +486,34 @@ test("the model reads only the data directory, with Read alone, and is told noth
     }
     const preamble = /^ {10}preamble: >-\n((?: {12}.*\n)+)/m.exec(judge)?.[1].replace(/\s+/g, " ").trim();
     assert.match(preamble ?? "", /unattended/, job);
-    assert.match(preamble ?? "", /nothing you write is posted/, job);
+    assert.match(preamble ?? "", /never quote a credential/, job);
   }
+});
+
+// The README's "Verifier verdict" section: each judging job lists the jobs of
+// the pr-require-checks run it was started by in pr-verify-data, read with the
+// job's own token after the gate, and the prompt names that file; the model
+// still reads that directory alone.
+test("each job writes the upstream run's jobs into the data directory the prompt names", () => {
+  for (const job of JOBS) {
+    const listing = step("List the upstream run's jobs", job);
+    assert.equal(/^ {8}if: (.*)$/m.exec(listing)[1], "steps.agree.outcome == 'success'", job);
+    assert.ok(index("List the upstream run's jobs", job) > index("Assert the gate and the resolver agree", job), job);
+    assert.ok(index("List the upstream run's jobs", job) < index("Write the prompt and schema", job), job);
+    assert.equal(input(listing, "GITHUB_TOKEN"), "${{ github.token }}", job);
+    assert.equal(input(listing, "UPSTREAM_RUN_ID"), "${{ github.event.workflow_run.id }}", job);
+    assert.equal(input(listing, "JOBS_FILE"), "${{ github.workspace }}/pr-verify-data/upstream-jobs.json", job);
+    assert.match(listing, /^ {8}run: node \.base\/\.github\/scripts\/pr-verify\/upstream-jobs\.mjs$/m, job);
+    assert.ok(step("Write the prompt and schema", job).includes("            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}\n"), job);
+    assert.equal(input(step("Judge the pull request", job), "allowed-tools"), "Read(./pr-verify-data/**)", job);
+  }
+  assert.ok(readFileSync(new URL("./prompt.md", import.meta.url), "utf8").includes("- `JOBS_FILE`: "));
 });
 
 test("every data path the model reads sits under the working directory", () => {
   assert.doesNotMatch(text, /runner\.temp \}\}\/pr-verify-data/);
   for (const job of JOBS) {
-    for (const name of ["Resolve the pull request", "Select the trusted PR text", "Write the diff", "Write the prompt and schema", "Write the verdict"]) {
+    for (const name of ["Resolve the pull request", "Select the trusted PR text", "Write the diff", "List the upstream run's jobs", "Write the prompt and schema", "Write the verdict"]) {
       assert.match(step(name, job), /\$\{\{ github\.workspace \}\}\/pr-verify-data/, `${job}: ${name}`);
     }
   }
@@ -530,11 +557,11 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
   // Only a hand-off spares the key job its red; an empty token fails the subscription job.
   assert.match(
     STEPS[KEY].at(-1).block,
-    /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success' && steps\.credential\.outputs\.present != 'false' && steps\.key-leg\.outcome != 'success' && steps\.key-leg-2\.outcome != 'success' && steps\.key-leg-3\.outcome != 'success' && steps\.key-leg-4\.outcome != 'success' && steps\.key-leg-spec\.outcome != 'success'$/m,
+    new RegExp(`^ {8}if: always\\(\\) && steps\\.agree\\.outcome == 'success' && steps\\.verdict\\.outcome != 'success' && steps\\.credential\\.outputs\\.present != 'false' && ${legsClear("key-leg")}$`, "m"),
   );
   assert.match(
     STEPS[SUB].at(-1).block,
-    /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success' && steps\.sub-leg\.outcome != 'success' && steps\.sub-leg-2\.outcome != 'success' && steps\.sub-leg-3\.outcome != 'success' && steps\.sub-leg-4\.outcome != 'success' && steps\.sub-leg-spec\.outcome != 'success'$/m,
+    new RegExp(`^ {8}if: always\\(\\) && steps\\.agree\\.outcome == 'success' && steps\\.verdict\\.outcome != 'success' && ${legsClear("sub-leg")}$`, "m"),
   );
   assert.match(STEPS[FB].at(-1).block, /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success'$/m);
 });
@@ -586,7 +613,6 @@ test("the resolver reads the trusted-actor list from main in both jobs", () => {
   }
 });
 
-const SLOTS = [1, 2, 3, 4];
 const judgeSpec = (job) => step("Judge the whole spec", job);
 const SPEC_IF = "fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.chunk-results.outcome == 'success'";
 const judgeId = (k) => (k === 1 ? "judge" : `judge-${k}`);
@@ -596,11 +622,20 @@ const legName = { [KEY]: "Check the key leg", [SUB]: "Check the subscription leg
 const legId = { [KEY]: "key-leg", [SUB]: "sub-leg" };
 const chain = (build) => [...SLOTS.map(build), build("spec")].join(" || ");
 
+test("the chunk ceiling is set once, in chunk-diff.sh, and a 3 MB diff fits under it", () => {
+  assert.ok(Number.isInteger(CEILING), "chunk-diff.sh sets MAX_CHUNKS");
+  assert.doesNotMatch(text, /MAX_CHUNKS: /, "no step sets its own");
+  // 3 MB of whole files in chunks of MAX_DIFF_BYTES (chunk-diff.test.mjs splits one).
+  const chunkBytes = Number(input(step("Write the diff"), "MAX_DIFF_BYTES").replaceAll('"', ""));
+  assert.ok(CEILING * chunkBytes >= 3000000, `${CEILING} chunks of ${chunkBytes} bytes`);
+});
+
 test("every job has one judge step per chunk, each repeating the first but for its chunk", () => {
   for (const job of JOBS) {
     const first = step("Judge the pull request", job);
     assert.equal(STEPS[job].filter((s) => /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/m.test(s.block)).length, SLOTS.length + 1, job);
-    assert.equal(input(step("Write the diff", job), "MAX_CHUNKS"), `"${SLOTS.length}"`, job);
+    // The ceiling is chunk-diff.sh's; no step sets its own.
+    assert.equal(input(step("Write the diff", job), "MAX_CHUNKS"), undefined, job);
     assert.equal(input(first, "prompt-file"), "${{ runner.temp }}/pr-verify-prompt-1.md", job);
     const bare = (block) => block.split("\n").filter((line) => !line.trim().startsWith("#")).filter((line) => !/^ +(- )?(name|id|if): /.test(line)).join("\n").trim();
     for (const k of SLOTS.slice(1)) {
@@ -625,12 +660,18 @@ test("every job has one judge step per chunk, each repeating the first but for i
   }
 });
 
+// A step run-claude-cli failed with no lane class, having left an execution
+// file, stopped on its credential scan, so its fail is still a judgment;
+// write-verdict counts nothing else of it. A step that timed out or never
+// started the CLI leaves that file empty and skips the verdict for a re-run.
+const judged = (id) => `(steps.${id}.outcome == 'success' || (steps.${id}.outcome == 'failure' && steps.${id}.outputs.lane-class == '' && steps.${id}.outputs.execution-file != ''))`;
+
 test("the verdict needs every chunk the diff has, and reads each chunk's files", () => {
   for (const job of JOBS) {
     const verdict = step("Write the verdict", job);
     assert.equal(
       /^ {8}if: (.*)$/m.exec(verdict)[1],
-      `\${{ !cancelled() && (${SLOTS.map((k) => `steps.chunk-fail${suffix(k)}.outputs.fail == 'true'`).join(" || ")} || steps.chunk-results.outcome == 'failure' || (${["steps.judge.outcome == 'success'", ...SLOTS.slice(1).map((k) => `(fromJSON(steps.diff.outputs.chunks || '0') < ${k} || steps.${judgeId(k)}.outcome == 'success')`), "(fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-spec.outcome == 'success')"].join(" && ")})) }}`,
+      `\${{ !cancelled() && (${SLOTS.map((k) => `steps.chunk-fail${suffix(k)}.outputs.fail == 'true'`).join(" || ")} || steps.chunk-results.outcome == 'failure' || (${["steps.judge.outcome == 'success'", ...SLOTS.slice(1).map((k) => `(fromJSON(steps.diff.outputs.chunks || '0') < ${k} || steps.${judgeId(k)}.outcome == 'success')`), `(fromJSON(steps.diff.outputs.chunks || '0') < 2 || ${judged("judge-spec")})`].join(" && ")})) }}`,
       job,
     );
     for (const k of SLOTS) {
@@ -698,11 +739,17 @@ test("the prompt step gives each chunk its own parts, and a lone chunk no note",
   assert.match(prompt(1), /chunk 1 of 2/);
   assert.match(prompt(2), /chunk 2 of 2/);
   assert.ok(prompt(2).includes(`chunk-2/part-001.patch`));
+  // Past nine chunks, each chunk still gets its own prompt and parts.
+  const many = write(12, Array.from({ length: 12 }, () => 1));
+  assert.match(many.prompt(12), /chunk 12 of 12/);
+  assert.ok(many.prompt(12).includes(`  - \`${many.cwd}/data/diff/chunk-12/part-001.patch\`\n`));
+  assert.ok(!many.prompt(12).includes("chunk-1/part"));
+  assert.ok(many.prompt(10).includes(`chunk-10/part-001.patch`));
   const one = write(1, [1]);
   assert.ok(!one.prompt(1).includes("data/manifest"));
   assert.ok(prompt(1).includes(`${cwd}/data/diff/chunk-N`) || prompt(1).includes(`relative to \`${cwd}/data\``));
   for (const text of [prompt(1), prompt(2), one.prompt(1)]) {
-    assert.doesNotMatch(text, /DIFF_PARTS|CHUNK_NOTE|CHUNK_INDEX|CHUNK_COUNT|DATA_DIR|MANIFEST_PARTS|SPEC_FILE|SPEC_TEXT_FILE|PR_FILE|CONTEXT_FILE/);
+    assert.doesNotMatch(text, /DIFF_PARTS|CHUNK_NOTE|CHUNK_INDEX|CHUNK_COUNT|DATA_DIR|MANIFEST_PARTS|SPEC_FILE|SPEC_TEXT_FILE|PR_FILE|CONTEXT_FILE|JOBS_FILE/);
   }
 });
 
@@ -730,7 +777,7 @@ test("the whole-spec step runs only on a chunked head, after every chunk, and ca
     const denied = list(judge, "disallowed-tools");
     assert.ok(denied.includes("Read(./pr-verify-data/diff/**)"), job);
     assert.deepEqual(denied.filter((rule) => rule !== "Read(./pr-verify-data/diff/**)"), list(step("Judge the pull request", job), "disallowed-tools"), job);
-    assert.ok(index("Write the chunk results", job) > index("Upload chunk 4's sealed transcript", job), job);
+    assert.ok(index("Write the chunk results", job) > index(`Upload chunk ${SLOTS.length}'s sealed transcript`, job), job);
     assert.ok(index("Upload the spec judgment's sealed transcript", job) < index("Write the verdict", job), job);
     assert.equal(input(step("Report the spec judgment's outcome", job), "step-started-at"), "${{ steps.time-spec.outputs.started-at }}", job);
     assert.equal(input(step("Upload the spec judgment's sealed transcript", job), "job-id"), "${{ github.job }}-spec", job);
@@ -739,6 +786,12 @@ test("the whole-spec step runs only on a chunked head, after every chunk, and ca
     assert.equal(input(verdict, "FINAL_LOG_FILE"), "${{ steps.judge-spec.outputs.log-file }}", job);
     assert.equal(input(verdict, "RESULTS_DIR"), "${{ github.workspace }}/pr-verify-data/chunk-results", job);
     assert.equal(input(verdict, "MANIFEST_DIR"), "${{ github.workspace }}/pr-verify-data/manifest", job);
+    assert.equal(input(verdict, "CONTEXT_FILE"), undefined, job);
+    assert.equal(input(verdict, "FINAL_OUTCOME"), "${{ steps.judge-spec.outcome }}", job);
+    // Each chunk's step outcome, so a failed step's text is never written.
+    for (const block of [verdict, results]) assert.deepEqual(list(block, "JUDGE_OUTCOMES"), SLOTS.map((k) => `\${{ steps.${judgeId(k)}.outcome }}`), job);
+    // One budget: the results are cut to the size the diff's parts are.
+    assert.equal(input(results, "PART_BYTES"), input(step("Write the diff", job), "PART_BYTES"), job);
   }
   for (const [job, name] of [[KEY, "Check the key leg, whole spec"], [SUB, "Check the subscription leg, whole spec"]]) {
     const leg = step(name, job);
@@ -753,9 +806,10 @@ test("after each judge a counted fail stops the slots and reaches the verdict st
     for (const k of SLOTS) {
       const check = step(`Read chunk ${k}'s verdict`, job);
       assert.match(check, new RegExp(`^ {8}id: chunk-fail${suffix(k)}$`, "m"), job);
-      assert.equal(/^ {8}if: (.*)$/m.exec(check)[1], `\${{ !cancelled() && steps.${judgeId(k)}.outcome == 'success' }}`, job);
+      assert.equal(/^ {8}if: (.*)$/m.exec(check)[1], `\${{ !cancelled() && ${judged(judgeId(k))} }}`, job);
       assert.match(check, /^ {8}continue-on-error: true$/m, job);
       assert.equal(input(check, "EXECUTION_FILE"), `\${{ steps.${judgeId(k)}.outputs.execution-file }}`, job);
+      assert.equal(input(check, "JUDGE_OUTCOME"), `\${{ steps.${judgeId(k)}.outcome }}`, job);
       assert.equal(input(check, "LOG_FILE"), `\${{ steps.${judgeId(k)}.outputs.log-file }}`, job);
       assert.equal(input(check, "CHUNK"), `"${k}"`, job);
       assert.equal(input(check, "CHUNKS"), "${{ steps.diff.outputs.chunks }}", job);
@@ -764,10 +818,15 @@ test("after each judge a counted fail stops the slots and reaches the verdict st
       assert.match(check, /write-verdict\.mjs chunk-fail$/m, job);
       const name = k === 1 ? "Judge the pull request" : `Judge chunk ${k}`;
       assert.ok(index(`Read chunk ${k}'s verdict`, job) > index(name, job), job);
-      if (k < 4) assert.ok(index(`Read chunk ${k}'s verdict`, job) < index(`Time chunk ${k + 1}`, job), job);
+      if (k < SLOTS.length) assert.ok(index(`Read chunk ${k}'s verdict`, job) < index(`Time chunk ${k + 1}`, job), job);
     }
     assert.match(step("Summarize the verdict", job), /^ {8}if: \$\{\{ !cancelled\(\) && steps\.verdict\.outcome == 'success' \}\}$/m, job);
   }
+});
+
+test("the diff is folded at the line length the review reads whole", async () => {
+  const { LONG_LINE_BYTES } = await import("../pr-review-main/write-verdict.mjs");
+  for (const job of JOBS) assert.equal(input(step("Write the diff", job), "LONG_LINE_BYTES"), `"${LONG_LINE_BYTES}"`, job);
 });
 
 test("the report steps only record, so a broken one cannot stop the judgment", () => {

@@ -34,7 +34,7 @@ optional `## Gotchas`, and an index:
 |---|---|
 | `## Launch` | A pointer to the launch recipe or the one command that starts the app |
 | `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, it is the expected build when the app exposes one, it uses the expected data. Each check in it exits non-zero when it fails, per [The Ready command](#the-ready-command). Also names the telemetry the app exposes |
-| `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `logs`) the tool that records it, or nothing when the project has none; one row per tier (such as `browser` and `server`) when the kind records differently on each |
+| `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `animation`, `logs`) the tool that records it, or nothing when the project has none; one row per tier (such as `browser` and `server`) when the kind records differently on each |
 | `## Cleanup` | How to stop what a run started and nothing else |
 | `## Mask` | What a `screenshot` or `video` capture hides, and the values drive looks for in it afterward, per [The Mask section](#the-mask-section). Required when `## Capture` records either kind |
 | `## Gotchas` (optional) | What has made a run lie or fail in every feature; a one-feature lesson goes in that feature's own `## Gotchas` |
@@ -119,6 +119,7 @@ in its manual before writing the command.
 | Memory that keeps growing (leak) | `heap`, two snapshots minutes apart | built-in heap snapshot signal or inspector | Memory panel heap snapshot | memray | `jcmd` heap dump | dotnet-gcdump | pprof heap profile | heaptrack / `leaks` |
 | UI that stutters or drops frames (jank) | `trace` with CPU samples | n/a | Performance panel recording (saves a Chrome trace) | n/a | JFR recording | dotnet-trace | execution trace | perf record with call graphs |
 | A process that stops responding (hang) | `threads`, a stack of every thread | n/a | not yet | py-spy dump | `jcmd <pid> Thread.print` | `dotnet-stack report -p <pid>` | not yet | `gdb -p <pid> -batch -ex 'thread apply all bt'` / not yet |
+| An animation that feels off, or content that jumps when interrupted | `animation`, per-frame state | n/a | `/playwright:playwright` animation capture recipe | n/a | n/a | n/a | n/a | n/a |
 
 Prefer a command that launches the app as a child of the profiler where the tool supports it: it
 records only what the run started.

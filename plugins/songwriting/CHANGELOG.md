@@ -3,6 +3,18 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.7] - 2026-10-31
+
+### Fixed
+
+- `/songwriting:diagnose` names the full `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh` path for its syllable counts, as `/songwriting:co-write` does, so a run no longer searches the plugin directory for the script.
+
+## [1.7.6] - 2026-10-31
+
+### Changed
+
+- The `mp-chorus-stress-count` eval's `raw-count-not-balance` grader now accepts replies whose raw count (named, as digits like 8/9/9/8, or as a pronoun opening the next sentence) does not measure balance, is not the measure, or is not what shows it, with pass samples for three with-arm replies it used to fail and fail samples that negate another subject while endorsing the count.
+
 ## [1.7.5] - 2026-10-30
 
 ### Changed
