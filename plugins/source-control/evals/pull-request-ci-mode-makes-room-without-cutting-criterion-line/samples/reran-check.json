@@ -1,0 +1,60 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash scripts/check-skills.sh"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "skills/run-review/SKILL.md"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash scripts/check-skills.sh"
+          }
+        }
+      ],
+      "why": "reproduced, then reran after the fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash scripts/check-skills.sh"
+          }
+        }
+      ],
+      "why": "run once: the fix was never rerun"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat scripts/check-skills.sh"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "wc -l skills/run-review/SKILL.md"
+          }
+        }
+      ],
+      "why": "read, not run"
+    }
+  ]
+}
