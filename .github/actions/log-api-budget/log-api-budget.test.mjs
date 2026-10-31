@@ -4,7 +4,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, w
 import { join } from "node:path";
 import { test } from "node:test";
 import { readingLine, recordReading, routeOf } from "./api-budget.mjs";
-import { apiLimits, createRateLimitLatch, poolOf } from "./rate-guard.mjs";
+import { apiLimits, createRateLimitLatch, poolOf, REST_PATH_WORDS, routeOk } from "./rate-guard.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // Root reads and writes past any file mode, so the permission cases skip.
@@ -93,7 +93,7 @@ test("the gh wrapper keeps stdout, stderr and the exit status, and reads the hea
     });
     assert.equal(out.stdout, 'exit=1\n{"message":"rate limit"}\n');
     assert.match(out.stderr, /^gh: rate limit \(HTTP 403\)\n::error::'gh api route --jq \.' hit GitHub's core API rate limit/);
-    assert.equal(state(dir, "github-token"), "403 5000 0 5000 1792748042 core route\n");
+    assert.equal(state(dir, "github-token"), "403 5000 0 5000 1792748042 core {x}\n");
     rmSync(join(dir, "api-budget", "stop"), { force: true });
     // A call that is not `gh api`, or already asks for headers, is passed on as it is.
     for (const args of ["pr view 1", "api route --paginate --jq .", "api --silent route"]) {
@@ -204,48 +204,69 @@ test("recordReading appends the same line shape, na for a missing or malformed v
     assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
   }));
 
-// [URL or gh api path, route]: the route carries no query, owner, repository,
-// name, path or token.
+// [URL or gh api path, route, the names in the input no route may carry].
 // A token-shaped segment, built so no secret scanner reads it as one.
 const PAT = ["ghp", "abcdefghijklmnopqrstuvwxyz0123456789"].join("_");
 const ROUTES = [
-  ["https://api.github.com/repos/melodic-software/claude-code-plugins/issues/42/comments?per_page=100&page=2", "repos/{repo}/issues/{n}/comments"],
-  ["repos/{owner}/{repo}/pulls/7/files", "repos/{repo}/pulls/{n}/files"],
-  ["/repos/o/r/commits/0123456789abcdef0123456789abcdef01234567/check-runs", "repos/{repo}/commits/{sha}/check-runs"],
-  ["repos/o/r/actions/runs/39931677333/attempts/2/jobs", "repos/{repo}/actions/runs/{n}/attempts/{n}/jobs"],
-  ["https://api.github.com/graphql", "graphql"],
-  ["https://ghe.example/api/graphql", "graphql"],
-  ["https://ghe.example/api/v3/repos/o/r/labels/needs-human", "repos/{repo}/labels/{x}"],
-  [`search/issues?q=repo:o/r+is:open&access_token=${PAT}`, "search/issues"],
-  [`repos/o/r/contents/.github/${PAT}`, "repos/{repo}/contents/{x}/{x}"],
-  [`user/${PAT}`, "user/{x}"],
-  ["user/github_pat_abc", "user/{x}"],
-  ["repos/o/r/git/ref/heads/feature/fix-it", "repos/{repo}/git/ref/{x}/{x}/{x}"],
-  ["repos/o/r/branches/main/protection", "repos/{repo}/branches/{x}/protection"],
-  ["users/SomeLogin/repos", "users/{x}/repos"],
-  ["repos/o/r/actions/workflows/pr-verify.yml/runs", "repos/{repo}/actions/workflows/{x}/runs"],
-  ["repos/o/r/issues/1/comments#frag", "repos/{repo}/issues/{n}/comments"],
-  ["repos/o/r/hello world", "repos/{repo}/{x}"],
-  ["rate_limit", "rate_limit"],
-  ["", "other"],
-  ["https://api.github.com/", "other"],
-  [`repos/o/r/${"segment/".repeat(12)}end`, "other"],
+  ["https://api.github.com/repos/melodic-software/claude-code-plugins/issues/42/comments?per_page=100&page=2", "repos/{repo}/issues/{n}/comments", ["melodic", "claude-code-plugins", "per_page", "page=2"]],
+  ["repos/{owner}/{repo}/pulls/7/files", "repos/{repo}/pulls/{n}/files", ["{owner}"]],
+  ["/repos/o/r/commits/0123456789abcdef0123456789abcdef01234567/check-runs", "repos/{repo}/commits/{sha}/check-runs", ["0123456789abcdef"]],
+  ["repos/o/r/actions/runs/39931677333/attempts/2/jobs", "repos/{repo}/actions/runs/{n}/attempts/{n}/jobs", ["39931677333"]],
+  ["https://api.github.com/graphql", "graphql", []],
+  ["https://ghe.example/api/graphql", "graphql", ["ghe.example"]],
+  ["https://ghe.example/api/v3/repos/o/r/labels/needs-human", "repos/{repo}/labels/{x}", ["ghe.example", "needs-human"]],
+  [`search/issues?q=repo:o/r+is:open&access_token=${PAT}`, "search/issues", [PAT, "access_token", "is:open"]],
+  [`repos/o/r/contents/.github/${PAT}`, "repos/{repo}/contents/{x}/{x}", [PAT, ".github"]],
+  [`user/${PAT}`, "user/{x}", [PAT]],
+  ["user/github_pat_abc", "user/{x}", ["github_pat_abc"]],
+  ["repos/o/r/git/ref/heads/feature/fix-it", "repos/{repo}/git/ref/{x}/{x}/{x}", ["feature", "fix-it"]],
+  ["repos/o/r/branches/main/protection", "repos/{repo}/branches/{x}/protection", ["main"]],
+  ["users/SomeLogin/repos", "users/{x}/repos", ["SomeLogin"]],
+  ["repos/o/r/actions/workflows/pr-verify.yml/runs", "repos/{repo}/actions/workflows/{x}/runs", ["pr-verify"]],
+  ["repos/o/r/issues/1/comments#frag", "repos/{repo}/issues/{n}/comments", ["frag"]],
+  ["repos/o/r/hello world", "repos/{repo}/{x}", ["hello"]],
+  ["/repos/o/r/rules/branches/stale-feature-name", "repos/{repo}/rules/branches/{x}", ["stale-feature-name"]],
+  ["repos/o/r/branches/feat/secret-topic/protection", "repos/{repo}/branches/{x}/{x}/protection", ["feat", "secret-topic"]],
+  ["repos/o/r/commits/release-candidate/status", "repos/{repo}/commits/{x}/status", ["release-candidate"]],
+  ["repos/o/r/git/trees/main?recursive=1", "repos/{repo}/git/trees/{x}", ["main", "recursive"]],
+  ["repos/o/r/labels/area/ci", "repos/{repo}/labels/{x}/{x}", ["area", "ci"]],
+  ["repos/o/r/actions/runners/build-box-seven", "repos/{repo}/actions/{x}/{x}", ["runners", "build-box-seven"]],
+  ["repos/someowner", "repos/{x}", ["someowner"]],
+  ["applications/Iv1abcdef/token", "{x}/{x}/{x}", ["applications", "Iv1abcdef", "token"]],
+  ["https://github.com/someowner/somerepo/pull/5", "other", ["someowner", "somerepo", "github.com"]],
+  ["https://uploads.github.com/repos/o/r/releases/9/assets?name=secret-asset.zip", "repos/{repo}/releases/{n}/{x}", ["secret-asset", "assets"]],
+  ["rate_limit", "rate_limit", []],
+  ["", "other", []],
+  ["https://api.github.com/", "other", []],
+  [`repos/o/r/${"issues/".repeat(12)}comments`, "other", []],
 ];
 
 test("routeOf and the shell's api_route template each request path alike, leaking nothing", () =>
   withDir((dir) => {
     const shell = bash(dir, `while IFS= read -r u; do api_budget_route api "$u"; done`, { input: `${ROUTES.map(([url]) => url).join("\n")}\n` });
-    assert.deepEqual(shell.stdout.split("\n").slice(0, -1), ROUTES.map(([, route]) => route), shell.stderr);
-    assert.deepEqual(ROUTES.map(([url]) => routeOf(url)), ROUTES.map(([, route]) => route));
-    for (const [, route] of ROUTES) {
-      assert.match(route, /^[a-z{}_/-]+$/);
-      assert.doesNotMatch(route, /ghp_|github_pat|melodic|needs-human|main|feature|SomeLogin|per_page|access_token/);
-    }
+    const fromShell = shell.stdout.split("\n").slice(0, -1);
+    const fromNode = ROUTES.map(([url]) => routeOf(url));
+    assert.deepEqual(fromShell, ROUTES.map(([, route]) => route), shell.stderr);
+    assert.deepEqual(fromNode, ROUTES.map(([, route]) => route));
+    // Every name the input carried is absent from what each templater wrote,
+    // and every segment written is a REST path word or a placeholder.
+    ROUTES.forEach(([url, , names], i) => {
+      for (const out of [fromShell[i], fromNode[i]]) {
+        for (const name of names) assert.ok(!out.includes(name), `${url} -> ${out} carries ${name}`);
+        assert.ok(routeOk(out), `${url} -> ${out}`);
+      }
+    });
     // The gh args around the path change nothing.
     assert.equal(bash(dir, "api_budget_route api -X PATCH -H 'Accept: x' --jq .id repos/o/r/issues/3 -f body=hi").stdout, "repos/{repo}/issues/{n}\n");
     assert.equal(bash(dir, "api_budget_route api --method=POST -fquery='query { viewer { login } }' graphql").stdout, "graphql\n");
     assert.equal(bash(dir, "api_budget_route pr view 1").stdout, "other\n");
   }));
+
+test("api-budget.bash's route word list is rate-guard.mjs's REST_PATH_WORDS", () => {
+  const list = /n = split\("([^"]*)", w, " "\)/.exec(readFileSync(LIB, "utf8"));
+  assert.ok(list, "API_BUDGET_ROUTE splits its word list");
+  assert.deepEqual(list[1].split(" ").sort(), [...REST_PATH_WORDS].sort());
+});
 
 test("both writers append the route last, and every reader keeps its fields", () =>
   withDir((dir) => {
@@ -294,20 +315,20 @@ test("api_budget_emit_routes counts N by route, most first, 304s left out, a lin
 
 test("api_budget_emit_routes names at most 15 routes in at most 1000 bytes and sums the rest", () =>
   withDir((dir) => {
-    const words = "abcdefghijklmnopqrstuvwxyz".split("");
-    routeLines(dir, words.slice(0, 20).map((w, i) => [30 - i, `request repos/{repo}/${w}`]));
+    const words = [...REST_PATH_WORDS].filter((w) => w.length <= 9 && !["api", "v3", "graphql"].includes(w)).slice(0, 20).sort();
+    routeLines(dir, words.map((w, i) => [30 - i, `request repos/{repo}/${w}`]));
     const line = bash(dir, "api_budget_emit_routes github-token").stdout;
     const shown = words.slice(0, 15).map((w, i) => `repos/{repo}/${w}=${30 - i}`);
     assert.equal(line, `::notice title=api-routes::github-token ${shown.join(" ")} rest=${15 + 14 + 13 + 12 + 11}\n`);
     // Long routes stop at the byte cap before 15, and the rest holds the others.
-    const long = (w) => `repos/{repo}/${`${w}${w}${w}${w}-`.repeat(12)}${w}`;
-    routeLines(dir, words.slice(0, 20).map((w, i) => [30 - i, `request ${long(w)}`]));
+    const long = (w) => `repos/{repo}/pending_deployments/requested_reviewers/rerun-failed-jobs/${w}`;
+    routeLines(dir, words.map((w, i) => [30 - i, `request ${long(w)}`]));
     const capped = bash(dir, "api_budget_emit_routes github-token").stdout;
     assert.ok(Buffer.byteLength(capped) <= 1001, `${Buffer.byteLength(capped)} bytes`);
     const named = [...capped.matchAll(/ (\S+)=(\d+)/g)].filter(([, route]) => route !== "rest");
     assert.ok(named.length < 15 && named.length > 0);
     assert.deepEqual(named.map(([, route]) => route), words.slice(0, named.length).map(long));
-    const total = words.slice(0, 20).reduce((sum, _, i) => sum + 30 - i, 0);
+    const total = words.reduce((sum, _, i) => sum + 30 - i, 0);
     assert.equal(named.reduce((sum, [, , n]) => sum + Number(n), 0) + Number(/ rest=(\d+)\n$/.exec(capped)[1]), total);
   }));
 

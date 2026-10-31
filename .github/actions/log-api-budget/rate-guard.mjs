@@ -147,23 +147,45 @@ export function readingLine(status, headers, route = "other") {
     const value = String(headers?.get?.(`x-ratelimit-${key}`) ?? "");
     return re.test(value) ? value : "na";
   });
-  return `${status} ${values.join(" ")} ${ROUTE_SHAPE.test(route) && route.length <= 80 ? route : "other"}\n`;
+  return `${status} ${values.join(" ")} ${routeOk(route) ? route : "other"}\n`;
 }
 
+// The GitHub REST path words a route, or a lane run report's failure row
+// (lane-run-report/post.mjs), may show; any other segment could be a name, a
+// path or planted text. api-budget.bash's API_BUDGET_ROUTE carries the same
+// list (log-api-budget.test.mjs checks).
+export const REST_PATH_WORDS = new Set(
+  "api v3 repos orgs users user installation app graphql pulls issues comments reviews requested_reviewers git refs ref heads tags trees blobs commits compare merges merge check-runs check-suites statuses status labels assignees milestones events timeline actions runs jobs attempts artifacts logs rerun rerun-failed-jobs workflows dispatches variables secrets contents branches protection rules rulesets collaborators permission teams members hooks deployments environments releases search code reactions files rate_limit annotations repositories installations access_tokens pending_deployments cancel update-branch dismissals readme matching-refs languages notifications".split(" "),
+);
+const PLACEHOLDERS = new Set(["{n}", "{sha}", "{repo}", "{x}"]);
+// Whether a route has only path words and placeholders: what each writer and
+// the job-end notice keep.
+export const routeOk = (route) =>
+  typeof route === "string" && route.length <= 80 && (route === "graphql" || route === "other" || route.split("/").every((seg) => REST_PATH_WORDS.has(seg) || PLACEHOLDERS.has(seg)));
+
 // A request's URL as a route that holds no query, name or token, for the
-// job-end api-routes notice: api-budget.bash's API_BUDGET_ROUTE, which says
-// how each segment is templated.
-const ROUTE_SHAPE = /^[a-z{}_/-]+$/;
-const ROUTE_TAIL = /^(contents|ref|refs|matching-refs|readme|compare|tarball|zipball)$/;
-const ROUTE_NAME = /^(labels|branches|tags|users|orgs|teams|members|collaborators|assignees|environments|secrets|variables|workflows|topics|rules)$/;
+// job-end api-routes notice; api-budget.bash's API_BUDGET_ROUTE is its twin.
+// A URL on a host that is not GitHub's API is other; scheme, host, /api/v3,
+// query and fragment go; a GraphQL path is graphql; repos/<owner>/<repo> is
+// repos/{repo}; a number is {n}; hex of 7 or more characters {sha}; the
+// segment after one that names a thing (labels/<name>) and every segment after
+// one that starts a path or ref (contents/<path>) is {x} unless a number; a
+// REST path word stays; any other segment is {x}.
+const ROUTE_TAIL = /^(contents|ref|refs|matching-refs|readme|compare|trees)$/;
+const ROUTE_NAME = /^(labels|branches|tags|users|orgs|teams|members|collaborators|assignees|environments|secrets|variables|workflows|commits|blobs|statuses|releases)$/;
 export function routeOf(url) {
-  const path = String(url?.url ?? url ?? "")
-    .replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/i, "")
+  const text = String(url?.url ?? url ?? "");
+  const host = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)([^?#]*)/i.exec(text);
+  if (host && !/^(api|uploads)\.github\.com$/i.test(host[1]) && !/^\/api\//.test(host[2])) {
+    return "other";
+  }
+  const path = text
+    .replace(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i, "")
     .replace(/[?#][\s\S]*$/, "")
     .replace(/^\/+/, "")
-    .replace(/^api\/v3\//, "")
+    .replace(/^api\/(v3\/)?/, "")
     .replace(/\/+$/, "");
-  if (/(^|\/)graphql$/.test(path)) {
+  if (path === "graphql") {
     return "graphql";
   }
   if (path === "") {
@@ -176,21 +198,21 @@ export function routeOf(url) {
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
     if (tail || name) {
-      out.push(/^[0-9]+$/.test(seg) ? "{n}" : "{x}");
+      out.push(/^[0-9]+$/.test(seg) ? "{n}" : /^[0-9a-f]{7,}$/i.test(seg) ? "{sha}" : "{x}");
       name = false;
     } else if (i === 1 && segments[0] === "repos" && segments.length >= 3) {
       out.push("{repo}");
       i++;
     } else if (/^[0-9]+$/.test(seg)) {
       out.push("{n}");
-    } else if (seg.length >= 7 && /^[0-9a-f]+$/i.test(seg)) {
+    } else if (/^[0-9a-f]{7,}$/i.test(seg)) {
       out.push("{sha}");
-    } else if (!/^[a-z]+([_-][a-z]+)*$/.test(seg) || seg.length > 32 || /^(gh[a-z]|github)_/.test(seg)) {
-      out.push("{x}");
-    } else {
+    } else if (REST_PATH_WORDS.has(seg) && seg !== "api" && seg !== "v3" && seg !== "graphql") {
       out.push(seg);
       tail = ROUTE_TAIL.test(seg);
       name = ROUTE_NAME.test(seg);
+    } else {
+      out.push("{x}");
     }
   }
   const route = out.join("/");

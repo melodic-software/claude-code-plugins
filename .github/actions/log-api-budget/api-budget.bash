@@ -106,10 +106,10 @@ api_budget_read() {
   # Only the block at the very start is headers, so a body line shaped like a
   # status line stays body. awk reads the block and prints its line count;
   # tail then writes the body byte for byte.
-  lines=$(awk -v state="$state" -v route="${3:-other}" '
+  lines=$(awk -v state="$state" -v route="${3:-other}" "$API_BUDGET_ROUTE"'
     function val(k, re) { return (k in h && h[k] ~ re) ? h[k] : "na" }
     function flush() {
-      if (route !~ /^[a-z{}_\/-]+$/ || length(route) > 80) route = "other"
+      if (!api_route_ok(route)) route = "other"
       printf "%s %s %s %s %s %s %s\n", status, val("limit", "^[0-9]+$"), val("remaining", "^[0-9]+$"),
         val("used", "^[0-9]+$"), val("reset", "^[0-9]+$"), val("resource", "^[a-z_]+$"), route >>state
       close(state)
@@ -252,36 +252,57 @@ api_budget_pool() {
   echo core
 }
 
-# An awk function, rate-guard.mjs's routeOf: a request's URL or gh api path as
-# a route that holds no query, name or token. Scheme, host, /api/v3, query and
-# fragment go; a GraphQL path is `graphql`; repos/<owner>/<repo> becomes
-# repos/{repo}; a number {n}; hex of 7 or more characters {sha}; the segment
-# after one that names a thing (labels/<name>, branches/<name>) and every
-# segment after one that starts a path or ref (contents/<path>, ref/<ref>) {x}
-# unless a number; a lower-case word (letters joined by _ or -, at most 32)
-# stays; any other segment {x}. A route over 80 characters, or with no path,
-# is `other`.
+# Awk functions, rate-guard.mjs's routeOf and routeOk: api_route gives a
+# request's URL or gh api path as a route that holds no query, name or token,
+# by routeOf's rules; api_route_ok says whether a route has only REST path
+# words (rate-guard.mjs's REST_PATH_api v3 repos orgs users user installation app graphql pulls issues comments reviews requested_reviewers git refs ref heads tags trees blobs commits compare merges merge check-runs check-suites statuses status labels assignees milestones events timeline actions runs jobs attempts artifacts logs rerun rerun-failed-jobs workflows dispatches variables secrets contents branches protection rules rulesets collaborators permission teams members hooks deployments environments releases search code reactions files rate_limit annotations repositories installations access_tokens pending_deployments cancel update-branch dismissals readme matching-refs languages notifications, the same list:
+# log-api-budget.test.mjs checks) and placeholders.
 # shellcheck disable=SC2016 # an awk program
-API_BUDGET_ROUTE='function api_route(u,   n, s, i, seg, out, tail, name) {
-    sub(/^[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\/]*/, "", u)
+API_BUDGET_ROUTE='function api_words(   w, i, n) {
+    if (api_words_read) return
+    n = split("api v3 repos orgs users user installation app graphql pulls issues comments reviews requested_reviewers git refs ref heads tags trees blobs commits compare merges merge check-runs check-suites statuses status labels assignees milestones events timeline actions runs jobs attempts artifacts logs rerun rerun-failed-jobs workflows dispatches variables secrets contents branches protection rules rulesets collaborators permission teams members hooks deployments environments releases search code reactions files rate_limit annotations repositories installations access_tokens pending_deployments cancel update-branch dismissals readme matching-refs languages notifications", w, " ")
+    for (i = 1; i <= n; i++) API_WORD[w[i]] = 1
+    API_WORD["{n}"] = API_WORD["{sha}"] = API_WORD["{repo}"] = API_WORD["{x}"] = 1
+    api_words_read = 1
+  }
+  function api_hex(seg) { return length(seg) >= 7 && seg ~ /^[0-9A-Fa-f]+$/ }
+  function api_route_ok(r,   n, s, i) {
+    if (r == "graphql" || r == "other") return 1
+    if (r == "" || length(r) > 80) return 0
+    api_words()
+    n = split(r, s, "/")
+    for (i = 1; i <= n; i++) if (!(s[i] in API_WORD)) return 0
+    return 1
+  }
+  function api_route(u,   n, s, i, seg, out, tail, name, host, rest) {
+    api_words()
     sub(/[?#].*$/, "", u)
+    if (u ~ /^[A-Za-z][A-Za-z0-9+.-]*:\/\//) {
+      rest = u
+      sub(/^[A-Za-z][A-Za-z0-9+.-]*:\/\//, "", rest)
+      host = rest
+      sub(/\/.*$/, "", host)
+      sub(/^[^\/]*/, "", rest)
+      if (tolower(host) != "api.github.com" && tolower(host) != "uploads.github.com" && rest !~ /^\/api\//) return "other"
+      u = rest
+    }
     sub(/^\/+/, "", u)
-    sub(/^api\/v3\//, "", u)
+    sub(/^api\/(v3\/)?/, "", u)
     sub(/\/+$/, "", u)
-    if (u ~ /(^|\/)graphql$/) return "graphql"
+    if (u == "graphql") return "graphql"
     if (u == "") return "other"
     n = split(u, s, "/")
     out = ""
     tail = name = 0
     for (i = 1; i <= n; i++) {
       seg = s[i]
-      if (tail || name) { seg = (seg ~ /^[0-9]+$/) ? "{n}" : "{x}"; name = 0 }
+      if (tail || name) { seg = (seg ~ /^[0-9]+$/) ? "{n}" : api_hex(seg) ? "{sha}" : "{x}"; name = 0 }
       else if (i == 2 && s[1] == "repos" && n >= 3) { seg = "{repo}"; i++ }
       else if (seg ~ /^[0-9]+$/) seg = "{n}"
-      else if (length(seg) >= 7 && seg ~ /^[0-9A-Fa-f]+$/) seg = "{sha}"
-      else if (seg !~ /^[a-z]+([_-][a-z]+)*$/ || length(seg) > 32 || seg ~ /^(gh[a-z]|github)_/) seg = "{x}"
-      else if (seg ~ /^(contents|ref|refs|matching-refs|readme|compare|tarball|zipball)$/) tail = 1
-      else if (seg ~ /^(labels|branches|tags|users|orgs|teams|members|collaborators|assignees|environments|secrets|variables|workflows|topics|rules)$/) name = 1
+      else if (api_hex(seg)) seg = "{sha}"
+      else if (!(seg in API_WORD) || seg ~ /^(api|v3|graphql|[{].*)$/) seg = "{x}"
+      else if (seg ~ /^(contents|ref|refs|matching-refs|readme|compare|trees)$/) tail = 1
+      else if (seg ~ /^(labels|branches|tags|users|orgs|teams|members|collaborators|assignees|environments|secrets|variables|workflows|commits|blobs|statuses|releases)$/) name = 1
       out = out (out == "" ? "" : "/") seg
     }
     return length(out) > 80 ? "other" : out
@@ -504,11 +525,11 @@ api_budget_emit_routes() {
     [[ -s $file ]] || file=/dev/null
     # The route is the last field of a `request` line and the seventh of a
     # reading; a line without one, or with one not in the route's shape, is other.
-    awk '$1 == 304 { next }
+    awk "$API_BUDGET_ROUTE"' $1 == 304 { next }
       { r = "other" }
       $1 == "request" && NF >= 2 { r = $NF }
       $1 != "request" && NF == 7 { r = $7 }
-      { if (r !~ /^[a-z{}_\/-]+$/ || length(r) > 80) r = "other"; n[r]++ }
+      { if (!api_route_ok(r)) r = "other"; n[r]++ }
       END { for (r in n) print n[r], r }' "$file" | LC_ALL=C sort -k1,1nr -k2,2 |
       awk -v head="::notice title=api-routes::$token" '
         { add = " " $2 "=" $1 }
