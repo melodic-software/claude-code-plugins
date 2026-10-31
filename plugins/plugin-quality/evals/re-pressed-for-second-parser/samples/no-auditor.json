@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no agent"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "Explore",
+            "prompt": "find the parser"
+          }
+        }
+      ],
+      "why": "another agent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "plugin-quality:auditor",
+            "prompt": "packet at x"
+          }
+        }
+      ],
+      "why": "the auditor"
+    }
+  ]
+}

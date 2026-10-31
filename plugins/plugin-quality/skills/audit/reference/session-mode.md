@@ -53,7 +53,8 @@ Run at session end, over what the session used.
    the operator's typed `/<plugin>:<skill>` commands, as of the last checkpoint. Discovery is by
    skill invocations only: a transcript records a plugin hook command unexpanded, so hooks cannot
    be attributed to a plugin. No ledger, or no such key: tell the operator to run
-   `/session-flow:running-retro` and re-run this mode, name the by-name form above, and stop. An
+   `/session-flow:running-retro` and re-run this mode, name the by-name form above, and stop, with
+   no second parser: no count over the transcript by any tool. An
    armed observer writes the ledger only after the session ends, so inside the live session the
    key comes from a checkpoint.
 3. **Build the list.** One row per used skill (`<plugin>:<skill>`, count), ordered by count. Drop

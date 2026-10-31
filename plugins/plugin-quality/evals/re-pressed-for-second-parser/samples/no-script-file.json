@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [
+        "plugin-data/evidence.md"
+      ],
+      "why": "no script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        "count_skills.py"
+      ],
+      "why": "top level"
+    },
+    {
+      "answer": [
+        "tools/count.py"
+      ],
+      "why": "nested"
+    }
+  ]
+}
