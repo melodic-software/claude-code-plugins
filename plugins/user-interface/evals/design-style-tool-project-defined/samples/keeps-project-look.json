@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Your design system defines the look, so I kept to it and did not use frontend-design. One column of cards on `surface.page`; each card `surface.card`, 3px radius, 18px padding, no shadow. Headings 20px Inter in `text.body`. Save is a pine primary button; Delete account is a brick button in the danger zone card.",
+      "why": "project tokens and rules, tool declined with the reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I ran frontend-design for a bolder direction: a deep navy gradient header, 12px rounded cards with soft shadows and a Space Grotesk heading font.",
+      "why": "the style tool restyled a project that defines its look"
+    },
+    {
+      "answer": "One column of cards, 3px radius, 18px padding, pine Save button and brick Delete button. For extra polish, give the cards a 0 2px 8px shadow and switch headings to Fraunces.",
+      "why": "near miss: tokens mostly kept, but a shadow and a new font the system rules out"
+    }
+  ]
+}

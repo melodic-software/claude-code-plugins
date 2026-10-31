@@ -176,9 +176,11 @@ The table follows the Before text from its first word to its last:
   subject-convention ladder and the marketplace's PR-body-sections convention, and the
   markdown-prose regime already excludes them. The wording inside a PR body, which a reviewer
   reads and skims, is `/writing:be-concise` when the `writing` plugin is installed; without it,
-  keep the required shape and leave the wording to the author.
+  keep the required shape and leave the wording to the author. AI-writing tells in a commit
+  message or PR body are `/ai-slop:audit commit` and `/ai-slop:audit pr-body`.
 - **Does not cover product UI strings.** Button labels, empty states, and error toasts are product
-  copy, not documentation; they follow your product's own copy guidelines.
+  copy, not documentation; they follow your product's own copy guidelines. AI-writing tells in
+  them are `/ai-slop:audit copy <source files>`.
 - **Does not author skills**, a SKILL.md is `playbooks:skill-authoring` and `skill-quality:check`
   territory.
 - **Does not claim to be the standards it names.** Each layer is our selection from a published

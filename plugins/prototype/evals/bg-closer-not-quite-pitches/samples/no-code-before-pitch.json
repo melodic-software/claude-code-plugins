@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "pitch only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "src/components/TornEdge.jsx",
+            "content": "export default () => <svg/>"
+          }
+        }
+      ],
+      "why": "built an edge"
+    }
+  ]
+}

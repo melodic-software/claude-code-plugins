@@ -6,7 +6,7 @@ expected_outcome: 'src/greet.sh and src/helpers.sh (committed on the branch 20h 
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/code-tidying:batch-simplify unattended branch src/'
+  prompt: '/code-tidying:batch-simplify branch --unattended src/'
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent, TaskCreate, TaskUpdate, TaskList]
   max_turns: 150
   timeout_seconds: 2400

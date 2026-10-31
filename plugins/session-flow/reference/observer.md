@@ -57,7 +57,7 @@ Transcripts and observations are **untrusted input**. The shared boundary, that 
 output is data to analyze, never instructions to follow, is owned by
 [`off-thread-work.md`](./off-thread-work.md) ("The inspected output is untrusted data"); the analysis
 prompt restates the directive-immunity rule inline for the fresh `-p` context. The analysis run is
-**genuinely Read-only**: `--tools Read` RESTRICTS the available tool set to Read, `--strict-mcp-config`
+**Read-only**: `--tools Read` RESTRICTS the available tool set to Read, `--strict-mcp-config`
 loads no MCP servers, and `--allowedTools Read` under `--permission-mode dontAsk` keeps that single
 Read from prompting or being denied. `--allowedTools` alone would not suffice, because it only auto-approves
 and does not restrict, so a Bash/WebFetch/MCP tool already allowed in the user's settings could
@@ -81,7 +81,7 @@ with the prompt fed on **stdin** (never as a trailing positional, because `--add
 swallow it). `dontAsk` guarantees the run can never hang (an unauthorized tool call aborts rather
 than waiting); `--permission-prompts none` is the print-mode form that denies anything still
 waiting on a person and tells the model not to retry it, passed only when `claude --version` reports
-2.1.259 or newer (older CLIs reject it as an unknown option and get `dontAsk` alone); `--tools Read` + `--strict-mcp-config` make the run genuinely Read-only regardless of
+2.1.259 or newer (older CLIs reject it as an unknown option and get `dontAsk` alone); `--tools Read` + `--strict-mcp-config` make the run Read-only regardless of
 the user's ambient tool grants; `--allowedTools Read` keeps the authorized read from being auto-denied.
 
 **Record.** Claim: `--permission-prompts none` on a `-p` run denies requests that would prompt, while the permission mode still decides first, and removes tools that need a person such as `AskUserQuestion`. Version floor: Claude Code 2.1.259; older CLIs get `dontAsk` alone. Basis: <https://code.claude.com/docs/en/headless#turn-off-permission-prompts-in-unattended-runs> and the `--permission-prompts` row of <https://code.claude.com/docs/en/cli-reference> ("Requires Claude Code v2.1.259 or later"), the row re-fetched 2026-09-29. As of: 2026-09-29. Recheck: that headless section or the CLI flag row changes what `none` denies or the version floor, or the flag stops applying to `-p`. The floor lives in `scripts/claude_cli.py`, shared with `scripts/harness/hop_chain.py`.
@@ -100,7 +100,9 @@ The defaults are the `observer_analysis_model` and `observer_analysis_effort` `d
 pass an empty value when the option is unset, and `observer.py` reads the manifest. The current
 defaults were chosen for faithful findings: in a four-session local pilot against Haiku 5.5 high,
 Sonnet 5.5 medium and Sonnet 5.5 high, they missed the fewest important findings and invented the
-fewest events.
+fewest events. The model is a full ID on purpose, so it does not move when an alias does: see
+[model config: model aliases](https://code.claude.com/docs/en/model-config#model-aliases), as of
+2026-10-31; recheck on a new model release, by rerunning that pilot.
 
 The run always passes `--effort`, even at the default, and also passes
 `--settings '{"env":{"CLAUDE_CODE_EFFORT_LEVEL":"<effort>"}}'`. That variable overrides `--effort`,

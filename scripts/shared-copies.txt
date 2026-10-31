@@ -503,6 +503,7 @@ lib/redact.py plugins/session-flow/skills/audit-sessions/scripts/redact.py
 lib/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py
 lib/plugin-options.mjs plugins/source-control/skills/babysit-loop/scripts/operator-options.mjs
 lib/plugin-options.mjs plugins/corrections/scripts/lib/plugin-options.mjs
+lib/plugin-options.mjs plugins/toolchain/hooks/plugin-options.mjs
 lib/resolve-convention-home.sh plugins/user-interface/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/multi-agent/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/docs-naming/lib/resolve-convention-home.sh
@@ -549,4 +550,7 @@ lib/resolve-convention-home.sh plugins/attribution/lib/resolve-convention-home.s
 lib/prerequisites.mjs plugins/app-control/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/app-control/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/app-control/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/sql-server/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/sql-server/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/sql-server/lib/prerequisites.ps1
 lib/check-convention-facts.mjs plugins/developer-experience/lib/check-convention-facts.mjs

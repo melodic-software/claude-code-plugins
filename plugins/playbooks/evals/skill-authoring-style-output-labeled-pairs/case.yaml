@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: skill-authoring-style-output-labeled-pairs
+description: "Structured output: where style matters, give a few labeled input/output pairs and a line naming the rule. Written from MB:plugins/playbooks/skills/skill-authoring/reference/skill-criteria.md:99-100 (the base contract)."
+tags: [skill-authoring, structured-output]
+expected_outcome: "The rewritten section adds a few (two or more) labeled input/output pairs, each pairing a described change with the title it should produce, plus a line naming the rule the pairs show."
+execution:
+  allowed_tools: [Read, Skill]
+  max_turns: 20
+  timeout_seconds: 600

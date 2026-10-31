@@ -1,5 +1,6 @@
 # test-scope: plugins/planning/surface/tests/fixtures/ledger-legacy/*
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
+# test-scope: .markdownlint-cli2.jsonc plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
 """Tests for the exporters and import-ledger (AC27 to AC29), driven through round.py's CLI.
 
 Sessions are built in temporary data dirs: questions.json written directly, responses.json
@@ -634,13 +635,21 @@ class TestExportBrief(SessionCase):
 
     COVERAGE = "Are the criteria missing an unwanted-behavior case and a state-driven case?"
 
-    def with_coverage_prompt(self, events):
-        """Q1 accepted, then the coverage prompt posted in Notes with needsAnswer, then events."""
+    SECOND = "Which reader is the report for?"
+
+    def ask(self, at):
+        """A second Notes line from Claude that needs an answer, posted at `at`."""
+        return {"at": at, "by": "claude", "text": self.SECOND, "needsAnswer": True}
+
+    def with_coverage_prompt(self, events, *asks):
+        """Q1 accepted, then the coverage prompt posted in Notes with needsAnswer, then any
+        further asks, then events."""
         self.session([question("Q1")], [event(1, "Q1", "accept"), *events])
         path = self.dir / "questions.json"
         doc = json.loads(path.read_text(encoding="utf-8"))
         doc["notes"] = [
-            {"at": "2026-09-24T10:05:00Z", "by": "claude", "text": self.COVERAGE, "needsAnswer": True}
+            {"at": "2026-09-24T10:05:00Z", "by": "claude", "text": self.COVERAGE, "needsAnswer": True},
+            *asks,
         ]
         path.write_text(json.dumps(doc), encoding="utf-8")
         text = self.export("brief").read_text(encoding="utf-8")
@@ -655,6 +664,20 @@ class TestExportBrief(SessionCase):
         reply = {**event(2, None, "note", text="Neither applies."), "at": "2026-09-24T10:06:00Z"}
         assumptions = self.with_coverage_prompt([reply])
         self.assertNotIn("asked in Notes", assumptions)
+
+    def test_one_reply_answers_only_the_oldest_of_two_asks(self):
+        second = self.ask("2026-09-24T10:05:00Z")
+        reply = {**event(2, None, "note", text="Neither applies."), "at": "2026-09-24T10:06:00Z"}
+        assumptions = self.with_coverage_prompt([reply], second)
+        self.assertNotIn(self.COVERAGE, assumptions)
+        self.assertIn(f"- asked in Notes, not answered: {self.SECOND}\n", assumptions)
+
+    def test_a_reply_before_an_ask_does_not_answer_it(self):
+        later = self.ask("2026-09-24T10:07:00Z")
+        reply = {**event(2, None, "note", text="Neither applies."), "at": "2026-09-24T10:06:00Z"}
+        assumptions = self.with_coverage_prompt([reply], later)
+        self.assertNotIn(self.COVERAGE, assumptions)
+        self.assertIn(f"- asked in Notes, not answered: {self.SECOND}\n", assumptions)
 
 
 LEDGER_HEAD = "# Interview ledger\n\n## Open-question register\n\n"

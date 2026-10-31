@@ -5,6 +5,7 @@
 # Expected values come from the key contract in plugins/docs-hygiene/reference/config.md:
 # compress_articles takes keep or cut, and the file is
 # docs/conventions/docs-hygiene.yaml at the repository root.
+# test-scope: plugins/docs-hygiene/lib/resolve-convention-home.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
