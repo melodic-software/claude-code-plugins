@@ -14,21 +14,54 @@ import path from "node:path";
 export const CLONE_TIMEOUT_MS = 120_000;
 
 /**
+ * The command-line config of a hardened clone: no credential helper, https as
+ * the only transport, and symbolic links checked out as plain files.
+ */
+const HARDENED_GIT_ARGS = [
+  "-c",
+  "credential.helper=",
+  "-c",
+  "protocol.allow=never",
+  "-c",
+  "protocol.https.allow=always",
+  "-c",
+  "core.symlinks=false",
+];
+
+/**
  * Shallow-clone an untrusted URL so that a private, renamed or LFS-heavy
- * repository fails fast instead of prompting or downloading:
- * `credential.helper=` empties the helper list, an empty `GIT_ASKPASS` stops
- * git falling back to `core.askPass` or `SSH_ASKPASS` (which git consults
- * before `GIT_TERMINAL_PROMPT`), `GIT_TERMINAL_PROMPT=0` stops the terminal
- * prompt, an empty throwaway home hides `~/.netrc` (which git's HTTP transport
- * reads regardless of the settings above) and the user's global git config,
- * `GIT_LFS_SKIP_SMUDGE=1` leaves LFS pointers in place,
- * and a clone that outlives the timeout is killed with its remote helpers and
- * counted as failed.
+ * repository fails fast instead of prompting or downloading, and so that the
+ * clone reaches only an https remote and writes only inside `destDir`:
+ *
+ * - Every inherited variable whose name starts with `GIT_` (compared upper-cased,
+ *   so Windows spellings count) is dropped: config passed through the
+ *   environment (`GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT` and its pairs, where
+ *   an `insteadOf` could point the clone elsewhere) and the variables that move
+ *   the repository or weaken transport checks (`GIT_DIR`, `GIT_WORK_TREE`,
+ *   `GIT_SSL_NO_VERIFY`, `GIT_SSH_COMMAND`).
+ * - Then a fixed table is set: `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_SYSTEM` point
+ *   at an empty file with `GIT_CONFIG_NOSYSTEM=1`, hiding the user's and the
+ *   system's git config; an empty throwaway `HOME`, `USERPROFILE` and
+ *   `XDG_CONFIG_HOME` hide `~/.netrc`, which git's HTTP transport reads
+ *   regardless of the other settings; an empty `GIT_ASKPASS` and `SSH_ASKPASS`
+ *   stop git falling back to `core.askPass` or `SSH_ASKPASS` before it consults
+ *   `GIT_TERMINAL_PROMPT=0`, which stops the terminal prompt;
+ *   `GIT_LFS_SKIP_SMUDGE=1` leaves LFS pointers in place; `GIT_ALLOW_PROTOCOL=https`
+ *   and `GIT_PROTOCOL_FROM_USER=0` refuse every transport but https, `file://`,
+ *   local paths and `ssh://` included.
+ * - The command line adds `credential.helper=` (an empty helper list),
+ *   `protocol.allow=never` with `protocol.https.allow=always`, and
+ *   `core.symlinks=false`, so a symbolic link in the repository is checked out
+ *   as a regular file holding its target path, never a link a later read follows.
+ * - A clone that outlives the timeout is killed with its remote helpers and
+ *   counted as failed.
  *
  * `inheritGitEnvironment: true` is for a repository the user is entitled to,
  * such as a private course repository: git runs as the user would run it, with
  * their home, git config, credential helper, prompts and LFS, in the parent's
- * process group, and a timeout sends git alone SIGTERM. Depth, branch and
+ * process group, and a timeout sends git alone SIGTERM. `env`, in this mode
+ * only, adds variables over the parent's environment (such as
+ * `GIT_LFS_SKIP_SMUDGE`); a hardened clone ignores it. Depth, branch and
  * timeout are the same in both modes.
  *
  * `onStderr`, when given, receives git's stderr once the clone ends.
@@ -36,17 +69,19 @@ export const CLONE_TIMEOUT_MS = 120_000;
  * @param {string} url
  * @param {string} destDir
  * @param {typeof spawn} [spawnFn]
- * @param {{ timeoutMs?: number, inheritGitEnvironment?: boolean, onStderr?: (text: string) => void }} [options]
+ * @param {{ timeoutMs?: number, inheritGitEnvironment?: boolean, env?: Record<string, string>, onStderr?: (text: string) => void }} [options]
  * @returns {Promise<boolean>}
  */
 export async function shallowCloneGitHubRepo(
   url,
   destDir,
   spawnFn = spawn,
-  { timeoutMs = CLONE_TIMEOUT_MS, inheritGitEnvironment = false, onStderr } = {},
+  { timeoutMs = CLONE_TIMEOUT_MS, inheritGitEnvironment = false, env, onStderr } = {},
 ) {
   const run = { url, destDir, spawnFn, timeoutMs, onStderr };
-  if (inheritGitEnvironment) return runClone({ ...run, gitArgs: [], env: process.env, ownGroup: false });
+  if (inheritGitEnvironment) {
+    return runClone({ ...run, gitArgs: [], env: env ? { ...process.env, ...env } : process.env, ownGroup: false });
+  }
   // Never throws: a home that cannot be made fails this clone (never one without
   // isolation), and one that cannot be removed leaves the clone's result standing.
   const isolatedHome = await fs
@@ -54,24 +89,42 @@ export async function shallowCloneGitHubRepo(
     .catch(() => null);
   if (!isolatedHome) return false;
   try {
-    return await runClone({
-      ...run,
-      gitArgs: ["-c", "credential.helper="],
-      env: {
-        ...process.env,
-        HOME: isolatedHome,
-        USERPROFILE: isolatedHome,
-        XDG_CONFIG_HOME: isolatedHome,
-        GIT_ASKPASS: "",
-        SSH_ASKPASS: "",
-        GIT_TERMINAL_PROMPT: "0",
-        GIT_LFS_SKIP_SMUDGE: "1",
-      },
-      ownGroup: true,
-    });
+    const emptyConfig = path.join(isolatedHome, "gitconfig");
+    if (!(await fs.writeFile(emptyConfig, "").then(() => true, () => false))) return false;
+    return await runClone({ ...run, gitArgs: HARDENED_GIT_ARGS, env: hardenedEnv(isolatedHome, emptyConfig), ownGroup: true });
   } finally {
     await fs.rm(isolatedHome, { recursive: true, force: true }).catch(() => {});
   }
+}
+
+/**
+ * The parent's environment without any `GIT_*` variable or a variable the table
+ * sets (names compared upper-cased), then the fixed hardening table.
+ *
+ * @param {string} isolatedHome
+ * @param {string} emptyConfig
+ * @returns {NodeJS.ProcessEnv}
+ */
+function hardenedEnv(isolatedHome, emptyConfig) {
+  const table = {
+    GIT_CONFIG_GLOBAL: emptyConfig,
+    GIT_CONFIG_SYSTEM: emptyConfig,
+    GIT_CONFIG_NOSYSTEM: "1",
+    HOME: isolatedHome,
+    USERPROFILE: isolatedHome,
+    XDG_CONFIG_HOME: isolatedHome,
+    GIT_ASKPASS: "",
+    SSH_ASKPASS: "",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_LFS_SKIP_SMUDGE: "1",
+    GIT_ALLOW_PROTOCOL: "https",
+    GIT_PROTOCOL_FROM_USER: "0",
+  };
+  const kept = Object.entries(process.env).filter(([name]) => {
+    const upper = name.toUpperCase();
+    return !upper.startsWith("GIT_") && !Object.hasOwn(table, upper);
+  });
+  return { ...Object.fromEntries(kept), ...table };
 }
 
 /**
