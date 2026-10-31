@@ -17,7 +17,7 @@ their repo mid-session.
      remediation without a checked research line is emitted as `needs-decision`, never `agent-ready`.
   6. Emit to the resolved sink behind an unconditional draft+confirm gate.
   Two further modes, both operator-invoked only: `/plugin-quality:audit session` discovers the
-  plugins and skills the session used (from the retro transcript parser), confirms the list with
+  plugins and skills the session used (from its `session-flow` running-retro ledger), confirms the list with
   you, and audits the union; `/plugin-quality:audit arm` starts the `session-flow` running-retro
   observer at session start. A finding with no session artifact is listed as `unfiled`, and a
   suggested change is filed agent-ready only after a research pass, otherwise as needs-decision.

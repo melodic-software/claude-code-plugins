@@ -1187,11 +1187,13 @@ def fake_analysis_run(
     observer._find_claude = lambda: "claude"
     observer.subprocess.run = fake_run
     claude_cli._CLAUDE_VERSION_CACHE = version
-    try:
-        yield
-    finally:
-        observer._find_claude, observer.subprocess.run = saved_find, saved_run
-        claude_cli._CLAUDE_VERSION_CACHE = saved_version
+    # The ledger stamp's own run would replace the recorded analysis call.
+    with mock.patch.object(observer.Observer, "_stamp_plugin_usage"):
+        try:
+            yield
+        finally:
+            observer._find_claude, observer.subprocess.run = saved_find, saved_run
+            claude_cli._CLAUDE_VERSION_CACHE = saved_version
 
 
 class LedgerAndRetention(unittest.TestCase):
@@ -1212,6 +1214,38 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertEqual(
                 len(list((tmp / "ledger").glob("*-running-retro-*.md"))), 1
             )
+
+    def test_append_stamps_the_session_plugin_usage(self):
+        block = {
+            "type": "tool_use",
+            "name": "Skill",
+            "input": {"skill": "plugin-quality:audit"},
+        }
+        event = {"type": "assistant", "message": {"content": [block]}}
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, session_id="sess")
+            ob.transcript.write_text(json.dumps(event) + "\n", encoding="utf-8")
+            ob._append_ledger("first")
+            ob.transcript.write_text((json.dumps(event) + "\n") * 2, encoding="utf-8")
+            ob._append_ledger("second")
+            text = ob._find_session_ledger().read_text(encoding="utf-8")
+            self.assertEqual(1, text.count("plugin_usage:"))
+            self.assertIn(
+                'plugin_usage: {"skills": {"plugin-quality:audit": 2}}\n---\n', text
+            )
+            self.assertIn("first", text)
+            self.assertIn("second", text)
+
+    def test_unstamped_append_still_keeps_the_findings(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp)
+            ob.transcript.unlink()
+            self.assertTrue(ob._append_ledger("kept"))
+            text = ob._find_session_ledger().read_text(encoding="utf-8")
+            self.assertIn("kept", text)
+            self.assertNotIn("plugin_usage:", text)
 
     def test_other_session_ledger_not_matched(self):
         with tempfile.TemporaryDirectory() as d:

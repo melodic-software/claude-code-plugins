@@ -168,8 +168,9 @@ selects one; a model that thinks a session earns the pass offers it in one line 
 - **`arm`**, at session start: invoke `/session-flow:running-retro arm` when session-flow is
   installed (absent: say the observer cannot be armed here and stop), then record the armed state
   in this plugin's data directory. Nothing is audited.
-- **`session`**, at session end: run the session-flow retro transcript parser (reused, never a
-  second parser), read its `plugin_usage`, show the discovered plugin and skill list, and wait for
+- **`session`**, at session end: read `plugin_usage` from the session's running-retro ledger,
+  session-flow's documented artifact (no ledger or no key: tell the operator to run
+  `/session-flow:running-retro` and re-run), show the discovered plugin and skill list, and wait for
   the operator to confirm it. The confirmed list is the resolved target list above; steps 1 to 6
   then run over the union unchanged, and step 6's egress gate is untouched (unattended: rung 4).
 
@@ -458,8 +459,8 @@ observability).
 
 ## What this composes
 
-This audit calls, and replaces none of: `/session-flow:retro` (its transcript parser, for `session`),
-`/session-flow:running-retro` (`arm`), `/discovery:research` (the research gate), `skill-quality:check`,
+This audit calls, and replaces none of: `/session-flow:running-retro` (`arm`, and the ledger
+`session` reads), `/discovery:research` (the research gate), `skill-quality:check`,
 `review:fanout` / `review:quality-gate`, and the role-resolved seams of step 5. Each is used
 presence-gated with the fallback stated where it is invoked. Every one keeps its own owner and
 behavior.
