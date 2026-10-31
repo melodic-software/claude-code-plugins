@@ -143,6 +143,14 @@ for home in "${homes[@]}"; do
     files+=("$path")
   done < <(git ls-files -z -- ":(glob)$home/*.yaml")
 done
+# The unattended merge policy reads docs/conventions/pr-pipeline.yaml at that
+# fixed path whatever home is bound, so the file is checked under any home.
+fixed=docs/conventions/pr-pipeline.yaml
+if [[ " ${homes[*]} " != *" docs/conventions "* ]]; then
+  while IFS= read -r -d '' path; do
+    files+=("$path")
+  done < <(git ls-files -z -- ":(literal)$fixed")
+fi
 
 findings=0
 checked=0

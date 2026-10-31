@@ -1,5 +1,42 @@
 # Changelog for the PR pipeline convention
 
+## [8.19.0] - 2026-10-31
+
+### Changed
+
+- **The issue lane's `research-first` and `probe-first` skips reach no person.** They take a new `park` route in `stop-routes.json`: the lanes App writes admission's comment naming the next step, adds `status: confirmed`, and removes `agent-ready`, `status: ready` and `admission-deferred`, as admission parks the same refusal, so a listed human's `**Decision recorded.**` comment sends the issue back through intake. The lane comment carries an `outcome=parked` marker. `split-required` keeps its `intake` route to intake's size split (owner Q93). Admission's comment helpers moved to `.github/scripts/lib/admission-comment.mjs`, which admission and report-outcome share; the hold floor lists it as an enforcement path.
+- **Only a credential-shaped patch holds for a person.** apply-patch escalates a credential shape in an issue patch or a patched blob as the new `patch-credential` reason, ahead of every `-invalid` refusal (a SHA-256 mismatch, an extra file beside the patch, a symlink, the path count, a blob's size; a patch made on another commit; each blob is read whole before its size is refused), with the token shapes of the read runner's scan job (`lib/publish-gate.mjs` `CREDENTIAL_SHAPES`, which apply-patch copies under a test that fails when they differ; a blob too large to read counts as carrying one), and the issue lane holds it as `security-risk`. Any other `patch-invalid` now retries like `patch-apply-failed`. Rows other than `issue` keep escalating their `-invalid` reason for a credential shape.
+- **A patch not proven clear of a credential holds; a scan fault retries.** An issue patch refused or unapplied with a `GIT binary patch` line escalates `patch-credential`, since no scan read its blobs, and a text-only one stays `patch-invalid` or `patch-not-applied`, on the moved-head branch too. The read runner's carry step runs `lib/publish-gate.mjs` `scanLeak` on a patch over its cap before removing the copy, and only a clean result is refused `patch`, which retries; a block, a binary hunk or a failed scan is refused `output`, which holds. `report-outcome` holds on `patch-credential` and `scan-refused-output` on any exit and ahead of any funding, limit or turn-cap record. A patch that does not apply to the scanned head and an unfinished scan write the new `fault` marker, which routes `scan-refused-fault` to retry under `limits.stop-retries`, only once the patch's text was judged with no binary hunk's bytes unread, or when the run left no patch; a throw before the judge holds, the scan step retries a 5xx from its gate calls so a blip does not, and a credential hit stays a hit when a later scan step throws.
+
+### Fixed
+
+- pr-unblock's address-feedback: a `claude[bot]` review finding with no review lane footer is ruled as a code-review finding. A disputed one (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) goes to the adjudicator instead of `feedback-disputed` or `feedback-uncertain`. Past the round cap it gets the fresh fixer's round and then fails the head as `feedback-not-converging`, with no `needs-human` label. A footer in its body is model text, so it still names no lane. A `claude[bot]` finding whose own text names the security-review lane or holds a rating-shaped line, rated `CRITICAL` or with no rating the lane reads, keeps that lane's hold (`claimsSecurity`). A disputed finding with a `CRITICAL` rating line goes to a person, as a code-review one does, and that line now counts in any rating shape, bold or with trailing text. At the round cap, a `claude[bot]` finding a person directed gets the fresh fixer's round, as a code-review finding does, unless `claimsSecurity` holds it. Before, any `claude[bot]` finding held there.
+
+- pr-feedback-dispatch's tick now recovers a run whose `dispatch` job failed after it started, as it
+  already recovered a cancelled, timed-out or never-started one: runs 41151634518 and 41151650975
+  failed on `fetch failed` for #11344 and nothing sent their round again. Each failed or lost run
+  sends at most one round per pull request: a finished `pr-unblock` address-feedback run for the
+  pull request created after it holds that pull request, read from every run created since. A
+  failed run is retried for 2 hours, since a dispatch the API rejects starts no round to end it.
+- A pass-only address-feedback round is no longer stranded when pr-verify's FAIL cap cannot be read
+  (`verify:unreadable`, as on #11354). It skips only on a cap the reader found; the deadline
+  warning is still logged. A FAIL or review round still skips on an unreadable cap.
+
+- **A trusted size-split child admission takes at Size large is no longer skipped as `split-required`.** `trustedSplitChild`, which feeds the issue lane's `split-child` fact, applies `splitChildBody` exactly as admission does; it no longer also refuses a child whose parent body someone else last edited when the child's lines come from a listed human's comment.
+
+- pr-feedback-dispatch.yml's rerun-ci-status records the ci-status re-run that a review run's
+  attempt 2 causes when github-actions[bot] started that attempt and the lost-run reconciler's
+  `reconcile-rerun-<run id>-2-<head>` record passes check-trusted-trigger's own reconciler check
+  (`reconcilerRecordVouches`, run through `reconciler-record.mjs`), so pr-verify's trigger check
+  accepts that ci-status attempt. Attempt 3, another re-runner, or a missing or refused record
+  still records nothing.
+
+## [8.18.5] - 2026-10-31
+
+### Changed
+
+- **`pr-merge-dispatched-*` artifacts now expire after 30 days instead of 90.** The post-merge check reads these records only back to its floor, and its run listing goes unreadable at 1000 dispatch runs, about 19 days at the current rate, so the rest of the 90 days was dead weight: over half of the repository's artifacts, paid for on every full listing. The other 11 days cover a stopped check. A record that expires early fails closed: it can hold the lane or demote, never verify a merge. Artifacts already uploaded keep their 90-day expiry.
+
 ## [8.18.4] - 2026-10-31
 
 ### Fixed
