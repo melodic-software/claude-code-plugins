@@ -12,8 +12,8 @@ name: intake-reenter
 # No model and no App token: the job's GITHUB_TOKEN edits labels and starts
 # the dispatch, as the triage sweep's does, and intake-triage admits
 # github-actions[bot] as a dispatcher. The script reads the issue and comment
-# back from the API; nothing from the event but their numbers reaches it, and
-# no comment text reaches a shell. issue_comment and issues run this file from
+# back from the API; nothing from the event but their numbers and the removed
+# label's name, through env, reaches it, and no comment text reaches a shell. issue_comment and issues run this file from
 # the default branch only.
 #
 # A listed human who removes `needs-human` and leaves no `status:` label has
@@ -40,7 +40,8 @@ name: intake-reenter
 # `agent-ready`.
 on:
   # Runs from the default branch; the job's `if` drops PR, bot and App
-  # comments, and only the issue and comment numbers reach the script.
+  # comments, and only the issue and comment numbers and the removed label's
+  # name, through env, reach the script.
   issue_comment: # zizmor: ignore[dangerous-triggers]
     types: [created]
   issues: # zizmor: ignore[dangerous-triggers]
@@ -75,6 +76,7 @@ jobs:
                       && github.event.sender.type == 'Bot'
                       && !contains(github.event.issue.labels.*.name, 'status: ready')
                       && !contains(github.event.issue.labels.*.name, 'status: needs-decision')
+                      && !contains(github.event.issue.labels.*.name, 'status: needs-info')
                       && !contains(github.event.issue.labels.*.name, 'agent-ready')
                       && !contains(github.event.issue.labels.*.name, 'needs-triage')))))
     runs-on: ubuntu-24.04

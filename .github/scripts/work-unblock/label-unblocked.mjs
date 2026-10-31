@@ -43,7 +43,8 @@
 // removes `status: confirmed`. The App's token starts intake-reenter.yml
 // (reenter.mjs), which sends it to intake. The close check makes this once per
 // close: a sweep's window overlaps the close run, and an issue intake parked
-// again after the close stays parked. Only issues a closed blocker blocked are
+// again after the close stays parked. Until a trusted `status: ready` follows
+// that removal, the issue is not labeled. Only issues a closed blocker blocked are
 // read, so the bound is that blocker list, and the count is logged before any
 // removal.
 //
@@ -504,6 +505,12 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
   const stopped = (event, index) => isLabel(event, "unlabeled") && !isRestart(events, index, markers, bot);
   if (removalStands(events, stopped, (event) => trustedLabeler(event, { bot, humans }))) {
     return `${LABEL} was removed and ${READY} not added since`;
+  }
+  // The App sent it to intake (unpark): only intake's status: ready admits it,
+  // however often an overlapping sweep reads the same close.
+  const unparked = (event) => event.event === "unlabeled" && String(event.label?.name).toLowerCase() === CONFIRMED && event.actor?.login === bot;
+  if (!lower.includes(READY) && removalStands(events, unparked, (event) => trustedLabeler(event, { bot, humans }))) {
+    return `${CONFIRMED} was removed for intake and ${READY} not added since`;
   }
   return null;
 }

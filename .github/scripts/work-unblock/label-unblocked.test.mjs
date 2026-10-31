@@ -3799,6 +3799,21 @@ test("the sweep reads only issues a closed blocker blocked, and logs the count b
   assert.ok(count >= 0 && count < removal, lines.join("\n"));
 });
 
+// Sweep windows overlap, so a sweep reads the same close while intake runs.
+test("an issue sent to intake is not labeled until a status: ready follows the removal", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const removal = { event: "unlabeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: CLOSED };
+  const sent = (labels, events) => parkedWorld({ labels, extra: { closedList: [issue(10, { state: "closed" })], blockingOf: { 10: [parkedIssue({ labels })] }, events: { 20: events } } });
+  for (const labels of [["needs-triage"], []]) {
+    const waiting = sent(labels, [removal]);
+    assert.equal(await sweep({ github: waiting.github, admission: admissionFor() }, PAUSING), 0);
+    assert.deepEqual(writes(waiting.calls), [], String(labels));
+  }
+  const decided = sent(["status: ready"], [removal, { event: "labeled", label: { name: "status: ready" }, actor: LANES_BOT, created_at: STAMP }]);
+  assert.equal(await sweep({ github: decided.github, admission: admissionFor() }, PAUSING), 0);
+  assert.ok(writes(decided.calls).includes(labeled(20)), writes(decided.calls).join("\n"));
+});
+
 test("a failed removal fails the run", async (t) => {
   t.mock.method(console, "log", () => {});
   const parked = parkedWorld({ extra: { failOn: (method, path) => method === "DELETE" && path.endsWith("status%3A%20confirmed") } });

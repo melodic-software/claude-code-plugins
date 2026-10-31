@@ -484,7 +484,7 @@ test("only a bot's status: confirmed removal with nothing else to move the issue
   const removal = (labels, sender = "Bot") => reenterGate({ event: "issues", label: CONFIRMED, labels, sender });
   assert.equal(removal(["priority: medium"]), true);
   assert.equal(removal([], "User"), false);
-  for (const label of ["status: ready", "status: needs-decision", "agent-ready", "needs-triage"]) {
+  for (const label of ["status: ready", "status: needs-decision", "status: needs-info", "agent-ready", "needs-triage"]) {
     assert.equal(removal([label]), false, label);
   }
 });
