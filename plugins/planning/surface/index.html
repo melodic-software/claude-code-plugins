@@ -713,6 +713,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     return c[0] || null;
   }
   const counted = q => { const d = decisionOf(q); return d && d.decision && !d.aside ? d : null; };
+  function asideRec(q, d){ // the recommendation a set-aside accept was given against, when a revision set it aside (exporters.aside_rec)
+    const a = q.asideRecommendation;
+    return a && d && d.aside && a.decidedAt === d.updatedAt && (a.seq ?? null) === (d.seq ?? null) ? a.text : "";
+  }
   function stateOf(q){ // a hold wins over a recorded decision
     if (q.state === "archived" || q.archived) return "arch";
     if (q.state === "proposed") return "prop"; // Claude proposes it: the user accepts, edits or declines it before it is a question
@@ -802,6 +806,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const toConfirm = q => { const cf = confirmed(q); return (q.commits || []).filter((c, i) => !cf.has(String(i))).length; }; // commitments of q not yet ticked
   function stateLabel(q){ // LABEL for q's state; an accepted question with unticked commitments says how many
     const st = stateOf(q), n = st === "accept" ? toConfirm(q) : 0;
+    if (st === "open" && asideRec(q, decisionOf(q))) return "Reconfirm"; // a revised recommendation set the user's accept aside
     return LABEL[st] + (n ? ", " + n + " to confirm" : "");
   }
   const talks = h => h.by === "claude" && (!!h.replyTo || ["reply", "rephrase", "note", "revise"].includes(h.kind)); // the asked, hold, supersede and confirm lines carry neither
@@ -1472,7 +1477,10 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const d = decisionOf(q), text = note.value.trim(), shut = closed(), can = !S.busy && !shut;
     const last = lastEventSeq(q.id);
     const st = stateOf(q), off = !live(q), end = q.supersededBy ? chainEnd(q) : ""; // an archived or superseded question takes no decision; Ask, Rephrase and Research this still work
-    $("cur").innerHTML = d && d.decision && d.aside // one action: the earlier answer no longer counts
+    const was = asideRec(q, d);
+    $("cur").innerHTML = was // the accepted text changed: the earlier accept waits on the user's reconfirmation
+      ? '<span class="aside-why" id="reconfirm">Needs your reconfirmation: Claude revised the recommendation after you chose ' + LABEL[d.decision] + ". You accepted: <q>" + esc(trunc(was, 120)) + "</q>" + (d.text ? ", with the note <q>" + esc(trunc(d.text, 80)) + "</q>" : "") + ". It no longer counts until you accept again.</span>" + (off ? "" : '<button class="act primary" data-again="1">Answer again</button>')
+      : d && d.decision && d.aside // one action: the earlier answer no longer counts
       ? '<span class="aside-why">Claude set your earlier answer (' + LABEL[d.decision] + (d.decision === "alt" ? " (" + esc(d.alt) + ")" : "") + (d.text ? ": <q>" + esc(trunc(d.text, 80)) + "</q>" : "") + ") aside" +
         (st === "need" ? " because it needs your decision." : ". It no longer counts.") + "</span>" + (off ? "" : '<button class="act primary" data-again="1">Answer again</button>')
       : d && d.decision

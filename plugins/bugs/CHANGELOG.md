@@ -3,6 +3,12 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-10-31
+
+### Fixed
+
+- `/bugs:scan` gives its `opus` fallback a reason, says its run metadata names the model asked for rather than proving the model that ran, and points at the sub-agents model section with an as-of date and recheck trigger.
+
 ## [0.16.0] - 2026-10-31
 
 ### Added
