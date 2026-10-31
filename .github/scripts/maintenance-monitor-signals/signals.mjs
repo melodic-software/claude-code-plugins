@@ -18,7 +18,10 @@ export const STALL_HOURS = 3;
 // attempt within one tick; four ticks with none mean the per-head retries are
 // spent (or a dispatcher refused).
 export const STALLED_HOURS = 2;
-const SWEEP_MAX_AGE_MINUTES = 70;
+export const SWEEP_MAX_AGE_MINUTES = 70;
+// The owner's threshold (#9170): this many pr-merge sweeps in a row whose
+// post-merge check exited 3 (unreadable), about an hour at the 15-minute cron.
+export const POST_MERGE_UNREADABLE_SWEEPS = 4;
 const MAX_FACTS = 25;
 
 export const inert = (text, max = 300) =>
@@ -339,6 +342,30 @@ export function stalledFindings({ stalledStops = [] }) {
   ];
 }
 
+// pr-merge's post-merge check could not read lane merges (exit 3) in each of
+// its newest POST_MERGE_UNREADABLE_SWEEPS sweeps, so merges hold with only a
+// warning. It only notifies; a readable sweep clears it. The fingerprint is
+// the newest reason with its counts masked, so a cause that holds is written
+// once.
+export function postMergeUnreadableFindings({ postMergeReports = [] }) {
+  const streak = postMergeReports.slice(0, POST_MERGE_UNREADABLE_SWEEPS);
+  if (streak.length < POST_MERGE_UNREADABLE_SWEEPS || streak.some((r) => r.code !== "3")) return [];
+  const [newest] = streak;
+  const reason = (r) => r.reason ?? "no reason recorded";
+  return [
+    finding({
+      key: "post-merge-unreadable",
+      signal: "11 post-merge unreadable",
+      title: `Post-merge check: unreadable in the last ${POST_MERGE_UNREADABLE_SWEEPS} pr-merge sweeps`,
+      area: "Merge lane (pr-merge post-merge check)",
+      summary: `pr-merge's post-merge check exited 3 (unreadable) in each of its last ${POST_MERGE_UNREADABLE_SWEEPS} sweeps, so lane merges hold until a sweep reads again. Newest ${newest.url}: ${reason(newest)}`,
+      facts: streak.map((r) => `${r.createdAt} ${r.url}: ${reason(r)}`),
+      evidence: ["post-merge-unreadable", reason(newest).replace(/\d+/g, "N")],
+      observedAt: newest.createdAt,
+    }),
+  ];
+}
+
 const DETECTORS = [
   mainRedFindings,
   ceilingFindings,
@@ -350,6 +377,7 @@ const DETECTORS = [
   throughputFindings,
   laneStopFindings,
   stalledFindings,
+  postMergeUnreadableFindings,
 ];
 
 export function detect(data) {

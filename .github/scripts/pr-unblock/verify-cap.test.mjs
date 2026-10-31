@@ -4,11 +4,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { spawn as spawnChild } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { DEADLINE_UNREADABLE, FAIL, final, LISTING_MISS_PREFIX, SIBLING_UNREADABLE, spawnReader, VERIFY_CAP_TIMEOUT_MS, VERIFY_SCRIPT, verifyCapReader } from "./verify-cap.mjs";
+import { tempDir } from "../../../lib/test-tmp.mjs";
+import { DEADLINE_UNREADABLE, FAIL, final, LISTING_MISS_PREFIX, SIBLING_UNREADABLE, spawnAsync, VERIFY_CAP_TIMEOUT_MS, VERIFY_SCRIPT, verifyCapReader } from "./verify-cap.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -274,52 +276,6 @@ test("with no carry file named, no carry is fetched", async () => {
   assert.equal(fetched, 0);
 });
 
-// Gap: the reader ran under spawnSync, which held the event loop for up to
-// VERIFY_CAP_TIMEOUT_MS. Four pr-feedback-dispatch runs on 2026-10-30
-// (41146193308, 41146199013, 41146309867, 41146347019) were killed at that
-// limit and then failed `fetch failed` on the dispatch, two runs at each of
-// two heads, each paying 143 to 209 calls.
-const SLOW = `import json, sys, time
-time.sleep(float(sys.argv[1]) if sys.argv[1] != "evidence" else 0.5)
-print(json.dumps({"head": sys.argv[-1], "refusal": None, "detail": None}))
-`;
-const slowScript = () => {
-  const dir = mkdtempSync(join(tmpdir(), "verify-cap-"));
-  const path = join(dir, "slow.py");
-  writeFileSync(path, SLOW);
-  return path;
-};
-
-test("the reader runs without holding the event loop: a timer fires while it reads", async () => {
-  const read = verifyCapReader({ ...process.env, GITHUB_REPOSITORY: REPO, VERIFY_EVIDENCE_SCRIPT: slowScript() }, { log: () => {} });
-  let ticks = 0;
-  const timer = setInterval(() => (ticks += 1), 20);
-  try {
-    assert.equal(await read({ number: 42, head: HEAD, base: BASE }), null);
-  } finally {
-    clearInterval(timer);
-  }
-  assert.ok(ticks >= 5, `the timer fired ${ticks} times during a 0.5 s read`);
-});
-
-test("a reader past its limit is killed and answers ETIMEDOUT, as spawnSync did", async () => {
-  const started = Date.now();
-  const done = await spawnReader("python3", [slowScript(), "30", HEAD], { env: process.env, timeout: 300 });
-  assert.ok(Date.now() - started < 10_000, "the child was killed, not waited out");
-  assert.equal(done.status, null);
-  assert.match(done.error.message, /ETIMEDOUT/);
-});
-
-test("a reader that exits non-zero answers its status and stderr, with no error", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "verify-cap-"));
-  const path = join(dir, "fail.py");
-  writeFileSync(path, 'import sys\nprint("gh: rate limited", file=sys.stderr)\nsys.exit(3)\n');
-  const done = await spawnReader("python3", [path], { env: process.env, timeout: 10_000 });
-  assert.equal(done.status, 3);
-  assert.equal(done.error, undefined);
-  assert.equal(done.stderr.trim(), "gh: rate limited");
-});
-
 test("the sibling and caller-limit details, the FAIL refusal and the listing-miss prefix are the reader's", async () => {
   const source = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
   assert.ok(source.includes(`SIBLING_UNREADABLE = "${SIBLING_UNREADABLE}"`));
@@ -339,4 +295,59 @@ test("the reader is told the limit it is killed at, and who kills it", async () 
   assert.equal(calls[0].env.BABYSIT_VERIFY_DEADLINE_SECONDS, "120");
   assert.equal(calls[0].env.BABYSIT_VERIFY_CALLER, "verify-cap.mjs");
   assert.equal(calls[0].env.GITHUB_REPOSITORY, REPO);
+});
+
+// Runs 41078771801, 41081672214, 41082104940 and 41085939386 (2026-10-30):
+// after a 57-125 s read the dispatch POST failed at once with `fetch failed`.
+// A server in another process resets a connection idle 200 ms; the reader
+// runs past that, then the next request goes out. Under spawnSync the reset
+// lay unread and the request went out on the dead socket (ECONNRESET).
+test("a request after the reader's read goes out on a live connection, not on one reset while it ran", async () => {
+  const server = spawnChild(
+    process.execPath,
+    [
+      "-e",
+      `const s = require("node:net").createServer((c) => {
+        let idle;
+        const arm = () => { clearTimeout(idle); idle = setTimeout(() => c.resetAndDestroy(), 200); };
+        arm();
+        c.on("data", () => { arm(); c.write("HTTP/1.1 200 OK\\r\\ncontent-type: application/json\\r\\ncontent-length: 2\\r\\n\\r\\n{}"); });
+        c.on("error", () => {});
+      });
+      s.listen(0, "127.0.0.1", () => console.log(s.address().port));`,
+    ],
+    { stdio: ["ignore", "pipe", "inherit"] },
+  );
+  try {
+    const port = await new Promise((resolve) => server.stdout.once("data", (chunk) => resolve(String(chunk).trim())));
+    const url = `http://127.0.0.1:${port}/`;
+    await (await fetch(url)).json();
+    // Let the first response's socket go back to the pool.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const script = join(tempDir("verify-cap-"), "reader.py");
+    writeFileSync(script, `import json, sys, time\ntime.sleep(0.8)\nprint(json.dumps({"head": sys.argv[-1], "refusal": None, "detail": None}))\n`);
+    const read = verifyCapReader({ GITHUB_REPOSITORY: REPO, VERIFY_EVIDENCE_SCRIPT: script, PATH: process.env.PATH }, { log: () => {} });
+    assert.equal(await read({ number: 42, head: HEAD, base: BASE }), null);
+    const response = await fetch(url, { method: "POST", body: "{}" });
+    assert.equal(response.status, 200);
+  } finally {
+    server.kill();
+  }
+});
+
+test("a reader child past its timeout is killed and answers spawnSync's ETIMEDOUT error", async () => {
+  const started = Date.now();
+  const done = await spawnAsync(process.execPath, ["-e", "setTimeout(() => {}, 10_000)"], { encoding: "utf8", timeout: 200 });
+  assert.ok(Date.now() - started < 5_000);
+  assert.equal(done.status, null);
+  assert.equal(done.error?.code, "ETIMEDOUT");
+  assert.match(done.error.message, /ETIMEDOUT/);
+});
+
+test("a reader child's exit status, stdout and stderr come back as spawnSync gives them", async () => {
+  const done = await spawnAsync(process.execPath, ["-e", "console.log('out'); console.error('err'); process.exit(3)"], { encoding: "utf8", timeout: 5_000 });
+  assert.deepEqual(done, { status: 3, stdout: "out\n", stderr: "err\n", error: undefined });
+  const missing = await spawnAsync("no-such-reader-binary", [], { timeout: 5_000 });
+  assert.equal(missing.status, null);
+  assert.equal(missing.error?.code, "ENOENT");
 });

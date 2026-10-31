@@ -5147,7 +5147,7 @@ if ! grep -q 'line [0-9]*:' <<<"$out" && grep -q 'run with --help' <<<"$out"; th
 else
   fail "usage error should be clean and point at --help: $out"
 fi
-if run_roots --help 2>&1 | grep -q 'CHECK_SKILL_SKIP_MARKDOWNLINT'; then
+if grep -q 'CHECK_SKILL_SKIP_MARKDOWNLINT' < <(run_roots --help 2>&1); then
   pass "--help documents CHECK_SKILL_SKIP_MARKDOWNLINT"
 else
   fail "--help should document CHECK_SKILL_SKIP_MARKDOWNLINT"

@@ -20,13 +20,9 @@
 // at the head of a round sent for that FAIL). Each read's stderr, the
 // reader's `babysit-listing-miss` lines first, is logged on one line.
 //
-// The reader runs as a child process the event loop keeps serving. Under
-// spawnSync a read killed at the limit was followed by a dispatch POST that
-// failed with `fetch failed` (suspected: idle connections the blocked loop
-// left unserved), so the next run at that head paid for the read again.
 // The listing pr-merge carried (listing-carry.mjs) is fetched on the first
 // read only, so a run that skips before any read spends none of its calls.
-import { execFile } from "node:child_process";
+import { spawn as spawnChild } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 export const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
@@ -49,34 +45,62 @@ const SHA = /^[0-9a-f]{40}$/;
 // One full read lists every artifact of the repository; the dispatcher job's
 // timeout-minutes (10) leaves room for a few (judgment).
 export const VERIFY_CAP_TIMEOUT_MS = 2 * 60_000;
-// The reader's stdout and stderr, kept whole (judgment: a report line and a
-// few log lines, far below this).
-const MAX_BUFFER = 64 * 1024 * 1024;
+// The reader's waits between incremental reads of a carried listing
+// (babysit_verify_evidence.py INCREMENTAL_WAITS) and the whole listing after
+// them do not fit in that limit, and a killed read is not the cap, so a miss
+// goes straight to the whole listing (NO_INCREMENTAL_WAITS_ENV).
+export const NO_INCREMENTAL_WAITS = { BABYSIT_VERIFY_NO_INCREMENTAL_WAITS: "1" };
 
-// `command` run as a child process, answered in spawnSync's shape (status,
-// stdout, stderr, error) without blocking the event loop; past `timeout` ms
-// it is killed, and the error names ETIMEDOUT as spawnSync's does.
-export function spawnReader(command, args, { env, timeout }) {
+// spawnSync's result ({ status, stdout, stderr, error }) from a child that
+// leaves the event loop running. A read blocked behind spawnSync for a minute
+// or more left the job's idle keep-alive socket to GitHub unread: a reset on it
+// went unseen, undici's own idle timer could not fire, and the dispatch POST
+// sent on that socket next failed (`fetch failed`, ECONNRESET). A child past
+// `timeout` is killed and answers spawnSync's ETIMEDOUT error.
+export function spawnAsync(command, args, { timeout, encoding, ...options } = {}) {
   return new Promise((resolve) => {
-    execFile(command, args, { encoding: "utf8", env, timeout, killSignal: "SIGTERM", maxBuffer: MAX_BUFFER }, (error, stdout, stderr) => {
-      if (!error) {
-        resolve({ status: 0, stdout, stderr });
-        return;
+    const child = spawnChild(command, args, { ...options, stdio: ["ignore", "pipe", "pipe"] });
+    const out = { stdout: "", stderr: "" };
+    let error;
+    let settled = false;
+    const settle = (status) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve({ status: error ? null : status, ...out, error });
       }
-      const status = typeof error.code === "number" ? error.code : null;
-      const timedOut = error.killed === true && error.signal === "SIGTERM";
-      resolve({ status, stdout, stderr, error: timedOut ? new Error(`${command} ETIMEDOUT after ${timeout} ms`) : status === null ? error : undefined });
+    };
+    for (const stream of ["stdout", "stderr"]) {
+      child[stream].setEncoding(encoding ?? "utf8").on("data", (chunk) => {
+        out[stream] += chunk;
+      });
+    }
+    child.on("error", (thrown) => {
+      error ??= thrown;
     });
+    child.on("close", settle);
+    // A child the reader started (gh) can hold the pipes open past the kill.
+    const timer =
+      timeout > 0 &&
+      setTimeout(() => {
+        error = Object.assign(new Error(`spawn ${command} ETIMEDOUT`), { code: "ETIMEDOUT" });
+        child.kill();
+        child.stdout.destroy();
+        child.stderr.destroy();
+        child.unref();
+        settle(null);
+      }, timeout);
   });
 }
 
-// listing-carry.mjs with the job's token, as the step that ran it every run
-// did: a child process under CARRY_TIMEOUT_MS that logs its own api-calls
-// notice. It writes BABYSIT_VERIFY_LISTING_CARRY, or warns and writes nothing.
+// listing-carry.mjs with the job's token, as the workflow step that ran it
+// every run did: a child process under CARRY_TIMEOUT_MS that logs its own
+// api-calls notice. It writes BABYSIT_VERIFY_LISTING_CARRY, or warns and
+// writes nothing.
 const CARRY_SCRIPT = fileURLToPath(new URL("../pr-merge/listing-carry.mjs", import.meta.url));
 export const CARRY_TIMEOUT_MS = 2 * 60_000;
 async function fetchCarry(env) {
-  const done = await spawnReader(process.execPath, [CARRY_SCRIPT], {
+  const done = await spawnAsync(process.execPath, [CARRY_SCRIPT], {
     env: { ...env, ACTIONS_TOKEN: env.ACTIONS_TOKEN || env.GITHUB_TOKEN, API_BUDGET_SCRIPT: "listing-carry" },
     timeout: CARRY_TIMEOUT_MS,
   });
@@ -85,12 +109,6 @@ async function fetchCarry(env) {
     throw new Error(oneLine(done.error?.message ?? String(done.stderr).trim().split("\n").at(-1)) || `exit ${done.status}`);
   }
 }
-
-// The reader's waits between incremental reads of a carried listing
-// (babysit_verify_evidence.py INCREMENTAL_WAITS) and the whole listing after
-// them do not fit in that limit, and a killed read is not the cap, so a miss
-// goes straight to the whole listing (NO_INCREMENTAL_WAITS_ENV).
-export const NO_INCREMENTAL_WAITS = { BABYSIT_VERIFY_NO_INCREMENTAL_WAITS: "1" };
 
 // Whether a verifyCapReader answer never clears for the head, so a
 // dispatcher records the head as handled: the cap does, a sibling read that
@@ -131,7 +149,7 @@ function stderrSummary(stderr) {
 // `expected`: refusals the round is sent for, which warn nothing.
 // `carry`: fetches the listing pr-merge carried, before the first read only,
 // when the job names BABYSIT_VERIFY_LISTING_CARRY; a failed fetch is no carry.
-export function verifyCapReader(env, { spawn = spawnReader, log = (line) => console.log(line), carry = fetchCarry } = {}) {
+export function verifyCapReader(env, { spawn = spawnAsync, log = (line) => console.log(line), carry = fetchCarry } = {}) {
   env = { ...env, ...NO_INCREMENTAL_WAITS };
   let carried = null;
   return async ({ number, head, base, expected = [] }) => {
