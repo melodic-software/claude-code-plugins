@@ -3,6 +3,26 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.131.2] - 2026-10-31
+
+### Changed
+
+- The `interview-ears-convention-tags` eval case grants Bash, and a new `resolver-ran` grader requires a Bash call to `resolve-convention-home.sh`, so the case covers the convention-home resolver path the EARS ladder names instead of a hand-read of `AGENTS.md`.
+
+## [0.131.1] - 2026-10-31
+
+### Changed
+
+- `/planning:interview` and `/planning:wayfind`: reworded phrases the interview text shared with an upstream skill set. The confirmation gate now opens with Step 3's stop wording ("no question is left to ask"), and "the frontier is empty" now reads "no open question remains on the frontier" (or "the frontier holds no item" in wayfind) across the skill bodies, the assumption sweep, the checklist template and the evals. No rule changed.
+
+- The interview round's closing probe is now worded "something else", never "anything else": "Is there something else that would change these recommendations?" The eval case `interview-closing-probe-something-else` grades the wording.
+
+### Fixed
+
+- `/planning:interview` in the terminal now reads back an answer that departs from the recommendation, or that arrives dictated or unclear, in its own words and keeps the question open until the user confirms or corrects it. An answer that accepts the recommendation still resolves at once.
+
+- When every answer was accepted as recommended or confirmed after its read-back, `/planning:interview`'s final confirmation no longer re-lists the unchanged accepted answers, even at the first confirmation. A recap saved once each round's read-backs are confirmed lets the pasted `--changed` recap list only the answers changed since, and the restatement adds the intent, the hedged answers and the assumptions the user has not seen. A host run of the `interview-final-brief-changes-only` eval case on 2026-10-30 scored 0 of 3 with-plugin runs on its changes-only and omits-unchanged graders before this rule.
+
 ## [0.131.0] - 2026-10-31
 
 ### Added

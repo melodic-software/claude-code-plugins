@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.8.0] - 2026-10-31
+
+### Changed
+
+- The unattended merge gate reads a `merge.max-in-flight` above 24 as unset instead of taking it,
+  and the pipeline schema states the same maximum.
+
 ## [4.7.0] - 2026-10-31
 
 ### Added

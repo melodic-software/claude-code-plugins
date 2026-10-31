@@ -142,7 +142,7 @@ decision, a cross-module contract change, or a file outside the fence, that is t
 brief's escalation clause names: STOP and report, so the orchestrator can re-dispatch the phase to
 `implementation:implementer`. Never stretch to finish it here.
 
-`effort` is pinned alongside `model` so the phase never runs at the session's level. A dispatcher
+`effort` is pinned alongside `model` so the phase does not follow the session's level. A dispatcher
 passes no `effort` here: neither the Agent tool's per-call parameter nor a Workflow `agent()`
 call's.
 
@@ -154,11 +154,11 @@ the effort-pin owner's ruling of 2026-10-01.
 - **Pointer**: for the model split, see
   <https://code.claude.com/docs/en/costs#choose-the-right-model>; for the effort levels, see
   <https://code.claude.com/docs/en/model-config#adjust-effort-level> and
-  <https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels-for-claude-sonnet-5-5>;
+  <https://platform.claude.com/docs/en/build-with-claude/effort#recommended-effort-levels>;
   for the subagent model order and allowlist substitution, see
-  <https://code.claude.com/docs/en/sub-agents#choose-a-model>; for the per-spawn `effort` and its
-  rank over the pin, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>.
-- **As of**: 2026-10-11
+  <https://code.claude.com/docs/en/sub-agents#choose-a-model>; for the per-spawn `effort` and
+  every source that ranks over the pin, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>.
+- **As of**: 2026-10-31
 - **Recheck trigger**: the subagents effort section changes precedence or which spawns honor
   `effort`, the costs section changes its model split, either effort-levels section changes its
   advice for `medium`, the allowlist substitution changes, or the `sonnet` alias moves to a new
