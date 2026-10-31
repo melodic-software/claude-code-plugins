@@ -145,6 +145,16 @@ The contract is `docs/contracts/workspace-environment/README.md` in this plugin'
 
 The default branch's name and the command's output come from git and the repository: a branch name reaches a command only after the step 2 name check, always as one quoted argument, and the command's output never reaches a command at all.
 
+## Resuming a handoff
+
+A handoff followed by `/clear` starts a new session id, so the lock still names the session that wrote the handoff and `check-enter` reports it as foreign. When the save-point you resumed from names the old session id for this worktree, run, before `check-enter`:
+
+```bash
+bash "<scripts-dir>/worktree-claim.sh" handover <path> --session-id <old-session-id> --to "<session-id>"
+```
+
+It re-locks only when the reason names `<old-session-id>` and writes a reason naming this session, keeping the creator script the old reason named. Exit 4 means the lock names some other session: stop, as for a foreign claim. Exit 3 means the tree is unlocked: claim it. Take `<old-session-id>` only from the save-point; the handover trusts whoever wrote it, the same trust the resume prompt already carries.
+
 ## Post-create checks
 
 If the project has session-start setup hooks, they run on the next SessionStart; for a mid-session entry, SessionStart may not fire. Run the project's setup steps manually if the checks below fail.

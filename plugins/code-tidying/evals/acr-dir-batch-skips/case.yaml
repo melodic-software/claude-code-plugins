@@ -22,8 +22,8 @@ graders:
     arm: both
   - name: markdown-skipped
     type: regex
-    pattern: '^(?:(?![^\n]*\b(?:skip\w*|not audited|out of scope|only covers|code files only|audit-noise)\b)[^\n]*Priya|[^\n]*(?:\||\b(?:conversational-antecedent|history-narration|origin-note|plan-reference|ticket-pr-residue)\b)[^\n]*Priya|[^\n]*Priya[^\n]*(?:\||\b(?:conversational-antecedent|history-narration|origin-note|plan-reference|ticket-pr-residue)\b))'
-    flags: m
+    pattern: '\A(?![\s\S]*?(?:NOTES\.md|markdown)[^\n]*\b(?:skip\w*|not audited|out of scope|only covers|code files only|audit-noise)\b|[\s\S]*?\b(?:skip\w*|not audited|out of scope|code files only)\b[^\n]*(?:NOTES\.md|markdown))[\s\S]*?^(?![^\n]*\b(?:skip\w*|not audited|out of scope|only covers|code files only|audit-noise)\b)[^\n]*Priya|^(?:[^\n]*(?:\||\bline\s+\d+\b|\b(?:conversational-antecedent|history-narration|origin-note|plan-reference|ticket-pr-residue)\b)[^\n]*Priya|[^\n]*Priya[^\n]*(?:\||\bline\s+\d+\b|\((?:conversational|history|origin)\w*\)|\b(?:conversational-antecedent|history-narration|origin-note|plan-reference|ticket-pr-residue)\b))'
+    flags: mi
     match: not_contains
   - name: ignore-marker-respected
     type: regex
@@ -44,5 +44,5 @@ graders:
     flags: i
   - name: batch-total
     type: regex
-    pattern: 'Total:?\**\s*\**2\**\s+files?\b[^\n]*?\b2\**\s+(?:Tier[ -]1|(?:to |must )?remov\w*)\b[^\n]*?\b0\**\s+(?:Tier[ -]2|(?:to |needs? |for )?review\w*)\b'
-    flags: i
+    pattern: '^(?![^\n]*(?<!tier[ -])\b[1-9]\d*\**\s+(?:Tier[ -]2|(?:(?:comments?|findings?)\s+)?(?:to |needs? |for )?review\w*)\b|[^\n]*\btier[ -]2\b:?\**\s*[1-9]|[^\n]*\b(?:one|two|three|four|five)\s+tier[ -]2\b)[^\n]*?\btotals?\b[^\n\d]*\b2\**\s+(?:code\s+)?files?\b[^\n]*?\b2\**\s+(?:Tier[ -]1|(?:(?:comments?|findings?)\s+)?(?:(?:to|must|for)\s+(?:be\s+)?)?(?:remov|delete|deleti|deleta)\w*)\b'
+    flags: mi

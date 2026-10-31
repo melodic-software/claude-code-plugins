@@ -5,6 +5,15 @@
     },
     {
       "answer": "**Total:** 2 files audited, 2 Tier 1, 0 Tier 2 findings."
+    },
+    {
+      "answer": "Total: 2 files checked, 2 comments to delete, 0 to review."
+    },
+    {
+      "answer": "**Total:** 2 code files, 2 comments to delete."
+    },
+    {
+      "answer": "Total: 2 files audited, 2 Tier 1 findings to remove, 0 Tier 2 findings to review."
     }
   ],
   "fail": [
@@ -24,6 +33,18 @@
     {
       "answer": "Total: 2 file(s) audited, 3 Tier 1, 0 Tier 2 findings.",
       "why": "ignore marker not respected"
+    },
+    {
+      "answer": "Total: 3 files checked, 2 comments to delete, 0 to review.",
+      "why": "miscounted files where the detector says files=2"
+    },
+    {
+      "answer": "Total: 2 files audited, 2 Tier 1, 1 Tier 2 findings.",
+      "why": "Tier 2 count is not 0"
+    },
+    {
+      "answer": "Total: 2 files, 2 Tier 1, Tier 2: 1",
+      "why": "Tier 2 count is not 0, label first"
     }
   ]
 }
