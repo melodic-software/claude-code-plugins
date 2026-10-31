@@ -125,7 +125,7 @@ other adopting plugin ships a byte-identical `context/recommendation-basis.md`, 
 
 ## Enforceability
 
-Classified per `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`:
+Classified per `melodic-software/standards` `standards/engineering/enforceability-tiers.md`:
 **reasoning-only**. Whether a recommendation is consequential, and whether its grounding reached
 the bar, are judgments about meaning. Presence of a `Basis:` label is greppable in a saved
 transcript, but no check is built.

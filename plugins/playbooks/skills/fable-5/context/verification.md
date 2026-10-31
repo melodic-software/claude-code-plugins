@@ -69,6 +69,10 @@ The two rows carrying no harness artifact are the ones to read twice:
   - **Pointer**: for that subcommand, see [Skills: Work on Claude API projects](https://code.claude.com/docs/en/skills#work-on-claude-api-projects).
   - **As of**: 2026-10-01
   - **Recheck trigger**: that table drops or renames the onboarding subcommand.
+- **A worked Managed Agents automation checks its own output before reporting it.** It re-checks each item against its live source just before posting, and counts a post as sent only once delivery is confirmed.
+  - **Pointer**: for the code, see [Building effective agent automations: Get the code](https://claude.dev/blog/building-effective-agent-automations/#get-the-code) (Lance Martin and CJ Avilla, 2026-10-08), which links the reference implementation, `anthropics/claude-quickstarts` [`managed-agents/daily-brief`](https://github.com/anthropics/claude-quickstarts/tree/main/managed-agents/daily-brief), and gives the `/claude-api managed-agents-onboard <post URL>` walkthrough command; for the two checks, see the same post's [Agent](https://claude.dev/blog/building-effective-agent-automations/#agent) and [Destination](https://claude.dev/blog/building-effective-agent-automations/#destination) sections.
+  - **As of**: 2026-10-31
+  - **Recheck trigger**: "Get the code" moves the reference implementation or changes the onboarding command, or the Agent or Destination section drops its re-check or delivery check.
 
 **Provided never means automatic.** These surfaces are different kinds of thing: bundled skills, a hosted service, and a platform API. Before a project's verification story depends on one, check its plan availability, client version, and who may invoke it on the page that owns it.
 

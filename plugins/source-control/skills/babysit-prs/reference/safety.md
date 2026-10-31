@@ -888,7 +888,11 @@ already reports as `rate-limit`. It also binds a second attempt after a kill swi
 first: the caller's `kill-switch` job succeeded with its lane's `a kill switch stops this review (`
 (or `security review (`) notice, and the first attempt has no lane job, so the review never
 started. The gate never starts that rerun either, since it cannot read the switch: ci-status asks a
-person to rerun the run once the switch is off.
+person to rerun the run once the switch is off. The same holds after the upstream-status gate
+stopped the first attempt (class `upstream-degraded`): the caller's `kill-switch` job failed with
+its lane's `an upstream outage stops this review (` (or `security review (`) error and the first
+attempt has no lane job. The gate never starts that rerun; the lost-run reconciler reruns the
+run's failed jobs once GitHub Actions is operational and the upstream gate would let it run.
 
 The gate also reruns, at once and under the same head, job and attempt rules, an AI review check
 whose run an outage lost: its job and the run's first attempt concluded `cancelled` or `timed_out`

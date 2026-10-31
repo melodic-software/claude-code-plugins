@@ -5,12 +5,12 @@ behaves, what a default is, or whether an option exists is only as strong as the
 distance between the claim and the thing that decides it, and that distance is
 what a citation alone does not record. This convention ranks that distance and
 states how much corroboration a claim needs before it is treated as settled.
-[`documentation-and-citations.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/documentation-and-citations.md) owns *whether
+[`documentation-and-citations.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/documentation-and-citations.md) owns *whether
 and where* a citation appears once a claim is accepted; this owns *what the
 source is worth* and *how many are needed*. Neither answers the other's
 question.
 
-This spans two of the tiers [`enforceability-tiers.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/enforceability-tiers.md)
+This spans two of the tiers [`enforceability-tiers.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/enforceability-tiers.md)
 defines. A source floor is **deterministic** in nature: one primary plus two
 corroborators is an exact count. But the sources are named in a session, not in
 a tracked artifact, so no tool has anything to count. Deciding which rung a
@@ -81,7 +81,7 @@ A source's rung is a property of when it was read, not of the source. A fetch
 from a previous session has decayed to **Recalled**: its content is now
 indistinguishable from memory, and the upstream may have moved. Re-retrieve
 before relying on it. This governs a source's standing as evidence;
-[`documentation-and-citations.md#time-bound-external-claims-need-a-recheck-trigger`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/documentation-and-citations.md#time-bound-external-claims-need-a-recheck-trigger)
+[`documentation-and-citations.md#time-bound-external-claims-need-a-recheck-trigger`](https://github.com/melodic-software/standards/blob/main/standards/engineering/documentation-and-citations.md#time-bound-external-claims-need-a-recheck-trigger)
 governs the separate obligation attached to a time-bound fact once it is written
 into durable content.
 
@@ -109,23 +109,23 @@ so when a common pattern fails the check.
 
 ## Boundaries
 
-- **vs [`documentation-and-citations.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/documentation-and-citations.md)**: that
+- **vs [`documentation-and-citations.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/documentation-and-citations.md)**: that
   file owns whether a fact is cited rather than copied, where the link sits, and
   which footer it belongs to. This file owns how much the cited source is worth
   and how many are required.
-- **vs [`reference-dont-duplicate.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/reference-dont-duplicate.md)**: that file
+- **vs [`reference-dont-duplicate.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/reference-dont-duplicate.md)**: that file
   owns one source of truth per fact inside the repository. This file ranks
   sources outside it, where there is no single owner to defer to.
-- **vs [`deterministic-work-execution.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/deterministic-work-execution.md)**:
+- **vs [`deterministic-work-execution.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/deterministic-work-execution.md)**:
   that file owns whether an execution was honest enough for its output to count
   as evidence at all. This file owns what that output is worth beside other
   sources once it does. A primary rung means a claim may rest on the source; it
   does not mean the source answered the question that was asked.
-- **vs [`enforceability-tiers.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/enforceability-tiers.md)**: that file
+- **vs [`enforceability-tiers.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/enforceability-tiers.md)**: that file
   classifies a *convention* by who can decide it. This file classifies a
   *source* by what it can establish. The two ladders are unrelated; only the
   vocabulary for this document's own classification is borrowed.
-- **vs [`session-time-agent-output-trust.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/session-time-agent-output-trust.md)**:
+- **vs [`session-time-agent-output-trust.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/session-time-agent-output-trust.md)**:
   that file governs an assertion an agent makes about its own work. An
   agent's assertion carries no rung of its own; it inherits the rung of the
   source it names, or **Recalled** when it names none.

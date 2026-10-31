@@ -11,7 +11,8 @@
 // cost rule adds needs-human; criterion 6 is checked here too, on the charge
 // words rule-admit.sh refuses (chargePattern), whatever the verdict flagged.
 // Criterion 4 (no protected path named) applies only to the paths the issue
-// lane cannot push (unpushablePaths). This checks the rest:
+// lane cannot push (unpushablePaths), named outside a clause that leaves them
+// unchanged ("no file under X is edited"). This checks the rest:
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
@@ -719,11 +720,59 @@ const dotted = (path) =>
 // A line that opens its own list item, such as a nested evidence bullet.
 const BULLET = /^\s*(?:[-*+]|\d+[.)])\s/;
 
+// The bounded shapes that say a path is left unmodified; a path is dropped
+// only inside one, and any other wording keeps it:
+// 1. `no`/`none of` + a short phrase holding the path + `is`/`are`/`was`/
+//    `were`/`gets`/`will be`/`should be`/`must be` + a participle ("No file
+//    under X is edited", "No file under X should be edited");
+// 2. a modification verb + `no` + the path phrase, or a comma-separated list
+//    of paths ("the diff touches no X, Y or Z file");
+// 3. `does not`/`do not`/`don't`/`never`/`won't`, or a modal negation
+//    (`must not`, `should not`, `mustn't`, `can't`, `cannot`, ...), + a
+//    modification verb + the path phrase ("does not edit X", "MUST NOT
+//    modify X");
+// 4. `leaves` + the path phrase + `unchanged`/`untouched`/`as is`;
+// 5. `no change(s)`/`edit(s)`/`modification(s)` + `to`/`in` + the path phrase
+//    ("No changes to X");
+// 6. at the start of the item or a sentence, the path phrase + a negated
+//    passive (`is not`, `isn't`, `must not be`, ...) + a participle that ends
+//    the sentence ("X is not edited.", "X must not be modified.").
+// A path phrase is up to six words, with no comma, sentence end, or word that
+// turns it toward a change or a condition (but, other, after, ...); in shape
+// 6 it also holds no modification verb.
+const STOP = String.raw`(?!(?:but|except|other|outside|beyond|besides|apart|aside|and|or|nor|while|so|then|unless|yet|whereas|instead|after|before|when|once|until|if|to|for|that|which|who|where)(?=[\s,;:!?.]|$))`;
+const WORD = String.raw`${STOP}(?:[^\s,;:!?.]|\.(?=\S))+`;
+const PHRASE = String.raw`${WORD}(?:\s+${WORD}){0,5}`;
+const LIST = String.raw`${WORD}(?:(?:,\s*(?:(?:or|nor)\s+)?|\s+(?:or|nor)\s+)${WORD})+(?:\s+(?:files?|director(?:y|ies)|folders?|paths?|lines?))?`;
+const DONE = String.raw`edited|changed|touched|modified|altered|rewritten`;
+const VERB = String.raw`touch(?:es|ing)?|chang(?:e|es|ing)|edit(?:s|ing)?|modif(?:y|ies|ying)|alter(?:s|ing)?|(?:re)?writ(?:e|es|ing)\s+to`;
+const MODAL = String.raw`must|should|shall|will|can`;
+const NOT = String.raw`(?:${MODAL})\s+not|cannot|(?:mustn|shouldn|shan|can)['’]t`;
+const ACT = String.raw`(?!(?:${VERB}|update|updating|add|remov|delete|deleting|creat|replac|renam|mov|fix)\w*(?=[\s,;:!?.]|$))`;
+const SUBJECT = String.raw`${ACT}${WORD}(?:\s+${ACT}${WORD}){0,5}`;
+// The idioms where `no` opens an affirmation, not a negation: "No doubt X
+// must be edited" asks for the edit, so shape 1 never starts at one.
+const IDIOM = String.raw`(?:doubt|question|wonder|way|matter|one)(?=[\s,;:!?.]|$)`;
+const NEGATED = new RegExp(
+  [
+    String.raw`\b(?:no(?!\s+${IDIOM})|none\s+of)\s+${PHRASE}\s+(?:is|are|was|were|gets?|(?:${MODAL})\s+be)\s+(?:${DONE})\b`,
+    String.raw`\b(?:${VERB})\s+no\s+(?:${LIST}|${PHRASE})`,
+    String.raw`\b(?:(?:does|do|did)\s+not|never|(?:won|doesn|don|didn)['’]t|${NOT})\s+(?:${VERB})\s+${PHRASE}`,
+    String.raw`\bleav(?:e|es|ing)\s+${PHRASE}\s+(?:unchanged|untouched|as\s+is)\b`,
+    String.raw`\bno\s+(?:changes?|edits?|modifications?|alterations?)\s+(?:to|in)\s+${PHRASE}`,
+    String.raw`(?:^|(?<=[.;:!?]\s))\s*${SUBJECT}\s+(?:(?:is|are|was|were|gets?)\s+(?:not|never)|(?:is|are|was|were)n['’]t|(?:${NOT}|won['’]t)\s+be)\s+(?:${DONE})(?=\s*(?:[.;!?](?:\s|$)|$))`,
+  ].join("|"),
+  "gi",
+);
+const withoutNegated = (text) => text.replace(NEGATED, " ");
+
 // The paths the task-list items in `body`, with the wrapped text below each up
 // to its first nested bullet outside a code fence, read as plainText, name
 // that apply-patch refuses under `names` (issuePushRefusals) in any case or
 // with a dot-led name's dot left off (DOTLESS), in order, each once, a bare
-// name in `workflows` (workflowFiles) read as that workflow's path. Pure.
+// name in `workflows` (workflowFiles) read as that workflow's path. A path
+// named only in a shape that leaves it unmodified (NEGATED) is left out.
+// Pure.
 export function unpushablePaths(body, taskList, names, workflows) {
   const lines = String(body ?? "").split("\n");
   const blocks = fenceBlocks(lines);
@@ -732,7 +781,7 @@ export function unpushablePaths(body, taskList, names, workflows) {
     return (end === -1 ? more : more.slice(0, end)).map((index) => lines[index]);
   };
   const paths = taskItems(body, taskList).flatMap(({ text, more }) =>
-    pathTokens(plainText([text, ...wrapped(more)].join("\n")), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))),
+    pathTokens(withoutNegated(plainText([text, ...wrapped(more)].join("\n"))), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))),
   );
   return [...new Set(paths)];
 }

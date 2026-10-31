@@ -26,7 +26,7 @@ with a recheck trigger. (Contrast the "Deferred surfaces" record above, where th
   escape-path scanning, an encapsulation deep-cite regex, a "new script ships `--help` + a sibling test"
   assertion, a deny-list scan *mechanism* whose data is per-consumer) are net-new versus the shipped
   checks but have **no second consumer**; extracting them now is speculative generality / a pre-Rule-of-
-  Three abstraction (`melodic-software/standards` `conventions/engineering/simpler-code.md`). The plugin
+  Three abstraction (`melodic-software/standards` `standards/engineering/simpler-code.md`). The plugin
   can grow a machine-path check the day a real consumer needs one, as its own issue.
 - **Checker hardening** (block-scalar description unfolding, an unquoted-`Use when:` warning, a
   `CHECK_SKILL_BASE_REF` post-commit audit ref for the git-backed checks, and a line-1 frontmatter-fence

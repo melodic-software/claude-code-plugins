@@ -200,7 +200,7 @@ routing-affecting half and earns its separate gate.
 
 ## Enforceability
 
-Classified per `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`:
+Classified per `melodic-software/standards` `standards/engineering/enforceability-tiers.md`:
 
 | Judgment | Tier |
 |---|---|

@@ -45,7 +45,9 @@ original text. For big or decision-dense content it renders an HTML decision
 table (item, recommendation, alternative, and what you're deciding, with rows
 numbered so a terminal answer maps back), honoring the Artifact tool contract and
 degrading to a local HTML file, then structured terminal markdown, where the
-Artifact surface is unavailable.
+Artifact surface is unavailable. A `medium: terminal` or `medium: file` in any
+`rendered-views` layer keeps the table off claude.ai; a team-layer `medium: artifact`
+does not publish on its own.
 
 ## Triggering: on-demand, session-standing once invoked
 
