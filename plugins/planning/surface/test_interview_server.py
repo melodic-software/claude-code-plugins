@@ -465,7 +465,7 @@ class TestApi(ServerCase):
         self.assertIn("unhandled events", out)
 
     def test_27_ac30_responses_rebuild_from_events_after_the_suite(self):
-        from server import rebuild_responses
+        from interview_server import rebuild_responses
 
         r = self.state()["responses"]
         responses, history = rebuild_responses(r["events"])
@@ -854,7 +854,7 @@ class TestSecurity(ServerCase):
     def test_the_question_shape_files_come_from_the_shared_web_folder(self):
         """The page loads the composer and viewport file the shared page serves too: one route, the bytes as written,
         no page policy on them, and the page's policy and every other path unchanged."""
-        import server
+        import interview_server as server
 
         web = HERE.parent / "shared" / "web"
         for path, ctype in (
@@ -1264,7 +1264,7 @@ class TestVisualOpenExpiry(unittest.TestCase):
     """A new-tab nonce stops working OPEN_SECONDS after its mint, and expired ones are dropped."""
 
     def test_nonce_expires(self):
-        import server
+        import interview_server as server
 
         tmp = Path(tempfile.mkdtemp(prefix="iv-open-"))
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
@@ -1423,7 +1423,7 @@ class TestEventStreamPing(ServerCase):
     """An idle event stream carries a ping frame at least every PING_SECONDS."""
 
     def test_idle_stream_gets_a_ping(self):
-        from server import PING_SECONDS
+        from interview_server import PING_SECONDS
 
         conn = http.client.HTTPConnection(
             "127.0.0.1", self.port, timeout=PING_SECONDS + 5
@@ -1595,7 +1595,7 @@ class TestStateFallback(unittest.TestCase):
     """A state read that fails keeps the last good state and says so, so the stream retries."""
 
     def test_a_failed_read_is_marked_stale_until_a_read_succeeds(self):
-        import server
+        import interview_server as server
 
         tmp = Path(tempfile.mkdtemp(prefix="iv-stale-"))
         self.addCleanup(shutil.rmtree, tmp, True)
@@ -1613,7 +1613,7 @@ class TestSignatureWaiter(unittest.TestCase):
     signature, so the open page gets the frame that turns its header Live or back to working."""
 
     def test_a_waiter_inside_the_grace_changes_the_signature(self):
-        import server
+        import interview_server as server
 
         tmp = Path(tempfile.mkdtemp(prefix="iv-sig-"))
         self.addCleanup(shutil.rmtree, tmp, True)
@@ -1641,7 +1641,7 @@ class TestEventStreamCap(ServerCase):
         return resp
 
     def test_the_stream_over_the_cap_is_503_until_one_closes(self):
-        from server import MAX_STREAMS
+        from interview_server import MAX_STREAMS
 
         streams = []
         try:
@@ -1734,7 +1734,7 @@ class TestHedged(WaitCase):
         self.assertEqual(self.state()["responses"]["events"], before)
 
     def test_a_hedged_decision_is_recorded_rebuilds_and_validates(self):
-        from server import rebuild_responses
+        from interview_server import rebuild_responses
 
         code, data = self.post({"id": "A", "kind": "hedged", "text": "if it is cheap"})
         self.assertEqual(code, 200, data)
@@ -2319,7 +2319,7 @@ class TestAcceptAudit(WaitCase):
         self.assertEqual(self.state()["responses"]["responses"]["A"]["seq"], 2)
 
     def test_7_the_log_rebuilds_and_validates(self):
-        from server import rebuild_responses
+        from interview_server import rebuild_responses
 
         r = self.state()["responses"]
         responses, history = rebuild_responses(r["events"])
@@ -3068,7 +3068,7 @@ class TestUnderstandingCheckedUnderTheLock(unittest.TestCase):
     """confirm-understanding is checked against questions.json read inside the hub's lock."""
 
     def test_the_check_runs_under_the_lock(self):
-        import server
+        import interview_server as server
 
         tmp = Path(tempfile.mkdtemp(prefix="iv-lock-"))
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
@@ -3232,7 +3232,7 @@ class TestSettingsResolver(unittest.TestCase):
     """The resolver in-process: repo root ladder and one stderr note per problem."""
 
     def setUp(self):
-        import server
+        import interview_server as server
 
         self.server = server
         self.tmp = Path(tempfile.mkdtemp(prefix="iv-settings-"))
@@ -3381,7 +3381,7 @@ class TestBodyLimits(WaitCase):
             conn.close()
 
     def test_long_own_text_round_trips_byte_exact(self):
-        import server
+        import interview_server as server
 
         text = ('Line with a quote " and a tab\t, café.\n' * 600)[:20000]
         self.assertEqual(len(text), 20000)
@@ -3395,7 +3395,7 @@ class TestBodyLimits(WaitCase):
         self.assertEqual(r["events"][-1]["text"], text)
 
     def test_body_over_the_cap_is_413_naming_the_limit(self):
-        import server
+        import interview_server as server
 
         code, data = self.raw_post(b"", length=server.MAX_BODY + 1)
         self.assertEqual(code, 413)
@@ -3768,7 +3768,7 @@ class TestReadingWindow(unittest.TestCase):
     """readingWindow sets how long after a delivery the listener reports the session reading."""
 
     def setUp(self):
-        import server
+        import interview_server as server
 
         self.tmp = Path(tempfile.mkdtemp(prefix="iv-reading-"))
         self.addCleanup(shutil.rmtree, self.tmp, True)
@@ -3802,7 +3802,7 @@ class TestSettleBurstCap(unittest.TestCase):
     """Hub.settle holds found events settleQuiet past the last new one, never settleBurst in all."""
 
     def setUp(self):
-        import server
+        import interview_server as server
 
         self.server = server
         self.tmp = Path(tempfile.mkdtemp(prefix="iv-settle-"))
@@ -3924,7 +3924,7 @@ class TestProposal(OpsCase):
         self.assertEqual(code, 400, data)
 
     def test_6_the_log_rebuilds_and_validates(self):
-        from server import rebuild_responses
+        from interview_server import rebuild_responses
 
         r = self.state()["responses"]
         self.assertEqual(rebuild_responses(r["events"]), (r["responses"], r["history"]))

@@ -1,6 +1,6 @@
 """Local interview surface. 127.0.0.1 only, Python 3 stdlib.
 
-Usage: python server.py --dir DATA_DIR [--port PORT] [--nonce NONCE]
+Usage: python interview_server.py --dir DATA_DIR [--port PORT] [--nonce NONCE]
   --dir     data dir (required)
   --port    default 0: a free port; the bound port is what the session files record
   --nonce   echoed into the session files so `round.py ensure-running` knows its own start
