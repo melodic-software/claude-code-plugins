@@ -171,9 +171,9 @@ through the Skill tool, with no `--paths`. Then read its report:
 ### 4. Classify
 
 Write `<work>/classifier-brief.md` from [`context/classifier-brief.md`](context/classifier-brief.md),
-with `<plugin-root>` rendered as `${CLAUDE_PLUGIN_ROOT}`, and dispatch a fresh-context `general-purpose` subagent with `model: opus` (for how that alias resolves, see
+with `<plugin-root>` rendered as `${CLAUDE_PLUGIN_ROOT}`, and dispatch a fresh-context `general-purpose` subagent with `model: opus` (for the cases where that alias resolves to the session's own model, see
 [sub-agents: choose a model](https://code.claude.com/docs/en/sub-agents#choose-a-model), as of 2026-10-31; recheck when that section
-changes when an alias follows the session's model). Opus is chosen over the judge pass's default `sonnet` because a wrong deletion costs more
+changes those cases). Opus is chosen over the judge pass's default `sonnet` because a wrong deletion costs more
 than a wrong verdict. Write its table to `<work>/classifier-answer.md` and apply that file's
 reading rules.
 
