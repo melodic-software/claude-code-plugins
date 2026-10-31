@@ -46,9 +46,9 @@ target is the marketplace this plugin was installed from, which `fleet-state.sh`
 `${CLAUDE_PLUGIN_ROOT}`; no marketplace name is hardcoded. `all` covers every marketplace in
 `known_marketplaces.json`, and a failure in one is reported inline without aborting the rest.
 
-`--allow-downgrade` is a `sync` flag. When the user passes it, pass it through: the script ignores
-it under `--audit` and the render names it as ignored, since an audit issues no update either way
-and predicts `Would withhold: <N> downgrade(s)` beside `Would update` regardless.
+`--allow-downgrade` is a `sync` flag, and an audit never passes it. When the user gives it, say the
+audit ignores it: an audit issues no update either way and predicts
+`Would withhold: <N> downgrade(s)` beside `Would update` regardless.
 
 ## Run it
 
@@ -57,7 +57,7 @@ Substitute the target and the configured values below into one call:
 ```bash
 "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
   [--marketplace <name> | --all] --audit \
-  --install-new <policy> [--quiet-auto-update <names>] [--allow-downgrade] --render
+  --install-new <policy> [--quiet-auto-update <names>] --render
 ```
 
 - `<policy>` is the word on the **Configured value** line under "userConfig: `install_new`":
