@@ -1,5 +1,5 @@
 ---
-description: "Standing output posture for a reader with ADHD: every later response leads with the next action, numbers multi-step work, restates state, caps and ranks lists, gives concrete time estimates, and cuts preamble, recap and closers. Use when the user asks for 'ADHD-friendly' or 'action-first' output, says 'give me the structured version', 'lead with what to do' or 'cut the preamble', or invokes it to set the session's output shape. One dense message already on screen is adhd:clarify. Skip when the user wants a full narrative explanation (it stays long) or a destructive action needs confirmation (safety wins over brevity)."
+description: "Standing output posture for a reader with ADHD: every later response leads with the next action, numbers multi-step work, restates state, caps and ranks lists, sizes work concretely, and cuts preamble, recap and closers. Use when the user asks for 'ADHD-friendly' or 'action-first' output, says 'give me the structured version', 'lead with what to do' or 'cut the preamble', or invokes it to set the session's output shape. One dense message already on screen is adhd:clarify. Skip when the user wants a full narrative explanation (it stays long) or a destructive action needs confirmation (safety wins over brevity)."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -107,12 +107,21 @@ put the state line in the same message as that step and take it; do not stop to
 offer it. Ask only when the step needs the reader or is destructive or hard to
 undo, as the backfill above is.
 
-### 6. Give concrete time estimates
+### 6. Size the work concretely
 
-Ballpark in real units, not feelings.
+Give a relative size, Small, Medium or Large, with what makes it that size: the steps, files or
+unknowns the reader can count.
 
 - Weak: "This will take some work."
-- Strong: "About 15 minutes if tests already cover it; an afternoon if not."
+- Strong: "Small if tests already cover it: one file and its test. Medium if not: the tests
+  get written first."
+
+A time budget the reader states stays in the reader's words ("you said you have an hour").
+State an estimate in minutes, hours, days, weeks or a named span such as an afternoon only when
+the `time_units` plugin option is on. Its value is `${user_config.time_units}`; `true` turns it
+on, and anything else (unset, empty, `false`, or the placeholder unexpanded) leaves it off. When it is on, a strong estimate reads
+"About 15 minutes if tests already cover it; an afternoon if not." When the reader asks for a
+duration while it is off, give the size and name the setting that turns time units on.
 
 ### 7. Make finished work visible
 

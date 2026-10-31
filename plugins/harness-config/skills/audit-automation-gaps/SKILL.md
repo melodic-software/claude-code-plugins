@@ -313,9 +313,16 @@ For each candidate, provide:
 
 - **Verdict** with gate results
 - **Evidence** (timing data, git history counts, enforcement mechanisms found)
-- **For PASS/CONDITIONAL**: implementation plan (files to change, effort estimate, test strategy).
+- **For PASS/CONDITIONAL**: implementation plan (files to change, size, test strategy).
   A `PASS` or `CONDITIONAL` without a plan cannot be persisted, because the plan is precisely what
   `--implement` reads back in a later session
+
+**Size** is Small, Medium or Large, with what makes it that size (files, moving parts, unknowns).
+State it in minutes, hours, days, weeks or a named span such as an afternoon only when the
+`time_units` plugin option is on: its value is `${user_config.time_units}`, and only `true` turns
+it on (unset, empty, `false`, or the placeholder unexpanded leaves it off). The report names the
+value and whether it came from the option or the default. A time budget the user states is quoted
+in the user's words.
 
 **Order by value/impact**, highest value first. Value = frequency × severity × ease of implementation.
 
