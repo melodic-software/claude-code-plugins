@@ -629,6 +629,8 @@ dep() { BODY="$TMP_ROOT/body.live.sh" AUTHOR_ID=49699333 BASE_CONFIG="${BASE_CON
 HELD="changes trust-gate paths: $WF. A person merges it"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
   dep "a Dependabot bump of only a listed owner's action skips the hold" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
+  BASE_CONFIG="$ROOT" dep "the repository's own pr-pipeline.yaml lists anthropics (owner decision Q-ANTHROPIC-DEPS)" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
 STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file action.yml "$(swap 'Anthropics/claude-code-base-action@v1 # v1' 'Anthropics/claude-code-base-action@v2 # v2')")" \
   dep "a listed owner matches in any letter case, over pages, in an action.yml" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
 STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file .github/workflows/ci.yml "$(swap actions/checkout@v4 actions/checkout@v5)")" \
