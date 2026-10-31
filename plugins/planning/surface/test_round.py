@@ -5243,6 +5243,9 @@ class TestConstraintRecheck(DirCase):
         self.assertEqual(rc, 0, out + err)
         self.assertEqual(self.status(), {"Q2": ["C2"]})
         self.assertEqual(self.state("Q1"), "open")
+        line = self.q("Q1")["history"][-1]
+        self.assertEqual(line["changed"], ["checkedAgainst"])
+        self.assertEqual(line["text"], "Revised constraints checked.")
 
     def test_a_revise_that_does_not_name_it_leaves_the_mark(self):
         self.new_constraint()
