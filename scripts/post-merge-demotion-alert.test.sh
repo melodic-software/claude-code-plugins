@@ -806,13 +806,13 @@ else
   fail "CRLF subject: rc=$RC fields='$(post_fields)'"
 fi
 
-ODD='fix: a\b `tick` @you [x](y) '"$LONG"
+ODD="fix: a\\z \`tick\` @you [x](y) $LONG"
 NOBODY="$(jq -n --arg sha "$MID" --arg p "$OTHER" --arg s "$ODD" '{sha: $sha, parents: [{sha: $p}], author: null, commit: {author: {name: "@free text"}, message: $s}}')"
 COMPARE="$NOBODY, $(commit "$SHA" "$MID" bob 'ci: record suite times (#8260)')" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 body="$(post_fields)"
 shown="${ODD//\`/}"
 if [[ "$RC" -eq 0 && "$body" == *"  - direct push \`${shown:0:100}\`, commit \`$MID\`, by unknown"$'\n'* &&
-  "$body" != *"free text"* && "$body" != *"merge commit \`$MID\`"* && "$body" != *'a\\b'* ]]; then
+  "$body" != *"free text"* && "$body" != *"merge commit \`$MID\`"* && "$body" != *'a\\z'* ]]; then
   ok "a direct push is called one, with its subject quoted once, cut to 100 characters, and no free-text author"
 else
   fail "direct push row: rc=$RC fields='$body'"
