@@ -51,6 +51,11 @@ why it was recommended.
   the domain-vocabulary file nor an upstream artifact already uses it, and the session-shorthand
   glossary has no line for it. An accepted answer does not settle it: an "accept all" accepts the
   choice, not a name the user never saw defined. Its class is `decision`.
+- **Unstated values:** a reference to an existing value (an email address, account,
+  subscription, region, secret name, repository) whose literal value appears nowhere in the
+  ledger, as in "alerts to the existing budget's address". Word it "Q<N> relies on <value> but
+  never states it". An accepted answer does not settle it: the user accepted a value they never
+  saw. Its class is `decision`.
 
 The acceptance-criteria coverage prompt is never a sweep item ([`coverage-prompt.md`](coverage-prompt.md)).
 
@@ -66,8 +71,8 @@ The sub-agent returns one line per item, numbered `S<N>` within this sweep:
 Fields:
 
 - **id:** `S<N>`, contiguous within the sweep.
-- **category:** `undecided`, `hidden-default`, `contradiction`, `inherited`, `hedged`, or
-  `coined-term`.
+- **category:** `undecided`, `hidden-default`, `contradiction`, `inherited`, `hedged`,
+  `coined-term`, or `unstated-value`.
 - **class:** `decision` (the user's call), `fact` (the environment answers it), `tenant` (a
   setting of the environment the work targets, confirmed by whoever owns it or read from a
   connected system that holds it), or `person` (only a
@@ -112,6 +117,11 @@ You write the results, not the sub-agent, so register ids stay contiguous.
   overlaps. With no existing name close to it, recommend keeping the term, defined in one line. An
   accepted or renamed term is written to the glossary; a rename also replaces the term in the
   draft and in the resolutions of the rows that carry it, and the next sweep covers those rows.
+- **unstated-value:** a register row asking the user to confirm the literal value. Run the
+  self-answer step to find a candidate, and recommend it with its literal value and where it was
+  read; finding the value never replaces the row. With no candidate, ask the question withheld.
+  A value the user does not own is a `tenant` item, deferred as above.
+  The confirmed literal is written into the resolution of the row that relied on it.
 - **Unattended:** an item that is the user's decision is `blocked` with **arbiter:
   USER-RESERVED**, per loop.md "Unattended path".
 

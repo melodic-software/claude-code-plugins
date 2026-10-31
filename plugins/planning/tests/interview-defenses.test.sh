@@ -519,11 +519,12 @@ done
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Recommendations now carry a Flips if: line after Inference: (#11190); the only change in each section is that line and its mentions (removing them reproduces the old digest), it resolves no row, and the no-silent-resolve and constraint-ledger defenses are byte-identical
 # The Recommended answers paragraph adds that the Flips if: line counts toward the basis prose 3-sentence budget (surface.md R12), from review feedback on #11190; it caps recommendation prose, resolves no row, and the no-silent-resolve line is byte-identical
+# Re-pin for #8365: a recommendation reusing a value states the literal and its source, the sweep gains an `unstated-value` item that always becomes a register row, and a found contact address or identity stays an `open` row, never an F-line; this adds rows the user confirms, resolves none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "f00bb6189462134249b6c7955292aa046517b18e44d04c3bda58149e88b95ada"
+  "313d1e7c3516348b072299bdb009cd0907fc8793d0afc05081b81eaf880e1cc1"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -700,11 +701,12 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # Interview recommendations now require an evidence list plus an Inference line and drop bare judgment (#6728); this raises the bar on a recommendation, resolves no row, and leaves the no-silent-resolve and constraint-ledger defenses intact
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Recommendations now carry a Flips if: line after Inference: (#11190); the only change in each section is that line and its mentions (removing them reproduces the old digest), it resolves no row, and the no-silent-resolve and constraint-ledger defenses are byte-identical
+# Re-pin for #8365: a recommendation reusing a value states the literal and its source, the sweep gains an `unstated-value` item that always becomes a register row, and a found contact address or identity stays an `open` row, never an F-line; this adds rows the user confirms, resolves none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "723864eb09b501910c81d2ea3abbf58522910e0f0a9fa89cd873bf4a343886f7"
+  "0d5ecf6a2912555f3abddf467321c359d4f364c237ccb8d7cbe86e8274806e85"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -722,9 +724,10 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Re-pin for #8293: adds the quoted-source rule and fresh-context quote check for fact-settled items, a `decision` line that is never settled from facts, and the `## Assumption sweep` record the gate grades; every category, item-shape field and existing disposition is unchanged, and a decision still becomes a register row, so cases A and B survive.
 # Re-pin for #8293 review: each sweep records the register high-water mark before it runs and a non-hedged item must land above it; categories, item shape and dispositions are unchanged, and a decision still becomes a register row, so cases A and B survive.
+# Re-pin for #8365: a recommendation reusing a value states the literal and its source, the sweep gains an `unstated-value` item that always becomes a register row, and a found contact address or identity stays an `open` row, never an F-line; this adds rows the user confirms, resolves none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "91b22c79b7bd67eace2bfd0c4419084f8d6a59d91a17afd4def6dc1daa481b4b"
+  "f25264cf115c714643d884381966fa5d35c8c49703b152c4a8f7438217ac1158"
 # The coverage prompt's exemption from the register, the gate and the unattended ladder moved
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.
@@ -774,8 +777,9 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Re-pinned for #8314: adds case 37 sweep-flags-coined-term-after-accept-all, which requires a coined-term register row and blocks the lock while it is open; it licenses no silent capture or fudged gap, so cases 15 and 16 still hold.
 # Case 38 (person-deferred-routes-to-questionnaire) defers the DBA retention window with an arbiter tag, resolves no row on the DBA behalf and only recommends /planning:questionnaire, so it agrees with cases 15 and 16.
 # Re-pin for #8293: case 39 (sweep-decision-item-not-settled-by-unsupported-fact) requires an undecided `decision` sweep item to become an `open` register row, asked, never a fact or a captured assumption, and blocks the lock while it is open, so it agrees with cases 15 and 16.
+# Re-pin for #8365: case 40 (reused-address-stated-literally-and-owner-confirmed) requires an unstated value to become an `open` register row asking the user to confirm the literal, and blocks the lock while it is open; it licenses no silent capture or fudged gap, so it agrees with cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "129a4959648813007501cddb18c7683144009b7dfd77f642d87e837a03e7b5de"
+  "0fdbbab551669483faa6e82da5f15b6133cfbf811dae8286f53b9c75b2e68ac7"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
