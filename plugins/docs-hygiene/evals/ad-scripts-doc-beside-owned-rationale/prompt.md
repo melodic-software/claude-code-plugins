@@ -4,7 +4,7 @@ tags: [docs-hygiene, audit-derivability, outcome, scaffold, hard]
 runs: 3
 max_turns: 20
 timeout_seconds: 600
-allowed_tools: [Skill, Read, Glob, Grep, Agent, TodoWrite]
+allowed_tools: [Skill, Read, Glob, Grep, Agent, TodoWrite, Bash]
 expected_outcome: "Closing lines give docs/commands.md a delete or convert-to-pointer decision and docs/payments-retries.md a keep decision, with the Acme Pay rate-limit reason for the retry count named as what the doc owns; no file is edited."
 ---
 

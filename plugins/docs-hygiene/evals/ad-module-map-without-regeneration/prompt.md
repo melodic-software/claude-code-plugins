@@ -4,7 +4,7 @@ tags: [docs-hygiene, audit-derivability, outcome, scaffold, hard]
 runs: 3
 max_turns: 20
 timeout_seconds: 600
-allowed_tools: [Skill, Read, Glob, Grep, Agent, TodoWrite]
+allowed_tools: [Skill, Read, Glob, Grep, Agent, TodoWrite, Bash]
 expected_outcome: "The closing line gives docs/agents/module-map.md a delete or convert-to-pointer decision, not a keep, and the reply names the missing regeneration path or recheck trigger as the reason a cached copy cannot stay; no file is edited."
 ---
 

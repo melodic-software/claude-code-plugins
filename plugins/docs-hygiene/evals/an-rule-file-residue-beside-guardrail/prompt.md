@@ -4,7 +4,7 @@ tags: [docs-hygiene, audit-noise, outcome, scaffold, hard]
 runs: 3
 max_turns: 20
 timeout_seconds: 600
-allowed_tools: [Skill, Read, Glob, Grep, Agent, TodoWrite]
+allowed_tools: [Skill, Read, Glob, Grep, Agent, TodoWrite, Bash]
 expected_outcome: "The reply flags the 'As you asked' line (delete the address), the 'See PR #45' line (delete or relocate to a Sources footer) and the .work/payments-retry-spike/PLAN.md path (promote, durable pointer, or strip), and does not flag the API-token prohibition, the bare .work/handoffs/ path, or the open task-list item; no file is edited."
 ---
 
