@@ -48,6 +48,22 @@
         }
       ],
       "why": "closing keyword as the first line"
+    },
+    {
+      "answer": [],
+      "why": "no body written: the grader needs a body Write to pass"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "## Summary\n\nWrites a byte order mark.\n"
+          }
+        }
+      ],
+      "why": "a Write with no Refs line"
     }
   ]
 }

@@ -48,6 +48,22 @@
         }
       ],
       "why": "lists the checked item"
+    },
+    {
+      "answer": [],
+      "why": "no body written: the grader needs a body Write to pass"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "Refs: #812\n\n## Summary\n\nByte order mark.\n"
+          }
+        }
+      ],
+      "why": "a body with no Remaining section"
     }
   ]
 }
