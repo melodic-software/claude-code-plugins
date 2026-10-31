@@ -56,7 +56,9 @@ expect() {
   local label="$1" want_rc="$2" out rc got
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/output"
-  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" QUEUE_HEAD_REF="$3" STUB_PR="$4" \
+  # From the repository root, as on a runner: the step sources the api-budget
+  # library by a relative path and wraps gh, which adds -i to each gh api call.
+  out="$(cd "$ROOT" && PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" QUEUE_HEAD_REF="$3" STUB_PR="$4" \
     GITHUB_REPOSITORY=o/r GITHUB_OUTPUT="$TMP_ROOT/output" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   got="$(paste -sd' ' "$TMP_ROOT/output")"
   if [[ "$rc" -ne "$want_rc" ]]; then
@@ -74,7 +76,7 @@ expect "head commit comes from the pull request, not the ref's base sha" 0 \
   "gh-readonly-queue/main/pr-7492-$BASE" "$PR" \
   "author=dependabot[bot] head_ref=dependabot/npm head_sha=$HEAD" "git fetch --no-tags origin $HEAD"
 expect "the pull request number is read from the ref" 0 \
-  "gh-readonly-queue/main/pr-7492-$BASE" "$PR" - "api repos/o/r/pulls/7492"
+  "gh-readonly-queue/main/pr-7492-$BASE" "$PR" - "api -i repos/o/r/pulls/7492"
 expect "a fork's head branch is not passed" 0 \
   "gh-readonly-queue/main/pr-12-$BASE" "$FORK" "author=someone head_ref= head_sha=$HEAD"
 expect "a non-queue ref fails" 1 "refs/heads/main" "$PR" ""
