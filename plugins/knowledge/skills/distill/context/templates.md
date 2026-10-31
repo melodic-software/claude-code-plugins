@@ -254,11 +254,11 @@ This skill holds only published <Name> material. <What it does not cover, and wh
 
 What each section holds, in the template's order:
 
-1. **Description line**: "The complete [name] philosophy, distilled from all [N] [pieces] on [site]. Covers [8 to 10 topics]. Use when the user asks about [situations], or the ideas of [name / aliases]." The description is what decides when the skill is used (record under SKILL.md Phase 4 "Web corpus target"), so it lists what people type: situations and aliases, not adjectives.
+1. **Description line**: "The complete [name] philosophy, distilled from all [N] [pieces] on [site]. Covers [8 to 10 topics]. Use when the user asks about [situations], or the ideas of [name / aliases]." List what people type: situations and aliases, not adjectives (why: the record under SKILL.md Phase 4 "Web corpus target").
 2. **Intro paragraph**: who they are in one sentence, which sources, how many, the date span, and the citation scheme.
 3. **What this is for**: the kinds of question the corpus answers, and where a broad question and a specific one each go.
 4. **The one-sentence thesis**, as a blockquote, followed by "Everything else is a corollary of this." It has to be a sentence they would sign. If you can't write it, you haven't finished reading; go back to the notes.
-5. **The core philosophy**: 10 to 14 numbered load-bearing ideas. Each is a bold claim, two or three sentences of their reasoning in their terms, and citations. The test: the agent should answer 80% of broad questions from this list alone, without opening a reference. Once the skill is in use its body is in context and each reference is a further read (same record).
+5. **The core philosophy**: 10 to 14 numbered load-bearing ideas. Each is a bold claim, two or three sentences of their reasoning in their terms, and citations. The test: the agent should answer 80% of broad questions from this list alone, without opening a reference (why: same record).
 6. **The method, end to end**: their advice as an ordered playbook, in the order someone would live it.
 7. **Reference files**: one line per file saying what's inside, so the agent picks the right one without opening three.
 8. **How to answer**: three or four voice traits you actually observed, with a phrase that shows each; prefer the concrete (their numbers, their stories); always cite; present contested views as theirs, with their reasoning, and do not soften them.

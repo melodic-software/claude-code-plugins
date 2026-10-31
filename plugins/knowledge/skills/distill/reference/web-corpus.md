@@ -1,6 +1,6 @@
 # Web corpus distillation
 
-AI answers any question, but you can't narrow where the answer comes from. A corpus skill fixes that: it answers from one person's or company's published work only, and every claim carries the piece it came from. The output is a skill, not a document. A skill's text is what reaches your agent's context (when each part loads: the record under SKILL.md Phase 4 "Web corpus target"), so it has to be a distillation, never a dump.
+AI answers any question, but you can't narrow where the answer comes from. A corpus skill fixes that: it answers from one person's or company's published work only, and every claim carries the piece it came from. The output is a skill, not a document, so it has to be a distillation, never a dump (why: the record under SKILL.md Phase 4 "Web corpus target").
 
 The procedure collects everything they published and keeps that raw copy outside of the skill folder. Then it goes through each piece and pulls the useful claims out of it. Those claims get grouped into theme files. At the end it writes the skill file itself: their core ideas, their method.
 
@@ -10,7 +10,7 @@ The copyright caution in SKILL.md applies here unchanged: a public page is not a
 
 ## Collect
 
-- **The corpus lives outside the skill folder**, at `<plugin-data>/{project-slug}/{target-skill-slug}/{corpus-slug}/corpus/`, with its notes beside it in `notes/` (layout in [context/templates.md](../context/templates.md) "Corpus folder layout"). The skill folder ships with the skill, and its files can be read into the agent's context (record under SKILL.md Phase 4 "Web corpus target"). A raw corpus inside it either ships to every install or gets globbed into the agent's attention, which is exactly what a skill exists to prevent. The raw copy is still a copy of their work, so before the first fetch run the visibility check on the corpus directory and apply the SKILL.md allowlist:
+- **The corpus lives outside the skill folder**, at `<plugin-data>/{project-slug}/{target-skill-slug}/{corpus-slug}/corpus/`, with its notes beside it in `notes/` (layout in [context/templates.md](../context/templates.md) "Corpus folder layout"). The skill folder holds distilled text only: a raw corpus there ships to every install and competes with the distillation for the agent's attention, which is exactly what a skill exists to prevent (why: the record under SKILL.md Phase 4 "Web corpus target"). The raw copy is still a copy of their work, so before the first fetch run the visibility check on the corpus directory and apply the SKILL.md allowlist:
 
   ```bash
   node "<plugin-root>/scripts/repo-visibility.mjs" '<plugin-data>/{project-slug}/{target-skill-slug}/{corpus-slug}'
