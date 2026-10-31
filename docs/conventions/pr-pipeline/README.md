@@ -1392,6 +1392,11 @@ the rules that only tighten in
   refuses at the cap, and an entry enqueued past it (another host's came first) dequeues itself. A
   red full run or canary run charges every unverified merge whose commit it contains, so a breakage
   found with several in flight demotes the rung and fails the post-merge check for all of them.
+  The value is computed from `merge.in-flight-sizing`, measured burst rate, time in flight and
+  lanes App spend, by `scripts/compute-max-in-flight.py`; the YAML states the formula. The gate
+  reads a value above the schema's maximum as unset. A value above the merge-queue ruleset's
+  `max_entries_to_build` needs no ruleset change: that setting throttles builds, not the queue's
+  length, and this count also holds merges already out of the queue.
 - **Quarantined suites.** A red full run on the default branch demotes only for a newly failing
   suite (a test file) in the affected set of the merges since the branch's last green full run:
   `scripts/plan-test-lanes.sh`, the pull request runs' selector, over the paths changed since that
@@ -2218,8 +2223,12 @@ requirement, and the spec trust rules below are unchanged. resolve-pr marks each
 `spec_kind` (`closes`, `refs` or `pull-request`), and the verdict records it, so the gate refuses a
 pass (`verify:spec-changed`) when the issue is now linked the other way. The model runs
 on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)), with the Read
-tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The diff
-is split at file boundaries into at most 4 chunks of at most 300000 bytes, each file whole
+tool alone, allowed only on the data files in the working directory's `pr-verify-data`. One of
+them, `upstream-jobs.json` (`upstream-jobs.mjs`), lists the jobs of the pr-require-checks run the
+judgment was started by, each with its name and conclusion, read with the job's own token: the
+verifier judges from it whether the suites that cover the changed files ran, and runs no test or
+eval itself. A label or body-edit re-run skips `select-tests` and every suite, so its list is no
+evidence either way. The diff is split at file boundaries into at most 4 chunks of at most 300000 bytes, each file whole
 (`chunk-diff.sh`, `split-diff.py`; the same budget as `pr-review-main`), and each chunk gets its own
 judge step with the same spec, cut into parts one Read returns whole. `manifest.txt` names the part
 each file starts in, so a judge reads another chunk's part when its change references a file there

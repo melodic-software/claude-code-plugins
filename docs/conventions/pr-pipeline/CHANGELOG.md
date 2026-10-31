@@ -1,5 +1,50 @@
 # Changelog for the PR pipeline convention
 
+## [8.24.0] - 2026-10-31
+
+### Added
+
+- pr-verify now gives the verifier `upstream-jobs.json`: the jobs of the pr-require-checks run it
+  was started by, each with its name and conclusion, read with each judging job's own token. The
+  verifier judges from it whether the suites that cover the changed files ran, as part of its rule
+  on tests that do not cover the change, and runs no test or eval itself. The model's tool rules,
+  `ci-status` and the verdict path do not change.
+
+## [8.23.0] - 2026-10-31
+
+### Added
+
+- The half-hourly tick now picks up a fix request on a lanes App pull request. The
+  `pr-feedback-dispatch` sweep sends a head with an unresolved thread the reviewer bot opened whose
+  newest fix request, by a trusted person with write access, is newer than the head's newest
+  `pr-unblock / address-feedback` check run; check runs that started before it stop counting for
+  that dispatch, and a limit stop keeps its reset hold. `SWEEP_HEAD_CAP` still bounds the head, and
+  no trigger, workflow or trust check changes.
+
+### Changed
+
+- The informational Windows and macOS test workflow is now `pr-test-platforms.yml` (was `pr-test-windows.yml`); the pipeline docs name it so.
+
+- `merge.max-in-flight` is computed: `merge.in-flight-sizing` records the measured peak merge rate,
+  time in flight and lanes App spend beside the formula, `scripts/compute-max-in-flight.py` prints
+  the value, and a test fails any other. The measured day computes 11.
+
+### Fixed
+
+- A `security-risk` hold the issue lane reads from a run's words names the matched word in its comment, as inert text in a code span, so a person can dismiss a false hit in one read. Every hold, route and word in the list is unchanged.
+
+## [8.22.1] - 2026-10-31
+
+### Fixed
+
+- The README's `verify:repeated-fail` rule now matches the reader. A merged pull request's FAILs,
+  and a lanes App pull request's once it is closed unmerged, whoever closed it, no longer add to
+  another pull request's count. Closing any other pull request resets nothing. Of the FAILs that
+  remain, only ones uploaded after the newest capped-close record on at least one linked issue
+  they are for count, and no other close moves that floor.
+
+- A red-main run that posts no report, because its red is unconfirmed or the log already reports it, notes every unreported red full run on the log, so a report the repository-wide concurrency group cancelled while pending is named before the next confirmed red. The note counts as neither a report nor a cap decision and never creates the log issue.
+
 ## [8.22.0] - 2026-10-31
 
 ### Added

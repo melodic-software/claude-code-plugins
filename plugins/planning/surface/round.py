@@ -1402,6 +1402,10 @@ def checked_depends(doc, qid, deps):
     return deps
 
 
+# A revise history line's words for a changed field whose name is not a word.
+REVISED_WORDS = {"checkedAgainst": "constraints checked"}
+
+
 def op_revise(d, doc, a):
     q = find(doc, a.id)
     for field, val, cap in (
@@ -1507,7 +1511,7 @@ def op_revise(d, doc, a):
             "kind": "revise",
             "text": a.text
             or "Revised "
-            + ", ".join(changed)
+            + ", ".join(REVISED_WORDS.get(f, f) for f in changed)
             + (" (alternatives kept)." if kept else "."),
             "changed": list(changed),
         }
