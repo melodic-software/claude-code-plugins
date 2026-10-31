@@ -54,7 +54,7 @@ async function trustingDriver() {
 }
 
 function docker(args, env = process.env) {
-  return execFileSync('docker', args, { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  return execFileSync('docker', args, { encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'pipe'] }).trim(); // prereq-ok: maintainer measurement run by hand on a Docker host; no skill, hook or the MCP server runs it
 }
 
 function freePort() {
