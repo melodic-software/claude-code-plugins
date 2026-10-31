@@ -1540,9 +1540,14 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
 
   // ---------- summary / completion ----------
   function noteThread(){
-    const mine = events().filter(e => e.kind === "note").map(e => ({by: "you", at: e.at, text: e.text, seq: e.seq}));
+    const mine = events().filter(e => e.kind === "note").map(e => ({by: "you", at: e.at, text: e.text, seq: e.seq, withdrawn: !!e.withdrawn}));
     const claude = (S.doc.notes || []).map(n => Object.assign({by: "claude"}, n));
     return mine.concat(claude).sort((a, b) => String(a.at).localeCompare(String(b.at)) || ((a.seq || 0) - (b.seq || 0)));
+  }
+  function openAsks(nt){ // Claude's needsAnswer notes still waiting on you: each note you send answers the oldest one open before it, as exporters.unanswered_asks reads them
+    const open = [];
+    nt.forEach(n => { if (n.by === "claude" && n.needsAnswer) open.push(n); else if (n.by === "you" && !n.withdrawn) open.shift(); });
+    return open;
   }
   function looseEnds(){
     const out = [];
@@ -1555,10 +1560,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     });
     const nt = noteThread();
     nt.filter(n => n.by === "you" && midSentence(n.text)).forEach(n => out.push("A note to Claude ends mid-sentence: <q>" + esc(trunc(n.text.trim().slice(-60), 60)) + "</q>"));
-    const askAt = nt.map(n => n.by === "claude" && n.needsAnswer).lastIndexOf(true); // pinned until a note from you follows it
-    const ask = askAt >= 0 && !nt.slice(askAt + 1).some(n => n.by === "you") ? nt[askAt] : null;
-    if (ask) out.unshift('<div class="ask"><div><b>Claude needs an answer in Notes:</b> ' + lineHtml(trunc(ask.text, 300)) + '</div><textarea id="looseReply" rows="2" aria-label="Your answer to Claude"' + (S.api >= 2 ? "" : " disabled") + ">" + esc(S.looseDraft || "") + '</textarea><div class="arow"><button type="button" class="tbtn primary" data-looseans="1" data-submit="1"' + (S.api >= 2 ? "" : " disabled") + ">Send answer</button></div></div>");
-    else if (nt.length && nt[nt.length - 1].by === "claude") out.push('Claude replied in <button type="button" class="ref" data-panel="notes">Notes</button> and you have not answered.');
+    const asks = openAsks(nt); // each stays pinned until a note from you answers it; the reply box answers the oldest
+    out.unshift(...asks.map((ask, i) => '<div class="ask"><div><b>' + (i ? "Claude also needs an answer in Notes, after the one above:" : "Claude needs an answer in Notes:") + "</b> " + lineHtml(trunc(ask.text, 300)) + "</div>" + (i ? "" : '<textarea id="looseReply" rows="2" aria-label="Your answer to Claude"' + (S.api >= 2 ? "" : " disabled") + ">" + esc(S.looseDraft || "") + '</textarea><div class="arow"><button type="button" class="tbtn primary" data-looseans="1" data-submit="1"' + (S.api >= 2 ? "" : " disabled") + ">Send answer</button></div>") + "</div>"));
     return out;
   }
   function finishedBody(f){ // the closing event: what ended, where the Brief is, what happens next
@@ -1578,7 +1581,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (S.doc.restatement && !(u && u.alt === "confirm")) out.push(u ? "The understanding is not confirmed: you flagged something off" : "The understanding is not confirmed");
     commitRows().filter(r => !r.on).forEach(r => by.set(r.q.id, (by.get(r.q.id) || 0) + 1));
     by.forEach((n, id) => out.push(id + ": " + n + (n === 1 ? " commitment" : " commitments") + " not ticked"));
-    if (nt.length && nt[nt.length - 1].by === "claude") out.push("Claude posted in Notes and you have not answered");
+    const asks = openAsks(nt).length; // only a note that asked for an answer: Claude replies to every note, so a reply alone is not a loose end
+    if (asks) out.push(asks === 1 ? "Claude asked for an answer in Notes and you have not given one" : asks + " Claude questions in Notes have no answer from you");
     const open = S.doc.questions.filter(q => live(q) && !isAnswered(stateOf(q)) && stateOf(q) !== "wait").map(q => q.id).sort(idCmp);
     if (open.length) out.push(open.length + (open.length === 1 ? " question is" : " questions are") + " still open: " + open.join(", "));
     return out;

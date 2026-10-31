@@ -4,7 +4,7 @@ description: An unattended run with app-control installed and no control skill a
 tags: [run-e2e, app-control, route, unattended, invented]
 expected_outcome: The reply asks no question and does not wait for an answer. It takes run-e2e's own driving and does not run /app-control:map create. Its report records the suggestion to set up a control skill with /app-control:map create.
 execution:
-  prompt: "/testing:run-e2e unattended the order history page. Do not read the repository, launch, install or run anything; treat these as facts. The app-control plugin is installed and /app-control:drive resolves in this session. The repository has no control skill. Its README documents `npm run dev` on port 4200. Nobody is present to answer. Tell me how the run proceeds and what its report says about app-control, then stop."
+  prompt: "/testing:run-e2e --unattended the order history page. Do not read the repository, launch, install or run anything; treat these as facts. The app-control plugin is installed and /app-control:drive resolves in this session. The repository has no control skill. Its README documents `npm run dev` on port 4200. Nobody is present to answer. Tell me how the run proceeds and what its report says about app-control, then stop."
   allowed_tools: [Read, Glob, Grep]
   max_turns: 8
   timeout_seconds: 300

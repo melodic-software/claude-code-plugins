@@ -636,11 +636,12 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
 # Step 3 gains the active closing request (confirm or name Q<N>, never yes/no) and the no-Bash restatement-with-gap rule (#11188); the confirmation gate still requires explicit confirmation and a non-zero procedure check still halts
 # Reworded phrases shared with mattpocock grilling (#9790): Stance names the wayfind trigger as an effort that will outrun a single session, Step 2 and the sweep run once no open question remains on the frontier, the coverage-prompt exemption still covers no other question, and the confirmation gate opens with the stop wording; every rule and its halt are unchanged
 # The confirmation restate lists only answers changed since their read-back when every answer was accepted or read back (#11189), using a saved recap and the generated --changed recap; it resolves no row, and the confirmation-gate exemption and procedure check are unchanged
+# Step 3 gains the page-surface exception that #11583 Observed requires ("The restate must go out over exit 1" while an accepted row stays open only on unticked commitments the restatement box offers): it is limited to accepted rows held open by unticked commitments, any other defect still halts, the register gate still holds those rows until they are ticked, and the pinned halt line and confirmation gate are byte-identical
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \
   "### Step 4. Persist the contract" \
-  "ed7204776b800da55908c78a11d8fd2f088d4e0ae90a82ccd1267eaf287586a7"
+  "615810e2204f03af8f43009577082011b1ae972fa78d96e64a348bbe3b3c80b6"
 pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibition lives here)" \
   "$SKILL" \
   "## What this skill does NOT do" \
