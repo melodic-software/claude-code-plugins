@@ -50,8 +50,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   commitPulls,
   createGitHub,
+  detailSuffix,
   graphQLReader,
   loadTrustedList,
+  responseDetail,
 } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
@@ -761,7 +763,7 @@ export function carryMain(env = process.env) {
   console.log(packed === "" ? "resolve-pr: no reads handed on; a handoff reads again" : `resolve-pr: handed on ${packed.length} characters of reads`);
 }
 
-export async function main(env = process.env, { github, fetchImpl } = {}) {
+export async function main(env = process.env, { github, fetchImpl, latch } = {}) {
   if (env.CARRIED) {
     const taken = takeReads(env.CARRIED, env.GITHUB_RUN_ATTEMPT);
     if (taken !== null && env.CONTEXT_FILE && env.SPEC_FILE && env.SPEC_TEXT_FILE && env.GITHUB_OUTPUT) {
@@ -798,7 +800,7 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
     }
   }
   const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
-  const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl, keepGraphQLErrors });
+  const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl, keepGraphQLErrors, latch });
   // A job's log: GitHub answers with a redirect to storage, which is read
   // without the token.
   const send = fetchImpl ?? fetch;
@@ -815,7 +817,7 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
       response = await send(location);
     }
     if (!response.ok) {
-      throw new Error(`the log of job ${jobId} answered ${response.status}`);
+      throw Object.assign(new Error(`the log of job ${jobId} answered ${response.status}`), { detail: await responseDetail(response) });
     }
     return response.text();
   };
@@ -870,11 +872,15 @@ export async function main(env = process.env, { github, fetchImpl } = {}) {
   console.log(`resolve-pr: proceed=${result.proceed} reason=${result.reason}${result.proceed ? ` pr=${result.prNumber} head=${result.headSha}` : ""}`);
 }
 
+// The step's error annotation for a failed run, with the refused answer's
+// detail when a GitHub call failed.
+export const failureAnnotation = (error) => `::error::pr-verify could not resolve the pull request: ${error.message}${detailSuffix(error)}`;
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href && process.argv[2] === "carry") {
   carryMain();
 } else if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
-    console.log(`::error::pr-verify could not resolve the pull request: ${error.message}`);
+    console.log(failureAnnotation(error));
     process.exitCode = 1;
   });
 }

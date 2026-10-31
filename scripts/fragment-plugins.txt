@@ -87,6 +87,7 @@ skill-quality
 songwriting
 source-control
 speech
+sql-server
 tdd
 testing
 toolchain
