@@ -241,7 +241,10 @@ that head, and only the comments that head does not hold yet, by file. A PR a pe
 review comment: GitHub lets only a PR's author or a writer resolve a thread, the lanes App is
 neither, and every conversation must be resolved to merge. It gets one PR comment instead, starting
 with the same marker and edited in place on a later fail, and the `pr-verify-failed` label, which
-`ci-status` holds in the merge queue. No round starts there. A note that starts with a path the PR changes goes on
+`ci-status` holds in the merge queue. No round starts there. A withheld fail (its text shaped like
+a credential, or its step stopped on the credential scan) also takes the human-gated label and a
+comment with a `security` stop reason on any open PR, at whatever head it has moved to, since a
+later clean commit rotates nothing. A note that starts with a path the PR changes goes on
 that file; the summary and the other notes go on the first such file, or on the PR's first changed
 file. `address-feedback` keeps such a thread as the `verifier`'s finding, as it keeps the reviewer
 bot's, when its review is `github-actions[bot]`'s on a head the reviewed-head markers name. The

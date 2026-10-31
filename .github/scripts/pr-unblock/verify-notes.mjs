@@ -49,8 +49,9 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { headRefDigest, isVerdictName, NAME } from "../pr-verify/write-verdict.mjs";
-import { createGitHubApi, MARKER_AUTHOR_ID, need, quote, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { personReasonLines } from "../lib/stop-reason.mjs";
+import { headRefDigest, isVerdictName, NAME, WITHHELD_SUMMARY } from "../pr-verify/write-verdict.mjs";
+import { createGitHubApi, humanGatedLabelFrom, MARKER_AUTHOR_ID, need, quote, staleVerifyNotes, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 
 // The label that holds a person's pull request after a FAIL (ci-status's
 // merge-queue label step reads the same name).
@@ -113,7 +114,26 @@ export function failComment({ head, summary, notes }) {
   ].join("\n");
 }
 
-const hasLabel = async (api, pr) => (await api.listLabels(pr)).some((label) => label.name === FAILED_LABEL);
+const hasLabel = async (api, pr, name = FAILED_LABEL) => (await api.listLabels(pr)).some((label) => label.name === name);
+
+// A withheld fail may mean a live credential in the pull request's commits,
+// which a later clean commit does not rotate: it holds for a person, at
+// whatever head the pull request has moved to. The comment names no text.
+async function holdForCredential({ api, pr, head, label, log }) {
+  if (await hasLabel(api, pr, label)) {
+    return;
+  }
+  await api.createIssueComment(
+    pr,
+    [
+      ...personReasonLines("pr-verify", "security"),
+      "",
+      `pr-verify withheld its fail at head \`${head}\`: its text was shaped like a credential, or its step stopped on the credential scan. Check this pull request's commits for a credential and rotate any that is real; removing it from the head does not. Removing \`${label}\` lifts this hold.`,
+    ].join("\n"),
+  );
+  await api.addLabels(pr, [label]);
+  log(`#${pr}: withheld fail at ${head}; ${label} holds it for a person`);
+}
 
 // A person's pull request at the FAIL's head: its fail comment, then the label.
 async function holdPersonPull({ api, verdict, log }) {
@@ -203,10 +223,13 @@ export async function findStaleNotes({ api, verdict, appId, log }) {
 
 // For a fail: whether its notes are on a lanes App pull request, so a round
 // starts. A person's pull request gets its fail comment and label instead.
-export async function postNotes({ api, verdict, appId, log }) {
+export async function postNotes({ api, verdict, appId, humanGatedLabel = "needs-human", log }) {
   const { pr, head } = verdict;
   laneAppId(appId);
   const pull = await api.getPull(pr);
+  if (pull.state === "open" && verdict.summary.includes(WITHHELD_SUMMARY)) {
+    await holdForCredential({ api, pr, head, label: humanGatedLabel, log });
+  }
   if (pull.state !== "open" || pull.head?.sha !== head) {
     log(`skip: #${pr} is not open at head ${head}`);
     return false;
@@ -252,7 +275,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     if (await findStaleNotes({ api: client, verdict, appId, log })) {
       appendFileSync(env.GITHUB_OUTPUT, `pass-head-sha=${verdict.head}\n`);
     }
-  } else if (await postNotes({ api: client, verdict, appId, log })) {
+  } else if (await postNotes({ api: client, verdict, appId, humanGatedLabel: humanGatedLabelFrom(env.TRACKER_CONFIG || ".base/.work-item-tracker.json"), log })) {
     appendFileSync(env.GITHUB_OUTPUT, `pr-number=${verdict.pr}\nhead-sha=${verdict.head}\n`);
   }
   return 0;

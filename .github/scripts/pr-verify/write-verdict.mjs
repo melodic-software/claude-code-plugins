@@ -143,6 +143,9 @@ const credentialIn = (texts) => {
   return scan(text) ?? scan(text.replace(FOLD, "").replace(/\n[-+ ]/g, "\n"));
 };
 
+// What a withheld fail says; verify-notes.mjs reads it to hold the pull request.
+export const WITHHELD_SUMMARY = "The verifier returned fail, and its text is withheld: the text was shaped like a credential, or its step stopped on the credential scan.";
+
 // A fail with none of the model's text: no mask finds where a credential ends.
 // Empty notes stay empty, so a fail that read short still has to name a defect.
 // The annotation names the kind alone, so the run shows a credential to rotate.
@@ -150,7 +153,7 @@ const withheld = ({ verdict, notes }, kind) => {
   console.log(`::warning title=pr-verify credential::kind=${kind}`);
   return {
     verdict,
-    summary: "The verifier returned fail, and its text is withheld: the text was shaped like a credential, or its step stopped on the credential scan.",
+    summary: WITHHELD_SUMMARY,
     notes: notes.length > 0 ? ["The verifier's notes are withheld with its summary. Check the diff for a committed credential, and rotate any that is real."] : [],
   };
 };

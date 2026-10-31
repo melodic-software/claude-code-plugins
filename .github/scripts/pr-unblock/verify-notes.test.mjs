@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { WITHHELD_SUMMARY } from "../pr-verify/write-verdict.mjs";
 import { keepThreads, staleVerifyNotes, threadAuthors, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failComment, main, noteComments, notePath, postNotes, readVerdict } from "./verify-notes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -154,6 +155,31 @@ test("a name that carries issue numbers must carry the ones the verdict records"
   ]) {
     assert.throws(() => readVerdict(name, verdictText({ head_ref: "feat/x", linked_issues: recorded })), name);
   }
+});
+
+test("a withheld fail holds for a person with a security reason, even after the head moved", async () => {
+  const verdict = { pr: 42, head: HEAD, verdict: "fail", summary: `Chunk 1 of 2, verdict: fail: ${WITHHELD_SUMMARY}`, notes: [] };
+  for (const pull of [{}, { user: { id: 7 } }, { head: { sha: OLD_HEAD } }]) {
+    const api = fakeApi({ pull });
+    await postNotes({ api, verdict, appId: APP, humanGatedLabel: "held-for-person", log: () => {} });
+    const [comment, label] = api.writes;
+    assert.equal(comment.op, "comment");
+    assert.match(comment.body, /^<!-- stop-reason lane=pr-verify reason=security -->\nReason: `security`\n/);
+    assert.match(comment.body, /rotate any that is real/);
+    assert.deepEqual(label, { op: "label", pr: 42, names: ["held-for-person"] });
+  }
+});
+
+test("a held pull request, a closed one and an ordinary fail get no credential hold", async () => {
+  const withheld = { pr: 42, head: HEAD, verdict: "fail", summary: WITHHELD_SUMMARY, notes: [] };
+  const run = async (fake, verdict) => {
+    const api = fakeApi(fake);
+    await postNotes({ api, verdict, appId: APP, log: () => {} });
+    return api.writes;
+  };
+  assert.deepEqual(await run({ labels: ["needs-human"] }, withheld), []);
+  assert.deepEqual(await run({ pull: { state: "closed" } }, withheld), []);
+  assert.deepEqual(await run({}, { ...withheld, summary: "Spec item 2 is unmet." }), []);
 });
 
 test("the notes are posted as file comments on the judged head, once", async () => {

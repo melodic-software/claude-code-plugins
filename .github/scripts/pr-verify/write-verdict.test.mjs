@@ -28,6 +28,7 @@ import {
   localLoop,
   main,
   mergeChunks,
+  WITHHELD_SUMMARY,
   parseFinal,
   writeChunkResults,
   retentionDays,
@@ -297,6 +298,13 @@ test("a fail holding credential-shaped text stands, with none of the model's tex
   }
   assert.throws(() => buildVerdict({ ...ids, output: JSON.stringify({ verdict: "pass", summary: `b.md: ${short}`, notes: [] }) }), /credential/);
   assert.throws(() => buildVerdict({ ...ids, output: JSON.stringify({ verdict: "pass-notes", summary: "fine", notes: [`see ghp_${half}`, `${half} there`] }) }), /credential/);
+});
+
+test("a withheld fail's text survives the chunk merge, which is how verify-notes reads it", (t) => {
+  t.mock.method(console, "log", () => {});
+  const merged = mergeChunks([{ ...CHUNK_PASS, verdict: "fail", summary: KEY, notes: [] }, CHUNK_PASS], FINAL_PASS);
+  assert.equal(merged.verdict, "fail");
+  assert.ok(merged.summary.includes(WITHHELD_SUMMARY), merged.summary);
 });
 
 test("naming the key prefix alone is not a credential", () => {
