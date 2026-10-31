@@ -10,8 +10,9 @@
 # with the cause named, a lane the kill switch stopped among them; Dependabot, the
 # release App and the standards-sync App are exempt by numeric author id, but
 # not from a trust-gate path (with merge.diff-check.path-holds false, only
-# Dependabot is held for one) unless a person on the base's trusted-actor list
-# approves the head, and neither is a pull request an agent App
+# Dependabot is held for one, unless it only bumps actions of owners in the
+# base's merge.dependabot.trusted-action-owners) unless a person on the base's
+# trusted-actor list approves the head, and neither is a pull request an agent App
 # (merge.trust-path-hold-apps at the base) opened, wrote a commit of or pushed
 # to. It fails closed when it cannot read.
 # test-scope: .github/workflows/pr-require-checks.yml docs/conventions/pr-pipeline.yaml
@@ -607,6 +608,74 @@ STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED)")"
 BASE_CONFIG="$TMP_ROOT/bare-config" AUTHOR_ID=49699333 expect "an unreadable trusted-actor list keeps the hold" 1 "A person merges it; $CLEAR"
 STUB_REVIEWS='[]'
 AUTHOR_ID=49699333 expect "with no approval the hold stays" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths: CODEOWNERS. A person merges it; $CLEAR"
+# Owner decision Q-ANTHROPIC-DEPS: a Dependabot PR whose every change block
+# only swaps the ref of an action by an owner the base lists in
+# merge.dependabot.trusted-action-owners skips the trust-gate hold; any other
+# line, file, status or owner keeps it, and so does an unread patch.
+mkdir -p "$TMP_ROOT/dep-config/docs/conventions"
+cp -R "$TMP_ROOT/base-config/.github" "$TMP_ROOT/dep-config/"
+printf 'merge:\n  dependabot:\n    trusted-action-owners:\n      - anthropics\n' >"$TMP_ROOT/dep-config/docs/conventions/pr-pipeline.yaml"
+WF=.github/workflows/pr-review-hosted.yml
+CCA_OLD='anthropics/claude-code-action@1111111111111111111111111111111111111111 # v1.0.0'
+CCA_NEW='anthropics/claude-code-action@2222222222222222222222222222222222222222 # v1.1.0'
+# patch_file <file> <changed lines, each starting with + or -> [status]
+patch_file() {
+  jq -cn --arg f "$1" --arg st "${3:-modified}" --arg body "$2" '($body | split("\n")) as $l
+    | [{filename: $f, status: $st, additions: ($l | map(select(startswith("+"))) | length),
+      deletions: ($l | map(select(startswith("-"))) | length), patch: ("@@ -10,4 +10,4 @@\n     steps:\n" + $body + "\n       with:")}]'
+}
+swap() { printf -- '-      - uses: %s\n+      - uses: %s' "$1" "$2"; }
+dep() { BODY="$TMP_ROOT/body.live.sh" AUTHOR_ID=49699333 BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/dep-config}" STUB_FILES_FAIL=1 expect "$@"; }
+HELD="changes trust-gate paths: $WF. A person merges it"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
+  dep "a Dependabot bump of only a listed owner's action skips the hold" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
+STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file action.yml "$(swap 'Anthropics/claude-code-base-action@v1 # v1' 'Anthropics/claude-code-base-action@v2 # v2')")" \
+  dep "a listed owner matches in any letter case, over pages, in an action.yml" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
+STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file .github/workflows/ci.yml "$(swap actions/checkout@v4 actions/checkout@v5)")" \
+  dep "a mixed bump across files (a listed owner and another) stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "-      - uses: $CCA_OLD
+-      - uses: actions/checkout@v4
++      - uses: $CCA_NEW
++      - uses: actions/checkout@v5")" \
+  dep "a mixed bump in one block stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")
+-          node-version: 20
++          node-version: 22")" \
+  dep "a non-uses line changed beside a listed bump stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "+      - uses: $CCA_NEW")" \
+  dep "an added step using a listed owner's action stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap 'evil/claude-code-action@v1' "$CCA_NEW")")" \
+  dep "a swap of another owner's action for a listed one stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" 'anthropics/other-action@v2')")" \
+  dep "a swap to a different action of a listed owner stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file CODEOWNERS "$(swap "$CCA_OLD" "$CCA_NEW")")" \
+  dep "a listed bump in a file that is not a workflow or action stays held" 1 "trust-gate paths: CODEOWNERS. A person merges it"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")" renamed)" \
+  dep "a renamed file stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")" | jq -c 'map(del(.patch))')" \
+  dep "a file GitHub gave no patch for stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")" | jq -c 'map(.additions = 5)')" \
+  dep "a patch shorter than its line counts stays held" 1 "$HELD"
+STUB_CHANGED=1 STUB_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
+  BODY="$TMP_ROOT/body.live.sh" AUTHOR_ID=49699333 BASE_CONFIG="$TMP_ROOT/dep-config" expect "a listed bump with no broker file pages stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
+  BASE_CONFIG="$TMP_ROOT/bare-config" dep "a listed bump with the key absent stays held (Q24)" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
+  AUTHOR_ID=300666570 BASE_CONFIG="$TMP_ROOT/dep-config" expect "another exempt author's listed bump stays held" 1 "$HELD"
+mkdir -p "$TMP_ROOT/dep-bad/docs/conventions"
+printf 'merge:\n  dependabot:\n    trusted-action-owners: anthropics\n' >"$TMP_ROOT/dep-bad/docs/conventions/pr-pipeline.yaml"
+for bad in "$TMP_ROOT/dep-bad" ''; do
+  STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
+    BASE_CONFIG="$bad" dep "an unreadable owner list (${bad:-no base config}) fails closed" 1 "::error::could not read merge.dependabot.trusted-action-owners"
+done
+mkdir -p "$TMP_ROOT/yq-fails" "$TMP_ROOT/yq-missing"
+printf '#!/usr/bin/env bash\necho "[\\"anthropics\\"]"\necho "Error: boom" >&2\nexit 1\n' >"$TMP_ROOT/yq-fails/yq"
+printf '#!/usr/bin/env bash\necho "yq: command not found" >&2\nexit 127\n' >"$TMP_ROOT/yq-missing/yq"
+chmod +x "$TMP_ROOT/yq-fails/yq" "$TMP_ROOT/yq-missing/yq"
+for dir in yq-fails yq-missing; do
+  STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
+    STUB_PATH="$TMP_ROOT/$dir" dep "an owner list read with $dir fails closed" 1 "::error::could not read merge.dependabot.trusted-action-owners"
+done
 STUB_FILES='[]' STUB_CHANGED=0
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
