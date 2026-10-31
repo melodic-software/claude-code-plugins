@@ -54,7 +54,7 @@ The same discipline holds outside prose. Deduplicate with the language's idiomat
 
 ## History lives in version control
 
-Where and when something came from is a fact the version-control history already owns. An origin or history aside in code, comments, configuration, or docs (a "ported from" note, an "added on <date>" comment) copies that fact into a second place nothing keeps current. Leave it out of explanatory prose, code, comments, and configuration; [`legacy-and-migration-debt.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/legacy-and-migration-debt.md) covers the related case of prose that narrates a migration.
+Where and when something came from is a fact the version-control history already owns. An origin or history aside in code, comments, configuration, or docs (a "ported from" note, an "added on <date>" comment) copies that fact into a second place nothing keeps current. Leave it out of explanatory prose, code, comments, and configuration; [`legacy-and-migration-debt.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/legacy-and-migration-debt.md) covers the related case of prose that narrates a migration.
 
 A record whose purpose is evidence keeps its dates and origins: a manifest's adoption, rollout, or canary notes, an architecture decision record, a component's admission evidence, a changelog. There the date is the evidence a decision rests on, not a copy of version-control history.
 

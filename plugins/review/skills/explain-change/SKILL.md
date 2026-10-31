@@ -31,7 +31,7 @@ Make a fresh directory under the OS temp directory (`mktemp -d`), never in the w
 - `--blast-radius` when a plan or `/review:quality-gate downstream` assessed one.
 - `--policy` only when the reader passed it.
 
-The output names the `action`, the `triggers` that fired, the `medium`, and the layer each value came from. Report any `warnings` line. The keys, defaults, and layers are owned by the review-digest convention (`docs/conventions/review-digest.md` in the marketplace repository).
+The output names the `action`, the `triggers` that fired, the `medium`, and the layer each value came from. Tell the reader which layer supplied `medium` (its `source`, or "shipped default" when that reads `default`). Report any `warnings` line. The keys, defaults, and layers are owned by the review-digest convention (`docs/conventions/review-digest.md` in the marketplace repository).
 
 - `skip`: stop without output.
 - `offer`: say in one sentence which triggers fired and offer the digest, naming where the page would go: "a private Artifact on claude.ai" when `medium` is `artifact`, "the shared page host" when it is `hosted`, else a local file or the terminal. Go on only when the reader accepts.

@@ -1,0 +1,11 @@
+{
+  "name": "sql-server",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
