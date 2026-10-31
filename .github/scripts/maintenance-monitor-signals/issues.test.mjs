@@ -94,6 +94,15 @@ test("a partly read family keeps its open issue as it is, even with findings", (
   assert.deepEqual(partial.skip, [{ family: "throttling", number: 41, reason: "not read" }]);
 });
 
+test("an unread signal with nothing open files nothing unless a finding fires", () => {
+  const unread = unreadSignals(["pr-merge listed sweep: the newest is over 70 minutes old"]);
+  const quiet = planIssues({ findings: [], existing: [], unread });
+  assert.deepEqual(quiet.file, []);
+  assert.deepEqual(quiet.skip, []);
+  const firing = planIssues({ findings: [findingFor([1])], existing: [], unread });
+  assert.deepEqual(firing.file.map((f) => f.family.signal), ["3 throttling"]);
+});
+
 test("each collect source maps to the signals it feeds, and an unknown gap leaves every signal unread", () => {
   const text = readFileSync(new URL("./collect.mjs", import.meta.url), "utf8");
   const sources = [...text.matchAll(/await source\("([^"]+)"/g)].map((m) => m[1]);

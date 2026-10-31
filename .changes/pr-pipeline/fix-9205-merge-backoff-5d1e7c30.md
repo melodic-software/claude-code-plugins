@@ -18,5 +18,5 @@ bump: patch
   rate stop is in force.
 - `maintenance-monitor-signals` has a new signal, `12 listing held`: 4 scheduled or hand-started
   `pr-merge` sweeps in a row whose listing held raise a rolling issue. Signals 5 and 8 read the
-  newest sweep that listed, and a hold that leaves it over 70 minutes old is a gap for them.
-  Signal 3 counts a listing a rate limit held.
+  newest sweep that listed, and one over 70 minutes old for any reason is a gap for them, read as
+  no sweep. Signal 3 counts a rate-limited hold still unbroken at the monitoring run.

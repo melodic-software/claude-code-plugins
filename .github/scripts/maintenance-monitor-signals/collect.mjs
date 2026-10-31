@@ -288,9 +288,10 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   // signals 5 and 8 read. A trusted run that kept no summary neither counts
   // nor resets. Calls: one artifact list, one run read per artifact and one
   // download per trusted summary, stopping at the sweep that listed (3 while
-  // the listing reads). None within the cap, or a hold that leaves it older
-  // than SWEEP_MAX_AGE_MINUTES, is a gap for signals 5 and 8, under its own
-  // name, so their issues are not cleared while signals 3 and 12 still fire.
+  // the listing reads). None within the cap, or one older than
+  // SWEEP_MAX_AGE_MINUTES, leaves no sweep and is a gap for signals 5 and 8,
+  // under its own name: their issues neither clear nor file from stale data,
+  // while signals 3 and 12 still fire.
   await source("pr-merge sweep", async () => {
     const artifacts = (await get(`/repos/${repo}/actions/artifacts?name=pr-merge-summary&per_page=100`)).artifacts;
     const candidates = artifacts
@@ -328,7 +329,8 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
         refusalCounts: s.refusal_counts ?? {},
         results: Array.isArray(s.results) ? s.results : [],
       };
-      if (data.heldSweeps.length > 0 && now.getTime() - Date.parse(data.sweep.startedAt) > SWEEP_MAX_AGE_MINUTES * 60_000) {
+      if (now.getTime() - Date.parse(data.sweep.startedAt) > SWEEP_MAX_AGE_MINUTES * 60_000) {
+        data.sweep = null;
         gaps.push(`pr-merge listed sweep: the newest is over ${SWEEP_MAX_AGE_MINUTES} minutes old`);
       }
       return;

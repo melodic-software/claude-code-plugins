@@ -355,17 +355,27 @@ test("a held summary from a pull request event neither counts nor resets the str
   assert.equal(data.sweep.runId, 902);
 });
 
-test("a hold that outlasts the sweep age leaves a gap for signals 5 and 8; a fresh listed sweep leaves none", async () => {
+test("a hold that outlasts the sweep age leaves no sweep and a gap for signals 5 and 8; a fresh listed sweep leaves none", async () => {
   const { artifacts, runs } = sweepsOf([7, 6, 5, 4, 3, 2, 1]);
   const readArtifact = async (id, files) => (files ? reportFiles("0") : summaryOf(900 + id, id > 1));
   const fresh = await collect(input(fakeApi(sweepRoutes(artifacts, runs)), { readArtifact }));
   assert.deepEqual(fresh.gaps, []);
+  assert.equal(fresh.sweep.runId, 901);
   // 6 held sweeps at the 15-minute cron put the sweep that listed 90 minutes back.
   artifacts[6].created_at = "2026-10-19T15:11:00Z";
   const stale = await collect(input(fakeApi(sweepRoutes(artifacts, runs)), { readArtifact }));
   assert.equal(stale.heldSweeps.length, 6);
-  assert.equal(stale.sweep.runId, 901);
+  assert.equal(stale.sweep, null);
   assert.deepEqual(stale.gaps, ["pr-merge listed sweep: the newest is over 70 minutes old"]);
+});
+
+test("a stale listed sweep with no hold is the same gap: the lane may have stopped writing summaries", async () => {
+  const { artifacts, runs } = sweepsOf([1]);
+  artifacts[0].created_at = "2026-10-19T15:11:00Z";
+  const data = await collect(input(fakeApi(sweepRoutes(artifacts, runs)), { readArtifact: async (id, files) => (files ? reportFiles("0") : summaryOf(900 + id, false)) }));
+  assert.equal(data.sweep, null);
+  assert.deepEqual(data.heldSweeps, []);
+  assert.deepEqual(data.gaps, ["pr-merge listed sweep: the newest is over 70 minutes old"]);
 });
 
 test("a hold longer than the read keeps its streak and leaves a gap for signals 5 and 8 alone", async () => {

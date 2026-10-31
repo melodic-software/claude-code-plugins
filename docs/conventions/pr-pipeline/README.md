@@ -2883,7 +2883,7 @@ findings listed by key. Its scripts and tests are in
 |---|---|---|
 | 1 main red | the newest dispatched or scheduled `pr-require-checks` run on `main` failed, read from each failed job's failure-level annotations; the flake class is named only from GitHub's own runner messages (a timeout, a lost runner) | `main-red:<job>` |
 | 2 ceiling | a reading in the window is over 90%: the lanes App and `GITHUB_TOKEN` REST quotas from pr-merge's `api-budget` notices, the lanes App quota from `request-lane-token`'s `mint lanes-app` notice in lane runs (when the broker returns `rate_limit`), plus the lane's own `GET /rate_limit`, and this repository's in-progress Actions jobs against 60 | `ceiling:lanes-app-rest`, `ceiling:github-token`, `ceiling:actions-jobs` |
-| 3 throttling | a failure annotation in a failed lane run (not a `pr-require-checks` or `pr-test-platforms` suite run) names a rate limit, a 429 or `github-rate-limited`, or a reading shows 0 remaining, or a held `pr-merge` listing's reason starts `rate limited`; or the broker refused a lane token (any status except `workflow-modified`, which pr-merge re-fires) or was unreachable | `throttle:rate-limited`, `broker-deny:<status>-<reason>` |
+| 3 throttling | a failure annotation in a failed lane run (not a `pr-require-checks` or `pr-test-platforms` suite run) names a rate limit, a 429 or `github-rate-limited`, or a reading shows 0 remaining, or a `pr-merge` hold still unbroken at the monitoring run has a reason that starts `rate limited` (a hold a later listing followed is not seen); or the broker refused a lane token (any status except `workflow-modified`, which pr-merge re-fires) or was unreachable | `throttle:rate-limited`, `broker-deny:<status>-<reason>` |
 | 4 merge-queue ejections | more than 2 merge groups failed in the last 24 hours, each listed with its PR and failing steps | `merge-queue-ejections` |
 | 5 held PRs | pr-merge's newest `pr-merge-summary` lists PRs blocked and untouched for over 24 hours, batched | `held-over-24h` |
 | 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-check-upstream-drift` failed, which each does on findings | `audit:<workflow>` |
@@ -2915,7 +2915,7 @@ label exists, never `needs-triage`: a rolling issue is a status record, and the 
 no `intake-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
 cannot read is listed in the step summary and the other signals still run. Failed runs are read 100
 to a page, up to 5 pages, until 12 lane runs are kept, so fork and pull-request runs dropped after
-the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3. Signal 11 reuses the `pr-merge` run list the budget read makes, lists the report artifacts once, and downloads reports newest first until one is readable: 2 calls while the check reads, at most 5 while it does not. Signal 12 shares one read with signals 5 and 8: the summary artifact list, then a run read per artifact and a download per trusted summary, newest first, until one listed: 3 calls while the listing reads, at most 17 through a hold. Signals 5 and 8 read the sweep that listed; no such sweep in the newest 8 summaries, or a hold that leaves it over 70 minutes old, is a gap for those two, and signals 3 and 12 still read the held sweeps.
+the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3. Signal 11 reuses the `pr-merge` run list the budget read makes, lists the report artifacts once, and downloads reports newest first until one is readable: 2 calls while the check reads, at most 5 while it does not. Signal 12 shares one read with signals 5 and 8: the summary artifact list, then a run read per artifact and a download per trusted summary, newest first, until one listed: 3 calls while the listing reads, at most 17 through a hold. Signals 5 and 8 read the sweep that listed; no such sweep in the newest 8 summaries, or one over 70 minutes old for any reason, leaves them no sweep and is a gap for those two, and signals 3 and 12 still read the held sweeps.
 
 It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull-requests` read,
 `issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
@@ -3158,12 +3158,13 @@ output, so the job gates, merges, re-fires and clears nothing, and the next sche
 again. A failed read and a past-budget rate stop leave this job green. The re-fire and
 escalation-clear steps wait on `listed` too, so they skip on a red listing as well.
 
-A held run still does two things. It writes the `pr-merge-summary` artifact with `listing_held`,
+A held run still does three things. It writes the `pr-merge-summary` artifact with `listing_held`,
 `listing_held_reason` and no verdicts, so readers can aggregate holds and signal 12 can count them.
-And on `post-merge-dispatch`'s exit 1 it runs `Record a failed lane merge`, starting from the lane
-records in that job's report: `--remediate` takes no listing, judges the merges again from its own reads, and is the step that dequeues the lane's
-merge-queue entries, which would otherwise land through the hold. Only a rate stop still in force
-holds that back: the guard refuses its calls and the next run tries again.
+It writes the sweep cost line, ending `listing-held=true`. And on `post-merge-dispatch`'s exit 1 it
+runs `Record a failed lane merge`, starting from the lane records in that job's report:
+`--remediate` takes no listing, judges the merges again from its own reads, and is the step that
+dequeues the lane's merge-queue entries, which would otherwise land through the hold. Only a rate
+stop still in force holds that back: the guard refuses its calls and the next run tries again.
 
 ## WIP cap
 

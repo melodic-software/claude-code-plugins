@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { throttleFindings } from "../maintenance-monitor-signals/signals.mjs";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const NOW = 2000000000;
@@ -112,6 +113,17 @@ test("a wait past the budget is not slept and returns unknown, naming the stop",
   assert.match(out.stdout, /^unknown=rate limited \(the core pool until /m);
   assert.deepEqual(out.sleeps, []);
   assert.equal(out.calls, 1);
+});
+
+test("signal 3 reads retry_call's own rate-limit reason, and not its other reasons", () => {
+  const reasonOf = (out) => /^unknown=(.+)$/m.exec(out.stdout)[1];
+  const keys = (reason) =>
+    throttleFindings({
+      windowStart: new Date(NOW * 1000),
+      heldSweeps: [{ runId: 1, url: "u", reason, createdAt: new Date(NOW * 1000).toISOString() }],
+    }).map((f) => f.key);
+  assert.deepEqual(keys(reasonOf(run({ args: "60", failures: -1, stop: `core ${NOW + 3600}\n` }))), ["throttle:rate-limited"]);
+  assert.deepEqual(keys(reasonOf(run({ args: "60", failures: -1 }))), []);
 });
 
 test("the budget counts every wait together, not each alone", () => {

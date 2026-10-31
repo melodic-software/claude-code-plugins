@@ -143,6 +143,8 @@ export function throttleFindings({ windowStart, failedRuns = [], budgetReadings 
     }
   }
   // A listing a rate limit held ends its run green, so no annotation names it.
+  // Only a hold still unbroken at the monitoring run is seen: collect's walk
+  // stops at the first listed summary.
   for (const s of heldSweeps) {
     if (String(s.reason).startsWith("rate limited") && Date.parse(s.createdAt) >= windowStart.getTime()) {
       add("throttle:rate-limited", s.runId, `pr-merge listing held ${s.url}: ${s.reason}`);

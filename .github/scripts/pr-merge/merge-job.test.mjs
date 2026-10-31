@@ -97,9 +97,10 @@ test("the early re-dispatch keeps the trusted mechanics and skips untrusted even
 // trusted-actors.json is `actors`, when given, else this checkout's.
 // `env` overrides the step's environment: merge.lane-prs is `gate` unless it
 // says otherwise, the mode that lists the lanes App's own pull requests.
+// `attempts` scripts each `gh pr list` in turn: `502` fails that one.
 const listed = (number, login, isDraft = false) => ({ id: `PR_${number}`, number, headRefOid: "abc", isDraft, updatedAt: "2026-10-18T00:00:00Z", labels: [], body: "", author: { login } });
 const LANES_PR = [listed(7, "app/melodic-automation-lanes")];
-const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway", prs = LANES_PR, total = prs.length) => {
+const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad Gateway", prs = LANES_PR, total = prs.length, attempts = []) => {
   const dir = tempDir("pr-merge-listing-");
   try {
     const bin = join(dir, "bin");
@@ -114,7 +115,8 @@ const runListing = (failures, edit, actors, env = {}, failure = "HTTP 502: Bad G
         `fi\n` +
         `echo "$*" >>"${dir}/args"\n` +
         `n=$(($(cat "${dir}/calls" 2>/dev/null || echo 0) + 1))\necho "$n" >"${dir}/calls"\n` +
-        `if [ "$n" -le ${failures} ]; then echo "${failure}" >&2; exit 1; fi\n` +
+        `attempts=(${attempts.join(" ")})\n` +
+        `if [ "$n" -le ${failures} ] || [ "\${attempts[$((n - 1))]:-}" = 502 ]; then echo "${failure}" >&2; exit 1; fi\n` +
         `cat "${dir}/prs.json"\n`,
     );
     writeFileSync(join(bin, "sleep"), `#!/usr/bin/env bash\necho "$1" >>"${dir}/sleeps"\n`);
@@ -211,6 +213,16 @@ test("a listing with pull requests missing from a 200 holds the job, and the nex
   assert.doesNotMatch(next.output, /held/);
   assert.match(next.output, /^count=1$/m);
   assert.deepEqual(next.listed, [7]);
+});
+
+test("the hold names only the last try's fault", () => {
+  const cleared = runListing(0, undefined, undefined, {}, undefined, LANES_PR, 2, ["ok", "502", "502"]);
+  assertHeld(cleared);
+  assert.equal(cleared.calls, 3);
+  assert.match(cleared.output, /^held-reason=failed 3 times$/m);
+  const last = runListing(0, undefined, undefined, {}, undefined, LANES_PR, 2, ["502", "502", "ok"]);
+  assertHeld(last);
+  assert.match(last.output, /^held-reason=failed 3 times \(count mismatch\)$/m);
 });
 
 test("a repeated pull request does not stand in for a missing one", () => {
