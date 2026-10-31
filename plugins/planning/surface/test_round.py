@@ -5187,5 +5187,144 @@ class TestSweepRound(DirCase):
         self.assertNotIn("kind", self.doc()["rounds"][0])
 
 
+class TestConstraintRecheck(DirCase):
+    """#5769: a new constraint marks each question whose `checkedAgainst` lacks it, open or
+    answered, until Claude revises or reconfirms it; a question with no list is not judged."""
+
+    AT = "2026-09-24T10:00:00Z"
+
+    def setUp(self):
+        super().setUp()
+        doc = base_doc()
+        doc["constraints"] = [{"id": "C1", "text": "Stdlib only.", "at": self.AT}]
+        doc["questions"] = doc["questions"][:2]
+        for q in doc["questions"]:
+            q["checkedAgainst"] = ["C1"]
+            q.pop("dependsOn", None)
+        self.write_doc(doc)
+
+    def new_constraint(self):
+        rc, out, err = self.rp(
+            "apply",
+            "--file",
+            self.file("c.json", {"ops": [{"op": "constraint", "text": "No hooks."}]}),
+        )
+        self.assertEqual(rc, 0, out + err)
+
+    def status(self):
+        rc, out, err = self.rp("status", "--json")
+        self.assertEqual(rc, 0, out + err)
+        return {u["id"]: u["changedBy"] for u in json.loads(out)["upstreamChanged"]}
+
+    def state(self, qid):
+        from server import EMPTY_RESPONSES, derive_states, load_json
+
+        responses = load_json(self.dir / "responses.json", EMPTY_RESPONSES)
+        return derive_states(self.doc(), responses)[0][qid][0]
+
+    def answer_q1(self):
+        self.write_events(
+            [{"seq": 1, "id": "Q1", "kind": "accept", "alt": None, "text": "", "at": self.AT}]
+        )
+
+    def test_a_new_constraint_marks_open_and_answered_questions(self):
+        self.answer_q1()
+        self.assertEqual(self.status(), {})
+        self.new_constraint()
+        self.assertEqual(self.status(), {"Q1": ["C2"], "Q2": ["C2"]})
+        # Both wait on Claude: only a revise or reconfirm clears the mark, so an answered
+        # question must not read stale, which asks the user to pick again.
+        self.assertEqual(self.state("Q1"), "upstream-changed")
+        self.assertEqual(self.state("Q2"), "upstream-changed")
+
+    def test_revise_naming_the_constraint_clears_only_that_question(self):
+        self.new_constraint()
+        rc, out, err = self.op("revise", id="Q1", checkedAgainst=["C1", "C2"])
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.status(), {"Q2": ["C2"]})
+        self.assertEqual(self.state("Q1"), "open")
+
+    def test_a_revise_that_does_not_name_it_leaves_the_mark(self):
+        self.new_constraint()
+        self.op("revise", id="Q1", title="A reworded question?")
+        self.assertEqual(self.status(), {"Q1": ["C2"], "Q2": ["C2"]})
+
+    def test_reconfirm_records_the_constraint_on_an_answered_question(self):
+        self.answer_q1()
+        self.new_constraint()
+        rc, out, err = self.op("reconfirm", ids=["Q1"], why="It holds under C2.")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q1")["checkedAgainst"], ["C1", "C2"])
+        self.assertEqual(self.status(), {"Q2": ["C2"]})
+        self.assertEqual(self.state("Q1"), "open")
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_a_question_with_no_list_is_not_judged(self):
+        doc = self.doc()
+        for q in doc["questions"]:
+            del q["checkedAgainst"]
+        self.write_doc(doc)
+        self.new_constraint()
+        self.assertEqual(self.status(), {})
+
+    def test_an_unrecorded_constraint_is_refused(self):
+        out = self.op_refused("revise", id="Q1", checkedAgainst=["C9"])
+        self.assertIn("names no recorded constraint", out)
+
+    def add_q3(self, **extra):
+        ops = {"ops": [{"op": "add", "question": question("Q3", **extra)}]}
+        rc, out, err = self.rp("apply", "--file", self.file("a.json", ops))
+        self.assertEqual(rc, 0, out + err)
+
+    def test_an_added_question_answers_to_the_constraints_recorded_so_far(self):
+        self.add_q3()
+        self.assertEqual(self.q("Q3")["checkedAgainst"], ["C1"])
+        self.assertEqual(self.status(), {})
+        self.new_constraint()
+        self.assertEqual(self.status()["Q3"], ["C2"])
+
+    def test_an_added_question_can_name_a_narrower_list(self):
+        self.add_q3(checkedAgainst=[])
+        self.assertEqual(self.status(), {"Q3": ["C1"]})
+
+    def test_a_proposal_answers_to_the_constraints_recorded_so_far(self):
+        rc, out, err = self.op(
+            "propose", id="Q3", title="A proposed question?", short="Short Q3"
+        )
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.q("Q3")["checkedAgainst"], ["C1"])
+
+    def test_the_mark_after_an_escaped_backslash_is_still_the_mark(self):
+        from exporters import drop_stale
+
+        self.assertEqual(drop_stale("answer:: C:\\\\; stale:: C2"), "answer:: C:\\\\")
+        self.assertEqual(
+            drop_stale("answer:: said\\; stale:: C2"), "answer:: said\\; stale:: C2"
+        )
+        self.assertEqual(drop_stale("[q-1] stale:: C2"), "[q-1]")
+
+    def test_a_marked_row_can_still_be_superseded(self):
+        from exporters import supersede_row
+
+        text = (
+            "## Open-question register\n\n"
+            "- Q1 | answered | round 1 | a | answer:: accepted: yes; stale:: C2\n"
+        )
+        out = supersede_row(text, "Q1", "a plan change", "the ledger")
+        self.assertIn("superseded-by-plan", out)
+        self.assertNotIn("stale::", out)
+
+    def test_the_ledger_marks_the_row_and_an_import_drops_the_mark(self):
+        from exporters import export_ledger, parse_register
+
+        self.answer_q1()
+        self.new_constraint()
+        text = export_ledger(self.dir)
+        rows = [line for line in text.splitlines() if line.startswith("- Q")]
+        self.assertTrue(all(line.endswith("stale:: C2") for line in rows), rows)
+        self.assertNotIn("stale::", " ".join(row[4] for row in parse_register(text)))
+
+
 if __name__ == "__main__":
     unittest.main()
