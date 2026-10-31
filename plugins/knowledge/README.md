@@ -1,8 +1,9 @@
 # knowledge
 
 A Claude Code plugin that ingests external knowledge into durable, synthesized
-artifacts. Its first shipped pipeline distills a technical book (PDF or EPUB) into
-concept-organized, author-attributed **skill reference files**; a re-runnable
+artifacts. Its first shipped pipeline distills a technical book (PDF or EPUB) or a
+person's or company's published web corpus into concept-organized, author-attributed
+**skill reference files**; a re-runnable
 `setup` action settles where synthesized artifacts land in the consuming repo.
 
 ## Skills
@@ -10,11 +11,12 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
 | Skill | Invoke | What it does |
 |---|---|---|
 | `absorb-upstream` | `/knowledge:absorb-upstream` | Absorbs one outside source (a GitHub repository at a pinned commit, read from its local checkout when private, or one web page or post) into a tracked `docs/upstream/` record: per idea, what it does, the upstream's problem in our own words labeled Stated or Inference with a link, our matching problem, and a take, adapt, already-have or reject disposition with the reason, plus a license notice. The directory is configurable ([`reference/config.md`](reference/config.md)); the record of a source not proven public is written only in a private repository, from there or through an absolute `--out` into its checkout. |
-| `distill` | `/knowledge:distill` | Turns a technical book (PDF/EPUB) into concept-organized, author-attributed skill reference files through a structured, multi-session read-write pipeline, updating the target skill's routing table. |
+| `distill` | `/knowledge:distill` | Turns a technical book (PDF/EPUB) or an author's published web corpus into concept-organized, author-attributed skill reference files through a structured, multi-session read-write pipeline, updating the target skill's routing table. |
 | `course-digest` | `/knowledge:course-digest` | Extracts and synthesizes an online video course (Dometrain, Teachable), transcripts, frames, resources, companion code, into repo-applicable recommendations. Course material is paid content, so it is written only under a work root in a private repository or one with no remote. Actions: full pipeline (default), `extract`, `analyze`, `status`, `resume`, `continue`. |
 | `docpage-digest` | `/knowledge:docpage-digest` | Ingests a single online documentation page (docs-site URL) into a verified knowledge slice. Unaltered original, SOURCES.md inventory, per-section model-matched digests, dual verification (one cross-vendor verifier), and an interview-ready handoff artifact. Publisher profiles (fetch channel, applicability filter, doc queue) are separable context files; first profile: Anthropic docs. |
 | `map-corpus` | `/knowledge:map-corpus` | Maps a multi-resource documentation corpus into a verified, classified, triaged slice before any digesting: bounded discovery, a user-approved link map classifying every discovered URL, deterministic node manifests over immutable snapshots, and a per-node relevance inventory whose evidence a script gate verifies, handing an approved queue to N runs of `/knowledge:docpage-digest`. |
 | `video-digest` | `/knowledge:video-digest` | Watches a single public video from YouTube or X (Twitter), transcript + visual frames, harvests reference links, drives external research, and synthesizes a prioritized repo-applicability menu. Actions: `watch`, `queue`, `transcript`, `resume`. |
+| `check` | `/knowledge:check` | Read-only check that the external tools the plugin declares (node, python, yt-dlp, ffmpeg, ImageMagick and the rest) resolve. Run it when a digest skill stops on a missing tool, or before `video-digest`, `course-digest`, `docpage-digest` or `map-corpus`. Installs nothing. |
 | `setup` | `/knowledge:setup` | `check` (default) verifies `library_dir` against the repository's artifact convention, reports `absorb-upstream`'s record directory, and probes the extraction prerequisites read-only; `apply` routes personal option changes through Claude Code's plugin configuration prompt; `apply install-deps` provisions the video pipelines' node dependencies and Chromium. |
 
 ## What distill produces
@@ -27,6 +29,18 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
   question at query time.
 - **Multi-author merges**, where two books cover the same concept, their
   content is consolidated into a shared file.
+- **For a web corpus**, 8 to 12 theme reference files, `reference/glossary.md`
+  and `reference/article-index.md`, plus a `SKILL.md` in the fixed corpus shape
+  (thesis, core ideas, method, how to answer, scope). The raw pieces, fetched
+  one URL at a time through `scripts/fetch-docs.sh --public-only` or read from
+  an export you supply, and the per-piece notes stay under
+  `${CLAUDE_PLUGIN_DATA}`, outside the skill folder.
+
+Before any write, `distill` runs `scripts/repo-visibility.mjs` on the target
+skill directory (and, for a web corpus, on the corpus directory) and proceeds
+only on `private`, `internal` or `local`. Any other result, `unknown` included,
+stops the run and asks you to rerun from a private repository or one with no
+remote. A GitHub remote reads `unknown` when `gh` is missing or not signed in.
 
 You name the target skill when you invoke `/knowledge:distill`, so output
 lands somewhere you chose (`.claude/skills/<target>/` under the session's git top-level, per [`reference/work-root.md`](reference/work-root.md)): either an existing skill it extends or a new one it creates. Cross-session state
@@ -66,9 +80,12 @@ the rest of the knowledge stack.
 ## Requirements
 
 - A PDF or EPUB you have the right to read. PDF works natively with Claude
-  Code's Read tool; EPUB requires unzipping and text extraction first.
-- **Node.js on `PATH`**: every skill resolves its work root, and
-  `distill` its progress key, with `scripts/work-root.mjs`.
+  Code's Read tool; EPUB requires unzipping and text extraction first. A web
+  corpus needs public https pages or an export you supply.
+- **`gh` signed in** for `distill`'s visibility check on a GitHub remote.
+- **Node.js on `PATH`**: `absorb-upstream`, `course-digest`, `distill`,
+  `docpage-digest`, `map-corpus` and `video-digest` resolve their session root,
+  and `distill` its progress key, with `scripts/work-root.mjs`.
 - **Bash** for the skills' inline commands. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)
   so they run under Git Bash.

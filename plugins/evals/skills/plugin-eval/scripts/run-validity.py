@@ -38,7 +38,12 @@ one line per check, detail lines indented under it:
                       at or under the plugin's directory (suite.root or a
                       suite.plugins path), at a directory above it, or with
                       no absolute path or no known plugin directory, is
-                      always a FAIL
+                      a FAIL; in an invocation-probe case a denial of a named
+                      call other than Skill is a warning when it comes after
+                      the graded Skill call, or the run is a should-not-fire
+                      run that held while every denial-free run of its case
+                      held; a should-fire miss with a denial takes the rules
+                      above
     skill fired       every with-arm run of a should-trigger case fired the skill;
                       in an invocation-probe case a miss is the trigger rate it
                       measures, reported per case and overall as a warning
@@ -723,7 +728,7 @@ def bash_paths(command):
 def denials(run):
     """Every denied tool call in one trace, keyed by tool_use_id, as (detail line,
     the paths it targets: a Bash call's rooted arguments, else the target path or
-    None)."""
+    None, the tool's name, the tool_use_id)."""
     calls, found = {}, {}
     for line in run.trace:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -754,9 +759,36 @@ def denials(run):
             (
                 "%s: %s %s (%s)" % (run.where, name or "tool", target, run.trace_path),
                 paths,
+                name,
+                use_id,
             )
         )
     return out
+
+
+def graded_call_at(run, root):
+    """(tool_use_id -> position of each tool_use in the trace, position of the first
+    Skill call a Skill grader's input_match accepts, or None)."""
+    patterns = [
+        grader_input_match(run.case, g, root)
+        for g in as_list(run.case.get(CASE_GRADER_DEFS))
+        if g.get(GRADER_TYPE) == FIRE_GRADER_TYPE
+        and as_dict(g.get(GRADER_CONFIG)).get(CONFIG_TOOL) == SKILL_TOOL
+    ]
+    at, first = {}, None
+    for line in run.trace:
+        for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
+            if block.get(BLOCK_TYPE) != TOOL_USE:
+                continue
+            at[block.get(USE_ID)] = len(at)
+            text = json.dumps(as_dict(block.get(USE_INPUT)))
+            if first is None and block.get(USE_NAME) == SKILL_TOOL:
+                try:
+                    if any(p is None or re.search(p, text) for p in patterns):
+                        first = at[block.get(USE_ID)]
+                except re.error:
+                    pass
+    return at, first
 
 
 def inside(path, roots):
@@ -780,7 +812,7 @@ def same_as_clean(run, found, runs, roots):
     in the same arm, the case has at least one, every sibling in that arm has a
     readable trace, and no with-arm denial is aimed inside the plugin."""
     if run.arm == "with" and any(
-        inside(path, roots) for _, paths in found[run] for path in paths
+        inside(path, roots) for _, paths, _, _ in found[run] for path in paths
     ):
         return False
     siblings = [
@@ -797,20 +829,76 @@ def same_as_clean(run, found, runs, roots):
     )
 
 
-def check_denials(runs, roots):
+def probe_denial(run, found, runs, root):
+    """True when a run of an invocation-probe case was denied only named calls other
+    than Skill, none of which could have steered the graded decision. The probe
+    grades only whether the Skill call fired, which loads the skill without Read,
+    Glob or Grep. In a run where it fired, every denial must come after that call in
+    the trace; a denial with no tool_use line has no position, so it does not
+    qualify. In a should-fire run that missed, a denial may have caused the miss.
+    A should-not-fire run that never fired decided over the whole run, so order
+    cannot show the denial did not cause the hold; it qualifies only when its case
+    has denial-free with-arm runs and every one of them held too. A denial naming
+    no tool may have been the Skill call."""
+    if not is_probe(run.case, root) or not all(
+        name is not None and name != SKILL_TOOL for _, _, name, _ in found[run]
+    ):
+        return False
+    if graded_call_made(run, root):
+        at, first = graded_call_at(run, root)
+        return first is not None and all(
+            at.get(use_id, -1) > first for _, _, _, use_id in found[run]
+        )
+    if skill_graders(run.case, root)[0]:
+        return False
+    clean = [
+        r
+        for r in runs
+        if r.case is run.case and r.arm == run.arm and r in found and not found[r]
+    ]
+    return bool(clean) and not any(graded_call_made(r, root) for r in clean)
+
+
+def probe_split(case, runs, found, root):
+    """A detail line: how often a probe case's with-arm runs fired, denied versus
+    denial-free, so a reader comparing two descriptions sees denials' effect."""
+    arm = [r for r in runs if r.case is case and r.arm == "with" and r in found]
+    denied = [r for r in arm if found[r]]
+    clean = [r for r in arm if not found[r]]
+    return "  probe case %s: fired in %d of %d denied with-arm runs, %d of %d clean" % (
+        case.get(CASE_NAME),
+        sum(graded_call_made(r, root) for r in denied),
+        len(denied),
+        sum(graded_call_made(r, root) for r in clean),
+        len(clean),
+    )
+
+
+def check_denials(runs, roots, root):
     traced = [r for r in runs if r.trace is not None]
     found = {r: denials(r) for r in traced}
     denied = [r for r in traced if found[r]]
-    warned = [r for r in denied if same_as_clean(r, found, runs, roots)]
+    warned = [
+        r
+        for r in denied
+        if probe_denial(r, found, runs, root) or same_as_clean(r, found, runs, roots)
+    ]
     failed = [r for r in denied if r not in warned]
-    details = [line for r in denied for line, _ in found[r]]
+    details = [line for r in denied for line, _, _, _ in found[r]]
     summary = "%s in %s" % (plural(len(details), "denial"), plural(len(denied), "run"))
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
+    probe_cases = []
+    for r in denied:
+        if is_probe(r.case, root) and r.case not in probe_cases:
+            probe_cases.append(r.case)
+    details += [probe_split(c, runs, found, root) for c in probe_cases]
     if warned:
         summary += (
-            "; runs scoring the same as their case's denial-free runs in the same"
-            " arm, with no with-arm denial inside the plugin, are warnings: %s"
-            % ", ".join(warned_cases)
+            "; warnings (an invocation probe denied only calls other than Skill, after"
+            " its graded Skill call, or holding as every denial-free run of its"
+            " should-not-fire case held; or a run scoring the same as its case's"
+            " denial-free runs in the same arm with no with-arm denial inside the"
+            " plugin): %s" % ", ".join(warned_cases)
         )
     if failed:
         reason = "%s in the traces" % plural(
@@ -1134,7 +1222,7 @@ def main(argv=None):
         lines.append("traces: %d of %d tracePaths resolve" % (len(runs), len(runs)))
     later = [
         ("session started", check_started(runs)),
-        ("permission denials", check_denials(runs, plugin_roots)),
+        ("permission denials", check_denials(runs, plugin_roots, root)),
         ("skill fired", check_fired(cases, runs, root)),
         ("models", check_models(result, runs)),
         ("judge votes", check_votes(runs)),
