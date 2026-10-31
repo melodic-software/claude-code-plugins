@@ -170,7 +170,7 @@ export async function select({ api, pr, appId, reviewerId, reviewerIds = [], max
   const failing = failingChecks(runs);
   if (failing.length === 0) {
     const settled = runs.complete === true && runs.every((run) => run.status === "completed");
-    return { decision: "skip", skipReason: "not-applicable", ...(settled ? { resolved: true } : {}), headSha, laneEscalated };
+    return { decision: "skip", ...(settled ? { skipReason: "stop-resolved", resolved: true } : { skipReason: "not-applicable" }), headSha, laneEscalated };
   }
   const rounds = countFixRounds(await api.listPullCommits(pr), appId);
   if (rounds >= maxRounds) {

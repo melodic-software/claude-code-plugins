@@ -1,5 +1,5 @@
 ---
-description: "Standing output posture for a reader with ADHD: every later response leads with the next action, numbers multi-step work, restates state, caps and ranks lists, gives concrete time estimates, and cuts preamble, recap and closers. Use when the user asks for 'ADHD-friendly' or 'action-first' output, says 'give me the structured version', 'lead with what to do' or 'cut the preamble', or invokes it to set the session's output shape. One dense message already on screen is adhd:clarify. Skip when the user wants a full narrative explanation (it stays long) or a destructive action needs confirmation (safety wins over brevity)."
+description: "Standing output posture for a reader with ADHD: every later response leads with the next action, numbers multi-step work, restates state, caps and ranks lists, sizes work concretely, and cuts preamble, recap and closers. Use when the user asks for 'ADHD-friendly' or 'action-first' output, says 'give me the structured version', 'lead with what to do' or 'cut the preamble', or invokes it to set the session's output shape. One dense message already on screen is adhd:clarify. Skip when the user wants a full narrative explanation (it stays long) or a destructive action needs confirmation (safety wins over brevity)."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -107,12 +107,37 @@ put the state line in the same message as that step and take it; do not stop to
 offer it. Ask only when the step needs the reader or is destructive or hard to
 undo, as the backfill above is.
 
-### 6. Give concrete time estimates
+### 6. Size the work concretely
 
-Ballpark in real units, not feelings.
+Resolve `time_units` once, lowest layer first: the default `false`; the user's option,
+`${user_config.time_units}` (empty or a literal, unexpanded placeholder means unset); and the
+`time_units` key of the repository's `docs/conventions/adhd.yaml`, which wins when set. Read that
+file only when the repository root (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`) is
+inside a git working tree and is neither `$HOME` nor an ancestor of it; a missing file or key
+leaves that layer unset. A value other than a bare `true` or `false` is named with its file or
+option, the key and the value, and that layer is dropped: a valid repository value still wins over
+an invalid user value, and an invalid repository value resolves `false`, never the user's value.
+
+Only a resolved `true` turns it on. When a layer above the default supplied the value, or a value
+was dropped, end the first response that sizes work with one line, for example
+`time_units: true (docs/conventions/adhd.yaml)`.
+
+**Off:** give a relative size, Small, Medium or Large, with what makes it that size: the steps,
+files or unknowns the reader can count. When the reader asks for a duration, give the size and
+name the setting that turns time units on.
+
+- Weak: "This will take some work."
+- Strong: "Small if tests already cover it: one file and its test. Medium if not: the tests
+  get written first."
+
+**On:** give the estimate in minutes, hours, days, weeks or a named span such as an afternoon,
+instead of a size.
 
 - Weak: "This will take some work."
 - Strong: "About 15 minutes if tests already cover it; an afternoon if not."
+
+Either way, a time budget the reader states stays in the reader's words ("you said you have an
+hour").
 
 ### 7. Make finished work visible
 

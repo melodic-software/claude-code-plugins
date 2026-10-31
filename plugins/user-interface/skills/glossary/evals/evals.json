@@ -152,6 +152,36 @@
       ],
       "difficulty": "routine",
       "source": "the skill's precedence rule and reference/components.md components (Toast), written for this suite"
+    },
+    {
+      "id": 11,
+      "name": "widow-not-orphan",
+      "prompt": "When our article prints, the very last line of a paragraph sometimes lands by itself at the top of the next page. What is that called, and which CSS property deals with it?",
+      "expected_output": "The skill answers widow: a paragraph's last line stranded at the top of the next column or page, controlled by the CSS `widows` property. It separates it from an orphan, a paragraph's first line stranded at the bottom of a column or page, controlled by `orphans`.",
+      "files": [],
+      "expectations": [
+        "The answer names widow as the term",
+        "The answer names the CSS widows property, not orphans, as the control",
+        "The answer defines an orphan as a paragraph's first line stranded at the bottom of a column or page"
+      ],
+      "difficulty": "hard",
+      "why_hard": "The two terms are often swapped, so the model is pulled toward naming the stranded top line an orphan and pointing at the wrong property",
+      "source": "reference/typography.md typography (Widow, Orphan), written for this suite"
+    },
+    {
+      "id": 12,
+      "name": "manual-not-optical-kerning",
+      "prompt": "Our designer nudged the A and the V in the logo by eye until the gap looked right. Is that what optical kerning means?",
+      "expected_output": "The skill says no: nudging one pair by eye is manual kerning. Optical kerning is automatic and spaces adjacent characters from their shapes, and metrics kerning follows the pair values in the font file.",
+      "files": [],
+      "expectations": [
+        "The answer says adjusting a pair by eye is manual kerning, not optical kerning",
+        "The answer says optical kerning is automatic and derived from the glyph shapes",
+        "The answer names metrics kerning, or the font's built-in pair values, as the other automatic method"
+      ],
+      "difficulty": "hard",
+      "why_hard": "The word optical suggests judging by eye, so the model is pulled toward agreeing with the question's wrong premise",
+      "source": "reference/typography.md typography (Kerning, Optical kerning), written for this suite"
     }
   ]
 }

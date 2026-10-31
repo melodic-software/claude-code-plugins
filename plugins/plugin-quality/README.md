@@ -17,13 +17,13 @@ their repo mid-session.
      remediation without a checked research line is emitted as `needs-decision`, never `agent-ready`.
   6. Emit to the resolved sink behind an unconditional draft+confirm gate.
   Two further modes, both operator-invoked only: `/plugin-quality:audit session` discovers the
-  plugins and skills the session used (from the retro transcript parser), confirms the list with
+  plugins and skills the session used (from its `session-flow` running-retro ledger), confirms the list with
   you, and audits the union; `/plugin-quality:audit arm` starts the `session-flow` running-retro
   observer at session start. A finding with no session artifact is listed as `unfiled`, and a
   suggested change is filed agent-ready only after a research pass, otherwise as needs-decision.
   `/session-flow:workflow` offers the `session` mode at wrap-up when a plugin skill ran.
 - **Auditor agent** (`agents/auditor.md`), the fresh-context specialist for steps 2–3. Tools:
-  Read/Grep/Glob/WebFetch plus Bash. Named honestly: Bash is there for `claude plugin validate`,
+  Read/Grep/Glob/WebFetch plus Bash. Bash is there for `claude plugin validate`,
   config-resolution probes, and the fetch ladder's rung-1 `scripts/fetch-docs.sh` read of the
   raw-markdown docs channel, not mutation. That script also stores the page in the shared
   user-scope docs cache, its own store.
@@ -47,7 +47,7 @@ The audit consumes the `context-guard` plugin's per-session snapshots as a **sof
 a fresh snapshot routes packet handling, review dispatch, and evidence-flush timing by zone
 (smart / acceptable / dumb); an absent or stale snapshot degrades to the conservative row with a
 visible notice. Deep analysis always runs in a fresh subagent either way. No context-guard
-install is required; it just makes long-session audits smarter about their own degradation.
+install is required. With one, a long-session audit adapts its handling as the context fills.
 
 ## Security posture
 

@@ -43,6 +43,11 @@
         "max_days": { "type": "integer", "minimum": 1, "maximum": 999999, "description": "Days after its date that a suppression entry is reported for reconfirmation; it is reported, never removed. Default 90, per docs/adr/0080-set-check-precision-defaults-at-zero-false-positives-blocking-and-under-10-percent-advisory.md." }
       }
     },
+    "time_units": {
+      "type": "boolean",
+      "default": false,
+      "description": "When true, /harness-config:audit-automation-gaps may state the size of an implementation plan in minutes, hours, days or weeks; when false it gives a relative size (Small, Medium, Large). A quoted \"true\" or \"false\" is a string, not a boolean, and is invalid."
+    },
     "suppressions": {
       "type": "object",
       "description": "Deliberately kept findings of /harness-config:audit and /harness-config:audit-pass, keyed by finding_id.",

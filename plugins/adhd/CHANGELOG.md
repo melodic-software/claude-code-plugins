@@ -3,6 +3,18 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0] - 2026-10-31
+
+### Changed
+
+- `/adhd:clarify` resolves the `rendered-views` `medium` before it picks a rung, from a
+  `--medium` argument, then `~/.claude/rendered-views.md`, the team `.claude/rendered-views.md`
+  and an untracked, gitignored `.claude/rendered-views.local.md`. `terminal` or `file` from any
+  layer keeps the decision table local, even with the Artifact tool present. `artifact` (or
+  `hosted`, read as `artifact`) publishes only from the argument, the user-global layer or that
+  overlay; a team-layer publishing value keeps the page in a local file. With no layer set, the
+  shipped ladder is unchanged, and the output names the layer that decided or "shipped default".
+
 ## [0.6.1] - 2026-10-30
 
 ### Changed

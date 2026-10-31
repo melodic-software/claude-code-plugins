@@ -73,10 +73,10 @@ Each criterion is binary. **Any FAIL returns to the named phase (a verifier-owne
 | 1 | Every claim row has ≥1 Tier 0/1 source whose URL/command was captured THIS turn | run | Phase 2. Fetch the primary directly |
 | 2 | No claim row's sources are ALL Tier-2 secondary | run | Phase 2. Get a primary |
 | 3 | Every Phase 2/3 query traces to a numbered gap/conflict in a written analysis block | run | re-run the phase chained to the list |
-| 4 | Every accepted claim has ≥2 INDEPENDENT `current` corroborators (not 2 cites of one upstream pool, as in the discipline file's "Single-publisher facts"; a `historical` source never counts), or is a first-party content claim flagged `single source` that states why only one publisher exists; a repost is not a second source, and a behavior claim gets no flag | **verifier** | Phase 2. Widen sources |
+| 4 | Every accepted claim has ≥2 INDEPENDENT `current` corroborators (not 2 cites of one upstream pool, as in the discipline file's "Single-publisher facts"; a `historical` source never counts), or is a first-party content claim flagged `single source` that states why only one publisher exists (for a paper's reports-claim, the reason also names the paper's publisher and the product it owns that the paper measured, per the discipline file's "A paper's reported result can be a content claim"); a repost is not a second source, and a behavior claim gets no flag | **verifier** | Phase 2. Widen sources |
 | 5 | The Phase 2 falsification query ran and is recorded | run | Phase 2. Run it |
 | 6 | Recency gate satisfied for every tool/library/API claim: the LATEST upstream changelog/release was fetched THIS turn and cross-checked against the claim. Read the confirmed-latest release and the verdict off the fetch log's changelog entry, an absent verdict or an `invalidated` one FAILs, and `unresolved` passes only as an enumerated Gap, never under an accepted claim. Windows, and what a major bump invalidates: the discipline file's "Recency gate" | run | Phase 2. Fetch changelog |
-| 7 | Every accepted claim is HIGH confidence, or `HIGH (single source)` under row 4's flag; a MEDIUM or LOW claim listed in the Gaps section is not accepted | **verifier** | Phase 4 follow-up (one rework round), or list as a Gap |
+| 7 | Every accepted claim is HIGH confidence, or `HIGH (single source)` under row 4's flag, including a paper's reports-claim whose `single_source:` reason names the paper's publisher and the product it owns that the paper measured; a MEDIUM or LOW claim listed in the Gaps section is not accepted | **verifier** | Phase 4 follow-up (one rework round), or list as a Gap |
 | 8 | Project fit checked against the consuming project's own conventions and stated direction | **parent** | revisit before presenting |
 | 9 | For every ACCEPTED claim taken from any publisher's own artifacts, vendor, OSS maintainer, standards body alike, the fetch log ACCOUNTS FOR every artifact-ladder rung above the one the claim came from, each carrying one of the outcome values and none left unaccounted. Rungs, outcome vocabulary, and what earns nonexistence rather than `unresolved`: the discipline file's "Primary-source-first protocol". A rung that exists, is reachable, and carries the claim IS where the claim comes from | run | Phase 2. Walk the ladder from rung 1, fetching and searching each reachable rung and recording its outcome |
 | 10 | Every reported absence names both the sources checked and the sources left unchecked. No bare "unsourced" / "not found" | run | revisit before presenting |
@@ -115,6 +115,9 @@ Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/disci
 
 ### Effort, source breadth
 
+The Effort row is the ceiling over discipline 8. Rationale and skipped-phase N/A: the discipline
+file's "Effort, source breadth".
+
 Caller effort for this run is `${CLAUDE_EFFORT}`. If that still begins with `${`, this body was read
 directly and the substitution never ran: run as `high`, every phase below. A value the table below
 does not name also runs as `high`.
@@ -127,9 +130,6 @@ from this load, not the researcher pin. Missing line: `high`, named in the artif
 | `low` | Phase 0 if bounded, Phase 1 at existing floors and under the cap below, Phase 2 as the mandatory falsification query only (no per-gap expansion). Skip Phase 3 and Phase 4 |
 | `medium` | Phase 0 through 2 in full (per-gap Phase 2 queries plus falsification). Skip Phase 3 and Phase 4 |
 | `high`, `xhigh`, `max` | Current full workflow |
-
-The Effort row is the ceiling over discipline 8. Rationale and skipped-phase N/A: the discipline
-file's "Effort, source breadth".
 
 **`breadth=` narrows, never widens.** A `breadth=low` or `breadth=medium` token in `$ARGUMENTS`
 selects that row when it is below caller effort; source breadth is the lower of the two, and
@@ -312,9 +312,12 @@ research can mean either surface.
   ledger), and grades every run off disk with a fresh verifier before surfacing it.
 
 **Routing.** When the deep tier is selected, offer it to the person at the start of the run,
-before dispatching: for a single-topic ask that wants one deep cited report, "you can run
-`/deep-research <question>` instead of or alongside this skill"; for a multi-topic ask, only as an
-addition for one topic that needs adversarial claim-checking. If the person takes it instead, stop.
+before dispatching. For a single-topic ask that wants one deep cited report:
+If /deep-research is available in your session (gate basis: it needs the WebSearch tool and varies
+by settings, plan, and host, and whether `disableBundledSkills` hides it is not established;
+records in [reference/native-deep-research.md](reference/native-deep-research.md)), you can run
+`/deep-research <question>` instead of or alongside this skill. For a multi-topic ask, offer it
+only as an addition for one topic that needs adversarial claim-checking. If the person takes it instead, stop.
 An unattended run records the offer in its output instead of asking, and dispatches.
 
 **Mutation gate.** This skill writes only its own research slice. It never starts the workflow on

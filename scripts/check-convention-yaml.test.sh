@@ -287,6 +287,17 @@ new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put Documentatio
   put docs/conventions/alpha.yaml 'reject: true' && put AGENTS.md "$(region_for Documentation)"
 run_sut
 if [[ $RC -eq 0 && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="a repository bound to Documentation still has docs/conventions/pr-pipeline.yaml checked"
+new_repo && put plugins/pr-pipeline/schemas/pr-pipeline.schema.json '{}' && put Documentation/keep.md '# prose' &&
+  put docs/conventions/pr-pipeline.yaml 'reject: true' && put AGENTS.md "$(region_for Documentation)"
+run_sut
+if [[ $RC -eq 1 && "$ERR" == *"docs/conventions/pr-pipeline.yaml: does not validate"* ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="N2c: a home bound through a symlink exits 1"
+new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put Real/alpha.yaml 'reject: true'
+ln -s Real "$repo/Alias"
+put AGENTS.md "$(region_for Alias)"
+run_sut
+if [[ $RC -eq 1 && "$ERR" == *"through a symlink"* ]]; then ok "$label"; else fail "$label: $(state)"; fi
 label="a cross-plugin schema is found under the bound home"
 new_repo && put Documentation/beta.yaml 'mode: on' && put Documentation/beta/beta.schema.json '{}' &&
   put AGENTS.md "$(region_for Documentation)"
@@ -361,6 +372,35 @@ new_repo && put plugins/alpha/schemas/alpha.schema.json '{}' && put AGENTS.md "$
 run_sut GITHUB_BASE_REF=main
 if [[ $RC -eq 0 && "$ERR" == *"merge base"*"pointer target directory missing"* &&
   "$LOG" == "--schemafile plugins/alpha/schemas/alpha.schema.json -- Documentation/alpha.yaml" ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+# 11e. A root holding .claude-plugin/marketplace.json (the marketplace
+#      repository itself) must bind a home in its working tree; the merge base
+#      may still bind none, so the change that adds the region passes.
+new_marketplace() { new_repo && put .claude-plugin/marketplace.json '{}' && put plugins/alpha/schemas/alpha.schema.json '{}'; }
+label="a marketplace root with no convention-home region exits 1 naming the unbound home"
+new_marketplace && put docs/conventions/alpha.yaml 'mode: on'
+run_sut
+if [[ $RC -eq 1 && "$ERR" == *"working tree: unbound convention home"* && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="a marketplace root that declined a home exits 1 naming the unbound home"
+new_marketplace &&
+  put AGENTS.md $'<!-- BEGIN GENERATED: convention-home -->\ndeclined\n<!-- END GENERATED: convention-home -->'
+run_sut
+if [[ $RC -eq 1 && "$ERR" == *"unbound convention home"* && -z "$LOG" ]]; then ok "$label"; else fail "$label: $(state)"; fi
+label="a marketplace root bound to docs/conventions exits 0"
+new_marketplace && put docs/conventions/alpha.yaml 'mode: on' && put AGENTS.md "$(region_for docs/conventions)"
+run_sut
+if [[ $RC -eq 0 && "$LOG" == "--schemafile plugins/alpha/schemas/alpha.schema.json -- docs/conventions/alpha.yaml" ]]; then
+  ok "$label"
+else
+  fail "$label: $(state)"
+fi
+label="a marketplace head that binds docs/conventions over an unbound merge base exits 0"
+new_marketplace && put docs/conventions/alpha.yaml 'mode: on' && base_here && put AGENTS.md "$(region_for docs/conventions)"
+run_sut GITHUB_BASE_REF=main
+if [[ $RC -eq 0 && "$LOG" == "--schemafile plugins/alpha/schemas/alpha.schema.json -- docs/conventions/alpha.yaml" ]]; then
   ok "$label"
 else
   fail "$label: $(state)"

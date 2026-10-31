@@ -15,11 +15,13 @@ types (str, int, bool, None, list, tuple) built from parsed JSON; subclasses
 that override their own behavior are out of scope. A count outside
 0..10**9 is malformed. Each reason code appears once.
 
-The HIGH path floor and the lane table are fixed here, never read from
-configuration. The floor is narrow (owner decision Q-FLOOR (B)): the code
-main runs to mint and scope lane tokens and judge triggers, code owners and
-submodules, and it holds whatever the floor switch says. Its
-`enforcement` entries (`REVIEW_FLOOR`) rate HIGH as `review-path:<glob>`
+The lane table is fixed here. The HIGH path floor is `FLOOR_CLASSES`, the paths
+every consumer shares, plus the repository's `merge.diff-check.floor-paths`
+rows (`floor_for`, `RiskInput.floor_rows`), which can add to it and never drop
+or loosen a built-in row. The floor is narrow (owner decision Q-FLOOR (B)): the
+code main runs to mint and scope lane tokens and judge triggers, code owners
+and submodules, and it holds whatever the floor switch says. Its
+`enforcement` entries (`Floor.review`) rate HIGH as `review-path:<glob>`
 instead, which a clean security review bound to the head clears
 (`security_review_clean`, owner decision Q26 option B), and so do the
 `gate` entries in `RiskInput.author_reviewed` (owner direction 2026-10-27).
@@ -137,8 +139,9 @@ import json
 import math
 import re
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 
@@ -197,12 +200,16 @@ class LaneEvidence:
     blocking_findings: int | None = None
 
 
+# (glob, class, whether a `gate` row may take the author lift).
+FloorRows = tuple[tuple[str, str, bool], ...]
+
+
 @dataclass(frozen=True)
 class RiskInput:
     files: tuple[ChangedFile, ...]
     files_complete: bool  # the listing was read to its end
     max_changed_lines: int | None  # merge.diff-check.max-changed-lines at the base SHA
-    high_paths: tuple[str, ...]  # configured denied paths, joined to HIGH_FLOOR
+    high_paths: tuple[str, ...]  # configured denied paths, joined to Floor.high
     lanes: tuple[LaneEvidence, ...]
     # The switches the pr-merge lane may turn off (merge.diff-check); the
     # defaults keep every check. An unset line cap is MED unless optional.
@@ -239,6 +246,8 @@ class RiskInput:
     # read-only workflow's head text (`ChangedFile.contents`) shows the
     # main-run review does not bind it. None holds as if it did.
     base_sha: str | None = None
+    # `merge.diff-check.floor-paths`, joined to the built-in floor (`floor_for`).
+    floor_rows: FloorRows = ()
 
 
 @dataclass(frozen=True)
@@ -271,6 +280,7 @@ class RiskResult:
 #   this table's copies, and the pr-merge scripts that apply and enforce the
 #   holds: enable-auto-merge.mjs, superseded.mjs, clear-escalations.mjs,
 #   gate-check.mjs and head-ref-map.mjs.
+# This repository's rows of each class sit in `merge.diff-check.floor-paths`.
 # - `gate`: the rest of the merge gate's own code: the rate guard and the
 #   other pr-merge scripts; the main-run review's scripts, whose verdict
 #   writer sets the counts; every workflow `gated_workflow` names (owner
@@ -280,7 +290,7 @@ class RiskResult:
 #   a job token dying with its job while an App key or PAT outlives the run,
 #   and each whose token has `actions: write`, which dispatches those
 #   credentialed workflows. The generator derives
-#   those rows from the workflow files (`GATE_WORKFLOWS` below), so a
+#   those rows from the workflow files (`GATE_WORKFLOWS` in `floor-paths`), so a
 #   workflow that gains a secret joins the gate. A workflow outside it that
 #   gains a write scope, a privileged trigger or a secret holds by its patch
 #   instead (`_workflow_privilege_gains`, `secret-exposure-review`). And
@@ -288,53 +298,34 @@ class RiskResult:
 #   against: Claude Code settings (hooks, permission allows) and the hook
 #   scripts under `.claude/hooks/`, `.mcp.json`,
 #   `CLAUDE.md`, `AGENTS.md`, `REVIEW.md` and the synced standards. Those
-#   review-surface rows (`_NO_AUTHOR_LIFT`) never take the author lift.
+#   review-surface rows (`_NO_AUTHOR_LIFT`, and a `floor-paths` row with
+#   `author-lift: false`) never take the author lift.
 # - `enforcement`: the rest of the modules the floored scripts import and
 #   the Python that decides the holds (test_merge_holds_sync.py derives both
 #   closures and requires them here), and the scripts that act on a
 #   pr-unblock stop's route (report-escalation.sh, adjudicate-feedback.mjs,
 #   publish-feedback.mjs, apply-patch.mjs) with every module they import and
 #   the routing table they read, so a held reason cannot be dropped unreviewed.
-# A `trust` or `gate` path holds for a person (HIGH_FLOOR). An `enforcement`
+# A `trust` or `gate` path holds for a person (`Floor.high`). An `enforcement`
 # path holds until the security lane's review binds to the head with no
-# open finding (REVIEW_FLOOR, `review-path:`), so no person is needed. So
+# open finding (`Floor.review`, `review-path:`), so no person is needed. So
 # does a `gate` path on a trusted person's own pull request that only their
-# own commits touched, on a head pr-verify passed (AUTHOR_REVIEW_FLOOR,
+# own commits touched, on a head pr-verify passed (`Floor.author_review`,
 # `RiskInput.author_reviewed`); a lanes App pull request's never does, nor
 # does a `trust` path: agents commit as the trusted owner, so what scopes a
 # lane token, and what could widen the lift or drop a floor row for the next
 # pull request, always waits for a person.
-# The one table: scripts/sync-hold-floor.py writes it into merge-holds.mjs
-# HOLD_PATH_CLASSES, the review callers' hold-paths and ci-status's
-# hold_patterns, and test_merge_holds_sync.py runs its --check.
+# Only the paths every consumer shares sit here. scripts/sync-hold-floor.py
+# joins this table to the repository's `floor-paths` rows, writes the result
+# into merge-holds.mjs HOLD_PATH_CLASSES, the review callers' hold-paths and
+# ci-status's hold_patterns, and test_merge_holds_sync.py runs its --check.
 FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
-    (".github/actions/check-trusted-trigger/**", "trust"),
     ("**/CODEOWNERS", "trust"),
+    # The pipeline config every consumer's merge gate reads
+    # (`babysit_merge_policy.CONFIG_PATH`), so the row that holds it never sits
+    # inside it.
+    ("docs/conventions/pr-pipeline.yaml", "trust"),
     ("**/.gitmodules", "trust"),
-    (".github/actions/resolve-config/**", "trust"),
-    (".github/actions/check-kill-switch/**", "trust"),
-    (".github/actions/request-lane-token/**", "trust"),
-    (".github/actions/log-api-budget/rate-guard.mjs", "gate"),
-    (".github/actions/log-api-budget/rate-limits.json", "gate"),
-    (".github/scripts/pr-merge/merge-holds.mjs", "trust"),
-    (".github/scripts/pr-merge/enable-auto-merge.mjs", "trust"),
-    (".github/scripts/pr-merge/superseded.mjs", "trust"),
-    (".github/scripts/pr-merge/clear-escalations.mjs", "trust"),
-    (".github/scripts/pr-merge/carry-run-cache.mjs", "gate"),
-    (".github/scripts/pr-merge/gate-check.mjs", "trust"),
-    (".github/scripts/pr-merge/head-ref-map.mjs", "trust"),
-    (".github/scripts/pr-merge/lane-records.mjs", "gate"),
-    (".github/scripts/pr-merge/last-report.mjs", "gate"),
-    (".github/scripts/pr-merge/rate-stop.bash", "gate"),
-    (".github/scripts/pr-merge/refire-refused.mjs", "gate"),
-    (".github/scripts/pr-merge/rotation.mjs", "gate"),
-    (".github/scripts/pr-merge/sweep-summary.mjs", "gate"),
-    (".github/scripts/pr-merge/who.mjs", "gate"),
-    (".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"),
-    (".github/scripts/pr-merge/verify-answers.mjs", "gate"),
-    (".github/scripts/pr-merge/listing-carry.mjs", "gate"),
-    (".github/actions/report-check-run/posting-run.mjs", "gate"),
-    ("scripts/sync-hold-floor.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py", "trust"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_check_inputs.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_checks.py", "enforcement"),
@@ -353,86 +344,13 @@ FLOOR_CLASSES: tuple[tuple[str, str], ...] = (
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_util.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "enforcement"),
     ("plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py", "enforcement"),
-    ("docs/conventions/pr-pipeline.yaml", "trust"),
-    (".github/scripts/pr-unblock/address-feedback.mjs", "enforcement"),
-    (".github/scripts/pr-unblock/escalation-routes.mjs", "enforcement"),
-    (".github/scripts/pr-unblock/escalation-routes.json", "enforcement"),
-    (".github/scripts/pr-unblock/gate-source.mjs", "enforcement"),
-    (".github/scripts/pr-unblock/thread-scope.mjs", "enforcement"),
-    (".github/scripts/pr-unblock/retry-fetch.mjs", "enforcement"),
-    (".github/scripts/work-resolve-issue/report-outcome.mjs", "enforcement"),
-    (".github/scripts/work-resolve-issue/limits.mjs", "enforcement"),
-    (".github/scripts/work-resolve-issue/retry-fetch.mjs", "enforcement"),
-    (".github/scripts/pr-unblock/report-escalation.sh", "enforcement"),
-    (".github/scripts/pr-unblock/adjudicate-feedback.mjs", "enforcement"),
-    (".github/scripts/pr-unblock/publish-feedback.mjs", "enforcement"),
-    (".github/scripts/pr-unblock/request-budget.mjs", "enforcement"),
-    # adjudicate-feedback.mjs reads the linked issues' spec text through
-    # resolve-pr.mjs, and a quote from it settles a question.
-    (".github/scripts/pr-verify/resolve-pr.mjs", "enforcement"),
-    (".github/scripts/pr-verify/write-verdict.mjs", "enforcement"),
-    (".github/scripts/intake-triage/admit.mjs", "enforcement"),
-    (".github/actions/select-trusted-text/select-trusted-text.mjs", "enforcement"),
-    ("lib/publish-gate.mjs", "enforcement"),
-    (".github/recurring-schedule.json", "enforcement"),
-    ("plugins/work-items/scripts/charge-words.json", "enforcement"),
-    (".github/scripts/pr-unblock/dependency-classify.mjs", "enforcement"),
-    (".github/scripts/apply-patch/apply-patch.mjs", "enforcement"),
-    (".github/scripts/apply-patch/predicates.mjs", "enforcement"),
-    (".github/scripts/apply-patch/protected-paths.mjs", "enforcement"),
-    (".github/scripts/apply-patch/retry-fetch.mjs", "enforcement"),
-    (".github/scripts/pr-unblock/fix-ci-context.mjs", "enforcement"),
-    (".github/scripts/pr-unblock/feedback-dispatch.mjs", "enforcement"),
-    (".github/scripts/pr-unblock/verify-notes.mjs", "enforcement"),
-    (".github/scripts/pr-unblock/limit-stop.mjs", "enforcement"),
-    (".github/scripts/pr-unblock/dispatch-record.mjs", "enforcement"),
-    (".github/scripts/pr-unblock/verify-cap.mjs", "enforcement"),
-    (".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs", "enforcement"),
-    (".github/scripts/work-resolve-issue/stop-routes.json", "enforcement"),
-    (".github/scripts/work-resolve-issue/stop-routes.mjs", "enforcement"),
-    (".github/scripts/lib/stop-reason.mjs", "enforcement"),
-    (".github/scripts/lib/done-evidence.mjs", "trust"),
-    (".github/scripts/pr-review-main/**", "gate"),
-    # Agent settings and instruction files, whatever their name or depth:
-    # settings, hooks and the scripts settings registers, skills, agents,
-    # commands, rules, output styles and memory (owner decision Q11: agent
-    # settings and instruction files stay gated).
     ("**/.claude/**", "gate"),
     ("**/.claude-lane/**", "gate"),
-    # The security review applies both as its criteria.
-    ("docs/conventions/instruction-exception-register/**", "gate"),
-    ("docs/conventions/untrusted-content/**", "gate"),
     ("**/.mcp.json", "gate"),
     ("**/CLAUDE.md", "gate"),
     ("**/CLAUDE.local.md", "gate"),
     ("**/AGENTS.md", "gate"),
     ("REVIEW.md", "gate"),
-    ("docs/standards/**", "gate"),
-    # BEGIN hold-floor GATE_WORKFLOWS: generated by scripts/sync-hold-floor.py
-    (".github/workflows/dependabot-fragments.yml", "gate"),
-    (".github/workflows/eval-browser-dispatch.yml", "gate"),
-    (".github/workflows/intake-reenter.yml", "gate"),
-    (".github/workflows/intake-triage.yml", "gate"),
-    (".github/workflows/maintenance-audit-lane-runs.yml", "gate"),
-    (".github/workflows/maintenance-reconcile-lost-runs.yml", "gate"),
-    (".github/workflows/post-merge-demotion-alert.yml", "gate"),
-    (".github/workflows/post-merge-test-mutation.yml", "gate"),
-    (".github/workflows/pr-feedback-dispatch.yml", "gate"),
-    (".github/workflows/pr-merge.yml", "gate"),
-    (".github/workflows/pr-refine.yml", "gate"),
-    (".github/workflows/pr-require-checks.yml", "gate"),
-    (".github/workflows/pr-review-hosted.yml", "gate"),
-    (".github/workflows/pr-review-main.yml", "gate"),
-    (".github/workflows/pr-review-security-hosted.yml", "gate"),
-    (".github/workflows/pr-run-activity-read.yml", "gate"),
-    (".github/workflows/pr-run-activity-write.yml", "gate"),
-    (".github/workflows/pr-unblock-dispatch.yml", "gate"),
-    (".github/workflows/pr-unblock.yml", "gate"),
-    (".github/workflows/pr-verify.yml", "gate"),
-    (".github/workflows/release-publish-plugins.yml", "gate"),
-    (".github/workflows/work-resolve-issue.yml", "gate"),
-    (".github/workflows/work-unblock.yml", "gate"),
-    # END hold-floor GATE_WORKFLOWS
 )  # fmt: skip
 PERSON_CLASSES = frozenset({"trust", "gate"})
 
@@ -485,37 +403,103 @@ def gated_workflow(stem: str, text: str) -> bool:
     )
 
 
-HIGH_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c in PERSON_CLASSES)
-REVIEW_FLOOR: tuple[str, ...] = tuple(g for g, c in FLOOR_CLASSES if c == "enforcement")
 AUTHOR_REVIEW_CLASSES = frozenset({"gate"})
+FLOOR_ROW_CLASSES = frozenset({"trust", "gate", "enforcement"})
 # The review's own surface, which owner decision Q11 (A) keeps with a person:
 # a review cannot judge the workflows holding its or other credentials, the
 # scripts that set its counts, or the files that set what agents may do and
 # what reviews judge against, so these `gate` rows never take the author lift.
+# A repository's own such rows carry `author-lift: false` in `floor-paths`.
 _NO_AUTHOR_LIFT = frozenset(
     {
-        ".github/scripts/pr-review-main/**",
         "**/.claude/**",
         "**/.claude-lane/**",
-        "docs/conventions/instruction-exception-register/**",
-        "docs/conventions/untrusted-content/**",
         "**/.mcp.json",
         "**/CLAUDE.md",
         "**/CLAUDE.local.md",
         "**/AGENTS.md",
         "REVIEW.md",
-        "docs/standards/**",
     }
 )
-AUTHOR_REVIEW_FLOOR: tuple[str, ...] = tuple(
-    g
-    for g, c in FLOOR_CLASSES
-    if c in AUTHOR_REVIEW_CLASSES
-    and g not in _NO_AUTHOR_LIFT
-    and not g.startswith(".github/workflows/")
-)
-# Every floor glob, whichever clears it.
-FLOOR: tuple[str, ...] = tuple(g for g, _ in FLOOR_CLASSES)
+
+
+class FloorRowError(ValueError):
+    """A `merge.diff-check.floor-paths` entry the floor cannot use."""
+
+
+def floor_rows(records: Mapping[str, str]) -> FloorRows:
+    """The rows in the flattened `floor-paths` records, keyed `<index>.<field>`.
+    Each row is a mapping of `glob`, `class` and, on a `gate` row, `author-lift`.
+    Raises `FloorRowError` on anything else, the plain-string form the key once
+    took included: `author-lift` defaults to true, so a misspelled field read
+    as absent would grant the lift."""
+    rows: dict[int, dict[str, str]] = {}
+    for key, value in records.items():
+        index, dot, field = key.partition(".")
+        if not dot or not index.isdecimal():
+            raise FloorRowError(f"floor-paths entry {key!r} is not a mapping row")
+        rows.setdefault(int(index), {})[field] = value
+    if sorted(rows) != list(range(len(rows))):
+        raise FloorRowError("floor-paths has an empty row")
+    parsed = []
+    for index in range(len(rows)):
+        row = rows[index]
+        unknown = set(row) - {"glob", "class", "author-lift"}
+        if unknown:
+            raise FloorRowError(f"floor-paths row {index}: unknown {sorted(unknown)}")
+        glob, kind = row.get("glob"), row.get("class")
+        if not glob:
+            raise FloorRowError(f"floor-paths row {index}: no glob")
+        if kind not in FLOOR_ROW_CLASSES:
+            raise FloorRowError(f"floor-paths row {index}: class {kind!r}")
+        lift = row.get("author-lift")
+        if lift is not None and kind not in AUTHOR_REVIEW_CLASSES:
+            raise FloorRowError(f"floor-paths row {index}: author-lift on a {kind} row")
+        if lift not in (None, "true", "false"):
+            raise FloorRowError(f"floor-paths row {index}: author-lift {lift!r}")
+        parsed.append((glob, kind, lift != "false"))
+    return tuple(parsed)
+
+
+@dataclass(frozen=True)
+class Floor:
+    """The effective floor: each glob with its class, and who clears what."""
+
+    classes: tuple[tuple[str, str], ...]
+    high: tuple[str, ...]
+    review: tuple[str, ...]
+    author_review: tuple[str, ...]
+    all: tuple[str, ...]
+
+
+@lru_cache(maxsize=32)
+def floor_for(rows: FloorRows = ()) -> Floor:
+    """`FLOOR_CLASSES` joined to the repository's rows. The strictest row of a
+    glob wins, so a row can add to the floor and never loosen it: a glob any
+    row calls `trust` or refuses the lift never takes it."""
+    joined = (*((g, c, True) for g, c in FLOOR_CLASSES), *rows)
+    classes = tuple(dict.fromkeys((g, c) for g, c, _ in joined))
+    no_lift = {
+        *_NO_AUTHOR_LIFT,
+        *(g for g, c, lift in joined if c == "trust" or not lift),
+    }
+    return Floor(
+        classes=classes,
+        high=tuple(dict.fromkeys(g for g, c in classes if c in PERSON_CLASSES)),
+        review=tuple(dict.fromkeys(g for g, c in classes if c == "enforcement")),
+        author_review=tuple(
+            dict.fromkeys(
+                g
+                for g, c in classes
+                if c in AUTHOR_REVIEW_CLASSES
+                and g not in no_lift
+                and not g.startswith(".github/workflows/")
+            )
+        ),
+        all=tuple(dict.fromkeys(g for g, _ in classes)),
+    )
+
+
 REVIEW_PATH_PREFIX = "review-path:"
 
 # plugin.json keys whose values Claude Code runs or reads as run config.
@@ -866,13 +850,14 @@ def _high_path_reasons(
     paths = [
         path for f in files for path in f.paths if path and path not in inp.floor_exempt
     ]
-    reviewed = _author_reviewed(inp.author_reviewed, paths, configured)
-    for pattern in dict.fromkeys((*HIGH_FLOOR, *configured)):
+    floor = floor_for(inp.floor_rows)
+    reviewed = _author_reviewed(inp.author_reviewed, paths, configured, floor)
+    for pattern in dict.fromkeys((*floor.high, *configured)):
         hits = [
             path
             for path in paths
             if glob_match(pattern, path)
-            and not (path in reviewed and pattern in AUTHOR_REVIEW_FLOOR)
+            and not (path in reviewed and pattern in floor.author_review)
         ]
         if hits:
             reasons.append(Reason(f"high-path:{pattern}", Risk.HIGH, ", ".join(hits)))
@@ -880,8 +865,8 @@ def _high_path_reasons(
         # A pull request that also changes a lane source binds the security
         # review only from main (babysit_review_evidence `_main_bound`), so
         # a clean main-run review clears these too.
-        for pattern in (*REVIEW_FLOOR, *AUTHOR_REVIEW_FLOOR):
-            candidates = paths if pattern in REVIEW_FLOOR else reviewed
+        for pattern in (*floor.review, *floor.author_review):
+            candidates = paths if pattern in floor.review else reviewed
             hits = [path for path in candidates if glob_match(pattern, path)]
             if hits:
                 detail = f"{', '.join(hits)}; a clean claude-security-review bound to this head clears it"
@@ -902,7 +887,7 @@ def _high_path_reasons(
 
 
 def _author_reviewed(
-    raw: Any, paths: list[str], configured: Iterable[str]
+    raw: Any, paths: list[str], configured: Iterable[str], floor: Floor
 ) -> list[str]:
     """The changed `paths` in `raw` (`RiskInput.author_reviewed`) that a
     `gate` glob matches and no other floor or configured glob does: only
@@ -910,12 +895,12 @@ def _author_reviewed(
     strings names none."""
     if not (isinstance(raw, frozenset) and all(isinstance(p, str) for p in raw)):
         return []
-    held = [*(g for g in HIGH_FLOOR if g not in AUTHOR_REVIEW_FLOOR), *configured]
+    held = [*(g for g in floor.high if g not in floor.author_review), *configured]
     return [
         path
         for path in dict.fromkeys(paths)
         if path in raw
-        and any(glob_match(g, path) for g in AUTHOR_REVIEW_FLOOR)
+        and any(glob_match(g, path) for g in floor.author_review)
         and not any(glob_match(g, path) for g in held)
     ]
 
@@ -2137,7 +2122,7 @@ def _long_line_reasons(
         return None
 
     paths = [p for f in files for p in f.paths] if inp.files_complete is True else None
-    if not needs_main_review(paths, head_file, inp.base_sha):
+    if not needs_main_review(paths, head_file, inp.base_sha, floor_for(inp.floor_rows)):
         return []
     reasons = []
     for f, raw in zip(files, raw_files):
@@ -2251,7 +2236,7 @@ def blocking(lane: Any) -> Any:
 
 
 def security_review_clean(raw_lanes: Any) -> bool:
-    """Whether the security lane's review clears a `REVIEW_FLOOR` path: its
+    """Whether the security lane's review clears a `Floor.review` path: its
     one evidence entry is bound to the head, with no unbound reason, and
     counts no open finding at all, CRITICAL or below (the evidence does not
     tell IMPORTANT from SUGGESTION, so any open finding holds). Anything

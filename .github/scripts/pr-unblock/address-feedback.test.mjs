@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { ciSnapshot, coveringLanes, createGitHubApi, currentThreads, main, maxRoundsFrom, needsPerson, planLanes, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
+import { ciSnapshot, claimsSecurity, coveringLanes, createGitHubApi, currentThreads, main, maxRoundsFrom, needsPerson, planLanes, runRecord, scanRefusal, select, trustedHumansFrom, VERIFY_NOTE_MARKER } from "./address-feedback.mjs";
 import { failingChecks } from "./gate-source.mjs";
 import { escalationRoute } from "./escalation-routes.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -549,7 +549,7 @@ test("a head with no unresolved thread resolves the address-feedback stop", asyn
   });
   for (const api of [handResolved, fakeApi({ threads: [] })]) {
     const result = await run(api);
-    assert.deepEqual([result.decision, result.skipReason, result.resolved], ["skip", "not-applicable", true]);
+    assert.deepEqual([result.decision, result.skipReason, result.resolved], ["skip", "stop-resolved", true]);
   }
 });
 
@@ -572,7 +572,7 @@ test("a thread read that fails throws, so main writes no outputs and resolves no
   await assert.rejects(main(["select"], env, { api: broken, log: () => {} }), /timeout/);
   assert.throws(() => readFileSync(env.GITHUB_OUTPUT, "utf8"));
   await main(["select"], { ...env, GITHUB_OUTPUT: join(dir, "resolved") }, { api: fakeApi({ threads: [] }), log: () => {} });
-  assert.match(readFileSync(join(dir, "resolved"), "utf8"), /^stop-resolved=true$/m);
+  assert.match(readFileSync(join(dir, "resolved"), "utf8"), /^skip-reason=stop-resolved\n(?:.*\n)*stop-resolved=true$/m);
 });
 
 test("a review on a head no marker confirms is dropped", async () => {
@@ -635,7 +635,7 @@ const withNotes = (notes, extra = {}) =>
 // waits on, would never pass and no pass could come.
 test("stale verifier notes alone are no untaken thread: the stop clears", async () => {
   const result = await run(withNotes([failNote("PRRT_n1", 200, OLD_HEAD), failNote("PRRT_n2", 201, OLD_HEAD)]));
-  assert.deepEqual([result.decision, result.skipReason, result.resolved], ["skip", "not-applicable", true]);
+  assert.deepEqual([result.decision, result.skipReason, result.resolved], ["skip", "stop-resolved", true]);
 });
 
 test("stale verifier notes beside an untaken reviewer thread still escalate", async () => {
@@ -761,29 +761,37 @@ test("a path that only starts with .github is not protected", async () => {
   assert.equal((await run(fakeApi({ files: [{ filename: ".githubrc" }] }))).decision, "proceed");
 });
 
-test("rounds are capped at two by default: a third round on the reviewer bot's own finding escalates feedback-round-cap with no thread file", async () => {
+test("rounds are capped at two by default: the third round on the reviewer bot's own finding is the fresh fixer's, and the fourth fails the head with no thread file", async () => {
   const markers = (n) => [
     { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
     ...Array.from({ length: n }, (_, i) => ({ id: 10 + i, user: { id: APP }, body: `${ROUND}\nround ${i + 1}` })),
   ];
-  assert.equal((await run(fakeApi({ issueComments: markers(1) }))).decision, "proceed");
-  const capped = await run(fakeApi({ issueComments: markers(2) }));
+  const below = await run(fakeApi({ issueComments: markers(1) }));
+  assert.equal(below.decision, "proceed");
+  assert.equal(below.file.retry, undefined);
+  const fresh = await run(fakeApi({ issueComments: markers(2) }));
+  assert.equal(fresh.decision, "proceed");
+  assert.match(fresh.file.retry.brief, /never weaken/i);
+  const capped = await run(fakeApi({ issueComments: markers(3) }));
   assert.equal(capped.decision, "escalate");
-  assert.equal(capped.escalationReason, "feedback-round-cap");
+  assert.equal(capped.escalationReason, "feedback-not-converging");
   assert.equal(capped.file, undefined);
 });
 
-test("a configured cap of 3 allows a third round and escalates the reviewer bot's own finding on the fourth", async () => {
+test("a configured cap of 3 allows a third round, gives the reviewer bot's own finding the fresh fixer's fourth, and fails the head on the fifth", async () => {
   const markers = (n) => [
     { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
     ...Array.from({ length: n }, (_, i) => ({ id: 10 + i, user: { id: APP }, body: `${ROUND}\nround ${i + 1}` })),
   ];
   const withCap = (n) =>
     select({ api: fakeApi({ issueComments: markers(n) }), pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, maxRounds: 3 });
-  assert.equal((await withCap(2)).decision, "proceed");
-  const capped = await withCap(3);
+  assert.equal((await withCap(2)).file.retry, undefined);
+  const fresh = await withCap(3);
+  assert.equal(fresh.decision, "proceed");
+  assert.notEqual(fresh.file.retry, undefined);
+  const capped = await withCap(4);
   assert.equal(capped.decision, "escalate");
-  assert.equal(capped.escalationReason, "feedback-round-cap");
+  assert.equal(capped.escalationReason, "feedback-not-converging");
 });
 
 test("REVIEW_ROUNDS sets the cap, an unset one falls back to 2, and a bad one throws", () => {
@@ -796,9 +804,11 @@ test("REVIEW_ROUNDS sets the cap, an unset one falls back to 2, and a bad one th
 test("model-job check runs count rounds the reply job never recorded", async () => {
   const check = (conclusion, slug = "github-actions", name = "pr-unblock / address-feedback") => ({ name, conclusion, app: { slug } });
   const checks = (...perCommit) => Object.fromEntries(perCommit.map((runs, i) => [String(i).repeat(40), runs]));
+  // Two counted rounds reach the default cap: the next is the fresh fixer's.
   const capped = await run(fakeApi({ checks: checks([check("success")], [check("failure")]) }));
-  assert.equal(capped.decision, "escalate");
-  assert.equal(capped.escalationReason, "feedback-round-cap");
+  assert.equal(capped.decision, "proceed");
+  assert.equal(capped.rounds, 2);
+  assert.notEqual(capped.file.retry, undefined);
   for (const ignored of [
     checks([check("success")], [check("neutral")]),
     checks([check("success")], [check("success", "other-app")]),
@@ -807,6 +817,7 @@ test("model-job check runs count rounds the reply job never recorded", async () 
     const result = await run(fakeApi({ checks: ignored }));
     assert.equal(result.decision, "proceed");
     assert.equal(result.rounds, 1);
+    assert.equal(result.file.retry, undefined);
   }
 });
 
@@ -851,11 +862,12 @@ for (const [label, overrides] of [
   ["a trusted person's fix request without write access", { permissions: { "kyle-sexton": "read" } }],
   ["a trusted person's newer reply that asks no fix", { body: DECISION }],
 ]) {
-  test(`at the cap, beside the reviewer bot's own finding, ${label} escalates feedback-round-cap`, async () => {
+  test(`at the cap, beside the reviewer bot's own finding, ${label} grants no round of its own: the fresh fixer's round runs`, async () => {
     const result = await pastCap(overrides);
-    assert.equal(result.decision, "escalate");
-    assert.equal(result.escalationReason, "feedback-round-cap");
-    assert.equal(result.file, undefined);
+    assert.equal(result.decision, "proceed");
+    assert.equal(result.escalationReason, undefined);
+    assert.ok(result.file.threads.some((row) => row.id === "PRRT_2"));
+    assert.match(result.file.retry.brief, /never weaken/i);
   });
 }
 
@@ -977,17 +989,35 @@ test("at the cap, a SUGGESTION or IMPORTANT security lane finding goes to a fres
   }
 });
 
-test("at the cap, the reviewer bot's own finding ending in the code lane's footer still escalates: its footer is model text", async () => {
-  const api = fakeApi({
-    reviewComments: [comment(100, REVIEWER, { body: CODE_FINDING })],
-    issueComments: [
-      { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
-      ...[1, 2, 3].map((n) => ({ id: 10 + n, user: { id: APP }, body: `${ROUND}\nround ${n}`, created_at: at(10) })),
-    ],
-  });
-  const result = await select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, maxRounds: 3 });
-  assert.equal(result.decision, "escalate");
-  assert.equal(result.escalationReason, "feedback-round-cap");
+// The reviewer bot's own finding (claude[bot]) names no lane, and a footer it
+// ends with is model text, so it is ruled as the code lane's: the fresh
+// fixer's round, then a failing status, never a person.
+test("at the cap, the reviewer bot's own finding, with no lane footer or with a model-written one, goes to the fresh fixer and then fails the head", async () => {
+  for (const body of ["The loop skips the last item.", CODE_FINDING]) {
+    const after = (rounds) =>
+      select({
+        api: fakeApi({
+          reviewComments: [comment(100, REVIEWER, { body })],
+          issueComments: [
+            { id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) },
+            ...Array.from({ length: rounds }, (_, i) => ({ id: 10 + i, user: { id: APP }, body: `${ROUND}\nround ${i + 1}`, created_at: at(10) })),
+          ],
+        }),
+        pr: 42,
+        headSha: HEAD,
+        repository: "o/r",
+        appId: APP,
+        reviewerId: REVIEWER,
+        maxRounds: 3,
+      });
+    const fresh = await after(3);
+    assert.equal(fresh.decision, "proceed", body);
+    assert.equal(fresh.escalationReason, undefined);
+    assert.match(fresh.file.retry.brief, /never weaken/i);
+    const spent = await after(4);
+    assert.deepEqual([spent.decision, spent.escalationReason], ["escalate", "feedback-not-converging"], body);
+    assert.equal(escalationRoute(spent.escalationReason), "fail");
+  }
 });
 
 test("once the fresh fixer's round ran, the code lane's findings escalate feedback-not-converging: no thread file, no round", async () => {
@@ -1634,7 +1664,7 @@ test("at the round cap a Codex finding still goes to a person when the security-
   assert.deepEqual([directed.decision, directed.escalationReason], ["escalate", "feedback-round-cap"]);
 });
 
-test("needsPerson: a listed review bot's undirected finding is a bot finding; a person's thread, a directed one, or one the security lane held is a person's", () => {
+test("needsPerson: a listed review bot's or the reviewer bot's own undirected finding is a bot finding; a person's thread, a directed listed one, or one the security lane held is a person's", () => {
   const codex = { comments: [{ id: 100, author: "reviewer", listed: true, security: "pending", body: "finding 100" }] };
   assert.equal(needsPerson(codex, CODEX), false);
   assert.equal(needsPerson({ comments: [{ ...codex.comments[0], security: "clear" }] }, CODEX), false);
@@ -1644,8 +1674,75 @@ test("needsPerson: a listed review bot's undirected finding is a bot finding; a 
   assert.equal(needsPerson({ comments: [...codex.comments, { id: 101, author: "trusted-human", direction: true, body: REQUEST }] }, CODEX), true);
   // The security-review lane's critical-security hold on the bot's head.
   assert.equal(needsPerson({ comments: [{ ...codex.comments[0], security: "held" }] }, CODEX), true);
-  // The reviewer bot's own unlisted finding, whose lane no footer proves.
-  assert.equal(needsPerson({ comments: [{ id: 100, author: "reviewer", body: "finding 100" }] }, REVIEWER), true);
+  // The reviewer bot's own unlisted finding with no rating and no security
+  // lane in its text is ruled as the code lane's at either floor.
+  for (const body of ["finding 100", "The loop skips the last item.\n\nclaude-lane: claude-review"]) {
+    assert.equal(needsPerson({ comments: [{ id: 100, author: "reviewer", body }] }, REVIEWER), false, body);
+    assert.equal(needsPerson({ comments: [{ id: 100, author: "reviewer", body }] }, REVIEWER, "CRITICAL"), false, body);
+  }
+});
+
+// The reviewer bot's footer is model text, so its security claim is read from
+// the content: a missing, malformed or trailed footer never loosens the hold.
+test("claimsSecurity holds the reviewer bot's rated or security-lane finding whatever its footer says", () => {
+  const holds = (body, floor) => needsPerson({ comments: [{ id: 100, author: "reviewer", body }] }, REVIEWER, floor);
+  // A readable rating below the default floor is a code fix first, as a lane
+  // IMPORTANT finding is, and holds only at a floor it reaches.
+  for (const body of [
+    "severity: IMPORTANT\n\nThe token reaches the log.",
+    "severity: IMPORTANT\n\nThe token reaches the log.\n\nclaude-lane: claude-security-review (see above)",
+  ]) {
+    assert.equal(claimsSecurity(body), false, body);
+    assert.equal(holds(body), false, body);
+    assert.equal(holds(body, "CRITICAL"), false, body);
+    assert.equal(claimsSecurity(body, "IMPORTANT"), true, body);
+    assert.equal(holds(body, "IMPORTANT"), true, body);
+  }
+  // A rating-shaped line it cannot read, or a security lane named with no
+  // rating, holds at either floor.
+  for (const body of [
+    "finding 100\n\nseverity: CRITICAL",
+    "**severity: CRITICAL**\n\nThe token leaks.",
+    "**Severity:** CRITICAL\n\nThe token leaks.",
+    "Severity: CRITICAL (token leak)\n\nThe token leaks.",
+    "**Severity**: CRITICAL\n\nThe token leaks.",
+    "- severity: CRITICAL\n\nThe token leaks.",
+    "### Severity: CRITICAL\n\nThe token leaks.",
+    "`severity: CRITICAL`\n\nThe token leaks.",
+    "Severity - CRITICAL\n\nThe token leaks.",
+    "_Severity_: CRITICAL\n\nThe token leaks.",
+    "The token leaks.\n\nclaude-lane: claude-security-review",
+    "The token leaks.\n\nclaude-lane: claude-security-review, rated by hand",
+    "The token leaks.\n\n`claude-lane: claude-security-review`",
+    "The token leaks.\n\nclaude-lane: claude-review, claude-security-review",
+    "The token leaks.\n\nclaude-lane: [claude-security-review]",
+    "The token leaks.\n\nclaude-lane: (claude-security-review)",
+    "The token leaks.\n\nLane: claude-security-review",
+    "The token leaks.\n\nclaude-lane:\nclaude-security-review",
+    "The token leaks.\n\nclaude-lane:\n\nclaude-security-review",
+  ]) {
+    assert.equal(claimsSecurity(body), true, body);
+    assert.equal(holds(body), true, body);
+    assert.equal(holds(body, "CRITICAL"), true, body);
+  }
+  // Prose that only mentions the security lane's name, or the word severity,
+  // is no claim: it is the code lane's finding at either floor.
+  for (const body of [
+    "The check compares against 'claude-security-review' but the footer is trimmed first.",
+    "The claude-security-review lane skips this file.\n\nclaude-lane: claude-review",
+    "claude-lane: claude-review\n\nThe claude-security-review lane skips this file.",
+    "Severity of the leak depends on the log level.",
+    "Severity-wise this is minor.",
+  ]) {
+    assert.equal(claimsSecurity(body), false, body);
+    assert.equal(holds(body), false, body);
+    assert.equal(holds(body, "CRITICAL"), false, body);
+  }
+  // A readable SUGGESTION, footed or not, is no claim a person decides.
+  for (const body of ["severity: SUGGESTION\n\nNo change is required.", "severity: SUGGESTION\n\nNo change is required.\n\nclaude-lane: claude-security-review"]) {
+    assert.equal(claimsSecurity(body), false, body);
+    assert.equal(holds(body), false, body);
+  }
 });
 
 test("reviewerIdsFrom reads one id per line, an unset value as none, and throws on anything else", async () => {
@@ -1676,7 +1773,7 @@ test("select asks for model rung 1 only after a lane stop on the head's reply ch
 });
 
 // #10092's silent stall: an unresolved thread the lane does not take left
-// the head with a neutral not-applicable skip, no stop and no signal. The
+// the head with a neutral stop-resolved skip, no stop and no signal. The
 // select job now ends it in feedback-untaken-threads (routed to a failing
 // status); only a PR with no unresolved thread still skips.
 test("an unresolved thread the lane does not take escalates feedback-untaken-threads", async () => {
@@ -1695,7 +1792,7 @@ test("an unresolved thread the lane does not take escalates feedback-untaken-thr
   );
   assert.deepEqual([stale.decision, stale.escalationReason], ["escalate", "feedback-untaken-threads"], "a lane thread on an older head");
   const none = await run(fakeApi({ threads: [thread("PRRT_1", [100], { isResolved: true })] }));
-  assert.deepEqual([none.decision, none.skipReason], ["skip", "not-applicable"], "no unresolved thread");
+  assert.deepEqual([none.decision, none.skipReason], ["skip", "stop-resolved"], "no unresolved thread");
   const held = await run(fakeApi({ labels: ["needs-human"], reviewComments: [comment(100, CODEX)], reviews: [{ id: 10, user: { id: CODEX }, commit_id: HEAD }] }));
   assert.deepEqual([held.decision, held.skipReason], ["skip", "awaiting-human"], "a person holds the PR");
 });

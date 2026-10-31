@@ -368,7 +368,12 @@ threat model: throughput phase"):
 > Phase: maximum throughput until open issues and open PRs both reach 0. Hardening (re-adding holds, pins, reviews) is deferred to after that, as configuration edits.
 <!-- spellchecker:on -->
 
-Trust holds (untrusted provenance, an untrusted spec) are security controls the owner keeps.
+Trust holds (untrusted provenance, an untrusted spec) are security controls the owner keeps, and so
+is the issue lane's hold on a patch carrying a credential shape or not proven clear of one
+(`patch-credential` and `scan-refused-output` in
+[`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json)), a token-leak
+path under section 10. A patch proven clear, or a fault that says nothing about credentials,
+retries.
 
 The pr-merge gate keeps two more holds for the owner, each a reason
 [`babysit_risk.person_reasons`](../../../plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py)
@@ -398,7 +403,8 @@ Three labels take work off the unattended path, and each means one thing (owner 
 `needs-session` is the session-builder queue, not an owner stop: a pr-unblock stop on a change the
 lane cannot make (a protected path, a weakened required check, a check the `fix-ci` rung-up could
 not fix, an unfinished dependency review)
-goes to an agent session, which removes the label once it has made the change
+goes to an agent session, which removes the label once it has made the change; pr-merge's
+`clear-escalations` sweep removes it when a same-head retry cleared the stop
 ([routing table](../../conventions/pr-pipeline/README.md#activities)).
 
 Intake admission refuses `attended` and `host-run` alike, parked at `status: confirmed`, and adds
@@ -1429,7 +1435,7 @@ a checklist of its own:
 
 | Rule | Mechanism that meets it |
 |---|---|
-| Bookmark per source | `/harness-ops:morning-brief`'s per-repo bookmark ("What each section reports"); for ai-briefing, the mechanism tracked in #7678; for state a cloud routine keeps between runs, a tracker comment read back on the next run (the §4 "Telemetry comment" carrier) as the interim store, until the probe tracked in #8991 reports |
+| Bookmark per source | `/harness-ops:morning-brief`'s per-repo bookmark ("What each section reports"); for ai-briefing, the mechanism tracked in #7678; for state a cloud routine keeps between runs, a tracker comment read back on the next run (the §4 "Telemetry comment" carrier), confirmed by a live run on Claude Code 2.1.314 (#8991) and rerunnable with `/harness-ops:behavior-probes`'s `cloud-routine/state-read-back-next-run` case. A routine's comments post as the account owner's GitHub login, so the reader finds them by sentinel marker, never by author |
 | Failed read reported as unreadable | `/harness-ops:morning-brief` "Degraded sections"; for ai-briefing and a headless lane's MCP load check, the mechanism tracked in #7678 |
 | Live re-check before posting | [`pr-run-activity.md`](../../conventions/pr-pipeline/pr-run-activity.md) "prepare: review-threads" |
 | Post confirmed before it is recorded | §2 "Escalation record write" (record first, marker second); §4 "Telemetry comment" (post-write read-back); for overlapping runs, [`posting-lanes.md`](posting-lanes.md) |

@@ -115,7 +115,7 @@ Per bucket, in this order:
 3. when you would skip it, stated as fact.
 
 Annotations ride in tier 1: `(ran this session)`, `(heuristic bucket, no stage metadata)`,
-`(disabled via skillOverrides)`, `(nameable, not invocable: built-in)`.
+`(disabled)`, `(not installed)`, `(nameable, not invocable: built-in)`.
 
 **Tier 2: the entire remainder of that bucket**, as bare invocation names with an explicit count:
 

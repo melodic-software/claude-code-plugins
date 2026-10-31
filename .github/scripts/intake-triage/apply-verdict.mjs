@@ -450,9 +450,12 @@ async function labelSetters(github, base, labels, since) {
 // {fieldId: {option, setter}} from the REST values and the GraphQL setters.
 async function readFields(github, repository, number, fieldSetters) {
   const rows = await github("GET", `/repos/${repository}/issues/${number}/issue-field-values`, undefined, FIELD_API);
+  if (!Array.isArray(rows)) {
+    throw new Error(`#${number}'s field values answered ${rows === null ? "null" : typeof rows}, not a list`);
+  }
   const setters = await fieldSetters(github, repository, number);
   const fields = {};
-  for (const row of Array.isArray(rows) ? rows : []) {
+  for (const row of rows) {
     if (row?.single_select_option?.id !== undefined) {
       fields[String(row.issue_field_id)] = {
         option: row.single_select_option.id,

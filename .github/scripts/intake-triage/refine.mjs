@@ -840,7 +840,7 @@ export function renderSplit(record) {
     "",
     ...rows,
     "",
-    "<sub>Automated split by the lanes App. Admission waits on this issue while a sub-issue is open; work-unblock closes it as completed once every sub-issue is closed by a merge or a listed human.</sub>",
+    "<sub>Automated split by the lanes App. Admission waits on this issue while a sub-issue is open; work-unblock closes it as completed once every sub-issue is closed as completed by a merge or a listed human and its done-when is covered.</sub>",
   ].join("\n");
 }
 

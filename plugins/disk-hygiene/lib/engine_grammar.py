@@ -40,6 +40,9 @@ that asymmetry explicitly rather than leaving it to a positional restatement:
   must be present. The parser declares each group as a required mutually
   exclusive group; the guard admits the members in the optional tail and
   refuses an invocation carrying none or more than one.
+* ``preview --tier`` and ``preview --path`` travel together. The engine refuses
+  either one alone, or ``--tier`` beside ``--plan``, before it reads the plan:
+  ``requires`` cannot state a pairing with a ``one_of`` member.
 * ``example`` is one literal the flag admits, carried beside the ``pattern``
   that enforces it so an invocation of any subcommand can be built from this
   declaration alone. That is what lets the agreement suite exercise a newly
@@ -93,6 +96,11 @@ RUN_IDLE_TIMEOUT_SECONDS = 3600.0
 # reads and deletes one, so two hooks in one parallel batch cannot interleave
 # a check with another's write. Not ``*.json``, so it is never read as a marker.
 RUN_LOCK_FILENAME = ".lock"
+
+
+def inline_plan_path(snapshot: str, tier: str) -> str:
+    """The fixed plan file an inline ``preview`` writes beside its snapshot."""
+    return os.path.join(os.path.dirname(snapshot), f"plan-{tier}.json")
 
 
 def run_marker_filename(session_id: str) -> str:
@@ -356,9 +364,26 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         "preview",
         (
             _file_flag("--snapshot", required=True),
-            _file_flag("--plan", required=True),
+            _file_flag("--plan", help="tier plan file; the form with candidate prose"),
+            Flag(
+                "--path",
+                repeatable=True,
+                metavar="RELATIVE",
+                example="relative/exact.tmp",
+                help=(
+                    "snapshot-relative path of the tier, inline; repeatable; needs "
+                    "--tier, and the engine writes the tier's plan file itself"
+                ),
+            ),
+            Flag(
+                "--tier",
+                choices=TIERS,
+                example="high",
+                help="the one tier of the inline --path form",
+            ),
             _data_root_flag(),
         ),
+        one_of=(("--plan", "--path"),),
     ),
     Subcommand(
         "handoff-verify",

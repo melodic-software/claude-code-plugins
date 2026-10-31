@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A git repo whose feature branch is one commit ahead of main, an offline forge (fixtures/gh-forge,
-# --no-pr) that takes the push and opens the PR, and one approved PLAN.md in the gitignored memory
+# --no-pr) that holds the head and opens the PR, and one approved PLAN.md in the gitignored memory
 # slice whose Brief lists three acceptance criteria. The branch name does not match the plan's topic
 # slug, and the prompt never mentions the plan.
 set -euo pipefail

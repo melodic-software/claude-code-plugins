@@ -398,6 +398,12 @@ jobs:
           # run that reads no FAIL cap spends none of its calls.
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
+          # The FAIL run records, run heads on main and head refs pr-merge's
+          # last such run kept, fetched with the listing: the reader otherwise
+          # reads them for every FAIL in the repository, and each read shares
+          # what it adds here.
+          BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           # The reader's gh calls, with this job's read scopes.
           GH_TOKEN: ${{ github.token }}
           APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
@@ -488,9 +494,11 @@ jobs:
   # rerun-ci-status-<run id>-<attempt>-<head sha>, naming the attempt the
   # re-run starts; the gate's ci-status-rerun-workflow input accepts that
   # attempt through it (check-trusted-trigger's README). Only a review run at
-  # its first attempt, or re-run by a human on the default branch's
-  # trusted-actors list, is recorded; another re-runner's re-run of ci-status
-  # goes ahead unrecorded, and the gate refuses it.
+  # its first attempt, re-run by a human on the default branch's
+  # trusted-actors list, or re-run by the lost-run reconciler at attempt 2
+  # under a record the gate accepts (reconciler-record.mjs), is recorded;
+  # another re-runner's re-run of ci-status goes ahead unrecorded, and the
+  # gate refuses it.
   # Pinned by scripts/ci-rerun-ci-status.test.sh, which runs the find body.
   rerun-ci-status:
     if: >-
@@ -513,9 +521,9 @@ jobs:
       API_BUDGET_TOKEN: github-token
     steps:
       # The list the record check reads, from the default branch, never the
-      # PR head, and the api-budget library. A failed checkout leaves no list:
-      # ci-status is still re-run, unrecorded unless the review run is a
-      # first attempt, and no reading is logged.
+      # PR head, the reconciler-record check and the api-budget library. A
+      # failed checkout leaves no list: ci-status is still re-run, unrecorded
+      # unless the review run is a first attempt, and no reading is logged.
       - name: Check out the trusted-actors list
         continue-on-error: true
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -526,7 +534,19 @@ jobs:
           sparse-checkout: |
             /.github/standards/trusted-actors/
             /.github/actions/log-api-budget/
+            /.github/actions/check-trusted-trigger/
+            /.github/actions/check-kill-switch/
+            /.github/actions/setup-pinned-node/
+            /.node-version
           sparse-checkout-cone-mode: false
+
+      # Node for the reconciler-record check; a failed setup leaves the
+      # reconciler's review re-runs unrecorded, as before.
+      - name: Set up Node
+        continue-on-error: true
+        uses: ./.base/.github/actions/setup-pinned-node # zizmor: ignore[self-repository]
+        with:
+          node-version-file: .base/.node-version
 
       - name: Find the ci-status to re-run
         id: find
@@ -541,7 +561,11 @@ jobs:
           RECORD_FILE: ${{ runner.temp }}/rerun-ci-status-record.json
           REVIEW_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           REVIEW_RERUNNER_ID: ${{ github.event.workflow_run.triggering_actor.id }}
+          REVIEW_RUN_ID: ${{ github.event.workflow_run.id }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           TRUSTED_ACTORS: .base/.github/standards/trusted-actors/trusted-actors.json
+          RECONCILER_WORKFLOW: .github/workflows/maintenance-reconcile-lost-runs.yml
+          RECONCILER_RECORD: .base/.github/actions/check-trusted-trigger/reconciler-record.mjs
           API_BUDGET_SH: .base/.github/actions/log-api-budget/api-budget.bash
         run: |
           # shellcheck source=/dev/null
@@ -707,16 +731,24 @@ jobs:
           next=$((attempt + 1))
           echo "job-id=$job_id" >>"$GITHUB_OUTPUT"
           echo "Re-running ci-status (job $job_id) of run $id on $HEAD_SHA as attempt $next."
-          # Recorded only for a first review attempt or a listed human's
-          # re-run: anyone with write access can re-run a review run, and the
-          # record vouches for the ci-status attempt that re-run causes. An
-          # unreadable list, attempt or re-runner records nothing, so the
-          # gate refuses that attempt.
+          # Recorded only for a first review attempt, a listed human's re-run,
+          # or the lost-run reconciler's: anyone with write access can re-run
+          # a review run, and the record vouches for the ci-status attempt that
+          # re-run causes. The reconciler re-runs a review run the upstream
+          # gate stopped at attempt 1, as github-actions[bot] (41898282), and
+          # counts only when its record passes pr-verify's own reconciler
+          # check (reconciler-record.mjs). An unreadable list, attempt,
+          # re-runner or record records nothing, so the gate refuses that
+          # attempt.
+          reconciled() {
+            [[ $REVIEW_ATTEMPT == 2 && $REVIEW_RERUNNER_ID == 41898282 && $REVIEW_RUN_ID =~ ^[1-9][0-9]{0,19}$ ]] &&
+              node "$RECONCILER_RECORD"
+          }
           if [[ $REVIEW_ATTEMPT != 1 ]] && ! {
             [[ $REVIEW_ATTEMPT =~ ^[1-9][0-9]{0,4}$ && $REVIEW_RERUNNER_ID =~ ^[1-9][0-9]{0,14}$ ]] &&
               jq -e --argjson id "$REVIEW_RERUNNER_ID" '.actors | any(.id == $id and .kind == "human")' "$TRUSTED_ACTORS" >/dev/null 2>&1
-          }; then
-            echo "::notice::review attempt ${REVIEW_ATTEMPT:-?} was started by ${REVIEW_RERUNNER_ID:-an unnamed actor}, who is not a listed human; the re-run is not recorded, so pr-verify's gate refuses it."
+          } && ! reconciled; then
+            echo "::notice::review attempt ${REVIEW_ATTEMPT:-?} was started by ${REVIEW_RERUNNER_ID:-an unnamed actor}, who is not a listed human, and no reconciler record vouches for it; the re-run is not recorded, so pr-verify's gate refuses it."
             exit 0
           fi
           jq -cn --argjson recorder "$GITHUB_RUN_ID" --argjson run "$id" --argjson attempt "$next" --arg head "$HEAD_SHA" \

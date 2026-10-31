@@ -13,8 +13,11 @@
 #     + --app-slug; Bot report without a slug; a refused slug (exit 3); an
 #     unresolved identity (exit 4, nothing written, even with a sentinel present);
 #     another author's sentinel comment is ignored; an empty or unrendered
-#     `${user_config.lane_app_slug}` slug reads as no slug (#8002)
-#   - a comment list that does not parse exits 5 with nothing written
+#     `${user_config.lane_app_slug}` slug reads as no slug (#8002); a failed
+#     user call under a personal token with --app-slug exits 4
+#   - a comment list that does not parse, is empty, `null` or `false`, or holds a
+#     non-object element exits 5 with nothing written, and so does a failed
+#     detection jq
 #   - --dry-run resolves the action but performs no write
 #   - `-` reads the body from stdin
 #   - missing jq BINARY (not just the in-script wrapper function) exits 4
@@ -61,7 +64,8 @@ LOG="$TMP/gh.log"
 #
 # Identity knobs (`api user`): STUB_ME (login, default octocat), STUB_ME_TYPE
 # (User|Bot, default User), STUB_USER_FAIL (non-empty: the call fails, as under an
-# App installation token).
+# App installation token), STUB_NOT_INSTALLATION (non-empty: the
+# `installation/repositories` probe fails, as under a personal token).
 #
 # Read-back knobs (all default to a body that verifies):
 #   STUB_READBACK_BODY  exact body the read-back GET returns (emitted CRLF)
@@ -80,7 +84,7 @@ for ((i = 0; i < ${#args[@]}; i++)); do
     --method) method="${args[$((i + 1))]}" ;;
     --jq) jq_query="${args[$((i + 1))]}" ;;
     api) seen_api=1 ;;
-    repos/*|user) ((seen_api)) && [[ -z "$url" ]] && url="${args[$i]}" ;;
+    repos/*|user|installation/*) ((seen_api)) && [[ -z "$url" ]] && url="${args[$i]}" ;;
   esac
 done
 
@@ -95,6 +99,16 @@ if [[ "$url" == "user" ]]; then
   else
     echo "${STUB_ME:-octocat}"
   fi
+  exit 0
+fi
+# The installation-token probe: answers as an App installation token unless
+# STUB_NOT_INSTALLATION is set, which models a personal token.
+if [[ "$url" == installation/* ]]; then
+  if [[ -n "${STUB_NOT_INSTALLATION:-}" ]]; then
+    printf 'gh: Forbidden (HTTP 403)\n' >&2
+    exit 1
+  fi
+  printf '{"total_count":1,"repositories":[]}\n'
   exit 0
 fi
 if [[ -n "$method" ]]; then
@@ -393,6 +407,18 @@ assert_eq "a sentinel present with no write identity exits 4" 4 "$rc"
 assert_not_contains "a sentinel present with no write identity does not PATCH" "$log" "method=PATCH"
 assert_not_contains "a sentinel present with no write identity does not POST" "$log" "method=POST"
 
+# A personal token with --app-slug whose user call failed transiently is not an
+# App token: SLUG[bot] would miss octocat's own sentinel comment and POST a
+# duplicate, so no identity resolves and nothing is written.
+: >"$LOG"
+out="$(STUB_USER_FAIL=1 STUB_NOT_INSTALLATION=1 run "$TMP/has-sentinel.json" --app-slug lanes-app 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "a failed user call under a personal token with --app-slug exits 4" 4 "$rc"
+assert_contains "a failed user call under a personal token names the cause" "$out" "not an App installation token"
+assert_not_contains "a failed user call under a personal token does not POST" "$log" "method=POST"
+assert_not_contains "a failed user call under a personal token does not PATCH" "$log" "method=PATCH"
+
 # The issue is public: an outsider can post the exact sentinel. Their comment is
 # newer than mine, so a match on the sentinel alone would PATCH it (or exit 5 on
 # the 403); the writer's own sentinel comment is the one updated.
@@ -428,8 +454,11 @@ assert_contains "only an outsider's sentinel comment: a new comment is created" 
 assert_not_contains "only an outsider's sentinel comment: it is never patched" "$log" "method=PATCH"
 
 # A comment list that does not parse is not an empty list: creating a comment
-# then would duplicate the one the list failed to show.
-for bad_list in 'not json' '{"message":"Bad credentials"}'; do
+# then would duplicate the one the list failed to show. An issue with no
+# comments answers `[]`, so no output, `null` and `false` are errors too, and so
+# is a non-object element, which detection could not match.
+for bad_list in 'not json' '{"message":"Bad credentials"}' '' 'null' 'false' '[42]' \
+  '[{"id":1,"created_at":"2026-07-19T00:00:00Z","user":{"login":"octocat"},"body":"x"},"oops"]'; do
   printf '%s\n' "$bad_list" >"$TMP/bad-list.json"
   : >"$LOG"
   out="$(run "$TMP/bad-list.json" 2>&1)"
@@ -440,6 +469,22 @@ for bad_list in 'not json' '{"message":"Bad credentials"}'; do
   assert_not_contains "list '$bad_list' does not POST" "$log" "method=POST"
   assert_not_contains "list '$bad_list' does not PATCH" "$log" "method=PATCH"
 done
+
+# A detection jq that fails (here on a non-string body) matched nothing it can
+# vouch for: reading that as "no comment" would POST a duplicate.
+cat >"$TMP/bad-body.json" <<'JSON'
+[
+  { "id": 901, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "octocat"}, "body": 5 }
+]
+JSON
+: >"$LOG"
+out="$(run "$TMP/bad-body.json" 2>&1)"
+rc=$?
+log="$(cat "$LOG")"
+assert_eq "a failed detection jq exits 5" 5 "$rc"
+assert_contains "a failed detection jq is reported" "$out" "detection jq failed"
+assert_not_contains "a failed detection jq does not POST" "$log" "method=POST"
+assert_not_contains "a failed detection jq does not PATCH" "$log" "method=PATCH"
 
 # ============================================================================
 # pagination — sentinel comment on a SECOND page is still found (no duplicate)

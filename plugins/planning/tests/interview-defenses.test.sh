@@ -455,7 +455,7 @@ declares_both_fixtures B "$CASE_B"
 # frontmatter key states or qualifies either. `argument-hint` is the slot list
 # `[me|lock|scope|share|product] [topic]`, with the invocation examples in the body's `Arguments.` line.
 # Adds idea-shaped trigger phrases
-# product action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, product writes a verdict and never a Brief and gates its register before the verdict, and case 38 grades a first-question shape that licenses no silent capture or fudged gap
+# product action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, product writes a verdict and never a Brief and gates its register before the verdict, and case 41 grades a first-question shape that licenses no silent capture or fudged gap
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
   "64cb5a334e5874682e1f67df8f8871ddb9474518dc21679dc7728f19dae42dcd"
@@ -520,11 +520,12 @@ done
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Recommendations now carry a Flips if: line after Inference: (#11190); the only change in each section is that line and its mentions (removing them reproduces the old digest), it resolves no row, and the no-silent-resolve and constraint-ledger defenses are byte-identical
 # The Recommended answers paragraph adds that the Flips if: line counts toward the basis prose 3-sentence budget (surface.md R12), from review feedback on #11190; it caps recommendation prose, resolves no row, and the no-silent-resolve line is byte-identical
+# Re-pin for #8365: a recommendation reusing a value states the literal and its source, the sweep gains an `unstated-value` item that always becomes a register row, and a found contact address or identity stays an `open` row, never an F-line; this adds rows the user confirms, resolves none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "f00bb6189462134249b6c7955292aa046517b18e44d04c3bda58149e88b95ada"
+  "313d1e7c3516348b072299bdb009cd0907fc8793d0afc05081b81eaf880e1cc1"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -648,7 +649,7 @@ pin_case_digest "eval case A is unchanged (no criterion added that contradicts t
 # The page-lane text moved to context/lane-page.md, a lane table was added, and the router gained the `share [<topic>]` row; the `lock` row is byte-identical.
 # The `lock` row now confirms the one-line problem with one question before synthesis; its STOP-on-gap clause is unchanged.
 # The lane-table config line and the emoji fallback now name the declared default an unexpanded user_config token takes (#9886); they change how a setting is read, not what any round resolves, and the no-silent-resolve and lock defenses are byte-identical
-# product action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, product writes a verdict and never a Brief and gates its register before the verdict, and case 38 grades a first-question shape that licenses no silent capture or fudged gap
+# product action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, product writes a verdict and never a Brief and gates its register before the verdict, and case 41 grades a first-question shape that licenses no silent capture or fudged gap
 # The product row's When-to-use cell says product is reached by its argument or by an idea-test phrase, and a grill me about a task stays auto; the lock row and STOP-on-gap are byte-identical
 # The empty-argument line says auto never picks product, and the product row says only the product action reaches it, selected by its idea phrases; the lock row and STOP-on-gap are byte-identical
 pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and its reading live here)" \
@@ -705,11 +706,13 @@ pin_section "SKILL.md Step 2 section is unchanged (constraint ledger, candidates
 # Interview recommendations now require an evidence list plus an Inference line and drop bare judgment (#6728); this raises the bar on a recommendation, resolves no row, and leaves the no-silent-resolve and constraint-ledger defenses intact
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Recommendations now carry a Flips if: line after Inference: (#11190); the only change in each section is that line and its mentions (removing them reproduces the old digest), it resolves no row, and the no-silent-resolve and constraint-ledger defenses are byte-identical
+# Re-pin for #8365: a recommendation reusing a value states the literal and its source, the sweep gains an `unstated-value` item that always becomes a register row, and a found contact address or identity stays an `open` row, never an F-line; this adds rows the user confirms, resolves none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
+# Re-pin for #8365 review: an unstated-value item keeps its register row whoever owns the value and a contact address looked up after connecting stays open until the user confirms it; both add rows the user confirms, resolve none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
 pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, process-change definition)" \
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "723864eb09b501910c81d2ea3abbf58522910e0f0a9fa89cd873bf4a343886f7"
+  "e1737b5f12f7e8fa40e2f97986a2d98b705ba08a7fe429e0743369631b0bb191"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -725,9 +728,13 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 # The sweep-round labeling and the appended pre-round contradiction pass leave the scope, item shape and USER-RESERVED disposition intact; a draft conflict becomes no register row and nothing is captured as an assumption.
 # Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
+# Re-pin for #8293: adds the quoted-source rule and fresh-context quote check for fact-settled items, a `decision` line that is never settled from facts, and the `## Assumption sweep` record the gate grades; every category, item-shape field and existing disposition is unchanged, and a decision still becomes a register row, so cases A and B survive.
+# Re-pin for #8293 review: each sweep records the register high-water mark before it runs and a non-hedged item must land above it; categories, item shape and dispositions are unchanged, and a decision still becomes a register row, so cases A and B survive.
+# Re-pin for #8365: a recommendation reusing a value states the literal and its source, the sweep gains an `unstated-value` item that always becomes a register row, and a found contact address or identity stays an `open` row, never an F-line; this adds rows the user confirms, resolves none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
+# Re-pin for #8365 review: an unstated-value item keeps its register row whoever owns the value and a contact address looked up after connecting stays open until the user confirms it; both add rows the user confirms, resolve none on their behalf, and the no-silent-resolve, lock and auto-guard defenses are unchanged.
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "39b818b0734420c9aa242a0dcb4ebdc06f2fc7b3af0c1b28b1e479939f5145c2"
+  "d514db02ca49f4aa7946ebb8f7e82cddb875f0fb534661cdb8cbe6222f5d72a8"
 # The coverage prompt's exemption from the register, the gate and the unattended ladder moved
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.
@@ -775,12 +782,12 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Case 35 (ship-it-confirmed-writes-deferred-brief) starts after the user confirmed and grades that the Brief keeps the deferred rows `USER-RESERVED` with no invented answer and that the handoff waits on the cross-check, so it agrees with cases 15 and 16.
 # Case 36 (pre-round-contradiction-pass) has the draft fixed or asked as one question naming both sides before the round is shown and registers no row, so it agrees with cases 15 and 16.
 # Re-pinned for #8314: adds case 37 sweep-flags-coined-term-after-accept-all, which requires a coined-term register row and blocks the lock while it is open; it licenses no silent capture or fudged gap, so cases 15 and 16 still hold.
-# product action added: argument-hint and a router row only; the lock row and STOP-on-gap are byte-identical, product writes a verdict and never a Brief and gates its register before the verdict, and case 38 grades a first-question shape that licenses no silent capture or fudged gap
-# Adds case 39 product-run-ends-in-six-item-verdict, which retires open rows as deferred and runs the register gate before the verdict; it licenses no silent capture or fudged gap, so cases 15 and 16 still hold
-# Case 40 (person-deferred-routes-to-questionnaire) defers the DBA retention window with an arbiter tag, resolves no row on the DBA behalf and only recommends /planning:questionnaire, so it agrees with cases 15 and 16.
-# Merge of main composes both sides: keeps cases 38 and 39 and adds main case person-deferred-routes-to-questionnaire as case 40, which defers the DBA question and resolves nothing on her behalf, so cases 15 and 16 still hold
+# Case 38 (person-deferred-routes-to-questionnaire) defers the DBA retention window with an arbiter tag, resolves no row on the DBA behalf and only recommends /planning:questionnaire, so it agrees with cases 15 and 16.
+# Re-pin for #8293: case 39 (sweep-decision-item-not-settled-by-unsupported-fact) requires an undecided `decision` sweep item to become an `open` register row, asked, never a fact or a captured assumption, and blocks the lock while it is open, so it agrees with cases 15 and 16.
+# Re-pin for #8365: case 40 (reused-address-stated-literally-and-owner-confirmed) requires an unstated value to become an `open` register row asking the user to confirm the literal, and blocks the lock while it is open; it licenses no silent capture or fudged gap, so it agrees with cases 15 and 16.
+# Adds case 41 product-first-reply-is-one-question-with-strong-answer and case 42 product-run-ends-in-six-item-verdict, which retires open rows as deferred and runs the register gate before the verdict; neither licenses a silent capture or fudged gap, so cases 15 and 16 still hold
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "4b3215b8aa71014d992180db5b7d16267bd4e8e5e8b8ca389de1f7041e13279a"
+  "68cb522d7950419009b3e7a1718c7c8100f509bc498b437fbbb1d573180410c0"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten

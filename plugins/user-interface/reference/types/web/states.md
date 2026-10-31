@@ -226,8 +226,9 @@ change and a subtle underline where appropriate.
 The cursor and underline matter most on a control nothing else marks as interactive, such as a
 text link or a clickable row.
 
-Trigger actions on `mouseup`, not `mousedown`. Mousedown fires before the user commits; they lose
-the ability to cancel by dragging away.
+Trigger actions on `click`, or the form's submit handler, not `mousedown` or `mouseup`. Mousedown
+fires before the user commits, so they lose the ability to cancel by dragging away. Mouseup never
+fires for keyboard or assistive-technology activation; `click` does, and it waits for the release.
 
 Press feedback can still start on press: the feedback shows the press, and the action waits for the
 release. The rule covers an action the click commits (a submit, a delete, a navigation); opening a

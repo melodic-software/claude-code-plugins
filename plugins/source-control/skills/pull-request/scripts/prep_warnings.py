@@ -9,14 +9,17 @@ staged, unstaged and untracked changes alike) and prints one line per finding:
     evidence): the skill's `evals/` for a
     SKILL.md, the plugin's `evals/` for an agent body. The skill criteria ship
     a cut only with eval evidence of no loss.
-  protected-path <path>: a changed path in `babysit_risk.HIGH_FLOOR` or the
-    configured `merge.diff-check.denied-paths` (`--denied-path`), or with a
+  protected-path <path>: a changed path on the floor's person-held globs
+    (`babysit_risk.Floor.high`, with the `merge.diff-check.floor-paths` rows at
+    `--base`) or the configured `merge.diff-check.denied-paths`
+    (`--denied-path`), or with a
     segment `babysit_risk.normalize_path` calls unsafe, which the guarded
     merge holds for a person, or a plugin or marketplace manifest
     (`babysit_risk.is_manifest_path`), which it compares base against head.
     The path rules are imported from babysit_risk, never restated.
   note: a configured denied-path set the merge cannot read, so it matches only
-    the floor.
+    the floor; or `floor-paths` rows the merge refuses, so only the built-in
+    floor matches.
 
 Exit 0 when read, whatever it found; 2 when git cannot read the diff.
 """
@@ -29,6 +32,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "babysit-prs" / "scripts"))
+import babysit_merge_policy as policy  # noqa: E402
 import babysit_risk as risk  # noqa: E402
 
 
@@ -92,13 +96,28 @@ def skill_cuts(found: dict[str, tuple[str, int]]) -> list[str]:
     return lines
 
 
-def protected_paths(paths: list[str], denied: list[str]) -> list[str]:
+def floor_at(base: str) -> tuple[risk.Floor, list[str]]:
+    """The effective floor at `base`, where the guarded merge reads it, and a
+    note when its `floor-paths` rows cannot be used."""
+    try:
+        text = git("show", f"{base}:{policy.CONFIG_PATH}")
+    except GitError:
+        return risk.floor_for(), []
+    try:
+        return risk.floor_for(policy.floor_paths_in(text)), []
+    except (risk.FloorRowError, policy.PolicyReadError) as exc:
+        return risk.floor_for(), [f"note: {exc}; only the built-in floor is matched"]
+
+
+def protected_paths(
+    paths: list[str], denied: list[str], floor: risk.Floor
+) -> list[str]:
     problems: list[str] = []
     # The merge's own reading of the configured set: an unreadable one matches
     # only the floor.
     configured = risk._readable_globs(denied, problems)
     lines = [f"note: {problem}; only the floor is matched" for problem in problems]
-    patterns = tuple(dict.fromkeys((*risk.HIGH_FLOOR, *configured)))
+    patterns = tuple(dict.fromkeys((*floor.high, *configured)))
     for path in sorted(paths):
         normalized, safe = risk.normalize_path(path)
         hits = [f"high-path:{p}" for p in patterns if risk.glob_match(p, normalized)]
@@ -128,7 +147,12 @@ def main(argv: list[str] | None = None) -> int:
     except GitError as exc:
         print(f"prep-warnings: {exc}", file=sys.stderr)
         return 2
-    for line in [*skill_cuts(found), *protected_paths(list(found), args.denied_path)]:
+    floor, notes = floor_at(args.base)
+    for line in [
+        *notes,
+        *skill_cuts(found),
+        *protected_paths(list(found), args.denied_path, floor),
+    ]:
         print(line)
     return 0
 

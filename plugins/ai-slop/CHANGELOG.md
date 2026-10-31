@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.16.0] - 2026-10-31
+
+### Added
+
+- `/ai-slop:audit` audits commit messages (`commit [rev]`), pull request bodies (`pr-body`) and interface copy (`copy <source files>`) through a scratch markdown copy, reports generic closing lines (`rule-generic-conclusions`), name-drop lists and headlines a competitor could paste unchanged, and its rewrite guide gains plain-word rows, a sweep order and two voice techniques: an aside the reader would want, and saying what you don't know.
+
+- `/ai-slop:audit` has outcome eval cases under `evals/` (vague attribution, the challenges closer, curly quotes, the over-compression boundary, mechanism-free claims, a commit message that asks to be amended, and three fix cases: colon crutch, plain words, voice) and a frozen trigger probe file, `probes/audit.json`.
+
+- `/ai-slop:audit` eval cases check that a "some critics argue" line is reported, that a list of outlets each carrying what it said is not, and that a bare optimism closer is not filed as the challenges formula.
+
+## [0.15.8] - 2026-10-31
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
 ## [0.15.7] - 2026-10-30
 
 ### Changed

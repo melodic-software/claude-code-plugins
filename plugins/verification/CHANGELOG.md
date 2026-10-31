@@ -3,6 +3,40 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0] - 2026-10-31
+
+### Added
+
+- `/verification:confirm` records its verdict and each `MISSING` or `PARTIAL` plan item for the
+  head commit it judged, through the new `scripts/confirm-verdict.sh`, so the pull request `ready`
+  report can name it. A commit after the record leaves the new head with no verdict.
+
+- `/verification:measure` records its `compare` verdict and the improvement claim it judged for
+  the head commit it measured, through `scripts/confirm-verdict.sh record --of measure`, so the
+  pull request `ready` report can name it. With no baseline captured before the change the
+  recorded verdict is `CANNOT QUANTIFY`. A commit after the record leaves the new head with no
+  verdict.
+
+### Changed
+
+- `confirm` offers `/verify` as a suggest sentence, `If /verify is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when the offer is deleted or reworded.
+
+## [0.13.9] - 2026-10-31
+
+### Fixed
+
+- `/verification:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
+## [0.13.8] - 2026-10-31
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
 ## [0.13.7] - 2026-10-30
 
 ### Changed

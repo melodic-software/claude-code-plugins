@@ -90,7 +90,8 @@ before(() => {
 after(() => rmSync(root, { recursive: true, force: true }));
 
 // Each answer makes the broker's next reply that HTTP status, with that JSON
-// body (the mint below when absent) and that header block; the last repeats.
+// body (the mint below when absent, with `mint`'s fields added) and that
+// header block; the last repeats.
 // No answer is one 200 mint.
 // A `compare` input is the GitHub compare response the action reads; absent,
 // the compare request fails.
@@ -143,7 +144,7 @@ function request({ compare, ...inputs }, ...answers) {
   (answers.length ? answers : [{}]).forEach((answer, i) => {
     const base = path.join(answersDir, String(i + 1));
     writeFileSync(`${base}.status`, answer.status ?? "200");
-    writeFileSync(`${base}.json`, JSON.stringify(answer.body ?? mint));
+    writeFileSync(`${base}.json`, JSON.stringify(answer.body ?? { ...mint, ...answer.mint }));
     writeFileSync(`${base}.headers`, answer.headers ?? "HTTP/2 200\r\ncontent-type: application/json\r\n\r\n");
   });
   const compareFile = path.join(dir, "compare.json");
@@ -721,6 +722,37 @@ test("an actions grant other than read or empty fails before the broker request"
   assert.equal(run.status, 1);
   assert.match(run.stdout, /::error::the resolved grant's actions must be read or empty/);
   assert.equal(run.body, null);
+});
+
+// The lanes App quota the broker read at the mint: 494 of 5200 left, reset
+// 2026-10-19T17:00:00Z.
+const QUOTA = { rate_limit: { remaining: 494, limit: 5200, reset: 1792429200 } };
+const QUOTA_NOTICE = "::notice title=api-budget::mint lanes-app core remaining=494 used=4706 limit=5200 reset=2026-10-19T17:00:00Z";
+
+test("a mint carrying rate_limit writes a lanes-app api-budget notice and a summary line", () => {
+  const run = request({}, { mint: QUOTA });
+  assert.equal(run.status, 0, run.stdout);
+  assert.ok(run.stdout.split("\n").includes(QUOTA_NOTICE), run.stdout);
+  assert.match(run.summary, /^- Lanes App REST quota at mint: `494` of `5200` remaining, resets `2026-10-19T17:00:00Z`$/m);
+  assert.match(run.output, /^token=ghs_lane$/m);
+});
+
+test("a mint without rate_limit passes and writes no quota notice", () => {
+  const run = request({});
+  assert.equal(run.status, 0, run.stdout);
+  assert.doesNotMatch(run.stdout, /api-budget|lane-token-quota-unread/);
+  assert.doesNotMatch(run.summary, /quota/);
+  assert.match(run.output, /^token=ghs_lane$/m);
+});
+
+test("a malformed rate_limit warns, writes no notice, and still passes", () => {
+  for (const rate_limit of [null, "5200", { remaining: 494, limit: 5200 }, { remaining: "494", limit: 5200, reset: 1 }, { remaining: 6000, limit: 5200, reset: 1 }, { remaining: 1.5, limit: 5200, reset: 1 }, { remaining: 0, limit: 0, reset: 1 }]) {
+    const run = request({}, { mint: { rate_limit } });
+    assert.equal(run.status, 0, `${JSON.stringify(rate_limit)}: ${run.stdout}`);
+    assert.match(run.stdout, /::warning::lane-token-quota-unread: /, JSON.stringify(rate_limit));
+    assert.doesNotMatch(run.stdout, /title=api-budget/);
+    assert.match(run.output, /^token=ghs_lane$/m);
+  }
 });
 
 test("check mode refuses an actions grant before the broker request", () => {
