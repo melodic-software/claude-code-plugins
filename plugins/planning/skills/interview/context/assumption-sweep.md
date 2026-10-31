@@ -86,7 +86,20 @@ You write the results, not the sub-agent, so register ids stay contiguous.
   ([`self-answer.md`](../../../context/self-answer.md)), connected and connectable sources
   included. An item it answers is stated with its source tag and basis, with no row (loop.md
   "Self-answer gate"); one an unconnected system would answer joins the offer to connect. An
-  item no source answers falls through to the next line.
+  item no source answers falls through to the next line. The F-line's basis quotes the source
+  text that settles the item, with its file:line or URL: `package.json:14 "bullmq": "^5.1.0"`.
+  The quote holds no `|`. An earlier session claim, or a decision you remember, is not a source,
+  and an answer with no file:line or URL to quote (a connected tool's output) leaves the item to
+  the next line.
+- **Quote check:** before a fact-settled item counts as settled, dispatch a fresh-context
+  (non-fork) sub-agent, as in "Dispatch" above, handing it only each such F-line's fact, quote and
+  location. It re-reads each location and returns, per F-line, `confirmed` when the quoted text is
+  there and states the fact, else `not-found`. This is how `/planning:audit-answers` checks
+  answers: a validator that never saw the reasoning. A `not-found` item is not settled; it falls
+  through to the next line as a register row.
+- **decision:** never settled from facts, whatever the session believes was decided earlier.
+  The self-answer step never resolves a decision (loop.md "Self-answer gate"), so a sweep's
+  `decision` item always takes the next line.
 - **decision, person, and an unanswered tenant or fact:** a register row at the next contiguous
   `Q<N>`, written `open` and
   asked in the next round with a recommendation. A `person` item the user cannot answer, and a
@@ -103,6 +116,18 @@ You write the results, not the sub-agent, so register ids stay contiguous.
   USER-RESERVED**, per loop.md "Unattended path".
 
 Any `open` row it adds returns the run to Step 2.
+
+**Record every item.** Write each item into the ledger's `## Assumption sweep` section as
+`- S<N> | sweep <M> | <category> | <class> | <source> | <disposition>`, where `sweep <M>` counts
+the sweeps from 1. The disposition is one of: the `Q<N>` register row the item became, or the
+existing row a hedged item points at; the `F<N>` line that settles it; or `deferred: <where>` for
+an item settled outside the register (a hedged item's `deferred: confirmation restate`). Only a
+hedged item points at a row its source names; every other item's `Q<N>` is the new row it became.
+A `decision` or `person` item never takes an `F<N>`. A sweep that returned nothing records `- none`. Then tick the Step 2 exit box. When the sweep is skipped,
+tick the box with `SKIPPED: <reason>`. The `--procedure` gate fails on an unchecked Step-exit box,
+an item with no disposition, a `decision` or `person` item without a `Q<N>`, and an `F<N>` whose
+basis quotes no source with a file:line or URL ([`check-open-questions.sh`](../../../scripts/check-open-questions.sh)).
+The section also tells a later session which items were settled without the user.
 
 The round that asks these rows is a **sweep round**. On the page, post it with
 `"meta": {"kind": "sweep"}` on `add-round`, and give each question that weighs earlier answers a
