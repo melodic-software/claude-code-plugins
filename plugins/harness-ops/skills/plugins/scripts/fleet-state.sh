@@ -1021,7 +1021,10 @@ fi
 presence_tsv=""
 # Each present path's raw .claude/settings.json text, read with a builtin, so the
 # block can say what enabledPlugins entry that file holds for each record:
-# `<path> U+001E <F|M><text> U+001F`, F for a file and M for none.
+# `<path> U+001E <F|M|U><text> U+001F`, F for a file, M for none, and U for a
+# file (or path) holding a U+001C-U+001F byte. The payload splits on those
+# bytes before any text is parsed, so such text is never bundled: it would
+# forge another path's entry. Valid JSON cannot carry them raw.
 settings_bundle=""
 for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
   [[ -n "$pp" ]] || continue
@@ -1063,8 +1066,9 @@ for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
       pp_settings=""
       IFS= read -r -d '' pp_settings <"$pp_fs/.claude/settings.json" || true
       pp_settings="F$pp_settings"
+      [[ "$pp_settings" != *[$'\x1c'-$'\x1f']* ]] || pp_settings="U"
     fi
-    settings_bundle+="$pp"$'\x1e'"$pp_settings"$'\x1f'
+    [[ "$pp" != *[$'\x1c'-$'\x1f']* ]] && settings_bundle+="$pp"$'\x1e'"$pp_settings"$'\x1f'
   else
     presence_tsv+="$pp"$'\t'"false"$'\n'
   fi
@@ -1126,6 +1130,7 @@ PASS3_PROGRAM='
             | {key: .[0],
                value: (.[1] as $t
                  | if ($t | startswith("M")) then {state: "absent"}
+                   elif ($t | startswith("U")) then {state: "unreadable"}
                    else (($t[1:] | try fromjson catch null) as $j
                          | if ($j | type) != "object" then {state: "unreadable"}
                            elif ($j.enabledPlugins // {} | type) != "object" then {state: "unreadable"}

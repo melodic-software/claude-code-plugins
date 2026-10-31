@@ -631,8 +631,8 @@ called only when its version and the catalog's both parse and the record is belo
 readable catalog version, one at or above the catalog, and one in an absent path take no call;
 absent paths stay in the stale project records section.
 
-`update` writes no settings file ([scope-semantics.md](scope-semantics.md)), and the step checks
-that: before the first call in a path and after each call it takes `git status --porcelain --
+The step does not rest on `update` leaving the settings files alone (the record for that is in
+[scope-semantics.md](scope-semantics.md#a-projectpath-that-is-a-user-home-directory)); it checks: before the first call in a path and after each call it takes `git status --porcelain --
 .claude/` where the path is in a git work tree, and a checksum of `.claude/settings.json` and
 `.claude/settings.local.json` in every path, since git status cannot see a change to an ignored
 `settings.local.json`. A change stops that path: the call is a failure, and each record after it in

@@ -230,16 +230,20 @@ drive letter match case-insensitively). A project-scope install run from a home 
 that home as its `projectPath`, and the home's `.claude/settings.json` is the user-scope file.
 Under a home (`/home/<name>/repos/app`) is an ordinary project and reads `false`.
 
-Which calls from a home write there follows the table above: `install`, `uninstall`, `enable` and
-`disable` with `-s project` write the home's `.claude/settings.json`, which is user settings, and
-with `-s local` its `.claude/settings.local.json`. `update` writes neither. **Record**:
-`update -s project` moved 52 of 52 home-keyed records on 2026-10-20 with the settings hash
-unchanged. **Recheck trigger**: a Claude Code release note that changes what `update` writes, or a
-sync run whose settings check stops a home path.
+Our decision: from a home, `converge` runs nothing, because its writing calls (the table above)
+would change that home's user settings, and `sync` runs only `update`, which we treat as writing no
+settings file, and checks the two settings files around each call ([sync.md](sync.md) Step 3a), so
+it does not rest on that treatment.
 
-So `converge`, whose `uninstall` writes that file, blocks such a row and runs nothing for it. `sync`
-forward-updates the record from the home with `update` and checks the two settings files' hashes
-around each call ([sync.md](sync.md) Step 3a). It drops the record's scope before comparing versions,
+- **Pointer**: the home-path `update` probe recorded in
+  [#6713 (comment)](https://github.com/melodic-software/claude-code-plugins/issues/6713#issuecomment-6283364040);
+  the command itself is documented under
+  [Update plugins now](https://code.claude.com/docs/en/plugins/install#update-plugins-now).
+- **As of**: 2026-10-20
+- **Recheck trigger**: a Claude Code release note that changes what `claude plugin update` writes,
+  or a sync run whose settings check stops a home path.
+
+`sync` It drops the record's scope before comparing versions,
 so a divergence that exists only because of it is not counted as actionable, and lists in a
 `User-home project records` row only the records `update` could not move.
 

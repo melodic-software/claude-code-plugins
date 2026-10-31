@@ -177,9 +177,9 @@ the strategy and whether or not the path is present:
 
 A path under a home (`/home/<name>/repos/app`) is an ordinary project and is unaffected. Do not offer
 to remove the record: no `claude plugin` verb removes an install record by path. `sync`
-forward-updates a lagging home record with `update`, which writes no settings file
-([scope-semantics.md](scope-semantics.md)); its `User-home project records` row lists only the
-records `update` could not move, and its divergence count leaves them out.
+forward-updates a lagging home record with `update` under a settings check (the home-path record in
+[scope-semantics.md](scope-semantics.md#a-projectpath-that-is-a-user-home-directory)); its
+`User-home project records` row lists only the records `update` could not move, and its divergence count leaves them out.
 
 ### Linked-worktree rows: no update strategy
 
