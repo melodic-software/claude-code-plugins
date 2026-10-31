@@ -229,8 +229,8 @@ check 'push conflict: rebuild, not deferred' 'true ' "$(val rebuild) $(val defer
 
 echo '# push: merge conflict, checks running'
 new_fixture no
-FAKE_PRS="$(pr_json CONFLICTING)" run_decide GITHUB_EVENT_NAME=push FAKE_RUNS='[]'
-check 'push conflict+no run: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
+FAKE_PRS="$(pr_json CONFLICTING)" run_decide GITHUB_EVENT_NAME=push FAKE_RUNS="[{\"started_at\":\"2026-10-18T01:00:00Z\",\"status\":\"in_progress\",\"conclusion\":null,\"app\":{\"id\":15368}}]"
+check 'push conflict+running: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
 
 echo '# push: base behind main, ci-status failed'
 new_fixture yes
