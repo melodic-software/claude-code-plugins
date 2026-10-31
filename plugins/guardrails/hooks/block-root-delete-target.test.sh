@@ -1678,6 +1678,53 @@ else
   rdt_skip "no cygpath on this host (2 cases)"
 fi
 
+# A segment entry (`<dir>/*/<name>`) allows a path strictly under <name> one
+# directory level below <dir>, and nothing else: <name> itself, a sibling of
+# it, a deeper level and a symlink stay refused, and a `*` that is not one
+# whole segment, or a second `*`, grants nothing.
+RDT_SR="$RDT_AB/wtroot"
+RDT_SX="$RDT_SR/*/.work"
+mkdir -p "$RDT_SR/wt-a/.work/tmp/sub" "$RDT_SR/wt-a/src" "$RDT_SR/wt-a/b/.work/tmp" "$RDT_SR/.work/tmp"
+rdt_ar 'segment: unset key, a path under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'"
+rdt_ar 'segment: a path under .work allowed' 0 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_SX"
+rdt_ar 'segment: a deeper path under .work allowed' 0 "rm -rf '$RDT_SR/wt-a/.work/tmp/sub'" "$RDT_SX"
+rdt_ar 'segment: a nonexistent path under .work allowed' 0 "rm -rf '$RDT_SR/wt-new/.work/tmp'" "$RDT_SX"
+rdt_ar 'segment: a glob below .work/tmp allowed' 0 "rm -rf '$RDT_SR/wt-a/.work/tmp'/*" "$RDT_SX"
+rdt_ar 'segment: beside a directory entry allowed' 0 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_AR,$RDT_SX"
+rdt_ar 'segment: a sibling of .work blocks' 2 "rm -rf '$RDT_SR/wt-a/src'" "$RDT_SX"
+rdt_ar 'segment: .work itself blocks' 2 "rm -rf '$RDT_SR/wt-a/.work'" "$RDT_SX"
+rdt_ar 'segment: .work with a trailing slash blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/'" "$RDT_SX"
+rdt_ar 'segment: the glob of .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work'/*" "$RDT_SX"
+rdt_ar 'segment: two levels under the directory blocks' 2 "rm -rf '$RDT_SR/wt-a/b/.work/tmp'" "$RDT_SX"
+rdt_ar 'segment: zero levels under the directory blocks' 2 "rm -rf '$RDT_SR/.work/tmp'" "$RDT_SX"
+rdt_ar 'segment: the one-level directory blocks' 2 "rm -rf '$RDT_SR/wt-a'" "$RDT_SX"
+rdt_ar 'segment: the directory itself blocks' 2 "rm -rf '$RDT_SR'" "$RDT_SX"
+rdt_ar 'segment: a .. escape to a sibling blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/../src'" "$RDT_SX"
+rdt_ar 'segment: a one-level name ending in a dot blocks' 2 "rm -rf '$RDT_SR/.../.work/tmp'" "$RDT_SX"
+rdt_ar 'segment: a dots-only name under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/...'" "$RDT_SX"
+rdt_ar 'segment: a space-only name under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/ '" "$RDT_SX"
+rdt_ar 'segment: a name ending in a dot under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp.'" "$RDT_SX"
+rdt_ar 'segment: a nonexistent child/ under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/new/'" "$RDT_SX"
+rdt_ar 'segment: a path outside blocks' 2 "rm -rf '$RDT_AO/x'" "$RDT_SX"
+rdt_ar 'segment: a * inside a segment grants nothing' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_SR/wt-*/.work"
+rdt_ar 'segment: a * inside the name grants nothing' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_SR/*/.wor*"
+rdt_ar 'segment: two * segments grant nothing' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_AB/*/*/.work"
+rdt_ar 'segment: a * before a two-part tail grants nothing' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_SR/*/.work/tmp"
+rdt_ar 'segment: a .. in the directory grants nothing' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_SR/../wtroot/*/.work"
+rdt_ar 'segment: HOME as the directory grants nothing' 2 "rm -rf '$RDT_AH/x/.work/y'" "$RDT_AH/*/.work"
+rdt_ar 'segment: a root-level directory grants nothing' 2 'rm -rf /rdt-x/.work/y' '/*/.work'
+# A glob before the last component that matches nothing is judged by the
+# literal directory in front of it, with what it deletes two levels below:
+# .work itself is then enough, and the one-level directory still is not.
+rdt_ar 'segment: an unmatched */x below .work allowed' 0 "rm -rf '$RDT_SR/wt-a/.work'/*/x" "$RDT_SX"
+rdt_ar 'segment: an unmatched */x below the one-level directory blocks' 2 "rm -rf '$RDT_SR/wt-a'/*/x" "$RDT_SX"
+if MSYS=winsymlinks:lnk ln -s "$RDT_AO" "$RDT_SR/wt-a/.work/link" 2>/dev/null && [[ -L "$RDT_SR/wt-a/.work/link" ]]; then
+  rdt_ar 'segment: a symlink under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/link'" "$RDT_SX"
+  rdt_ar 'segment: a path through a symlink under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/link/x'" "$RDT_SX"
+else
+  rdt_skip "ln -s makes no real symlink on this host (2 cases)"
+fi
+
 # A per-machine pair under one fake HOME: a worktree-root name prefix and a
 # home .work directory. The intended targets pass; the worktree root, a sibling
 # worktree, .work itself and HOME stay refused.
