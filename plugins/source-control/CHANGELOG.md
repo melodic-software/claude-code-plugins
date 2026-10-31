@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.8.2] - 2026-10-31
+
+### Security
+
+- `resolve-version-bump-conflict.sh` leaves a plugin for manual resolution when its `CHANGELOG.md` or `plugin.json` is a symlink, whether the link resolves or not, instead of writing through it or skipping the plugin.
+
+## [4.8.1] - 2026-10-31
+
+### Fixed
+
+- The pr-merge lane's queue sweep and capped close now hold on a member's newest comment saying "do not merge", the rule its arm path and gate apply. A wider read dequeued an entry the next run armed again.
+
+## [4.8.0] - 2026-10-31
+
+### Changed
+
+- The unattended merge gate reads a `merge.max-in-flight` above 24 as unset instead of taking it,
+  and the pipeline schema states the same maximum.
+
 ## [4.7.0] - 2026-10-31
 
 ### Added

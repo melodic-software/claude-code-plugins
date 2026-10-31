@@ -5,6 +5,20 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.4.2] - 2026-10-31
+
+### Fixed
+
+- `/harness-config:audit-permission-state` no longer reports the user settings file as the project scope when a session starts in the home directory outside a repository. When the project or local settings path is the user file, the reader marks that scope `not-applicable` and adds a note giving the reason. It reports the file once, under user, and raises no project-scope finding, such as `C2-autoMode` or `C2-defaultMode`, against keys that are legal in user settings.
+
+## [2.4.1] - 2026-10-31
+
+### Changed
+
+- `/harness-config:audit-automation-gaps`: the inventory's enablement note now sends you to
+  `/harness-ops:plugins-audit`, the read-only plugin audit's own skill, instead of
+  `/harness-ops:plugins audit`.
+
 ## [2.4.0] - 2026-10-31
 
 ### Added

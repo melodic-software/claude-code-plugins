@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n scripts/setup-sms.sh && shellcheck scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "checks"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "chmod +x scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "+x"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "chmod 755 scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "octal"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n scripts/setup-sms.sh && chmod u+x scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "chained u+x"
+    }
+  ]
+}

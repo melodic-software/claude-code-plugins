@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "plugin-quality:audit",
+            "args": "session"
+          }
+        }
+      ],
+      "why": "the audit skill ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no skill loaded, a stop from general caution"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "session-flow:running-retro"
+          }
+        }
+      ],
+      "why": "another skill"
+    }
+  ]
+}

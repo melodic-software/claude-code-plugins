@@ -421,8 +421,12 @@ test("live config: resolve-issue self-checks its uncommitted work with check-aff
 
 // Code a verify-script runs can read the lane's token from any same-user
 // process's /proc/<pid>/environ, so no listed script runs checkout code.
-const RUNS_CHECKOUT_CODE = ["scripts/run-test-file.sh", "plugins/skill-quality/scripts/check-skill.sh"];
-test("live config: resolve-issue may run the can't-fail scan, git mv or rm, the evals check, the shared-copy sync and the fragment writer, and no script that runs checkout code; no other activity lists verify-scripts", () => {
+const RUNS_CHECKOUT_CODE = [
+  "scripts/run-test-file.sh",
+  "plugins/skill-quality/scripts/check-skill.sh",
+  "plugins/planning/tests/repin.sh",
+];
+test("live config: resolve-issue may run the can't-fail scan, git mv or rm, the evals check, the shared-copy sync, the fragment writer and the data-only digest repin, and no script that runs checkout code; no other activity lists verify-scripts", () => {
   const scripts = selected("work-resolve-issue", "resolve-issue", ISSUE)["verify-scripts"];
   assert.deepEqual(scripts, [
     "plugins/testing/skills/audit/scripts/cant-fail-scan.sh",
@@ -430,6 +434,7 @@ test("live config: resolve-issue may run the can't-fail scan, git mv or rm, the 
     "plugins/skill-quality/scripts/check-evals-quality.sh",
     "scripts/sync-shared-copies.sh",
     "scripts/new-changelog-fragment.sh",
+    "plugins/planning/scripts/repin-digests.sh",
   ]);
   for (const script of RUNS_CHECKOUT_CODE) assert.ok(!scripts.includes(script), script);
   const doc = parse(FILES.config);

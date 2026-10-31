@@ -1,5 +1,87 @@
 # Changelog for the PR pipeline convention
 
+## [8.26.1] - 2026-10-31
+
+### Security
+
+- `resolve-conflicts-select`, `address-feedback-select`, `review-dependency-select` and `fix-ci-context` in `pr-unblock.yml` fail on a PR whose head is in another repository, before it writes any head output, so a hand dispatch of a fork's PR posts no status on that head.
+
+## [8.26.0] - 2026-10-31
+
+### Added
+
+- `mark-lanes`, `lint-repo`, `lint-shell`, `check-plugins` and `check-skills` now report their job
+  token requests: `gh` runs through the api-budget wrapper in their steps, in the hygiene aggregator
+  and in the Dependabot signature check, and each job ends with `api-budget` and `api-calls` notices.
+  zizmor's online audits spend the token through their own client and stay uncounted.
+
+### Changed
+
+- `api_budget_emit` prints the last reading of each resource and reset, so a notice shows each core
+  counter a job touched, not only the one its last call landed on. The job's latest core reading
+  stays the last line.
+
+## [8.25.1] - 2026-10-31
+
+### Fixed
+
+- The entry-hold check on a capped lane pull request and a queued lane entry counts a member's newest comment saying "do not merge", not any comment with blocking text, matching the arm path.
+
+## [8.25.0] - 2026-10-31
+
+### Changed
+
+- `resolve-issue` lists `plugins/planning/scripts/repin-digests.sh` as a `verify-script`, so the
+  issue lane can re-pin a planning interview digest without a host session. The script runs
+  nothing from the checkout: it reads the test file and the files the test pins as data and
+  computes each digest with its own base copy's helpers. `tests/repin.sh` also runs the test, so it
+  stays off the list, and the pull request's CI still runs the test.
+
+### Fixed
+
+- `pr-verify` judges a diff of any realistic size. It splits a diff into as many chunks of at most
+  300000 bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each
+  with its own judge step, and the head still passes only when every chunk and the final judge do. A
+  file over 300000 bytes, or a diff that needs more than 12 chunks, still ends the run with no
+  verdict and an error naming the file, or the diff's size and the chunk count.
+
+- `pr-run-activity-read.yml` passes turns, max turns, models and profile to `report-check-run`, as
+  the write runner does. A read activity that ended well has no failure class, so it posted no lane
+  record at all, and its check run could not be read for turns or models.
+
+## [8.24.0] - 2026-10-31
+
+### Added
+
+- pr-verify now gives the verifier `upstream-jobs.json`: the jobs of the pr-require-checks run it
+  was started by, each with its name and conclusion, read with each judging job's own token. The
+  verifier judges from it whether the suites that cover the changed files ran, as part of its rule
+  on tests that do not cover the change, and runs no test or eval itself. The model's tool rules,
+  `ci-status` and the verdict path do not change.
+
+## [8.23.0] - 2026-10-31
+
+### Added
+
+- The half-hourly tick now picks up a fix request on a lanes App pull request. The
+  `pr-feedback-dispatch` sweep sends a head with an unresolved thread the reviewer bot opened whose
+  newest fix request, by a trusted person with write access, is newer than the head's newest
+  `pr-unblock / address-feedback` check run; check runs that started before it stop counting for
+  that dispatch, and a limit stop keeps its reset hold. `SWEEP_HEAD_CAP` still bounds the head, and
+  no trigger, workflow or trust check changes.
+
+### Changed
+
+- The informational Windows and macOS test workflow is now `pr-test-platforms.yml` (was `pr-test-windows.yml`); the pipeline docs name it so.
+
+- `merge.max-in-flight` is computed: `merge.in-flight-sizing` records the measured peak merge rate,
+  time in flight and lanes App spend beside the formula, `scripts/compute-max-in-flight.py` prints
+  the value, and a test fails any other. The measured day computes 11.
+
+### Fixed
+
+- A `security-risk` hold the issue lane reads from a run's words names the matched word in its comment, as inert text in a code span, so a person can dismiss a false hit in one read. Every hold, route and word in the list is unchanged.
+
 ## [8.22.1] - 2026-10-31
 
 ### Fixed

@@ -3,6 +3,66 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.132.1] - 2026-10-31
+
+### Changed
+
+- The interview page's `round.sh` now gives each outcome its own exit code: 1 for a refusal (a usage error included, which used to exit 2), 2 for a missing prerequisite (Python 3, or curl for `ensure-running`, which used to exit 1 while `watch.sh` exited 2), 5 when `ensure-running` cannot start the page server, and 6 when `export-ledger --diff` or `ledger-check` finds the page and the ledger disagree, or a ledger merge keeps a conflicting row. `round.sh --help`, the interview skill and its page protocol list the codes.
+
+## [0.132.0] - 2026-10-31
+
+### Added
+
+- `scripts/repin-digests.sh` re-pins the digest pins of `tests/interview-defenses.test.sh` from
+  the files alone. It takes the same arguments as `tests/repin.sh`, reads the test file as text,
+  and computes each pin's digest itself. It runs neither the test nor any other file from the
+  checkout. A pin argument that is not a plain quoted string, or that names a file outside the
+  plugin, refuses the pin and leaves the file unchanged. The issue lane can run it, so a lane
+  change to a pinned interview section no longer stops for a host session to re-pin.
+
+### Changed
+
+- The digest computations move to `scripts/lib/pin-digests.sh`, which the test and
+  `repin-digests.sh` both source, so a re-pin computes each digest the same way the test grades
+  it. `tests/repin.sh` now calls `repin-digests.sh` and then runs the test, and keeps its exit
+  codes.
+
+### Fixed
+
+- `/planning:plan`, `/planning:draft-goal-condition` and `/planning:interview` point at the exact upstream sections behind their workflow, teammate and advisor claims, and the advisor default and the upload reader's model pin are labeled as this repository's judgment.
+
+## [0.131.3] - 2026-10-31
+
+### Fixed
+
+- Text fixes in the interview page's exports and question history:
+  - A `revise` that changes `checkedAgainst` logs `Revised constraints checked.`, not `Revised checkedAgainst.`
+  - A restated `deferred` or `planningOwned` bullet that says only `none` no longer exports as a Deferred questions entry.
+  - The `why:` line of a row that a restated constraints or decisions line carries now sits under that line, not as a separate bullet in Constraints.
+  - `sync-ledger` leaves a blank line between the rows it writes into an empty register and the text after them.
+  - `export-brief` keeps the restated goal's `-` lines (Intent, Vision and the tiebreak) as bullets, so PLAN.md's Goal no longer needs a hand edit after Confirm.
+  - The `revise` op row in the interview's surface reference now lists `checkedAgainst`.
+
+## [0.131.2] - 2026-10-31
+
+### Changed
+
+- The `interview-ears-convention-tags` eval case grants Bash, and a new `resolver-ran` grader requires a Bash call to `resolve-convention-home.sh`, so the case covers the convention-home resolver path the EARS ladder names instead of a hand-read of `AGENTS.md`.
+
+## [0.131.1] - 2026-10-31
+
+### Changed
+
+- `/planning:interview` and `/planning:wayfind`: reworded phrases the interview text shared with an upstream skill set. The confirmation gate now opens with Step 3's stop wording ("no question is left to ask"), and "the frontier is empty" now reads "no open question remains on the frontier" (or "the frontier holds no item" in wayfind) across the skill bodies, the assumption sweep, the checklist template and the evals. No rule changed.
+
+- The interview round's closing probe is now worded "something else", never "anything else": "Is there something else that would change these recommendations?" The eval case `interview-closing-probe-something-else` grades the wording.
+
+### Fixed
+
+- `/planning:interview` in the terminal now reads back an answer that departs from the recommendation, or that arrives dictated or unclear, in its own words and keeps the question open until the user confirms or corrects it. An answer that accepts the recommendation still resolves at once.
+
+- When every answer was accepted as recommended or confirmed after its read-back, `/planning:interview`'s final confirmation no longer re-lists the unchanged accepted answers, even at the first confirmation. A recap saved once each round's read-backs are confirmed lets the pasted `--changed` recap list only the answers changed since, and the restatement adds the intent, the hedged answers and the assumptions the user has not seen. A host run of the `interview-final-brief-changes-only` eval case on 2026-10-30 scored 0 of 3 with-plugin runs on its changes-only and omits-unchanged graders before this rule.
+
 ## [0.131.0] - 2026-10-31
 
 ### Added

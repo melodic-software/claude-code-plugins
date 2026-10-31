@@ -179,7 +179,7 @@ const PARENT_HOLDS = new Set(["needs-human", "needs-owner-decision"]);
 // A body line opening with `Hold:`, as the merge gate reads one in a pull
 // request body a person wrote (pr-merge/merge-holds.mjs BODY_HOLD).
 export const BODY_HOLD = /^[^\S\r\n]*hold:/im;
-const LISTS = ["types", "types-under-parent", "types-parent-if-present", "sizes", "uncertainty", "refuse-labels"];
+const LISTS = ["types", "types-under-parent", "types-parent-if-present", "sizes", "uncertainty", "refuse-labels", "cordoned-milestones"];
 
 // The rules file, each list checked to hold strings.
 export function loadRules(path) {
@@ -961,6 +961,16 @@ export function authorAdmitted(issue, humans, appId) {
   const author = issue?.user?.id;
   return author !== undefined && (humans.has(author) || (Number.isInteger(appId) && author === appId));
 }
+
+// Whether admission parked the issue at status: confirmed, which is also
+// triage's verified status: no other status, no agent-ready, and the lanes
+// App's admission comment. `labels` are its label names, `comments` its
+// comments. Pure.
+export const admissionParked = (labels, comments, appId) =>
+  labels.includes(CONFIRMED) &&
+  ![NEEDS_DECISION, READY, AGENT_READY].some((label) => labels.includes(label)) &&
+  Number.isInteger(appId) &&
+  comments.some((comment) => comment?.user?.id === appId && String(comment.body ?? "").startsWith(ADMIT_MARKER));
 
 // Whether the newest add of `label` (a `labeled` event) is a listed human's
 // (`humans`, ids) or the lanes App's (`appId`), as attendedHold judges
@@ -2249,6 +2259,11 @@ export async function admit({ github, repository, number, verdict, rules, humans
     const status = decision.hold ? NEEDS_DECISION : CONFIRMED;
     await github("POST", `${base}/labels`, { labels: [status, ...(decision.attended ? [ATTENDED] : []), ...(decision.hostRun ? [HOST_RUN] : [])] });
     await github("DELETE", `${base}/labels/${encodeURIComponent(READY)}`);
+    // A manual re-dispatch leaves a parked status: confirmed beside
+    // status: ready; the hold is the one status that stands.
+    if (status !== CONFIRMED && names(issue.labels).includes(CONFIRMED)) {
+      await github("DELETE", `${base}/labels/${encodeURIComponent(CONFIRMED)}`);
+    }
     await undefer();
     await sayWhy(github, repository, base, comments, refusalText(reasons));
     log(`admit: #${number} refused (${reasons})`);
