@@ -1072,6 +1072,9 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
   const repo = `${apiUrl}/repos/${owner}/${name}`;
   return {
     getPull: async (pr) => (await request(`${repo}/pulls/${pr}`)).data,
+    // A GraphQL answer whole, errors kept for the caller to judge
+    // (fix-ci-context.mjs, for pr-verify's linkedIssues).
+    graphqlAnswer: async (body) => (await request(graphqlUrl, "POST", body)).data,
     listLabelEvents: (pr) => listLabelEvents({ graphql, repository, number: pr }),
     // Metadata read, which every token holds. A 404 (not a collaborator) is none.
     async getPermission(login) {
