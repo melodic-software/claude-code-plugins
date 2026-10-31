@@ -160,9 +160,9 @@ a counting rung's proposal also carries that section's offer; false leaves it ou
 
 ## Report
 
-Problems first: an unproven check, a count below threshold, an unresolved old ref. Then the count,
-the rung by its id, any "no guardrail" finding naming the ladder's "Guardrail criterion" section,
-the scope, the proof line from the script, and the proposal path or that nothing was written. End
+Problems first: a mistake that meets the ladder's "Guardrail criterion" with no check in the
+repository yet, stated in those words as a "no guardrail" finding naming that section; an unproven
+check; a count below threshold; an unresolved old ref. Then the count, the rung by its id, the scope, the proof line from the script, and the proposal path or that nothing was written. End
 with the question for any blocking install.
 
 ## Boundary
