@@ -448,7 +448,7 @@ async page => { // the user journey in order on one page, no reload after phase 
       };
       const one = await confirmList({notes: [ask(-900, "Should the cache key include the branch?")], mine: []});
       ok("Finish lists the Notes line while a Claude ask has no answer", one.all > 1 && one.notes.length === 1 && one.notes[0] === "Claude asked for an answer in Notes and you have not given one", JSON.stringify(one));
-      const two = await confirmList({notes: [ask(-900, "Should the cache key include the branch?"), ask(-600, "And the runner image?")], mine: []});
+      const two = await confirmList({notes: [ask(-900, "Should the cache key include the branch?"), ask(-600, "And the base image?")], mine: []});
       ok("Finish counts two unanswered Claude asks in one Notes line", two.all > 1 && two.notes.length === 1 && two.notes[0] === "2 Claude questions in Notes have no answer from you", JSON.stringify(two));
       const answered = await confirmList({notes: [ask(-900, "Should the cache key include the branch?")], mine: [-600]});
       ok("Finish lists no Notes line once you answer the ask", answered.all > 0 && answered.notes.length === 0, JSON.stringify(answered));
