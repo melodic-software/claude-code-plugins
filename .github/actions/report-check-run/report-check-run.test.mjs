@@ -348,6 +348,15 @@ test("a workflow-modified skip from a run job that succeeded POSTs neutral", asy
   assert.equal(calls[0].body.output.summary, "Skip reason: workflow-modified");
 });
 
+test("a stop-resolved skip POSTs neutral under the schema's enum", async () => {
+  const verdict = { ...JSON.parse(readFileSync(fixture("verdict-skipped.json"), "utf8")), "skip-reason": "stop-resolved", outcome: "skipped" };
+  const verdictPath = path.join(dir, "verdict.json");
+  writeFileSync(verdictPath, JSON.stringify(verdict));
+  const { calls } = await run({ VERDICT_PATH: verdictPath, ACT_OUTCOME: "skipped" });
+  assert.equal(calls[0].body.conclusion, "neutral");
+  assert.equal(calls[0].body.output.title, "Skipped: stop-resolved");
+});
+
 test("the enum is read from base-path: a base schema without the reason POSTs failure", async () => {
   const schemaPath = path.join(basePath, SCHEMA_REL);
   const schema = JSON.parse(readFileSync(schemaPath, "utf8"));

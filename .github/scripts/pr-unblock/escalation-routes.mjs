@@ -28,6 +28,10 @@ export const stopSkip = (reason) => (escalationRoute(reason) === "fail" ? "lane-
 export const LANE_STOP = "Skipped: lane-stopped";
 export const laneStop = (run) => run?.status === "completed" && run.conclusion === "neutral" && run.output?.title === LANE_STOP;
 
+// A select job that found the stop gone on its head: address-feedback and
+// fix-ci post it where they set `resolved`.
+export const STOP_RESOLVED = "Skipped: stop-resolved";
+
 // The GitHub Actions app: only its check runs are a trusted stop record.
 export const ACTIONS_APP_ID = 15368;
 
