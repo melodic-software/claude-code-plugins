@@ -2213,13 +2213,18 @@ on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)),
 tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The diff
 is split at file boundaries into at most 4 chunks of at most 300000 bytes, each file whole
 (`chunk-diff.sh`, `split-diff.py`; the same budget as `pr-review-main`), and each chunk gets its own
-judge step with the same spec, cut into parts one Read returns whole. A chunk counts only when it
-read every part whole and hit no permission denial. Any chunk's `fail` fails the head, with that
-chunk's notes first; a `pass-notes` makes it `pass-notes`. A head of two chunks or more also needs
-a final judge step, `Judge the whole spec`, denied the diff: it reads the spec and every chunk's
-checked result as untrusted data (`spec-prompt.md`) and fails any done-when item no chunk says it
-delivers. With no output from it, off the schema, or with a denial, the head gets no verdict, so
-no chunk's `pass-notes` passes a chunked head alone. A single chunk has no final step. A chunk that fails, leaves no verdict or
+judge step with the same spec, cut into parts one Read returns whole. `manifest.txt` names the part
+each file starts in, so a judge reads another chunk's part when its change references a file there
+and judges both sides. A `pass` or `pass-notes` counts only when the run read every part whole with
+no permission denial; a `fail` needs only the schema and no denial, and it stands whatever follows:
+the step after each judge stops the later chunks, the final judge and any handoff, and
+`Write the verdict` runs on it, so a re-run cannot sample that head. A `pass-notes` makes the head
+`pass-notes`. A head of two chunks or more also needs a final judge step, `Judge the whole spec`,
+denied the diff: it reads the spec and every chunk's checked result as untrusted data
+(`spec-prompt.md`) and maps each done-when item to the chunk that delivers it, and a script fails
+the head on an item mapped to none. It must read the spec, the manifest and every result whole.
+With no output from it, off the schema, or with a denial, and no counted fail, the head gets no
+verdict, so no chunk's `pass-notes` passes a chunked head alone. A single chunk has no final step. A chunk that fails, leaves no verdict or
 is off the schema leaves no verdict for the head, and a handoff from any chunk hands the whole
 judgment to the next leg, which judges every chunk again. A file over 300000 bytes, or a diff that
 needs more than 4 chunks (over about 1.2 MB), ends the run red with no verdict and an error naming

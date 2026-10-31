@@ -171,20 +171,101 @@ export function mergeChunks(outputs, final) {
   if (final === undefined || final === null) {
     throw new Error("the whole-spec judgment left no output");
   }
-  const worst = [...chunks.map((chunk, i) => ({ ...chunk, label: `Chunk ${i + 1} of ${chunks.length}` })), { ...parseOutput(final), label: "Whole spec" }].sort(
-    (a, b) => VERDICTS.indexOf(b.verdict) - VERDICTS.indexOf(a.verdict),
-  );
+  return mergeEntries([...chunks.map((chunk, i) => ({ ...chunk, label: `Chunk ${i + 1} of ${chunks.length}` })), { ...parseOutput(final), label: "Whole spec" }]);
+}
+
+function mergeEntries(entries) {
+  const worst = [...entries].sort((a, b) => VERDICTS.indexOf(b.verdict) - VERDICTS.indexOf(a.verdict));
   const room = Math.floor(SUMMARY_MAX / worst.length) - 1;
   return {
     verdict: worst[0].verdict,
     summary: worst.map(({ label, verdict, summary }) => `${label}, ${verdict}: ${summary}`.slice(0, room)).join("\n"),
-    notes: worst.flatMap((chunk) => chunk.notes),
+    notes: worst.flatMap((entry) => entry.notes),
   };
 }
 
-// The most one chunk's result file holds, so one Read returns it whole
-// (pr-verify.yml PART_BYTES).
+// The whole-spec judgment's schema: the verdict's, and each done-when item with
+// the chunk that delivers it, or null.
+export const FINAL_SCHEMA = Object.freeze({
+  type: "object",
+  properties: {
+    verdict: { enum: VERDICTS },
+    summary: { type: "string" },
+    notes: { type: "array", items: { type: "string" } },
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { item: { type: "string" }, chunk: { type: ["integer", "null"], minimum: 1 } },
+        required: ["item", "chunk"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["verdict", "summary", "notes", "items"],
+  additionalProperties: false,
+});
+
+// The whole-spec judgment's output as a verdict output. The script holds it to
+// its own mapping: an item it maps to no chunk fails the head whatever verdict
+// it gave, and a pass or pass-notes that maps no item, or names a chunk that
+// does not exist, counts for nothing. The script cannot tell whether a named
+// chunk holds the item: that stays the judgment's.
+export function parseFinal(output, count) {
+  if (!isObject(output) || !Array.isArray(output.items)) {
+    throw new Error("the structured output does not match the verdict schema");
+  }
+  const { items, ...rest } = output;
+  if (!items.every((entry) => isObject(entry) && typeof entry.item === "string" && (entry.chunk === null || Number.isInteger(entry.chunk)))) {
+    throw new Error("the structured output does not match the verdict schema");
+  }
+  const parsed = parseOutput(rest);
+  if (parsed.verdict === "fail") {
+    return parsed;
+  }
+  if (items.length === 0 || items.some(({ chunk }) => chunk !== null && (chunk < 1 || chunk > count))) {
+    throw new Error("the whole-spec judgment mapped no item, or an item to no such chunk");
+  }
+  const nowhere = items.filter(({ chunk }) => chunk === null);
+  if (nowhere.length === 0) {
+    return parsed;
+  }
+  return parseOutput({
+    verdict: "fail",
+    summary: `${nowhere.length} done-when item(s) delivered by no chunk. ${parsed.summary}`,
+    notes: [...nowhere.map(({ item }) => `${item}: delivered by no chunk`), ...parsed.notes],
+  });
+}
+
+// The most one file for the whole-spec judgment holds, so one Read returns it
+// whole (pr-verify.yml PART_BYTES). Read may cut a long line short, so each
+// line is wrapped well under that (pr-review-main.yml LONG_LINE_BYTES).
 const RESULT_BYTES = 15000;
+const WRAP_CHARS = 1500;
+
+function wrapped(text) {
+  const out = [];
+  for (const line of text.split("\n")) {
+    let rest = line;
+    for (; rest.length > WRAP_CHARS; rest = rest.slice(WRAP_CHARS)) {
+      out.push(rest.slice(0, WRAP_CHARS));
+    }
+    out.push(rest);
+  }
+  return out.join("\n");
+}
+
+// The spec's text in parts of at most RESULT_BYTES, cut between lines.
+function specParts(text) {
+  const parts = [""];
+  for (const line of wrapped(text).split("\n")) {
+    if (Buffer.byteLength(parts.at(-1)) + Buffer.byteLength(line) + 1 > RESULT_BYTES) {
+      parts.push("");
+    }
+    parts[parts.length - 1] += `${line}\n`;
+  }
+  return parts;
+}
 
 // What the whole-spec judgment reads of one chunk: its checked output, cut to
 // one Read, with the count of notes that did not fit.
@@ -192,7 +273,7 @@ function chunkResult(output, k, count) {
   const { verdict, summary, notes } = parseOutput(output);
   const result = { chunk: k, of: count, verdict, summary: summary.slice(0, SUMMARY_MAX), notes: [], notes_left_out: 0 };
   for (const note of notes.map((text) => text.slice(0, NOTE_MAX))) {
-    if (Buffer.byteLength(JSON.stringify({ ...result, notes: [...result.notes, note] })) > RESULT_BYTES) {
+    if (Buffer.byteLength(JSON.stringify({ ...result, notes: [...result.notes, note] })) > RESULT_BYTES - 100) {
       result.notes_left_out += 1;
     } else {
       result.notes.push(note);
@@ -266,13 +347,14 @@ export function earlierDenials(logText) {
   }
 }
 
-// A newline-separated list from a workflow's env; a step that did not run
-// renders as a blank line.
-const fileList = (value) =>
+// A newline-separated list from a workflow's env, by position; a step that
+// did not run renders as a blank line.
+const positions = (value) =>
   String(value ?? "")
     .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
+    .map((line) => line.trim());
+
+const fileList = (value) => positions(value).filter(Boolean);
 
 // One chunk's log, checked for a denial on any of its legs.
 function checkLog(file) {
@@ -378,34 +460,6 @@ export function retentionDays(verdict, mayRelink = true) {
   return ["pass", "pass-notes"].includes(verdict) && mayRelink === false ? 7 : 90;
 }
 
-// Each chunk's checked output, in order: every chunk ran, read all its parts
-// whole and hit no denial, or this throws.
-function chunkOutputs(env) {
-  const executions = fileList(env.EXECUTION_FILES);
-  const logs = fileList(env.LOG_FILES);
-  const chunkDirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-[1-9]$/.test(name));
-  const count = Number(env.CHUNKS);
-  if (!/^[1-9]$/.test(env.CHUNKS) || executions.length !== count || logs.length !== count || chunkDirs.length !== count) {
-    throw new Error(`the chunk count does not match ${executions.length} run(s), ${logs.length} log(s) and ${chunkDirs.length} chunk(s) of the diff`);
-  }
-  const outputs = executions.map((file, i) => {
-    try {
-      const messages = readExecution(file);
-      const dir = path.join(env.DIFF_DIR, `chunk-${i + 1}`);
-      readCoverage(
-        messages,
-        readdirSync(dir).map((name) => path.join(dir, name)),
-      );
-      const output = structuredOutput(messages);
-      checkLog(logs[i]);
-      return output;
-    } catch (error) {
-      throw new Error(`chunk ${i + 1} of ${count}: ${error.message}`);
-    }
-  });
-  return { count, outputs };
-}
-
 function readExecution(file) {
   try {
     return JSON.parse(readFileSync(file, "utf8"));
@@ -414,40 +468,141 @@ function readExecution(file) {
   }
 }
 
-// The whole-spec judgment's output: it ran, read every chunk's result whole
+// One run's messages and its checked output: it left an output on the schema
 // and hit no denial, or this throws.
+function readJudgment(file, logFile, parse = parseOutput) {
+  const messages = readExecution(file);
+  const output = parse(structuredOutput(messages));
+  checkLog(logFile);
+  return { messages, output };
+}
+
+// After each judge step: whether its run left a fail the head can count, which
+// stops the later chunks. Anything else, a broken run included, is no fail.
+export function checkChunk(env = process.env) {
+  let fail = false;
+  try {
+    fail = readJudgment(env.EXECUTION_FILE, env.LOG_FILE).output.verdict === "fail";
+  } catch {
+    fail = false;
+  }
+  appendFileSync(env.GITHUB_OUTPUT, `fail=${fail}\n`);
+}
+
+// Each chunk by position: `output`, or `error` for a chunk that did not count.
+// A pass or pass-notes counts only when the run read every part whole; a fail
+// is the judge's whatever it read.
+function judgedChunks(env) {
+  const chunkDirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-[1-9]$/.test(name));
+  const count = Number(env.CHUNKS);
+  if (!/^[1-9]$/.test(env.CHUNKS) || chunkDirs.length !== count) {
+    throw new Error(`the chunk count does not match ${chunkDirs.length} chunk(s) of the diff`);
+  }
+  const executions = positions(env.EXECUTION_FILES);
+  const logs = positions(env.LOG_FILES);
+  const results = Array.from({ length: count }, (_, i) => {
+    const k = i + 1;
+    try {
+      if (!executions[i]) {
+        throw new Error("the chunk left no run");
+      }
+      const { messages, output } = readJudgment(executions[i], logs[i]);
+      if (output.verdict !== "fail") {
+        const dir = path.join(env.DIFF_DIR, `chunk-${k}`);
+        readCoverage(
+          messages,
+          readdirSync(dir).map((name) => path.join(dir, name)),
+        );
+      }
+      return { k, output };
+    } catch (error) {
+      return { k, error: error.message };
+    }
+  });
+  return { count, results };
+}
+
+const firstError = (results, count) => {
+  const broken = results.find((result) => result.error !== undefined);
+  return broken ? new Error(`chunk ${broken.k} of ${count}: ${broken.error}`) : null;
+};
+
+// The whole-spec judgment's output: it ran, read every result, the spec and
+// the manifest whole, and hit no denial, or this throws. Its fail stands
+// whatever it read.
 function finalOutput(env, count) {
   try {
-    for (const key of ["FINAL_EXECUTION_FILE", "FINAL_LOG_FILE", "RESULTS_DIR"]) {
+    for (const key of ["FINAL_EXECUTION_FILE", "FINAL_LOG_FILE", "RESULTS_DIR", "MANIFEST_FILE"]) {
       if (!env[key]) {
         throw new Error(`${key} is not set`);
       }
     }
-    const messages = readExecution(env.FINAL_EXECUTION_FILE);
-    readCoverage(
-      messages,
-      Array.from({ length: count }, (_, i) => path.join(env.RESULTS_DIR, `chunk-${i + 1}.json`)),
-    );
-    const output = structuredOutput(messages);
-    checkLog(env.FINAL_LOG_FILE);
+    const { messages, output } = readJudgment(env.FINAL_EXECUTION_FILE, env.FINAL_LOG_FILE, (text) => parseFinal(text, count));
+    if (output.verdict !== "fail") {
+      readCoverage(messages, [...readdirSync(env.RESULTS_DIR).map((name) => path.join(env.RESULTS_DIR, name)), env.SPEC_FILE, env.MANIFEST_FILE]);
+    }
     return output;
   } catch (error) {
     throw new Error(`the whole-spec judgment: ${error.message}`);
   }
 }
 
-// The files the whole-spec judgment reads, one per chunk, written only when
-// every chunk's output holds.
+// The head's output. A fail any chunk left stands alone, so nothing after it
+// can discard it; anything else needs every chunk and the whole-spec judgment.
+function headOutput(env, count, results) {
+  const counted = results.filter((result) => result.output !== undefined);
+  if (counted.some(({ output }) => output.verdict === "fail")) {
+    return count === 1 ? counted[0].output : mergeEntries(counted.map(({ k, output }) => ({ ...output, label: `Chunk ${k} of ${count}` })));
+  }
+  const error = firstError(results, count);
+  if (error) {
+    throw error;
+  }
+  return mergeChunks(
+    counted.map(({ output }) => output),
+    count > 1 ? finalOutput(env, count) : undefined,
+  );
+}
+
+// What the whole-spec judgment reads, each file one Read, with its prompt and
+// schema: written only when every chunk counts. The prompt lists the spec's
+// parts, whose number only this step knows.
 export function writeChunkResults(env = process.env) {
-  for (const key of ["EXECUTION_FILES", "LOG_FILES", "CHUNKS", "DIFF_DIR", "RESULTS_DIR"]) {
+  for (const key of ["EXECUTION_FILES", "LOG_FILES", "CHUNKS", "DIFF_DIR", "RESULTS_DIR", "SPEC_TEXT_FILE", "SPEC_FILE", "CONTEXT_FILE", "PR_FILE", "MANIFEST_FILE", "PROMPT_FILE", "SCHEMA_FILE"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
   }
-  const { count, outputs } = chunkOutputs(env);
-  const results = outputs.map((output, i) => chunkResult(output, i + 1, count));
+  const { count, results } = judgedChunks(env);
+  const error = firstError(results, count);
+  if (error) {
+    throw error;
+  }
+  const texts = results.map(({ k, output }) => wrapped(JSON.stringify(chunkResult(output, k, count))));
+  const spec = specParts(readFileSync(env.SPEC_TEXT_FILE, "utf8"));
   mkdirSync(env.RESULTS_DIR, { recursive: true });
-  results.forEach((result) => writeFileSync(path.join(env.RESULTS_DIR, `chunk-${result.chunk}.json`), `${JSON.stringify(result)}\n`));
+  const resultFiles = texts.map((text, i) => {
+    const file = path.join(env.RESULTS_DIR, `chunk-${i + 1}.json`);
+    writeFileSync(file, `${text}\n`);
+    return file;
+  });
+  const partFiles = spec.map((text, i) => {
+    const file = path.join(env.RESULTS_DIR, `spec-part-${String(i + 1).padStart(3, "0")}.txt`);
+    writeFileSync(file, text);
+    return file;
+  });
+  const listed = (files) => files.map((file) => `  - \`${file}\``).join("\n");
+  const template = readFileSync(new URL("./spec-prompt.md", import.meta.url), "utf8");
+  const prompt = [
+    ["RESULT_FILES", listed(resultFiles)],
+    ["SPEC_PARTS", listed(partFiles)],
+    ["MANIFEST_FILE", env.MANIFEST_FILE],
+    ["CONTEXT_FILE", env.CONTEXT_FILE],
+    ["PR_FILE", env.PR_FILE],
+    ["SPEC_FILE", env.SPEC_FILE],
+  ].reduce((text, [token, value]) => text.replaceAll(token, () => value), template);
+  writeFileSync(env.PROMPT_FILE, prompt);
+  writeFileSync(env.SCHEMA_FILE, `${JSON.stringify(FINAL_SCHEMA)}\n`);
 }
 
 export function main(env = process.env) {
@@ -469,8 +624,8 @@ export function main(env = process.env) {
       throw new Error(`${key} is not set`);
     }
   }
-  const { count, outputs } = chunkOutputs(env);
-  const output = mergeChunks(outputs, count > 1 ? finalOutput(env, count) : undefined);
+  const { count, results } = judgedChunks(env);
+  const output = headOutput(env, count, results);
   let linkedIssues;
   try {
     linkedIssues = JSON.parse(readFileSync(env.SPEC_FILE, "utf8"));
@@ -522,7 +677,7 @@ export function main(env = process.env) {
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
   const name = artifactName(verdict);
   appendFileSync(env.GITHUB_OUTPUT, `name=${name}\nverdict=${verdict.verdict}\nretention-days=${retentionDays(verdict.verdict, env.RELINK_SINCE_HEAD !== "false")}\n`);
-  outputs.forEach((one, i) => console.log(`::notice title=pr-verify chunk::pr=${verdict.pr} chunk=${i + 1}/${count} verdict=${mergeChunks([one]).verdict}`));
+  results.forEach(({ k, output: one }) => console.log(`::notice title=pr-verify chunk::pr=${verdict.pr} chunk=${k}/${count} verdict=${one?.verdict ?? "none"}`));
   console.log(`write-verdict: ${name}`);
 }
 
@@ -530,6 +685,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     if (process.argv[2] === "check-key-leg") {
       checkKeyLeg();
+    } else if (process.argv[2] === "chunk-fail") {
+      checkChunk();
     } else if (process.argv[2] === "chunk-results") {
       writeChunkResults();
     } else {

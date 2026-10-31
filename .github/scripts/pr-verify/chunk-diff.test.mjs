@@ -43,15 +43,15 @@ const partsOf = (data, k) =>
 
 test("a diff over the budget splits across files into chunks of whole files", () => {
   const patch = file("a.mjs", 60) + file("b.mjs", 60) + file("c.md", 60);
-  const { status, data, outputs, stdout } = run(patch);
+  const { status, data, outputs, stdout } = run(patch, { PART_BYTES: "400" });
   assert.equal(status, 0);
   assert.equal(outputs, "chunks=3\n");
   assert.match(stdout, /::notice title=pr-verify chunks::pr=41 chunks=3 bytes=\d+,\d+,\d+ manifest_paths=3/);
   assert.equal([1, 2, 3].map((k) => partsOf(data, k).join("")).join(""), patch);
   assert.ok(partsOf(data, 1).join("").startsWith("diff --git a/a.mjs"));
   assert.ok(!partsOf(data, 1).join("").includes("b.mjs"));
-  assert.ok(partsOf(data, 1).every((part) => Buffer.byteLength(part) <= 120));
-  assert.match(readFileSync(path.join(data, "manifest.txt"), "utf8"), /^chunk 1 modified a\.mjs\nchunk 2 modified b\.mjs\nchunk 3 modified c\.md\n$/);
+  assert.ok(partsOf(data, 1).every((part) => Buffer.byteLength(part) <= 400));
+  assert.match(readFileSync(path.join(data, "manifest.txt"), "utf8"), /^chunk 1 diff\/chunk-1\/part-001\.patch modified a\.mjs\nchunk 2 diff\/chunk-2\/part-001\.patch modified b\.mjs\nchunk 3 diff\/chunk-3\/part-001\.patch modified c\.md\n$/);
   assert.equal(existsSync(path.join(data, "diff.patch")), false, "the model reads only the parts");
 });
 
@@ -92,4 +92,20 @@ test("a diff that needs more chunks than the job has slots stops and says so", (
   assert.equal(status, 1);
   assert.equal(outputs, "");
   assert.match(stdout, /^::error::.*needs 3 chunks, more than 2/m);
+});
+
+test("the manifest names the part each file starts in, and stays one Read", () => {
+  const two = run(file("a.mjs", 10) + file("b.mjs", 10) + file("c.mjs", 60), { MAX_DIFF_BYTES: "300", PART_BYTES: "200" });
+  assert.equal(two.status, 0);
+  const lines = readFileSync(path.join(two.data, "manifest.txt"), "utf8").trim().split("\n");
+  for (const line of lines.filter((text) => text.startsWith("chunk "))) {
+    const [, k, part] = /^chunk (\d) (\S+) /.exec(line);
+    assert.ok(part.startsWith(`diff/chunk-${k}/part-`), line);
+    assert.ok(existsSync(path.join(two.data, part)), line);
+    assert.ok(readFileSync(path.join(two.data, part), "utf8").includes(`diff --git a/${line.split(" ").at(-1)} `), line);
+  }
+  assert.equal(existsSync(path.join(two.data, "file-parts.txt")), false);
+  const many = run(Array.from({ length: 400 }, (_, i) => file(`src/module-${i}.mjs`, 1)).join(""), { MAX_DIFF_BYTES: "30000", PART_BYTES: "1000" });
+  assert.equal(many.status, 0);
+  assert.ok(Buffer.byteLength(readFileSync(path.join(many.data, "manifest.txt"))) <= 1000);
 });

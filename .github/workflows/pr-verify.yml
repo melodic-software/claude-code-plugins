@@ -330,6 +330,7 @@ jobs:
             if [ "$CHUNKS" -gt 1 ]; then
               note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
               note=${note//MANIFEST_FILE/$DATA/manifest.txt}
+              note=${note//DATA_DIR/$DATA}
               note=${note//CHUNK_INDEX/$k}
               note=${note//CHUNK_COUNT/$CHUNKS}
               note=$'\n'$note
@@ -337,19 +338,6 @@ jobs:
             prompt=${prompt//CHUNK_NOTE/"$note"}
             printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
           done
-          # A diff in chunks gets one more judge, with no diff (spec-prompt.md).
-          if [ "$CHUNKS" -gt 1 ]; then
-            spec=$(<.base/.github/scripts/pr-verify/spec-prompt.md)
-            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-            results=$(for k in $(seq "$CHUNKS"); do printf '  - `%s`\n' "$DATA/chunk-results/chunk-$k.json"; done)
-            spec=${spec//RESULT_FILES/$results}
-            spec=${spec//MANIFEST_FILE/$DATA/manifest.txt}
-            spec=${spec//CONTEXT_FILE/$DATA/context.json}
-            spec=${spec//PR_FILE/$DATA/pr.json}
-            spec=${spec//SPEC_TEXT_FILE/$DATA/spec-text.json}
-            spec=${spec//SPEC_FILE/$DATA/spec.json}
-            printf '%s\n' "$spec" >"$PROMPT_STEM-spec.md"
-          fi
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
@@ -453,18 +441,31 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
+      # A fail the head can count ends the judgment here (write-verdict.mjs
+      # checkChunk): the later chunks, the final judge and any handoff are
+      # skipped, and "Write the verdict" runs on it, so no later step can lose
+      # it to a re-run. A step that fails before it does not stop the check.
+      - name: Read chunk 1's verdict
+        id: chunk-fail
+        if: ${{ !cancelled() && steps.judge.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge.outputs.log-file }}
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
+
       # Chunk 2 on, each the first chunk's steps on its own prompt: chunk k runs
       # only when the diff has k chunks and chunk k-1 judged and handed nothing
       # on, so a handoff hands the whole judgment on and the next leg judges
       # every chunk again. The leg check reads every chunk's log so far.
       - name: Time chunk 2
         id: time-2
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true' && steps.chunk-fail.outputs.fail != 'true'
         run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       - name: Judge chunk 2
         id: judge-2
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true' && steps.chunk-fail.outputs.fail != 'true'
         continue-on-error: true
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
@@ -540,14 +541,23 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-2
 
+      - name: Read chunk 2's verdict
+        id: chunk-fail-2
+        if: ${{ !cancelled() && steps.judge-2.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge-2.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge-2.outputs.log-file }}
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
+
       - name: Time chunk 3
         id: time-3
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true' && steps.chunk-fail-2.outputs.fail != 'true'
         run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       - name: Judge chunk 3
         id: judge-3
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true' && steps.chunk-fail-2.outputs.fail != 'true'
         continue-on-error: true
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
@@ -624,14 +634,23 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-3
 
+      - name: Read chunk 3's verdict
+        id: chunk-fail-3
+        if: ${{ !cancelled() && steps.judge-3.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge-3.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge-3.outputs.log-file }}
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
+
       - name: Time chunk 4
         id: time-4
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true' && steps.chunk-fail-3.outputs.fail != 'true'
         run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       - name: Judge chunk 4
         id: judge-4
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true' && steps.chunk-fail-3.outputs.fail != 'true'
         continue-on-error: true
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
@@ -709,6 +728,15 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-4
 
+      - name: Read chunk 4's verdict
+        id: chunk-fail-4
+        if: ${{ !cancelled() && steps.judge-4.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge-4.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge-4.outputs.log-file }}
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
+
       # A diff in chunks: one more judge, with no diff, reads the spec and every
       # chunk's checked result and fails an item no chunk delivers. The results
       # are model text, checked as any verdict is and read as data; a chunk that
@@ -716,7 +744,7 @@ jobs:
       # keeps this judge off the diff, and a denial voids the verdict.
       - name: Write the chunk results
         id: chunk-results
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success')
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && steps.chunk-fail.outputs.fail != 'true' && steps.chunk-fail-2.outputs.fail != 'true' && steps.chunk-fail-3.outputs.fail != 'true' && steps.chunk-fail-4.outputs.fail != 'true'
         env:
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}
@@ -731,6 +759,13 @@ jobs:
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
+          SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
+          PR_FILE: ${{ github.workspace }}/pr-verify-data/pr.json
+          MANIFEST_FILE: ${{ github.workspace }}/pr-verify-data/manifest.txt
+          PROMPT_FILE: ${{ runner.temp }}/pr-verify-prompt-spec.md
+          SCHEMA_FILE: ${{ runner.temp }}/pr-verify-spec-schema.json
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-results
 
       - name: Time the spec judgment
@@ -773,7 +808,7 @@ jobs:
             WebSearch
             Agent
             mcp__*
-          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          json-schema-file: ${{ runner.temp }}/pr-verify-spec-schema.json
           leg-timeout-minutes: "15"
 
       - name: Check the key leg, whole spec
@@ -826,9 +861,10 @@ jobs:
       # script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
-        if: steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-spec.outcome == 'success')
+        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-fail-2.outputs.fail == 'true' || steps.chunk-fail-3.outputs.fail == 'true' || steps.chunk-fail-4.outputs.fail == 'true' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-spec.outcome == 'success'))) }}
         env:
-          # Each chunk's files in chunk order; a chunk that left none voids it.
+          # Each chunk's files in chunk order. A counted fail needs no others;
+          # anything else needs every chunk and the final judge.
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}
             ${{ steps.judge-2.outputs.execution-file }}
@@ -845,6 +881,7 @@ jobs:
           FINAL_EXECUTION_FILE: ${{ steps.judge-spec.outputs.execution-file }}
           FINAL_LOG_FILE: ${{ steps.judge-spec.outputs.log-file }}
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
+          MANIFEST_FILE: ${{ github.workspace }}/pr-verify-data/manifest.txt
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
@@ -856,7 +893,7 @@ jobs:
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
       - name: Upload the verdict
-        if: steps.verdict.outcome == 'success'
+        if: ${{ !cancelled() && steps.verdict.outcome == 'success' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -865,7 +902,7 @@ jobs:
           if-no-files-found: error
 
       - name: Summarize the verdict
-        if: steps.verdict.outcome == 'success'
+        if: ${{ !cancelled() && steps.verdict.outcome == 'success' }}
         env:
           VERDICT_FILE: ${{ runner.temp }}/pr-verify-verdict/verdict.json
         run: |
@@ -1143,6 +1180,7 @@ jobs:
             if [ "$CHUNKS" -gt 1 ]; then
               note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
               note=${note//MANIFEST_FILE/$DATA/manifest.txt}
+              note=${note//DATA_DIR/$DATA}
               note=${note//CHUNK_INDEX/$k}
               note=${note//CHUNK_COUNT/$CHUNKS}
               note=$'\n'$note
@@ -1150,19 +1188,6 @@ jobs:
             prompt=${prompt//CHUNK_NOTE/"$note"}
             printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
           done
-          # A diff in chunks gets one more judge, with no diff (spec-prompt.md).
-          if [ "$CHUNKS" -gt 1 ]; then
-            spec=$(<.base/.github/scripts/pr-verify/spec-prompt.md)
-            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-            results=$(for k in $(seq "$CHUNKS"); do printf '  - `%s`\n' "$DATA/chunk-results/chunk-$k.json"; done)
-            spec=${spec//RESULT_FILES/$results}
-            spec=${spec//MANIFEST_FILE/$DATA/manifest.txt}
-            spec=${spec//CONTEXT_FILE/$DATA/context.json}
-            spec=${spec//PR_FILE/$DATA/pr.json}
-            spec=${spec//SPEC_TEXT_FILE/$DATA/spec-text.json}
-            spec=${spec//SPEC_FILE/$DATA/spec.json}
-            printf '%s\n' "$spec" >"$PROMPT_STEM-spec.md"
-          fi
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
@@ -1264,18 +1289,31 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
+      # A fail the head can count ends the judgment here (write-verdict.mjs
+      # checkChunk): the later chunks, the final judge and any handoff are
+      # skipped, and "Write the verdict" runs on it, so no later step can lose
+      # it to a re-run. A step that fails before it does not stop the check.
+      - name: Read chunk 1's verdict
+        id: chunk-fail
+        if: ${{ !cancelled() && steps.judge.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge.outputs.log-file }}
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
+
       # Chunk 2 on, each the first chunk's steps on its own prompt: chunk k runs
       # only when the diff has k chunks and chunk k-1 judged and handed nothing
       # on, so a handoff hands the whole judgment on and the next leg judges
       # every chunk again. The leg check reads every chunk's log so far.
       - name: Time chunk 2
         id: time-2
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true' && steps.chunk-fail.outputs.fail != 'true'
         run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       - name: Judge chunk 2
         id: judge-2
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true' && steps.chunk-fail.outputs.fail != 'true'
         continue-on-error: true
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
@@ -1349,14 +1387,23 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-2
 
+      - name: Read chunk 2's verdict
+        id: chunk-fail-2
+        if: ${{ !cancelled() && steps.judge-2.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge-2.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge-2.outputs.log-file }}
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
+
       - name: Time chunk 3
         id: time-3
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true' && steps.chunk-fail-2.outputs.fail != 'true'
         run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       - name: Judge chunk 3
         id: judge-3
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true' && steps.chunk-fail-2.outputs.fail != 'true'
         continue-on-error: true
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
@@ -1431,14 +1478,23 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-3
 
+      - name: Read chunk 3's verdict
+        id: chunk-fail-3
+        if: ${{ !cancelled() && steps.judge-3.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge-3.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge-3.outputs.log-file }}
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
+
       - name: Time chunk 4
         id: time-4
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true' && steps.chunk-fail-3.outputs.fail != 'true'
         run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       - name: Judge chunk 4
         id: judge-4
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true' && steps.chunk-fail-3.outputs.fail != 'true'
         continue-on-error: true
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
@@ -1514,6 +1570,15 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-4
 
+      - name: Read chunk 4's verdict
+        id: chunk-fail-4
+        if: ${{ !cancelled() && steps.judge-4.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge-4.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge-4.outputs.log-file }}
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
+
       # A diff in chunks: one more judge, with no diff, reads the spec and every
       # chunk's checked result and fails an item no chunk delivers. The results
       # are model text, checked as any verdict is and read as data; a chunk that
@@ -1521,7 +1586,7 @@ jobs:
       # keeps this judge off the diff, and a denial voids the verdict.
       - name: Write the chunk results
         id: chunk-results
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success')
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && steps.chunk-fail.outputs.fail != 'true' && steps.chunk-fail-2.outputs.fail != 'true' && steps.chunk-fail-3.outputs.fail != 'true' && steps.chunk-fail-4.outputs.fail != 'true'
         env:
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}
@@ -1536,6 +1601,13 @@ jobs:
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
+          SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
+          PR_FILE: ${{ github.workspace }}/pr-verify-data/pr.json
+          MANIFEST_FILE: ${{ github.workspace }}/pr-verify-data/manifest.txt
+          PROMPT_FILE: ${{ runner.temp }}/pr-verify-prompt-spec.md
+          SCHEMA_FILE: ${{ runner.temp }}/pr-verify-spec-schema.json
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-results
 
       - name: Time the spec judgment
@@ -1578,7 +1650,7 @@ jobs:
             WebSearch
             Agent
             mcp__*
-          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          json-schema-file: ${{ runner.temp }}/pr-verify-spec-schema.json
           fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
           leg-timeout-minutes: "15"
 
@@ -1629,9 +1701,10 @@ jobs:
       # script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
-        if: steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-spec.outcome == 'success')
+        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-fail-2.outputs.fail == 'true' || steps.chunk-fail-3.outputs.fail == 'true' || steps.chunk-fail-4.outputs.fail == 'true' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-spec.outcome == 'success'))) }}
         env:
-          # Each chunk's files in chunk order; a chunk that left none voids it.
+          # Each chunk's files in chunk order. A counted fail needs no others;
+          # anything else needs every chunk and the final judge.
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}
             ${{ steps.judge-2.outputs.execution-file }}
@@ -1648,6 +1721,7 @@ jobs:
           FINAL_EXECUTION_FILE: ${{ steps.judge-spec.outputs.execution-file }}
           FINAL_LOG_FILE: ${{ steps.judge-spec.outputs.log-file }}
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
+          MANIFEST_FILE: ${{ github.workspace }}/pr-verify-data/manifest.txt
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
@@ -1659,7 +1733,7 @@ jobs:
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
       - name: Upload the verdict
-        if: steps.verdict.outcome == 'success'
+        if: ${{ !cancelled() && steps.verdict.outcome == 'success' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -1668,7 +1742,7 @@ jobs:
           if-no-files-found: error
 
       - name: Summarize the verdict
-        if: steps.verdict.outcome == 'success'
+        if: ${{ !cancelled() && steps.verdict.outcome == 'success' }}
         env:
           VERDICT_FILE: ${{ runner.temp }}/pr-verify-verdict/verdict.json
         run: |
@@ -1937,6 +2011,7 @@ jobs:
             if [ "$CHUNKS" -gt 1 ]; then
               note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
               note=${note//MANIFEST_FILE/$DATA/manifest.txt}
+              note=${note//DATA_DIR/$DATA}
               note=${note//CHUNK_INDEX/$k}
               note=${note//CHUNK_COUNT/$CHUNKS}
               note=$'\n'$note
@@ -1944,19 +2019,6 @@ jobs:
             prompt=${prompt//CHUNK_NOTE/"$note"}
             printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
           done
-          # A diff in chunks gets one more judge, with no diff (spec-prompt.md).
-          if [ "$CHUNKS" -gt 1 ]; then
-            spec=$(<.base/.github/scripts/pr-verify/spec-prompt.md)
-            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
-            results=$(for k in $(seq "$CHUNKS"); do printf '  - `%s`\n' "$DATA/chunk-results/chunk-$k.json"; done)
-            spec=${spec//RESULT_FILES/$results}
-            spec=${spec//MANIFEST_FILE/$DATA/manifest.txt}
-            spec=${spec//CONTEXT_FILE/$DATA/context.json}
-            spec=${spec//PR_FILE/$DATA/pr.json}
-            spec=${spec//SPEC_TEXT_FILE/$DATA/spec-text.json}
-            spec=${spec//SPEC_FILE/$DATA/spec.json}
-            printf '%s\n' "$spec" >"$PROMPT_STEM-spec.md"
-          fi
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
@@ -2037,18 +2099,31 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
+      # A fail the head can count ends the judgment here (write-verdict.mjs
+      # checkChunk): the later chunks, the final judge and any handoff are
+      # skipped, and "Write the verdict" runs on it, so no later step can lose
+      # it to a re-run. A step that fails before it does not stop the check.
+      - name: Read chunk 1's verdict
+        id: chunk-fail
+        if: ${{ !cancelled() && steps.judge.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge.outputs.log-file }}
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
+
       # Chunk 2 on, each the first chunk's steps on its own prompt: chunk k runs
       # only when the diff has k chunks and chunk k-1 judged and handed nothing
       # on, so a handoff hands the whole judgment on and the next leg judges
       # every chunk again. The leg check reads every chunk's log so far.
       - name: Time chunk 2
         id: time-2
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true' && steps.chunk-fail.outputs.fail != 'true'
         run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       - name: Judge chunk 2
         id: judge-2
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true' && steps.chunk-fail.outputs.fail != 'true'
         continue-on-error: true
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
@@ -2109,14 +2184,23 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-2
 
+      - name: Read chunk 2's verdict
+        id: chunk-fail-2
+        if: ${{ !cancelled() && steps.judge-2.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge-2.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge-2.outputs.log-file }}
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
+
       - name: Time chunk 3
         id: time-3
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true' && steps.chunk-fail-2.outputs.fail != 'true'
         run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       - name: Judge chunk 3
         id: judge-3
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true' && steps.chunk-fail-2.outputs.fail != 'true'
         continue-on-error: true
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
@@ -2177,14 +2261,23 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-3
 
+      - name: Read chunk 3's verdict
+        id: chunk-fail-3
+        if: ${{ !cancelled() && steps.judge-3.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge-3.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge-3.outputs.log-file }}
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
+
       - name: Time chunk 4
         id: time-4
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true' && steps.chunk-fail-3.outputs.fail != 'true'
         run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
       - name: Judge chunk 4
         id: judge-4
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true'
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true' && steps.chunk-fail-3.outputs.fail != 'true'
         continue-on-error: true
         timeout-minutes: 22
         uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
@@ -2245,6 +2338,15 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}-4
 
+      - name: Read chunk 4's verdict
+        id: chunk-fail-4
+        if: ${{ !cancelled() && steps.judge-4.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          EXECUTION_FILE: ${{ steps.judge-4.outputs.execution-file }}
+          LOG_FILE: ${{ steps.judge-4.outputs.log-file }}
+        run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-fail
+
       # A diff in chunks: one more judge, with no diff, reads the spec and every
       # chunk's checked result and fails an item no chunk delivers. The results
       # are model text, checked as any verdict is and read as data; a chunk that
@@ -2252,7 +2354,7 @@ jobs:
       # keeps this judge off the diff, and a denial voids the verdict.
       - name: Write the chunk results
         id: chunk-results
-        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success')
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && steps.chunk-fail.outputs.fail != 'true' && steps.chunk-fail-2.outputs.fail != 'true' && steps.chunk-fail-3.outputs.fail != 'true' && steps.chunk-fail-4.outputs.fail != 'true'
         env:
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}
@@ -2267,6 +2369,13 @@ jobs:
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
+          SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
+          SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
+          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
+          PR_FILE: ${{ github.workspace }}/pr-verify-data/pr.json
+          MANIFEST_FILE: ${{ github.workspace }}/pr-verify-data/manifest.txt
+          PROMPT_FILE: ${{ runner.temp }}/pr-verify-prompt-spec.md
+          SCHEMA_FILE: ${{ runner.temp }}/pr-verify-spec-schema.json
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-results
 
       - name: Time the spec judgment
@@ -2309,7 +2418,7 @@ jobs:
             WebSearch
             Agent
             mcp__*
-          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          json-schema-file: ${{ runner.temp }}/pr-verify-spec-schema.json
           fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
           leg-timeout-minutes: "15"
 
@@ -2343,9 +2452,10 @@ jobs:
       # script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
-        if: steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-spec.outcome == 'success')
+        if: ${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-fail-2.outputs.fail == 'true' || steps.chunk-fail-3.outputs.fail == 'true' || steps.chunk-fail-4.outputs.fail == 'true' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-spec.outcome == 'success'))) }}
         env:
-          # Each chunk's files in chunk order; a chunk that left none voids it.
+          # Each chunk's files in chunk order. A counted fail needs no others;
+          # anything else needs every chunk and the final judge.
           EXECUTION_FILES: |
             ${{ steps.judge.outputs.execution-file }}
             ${{ steps.judge-2.outputs.execution-file }}
@@ -2362,6 +2472,7 @@ jobs:
           FINAL_EXECUTION_FILE: ${{ steps.judge-spec.outputs.execution-file }}
           FINAL_LOG_FILE: ${{ steps.judge-spec.outputs.log-file }}
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
+          MANIFEST_FILE: ${{ github.workspace }}/pr-verify-data/manifest.txt
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
@@ -2373,7 +2484,7 @@ jobs:
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
       - name: Upload the verdict
-        if: steps.verdict.outcome == 'success'
+        if: ${{ !cancelled() && steps.verdict.outcome == 'success' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.verdict.outputs.name }}
@@ -2382,7 +2493,7 @@ jobs:
           if-no-files-found: error
 
       - name: Summarize the verdict
-        if: steps.verdict.outcome == 'success'
+        if: ${{ !cancelled() && steps.verdict.outcome == 'success' }}
         env:
           VERDICT_FILE: ${{ runner.temp }}/pr-verify-verdict/verdict.json
         run: |

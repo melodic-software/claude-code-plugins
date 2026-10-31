@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Cuts $DATA/diff.patch into the chunks and parts the verifier reads, then
-# removes it, so each judgment reads only its own parts.
+# removes it. Each judgment is given its own parts, and manifest.txt names the
+# part each file starts in, so it can read across chunks where a change does.
 #
 # Each chunk holds whole files, at most MAX_DIFF_BYTES, in diff order
 # (../pr-review-main/split-diff.py), and with more than one chunk manifest.txt
@@ -18,7 +19,7 @@ set -euo pipefail
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 mkdir "$DATA/diff"
 status=0
-reason=$(python3 -I "$here/../pr-review-main/split-diff.py" "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" "$DATA/manifest.txt" "$PART_BYTES" 2>&1) || status=$?
+reason=$(python3 -I "$here/../pr-review-main/split-diff.py" "$DATA/diff.patch" "$DATA/diff" "$MAX_DIFF_BYTES" "$MAX_CHUNKS" "$DATA/manifest.txt" "$((PART_BYTES / 2))" 2>&1) || status=$?
 if [[ "$status" -eq 3 ]]; then
   echo "::error::no verdict for this head: the diff is $(wc -c <"$DATA/diff.patch") bytes; ${reason#split-diff: }"
   exit 1
@@ -37,9 +38,10 @@ bytes=
 for k in $(seq "$chunks"); do
   dir="$DATA/diff/chunk-$k"
   mkdir "$dir"
-  LC_ALL=C awk -v dir="$dir" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
+  LC_ALL=C awk -v dir="$dir" -v rel="diff/chunk-$k" -v list="$DATA/file-parts.txt" -v maxb="$PART_BYTES" -v maxl="$PART_LINES" '
     { len = length($0) + 1
       if (n == 0 || b + len > maxb || l >= maxl) { if (f) close(f); f = sprintf("%s/part-%03d.patch", dir, ++n); b = 0; l = 0 }
+      if (index($0, "diff --git ") == 1) print sprintf("%s/part-%03d.patch", rel, n) >> list
       print > f; b += len; l++ }' "$dir.patch"
   if [[ ! -s "$dir.patch" ]]; then
     : >"$dir/part-001.patch"
@@ -48,6 +50,15 @@ for k in $(seq "$chunks"); do
   rm "$dir.patch"
 done
 rm "$DATA/diff.patch"
+
+# Each manifest line, in file order, gains the part its file starts in. The
+# list was cut to half a part, which leaves room for them in one Read.
+if [[ -f "$DATA/manifest.txt" ]]; then
+  awk 'NR == FNR { part[FNR] = $0; next } /^chunk [0-9]+ / { sub(/^chunk [0-9]+ /, "&" part[FNR] " ") } { print }' \
+    "$DATA/file-parts.txt" "$DATA/manifest.txt" >"$DATA/manifest.parts"
+  mv "$DATA/manifest.parts" "$DATA/manifest.txt"
+fi
+rm -f "$DATA/file-parts.txt"
 
 echo "chunks=$chunks" >>"$GITHUB_OUTPUT"
 paths=0
