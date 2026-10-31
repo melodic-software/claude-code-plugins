@@ -208,11 +208,6 @@ which skill to run, the order for a whole screen, or what comes after a pass.
 - Direction set, CSS to write: /user-interface:write-css.
 - Direction set, an interface animation to build: /user-interface:write-animation.
 - A pass is built and needs judging before it ships: /user-interface:audit.
-- The words, not the work, are the problem: /user-interface:glossary.
-- The contract is not a UI component's props (types, module boundaries, a service's API):
-  /planning:design.
-- One artifact keeps missing after prompting (a texture, a curve, a generated shape):
-  /prototype:build-generator.
 
 ## Gotchas
 

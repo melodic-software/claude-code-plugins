@@ -86,7 +86,8 @@ Run the steps in order before writing CSS: step 3 needs what steps 1 and 2 found
   `css.techniques.disable`.
 - **Lint what you changed**: unless `--no-lint`, run the review script below on files you wrote and
   fix its findings that no project convention overrides. Its `ease-in` finding fires only on the
-  bare keyword: replace it with the curve the `ease-in` rule below names.
+  bare keyword: replace it with the curve the `ease-in` rule below names. Judge a `duration` finding
+  against its role as Review mode says, never against the linter's fixed limits.
 
 | Read | Before you write |
 |---|---|

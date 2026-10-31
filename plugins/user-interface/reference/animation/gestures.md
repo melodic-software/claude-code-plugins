@@ -88,7 +88,8 @@ Whatever form the library takes, think in two parameters:
 | After a flick, throw or drag release | about 0.8 | 0.3 to 0.4 |
 | Moving or repositioning an element | 1.0 | 0.4 |
 | Rotation | 0.8 | 0.4 |
-| Drawer or sheet | 0.8 | 0.3 |
+| Drawer or sheet released from a drag | 0.8 | 0.3 |
+| Drawer or sheet opened by a control | 1.0 | 0.3 |
 
 - Overshoot on something the user flicked feels right; overshoot on a menu that simply opened feels
   wrong.

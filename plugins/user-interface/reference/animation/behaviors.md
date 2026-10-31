@@ -99,8 +99,8 @@ missing or mounted per tooltip instead of once.
 ## Modal and dialog: `modal`
 
 - Opens from opacity zero and a scale near 0.96; stays centered (no trigger origin).
-- Enter: fade + slight scale-up from `0.95`-`0.97`, 200-250ms ease-out. Exit: same but faster
-  (at most `exit_factor` of the entrance). Overlay fades with **identical duration and easing**:
+- Enter: fade + slight scale-up from `0.95`-`0.97`, 200-250ms ease-out. Exit: the same fade and scale,
+  faster (at most `exit_factor` of the entrance), on `in` as a permanent exit. Overlay fades with **identical duration and easing**:
   they move as one unit.
 - Role `large` at most, curve `out`, though most modals feel right well short of the limit.
   Closing a modal is a permanent exit, so it accelerates away on `in` (`catalog.md`, "Easing").
@@ -314,7 +314,7 @@ the `web-performance` concern.
 - It dismisses when dragged past a distance threshold or released fast enough, so a flick is
   enough: faster than `animation.gesture.velocity_threshold` (px/ms) for a small element such as a
   toast; a drawer or sheet needs a higher threshold (`gestures.md`, "Drag details"). For
-  drag-to-dismiss, trigger dismissal when velocity (`swipeAmount / timeTaken`) exceeds ~0.10, not
+  drag-to-dismiss, trigger dismissal when velocity (`swipeAmount / timeTaken`) exceeds ~0.11, not
   only on distance thresholds. The threshold to compare against is the resolved
   `animation.gesture.velocity_threshold`, not the literal.
 - Otherwise it springs back with the release velocity.

@@ -16,8 +16,11 @@ first; this file adds what only motion needs.
 ## CSS pre-pass
 
 For CSS-styled files in scope, invoke `/user-interface:write-css review` with the Skill tool on
-those paths. Its `duration` findings are already judged against the configured roles; keep the rest
-of its motion findings (`ease-in`, `transition-all`, `motion`) as findings of this lane. Keep a
+those paths. The linter's `duration` check uses fixed limits, not the configured roles, so judge
+every duration yourself under "Role durations" below, the ones it flagged and the ones it missed.
+Keep the rest of its motion findings (`ease-in`, `transition-all`, `motion`) as findings of this
+lane; an `ease-in` finding's fix is the one catalog.md "Easing" gives (the configured `in` curve on
+a permanent exit, else an ease-out curve), not the linter's message. Keep a
 `hover` finding only when it is about the animation (hover motion, catalog.md "Pointer gating"); an
 ungated `:hover` rule itself is the `touch` concern's finding.
 

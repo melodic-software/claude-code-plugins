@@ -180,6 +180,8 @@ The polish pass in these lines is the Refine pass, split by concern as Refine sa
 | It looks vibe-coded | `generic-defaults` |
 | Is this good? | `/user-interface:audit` |
 | We are shipping soon | `/user-interface:audit launch` |
+| One artifact keeps missing after prompting (a texture, a curve, a generated shape) | `/prototype:build-generator` |
+| The contract is not a UI component's props (types, module boundaries, a service's API) | `/planning:design` |
 
 ## When nothing fits
 

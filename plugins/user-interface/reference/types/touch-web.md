@@ -59,7 +59,7 @@ exact code.
 | Page zooms into input | Input font size 16px at the minimum | 4 |
 | Tap feels laggy | Feedback on pointer-down + `touch-action: manipulation` | 1 |
 | Taps miss small buttons | 44px hit area through a pseudo-element | 2 |
-| Pull-to-refresh hijacks scroll | `overscroll-behavior: none` on `html, body` | 6 |
+| Pull-to-refresh hijacks scroll | `overscroll-behavior-y: none` on `html, body` | 6 |
 | Content stops at the notch | `viewport-fit=cover` + `env(safe-area-inset-*)` | 5 |
 | Keyboard covers the input or the CTA | `interactive-widget=resizes-content` + `dvh` | 4 |
 | Keyboard opens by itself | No `autoFocus` on coarse pointers | the `forms` concern |
@@ -333,8 +333,8 @@ padding, so the target lands under the header.
 
 **Scroll doesn't chain or pull-to-refresh in app UI.** Scrolling past the top of the page triggers
 pull-to-refresh on Android Chrome and the whole-page rubber band on iOS. Fine on a document. Wrong
-in an app with its own scroll containers, a drawer the user drags down, or a canvas. `none` on the
-root, `contain` on inner scrollers. `contain` keeps the container's own bounce (which feels native)
+in an app with its own scroll containers, a drawer the user drags down, or a canvas. `overscroll-behavior-y:
+none` on the root, `contain` on inner scrollers. `contain` keeps the container's own bounce (which feels native)
 but stops the page behind it from moving. Never reach for a `touchmove` + `preventDefault()`
 listener for this. It blocks scrolling entirely and makes the listener non-passive, which costs
 frames. Recipe: `no-rubber-band-bounce-on-desktop`, whose app-shell rule keeps `none` on phones

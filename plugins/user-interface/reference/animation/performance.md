@@ -92,9 +92,9 @@ bare `transition` class, which compiles to a broad property list in disguise), e
 becomes a candidate animation: the browser must track the entire style object, properties you never
 meant to tween (padding, shadow, colors) start tweening whenever they change, and the engine loses
 the optimizations a narrow, known property list allows. `transition: all 0.3s` is a bug factory: it
-silently animates width, height, and color, triggering layout recalculation. List the properties:
-`transition: opacity 0.3s, transform 0.3s`. A theme switch then animates every color at a
-different timing.
+silently animates width, height, and color, triggering layout recalculation, and a theme switch
+then animates every color at a different timing. List the properties:
+`transition: opacity 0.3s, transform 0.3s`.
 
 Illustration (CSS):
 

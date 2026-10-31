@@ -16,6 +16,7 @@ memory.
 | `css.important` | when `!important` may appear: `avoid`, `utilities-only`, `allow` | every layer; userConfig `css_important` |
 | `css.layer` | the layer new CSS goes in when the project has no layer system | every layer; userConfig `css_layer` |
 | `css.token_fallback` | what happens when no token matches: `ask`, `propose-token`, `literal` | every layer; userConfig `css_token_fallback` |
+| `css.concentric_radius.max_gap_px` | the widest gap (border width plus padding) at which the `concentric-nested-radius` recipe still derives a nested radius from its parent's | files only; shared with the `shape-and-depth` concern and `scripts/nested-radius.mjs` |
 | `animation.easing.*`, `animation.easing_library.*` | the `out`, `in`, `in_out` and `drawer` curves written when the project has no easing tokens, and the named curve library | files only; shared with `/user-interface:write-animation` |
 | `animation.duration_ms.*`, `animation.stagger_ms.*`, `animation.blur_max_px` | the `press`, `small`, `medium`, `large` and `page` role limits and the exit factor the `duration` rule and the motion tokens use; stagger interval and group total; the blur ceiling | files only; shared with `/user-interface:write-animation` |
 

@@ -374,9 +374,10 @@ it plays, and a list the user scrolls past all day does not stagger.
 Choreograph: when three elements would move simultaneously and clash, let one move at a time.
 Competing parallel motion is visual noise.
 
-**Audit: Suggestion.** A stagger interval over 50ms, or
-interval × count over `animation.stagger_ms.max_total`; a group entering all at once where a short
-stagger belongs.
+**Audit: Suggestion.** A list or grid stagger interval over 50ms (or over the project's own
+stagger), or interval × count over `animation.stagger_ms.max_total`; a group entering all at once
+where a short stagger belongs. The larger offsets of a section entrance (behaviors.md
+`section-entrance`) are not this finding.
 
 ## Reduced motion: `reduced-motion`
 

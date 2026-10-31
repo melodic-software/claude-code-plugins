@@ -71,7 +71,7 @@
           "additionalProperties": false,
           "description": "Easing curves as four cubic Bezier control points [x1, y1, x2, y2]; a skill maps them to the project stack's own form.",
           "properties": {
-            "out": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For elements entering, and the default."},
+            "out": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For elements entering, and leaving unless the exit is permanent; the default."},
             "in": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "An accelerate curve for an element leaving the screen for good, such as a modal closing or a toast dismissed."},
             "in_out": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For elements already on screen moving or morphing."},
             "drawer": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "For drawers and sheets, on the way in and out."}
