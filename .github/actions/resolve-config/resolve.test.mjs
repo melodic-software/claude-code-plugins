@@ -1760,9 +1760,16 @@ for (const [key, value] of [
     assert.deepEqual(unblock(config)[key], value);
   });
 
-  test(`${key} on a read skill with prepare: ci-context fails the schema`, () => {
-    assertRejected(() => unblock(appliedByEdit((doc) => (doc.activities["fix-ci"][key] = value))), "invalid-config");
-  });
+  // ci-context stages base copies of verify-scripts as wrappers, so only that key resolves there.
+  if (key === "verify-scripts") {
+    test(`${key} on a read skill with prepare: ci-context resolves and is carried`, () => {
+      assert.deepEqual(unblock(appliedByEdit((doc) => (doc.activities["fix-ci"][key] = value)))[key], value);
+    });
+  } else {
+    test(`${key} on a read skill with prepare: ci-context fails the schema`, () => {
+      assertRejected(() => unblock(appliedByEdit((doc) => (doc.activities["fix-ci"][key] = value))), "invalid-config");
+    });
+  }
 }
 
 // Only the launcher's no-prepare patch skill stages tidy, so a patch skill
