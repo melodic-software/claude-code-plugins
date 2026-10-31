@@ -108,9 +108,14 @@
 // Nothing is read from GitHub while githubstatus.com shows Actions as anything
 // but operational, or the status cannot be read, so a re-run never adds load
 // mid-incident. At most MAX_IN_FLIGHT re-runs are in flight at once (PR CI
-// sets and recorded lane runs, counting those already running): merge-critical PRs
-// (auto-merge set) first, then oldest PR, then the oldest lane runs. One pass
-// uploads at most MAX_IN_FLIGHT records, so what would pass that waits too.
+// sets and recorded lane runs, counting those already running), in three
+// bands, the PR sets in each merge-critical (auto-merge set) first, then
+// oldest PR: PR sets with anything but a flake re-run, then lane runs, newest
+// first, then flake-only sets. Nothing else re-runs a lane run, while fix-ci
+// does not wait for a flake re-run, and a newer lane run more likely belongs
+// to a head still open: a run's listing does not name its PR, so an older run
+// may be spent on a merged one. One pass uploads at most MAX_IN_FLIGHT
+// records, so what would pass that waits too.
 // Writes are at least WRITE_GAP_MS apart. The first rate-limit error stops the
 // run.
 //
@@ -1002,14 +1007,18 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       room -= 1;
       uploads -= records;
     } else {
-      say(`${what}: deferred, ${room > 0 ? "no record upload left this pass" : `${MAX_IN_FLIGHT} re-runs in flight`}`);
+      say(`${what}: deferred, ${room > 0 ? "no record upload left this pass" : `all ${MAX_IN_FLIGHT} re-run places taken`}`);
     }
   };
-  for (const set of ready) {
+  const flakeOnly = (set) => set.every((item) => item.kind === "flake");
+  for (const set of ready.filter((s) => !flakeOnly(s))) {
     place(`#${set[0].pr}`, set);
   }
-  for (const lane of lanes.sort(byAge)) {
+  for (const lane of lanes.sort(newerFirst)) {
     place(`lane run ${lane.id} (${lane.path})`, [lane]);
+  }
+  for (const set of ready.filter(flakeOnly)) {
+    place(`#${set[0].pr}`, set);
   }
   items.push(...intake, ...verdicts);
   return { items, failed, settle };
