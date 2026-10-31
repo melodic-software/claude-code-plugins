@@ -1,5 +1,19 @@
 # Changelog: session-flow plugin
 
+## [2.2.0] - 2026-10-31
+
+### Added
+
+- `/session-flow:handoff` and `/session-flow:continue-in-background` hand this session's worktree
+  claims to the session that resumes the work. Each worktree whose lock names this session gets an
+  Environment to re-establish entry with its path and the old session id, and the handover through
+  source-control's `worktree-claim.sh handover` is the first remaining action (prompt-only: the
+  first bullet), so the resuming session runs it before `check-enter`.
+
+### Changed
+
+- `orient`, `continue-in-background`, `retro` and `audit-sessions` offer `/recap`, `/background`, `/fork`, `/subtask` and `/insights` as suggest sentences, `If /<name> is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when an offer is deleted or reworded.
+
 ## [2.1.1] - 2026-10-31
 
 ### Fixed

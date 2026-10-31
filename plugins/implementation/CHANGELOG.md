@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.33.7] - 2026-10-31
+
+### Changed
+
+- `implement-dispatch` offers `/batch` as a suggest sentence, `If /batch is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when the offer is deleted or reworded.
+
 ## [0.33.6] - 2026-10-31
 
 ### Changed
