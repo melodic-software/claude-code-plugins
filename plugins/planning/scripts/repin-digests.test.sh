@@ -55,7 +55,7 @@ done < <(awk '/^pin_(section|frontmatter|case_digest|case_set|file) / {
   line = $0; gsub(/\\/, "", line); sub(/[[:space:]]*$/, "", line); print line
 }' "$real")
 for kind in pin_section pin_frontmatter pin_case_digest pin_case_set pin_file; do
-  if printf '%s\n' "${pins[@]}" | grep -q "^$kind "; then ok "the real test has a $kind pin"; else fail "no $kind pin found in the real test"; fi
+  if grep -q "^$kind " < <(printf '%s\n' "${pins[@]}"); then ok "the real test has a $kind pin"; else fail "no $kind pin found in the real test"; fi
 done
 out="$(run_sut --test-file "$real" "${pins[@]}" 'unused')"
 rc=$?
