@@ -483,20 +483,20 @@ test("the model reads only the data directory, with Read alone, and is told noth
   }
 });
 
-// Issue #10204: each judging job lists the jobs of the pr-require-checks run it
-// was started by in pr-verify-data, read with the job's own token after the
-// gate, and the prompt names that file; the model still reads that directory
-// alone.
+// The README's "Verifier verdict" section: each judging job lists the jobs of
+// the pr-require-checks run it was started by in pr-verify-data, read with the
+// job's own token after the gate, and the prompt names that file; the model
+// still reads that directory alone.
 test("each job writes the upstream run's jobs into the data directory the prompt names", () => {
   for (const job of JOBS) {
-    const list = step("List the upstream run's jobs", job);
-    assert.equal(/^ {8}if: (.*)$/m.exec(list)[1], "steps.agree.outcome == 'success'", job);
+    const listing = step("List the upstream run's jobs", job);
+    assert.equal(/^ {8}if: (.*)$/m.exec(listing)[1], "steps.agree.outcome == 'success'", job);
     assert.ok(index("List the upstream run's jobs", job) > index("Assert the gate and the resolver agree", job), job);
     assert.ok(index("List the upstream run's jobs", job) < index("Write the prompt and schema", job), job);
-    assert.equal(input(list, "GITHUB_TOKEN"), "${{ github.token }}", job);
-    assert.equal(input(list, "UPSTREAM_RUN_ID"), "${{ github.event.workflow_run.id }}", job);
-    assert.equal(input(list, "JOBS_FILE"), "${{ github.workspace }}/pr-verify-data/upstream-jobs.json", job);
-    assert.match(list, /^ {8}run: node \.base\/\.github\/scripts\/pr-verify\/upstream-jobs\.mjs$/m, job);
+    assert.equal(input(listing, "GITHUB_TOKEN"), "${{ github.token }}", job);
+    assert.equal(input(listing, "UPSTREAM_RUN_ID"), "${{ github.event.workflow_run.id }}", job);
+    assert.equal(input(listing, "JOBS_FILE"), "${{ github.workspace }}/pr-verify-data/upstream-jobs.json", job);
+    assert.match(listing, /^ {8}run: node \.base\/\.github\/scripts\/pr-verify\/upstream-jobs\.mjs$/m, job);
     assert.ok(step("Write the prompt and schema", job).includes("            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}\n"), job);
     assert.equal(input(step("Judge the pull request", job), "allowed-tools"), "Read(./pr-verify-data/**)", job);
   }

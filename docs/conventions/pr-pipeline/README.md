@@ -2222,7 +2222,8 @@ tool alone, allowed only on the data files in the working directory's `pr-verify
 them, `upstream-jobs.json` (`upstream-jobs.mjs`), lists the jobs of the pr-require-checks run the
 judgment was started by, each with its name and conclusion, read with the job's own token: the
 verifier judges from it whether the suites that cover the changed files ran, and runs no test or
-eval itself. The diff is split at file boundaries into at most 4 chunks of at most 300000 bytes, each file whole
+eval itself. A label or body-edit re-run skips `select-tests` and every suite, so its list is no
+evidence either way. The diff is split at file boundaries into at most 4 chunks of at most 300000 bytes, each file whole
 (`chunk-diff.sh`, `split-diff.py`; the same budget as `pr-review-main`), and each chunk gets its own
 judge step with the same spec, cut into parts one Read returns whole. `manifest.txt` names the part
 each file starts in, so a judge reads another chunk's part when its change references a file there

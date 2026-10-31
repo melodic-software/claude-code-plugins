@@ -1,6 +1,7 @@
-// Expected values come from issue #10204's acceptance criteria: each judging
-// job writes the jobs of the pr-require-checks run it was started by, each
-// with its name and conclusion, and a list read short writes nothing. The
+// Expected values come from docs/conventions/pr-pipeline/README.md ("Verifier
+// verdict", upstream-jobs.json): each judging job writes the jobs of the
+// pr-require-checks run it was started by, each with its name and
+// conclusion, and a list read short writes nothing. The
 // list endpoint pages at most 100 jobs and reports total_count
 // (https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run).
 import assert from "node:assert/strict";

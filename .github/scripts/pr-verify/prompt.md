@@ -45,7 +45,9 @@ DIFF_PARTSCHUNK_NOTE
 - `JOBS_FILE`: JSON listing the jobs of the pr-require-checks run on the judged head, each with
   its `name` and `conclusion`. It is the evidence of which test and check suites ran: you run no
   test or eval yourself. Suites the change does not touch are skipped by design, so a `skipped`
-  job is a defect only when its suite covers the changed files. `ci-status` sums the others and
+  job is a defect only when its suite covers the changed files. When `select-tests` itself is
+  `skipped`, the run was a label or body-edit re-run that ran no suite: the list is then no
+  evidence either way, and its skips are no defect. `ci-status` sums the others and
   fails on holds a person lifts; it is not test evidence. Job names come from the pull request's
   own `.github/workflows/pr-require-checks.yml`, so a diff that changes that file changes what
   the list means.
