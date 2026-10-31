@@ -16,6 +16,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -104,10 +105,23 @@ class QuarantineGh:
         self.base = base
         self.logs: dict[int, str] = {}
         self.codeowners: str | None = None
+        # Issue numbers whose body was edited after filing.
+        self.edited: set[int] = set()
 
     def __call__(
         self, args: list[str], **kwargs: Any
     ) -> subprocess.CompletedProcess[str]:
+        joined = " ".join(args)
+        if "PostMergeQuarantineEdits" in joined:
+            self.base.calls.append(list(args))
+            issues = {
+                f"i{n}": {
+                    "lastEditedAt": "2026-10-12T09:00:00Z" if n in self.edited else None
+                }
+                for n in map(int, re.findall(r"issue\(number:(\d+)\)", joined))
+            }
+            data = {"data": {"repository": issues}}
+            return subprocess.CompletedProcess(["gh"], 0, json.dumps(data), "")
         endpoint = next((a for a in args if a.startswith("repos/")), "")
         if "/actions/jobs/" in endpoint and endpoint.endswith("/logs"):
             self.base.calls.append(list(args))
@@ -180,12 +194,15 @@ class AffectedBase(CheckCase):
         self.gh.jobs[(11, 2)] = [failed_job(112, "test-bash (0)", step)]
         self.fake.logs[112] = log
 
-    def quarantine_issue(self, suite: str, created: str, state: str = "open") -> None:
+    def quarantine_issue(
+        self, suite: str, created: str, state: str = "open", title: str | None = None
+    ) -> None:
         self.gh.issues.append(
             {
                 "number": 501,
                 "state": state,
                 "created_at": created,
+                "title": title or f"Quarantined suite fails on main: {suite}",
                 "body": f"{pm.quarantine_marker(suite)}\n\nquarantined",
                 "user": {"login": "github-actions[bot]"},
             }
@@ -237,7 +254,7 @@ class AffectedSet(AffectedBase):
         self.assertNotIn("babysit-merge-demotion", body)
         self.assertFalse(any(a.startswith("assignees[]=") for a in post))
 
-    def test_a_repeat_failure_with_no_evidence_of_non_determinism_demotes(self) -> None:
+    def test_a_repeat_failure_with_no_excuse_demotes(self) -> None:
         log = bash_log((FLAKY, False))
         self.red_dispatch(log, first=log)
         verdict = self.check()
@@ -464,6 +481,40 @@ class AffectedSet(AffectedBase):
         self.red_baseline()
         self.red_dispatch(bash_log((FLAKY, False)))
         self.assertEqual(self.check().failures, ())
+
+    def test_a_quarantine_issue_edited_after_filing_excuses_nothing(self) -> None:
+        self.quarantine_issue(FLAKY, "2026-10-12T00:00:00Z")
+        self.fake.edited.add(501)
+        self.red_dispatch(bash_log((FLAKY, False)))
+        verdict = self.check()
+        self.assertEqual(len(verdict.failures), 1)
+        self.assertEqual(verdict.quarantines, ())
+
+    def test_a_marker_the_title_does_not_name_excuses_nothing(self) -> None:
+        # A writer moved another suite's issue onto this suite by its marker.
+        self.quarantine_issue(
+            FLAKY,
+            "2026-10-12T00:00:00Z",
+            title=f"Quarantined suite fails on main: {OTHER_SUITE}",
+        )
+        self.red_dispatch(bash_log((FLAKY, False)))
+        verdict = self.check()
+        self.assertEqual(len(verdict.failures), 1)
+        self.assertEqual(verdict.quarantines, ())
+
+    def test_an_edited_quarantine_on_a_baseline_failure_excuses_nothing(self) -> None:
+        self.quarantine_issue(FLAKY, "2026-10-12T00:00:00Z")
+        self.fake.edited.add(501)
+        run = pm.Run.from_api(dispatch_run(11, "failure", run_attempt=2))
+        ctx = pm._Context("o", "r", IDENTITY, branch="main")
+        ctx.failing_suites = mock.Mock(return_value=frozenset({FLAKY}))  # type: ignore[method-assign]
+        ctx.quarantine_days = 7
+        ctx.now = datetime(2026, 10, 12, 12, tzinfo=UTC)
+        with mock.patch.object(pm, "_demotion_issues", return_value=self.gh.issues):
+            self.assertEqual(
+                ctx.expired(run, 2, frozenset({"test-bash (0)"})),
+                frozenset({"test-bash (0)"}),
+            )
 
     def test_a_closed_quarantine_issue_quarantines_the_suite_afresh(self) -> None:
         self.quarantine_issue(FLAKY, "2026-10-04T10:00:00Z", state="closed")

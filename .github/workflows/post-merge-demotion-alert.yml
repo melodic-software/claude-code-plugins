@@ -40,7 +40,8 @@ name: post-merge-demotion-alert
 # branch on these events, counts against no merge. Of those, a run whose every
 # newly failing test-leg suite is outside the affected set of the merges since
 # main's last green full run, or quarantined, with a failure on a re-run also
-# showing non-determinism, files nothing but each suite's quarantine issue
+# having passed on an earlier attempt or failed at green, files nothing but each
+# suite's quarantine issue
 # (babysit_postmerge.py --judge-run, run from main's tip).
 #
 # Beside a new record of a full run, it files one fix issue per newly failing

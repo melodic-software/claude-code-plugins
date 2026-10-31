@@ -173,12 +173,13 @@ UNATTRIBUTABLE_GATES = frozenset({"gitleaks failed"})
 # in its environment; a window that changes the selector, or a plan that
 # picks nothing, has no set. A suite inside the set always
 # demotes, quarantined or not. A suite outside it that failed again on a
-# re-run demotes unless it shows non-determinism: it passed on an earlier
-# attempt, or it also failed at that green SHA (`_Context._nondeterministic`).
+# re-run demotes unless it passed on an earlier attempt (it is non-deterministic)
+# or also failed at that green SHA (the merges did not cause it):
+# `_Context._repeat_excused`.
 # Any other suite outside it demotes nothing and is quarantined: with no open quarantine issue it gets one (`file_quarantines`);
 # an open one older than `merge.quarantine-days` (the smaller of its value at
 # that green SHA and at the red run's, `_Context._quarantine_days`) makes it
-# demote again. The
+# demote again, as does one edited since filing (`_Context._quarantine_issues`). The
 # merge gate's own suites are never excused. post-merge-demotion-alert.yml applies the same rule through
 # `--judge-run`.
 SUITE_STEPS = {
@@ -212,6 +213,7 @@ GATE_SUITE_PREFIXES = (
     "scripts/affected-tests.",
 )
 QUARANTINE_NOTE = "The quarantined suite failed again: "
+QUARANTINE_CHANGED = "quarantine_changed"
 BORN_TRIAGED = "<!-- work-items:born-triaged -->"
 CODEOWNERS_PATHS = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
 _SUITE_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._/-]*")
@@ -426,6 +428,10 @@ def demotion_marker(sha: str, signal: str) -> str:
 
 def quarantine_marker(suite: str) -> str:
     return f"<!-- post-merge-quarantine suite={suite} -->"
+
+
+def quarantine_title(branch: str, suite: str) -> str:
+    return f"Quarantined suite fails on {branch}: {suite}"
 
 
 def is_gate_suite(suite: str) -> bool:
@@ -1306,7 +1312,7 @@ class _Context:
                 issue = None if is_gate_suite(suite) else issues.get(suite)
                 if issue is None:
                     continue
-                ends = _time(issue.get("created_at")) + timedelta(days=days)
+                ends = self._excuse_ends(issue, days)
                 if self.now >= ends:
                     expired.add(check)
                 else:
@@ -1319,8 +1325,8 @@ class _Context:
         """The checks among `checks` (failing on `attempt` of `run`) that
         demote: any whose suites cannot be named, and any with a failing
         suite that is a gate suite, is in the merges' affected set (or no set
-        can be computed), failed again on a re-run with no evidence of
-        non-determinism (`_nondeterministic`), or is outside the set under an
+        can be computed), failed again on a re-run with no excuse
+        (`_repeat_excused`), or is outside the set under an
         expired quarantine issue. Each other failing suite, outside the set,
         is recorded in `quarantines`."""
         key = (run.id, attempt, checks)
@@ -1342,17 +1348,13 @@ class _Context:
                         or suite in affected
                         or (
                             attempt > 1
-                            and not self._nondeterministic(run, attempt, check, suite)
+                            and not self._repeat_excused(run, attempt, check, suite)
                         )
                     ):
                         demote.add(check)
                         continue
                     issue = issues.get(suite)
-                    ends = (
-                        None
-                        if issue is None
-                        else _time(issue.get("created_at")) + timedelta(days=days)
-                    )
+                    ends = None if issue is None else self._excuse_ends(issue, days)
                     if ends is not None and self.now >= ends:
                         demote.add(check)
                     else:
@@ -1364,12 +1366,12 @@ class _Context:
         self.demoting_cache[key] = frozenset(demote)
         return self.demoting_cache[key]
 
-    def _nondeterministic(self, run: Run, attempt: int, check: str, suite: str) -> bool:
+    def _repeat_excused(self, run: Run, attempt: int, check: str, suite: str) -> bool:
         """Whether `suite`, failing `check` again on re-run `attempt` of `run`,
-        shows non-determinism: an earlier attempt of the same commit names
-        other failures but not it, or a full run at the last green commit
-        failed it on some attempt. An attempt whose suites cannot be named
-        shows neither."""
+        has an excuse: an earlier attempt of the same commit names other
+        failures but not it, so it is non-deterministic, or a full run at the
+        last green commit failed it on some attempt, so the merges did not
+        cause it. An attempt whose suites cannot be named shows neither."""
         for earlier in range(1, attempt):
             names = self.failing_suites(run.id, earlier, check)
             if names is not None and suite not in names:
@@ -1404,6 +1406,13 @@ class _Context:
                 if r.head_branch == self.branch
             ]
         return self.full_runs_cache[commit]
+
+    def _excuse_ends(self, issue: dict[str, Any], days: int) -> datetime:
+        """When quarantine issue `issue` stops excusing its suite: `days` after
+        filing, or now for one changed since filing (`_quarantine_issues`)."""
+        if issue.get(QUARANTINE_CHANGED):
+            return self.now
+        return _time(issue.get("created_at")) + timedelta(days=days)
 
     def excuse_until(self, ends: datetime) -> None:
         """Note a quarantine excuse that holds until `ends`."""
@@ -1645,7 +1654,10 @@ class _Context:
     def _quarantine_issues(self) -> dict[str, dict[str, Any]]:
         """Each suite's newest open quarantine issue that a filer opened
         (the agent identity or github-actions[bot]): a quarantine anyone
-        else opens counts for nothing."""
+        else opens counts for nothing. One whose body was edited after filing,
+        or whose title is not the one the filer writes for its marker's suite,
+        is marked `QUARANTINE_CHANGED`: its suite demotes rather than starts
+        over, so an edit cannot extend or move a quarantine."""
         if self.quarantine_issues is None:
             found: dict[str, dict[str, Any]] = {}
             for issue in _demotion_issues(
@@ -1658,8 +1670,43 @@ class _Context:
                     found[suite].get("created_at")
                 ):
                     found[suite] = issue
-            self.quarantine_issues = found
+            edited = self._edited_issues(
+                [
+                    i["number"]
+                    for i in found.values()
+                    if isinstance(i.get("number"), int)
+                ]
+            )
+            self.quarantine_issues = {
+                suite: {
+                    **issue,
+                    QUARANTINE_CHANGED: issue.get("number") in edited
+                    or issue.get("title") != quarantine_title(self.branch, suite),
+                }
+                for suite, issue in found.items()
+            }
         return self.quarantine_issues
+
+    def _edited_issues(self, numbers: list[int]) -> frozenset[int]:
+        """The issues among `numbers` whose body was edited after filing, which
+        only GraphQL reports. A failed read raises."""
+        if not numbers:
+            return frozenset()
+        fields = " ".join(f"i{n}:issue(number:{n}){{lastEditedAt}}" for n in numbers)
+        repository = json_object(
+            _graphql(
+                "query PostMergeQuarantineEdits($o:String!,$r:String!){"
+                f"repository(owner:$o,name:$r){{{fields}}}}}",
+                "quarantine issue edits",
+                o=self.owner,
+                r=self.name,
+            ).get("repository")
+        )
+        return frozenset(
+            n
+            for n in numbers
+            if json_object(repository.get(f"i{n}")).get("lastEditedAt")
+        )
 
     def _baseline(self, signal: str, before: datetime) -> frozenset[str] | None:
         key = (signal, before)
@@ -3322,7 +3369,7 @@ def file_quarantines(
                 "POST",
                 f"repos/{owner}/{name}/issues",
                 "-f",
-                f"title=Quarantined suite fails on {branch}: {q.suite}",
+                f"title={quarantine_title(branch, q.suite)}",
                 "-f",
                 f"body={body}",
                 "-f",

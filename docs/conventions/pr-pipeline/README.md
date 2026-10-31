@@ -1389,8 +1389,9 @@ the rules that only tighten in
   without GitHub's `Actions` read permission cannot read the log, so it names none), a set that
   cannot be computed, and the merge gate's own suites
   (`GATE_SUITE_PREFIXES` in `babysit_postmerge.py`) demote as before. A suite outside the set that
-  failed again on a re-run also demotes, unless it shows non-determinism: it passed on an earlier
-  attempt of the same commit, or a full run at the last green commit failed it on some attempt.
+  failed again on a re-run also demotes, unless it passed on an earlier attempt of the same commit
+  (it is non-deterministic) or a full run at the last green commit failed it on some attempt (the
+  merges did not cause it).
   Any other suite outside the set
   demotes nothing, the window counts as verified (its `max-in-flight` slots free), and the suite
   is quarantined: an issue marked `<!-- post-merge-quarantine suite=<path> -->`, labeled
@@ -1398,7 +1399,10 @@ the rules that only tighten in
   agent identity's `--remediate` or by post-merge-demotion-alert.yml. While that issue is open
   and younger than `merge.quarantine-days` (default 7, at most 30), the suite's out-of-set failures
   demote nothing; after that they demote again, even when the suite was already failing before the
-  merge. A failure inside the set demotes whether or not the suite
+  merge. An issue whose body was edited after filing, or whose title no longer names its marker's
+  suite, excuses nothing from then on: the suite demotes until the issue is closed. Closing the
+  issue ends the quarantine, and the suite's next failure outside the set files a new issue whose
+  days start again, so closing an expired issue restarts its quarantine. A failure inside the set demotes whether or not the suite
   is quarantined, and an excused run gets no red-main report. Quarantine never changes a pull request's `ci-status` and starts no
   re-run.
 - **Repeat queue ejections.** `merge.max-queue-ejections` (default 2, at most 20) stops the
