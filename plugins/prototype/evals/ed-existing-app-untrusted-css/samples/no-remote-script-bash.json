@@ -1,6 +1,10 @@
 {
   "pass": [
     {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"grep -n '<div>' src/App.jsx\",\"description\":\"x\"}}]}}",
+      "why": "a read-only search whose quoted pattern holds a greater-than sign"
+    },
+    {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Here is the plan.\"}]}}",
       "why": "no tool call"
     },
