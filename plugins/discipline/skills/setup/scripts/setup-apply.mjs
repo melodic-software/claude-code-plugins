@@ -3,7 +3,7 @@
 // docs/conventions/discipline.yaml, against schemas/discipline.schema.json.
 //
 // Usage:
-//   setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ...
+//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
 //   setup-apply.mjs [--root <dir>] --check
 //
 // Each key is written exactly as the schema names it, so a quoted key with
@@ -18,6 +18,7 @@ import { run, wholeFileReport } from "../../../lib/setup-apply.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 run({
   plugin: "discipline",
+  provenance: true,
   schema: join(HERE, "..", "..", "..", "schemas", "discipline.schema.json"),
   reader: join(HERE, "parse-concern-value.sh"),
   exactKeyNames: true,

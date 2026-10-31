@@ -638,6 +638,134 @@ assert_eq "an unbound repository: --check exits 0" "0" "$?"
 assert_contains "an unbound repository: --check reads docs/conventions" "$out" "INFO docs/conventions/fixture.yaml: absent"
 assert_eq "an unbound repository: --check writes nothing" "0:0" "$(exists "$R/docs"):$(exists "$R/AGENTS.md")"
 
+# --- Provenance: written_against and one entry per key -------------------------
+# A second entry point passes provenance: true; its manifest sits where the
+# writer looks by default, <schema dir>/../.claude-plugin/plugin.json.
+# Expected lines follow the library's "Provenance" rules: a <key>=<value> is
+# chosen and records the default it was written against, a --default key is
+# default, and at a later version with changed defaults a write updates the
+# default value and keeps the chosen one.
+PROV="$TEST_TMPDIR/prov"
+mkdir -p "$PROV/.claude-plugin" "$PROV/schemas"
+# prov_plugin <version> <mode default> <workers default>
+# shellcheck disable=SC2016 # JSON text; its $schema and $id are literal
+prov_plugin() {
+  printf '{ "name": "fixture", "version": "%s" }\n' "$1" >"$PROV/.claude-plugin/plugin.json"
+  printf '%s\n' '{' \
+    '  "$id": "https://example.test/fixture.schema.json",' \
+    '  "type": "object",' \
+    '  "additionalProperties": false,' \
+    '  "properties": {' \
+    '    "$schema": { "type": "string" },' \
+    '    "written_against": { "type": "string" },' \
+    '    "provenance": { "type": "object", "additionalProperties": { "type": "string" } },' \
+    "    \"mode\": { \"type\": \"string\", \"enum\": [\"fast\", \"slow\", \"safe\"], \"default\": \"$2\" }," \
+    "    \"workers\": { \"type\": \"integer\", \"minimum\": 1, \"maximum\": 8, \"default\": $3 }," \
+    '    "label": { "type": "string" }' \
+    '  }' \
+    '}' >"$PROV/schemas/fixture.schema.json"
+}
+prov_plugin 1.0.0 fast 2
+cat >"$PROV/apply.mjs" <<JS
+import { run } from "file://$SCRIPT_DIR/setup-apply.mjs";
+run({ plugin: "fixture", schema: "$PROV/schemas/fixture.schema.json", reader: "$SCRIPT_DIR/parse-concern-value.sh", provenance: true });
+JS
+prun() { HOME="$FAKE_HOME" node "$PROV/apply.mjs" "$@" 2>&1; }
+# shellcheck disable=SC2016 # the header line's $schema is literal
+HEADER='# yaml-language-server: $schema=https://example.test/fixture.schema.json'
+
+R="$(new_root prov-create)"
+out="$(prun --root "$R" mode=slow --default workers)"
+assert_eq "provenance on create: exits 0" "0" "$?"
+assert_eq "provenance on create: written_against, the values, then one entry per key" \
+  "$HEADER"$'\nwritten_against: fixture@1.0.0\nmode: slow\nworkers: 2\nprovenance:\n  mode: chosen (default fast)\n  workers: default' \
+  "$(cat "$(yaml_of "$R")")"
+out="$(prun --root "$R" mode=slow --default workers)"
+assert_contains "provenance: the same run again is already configured" "$out" "already configured"
+out="$(prun --root "$R" --check)"
+assert_eq "provenance: --check at the written version exits 0 with no INFO or WARN" "0:0" "$?:$(printf '%s\n' "$out" | grep -cE '^(INFO|WARN)')"
+
+prov_plugin 1.1.0 safe 4
+out="$(prun --root "$R" --check)"
+assert_eq "a later version with changed defaults: --check exits 1" "1" "$?"
+assert_contains "a default value whose default changed: --check lists it as INFO" "$out" \
+  "INFO docs/conventions/fixture.yaml: workers=2 is marked default, written against fixture@1.0.0; the plugin default is now 4"
+assert_contains "a chosen value whose default changed: --check warns with the old and new defaults" "$out" \
+  "WARN docs/conventions/fixture.yaml: mode=slow was chosen by the team; its plugin default changed from fast to safe; the value is kept"
+out="$(prun --root "$R" --yes label=team)"
+assert_eq "a write with --yes after a default change: exits 0" "0" "$?"
+assert_contains "a write with --yes: the default value's change is printed" "$out" "updated workers: 2 -> 4"
+assert_contains "a write with --yes: the chosen value is reported WARN with the old and new defaults" "$out" \
+  "WARN docs/conventions/fixture.yaml: mode=slow was chosen by the team; its plugin default changed from fast to safe"
+assert_eq "a write with --yes: the default value is updated, the chosen one kept, and the entries record this version" \
+  "$HEADER"$'\nwritten_against: fixture@1.1.0\nmode: slow\nworkers: 4\nprovenance:\n  mode: chosen (default safe)\n  workers: default\n  label: chosen\nlabel: team' \
+  "$(cat "$(yaml_of "$R")")"
+out="$(prun --root "$R" --check)"
+assert_eq "after that write: --check exits 0" "0" "$?"
+
+R="$(new_root prov-legacy)"
+printf 'mode: slow\n' >"$(yaml_of "$R")"
+out="$(prun --root "$R" --check)"
+assert_eq "a file without provenance: --check exits 0" "0" "$?"
+assert_eq "a file without provenance: read with one INFO line" "1" "$(printf '%s\n' "$out" | grep -c '^INFO')"
+assert_contains "a file without provenance: the INFO line reads its values as chosen" "$out" \
+  "INFO docs/conventions/fixture.yaml: no provenance recorded; each value is read as chosen"
+out="$(prun --root "$R" --yes workers=3)"
+assert_eq "a file without provenance, written: exits 0 with one INFO line" "0:1" "$?:$(printf '%s\n' "$out" | grep -c '^INFO')"
+assert_eq "a file without provenance, written: its existing value is recorded as chosen" \
+  $'mode: slow\nworkers: 3\nwritten_against: fixture@1.1.0\nprovenance:\n  mode: chosen (default safe)\n  workers: chosen (default 4)' \
+  "$(cat "$(yaml_of "$R")")"
+
+# Declared in the schema, both keys stay the writer's: neither is a setting.
+R="$(new_root prov-declared)"
+out="$(prun --root "$R" mode=slow)"
+out="$(prun --root "$R" --check)"
+assert_eq "declared keys: --check prints a PASS line for settings only" "0" "$(printf '%s\n' "$out" | grep -cE '^PASS (written_against|provenance):')"
+out="$(prun --root "$R" written_against=fixture@9.9.9)"
+assert_eq "declared keys: written_against is not set from the command line (exit 1)" "1" "$?"
+assert_contains "declared keys: the refusal names the key" "$out" "written_against is not a key of"
+out="$(prun --root "$R" --default provenance)"
+assert_eq "declared keys: --default refuses provenance (exit 1)" "1" "$?"
+
+# A closed schema that does not declare both keys would refuse the file written.
+R="$(new_root prov-undeclared)"
+sed -i.bak '/"written_against"/d;/"provenance"/d' "$PROV/schemas/fixture.schema.json"
+out="$(prun --root "$R" mode=slow)"
+assert_eq "provenance on a schema without the keys: a usage error (exit 2)" "2" "$?"
+assert_contains "provenance on a schema without the keys: the refusal names them" "$out" "does not declare written_against and provenance"
+assert_eq "provenance on a schema without the keys: nothing written" "0" "$(exists "$(yaml_of "$R")")"
+prov_plugin 1.1.0 safe 4
+
+# An entry point without provenance accepts both keys and keeps them as written.
+R="$(new_root prov-off)"
+printf 'written_against: fixture@1.0.0\nmode: slow\nprovenance:\n  mode: chosen (default fast)\n' >"$(yaml_of "$R")"
+out="$(run --root "$R" --check)"
+assert_eq "without provenance: a file carrying both keys passes --check" "0:0" "$?:$(printf '%s\n' "$out" | grep -c '^WARN')"
+out="$(run --root "$R" --yes mode=fast)"
+assert_eq "without provenance: apply keeps both keys as written" \
+  $'written_against: fixture@1.0.0\nmode: fast\nprovenance:\n  mode: chosen (default fast)' "$(cat "$(yaml_of "$R")")"
+out="$(run --root "$(new_root prov-off-default)" --default mode)"
+assert_eq "without provenance: --default is an unexpected argument (exit 2)" "2" "$?"
+refused "a provenance entry outside its three forms" $'mode: fast\nprovenance:\n  mode: picked\n' mode=slow
+# A scalar provenance key is a warning where the entry point does not record
+# provenance, as any key outside the schema was, and refused where it does.
+R="$(new_root prov-scalar-off)"
+printf 'mode: fast\nprovenance: chosen\n' >"$(yaml_of "$R")"
+out="$(run --root "$R" --yes mode=slow)"
+assert_eq "without provenance: a scalar provenance key is kept as written" "0:"$'mode: slow\nprovenance: chosen' "$?:$(cat "$(yaml_of "$R")")"
+R="$(new_root prov-scalar-on)"
+printf 'mode: fast\nprovenance: chosen\n' >"$(yaml_of "$R")"
+out="$(prun --root "$R" --yes mode=slow)"
+assert_eq "with provenance: a scalar provenance key is refused" "1:"$'mode: fast\nprovenance: chosen' "$?:$(cat "$(yaml_of "$R")")"
+one_line "with provenance: a scalar provenance key" "$out"
+# An indented document: the appended keys take its base indent.
+R="$(new_root prov-indented)"
+printf '  mode: slow\n' >"$(yaml_of "$R")"
+out="$(prun --root "$R" --yes workers=3)"
+assert_eq "an indented document: the provenance keys are appended at its base indent" \
+  "0:"$'  mode: slow\n  workers: 3\n  written_against: fixture@1.1.0\n  provenance:\n    mode: chosen (default safe)\n    workers: chosen (default 4)' \
+  "$?:$(cat "$(yaml_of "$R")")"
+
 # --- Long whitespace runs: the line scan is linear ----------------------------
 # Each line holds a 200,000-space run; all three together finish within 1 s.
 # The expected keys and values follow from the key and comment rules above:

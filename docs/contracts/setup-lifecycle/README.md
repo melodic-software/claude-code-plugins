@@ -68,7 +68,52 @@ land (#6594, slices 2 to 4).
 
 ### Provenance
 
-Placeholder, filled by slice 2: how a written line records which plugin and version wrote it.
+A setup settings file (`<home>/<plugin>.yaml`) records which plugin version wrote it and, per key,
+whether the team chose the value. This lets `apply` tell a team choice from an inherited default
+when a plugin changes a default. The shared writer, `lib/setup-apply.mjs`, records it for each
+plugin whose entry point passes `provenance: true`. Each such plugin's schema declares both keys
+beside `$schema`, and the writer refuses to record against a schema that does not, because a closed
+schema would then reject the file it wrote:
+
+```yaml
+written_against: review@1.4.0
+mode: strict
+workers: 4
+provenance:
+  mode: chosen (default fast)
+  workers: default
+```
+
+- **`written_against: <plugin>@<version>`** is the version in the plugin's
+  `.claude-plugin/plugin.json`, rewritten at each write.
+- **`provenance:`** holds one entry per scalar key the file sets. `default` marks a value filled at
+  the plugin default (`--default <key>`). `chosen (default <d>)` marks one the operator set or
+  confirmed, with `<d>` the plugin default at `written_against`. `chosen` alone marks a key with no
+  default.
+- **Values stay flat, and neither key is a setting.** `lib/parse-concern-value.sh` reads each
+  schema key's value the same with or without these keys. `lib/config-cascade.mjs` skips both at
+  the top level of every layer, so neither reaches `values`, a layer's errors or a userConfig name.
+  `--check` prints no PASS line for them, and neither takes a `<key>=<value>`.
+- **When `written_against` names another version**, `check` lists each `default` value that differs
+  from the plugin default now (INFO). It also lists each `chosen` value whose recorded default
+  differs, with its old and new default (WARN). A write with `--yes` sets each such `default` value
+  to the plugin default and prints the change. It never changes a `chosen` value. A hand edit of a
+  `default` value looks like a changed default, so set such a value as `<key>=<value>` to make it
+  `chosen`. Each write records the current default in every `chosen` entry, so the WARN for a
+  changed default prints up to and including the next write, and later `check` runs do not repeat it.
+- **A file with no `provenance:` key** is read with every value `chosen`, and one INFO line says so.
+- **A plugin version older than this record cannot read a file that holds it.** Its `--check` exits
+  1 with no PASS line, and its `apply` refuses the file. Skills that read a setting through
+  `--check` then drop the whole repository layer, so an enforced value such as `proof_level` or
+  `downstream_probe` falls back to its default for that session. Everyone sharing a repository
+  needs a version that declares both keys before one of them writes the file.
+- **The writer owns both keys.** It rewrites the `provenance:` block whole, comments inside
+  included. On a file that lacks them, it appends both keys after the last line, so only a new
+  file has the order shown above.
+
+Prose files keep their own markers: `developer-experience` writes `written_against` front matter
+and a per-section `source=chosen|default` marker
+(`plugins/developer-experience/skills/setup/reference/conventions-file.md`).
 
 ### Converge-by-state `apply`
 

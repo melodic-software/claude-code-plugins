@@ -3,7 +3,7 @@
 // docs/conventions/discovery.yaml, against schemas/discovery.schema.json.
 //
 // Usage:
-//   setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ...
+//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
 //   setup-apply.mjs [--root <dir>] --check
 //
 // The options, guarantees and exit codes are in ../../../lib/setup-apply.mjs.
@@ -15,6 +15,7 @@ import { run, wholeFileReport } from "../../../lib/setup-apply.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 run({
   plugin: "discovery",
+  provenance: true,
   schema: join(HERE, "..", "..", "..", "schemas", "discovery.schema.json"),
   reader: join(HERE, "parse-concern-value.sh"),
   report: wholeFileReport,

@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: su-accepted-default-records-default
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: default-flag-for-accepted-key
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-apply\.mjs(?:(?!(?<!\\)\")[^\n])*?--default\s+ratchet_offer\b'
+  - name: chosen-value-passed
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-apply\.mjs(?:(?!(?<!\\)\")[^\n])*?\sdownstream_probe=report\b'
+  - name: no-explicit-value-for-accepted-key
+    type: tool_used
+    tool: Bash
+    input_match: 'setup-apply\.mjs(?:(?!(?<!\\)\")[^\n])*?\sratchet_offer='
+    min: 0
+    max: 0
+    arm: both
+  - name: file-records-default
+    type: regex
+    pattern: '^  ratchet_offer: default$'
+    flags: 'm'
+    target: { source: file, path: docs/conventions/review.yaml }
+  - name: file-records-chosen
+    type: regex
+    pattern: '^  downstream_probe: chosen \(default run\)$'
+    flags: 'm'
+    target: { source: file, path: docs/conventions/review.yaml }
+  - name: file-records-written-against
+    type: regex
+    pattern: '^written_against: review@\d+\.\d+\.\d+$'
+    flags: 'm'
+    target: { source: file, path: docs/conventions/review.yaml }

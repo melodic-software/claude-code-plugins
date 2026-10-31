@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" --default ratchet_offer downstream_probe=report",
+            "description": "Write the review settings"
+          }
+        }
+      ],
+      "why": "documented form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" downstream_probe=report --default ratchet_offer",
+            "description": "Write the review settings"
+          }
+        }
+      ],
+      "why": "flag after the value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugins/review/skills/setup/scripts/setup-apply.mjs\" ratchet_offer=true downstream_probe=report",
+            "description": "Write the review settings"
+          }
+        }
+      ],
+      "why": "accepted default passed as a value"
+    },
+    {
+      "answer": [],
+      "why": "no tool call"
+    }
+  ]
+}

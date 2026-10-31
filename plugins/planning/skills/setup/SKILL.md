@@ -68,6 +68,12 @@ only where a choice genuinely needs the user. No silent writes. Every write is u
    "${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" phase_order=riskiest-first
    ```
 
+   Pass a key the operator accepts at the plugin default as `--default <key>` instead of
+   `<key>=<value>`, so a later change to that default reaches it; `<key>=<value>` records the
+   team's choice, which the script never changes. The script also records `written_against` and
+   `provenance:`, so a file with no record, or one written against another plugin version, shows a
+   diff even when no value changes.
+
    The script checks each value against the schema and validates the whole resulting document
    before it writes; an invalid value or key exits 1 and writes nothing. It writes only
    `<git toplevel>/docs/conventions/planning.yaml`, resolves a symlinked root first, then refuses
