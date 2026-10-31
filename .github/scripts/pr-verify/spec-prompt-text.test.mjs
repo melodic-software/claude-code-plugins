@@ -24,7 +24,7 @@ test("nothing a chunk reports is cut from the final judge", () => {
 });
 
 test("a verifier is told every line is readable, so no prose or data part is passed unread", () => {
-  assert.match(chunk, /`\\ continued: `/);
+  assert.match(chunk, /`\\ continued:`/);
   assert.doesNotMatch(chunk, /line cut short/);
   // A binary lockfile or compiled code still fails; an image does not.
   assert.ok(chunk.includes("a workflow, an action, a script, a hook, compiled code or a library, or a file a workflow, script or hook runs"));
