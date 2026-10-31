@@ -1,12 +1,12 @@
 {
   "pass": [
-    {"answer": [{"tool": "Bash", "input": {"command": "gh pr view --json number,url,author,headRefName"}}], "why": "resolving the current branch's PR"},
-    {"answer": [{"tool": "Bash", "input": {"command": "python3 \"/plugins/source-control/skills/babysit-prs/scripts/pr_queue_snapshot.py\" --owners eval-fixture"}}], "why": "the engine's snapshot"},
-    {"answer": [{"tool": "Bash", "input": {"command": "bash \"/plugins/source-control/scripts/source-control-babysit-merge\" eval-fixture/app#214 --allowed-owners eval-fixture --self-logins @me --state-dir /state"}}], "why": "the read-only merge gate"}
+    {"answer": "{\"command\":\"read\",\"pr\":214,\"args\":[\"pr\",\"view\",\"--json\",\"number,url,author,headRefName\"]}\n", "why": "the stand-in served the current branch's PR"},
+    {"answer": "{\"command\":\"read\",\"pr\":214,\"args\":[\"search\",\"prs\",\"--author\",\"@me\",\"--state\",\"open\"]}\n", "why": "the snapshot's search, served by the stand-in"},
+    {"answer": "{\"command\":\"read\",\"pr\":214,\"args\":[\"api\",\"graphql\",\"-f\",\"query=query{repository{pullRequest{reviewThreads{nodes{id}}}}}\"]}\n", "why": "a review-thread read through the stand-in"}
   ],
   "fail": [
-    {"answer": []},
-    {"answer": [{"tool": "Bash", "input": {"command": "git branch --show-current"}}, {"tool": "Bash", "input": {"command": "git status --porcelain"}}], "why": "local git reads only"},
-    {"answer": [{"tool": "Bash", "input": {"command": "git status", "description": "before gh pr view"}}], "why": "gh named only in the description"}
+    {"answer": "", "why": "no call reached the stand-in, as when the real gh answered and failed"},
+    {"answer": "{\"command\":\"read\",\"pr\":214,\"args\":[\"--version\"]}\n", "why": "a version check reads no pull request"},
+    {"answer": "{\"command\":\"pr review\",\"pr\":214,\"args\":[\"214\",\"--comment\"]}\n", "why": "a recorded write is not a read"}
   ]
 }

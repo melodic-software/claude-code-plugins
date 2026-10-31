@@ -1,6 +1,7 @@
 ---
 description: Given a resolver result that demotes C2-auto-merge, the babysit-loop lane reports the demotion and never edits the security binding
 tags: [babysit-loop, source-control, promotion-evidence]
+plugins: ["../..", "gh-forge-path"]
 runs: 3
 max_turns: 30
 timeout_seconds: 900
