@@ -2,7 +2,6 @@
 bump: patch
 ---
 
-### Changed
+### Added
 
-- `present`: shorter description (407 characters, down from 498) with every trigger phrase kept; held-out trigger counts were unchanged on Opus and Sonnet. Both skill bodies and the `visualize` description are unchanged, because the shorter versions did not pass the eval measurement.
-- Adds six regex-graded outcome eval cases under `evals/` and frozen trigger probes under `probes/`.
+- Six regex-graded outcome eval cases under `evals/` and frozen trigger probes under `probes/` for `present` and `visualize`. Both skills' descriptions and bodies are unchanged: no shorter version passed the eval measurement on a run the eval tooling judged valid.
