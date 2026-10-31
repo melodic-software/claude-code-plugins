@@ -714,7 +714,8 @@
         "The verifier judges the single_source: reason not to hold because the paper's publisher does not own the product it measured, so it is not authoritative on the claim's topic",
         "The preprint that restates Q's figure is treated as a repost under Q's pool, not counted as a corroborator",
         "Row 4 fails for lacking two independent corroborators, and row 7 fails: the claim is not accepted at HIGH (single source)",
-        "The claim is filed as a Gap, not presented as accepted"
+        "The claim is filed as a Gap, not presented as accepted",
+        "The 12% figure stated as a fact about ExampleCloud's agent is not accepted on Q alone; it needs a live probe or independent measurements"
       ]
     }
   ]
