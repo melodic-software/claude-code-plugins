@@ -109,19 +109,25 @@ undo, as the backfill above is.
 
 ### 6. Size the work concretely
 
-Give a relative size, Small, Medium or Large, with what makes it that size: the steps, files or
-unknowns the reader can count.
+The `time_units` plugin option is `${user_config.time_units}`. Only `true` turns it on; anything
+else (empty, `false`, or the placeholder unexpanded) leaves it off.
+
+**Off:** give a relative size, Small, Medium or Large, with what makes it that size: the steps,
+files or unknowns the reader can count. When the reader asks for a duration, give the size and
+name the setting that turns time units on.
 
 - Weak: "This will take some work."
 - Strong: "Small if tests already cover it: one file and its test. Medium if not: the tests
   get written first."
 
-A time budget the reader states stays in the reader's words ("you said you have an hour").
-State an estimate in minutes, hours, days, weeks or a named span such as an afternoon only when
-the `time_units` plugin option is on. Its value is `${user_config.time_units}`; `true` turns it
-on, and anything else (unset, empty, `false`, or the placeholder unexpanded) leaves it off. When it is on, a strong estimate reads
-"About 15 minutes if tests already cover it; an afternoon if not." When the reader asks for a
-duration while it is off, give the size and name the setting that turns time units on.
+**On:** give the estimate in minutes, hours, days, weeks or a named span such as an afternoon,
+instead of a size.
+
+- Weak: "This will take some work."
+- Strong: "About 15 minutes if tests already cover it; an afternoon if not."
+
+Either way, a time budget the reader states stays in the reader's words ("you said you have an
+hour").
 
 ### 7. Make finished work visible
 
