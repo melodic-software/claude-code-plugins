@@ -19,7 +19,8 @@ metadata:
 
 1. **Never omit a candidate's name.** Not because a step looks already done, not because it looks
    unnecessary, not to keep the output short. A skill the evidence says already ran is ranked
-   normally and annotated `(ran this session)`.
+   normally and annotated `(ran this session)`. The one exception is the operator's own exclude
+   setting (below): the states it names are dropped, and the output says which.
 2. **Never invent a candidate.** Every name rendered must come from the resolved catalog. A thin
    source yields a short menu, never one filled with plausible-sounding names: a menu that routes
    to something that does not exist is worse than a short menu.
@@ -49,25 +50,41 @@ sections:
 as of 2026-10-11; recheck trigger: that section's pointer record or its recheck trigger
 changes). Ladder:
 
-1. `/harness-ops:inventory`, if that plugin is enabled. It owns whole-fleet enumeration and its
-   bundled script already reports every installed skill including manual-only ones; reuse it rather
-   than walking the plugin cache, whose layout is undocumented and version-keyed. **Read its output
-   from stdout, never pass `--out` into the consuming project**: this skill writes nothing but its
-   Spotlight ledger. **Reconcile installed
-   against enabled**. Inventory reports `installed_plugins` and `enabled_plugins` as distinct sets
-   and asks callers to say which they used; a skill in an installed-but-disabled plugin is named
-   with an `(plugin not enabled)` annotation rather than silently listed as runnable or silently
-   dropped. **Done when** the returned set contains at least one skill absent from the in-context
-   listing, proving it reached past the listing's blind spot; if it returns nothing usable, fall to
-   rung 2.
+1. The skills index from `/harness-ops:inventory`, if that plugin is enabled: invoke it via the
+   Skill tool, asking for its Skills index (`--skills-index`) on stdout, with `--exclude` only
+   when the exclude setting below names states. It
+   prints one JSON record per skill from its frontmatter, `enabled`, `disabled` and
+   `not-installed` alike; reuse it rather than walking the plugin cache, whose layout is
+   undocumented and version-keyed. **Read its output from stdout, never pass `--out` into the
+   consuming project**: this skill writes nothing but its Spotlight ledger. A `disabled` record is
+   named with a `(disabled)` annotation and a `not-installed` one with `(not installed)`, never
+   listed as runnable and never silently dropped. **Done when** the returned set contains at least
+   one `enabled` skill absent from the in-context listing, proving it reached past the listing's
+   blind spot;
+   if it returns nothing usable, fall to rung 2.
 2. An operator-supplied catalog file, when the consuming project provides one. **Done when** a
    declared catalog path resolves and parses; if the project declares none, fall to rung 3.
 3. The in-context listing. Last resort. **Done when** the pool is built *and* the output carries
    the truncation disclosure; a pool from this rung without that line is an incomplete result, not
    a finished one.
 
-**Descriptions and stage metadata. Enrichment, not completeness.** Read frontmatter where the files
-are reachable; otherwise use whatever descriptions the listing still carries; otherwise absent.
+**Descriptions and stage metadata. Enrichment, not completeness.** The index rows carry each
+skill's `description` and `when_to_use`; otherwise use whatever descriptions the listing still
+carries; otherwise absent.
+
+**Shortlist, then read.** Assign buckets from each index row's `description` and `when_to_use`,
+and shortlist the tier-1 candidates (at most five per bucket). Then read the shortlisted SKILL.md
+files where a path is readable: `plugins/<plugin>/skills/<skill>/SKILL.md` in a marketplace
+checkout, or `.claude/skills/<skill>/SKILL.md` for a personal or project skill. Their
+`metadata.workflow-stage` refines the shortlist's buckets and what each would add here; where no
+file is readable, the index row stands in. Read no SKILL.md beyond the shortlist: the rest render
+by name.
+
+**Exclude setting.** `recommend_skills_exclude` = `${user_config.recommend_skills_exclude}`. A
+value still reading `${user_config.…}`, empty, or `none` is the default: exclude nothing and pass
+no `--exclude`. Otherwise it is a comma-separated subset of `disabled` and `not-installed`; pass it
+as the index's `--exclude`, and say once near the top which states it dropped. An unknown state is an error to
+report, never a guess.
 
 **Absent enrichment means tier 2, never omission.** A skill with no available description cannot be
 promoted to tier 1 (which needs one). It still appears by name in tier 2. The output shape absorbs
@@ -171,6 +188,13 @@ progressive disclosure, not filtering: nothing was withheld, only deferred a key
   rules. A design that ranks-then-truncates reintroduces the same gatekeeping through the cutoff.
 - **Does not build its own durable-state probe.** It routes to `/session-flow:orient`, invoked via the Skill tool.
 - **Does not execute what you pick.** Presentation only; invoking the choice is a separate act.
+- **Does not enable or install anything.** No `/plugin` or `claude plugin` install or enable
+  command, and no edit to `enabledPlugins` or `skillOverrides`, even when the best fit is a
+  `(disabled)` or `(not installed)` skill or the operator asks. Name the skill and the command the
+  operator would run; running it is theirs.
+- **Asks at most one question.** When the trajectory reads too thin to rank, ask the one question
+  whose answer would most change the ranking, then render. After the answer, or with no answer,
+  render the menu; never ask a second.
 - **Does not enumerate a catalog in its own body.** The candidate set is resolved at runtime; an
   embedded inventory would be a permanent token cost that rots as the fleet changes.
 
