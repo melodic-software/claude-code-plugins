@@ -1713,6 +1713,11 @@ rdt_ar 'segment: a * before a two-part tail grants nothing' 2 "rm -rf '$RDT_SR/w
 rdt_ar 'segment: a .. in the directory grants nothing' 2 "rm -rf '$RDT_SR/wt-a/.work/tmp'" "$RDT_SR/../wtroot/*/.work"
 rdt_ar 'segment: HOME as the directory grants nothing' 2 "rm -rf '$RDT_AH/x/.work/y'" "$RDT_AH/*/.work"
 rdt_ar 'segment: a root-level directory grants nothing' 2 'rm -rf /rdt-x/.work/y' '/*/.work'
+# A glob before the last component that matches nothing is judged by the
+# literal directory in front of it, with what it deletes two levels below:
+# .work itself is then enough, and the one-level directory still is not.
+rdt_ar 'segment: an unmatched */x below .work allowed' 0 "rm -rf '$RDT_SR/wt-a/.work'/*/x" "$RDT_SX"
+rdt_ar 'segment: an unmatched */x below the one-level directory blocks' 2 "rm -rf '$RDT_SR/wt-a'/*/x" "$RDT_SX"
 if MSYS=winsymlinks:lnk ln -s "$RDT_AO" "$RDT_SR/wt-a/.work/link" 2>/dev/null && [[ -L "$RDT_SR/wt-a/.work/link" ]]; then
   rdt_ar 'segment: a symlink under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/link'" "$RDT_SX"
   rdt_ar 'segment: a path through a symlink under .work blocks' 2 "rm -rf '$RDT_SR/wt-a/.work/link/x'" "$RDT_SX"
