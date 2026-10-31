@@ -73,9 +73,9 @@ permissions:
 # THE GROUP BRANCHES ON THE PREDICATE, AND EVERY BRANCH BUT MAIN'S DISPATCH
 # CANCELS. A contract-only
 # run takes a group of its own keyed on `github.run_id`, so it can neither be
-# cancelled nor evict anything, and it waits for nothing: its `ci-status` reads
-# the `ci-lanes` status once and finishes (see the `ci-status` job). The
-# previous shape queued instead, on a shared
+# cancelled nor evict anything, and it waits only on a full run in flight: its
+# `ci-status` holds for that run, then reads the `ci-lanes` status (see the
+# `ci-status` job). The previous shape queued instead, on a shared
 # group with `cancel-in-progress` false, and eviction is unconditional: a
 # pending run evicted before its `ci-status` job started left the check suite
 # with no `ci-status` check run at all, and the required check stopped reporting
@@ -3385,7 +3385,9 @@ jobs:
       # GH_READ_MARGIN_SECONDS after the first step starts. The margin keeps
       # 375 s for the job's setup and the steps after the wait:
       # aggregate-results' 60 s rate-limit wait, 120 s of own-gate retries, 7 s
-      # of status writes and the 90 s rerun wait, plus retry sleeps.
+      # of status writes and the 90 s rerun wait, plus retry sleeps. It does not
+      # hold the 720 s `yield-wait-seconds` hold of a contract-only run: a long
+      # rate-limit wait before a long hold can reach the timeout, which fails.
       GH_READ_JOB_SECONDS: 1200
       GH_READ_MARGIN_SECONDS: 375
       # The lanes App's bot account id, which the trust-hold, cost-hold and
@@ -6159,7 +6161,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@72c0b1598594e42bcc3358f47a719801b312a6bc # 72c0b15 2026-10-30
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@226dad32d631e5870f005b94983261ebbcd737f3 # 226dad3 2026-10-31
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane
@@ -6168,17 +6170,20 @@ jobs:
           # A `skipped` lane is red, except on a draft, where every lane skips
           # (see `Note a draft`).
           treat-skipped-as: ${{ github.event.pull_request.draft && 'pass' || 'fail' }}
-          # `carry-forward-wait-seconds: '0'` means no carry-forward wait. Under
-          # `yield-to-full-run` the composite may re-read for up to 30 s, only
-          # when the in-flight full run has already written `success` and its
-          # aggregate step is finishing. While a full run on the SHA is in
-          # flight it fails with "superseded by full run <url>", and that run's
-          # newer ci-status decides the gate. Once the full run records
-          # `success` it re-runs those red contract-only runs, which then read
-          # the `success` and replace their red check runs. A draft full run
-          # skips its lanes and re-runs nothing. Operator remedy:
+          # `carry-forward-wait-seconds: '0'` means no carry-forward wait. While
+          # a full run on the SHA is in flight the composite holds, up to
+          # `yield-wait-seconds`, with this check run in progress, then passes
+          # only on a `success` recorded since it started. The ceiling covers the full
+          # run's p95 (580 s, max 783 s of 148 runs, 2026-10-31). Past it the
+          # run fails with "superseded by full run <url>", and that run's newer
+          # ci-status decides the gate; once it records `success` it re-runs
+          # that red run. A contract-only run whose earlier step failed cannot
+          # pass, and a draft's lanes are skipped, so neither holds. A full
+          # run's value stays constant: it is what skips the rerun wait.
+          # Operator remedy:
           # docs/ci-runner-routing.md, section Contract-only ci-status.
           yield-to-full-run: 'true'
+          yield-wait-seconds: ${{ ((job.status == 'failure' && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) || github.event.pull_request.draft) && '0' || '720' }}
           rerun-contract-only-siblings: ${{ github.event.pull_request.draft && 'false' || 'true' }}
           carry-forward-wait-seconds: '0'
           # This step's own name, so the own-step lookup never depends on

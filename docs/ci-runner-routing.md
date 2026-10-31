@@ -158,37 +158,40 @@ are in the header of `scripts/affected-tests.sh`.
 A same-repo `edited` (without `changes.base`), `labeled`, or `unlabeled` event
 runs `ci` as contract-only: every lane job is gated off and `ci-status` reads
 the `ci-lanes` commit status on the head SHA, with no carry-forward wait
-(`yield-to-full-run: 'true'` and `carry-forward-wait-seconds: '0'` on the
-`aggregate-results` composite, a 3-minute job). The one exception is a re-read
-of up to 30 s (`YIELD_WRITER_WAIT_SECONDS`), only when the in-flight full run
-has already written `success` and its aggregate step is finishing. It passes
-only when the newest status the Actions bot wrote is `success`.
+(`yield-to-full-run: 'true'`, `yield-wait-seconds: '720'` and
+`carry-forward-wait-seconds: '0'` on the `aggregate-results` composite). It
+passes only when the newest status the Actions bot wrote is `success`.
 
-No run waits on another run:
+A contract-only run waits only on a full run in flight on its SHA:
 
-1. A full run's `select-tests` job first writes `ci-lanes=pending` on the head SHA.
-   A contract-only run that reads it goes red at once instead of carrying an
-   older verdict forward while the lanes are in flight. Before its marker is
-   written, the full run is queued or in progress on the SHA, and the
-   contract-only run goes red at once on that too: the composite lists this
-   workflow's in-flight runs on the SHA once and fails with
-   `superseded by full run <url>`. A sibling whose only non-skipped job is
-   `ci-status` (contract-only) does not count, and neither does the attempt of
-   the full run that already wrote `ci-lanes=success`.
-2. The full run's own `ci-status` check run appears only when its lanes finish.
-   It is newer than the red one, and the newest same-name check run is the one
-   the merge gate reads: three merged pull requests kept an older, never
-   re-run red contract-only `ci-status` beside a newer green one, and the
-   `ci-gate` ruleset has no bypass actors.
-3. After recording `success`, the full run's `ci-status` re-runs the failed
-   jobs of every red contract-only run on the same SHA
-   (`rerun-contract-only-siblings`, `actions: write`); a draft full run skips
-   its lanes and re-runs nothing. The re-run keeps its event, so it is
-   contract-only again, reads `success` and replaces the red check run within
-   seconds.
+1. The composite lists this workflow's in-flight runs on the SHA first. A
+   sibling whose only non-skipped job is `ci-status` (contract-only) does not
+   count, and neither does the attempt of the full run that already wrote
+   `ci-lanes=success`.
+2. A full run in flight supersedes the contract-only run, which holds with its
+   `ci-status` check run in progress: no conclusion, so no red. A job that runs
+   always ends in a conclusion, and `neutral` and `skipped` pass a required
+   check, so holding is the one way not to fail without passing. An older green
+   `ci-status` on the SHA does not stand alone meanwhile, as it would if this
+   run posted nothing: while the newer run is in progress the check is not
+   satisfied. GitHub's docs do not state that rule;
+   [the probe record](#contract-only-ci-status-probe-record) measured it.
+3. When the full run completes or records a verdict, the contract-only run lists
+   and reads again. It passes only on a `success` created at or after that
+   run's start, and is red on anything else: a full run cancelled during the
+   hold leaves an older `success` that must not pass. The full run does not wait
+   for it: a holding run reads the `success` itself.
+4. At the 720 s ceiling, one run in 148 reaching that length when a label flips
+   early in it, the run fails with `superseded by full run <url>`. The full run's
+   own `ci-status` check run is newer and decides the gate, and after recording
+   `success` it re-runs that red run (`rerun-contract-only-siblings`,
+   `actions: write`). The re-run keeps its event, reads `success` and replaces
+   the red check run within seconds.
 
-A red contract-only run also stays red when its contract fails (an invalid
-title or a `do-not-merge` label). That is the intended answer.
+An earlier failed step (an invalid title, a `do-not-merge` label) and a draft do
+not hold, because such a run cannot pass: that red lands at once and is the
+intended answer. On `merge_group` nothing is contract-only, so the queue never
+holds.
 
 **Operator remedy.** When a contract-only `ci-status` is still red after the
 full run finished:
@@ -204,6 +207,22 @@ full run finished:
   the other bullets for `ci-lanes`.
 - If `ci-lanes` is `failure`, `pending` with no full run in flight, or missing,
   re-run the full workflow. On a draft, mark it ready instead.
+
+### Contract-only ci-status probe record
+
+Measured 2026-10-31 on
+[pr-pipeline-sandbox#261](https://github.com/melodic-software/pr-pipeline-sandbox/pull/261),
+whose ruleset requires `ci-status` from app 15368, as the `ci-gate` ruleset
+does. One head, one reading per row, no merge queue entry:
+
+| Newest `ci-status` | Older `ci-status` | `mergeStateStatus` |
+|---|---|---|
+| `success` | none | `CLEAN` |
+| in progress | `success` | `BLOCKED` |
+| `success` | in progress | `UNSTABLE` (the non-required `merge` check was also in progress) |
+| `success` | `failure`, concluded after the newest | `CLEAN` |
+
+The newest run decides, not the last to conclude. Newest is by id and start time; the probe does not separate the two.
 
 ## Toolchain integrity
 
