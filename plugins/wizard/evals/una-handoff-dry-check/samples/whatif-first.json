@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "First run `pwsh -File .\\retire-distro.ps1 -WhatIf` and read the blast radius.",
+      "why": "whatif"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Launch it from an elevated pwsh.",
+      "why": "no preview"
+    }
+  ]
+}

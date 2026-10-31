@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: una-handoff-dry-check
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: ran-dry-check
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bpwsh(?:\.exe)?\b(?:[^"\\;|]|\\.)*?retire-distro\.ps1(?:[^"\\;&|]|\\.)*?\s-[Tt]est\b'
+    min: 1
+  - name: no-real-launch
+    type: tool_used
+    tool: 'Bash'
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bpwsh(?:\.exe)?\b(?:(?!-[Tt]est\b)(?:[^"\\;&|]|&(?!&)|\\.))*?retire-distro\.ps1(?:(?!-[Tt]est\b)(?:[^"\\;&|]|&(?!&)|\\.))*(?:"|[;&|])'
+    min: 0
+    max: 0
+    arm: 'both'
+  - name: whatif-first
+    type: regex
+    pattern: '-WhatIf\b'
+    flags: 'i'
+    target: last_message
+  - name: pwsh-file-launch
+    type: regex
+    pattern: '^(?![^\n]*-Test\b)[^\n]*\bpwsh(?:\.exe)?\s+(?:-\S+\s+)*-File\b'
+    flags: 'im'
+    target: last_message
+  - name: elevated-launch
+    type: regex
+    pattern: '\belevat(?:ed|ion)\b|\bas administrator\b|\brun as admin\b|\badmin(?:istrator)?\s+(?:shell|prompt|terminal|PowerShell|session)\b'
+    flags: 'i'
+    target: last_message
+  - name: no-paste-back
+    type: regex
+    pattern: '(?<!not )(?<!n''t )(?<!n’t )(?<!never )(?<!no need to )\b(?:paste|send|share|copy)\b[^\n.]{0,40}?\b(?:transcript|output|log|console)\b[^\n.]{0,30}?\b(?:here|back|to me|in(?:to)? (?:the |this )?chat)\b'
+    flags: 'i'
+    match: not_contains
+    target: last_message

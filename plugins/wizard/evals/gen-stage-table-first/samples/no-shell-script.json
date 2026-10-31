@@ -1,0 +1,58 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' .env",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "key-name read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .github/workflows/deploy.yml",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "workflow read"
+    },
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /opt/plugins/wizard/skills/generate/template.sh scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "template copied"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat > scripts/setup-sms.sh <<'EOF'\n#!/usr/bin/env bash\nEOF",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "heredoc into .sh"
+    }
+  ]
+}
