@@ -447,14 +447,8 @@ repository; the capture discipline records the winning key and notes only.
 ## Boundary, the built-in `ClaudeDesign` tool
 
 A request to mock up a page can name a Claude Design project the person already has, and then it
-means that project, not a new mockup:
-
-- **`ClaudeDesign` (built-in tool)**: lists the person's claude.ai/design projects and reads and
-  writes files in an existing one (list, get a project, write, copy, and plan writes). The model
-  calls it by name. It does not create a new Design artifact; that is the bundled `design` skill
-  above, which the person runs.
-- **This skill (marketplace plugin).** Throwaway variants as a local HTML mockup by default, or on
-  the real stack on request; only the winning-variant key survives.
+means that project, not a new mockup. What the tool and this skill each do is in
+[reference/claude-design-tool.md](reference/claude-design-tool.md) "The two compared".
 
 **Routing.** When the person names or links an existing claude.ai/design project, or asks for the
 work to go into one, and the `ClaudeDesign` tool resolves in this session, use that tool for the
