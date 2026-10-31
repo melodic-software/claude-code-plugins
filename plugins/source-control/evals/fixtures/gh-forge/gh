@@ -174,10 +174,6 @@ case "$cmd $sub" in
     done
     new_head="${new_head:-$(git branch --show-current)}"
     [[ "$new_head" == "$PR_HEAD" && "$new_base" == "$PR_BASE" ]] || refuse pr create --head "$new_head" --base "$new_base"
-    git --git-dir="$origin" rev-parse -q --verify "refs/heads/$PR_HEAD" >/dev/null || {
-      echo "aborted: you must first push the current branch to a remote, or use the --head flag" >&2
-      exit 1
-    }
     [[ -z "$body_file" ]] || cp -- "$body_file" "$forge/pr-body.md" || exit 1
     [[ -n "$title" ]] || title="$PR_TITLE"
     printf 'PR_NUMBER=%q\nPR_HEAD=%q\nPR_BASE=%q\nPR_TITLE=%q\n' "$PR_NUMBER" "$PR_HEAD" "$PR_BASE" "$title" >"$state"

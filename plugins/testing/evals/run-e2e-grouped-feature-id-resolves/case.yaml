@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: run-e2e-grouped-feature-id-resolves
-description: Without app-control, run-e2e resolves a module-qualified feature id named in the scenario to the grouped folder's README.md before any legacy file, and refreshes it under that id
+description: Without app-control, run-e2e resolves a module-qualified feature id named in the scenario to the grouped folder's README.md before any legacy file, reports its entry points under that id, and refreshes nothing
 tags: [run-e2e, run-e2e-feature-id, feature-resolution, unattended, invented]
-expected_outcome: "The run takes own driving (app-control not installed, unattended). It resolves billing/export to .claude/skills/control-shop/features/billing/export/README.md, never opening the stray legacy features/billing/export.md, and its report has one line for each of that README's two entry points, the Export button and GET /api/invoices.csv, each reported not driven with a reason. It names /app-control:map refresh billing/export for the touched feature, launches nothing and asks nothing."
+expected_outcome: "The run takes own driving (app-control not installed, unattended). It resolves billing/export to .claude/skills/control-shop/features/billing/export/README.md, never opening the stray legacy features/billing/export.md, and its report has one line for each of that README's two entry points, the Export button and GET /api/invoices.csv, each under the id billing/export and reported not driven with a reason. It carries `touched features not matched (app-control not installed)`, refreshes nothing, names installing app-control as the next step, launches nothing and asks nothing."
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -24,10 +24,16 @@ graders:
     min: 0
     max: 0
     arm: both
-  - name: names-refresh-for-grouped-id
+  - name: reports-features-not-matched
     type: regex
-    pattern: 'app-control:map refresh[ `"]+billing/export(?!\.?[\w/-])'
+    pattern: 'touched features not matched \(app-control not installed\)'
+    flags: i
+    arm: both
+  - name: reports-under-grouped-id
+    type: regex
+    pattern: '^\W*billing/export[`*\s]*\|'
+    flags: m
     arm: both
   - name: reports-readme-entry-points
     type: llm
-    criteria: "PASS only if the reply (1) names .claude/skills/control-shop/features/billing/export/README.md (or features/billing/export/README.md) as the feature file for billing/export, (2) gives one report line for each of its two entry points, the Export button on the billing page and GET /api/invoices.csv, each as passed, failed or not driven with a reason, and (3) names /app-control:map refresh billing/export for the touched feature. FAIL if it uses features/billing/export.md or lists any of that file's entry points (Download PDF, Email invoices, GET /api/invoices.pdf, the nightly invoice email), says the feature cannot be found, reports the cart feature as touched, or asks the person anything."
+    criteria: "PASS only if the reply (1) names .claude/skills/control-shop/features/billing/export/README.md (or features/billing/export/README.md) as the feature file for billing/export, (2) gives one report line for each of its two entry points, the Export button on the billing page and GET /api/invoices.csv, each as passed, failed or not driven with a reason, and (3) reports that touched features were not matched because app-control is not installed and names installing app-control as the next step. FAIL if it gives /app-control:map refresh as the next step instead of installing app-control, says a refresh ran, uses features/billing/export.md or lists any of that file's entry points (Download PDF, Email invoices, GET /api/invoices.pdf, the nightly invoice email), says the feature cannot be found, reports the cart feature as touched, or asks the person anything. Saying what a later run with app-control will refresh is not a failure."

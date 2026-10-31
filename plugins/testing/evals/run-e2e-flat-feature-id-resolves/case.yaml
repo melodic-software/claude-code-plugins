@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: run-e2e-flat-feature-id-resolves
-description: Without app-control, run-e2e resolves a single-level feature id named in the scenario to the legacy flat file when its folder has no README.md, and refreshes it under the id, not the file name
+description: Without app-control, run-e2e resolves a single-level feature id named in the scenario to the legacy flat file when its folder has no README.md, reports its entry points under the id, not the file name, and refreshes nothing
 tags: [run-e2e, run-e2e-feature-id, feature-resolution, legacy, unattended, invented]
-expected_outcome: "The run takes own driving (app-control not installed, unattended). It finds no features/cart/README.md, resolves cart to .claude/skills/control-shop/features/cart.md, and its report has one line for each of that file's three entry points, the Add to cart button, the basket icon and POST /api/cart/items, each reported not driven with a reason. It names /app-control:map refresh cart (the id, not cart.md) for the touched feature, launches nothing and asks nothing."
+expected_outcome: "The run takes own driving (app-control not installed, unattended). It finds no features/cart/README.md, resolves cart to .claude/skills/control-shop/features/cart.md, and its report has one line for each of that file's three entry points, the Add to cart button, the basket icon and POST /api/cart/items, each under the id cart (not cart.md) and reported not driven with a reason. It carries `touched features not matched (app-control not installed)`, refreshes nothing, names installing app-control as the next step, launches nothing and asks nothing."
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -17,10 +17,16 @@ graders:
     input_match: 'features/cart\.md'
     min: 1
     arm: both
-  - name: names-refresh-for-flat-id
+  - name: reports-features-not-matched
     type: regex
-    pattern: 'app-control:map refresh[ `"]+cart(?!\.?[\w/-])'
+    pattern: 'touched features not matched \(app-control not installed\)'
+    flags: i
+    arm: both
+  - name: reports-under-flat-id
+    type: regex
+    pattern: '^\W*cart[`*\s]*\|'
+    flags: m
     arm: both
   - name: reports-flat-entry-points
     type: llm
-    criteria: "PASS only if the reply (1) names .claude/skills/control-shop/features/cart.md (or features/cart.md) as the feature file for cart, (2) gives one report line for each of its three entry points, the Add to cart button, the basket icon in the header and POST /api/cart/items, each as passed, failed or not driven with a reason, and (3) names /app-control:map refresh cart for the touched feature, with the id cart rather than cart.md or features/cart.md. FAIL if it says the feature cannot be found because features/cart/README.md is missing, treats features/cart/steps.md as the feature file, reports billing/export as touched, or asks the person anything."
+    criteria: "PASS only if the reply (1) names .claude/skills/control-shop/features/cart.md (or features/cart.md) as the feature file for cart, (2) gives one report line for each of its three entry points, the Add to cart button, the basket icon in the header and POST /api/cart/items, each as passed, failed or not driven with a reason, and (3) reports that touched features were not matched because app-control is not installed and names installing app-control as the next step. FAIL if it gives /app-control:map refresh as the next step instead of installing app-control, says a refresh ran, says the feature cannot be found because features/cart/README.md is missing, treats features/cart/steps.md as the feature file, reports billing/export as touched, or asks the person anything. Saying what a later run with app-control will refresh is not a failure."
