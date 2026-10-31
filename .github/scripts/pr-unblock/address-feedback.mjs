@@ -237,10 +237,19 @@ export const isLaneComment = (comment) => comment.authorId === MARKER_AUTHOR_ID 
 // one a person decides: only CRITICAL holds (owner decision on #11020).
 export const SECURITY_SEVERITIES = Object.freeze(["SUGGESTION", "IMPORTANT", "CRITICAL"]);
 export const SECURITY_PERSON_SEVERITY = "CRITICAL";
-// Any line shaped like a rating, wherever it sits; the lane's own line is
-// unindented, outside a fence, and the comment's first line or the last one
-// above its `claude-lane:` footer (blank lines skipped).
-const SEVERITY_SHAPED = /^[ \t>]*severity:/i;
+// Any line shaped like a rating, wherever it sits: the word behind any run of
+// leading markup (indent, `>`, bold or italic, a code span, a heading, a list
+// bullet or number), closing markup after it, then a colon or a spaced dash,
+// so `**Severity**: X`, `- severity: X`, `### Severity: X` and `Severity - X`
+// all count; the lane's own line is unindented, outside a fence, and the
+// comment's first line or the last one above its `claude-lane:` footer (blank
+// lines skipped).
+export const SEVERITY_SHAPED = /^[ \t>*_`#+\-\d.]*severity[*_`]*[ \t]*(?::|[-–—][ \t])/i;
+// A body that names the security-review lane behind a `lane:` or `claude-lane:`
+// label: anywhere on the label's line (behind another name, in brackets, with
+// markup or a trail), or on the next non-blank line when the label ends its
+// own. Prose that only mentions the lane's name is no claim.
+const SECURITY_LANE_NAMED = /\blane:\s*[^\n]*claude-security-review/i;
 const SEVERITY_LINE = /^severity:[ \t]*([A-Za-z]+)[ \t]*$/i;
 const FENCE = /^[ \t]*(```|~~~)/;
 // A lane comment's one rating, upper-cased, or null (unrated, so a person
@@ -289,6 +298,20 @@ export const securityNeedsPerson = (body, floor = SECURITY_PERSON_SEVERITY) => {
   const severity = severityOf(body);
   return severity === null || SECURITY_SEVERITIES.indexOf(severity) >= SECURITY_SEVERITIES.indexOf(floor);
 };
+// Whether the reviewer bot's own finding claims a security rating a person
+// decides at `floor`. Its footer is model text, so the claim is read from the
+// content, never from an exact footer: a body that names the security-review
+// lane behind a label (SECURITY_LANE_NAMED, a malformed or trailed footer
+// included) or holds any rating-shaped line (SEVERITY_SHAPED) is a security
+// claim, and securityNeedsPerson rules it: a rating it can read at or above
+// `floor`, or none it can read, keeps the hold such a lane finding has. Only a
+// body with neither is the code lane's: a claim worded outside those two
+// shapes reads as prose.
+export const claimsSecurity = (body, floor = SECURITY_PERSON_SEVERITY) => {
+  const text = String(body ?? "");
+  const claims = SECURITY_LANE_NAMED.test(text) || text.split("\n").some((line) => SEVERITY_SHAPED.test(line));
+  return claims && securityNeedsPerson(text, floor);
+};
 
 // A thread whose first comment is a pr-verify verifier note (threadAuthors).
 const isVerifierNote = (thread) => thread.comments[0]?.author === "verifier";
@@ -296,17 +319,20 @@ const isDirected = (thread) => thread.comments.some((comment) => comment.directi
 
 // Past the round cap, the threads only a person may still decide: a security
 // lane finding rated at or above `floor` or unrated (securityNeedsPerson), a
-// verifier note or listed review bot's finding a trusted person directed, a
-// listed bot's finding on a head the security-review lane held as CRITICAL
-// (keepThreads' `security` state; the bot's own badge decides nothing), and a
-// finding whose lane no footer pr-review-cli appended names: only on a
-// github-actions[bot] root (`rootAuthorId`) is the footer the reusable's,
-// never model text. A listed bot is matched on its account id (keepThreads'
-// `listed`, from pr-pipeline.yaml review-threads.reviewer-ids). The code
-// lane's finding, a listed bot's other findings, a security lane finding
-// rated below `floor` and an undirected verifier note go to a fresh fixer: a
-// round cap is a lane bound, and pr-verify's FAIL already holds the merge and
-// judges the next head afresh.
+// verifier note or listed review bot's finding a trusted person directed, and
+// a listed bot's finding on a head the security-review lane held as CRITICAL
+// (keepThreads' `security` state; the bot's own badge decides nothing). Only
+// on a github-actions[bot] root (`rootAuthorId`) is a lane footer the
+// pr-review-cli reusable's, never model text, so a reviewer root by anyone
+// else is the reviewer bot's own finding (claude[bot]), which is ruled as the
+// code lane's unless its text names the security-review lane or carries a
+// rating, rated at or above `floor` or with no rating it can read
+// (claimsSecurity). A listed bot is matched on its account id (keepThreads'
+// `listed`, from pr-pipeline.yaml review-threads.reviewer-ids).
+// The code lane's finding, the reviewer bot's own, a listed bot's other
+// findings, a security lane finding rated below `floor` and an undirected
+// verifier note go to a fresh fixer: a round cap is a lane bound, and
+// pr-verify's FAIL already holds the merge and judges the next head afresh.
 export const needsPerson = (thread, rootAuthorId, floor = SECURITY_PERSON_SEVERITY) => {
   if (isVerifierNote(thread)) {
     return isDirected(thread);
@@ -319,7 +345,7 @@ export const needsPerson = (thread, rootAuthorId, floor = SECURITY_PERSON_SEVERI
     return root.security === "held" || isDirected(thread);
   }
   if (rootAuthorId !== MARKER_AUTHOR_ID) {
-    return true;
+    return claimsSecurity(root.body, floor);
   }
   const lane = laneOf(root.body);
   return lane === "claude-security-review" ? securityNeedsPerson(root.body, floor) : lane !== "claude-review";

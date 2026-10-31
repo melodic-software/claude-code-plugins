@@ -1266,6 +1266,8 @@ merge:
         class: enforcement
       - glob: ".github/scripts/lib/stop-reason.mjs"
         class: enforcement
+      - glob: ".github/scripts/lib/admission-comment.mjs"
+        class: enforcement
       - glob: ".github/scripts/lib/done-evidence.mjs"
         class: trust
       - glob: ".github/scripts/pr-review-main/**"

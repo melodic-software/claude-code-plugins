@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 import { withRetry } from "../../scripts/pr-merge/enable-auto-merge.mjs";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../log-api-budget/rate-guard.mjs";
-import { appCloseKind, commitPulls as readCommitPulls, createGitHub, GitHubError, isTrustedClose, loadTrustedActors, main } from "./check-trusted-trigger.mjs";
+import { appCloseKind, commitPulls as readCommitPulls, createGitHub, GitHubError, isTrustedClose, loadTrustedActors, loadTrustedList, main, reconcilerRecordVouches } from "./check-trusted-trigger.mjs";
+import { main as recordMain } from "./reconciler-record.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -3088,4 +3089,68 @@ test("appCloseKind: an outsider's close comment or an unreadable comment list re
   assert.equal(await appCloseKind(routeClient(forged), "o/r", 77, isLanesApp), null);
   const routes = appCloseRoutes();
   assert.equal(await appCloseKind(routeClient(routes, "GET /repos/o/r/issues/77/comments?per_page=100&page=1"), "o/r", 77, isLanesApp), null);
+});
+
+// reconcilerRecordVouches: the reconciler-record check alone, for a recorder
+// that vouches for an attempt another workflow causes (pr-feedback-dispatch.yml
+// rerun-ci-status after the reconciler re-ran a review run). Same rules as the
+// reconciler re-run cases above, read at the run's attempt 2.
+const vouches = ({ github, sleep = async () => {} } = {}) =>
+  reconcilerRecordVouches({
+    github,
+    repository: REPOSITORY,
+    defaultBranch: "main",
+    list: loadTrustedList(LIST),
+    deniedIds: new Set(),
+    reconcilerWorkflow: RECONCILER_WORKFLOW,
+    runId: LOST_RUN_ID,
+    sleep,
+  });
+
+test("reconciler record: a valid record for the run's attempt 2 vouches", async () => {
+  assert.equal(await vouches({ github: fakeGitHub(rerunRoutes()) }), true);
+});
+
+test("reconciler record: no record does not vouch, after one re-read", async () => {
+  const sleeps = [];
+  const github = fakeGitHub(rerunRoutes({ artifacts: listing() }));
+  assert.equal(await vouches({ github, sleep: async (ms) => sleeps.push(ms) }), false);
+  assert.equal(sleeps.length, 1);
+});
+
+test("reconciler record: a record from a run the gate does not accept does not vouch", async () => {
+  for (const reconciler of [{ path: ".github/workflows/pr-review-hosted.yml" }, { event: "pull_request" }, { head_branch: "fix/x" }]) {
+    assert.equal(await vouches({ github: fakeGitHub(rerunRoutes({ reconciler })) }), false, JSON.stringify(reconciler));
+  }
+});
+
+test("reconciler record: an attempt 2 a person started does not vouch", async () => {
+  assert.equal(await vouches({ github: fakeGitHub(rerunRoutes({ attempt: { triggering_actor: KYLE } })) }), false);
+});
+
+test("reconciler record: without a reconciler workflow nothing is read and nothing vouches", async () => {
+  const github = fakeGitHub(rerunRoutes());
+  assert.equal(await reconcilerRecordVouches({ github, repository: REPOSITORY, defaultBranch: "main", list: loadTrustedList(LIST), deniedIds: new Set(), reconcilerWorkflow: "", runId: LOST_RUN_ID }), false);
+  assert.deepEqual(github.calls, []);
+});
+
+const recordEnv = (overrides = {}) => ({
+  GITHUB_REPOSITORY: REPOSITORY,
+  REVIEW_RUN_ID: LOST_RUN_ID,
+  DEFAULT_BRANCH: "main",
+  TRUSTED_ACTORS: LIST,
+  RECONCILER_WORKFLOW,
+  ...overrides,
+});
+
+test("reconciler-record.mjs: exit 0 when the record vouches, 3 when it does not, 2 on a bad input", async () => {
+  const quiet = async () => {};
+  assert.equal(await recordMain({ env: recordEnv(), github: fakeGitHub(rerunRoutes()), sleep: quiet }), 0);
+  assert.equal(await recordMain({ env: recordEnv(), github: fakeGitHub(rerunRoutes({ artifacts: listing() })), sleep: quiet }), 3);
+  assert.equal(await recordMain({ env: recordEnv({ RECONCILER_WORKFLOW: "" }), github: fakeGitHub(rerunRoutes()), sleep: quiet }), 3);
+  for (const bad of [{ REVIEW_RUN_ID: "" }, { REVIEW_RUN_ID: "9; rm" }, { GITHUB_REPOSITORY: "x" }, { DEFAULT_BRANCH: "" }, { TRUSTED_ACTORS: path.join(FIXTURES, "absent.json") }]) {
+    const github = fakeGitHub(rerunRoutes());
+    assert.equal(await recordMain({ env: recordEnv(bad), github, sleep: quiet }), 2, JSON.stringify(bad));
+    assert.deepEqual(github.calls, [], JSON.stringify(bad));
+  }
 });

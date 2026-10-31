@@ -339,6 +339,7 @@ jobs:
         .github/scripts/work-resolve-issue/stop-routes.json
         .github/scripts/work-resolve-issue/stop-routes.mjs
         .github/scripts/lib/stop-reason.mjs
+        .github/scripts/lib/admission-comment.mjs
         .github/scripts/lib/done-evidence.mjs
         .github/scripts/pr-review-main/**
         docs/conventions/instruction-exception-register/**

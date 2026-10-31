@@ -32,6 +32,7 @@ import {
   readIssueStop,
   readOutcome,
   readScanRefusal,
+  SCAN_REFUSALS,
   readTurnCap,
   RESUMABLE,
   reusePlan,
@@ -677,11 +678,13 @@ test("a run whose patch collector refused goes to a person, whatever its outcome
 
 // apply-issue-patch's escalation reason: a done run whose patch was refused
 // committed something that never landed, and the person sees why.
-// A protected path goes to the host queue, a refusal that may be a credential
-// shape to a person, and an apply fault back to the lane.
+// A protected path goes to the host queue, a credential shape to a person (a
+// token-leak path, owner decision on #11021), and any other invalid patch or
+// an apply fault back to the lane.
 for (const [reason, why, action, labels] of [
   ["patch-protected-path", /a path the issue lane may not push/, "host-run", ["host-run"]],
-  ["patch-invalid", /not a valid patch/, "hand-back", ["needs-human"]],
+  ["patch-credential", /credential shape/, "hand-back", ["needs-human"]],
+  ["patch-invalid", /not a valid patch/, "retry", []],
   ["patch-not-applied", /did not apply/, "retry", []],
   ["patch-apply-failed", /failed before it committed or refused the patch/, "retry", []],
 ]) {
@@ -1076,31 +1079,67 @@ test("main refuses a human-gated label that is agent-ready and writes no label",
 });
 
 // A run its issue dimensions skipped took no model turn, so it left no
-// outcome: report-outcome hands the issue to a person with the next step.
+// outcome. Owner decision on #11021: an Uncertainty skip reaches no person; the
+// issue drops agent-ready and status: ready and parks at status: confirmed
+// with the reason, as admission parks the same refusal: the lanes App's
+// admission comment first (intake-reenter lifts status: confirmed only beside
+// it), then the labels, then the lane's outcome comment.
 for (const [reason, step] of [
-  ["research-first", "research"],
-  ["probe-first", "probe"],
+  ["research-first", "plan or research the approach"],
+  ["probe-first", "run a probe or spike first"],
 ]) {
-  test(`main on a ${reason} dimension skip hands the issue back naming the next step`, async () => {
+  test(`main on a ${reason} dimension skip parks the issue at status: confirmed with the reason, to no person`, async () => {
     await withDir({}, async (dir) => {
       const { fetch, calls } = fakeFetch([
         ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+        ["GET", /\/issues\/77\/comments/, 200, []],
+        ["GET", /\/issues\/77\/events/, 200, []],
         ["POST", /\/issues\/77\/labels$/, 200, []],
-        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
+        ["DELETE", /\/issues\/77\/labels\//, 200, []],
         ["POST", /\/issues\/77\/comments$/, 201, {}],
       ]);
       assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: reason }, fetch }), 0);
-      assert.deepEqual(calls.find((c) => c.method === "POST" && c.path.endsWith("/labels")).body, { labels: ["needs-human"] });
-      assert.ok(calls.some((c) => c.method === "DELETE" && c.path.endsWith("/labels/agent-ready")));
-      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
-      assert.match(comment, new RegExp(`^${ESC}<!-- work-resolve-issue outcome=${reason} run=123 -->`));
-      assert.equal(parseOutcomeMarker(comment).outcome, reason);
-      assert.ok(comment.includes(step), comment);
-      assert.ok(comment.includes("https://example/o/r/actions/runs/123"), comment);
+      const writes = calls.filter((c) => c.method !== "GET");
+      const [admission, labels, ...rest] = writes;
+      assert.equal(admission.method, "POST");
+      assert.ok(admission.body.body.startsWith("<!-- intake-triage admission -->\nNot admitted to the issue lane: "), admission.body.body);
+      assert.ok(admission.body.body.includes(`\`${reason}\``) && admission.body.body.includes(step), admission.body.body);
+      assert.deepEqual(labels.body, { labels: ["status: confirmed"] });
+      const removed = rest.filter((c) => c.method === "DELETE").map((c) => decodeURIComponent(c.path.split("/labels/")[1]));
+      assert.deepEqual(removed, ["agent-ready", "status: ready", "admission-deferred"]);
+      const comment = rest.at(-1).body.body;
+      assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=parked run=123 -->\n"), comment);
+      assert.ok(comment.includes(`\`${reason}\``) && comment.includes(step), comment);
+      assert.ok(comment.includes("status: confirmed"), comment);
+      assert.ok(!comment.includes("work-items:escalation") && !comment.includes("needs-human"), comment);
+      assert.equal(parseReason(comment), null);
       assert.ok(!calls.some((c) => c.path.endsWith("/pulls") || c.path.includes("/compare/")));
     });
   });
 }
+
+// The lanes App keeps one admission comment per issue, so a park edits the one
+// admission already wrote.
+test("main on a dimension skip edits the lanes App's earlier admission comment in place", async () => {
+  await withDir({}, async (dir) => {
+    const own = { id: 501, user: { login: "melodic-automation-lanes[bot]" }, body: "<!-- intake-triage admission -->\nNot admitted to the issue lane yet: an older reason.", created_at: "2026-10-20T00:00:00Z" };
+    const { fetch, calls } = fakeFetch([
+      ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
+      ["GET", /\/issues\/77\/comments/, 200, [own]],
+      ["GET", /\/issues\/77\/events/, 200, []],
+      ["PATCH", /\/issues\/comments\/501$/, 200, {}],
+      ["POST", /\/issues\/77\/labels$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: "probe-first" }, fetch }), 0);
+    const patched = calls.filter((c) => c.method === "PATCH");
+    assert.equal(patched.length, 1);
+    assert.match(patched[0].body.body, /^<!-- intake-triage admission -->\nNot admitted to the issue lane: .*`probe-first`/);
+    const posted = calls.filter((c) => c.method === "POST" && c.path.endsWith("/comments"));
+    assert.deepEqual(posted.map((c) => c.body.body.split("\n")[0]), ["<!-- work-resolve-issue outcome=parked run=123 -->"]);
+  });
+});
 
 // Owner Q93: intake splits a Size Large issue, so a split-required skip goes
 // back through intake with no person: agent-ready and the status labels
@@ -2514,7 +2553,7 @@ test("a pushback marker, or a newer pushback for another run, resumes nothing", 
 // earlier run's resume as it was.
 test("a newer dimension-skip marker keeps an earlier run's resume", () => {
   const branches = [branchFact(lane(400), { sha: SHA_400 })];
-  for (const reason of ["split-required", "research-first", "probe-first"]) {
+  for (const reason of ["split-required", "research-first", "probe-first", "parked"]) {
     const markers = [marked("turn-cap", "400"), marked(reason, "401", "2026-10-16T12:00:00Z")];
     assert.deepEqual(prior({ branches, markers }), { action: "resume", branch: lane(400), tip: SHA_400, cause: "turn-cap" }, reason);
   }
@@ -3627,7 +3666,7 @@ test("every hand-back opens with the attended queue's escalation marker, and no 
   const handBacks = [
     decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" } }),
     decide({ ...plain, outcome: { exit: "stopped", reason: "design-change: Tests failed.", title: "", summary: "" } }),
-    decide({ ...plain, outcome: { exit: "done", reason: "", title: "", summary: "" }, escalation: "patch-invalid" }),
+    decide({ ...plain, outcome: { exit: "done", reason: "", title: "", summary: "" }, escalation: "patch-credential" }),
   ];
   for (const plan of handBacks) {
     assert.deepEqual(plan.addLabels, ["needs-human"], plan.comment);
@@ -3668,20 +3707,6 @@ test("every person-routed comment carries the stop-reason marker and the Reason 
   const pushback = decide({ ...plain, outcome: { exit: "pushback", reason: "Which file?", cause: "intent", title: "", summary: "" } });
   assert.equal(parseReason(pushback.comment).reason, "intent");
   assert.ok(pushback.comment.includes("Reason: `intent`"));
-  for (const skip of ["research-first", "probe-first"]) {
-    await withDir({}, async (dir) => {
-      const { fetch, calls } = fakeFetch([
-        ["GET", /\/issues\/77$/, ...ISSUE.slice(1)],
-        ["POST", /\/issues\/77\/labels$/, 200, []],
-        ["DELETE", /\/issues\/77\/labels\/agent-ready$/, 200, []],
-        ["POST", /\/issues\/77\/comments$/, 201, {}],
-      ]);
-      assert.equal(await main({ env: { ...env(dir), DIMENSION_SKIP: skip }, fetch }), 0);
-      const comment = calls.find((c) => c.method === "POST" && c.path.endsWith("/comments")).body.body;
-      assert.deepEqual(parseReason(comment), { lane: "work-resolve-issue", reason: "design" }, skip);
-      assert.ok(comment.includes("Reason: `design`"), comment);
-    });
-  }
   // A comment that reaches no person carries no stop-reason marker.
   assert.equal(parseReason(decide({ ...plain, outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" } }).comment), null);
 });
@@ -4233,6 +4258,89 @@ test("main on a rerun after its own retry marker posts nothing again", async () 
     assert.equal(await main({ env: env(dir), fetch }), 0);
     assert.deepEqual(calls.filter((c) => c.method !== "GET"), []);
   });
+});
+
+// The owner's rule: a patch not proven clear of a credential holds, whatever
+// exit or forgeable record the run left beside it.
+test("a patch-credential escalation and a scan's output refusal hold past any exit or record", () => {
+  const unread = () => readOutcome("/nonexistent/work-outcome.json");
+  const refused = () => ({ ...unread(), stop: "scan-refused-output", reason: SCAN_REFUSALS.output });
+  const base = { issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human", runId: "555" };
+  const records = { turnCap: { cap: 50 }, turnCapRestarts: 0, limits: { ...LIMIT_DEFAULTS, "turn-cap-restarts": 1 } };
+  for (const [name, args] of [
+    ["stopped", { outcome: { exit: "stopped", reason: "Tests failed.", title: "", summary: "" }, escalation: "patch-credential" }],
+    ["turn cap", { outcome: unread(), escalation: "patch-credential", ...records }],
+    ["limit", { outcome: unread(), escalation: "patch-credential", limit: { resets: null } }],
+    ["funding", { outcome: unread(), escalation: "patch-credential", funding: { regain: null } }],
+  ]) {
+    const plan = decide({ ...base, ...args });
+    assert.equal(plan.action, "hand-back", name);
+    assert.equal(plan.stop, "patch-credential", name);
+    assert.deepEqual(plan.addLabels, ["needs-human"], name);
+    assert.match(plan.comment, /credential shape/, name);
+    assert.doesNotMatch(plan.comment, /reported done/, name);
+  }
+  for (const [name, args] of [
+    ["turn cap", records],
+    ["limit", { limit: { resets: null } }],
+    ["funding", { funding: { regain: null } }],
+  ]) {
+    const plan = decide({ ...base, outcome: refused(), ...args });
+    assert.equal(plan.action, "hand-back", name);
+    assert.equal(plan.stop, "scan-refused-output", name);
+    assert.deepEqual(plan.addLabels, ["needs-human"], name);
+  }
+});
+
+test("an escalation that does not hold still yields to the turn-cap restart", () => {
+  const plan = decide({
+    issueNumber: 77,
+    issueLabels: ["agent-ready"],
+    branch: "",
+    changedFiles: [],
+    humanLabel: "needs-human",
+    runId: "555",
+    outcome: readOutcome("/nonexistent/work-outcome.json"),
+    escalation: "patch-invalid",
+    turnCap: { cap: 50 },
+    turnCapRestarts: 0,
+    limits: { ...LIMIT_DEFAULTS, "turn-cap-restarts": 1 },
+  });
+  assert.notEqual(plan.stop, "patch-invalid");
+  assert.deepEqual(plan.addLabels ?? [], []);
+});
+
+test("a scan fault retries with no person, up to limits.stop-retries, and every scan refusal has a route", () => {
+  for (const kind of Object.keys(SCAN_REFUSALS)) assert.ok(Object.hasOwn(STOP_ROUTES, `scan-refused-${kind}`), kind);
+  const outcome = { ...readOutcome("/nonexistent/work-outcome.json"), stop: "scan-refused-fault", reason: SCAN_REFUSALS.fault };
+  const plan = decide({ issueNumber: 77, issueLabels: ["agent-ready"], branch: "", changedFiles: [], humanLabel: "needs-human", runId: "555", outcome });
+  assert.equal(plan.action, "retry");
+  assert.equal(plan.stop, "scan-refused-fault");
+  assert.deepEqual(plan.addLabels ?? [], []);
+  assert.equal(capRetries(plan, 1, { "stop-retries": 2 }).action, "retry");
+  const spent = capRetries(plan, 2, { "stop-retries": 2 });
+  assert.equal(spent.action, "fail");
+  assert.deepEqual(spent.addLabels ?? [], []);
+});
+
+test("scan markers: only fault, or fault beside patch, reads as fault; anything else beside either reads as output", () => {
+  for (const [base, rungUp, want] of [
+    ["fault", "", "fault"],
+    ["fault", "patch", "fault"],
+    ["patch", "fault", "fault"],
+    ["fault", "output", "output"],
+    ["output", "fault", "output"],
+    ["fault", "forged", "output"],
+  ]) {
+    const dir = tempDir("scan-refused-");
+    try {
+      writeFileSync(join(dir, "scan-refused-1.txt"), `${base}\n`);
+      if (rungUp) writeFileSync(join(dir, "scan-refused-1-rung-up.txt"), `${rungUp}\n`);
+      assert.equal(readScanRefusal(dir, "1"), want, `${base} then ${rungUp}`);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
 });
 
 test("a current attempt with a patch and an output scan marker reads as output, in either order", () => {
