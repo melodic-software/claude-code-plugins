@@ -1082,7 +1082,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1126,7 +1126,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1208,7 +1208,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1249,7 +1249,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1291,7 +1291,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1332,7 +1332,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1544,7 +1544,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1587,7 +1587,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1630,7 +1630,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1674,7 +1674,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1716,7 +1716,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1758,7 +1758,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1800,7 +1800,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1841,7 +1841,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -1882,7 +1882,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -2092,7 +2092,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -2135,7 +2135,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -2178,7 +2178,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -2298,7 +2298,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -2339,7 +2339,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },
@@ -2381,7 +2381,7 @@
         "description_phrase": false,
         "boundary_section": true,
         "native_step": false,
-        "suggest_sentence": false
+        "suggest_sentence": true
       },
       "budget_caveat": true
     },

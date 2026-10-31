@@ -98,7 +98,10 @@ carrying `CLAUDE_PLUGIN_ROOT`.
   and purges the store behind a manifest and a confirmation gate.
 
 **Routing.** When the person wants a quick interactive toggle or a look at the saved entries,
-offer it to the person: you can run `/memory` instead of or alongside this skill. Prefer this skill
+offer it to the person: If /memory is available in your session (gate basis: not gated in the
+extraction, though a host may lack it; records in
+[reference/native-memory.md](reference/native-memory.md)), you can run it instead of or alongside
+this skill. Prefer this skill
 when precedence across scopes matters, when the env var is set, or for a durable disable or a
 purge. An unattended run records the offer in its output instead of asking.
 
