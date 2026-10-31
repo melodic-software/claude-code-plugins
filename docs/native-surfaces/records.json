@@ -756,6 +756,48 @@
     },
     {
       "native": {
+        "name": "claude-code-docs",
+        "class": "bundled-skill",
+        "markers": [
+          "gated"
+        ]
+      },
+      "component": {
+        "plugin": "discovery",
+        "skill": "read-docs",
+        "kind": "skill"
+      },
+      "verdict": "complementary",
+      "integration": "route",
+      "reason": "The bundled skill answers questions about Claude Code's own features; ours reads one named upstream docs page from any vendor through the shared lookup and cache, marks what the page does not state, and keeps inference apart. They share a job only on questions about Claude Code itself, so neither replaces the other. Same complementary and route shape as the store's Explore, WebFetch and WebSearch rows. Ruled 2026-10-26 by the owner's recorded direction on #9105.",
+      "evidence": [
+        "`claude-code-docs` present in the extraction as bundled-skill",
+        "markers: gated",
+        "native description: Answers questions about Claude Code features",
+        "invocation mode (2026-10-31, Claude Code 2.1.314): model-invocable and user-invocable",
+        "detect (2026-10-31, Claude Code 2.1.314): score 0.6736, invocable_by model+user",
+        "our description (abridged): Read an upstream docs page through the shared docs lookup and cache, with the page's silences marked and inference kept apart; model-invocable",
+        "the skills docs page's Bundled skills section names examples and does not list claude-code-docs (read 2026-10-31), so the extraction is this row's only basis"
+      ],
+      "observation": {
+        "class": "extraction",
+        "detail": "extracted from binary v2.1.314 on 2026-10-31 (the /harness-ops:inventory --binary-only extraction recorded on #9105; bundled_skills degraded with 19 unresolved computed names, so counts are floors)",
+        "date": "2026-10-31"
+      },
+      "recheck": {
+        "trigger": "a Claude Code release renames or removes the bundled `claude-code-docs` skill, makes it model-disabled, or widens its job past Claude Code's own features, or the skills docs page's Bundled skills section starts listing it",
+        "verified": "2026-10-31"
+      },
+      "baked": {
+        "description_phrase": true,
+        "boundary_section": true,
+        "native_step": false,
+        "suggest_sentence": false
+      },
+      "budget_caveat": true
+    },
+    {
+      "native": {
         "name": "plugin eval",
         "class": "builtin-command",
         "markers": [
