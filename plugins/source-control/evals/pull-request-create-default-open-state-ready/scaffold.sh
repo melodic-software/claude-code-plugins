@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Seeds the eval workspace with a git repo whose feature branch is one commit ahead of main and an
-# offline forge (fixtures/gh-forge, --no-pr) that takes the push, opens the PR and marks it ready. No
+# offline forge (fixtures/gh-forge, --no-pr) that holds the head, opens the PR and marks it ready. No
 # docs/conventions/source-control.yaml exists, so pr_open_state comes from its default, ready.
 set -euo pipefail
 
