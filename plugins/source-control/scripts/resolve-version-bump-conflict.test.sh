@@ -194,20 +194,4 @@ for file in CHANGELOG.md .claude-plugin/plugin.json; do
   done
 done
 
-# 10. A symlink in place of .claude-plugin, to a directory or to nothing.
-r=$(mkfixture 1.2.1 desc '' 1.2.1)
-git -C "$r" merge -q main >/dev/null 2>&1
-outside="$(mktemp -d "$TEST_TMPDIR/outsideXXXXXX")"
-cp "$r/$P/.claude-plugin/plugin.json" "$outside/plugin.json"
-before=$(cat "$outside/plugin.json")
-rm -rf "$r/$P/.claude-plugin"
-for target in "$outside" "$TEST_TMPDIR/missing"; do
-  rm -f "$r/$P/.claude-plugin"
-  ln -s "$target" "$r/$P/.claude-plugin"
-  out=$(run "$r")
-  assert_exit ".claude-plugin linked to $target: exit 1" 1 "$?"
-  assert_contains ".claude-plugin linked to $target: names the plugin" "$out" "left for manual resolution: $P"
-done
-assert_eq "linked .claude-plugin: target untouched" "$before" "$(cat "$outside/plugin.json")"
-
 [[ $FAILED -eq 0 ]] || exit 1

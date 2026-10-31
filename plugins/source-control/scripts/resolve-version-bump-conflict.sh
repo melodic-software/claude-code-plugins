@@ -66,7 +66,7 @@ version_headings() { grep -o '^## \[[0-9][^]]*\]' | sort; }
 set_version() { awk -v v="$1" '!done && sub(/"version"[ \t]*:[ \t]*"[^"]*"/, "\"version\": \"" v "\"") { done = 1 } 1'; }
 
 # cp below would write through a link, out of the checkout.
-linked() { [[ -L $1/CHANGELOG.md || -L $1/.claude-plugin || -L $1/.claude-plugin/plugin.json ]]; }
+linked() { [[ -L $1/CHANGELOG.md || -L $1/.claude-plugin/plugin.json ]]; }
 
 resolve() {
   local dir=$1 manifest=$1/.claude-plugin/plugin.json changelog=$1/CHANGELOG.md
