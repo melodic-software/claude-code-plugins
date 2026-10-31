@@ -5,6 +5,17 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [13.1.0] - 2026-10-31
+
+Minor. Guidance only: confirms an interim §8 mechanism and adds how to read it; no topology,
+escalation-contract mechanism, capability-tier or §4 invariant changed.
+
+- **Cloud-routine state (§8).** The "Bookmark per source" row no longer calls the tracker comment an
+  interim store. A one-off routine posted a state record on its first run and read it back on its
+  second, a separate cloud session, on Claude Code 2.1.314 (`/harness-ops:behavior-probes` record
+  19, #8991). The row also says to find a routine's comments by sentinel marker, because they post
+  as the account owner's login.
+
 ## [13.0.0] - 2026-10-30
 
 Major: the §4 per-cycle usage sample gains a field every loop-lane body must write, and a change to
