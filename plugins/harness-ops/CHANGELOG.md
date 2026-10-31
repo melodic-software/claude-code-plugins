@@ -3,6 +3,13 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.20.5] - 2026-10-31
+
+### Fixed
+
+- `telemetry-upsert.sh` no longer posts a duplicate telemetry comment when the comment list is empty, `null`, `false` or holds a non-object element, or when its detection `jq` fails. Each case exits 5 with nothing written.
+- Under a personal token with `--app-slug`, a failed `gh api user` resolves to `SLUG[bot]` only when the token can list its installation's repositories. A transient failure under a personal token now exits 4 and writes nothing, where it used to post a duplicate.
+
 ## [4.20.4] - 2026-10-30
 
 ### Fixed
