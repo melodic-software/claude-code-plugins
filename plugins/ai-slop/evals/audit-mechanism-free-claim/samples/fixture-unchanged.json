@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Why we picked this CLI\n\nThe CLI feels snappy and modern, and working with it is a joy.\n\nThe CLI starts in 80 ms on a cold cache and reads its settings from one `cli.toml` file.\n",
+      "why": "the scaffold's file, untouched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Why we picked this CLI\n\nThe CLI starts fast, and working with it is a joy.\n\nThe CLI starts in 80 ms on a cold cache and reads its settings from one `cli.toml` file.\n",
+      "why": "flagged sentence rewritten in place (Edit, Write or sed -i)"
+    },
+    {
+      "answer": "",
+      "why": "file deleted or emptied"
+    }
+  ]
+}

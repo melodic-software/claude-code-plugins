@@ -1,0 +1,62 @@
+{
+  "pass": [
+    {
+      "answer": "<label htmlFor=\"answer\">What were you trying to do?</label>\n<textarea id=\"answer\" name=\"answer\" />",
+      "why": "label tied to the textarea with htmlFor and a matching id"
+    },
+    {
+      "answer": "<label htmlFor={fieldId}>{question}</label>\n<textarea id={fieldId} />",
+      "why": "htmlFor and id share one expression"
+    },
+    {
+      "answer": "<label>\n  <span className=\"question\">{question}</span>\n  <textarea name=\"answer\" />\n</label>",
+      "why": "the label wraps the textarea"
+    },
+    {
+      "answer": "<label>\n  {question}\n  <Textarea name=\"answer\" />\n</label>",
+      "why": "the label wraps the project's Textarea component"
+    },
+    {
+      "answer": "<h2 id=\"q-title\">{question}</h2>\n<textarea\n  onKeyDown={(e) => onKey(e)}\n  aria-labelledby=\"q-title\"\n/>",
+      "why": "aria-labelledby names the heading's id, after an arrow function attribute"
+    },
+    {
+      "answer": "<textarea aria-label=\"What were you trying to do?\" name=\"answer\" />",
+      "why": "an aria-label names the field"
+    },
+    {
+      "answer": "<label htmlFor={`answer-${step}`}>{question}</label>\n<textarea id={`answer-${step}`} />",
+      "why": "htmlFor and id share one template literal"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "<h2>{question}</h2>\n<textarea placeholder=\"Tell us what you were trying to do…\" />",
+      "why": "the placeholder is the only name; the heading is not tied to the field"
+    },
+    {
+      "answer": "You could add a `<label>` later.\n\n<textarea placeholder=\"Tell us what you were trying to do…\" />",
+      "why": "label only named in prose"
+    },
+    {
+      "answer": "<label>Answer</label>\n<textarea placeholder=\"Your answer\" />",
+      "why": "a label beside the textarea but not associated with it"
+    },
+    {
+      "answer": "<label htmlFor=\"answer\">{question}</label>\n<textarea id=\"answer-field\" />",
+      "why": "htmlFor names an id the textarea does not have"
+    },
+    {
+      "answer": "<h2 id=\"q-title\">{question}</h2>\n<textarea aria-labelledby=\"question-heading\" />",
+      "why": "aria-labelledby names an id nothing has"
+    },
+    {
+      "answer": "Rather than `<label htmlFor=\"answer\">`, the placeholder is enough here:\n\n<textarea id=\"answer\" placeholder=\"Tell us what you were trying to do…\" />",
+      "why": "the label is quoted in prose and the code keeps the placeholder as the only name"
+    }
+  ]
+}

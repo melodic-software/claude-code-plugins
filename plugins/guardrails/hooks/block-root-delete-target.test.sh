@@ -2797,6 +2797,158 @@ guard_invoke --command 'echo cm0gLXJmIC8= | base64 -d | sh'
 assert_exit 'decoder sink: a decoder piped into sh exits 2' 2 "$GUARD_RC"
 assert_contains 'decoder sink: the refusal names the mechanism' "$GUARD_ERR" 'decoded text'
 
+# --- 2m. PowerShell deletes behind indirection and pipelines (#9765) ----------
+# A delete run through Start-Process, Invoke-Expression, pwsh -Command, a
+# decoded -EncodedCommand, a pipeline removal or a .NET delete is judged as the
+# delete itself. Every form runs against a drive root, HOME, a path outside the
+# allowed roots and a path strictly inside the tree. ENC stands for the form's
+# delete passed as -EncodedCommand: rdt_enc builds the base64 of its UTF-16LE
+# bytes, so no case runs a delete.
+rdt_enc() { # <ascii text>: the -EncodedCommand value that decodes to it
+  local s="$1" i
+  for ((i = 0; i < ${#s}; i++)); do
+    printf '%s\0' "${s:i:1}"
+  done | base64 | tr -d '\n'
+}
+RDT_PSI_FORMS=()
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] && RDT_PSI_FORMS+=("$rdt_cmd")
+done <<'EOF'
+Start-Process cmd -ArgumentList '/c rd /s /q TGT'
+Start-Process -FilePath cmd.exe -ArgumentList '/c','rd /s /q TGT' -Wait
+saps pwsh '-NoProfile','-Command','Remove-Item -Recurse -Force TGT'
+Start-Process powershell -ArgumentList '-c', 'Remove-Item -Recurse TGT' -NoNewWindow
+Invoke-Expression 'Remove-Item -Recurse -Force TGT'
+iex "Remove-Item -Recurse TGT"
+Invoke-Expression -Command 'ri -r TGT'
+'Remove-Item -Recurse TGT' | iex
+Write-Output 'Remove-Item -Recurse TGT' | Invoke-Expression
+pwsh -Command 'Remove-Item -Recurse -Force TGT'
+pwsh -NoProfile -NonInteractive -c "Remove-Item -Recurse TGT"
+powershell.exe -ExecutionPolicy Bypass -Command Remove-Item -Recurse TGT
+pwsh -Command { Remove-Item -Recurse TGT }
+powershell -ep Bypass Remove-Item -Recurse TGT
+pwsh -NoProfile -EncodedCommand ENC
+powershell -enc ENC
+Get-ChildItem TGT | Remove-Item -Recurse -Force
+gci -Path TGT -Recurse | Remove-Item
+Get-ChildItem -LiteralPath TGT -Filter *.tmp | Where-Object { $_.Length -gt 0 } | Remove-Item
+gci TGT | % { $_.Delete() }
+Get-ChildItem TGT -Directory | ForEach-Object { $PSItem.Delete($true) }
+gci TGT | ForEach-Object { Remove-Item -LiteralPath $_.FullName -Recurse -Force }
+dir TGT | Sort-Object Name | Select-Object -First 5 | rm -r
+Get-ChildItem TGT | Remove-Item -Recurse; Write-Output done
+[IO.Directory]::Delete('TGT', $true)
+[System.IO.Directory]::Delete("TGT", $true)
+[IO.File]::Delete('TGT')
+(Get-Item TGT).Delete($true)
+EOF
+rdt_psi() { # <label> <want> <target> [guard_invoke option ...]: every form
+  local label="$1" want="$2" t="$3" f c e
+  shift 3
+  e=$(rdt_enc "Remove-Item -Recurse -Force $t")
+  for f in "${RDT_PSI_FORMS[@]}"; do
+    c="${f//TGT/"$t"}"
+    c="${c//ENC/"$e"}"
+    expect_both "PS indirection: $label: $c" "$want" --tool PowerShell --command "$c" "$@"
+  done
+}
+# portability-ok: Windows path strings in test fixtures, not regex/sed constructs
+rdt_psi 'a drive root blocks' 2 'C:\'
+rdt_psi 'HOME blocks' 2 '$HOME'
+rdt_psi 'outside the tree blocks' 2 'D:\rdt-x\y' "${RDT_CWD[@]}"
+rdt_psi 'inside the tree allowed' 0 'build\rdt-x' "${RDT_CWD[@]}"
+
+# Strictly inside the scratchpad or an allowed root passes; the root itself,
+# and a delete outside every root, do not.
+rdt_pspl() { # <command>: a PowerShell payload from the checkout with this session's scratchpad
+  MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$RDT_TOP" --arg s "$RDT_SPT" \
+    '{tool_name:"PowerShell",tool_input:{command:$c},cwd:$d,scratchpad_dir:$s}'
+}
+while IFS='|' read -r rdt_want rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  rdt_cmd="${rdt_cmd//SPT/"$RDT_SPT"}"
+  rdt_cmd="${rdt_cmd//ENC/"$(rdt_enc "Remove-Item -Recurse '$RDT_SPT/x'")"}"
+  expect_both "PS indirection: scratchpad: $rdt_cmd" "$rdt_want" --payload "$(rdt_pspl "$rdt_cmd")"
+done <<'EOF'
+0|iex "Remove-Item -Recurse 'SPT/x'"
+0|Start-Process pwsh -ArgumentList '-c', "Remove-Item -Recurse 'SPT/x'"
+0|pwsh -EncodedCommand ENC
+0|Get-ChildItem 'SPT/x' | Remove-Item -Recurse
+0|[IO.Directory]::Delete('SPT/x', $true)
+2|iex "Remove-Item -Recurse 'SPT'"
+2|[IO.Directory]::Delete('SPT', $true)
+EOF
+rdt_arp 'iex Remove-Item under the root allowed' 0 "iex \"Remove-Item -Recurse '$RDT_AR/child'\"" "$RDT_AR"
+rdt_arp 'pwsh -Command under the root allowed' 0 "pwsh -Command \"Remove-Item -Recurse '$RDT_AR/child'\"" "$RDT_AR"
+rdt_arp '-EncodedCommand under the root allowed' 0 \
+  "pwsh -EncodedCommand $(rdt_enc "Remove-Item -Recurse '$RDT_AR/child'")" "$RDT_AR"
+rdt_arp 'gci | Remove-Item under the root allowed' 0 "Get-ChildItem '$RDT_AR/child' | Remove-Item -Recurse" "$RDT_AR"
+rdt_arp 'gci | % Delete under the root allowed' 0 "gci '$RDT_AR/child' | % { \$_.Delete() }" "$RDT_AR"
+rdt_arp '[IO.Directory]::Delete under the root allowed' 0 "[IO.Directory]::Delete('$RDT_AR/child', \$true)" "$RDT_AR"
+rdt_arp 'unset key: [IO.Directory]::Delete under the root blocks' 2 "[IO.Directory]::Delete('$RDT_AR/child', \$true)"
+rdt_arp 'iex Remove-Item of the root itself blocks' 2 "iex \"Remove-Item -Recurse '$RDT_AR'\"" "$RDT_AR"
+rdt_arp 'gci | % Delete outside the root blocks' 2 "gci '$RDT_AO/x' | % { \$_.Delete() }" "$RDT_AR"
+
+# The mechanism as quoted prose, and the same commands doing nothing that deletes.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "PS indirection: $rdt_cmd allowed" 0 --tool PowerShell --command "$rdt_cmd"
+  expect_both "PS indirection: $rdt_cmd allowed with a cwd" 0 --tool PowerShell "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+git commit -m "Start-Process cmd '/c rd /s /q C:\'"
+git commit -m "iex 'Remove-Item -Recurse C:\'"
+git commit -m "pwsh -Command 'Remove-Item -Recurse C:\'"
+git commit -m 'powershell -EncodedCommand UgBlAG0AbwB2AGUA'
+Write-Output 'gci C:\ | % { $_.Delete() }'
+Write-Output "[IO.Directory]::Delete('C:\', `$true)"
+Start-Process cmd -ArgumentList '/c dir C:\'
+iex 'Get-ChildItem C:\'
+pwsh -NoProfile -File ./build.ps1
+pwsh -Command 'Get-ChildItem C:\'
+gci C:\ | Select-Object Name
+Get-ChildItem C:\ | ForEach-Object { $_.Name }
+[IO.File]::Exists('C:\x')
+EOF
+
+# A removal fed by anything but a listing names no target, and neither does a
+# listing a pipe feeds, a grouping, an array or a call as a .NET delete's path,
+# or a grouping .Delete() is called on that is not one listing. Every element
+# of a listing's comma list is judged, a one-word grouping is read as iex's
+# string, and a -WorkingDirectory this guard cannot place leaves the later
+# targets judged. An -EncodedCommand it cannot decode is denied, attended or
+# not.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "PS indirection: $rdt_cmd blocks" 2 --tool PowerShell "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+$dirs | ForEach-Object { $_.Delete($true) }
+Get-Content list.txt | % { $_.Delete() }
+'C:\' | Get-ChildItem | Remove-Item -Recurse
+gci C:\ -Directory | gci | Remove-Item -Recurse
+Get-ChildItem build, C:\ | Remove-Item -Recurse
+gci @('C:\') | Remove-Item -Recurse
+[IO.Directory]::Delete((Join-Path $a b), $true)
+[IO.Directory]::Delete(@('C:\'), $true)
+[IO.Directory]::Delete("$(Join-Path C:\ x)\..", $true)
+[IO.Directory]::Delete([Environment]::GetFolderPath('UserProfile'), $true)
+(Get-Item C:\ | Select-Object -First 1).Delete($true)
+(Get-Content list.txt).Delete()
+iex ('Remove-Item -Recurse C:\')
+Start-Process notepad -WorkingDirectory $env:TEMP; Remove-Item -Recurse ..\..\..
+pwsh -WorkingDirectory $x -c Get-Date; Remove-Item -Recurse ..\..
+pwsh -EncodedCommand $enc
+powershell -enc 'not base64!'
+pwsh -EncodedCommand 6QA=
+EOF
+expect_both 'PS indirection: an unreadable -EncodedCommand is denied when attended' 2 \
+  --tool PowerShell --command 'pwsh -EncodedCommand $enc' -- CLAUDE_CODE_SESSION_ATTENDED=1
+guard_invoke --tool PowerShell --command 'pwsh -EncodedCommand $enc'
+assert_contains 'PS indirection: the refusal names -EncodedCommand' "$GUARD_ERR" '-EncodedCommand'
+guard_invoke --tool PowerShell "${RDT_CWD[@]}" --command "Start-Process cmd -ArgumentList '/c rd /s /q D:\\rdt-x\\y'"
+assert_exit 'PS indirection: Start-Process of an outside rd /s exits 2' 2 "$GUARD_RC"
+assert_contains 'PS indirection: the refusal says the target is outside the tree' "$GUARD_ERR" 'outside the working tree'
+
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"
@@ -2865,9 +3017,9 @@ expect_both 'PS cmd.exe /c rd /s C:\ blocks' 2 \
 expect_both 'PS rd /s C:\ blocks (cmd grammar on the alias)' 2 \
   --tool PowerShell --command 'rd /s C:\'
 
-# Pipeline target cannot be named.
+# A pipeline target no listing names cannot be named.
 expect_both 'PS pipeline Remove-Item -Recurse blocks' 2 \
-  --tool PowerShell --command 'Get-ChildItem x | Remove-Item -Recurse'
+  --tool PowerShell --command 'Get-Content list.txt | Remove-Item -Recurse'
 
 # Allowed: non-recursive, prose, other verbs.
 expect_both 'PS Get-ChildItem C:\ allowed' 0 \
@@ -2928,7 +3080,9 @@ for rdt_sep in $'\n' $'\r\n' $'\r'; do
   expect_both "PS newline inside a quoted string is inert ($rdt_nl)" 0 \
     --tool PowerShell --command "Write-Output 'a${rdt_sep}Remove-Item -Recurse C:\\'"
   expect_both "PS newline after a pipe keeps the pipeline target ($rdt_nl)" 2 \
-    --tool PowerShell --command "Get-ChildItem |${rdt_sep}Remove-Item -Recurse"
+    --tool PowerShell --command "Get-Content list.txt |${rdt_sep}Remove-Item -Recurse"
+  expect_both "PS newline after a pipe keeps the listing that feeds it ($rdt_nl)" 2 \
+    --tool PowerShell --command "Get-ChildItem C:\\ |${rdt_sep}Remove-Item -Recurse"
   expect_both "PS newline after an unquoted comma continues the operand list ($rdt_nl)" 2 \
     --tool PowerShell --command "Remove-Item -Recurse -Path ./x,${rdt_sep}C:\\"
   expect_both "PS newline after a quoted comma ends the statement ($rdt_nl)" 2 \

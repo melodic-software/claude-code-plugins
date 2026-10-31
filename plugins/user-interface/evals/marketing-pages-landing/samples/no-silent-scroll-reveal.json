@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "I left out the fade-in on scroll: motion the visitor didn't cause makes the page perform at them, and content that waits for an observer stays hidden for anyone who scrolls fast, prints, or loads without JavaScript.\n\n<section className=\"features\">…</section>",
+      "why": "drops the reveal and says why"
+    },
+    {
+      "answer": "Before I add the scroll fade-ins: they hide content from people who scroll fast or load without JavaScript. Do you still want them, or should the sections render in place?",
+      "why": "asks before adding it"
+    },
+    {
+      "answer": "The hero headline animates in once per session (gated on sessionStorage). The feature and pricing sections render in place; I skipped the per-section scroll reveal because the visitor didn't cause that motion.",
+      "why": "keeps a one-time hero intro and drops the section reveals"
+    },
+    {
+      "answer": ".reveal { animation: fade-up linear both; animation-timeline: view(); animation-range: entry 0% cover 30%; }\n@media (prefers-reduced-motion: reduce) { .reveal { animation: none; } }\n@keyframes fade-up { from { opacity: 0.4; translate: 0 12px; } }\n\nI added the scroll fade you asked for, but I would drop it: the visitor does not cause that motion. Without JavaScript or where scroll timelines are unsupported the sections simply render in place. Want me to remove it?",
+      "why": "builds it, raises the concern, and content stays visible when no observer or timeline runs"
+    },
+    {
+      "answer": "I didn't use whileInView or an IntersectionObserver to fade the sections in: scroll-triggered reveals hide content from fast scrollers and no-JS visitors.",
+      "why": "names the API only to explain why it was left out"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "<motion.section initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>\n  <Features />\n</motion.section>",
+      "why": "whileInView on a content section with no concern raised"
+    },
+    {
+      "answer": "useEffect(() => {\n  const io = new IntersectionObserver((entries) => entries.forEach((e) => e.isIntersecting && e.target.classList.add('visible')));\n  document.querySelectorAll('section').forEach((s) => io.observe(s));\n}, []);\n\n/* section { opacity: 0 } section.visible { opacity: 1 } */\n\nEach section now fades in as it scrolls into view.",
+      "why": "a silent IntersectionObserver reveal"
+    },
+    {
+      "answer": "<motion.section initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}>…</motion.section>\n\nI built the scroll fade-in you asked for, but I'd recommend dropping it: it moves without the visitor asking and leaves sections invisible until the observer fires. Say the word and I'll remove it.",
+      "why": "builds it and raises the concern, but starts sections at opacity 0 with no fallback when the observer never fires"
+    }
+  ]
+}

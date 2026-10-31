@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "<textarea onKeyDown={(e) => {\n  if ((e.metaKey || e.ctrlKey) && e.key === \"Enter\") handleSubmit(e);\n}} />",
+      "why": "Cmd or Ctrl with Enter submits"
+    },
+    {
+      "answer": "function onKey(event) {\n  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {\n    event.currentTarget.form.requestSubmit();\n  }\n}",
+      "why": "single quotes, Enter checked first"
+    },
+    {
+      "answer": "useHotkeys('mod+enter', () => formRef.current?.requestSubmit(), { enableOnFormTags: ['TEXTAREA'] });",
+      "why": "a hotkey library's mod+enter is Cmd on Mac and Ctrl elsewhere"
+    },
+    {
+      "answer": "<textarea onKeyDown={(e) => {\n  if (e.key === \"Enter\" && (e.getModifierState(\"Meta\") || e.getModifierState(\"Control\"))) e.currentTarget.form?.requestSubmit();\n}} />",
+      "why": "modifier state read with getModifierState"
+    },
+    {
+      "answer": "<textarea onKeyDown={(e) => {\n  if ((e.metaKey || e.ctrlKey) && e.key === \"Enter\" && !e.nativeEvent.isComposing) {\n    e.preventDefault();\n    e.currentTarget.form?.requestSubmit();\n  }\n}} />",
+      "why": "the spoke's example, with the isComposing guard"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "<textarea onKeyDown={(e) => { if (e.key === \"Enter\") save(); }} />",
+      "why": "plain Enter, which should insert a newline"
+    },
+    {
+      "answer": "if (e.ctrlKey && e.key === \"Enter\") save();",
+      "why": "Ctrl only; Mac users get nothing"
+    },
+    {
+      "answer": "<textarea onKeyDown={(e) => {\n  if (e.key === \"Enter\" && !e.metaKey && !e.ctrlKey) { e.preventDefault(); save(); }\n}} />",
+      "why": "plain Enter submits; the modifiers are only negated"
+    },
+    {
+      "answer": "<textarea onKeyDown={(e) => { if (e.key === \"Enter\" && !(e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); } }} />",
+      "why": "plain Enter submits; the modifiers are negated as a group"
+    },
+    {
+      "answer": "Support Cmd+Enter: check metaKey or ctrlKey with \"Enter\".\n\n```jsx\n<textarea name=\"answer\" />\n```",
+      "why": "the shortcut only in prose"
+    }
+  ]
+}

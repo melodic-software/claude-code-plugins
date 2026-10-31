@@ -3,6 +3,18 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-10-31
+
+### Added
+
+- A shape-and-depth concern for `/user-interface:design` and `/user-interface:audit`: nested radii, shadows over borders, hairlines, eased gradients and mask fades, and image outlines, with audit severities, plus `scripts/nested-radius.mjs`, which works out a nested element's radius and says when the gap is too wide for the rule to apply.
+
+- `/user-interface:design` and `/user-interface:audit` gain web layout guidance: settle hierarchy, spacing and alignment first, one primary action per view, spacing from a scale with `gap` on the parent, optical alignment, capped content containers and content-driven breakpoints, sticky headers capped against the viewport, text beside rather than over full-bleed images, `z-index` from a token scale or a local stacking context, and decorative layers that never take clicks.
+
+- `/user-interface:design` and `/user-interface:audit` gain web color guidance: oklch for new colors, contrast repaired by moving lightness only against the WCAG 2.2 AA bar with APCA as an advisory second check, every text pair checked in both themes, tonal scales with one fixed hue and per-hue chroma, dark-mode colors from a remap of the scale's roles, value-for-value conversion from hex, `rgb()` and `hsl()` with `none` as the hue of grays, gamut clamping with a Display P3 layer, a `--focus-ring` token held to 3:1 in both themes, and Tailwind `@theme` color tokens read only in Tailwind projects.
+
+- `/user-interface:design` and `/user-interface:audit` gain web typography guidance (font files and synthesized styles, variable axes and OpenType features, type scale, leading and tracking, line length, wrap modes, truncation, the right typographic characters, underlines, selection, smoothing and size floors), with a Tailwind map read only when the project uses Tailwind.
+
 ## [0.10.0] - 2026-10-31
 
 ### Added
