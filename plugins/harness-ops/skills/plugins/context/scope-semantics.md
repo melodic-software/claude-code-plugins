@@ -243,7 +243,7 @@ it does not rest on that treatment.
 - **Recheck trigger**: a Claude Code release note that changes what `claude plugin update` writes,
   or a sync run whose settings check stops a home path.
 
-`sync` It drops the record's scope before comparing versions,
+`sync` drops a home-keyed record's scope before comparing versions,
 so a divergence that exists only because of it is not counted as actionable, and lists in a
 `User-home project records` row only the records `update` could not move.
 

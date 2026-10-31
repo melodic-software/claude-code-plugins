@@ -1022,9 +1022,10 @@ presence_tsv=""
 # Each present path's raw .claude/settings.json text, read with a builtin, so the
 # block can say what enabledPlugins entry that file holds for each record:
 # `<path> U+001E <F|M|U><text> U+001F`, F for a file, M for none, and U for a
-# file (or path) holding a U+001C-U+001F byte. The payload splits on those
-# bytes before any text is parsed, so such text is never bundled: it would
-# forge another path's entry. Valid JSON cannot carry them raw.
+# file holding a U+001C-U+001F byte; a path holding one is left out, so its
+# entry reads null. The payload splits on those bytes before any text is
+# parsed, so such text is never bundled: it would forge another path's entry.
+# Valid JSON cannot carry them raw.
 settings_bundle=""
 for pp in ${pp_lines[@]+"${pp_lines[@]}"}; do
   [[ -n "$pp" ]] || continue
