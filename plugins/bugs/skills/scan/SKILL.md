@@ -167,9 +167,8 @@ As of: 2026-10-10. Recheck trigger: that section changes precedence or which spa
 
 Name the model and effort each stage was dispatched with in the run metadata: the level passed, or
 `session` when none was. A dispatch the harness rejects means the role map names an alias this
-session cannot use: report it rather than substitute one. The harness can also run a blocked alias
-on another model without rejecting it, so the metadata names the model asked for, not proof of the
-model that ran. Pointer: for how a spawn's `model` alias resolves and what happens to a blocked
+session cannot use: report it rather than substitute one. The metadata names the model asked for,
+not proof of the model that ran. Pointer: for how a spawn's `model` alias resolves and what happens to a blocked
 one, see <https://code.claude.com/docs/en/sub-agents#choose-a-model>. As of: 2026-10-31. Recheck
 trigger: that section changes how an alias resolves or how a blocked value is handled.
 
