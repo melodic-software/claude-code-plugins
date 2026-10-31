@@ -21,7 +21,7 @@ the result in text.
 
 ## Classify each substep before executing it
 
-[`enforceability-tiers.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/enforceability-tiers.md) owns the tier definitions.
+[`enforceability-tiers.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/enforceability-tiers.md) owns the tier definitions.
 Apply them to the current substep, not to the task as a whole:
 
 - For **deterministic** work, execute the operation and consume the returned
@@ -69,18 +69,18 @@ while retaining quality assurance and an audit trail
 This convention governs one-off execution during the current task. It does not
 require committing a throwaway script, adding a dependency, or building a
 general utility. If the same deterministic finding recurs, route it through
-[`enforceability-tiers.md#routing-a-recurring-finding`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/enforceability-tiers.md#routing-a-recurring-finding)
+[`enforceability-tiers.md#routing-a-recurring-finding`](https://github.com/melodic-software/standards/blob/main/standards/engineering/enforceability-tiers.md#routing-a-recurring-finding)
 instead of accumulating session scripts.
 
 When executable logic becomes committed behavior, the simplicity, ownership,
-and test obligations in [`simpler-code.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/simpler-code.md),
-[`code-organization.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/code-organization.md), and
-[`../review/testing.md`](https://github.com/melodic-software/standards/blob/main/conventions/review/testing.md) apply. When the concern is a
+and test obligations in [`simpler-code.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/simpler-code.md),
+[`code-organization.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/code-organization.md), and
+[`../review/testing.md`](https://github.com/melodic-software/standards/blob/main/standards/review/testing.md) apply. When the concern is a
 reusable artifact's fixed shape rather than an in-task computation,
-[`deterministic-artifact-scaffolding.md`](https://github.com/melodic-software/standards/blob/main/conventions/engineering/deterministic-artifact-scaffolding.md)
+[`deterministic-artifact-scaffolding.md`](https://github.com/melodic-software/standards/blob/main/standards/engineering/deterministic-artifact-scaffolding.md)
 owns it. Treat the output as proof only of the exact structural or computational
 claim it checked; the verification-honesty criteria in
-[`../review/testing.md#verification-honesty`](https://github.com/melodic-software/standards/blob/main/conventions/review/testing.md#verification-honesty)
+[`../review/testing.md#verification-honesty`](https://github.com/melodic-software/standards/blob/main/standards/review/testing.md#verification-honesty)
 own broader proof claims.
 
 ## Keep agent-run commands plain
