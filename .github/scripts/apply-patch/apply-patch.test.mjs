@@ -2415,6 +2415,20 @@ test("a base-side workflow change is admitted only when the merged workflows are
   assert.deepEqual(await mergePush(added, fakeApi(added.repo, added.head), NO_PATCH), { outcome: "escalate", escalationReason: "workflow-staged" });
 });
 
+test("a workflow main deleted or renamed is dropped from the merge when the PR changes no workflow", async (t) => {
+  const workflows = { ".github/workflows/a.yml": "on: push\n", ".github/workflows/b.yml": "on: pull_request\n" };
+  for (const [name, mainSide, kept] of [
+    ["delete", { ".github/workflows/b.yml": null }, [".github/workflows/a.yml"]],
+    ["rename", { ".github/workflows/b.yml": null, ".github/workflows/c.yml": "on: pull_request\n" }, [".github/workflows/a.yml", ".github/workflows/c.yml"]],
+  ]) {
+    const fix = mergeFixture(t, { base: workflows, pr: { "p.txt": "pr\n" }, main: mainSide });
+    const api = fakeApi(fix.repo, fix.head);
+    assert.equal((await mergePush(fix, api, NO_PATCH)).outcome, "pushed", name);
+    const { createCommit } = api.calls.find((call) => call.createCommit);
+    assert.deepEqual(git(fix.repo, ["ls-tree", "-r", "--name-only", createCommit.tree, "--", ".github/workflows/"]).split("\n"), kept, name);
+  }
+});
+
 test("a patch made on another conflict tree escalates conflict-patch-not-applied", async (t) => {
   const fix = mergeFixture(t, { ...CONFLICT, resolve: (repo) => writeFileSync(join(repo, "a.txt"), "resolved\n") });
   const api = fakeApi(fix.repo, fix.head);
