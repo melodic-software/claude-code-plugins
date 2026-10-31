@@ -5,7 +5,9 @@ description: >
   api.github.com with the job token whenever the version is not in the
   runner's tool cache, two requests a step. This action uses the tool cache
   when it holds the version and otherwise downloads the release from
-  nodejs.org, checked against that release's SHASUMS256.txt. Linux X64 only.
+  nodejs.org, checked against that release's SHASUMS256.txt after verifying
+  that file's signature with the committed Node.js release keyring. Linux X64
+  only.
 
 inputs:
   node-version-file:

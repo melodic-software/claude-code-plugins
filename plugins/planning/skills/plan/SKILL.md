@@ -63,7 +63,7 @@ These hold after a compaction re-attach. Later steps say how to carry them out.
 
 - **Reviewer.** Before assessing blast radius, dispatch a fresh-context plan-reviewer sub-agent for any plan you present. The producing thread does not self-attack the plan inline. A change skipped under the one-sentence rule (Purpose) has no plan to review.
 - **Hard-to-reverse decisions escalate EARLY** regardless of confidence. Below-bar judgment calls go to an interview round before the plan locks.
-- **Agent teams.** Route a phase to an agent team only when the parallel-safe workers must message each other and agent teams are enabled; otherwise use sub-agent workers or sequential. Teammates are not worktree-isolated, so disjoint file ownership is mandatory.
+- **Agent teams.** Route a phase to an agent team only when the parallel-safe workers must message each other and agent teams are enabled; otherwise use sub-agent workers or sequential. Teammates are not worktree-isolated, so disjoint file ownership is mandatory; for why, see [agent teams: avoid file conflicts](https://code.claude.com/docs/en/agent-teams#avoid-file-conflicts) (as of 2026-10-31; recheck when that section changes how teammates share files).
 
 ### Step 4.7: Outcome gate (before Step 5. Verify the PLAN, not a recap)
 
@@ -226,7 +226,7 @@ Apply the reviewer rule under Planning Process before blast radius or presentati
 
 1. Gather the plan draft + design artifacts (or `design-resolution.md`) + the Brief
 2. **Surface the cost.** Tell the user, in one sentence, that a fresh-context plan review runs now whatever they answer: one bounded sub-agent (default `effort: medium`, capped turns).
-3. Dispatch the plugin's **`plan-reviewer`** agent (`agents/plan-reviewer.md`) with the prompt from [context/plan-reviewer.md](context/plan-reviewer.md). Do not substitute a generic read-only sub-agent, and pass no `effort` on the call: the agent definition carries the reviewer's bounded `effort` and `maxTurns` (the effort record in `agents/plan-reviewer.md`). A complete report ends with its `### Summary` counts, or is the literal `No plan gaps found.` for a clean pass; treat any other return as incomplete whether or not a partial marker is present (older clients do not mark a `maxTurns` stop): resume it (or re-dispatch with a narrowed brief); never treat a partial table as a clean pass.
+3. Dispatch the plugin's **`plan-reviewer`** agent (`agents/plan-reviewer.md`) with the prompt from [context/plan-reviewer.md](context/plan-reviewer.md). Do not substitute a generic read-only sub-agent, and pass no `effort` on the call: the agent definition carries the reviewer's bounded `effort` and `maxTurns` (the effort record in `agents/plan-reviewer.md`). A complete report ends with its `### Summary` counts, or is the literal `No plan gaps found.` for a clean pass; treat any other return as incomplete whether or not a partial marker is present (whether a `maxTurns` stop is marked depends on the client: the `maxTurns` record in `agents/plan-reviewer.md`): resume it (or re-dispatch with a narrowed brief); never treat a partial table as a clean pass.
 4. **Verify reviewer findings** against the actual code/files before applying fixes. Sub-agent findings are synthesis, not ground truth
 5. Fix every confirmed gap BEFORE proceeding; never present a plan with known gaps. A fix that displaces a user answer or adds an external effect follows "Plan changes after the Brief" below
 
