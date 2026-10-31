@@ -4763,7 +4763,10 @@ class LaneRequiresAVerdict(unattended.Unattended):
                     _, out = self.lane()
                 close.assert_not_called()
                 # Read as a pull request never enqueued.
-                self.assertIn(False, [kw.get("queued") for kw in seen])
+                never_queued = [kw for kw in seen if kw.get("queued") is False]
+                self.assertTrue(never_queued)
+                for kw in never_queued:
+                    self.assertEqual(kw.get("authority"), "pr-merge")
                 self.assertEqual(
                     out["unattended"]["writes"]["cappedClose"],
                     {"closed": False, "reason": f"held: {hold}"},
