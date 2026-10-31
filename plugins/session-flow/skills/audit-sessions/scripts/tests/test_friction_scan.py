@@ -291,6 +291,16 @@ def test_a_denial_repeated_across_result_records_is_one_event():
     assert scan.duplicates == 1
 
 
+def test_a_result_denial_after_its_tool_result_denial_counts_as_a_duplicate():
+    scan = friction_scan.FrictionScan("/w/repo")
+    scan.start_file("main", None)
+    scan.add(call("h2", "Bash", command="git push"))
+    scan.add(denial_record("denied", kind=None, decision={"decision": "reject", "source": "config", "reasonType": "rule"}, use_id="h2"))
+    scan.add({"type": "result", "permission_denials": [{"tool_name": "Bash", "tool_use_id": "h2", "tool_input": {"command": "git push"}}]})
+    assert [(e["kind"], e["tool_use_id"]) for e in scan.events] == [("denied", "h2")]
+    assert scan.duplicates == 1
+
+
 @pytest.mark.parametrize(
     ("name", "command", "polling"),
     [

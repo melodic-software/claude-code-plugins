@@ -230,7 +230,10 @@ class FrictionScan:
         elif kind == "result":
             for denial in transcript_reader.permission_denials(record):
                 # Keyed apart from tool-result denials, so a later tool-result record still keeps its richer event.
-                if denial["tool_use_id"] in self.denied_ids or not self._first(denial["tool_use_id"], "denied/result"):
+                if denial["tool_use_id"] in self.denied_ids:
+                    self.duplicates += 1
+                    continue
+                if not self._first(denial["tool_use_id"], "denied/result"):
                     continue
                 cause = denial["reason_type"] if denial["reason_type"] in ("classifier", "hook") else "rule"
                 shape, flags, target = tool_shape(denial["tool_name"] or "?", denial["tool_input"], self.cwd)
