@@ -2586,9 +2586,6 @@ describe("trustedSplitChild agrees with admission", () => {
   });
 });
 
-// A split made by hand (no App split record): a listed human linked two
-// sub-issues to the parent. Hand splitters rarely tick the parent's items, so an
-// item citing a sub-issue counts as covered; an uncited one may be more work.
 // splitParentClosed holds the App's close of a split parent to the same rule
 // as the close itself.
 describe("splitParentClosed", () => {
@@ -2640,6 +2637,9 @@ describe("splitParentClosed", () => {
   });
 });
 
+// A split made by hand (no App split record): a listed human linked two
+// sub-issues to the parent. Hand splitters rarely tick the parent's items, so an
+// item citing a sub-issue counts as covered; an uncited one may be more work.
 describe("isSplitParent, split by hand", () => {
   const humans = new Set([HUMAN]);
   const titles = { 31: "feat(io): the parser", 32: "The writer" };
