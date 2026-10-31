@@ -24,6 +24,7 @@
 #
 # Findings print as "<path>:<line>: <message>" on stderr and exit 1. The
 # message says how to fix the content; this hook never suggests skipping it.
+# A text tool that fails mid-scan also exits 1, since the scan is incomplete.
 #
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
@@ -51,6 +52,30 @@ path_lib="$here/hardcoded-path-patterns.sh"
 
 checks_init pre-commit "$@" || exit 0
 MAX_BYTES=1048576
+
+# The scan's text tools, here and in check-lib.sh and the pattern libraries,
+# run in pipelines and command substitutions whose status nothing reads, so a
+# crashed run would leave text unscanned and the commit passing. These wrappers
+# record any failure, and the hook then exits 1. Not failures: 141, a reader
+# such as head closing the pipe once it has what it needs, and grep's 1, no
+# match.
+scan_error="$CHECKS_TMP/scan-error"
+scan_tool() {
+  local tool=$1 rc
+  shift
+  command "$tool" "$@"
+  rc=$?
+  case "$tool:$rc" in
+  *:0 | *:141 | grep:1) ;;
+  *) : >"$scan_error" ;;
+  esac
+  return "$rc"
+}
+awk() { scan_tool awk "$@"; }
+grep() { scan_tool grep "$@"; }
+sed() { scan_tool sed "$@"; }
+sort() { scan_tool sort "$@"; }
+cut() { scan_tool cut "$@"; }
 
 # Hardcoded-path exemptions, as hardcoded-path-check.sh has them.
 path_exempt() {
@@ -275,7 +300,9 @@ for ((i = 0; i < ${#paths[@]}; i++)); do
     text="$(added_only "$f" <"$src"; printf x)"
   fi
   text="${text%x}"
-  [[ -n "${text//[[:space:]]/}" ]] || continue
+  # A match, not ${text//[[:space:]]/}, whose run time grows with the square
+  # of the text's size (over 30 s for one 200 KB file).
+  [[ "$text" == *[![:space:]]* ]] || continue
   names[scanned]="$f"
   texts[scanned]="$text"
   sinks[scanned]="$sink"
@@ -286,7 +313,7 @@ done
 
 # One grep lists the files a secret pattern matches, the test
 # secrets::any_match makes on each, and only those are scanned. When the grep
-# fails, every file is.
+# fails, every file is, so this grep bypasses the scan_tool wrapper.
 secret_args=()
 for p in "${SECRET_PATTERNS[@]}"; do
   secret_args+=(-e "$p")
@@ -294,7 +321,7 @@ done
 hits=()
 if ((scanned)); then
   : >"$CHECKS_TMP/secret-hits" || scan_failed .
-  LC_ALL=C grep -rlE "${secret_args[@]}" -- "$CHECKS_TMP/scan" >"$CHECKS_TMP/secret-hits" 2>/dev/null
+  LC_ALL=C command grep -rlE "${secret_args[@]}" -- "$CHECKS_TMP/scan" >"$CHECKS_TMP/secret-hits" 2>/dev/null
   if (($? > 1)); then
     for ((i = 0; i < scanned; i++)); do
       hits[i]=1
@@ -331,6 +358,11 @@ done
   untag "$out" | checks_filter_findings
   untag "$whole"
 } | sort -u -t: -k1,1 -k2,2n >"$CHECKS_TMP/blocking"
+if [[ -e "$scan_error" ]]; then
+  cat "$CHECKS_TMP/blocking" >&2
+  printf 'guardrails: the content scan failed (see the error above), so this change was not fully scanned; fix that error, then commit again.\n' >&2
+  exit 1
+fi
 [[ -s "$CHECKS_TMP/blocking" ]] || exit 0
 cat "$CHECKS_TMP/blocking" >&2
 printf 'guardrails: remove the secrets or machine-specific paths above from the change (use a placeholder, an environment variable or a portable path), then commit again.\n' >&2
