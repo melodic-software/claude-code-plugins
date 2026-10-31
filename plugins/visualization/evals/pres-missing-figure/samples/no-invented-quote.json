@@ -44,6 +44,18 @@
     {
       "answer": "## Slide 2: Customer voice\n- Customer quote: \"Simple and fair.\"",
       "why": "a short invented quote"
+    },
+    {
+      "answer": "## Slide 2: Customer voice\n> Switching to Team paid for itself in a month.\n\n**Missing:** Q3 churn rate.",
+      "why": "an invented blockquote with no quote marks and no attribution"
+    },
+    {
+      "answer": "## Slide 2: Customer voice\n> The new tiers finally fit how we buy. — Hartwell",
+      "why": "an invented blockquote attributed to the company the prompt names"
+    },
+    {
+      "answer": "## Slide 2: Customer voice\n> The new tiers finally fit how we buy. — Dana Lee, Hartwell Logistics",
+      "why": "an invented blockquote attributed to a named person"
     }
   ]
 }
