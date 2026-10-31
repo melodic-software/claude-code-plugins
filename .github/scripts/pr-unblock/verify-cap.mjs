@@ -20,8 +20,16 @@
 // at the head of a round sent for that FAIL). Each read's stderr, the
 // reader's `babysit-listing-miss` lines first, is logged on one line.
 //
-// The listing pr-merge carried (listing-carry.mjs) is fetched on the first
-// read only, so a run that skips before any read spends none of its calls.
+// The reader counts every FAIL in the repository, so each read needs a run
+// record and a compare per FAIL and a download per untied FAIL: on 2026-10-31,
+// 458 FAILs were 1,252 reads, and every read was killed at
+// VERIFY_CAP_TIMEOUT_MS with its calls spent and no answer. The
+// reads pr-merge carried answer them with no request: its listing
+// (listing-carry.mjs), run cache (carry-run-cache.mjs) and head-ref map
+// (head-ref-map.mjs), used as its gate uses them, only where they count a FAIL.
+// They are fetched on the first read only, so a run that skips before any read
+// spends none of their calls, and the run cache keeps what each read adds for
+// the next.
 //
 // A count miss on the carried listing takes the reader's waits, about 45 s a
 // read, and a read that ends in DEADLINE_UNREADABLE saves no listing, so the
@@ -98,20 +106,43 @@ export function spawnAsync(command, args, { timeout, encoding, ...options } = {}
   });
 }
 
-// listing-carry.mjs with the job's token, as the workflow step that ran it
-// every run did: a child process under CARRY_TIMEOUT_MS that logs its own
-// api-calls notice. It writes BABYSIT_VERIFY_LISTING_CARRY, or warns and
-// writes nothing.
-const CARRY_SCRIPT = fileURLToPath(new URL("../pr-merge/listing-carry.mjs", import.meta.url));
+// The children that fetch what pr-merge carried, in order, each with its own
+// api-calls notice: every file the workflow names, under one job-scoped file of
+// shared GET answers, so main's run listing and each compare are read once.
 export const CARRY_TIMEOUT_MS = 2 * 60_000;
+export function carrySteps(env) {
+  const shared = { PR_MERGE_READS_PATH: `${env.RUNNER_TEMP}/verify-carry-reads.json` };
+  const carriedFile = `${env.RUNNER_TEMP}/pr-merge-carried.json`;
+  const steps = [{ script: "listing-carry.mjs", args: [], env: { ...shared, API_BUDGET_SCRIPT: "listing-carry" } }];
+  if (env.BABYSIT_RUN_CACHE) {
+    steps.push(
+      { script: "carry-run-cache.mjs", args: ["read"], env: { ...shared, API_BUDGET_SCRIPT: "carry-run-cache", CARRY_TO: carriedFile } },
+      // No requests. Its outputs are for pr-merge's steps, not the dispatch step's.
+      { script: "carry-run-cache.mjs", args: [], env: { CARRY_FROM: carriedFile, CARRY_TO: env.BABYSIT_RUN_CACHE, GITHUB_OUTPUT: "" } },
+    );
+  }
+  if (env.BABYSIT_VERIFY_HEAD_REFS) {
+    steps.push({ script: "head-ref-map.mjs", args: ["read"], env: { ...shared, API_BUDGET_SCRIPT: "head-ref-map", HEAD_REFS_PATH: env.BABYSIT_VERIFY_HEAD_REFS } });
+  }
+  return steps;
+}
+
+// Each carry script warns and writes nothing on its own failures, so the
+// reader then asks GitHub for that part alone; a child that dies is named.
 async function fetchCarry(env) {
-  const done = await spawnAsync(process.execPath, [CARRY_SCRIPT], {
-    env: { ...env, ACTIONS_TOKEN: env.ACTIONS_TOKEN || env.GITHUB_TOKEN, API_BUDGET_SCRIPT: "listing-carry" },
-    timeout: CARRY_TIMEOUT_MS,
-  });
-  process.stdout.write(done.stdout ?? "");
-  if (done.status !== 0) {
-    throw new Error(oneLine(done.error?.message ?? String(done.stderr).trim().split("\n").at(-1)) || `exit ${done.status}`);
+  const failed = [];
+  for (const step of carrySteps(env)) {
+    const done = await spawnAsync(process.execPath, [fileURLToPath(new URL(`../pr-merge/${step.script}`, import.meta.url)), ...step.args], {
+      env: { ...env, ACTIONS_TOKEN: env.ACTIONS_TOKEN || env.GITHUB_TOKEN, ...step.env },
+      timeout: CARRY_TIMEOUT_MS,
+    });
+    process.stdout.write(done.stdout ?? "");
+    if (done.status !== 0) {
+      failed.push(`${step.script}: ${oneLine(done.error?.message ?? String(done.stderr).trim().split("\n").at(-1)) || `exit ${done.status}`}`);
+    }
+  }
+  if (failed.length > 0) {
+    throw new Error(failed.join("; "));
   }
 }
 
@@ -152,8 +183,8 @@ function stderrSummary(stderr) {
 // `base`: the pull request's base commit, so the reader takes the gate's
 // merge.max-verify-fails (the lower of that commit's and main's).
 // `expected`: refusals the round is sent for, which warn nothing.
-// `carry`: fetches the listing pr-merge carried, before the first read only,
-// when the job names BABYSIT_VERIFY_LISTING_CARRY; a failed fetch is no carry.
+// `carry`: fetches what pr-merge carried, before the first read only, when the
+// job names BABYSIT_VERIFY_LISTING_CARRY; a failed fetch is no carry.
 export function verifyCapReader(env, { spawn = spawnAsync, log = (line) => console.log(line), carry = fetchCarry } = {}) {
   let carried = null;
   let deadlineMissed = false;
@@ -161,7 +192,7 @@ export function verifyCapReader(env, { spawn = spawnAsync, log = (line) => conso
     if (env.BABYSIT_VERIFY_LISTING_CARRY) {
       carried ??= Promise.resolve()
         .then(() => carry(env))
-        .catch((error) => log(`::warning::the carried artifact listing was not fetched (${oneLine(error?.message ?? error)}); the reader lists every page`));
+        .catch((error) => log(`::warning::pr-merge's carried reads were not all fetched (${oneLine(error?.message ?? error)}); the reader asks GitHub for the rest`));
       await carried;
     }
     const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--repo", env.GITHUB_REPOSITORY];
