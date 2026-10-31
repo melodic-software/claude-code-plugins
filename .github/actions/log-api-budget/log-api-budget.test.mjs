@@ -103,21 +103,70 @@ test("the gh wrapper keeps stdout, stderr and the exit status, and reads the hea
     }
   }));
 
-test("api_budget_emit writes the hub line for the last reading, cost since the first with the same reset", () =>
+test("api_budget_emit writes the hub line for each reset's last reading, cost since the first with the same reset", () =>
   withDir((dir) => {
     readEach(dir, "github-token", head({ used: 13 }), head({ used: 100, reset: 1792748100 }), head({ used: 328, reset: 1792748100 }));
     assert.equal(
       bash(dir, "api_budget_emit github-token").stdout,
-      `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4672 used=328 reset=1792748100 resource=core cost=228\n`,
+      `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4987 used=13 reset=1792748042 resource=core cost=na\n` +
+        `${NOTICE}token=github-token ${WHERE} limit=5000 remaining=4672 used=328 reset=1792748100 resource=core cost=228\n`,
     );
   }));
 
-test("api_budget_emit writes cost=na when the last reading has no earlier one in its window", () =>
+test("api_budget_emit writes cost=na for a reset with one reading", () =>
   withDir((dir) => {
     readEach(dir, "lanes-app", head({ used: 900 }), head({ used: 3, reset: 1792751642 }));
     assert.equal(
       bash(dir, "api_budget_emit lanes-app").stdout,
-      `${NOTICE}token=lanes-app ${WHERE} limit=5000 remaining=4997 used=3 reset=1792751642 resource=core cost=na\n`,
+      `${NOTICE}token=lanes-app ${WHERE} limit=5000 remaining=4100 used=900 reset=1792748042 resource=core cost=na\n` +
+        `${NOTICE}token=lanes-app ${WHERE} limit=5000 remaining=4997 used=3 reset=1792751642 resource=core cost=na\n`,
+    );
+  }));
+
+test("api_budget_emit shows both core counters of one token, the job's latest core reading last", () =>
+  withDir((dir) => {
+    const [A, B] = [1792748042, 1792748500];
+    readEach(
+      dir,
+      "github-token",
+      head({ used: 3800, reset: B }),
+      head({ used: 1200, reset: A }),
+      head({ used: 7, reset: A, resource: "graphql" }),
+      head({ used: 3805, reset: B }),
+      head({ used: 1210, reset: A }),
+    );
+    const out = bash(dir, 'lines=$(api_budget_emit github-token); printf "%s\\n" "$lines"; echo "last cost ${lines##*cost=}"').stdout;
+    assert.deepEqual(
+      out
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => (line.startsWith(NOTICE) ? line.slice(line.indexOf(" used=")) : line)),
+      [
+        ` used=7 reset=${A} resource=graphql cost=na`,
+        ` used=3805 reset=${B} resource=core cost=5`,
+        ` used=1210 reset=${A} resource=core cost=10`,
+        "last cost 10",
+      ],
+    );
+  }));
+
+test("api_budget_emit keeps a refused reading that is not its counter's last, and does not repeat one that is", () =>
+  withDir((dir) => {
+    const [A, B] = [1792748042, 1792748500];
+    readEach(
+      dir,
+      "github-token",
+      head({ status: 403, used: 5000, reset: A }),
+      head({ used: 3900, reset: B }),
+      head({ status: 403, used: 3950, reset: B }),
+      head({ used: 3960, reset: B }),
+    );
+    assert.deepEqual(
+      bash(dir, "api_budget_emit github-token")
+        .stdout.split("\n")
+        .filter(Boolean)
+        .map((line) => line.slice(line.indexOf(" used="))),
+      [` used=3950 reset=${B} resource=core cost=50`, ` used=5000 reset=${A} resource=core cost=na`, ` used=3960 reset=${B} resource=core cost=60`],
     );
   }));
 

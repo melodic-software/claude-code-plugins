@@ -69,9 +69,12 @@
 #                               sets github-token's limit-cap default)
 #   api_budget_emit <token>...  the hub collector's notice for each refused
 #                               (403/429) reading and for the last reading of
-#                               each resource, core last; cost is
-#                               the rise in used since the first earlier reading
-#                               with the same reset and resource, else na
+#                               each resource and reset, as one token reads
+#                               several core counters, each with its own
+#                               reset; core comes last, ending on the job's
+#                               latest core reading; cost is the rise in used
+#                               since the first earlier reading with the same
+#                               reset and resource, else na
 #   api_budget_emit_content     the notice for the job's content-creating
 #                               writes: count and most in any 60 s
 #   api_budget_emit_calls <token>...
@@ -454,10 +457,10 @@ api_budget_emit() {
           token, where, l[i], r[i], u[i], t[i], res[i], cost
       }
       END {
-        for (i = 1; i <= n; i++) last[res[i]] = i
-        for (i = 1; i <= n; i++) if ((s[i] == 403 || s[i] == 429) && last[res[i]] != i) line(i)
-        for (i = 1; i <= n; i++) if (last[res[i]] == i && res[i] != "core") line(i)
-        if ("core" in last) line(last["core"])
+        for (i = 1; i <= n; i++) last[res[i], t[i]] = i
+        for (i = 1; i <= n; i++) if ((s[i] == 403 || s[i] == 429) && last[res[i], t[i]] != i) line(i)
+        for (i = 1; i <= n; i++) if (last[res[i], t[i]] == i && res[i] != "core") line(i)
+        for (i = 1; i <= n; i++) if (last[res[i], t[i]] == i && res[i] == "core") line(i)
       }' "$file"
   done
   return 0
