@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Tests for lib/confirm-verdict.sh: a /verification:confirm verdict is stored for the head it
-# judged, and the ready report reads it for that head only, without ever refusing.
+# Tests for lib/confirm-verdict.sh: a /verification:confirm or /verification:measure verdict is
+# stored for the head it judged, and the ready report reads it for that head only, without ever
+# refusing.
 #
 # Expected values come from the verdict words and plan-item statuses /verification:confirm
-# defines (CONFIRMED, NEEDS WORK, NOT VERIFIED; MISSING, PARTIAL), not from the script.
+# defines (CONFIRMED, NEEDS WORK, NOT VERIFIED; MISSING, PARTIAL) and the verdict words
+# /verification:measure defines, not from the script.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -92,6 +94,55 @@ assert_exit "a short sha is a usage error" 1 "$?"
 bash "$SCRIPT" bogus >/dev/null 2>&1
 assert_exit "an unknown subcommand is a usage error" 1 "$?"
 
+# /verification:measure verdicts (CONFIRMED, MIXED, INCONCLUSIVE, NOT CONFIRMED, DEGRADED, and
+# CANNOT QUANTIFY when no baseline was captured before the change) share the store, per head.
+HEAD_D=$(printf 'd%.0s' $(seq 40))
+out=$(bash "$SCRIPT" show --of measure --head "$HEAD_D" 2>&1)
+assert_exit "measure show with nothing recorded exits 0" 0 "$?"
+assert_eq "measure show with nothing recorded prints nothing" "" "$out"
+
+bash "$SCRIPT" record --of measure --head "$HEAD_D" --verdict 'CANNOT QUANTIFY' --claim 'parse is 30% faster'
+assert_exit "recording a CANNOT QUANTIFY measure verdict succeeds" 0 "$?"
+assert_eq "the measure record stores the verdict and the claim for that head" \
+  "verdict: CANNOT QUANTIFY
+CLAIM: parse is 30% faster" "$(cat "$CONFIRM_VERDICT_DIR/$HEAD_D.measure")"
+out=$(bash "$SCRIPT" show --of measure --head "$HEAD_D" 2>&1)
+assert_exit "measure show of CANNOT QUANTIFY exits 0, so it cannot stop the flip" 0 "$?"
+assert_eq "measure show says cannot quantify for the head, and names the claim" \
+  "measure: CANNOT QUANTIFY for head $HEAD_D: no baseline was captured before the change
+  CLAIM: parse is 30% faster" "$out"
+assert_eq "a measure record leaves the head's confirm verdict unrecorded" \
+  "confirm: no verdict recorded for head $HEAD_D" "$(bash "$SCRIPT" show --head "$HEAD_D" 2>&1)"
+assert_eq "a measure verdict for one head does not cover another" "" \
+  "$(bash "$SCRIPT" show --of measure --head "$HEAD_B" 2>&1)"
+
+bash "$SCRIPT" record --head "$HEAD_D" --verdict CONFIRMED
+out=$(bash "$SCRIPT" show --of measure --head "$HEAD_D" 2>&1)
+assert_contains "a confirm record for the same head leaves the measure verdict in place" "$out" "CANNOT QUANTIFY"
+
+for verdict in CONFIRMED MIXED INCONCLUSIVE 'NOT CONFIRMED' DEGRADED; do
+  bash "$SCRIPT" record --of measure --head "$HEAD_D" --verdict "$verdict"
+  assert_eq "measure verdict $verdict is shown as recorded" \
+    "measure: $verdict for head $HEAD_D" "$(bash "$SCRIPT" show --of measure --head "$HEAD_D" 2>&1)"
+done
+
+printf 'verdict: NEEDS WORK\n' >"$CONFIRM_VERDICT_DIR/$HEAD_D.measure"
+out=$(bash "$SCRIPT" show --of measure --head "$HEAD_D" 2>&1)
+assert_exit "an unreadable measure record still exits 0" 0 "$?"
+assert_eq "a confirm-only word in a measure record is reported as unreadable" \
+  "measure: unreadable verdict record for head $HEAD_D" "$out"
+
+bash "$SCRIPT" record --of measure --head "$HEAD_D" --verdict 'NEEDS WORK' >/dev/null 2>&1
+assert_exit "a confirm-only verdict word is a measure usage error" 1 "$?"
+bash "$SCRIPT" record --head "$HEAD_D" --verdict 'CANNOT QUANTIFY' >/dev/null 2>&1
+assert_exit "a measure-only verdict word is a confirm usage error" 1 "$?"
+bash "$SCRIPT" record --of measure --head "$HEAD_D" --verdict MIXED --missing 'AC1' >/dev/null 2>&1
+assert_exit "a plan item on a measure record is a usage error" 1 "$?"
+bash "$SCRIPT" record --head "$HEAD_D" --verdict CONFIRMED --claim 'faster' >/dev/null 2>&1
+assert_exit "a claim on a confirm record is a usage error" 1 "$?"
+bash "$SCRIPT" show --of other --head "$HEAD_D" >/dev/null 2>&1
+assert_exit "an unknown --of is a usage error" 1 "$?"
+
 # Without CONFIRM_VERDICT_DIR, a record made from a linked worktree reaches a show from the main
 # checkout of the same repository.
 unset CONFIRM_VERDICT_DIR
@@ -112,6 +163,8 @@ export GIT_CEILING_DIRECTORIES="$TMP"
 out=$(cd "$TMP/norepo" && bash "$SCRIPT" show --head "$HEAD_A" 2>&1)
 assert_exit "show outside a repository exits 0" 0 "$?"
 assert_contains "show outside a repository says no verdict is readable" "$out" "no verdict readable"
+assert_eq "measure show outside a repository prints nothing" "" \
+  "$(cd "$TMP/norepo" && bash "$SCRIPT" show --of measure --head "$HEAD_A" 2>&1)"
 (cd "$TMP/norepo" && bash "$SCRIPT" record --head "$HEAD_A" --verdict CONFIRMED >/dev/null 2>&1)
 assert_exit "record outside a repository cannot write state" 2 "$?"
 
