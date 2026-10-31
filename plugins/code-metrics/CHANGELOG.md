@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.8] - 2026-10-31
+
+### Changed
+
+- `/code-metrics:audit-suppressions` names `/toolchain:ratchet`, the ratchet's new name, as the skill that holds a suppression count in CI.
+
 ## [0.7.7] - 2026-10-30
 
 ### Changed

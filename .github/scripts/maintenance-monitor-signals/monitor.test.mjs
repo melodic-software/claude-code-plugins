@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { SIGNALS, planIssues, readMarker } from "./issues.mjs";
-import { writePlan } from "./monitor.mjs";
+import { errorLines, writePlan } from "./monitor.mjs";
 import { detect } from "./signals.mjs";
 
 const now = new Date("2026-10-19T16:41:00Z");
@@ -245,4 +245,12 @@ test("a failed write is reported and the rest still run", async () => {
   const done = await writePlan({ plan: planIssues({ findings, existing: [] }), call: failing, repo: "o/r", labels: [], runUrl: url(900), wait: async () => {} });
   assert.equal(done.filed.length, 1);
   assert.deepEqual(done.failed, [{ target: "1 main red", error: "POST /repos/o/r/issues: HTTP 422" }]);
+});
+
+test("signal 11 prints one ::error line per run while it fires; other signals print none", () => {
+  const reports = [4, 3, 2, 1].map((runId) => ({ runId, url: `https://github.com/o/r/actions/runs/${runId}`, code: "3", reason: "unreadable: x", createdAt: "2026-10-30T14:00:00Z" }));
+  const lines = errorLines(detect({ postMergeReports: reports, mergeGroupFailures: [1, 2, 3].map((id) => ({ id, url: "u", workflow: "w", createdAt: "t" })) }));
+  assert.equal(lines.length, 1);
+  assert.match(lines[0], /^::error::Post-merge check: unreadable in the last 4 pr-merge sweeps: .*unreadable: x$/);
+  assert.deepEqual(errorLines(detect({ postMergeReports: reports.slice(0, 3) })), []);
 });
