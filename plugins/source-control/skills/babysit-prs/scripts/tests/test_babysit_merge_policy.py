@@ -50,6 +50,13 @@ import babysit_gh  # noqa: E402
 import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
 import babysit_postmerge  # noqa: E402
 
+# This repository's rows, which the floor paths below sit on.
+FLOOR_ROWS = policy.floor_paths_in(
+    (pathlib.Path(__file__).resolve().parents[6] / "docs/conventions/pr-pipeline.yaml").read_text(encoding="utf-8")
+)
+REPO_FLOOR = policy.floor_for(FLOOR_ROWS)
+
+
 REPO = "owner/repo"
 SHA = "a" * 40
 IDENTITY = "agent-lanes[bot]"
@@ -6241,10 +6248,10 @@ class ForeignPaths(unittest.TestCase):
                 mock.patch.object(policy, "foreign_paths", return_value=frozenset()),
             ):
                 self.assertEqual(
-                    policy.own_paths(REPO, owner_pr(user=user), changed), own
+                    policy.own_paths(REPO, owner_pr(user=user), changed, floor=REPO_FLOOR), own
                 )
         with mock.patch.object(policy, "foreign_paths", return_value=None):
-            self.assertEqual(policy.own_paths(REPO, owner_pr(), changed), frozenset())
+            self.assertEqual(policy.own_paths(REPO, owner_pr(), changed, floor=REPO_FLOOR), frozenset())
 
     def test_a_model_app_owns_only_its_script_lines(self) -> None:
         # Owner decision Q14 (c): plugins/*/scripts/, less the never-exempt
@@ -6266,8 +6273,7 @@ class ForeignPaths(unittest.TestCase):
         with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
             self.assertEqual(
                 policy.own_paths(
-                    REPO, owner_pr(user=user), changed, only=policy.MODEL_APP_OWN
-                ),
+                    REPO, owner_pr(user=user), changed, only=policy.MODEL_APP_OWN, floor=REPO_FLOOR),
                 {"plugins/x/scripts/y.py", "Plugins/X/Scripts/Z.SH"},
             )
 
@@ -6308,8 +6314,7 @@ class AuthorReviewedPaths(unittest.TestCase):
         pr = owner_pr() if user is None else owner_pr(user=user)
         with mock.patch.object(policy, "foreign_paths", return_value=others):
             return policy.author_reviewed_paths(
-                REPO, pr, self.CHANGED, humans, verified
-            )
+                REPO, pr, self.CHANGED, humans, verified, REPO_FLOOR)
 
     def test_a_trusted_persons_own_gate_paths_on_a_passed_head(self) -> None:
         self.assertEqual(self.reviewed(), frozenset({self.GATE}))
@@ -6345,8 +6350,7 @@ class AuthorReviewedPaths(unittest.TestCase):
         }
         with mock.patch.object(policy, "foreign_paths", return_value=frozenset()):
             reviewed = policy.author_reviewed_paths(
-                REPO, owner_pr(), {self.GATE, *token_scope}, (OWNER_ID,), True
-            )
+                REPO, owner_pr(), {self.GATE, *token_scope}, (OWNER_ID,), True, REPO_FLOOR)
         self.assertEqual(reviewed, frozenset({self.GATE}))
 
     def test_a_gate_path_another_commit_touched_or_unread_commits_get_none(
