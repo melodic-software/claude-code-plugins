@@ -49,13 +49,13 @@
 # guard keyed on PATH SHAPE across every Bash command fired on 45.7% of 14,234
 # real commands and was rejected on that measurement. This guard does not
 # inherit that objection: it reads a cheap substring first, so a command whose
-# text holds none of `rm`, `-delete`, `unlink`, `rsync`, `robocopy` and
-# `worktree` never reaches the parse at all. The prefilter is a SUBSTRING
-# match, not a token one, so `npm run format` does reach the tokenizer and is
-# allowed there on its command word. The path question is asked only once a
-# recursive `rm`, a deleting find, a deleting rsync, a deleting robocopy or a
-# forced git worktree remove, run directly or by xargs or parallel, is
-# established.
+# text holds none of `rm`, `-delete`, `.delete`, `unlink`, `rsync`,
+# `robocopy`, `worktree` and `remove` never reaches the parse at all. The
+# prefilter is a SUBSTRING match, not a token one, so `npm run format` does
+# reach the tokenizer and is allowed there on its command word. The path question is
+# asked only once a recursive `rm`, a deleting find, a deleting rsync, a
+# deleting robocopy, a forced git worktree remove or an interpreter's deleter
+# call, run directly or by xargs or parallel, is established.
 #
 # FIND DELETES. `find -delete`, and a find whose expression runs `rm`, `rmdir`
 # or `unlink` as the command word of an -exec, -execdir, -ok or -okdir action,
@@ -144,6 +144,50 @@
 # strictly under a temp root, the scratchpad or an allowed root: then the
 # worktree root and its `.git` file pass, and a protected tree inside it does
 # not.
+#
+# INTERPRETER DELETES. A python (python, python3, py, pypy), node, perl or
+# ruby is read for the program it runs: each -c (python), -e, -E (perl),
+# --eval or --print operand, short clusters (`-Bc`, `-lne`) and an operand
+# attached to its letter included, after stepping over the options that take
+# an argument; with none of those and no script operand (or the script `-` or
+# /dev/stdin), the here-string or heredoc its stdin last redirects from. A
+# script file is not read. An option cluster too long to read whole (32
+# letters) is refused. A heredoc body is read as bash hands it over (under an
+# unquoted delimiter, without its backslash-newlines and with \\, \$ and \`
+# unescaped), and judged from the directories the command may run the
+# interpreter from, not from where the command ends. The program is lexed for
+# string literals and comments, so a name inside a string or a comment is not
+# a call; a literal's escapes are decoded (\\, the quotes, \/, \t, \n, \r and
+# a line continuation), and one holding any other escape is unreadable. Each call to a deleter of its
+# language is established as a delete: python `rmtree` and `os.remove`,
+# `os.unlink`, `os.rmdir`, `os.removedirs`; node `rmSync`, `rmdirSync`,
+# `unlinkSync`, `.rm`, `.rmdir` and `.unlink`; ruby `rm_rf`, `rm_r`,
+# `rmtree`, `remove_dir`, `remove_entry`, `remove_entry_secure`, the
+# `FileUtils.` rm, rm_f, remove, rmdir, remove_file and safe_unlink, and
+# `File.` or `Dir.` delete, unlink and rmdir; perl `rmtree`, `remove_tree`,
+# `unlink` and `rmdir`. Its path arguments (python's and node's first; every
+# ruby and perl one but an option) are judged as operands of a recursive rm,
+# through every arm below, when each is a plain string literal, and are read
+# as no shell expands them (no `~`, glob or brace). A literal holding a `$` or
+# a backtick, which the shell may have expanded in the code before the
+# interpreter ran, is refused unless it is a leading $HOME or ${HOME} with a
+# plain path after it; any other argument (a variable, an expression, an
+# interpolated or unreadable string, a list holding one) cannot be placed,
+# and the call is refused, as is a perl unlink or rmdir with no argument,
+# which deletes `$_`. A ruby keyword or hash option and a perl options hashref
+# written last are not paths. A call that runs a command (python os.system, os.popen and the
+# subprocess functions; node exec, execSync, spawn, spawnSync, execFile and
+# execFileSync; ruby system, exec, spawn, popen and the Open3 functions; perl
+# system and exec), a backtick, perl qx and ruby %x are judged as the
+# command: a string literal as the text a shell runs, an interpolation in it
+# read as a shell expansion and an unreadable one refused, and a list (or
+# several arguments in ruby and perl, or node's program and its argument list)
+# as the argv a program is handed, where an element that is not a readable
+# literal is refused as a target. A command given no literal at all is not
+# read. Perl and ruby calls written without parentheses are read up to `;`, a
+# newline, `&&`, `||` or a statement modifier. The code's own argv (an xargs
+# or parallel item included) is not a target: a deleter given one is refused
+# above as a path the code computes.
 #
 # PIPELINE-FED DELETES. `xargs` and `parallel` run a command on the items they
 # read, so when that command is a recursive rm or a deleting find (named
@@ -308,8 +352,13 @@
 # then refused as a bare variable: every operand is judged), an option
 # robocopy's page does not list, written ahead of the source (read as the
 # source), a forced git worktree remove of a relative name after a cd or
-# with git -C (`git -C sub worktree remove -f ../wt`), and the three launcher
-# lines decided below.
+# with git -C (`git -C sub worktree remove -f ../wt`), an interpreter delete
+# whose path the code computes even when it lands inside the tree
+# (`shutil.rmtree(tempfile.mkdtemp())`, `FileUtils.rm_rf(Dir['build/*'])`,
+# perl `unlink glob '*.tmp'`, ruby `%w[...]`), a literal path holding a `$`
+# (`rmtree('a$b')`) or an escape this reading does not decode (`'\x2f'`), a
+# perl hash key named unlink or rmdir (`$h{unlink}`, read as a call on `$_`),
+# and the three launcher lines decided below.
 #
 # LAUNCHER LINES REFUSED BY DECISION (#4681). Each is refused although the
 # launcher does not delete the host root, and each stays refused on purpose:
@@ -379,8 +428,25 @@
 #     and a here-string, which is read as ordinary quoting: its body is not
 #     judged, and a quote character inside it ends the span early, so the code
 #     after it is not judged either.
-#   * Other delete verbs: `shred`, and a delete performed from inside an
-#     interpreter.
+#   * Other delete verbs: `shred`.
+#   * In interpreter code: a script file an interpreter runs, and a program
+#     piped into its stdin (`cat x.py | python3`) or redirected to it from
+#     outside its own command (`{ python3 -; } <<'EOF'`, `0<&3`); an
+#     interpreter this guard does not name (deno, bun, php, a pythonw); a
+#     deleter reached through an alias, an import under another name (`from
+#     os import remove`), a path object's method (`Path(p).unlink()`,
+#     `->remove_tree`) or a library outside the standard one; os.exec*,
+#     os.spawn*, a perl `open` pipe, the `system { ... }` form and a glob
+#     operand (`unlink <*.tmp>`), and a deleter call split across two -e
+#     operands; a literal spelled across several (`'a' 'b'`), a quote-like
+#     operator this reading does not take (perl `q {...}` with a space, `qx'...'`,
+#     ruby `%x!...!`), and code this reading lexes wrong (a regex literal
+#     holding a quote, a ruby `?'` character, a perl `s#a#b#` read as a
+#     comment); a node option that takes a separate argument and is not
+#     listed, written before the code (its argument is read as the script); a
+#     heredoc index that both an opener with no body and an opener on a
+#     segment with no word shift, under the same delimiter; and interpreter
+#     code on the PowerShell tool, which is not read.
 #   * In an rsync: a long option written as an abbreviation, a remote operand
 #     (`host:/`), the paths a --files-from list names below a source
 #     (the source operand itself is judged), and rsync on the PowerShell tool,
@@ -417,10 +483,11 @@
 #   * From the Bash tool, a delete run by a Windows program instead of rm:
 #     `cmd /c rd /s /q <dir>` (or `cmd //c`, `rmdir`) and `powershell -Command
 #     Remove-Item -Recurse <dir>`, and `cmd /c robocopy`. The Bash lane
-#     matches the rm, find, rsync, robocopy and git command words only, and
-#     its prefilter passes only text holding `rm`, `-delete`, `unlink`,
-#     `rsync`, `robocopy` or `worktree`; cmd rd /s, cmd /c robocopy and
-#     Remove-Item are judged in the PowerShell lane (#6626).
+#     matches the rm, find, rsync, robocopy, git and interpreter command
+#     words only, and its prefilter passes only text holding `rm`, `-delete`,
+#     `.delete`, `unlink`, `rsync`, `robocopy`, `worktree` or `remove`; cmd
+#     rd /s, cmd /c robocopy and Remove-Item are judged in the PowerShell lane
+#     (#6626).
 #   * Expansion-built targets AND an expansion-built command word. Detection
 #     never evaluates a shell expansion. A bare variable operand is refused
 #     (above), but `rm -rf "$X/build"` is left alone, and so are an unquoted
@@ -474,7 +541,8 @@
 #     their siblings, `su`'s `-c` / `--command` / `--session-command` operand,
 #     and GNU `env`'s `-S` / `--split-string` operand ARE unwrapped and
 #     re-parsed; an interpreter that is not a shell (`python -c`, `perl -e`)
-#     is not.
+#     is read by INTERPRETER DELETES instead, for its deleter calls and the
+#     commands it runs.
 #   * A LAUNCHER that is not in the launcher table in rdt_check_segment. The
 #     table is an allow-list of names, so an unlisted launcher ends the walk
 #     and its own name is read as the command word. runuser is read by its own
@@ -506,7 +574,8 @@
 #
 # BLOCKING: on a recursive delete of a root, of an empty or
 # bare-variable operand, of a protected tree, of a target outside the allowed
-# roots, or on items no confined listing produced, asks the user when the session is attended and exits 2
+# roots, on items no confined listing produced, or on an interpreter deleter
+# whose path is not a plain string literal, asks the user when the session is attended and exits 2
 # otherwise (hook::refuse, refuse.sh). A command it cannot finish reading is
 # denied either way.
 
@@ -678,7 +747,7 @@ rdt_block() {
     ;;
   eval-too-long)
     printf -v msg '%s\n' \
-      'BLOCKED: eval, parallel and substitution text exceeds MAX_COMMAND_LEN in total.' \
+      'BLOCKED: eval, parallel, interpreter-spawned and substitution text exceeds MAX_COMMAND_LEN in total.' \
       'Fix: drop the nested evals or parallel options, or run the inner command on its own.'
     ;;
   too-many-readings)
@@ -765,6 +834,11 @@ rdt_block() {
       "BLOCKED: recursive delete of $target, which cannot be judged (another user's home, a newline, \`..\` after a glob, or a cd CDPATH may redirect)." \
       'Fix: write the target as an absolute or working-tree-relative path.'
     ;;
+  interp-unplaceable)
+    printf -v msg '%s\n' \
+      "BLOCKED: interpreter code deletes or runs $target, which this guard cannot read: only a plain string literal is judged." \
+      'Fix: write the path or command in the code as a plain string literal, or delete with rm -rf <path> as its own command.'
+    ;;
   brace)
     printf -v msg '%s\n' \
       "BLOCKED: this recursive delete has a brace expansion ($target) that cannot be judged alternative by alternative." \
@@ -803,7 +877,7 @@ rdt_block() {
   case "$form" in
   # The guard read the delete and names what it would remove: the user can
   # judge that, so an attended session asks (refuse.sh).
-  no-preserve-root | empty-operand | pipeline-target | pipeline-feed | bare-variable | outside-tree | protected-tree | unplaceable | brace | root-operand)
+  no-preserve-root | empty-operand | pipeline-target | pipeline-feed | bare-variable | outside-tree | protected-tree | unplaceable | interp-unplaceable | brace | root-operand)
     # Attended, the reason is recorded and the reading goes on (refuse.sh).
     hook::refuse "${msg%$'\n'}"
     return 0
@@ -827,10 +901,11 @@ fi
 # A case-SENSITIVE prefilter here would have exited allow first, a bypass of
 # the whole guard rather than a missed spelling.
 #
-# Bash: a substring `rm`, `-delete`, `unlink`, `rsync`, `robocopy` or
-# `worktree`, the text a recursive rm, a deleting find, rsync, robocopy or git
-# worktree remove must hold (`npm run format` still reaches the tokenizer and
-# is allowed on its command word).
+# Bash: a substring `rm`, `-delete`, `.delete`, `unlink`, `rsync`,
+# `robocopy`, `worktree` or `remove`, the text a recursive rm, a deleting
+# find, rsync, robocopy, git worktree remove or interpreter delete must hold
+# (`npm run format` still reaches the tokenizer and is allowed on its command
+# word).
 # PowerShell: Remove-Item, rmdir, erase, cmd, rd, del, rm, robocopy, and `ri`
 # as a command word (not the `ri` inside Write/string). Over-inclusive on
 # purpose; the tokenizer decides.
@@ -847,7 +922,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   ((rdt_ps_hit)) || exit 0
 else
   case "${COMMAND,,}" in
-  *rm* | *-delete* | *unlink* | *rsync* | *robocopy* | *worktree*) ;;
+  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove*) ;;
   *) exit 0 ;;
   esac
 fi
@@ -3253,10 +3328,14 @@ rdt_check_segment() {
 
   # A find whose expression deletes removes what its start points hold (FIND
   # DELETES in the header), an rsync or a robocopy removes from its
-  # destination or its sources (RSYNC DELETES, ROBOCOPY DELETES), and xargs
-  # and parallel run their command on the items they read (PIPELINE-FED
-  # DELETES).
+  # destination or its sources (RSYNC DELETES, ROBOCOPY DELETES), xargs and
+  # parallel run their command on the items they read (PIPELINE-FED DELETES),
+  # and an interpreter runs the code it is given (INTERPRETER DELETES).
   case "$base" in
+  python | python[0-9]* | py | pypy | pypy[0-9]* | node | nodejs | perl | perl[0-9]* | ruby | ruby[0-9]*)
+    rdt_interp_check "$i" "$base"
+    return 0
+    ;;
   find)
     rdt_find_check "$i"
     return 0
@@ -3345,6 +3424,10 @@ rdt_check_segment() {
 rdt_delete_operand() {
   local w="$1" q="$2" x rc
   local -a bx=()
+  if [[ "$w" == "$RDT_IX_HOLE" ]]; then
+    rdt_block "interp-unplaceable" "a path the code computes"
+    return 0
+  fi
   # An EMPTY operand that a BACKSLASH ESCAPE produced is a dropped trailing
   # backslash: bash passes a literal `\` when one ends the input, and MSYS
   # resolves that to the current drive root, which is the #92593 incident
@@ -3369,10 +3452,11 @@ rdt_delete_operand() {
   x="${w//[^\/\\]/}"
   ((${#x} > MAX_OPERAND_DEPTH)) && rdt_block "operand-too-long" "an operand with ${#x} path separators"
   # Brace expansion runs before rm sees its argv, so every alternative is
-  # judged as an operand of its own. A fully quoted brace is literal; a
-  # partly quoted one that would expand cannot be told apart from a literal
-  # one by the tokenizer's provenance, so it is refused.
-  if [[ "$w" == *'{'* ]] && ((q != 2)); then
+  # judged as an operand of its own. A fully quoted brace is literal, and so
+  # is one in a path no shell expands (provenance 3); a partly quoted one that
+  # would expand cannot be told apart from a literal one by the tokenizer's
+  # provenance, so it is refused.
+  if [[ "$w" == *'{'* ]] && ((q != 2 && q != 3)); then
     # Bounded before the walk: a word of thousands of braces makes the
     # expander's scan quadratic.
     x="${w//[^\{]/}"
@@ -3717,6 +3801,819 @@ rdt_git_worktree_check() {
   return 0
 }
 
+# --- Interpreter deletes (INTERPRETER DELETES in the header) -----------------
+#
+# The code is read as masked text: each string literal is replaced by \001,
+# its kind, its index and \002, and its value is kept aside. A kind is s, a
+# plain literal; x, one with an interpolation; u, one with an escape this
+# reading does not decode; c, a command the language runs through a shell;
+# and d, such a command with an escape this reading does not decode.
+# RDT_IX_HOLE stands for an argv word the code builds from something other
+# than a readable literal, and rdt_delete_operand refuses it as a target. The
+# lexer strips \001 and \002 from the code, so no literal spells a placeholder
+# or the hole.
+RDT_IX_HOLE=$'\001hole\002'
+RDT_IX_PH_RE=$'^\001([scxud])([0-9]+)\002$'
+RDT_IX_PH_ANY=$'\001([scxud])([0-9]+)\002'
+# A ruby keyword option (`secure: true`) or hash pair whose key is a symbol or
+# a literal (`:noop => true`), written as the whole argument.
+RDT_IX_KWARG_RE=$'^([A-Za-z_][A-Za-z0-9_]*:([^:]|$)|:[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=>|\001[sx][0-9]+\002[[:space:]]*=>)'
+
+# rdt_interp_check <index of the interpreter word> <its name>: the program a
+# python, node, perl or ruby runs, from each -c, -e, --eval or --print option,
+# from a here-string, or from a heredoc it reads as its program, judged by
+# rdt_ix_code. A script file is not read. Reads words, n, HOOK_SEG_* and
+# rdt_hd_at from rdt_check_segment and rdt_segment through bash's dynamic
+# scope.
+# shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
+rdt_interp_check() {
+  local lang k j w c rest stdin=1 stop=0 last=-1 hd=-1 nh=0 rop
+  local -a code=() q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"})
+  case "$2" in
+  py | python* | pypy*) lang=py ;;
+  node | nodejs) lang=js ;;
+  perl*) lang=pl ;;
+  *) lang=rb ;;
+  esac
+  for ((k = $1 + 1; k < n && stop == 0; k++)); do
+    w="${words[k]}"
+    case "$w" in
+    -) break ;;
+    --)
+      ((k + 1 < n)) && stdin=0
+      break
+      ;;
+    --?*)
+      case "$lang:$w" in
+      js:--eval | js:--print)
+        code+=("${words[k + 1]-}")
+        k=$((k + 1))
+        stdin=0
+        ;;
+      js:--eval=* | js:--print=*)
+        code+=("${w#*=}")
+        stdin=0
+        ;;
+      py:--check-hash-based-pycs | js:--require | js:--import | js:--loader | js:--experimental-loader | js:--conditions | js:--input-type | js:--env-file | js:--title | rb:--encoding | rb:--external-encoding | rb:--internal-encoding)
+        k=$((k + 1))
+        ;;
+      *) ;;
+      esac
+      ;;
+    -?*)
+      if [[ "$lang" == js ]]; then
+        case "$w" in
+        -e | -p | -pe | -ep)
+          code+=("${words[k + 1]-}")
+          k=$((k + 1))
+          stdin=0
+          ;;
+        -r | -C) k=$((k + 1)) ;;
+        *) ;;
+        esac
+        continue
+      fi
+      # A short cluster: flags, then at most one letter that takes the rest of
+      # the word or, with nothing after it, the next word. Python's -c and -m
+      # end its options.
+      for ((j = 1; j < ${#w} && j < 32; j++)); do
+        c="${w:j:1}"
+        rest="${w:j+1}"
+        case "$lang:$c" in
+        py:c | pl:e | pl:E | rb:e)
+          if [[ -n "$rest" ]]; then
+            code+=("$rest")
+          else
+            code+=("${words[k + 1]-}")
+            k=$((k + 1))
+          fi
+          stdin=0
+          [[ "$lang" == py ]] && stop=1
+          break
+          ;;
+        py:m)
+          stdin=0
+          stop=1
+          break
+          ;;
+        py:W | py:X | pl:I | pl:M | pl:m | rb:r | rb:I | rb:C | rb:E)
+          [[ -z "$rest" ]] && k=$((k + 1))
+          break
+          ;;
+        pl:l | pl:0)
+          [[ "$rest" =~ ^(x[0-9A-Fa-f]*|[0-7]*) ]]
+          j=$((j + ${#BASH_REMATCH[0]}))
+          ;;
+        pl:[ixdDCVF] | rb:[xiWKTF0]) break ;;
+        *) ;;
+        esac
+      done
+      # A cluster longer than the cap is not read to its end, so a letter
+      # past it that takes the code would be missed.
+      ((j >= 32 && j < ${#w})) && rdt_block "interp-unplaceable" "code after an option cluster too long to read (${w:0:40}...)"
+      ;;
+    *)
+      # The script, or the first argument of code already given. A script
+      # named /dev/stdin is the program on stdin, as `-` is.
+      if ((${#code[@]} == 0)) && [[ "$w" != /dev/stdin ]]; then stdin=0; fi
+      break
+      ;;
+    esac
+  done
+  # With no code option and no script, the program is stdin: the last
+  # redirection of fd 0 says what that is.
+  if ((stdin && ${#code[@]} == 0)); then
+    for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
+      rop="${HOOK_SEG_REDIR_OP[j]}"
+      [[ "$rop" == '<<' || "$rop" == '<<-' ]] && nh=$((nh + 1))
+      [[ "$rop" == '<'* && "${HOOK_SEG_REDIR_FD[j]:-0}" == 0 ]] || continue
+      last=$j
+      hd=$((nh - 1))
+    done
+    if ((last >= 0)); then
+      case "${HOOK_SEG_REDIR_OP[last]}" in
+      '<<<') code+=("${HOOK_SEG_REDIR_TARGET[last]-}") ;;
+      '<<' | '<<-')
+        # The body is read once the parse has it, as if from here: its
+        # delimiter, to check the index, and the directory-change state.
+        if [[ -n "${rdt_hd_at-}" ]]; then
+          rdt_hd_lang[rdt_hd_at + hd]="$lang"
+          rdt_hd_st[rdt_hd_at + hd]="${#RDT_ORIGINS[@]} $rdt_cd_unknown $rdt_cd_refuse ${HOOK_SEG_REDIR_TARGET[last]-}"
+        fi
+        ;;
+      *) ;;
+      esac
+    fi
+  fi
+  # The code's own argv are not targets: a deleter's literal path is judged
+  # below, and any other is refused, so xargs does not judge its items here.
+  local d0="$rdt_deleter"
+  for c in ${code[@]+"${code[@]}"}; do
+    rdt_ix_code "$lang" "$c"
+  done
+  rdt_deleter="$d0"
+  HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]}"})
+  return 0
+}
+
+# rdt_ix_heredocs <text>: after the parse of <text>, judge each heredoc body an
+# interpreter reads as its program, in the language rdt_hd_lang records for
+# its index, under the directory-change state rdt_hd_st recorded where the
+# interpreter ran. The index is trusted only when the parse reports as many
+# bodies as the segments carried openers and each recorded index holds a body
+# with the recorded delimiter; otherwise (an opener on a segment with no word,
+# or one with no body) every body is judged in each recorded language. A
+# directory change the judged code makes is dropped afterwards: it ran in the
+# interpreter's child.
+# shellcheck disable=SC2329  # invoked from rdt_parse
+rdt_ix_heredocs() {
+  local k m every=0 st e no d0="$rdt_deleter" unk0="$rdt_cd_unknown" ref0="$rdt_cd_refuse"
+  local -a hdb=(${HOOK_HEREDOC_BODIES[@]+"${HOOK_HEREDOC_BODIES[@]}"}) ix=() lg=() sts=() bodies=() orig=()
+  ((${#hdb[@]} == rdt_hd_n)) || every=1
+  for k in "${!rdt_hd_lang[@]}"; do
+    st="${rdt_hd_st[k]-}"
+    e="${hdb[k]-}"
+    [[ -n "$e" && "${e#* * * * }" == "${st#* * * }" ]] || every=1
+  done
+  for k in "${!rdt_hd_lang[@]}"; do
+    for ((m = 0; m < ${#hdb[@]}; m++)); do
+      ((every || m == k)) || continue
+      ix+=("$m")
+      lg+=("${rdt_hd_lang[k]}")
+      sts+=("${rdt_hd_st[k]-}")
+    done
+  done
+  ((${#ix[@]})) || return 0
+  RDT_IX_BODIES=()
+  hook::_c_locale rdt_ix_slice "$1" "${ix[@]}"
+  bodies=(${RDT_IX_BODIES[@]+"${RDT_IX_BODIES[@]}"})
+  orig=(${RDT_ORIGINS[@]+"${RDT_ORIGINS[@]}"})
+  for ((k = 0; k < ${#lg[@]}; k++)); do
+    st="${sts[k]}"
+    no="${st%% *}"
+    st="${st#* }"
+    rdt_cd_unknown="${st%% *}"
+    st="${st#* }"
+    rdt_cd_refuse="${st%% *}"
+    [[ "$no" =~ ^[0-9]+$ ]] || no=${#orig[@]}
+    [[ "$rdt_cd_unknown" =~ ^[01]$ ]] || rdt_cd_unknown="$unk0"
+    [[ "$rdt_cd_refuse" =~ ^[01]$ ]] || rdt_cd_refuse="$ref0"
+    RDT_ORIGINS=(${orig[@]+"${orig[@]:0:no}"})
+    rdt_ix_code "${lg[k]}" "${bodies[k]-}"
+    RDT_ORIGINS=(${orig[@]+"${orig[@]}"})
+  done
+  rdt_cd_unknown="$unk0"
+  rdt_cd_refuse="$ref0"
+  rdt_deleter="$d0"
+  return 0
+}
+
+# rdt_ix_slice <text> <body index>...: each body rdt_ix_heredocs's hdb names,
+# cut from <text> by its byte offsets (so under LC_ALL=C) without its
+# delimiter line, into RDT_IX_BODIES. Under an unquoted delimiter bash drops
+# each backslash-newline and unescapes \\, \$ and \` before the program reads
+# the body, and so does this.
+# shellcheck disable=SC1003,SC2329  # '\' is a literal backslash; invoked through hook::_c_locale
+rdt_ix_slice() {
+  local t="$1" e s u q c b m bs='\' dl='$' bt='`'
+  shift
+  for m in "$@"; do
+    e="${hdb[m]}"
+    s="${e%% *}"
+    e="${e#* }"
+    u="${e%% *}"
+    e="${e#* }"
+    q="${e%% *}"
+    e="${e#* }"
+    c="${e%% *}"
+    b="${t:s:u-s}"
+    if [[ "$c" == 1 ]]; then
+      b="${b%$'\n'}"
+      if [[ "$b" == *$'\n'* ]]; then b="${b%$'\n'*}"$'\n'; else b=""; fi
+    fi
+    if [[ "$q" == 0 ]]; then
+      b="${b//"$bs$bs"/$'\001'}"
+      b="${b//"$bs"$'\n'/}"
+      b="${b//"$bs$dl"/"$dl"}"
+      b="${b//"$bs$bt"/"$bt"}"
+      b="${b//$'\001'/"$bs"}"
+    fi
+    RDT_IX_BODIES+=("$b")
+  done
+}
+
+# rdt_ix_code <lang> <code>: judge one program, its lang py, js, pl or rb
+# (INTERPRETER DELETES in the header). Each call the code makes to a deleter
+# of its language has its path arguments judged as operands of a recursive
+# rm, each call that runs a command has that command judged as a shell or the
+# program would receive it, and so does each backtick, perl qx and ruby %x.
+# shellcheck disable=SC2016,SC2329  # literal regex text; invoked from rdt_interp_check
+rdt_ix_code() {
+  local lang="$1" ix_m="" k
+  local -a ix_v=() ix_k=()
+  case "${2,,}" in
+  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove*) ;;
+  *) return 0 ;;
+  esac
+  rdt_ix_lex "$2"
+  case "$lang" in
+  py)
+    rdt_ix_calls del '(^|[^A-Za-z0-9_])(rmtree|os\.remove|os\.unlink|os\.rmdir|os\.removedirs)'
+    rdt_ix_calls run '(^|[^A-Za-z0-9_])(system|popen|run|call|check_call|check_output|Popen|getoutput|getstatusoutput)'
+    ;;
+  js)
+    rdt_ix_calls del '(^|[^A-Za-z0-9_$])(rmSync|rmdirSync|unlinkSync)'
+    rdt_ix_calls del '(\.)(rm|rmdir|unlink)'
+    rdt_ix_calls run '(^|[^A-Za-z0-9_$])(exec|execSync|spawn|spawnSync|execFile|execFileSync)'
+    ;;
+  rb)
+    # The receiver is part of each alternative, so the longest name at the
+    # leftmost match wins: `FileUtils.rm_rf`, never `FileUtils.rm`.
+    rdt_ix_calls del '(^|[^A-Za-z0-9_])((FileUtils\.)?(rm_rf|rm_r|rmtree|remove_dir|remove_entry|remove_entry_secure)|FileUtils\.(rm|rm_f|remove|rmdir|remove_file|safe_unlink)|(File|Dir)\.(delete|unlink|rmdir))'
+    rdt_ix_calls run '(^|[^A-Za-z0-9_])(system|exec|spawn|popen|popen2|popen2e|popen3|capture2|capture2e|capture3)'
+    ;;
+  *)
+    rdt_ix_calls del '(^|[^A-Za-z0-9_$@%>])(rmtree|remove_tree|unlink|rmdir)'
+    rdt_ix_calls run '(^|[^A-Za-z0-9_$@%>])(system|exec)'
+    ;;
+  esac
+  for ((k = 0; k < ${#ix_k[@]}; k++)); do
+    case "${ix_k[k]}" in
+    c) rdt_ix_shell "${ix_v[k]}" ;;
+    d) rdt_ix_unplaceable $'\001'"d$k"$'\002' "the command given as" ;;
+    *) ;;
+    esac
+  done
+  return 0
+}
+
+# rdt_ix_lex <code>: <code> masked into ix_m, comments dropped and each string
+# literal replaced by a placeholder whose value goes to ix_v and kind to ix_k
+# (rdt_ix_code's, through bash's dynamic scope). A kind is s, a plain literal;
+# x, one with an interpolation or an escape this reading does not decode; or
+# c, a command the language runs through a shell. Read: python quotes with
+# their prefixes and triple quotes; node quotes and template literals; perl
+# and ruby quotes and backticks, perl q, qq, qw and qx, and ruby percent
+# literals opened by a bracket. Comments: `#` (a perl `$#` aside), and node's
+# `//` and `/* */`.
+# shellcheck disable=SC2329  # invoked from rdt_ix_code
+rdt_ix_lex() {
+  local r="$1" out="" ch re pfx raw kind mode ip tq cl apos="'" dq='"' bt='`' ce='*/'
+  local re_pct='^([xqQwWiI]?)([([{<])' re_q='^([qwx]?)([([{</|!~])'
+  r="${r//$'\001'/}"
+  r="${r//$'\002'/}"
+  case "$lang" in
+  py) re="^([^${dq}${apos}#]*)([${dq}${apos}#])" ;;
+  js) re="^([^${dq}${apos}${bt}/]*)([${dq}${apos}${bt}/])" ;;
+  rb) re="^([^${dq}${apos}${bt}#%]*)([${dq}${apos}${bt}#%])" ;;
+  *) re="^([^${dq}${apos}${bt}#q]*)([${dq}${apos}${bt}#q])" ;;
+  esac
+  while [[ "$r" =~ $re ]]; do
+    # Each step re-slices the rest of the code, so a program of many literals
+    # is slow on Git Bash: past this arm's deadline the guard refuses.
+    rdt_deadline
+    out+="${BASH_REMATCH[1]}"
+    ch="${BASH_REMATCH[2]}"
+    r="${r:${#BASH_REMATCH[0]}}"
+    kind=s mode=2 ip=n raw="" cl="$ch"
+    case "$ch" in
+    '#')
+      if [[ "$lang" == pl && "$out" == *'$' ]]; then
+        out+='#'
+        continue
+      fi
+      if [[ "$r" == *$'\n'* ]]; then r="${r#*$'\n'}"; else r=""; fi
+      out+=$'\n'
+      continue
+      ;;
+    /)
+      if [[ "$r" == /* ]]; then
+        if [[ "$r" == *$'\n'* ]]; then r="${r#*$'\n'}"; else r=""; fi
+        out+=$'\n'
+      elif [[ "$r" == '*'* ]]; then
+        r="${r:1}"
+        if [[ "$r" == *"$ce"* ]]; then r="${r#*"$ce"}"; else r=""; fi
+        out+=' '
+      else
+        out+=/
+      fi
+      continue
+      ;;
+    %)
+      if ! [[ "$r" =~ $re_pct ]]; then
+        out+=%
+        continue
+      fi
+      pfx="${BASH_REMATCH[1]}"
+      cl="${BASH_REMATCH[2]}"
+      r="${r:${#BASH_REMATCH[0]}}"
+      case "$pfx" in
+      x) kind=c ip=h ;;
+      q) mode=1 ;;
+      Q | '') ip=h ;;
+      *) kind=x ;;
+      esac
+      ;;
+    q)
+      if [[ -n "$out" && "${out: -1}" == [A-Za-z0-9_\$@%\&\>:] ]] || ! [[ "$r" =~ $re_q ]]; then # portability-ok: a bash pattern bracket holding an escaped >, not a GNU grep word boundary
+        out+=q
+        continue
+      fi
+      pfx="${BASH_REMATCH[1]}"
+      cl="${BASH_REMATCH[2]}"
+      r="${r:${#BASH_REMATCH[0]}}"
+      case "$pfx" in
+      x) kind=c ip=p ;;
+      '') mode=1 ;;
+      q) ip=p ;;
+      *) kind=x ;;
+      esac
+      ;;
+    *)
+      case "$lang:$ch" in
+      py:*)
+        tq="${out: -3}"
+        ((${#out} < 3)) && tq="$out"
+        if [[ "$tq" =~ (^|[^A-Za-z0-9_])([rRbBuUfF]{1,2})$ ]]; then
+          pfx="${BASH_REMATCH[2]}"
+          out="${out%"$pfx"}"
+          [[ "$pfx" == *[rR]* ]] && mode=r
+          [[ "$pfx" == *[fF]* ]] && ip=f
+        fi
+        if [[ "$r" == "$ch$ch"* ]]; then
+          r="${r:2}"
+          tq="$ch$ch$ch"
+          raw="${r%%"$tq"*}"
+          if [[ "$raw" == "$r" ]]; then r=""; else r="${r:${#raw}+3}"; fi
+          cl=""
+        fi
+        ;;
+      js:"$bt") ip=t ;;
+      rb:"$apos" | pl:"$apos") mode=1 ;;
+      rb:"$bt") kind=c ip=h ;;
+      pl:"$bt") kind=c ip=p ;;
+      rb:*) ip=h ;;
+      pl:*) ip=p ;;
+      *) ;;
+      esac
+      ;;
+    esac
+    case "$cl" in
+    '(') cl=')' ;;
+    '[') cl=']' ;;
+    '{') cl='}' ;;
+    '<') cl='>' ;;
+    *) ;;
+    esac
+    if [[ -n "$cl" ]]; then
+      rdt_ix_until "$cl"
+      raw="$RDT_IX_S"
+    fi
+    rdt_ix_decode "$mode" "$ip" "$raw"
+    case "$kind:$RDT_IX_DK" in
+    s:*) kind="$RDT_IX_DK" ;;
+    c:u) kind=d ;;
+    *) ;;
+    esac
+    out+=$'\001'"$kind${#ix_v[@]}"$'\002'
+    ix_v+=("$RDT_IX_DV")
+    ix_k+=("$kind")
+  done
+  ix_m="$out$r"
+}
+
+# rdt_ix_until <close>: consume r (rdt_ix_lex's) through the first <close> no
+# backslash escapes, keeping the text before it, escapes and all, in
+# RDT_IX_S. With no such <close>, all of r.
+# shellcheck disable=SC1003,SC2329  # '\' is a literal backslash; invoked from rdt_ix_lex
+rdt_ix_until() {
+  local seg esc bs='\'
+  RDT_IX_S=""
+  while [[ -n "$r" ]]; do
+    # The text before the first <close> or the first backslash, whichever
+    # comes first, each found with a quoted, so literal, pattern.
+    seg="${r%%"$1"*}"
+    esc="${r%%"$bs"*}"
+    ((${#esc} < ${#seg})) && seg="$esc"
+    RDT_IX_S+="$seg"
+    r="${r:${#seg}}"
+    [[ -n "$r" ]] || return 0
+    if [[ "$r" == "$bs"* ]]; then
+      RDT_IX_S+="${r:0:2}"
+      r="${r:2}"
+    else
+      r="${r:1}"
+      return 0
+    fi
+  done
+  return 0
+}
+
+# rdt_ix_decode <mode> <interpolation> <raw body>: a literal's value into
+# RDT_IX_DV and its kind, s, x or u, into RDT_IX_DK. Mode r is raw (a python
+# r prefix), 1 the single-quote rules (only \\ and an escaped quote), 2 the
+# rest, which decodes \\, \', \", \`, \/, \t, \n, \r and a line continuation;
+# any other escape leaves the value unreadable (u). An interpolation (python
+# f'{...}', node `${...}`, ruby #{...}, #@ and #$, perl $ and @) makes a
+# readable value x, spelled as a shell `${` or `$`, so a shell reading of the
+# value meets an expansion.
+# shellcheck disable=SC1003,SC2016,SC2329  # literal text and backslash; invoked from rdt_ix_lex
+rdt_ix_decode() {
+  local v="$3" bs='\' apos="'" dq='"' bt='`' sl='/' dl='$' ob='{' hs='#' k=s
+  case "$1" in
+  r) ;;
+  1)
+    v="${v//"$bs$bs"/$'\001'}"
+    v="${v//"$bs$apos"/"$apos"}"
+    v="${v//$'\001'/"$bs"}"
+    ;;
+  *)
+    v="${v//"$bs$bs"/$'\001'}"
+    v="${v//"$bs$apos"/"$apos"}"
+    v="${v//"$bs$dq"/"$dq"}"
+    v="${v//"$bs$bt"/"$bt"}"
+    v="${v//"$bs$sl"/"$sl"}"
+    v="${v//"$bs"$'\n'/}"
+    v="${v//"${bs}t"/$'\t'}"
+    v="${v//"${bs}n"/$'\n'}"
+    v="${v//"${bs}r"/$'\r'}"
+    [[ "$v" == *"$bs"* ]] && k=u
+    v="${v//$'\001'/"$bs"}"
+    ;;
+  esac
+  case "$2" in
+  f)
+    if [[ "$v" == *"$ob"* ]]; then
+      [[ "$k" == u ]] || k=x
+      v="${v//"$ob"/"$dl$ob"}"
+    fi
+    ;;
+  t) [[ "$v" == *"$dl$ob"* && "$k" != u ]] && k=x ;;
+  h)
+    if [[ "$v" == *"$hs$ob"* || "$v" == *"$hs@"* || "$v" == *"$hs$dl"* ]]; then
+      [[ "$k" == u ]] || k=x
+      v="${v//"$hs$ob"/"$dl$ob"}"
+      v="${v//"$hs@"/"$dl"}"
+      v="${v//"$hs$dl"/"$dl"}"
+    fi
+    ;;
+  p)
+    if [[ "$v" == *[\$@]* ]]; then
+      [[ "$k" == u ]] || k=x
+      v="${v//@/"$dl"}"
+    fi
+    ;;
+  *) ;;
+  esac
+  RDT_IX_DV="$v"
+  RDT_IX_DK="$k"
+}
+
+# rdt_ix_calls <del|run> <regex>: each call ix_m makes to a name <regex>
+# matches as its second group, its arguments in parentheses or, for perl and
+# ruby, after a blank with none. A deleter's arguments go to rdt_ix_del, a
+# runner's to rdt_ix_run. A perl unlink or rmdir given no argument (bare, or
+# only a statement modifier) deletes `$_`, which is refused.
+# shellcheck disable=SC2016,SC2329  # `$_` is literal text; invoked from rdt_ix_code
+rdt_ix_calls() {
+  local re="$2" m="$ix_m" name t pl imp
+  local re_open='^[[:space:]]*\(' re_bare='^[[:blank:]]+[^][:space:]=,.;)}|&?+*/<>!~{-]'
+  local re_end=$'^[[:blank:]]*([;}\n]|$)'
+  local -a cargs=()
+  while [[ "$m" =~ $re ]]; do
+    rdt_deadline
+    name="${BASH_REMATCH[2]}"
+    m="${m#*"${BASH_REMATCH[0]}"}"
+    imp=0
+    [[ "$lang:$1:$name" == pl:del:unlink || "$lang:$1:$name" == pl:del:rmdir ]] && imp=1
+    if [[ "$m" =~ $re_open ]]; then
+      t="${m#*"("}"
+      pl=0
+    elif [[ "$lang" == rb || "$lang" == pl ]] && [[ "$m" =~ $re_bare ]]; then
+      t="$m"
+      pl=1
+    elif ((imp)) && [[ "$m" =~ $re_end ]]; then
+      t=""
+      pl=1
+    else
+      continue
+    fi
+    rdt_ix_split "$t" "$pl"
+    cargs=(${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"})
+    if ((imp && ${#cargs[@]} == 0)); then
+      rdt_ix_unplaceable '$_'
+    elif [[ "$1" == del ]]; then
+      rdt_ix_del ${cargs[@]+"${cargs[@]}"}
+    else
+      rdt_ix_run "$name" ${cargs[@]+"${cargs[@]}"}
+    fi
+  done
+  return 0
+}
+
+# rdt_ix_split <masked text> <paren-less>: a call's arguments, read from just
+# after its `(` (or its name, paren-less), split at the commas outside
+# brackets, trimmed, empty ones dropped, into RDT_IX_ARGS. The list ends at
+# the bracket that closes it; a paren-less one also at a `;`, a newline, `&&`,
+# `||` or a statement modifier (if, unless, or, and, while, until, for,
+# foreach, do).
+# shellcheck disable=SC2329  # invoked from rdt_ix_calls
+rdt_ix_split() {
+  local r="$1" pl="$2" d=0 argbuf="" ch re a kw
+  local -a pieces=()
+  if ((pl)); then re=$'^([^][(){},;\n]*)([][(){},;\n])'; else re='^([^][(){},]*)([][(){},])'; fi
+  while [[ "$r" =~ $re ]]; do
+    argbuf+="${BASH_REMATCH[1]}"
+    ch="${BASH_REMATCH[2]}"
+    r="${r:${#BASH_REMATCH[0]}}"
+    case "$ch" in
+    '(' | '[' | '{')
+      d=$((d + 1))
+      argbuf+="$ch"
+      ;;
+    ',')
+      if ((d)); then
+        argbuf+="$ch"
+      else
+        pieces+=("$argbuf")
+        argbuf=""
+      fi
+      ;;
+    *)
+      if ((d == 0)); then
+        r=""
+        break
+      fi
+      if [[ "$ch" != ';' && "$ch" != $'\n' ]]; then d=$((d - 1)); fi
+      argbuf+="$ch"
+      ;;
+    esac
+  done
+  pieces+=("$argbuf$r")
+  RDT_IX_ARGS=()
+  for a in "${pieces[@]}"; do
+    a="${a#"${a%%[![:space:]]*}"}"
+    if ((pl)); then
+      a="${a%%&&*}"
+      a="${a%%||*}"
+      for kw in 'if' 'unless' 'or' 'and' 'while' 'until' 'for' 'foreach' 'do'; do
+        [[ "$a" == "$kw" || "$a" == "$kw"[[:blank:]]* ]] && a=""
+        a="${a%%[[:blank:]]"$kw"[[:blank:]]*}"
+        a="${a%[[:blank:]]"$kw"}"
+      done
+    fi
+    a="${a%"${a##*[![:space:]]}"}"
+    [[ -n "$a" ]] && RDT_IX_ARGS+=("$a")
+  done
+  return 0
+}
+
+# rdt_ix_del <argument>...: a deleter's path arguments, each through
+# rdt_ix_target: python's and node's first, and every ruby and perl one but a
+# ruby keyword or hash option, a perl options hashref written last
+# (`{...}`, `\%opts`) and a bare number.
+# shellcheck disable=SC2329  # invoked from rdt_ix_calls
+rdt_ix_del() {
+  local a k=0
+  for a in "$@"; do
+    k=$((k + 1))
+    case "$lang" in
+    py | js) ((k > 1)) && break ;;
+    rb) [[ "$a" =~ $RDT_IX_KWARG_RE ]] && continue ;;
+    *)
+      [[ "$a" =~ ^[0-9]+$ ]] && continue
+      ((k == $#)) && [[ "$a" == '{'*'}' || "$a" =~ ^\\%[A-Za-z_][A-Za-z0-9_]*$ ]] && continue
+      ;;
+    esac
+    rdt_ix_target "$a"
+  done
+  return 0
+}
+
+# rdt_ix_target <argument>: one path argument. A plain string literal is
+# judged by rdt_ix_path, and so is each one in a [...] list; anything else
+# names a path this guard cannot read, and is refused.
+# shellcheck disable=SC2329  # invoked from rdt_ix_del
+rdt_ix_target() {
+  local e
+  local -a el=()
+  if [[ "$1" =~ $RDT_IX_PH_RE ]]; then
+    if [[ "${BASH_REMATCH[1]}" == s ]]; then
+      rdt_ix_path "${ix_v[BASH_REMATCH[2]]}"
+    else
+      rdt_ix_unplaceable "$1"
+    fi
+    return 0
+  fi
+  if [[ "$1" == '['*']' ]]; then
+    rdt_ix_split "${1:1:${#1}-2}" 0
+    el=(${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"})
+    for e in ${el[@]+"${el[@]}"}; do
+      if [[ "$e" =~ $RDT_IX_PH_RE ]] && [[ "${BASH_REMATCH[1]}" == s ]]; then
+        rdt_ix_path "${ix_v[BASH_REMATCH[2]]}"
+      else
+        rdt_ix_unplaceable "$e"
+      fi
+    done
+    return 0
+  fi
+  rdt_ix_unplaceable "$1"
+}
+
+# rdt_ix_path <value>: a literal path a deleter is given, judged as an
+# operand of a recursive rm that no shell expands (provenance 3). A `$` or a
+# backtick in it may be an expansion the shell made of the code before the
+# interpreter ran, so the value is refused, unless it is a leading $HOME or
+# ${HOME} with a plain path after it, judged as the shell expands it.
+# shellcheck disable=SC2016,SC2329  # literal text; invoked from rdt_ix_target
+rdt_ix_path() {
+  local v="$1" h
+  case "$v" in
+  *'$'* | *'`'*)
+    h="${v#\$HOME}"
+    [[ "$h" == "$v" ]] && h="${v#\$\{HOME\}}"
+    if [[ "$h" != "$v" && (-z "$h" || "$h" == /*) && "$h" != *[\$\`]* ]]; then
+      rdt_delete_operand "$v" 2
+    else
+      rdt_ix_unplaceable "'$v'"
+    fi
+    ;;
+  *) rdt_delete_operand "$v" 3 ;;
+  esac
+}
+
+# rdt_ix_unplaceable <masked text> [<what>]: refuse an argument this guard
+# cannot read, a deleter's path unless <what> says otherwise, named with each
+# literal put back in quotes.
+# shellcheck disable=SC2329  # invoked from rdt_ix_target, rdt_ix_path, rdt_ix_code and rdt_ix_run
+rdt_ix_unplaceable() {
+  local s="$1" what="${2:-the path given as}" apos="'"
+  while [[ "$s" =~ $RDT_IX_PH_ANY ]]; do
+    s="${s/"${BASH_REMATCH[0]}"/"$apos${ix_v[BASH_REMATCH[2]]}$apos"}"
+  done
+  ((${#s} > 120)) && s="${s:0:120}..."
+  rdt_block "interp-unplaceable" "$what $s"
+}
+
+# rdt_ix_run <name> <argument>...: a call that runs a command. A literal is
+# judged as the text a shell runs, and a [...] list as the argv a program is
+# handed; node's spawn and execFile take the program, then a list of its
+# arguments, and a ruby or perl call with several arguments hands them over as
+# the argv. A word built from anything but a literal is RDT_IX_HOLE, and a
+# command given no literal at all is not read. A ruby environment hash ahead
+# of the command and ruby keyword options are dropped first.
+# shellcheck disable=SC2329  # invoked from rdt_ix_calls
+rdt_ix_run() {
+  local name="$1" a w rc
+  shift
+  local -a ra=() argv=()
+  for a in "$@"; do
+    if [[ "$lang" == rb ]]; then
+      [[ "$a" == '{'*'}' && ${#ra[@]} -eq 0 ]] && continue
+      [[ "$a" =~ $RDT_IX_KWARG_RE ]] && continue
+    fi
+    ra+=("$a")
+  done
+  ((${#ra[@]})) || return 0
+  case "$lang:$name" in
+  js:spawn* | js:execFile*)
+    rc=0
+    rdt_ix_word_to w "${ra[0]}" || rc=$?
+    if ((rc == 2)); then
+      rdt_ix_unplaceable "${ra[0]}" "the command given as"
+      return 0
+    fi
+    ((rc == 0)) || return 0
+    rdt_ix_shell "$w"
+    argv=("$w")
+    if ((${#ra[@]} > 1)) && [[ "${ra[1]}" == '['*']' ]]; then
+      rdt_ix_list "${ra[1]}"
+      argv+=(${RDT_IX_L[@]+"${RDT_IX_L[@]}"})
+    fi
+    rdt_ix_argv "${argv[@]}"
+    return 0
+    ;;
+  rb:* | pl:*)
+    if ((${#ra[@]} > 1)); then
+      for a in "${ra[@]}"; do
+        if rdt_ix_word_to w "$a"; then
+          argv+=("$w")
+        elif [[ "$a" == '['*']' ]]; then
+          rdt_ix_list "$a"
+          argv+=(${RDT_IX_L[@]+"${RDT_IX_L[@]}"})
+        else
+          argv+=("$RDT_IX_HOLE")
+        fi
+      done
+      rdt_ix_argv "${argv[@]}"
+      return 0
+    fi
+    ;;
+  *) ;;
+  esac
+  a="${ra[0]}"
+  rc=0
+  rdt_ix_word_to w "$a" || rc=$?
+  if ((rc == 0)); then
+    rdt_ix_shell "$w"
+  elif ((rc == 2)); then
+    rdt_ix_unplaceable "$a" "the command given as"
+  elif [[ "$a" == '['*']' ]]; then
+    rdt_ix_list "$a"
+    rdt_ix_argv ${RDT_IX_L[@]+"${RDT_IX_L[@]}"}
+  fi
+  return 0
+}
+
+# rdt_ix_word_to <var> <argument>: the value of an argument that is one
+# readable literal, into <var>. Returns 2 for one literal this reading cannot
+# decode (kind u or d), 1 for anything else.
+# shellcheck disable=SC2329  # invoked from rdt_ix_run and rdt_ix_list
+rdt_ix_word_to() {
+  [[ "$2" =~ $RDT_IX_PH_RE ]] || return 1
+  [[ "${BASH_REMATCH[1]}" == [ud] ]] && return 2
+  printf -v "$1" '%s' "${ix_v[BASH_REMATCH[2]]}"
+}
+
+# rdt_ix_list <[...] argument>: its elements as argv words into RDT_IX_L, a
+# literal as its value and anything else as RDT_IX_HOLE.
+# shellcheck disable=SC2329  # invoked from rdt_ix_run
+rdt_ix_list() {
+  local e w
+  local -a el=()
+  rdt_ix_split "${1:1:${#1}-2}" 0
+  el=(${RDT_IX_ARGS[@]+"${RDT_IX_ARGS[@]}"})
+  RDT_IX_L=()
+  for e in ${el[@]+"${el[@]}"}; do
+    if rdt_ix_word_to w "$e"; then RDT_IX_L+=("$w"); else RDT_IX_L+=("$RDT_IX_HOLE"); fi
+  done
+}
+
+# rdt_ix_argv <word>...: judge an argv a program is handed directly, as a
+# command whose every word is quoted and which has no redirection.
+# shellcheck disable=SC2329  # invoked from rdt_ix_run
+rdt_ix_argv() {
+  (($#)) || return 0
+  local k
+  local -a q0=(${HOOK_SEG_WORD_QUOTED[@]+"${HOOK_SEG_WORD_QUOTED[@]}"}) op=(${HOOK_SEG_REDIR_OP[@]+"${HOOK_SEG_REDIR_OP[@]}"})
+  HOOK_SEG_WORD_QUOTED=()
+  for ((k = 0; k < $#; k++)); do HOOK_SEG_WORD_QUOTED+=(2); done
+  HOOK_SEG_REDIR_OP=()
+  rdt_check_segment "$@"
+  HOOK_SEG_WORD_QUOTED=(${q0[@]+"${q0[@]}"})
+  HOOK_SEG_REDIR_OP=(${op[@]+"${op[@]}"})
+}
+
+# rdt_ix_shell <text>: judge the text a shell is handed to run, charged to the
+# eval budget. Its stdin is not known.
+# shellcheck disable=SC2329  # invoked from rdt_ix_code and rdt_ix_run
+rdt_ix_shell() {
+  local rdt_seg_feed=open
+  rdt_scanned=$((rdt_scanned + ${#1}))
+  ((rdt_scanned > MAX_COMMAND_LEN)) && rdt_block "eval-too-long"
+  rdt_parse "$1"
+}
+
 # rdt_find_scan <index of the find word>: read one find into RDT_FIND_DEL (its
 # expression deletes), RDT_FIND_OUT (it writes only the paths it finds: no
 # -printf, -fprintf, -ls, -fls, -exec, -execdir, -ok, -okdir or -files0-from),
@@ -3855,9 +4752,13 @@ rdt_deleter=0
 # (rdt_prev). A text holding a `(`, `)` or backtick that no backslash escapes
 # is read as no pipeline (rdt_flat 0), because the tokenizer splits a
 # subshell, a substitution or a process substitution into commands that are
-# not its stages.
+# not its stages. rdt_hd_n counts the heredoc openers the segments carried,
+# and rdt_hd_lang maps the index of each heredoc an interpreter reads as its
+# program to that interpreter's language, and rdt_hd_st to the state it is
+# read in, judged once the parse has the bodies (rdt_ix_heredocs).
 rdt_parse() {
-  local rdt_feed_in="$rdt_seg_feed" rdt_prev="" rdt_flat=1 b=$'\\' t="$1"
+  local rdt_feed_in="$rdt_seg_feed" rdt_prev="" rdt_flat=1 b=$'\\' t="$1" rdt_hd_n=0
+  local -a rdt_hd_lang=() rdt_hd_st=()
   if [[ "$t" == *"$b"* ]]; then
     t="${t//"$b$b"/}"
     t="${t//"$b("/}"
@@ -3871,6 +4772,8 @@ rdt_parse() {
   *) ;;
   esac
   hook::bash_parse_segments "$1" rdt_segment
+  ((${#rdt_hd_lang[@]} == 0)) || rdt_ix_heredocs "$1"
+  return 0
 }
 
 # rdt_segment <argv word>...: the parse callback. The tokenizer reports no
@@ -3879,10 +4782,11 @@ rdt_parse() {
 # the command before that differs from the parse's own is open, because after
 # `;` or `&&` this command reads the parse's stdin instead. A redirection of
 # fd 0 replaces the pipe. This command's own output is recorded for the next
-# one before it is judged.
+# one before it is judged. rdt_hd_at is the parse-wide index of this
+# command's first heredoc opener.
 # shellcheck disable=SC2329  # invoked as the hook::bash_parse_segments callback
 rdt_segment() {
-  local rdt_seg_feed="$rdt_feed_in" j
+  local rdt_seg_feed="$rdt_feed_in" j rdt_hd_at="$rdt_hd_n"
   if ((rdt_flat == 0)); then
     rdt_seg_feed=open
   elif [[ -n "$rdt_prev" ]]; then
@@ -3890,6 +4794,7 @@ rdt_segment() {
     [[ "$rdt_feed_in" == none || "$rdt_feed_in" == "$rdt_prev" ]] || rdt_seg_feed=open
   fi
   for ((j = 0; j < ${#HOOK_SEG_REDIR_OP[@]}; j++)); do
+    [[ "${HOOK_SEG_REDIR_OP[j]}" == '<<' || "${HOOK_SEG_REDIR_OP[j]}" == '<<-' ]] && rdt_hd_n=$((rdt_hd_n + 1))
     if [[ "${HOOK_SEG_REDIR_OP[j]}" == '<'* && "${HOOK_SEG_REDIR_FD[j]:-0}" == 0 ]]; then
       rdt_seg_feed=open
     fi
@@ -4137,7 +5042,7 @@ rdt_parallel_check() {
   for ((k = e + 1; k < n; k++)); do
     case "${words[k],,}" in
     ::: | :::+ | :::: | ::::+) ;;
-    *rm* | *-delete* | *unlink* | *rsync* | *robocopy* | *worktree*) rdt_parse "${words[k]}" ;;
+    *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove*) rdt_parse "${words[k]}" ;;
     *) ;;
     esac
   done
@@ -4414,7 +5319,7 @@ rdt_scan_body() {
   local b="$1" rdt_seg_feed=open
   [[ -n "$b" ]] || return 0
   case "${b,,}" in
-  *rm* | *-delete* | *unlink* | *rsync* | *robocopy* | *worktree*) ;;
+  *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove*) ;;
   *) return 0 ;;
   esac
   rdt_scanned=$((rdt_scanned + ${#b}))
