@@ -135,7 +135,7 @@ test("api_budget_emit shows both core counters of one token, the job's latest co
       head({ used: 3805, reset: B }),
       head({ used: 1210, reset: A }),
     );
-    const out = bash(dir, 'lines=$(api_budget_emit github-token); printf "%s\\n" "$lines"; echo "last cost ${lines##*cost=}"').stdout;
+    const out = bash(dir, `lines=$(api_budget_emit github-token); printf "%s\\n" "$lines"; echo "last cost \${lines##*cost=}"`).stdout;
     assert.deepEqual(
       out
         .split("\n")

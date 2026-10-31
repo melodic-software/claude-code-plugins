@@ -296,7 +296,7 @@ self_test() {
  {"path":"plugins/ai-briefing/skills/generate/scripts/source-bookmarks.sh","start_line":0,"annotation_level":"failure","title":"","message":"plugins/ai-briefing/skills/generate/scripts/source-bookmarks.sh has a shebang but git index mode is 100644"}]
 JSON
   printf '::error file=docs/adr/0001-x.md,line=1::ADR number 0001 is used twice\n' >"$tmp/out/adr-numbers.log"
-  local -a api=("GH_CALLS=$tmp/gh-calls" "GH_FIXTURE=$tmp/annotations.json" "PATH=$tmp/bin:$PATH")
+  local -a api=("GH_CALLS=$tmp/gh-calls" "GH_FIXTURE=$tmp/annotations.json" "PATH=$tmp/bin:$PATH" RUNNER_TEMP=)
   : >"$tmp/gh-calls"
   : >"$summary"
   out=$(env "${api[@]}" "HYGIENE_OUTPUT_DIR=$tmp/out" "GITHUB_STEP_SUMMARY=$summary" STEP_LOG_CHECKS='markdown typos' \
