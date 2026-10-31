@@ -1,5 +1,5 @@
-// A skill treats a run as unattended only when its caller passes --unattended
-// (issue #11546), so a lane prompt or loop driver that calls such a skill
+// A skill treats a run as unattended only when its caller passes --unattended,
+// so a lane prompt or loop driver that calls such a skill
 // without the flag reaches an ask nobody answers. The lane config's args are
 // checked by .github/actions/resolve-config/live-config.test.mjs; this suite
 // checks the calls the skill bodies write themselves: this skill's CI mode
