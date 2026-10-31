@@ -124,7 +124,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { commitPulls } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { commitPulls, errorLabel } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { fixRequesters, HOLD_LINE, humanGatedLabelFrom, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
@@ -521,7 +521,7 @@ export async function dispatchFeedback({
     }
     return skip(`#${number}: pr-verify's FAILs are at the cap or cannot all be read (${capped}); pr-merge closes it for a fresh attempt, so no ${settings.activity} round`);
   }
-  const { workflowRunId } = await api.dispatchWorkflow({
+  const request = {
     workflow: settings.workflow,
     ref: `refs/heads/${settings.base}`,
     inputs: {
@@ -530,7 +530,22 @@ export async function dispatchFeedback({
       "dispatcher-run-id": String(runId),
       ...(passOnly ? { "verify-pass-head": head } : {}),
     },
-  });
+  };
+  let workflowRunId;
+  try {
+    ({ workflowRunId } = await api.dispatchWorkflow(request));
+  } catch (error) {
+    if (!connectionLost(error)) {
+      throw error;
+    }
+    // The connection broke before any answer, so GitHub may still have taken
+    // the POST: a run it started for this PR holds the second send, as the
+    // listing above would. An HTTP error answer is never sent again.
+    const since = new Date(now - 60_000).toISOString().replace(/\.\d{3}Z$/, "Z");
+    const started = (await api.listRecentRuns(settings.workflow, since)).find((run) => holds(run, number));
+    log(`::warning::#${number}: the ${settings.workflow} dispatch got no answer (${errorLabel(error)}); ${started ? `run ${started.id} for it is listed, so it is not sent again` : "sending it once more"}`);
+    ({ workflowRunId } = started ? { workflowRunId: started.id } : await api.dispatchWorkflow(request));
+  }
   const id = String(workflowRunId);
   if (!RUN_ID.test(id)) {
     throw new Error(`#${number}: dispatch returned no valid workflow_run_id`);
@@ -539,6 +554,11 @@ export async function dispatchFeedback({
   log(`dispatched #${number} head ${head} upstream run ${upstreamRunId} workflow_run_id=${id}`);
   return { number, workflowRunId: id };
 }
+
+// A request whose connection broke before any answer (undici's `fetch failed`
+// with a reset or closed socket); an HTTP answer is never one.
+const LOST_CONNECTION = new Set(["ECONNRESET", "UND_ERR_SOCKET"]);
+const connectionLost = (error) => error?.name === "TypeError" && error.message === "fetch failed" && LOST_CONNECTION.has(error.cause?.code);
 
 // The sweep: the first open lanes App PR into main whose head's newest
 // reply check took a releasing skip, under SWEEP_HEAD_CAP such checks, that
@@ -1206,7 +1226,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       process.exitCode = code;
     },
     (error) => {
-      console.log(`::error::pr-feedback dispatch failed: ${error.message}`);
+      // A thrown fetch names its cause only in error.cause; the label carries its
+      // code, never its message, which can hold a header value.
+      console.log(`::error::pr-feedback dispatch failed: ${error.message}${error?.cause?.code ? ` (${errorLabel(error)})` : ""}`);
       process.exitCode = 1;
     },
   );
