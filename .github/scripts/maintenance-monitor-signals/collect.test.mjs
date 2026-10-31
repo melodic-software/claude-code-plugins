@@ -355,13 +355,13 @@ test("a held summary from a pull request event neither counts nor resets the str
   assert.equal(data.sweep.runId, 902);
 });
 
-test("a hold longer than the read leaves no sweep and a gap, so signals 5 and 8 are not cleared", async () => {
+test("a hold longer than the read keeps its streak and leaves a gap for signals 5 and 8 alone", async () => {
   const ids = Array.from({ length: LIMITS.sweepArtifacts + 2 }, (_, i) => 20 - i);
   const { artifacts, runs } = sweepsOf(ids);
   const data = await collect(input(fakeApi(sweepRoutes(artifacts, runs)), { readArtifact: async (id) => summaryOf(900 + id, true) }));
   assert.equal(data.sweep, null);
   assert.equal(data.heldSweeps.length, LIMITS.sweepArtifacts);
-  assert.ok(data.gaps.some((gap) => gap.startsWith("pr-merge sweep: no sweep that listed")), String(data.gaps));
+  assert.deepEqual(data.gaps, [`pr-merge listed sweep: none in the ${LIMITS.sweepArtifacts} newest summaries`]);
 });
 
 test("the sweep ignores a newer pr-merge-summary artifact from a fork, PR or branch run", async () => {

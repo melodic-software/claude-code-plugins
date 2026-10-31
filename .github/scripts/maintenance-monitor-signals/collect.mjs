@@ -288,8 +288,8 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
   // signals 5 and 8 read. A trusted run that kept no summary neither counts
   // nor resets. Calls: one artifact list, one run read per artifact and one
   // download per trusted summary, stopping at the sweep that listed (3 while
-  // the listing reads). None within the cap is a gap, so an open issue is not
-  // cleared without a listed sweep.
+  // the listing reads). None within the cap is a gap for signals 5 and 8, under
+  // its own name, so their issues are not cleared while signal 12 still fires.
   await source("pr-merge sweep", async () => {
     const artifacts = (await get(`/repos/${repo}/actions/artifacts?name=pr-merge-summary&per_page=100`)).artifacts;
     const candidates = artifacts
@@ -329,7 +329,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       };
       return;
     }
-    if (data.heldSweeps.length > 0) throw new Error(`no sweep that listed in the ${LIMITS.sweepArtifacts} newest summaries`);
+    if (data.heldSweeps.length > 0) gaps.push(`pr-merge listed sweep: none in the ${LIMITS.sweepArtifacts} newest summaries`);
   });
 
   // The report post-merge-dispatch keeps per sweep (pr-merge-post-merge-report:

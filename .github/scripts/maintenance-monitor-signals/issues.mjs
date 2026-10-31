@@ -120,6 +120,7 @@ const SOURCES = {
   "main full run": ["1 main red"],
   "merge-queue ejections": ["4 merge-queue ejections"],
   "pr-merge sweep": ["5 held PRs", "8 throughput", "12 listing held"],
+  "pr-merge listed sweep": ["5 held PRs", "8 throughput"],
   "lane merges": ["8 throughput"],
   "lane stops": ["9 lane stop"],
   "stalled stops": ["10 stalled lane stop"],

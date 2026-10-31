@@ -2900,7 +2900,7 @@ label exists, never `needs-triage`: a rolling issue is a status record, and the 
 no `intake-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
 cannot read is listed in the step summary and the other signals still run. Failed runs are read 100
 to a page, up to 5 pages, until 12 lane runs are kept, so fork and pull-request runs dropped after
-the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3. Signal 11 reuses the `pr-merge` run list the budget read makes, lists the report artifacts once, and downloads reports newest first until one is readable: 2 calls while the check reads, at most 5 while it does not. Signal 12 shares one read with signals 5 and 8: the summary artifact list, then a run read per artifact and a download per trusted summary, newest first, until one listed: 3 calls while the listing reads, at most 17 through a hold. Signals 5 and 8 read the sweep that listed; no such sweep in the newest 8 summaries is a gap for all three.
+the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3. Signal 11 reuses the `pr-merge` run list the budget read makes, lists the report artifacts once, and downloads reports newest first until one is readable: 2 calls while the check reads, at most 5 while it does not. Signal 12 shares one read with signals 5 and 8: the summary artifact list, then a run read per artifact and a download per trusted summary, newest first, until one listed: 3 calls while the listing reads, at most 17 through a hold. Signals 5 and 8 read the sweep that listed; no such sweep in the newest 8 summaries is a gap for those two, and signal 12 still counts the held sweeps it read.
 
 It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull-requests` read,
 `issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
@@ -3145,7 +3145,7 @@ again. A failed read and a past-budget rate stop leave this job green.
 A held run still does two things. It writes the `pr-merge-summary` artifact with `listing_held`,
 `listing_held_reason` and no verdicts, so readers can aggregate holds and signal 12 can count them.
 And on `post-merge-dispatch`'s exit 1 it runs `Record a failed lane merge`: `--remediate` takes no
-listing, judges the merges again from its own reads, and is the only step that dequeues the lane's
+listing, judges the merges again from its own reads, and is the step that dequeues the lane's
 merge-queue entries, which would otherwise land through the hold. While a rate stop is in force the
 guard refuses its calls and the next run tries again.
 

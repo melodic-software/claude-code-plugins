@@ -1136,7 +1136,7 @@ jobs:
             fi
           }
           if [ "${#authors[@]}" -gt 0 ] && ! retry_call --read 60 list_open_prs; then
-            echo "::notice title=Merge lane hold::the open pull requests are unknown ($retry_call_unknown); this job gates, merges, re-fires and clears nothing, it still writes the sweep summary and records a failed lane merge, and the next scheduled run lists again"
+            echo "::notice title=Merge lane hold::the open pull requests are unknown ($retry_call_unknown); this job gates, merges, re-readies, re-fires and clears nothing; it still writes the sweep summary and, when post-merge-dispatch's check found a failed lane merge, records it; the next scheduled run lists again"
             echo "held=true" >>"$GITHUB_OUTPUT"
             echo "held-reason=$retry_call_unknown" >>"$GITHUB_OUTPUT"
             exit 0
@@ -1363,7 +1363,7 @@ jobs:
       # here and are reported as a write failure (exit 4); the
       # post-merge-dispatch job starts those. Live mode only.
       # A held listing does not stop this: --remediate takes no listing and
-      # judges the merges again from its own reads, and only this step dequeues
+      # judges the merges again from its own reads, and this step dequeues
       # the lane's entries, which would land through the hold. It starts then on
       # post-merge-dispatch's exit 1. Under a rate stop still in force the
       # guard refuses its calls, the step reports no record, and the next run
