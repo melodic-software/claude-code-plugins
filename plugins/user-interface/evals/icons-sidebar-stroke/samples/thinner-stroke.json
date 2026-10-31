@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 7 8 2l6 5v7H10v-4H6v4H2z\" /></svg>\nHome\n<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 9h3l1 2h4l1-2h3\" /><path d=\"M4 3h8l2 6v4H2V9z\" /></svg>\nInbox",
+      "why": "both 16-unit drawings carry 1.5 in 16, a 1.5px stroke at 16px"
+    },
+    {
+      "answer": "<style>.sidebar svg { stroke-width: 1.5; }</style>\n<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 7 8 2l6 5v7H10v-4H6v4H2z\" /></svg> Home\n<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 3h8l2 6v4H2V9z\" /></svg> Inbox",
+      "why": "one shared CSS stroke-width gives every icon 1.5 in 16"
+    },
+    {
+      "answer": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.25\" stroke-linecap=\"round\"><path d=\"M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z\" /></svg> Home\n<svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.25\" stroke-linecap=\"round\"><path d=\"M5 5h14l2 7v7H3v-7z\" /></svg> Inbox",
+      "why": "2.25 in 24 is a smaller share than 2 in 16; it renders 1.5px at 16px"
+    },
+    {
+      "answer": "<style>.sidebar a { display: inline-flex; align-items: baseline; gap: 0.5em; } .sidebar a > svg { flex: none; block-size: 1cap; inline-size: auto; }</style>\n<a href=\"/\"><svg viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 7 8 2l6 5v7H10v-4H6v4H2z\" /></svg>Home</a>\n<a href=\"/inbox\"><svg viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 9h3l1 2h4l1-2h3\" /><path d=\"M4 3h8l2 6v4H2V9z\" /></svg>Inbox</a>",
+      "why": "icons sized by the label's cap height still carry 1.5 in 16, thinner than the original at any rendered size"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" vector-effect=\"non-scaling-stroke\"><path d=\"M2 7 8 2l6 5v7H10v-4H6v4H2z\" /></svg> Home\n<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" vector-effect=\"non-scaling-stroke\"><path d=\"M4 3h8l2 6v4H2V9z\" /></svg> Inbox",
+      "why": "near miss: the stroke is non-scaling but still renders 2px on a 16px icon"
+    },
+    {
+      "answer": "<style>.sidebar a > svg { block-size: 1cap; inline-size: auto; }</style>\n<svg viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M2 7 8 2l6 5v7H10v-4H6v4H2z\" /></svg> Home\n<svg viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M4 3h8l2 6v4H2V9z\" /></svg> Inbox",
+      "why": "near miss: the icons shrink to the cap height, so the stroke renders under 2px, but it is still 2 in 16 and just as heavy for its size"
+    },
+    {
+      "answer": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path d=\"M2 7 8 2l6 5v7H10v-4H6v4H2z\" /></svg> Home\n<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M4 3h8l2 6v4H2V9z\" /></svg> Inbox",
+      "why": "only the Home icon is thinned; Inbox still carries 2 in 16"
+    },
+    {
+      "answer": "Thin the stroke to about 1.5px so the 16px icons stop looking heavy.\n\n```html\n<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M2 7 8 2l6 5v7H10v-4H6v4H2z\" /></svg>\n```",
+      "why": "the thinner stroke appears only in prose; the markup keeps 2 in 16"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "<nav class=\"sidebar\">\n  <a href=\"/\">\n    <svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n      <path d=\"M2 7 8 2l6 5v7H10v-4H6v4H2z\" />\n    </svg>\n    Home\n  </a>\n  <a href=\"/inbox\">\n    <svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n      <path d=\"M2 9h3l1 2h4l1-2h3\" />\n      <path d=\"M4 3h8l2 6v4H2V9z\" />\n    </svg>\n    Inbox\n  </a>\n  <a href=\"/reports\">\n    <svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\">\n      <path d=\"M3 13V9M8 13V5M13 13V2\" />\n    </svg>\n    Reports\n  </a>\n</nav>",
+      "why": "all three icons shown: Reports is an outline drawing on the same 16-unit grid with the same 1.5 stroke and round caps as Home and Inbox"
+    },
+    {
+      "answer": "<style>.sidebar svg { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }</style>\n<nav class=\"sidebar\">\n  <a href=\"/\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M2 7 8 2l6 5v7H10v-4H6v4H2z\" /></svg> Home</a>\n  <a href=\"/inbox\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M2 9h3l1 2h4l1-2h3\" /><path d=\"M4 3h8l2 6v4H2V9z\" /></svg> Inbox</a>\n  <a href=\"/reports\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><path d=\"M3 13V9M8 13V5M13 13V2\" /></svg> Reports</a>\n</nav>",
+      "why": "fill: none in CSS; one shared sidebar rule gives all three 16-unit icons the same outline style and stroke"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 7 8 2l6 5v7H10v-4H6v4H2z\" /></svg> Home\n<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 3h8l2 6v4H2V9z\" /></svg> Inbox\n<svg width=\"16\" height=\"16\" viewBox=\"0 0 20 20\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M2 11h3v7H2zm6-5h3v12H8zm6-4h3v16h-3z\" /></svg> Reports",
+      "why": "Reports is still a filled shape among outline icons"
+    },
+    {
+      "answer": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M2 7 8 2l6 5v7H10v-4H6v4H2z\" /></svg> Home\n<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 3h8l2 6v4H2V9z\" /></svg> Inbox\n<svg width=\"16\" height=\"16\" viewBox=\"0 0 20 20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 16v-5M10 16V6M16 16V3\" /></svg> Reports",
+      "why": "near miss: Reports is stroked now, but 1.5 on its 20-unit viewBox renders 1.2px beside the others' 1.5px"
+    },
+    {
+      "answer": "Swap the Reports icon for the bar-chart icon from the same set as Home and Inbox so it matches.",
+      "why": "says what to do with no markup that does it"
+    }
+  ]
+}

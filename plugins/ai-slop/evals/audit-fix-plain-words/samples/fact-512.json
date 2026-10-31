@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "its size limit is 512 MB",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "its size is limited",
+      "why": "misses the outcome"
+    }
+  ]
+}

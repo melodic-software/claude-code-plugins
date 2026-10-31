@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "type SelectProps = {\n  value?: string;\n  defaultValue?: string;\n  onValueChange?: (value: string) => void;\n  disabled?: boolean;\n};",
+      "why": "both modes with a change handler"
+    },
+    {
+      "answer": "interface SelectProps { defaultValue?: string; value?: string; onChange?: (v: string) => void }",
+      "why": "both modes, onChange"
+    },
+    {
+      "answer": "<Select value={fruit} onValueChange={setFruit} />\n<Select defaultValue=\"apple\" />",
+      "why": "both modes shown in usage"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "type SelectProps = {\n  value: string;\n  onChange: (value: string) => void;\n};",
+      "why": "controlled only"
+    },
+    {
+      "answer": "type SelectProps = {\n  defaultValue?: string;\n  disabled?: boolean;\n};",
+      "why": "uncontrolled only"
+    },
+    {
+      "answer": "type SelectProps = {\n  defaultValue?: string;\n  onValueChange?: (value: string) => void;\n};",
+      "why": "uncontrolled only; value appears only as the handler's parameter"
+    }
+  ]
+}

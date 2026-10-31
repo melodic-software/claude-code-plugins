@@ -166,6 +166,69 @@
         "Reports the seam sentence under rule-abstract-metaphor-jargon and does not also report it under rule-figure-for-fact",
         "Reports nothing under either rule for the sentence about one transaction per 500 rows"
       ]
+    },
+    {
+      "id": 13,
+      "name": "commit-message-audited-through-a-scratch-copy",
+      "prompt": "/ai-slop:audit this commit message before I commit it:\n\nRefactor the cache loader in order to cut startup time\n\nThe loader now reads the index once at boot instead of on every lookup, ensuring reliability across restarts. I hope this helps!",
+      "expected_output": "The message is copied into a scratch markdown file in the session scratchpad and audited under the non-repository rules. The detector reports rule-filler-phrases on line 1 ('in order to') and rule-chatbot-artifacts on line 3 ('I hope this helps'); the rubric reports the trailing 'ensuring reliability across restarts' clause under rule-superficial-analysis. Findings are reported against the message's own lines. No findings file is written, no commit is made or amended, and the text is not handed off to another skill as outside this skill's scope.",
+      "files": [],
+      "expectations": [
+        "Writes the message to a scratch .md file outside the repository and runs detect.sh on it",
+        "Reports rule-filler-phrases for 'in order to' and rule-chatbot-artifacts for 'I hope this helps', each with its line in the message",
+        "Reports the 'ensuring reliability across restarts' tail as a rubric finding citing its catalog entry",
+        "Audits the message itself rather than saying commit messages are outside this skill's scope or deferring the tells to /writing:be-concise",
+        "Writes no findings file, and makes or amends no commit"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "pr-body-generic-conclusion-reported",
+      "prompt": "/ai-slop:audit the body of the pull request I am about to open:\n\n## Summary\n\nAdds a retry wrapper around the export client, so one timeout no longer fails the nightly export job.\n\n## Verification\n\nRan the export suite locally, and all 42 tests pass.\n\nThe future looks bright for the export pipeline.",
+      "expected_output": "The pasted body is copied into a scratch markdown file and audited under the non-repository rules. The closing line 'The future looks bright for the export pipeline.' is reported under rule-generic-conclusions: it could end an unrelated document unchanged. The summary and verification lines carry a mechanism and a count and get no finding. The report suggests deleting the closer or ending on a fact. No findings file is written and the pull request is neither opened nor edited.",
+      "files": [],
+      "expectations": [
+        "Audits the pasted text through a scratch .md copy instead of calling PR bodies out of scope",
+        "Reports the closing sentence under rule-generic-conclusions, quoting it",
+        "Reports no finding for the retry-wrapper sentence or the '42 tests pass' line",
+        "Writes no findings file, and opens or edits no pull request"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "interface-copy-generic-headline-reported",
+      "prompt": "/ai-slop:audit copy evals/fixtures/interface-copy.en.json relative to the skill directory.",
+      "expected_output": "The four user-facing strings are extracted into a scratch markdown file, one per paragraph, with the JSON quote marks stripped and each source line in a code span. The headline 'Build faster. Ship smarter.' (line 2) is reported under rule-mechanism-free-claims, interface-copy cue: a competitor could paste it unchanged. The invoice sentence (line 3) names a mechanism and a number and gets no finding; the 'Send invoice' label (line 4) is not reported as over-compression, since interface copy is out of that rule's scope; the curly apostrophe in the receipt note (line 5) is not reported, since rendered interface copy takes typographic quotes. Findings cite the JSON file and line. No file is edited and no findings file is written.",
+      "files": [
+        "evals/fixtures/interface-copy.en.json"
+      ],
+      "expectations": [
+        "Extracts the strings into a scratch .md file without their double quotes, so the wording rules read them",
+        "Reports the 'Build faster. Ship smarter.' headline as a rubric finding under rule-mechanism-free-claims, citing interface-copy.en.json line 2",
+        "Reports no finding for the invoice sentence on line 3",
+        "Does not report 'Send invoice' under rule-over-compression",
+        "Does not report the curly apostrophe in the receipt note as a rule-curly-artifacts finding",
+        "Says the curly apostrophe is declined because rendered interface copy takes typographic quotes, not because the rule is disabled",
+        "Edits no file and writes no findings file"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "release-note-rewrite-keeps-every-fact",
+      "prompt": "/ai-slop:audit fix evals/fixtures/release-note.md relative to the skill directory: rewrite this release note, it sounds like ChatGPT wrote it. Work on a copy so the committed fixture stays byte-identical.",
+      "expected_output": "The detector reports one finding, rule-chatbot-artifacts on line 8 ('I hope this helps'), and the rubric reports the closing 'The future looks bright for the exporter.' under rule-generic-conclusions. The fix reads reference/rewrite-guide.md first and rewrites the copy. The detector flags none of the model vocabulary in this file, so the self-audit catches it through the guide's judgment rows: 'pivotal' and 'delves into' go, 'leverages' becomes 'uses', 'Additionally' becomes 'also' or is dropped, 'showcases' becomes 'has' or 'adds', and those swaps are reported as self-audit findings, not detector findings. The generic closer and the chat residue are deleted. Every fact survives: the streaming writer sends each row as soon as it is read, a 2 GB table no longer has to fit in memory, and the new `--dry-run` flag prints the row count without writing a file. A fresh-context semantic-diff check compares before and after.",
+      "files": [
+        "evals/fixtures/release-note.md"
+      ],
+      "expectations": [
+        "Reads reference/rewrite-guide.md before rewriting",
+        "Removes 'I hope this helps' and the 'The future looks bright' closer, naming rule-chatbot-artifacts and rule-generic-conclusions",
+        "Reports rule-chatbot-artifacts as the only detector finding, and does not attribute the vocabulary swaps to a detector rule",
+        "Replaces the model vocabulary ('pivotal', 'delves into', 'leverages', 'Additionally', 'showcases') with plain words or deletes it in the self-audit, reporting the swaps as self-audit findings, without reaching for a fancier synonym",
+        "Keeps every fact: the streaming writer, the 2 GB table that no longer has to fit in memory, and the `--dry-run` flag that prints the row count",
+        "Runs a fresh-context semantic-diff check on the before and after pair",
+        "Leaves `evals/fixtures/release-note.md` byte-identical after the run, the rewrite landing on a copy"
+      ]
     }
   ]
 }

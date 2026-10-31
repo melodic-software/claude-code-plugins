@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "To use the shared cache, each worker opens one connection at startup.\n",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "To employ the shared cache, each worker opens one connection at startup.\n",
+      "why": "misses the outcome"
+    }
+  ]
+}

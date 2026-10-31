@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/skills/audit/reference/rewrite-guide.md"
+          }
+        }
+      ],
+      "why": "read the guide"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/p/skills/audit/reference/catalog.md"
+          }
+        }
+      ],
+      "why": "catalog only"
+    }
+  ]
+}
