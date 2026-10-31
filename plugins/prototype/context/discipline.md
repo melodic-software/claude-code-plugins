@@ -36,7 +36,7 @@ examples.
 | Whoever comes later | 5 | **Marked as disposable from the start** | A reader who opens `src/loans/renewal.prototype.ts` or the `/shipments` variant folder cannot tell it is not production code, or it sits in a new top-level directory instead of next to the code it would replace, inside the project's existing layout and routing |
 | | 6 | **Delete or absorb when done** | Code is removed before the answer, including more than the winner (see [When done](#when-done)), is written down |
 
-One substrate-scoped exception to rules 3 and 6: when the user, offered `/design` by
+One canvas-scoped exception to rules 3 and 6: when the user, offered `/design` by
 `/prototype:explore-directions`, runs the bundled `design` skill's canvas as an alternative to the
 throwaway HTML mockup, the variants live in a published, persistent Artifact under the user's account.
 That persistence is opted into knowingly at the offer site, not a rule violation; the repo side
