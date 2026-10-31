@@ -42,6 +42,13 @@ DIFF_PARTSCHUNK_NOTE
   line names: a size split filed it as one part of its parent, so each done-when item applies
   only to those targets, and the diff need not deliver it for any other. With no `scope`, every
   item applies in full.
+- `JOBS_FILE`: JSON listing the jobs of the pr-require-checks run on the judged head, each with
+  its `name` and `conclusion`. It is the evidence of which test and check suites ran: you run no
+  test or eval yourself. Suites the change does not touch are skipped by design, so a `skipped`
+  job is a defect only when its suite covers the changed files. `ci-status` sums the others and
+  fails on holds a person lifts; it is not test evidence. Job names come from the pull request's
+  own `.github/workflows/pr-require-checks.yml`, so a diff that changes that file changes what
+  the list means.
 
 Judge in this order:
 
@@ -67,7 +74,9 @@ Judge in this order:
    code. A change to model, effort, turn, timeout or schedule settings spends within a
    subscription, not a real charge: name it in a note.
 2. Correctness. Read the changed code in the diff. Look for logic errors, broken or missing error handling,
-   tests that cannot fail or do not cover the change, and anything that breaks a caller.
+   tests that cannot fail or do not cover the change, and anything that breaks a caller. A suite
+   in `JOBS_FILE` that covers the changed files and did not conclude `success` leaves the change
+   uncovered.
 3. Safety. Look for secrets or machine-specific data, a check, permission or guard weakened
    beyond what the spec asks for, and unsafe handling of untrusted input. Read a change to the
    takeover set with extra care: the trusted-actor list (`.github/standards/trusted-actors/`), the

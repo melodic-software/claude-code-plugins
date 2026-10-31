@@ -483,10 +483,30 @@ test("the model reads only the data directory, with Read alone, and is told noth
   }
 });
 
+// Issue #10204: each judging job lists the jobs of the pr-require-checks run it
+// was started by in pr-verify-data, read with the job's own token after the
+// gate, and the prompt names that file; the model still reads that directory
+// alone.
+test("each job writes the upstream run's jobs into the data directory the prompt names", () => {
+  for (const job of JOBS) {
+    const list = step("List the upstream run's jobs", job);
+    assert.equal(/^ {8}if: (.*)$/m.exec(list)[1], "steps.agree.outcome == 'success'", job);
+    assert.ok(index("List the upstream run's jobs", job) > index("Assert the gate and the resolver agree", job), job);
+    assert.ok(index("List the upstream run's jobs", job) < index("Write the prompt and schema", job), job);
+    assert.equal(input(list, "GITHUB_TOKEN"), "${{ github.token }}", job);
+    assert.equal(input(list, "UPSTREAM_RUN_ID"), "${{ github.event.workflow_run.id }}", job);
+    assert.equal(input(list, "JOBS_FILE"), "${{ github.workspace }}/pr-verify-data/upstream-jobs.json", job);
+    assert.match(list, /^ {8}run: node \.base\/\.github\/scripts\/pr-verify\/upstream-jobs\.mjs$/m, job);
+    assert.ok(step("Write the prompt and schema", job).includes("            prompt=${prompt//JOBS_FILE/$DATA/upstream-jobs.json}\n"), job);
+    assert.equal(input(step("Judge the pull request", job), "allowed-tools"), "Read(./pr-verify-data/**)", job);
+  }
+  assert.ok(readFileSync(new URL("./prompt.md", import.meta.url), "utf8").includes("- `JOBS_FILE`: "));
+});
+
 test("every data path the model reads sits under the working directory", () => {
   assert.doesNotMatch(text, /runner\.temp \}\}\/pr-verify-data/);
   for (const job of JOBS) {
-    for (const name of ["Resolve the pull request", "Select the trusted PR text", "Write the diff", "Write the prompt and schema", "Write the verdict"]) {
+    for (const name of ["Resolve the pull request", "Select the trusted PR text", "Write the diff", "List the upstream run's jobs", "Write the prompt and schema", "Write the verdict"]) {
       assert.match(step(name, job), /\$\{\{ github\.workspace \}\}\/pr-verify-data/, `${job}: ${name}`);
     }
   }
@@ -702,7 +722,7 @@ test("the prompt step gives each chunk its own parts, and a lone chunk no note",
   assert.ok(!one.prompt(1).includes("data/manifest"));
   assert.ok(prompt(1).includes(`${cwd}/data/diff/chunk-N`) || prompt(1).includes(`relative to \`${cwd}/data\``));
   for (const text of [prompt(1), prompt(2), one.prompt(1)]) {
-    assert.doesNotMatch(text, /DIFF_PARTS|CHUNK_NOTE|CHUNK_INDEX|CHUNK_COUNT|DATA_DIR|MANIFEST_PARTS|SPEC_FILE|SPEC_TEXT_FILE|PR_FILE|CONTEXT_FILE/);
+    assert.doesNotMatch(text, /DIFF_PARTS|CHUNK_NOTE|CHUNK_INDEX|CHUNK_COUNT|DATA_DIR|MANIFEST_PARTS|SPEC_FILE|SPEC_TEXT_FILE|PR_FILE|CONTEXT_FILE|JOBS_FILE/);
   }
 });
 
