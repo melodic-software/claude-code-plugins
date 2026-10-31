@@ -6,7 +6,7 @@ A local page for interview rounds. The user answers one question at a time on 12
 
 | File | Owner | Role |
 |---|---|---|
-| `server.py` | runs | The interview on session-bridge's loopback adapter: serves the page, takes answers, serves file visuals by visual id (`/api/visual-file?id=`), serves a visual in a sandboxed new tab by one-time link (`/api/visual-open`), computes question state and settings |
+| `interview_server.py` | runs | The interview on session-bridge's loopback adapter: serves the page, takes answers, serves file visuals by visual id (`/api/visual-file?id=`), serves a visual in a sandboxed new tab by one-time link (`/api/visual-open`), computes question state and settings |
 | `session_bridge.py` | generated | The transport: the 127.0.0.1 server, token, SSE, long-poll, watcher lease, and the lifecycle client `round.py` uses. A copy of `lib/session-bridge/` |
 | `index.html` | page | Single file, no build step, no CDN |
 | `round.py` | Claude | The only write path to `questions.json`, plus the server lifecycle and the exporters |

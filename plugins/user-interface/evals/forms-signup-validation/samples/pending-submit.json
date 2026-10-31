@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "<button type=\"submit\" disabled={isSubmitting}>\n  {isSubmitting ? \"Creating account…\" : \"Create account\"}\n</button>",
+      "why": "disabled while submitting, label says what is happening"
+    },
+    {
+      "answer": "const { pending } = useFormStatus();\nreturn <button type=\"submit\" disabled={pending}>Sign up</button>;",
+      "why": "disabled from the form's pending status"
+    },
+    {
+      "answer": "<Button type=\"submit\" disabled={form.formState.isSubmitting || !form.formState.isValid}>Sign up</Button>",
+      "why": "disabled from react-hook-form's isSubmitting"
+    },
+    {
+      "answer": "const [busy, setBusy] = useState(false);\n<button type=\"submit\" disabled={busy}>{busy ? \"Creating account…\" : \"Create account\"}</button>",
+      "why": "a busy flag, not named submitting or pending, disables the button"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "<button type=\"submit\" onClick={handleSubmit}>Sign up</button>",
+      "why": "stays enabled and can fire twice"
+    },
+    {
+      "answer": "<button type=\"submit\" aria-disabled={isSubmitting}>Sign up</button>",
+      "why": "aria-disabled does not stop a second click"
+    },
+    {
+      "answer": "<button type=\"submit\" disabled={!isValid}>Sign up</button>",
+      "why": "disabled only for invalid input, not while the request is pending"
+    },
+    {
+      "answer": "<button type=\"submit\" disabled={!isSubmitting}>Sign up</button>",
+      "why": "disabled is the negation of the pending state"
+    },
+    {
+      "answer": "function Signup() {\n  const { pending } = useFormStatus();\n  return (\n    <form action={signup}>\n      <button type=\"submit\" disabled={pending}>Sign up</button>\n    </form>\n  );\n}",
+      "why": "useFormStatus in the component that renders the form, so pending never turns true"
+    },
+    {
+      "answer": "Set `disabled={isSubmitting}` on the button later.\n\n```jsx\n<button type=\"submit\">Sign up</button>\n```",
+      "why": "disabling only in prose; the code's button stays enabled"
+    }
+  ]
+}

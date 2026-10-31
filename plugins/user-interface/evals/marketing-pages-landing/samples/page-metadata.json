@@ -1,0 +1,66 @@
+{
+  "pass": [
+    {
+      "answer": "export const metadata: Metadata = {\n  title: \"Streak: build habits that stick\",\n  description: \"Track daily habits and keep your streak.\",\n};",
+      "why": "a Next.js metadata export with title and description"
+    },
+    {
+      "answer": "export const metadata: Metadata = {\n  metadataBase: new URL(\"https://streak.app\"),\n  title: { default: \"Streak\", template: \"%s · Streak\" },\n  description: \"Track daily habits.\",\n  openGraph: { images: [{ url: \"/og.png\", width: 1200, height: 630 }] },\n};",
+      "why": "a nested title template and Open Graph block"
+    },
+    {
+      "answer": "export async function generateMetadata() {\n  const plans = await getPlans();\n  return { title: 'Pricing', description: 'Plans for every habit.' };\n}",
+      "why": "generateMetadata returning both after another statement"
+    },
+    {
+      "answer": "<head>\n  <title>Streak</title>\n  <meta name=\"description\" content=\"Track daily habits.\" />\n</head>",
+      "why": "plain head tags"
+    },
+    {
+      "answer": "<head>\n  <title>Streak</title>\n  <meta content=\"Track daily habits.\" name=\"description\" />\n</head>",
+      "why": "head tags with the meta attributes reversed"
+    },
+    {
+      "answer": "const title = \"Streak\"\nconst description = \"Build habits that stick\"\nexport const metadata = { title, description }",
+      "why": "shorthand keys, no semicolons"
+    },
+    {
+      "answer": "export const metadata = {\n  \"title\": \"Streak; habits that stick\",\n  \"description\": \"Track a habit a day\",\n}",
+      "why": "quoted keys and a semicolon inside the title string"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "export default function Page() {\n  return <h1>Build habits that stick</h1>;\n}",
+      "why": "no metadata at all"
+    },
+    {
+      "answer": "export const metadata = { title: \"Streak\" };",
+      "why": "a title with no description"
+    },
+    {
+      "answer": "export const metadata = { title: \"Streak\" };\nconst features = [{ title: \"Streaks\", description: \"Keep going\" }];",
+      "why": "the description key belongs to feature data, not the metadata export"
+    },
+    {
+      "answer": "const features = [{ title: 'Streaks', description: 'Keep going' }];",
+      "why": "title and description keys on feature data only"
+    },
+    {
+      "answer": "<head>\n  <meta name=\"description\" content=\"Track daily habits.\" />\n</head>",
+      "why": "a meta description with no title"
+    },
+    {
+      "answer": "export const metadata = { title: \"Streak\" }\n\nconst features = [{ title: \"Streaks\", description: \"Keep going\" }]",
+      "why": "title-only metadata with no semicolons; the description key belongs to feature data"
+    },
+    {
+      "answer": "export const metadata = {\n  title: \"Streak\",\n  openGraph: { description: \"Build habits\" },\n}",
+      "why": "only an openGraph description, no page description"
+    }
+  ]
+}

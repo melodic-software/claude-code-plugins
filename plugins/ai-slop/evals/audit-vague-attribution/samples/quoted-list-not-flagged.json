@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "docs/queue.md:3 rule-vague-attribution: \"Experts argue ... widely regarded\". docs/queue.md:11 rule-vague-attribution: \"Some critics argue\". Lines 13-15 name InfoQ and the Confluent blog post with what each said, so they are attributed, not a finding.",
+      "why": "the outlet list is left alone and says why"
+    },
+    {
+      "answer": "docs/queue.md:11 rule-vague-attribution: \"Some critics argue that a log-based queue is overkill\".",
+      "why": "no finding on the outlet list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs/queue.md:13 rule-vague-attribution: \"Two write-ups covered the switch. InfoQ ... Confluent\" is a name-drop list.",
+      "why": "the attributed list reported as vague attribution"
+    },
+    {
+      "answer": "docs/queue.md:14 rule-vague-attribution: \"the Confluent blog post quotes our lead\".",
+      "why": "a finding quoting Confluent"
+    }
+  ]
+}

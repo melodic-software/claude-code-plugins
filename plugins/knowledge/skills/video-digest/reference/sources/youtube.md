@@ -99,12 +99,13 @@ one keeps the default). Raise it after an HTTP 429 on the caption pass, for exam
 launcher forwards it as `VIDEO_DIGEST_ACQUIRE_PHASE_GAP_SEC`. Pass it only when you want a gap other
 than the default.
 
-Example combining a non-default library dir with a forced cookie source (unset options
-contribute no flag):
+Example combining a non-default library dir (`<work-root>` resolved as
+`../../context/output-contract.md` says) with a forced cookie source (unset options contribute no
+flag):
 
 ```bash
 node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" \
-  --work-root "${CLAUDE_PROJECT_DIR}/<library_dir>" \
+  --work-root "<work-root>" \
   --cookies-from-browser "<yt_dlp_cookies_from_browser>" \
   <script.js> [args…]
 ```

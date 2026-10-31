@@ -51,6 +51,13 @@
         "token_fallback": {
           "enum": ["ask", "propose-token", "literal"],
           "description": "What to do when no design token matches a value: ask, propose a new token, or write the literal."
+        },
+        "concentric_radius": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_gap_px": {"type": "integer", "minimum": 0, "description": "The widest gap in px (the parent's border width plus its padding) at which reference/types/web/shape-and-depth.md, the write-css concentric-nested-radius recipe and scripts/nested-radius.mjs still derive a nested element's radius from its parent's; past it each radius is picked on its own."}
+          }
         }
       }
     },
@@ -109,7 +116,7 @@
         },
         "rows": {
           "type": "array",
-          "description": "Re-rank a bundled row, matched by concern plus id, or add one.",
+          "description": "Re-rank a bundled row, matched by concern plus id, or add one. A new row's id must match a bundled row or an installed plugin or skill; a new kind: tool row is refused; a row reusing a bundled id may not change its kind, detect or account. A row that breaks any of these rules is dropped and named in the routing notes.",
           "items": {
             "type": "object",
             "additionalProperties": false,

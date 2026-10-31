@@ -21,6 +21,7 @@ const CONTRACT = {
     important: "avoid",
     layer: null,
     token_fallback: "ask",
+    concentric_radius: { max_gap_px: 24 },
   },
   animation: {
     easing: {

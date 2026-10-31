@@ -205,8 +205,11 @@ treatment as a proposal. It is the mode pull-request prep runs over a change's a
 - **Every applied edit passes its tier's gate; lint never opens one.** Deletions and function-local
   renames are certified by `${CLAUDE_SKILL_DIR}/scripts/change-shape.sh` (COMMENT-ONLY,
   RENAME-ONLY); additive and interface-creating moves need a discovered test net. Any other verdict
-  reverts the edit and demotes it to a proposal. A Python docstring is a string token, not a
-  comment, so removing one reads CODE-CHANGED and is always a proposal, private docstrings included.
+  reverts the edit and demotes it to a proposal, and so does UNAVAILABLE or no verdict at all (the
+  script missing, failing, or its parser not installed). This holds however the file is written: a
+  shell edit (`sed -i`, a redirect, a script) needs the same verdict as an Edit call. A Python
+  docstring is a string token, not a comment, so removing one reads CODE-CHANGED and is always a
+  proposal, private docstrings included.
 - **RENAME-ONLY is a shape claim, not a safety claim.** It rejects a rename that misses a reference
   or lands on a name the file already uses, but cannot see other files, reflection, or string-keyed
   access. Report every rename applied on its strength with its mapping.

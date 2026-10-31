@@ -173,6 +173,41 @@ assert_exit "the report's confirm verdict line exits 0 with no verdict for the h
 assert_eq "a verdict for an earlier head only: the report says none is recorded for this head" \
   "confirm: no verdict recorded for head $PUSHED" "$out"
 
+# The /verification:measure verdict: recorded per head in the same store, named in the report only
+# when one is recorded for the head, and advisory, so no verdict word stops the flip.
+measure_record() { CONFIRM_VERDICT_DIR="$STATE/confirm" bash "$SKILL_DIR/scripts/confirm-verdict.sh" record --of measure "$@"; }
+
+for verdict in 'CANNOT QUANTIFY' DEGRADED 'NOT CONFIRMED' INCONCLUSIVE MIXED CONFIRMED; do
+  new_state "$PUSHED"
+  measure_record --head "$PUSHED" --verdict "$verdict"
+  assert_exit "a $verdict measure verdict is recorded for the head" 0 "$?"
+  out=$(CONFIRM_VERDICT_DIR="$STATE/confirm" run_flow "$BEFORE" "$BEFORE")
+  assert_contains "a $verdict measure verdict for the head: the guarded flip passes" "$out" "FLIP_EXIT=0"
+  assert_eq "a $verdict measure verdict for the head: the PR is flipped once" "pr ready 5" "$(cat "$STATE/flipped" 2>/dev/null)"
+done
+
+new_state "$PUSHED"
+measure_record --head "$PUSHED" --verdict 'CANNOT QUANTIFY' --claim 'startup is twice as fast'
+assert_exit "a CANNOT QUANTIFY measure verdict with its claim is recorded for the head" 0 "$?"
+out=$(run_report)
+assert_exit "the report's verdict lines exit 0 with a CANNOT QUANTIFY verdict" 0 "$?"
+assert_eq "the report says cannot quantify for the head and names the claim" "confirm: no verdict recorded for head $PUSHED
+measure: CANNOT QUANTIFY for head $PUSHED: no baseline was captured before the change
+  CLAIM: startup is twice as fast" "$out"
+
+new_state "$PUSHED"
+confirm_record --head "$PUSHED" --verdict CONFIRMED
+measure_record --head "$PUSHED" --verdict DEGRADED
+assert_eq "the report names both verdicts for the head" "confirm: CONFIRMED for head $PUSHED
+measure: DEGRADED for head $PUSHED" "$(run_report)"
+
+new_state "$PUSHED"
+measure_record --head "$BEFORE" --verdict CONFIRMED
+out=$(run_report)
+assert_eq "a measure verdict for an earlier head only adds no line for this head" \
+  "confirm: no verdict recorded for head $PUSHED" "$out"
+assert_not_contains "no measure verdict for the head: the report has no measure line" "$out" "measure"
+
 new_state "$PUSHED"
 out=$(run_flow "$PUSHED" "$PUSHED")
 assert_contains "nothing pushed: the wait is skipped" "$out" "WAITED=skipped HEAD_SHA=$PUSHED"

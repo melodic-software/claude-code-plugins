@@ -1,6 +1,6 @@
 # Storage Schema
 
-All course data lives under the invoking project's `library_dir` setting (or `<plugin-data>` when no library dir is configured), as `courses/<platform>/<slug>/`.
+All course data lives at `<work-root>/courses/<platform>/<slug>/`, with `<work-root>` resolved as SKILL.md's "Emit checklist" says. That directory is the `--course-dir` every extraction script takes.
 
 ## Platform naming
 
@@ -8,7 +8,7 @@ Use platform's lowercase brand name: `dometrain`, `pluralsight`, `udemy`, `manni
 
 ## Slug naming
 
-Derive slug from course title: lowercase, kebab-case, max 50 chars, include instructor surname for disambiguation.
+Derive slug from course title: lowercase, kebab-case, max 40 chars, include instructor surname for disambiguation.
 
 Examples:
 

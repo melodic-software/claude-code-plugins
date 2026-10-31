@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "The cache may have been out of sync between them.\n",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Why we moved the build to a single runner\n\nIt is worth noting that the old build ran on three runners — and the cache could potentially\nbe out of sync between them, which might possibly explain the flaky tests.\n\nMoving to one runner cut the median build from 14 minutes to 9. The cost is that two builds\nnow queue behind each other at peak hours.\n\nI hope this helps! Let me know if you have any questions.\n",
+      "why": "misses the outcome"
+    }
+  ]
+}

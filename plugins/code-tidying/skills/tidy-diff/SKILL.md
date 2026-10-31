@@ -1,5 +1,5 @@
 ---
-description: "Tidies one change's own lines, named in a file-and-line list, before that change is committed: a simplify pass and proven comment deletions on code, the docs-hygiene writing rules and an ai-slop fix on markdown. Needs no branch or base ref, so it runs on a detached head and in an unattended lane. Use when: 'tidy my change before the commit', 'tidy these lines', 'tidy-diff', or a lane names it as its tidy entry. A rotated lane hunt is /code-tidying:tidy; a branch or window sweep is /code-tidying:batch-simplify."
+description: "Tidies one change's own lines, named in a file-and-line list, before that change is committed: a simplify pass, proven comment deletions and a generated-code residue pass on code, the docs-hygiene writing rules and an ai-slop fix on markdown. Needs no branch or base ref, so it runs on a detached head and in an unattended lane. Use when: 'tidy my change before the commit', 'tidy these lines', 'tidy-diff', or a lane names it as its tidy entry. A rotated lane hunt is /code-tidying:tidy; a branch or window sweep is /code-tidying:batch-simplify."
 argument-hint: "<lines-file> [--turns <n>]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/change-shape.sh:*)"]
 user-invocable: true
@@ -39,12 +39,16 @@ segment, is a symbolic link, is not a regular file, or matches the GLOBAL HARD l
 [tidy's exclusions](../tidy/reference/exclusions.md) (path entries lift only under `advisory`).
 No row left: report "nothing to tidy" and stop.
 
+No `<lines-file>`: report that the caller writes one with
+`${CLAUDE_PLUGIN_ROOT}/scripts/added-lines.sh <base>`, and stop. This skill derives no scope
+itself.
+
 `--turns <n>`: the turns this run may spend. Without it there is no budget.
 
 ## Passes
 
 Run them in this order, each only over the rows left. A code file is any listed file that is not
-markdown (`.md`, `.mdx`); a markdown file goes to passes 3 and 4 only, so a change that is all
+markdown (`.md`, `.mdx`); a markdown file goes to passes 4 and 5 only, so a change that is all
 markdown runs only the markdown passes.
 
 1. **Simplify the code lines.** Read each listed hunk with enough of its file to see what it
@@ -65,12 +69,19 @@ markdown runs only the markdown passes.
    (COMMENT-ONLY) make the same deletion in the real file; any other exit leaves the real file
    untouched and the comment becomes a proposal quoting the verdict. Class B and class C are
    proposals. No rename, no move, no rewrite.
-3. **Apply the docs-hygiene writing rules to the markdown lines.** For markdown an agent loads
+3. **Strip generated-code residue from the code lines.** Sweep each listed hunk for the residue
+   kinds in [generated-code-residue.md](reference/generated-code-residue.md), in its order, and
+   act on each finding as its **In tidy-diff** column says: an edit pass 1 allows is applied under
+   pass 1's rule, and every other fix is a proposal naming the residue kind and the fix, including
+   each choice of a loud failure over a quiet wrong answer. Comments are pass 2's alone: pass 2
+   already triaged every comment in the listed lines, and this pass edits none. Finish with the
+   reference's closing read, bounded as it says.
+4. **Apply the docs-hygiene writing rules to the markdown lines.** For markdown an agent loads
    (a `SKILL.md`, an agent, a rule, `CLAUDE.md`, `AGENTS.md`, a reference file a skill reads) invoke
    `/docs-hygiene:write-for-agents <file>`; for other markdown invoke
    `/docs-hygiene:write-for-humans <file>`. Apply what it asks only to the listed lines: cut
    restatement, filler and hedging, and keep every fact, link and constraint.
-4. **Fix AI prose patterns in the markdown lines.** Invoke `/ai-slop:audit fix <file>` per
+5. **Fix AI prose patterns in the markdown lines.** Invoke `/ai-slop:audit fix <file>` per
    markdown file. Keep its fixes inside the listed lines and undo any outside them.
 
 A pass whose skill does not resolve in this session, or that the session's permissions refuse, is

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Report exporter\n\n## Options\n\n| Flag | Meaning |\n|---|---|\n| `--fmt` | out fmt, csv/json |\n| `--dry` | no write, print count |\n\n## Commands\n\n| Command | Does |\n|---|---|\n| `exporter run` | export now |\n| `exporter ls` | list jobs |\n\n## When an export fails\n\nJob fail → check creds, re-auth w/ token. Retry = rerun job, same args. Logs in tmp dir.\n\nThe exporter writes its log to `/var/log/exporter.log` and keeps the last seven files.\n",
+      "why": "the scaffold's file, untouched"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Report exporter\n\n## Options\n\n| Flag | Meaning |\n|---|---|\n| `--fmt` | out fmt, csv/json |\n| `--dry` | no write, print count |\n\n## Commands\n\n| Command | Does |\n|---|---|\n| `exporter run` | export now |\n| `exporter ls` | list jobs |\n\n## When an export fails\n\nWhen a job fails, check the credentials, re-auth w/ token. Retry = rerun job, same args. Logs in tmp dir.\n\nThe exporter writes its log to `/var/log/exporter.log` and keeps the last seven files.\n",
+      "why": "flagged sentence rewritten in place (Edit, Write or sed -i)"
+    },
+    {
+      "answer": "",
+      "why": "file deleted or emptied"
+    }
+  ]
+}

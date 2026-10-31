@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:design"
+          }
+        }
+      ],
+      "why": "the design skill fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit"
+          }
+        }
+      ],
+      "why": "the audit skill fired by its bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:write-animation"
+          }
+        }
+      ],
+      "why": "near miss: a sibling skill in the same plugin, drawn by the word janky"
+    }
+  ]
+}

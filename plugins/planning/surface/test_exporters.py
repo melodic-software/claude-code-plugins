@@ -26,7 +26,7 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
 import exporters  # noqa: E402
-from server import rebuild_responses  # noqa: E402
+from interview_server import rebuild_responses  # noqa: E402
 
 ROUND = HERE / "round.py"
 CHECK = HERE.parent / "scripts" / "check-open-questions.sh"

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": ".timer {\n  font-variant-numeric: tabular-nums;\n}",
+      "why": "equal-width digits in the interface font"
+    },
+    {
+      "answer": "<span className=\"text-sm font-medium tabular-nums\">{elapsed}</span>",
+      "why": "the Tailwind class on the timer element"
+    },
+    {
+      "answer": "Don't switch the timer to `font-family: ui-monospace, monospace`; that changes the face.\n\n```css\n.recording-timer { font-variant-numeric: tabular-nums; }\n```",
+      "why": "names the monospace swap only as the thing to avoid; the code is the right fix"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".timer {\n  font-family: ui-monospace, monospace;\n}",
+      "why": "the monospace swap holds the width but changes the timer's face"
+    },
+    {
+      "answer": ".timer {\n  font-family: ui-monospace, monospace;\n  font-variant-numeric: tabular-nums;\n}",
+      "why": "near miss: tabular-nums is there, but the timer still leaves the interface font"
+    },
+    {
+      "answer": ".timer {\n  font-feature-settings: \"tnum\" 1;\n}",
+      "why": "the raw feature tag instead of font-variant-numeric"
+    },
+    {
+      "answer": "Use tabular-nums on the timer.\n\n```css\n.timer { min-width: 76px; }\n```",
+      "why": "tabular-nums only in prose; the code fixes the width alone"
+    }
+  ]
+}

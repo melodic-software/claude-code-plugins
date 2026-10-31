@@ -118,7 +118,7 @@ import exporters  # noqa: E402
 from question_shape import restates, withheld  # noqa: E402
 import schema  # noqa: E402
 import session_bridge as bridge  # noqa: E402
-from server import (  # noqa: E402
+from interview_server import (  # noqa: E402
     EMPTY_RESPONSES,
     LINE_CAP,
     NAME,
@@ -2883,8 +2883,8 @@ def sidecar_lock(d, seconds=None):
 
 
 def start_server(d, port, nonce):
-    """server.py for the data dir, started apart from this process."""
-    cmd = [bridge.interpreter(), str(HERE / "server.py"), "--dir", str(d)]
+    """interview_server.py for the data dir, started apart from this process."""
+    cmd = [bridge.interpreter(), str(HERE / "interview_server.py"), "--dir", str(d)]
     return bridge.spawn([*cmd, "--port", str(port), "--nonce", nonce])
 
 
