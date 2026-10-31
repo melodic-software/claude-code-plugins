@@ -1,5 +1,22 @@
 # Changelog: session-flow plugin
 
+## [2.1.0] - 2026-10-31
+
+### Added
+
+- `recommend_skills_exclude` option: `none` (default), `disabled`, `not-installed` or `disabled,not-installed`. `/session-flow:recommend-skills` drops skills in those states from its menu and says which states it dropped.
+
+- `/session-flow:running-retro`: each checkpoint, in session or from the observer, stamps the ledger frontmatter with `plugin_usage`, one line of JSON (`{"skills": {"<plugin>:<skill>": <count>}}`) counted over the whole session by the retro parser. The ledger's path, name glob and `session_id` and `plugin_usage` keys are now a documented artifact other plugins read, so they need not find session-flow's parser. ([#5819](https://github.com/melodic-software/claude-code-plugins/issues/5819))
+
+### Changed
+
+- `/session-flow:recommend-skills` builds its pool from `/harness-ops:inventory --skills-index`, which indexes every skill's frontmatter whether it is enabled, disabled or not installed. It shortlists from the index and reads only the shortlisted SKILL.md files. Disabled and not-installed skills are annotated `(disabled)` and `(not installed)`, replacing the `(plugin not enabled)` annotation. The skill asks at most one question and never enables or installs a skill.
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
 ## [2.0.4] - 2026-10-31
 
 ### Changed

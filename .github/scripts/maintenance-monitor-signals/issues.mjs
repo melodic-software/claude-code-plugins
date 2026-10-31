@@ -113,6 +113,7 @@ export function renderSupersede(signal, number) {
 // The signals each collect source feeds, by the name collect gives its gap.
 const SOURCES = {
   "pr-merge api budget": ["2 ceiling", "3 throttling"],
+  "lane api budget": ["2 ceiling", "3 throttling"],
   "Actions jobs in use": ["2 ceiling"],
   "failed runs": ["3 throttling"],
   "main full run": ["1 main red"],
