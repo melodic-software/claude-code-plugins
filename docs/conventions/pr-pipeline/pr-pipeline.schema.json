@@ -1199,7 +1199,30 @@
               "minimum": 1,
               "description": "pr-merge lane only: changed files above which the diff scores MED. Absent: no cap. The local babysit lane always caps at 8."
             },
-            "high-path-floor": {
+            "floor-paths": {
+        "type": "array",
+        "description": "Class-tagged rows joined to the risk scorer's built-in path floor. A row can add to the floor and never drop or loosen a built-in row: the strictest row of a glob wins. Absent: the built-in floor alone. Plain strings, the shape this key held until it was removed, fail validation.",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["glob", "class"],
+          "properties": {
+            "glob": { "type": "string", "minLength": 1 },
+            "class": {
+              "enum": ["trust", "gate", "enforcement"],
+              "description": "trust and gate hold for a person; enforcement holds until a clean security review binds to the head; a gate row also clears through the author lift."
+            },
+            "author-lift": {
+              "type": "boolean",
+              "default": true,
+              "description": "gate rows only. false: the row never takes the author lift."
+            }
+          },
+          "if": { "required": ["author-lift"] },
+          "then": { "properties": { "class": { "const": "gate" } } }
+        }
+      },
+      "high-path-floor": {
               "type": "boolean",
               "default": false,
               "description": "true scores a plugin or marketplace manifest change that installs or runs something new HIGH. Absent or false: no manifest review. The risk scorer's fixed HIGH path floor (resolve-config, request-lane-token, the trusted-trigger check, check-kill-switch, the rate guard, code owners and submodules) and denied-paths count either way while path-holds is true. The local babysit lane always applies the manifest review."

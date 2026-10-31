@@ -3112,6 +3112,7 @@ def _lane_evidence(
     self_logins: frozenset[str],
     permission: Callable[[str], str | None],
     changed_paths: Sequence[str] | None,
+    floor: babysit_risk.Floor,
 ) -> tuple[tuple[LaneEvidence, ...], list[dict[str, Any]]]:
     """Each lane's evidence for the pull request's head, and its comments.
     `changed_paths` is `bind()`'s: None when the changed files are unproven.
@@ -3190,7 +3191,7 @@ def _lane_evidence(
     # A lane-source pull request binds the code lane on a main-run review
     # alone (`bind()`), so only the security lane's runs, which its carried
     # blocking count reads, are listed.
-    main = review_evidence.needs_main_review(changed_paths, head_file, base_sha)
+    main = review_evidence.needs_main_review(changed_paths, head_file, base_sha, floor)
     runs = collect_lane_runs(
         repo,
         number,
@@ -3221,6 +3222,7 @@ def _lane_evidence(
         read_env,
         [str(item.get("sha")) for item in commits],
         main=main,
+        floor=floor,
     )
     lanes = review_evidence.bind(
         head_sha,
@@ -3234,6 +3236,7 @@ def _lane_evidence(
         base_sha=base_sha,
         main_reviews=main_reviews,
         main_context=main_context,
+        floor=floor,
     )
     return lanes, comments
 
@@ -3249,6 +3252,7 @@ def _main_reviews(
     pull_request_heads: Sequence[str] = (),
     *,
     main: bool | None = None,
+    floor: babysit_risk.Floor = babysit_risk.floor_for(),
 ) -> tuple[list[dict[str, Any]] | None, dict[str, Any] | None]:
     """The main-run reviews `bind()` reads for a pull request that changes a
     lane source, with the context it checks them against (the head's tree,
@@ -3258,7 +3262,9 @@ def _main_reviews(
     (None, None) when the pull request changes none, so no read is spent.
     `main` is the caller's `needs_main_review` answer, computed when None."""
     if main is None:
-        main = review_evidence.needs_main_review(changed_paths, head_file, base_sha)
+        main = review_evidence.needs_main_review(
+            changed_paths, head_file, base_sha, floor
+        )
     if not main:
         return None, None
     branch = repository_default_branch(repo)
@@ -3563,6 +3569,7 @@ def score_unattended(
             [p for f in files for p in (f.path, f.previous_path) if p]
             if complete
             else None,
+            config.floor,
         )
     except HeadPusherUnproven as exc:
         # Fail closed: refused, and its own queued entry leaves.
@@ -3582,6 +3589,7 @@ def score_unattended(
             pr,
             frozenset(p for f in files for p in (f.path, f.previous_path) if p),
             None if eligible.body_is_intent else merge_policy.MODEL_APP_OWN,
+            floor=config.floor,
         )
         if eligible.adoption
         else frozenset()
@@ -3596,6 +3604,7 @@ def score_unattended(
             frozenset(p for f in files for p in (f.path, f.previous_path) if p),
             inputs.get("trusted_humans") or (),
             reader is not None,
+            config.floor,
         )
         if complete
         else frozenset()
@@ -3628,6 +3637,7 @@ def score_unattended(
         public=True if private is False else None,
         pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
         base_sha=json_object(pr.get("base")).get("sha"),
+        floor_rows=config.floor_paths,
         **lane_switches,
     )
     risk = babysit_risk.score(risk_input)

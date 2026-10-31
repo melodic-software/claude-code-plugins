@@ -63,11 +63,13 @@ from babysit_gh import (
     record_pull_request_total,
 )
 from babysit_risk import (
-    AUTHOR_REVIEW_FLOOR,
-    FLOOR,
-    HIGH_FLOOR,
-    REVIEW_FLOOR,
+    FLOOR_ROW_CLASSES,
     ChangedFile,
+    Floor,
+    FloorRowError,
+    FloorRows,
+    floor_for,
+    floor_rows,
     glob_match,
     is_trusted_actors_path,
     is_workflow_path,
@@ -88,6 +90,7 @@ DEFAULT_BRANCH_UNREADABLE = "default-branch-unreadable"
 NOT_ASSESSED = "not-assessed"
 
 CONFIG_PATH = "docs/conventions/pr-pipeline.yaml"
+FLOOR_PATHS_KEY = "merge.diff-check.floor-paths"
 SOURCE_CONTROL_PATH = repo_config.CONFIG_PATH
 LOOP_MERGE_KEY = "babysit_loop_merge"
 PARSER = Path(__file__).resolve().parents[3] / "lib" / "parse-concern-value.sh"
@@ -394,6 +397,44 @@ def _read_concern_values(
     return values
 
 
+_FLOOR_ROWS: dict[str, FloorRows] = {}
+
+
+def floor_paths_in(text: str) -> FloorRows:
+    """The `merge.diff-check.floor-paths` rows of a pipeline document, read once
+    per document: `lib/yaml-subset.awk`'s flat records, since the shared reader's
+    `--list` prints scalar items alone. Raises `FloorRowError` on a row the
+    floor cannot use, and `PolicyReadError` when the parser cannot run or
+    rejects the document."""
+    if text in _FLOOR_ROWS:
+        return _FLOOR_ROWS[text]
+    platform = "win32" if os.name == "nt" else sys.platform
+    bash = resolve_bash(os.environ, platform, os.path.isfile)
+    if bash is None:
+        raise PolicyReadError("no usable bash found to run the shared YAML parser")
+    with tempfile.TemporaryDirectory() as tmp:
+        document = Path(tmp) / "concern.yaml"
+        document.write_text(text, encoding="utf-8")
+        try:
+            proc = run_command(
+                [bash, "-c", 'LC_ALL=C exec awk -f "$0" "$1"']
+                + [str(PARSER.with_name("yaml-subset.awk")), str(document)],
+                allowed_executables=(bash,),
+                check=False,
+            )
+        except (RuntimeError, ValueError, OSError) as exc:
+            raise PolicyReadError(f"the shared YAML parser failed: {exc}") from exc
+    if proc.returncode != 0:
+        raise PolicyReadError(f"the shared YAML parser exited {proc.returncode}")
+    records = {}
+    for line in proc.stdout.split("\n"):
+        key, _, value = line.partition("\t")
+        if key == FLOOR_PATHS_KEY or key.startswith(f"{FLOOR_PATHS_KEY}."):
+            records[key[len(FLOOR_PATHS_KEY) + 1 :]] = value
+    _FLOOR_ROWS[text] = rows = floor_rows(records)
+    return rows
+
+
 def _merge_names(text: str, key: str) -> bool:
     """Whether the top-level `merge` mapping holds `key` at all. The shared
     reader prints nothing for an empty or non-scalar value, as for an absent
@@ -645,6 +686,10 @@ class PipelineConfig:
     key unread. The gate combines the base's with the default branch head's
     (`stricter_config`)."""
 
+    @property
+    def floor(self) -> Floor:
+        return floor_for(self.floor_paths)
+
     base_sha: str
     rung: str
     authority: str | None
@@ -677,6 +722,9 @@ class PipelineConfig:
     # cap (`max_changed_lines` None: no line cap); a value other than true or
     # false turns a switch on. The local babysit lane ignores them.
     high_path_floor: bool = False
+    # `merge.diff-check.floor-paths`, the repository's rows joined to the
+    # built-in floor (`floor`). A row that does not parse turns the rung off.
+    floor_paths: FloorRows = ()
     # `merge.diff-check.path-holds`: absent or false, no changed path holds
     # a pull request for its path alone (owner decision Q15); true restores
     # the path floor, the configured denied paths and `review-path:`.
@@ -974,6 +1022,12 @@ def read_config_at(
         notes.append(f"merge.diff-check.max-changed-files {files!r} is not a count")
         rung, files = "off", None
 
+    try:
+        floor_paths = floor_paths_in(text)
+    except FloorRowError as exc:
+        notes.append(f"merge.diff-check.floor-paths: {exc}")
+        rung, floor_paths = "off", ()
+
     def switch(key: str) -> bool:
         value = scalar(key)
         if value not in (None, "true", "false"):
@@ -1104,6 +1158,7 @@ def read_config_at(
         dependabot_mode=dependabot_mode,
         dependabot_majors=dependabot_majors,
         high_path_floor=high_path_floor,
+        floor_paths=floor_paths,
         path_holds=path_holds,
         max_changed_files=int(files) if files else None,
         max_in_flight=int(in_flight_cap) if in_flight_cap else 1,
@@ -1139,7 +1194,7 @@ def _cap(a: int | None, b: int | None) -> int | None:
     return b if a is None else a if b is None else min(a, b)
 
 
-def _union(a: tuple[str, ...], b: tuple[str, ...]) -> tuple[str, ...]:
+def _union(a: tuple[Any, ...], b: tuple[Any, ...]) -> tuple[Any, ...]:
     return a + tuple(x for x in b if x not in a)
 
 
@@ -1183,6 +1238,7 @@ def stricter_config(base: PipelineConfig, main: PipelineConfig) -> PipelineConfi
         if "hold" in (base.dependabot_majors, main.dependabot_majors)
         else base.dependabot_majors,
         high_path_floor=base.high_path_floor or main.high_path_floor,
+        floor_paths=_union(base.floor_paths, main.floor_paths),
         path_holds=base.path_holds or main.path_holds,
         max_changed_files=_cap(base.max_changed_files, main.max_changed_files),
         max_queue_ejections=min(base.max_queue_ejections, main.max_queue_ejections),
@@ -1213,12 +1269,13 @@ SHARED_HEAD_CONFIGS: dict[str, str] = {}
 def _cached_config(value: Any) -> PipelineConfig | None:
     """A saved config, or None (a miss, read again) for anything a config
     read could not have produced."""
-    if not isinstance(value, dict):
+    if not isinstance(value, dict) or "floor_paths" not in value:
         return None
     try:
         c = PipelineConfig(
             **{k: tuple(v) if isinstance(v, list) else v for k, v in value.items()}
         )
+        c = replace(c, floor_paths=tuple(tuple(row) for row in c.floor_paths))
 
         def texts(t: Any) -> bool:
             return isinstance(t, tuple) and all(isinstance(x, str) for x in t)
@@ -1248,6 +1305,13 @@ def _cached_config(value: Any) -> PipelineConfig | None:
                     c.head_check_inputs,
                     c.issue_holds,
                 )
+            )
+            and all(
+                len(row) == 3
+                and isinstance(row[0], str)
+                and row[1] in FLOOR_ROW_CLASSES
+                and type(row[2]) is bool
+                for row in c.floor_paths
             )
             and all(
                 type(b) is bool
@@ -3054,8 +3118,9 @@ CARRY_REFUSES: tuple[str, ...] = (
 def ungated_since(merges: Any, hold_paths: Sequence[str] | None) -> bool:
     """Whether the compare start...H' `merges` touches no hold path and no
     file a hold path loads, old paths of renames included (merge-holds.mjs
-    `ungatedSince`): `hold_paths` and HIGH_FLOOR, REVIEW_FLOOR and
-    CARRY_REFUSES. H' ahead with nothing behind, its commit list read whole
+    `ungatedSince`): `hold_paths` and the built-in floor and
+    CARRY_REFUSES. The caller's `hold_paths` carry the repository's own floor
+    rows. H' ahead with nothing behind, its commit list read whole
     and fewer than the compare API's 300 files listed, each named."""
     compare = json_object(merges)
     files = compare.get("files")
@@ -3077,7 +3142,7 @@ def ungated_since(merges: Any, hold_paths: Sequence[str] | None) -> bool:
         previous = json_object(f).get("previous_filename")
         if isinstance(previous, str):
             paths.append(previous)
-    globs = (*HIGH_FLOOR, *hold_paths, *REVIEW_FLOOR, *CARRY_REFUSES)
+    globs = (*floor_for().all, *hold_paths, *CARRY_REFUSES)
     return not any(glob_match(g, p) for g in globs for p in paths)
 
 
@@ -5427,14 +5492,8 @@ def foreign_paths(
     return frozenset(paths.intersection(changed))
 
 
-# Paths never a trusted author's own, whoever wrote them: the HIGH path floor
-# itself, the entries a security review clears included, so an adopted pull
-# request's own lines hold there too.
-NEVER_FLOOR_EXEMPT = FLOOR
-
-
 # A model-driven App's own lines skip the denied paths and the manifest review
-# only here (owner decision Q14 (c), #9107), still less the paths above.
+# only here (owner decision Q14 (c), #9107), still less the floor (`own_paths`).
 MODEL_APP_OWN = ("plugins/*/scripts/**",)
 
 
@@ -5443,9 +5502,12 @@ def own_paths(
     pr: Mapping[str, Any],
     changed: Collection[str],
     only: tuple[str, ...] | None = None,
+    *,
+    floor: Floor,
 ) -> frozenset[str]:
     """The `changed` paths only the author's own commits touched
-    (`foreign_paths`), less `NEVER_FLOOR_EXEMPT`,
+    (`foreign_paths`), less every `floor` path, a security-cleared one included,
+    so an adopted pull request's own lines hold there too,
     and inside `only` when given: what the denied paths and manifest review leave out of an
     adopted pull request. Empty when the commits cannot be read."""
     others = foreign_paths(repo, pr, changed)
@@ -5455,7 +5517,7 @@ def own_paths(
         p
         for p in changed
         if p not in others
-        and not any(glob_match(g, p) for g in NEVER_FLOOR_EXEMPT)
+        and not any(glob_match(g, p) for g in floor.all)
         and (only is None or any(glob_match(g, p) for g in only))
     )
 
@@ -5466,8 +5528,9 @@ def author_reviewed_paths(
     changed: Collection[str],
     humans: Collection[int],
     verified: bool,
+    floor: Floor,
 ) -> frozenset[str]:
-    """The `changed` `gate` floor paths (`AUTHOR_REVIEW_FLOOR`) only the
+    """The `changed` `gate` floor paths (`Floor.author_review`) only the
     author's own commits touched (`foreign_paths`), when a person on the
     trusted-actor list (`humans`, `trusted_actors`' people) opened the pull
     request and pr-verify passed its head (`verified`): what
@@ -5481,7 +5544,7 @@ def author_reviewed_paths(
         return frozenset()
     if uid not in humans:
         return frozenset()
-    gate = [p for p in changed if any(glob_match(g, p) for g in AUTHOR_REVIEW_FLOOR)]
+    gate = [p for p in changed if any(glob_match(g, p) for g in floor.author_review)]
     others = foreign_paths(repo, pr, changed) if gate else frozenset()
     if others is None:
         return frozenset()

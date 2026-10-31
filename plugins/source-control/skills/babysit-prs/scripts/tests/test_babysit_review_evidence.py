@@ -21,8 +21,16 @@ from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_merge_policy as policy
 import babysit_review_evidence as ev
 import babysit_risk as risk
+
+# This repository's rows, which the floor paths below sit on.
+FLOOR_ROWS = policy.floor_paths_in(
+    (pathlib.Path(__file__).resolve().parents[6] / "docs/conventions/pr-pipeline.yaml").read_text(encoding="utf-8")
+)
+FLOOR = risk.floor_for(FLOOR_ROWS)
+
 
 FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures" / "review_evidence"
 PROBE = json.loads((FIXTURES / "probe_rerun_after_success.json").read_text())
@@ -570,6 +578,7 @@ class ReadOnlyWorkflowTests(Base):
                 changed_paths=("app.py", *files, *extra),
                 head_file=reader(files),
                 base_sha=base,
+                floor=FLOOR,
             )
         )
 
@@ -687,7 +696,7 @@ class ReadOnlyWorkflowTests(Base):
     ) -> None:
         floored = [
             path
-            for path, _ in risk.FLOOR_CLASSES
+            for path, _ in FLOOR.classes
             if ev.WORKFLOW_PATH_RE.match(path) and path not in ev.REVIEW_CALLERS
         ]
         self.assertIn(".github/workflows/pr-merge.yml", floored)
@@ -1408,11 +1417,11 @@ class MainRunReviewTests(Base):
         self.assertTrue(risk.holds(scored))
 
     def test_needs_main_review_matches_what_bind_reads(self) -> None:
-        self.assertTrue(ev.needs_main_review([self.SOURCE], fixed_head, None))
-        self.assertTrue(ev.needs_main_review(None, fixed_head, None))
-        self.assertTrue(ev.needs_main_review(["CLAUDE.md"], fixed_head, None))
-        self.assertFalse(ev.needs_main_review(["app.py"], fixed_head, None))
-        self.assertFalse(ev.needs_main_review([], fixed_head, None))
+        self.assertTrue(ev.needs_main_review([self.SOURCE], fixed_head, None, FLOOR))
+        self.assertTrue(ev.needs_main_review(None, fixed_head, None, FLOOR))
+        self.assertTrue(ev.needs_main_review(["CLAUDE.md"], fixed_head, None, FLOOR))
+        self.assertFalse(ev.needs_main_review(["app.py"], fixed_head, None, FLOOR))
+        self.assertFalse(ev.needs_main_review([], fixed_head, None, FLOOR))
 
 
 class RunSelectionTests(Base):

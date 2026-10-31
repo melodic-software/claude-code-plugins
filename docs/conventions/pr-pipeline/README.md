@@ -1064,13 +1064,16 @@ the rules that only tighten in
 - **Opt-in label.** `merge: agent-allowed` makes a pull request eligible; it does not make it safe,
   and the diff risk score still decides. It counts only when a human added it last and the pull
   request body was not edited afterwards.
-- **Narrow path floor.** A fixed set of globs in the wrapper's code, each with a class
-  (`babysit_risk.FLOOR_CLASSES`, the one table; `scripts/sync-hold-floor.py` writes its copies into
+- **Narrow path floor.** A set of globs, each with a class: `babysit_risk.FLOOR_CLASSES`, the paths
+  every consumer shares, joined to the repository's `merge.diff-check.floor-paths` rows
+  (`glob`, `class`, and on a `gate` row an optional `author-lift: false`, which keeps the row with a
+  person). A row can add to the floor and never drop or loosen a built-in row, and a row the loader
+  cannot use turns the rung off. `scripts/sync-hold-floor.py` writes the joined table's copies into
   `merge-holds.mjs` `HOLD_PATH_CLASSES`, the review callers' `hold-paths` and ci-status's
-  `hold_patterns`, and `test_merge_holds_sync.py` runs its `--check`; owner decisions
+  `hold_patterns`, and `test_merge_holds_sync.py` runs its `--check` (owner decisions
   Q-FLOOR (B),
   [Q-ENFORCE (A)](https://github.com/melodic-software/claude-code-plugins/pull/9826#issuecomment-6401599691)
-  and Q26 option B), matched case-insensitively whatever `high-path-floor` says, while
+  and Q26 option B). The floor matches case-insensitively whatever `high-path-floor` says, while
   `merge.diff-check.path-holds` is true (owner decision Q15 turns it off here):
   - `trust`, a person merges it: `.github/actions/request-lane-token/**`, which mints the lanes
     App token, `.github/actions/resolve-config/**`, whose code the token broker runs from main in
@@ -1114,7 +1117,7 @@ the rules that only tighten in
     request a person on the trusted-actor list opened, a `gate` path only that person's own
     commits touched clears as an `enforcement` path does (owner direction 2026-10-27: such pull
     requests merge without a person's review), on a head pr-verify passed
-    (`babysit_merge_policy.author_reviewed_paths`, `babysit_risk.AUTHOR_REVIEW_FLOOR`). A lanes App
+    (`babysit_merge_policy.author_reviewed_paths`, `babysit_risk.Floor.author_review`). A lanes App
     or other bot pull request, a lane's fix commit on a gate path, commits that do not read, and
     a path a `trust` glob or a configured denied path also matches keep the person's hold, so a
     lane changing its own powers is still merged by a person. The review's own surface above
@@ -1145,7 +1148,7 @@ the rules that only tighten in
     changes one binds its reviews only from main (see "Main-run review" below). A changed workflow file is
     not one when its head copy cannot post as `github-actions[bot]` with a write token nor reach a
     secret: a top-level `.yml` other than the two review callers and the floor workflows
-    (`babysit_risk.FLOOR`), present at the head, with every job's `permissions:` read-only and
+    (`babysit_risk.Floor.all`), present at the head, with every job's `permissions:` read-only and
     set explicitly, no `pull_request_target`, `workflow_run` or `workflow_call` trigger, no
     `secrets` reference but `secrets.GITHUB_TOKEN`, and `name:` equal to its file stem. A deleted
     workflow stays a lane source, and so does every floor workflow whatever its content. The `merge` and
@@ -1674,7 +1677,7 @@ and carries no hold: no `Hold:` line or "do not merge" in its body
 collaborator) whose newest comment, review or inline comment with text says "do not merge" (the
 gate's veto rule; a later comment lifts it), and whose head changes no path in the lane's
 `merge.diff-check.denied-paths` or on the [path floor](#merge-authority) (`merge-holds.mjs`
-`HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `babysit_risk.HIGH_FLOOR`), read on the files the head changes at each
+`HOLD_PATH_FLOOR`, the floor's `trust` and `gate` globs, equal to `babysit_risk.Floor.high`), read on the files the head changes at each
 run, unless a person on the trusted-actor list approved that head, or an earlier head it carries to, as `ci-status` reads it, and whose
 issue link and verifier verdict at that head pr-merge's gate would take:
 `babysit_verify_evidence.py evidence --lane-link` refuses nothing, so the link is one the gate's
@@ -1868,7 +1871,7 @@ back to them:
 The approval lifts no body hold or veto, and a read that fails lifts nothing. `enable-auto-merge`
 reads the same approvals and stops holding the pull request on the hold path, and the gate's risk
 score (`evidence --lane-reviews`, `lane_risk_refusal`) drops its `high-path:` reasons for a path
-on `babysit_risk.HIGH_FLOOR` or in `merge.diff-check.denied-paths` on the same approvals
+on `babysit_risk.Floor.high` or in `merge.diff-check.denied-paths` on the same approvals
 (`babysit_merge_policy.path_lifters` and `carried_lifters`, which `test_merge_holds_sync.py`
 holds equal to `pathLifters`, `liftsOf` and `baseMergeCarry`), so its other checks decide. The
 approval lifts no aliasing path, symlink, submodule or mode change (`high-path:**`), cost,
@@ -2579,12 +2582,12 @@ defines it) or `critical-security`. `hold-paths` only flags the files it names f
 scrutiny; a match never holds by itself. The security lane reads such a file's whole change and
 what it gates, and only a CRITICAL finding there holds. The callers name
 `.github/standards/trusted-actors/**`, every entry of the narrow path floor above
-(`babysit_risk.FLOOR`, every class), and the security review's own criteria and eval cases
+(`Floor.all`, every class), and the security review's own criteria and eval cases
 (`plugins/review/skills/security-review/**`, `plugins/review/evals/security-review-*/**`). All but
 those last two are also the trust-gate paths ci-status's exempt-author and agent App check below
 fails on.
 `scripts/sync-hold-floor.py` writes both callers' `hold-paths` and that check's `hold_patterns`
-from `babysit_risk.FLOOR`, and `test_merge_holds_sync.py` checks that each matches every floor
+from that floor, and `test_merge_holds_sync.py` checks that each matches every floor
 entry.
 
 No ruleset requires a review check (github-iac ADR 0017); ci-status, the one required check, enforces
