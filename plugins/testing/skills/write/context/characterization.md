@@ -4,10 +4,10 @@ Use this route when the task changes code whose current behavior must be kept: a
 migrate or port, or a refactor of legacy code with thin tests. The old implementation, or its
 recorded output, is the oracle for the new one.
 
-These tests are **pins, not correctness claims**. A recorded baseline asserts that the output is
-the same as before, so a bug in the old code is pinned along with everything else. Name them as
-pins (in the test name or a one-line comment) so nobody later reads them as a specification, and
-follow `testing:test-value` for where a pin's expected value may come from.
+These tests are **pins, not correctness claims**: a recorded baseline pins a bug in the old code
+along with everything else. Name them as pins (in the test name or a one-line comment) so nobody
+reads them as a specification, and follow `testing:test-value` for where a pin's expected value may
+come from.
 
 ## Three shapes
 
@@ -29,15 +29,15 @@ Feathers' recipe, per behavior you are about to touch:
 5. Commit the pins on their own, before the change, so the history shows the baseline.
 
 After the change, delete each pin or rewrite it as a specification test whose expected value comes
-from intent. Pins left behind turn every later intended change into a re-approval.
+from intent; a pin left behind turns every later intended change into a re-approval.
 
 ## Harness shape for approval and differential tests
 
 - **Recorded corpus.** Real inputs (captured requests, production-shaped fixtures, the existing
   test data) fed to both sides, persisted with the tests so a run can be reproduced. This is the
-  base. Random or property-generated inputs (see [property.md](property.md)) are an optional extra:
-  the claim that they catch bugs a recorded corpus misses rests on LOW evidence in the research, so
-  do not treat them as a substitute for the corpus.
+  base. Random or property-generated inputs (see [property.md](property.md)) are an optional extra,
+  never a substitute: the claim that they catch bugs a recorded corpus misses rests on LOW evidence
+  in the research.
 - **Comparator.** One function that decides equal or not, strict by default. Compare outputs and
   observable effects, not internal state.
 - **Scrubbers for nondeterminism.** Normalize timestamps, generated ids, ordering of unordered
@@ -50,8 +50,8 @@ from intent. Pins left behind turn every later intended change into a re-approva
   comparator skips a mismatch only through a ledger entry. Never widen the comparator, add a
   blanket scrubber, or re-approve a snapshot to turn a run green.
 - **Failure report that names the input.** On a mismatch, print the input (or its corpus id), the
-  old output, the new output, the diff, and whether any ledger entry was close. A report that says
-  only "outputs differ" cannot be acted on.
+  old output, the new output, the diff, and whether any ledger entry was close, never only
+  "outputs differ".
 - **Counts, not "tests pass".** Report inputs run, mismatches, mismatches covered by each ledger id,
   and unexplained mismatches. Any unexplained mismatch means the replacement is not done.
 
@@ -60,9 +60,9 @@ write, a send, a charge) runs the new side against an isolated sink.
 
 ## Re-approving a changed snapshot
 
-A snapshot your own change broke is a finding, not paperwork. Read the diff, decide whether it is
-an intended difference (add a ledger entry or say why in the commit) or a regression (fix the
-code), and only then re-approve. Re-approving in bulk records whatever bug produced the diff.
+A snapshot your own change broke is a finding. Read the diff, decide whether it is an intended
+difference (add a ledger entry or say why in the commit) or a regression (fix the code), and only
+then re-approve. Never re-approve in bulk: that records whatever bug produced the diff.
 
 ## Sources
 

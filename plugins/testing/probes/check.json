@@ -1,0 +1,35 @@
+{
+  "skill": "testing:check",
+  "plugin": "testing",
+  "skill_dir": "plugins/testing/skills/check",
+  "ranking_note": "Authored by a fresh agent from the before description at commit 480308656535791fd9959cf259b49239f1186992, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Near-misses target the sibling prerequisite checks of other plugins (autonomy:check, guardrails:check, source-control:check), the fleet-wide harness-ops:prerequisites report, and toolchain:check (build and test).",
+  "competitors": [
+    "autonomy:check",
+    "guardrails:check",
+    "source-control:check",
+    "harness-ops:prerequisites",
+    "toolchain:check"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "I got a notice that the testing hook couldn't find jq. Can you confirm whether the tools it needs are installed?"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "Is the hook that catches weakened tests actually able to run on this machine? Make sure node is there for it."},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "Before I trust that test-weakening guard, verify its dependencies resolve. Don't install anything."},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "testing plugin hook says node missing. what's the status of node and jq here for it?"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "Quick sanity check: does the testing plugin have what it needs, node and jq, to run its hooks?"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "I loosened an assertion in a test and nothing warned me. Did the test-weakening hook even have node available?"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "Saw 'jq not found' from the testing hooks after a fresh WSL install. Check what resolves for that plugin, read-only please."},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "does the testing plugin's hook have its prerequisites on this box?"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "Verify the binaries the testing hooks rely on are on PATH, without changing anything."},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "A hook warning mentioned the testing plugin and a missing node. Can you look into whether that's true?"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "The guardrails hooks complain that jq is missing. Check whether their tools resolve."},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "Does the autonomy plugin's lane-stop gate have node and jq available?"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "Source-control hooks say node isn't found. Is that right?"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "Give me a list of every external tool my enabled plugins need and which of them are missing."},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "Run the build and tests for the files I changed."},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "Write me a haiku about autumn."},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "Did the source-control commit gates actually run? The notice said jq is missing."},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "Which CLIs declared by my installed plugins are absent on this host?"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "Does this still compile and pass its tests after my edit?"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "Guardrails hooks: is node resolvable for them on this machine?"}
+  ]
+}

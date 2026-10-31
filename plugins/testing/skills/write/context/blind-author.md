@@ -1,20 +1,19 @@
 # Blind Test Author Mode
 
 An opt-in mode: a separate subagent writes the acceptance tests from the spec, without reading the
-implementation, and those tests are committed before implementation starts. The implementer may
-run them but may not edit them. The point is that the agent doing the work is not the one writing
-the check that grades it.
+implementation, and they are committed before implementation starts. The implementer may run them
+but not edit them, so the agent doing the work is not the one writing the check that grades it.
 
-The default cadence in [write.md](write.md), where one agent writes each test and then its code,
-stays the default. Choose this mode when the user asks for it, and recommend it for:
+The cadence in [write.md](write.md), one agent writing each test and then its code, stays the
+default. Choose this mode when the user asks for it, and recommend it for:
 
 - **Unattended work** (a loop, a dispatched worker, a run nobody reviews until the PR), where no
   human reads the tests before they are trusted.
 - **HIGH-risk work**: the cases the `advisor` checkpoint in SKILL.md names (new domain logic,
   security-critical behavior, regression-prone paths).
 
-Skip it for trivial changes and for work with no written acceptance criteria; without a spec, the
-blind author has nothing independent to write from. Get the criteria first (`/planning:interview`
+Skip it for trivial changes and for work with no written acceptance criteria, which leaves the
+blind author nothing independent to write from. Get the criteria first (`/planning:interview`
 when the `planning` plugin is enabled).
 
 ## Steps
@@ -51,8 +50,8 @@ when the `planning` plugin is enabled).
    [Basis and limits](#basis-and-limits), as of 2026-10-11; recheck when that section's
    file-path deny pointer moves or is dropped), so the check above stays the gate.
 5. **Review for special-casing.** A frozen test stops test edits, not code that recognizes the
-   tested inputs and returns the expected values for them. Read the implementation diff for
-   branches keyed to test data before trusting the green run.
+   tested inputs and returns their expected values. Read the implementation diff for branches
+   keyed to test data before trusting the green run.
 
 ## Basis and limits
 

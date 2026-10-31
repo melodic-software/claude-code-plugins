@@ -1,0 +1,17 @@
+{
+  "pass": [
+    {
+      "answer": "Expect a line whose result has protocolVersion and serverInfo.name \"ticket-mcp\"."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "You should see a JSON response.",
+      "why": "no fields named"
+    }
+  ]
+}

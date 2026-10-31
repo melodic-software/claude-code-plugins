@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "```python\ndef test_total_sums_line_amounts():\n    assert total([(2, 250), (1, 999)]) == 1499\n```"
+    },
+    {
+      "answer": "self.assertEqual(total(lines), 1499)"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "assert total(lines) == sum(q * p for q, p in lines)",
+      "why": "still recomputed"
+    },
+    {
+      "answer": "The expected total is 1499.",
+      "why": "names the value but writes no assertion"
+    }
+  ]
+}

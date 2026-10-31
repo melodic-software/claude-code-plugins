@@ -21,7 +21,7 @@ Keep example tests for the cases a reader needs to see spelled out (the document
 bug that was reported), and for logic with few inputs, where a property adds nothing a table of
 cases does not.
 
-Two rules the patterns below do not name are worth checking for first:
+Check first for two rules the patterns below do not name:
 
 - **A conserved quantity.** Something the operation must neither create nor lose: the shares of a
   split bill add up to the bill, a partition holds every input element once, a transfer leaves the
@@ -30,15 +30,15 @@ Two rules the patterns below do not name are worth checking for first:
   schedule has no overlapping slots, pages never exceed the page size and their lengths add up to
   the item count, a top-k result holds k items none smaller than an item it dropped.
 
-If no rule of any kind holds, write examples instead. A property whose only check is that the call
-did not raise tells you little more than one example would.
+If no rule of any kind holds, write examples instead: a property that only checks the call did not
+raise tells little more than one example.
 
 ## State the property before reading the code
 
-Write each property from stated intent: the spec, the acceptance criteria, the issue, the
-docstring, the type, the way callers use the code. Do that before reading the implementation. A
-property read off the implementation restates it, the same defect `testing:test-value` §1 forbids
-for expected values, and it passes when the code is wrong. LLM-written properties are often
+Write each property from stated intent (the spec, the acceptance criteria, the issue, the
+docstring, the type, the way callers use the code) before reading the implementation. A property
+read off the implementation restates it, the defect `testing:test-value` §1 forbids for expected
+values, and passes when the code is wrong. LLM-written properties are often
 unsound (the property does not actually hold) or superficial (a wrong implementation also
 satisfies it). That was measured on LLM property generators over Python libraries and benchmark
 functions, and the transfer to an agent writing properties for its own code is inferred.
@@ -72,7 +72,7 @@ rule that an expected value needs a source outside the code under test.
 ## Generators
 
 Leave generators unconstrained unless the code's contract requires a constraint: an unbounded list
-strategy, not one capped at 100 items "to be safe". Every constraint is a region the search never
+strategy, not one capped at 100 items "to be safe"; every constraint is a region the search never
 visits. Generate only inputs the code can legitimately receive (sound), and as many of those as is
 practical (complete); a sound, mostly complete generator beats an elaborate one.
 
@@ -108,7 +108,7 @@ or seed, or renames these parameters.
 
 ## Show the property can fail
 
-A property that has never failed is unproven. Before relying on one, give it evidence: run
+A property that has never failed is unproven. Before relying on one, run
 `/mutation-testing:audit --exercised <test-path>` (when the `mutation-testing` plugin is enabled)
 and confirm the property kills mutants in the code it covers, or add a known-bad input the property
 must reject as an expected-fail example (Hypothesis `@example(...).xfail()`). A property that

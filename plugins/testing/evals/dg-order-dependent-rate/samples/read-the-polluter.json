@@ -1,0 +1,20 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/ws/tests/test_campaigns.py\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Grep\",\"input\":{\"pattern\":\"RATES\\\\[\",\"path\":\"tests\",\"output_mode\":\"content\"}}]}}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty trace"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Read\",\"input\":{\"file_path\":\"/tmp/ws/tests/test_pricing.py\"}}]}}\n",
+      "why": "read only the failing test"
+    }
+  ]
+}
