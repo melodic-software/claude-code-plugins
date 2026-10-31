@@ -2228,9 +2228,10 @@ them, `upstream-jobs.json` (`upstream-jobs.mjs`), lists the jobs of the pr-requi
 judgment was started by, each with its name and conclusion, read with the job's own token: the
 verifier judges from it whether the suites that cover the changed files ran, and runs no test or
 eval itself. A label or body-edit re-run skips `select-tests` and every suite, so its list is no
-evidence either way. The diff is split at file boundaries into at most 4 chunks of at most 300000 bytes, each file whole
-(`chunk-diff.sh`, `split-diff.py`; the same budget as `pr-review-main`), and each chunk gets its own
-judge step with the same spec, cut into parts one Read returns whole. `manifest.txt` names the part
+evidence either way. The diff is split at file boundaries into as many chunks of at most 300000
+bytes as it takes, up to 12 (`MAX_CHUNKS` in `chunk-diff.sh`, which holds a 3 MB diff), each file
+whole (`chunk-diff.sh`, `split-diff.py`; the same chunk budget as `pr-review-main`), and each chunk
+gets its own judge step with the same spec, cut into parts one Read returns whole. `manifest.txt` names the part
 each file starts in, so a judge reads another chunk's part when its change references a file there
 and judges both sides. A `pass` or `pass-notes` counts only when the run read every part whole with
 no permission denial; a `fail` needs the schema, no denial and, when it read short, a defect in its
@@ -2245,7 +2246,7 @@ With no output from it, off the schema, or with a denial, and no counted fail, t
 verdict, so no chunk's `pass-notes` passes a chunked head alone. A single chunk has no final step. A chunk that fails, leaves no verdict or
 is off the schema leaves no verdict for the head, and a handoff from any chunk hands the whole
 judgment to the next leg, which judges every chunk again. A file over 300000 bytes, or a diff that
-needs more than 4 chunks (over about 1.2 MB), ends the run red with no verdict and an error naming
+needs more than 12 chunks (over about 3.6 MB), ends the run red with no verdict and an error naming
 the file or the chunk count, so size alone writes no `fail`. With no verdict `verdictHold` holds the
 head, the trusted approval of the head lifts that, and a `pr-verify-failed` label stays. The diff
 step logs a `pr-verify chunks` notice, and the verdict step a `pr-verify chunk` notice per chunk. The run

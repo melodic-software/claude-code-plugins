@@ -260,6 +260,23 @@ def test_next_tool_is_read_per_file_and_only_for_hook_denials():
 
 
 @pytest.mark.parametrize(
+    ("name", "command", "polling"),
+    [
+        ("Monitor", "tail -f /tmp/task-output.log", 0),
+        ("Monitor", "gh run watch 123 --exit-status", 0),
+        ("Monitor", "while true; do gh pr view 7 --json state; sleep 30; done", 1),
+        ("Bash", "sleep 60; gh pr view 7 --json state", 1),
+        ("Bash", "gh pr view 7 --json state", 0),
+    ],
+)
+def test_polling_calls_counts_poll_loops_not_event_waits(name, command, polling):
+    scan = friction_scan.FrictionScan("/w/repo")
+    scan.start_file("main", None)
+    scan.add(call("t1", name, command=command))
+    assert scan.perf["polling_calls"] == polling
+
+
+@pytest.mark.parametrize(
     ("decision", "kinds"),
     [
         ({"decision": "accept", "source": "user_temporary"}, ["prompt-approved"]),
