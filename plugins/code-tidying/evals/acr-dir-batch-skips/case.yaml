@@ -44,5 +44,5 @@ graders:
     flags: i
   - name: batch-total
     type: regex
-    pattern: '^(?![^\n]*(?<!tier[ -])\b[1-9]\d*\**\s+(?:Tier[ -]2|(?:(?:comments?|findings?)\s+)?(?:to |needs? |for )?review\w*)\b|[^\n]*\btier[ -]2\b:?\**\s*[1-9]|[^\n]*\b(?:one|two|three|four|five)\s+tier[ -]2\b)[^\n]*?\btotals?\b[^\n\d]*\b2\**\s+(?:code\s+)?files?\b[^\n]*?\b2\**\s+(?:Tier[ -]1|(?:(?:comments?|findings?)\s+)?(?:(?:to|must|for)\s+(?:be\s+)?)?(?:remov|delet)\w*)\b'
+    pattern: '^(?![^\n]*(?<!tier[ -])\b[1-9]\d*\**\s+(?:Tier[ -]2|(?:(?:comments?|findings?)\s+)?(?:to |needs? |for )?review\w*)\b|[^\n]*\btier[ -]2\b:?\**\s*[1-9]|[^\n]*\b(?:one|two|three|four|five)\s+tier[ -]2\b)[^\n]*?\btotals?\b[^\n\d]*\b2\**\s+(?:code\s+)?files?\b[^\n]*?\b2\**\s+(?:Tier[ -]1|(?:(?:comments?|findings?)\s+)?(?:(?:to|must|for)\s+(?:be\s+)?)?(?:remov|delete|deleti|deleta)\w*)\b'
     flags: mi
