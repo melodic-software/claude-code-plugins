@@ -994,17 +994,20 @@ disposition to the operator.
 **Per-cycle usage sample (measure-only).** No lane's spend was measured: nothing recorded how much
 of the shared subscription windows a cycle consumed. Each lane therefore records a `usage_sample` in
 that same durable-state block every cycle, holding the two window percentages the rate-limit guard
-(§6) already read that cycle plus the rise since the previous sample. The reading is already in hand,
-so measuring costs nothing beyond the write. **The one permitted readback.** The previous cycle's
-sample is read back for exactly one purpose: deriving the new sample's `five_hour_delta_pct` from its
-`five_hour_pct`, covering the subtraction and the rollover comparison deciding whether a delta is
-written at all. That derivation is the field's only permitted consumer. No other read is permitted, and the
-value never reaches a decision at any threshold, in a lane or in any gate a lane runs: not pacing,
-backoff, an adaptive or item cap, a merge rung, admission, escalation, a warning, or a pause. **The delta measures the preceding interval.** The guard reading is taken at cycle start,
-before that cycle's own work, so `at` is the cycle-start observation time and `five_hour_delta_pct` is
-the rise between the previous cycle's reading and this one: it covers the interval **preceding** the
-cycle whose report carries it, and that cycle's own consumption lands in the next cycle's sample. Read
-the series as a lagging one. Measure first; whether the data supports acting on it is a later,
+(§6) already read that cycle plus each window's rise since the previous sample. The reading is
+already in hand, so measuring costs nothing beyond the write. **The one permitted readback.** The
+previous cycle's sample is read back for exactly one purpose: deriving the new sample's
+`five_hour_delta_pct` and `seven_day_delta_pct` from its `five_hour_pct` and `seven_day_pct`,
+covering each subtraction and the rollover comparison deciding whether that delta is written at all.
+That derivation is the delta fields' only permitted consumer. Both deltas are kept, each independent
+of the other, because an account may report only some of the windows, and the five-hour delta alone
+left such an account with no rate measure. No other read is permitted, and no sample field reaches a
+decision at any threshold, in a lane or in any gate a lane runs: not pacing, backoff, an adaptive or
+item cap, a merge rung, admission, escalation, a warning, or a pause. **The delta measures the
+preceding interval.** The guard reading is taken at cycle start, before that cycle's own work, so
+`at` is the cycle-start observation time and each delta is the rise between the previous cycle's
+reading and this one: it covers the interval **preceding** the cycle whose report carries it, and
+that cycle's own consumption lands in the next cycle's sample. Read the series as a lagging one. Measure first; whether the data supports acting on it is a later,
 separately decided question. Three properties bound that decision, stated here once and held by
 citation from each lane body: the reading is a snapshot no fresher than the guard's staleness rule
 allows, from a **machine-local**, last-writer-wins file that rate-limit-guard's mod writes in

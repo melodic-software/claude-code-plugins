@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet run --project src/Tarnquill.Cli -- branch start 42 \"Fix paging\" --dry-run"}}],
+      "why": "dotnet run with the new command"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "make tq ARGS=\"branch start 42 'Fix login timeout' --dry-run --json\""}}],
+      "why": "through the Makefile tq target"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "make build"}},
+        {"tool": "Bash", "input": {"command": "dotnet src/Tarnquill.Cli/bin/Debug/net10.0/tq.dll branch start --help; echo \"exit=$?\""}}
+      ],
+      "why": "the built dll with --help, after a build"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet run --project src/Tarnquill.Cli/Tarnquill.Cli.csproj --no-build -- branch start abc x; echo $?"}}],
+      "why": "a usage-error probe with a flag before the separator"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cd src/Tarnquill.Cli && dotnet run -c Release -- branch start 42 \"Fix paging\" --json"}}],
+      "why": "dotnet run from the project directory, with a flag value"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet run --project src/Tarnquill.Cli/ -- branch start 42 x --dry-run"}}],
+      "why": "a trailing slash on the project path"
+    }
+  ],
+  "fail": [
+    {"answer": []},
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -rn \"branch start\" src docs"}}],
+      "why": "near miss: searches for the text without running the command"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -n \"tq branch start\" docs/conventions/developer-experience.md"}}],
+      "why": "near miss: searches for the Tools line, tq prefix included"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "git add -A && git commit -m \"add tq branch start\""}}],
+      "why": "near miss: the command name inside a commit message"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "make build && make check"}}],
+      "why": "near miss: builds and runs the checks, never the command"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "git branch --list 'work/*'"}}],
+      "why": "answer to a different question: lists branches"
+    }
+  ]
+}

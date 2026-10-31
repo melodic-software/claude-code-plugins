@@ -126,7 +126,7 @@
 import { appendFileSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { commitPulls, errorLabel } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { fixRequesters, HOLD_LINE, humanGatedLabelFrom, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
@@ -969,7 +969,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
       signal,
     });
     if (!response.ok) {
-      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { rateLimited: response.rateLimited === true });
+      throw Object.assign(new Error(`${method} ${url} returned ${response.status}`), { rateLimited: response.rateLimited === true, detail: await responseDetail(response) });
     }
     return response.status === 204 ? {} : response.json();
   }
@@ -1012,7 +1012,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
         return "none";
       }
       if (!response.ok) {
-        throw new Error(`GET ${url} returned ${response.status}`);
+        throw Object.assign(new Error(`GET ${url} returned ${response.status}`), { detail: await responseDetail(response) });
       }
       return (await response.json()).permission;
     },
@@ -1273,15 +1273,19 @@ export async function main(env, { api, github, resolveSlot, verifyCapped, log = 
   return 0;
 }
 
+// The step's error annotation for a failed run. A thrown fetch names its
+// cause only in error.cause; the label carries its code, never its message,
+// which can hold a header value. A refused GitHub call adds its answer's detail.
+export const failureAnnotation = (error) =>
+  `::error::pr-feedback dispatch failed: ${error.message}${error?.cause?.code ? ` (${errorLabel(error)})` : ""}${detailSuffix(error)}`;
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main(process.env).then(
     (code) => {
       process.exitCode = code;
     },
     (error) => {
-      // A thrown fetch names its cause only in error.cause; the label carries its
-      // code, never its message, which can hold a header value.
-      console.log(`::error::pr-feedback dispatch failed: ${error.message}${error?.cause?.code ? ` (${errorLabel(error)})` : ""}`);
+      console.log(failureAnnotation(error));
       process.exitCode = 1;
     },
   );

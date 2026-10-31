@@ -136,8 +136,8 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # Skips the review while Actions or npm installs report a degraded
-      # component, with a logged reason; fails open
+      # Skips the review while Actions or npm installs list an outage, with a
+      # logged reason; fails open
       # (.github/actions/check-upstream-status).
       - name: Check upstream status
         id: upstream
@@ -157,7 +157,10 @@ jobs:
           if [ "$PROCEED" = true ] && [ "$LANE_SWITCH" != true ] && [ "$UPSTREAM_DEGRADED" != true ]; then
             echo "proceed=true" >>"$GITHUB_OUTPUT"
           elif [ "$UPSTREAM_DEGRADED" = true ]; then
-            echo "::notice::a degraded upstream component stops this review; no verdict, so the lane stays unbound"
+            # A failed leg before its review: the lost-run reconciler re-runs
+            # the run once with a record (reconcile.mjs RECORDED_LANES).
+            echo "::error::an upstream outage stops this review; the lost-run reconciler re-runs it once GitHub Actions is operational"
+            exit 1
           else
             echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi
@@ -907,8 +910,8 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # Skips the review while Actions or npm installs report a degraded
-      # component, with a logged reason; fails open
+      # Skips the review while Actions or npm installs list an outage, with a
+      # logged reason; fails open
       # (.github/actions/check-upstream-status).
       - name: Check upstream status
         id: upstream
@@ -928,7 +931,10 @@ jobs:
           if [ "$PROCEED" = true ] && [ "$LANE_SWITCH" != true ] && [ "$UPSTREAM_DEGRADED" != true ]; then
             echo "proceed=true" >>"$GITHUB_OUTPUT"
           elif [ "$UPSTREAM_DEGRADED" = true ]; then
-            echo "::notice::a degraded upstream component stops this review; no verdict, so the lane stays unbound"
+            # A failed leg before its review: the lost-run reconciler re-runs
+            # the run once with a record (reconcile.mjs RECORDED_LANES).
+            echo "::error::an upstream outage stops this review; the lost-run reconciler re-runs it once GitHub Actions is operational"
+            exit 1
           else
             echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi
@@ -1682,8 +1688,8 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # Skips the review while Actions or npm installs report a degraded
-      # component, with a logged reason; fails open
+      # Skips the review while Actions or npm installs list an outage, with a
+      # logged reason; fails open
       # (.github/actions/check-upstream-status).
       - name: Check upstream status
         id: upstream
@@ -1703,7 +1709,10 @@ jobs:
           if [ "$PROCEED" = true ] && [ "$LANE_SWITCH" != true ] && [ "$UPSTREAM_DEGRADED" != true ]; then
             echo "proceed=true" >>"$GITHUB_OUTPUT"
           elif [ "$UPSTREAM_DEGRADED" = true ]; then
-            echo "::notice::a degraded upstream component stops this review; no verdict, so the lane stays unbound"
+            # A failed leg before its review: the lost-run reconciler re-runs
+            # the run once with a record (reconcile.mjs RECORDED_LANES).
+            echo "::error::an upstream outage stops this review; the lost-run reconciler re-runs it once GitHub Actions is operational"
+            exit 1
           else
             echo "::notice::a kill switch stops this review (lanes: ${REASON:-unreadable}, lane: ${LANE_SWITCH:-unset}); no verdict, so the lane stays unbound"
           fi

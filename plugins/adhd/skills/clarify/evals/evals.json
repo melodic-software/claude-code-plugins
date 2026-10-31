@@ -30,14 +30,15 @@
     {
       "id": 3,
       "name": "artifact-forward-decision-table-two-numbering-systems",
-      "prompt": "break this down, this is a wall of text",
-      "expected_output": "For decision-dense content, renders a decision table with numbered rows and the columns item | recommendation | alternative | what-you're-deciding. The row number (the table's own) is used for answer-mapping; the item column carries the original identifier as a back-link — the two numbering systems stay distinct. Recommendation and alternative cells carry verbatim operative terms. If the Artifact surface is available it publishes an HTML artifact (after loading artifact-design); otherwise it degrades to a local HTML file or structured terminal markdown.",
+      "prompt": "break this down, this is a wall of text. (Fixture: no rendered-views layer exists, so no medium is set.)",
+      "expected_output": "For decision-dense content, renders a decision table with numbered rows and the columns item | recommendation | alternative | what-you're-deciding. The row number (the table's own) is used for answer-mapping; the item column carries the original identifier as a back-link — the two numbering systems stay distinct. Recommendation and alternative cells carry verbatim operative terms. With no medium set, the shipped default decides: if the Artifact surface is available it publishes an HTML artifact (after loading artifact-design); otherwise it degrades to a local HTML file or structured terminal markdown. The output says the shipped default decided the medium.",
       "files": [],
       "expectations": [
         "Produces a decision table with the columns item | recommendation | alternative | what-you're-deciding",
         "Uses distinct numbering: the table's own row number for answer-mapping and the original item number as a back-link",
         "Recommendation/alternative cells carry verbatim operative terms, not paraphrase",
-        "Selects the render medium (published artifact / local HTML file / terminal markdown) by artifact-surface availability and content size"
+        "With no medium set, selects the render medium (published artifact / local HTML file / terminal markdown) by artifact-surface availability and content size",
+        "Names the shipped default as the source of the medium"
       ]
     },
     {
@@ -99,6 +100,33 @@
         "Recognizes 'ELI5' plus 'the picture version' as a medium request and routes to education:illustrate, not education:explain",
         "Does not produce a diagram or visual explainer itself, and does not treat the request as a cue to restructure the message instead",
         "Keeps the three lanes distinct: structure here, prose altitude at education:explain, visual medium at education:illustrate"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "user-global-file-medium-keeps-decision-table-local",
+      "prompt": "break this down, this is a wall of text. (Fixture: the previous assistant response holds five open decisions; the Artifact tool is present; ~/.claude/rendered-views.md contains only 'medium: file'; the repo has no rendered-views layer; no --medium argument was given.)",
+      "expected_output": "Resolves medium from the rendered-views layers before choosing a rung, reads medium: file from the user-global layer, and writes the decision table as a self-contained local HTML file in the OS temp directory, handing back its path. It does not publish an Artifact even though the Artifact tool is present, and it names ~/.claude/rendered-views.md as the layer that supplied the medium.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves medium from the rendered-views layers before choosing a rung",
+        "Writes a local HTML file and hands back its path",
+        "Does not call the Artifact tool or publish to claude.ai, although the tool is present",
+        "Names ~/.claude/rendered-views.md as the source of the medium"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "team-layer-artifact-does-not-publish",
+      "prompt": "make this clear. (Fixture: the previous assistant response holds four open decisions; the Artifact tool is present; the repo's tracked .claude/rendered-views.md says 'medium: artifact'; no user-global layer or overlay exists; no --medium argument was given.)",
+      "expected_output": "Reads medium: artifact from the team layer, reports that a team-layer publishing value does not publish because a checked-out branch can write it, and keeps the decision table in a local HTML file instead of publishing an Artifact. Names the team layer as the source it read and says why it was not honored.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not publish an Artifact on the strength of the team-layer medium: artifact",
+        "Keeps the decision table in a local HTML file",
+        "Reports the team-layer value and why it does not publish"
       ]
     }
   ]

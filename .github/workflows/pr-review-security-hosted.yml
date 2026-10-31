@@ -168,8 +168,8 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # Skips the run while Actions or npm installs report a degraded component,
-      # with a logged reason; fails open (.github/actions/check-upstream-status).
+      # Skips the run while Actions or npm installs list an outage, with a
+      # logged reason; fails open (.github/actions/check-upstream-status).
       - name: Check upstream status
         id: upstream
         if: steps.kill.outputs.proceed == 'true'
@@ -184,6 +184,19 @@ jobs:
           LANE_SWITCH: ${{ vars.CLAUDE_SECURITY_REVIEW_DISABLED }}
         run: |
           echo "::notice::a kill switch stops this security review (lanes: ${REASON:-unreadable}, CLAUDE_SECURITY_REVIEW_DISABLED: ${LANE_SWITCH:-unset})"
+
+      # A skip fails this job, so the run is a failed first attempt: the
+      # lost-run reconciler re-runs it once GitHub Actions is operational
+      # (reconcile.mjs `upstream`), the merge gate binds that re-run on this
+      # error (babysit_review_evidence UPSTREAM_STOP_RE), and ci-status names
+      # the stop. The reason is the gate's own one-line output.
+      - name: Stop on upstream status
+        if: steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded == 'true' && vars.CLAUDE_SECURITY_REVIEW_DISABLED != 'true'
+        env:
+          REASON: ${{ steps.upstream.outputs.reason }}
+        run: |
+          echo "::error::an upstream outage stops this security review (${REASON:-unknown}); the lost-run reconciler re-runs it once GitHub Actions is operational"
+          exit 1
 
       - name: Log the API budget at the end
         if: always()

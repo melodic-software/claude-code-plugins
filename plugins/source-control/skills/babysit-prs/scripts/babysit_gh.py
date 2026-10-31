@@ -2693,12 +2693,13 @@ def collect_lane_runs(
                     if str(job.get("name") or "").rsplit(" / ", 1)[-1] == job_suffix
                 ]
                 for job in jobs:
-                    # With no lane job, the kill-switch notice shows the review
-                    # never started (`babysit_review_evidence.rerun_binds`).
+                    # With no lane job, the kill-switch notice, or the
+                    # upstream-status error that failed the job, shows the
+                    # review never started (`babysit_review_evidence.rerun_binds`).
                     if job in lane_jobs or (
                         not lane_jobs
                         and job.get("name") == "kill-switch"
-                        and job.get("conclusion") == "success"
+                        and job.get("conclusion") in ("success", "failure")
                     ):
                         job["annotations"] = pages(
                             f"repos/{repo}/check-runs/{job.get('id')}/annotations"
