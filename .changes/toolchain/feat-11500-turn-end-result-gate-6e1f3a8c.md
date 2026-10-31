@@ -16,3 +16,5 @@ bump: minor
   default) warns and blocks nothing, `enforce` also blocks the stop once on a recorded `FAIL`,
   and `off` prints nothing. `enforce` never blocks on `INCOMPLETE`, `STOPPED`, a missing or
   unreadable record, or a missing git.
+- A SessionStart notice names `/toolchain:check-prerequisites` when node is not on PATH, since the
+  Stop hook launches through node and cannot report its own absence.
