@@ -32,7 +32,8 @@ assert_eq() {
 }
 
 # The stub: logs its arguments, fails when a fail-<key> marker exists, and
-# otherwise prints the fixture for the request.
+# otherwise prints the fixture for the request; a pr list reads prs-<limit>.json
+# when that fixture exists, else prs.json.
 STUB_BIN="$TEST_TMPDIR/bin"
 mkdir -p "$STUB_BIN"
 # shellcheck disable=SC2016 # the stub's own source, expanded when it runs
@@ -49,6 +50,8 @@ printf '%s\n' '#!/usr/bin/env bash' \
   '  repos/*/pulls/*/reviews) n="${a%/reviews}"; key="reviews-${n##*/}" ;;' \
   '  number=*) key="threads-${a#number=}" ;;' \
   '  esac' \
+  '  [[ "$key" == prs && "$prev" == --limit && -f "$FIX/prs-$a.json" ]] && key="prs-$a"' \
+  '  prev="$a"' \
   'done' \
   '[[ -n "$key" && ! -e "$FIX/fail-$key" && -f "$FIX/$key.json" ]] || exit 1' \
   'cat "$FIX/$key.json"' >"$STUB_BIN/gh"
@@ -211,6 +214,27 @@ run "$M" --prs 2
 assert_eq "merged order: exit 0" 0 "$RC"
 assert_eq "merged order: the two merged last, newest first" "42 43" \
   "$(grep -o 'pulls/[0-9]*/reviews' "$M/calls.log" | grep -o '[0-9]*' | paste -sd' ')"
+
+# Crowd-out: the 6 most recently updated merged PRs (61-66) are old merges
+# with new activity; the 2 merged last (67, 68) are 7th and 8th by update
+# time. The first read (limit 6) cannot rule out an unread later merge, so the
+# read widens to 12 and picks 68 then 67.
+C="$TEST_TMPDIR/crowd-out"
+mkdir -p "$C"
+cp "$F/repo.json" "$C/"
+"$JQ_DIR/jq" -n '[range(61; 67) | {number: ., author: {login: "a"}, mergedAt: "2026-01-0\(. - 60)T00:00:00Z", updatedAt: "2026-10-0\(. - 60)T00:00:00Z"}]' >"$C/prs-6.json"
+"$JQ_DIR/jq" '. + [{number: 68, author: {login: "a"}, mergedAt: "2026-09-20T00:00:00Z", updatedAt: "2026-09-20T00:00:00Z"},
+  {number: 67, author: {login: "a"}, mergedAt: "2026-09-10T00:00:00Z", updatedAt: "2026-09-10T00:00:00Z"}]' "$C/prs-6.json" >"$C/prs-12.json"
+for n in 61 62 63 64 65 66 67 68; do
+  printf '[]\n' >"$C/reviews-$n.json"
+  printf '[]\n' >"$C/comments-$n.json"
+  cp "$F/threads-12.json" "$C/threads-$n.json"
+done
+run "$C" --prs 2
+assert_eq "crowd-out: exit 0" 0 "$RC"
+assert_eq "crowd-out: the read widens from 6 to 12" "6 12" "$(grep -o -- '--limit [0-9]*' "$C/calls.log" | grep -o '[0-9]*' | paste -sd' ')"
+assert_eq "crowd-out: the two merged last, newest first" "68 67" \
+  "$(grep -o 'pulls/[0-9]*/reviews' "$C/calls.log" | grep -o '[0-9]*' | paste -sd' ')"
 
 # Output cap: 200 human comments of 1,000 characters each on one PR.
 T="$TEST_TMPDIR/big"

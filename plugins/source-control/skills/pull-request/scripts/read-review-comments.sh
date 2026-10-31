@@ -7,9 +7,9 @@
 #
 # <n> is 2-200 (a lesson needs two PRs). Without --repo, the repository of the
 # current directory. The last <n> merged PRs, by merge time, are picked from the
-# 3<n> merged PRs updated most recently. For each, newest first, it reads review bodies
-# and inline review comments (gh api --paginate) and the review threads
-# (gh api graphql), and keeps:
+# merged PRs updated most recently, read until no unread PR can be among them.
+# For each, newest first, it reads review bodies and inline review comments
+# (gh api --paginate) and the review threads (gh api graphql), and keeps:
 #
 #   source: human         a comment or non-empty review body by a human
 #                         account whose author_association is OWNER, MEMBER or
@@ -81,12 +81,24 @@ fi
 owner="${repo%%/*}"
 name="${repo#*/}"
 
-# gh lists by creation date and search cannot sort by merge time, so read the
-# 3n most recently updated merged PRs (a merge updates a PR) and keep the n
-# merged last, newest first.
-gh pr list --state merged --search "sort:updated-desc" --limit "$((prs * 3))" \
-  --json number,author,mergedAt --repo "$repo" >"$tmp/listed.json" 2>/dev/null ||
-  die "gh pr list failed (check gh auth status)"
+# No list or search sort is by merge time, so read merged PRs most recently
+# updated first (a merge updates a PR, so updatedAt >= mergedAt) and widen the
+# read until it is complete: every PR not yet read was updated, so merged,
+# before the n-th newest merge read so far. Search returns at most 1000 results
+# (https://docs.github.com/en/rest/search/search#about-search).
+limit=$((prs * 3))
+while :; do
+  gh pr list --state merged --search "sort:updated-desc" --limit "$limit" \
+    --json number,author,mergedAt,updatedAt --repo "$repo" >"$tmp/listed.json" 2>/dev/null ||
+    die "gh pr list failed (check gh auth status)"
+  complete="$(jq --argjson n "$prs" --argjson limit "$limit" '
+    length < $limit or (length >= $n and
+      (map(.updatedAt // "") | min) < (map(.mergedAt // "") | sort | reverse | .[$n - 1]))' "$tmp/listed.json")" ||
+    die "unreadable gh pr list output"
+  [[ "$complete" == true ]] && break
+  ((limit < 1000)) || die "the last $prs merged PRs are not within the 1000 most recently updated"
+  limit=$((limit * 2 > 1000 ? 1000 : limit * 2))
+done
 jq --argjson n "$prs" 'to_entries | sort_by([(.value.mergedAt // ""), -.key]) | reverse | map(.value) | .[:$n]' "$tmp/listed.json" >"$tmp/prs.json" ||
   die "unreadable gh pr list output"
 count="$(jq 'length' "$tmp/prs.json")" || die "unreadable gh pr list output"
