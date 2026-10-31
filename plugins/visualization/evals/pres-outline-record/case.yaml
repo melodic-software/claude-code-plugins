@@ -1,0 +1,19 @@
+schema_version: "1.1"
+name: pres-outline-record
+graders:
+  - name: slide-headings
+    type: regex
+    pattern: '^(?:[\s\S]*?^[ \t]*(?:#{2,6}[ \t]+\S|(?:\*\*)?Slide[ \t]+\d|\d+[.)][ \t]+\*\*\S)[^\n]*){3}'
+    flags: im
+    target: last_message
+  - name: speaker-notes
+    type: regex
+    pattern: '^(?:[\s\S]*?\b(?:speaker[ \t]+)?notes?\b[ \t]*(?:\*\*)?[ \t]*[:\-–]){2}'
+    flags: i
+    target: last_message
+  - name: no-deck-page
+    type: regex
+    pattern: '<!doctype\s+html|<html\b|<body\b|<head\b|<div\b|<section\b|<svg\b|<x-embed\b|<script\b'
+    flags: i
+    match: not_contains
+    target: last_message
