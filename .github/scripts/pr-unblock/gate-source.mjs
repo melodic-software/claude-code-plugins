@@ -171,6 +171,7 @@ export function foreignMarker(appComments, since, known) {
 // Where the human-gated `label` on a PR at `head` came from:
 // - "review-hold" when a review lane's hold names `head`, or one is open;
 // - "signed-commits-hold" when check-signed-commits' hold is open;
+// - "credential-hold" when pr-verify's credential hold is open;
 // - "lane-escalation" when the lanes App (`isLanesApp`) added the label last,
 //   its pr-unblock escalation comment followed within PAIRED_MS, and every
 //   marker on its comments since is that escalation's or an address-feedback
@@ -198,6 +199,9 @@ export function gateSource({ timeline, label, head, isLanesApp, trusted }) {
   }
   if (openSignedCommitsHold(timeline, lifted) !== undefined) {
     return result("signed-commits-hold", "check-signed-commits found a lane commit it could not verify");
+  }
+  if (openCredentialHold(timeline, lifted) !== undefined) {
+    return result("credential-hold", "pr-verify withheld a fail that may hold a credential");
   }
   if (!isLanesApp(labeled?.actor) || Number.isNaN(since)) {
     return result("unknown", `${label} was last added by ${labeled?.actor?.login ?? "no one on the timeline"}, not the lanes App`);
