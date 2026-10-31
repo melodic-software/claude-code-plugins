@@ -1,5 +1,29 @@
 # Changelog for the PR pipeline convention
 
+## [8.19.1] - 2026-10-31
+
+### Fixed
+
+- pr-merge's `clear-escalations` sweep removes `needs-session`, with no comment, once a same-head
+  retry cleared the lane stop that added it: the lanes App added the label last, and each stop
+  routed to it since then has a `success` status newer than the stop on that stop's head. A person's
+  label, a stop whose failure still stands, or an unread status keeps it. The sweep reads at most
+  five pull requests a run, from a rotating offset. The `merge` job gains `statuses: read` for this.
+
+- The lost-run reconciler now records each hosted review run it re-runs after an upstream stop, as
+  `reconcile-rerun-<run id>-2-<head>`, before it re-runs it. A pass uploads at most three records,
+  so a PR or lane run whose records would pass that waits for a later pass.
+- ci-status's upstream-stop message now says the review's dispatch re-runs ci-status under that
+  record, and a person re-runs it only if that re-run does not come.
+
+- `test-python`'s suite step prints a per-run nonce, repeats it in each suite's call line, and
+  prints an exit line carrying it after each suite. The post-merge demotion judge reads only those
+  lines, so a suite's captured output cannot move a failure onto another suite. The nonce sits in
+  a variable no suite inherits.
+- The quarantine rule in the convention README states what excuses a repeat failure, how a
+  quarantine restarts, what an edited issue does, and that a token without `Actions` read cannot
+  name a suite, so the failure demotes.
+
 ## [8.19.0] - 2026-10-31
 
 ### Changed
