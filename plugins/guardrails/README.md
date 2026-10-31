@@ -677,8 +677,25 @@ name of a listed identity file, is parsed, through the parse the dispatcher shar
 the row's other guards. With a map, the identity files come from the same `jq` run that
 compiles it; the cache format moved to 4, so each map is compiled once more after the
 update. The strace census pins 0 creations for a denied identity write, with a map and
-without one. The row's wall time on the reference host has not been measured for this
-change yet.
+without one. Measured on the WSL2 host of the find-delete entry (Node 24.21.0, bash 5.3.9,
+load average 5 to 12 on 24 cores), guardrails at `53badc14e` against its parent
+`62f5db9d3`, with no telemetry sink: the row fired as `hooks.json` registers it, timed with
+`EPOCHREALTIME` beside a `bash -c :` floor (S median 1.0 ms), arm order rotated, five runs
+of 30 rounds per payload, each map compiled before timing. An `strace` count of every arm
+is 2 execs (`node`, `bash`) at both commits, and the write is denied after and allowed
+before. Per-run paired median, after minus before:
+
+| Payload (Bash; PowerShell) | No map | Placeholder map |
+| --- | --- | --- |
+| `git status --short`; `Get-ChildItem -Force` | −0.6 to +0.4 ms; −0.7 to +1.3 ms | −0.2 to +0.9 ms; −1.5 to +0.8 ms |
+| `git config --get user.name` | +0.8 to +1.6 ms; +0.5 to +1.9 ms | +0.1 to +1.7 ms; +0.6 to +1.4 ms |
+| `git config --global user.email …` (denied) | +1.0 to +2.7 ms; +0.6 to +1.9 ms | +0.6 to +1.9 ms; +0.9 to +1.3 ms |
+
+The common call is unchanged, inside the 8 to 10 ms p10 to p90 spread of each arm. A
+command holding `git` and `config` pays the parse, up to +2.7 ms (2.7 S on this host), at
+k = 0: builtin work, inside the k × S plus measured-work budget, as the #9744 entry read
+its +1.9 ms. The map's one recompile to format 4 was not timed. Builtin work does not scale
+with S, so these S multiples do not predict the Windows cost.
 
 **0.41.1, repeat Edit/Write verifiers (#4390).** A second markdown edit at the same
 HEAD does not re-walk deleted-path history, and a second skill reference at the
