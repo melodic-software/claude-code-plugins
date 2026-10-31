@@ -1,5 +1,19 @@
 # Changelog for the PR pipeline convention
 
+## [8.27.0] - 2026-10-31
+
+### Added
+
+- `merge.dependabot.trusted-action-owners` lists action owners whose Dependabot bumps skip
+  ci-status's trust-gate hold: a Dependabot pull request passes when every changed file is a
+  modified workflow or `action.yml` and every change block only swaps the SHA ref of one `uses:`
+  line of an action by a listed owner, to a commit a tag of that action's repository points to.
+  Any other line, file, owner or ref keeps the hold, and an unreadable list fails closed. This repository lists `anthropics` (owner decision Q-ANTHROPIC-DEPS).
+
+### Fixed
+
+- `fix-ci-context.mjs` writes two more fields to fix-ci's context file. `spec` holds the linked issues' trusted spec text, read by pr-verify's `linkedIssues`. `feedback_lines` holds the non-blank lines the pull request's last address-feedback commit added. Before, fix-ci could cut a line that met a criterion just to get under a size cap, and pr-verify then failed the head on that criterion. On #10919 the two lanes undid each other until the verify-fail cap left the PR unarmed. Each field has its own byte budget so the file stays under the read job's 1 MiB limit. A field the runner cannot read whole, or that does not fit its budget, is `null`, never a partial list.
+
 ## [8.26.2] - 2026-10-31
 
 ### Fixed
