@@ -8,4 +8,4 @@ allowed_tools: [Skill, Read, Glob, Grep]
 expected_outcome: "Advises keeping .claude/skills/changelog-entry/SKILL.md as one file: no oversize, mixed-concerns or split finding, no proposed reference/ or examples spoke."
 ---
 
-Everyone keeps saying skills should be hub-and-spoke, with the details pushed into reference files. Should I break up .claude/skills/changelog-entry/SKILL.md that way? Give me a straight answer.
+Run a progressive disclosure audit on .claude/skills/changelog-entry/SKILL.md. Everyone keeps saying skills should be hub-and-spoke, with the details pushed into reference files, so should I break this one up that way? Give me a straight answer.
