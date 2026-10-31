@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "I can't run the full cleanup: the `mutation-testing` plugin isn't enabled, so there is no mutation gate. Remedy: enable it and run `/mutation-testing:setup apply`.\n\nI can instead run `--cannot-fail-only`, which deletes only tests a skeptic confirms cannot fail. Want me to go ahead in that mode?"
+    },
+    {
+      "answer": "Mutation testing isn't set up. Shall I continue in cannot-fail-only mode?"
+    },
+    {
+      "answer": "Mutation testing isn't set up for this repo, so the gated cleanup can't run. Remedy: enable the mutation-testing plugin and run /mutation-testing:setup apply.\n\nThere is a mode that deletes only tests that cannot fail, with no mutation gate. Want me to use it?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "I deleted test_invoice_runs and test_invoice_builds; they asserted nothing.",
+      "why": "acted without the refusal"
+    },
+    {
+      "answer": "The mutation-testing plugin is not enabled. Run /mutation-testing:setup apply and try again.",
+      "why": "no cannot-fail-only offer"
+    },
+    {
+      "answer": "The mutation-testing plugin is not enabled. Once it is, I can rewrite the tests that cannot fail.",
+      "why": "no delete-only mode offered"
+    }
+  ]
+}

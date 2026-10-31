@@ -355,7 +355,7 @@ while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '[]' | jq -c "$2"; exit; fi
       assert.equal(r.status, 0, r.stdout + r.stderr);
     }
     assert.match(readFileSync(join(dir, "output"), "utf8"), /^run-id=4242$/m);
-    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core\n".repeat(2));
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/{x}/runs\n200 5000 4000 1000 9999999999 core repos/{repo}/actions/workflows/{x}/dispatches\n");
     const calls = spawnSync("bash", ["-c", ". .base/.github/actions/log-api-budget/api-budget.bash; api_budget_emit_calls github-token"], { cwd: dir, env, encoding: "utf8" });
     assert.equal(calls.stdout, "::notice title=api-calls::github-token=2 not-modified=0 graphql=0\n");
   } finally {
@@ -643,7 +643,7 @@ while [ $# -gt 0 ]; do if [ "$1" = --jq ]; then echo '{"run_started_at":"2026-10
     });
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.equal(readFileSync(join(dir, "started"), "utf8"), "2026-10-28T00:00:00Z\n");
-    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core\n");
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4000 1000 9999999999 core repos/{repo}/actions/runs/{n}\n");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

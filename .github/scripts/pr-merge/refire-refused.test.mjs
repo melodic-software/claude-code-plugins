@@ -631,7 +631,7 @@ test("the job token's client counts its readings and plans its read floor as git
     const headers = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4050", "x-ratelimit-used": "950", "x-ratelimit-reset": "1792751600", "x-ratelimit-resource": "core" };
     const fetchImpl = async () => new Response("{}", { status: 200, headers });
     await actionsClient({ ACTIONS_TOKEN: "job" }, { latch, fetchImpl })("GET", "/repos/o/r/actions/runs");
-    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4050 950 1792751600 core\n");
+    assert.equal(readFileSync(join(dir, "api-budget", "github-token"), "utf8"), "200 5000 4050 950 1792751600 core repos/{repo}/actions/runs\n");
     assert.equal(existsSync(join(dir, "api-budget", "lanes-app")), false);
     assert.deepEqual(lines, ["::warning::GitHub's core API has under its read floor left (50 of the planned 1000; header remaining 4050 of 5000); reads continue"]);
   } finally {

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Root cause: `tests/test_campaigns.py::test_spring_campaign_rate` sets `pricing.RATES[\"standard\"] = 0.1` and never restores it. pytest runs test_campaigns.py before test_pricing.py, so the standard rate is 10% by the time your test runs. Fix: use `monkeypatch.setitem(pricing.RATES, \"standard\", 0.1)`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "It is probably a timing issue; add a retry with pytest-rerunfailures.",
+      "why": "no root cause"
+    },
+    {
+      "answer": "Some other test changes RATES. Look for it.",
+      "why": "does not name the polluting test"
+    }
+  ]
+}

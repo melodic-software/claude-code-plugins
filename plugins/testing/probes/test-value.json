@@ -1,0 +1,35 @@
+{
+  "skill": "testing:test-value",
+  "plugin": "testing",
+  "skill_dir": "plugins/testing/skills/test-value",
+  "ranking_note": "Authored by a fresh agent from the before description at commit 480308656535791fd9959cf259b49239f1186992, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. test-value is model-only (user-invocable false), so positives are questions about whether a test or assertion is worth it. Near-misses target testing:audit (repo scans), testing:write (authoring), testing:cleanup (pruning), tdd:principles (TDD theory) and review:code-review (PR review).",
+  "competitors": [
+    "testing:audit",
+    "testing:write",
+    "testing:cleanup",
+    "tdd:principles",
+    "review:code-review"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "This test asserts that emailService.send was called once. Is that a meaningful check or just mirroring the implementation?"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "In my test the expected total comes from calling calculateTotal() itself. Is that okay?"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "Is it legit for an integration test to query the database directly to check the row got written?"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "Would this test ever fail? It only checks that the returned config equals the constant we pass in."},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "We have a test that reads the source file and asserts a particular string appears in it. Does that test earn its place?"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "When I'm reviewing tests, how do I tell whether an expected value is trustworthy, hardcoded versus derived?"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "is asserting on mock call counts a code smell or fine here?"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "Should the expected output in this snapshot test be hand-written instead?"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "This test passes even if I comment out the function body. Is it worth having around?"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "Is a test that just checks the enum has 5 members worth having, or is it only pinning the current code?"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "Scan the entire repo for tests with no assertions and give me a report."},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "Write tests for the new pagination helper."},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "Prune the vacuous tests in tests/legacy that last week's scan found."},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "Explain the red-green-refactor cycle and why you write the test first."},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "Review this PR for correctness bugs."},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "Bump the lodash version and fix any breakage."},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "Add a CI gate that fails on tests that can't fail."},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "What are the core principles of test-driven development?"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "Rewrite or delete the low-value tests in this folder, with a mutation check first."},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "Add pytest coverage for the retry decorator."}
+  ]
+}

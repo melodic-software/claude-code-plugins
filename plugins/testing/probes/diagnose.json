@@ -1,0 +1,35 @@
+{
+  "skill": "testing:diagnose",
+  "plugin": "testing",
+  "skill_dir": "plugins/testing/skills/diagnose",
+  "ranking_note": "Authored by a fresh agent from the before description at commit 480308656535791fd9959cf259b49239f1186992, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Near-misses target testing:write (new tests), toolchain:check (running the suite), debugging:debug (non-test runtime bugs), debugging:analyze-profile (profiles and heap snapshots) and testing:run-e2e (live app verification).",
+  "competitors": [
+    "testing:write",
+    "toolchain:check",
+    "debugging:debug",
+    "debugging:analyze-profile",
+    "testing:run-e2e"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "test_parse_header has been red since I upgraded to Python 3.13. Here's the traceback. What's going on?"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "Half the tests in tests/integration broke after the merge. Get them passing again, and don't just rerun them until they turn green."},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "This spec passes locally but fails maybe once in ten CI runs. What's causing that?"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "Got this from vitest: Expected 42, received undefined at cart.test.ts:88. Can you track down the cause and fix it?"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "My xunit test throws NullReferenceException in the fixture setup. Help me find out what's really behind it."},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "CI is red on three go tests in the scheduler package, with a data race reported. Fix them."},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "why is TestOrderTotal intermittently failing? it's driving me nuts"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "The snapshot test for Header broke after the font change. Can you sort it out properly?"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "pytest output: FAILED tests/test_auth.py::test_token_expiry - AssertionError. Debug please."},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "After bumping jest to v30 a dozen suites error out with 'Cannot use import statement outside a module'. Get them green."},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "Write unit tests for the new retry helper."},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "Run the test suite and the linter and tell me whether everything is green."},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "The production API returns 500 on /orders now and then; no tests involved. Find the bug."},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "Here's a CPU profile from the slow export job, profile.cpuprofile. What's eating the time?"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "Start the app and click through checkout to confirm it works end to end."},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "Translate this README into Spanish."},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "The app crashes when I upload a file larger than 2GB. Figure out why."},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "Read this heap snapshot and tell me what's leaking."},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "Does it build? Run the tests for the files I touched."},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "I need tests covering the edge cases of parseDate before I merge."}
+  ]
+}
