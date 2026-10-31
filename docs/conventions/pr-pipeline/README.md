@@ -3149,23 +3149,22 @@ then ends red at its first step and sends nothing to GitHub. This holds for any 
 rest of that run, even once the reset has passed: a run is short and the next scheduled run starts
 the sweep again, so stopping is safe and costs at most one sweep.
 
-The merge job's candidate listing goes through `.github/scripts/pr-merge/retry-call.bash`: at most
-three tries, waiting out a recorded rate stop or a capped, fully jittered backoff, within 60 s of
-waits in all. Each try reads `gh pr list` and the open count, and passes only when the two agree.
+The merge job's candidate listing goes through `.github/scripts/pr-merge/retry-call.bash` with
+`--read`: at most three tries, waiting out a recorded rate stop or a capped, fully jittered backoff,
+within 60 s of waits in all. Without `--read` a command runs once, so a write is never repeated.
+Each try reads `gh pr list` and the open count, and passes only when the two agree.
 A listing that reaches its limit of 1000 may be cut short whatever the count says, and another try
 reads the same, so it ends the job red with no retry. A listing still unknown after that ends the
 step green with a `::notice::` hold: every step that needs the listing waits on the step's `listed`
-output, so the job gates, merges, re-fires and clears nothing, and the next scheduled run lists
-again. A failed read and a past-budget rate stop leave this job green. The re-fire and
-escalation-clear steps wait on `listed` too, so they skip on a red listing as well.
+output, so the job lists, gates, merges, files, dequeues, re-fires and clears nothing, and the next
+scheduled run lists again. A failed read and a past-budget rate stop leave this job green. The
+re-fire and escalation-clear steps wait on `listed` too, so they skip on a red listing as well.
 
-A held run still does three things. It writes the `pr-merge-summary` artifact with `listing_held`,
+A held run still does two things. It writes the `pr-merge-summary` artifact with `listing_held`,
 `listing_held_reason` and no verdicts, so readers can aggregate holds and signal 12 can count them.
-It writes the sweep cost line, ending `listing-held=true`. And on `post-merge-dispatch`'s exit 1 it
-runs `Record a failed lane merge`, starting from the lane records in that job's report:
-`--remediate` takes no listing, judges the merges again from its own reads, and is the step that
-dequeues the lane's merge-queue entries, which would otherwise land through the hold. Only a rate
-stop still in force holds that back: the guard refuses its calls and the next run tries again.
+And it writes the sweep cost line, ending `listing-held=true`. `Record a failed lane merge` waits on
+`listed` like the check before it, so a failed lane merge is recorded, and the lane's merge-queue
+entries dequeued, by the next run that lists.
 
 ## WIP cap
 

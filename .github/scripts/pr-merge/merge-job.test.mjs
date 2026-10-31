@@ -251,7 +251,7 @@ const atListing = (candidates) =>
 const dispatched = (code) => ({ "post-merge-dispatch": { result: "success", outputs: { "post-merge-code": code, "rate-limited": "" } } });
 
 // Everything after the listing that reads, writes or files waits on `listed`;
-// a hold runs only the cleanup, the summary, and a failed lane merge's record.
+// a hold runs only the cleanup and the summary, and files no failed lane merge.
 test("no step after the listing acts on a held listing", () => {
   const after = steps.slice(steps.findIndex((s) => s.name === "List the candidate PRs") + 1).map((s) => s.name);
   assert.ok(after.length > 20);
@@ -259,7 +259,7 @@ test("no step after the listing acts on a held listing", () => {
   const held = { outcome: "success", outputs: { held: "true" } };
   const always = ["Count the sweep's refusals", "Upload the sweep's verdicts", "Log the API budget at job end", "Write the sweep cost", "Revoke the lane token"];
   assert.deepEqual(running(held, "0"), always);
-  assert.deepEqual(running(held, "1"), ["Read this run's post-merge report", "Record a failed lane merge", ...always]);
+  assert.deepEqual(running(held, "1"), always);
   // The same steps that a hold stops do run once the listing is whole.
   const whole = running({ outcome: "success", outputs: { listed: "true" } }, "0");
   for (const name of ["Run the merge gate on each candidate", "Re-fire lane runs refused as workflow-modified", "Clear escalations whose reason no longer holds"]) {
@@ -362,18 +362,14 @@ test("a listing that reaches the limit ends red at once: a lasting fault, not a 
   }
 });
 
-test("a held listing still records a failed lane merge, on post-merge-dispatch's exit 1", () => {
+test("a held listing files no failed lane merge; a run that listed goes by its own check", () => {
   const record = (held, own, dispatch) =>
     runsOn(
       "Record a failed lane merge",
       { "lane-token": { outputs: { token: "t" } }, mode: { outputs: { live: "true" } }, candidates: { outputs: { held } }, "post-merge": { outputs: { code: own } } },
       { "post-merge-dispatch": { outputs: { "post-merge-code": dispatch } } },
     );
-  assert.equal(record("true", undefined, "1"), true);
-  assert.equal(record("true", undefined, "0"), false);
-  assert.equal(record("true", undefined, "3"), false);
-  assert.equal(record("true", undefined, ""), false);
-  // A run that listed goes by its own check, the later of the two.
+  for (const dispatch of ["1", "0", "3", ""]) assert.equal(record("true", undefined, dispatch), false, dispatch);
   assert.equal(record(undefined, "1", "0"), true);
   assert.equal(record(undefined, "0", "1"), false);
 });
@@ -1148,7 +1144,7 @@ test("a failed lane merge reruns the check with --remediate under the lane token
   assert.ok(check >= 0 && record === check + 1, "the record step follows the check");
   assert.ok(record < names.indexOf("Run the merge gate on each candidate"));
   const block = step("Record a failed lane merge");
-  assert.match(block, /\n {10}steps\.lane-token\.outputs\.token != '' && steps\.mode\.outputs\.live == 'true'\n {10}&& \(steps\.post-merge\.outputs\.code == '1'\n/);
+  assert.match(block, /\n {10}steps\.lane-token\.outputs\.token != '' && steps\.mode\.outputs\.live == 'true'\n {10}&& steps\.post-merge\.outputs\.code == '1'\n {8}env:/);
   assert.match(block, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
   assert.match(runScript("Check earlier lane merges"), /^echo "code=\$code" >>"\$GITHUB_OUTPUT"$/m);
 });
@@ -1171,45 +1167,31 @@ test("the read-only post-merge check and the gate's reads use the job's read-onl
 
 // Runs the record step against a fake python3 that saves its arguments,
 // prints `report` and exits `code`.
-const runRecord = (code, report = { remediation: { errors: [] } }, listingHeld = "", keptRecords = undefined) => {
+const runRecord = (code, report = { remediation: { errors: [] } }) => {
   const dir = tempDir("pr-merge-record-");
   try {
     const bin = join(dir, "bin");
     execFileSync("mkdir", [bin]);
-    if (keptRecords !== undefined) {
-      mkdirSync(join(dir, "post-merge-kept"));
-      writeFileSync(join(dir, "post-merge-kept", "lane-records.json"), keptRecords);
-    }
     writeFileSync(
       join(bin, "python3"),
-      `#!/usr/bin/env bash\nprintf '%s\\n' "$@" >"${dir}/args"\ncp "${dir}/lane-records.json" "${dir}/records-seen" 2>/dev/null\ncat <<'EOF'\n${JSON.stringify(report)}\nEOF\nexit ${code}\n`,
+      `#!/usr/bin/env bash\nprintf '%s\\n' "$@" >"${dir}/args"\ncat <<'EOF'\n${JSON.stringify(report)}\nEOF\nexit ${code}\n`,
     );
     chmodSync(join(bin, "python3"), 0o755);
     symlinkSync(root, join(dir, ".base"));
     const result = spawnSync("bash", ["-c", runScript("Record a failed lane merge")], {
       cwd: dir,
       encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, REPO: "o/r", LISTING_HELD: listingHeld },
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, REPO: "o/r" },
     });
-    const seen = join(dir, "records-seen");
     return {
       status: result.status,
       stdout: result.stdout,
       args: readFileSync(join(dir, "args"), "utf8").split("\n"),
-      records: existsSync(seen) ? readFileSync(seen, "utf8") : null,
     };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 };
-
-test("a held listing's record starts from the lane records post-merge-dispatch proved", () => {
-  const proved = '{"records":["pr-merge-dispatched-41"]}';
-  assert.equal(runRecord(1, undefined, "true", proved).records, proved);
-  assert.equal(runRecord(1, undefined, "true").records, null);
-  // A run that listed keeps the file its own check wrote.
-  assert.equal(runRecord(1, undefined, "", proved).records, null);
-});
 
 test("the record step passes --remediate and is quiet when the record was filed", () => {
   const run = runRecord(1);
