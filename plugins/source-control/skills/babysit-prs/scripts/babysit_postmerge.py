@@ -165,17 +165,21 @@ UNATTRIBUTABLE_GATES = frozenset({"gitleaks failed"})
 # affected set of the merges since the branch's last green full run, or no
 # suite can be named. The unit is the suite (a test file). Only a test leg
 # whose one failed step is its suite step names its suites, from its log: the
-# runner's `FAIL: <suite>` lines, or each pytest invocation's summary. The
+# runner's `FAIL: <suite>` lines, or the exit line the step prints after each
+# pytest invocation, which carries the step's nonce. The
 # affected set is scripts/plan-test-lanes.sh, the PR runs' own selector, over
 # the paths changed since the last green full run's SHA, run from a worktree
 # of that green SHA (so no merge judged can narrow its own set) with no token
 # in its environment; a window that changes the selector, or a plan that
 # picks nothing, has no set. A suite inside the set always
-# demotes, quarantined or not. A suite outside it demotes nothing and is
-# quarantined: with no open quarantine issue it gets one (`file_quarantines`);
+# demotes, quarantined or not. A suite outside it that failed again on a
+# re-run demotes unless it passed on an earlier attempt (it is non-deterministic)
+# or also failed at that green SHA (the merges did not cause it):
+# `_Context._repeat_excused`.
+# Any other suite outside it demotes nothing and is quarantined: with no open quarantine issue it gets one (`file_quarantines`);
 # an open one older than `merge.quarantine-days` (the smaller of its value at
 # that green SHA and at the red run's, `_Context._quarantine_days`) makes it
-# demote again. The
+# demote again, as does one edited since filing (`_Context._quarantine_issues`). The
 # merge gate's own suites are never excused. post-merge-demotion-alert.yml applies the same rule through
 # `--judge-run`.
 SUITE_STEPS = {
@@ -209,6 +213,7 @@ GATE_SUITE_PREFIXES = (
     "scripts/affected-tests.",
 )
 QUARANTINE_NOTE = "The quarantined suite failed again: "
+QUARANTINE_CHANGED = "quarantine_changed"
 BORN_TRIAGED = "<!-- work-items:born-triaged -->"
 CODEOWNERS_PATHS = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
 _SUITE_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9._/-]*")
@@ -423,6 +428,10 @@ def demotion_marker(sha: str, signal: str) -> str:
 
 def quarantine_marker(suite: str) -> str:
     return f"<!-- post-merge-quarantine suite={suite} -->"
+
+
+def quarantine_title(branch: str, suite: str) -> str:
+    return f"Quarantined suite fails on {branch}: {suite}"
 
 
 def is_gate_suite(suite: str) -> bool:
@@ -928,18 +937,20 @@ _BASH_ADVISORY = re.compile(
     r"(?:::warning(?: title=[^:]*)?::|##\[warning\])(\S+) failed \(exit \d+\) but is advisory"
     r" on this run \(nonce ([0-9a-f]{16})[;)]"
 )
-_PYTEST_CALL = re.compile(r"python -m pytest .* -- (\S+)")
-_PYTEST_SUMMARY = re.compile(
-    r"=*\s*(no tests ran|\d+ [a-z]+(?:, \d+ [a-z]+)*) in \d+(?:\.\d+)?s\b.*"
-)
+# The Python step prints the same nonce line and repeats the nonce in its call
+# and exit lines: a suite's captured output cannot carry it, so pytest's own
+# output, its summary included, names nothing.
+_PYTEST_CALL = re.compile(r"python -m pytest .* -- (\S+) # nonce ([0-9a-f]{16})")
+_PYTEST_EXIT = re.compile(r"pytest exit (\d+) -- (\S+) # nonce ([0-9a-f]{16})")
 
 
 def suite_failures(log: str, kind: str) -> frozenset[str] | None:
     """The suites a test leg's log shows failing, or None when the log cannot
     name every one: a suite with no result, a discriminating skip (which
     fails the leg with no suite failed), or no failing suite at all.
-    `kind` is "bash" (scripts/run-plugin-tests.sh) or "python" (one pytest
-    invocation per suite, echoed by `xargs -t`)."""
+    `kind` is "bash" (scripts/run-plugin-tests.sh) or "python" (the test-python
+    leg's step in pr-require-checks.yml, whose nonce must appear exactly once:
+    a second line means a suite printed one, and a log with none is unframed)."""
     lines = [_LOG_STAMP.sub("", line.rstrip("\r")) for line in log.split("\n")]
     failed: set[str] = set()
     if kind == "bash":
@@ -969,21 +980,19 @@ def suite_failures(log: str, kind: str) -> frozenset[str] | None:
         failed &= started
         failed -= advisory
     else:
-        suite: str | None = None
-        outcome: str | None = None
-        for line in [*lines, None]:
-            m = _PYTEST_CALL.fullmatch(line) if line is not None else None
-            if line is None or m:
-                if suite is not None:
-                    if outcome is None:
-                        return None
-                    if outcome == "failed":
-                        failed.add(suite)
-                suite, outcome = (m[1], None) if m else (None, None)
-            elif suite is not None and (s := _PYTEST_SUMMARY.fullmatch(line)):
-                words = {w.split(" ")[-1] for w in s[1].split(", ")}
-                bad = s[1] == "no tests ran" or words & {"failed", "error", "errors"}
-                outcome = "failed" if bad else "passed"
+        nonces = [m[1] for line in lines if (m := _BASH_NONCE.fullmatch(line))]
+        if len(nonces) != 1:
+            return None
+        called: set[str] = set()
+        exits: dict[str, str] = {}
+        for line in lines:
+            if (m := _PYTEST_CALL.fullmatch(line)) and m[2] == nonces[0]:
+                called.add(m[1])
+            elif (m := _PYTEST_EXIT.fullmatch(line)) and m[3] == nonces[0]:
+                exits[m[2]] = m[1]
+        if called != set(exits):
+            return None
+        failed = {suite for suite, code in exits.items() if code != "0"}
     if not failed or not all(_SUITE_RE.fullmatch(f) for f in failed):
         return None
     return frozenset(failed)
@@ -1152,6 +1161,8 @@ class _Context:
     # The checks of each attempt counted only because a job's steps were
     # unknown: as a baseline they excuse nothing.
     unknown_checks: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
+    # The jobs that concluded success, by name, on each attempt `failing_checks` read.
+    passed_jobs: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
     # Full-history clones `contains` asks first; None until first resolved.
     local_clones: list[Path] | None = None
     # Each commit on the first clone's first-parent chain of the branch, by
@@ -1170,6 +1181,7 @@ class _Context:
     quarantine_days: int | None = None
     quarantine_days_cache: dict[int, int] = field(default_factory=dict)
     green_cache: dict[int, Run | None] = field(default_factory=dict)
+    full_runs_cache: dict[str, list[Run]] = field(default_factory=dict)
     # The full runs the check already listed, which `superseded` reads
     # instead of a listing of its own.
     held_full_runs: dict[int, tuple[str, Run]] = field(default_factory=dict)
@@ -1302,7 +1314,7 @@ class _Context:
                 issue = None if is_gate_suite(suite) else issues.get(suite)
                 if issue is None:
                     continue
-                ends = _time(issue.get("created_at")) + timedelta(days=days)
+                ends = self._excuse_ends(issue, days)
                 if self.now >= ends:
                     expired.add(check)
                 else:
@@ -1315,9 +1327,10 @@ class _Context:
         """The checks among `checks` (failing on `attempt` of `run`) that
         demote: any whose suites cannot be named, and any with a failing
         suite that is a gate suite, is in the merges' affected set (or no set
-        can be computed), or is outside it under an expired quarantine
-        issue. Each other failing suite, outside the set, is recorded in
-        `quarantines`."""
+        can be computed), failed again on a re-run with no excuse
+        (`_repeat_excused`), or is outside the set under an
+        expired quarantine issue. Each other failing suite, outside the set,
+        is recorded in `quarantines`."""
         key = (run.id, attempt, checks)
         if key in self.demoting_cache:
             return self.demoting_cache[key]
@@ -1335,15 +1348,15 @@ class _Context:
                         is_gate_suite(suite)
                         or (affected := self.affected(run)) is None
                         or suite in affected
+                        or (
+                            attempt > 1
+                            and not self._repeat_excused(run, attempt, check, suite)
+                        )
                     ):
                         demote.add(check)
                         continue
                     issue = issues.get(suite)
-                    ends = (
-                        None
-                        if issue is None
-                        else _time(issue.get("created_at")) + timedelta(days=days)
-                    )
+                    ends = None if issue is None else self._excuse_ends(issue, days)
                     if ends is not None and self.now >= ends:
                         demote.add(check)
                     else:
@@ -1354,6 +1367,57 @@ class _Context:
             self.quarantines[(q.suite, q.run_url)] = q
         self.demoting_cache[key] = frozenset(demote)
         return self.demoting_cache[key]
+
+    def _repeat_excused(self, run: Run, attempt: int, check: str, suite: str) -> bool:
+        """Whether `suite`, failing `check` again on re-run `attempt` of `run`,
+        has an excuse: on an earlier attempt of the same commit its leg
+        concluded success, or names other failures but not it, so it is
+        non-deterministic, or a full run at the
+        last green commit failed it on some attempt, so the merges did not
+        cause it. An attempt whose suites cannot be named shows neither."""
+        for earlier in range(1, attempt):
+            names = self.failing_suites(run.id, earlier, check)
+            if check in self.passed_jobs[(run.id, earlier)] or (
+                names is not None and suite not in names
+            ):
+                return True
+        green = self._last_green(run)
+        return green is not None and any(
+            suite in (self.failing_suites(r.id, n, failing) or ())
+            for r in self._full_runs_at(green.head_sha)
+            for n in range(1, r.attempt + (r.conclusion != "success"))
+            for failing in self.failing_checks(r.id, n)
+        )
+
+    def _full_runs_at(self, commit: str) -> list[Run]:
+        """The branch's full runs at `commit`, of both events. A failed read
+        raises."""
+        if commit not in self.full_runs_cache:
+            self.full_runs_cache[commit] = [
+                r
+                for event in FULL_RUN_EVENTS.values()
+                for r in _run_rows(
+                    _paginated(
+                        f"repos/{self.owner}/{self.name}/actions/workflows/{FULL_RUN_WORKFLOW}"
+                        f"/runs?event={event}&branch={quote(self.branch, safe='')}"
+                        f"&head_sha={commit}&per_page=100",
+                        f"{FULL_RUN_WORKFLOW} {event} runs at {commit[:12]}",
+                        "workflow_runs",
+                    ),
+                    event,
+                    self.owner,
+                    self.name,
+                )
+                if r.head_branch == self.branch
+            ]
+        return self.full_runs_cache[commit]
+
+    def _excuse_ends(self, issue: dict[str, Any], days: int) -> datetime:
+        """When quarantine issue `issue` stops excusing its suite: `days` after
+        filing, or now for one changed since filing (`_quarantine_issues`)."""
+        if issue.get(QUARANTINE_CHANGED):
+            return self.now
+        return _time(issue.get("created_at")) + timedelta(days=days)
 
     def excuse_until(self, ends: datetime) -> None:
         """Note a quarantine excuse that holds until `ends`."""
@@ -1595,7 +1659,10 @@ class _Context:
     def _quarantine_issues(self) -> dict[str, dict[str, Any]]:
         """Each suite's newest open quarantine issue that a filer opened
         (the agent identity or github-actions[bot]): a quarantine anyone
-        else opens counts for nothing."""
+        else opens counts for nothing. One whose body was edited after filing,
+        or whose title is not the one the filer writes for its marker's suite,
+        is marked `QUARANTINE_CHANGED`: its suite demotes rather than starts
+        over, so an edit cannot extend or move a quarantine."""
         if self.quarantine_issues is None:
             found: dict[str, dict[str, Any]] = {}
             for issue in _demotion_issues(
@@ -1608,8 +1675,43 @@ class _Context:
                     found[suite].get("created_at")
                 ):
                     found[suite] = issue
-            self.quarantine_issues = found
+            edited = self._edited_issues(
+                [
+                    i["number"]
+                    for i in found.values()
+                    if isinstance(i.get("number"), int)
+                ]
+            )
+            self.quarantine_issues = {
+                suite: {
+                    **issue,
+                    QUARANTINE_CHANGED: issue.get("number") in edited
+                    or issue.get("title") != quarantine_title(self.branch, suite),
+                }
+                for suite, issue in found.items()
+            }
         return self.quarantine_issues
+
+    def _edited_issues(self, numbers: list[int]) -> frozenset[int]:
+        """The issues among `numbers` whose body was edited after filing, which
+        only GraphQL reports. A failed read raises."""
+        if not numbers:
+            return frozenset()
+        fields = " ".join(f"i{n}:issue(number:{n}){{lastEditedAt}}" for n in numbers)
+        repository = json_object(
+            _graphql(
+                "query PostMergeQuarantineEdits($o:String!,$r:String!){"
+                f"repository(owner:$o,name:$r){{{fields}}}}}",
+                "quarantine issue edits",
+                o=self.owner,
+                r=self.name,
+            ).get("repository")
+        )
+        return frozenset(
+            n
+            for n in numbers
+            if json_object(repository.get(f"i{n}")).get("lastEditedAt")
+        )
 
     def _baseline(self, signal: str, before: datetime) -> frozenset[str] | None:
         key = (signal, before)
@@ -1651,16 +1753,18 @@ class _Context:
         """The checks one attempt of a full run failed (see FAILED_CONCLUSIONS)."""
         key = (run_id, attempt)
         if key not in self.checks_cache:
-            jobs = [
-                j
-                for j in _paginated(
-                    f"repos/{self.owner}/{self.name}/actions/runs/{run_id}"
-                    f"/attempts/{attempt}/jobs?per_page=100",
-                    f"run {run_id} attempt {attempt} jobs",
-                    "jobs",
-                )
-                if j.get("conclusion") in FAILED_CONCLUSIONS
-            ]
+            listed = _paginated(
+                f"repos/{self.owner}/{self.name}/actions/runs/{run_id}"
+                f"/attempts/{attempt}/jobs?per_page=100",
+                f"run {run_id} attempt {attempt} jobs",
+                "jobs",
+            )
+            jobs = [j for j in listed if j.get("conclusion") in FAILED_CONCLUSIONS]
+            self.passed_jobs[key] = frozenset(
+                str(j.get("name") or "")
+                for j in listed
+                if j.get("conclusion") == "success"
+            )
             # A red run with no failed job (a workflow file that does not
             # load) is one check of its own, never excused.
             checks: set[str] = (
@@ -3220,7 +3324,8 @@ def _quarantine_body(q: Quarantine, branch: str, days: int) -> str:
             "nothing. It is quarantined: it keeps running, and while this issue is open its",
             f"failures demote no unattended merge, for at most {days} days from when this",
             "issue was filed (`merge.quarantine-days`); after that they demote again. Fix",
-            "the suite, then close this issue.",
+            "the suite, then close this issue. To add anything, comment on this issue",
+            "rather than editing it: an edited issue stops excusing the suite.",
             "",
             f"- Suite: `{q.suite}`",
             f"- Failing run: {q.run_url}",
@@ -3272,7 +3377,7 @@ def file_quarantines(
                 "POST",
                 f"repos/{owner}/{name}/issues",
                 "-f",
-                f"title=Quarantined suite fails on {branch}: {q.suite}",
+                f"title={quarantine_title(branch, q.suite)}",
                 "-f",
                 f"body={body}",
                 "-f",
