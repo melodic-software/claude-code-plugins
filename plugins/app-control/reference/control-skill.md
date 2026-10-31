@@ -47,7 +47,12 @@ Below them, an index with one line per feature file it indexes, in this form:
 ```
 
 `<n>` is the number of lines under the feature's `## Entry points`; `sources` names the globs of
-the files that implement the feature, relative to the project directory that holds `.claude/`. A feature with no module drops that folder:
+the files that implement the feature, relative to the project directory that holds `.claude/`,
+or, for a plugin control skill, to the root of the repository under verification. In a glob, `**`
+matches across `/`, `*` and `?` match within one path segment, and every other character matches
+itself; [`scripts/affected_features.py`](../scripts/affected_features.py) fixes this syntax, and
+`/app-control:drive affected` runs it. A control skill present that matched no changed file
+reports `control skill present, <n> files unmatched`. A feature with no module drops that folder:
 `features/<feature>/README.md`.
 
 Each folder level that has a `README.md` indexes the level below it. A module folder may hold its

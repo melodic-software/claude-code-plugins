@@ -1263,9 +1263,15 @@ the rules that only tighten in
   `cost-review-required` in both lanes, whatever `high-path-floor` says and whatever an adopted
   author's own paths leave off the floor, and waits for a human like any other HIGH reason. It
   catches:
-  - any changed `Pulumi.yaml`, `Pulumi.*.yaml`, `*.tf`, `*.tfvars`, `*.bicep` or `*.bicepparam`
-    file, and any file under a directory that holds a `Pulumi.yaml` at the base. A base tree the gate cannot
-    list whole holds every file;
+  - any changed Pulumi project or stack file (`Pulumi.yaml`, `Pulumi.*.yaml` and their `.yml`
+    and `.json` forms, which
+    [Pulumi reads too](https://github.com/pulumi/pulumi/blob/master/sdk/go/common/encoding/marshal.go)),
+    `*.tf`, `*.tf.json`, `*.tfvars`, `*.tfvars.json`, `*.bicep` or `*.bicepparam` file, any ARM
+    template under the names
+    [Azure's quickstart samples use](https://github.com/Azure/azure-quickstart-templates/blob/master/1-CONTRIBUTION-GUIDE/README.md)
+    (`azuredeploy.json`, `azuredeploy.*.json`, `*.azuredeploy.json`, `*.azuredeploy.*.json`), and
+    any file under a directory that holds a Pulumi project file at the base. A base tree the gate
+    cannot list whole holds every file;
   - a file renamed or copied into `.github/workflows/` or a `pr-pipeline.yaml` path from outside;
   - a runner value the workflow's head text gains over its base text, or an added inline
     `runs-on:` value: on a public repository only one that is not a free literal (GitHub's
@@ -1326,11 +1332,12 @@ the rules that only tighten in
   credential, an agent or a write token can reach, not only spend, so a person clears them and no
   cost decision does.
 
-  Accepted: a `secrets` reference moved within one file is net zero and does not hold. Other new
-  triggers, a removed `concurrency` or job `if:` guard, matrix growth and `max-parallel`, a
-  non-Claude model action, and paths outside the ones above (a workflow in a subdirectory of
-  `.github/workflows/`, `Pulumi.yml`, ARM templates, `*.tf.json`) are left to the review lanes'
-  cost hold, which holds for a real charge (`pr-review-hosted.yml`).
+  Accepted: a `secrets` reference moved within one file is net zero, so `secret-exposure-review`
+  does not see it, and it adds no charge, so the cost hold does not either; where it moved is the
+  review lanes' call. Other new triggers, a removed `concurrency` or job `if:` guard, matrix growth
+  and `max-parallel`, a non-Claude model action, and paths outside the ones above (a workflow in
+  a subdirectory of `.github/workflows/`, an ARM template under another name) are left to the
+  review lanes' cost hold, which holds for a real charge (`pr-review-hosted.yml`).
 
   The hold clears only when the pull request body links an owner decision that covers it: a
   comment on the pull request's linked issue (its closing issue, or its `Refs:` issue as
@@ -1853,7 +1860,7 @@ approval lifts no aliasing path, symlink, submodule or mode change (`high-path:*
 trust-gate, manifest, file-cap or review-lane hold, and a review list or trusted-actor list that
 does not read lifts nothing.
 Both also hold a pull request that changes one of the merge gate's cost paths
-(`babysit_risk.COST_PATHS`: Pulumi, Terraform and Bicep files). An
+(`babysit_risk.COST_PATHS`: Pulumi, Terraform, Bicep and ARM template files). An
 approval does not lift that hold. Only the owner's cost decision does, read as the gate's
 `cost_decision` reads it: an unedited comment by a person on the trusted-actor list whose first
 line opens `**Decision recorded.** Cost:`, on the pull request or on its one closing issue after
@@ -1983,13 +1990,11 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   requirements only added `name==version` pins of projects the fix also unpins, and
   `--hash=sha256:` continuations); anything else keeps the fix off the
   branch and hands the pull request to a person. The verdict job posts no merge marker unless
-  every commit is Dependabot's own, the version-bump commit, or a commit that passes the fix rule,
+  every commit is Dependabot's own or a commit that passes the fix rule,
   each arriving in its own author's push (**Pushes** below) (`dependency-fix-refused`)
   ([pr-run-activity, "review-dependency"](pr-run-activity.md)).
-- **Commits.** Every commit is a GitHub-verified Dependabot commit, or the repository's
-  `[dependabot skip]` version-bump commit (authored by `github-actions[bot]`, verified, touching
-  only a plugin's `plugin.json` or `CHANGELOG.md`, each modified in place as a regular file, the
-  `plugin.json` changing only its `version`; else `dependabot-bump-content:<why>`). On a reviewed pull request the lanes App's
+- **Commits.** Every commit is a GitHub-verified Dependabot commit; any other commit, a
+  `github-actions[bot]` one included, is `commit-not-dependabot:<sha>`. On a reviewed pull request the lanes App's
   verified `[dependabot skip]` fix commits count too, each only after it passes the fix rule. The commits listing must hold the pull
   request's whole commit count, else the reason is `commits-listed:<listed>-of:<total>` (the
   listing stops at 250). A lanes App commit must pass the fix rule against its one parent, read
@@ -1997,12 +2002,10 @@ the same rules (`babysit_dependabot.py` here, `dependency-classify.mjs` in pr-un
   `dependabot-fix-content:<why>`. A commit's author is text whoever creates it
   chooses, so two more checks bind the pull request to Dependabot:
   - **Pushes.** The repository activity API for the head branch, read back to Dependabot's newest
-    branch creation or force push, shows every push by `dependabot[bot]`, or by
-    `github-actions[bot]` (or, after a review, the lanes App) pushing a commit of the pull
-    request, and the newest push is the head. Each commit a push brought (its `after` and the
+    branch creation or force push, shows every push by `dependabot[bot]`, or, after a review, by
+    the lanes App pushing a commit of the pull request, and the newest push is the head. Each commit a push brought (its `after` and the
     ancestors its `before` lacks) is its pusher's own: a commit with Dependabot's author arrives
-    in a `dependabot[bot]` push, the version-bump commit in a `github-actions[bot]` push, and a
-    lanes App commit in a lanes App push, else the reason is `pushed-by:<login>`. A commit no
+    in a `dependabot[bot]` push and a lanes App commit in a lanes App push, else the reason is `pushed-by:<login>`. A commit no
     push in reach brought is `push-history-incomplete`. The pr-unblock verdict job runs the same
     check before it posts a merge marker.
   - **Content.** Every changed path, either side of a rename, is a manifest or lock file of an

@@ -129,7 +129,7 @@
       "expectations": [
         "Output reports ratchet_offer as false with userConfig as the supplying layer",
         "Output passes --ratchet-offer off to the stub writer",
-        "Output does NOT offer /review:ratchet for any stub",
+        "Output does NOT offer /toolchain:ratchet for any stub",
         "Output still writes seven stubs"
       ]
     },
@@ -162,14 +162,14 @@
       "expectations": [
         "Output reports ratchet_offer as true with docs/conventions/review.yaml as the supplying layer, not userConfig",
         "Output passes --ratchet-offer on to the stub writer",
-        "Output offers /review:ratchet for the five counting rungs and not for the action-guard or automated-review rows"
+        "Output offers /toolchain:ratchet for the five counting rungs and not for the action-guard or automated-review rows"
       ]
     },
     {
       "id": 13,
       "name": "ratchet-offer-neither-layer-defaults-on",
       "prompt": "/review:audit-enforceability evals/fixtures/findings-one-per-rung.md [The repository has no docs/conventions/review.yaml. The ratchet_offer userConfig option is unset: the skill text shows the literal placeholder.]",
-      "expected_output": "Neither layer sets the key, so ratchet_offer resolves true from the default. The report's first line names the default as the layer, the writer is called with --ratchet-offer on, and the five counting-rung stubs carry a Ratchet offer section: once the rule exists, a count above zero goes to /review:ratchet and a zero count lands the rule.",
+      "expected_output": "Neither layer sets the key, so ratchet_offer resolves true from the default. The report's first line names the default as the layer, the writer is called with --ratchet-offer on, and the five counting-rung stubs carry a Ratchet offer section: once the rule exists, a count above zero goes to /toolchain:ratchet and a zero count lands the rule.",
       "files": [
         "evals/fixtures/findings-one-per-rung.md",
         "evals/fixtures/classification-one-per-rung.tsv"
@@ -177,7 +177,7 @@
       "expectations": [
         "Output reports ratchet_offer as true with the default as the supplying layer",
         "Output passes --ratchet-offer on to the stub writer",
-        "Output says a non-zero count goes to /review:ratchet and a zero count lands the rule"
+        "Output says a non-zero count goes to /toolchain:ratchet and a zero count lands the rule"
       ]
     },
     {

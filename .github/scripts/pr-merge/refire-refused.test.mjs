@@ -642,3 +642,91 @@ test("the job token's client counts its readings and plans its read floor as git
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// A token step that failed transiently, in request-lane-token/action.yml's
+// wording: no broker response, or a 5xx after the action's own retries.
+const UNREACHABLE = "broker-unreachable: the lanes token broker gave no response, after 503 with reason github-unavailable";
+const DENIED_5XX = "lane-token-denied: the broker answered 502 with reason internal-error: upstream timed out";
+const FEEDBACK = { title: "pr-unblock address-feedback #9", jobName: "apply-feedback-patch / run" };
+const transientMarker = (runId, head, { tree = TREE, at = "2026-10-17T21:50:00Z" } = {}) => ({
+  user: BOT,
+  created_at: at,
+  body: `<!-- pr-lane-refire transient run ${runId} tree ${tree} head ${head} -->\nre-fired`,
+});
+
+test("an address-feedback run whose token step got no broker response or a 5xx gets one empty commit and a transient marker", async () => {
+  for (const [message, label] of [
+    [UNREACHABLE, "broker-unreachable"],
+    [DENIED_5XX, "lane-token-denied 502 internal-error"],
+  ]) {
+    const w = refusedWorld([pr(9)], { runOptions: { ...FEEDBACK, messages: [message] } });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.deepEqual(pushes(w.calls), [`PATCH /repos/${REPO}/git/refs/heads/fix/9 {"sha":"${NEW_SHA}","force":false}`], label);
+    const body = postedBody(w.calls);
+    assert.equal(body.split("\n")[0], `<!-- pr-lane-refire transient run 90 tree ${TREE} head ${sha(9)} -->`);
+    assert.ok(body.includes(`\`${label}\``), body);
+    const commit = w.calls.find((call) => call.startsWith(`POST /repos/${REPO}/git/commits `));
+    assert.ok(commit.includes(label) && commit.includes(`"parents":["${sha(9)}"]`), commit);
+  }
+});
+
+test("a token 403 for any reason other than workflow-modified is not re-fired, and neither is a 4xx or a garbled 5xx", async () => {
+  for (const message of [
+    "lane-token-denied: the broker answered 403 with reason actor-untrusted",
+    "lane-token-denied: the broker answered 403 with reason kill-switch",
+    "lane-token-denied: the broker answered 429 with reason github-rate-limited",
+    "lane-token-denied: the broker answered 5xx with reason internal-error",
+    `note: ${UNREACHABLE}`,
+  ]) {
+    const w = refusedWorld([pr(9)], { runOptions: { ...FEEDBACK, messages: [message] } });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.deepEqual(pushes(w.calls), [], message);
+    assert.deepEqual(posts(w.calls), [], message);
+  }
+});
+
+test("a transient token failure of an activity pr-unblock-dispatch retries itself is left to that tick", async () => {
+  for (const activity of ["resolve-conflicts", "review-dependency", "fix-ci"]) {
+    const w = refusedWorld([pr(9)], { runOptions: { title: `pr-unblock ${activity} #9`, messages: [DENIED_5XX] } });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.deepEqual(pushes(w.calls), [], activity);
+    assert.deepEqual(posts(w.calls), [], activity);
+  }
+});
+
+test("a transient re-fire is capped at one per failed run and two per head tree", async (t) => {
+  // This run was already re-fired: its marker names an older head.
+  const sameRun = refusedWorld([pr(9)], { runOptions: { ...FEEDBACK, messages: [DENIED_5XX] }, comments: { 9: [transientMarker(90, sha(8))] } });
+  assert.equal(await main({ env, github: sameRun.github, actions: sameRun.actions, now: NOW }), 0);
+  assert.deepEqual(pushes(sameRun.calls), []);
+  assert.deepEqual(posts(sameRun.calls), []);
+  // Two earlier runs were re-fired on the same tree (empty commits keep it).
+  const atCap = refusedWorld([pr(9)], {
+    runOptions: { ...FEEDBACK, messages: [DENIED_5XX] },
+    comments: { 9: [transientMarker(70, sha(7)), transientMarker(80, sha(8))] },
+  });
+  const { code, lines } = await logged(t, atCap);
+  t.mock.restoreAll();
+  assert.equal(code, 0);
+  assert.deepEqual(pushes(atCap.calls), []);
+  assert.ok(lines.some((line) => line.startsWith("::warning title=refire-refused::#9 not re-fired: re-fired 2 times")), lines.join("\n"));
+  // One earlier re-fire on this tree, or two on another tree, leave room.
+  for (const comments of [[transientMarker(80, sha(8))], [transientMarker(70, sha(7), { tree: "d".repeat(40) }), transientMarker(80, sha(8), { tree: "d".repeat(40) })]]) {
+    const w = refusedWorld([pr(9)], { runOptions: { ...FEEDBACK, messages: [DENIED_5XX] }, comments: { 9: comments } });
+    assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+    assert.equal(pushes(w.calls).length, 1);
+  }
+});
+
+test("a transient marker at the current head retries only the push, within the retry window", async () => {
+  const w = refusedWorld([pr(9)], { runOptions: { ...FEEDBACK, messages: [DENIED_5XX] }, comments: { 9: [transientMarker(90, sha(9))] } });
+  assert.equal(await main({ env, github: w.github, actions: w.actions, now: NOW }), 0);
+  assert.equal(pushes(w.calls).length, 1);
+  assert.deepEqual(posts(w.calls), []);
+  const stale = refusedWorld([pr(9)], {
+    runOptions: { ...FEEDBACK, messages: [DENIED_5XX] },
+    comments: { 9: [transientMarker(90, sha(9), { at: "2026-10-17T20:00:00Z" })] },
+  });
+  assert.equal(await main({ env, github: stale.github, actions: stale.actions, now: NOW }), 0);
+  assert.deepEqual(pushes(stale.calls), []);
+});

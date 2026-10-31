@@ -183,7 +183,7 @@ The `ratchet_offer` line from step 5 first. Then a table with one row per findin
 class basis, rung, earliest stage, owner, stub path. Then the
 writer's own line, `N findings → N stubs in <home>`. Then, grouped per rung, the next step, each
 with its gate and its fallback. With the offer on, a counting rung's next step ends with the
-offer: once the rule exists, a count above zero goes to `/review:ratchet`, and a zero count lands
+offer: once the rule exists, a count above zero goes to `/toolchain:ratchet`, and a zero count lands
 the rule.
 
 - **`make-impossible`**: name the type, data structure or API whose shape lets the invalid state

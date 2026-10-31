@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: pr-ratchets-verified-spawn-count
-description: 'Protect main path: /performance:verify reported MET on a 4-to-1 spawn counter. /review:ratchet is not loaded, so the run takes §2-§4 itself: ratchet.py add measures the cold counter twice and writes .performance/ratchets.json with the measured ceiling and the goal''s Correlation value, the CI check goes inside the required ci-status job, and the Output block ends awaiting human approval. Nothing is merged or pushed. A run needs --scaffold and --allow-tools Bash Write Edit.'
+description: 'Protect main path: /performance:verify reported MET on a 4-to-1 spawn counter. /toolchain:ratchet is not loaded, so the run takes §2-§4 itself: ratchet.py add measures the cold counter twice and writes .performance/ratchets.json with the measured ceiling and the goal''s Correlation value, the CI check goes inside the required ci-status job, and the Output block ends awaiting human approval. Nothing is merged or pushed. A run needs --scaffold and --allow-tools Bash Write Edit.'
 tags: [protect, ratchet]
 plugins: ["../.."]
 expected_outcome: 'ratchet.py add runs from the repository root and records guard-spawns with ceiling 1 (the measured value, no headroom) and a goal that ends with Correlation: unproven. The answer proposes ratchet.py check inside the ci-status job, a same-PR tightening plan, and an Output block whose Ceiling line is 1 and whose Awaiting line asks for human approval. No push and no merge.'
