@@ -440,9 +440,14 @@
 #     direct child of its directory whose name extends the prefix by at least
 #     one character passes, and never one that is itself a symlink, ends in
 #     a dot or a space (Win32 trims them), or is named with a trailing slash
-#     before it exists (a link the same command creates). An entry
-#     that is relative, empty, UNC, holds any other glob character, a line
-#     break or a `..` component, or resolves
+#     before it exists (a link the same command creates). An entry whose `*`
+#     is one whole segment followed by one literal name
+#     (`D:/worktrees/*/.work`) is a SEGMENT entry: only a path strictly under
+#     that name exactly one directory level below its directory passes, never
+#     the name itself, a symlink, a one-level name or a target ending in a
+#     dot or a space, or a target named with a trailing slash before it
+#     exists. An entry that is relative, empty, UNC, holds any other glob
+#     character, a line break or a `..` component, or resolves
 #     to a filesystem root or HOME grants nothing, and no listed root lets
 #     through a filesystem root, HOME or a directory holding HOME. Every other
 #     refusal in this guard runs before this judgment and ignores the key.
@@ -2383,10 +2388,11 @@ rdt_tree_to() {
 # temp root is enough. Last, strictly under a user-listed allowed root (the
 # same rule as a temp root), or a direct child of a name-prefix entry's
 # directory whose name extends the prefix by at least one character and that
-# is not itself a symlink (<link> 1), but never a root, HOME, or a directory
-# holding HOME, whatever is listed.
+# is not itself a symlink (<link> 1), or strictly under <dir>/<one name>/<name>
+# for a segment entry when the target is not a symlink, but never a root,
+# HOME, or a directory holding HOME, whatever is listed.
 rdt_allowed() {
-  local t="$1" deep="$2" link="${3:-0}" c i rest
+  local t="$1" deep="$2" link="${3:-0}" c i rest seg
   if ((deep == 0)); then
     [[ -n "$RDT_SPC" && "$t" == "$RDT_SPC" ]] && return 1
     for c in ${RDT_TEMPC[@]+"${RDT_TEMPC[@]}"}; do
@@ -2398,7 +2404,7 @@ rdt_allowed() {
     [[ "$t" == "$c"/* || (deep -eq 1 && "$t" == "$c") ]] && return 0
   done
   [[ -n "$RDT_TREEC" && ("$t" == "$RDT_TREEC" || "$t" == "$RDT_TREEC"/*) ]] && return 0
-  ((${#RDT_ALLOWC[@]} + ${#RDT_PDIRC[@]})) || return 1
+  ((${#RDT_ALLOWC[@]} + ${#RDT_PDIRC[@]} + ${#RDT_SDIRC[@]})) || return 1
   { rdt_root_like "$t" || rdt_is_root "${t,,}"; } && return 1
   [[ "$t" == "$RDT_HOMEC" || "$RDT_HOMEC" == "$t"/* ]] && return 1
   for c in ${RDT_ALLOWC[@]+"${RDT_ALLOWC[@]}"}; do
@@ -2412,6 +2418,19 @@ rdt_allowed() {
     # Win32 trims a trailing dot or space, so `.tmp-.` names `.tmp-` and
     # `.tmp-n.` names `.tmp-n` past the symlink test: such a name is refused.
     [[ "$rest" != */* && "$rest" != *[.\ ] && "$rest" == "${RDT_PNAME[i]}"?* ]] && return 0
+  done
+  for ((i = 0; i < ${#RDT_SDIRC[@]}; i++)); do
+    c="${RDT_SDIRC[i]}"
+    [[ "$t" == "$c"/?*/* ]] || continue
+    rest="${t#"$c"/}"
+    seg="${rest%%/*}"
+    rest="${rest#*/}"
+    # The one-level segment may not end in a dot or a space, which Win32
+    # trims (`...` would name the directory before the `*`).
+    [[ "$seg" != *[.\ ] ]] || continue
+    # So may the leaf, or `.work/...` would name `.work` itself.
+    [[ "$rest" == "${RDT_SNAME[i]}"/* && "${rest##*/}" != *[.\ ] ]] && return 0
+    [[ deep -eq 1 && "$rest" == "${RDT_SNAME[i]}" ]] && return 0
   done
   return 1
 }
@@ -2859,10 +2878,13 @@ rdt_judge_pending() {
   # glob character, a line break or a `..` component grants nothing. One
   # trailing `*` after a literal name makes a NAME-PREFIX entry instead
   # (`D:/worktrees/.tmp-*`): its directory follows the same rules, and the name
-  # before the `*` may hold no glob character. HOME is resolved with them, and
-  # an unusable HOME leaves the whole list unused.
-  local -a allow=() pdir=() pname=()
-  local home="${HOME:-}" roots="${CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS:-}" x pfx
+  # before the `*` may hold no glob character. A `*` that is one whole
+  # segment followed by one literal name makes a SEGMENT entry
+  # (`D:/worktrees/*/.work`): its directory follows the same rules, and the
+  # name may hold no glob character and is not `.` or `..`. HOME is resolved
+  # with them, and an unusable HOME leaves the whole list unused.
+  local -a allow=() pdir=() pname=() sdir=() sname=()
+  local home="${HOME:-}" roots="${CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS:-}" x pfx sfx
   home="${home//\\//}"
   if ! rdt_is_abs "$home" || rdt_is_unc "$home"; then roots=""; fi
   while [[ -n "$roots" ]]; do
@@ -2873,28 +2895,38 @@ rdt_judge_pending() {
     c="${c%"${c##*[![:space:]]}"}"
     c="${c//\\//}"
     pfx=""
+    sfx=""
     if [[ "$c" == */?*'*' ]]; then
       pfx="${c##*/}"
       pfx="${pfx%'*'}"
       c="${c%/*}"
       [[ -n "$pfx" && "$pfx" != *[*?[]* ]] || continue
+    elif [[ "$c" == */'*'/?* ]]; then
+      sfx="${c##*/}"
+      c="${c%/*}"
+      c="${c%/'*'}"
+      [[ "$sfx" != *[*?[]* && "$sfx" != . && "$sfx" != .. ]] || continue
     fi
     x="${c//[^\/]/}"
     [[ -n "$c" && "$c" != *[$'\n\r*?[']* && "/$c/" != */../* ]] || continue
-    ((${#c} + ${#pfx} <= MAX_OPERAND_LEN && ${#x} <= MAX_OPERAND_DEPTH)) || continue
+    ((${#c} + ${#pfx} + ${#sfx} <= MAX_OPERAND_LEN && ${#x} <= MAX_OPERAND_DEPTH)) || continue
     if ! rdt_is_abs "$c" || rdt_is_unc "$c"; then continue; fi
     ((RDT_WIN)) || [[ ! "$c" =~ ^[A-Za-z]: ]] || continue
     if [[ -n "$pfx" ]]; then
       ((RDT_WIN)) && pfx="${pfx,,}"
       pdir+=("$c")
       pname+=("$pfx")
+    elif [[ -n "$sfx" ]]; then
+      ((RDT_WIN)) && sfx="${sfx,,}"
+      sdir+=("$c")
+      sname+=("$sfx")
     else
       allow+=("$c")
     fi
   done
   local hcl=""
   if rdt_is_abs "$home" && ! rdt_is_unc "$home"; then hcl="${home%/}/.claude"; fi
-  ((${#allow[@]} + ${#pdir[@]})) || home=""
+  ((${#allow[@]} + ${#pdir[@]} + ${#sdir[@]})) || home=""
 
   # The protected trees, judged ahead of every allowed root (rdt_protected):
   # the worktrees git keeps for the cwd's repository, ~/.claude, and the
@@ -2950,7 +2982,8 @@ rdt_judge_pending() {
   # the allowed roots, HOME and the protected trees. A `*/` operand then has
   # its symlink matches added, each resolved whole, and on Windows one cygpath
   # maps every full target and root onto one spelling.
-  rdt_resolve_all ${tp[@]+"${tp[@]}"} ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} "$home" \
+  rdt_resolve_all ${tp[@]+"${tp[@]}"} ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} \
+    ${sdir[@]+"${sdir[@]}"} "$home" \
     ${wts[@]+"${wts[@]}"} "$hcl" ${prot[@]+"${prot[@]}"}
   local n0=${#tp[@]} l
   for ((k = 0; k < n0; k++)); do
@@ -2975,8 +3008,8 @@ rdt_judge_pending() {
     targets[k]="$p"
   done
   local -a others=()
-  for c in ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} "$home" \
-    ${wts[@]+"${wts[@]}"} "$hcl" ${prot[@]+"${prot[@]}"}; do
+  for c in ${temps[@]+"${temps[@]}"} "$sp" "$tree" ${allow[@]+"${allow[@]}"} ${pdir[@]+"${pdir[@]}"} \
+    ${sdir[@]+"${sdir[@]}"} "$home" ${wts[@]+"${wts[@]}"} "$hcl" ${prot[@]+"${prot[@]}"}; do
     [[ -n "$c" ]] && others+=("${RDT_RES[$c]}")
   done
   rdt_winmap_all ${targets[@]+"${targets[@]}"} ${others[@]+"${others[@]}"}
@@ -3000,13 +3033,15 @@ rdt_judge_pending() {
     rdt_canon_to t "${RDT_WMAP[${RDT_RES[$tree]}]}"
     rdt_root_like "$t" || RDT_TREEC="$t"
   fi
-  # An allowed root, or a name-prefix entry's directory, that is a filesystem
-  # root or HOME itself is dropped. A `/` entry is dropped on every host, even
-  # where `/` maps to the Git install directory, so it is judged before the
-  # mapping as well as after it.
+  # An allowed root, or a name-prefix or segment entry's directory, that is a
+  # filesystem root or HOME itself is dropped. A `/` entry is dropped on every
+  # host, even where `/` maps to the Git install directory, so it is judged
+  # before the mapping as well as after it.
   RDT_ALLOWC=()
   RDT_PDIRC=()
   RDT_PNAME=()
+  RDT_SDIRC=()
+  RDT_SNAME=()
   RDT_HOMEC=""
   if [[ -n "$home" ]]; then
     rdt_canon_to RDT_HOMEC "${RDT_WMAP[${RDT_RES[$home]}]}"
@@ -3021,6 +3056,13 @@ rdt_judge_pending() {
       { rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]]; } && continue
       RDT_PDIRC+=("$t")
       RDT_PNAME+=("${pname[k]}")
+    done
+    for ((k = 0; k < ${#sdir[@]}; k++)); do
+      [[ "${RDT_RES[${sdir[k]}]}" == / ]] && continue
+      rdt_canon_to t "${RDT_WMAP[${RDT_RES[${sdir[k]}]}]}"
+      { rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]]; } && continue
+      RDT_SDIRC+=("$t")
+      RDT_SNAME+=("${sname[k]}")
     done
   fi
   # The protected trees in the compared spelling. A toplevel or worktree root
@@ -3080,7 +3122,7 @@ rdt_judge_pending() {
     rdt_canon_to c "$p"
     # A symlink, or a leaf rm would follow through a trailing slash that does
     # not exist yet (a link the same command may create), never passes a
-    # name-prefix entry.
+    # name-prefix or segment entry.
     l=0
     [[ -L "${targets[k]}" ]] && l=1
     [[ ! -e "${targets[k]}" && "${tw[k]}" =~ [/\\]\.?$ ]] && l=1
