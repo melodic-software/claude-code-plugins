@@ -34,6 +34,7 @@ retry_call() {
     until=$(api_budget_stop_until any)
     if [[ -n $until ]]; then
       wait=$((until - $(date +%s)))
+      ((wait < 0)) && wait=0
     else
       ceiling=$((15 << (attempt - 1)))
       wait=$((RANDOM % (ceiling + 1)))

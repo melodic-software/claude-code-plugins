@@ -1,7 +1,7 @@
 // pr-merge.yml's merge job: the post-merge check and its re-dispatch do not
-// wait on the candidate listing or the gate loop (#8299; a GraphQL 502 on the
-// listing once held back every re-dispatch), the listing retries a failed
-// `gh pr list` and an unknown listing holds the job green, the run logs its API cost
+// wait on the gate loop (#8299), the listing retries a failed `gh pr list`, an
+// unknown listing holds the job green and every later acting step, the
+// post-merge check included, waits on that hold, the run logs its API cost
 // through the shared action, and the run cache carries the verdict reads that
 // never change to the next run.
 import assert from "node:assert/strict";

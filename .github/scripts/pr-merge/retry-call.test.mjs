@@ -114,6 +114,13 @@ test("a wait past the budget is not slept and returns unknown, naming the stop",
   assert.equal(out.calls, 1);
 });
 
+test("a stop already past retries at once", () => {
+  const out = run({ args: "--read 60", failures: 1, stop: `core ${NOW - 5}\n` });
+  assert.match(out.stdout, /^rc=0$/m);
+  assert.ok(out.sleeps.every((s) => s >= 0), String(out.sleeps));
+  assert.equal(out.calls, 2);
+});
+
 test("the budget counts every wait together, not each alone", () => {
   // 20 s of the 30 s go on the stop, so a backoff over 10 s does not fit.
   for (let i = 0; i < 10; i += 1) {
