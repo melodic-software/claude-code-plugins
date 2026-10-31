@@ -158,7 +158,7 @@ are in the header of `scripts/affected-tests.sh`.
 A same-repo `edited` (without `changes.base`), `labeled`, or `unlabeled` event
 runs `ci` as contract-only: every lane job is gated off and `ci-status` reads
 the `ci-lanes` commit status on the head SHA, with no carry-forward wait
-(`yield-to-full-run: 'true'`, `yield-wait-seconds: '720'` and
+(`yield-to-full-run: 'true'`, `yield-wait-seconds: '600'` and
 `carry-forward-wait-seconds: '0'` on the `aggregate-results` composite). It
 passes only when the newest status the Actions bot wrote is `success`.
 
@@ -181,8 +181,8 @@ A contract-only run waits only on a full run in flight on its SHA:
    run's start, and is red on anything else: a full run cancelled during the
    hold leaves an older `success` that must not pass. The full run does not wait
    for it: a holding run reads the `success` itself.
-4. At the 720 s ceiling, one run in 148 reaching that length when a label flips
-   early in it, the run fails with `superseded by full run <url>`. The full run's
+4. At the 600 s ceiling, reached only when a label flips early in a run that
+   long, the run fails with `superseded by full run <url>`. The full run's
    own `ci-status` check run is newer and decides the gate, and after recording
    `success` it re-runs that red run (`rerun-contract-only-siblings`,
    `actions: write`). The re-run keeps its event, reads `success` and replaces

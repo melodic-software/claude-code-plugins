@@ -3356,8 +3356,9 @@ jobs:
     # `ci-lanes` commit status the last full run recorded on this SHA.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
-    # 9 s p95 and 42 s max in full mode, about 10 s contract-only. The cap is
-    # the worst case of the pinned composites' waits: two 60 s rate-limit waits
+    # 9 s p95 and 42 s max in full mode, about 10 s contract-only, up to 10
+    # minutes more while a contract-only run holds. The cap covers that hold
+    # plus the worst case of the pinned composites' waits: two 60 s rate-limit waits
     # (`rate-limit-wait-seconds` on check-contract and aggregate-results), 45 s
     # of own-gate retries, 7 s of status-write retries and the 90 s
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
@@ -3386,7 +3387,7 @@ jobs:
       # 375 s for the job's setup and the steps after the wait:
       # aggregate-results' 60 s rate-limit wait, 120 s of own-gate retries, 7 s
       # of status writes and the 90 s rerun wait, plus retry sleeps. It does not
-      # hold the 720 s `yield-wait-seconds` hold of a contract-only run: a long
+      # hold the 600 s `yield-wait-seconds` hold of a contract-only run: a long
       # rate-limit wait before a long hold can reach the timeout, which fails.
       GH_READ_JOB_SECONDS: 1200
       GH_READ_MARGIN_SECONDS: 375
@@ -6183,7 +6184,7 @@ jobs:
           # Operator remedy:
           # docs/ci-runner-routing.md, section Contract-only ci-status.
           yield-to-full-run: 'true'
-          yield-wait-seconds: ${{ ((job.status == 'failure' && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) || github.event.pull_request.draft) && '0' || '720' }}
+          yield-wait-seconds: ${{ ((job.status == 'failure' && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) || github.event.pull_request.draft) && '0' || '600' }}
           rerun-contract-only-siblings: ${{ github.event.pull_request.draft && 'false' || 'true' }}
           carry-forward-wait-seconds: '0'
           # This step's own name, so the own-step lookup never depends on
