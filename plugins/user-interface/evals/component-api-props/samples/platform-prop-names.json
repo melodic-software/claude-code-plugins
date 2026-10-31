@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "type SelectProps = { disabled?: boolean; size?: \"sm\" | \"md\" | \"lg\" };\n\nUse `disabled` rather than `isDisabled`, and a `size` prop rather than `isLarge`.",
+      "why": "HTML names, the proposed names only mentioned in prose"
+    },
+    {
+      "answer": "<Select disabled size=\"lg\" defaultValue=\"apple\" />",
+      "why": "disabled and size in use"
+    },
+    {
+      "answer": "// Good\ntype SelectProps = { disabled?: boolean; size?: \"sm\" | \"md\" | \"lg\" };\n\n// Bad\ntype SelectProps = { isDisabled?: boolean; isLarge?: boolean };",
+      "why": "a Good/Bad answer: disabled declared, the proposed names shown only as the bad example"
+    },
+    {
+      "answer": "type SelectProps = ComponentProps<\"select\"> & { onValueChange?: (v: string) => void };\n\n<Select onValueChange={(v) => setV(v)} disabled />",
+      "why": "disabled inherited from native props and passed after an arrow function in the tag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "type SelectProps = { isDisabled?: boolean; value: string };\n\nKeep isDisabled instead of a disabled prop.",
+      "why": "isDisabled declared; disabled only named in prose"
+    },
+    {
+      "answer": "<Select value={fruit} isDisabled aria-disabled=\"true\" onChange={setFruit} />",
+      "why": "isDisabled passed; aria-disabled is not the disabled prop"
+    }
+  ]
+}
