@@ -2415,6 +2415,114 @@ guard_invoke "${RDT_CWD[@]}" --command 'robocopy src /opt/nonexistent-rdt/x /MIR
 assert_exit 'robocopy: an outside destination exits 2' 2 "$GUARD_RC"
 assert_contains 'robocopy: the refusal names the destination' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
 
+# --- 2j. git worktree remove --force (#9760) ---------------------------------
+# -f or --force removes the worktree's directory even when it holds changes.
+# Its <worktree> operand is judged as a recursive rm operand, and so is every
+# registered worktree root whose path ends in it. Every form runs against a
+# root, HOME, a path outside the allowed roots and a path inside the tree.
+RDT_GWT_FORMS=(
+  'git worktree remove --force TGT'
+  'git worktree remove -f TGT'
+  'git worktree remove -f -f TGT'
+  'git worktree remove TGT --force'
+  'git worktree remove --fo -- TGT'
+  'git -c core.x=1 --no-pager worktree remove -ff TGT'
+)
+rdt_gwt() { # <label> <want> <target> [guard_invoke option ...]: every form
+  local label="$1" want="$2" t="$3" f c
+  shift 3
+  for f in "${RDT_GWT_FORMS[@]}"; do
+    c="${f//TGT/$t}"
+    expect_both "git worktree: $label: $c" "$want" --command "$c" "$@"
+  done
+}
+rdt_gwt 'a root blocks' 2 /
+rdt_gwt 'HOME blocks' 2 '$HOME'
+rdt_gwt '~ blocks' 2 '~'
+rdt_gwt 'outside the tree blocks' 2 /opt/nonexistent-rdt/x "${RDT_CWD[@]}"
+rdt_gwt 'inside the tree allowed' 0 build/rdt-wt-nonexistent "${RDT_CWD[@]}"
+expect_both 'git worktree: the toplevel blocks' 2 "${RDT_CWD[@]}" --command 'git worktree remove --force .'
+expect_both 'git worktree: under /tmp allowed' 0 "${RDT_CWD[@]}" --command 'git worktree remove --force /tmp/rdt-wt-x'
+expect_both 'git worktree: under the scratchpad allowed' 0 \
+  --payload "$(rdt_pl "git worktree remove --force '$RDT_SPT/wt'" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'git worktree: the scratchpad itself blocks' 2 \
+  --payload "$(rdt_pl "git worktree remove --force '$RDT_SPT'" "$RDT_TOP" "$RDT_SPT")"
+rdt_ar 'git worktree: unset key, under the root blocks' 2 "git worktree remove --force '$RDT_AR/child'"
+rdt_ar 'git worktree: under the root allowed' 0 "git worktree remove --force '$RDT_AR/child'" "$RDT_AR"
+rdt_ar 'git worktree: the root itself blocks' 2 "git worktree remove --force '$RDT_AR'" "$RDT_AR"
+
+# Without a force flag git refuses an unclean worktree; other subcommands, and
+# the mechanism as quoted prose, delete nothing.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "git worktree: $rdt_cmd allowed" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+git worktree remove /opt/nonexistent-rdt/x
+git worktree add /opt/nonexistent-rdt/x
+git worktree list
+git worktree prune
+git commit -m "git worktree remove --force /"
+git commit -m 'drop it' -m "git worktree remove --force ~"
+echo 'git worktree remove --force /'
+EOF
+
+# Launchers, child shells, substitutions, braces, and a relative name under
+# an option that selects another repository.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "git worktree: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+sudo git worktree remove --force /
+bash -c 'git worktree remove --force ~'
+echo "$(git worktree remove --force /)"
+git worktree remove --force {build/rdt-x,/}
+git -C /opt/nonexistent-rdt worktree remove --force wt
+git --git-dir=/opt/nonexistent-rdt/.git worktree remove --force wt
+GIT_DIR=/opt/nonexistent-rdt/.git git worktree remove --force wt
+env GIT_DIR=/opt/nonexistent-rdt/.git git worktree remove --force wt
+X=wt; git -C /opt/nonexistent-rdt worktree remove --force "$X"
+cd /opt/nonexistent-rdt && git worktree remove --force wt
+cat list | xargs git worktree remove --force
+EOF
+
+# Registered worktrees, on the fixture of section 2e: under the suite's temp
+# directory a linked worktree is strictly under a temp root, so removing it
+# passes, by path or by its trailing name; the toplevel, a directory holding a
+# worktree, and the worktree the session runs in stay refused.
+rdt_wt 'git worktree remove of a linked worktree allowed' 0 "git worktree remove --force '$RDT_WF/wt1'"
+rdt_wt 'git worktree remove by trailing name allowed' 0 'git worktree remove --force wt1'
+rdt_wt 'git worktree remove of the toplevel blocks' 2 "git worktree remove --force '$RDT_WF/main'"
+rdt_wt 'git worktree remove of a directory holding one blocks' 2 "git worktree remove --force '$RDT_WF/holder'"
+rdt_wt 'from a linked worktree: git worktree remove of itself blocks' 2 \
+  "git worktree remove --force '$RDT_WF/wt1'" "$RDT_WF/wt1"
+rdt_wt 'from a linked worktree: git worktree remove of itself by name blocks' 2 \
+  'git worktree remove --force wt1' "$RDT_WF/wt1"
+
+# Outside every temp root (the checkout's .work), a registered worktree stays
+# protected, a trailing name included and one inside the toplevel too, until
+# an allowed root other than the toplevel holds it.
+RDT_GW="$RDT_AB/gwt"
+mkdir -p "$RDT_GW/main/.git/worktrees/n1" "$RDT_GW/main/.git/worktrees/n2" "$RDT_GW/n1" "$RDT_GW/main/n2"
+printf '%s\n' "$RDT_GW/n1/.git" >"$RDT_GW/main/.git/worktrees/n1/gitdir"
+printf 'gitdir: %s\n' "$RDT_GW/main/.git/worktrees/n1" >"$RDT_GW/n1/.git"
+printf '%s\n' "$RDT_GW/main/n2/.git" >"$RDT_GW/main/.git/worktrees/n2/gitdir"
+printf 'gitdir: %s\n' "$RDT_GW/main/.git/worktrees/n2" >"$RDT_GW/main/n2/.git"
+rdt_gw() { # <label> <want> <command> [roots]: from the fixture's main worktree
+  local -a env=("PATH=$TEST_TMPDIR/bin-git-top:$PATH" "RDT_STUB_TOP=$RDT_GW/main" "HOME=$RDT_AH")
+  [[ -z "${4:-}" ]] || env+=("$RDT_KEY=$4")
+  expect_both "git worktree: $1" "$2" --cwd "$RDT_GW/main" --command "$3" -- "${env[@]}"
+}
+rdt_gw 'a worktree outside temp blocks' 2 "git worktree remove --force '$RDT_GW/n1'"
+rdt_gw 'a worktree outside temp by trailing name blocks' 2 'git worktree remove --force n1'
+rdt_gw 'a worktree outside temp by a trailing glob blocks' 2 'git worktree remove --force n*'
+rdt_gw 'a worktree inside the toplevel blocks' 2 'git worktree remove --force n2'
+rdt_gw 'a worktree under an allowed root allowed' 0 "git worktree remove --force '$RDT_GW/n1'" "$RDT_GW"
+rdt_gw 'a worktree under an allowed root by trailing name allowed' 0 'git worktree remove --force n1' "$RDT_GW"
+
+guard_invoke "${RDT_CWD[@]}" --command 'git worktree remove --force /opt/nonexistent-rdt/x'
+assert_exit 'git worktree: an outside worktree exits 2' 2 "$GUARD_RC"
+assert_contains 'git worktree: the refusal names the worktree' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
+
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"
