@@ -1,0 +1,18 @@
+{
+  "claim": "A one-off cloud scheduled task (routine) that posts a state record to an issue comment on its first run reads that record back on its next run, a separate cloud session.",
+  "tags": ["scheduled task", "routines", "cloud routine", "/schedule", "one-off", "Run now", "cloud session", "GitHub proxy"],
+  "explicit": true,
+  "requires": ["gh"],
+  "max_turns": 60,
+  "max_budget_usd": 3.0,
+  "timeout": 2700,
+  "target": {
+    "tool": "Bash",
+    "input_match": "state-probe:probe-[0-9A-Za-z-]+:run2[^|]*[|] [.]body",
+    "example": {
+      "command": "gh api repos/melodic-software/claude-code-plugins/issues/8991/comments --paginate --jq '.[] | select(.body | contains(\"state-probe:probe-20261031T054700Z-12345:run2\")) | .body'"
+    }
+  },
+  "outcome": "ran",
+  "match": "result=pass"
+}

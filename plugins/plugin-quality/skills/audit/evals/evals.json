@@ -207,14 +207,14 @@
       "id": 16,
       "name": "session-discovers-and-confirms-targets-before-pipeline",
       "prompt": "The session is over and I used a few plugin skills. Run /plugin-quality:audit session.",
-      "expected_output": "The audit locates the session-flow retro parser (reused, no second parser), parses this session, and reads plugin_usage. It builds a list of used skills ordered by count, shows it, and waits for the operator to confirm, edit or accept before any evidence capture or dispatch. Only the confirmed list becomes the target list.",
+      "expected_output": "The audit finds the session's running-retro ledger by session_id and reads its plugin_usage frontmatter key. It builds a list of used skills ordered by count, shows it, and waits for the operator to confirm, edit or accept before any evidence capture or dispatch. Only the confirmed list becomes the target list.",
       "files": [],
       "expectations": [
-        "Reuses the session-flow retro parse_transcript.py rather than writing or embedding a second transcript parser",
-        "Reads the plugin_usage block (skills keyed <plugin>:<skill>) from the parser output",
+        "Reads the plugin_usage key (skills keyed <plugin>:<skill>) from the running-retro ledger's frontmatter",
+        "Never searches installed plugin directories, runs session-flow's parser by path, or writes a second transcript parser",
         "Presents the discovered list and waits for confirmation before running step 1",
         "Feeds only the confirmed list into the existing target resolution and steps 1 to 6",
-        "Stops with a statement that the parser is absent, and does not build a substitute, when the parser cannot be found"
+        "With no ledger or no plugin_usage key, tells the operator to run /session-flow:running-retro and re-run, names the by-name form, and stops without building a substitute"
       ]
     },
     {

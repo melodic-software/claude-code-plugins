@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, titleWraps, unrunnableCriteria, untrustedHold, workCharges } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -811,7 +811,7 @@ describe("decide", () => {
 
   // rule-admit.sh's fixed checks: its charge words, read from one definition,
   // and its body-edited-after-the-verdict refusal.
-  describe("a charge word in the title or body", () => {
+  describe("a charge word in what the issue will do", () => {
     const CHARGE = /names a charge \(([^)]+)\), which needs an owner decision/;
 
     test("refuses and holds for a person, naming each word once", () => {
@@ -898,6 +898,274 @@ describe("decide", () => {
       const { code, cost, costPrivate } = chargePattern();
       assert.deepEqual([code.source, cost.source, costPrivate.source], [shared.code, shared.cost, shared.cost_private].map((p) => new RegExp(p).source));
       assert.deepEqual(chargeHits("Turn on auto-renewal for the Codespaces plan.", chargePattern()), ["auto-renewal", "codespaces"]);
+    });
+
+    // Background text and model usage are not what an issue will do; a
+    // body with a task line or a known heading is read only where it states work.
+    describe("stays quiet on text that states no work", () => {
+      const DONE = "## Done when\n\n- [ ] Line 3 says nineteen.";
+      const admitted = (body) => assert.deepEqual(decide(facts({ issue: issueOf({ body }) })), { verdict: "admit", reasons: [] });
+
+      test("a quoted past question under a background heading", () => {
+        admitted(`## Problem\n\n- A session asked: "Claude creates the subscription budget now, ok?"\n\n${DONE}`);
+      });
+
+      test("an example list outside a task item", () => {
+        admitted(`## Problem\n\n1. A recommendation reuses a value (an address, account, subscription, region).\n\n${DONE}`);
+      });
+
+      test("model usage on a task line", () => {
+        admitted(`## Done when\n\n- [ ] Every change is backed by a valid measured pass on the subscription.`);
+        admitted(`## Done when\n\n- [ ] Every change is backed by a valid Measured Pass Run on the Subscription.`);
+      });
+
+      test("a heading in code opens no section", () => {
+        admitted(`## Problem\n\n\`\`\`markdown\n## Fix\n\nBuy a seat.\n\`\`\`\n\nThe seat count is wrong.\n\n${DONE}`);
+      });
+
+      test("a section ends at the next heading at its level", () => {
+        admitted(`## Fix\n\nReword line 3.\n\n## Context\n\nThe old seat table.\n\n${DONE}`);
+      });
+
+      test("a comment's task item alone, whoever wrote it", () => {
+        const body = "- [ ] Buy a seat.";
+        for (const comment of [written(USER(HUMAN), { body }), written(USER(OUTSIDER), { body }), written(APP_ACTOR, { body: `${REFINE_MARKER}\n${body}` })]) {
+          assert.deepEqual(decide(facts({ spec: humanSpec(issueOf(), [comment]) })), { verdict: "admit", reasons: [] });
+        }
+      });
+    });
+
+    describe("still fires on what the issue will do", () => {
+      const DONE = "## Done when\n\n- [ ] Line 3 says nineteen.";
+      const word = (extra) => CHARGE.exec(decide(facts(extra)).reasons.join("; "))?.[1];
+      const inBody = (body) => word({ issue: issueOf({ body }) });
+
+      test("the title", () => {
+        assert.equal(word({ issue: issueOf({ title: "chore: drop the billing alert" }) }), "billing");
+      });
+
+      test("a task item and its deeper lines", () => {
+        assert.equal(inBody("## Problem\n\nA gap.\n\n- [ ] Move the job to larger runners."), "larger runners");
+        assert.equal(inBody("- [ ] Move the job\n  to a paid plan."), "paid plan");
+        assert.equal(inBody("## Done when\r\n\r\n- [ ] Buy a seat.\r\n"), "seat");
+      });
+
+      test("a task item's lines past one that holds only code", () => {
+        assert.equal(inBody(`## Problem\n\n- [ ] Update:\n  \`a.md\`\n  and buy a seat.\n\n${DONE}`), "seat");
+        assert.equal(inBody(`## Problem\n\n- [ ] Update:\n  \`\`\`\n  a.md\n  \`\`\`\n  and buy a seat.\n\n${DONE}`), "seat");
+      });
+
+      test("a Fix step, its sub-headings and markup on the heading", () => {
+        assert.equal(inBody(`## Fix\n\n1. Create the database so it pauses instead of billing.\n\n${DONE}`), "billing");
+        assert.equal(inBody(`## Fix\n\n### Step one\n\nCreate the database so it pauses instead of billing.\n\n${DONE}`), "billing");
+        assert.equal(inBody("## **Fix:** `resolve`\r\n\r\nBuy a seat.\r\n\r\n## Problem\r\n"), "seat");
+        assert.equal(inBody("## `Fix`\n\nBuy a seat.\n\n- [ ] Line 3."), "seat");
+      });
+
+      test("a heading after an unclosed fence, which code masking leaves as prose", () => {
+        assert.equal(inBody(`${DONE}\n\n\`\`\`\n\n## Fix\n\nBuy a seat.`), "seat");
+      });
+
+      test("an unstructured body, read whole", () => {
+        assert.equal(inBody("Move the job to larger runners."), "larger runners");
+        assert.equal(inBody("## Problem\n\nThe job needs a seat."), "seat");
+        assert.equal(inBody("```\n- [ ] in a fence\n```\n\nThe job needs a seat."), "seat");
+      });
+
+      test("a task item of a body no listed human last edited", () => {
+        const issue = issueOf({ body: "- [ ] Buy a seat." });
+        assert.equal(word({ issue, spec: { ...humanSpec(issue), editor: APP_ACTOR, lastEditedAt: "2026-10-20T00:00:00Z" } }), "seat");
+      });
+
+      test("a word beside an escaped backtick, which opens no code span", () => {
+        assert.equal(inBody("- [ ] Buy a \\`subscription\\`."), "subscription");
+        assert.deepEqual(chargeHits("the \\`seat\\` table", chargePattern()), ["seat"]);
+      });
+
+      test("the real use of each word", () => {
+        for (const [item, found] of [
+          ["Raise the billing cap.", "billing"],
+          ["Runs are billed per job.", "billed"],
+          ["Raise the spending limit.", "spending limit"],
+          ["Take the subscription upgrade.", "subscription"],
+          ["Run a pass on the subscription tier we buy.", "subscription"],
+          ["Move to a larger SKU.", "sku"],
+          ["Raise artifact retention to 90 days.", "retention"],
+          ["Move to larger runners.", "larger runners"],
+          ["Add a self-hosted runner.", "self-hosted runner, hosted runner"],
+          ["Buy a seat.", "seat"],
+          ["Turn on Codespaces.", "codespaces"],
+          ["Take a paid plan.", "paid plan"],
+          ["Buy a top-up.", "top-up"],
+          ["Turn on auto-renewal.", "auto-renewal"],
+          ["Turn on extra usage.", "extra usage"],
+        ]) {
+          assert.equal(inBody(`- [ ] ${item}`), found);
+        }
+      });
+
+      test("names each word once across the title and body", () => {
+        assert.deepEqual(workCharges({ title: "Buy a seat", body: "- [ ] Buy a seat." }, chargePattern(), false, RULES["task-list"]), ["seat"]);
+      });
+    });
+
+    // The comparison rests on `diff` holding each revision's full text, newest
+    // first, against its schema description; these fixtures pin that shape.
+    describe("an edit that moves a charge word into code", () => {
+      const charges = chargePattern();
+      const WRAPPED = "- [ ] Reuse the `subscription` value.";
+      const PROSE = "- [ ] Reuse the subscription value.";
+      const revisionsOf = (...texts) => ({
+        includesCreatedEdit: true,
+        userContentEdits: {
+          pageInfo: { hasNextPage: false },
+          nodes: texts.map((diff, index) => ({ editedAt: `2026-10-2${9 - index}T05:00:00Z`, deletedAt: null, diff })),
+        },
+      });
+      const wraps = (text, node) => revisionWraps(text, node, charges, true);
+
+      test("flags a wrap, naming the edit and the word", () => {
+        assert.deepEqual(wraps(WRAPPED, revisionsOf(WRAPPED, PROSE)), [{ where: "the body", word: "subscription", at: "2026-10-29T05:00:00Z" }]);
+      });
+
+      test("flags a wrap into an identifier and a fence", () => {
+        assert.equal(wraps("The `fix-ci-subscription` job.", revisionsOf("The `fix-ci-subscription` job.", "The fix-ci-subscription job."))[0].word, "subscription");
+        const fenced = "```\nBuy a seat.\n```";
+        assert.equal(wraps(fenced, revisionsOf(fenced, "Buy a seat."))[0].word, "seat");
+      });
+
+      test("sorts revisions by edit time, whatever order they arrive in", () => {
+        const node = revisionsOf(PROSE, WRAPPED);
+        const { nodes } = node.userContentEdits;
+        [nodes[0].editedAt, nodes[1].editedAt] = [nodes[1].editedAt, nodes[0].editedAt];
+        assert.equal(wraps(WRAPPED, node).length, 1);
+      });
+
+      test("a clean edit stays quiet", () => {
+        const text = `${WRAPPED}\n- [ ] More.`;
+        assert.deepEqual(wraps(text, revisionsOf(text, WRAPPED)), []);
+      });
+
+      test("removing a word from prose is no wrap", () => {
+        assert.deepEqual(wraps(WRAPPED, revisionsOf(WRAPPED, `${WRAPPED}\nBuy a subscription.`)), []);
+      });
+
+      test("a word no longer in code is not flagged", () => {
+        assert.deepEqual(wraps("Plain `seat`.", revisionsOf("Plain `seat`.", PROSE, WRAPPED, PROSE)), []);
+      });
+
+      test("a deleted revision or a history over one page is reported for a hold", () => {
+        const deleted = revisionsOf(WRAPPED, PROSE);
+        deleted.userContentEdits.nodes[1].deletedAt = "2026-10-30T00:00:00Z";
+        deleted.userContentEdits.nodes[1].diff = null;
+        assert.deepEqual(wraps(WRAPPED, deleted), [{ unreadable: "a revision of the body is deleted" }]);
+        const paged = revisionsOf(WRAPPED, PROSE);
+        paged.userContentEdits.pageInfo.hasNextPage = true;
+        assert.deepEqual(wraps(WRAPPED, paged), [{ unreadable: "the body has more than one page of revisions" }]);
+      });
+
+      test("throws on a read it cannot compare", () => {
+        // A real patch in `diff` is no longer the text this reads.
+        assert.throws(() => wraps(WRAPPED, revisionsOf("@@ -1 +1 @@", "@@ -0,0 +1 @@")), /newest revision of the body is not its current text/);
+        assert.throws(() => wraps(`${WRAPPED}\n- [ ] Edited between reads.`, revisionsOf(WRAPPED, PROSE)), /newest revision of the body is not its current text/);
+        const empty = revisionsOf(WRAPPED, PROSE);
+        empty.userContentEdits.nodes[1].diff = null;
+        assert.throws(() => wraps(WRAPPED, empty), /a revision of the body has no text or edit time/);
+        assert.throws(() => wraps(WRAPPED, undefined), /no complete revision list/);
+        assert.throws(() => wraps(WRAPPED, { ...revisionsOf(WRAPPED), includesCreatedEdit: false }), /no complete revision list/);
+      });
+
+      test("titles compare through renamed events", () => {
+        const renamed = (from, to) => ({ event: "renamed", rename: { from, to }, created_at: "2026-10-29T05:00:00Z" });
+        const title = "docs: the `fix-ci-subscription` start";
+        const wrap = renamed("docs: the fix-ci-subscription start", title);
+        assert.deepEqual(titleWraps(title, [wrap], charges, true), [{ where: "the title", word: "subscription", at: "2026-10-29T05:00:00Z" }]);
+        assert.deepEqual(titleWraps(title, [renamed("docs: start", title)], charges, true), []);
+        const result = decide(facts({ issue: issueOf({ title }), events: [wrap], public: true }));
+        assert.equal(result.hold, true);
+        assert.deepEqual(result.reasons, ["an edit of the title at 2026-10-29T05:00:00Z moved a charge word (subscription) from prose into code, which needs an owner decision"]);
+      });
+
+      test("decide holds with a reason distinct from a charge hit", () => {
+        const flagged = decide(facts({ chargeEdits: [{ where: "the body", word: "seat", at: "2026-10-29T05:00:00Z" }] }));
+        assert.equal(flagged.hold, true);
+        assert.deepEqual(flagged.reasons, ["an edit of the body at 2026-10-29T05:00:00Z moved a charge word (seat) from prose into code, which needs an owner decision"]);
+        const unreadable = decide(facts({ chargeEdits: [{ unreadable: "a revision of the body is deleted" }] }));
+        assert.equal(unreadable.hold, true);
+        assert.match(unreadable.reasons[0], /could not be compared with its edit history \(a revision of the body is deleted\), which needs an owner decision/);
+        assert.equal(CHARGE.exec(unreadable.reasons[0]), null);
+      });
+
+      test("a failed read refuses without a hold", () => {
+        const failed = decide(facts({ chargeEdits: [{ failed: "POST /graphql failed with status 502" }] }));
+        assert.equal(failed.verdict, "refuse");
+        assert.equal(failed.hold, undefined);
+        assert.deepEqual(failed.reasons, ["a charge word in code could not be compared with its edit history (POST /graphql failed with status 502), which no person must answer: dispatching intake again judges it anew"]);
+      });
+
+      describe("chargeEditsOf", () => {
+        const edited = { editor: USER(HUMAN), lastEditedAt: "2026-10-29T05:00:00Z" };
+        const WRAPPED_SPEC = { ...written(USER(HUMAN), { body: WRAPPED, ...edited }), comments: [] };
+        const read = async ({ spec, answer }) => {
+          const calls = [];
+          const github = async (method, path, body) => {
+            calls.push(body);
+            return answer(body);
+          };
+          return { found: await chargeEditsOf({ github, repository: "o/r", number: 7, spec, charges, public: true }), calls };
+        };
+        const history = (node) => () => ({ data: { repository: { issue: node } } });
+
+        test("reads nothing without a charge word in code on an edited body", async () => {
+          for (const spec of [
+            { ...written(USER(HUMAN), { body: WRAPPED }), comments: [] },
+            { ...written(USER(HUMAN), { body: PROSE, ...edited }), comments: [] },
+          ]) {
+            assert.deepEqual(await read({ spec, answer: () => assert.fail("no read") }), { found: [], calls: [] });
+          }
+        });
+
+        test("flags a wrap on the body", async () => {
+          const { found, calls } = await read({ spec: WRAPPED_SPEC, answer: history(revisionsOf(WRAPPED, PROSE)) });
+          assert.deepEqual(found.map(({ where, word }) => [where, word]), [["the body", "subscription"]]);
+          assert.deepEqual(calls.map(({ variables }) => variables), [{ owner: "o", name: "r", number: 7 }]);
+        });
+
+        test("reads no comment's history, however a comment was edited", async () => {
+          const comment = { ...written(USER(HUMAN), { body: WRAPPED, ...edited }), databaseId: 9 };
+          assert.deepEqual(await read({ spec: humanSpec(issueOf(), [comment]), answer: () => assert.fail("no read") }), { found: [], calls: [] });
+        });
+
+        test("a failed read, a null diff and a body edited between reads each come back failed", async () => {
+          const refused = () => {
+            throw new Error("POST /graphql failed with status 502");
+          };
+          assert.deepEqual((await read({ spec: WRAPPED_SPEC, answer: refused })).found, [{ failed: "POST /graphql failed with status 502" }]);
+          assert.deepEqual((await read({ spec: WRAPPED_SPEC, answer: history(null) })).found, [{ failed: "the body has no complete revision list" }]);
+          const empty = revisionsOf(WRAPPED, PROSE);
+          empty.userContentEdits.nodes[0].diff = null;
+          assert.deepEqual((await read({ spec: WRAPPED_SPEC, answer: history(empty) })).found, [{ failed: "a revision of the body has no text or edit time" }]);
+          const moved = { ...WRAPPED_SPEC, body: `${WRAPPED}\n- [ ] Edited between reads.` };
+          assert.deepEqual((await read({ spec: moved, answer: history(revisionsOf(WRAPPED, PROSE)) })).found, [{ failed: "the newest revision of the body is not its current text" }]);
+        });
+
+        test("a deleted revision comes back to hold", async () => {
+          const deleted = revisionsOf(WRAPPED, PROSE);
+          deleted.userContentEdits.nodes[1].deletedAt = "2026-10-30T00:00:00Z";
+          assert.deepEqual((await read({ spec: WRAPPED_SPEC, answer: history(deleted) })).found, [{ unreadable: "a revision of the body is deleted" }]);
+        });
+      });
+
+      test("admissionFacts hands decide a failed read, which refuses without a hold", async () => {
+        const issue = issueOf();
+        const spec = { ...written(USER(HUMAN), { body: WRAPPED, editor: USER(HUMAN) }), comments: [] };
+        const fake = fakeGitHub({ issue, spec, failOn: (method, path, body) => method === "POST" && path === "/graphql" && body.query.includes("userContentEdits") });
+        const read = await admissionFacts({ github: fake.github, repository: "o/r", number: 7, issue, rules: RULES, humans, appId: APP, isTrusted: async () => true });
+        assert.deepEqual(read.chargeEdits, [{ failed: "POST /graphql failed with status 500" }]);
+        const result = decide({ ...read, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, repository: "o/r" });
+        assert.equal(result.verdict, "refuse");
+        assert.equal(result.hold, undefined);
+      });
     });
   });
 

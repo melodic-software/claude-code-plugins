@@ -9,7 +9,9 @@
 // risk), or a hold label other than one this run's triage applied on a
 // flagless verdict, which it refuses, and the
 // cost rule adds needs-human; criterion 6 is checked here too, on the charge
-// words rule-admit.sh refuses (chargePattern), whatever the verdict flagged.
+// words rule-admit.sh refuses (chargePattern) in what the issue will do
+// (workCharges), and on an edit that moved one into code (revisionWraps),
+// whatever the verdict flagged.
 // Criterion 4 (no protected path named) applies only to the paths the issue
 // lane cannot push (unpushablePaths), named outside a clause that leaves them
 // unchanged ("no file under X is edited"). This checks the rest:
@@ -638,28 +640,165 @@ export function issuePushRefusals() {
 
 let chargeWords;
 // The charge-word patterns rule-admit.sh matches too, {code, cost,
-// costPrivate}, read once from their one definition in the default branch's
-// checkout beside this script.
+// costPrivate}, and the headings only admission reads, {workHeadings}, read
+// once from their one definition in the default branch's checkout beside this
+// script.
 export function chargePattern() {
   if (chargeWords === undefined) {
     const words = JSON.parse(readFileSync(new URL("../../../plugins/work-items/scripts/charge-words.json", import.meta.url), "utf8"));
-    const pattern = (key) => {
+    const pattern = (key, flags = "gi") => {
       if (typeof words[key] !== "string" || words[key] === "") {
         throw new Error(`plugins/work-items/scripts/charge-words.json: \`${key}\` must be a pattern`);
       }
-      return new RegExp(words[key], "gi");
+      return new RegExp(words[key], flags);
     };
-    chargeWords = { code: pattern("code"), cost: pattern("cost"), costPrivate: pattern("cost_private") };
+    chargeWords = { code: pattern("code"), cost: pattern("cost"), costPrivate: pattern("cost_private"), workHeadings: pattern("work_headings", "i") };
   }
   return chargeWords;
 }
 
-// The charge words `text` holds outside code, lowercased, each once: the
-// `cost` words, and the `costPrivate` ones unless `isPublic`. Pure.
-export const chargeHits = (text, { code, cost, costPrivate }, isPublic = false) => {
-  const prose = String(text ?? "").replace(code, " ");
-  const found = [...prose.matchAll(cost), ...(isPublic ? [] : prose.matchAll(costPrivate))];
-  return [...new Set(found.map((m) => m[0].toLowerCase()))];
+// `text` with `code` blanked and its line breaks kept, so a line of the result
+// is the same line of `text`. Pure.
+const withoutCode = (text, code) => String(text ?? "").replace(code, (match) => match.replace(/[^\n]/g, " "));
+
+// Every charge word in `prose`, lowercased: the `cost` words, and the
+// `costPrivate` ones unless `isPublic`. Pure.
+const chargeWordsIn = (prose, { cost, costPrivate }, isPublic) =>
+  [...prose.matchAll(cost), ...(isPublic ? [] : prose.matchAll(costPrivate))].map((m) => m[0].toLowerCase());
+
+// The charge words `text` holds outside code, each once. Pure.
+export const chargeHits = (text, charges, isPublic = false) => [...new Set(chargeWordsIn(withoutCode(text, charges.code), charges, isPublic))];
+
+const ATX_HEADING = /^ {0,3}(#{1,6})(?:[ \t]|$)/;
+
+// {known, lines}: whether `prose` (`text` withoutCode) has a heading
+// `workHeadings` matches, and the lines of each such section, its heading
+// included, up to the next heading at its level or shallower. A heading is
+// found in `prose`, so one in code is none, and named from `text`, so code in
+// the heading still names it. Pure.
+const workSections = (prose, text, workHeadings) => {
+  const names = String(text ?? "").split("\n");
+  const lines = [];
+  let known = false;
+  let level = 0;
+  prose.split("\n").forEach((line, index) => {
+    const depth = ATX_HEADING.exec(line.replace(INVISIBLE, "").trimEnd())?.[1].length;
+    if (depth !== undefined && (level === 0 || depth <= level)) {
+      const work = workHeadings.test(plainText(names[index]).replace(/^[^\p{L}\p{N}]+/u, ""));
+      known ||= work;
+      level = work ? depth : 0;
+    }
+    if (level > 0) {
+      lines.push(line);
+    }
+  });
+  return { known, lines };
+};
+
+// The charge words in what an issue will do, each once: its `title`, and its
+// `body`'s task items and work sections (workSections), or the whole body with
+// neither. Each is read alone, so a fence one leaves open never closes in the
+// other. Comments are not read. Pure.
+export function workCharges({ title, body }, charges, isPublic, taskList) {
+  const read = (text) => withoutCode(text, charges.code);
+  const prose = read(body);
+  const lines = prose.split("\n");
+  // An item's extent comes from `body`: a line of code alone blanks to
+  // nothing, which would end the item. Its words come from outside code.
+  const items = taskItems(body, taskList).flatMap(({ line, more }) => [line, ...more].map((index) => lines[index]));
+  const sections = workSections(prose, body, charges.workHeadings);
+  const whole = !sections.known && !hasTaskLine(prose, taskList);
+  const parts = [read(title), ...items, ...(whole ? [prose] : sections.lines)];
+  return [...new Set(parts.flatMap((part) => chargeWordsIn(part, charges, isPublic)))];
+}
+
+const tally = (words) => words.reduce((counts, word) => counts.set(word, (counts.get(word) ?? 0) + 1), new Map());
+// [all, prose]: how often each charge word stands in `text`, and outside code.
+const chargeCounts = (text, charges, isPublic) => [String(text ?? ""), withoutCode(text, charges.code)].map((part) => tally(chargeWordsIn(part, charges, isPublic)));
+
+// The charge words `text` holds in code. Pure.
+export const chargeWordsInCode = (text, charges, isPublic) => {
+  const [all, prose] = chargeCounts(text, charges, isPublic);
+  return [...all].filter(([word, count]) => count > (prose.get(word) ?? 0)).map(([word]) => word);
+};
+
+// The charge words `after` moved out of prose and kept in the text, so into
+// code. Pure.
+export const wrappedWords = (before, after, charges, isPublic) => {
+  const [allBefore, proseBefore] = chargeCounts(before, charges, isPublic);
+  const [allAfter, proseAfter] = chargeCounts(after, charges, isPublic);
+  return [...proseBefore].filter(([word, count]) => (proseAfter.get(word) ?? 0) < count && (allAfter.get(word) ?? 0) >= allBefore.get(word)).map(([word]) => word);
+};
+
+// [{where, word, at}] for each `renamed` event in `events` that moved a charge
+// word of `title` into code. Pure.
+export const titleWraps = (title, events, charges, isPublic) => {
+  const now = chargeWordsInCode(title, charges, isPublic);
+  return (events ?? [])
+    .filter((event) => event?.event === "renamed")
+    .flatMap(({ rename, created_at: at }) => wrappedWords(rename?.from, rename?.to, charges, isPublic).filter((word) => now.includes(word)).map((word) => ({ where: "the title", word, at })));
+};
+
+// What `node` (the issue in an EDITS_QUERY answer, whose `diff` is the whole
+// text of a revision, whatever the schema says) shows of the body `text`:
+// {where, word, at} for each edit that moved a charge word `text` holds in code
+// out of prose, or one {unreadable} when an edit could hide for good: a
+// deleted revision, or a history past one page. Revisions compare in editedAt
+// order, since no order is documented. A read this cannot compare throws. Pure.
+export function revisionWraps(text, node, charges, isPublic) {
+  const edits = node?.userContentEdits;
+  if (node?.includesCreatedEdit !== true || !Array.isArray(edits?.nodes) || edits.nodes.length === 0 || typeof edits.pageInfo?.hasNextPage !== "boolean") {
+    throw new Error("the body has no complete revision list");
+  }
+  if (edits.pageInfo.hasNextPage) {
+    return [{ unreadable: "the body has more than one page of revisions" }];
+  }
+  if (edits.nodes.some((edit) => edit?.deletedAt != null)) {
+    return [{ unreadable: "a revision of the body is deleted" }];
+  }
+  if (!edits.nodes.every((edit) => typeof edit?.diff === "string" && Number.isFinite(Date.parse(edit.editedAt)))) {
+    throw new Error("a revision of the body has no text or edit time");
+  }
+  const revisions = edits.nodes.toReversed().sort((a, b) => Date.parse(a.editedAt) - Date.parse(b.editedAt));
+  if (revisions.at(-1).diff !== text) {
+    throw new Error("the newest revision of the body is not its current text");
+  }
+  const now = chargeWordsInCode(text, charges, isPublic);
+  return revisions.slice(1).flatMap((revision, index) =>
+    wrappedWords(revisions[index].diff, revision.diff, charges, isPublic)
+      .filter((word) => now.includes(word))
+      .map((word) => ({ where: "the body", word, at: revision.editedAt })),
+  );
+}
+
+// A separate query, so specOf's callers do not carry every revision's text.
+const EDITS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issue(number: $number) { includesCreatedEdit userContentEdits(first: 100) { pageInfo { hasNextPage } nodes { editedAt deletedAt diff } } } }
+}`;
+
+// What the body's edit history says of a charge word in code: revisionWraps'
+// rows, or {failed} when it does not read. [] with no such word on an edited
+// body, and no read then.
+export async function chargeEditsOf({ github, repository, number, spec, charges, public: isPublic }) {
+  if (spec.lastEditedAt == null || chargeWordsInCode(spec.body, charges, isPublic).length === 0) {
+    return [];
+  }
+  const [owner, name] = repository.split("/");
+  try {
+    const answer = await github("POST", "/graphql", { query: EDITS_QUERY, variables: { owner, name, number: Number(number) } });
+    return revisionWraps(spec.body, answer?.data?.repository?.issue, charges, isPublic);
+  } catch (error) {
+    return [{ failed: String(error?.message ?? error).replaceAll("\n", " ") }];
+  }
+}
+
+// The refusal for one chargeEditsOf or titleWraps row.
+const chargeEditReason = ({ where, word, at, unreadable, failed }) => {
+  if (word !== undefined) {
+    return `an edit of ${where} at ${at} moved a charge word (${word}) from prose into code, which needs an owner decision`;
+  }
+  const after = failed === undefined ? "which needs an owner decision" : "which no person must answer: dispatching intake again judges it anew";
+  return `a charge word in code could not be compared with its edit history (${failed ?? unreadable}), ${after}`;
 };
 
 let workflowNames;
@@ -952,7 +1091,9 @@ export function admissionSettled(labels, events, isMark) {
 // `verdict.writtenAt` is when the lane comment the verdict came from was last
 // written; a body edited after it refuses, since the verdict judged an older
 // body. The sweep reads no lane comment and passes none. `public` (from
-// admissionFacts) skips the cost_private charge words. Pure but for
+// admissionFacts) skips the cost_private charge words; `chargeEdits`
+// (admissionFacts, chargeEditsOf) each refuse, and hold for a person unless
+// the read failed. Pure but for
 // `pushRefusals` and `charges`, read from patch-rules.json and
 // charge-words.json when not given; a file that does not read, or a
 // patch-rules.json row that refuses no protected path (pushRefusalsOf),
@@ -963,7 +1104,7 @@ export function admissionSettled(labels, events, isMark) {
 // issue waited for. Until a verdict written after that close judges the issue
 // against it, the wait carries `retriage` and admit() sends the issue back to
 // intake; once one has, the issue's own criteria decide.
-export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], doneBy = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern() }) {
+export function decide({ issue, verdict, rules, parent, blockers, trustedCloses, reported = new Map(), pulls = [], subIssues = [], doneBy = [], events, spec, schedule, humans, appId, repository, webHosts, public: isPublic = false, pushRefusals = issuePushRefusals(), workflows = workflowFiles(), charges = chargePattern(), chargeEdits = [] }) {
   const labels = names(issue.labels);
   if (!labels.includes(READY)) {
     return { verdict: "skip", reasons: [`no ${READY}`] };
@@ -1075,11 +1216,16 @@ export function decide({ issue, verdict, rules, parent, blockers, trustedCloses,
     refuse.push(`a criterion names ${unpushable.join(", ")}, which the issue lane cannot push (patch-protected-path); a builder session takes it`);
   }
   // A metered or renewing charge needs the owner's decision, whatever the
-  // verdict flagged.
-  const charged = chargeHits(`${issue.title ?? ""}\n${issue.body ?? ""}`, charges, isPublic);
+  // verdict flagged. A word an edit moved into code leaves this read, so that
+  // edit needs the same decision; a history that fails to read does not.
+  const charged = workCharges({ title: issue.title, body: issue.body }, charges, isPublic, rules["task-list"]);
   if (charged.length > 0) {
-    refuse.push(`its title or body names a charge (${charged.join(", ")}), which needs an owner decision`);
+    refuse.push(`its title or stated work names a charge (${charged.join(", ")}), which needs an owner decision`);
     hold = true;
+  }
+  for (const edit of [...titleWraps(issue.title, events, charges, isPublic), ...chargeEdits]) {
+    refuse.push(chargeEditReason(edit));
+    hold ||= edit.failed === undefined;
   }
   if (BODY_HOLD.test(String(issue.body ?? ""))) {
     refuse.push("a line of its body opens with `Hold:`, a person's hold; removing that line lifts it");
@@ -1906,6 +2052,12 @@ export async function admissionFacts({ github, repository, number, issue, rules,
   }
   const decisionOpen =
     typed && parent !== null && names(parent.labels).includes(NEEDS_DECISION) ? await parentDecisionOpen({ github, repository, parent, humans, appId }) : undefined;
+  // Only a visibility that reads public skips the cost_private charge words;
+  // a failed read counts the repository as private.
+  const isPublic = await github("GET", `/repos/${repository}`).then(
+    (repo) => repo?.visibility === "public",
+    () => false,
+  );
   return {
     issue,
     // Read for the admission comment's own earlier copy (sayWhy).
@@ -1920,12 +2072,8 @@ export async function admissionFacts({ github, repository, number, issue, rules,
     subIssues: await openSubIssues(github, base, issue),
     doneBy: await (doneBy ?? mergedRefsReader({ github, repository, humans, appId }))(Number(number)),
     events: await paginate(github, `${base}/events`),
-    // Only a visibility that reads public skips the cost_private charge
-    // words; a failed read counts the repository as private.
-    public: await github("GET", `/repos/${repository}`).then(
-      (repo) => repo?.visibility === "public",
-      () => false,
-    ),
+    public: isPublic,
+    chargeEdits: await chargeEditsOf({ github, repository, number, spec, charges: chargePattern(), public: isPublic }),
   };
 }
 
