@@ -1316,7 +1316,7 @@ test("a pr-test-windows re-run is not recorded", async () => {
   assert.deepEqual(reruns, [101]);
 });
 
-test("a PR's CI set carries one record, so the cap of 3 bounds the records at 3", async () => {
+test("a CI set with no stopped review carries one record, so the cap of 3 bounds the records at 3", async () => {
   const runs = [1, 2, 3, 4].flatMap((n) => [run(100 + n, sha(n)), run(200 + n, sha(n), { path: WINDOWS })]);
   const { code, outputs, reruns } = await reconcile({ pulls: [pr(1), pr(2), pr(3), pr(4)], runs: [...runs, verifyRun(301)] });
   assert.equal(code, 0);
@@ -1823,13 +1823,42 @@ test("the reconciler takes the hosted review lanes among its CI workflows", () =
   }
 });
 
-test("a hosted review run the upstream gate stopped has its failed jobs re-run once", async () => {
+test("a hosted review run the upstream gate stopped has its failed jobs re-run once, after the plan names its record", async () => {
   for (const path of [REVIEW, SECURITY_REVIEW]) {
-    const { failedJobReruns, reruns, code } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1), { path })] });
+    const { failedJobReruns, reruns, code, outputs, planWrites } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1), { path })] });
     assert.equal(code, 0, path);
+    assert.equal(planWrites, 0, path);
     assert.deepEqual(failedJobReruns, [201], path);
     assert.deepEqual(reruns, [], path);
+    assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, "", ""], path);
   }
+});
+
+// An outage stops both review lanes at one head, so one PR's set can hold more
+// records than the workflow's upload steps have room for beside another PR's.
+const bothStopped = (n) => [gated(200 + n, sha(n)), gated(300 + n, sha(n), { path: SECURITY_REVIEW })];
+
+test("a PR's two stopped reviews share one place, and a set past the record uploads waits for a later pass", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const runs = [...bothStopped(1), ...bothStopped(2), gated(203, sha(3))];
+  const { code, outputs, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2), pr(3)], runs });
+  assert.equal(code, 0);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, `reconcile-rerun-301-2-${sha(1)}`, `reconcile-rerun-203-2-${sha(3)}`]);
+  assert.deepEqual(failedJobReruns, [201, 301, 203]);
+  assert.ok(log.mock.calls.some((c) => c.arguments[0] === "reconcile: #2: deferred, no record upload left this pass"));
+});
+
+test("a set holding three records fills the uploads, so the items after it wait", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const runs = [run(101, sha(1)), ...bothStopped(1), gated(202, sha(2)), verifyRun(401)];
+  const { code, outputs, reruns, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2)], runs });
+  assert.equal(code, 0);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, `reconcile-rerun-201-2-${sha(1)}`, `reconcile-rerun-301-2-${sha(1)}`]);
+  assert.deepEqual(reruns, [101]);
+  assert.deepEqual(failedJobReruns, [201, 301]);
+  const lines = log.mock.calls.map((c) => c.arguments[0]);
+  assert.ok(lines.includes("reconcile: #2: deferred, no record upload left this pass"));
+  assert.ok(lines.includes(`reconcile: lane run 401 (${VERIFY}): deferred, no record upload left this pass`));
 });
 
 test("a hosted review run that failed any other way is never re-run", async () => {
