@@ -29,9 +29,20 @@ Where this skill says "deeper research," use whatever external-research capabili
 
 ## Emit checklist
 
-For any course digest run (multi-phase content acquisition + distillation + repo-applicability analysis), copy `templates/checklist.md` into `.work/<slug>/course-digest-checklist.md`. Tick each phase as completed.
+For any course digest run (multi-phase content acquisition + distillation + repo-applicability analysis), copy `templates/checklist.md` into `<work-root>/.work/<slug>/course-digest-checklist.md`. Tick each phase as completed.
 
-This skill's `.work/` root resolves through the knowledge plugin's own `library_dir` seam; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-reserved base names take an `-x` suffix); and nested `<epic>/<slug>/` sub-slices are sanctioned. The root still self-ignores (a `.gitignore` containing `*`) and is never committed.
+`<work-root>` follows the knowledge plugin's one rule, `${CLAUDE_PLUGIN_ROOT}/reference/work-root.md`. Resolve it once, before the first write, from the session's working directory; a non-zero exit (an unset variable in the value) fails the run:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/work-root.mjs" --library-dir '${user_config.library_dir}'
+```
+
+Two paths per course, both under `<work-root>`:
+
+- `<work-root>/.work/<slug>/course-digest-checklist.md` is the phase checklist, a working file. `<work-root>/.work/` self-ignores (a `.gitignore` containing `*`) and is never committed; nested `<epic>/<slug>/` sub-slices are sanctioned there.
+- `<work-root>/courses/<platform>/<slug>/` is the course directory: every course file in [context/storage-schema.md](context/storage-schema.md) lives there, and it is the `--course-dir` every extraction script takes.
+
+Slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-reserved base names take an `-x` suffix).
 
 ## Prerequisites (verify before starting)
 
@@ -39,7 +50,7 @@ This skill's `.work/` root resolves through the knowledge plugin's own `library_
 2. **Platform auth**. Set `COURSE_EMAIL`/`COURSE_PASSWORD` (Dometrain → Clerk) or `TEACHABLE_EMAIL`/`TEACHABLE_PASSWORD` (Teachable) in your shell before invoking; they inherit into the pipeline's node subprocess. The env-var prefix is course-config-driven via `platformConfig.authEnvPrefix`. Session cookies persist under `${CLAUDE_PLUGIN_DATA}/auth/<platform>.auth-state.json` and are reused across runs. **Interactive manual login is the fallback** when no credentials are set. It opens a browser window for you to log in. NOTE: the manual-login prompt (`node:readline` + headed browser) may not function under headless plugin execution; env-var + cookie-reuse carry the skill regardless, and manual login is a known limitation there, not a blocker. These credentials live in shell environment variables, not in plugin `userConfig`: this plugin's `userConfig` options are non-secret scalars, and a stored option value is not a secret store.
 3. **ffmpeg**, required for video frame extraction (scene detection, interval capture). Check: `ffmpeg -version`. Install: `winget install Gyan.FFmpeg` (Windows), `brew install ffmpeg` (macOS), `sudo apt install ffmpeg` (Linux). Floor 7.1+ (newer codecs, AV1, Opus, degrade or fail below this).
 4. **ImageMagick 7**, required by `classify-frames.js` for contact sheet generation (`magick montage`). Check: `magick -version`. Install: `winget install ImageMagick.ImageMagick` (Windows), `brew install imagemagick` (macOS), `sudo apt install imagemagick` (Linux). Ubuntu <26.04 ships v6. V7 may require building from source.
-5. **claude-in-chrome MCP**. Needed for Phase 1 (course discovery) and frame extraction HLS URL retrieval. Run `tabs_context_mcp` as preflight.
+5. **A browser tool for Phase 1 (course discovery)**, picked by the browser-tool rubric `/testing:run-e2e` owns: the Playwright CLI through `/playwright:playwright` by default, and Claude in Chrome only when the person asks to use their own signed-in browser on an attended run. A missing tool is a prerequisite gap to report, not a reason to switch tools. Frame extraction needs no browser tool: the scripts read HLS URLs themselves.
 
 If any prerequisite fails, stop and inform the user. Re-run `setup-deps.mjs` for the node dependencies + Chromium; the media binaries (ffmpeg, ImageMagick) are OS-level installs via your platform's package manager per the commands above.
 
@@ -263,7 +274,7 @@ lists the Bash tool among the processes that receive the variables.
 
 ## Storage
 
-Generated course output lands under the invoking project's `library_dir` seam (or `${CLAUDE_PLUGIN_DATA}` when no library dir is configured), one self-contained directory per course slug. See [context/storage-schema.md](context/storage-schema.md) for the full directory structure.
+Generated course output lands under `<work-root>` ([Emit checklist](#emit-checklist)) as `courses/<platform>/<slug>/`, one self-contained directory per course slug. See [context/storage-schema.md](context/storage-schema.md) for the full directory structure.
 
 Rules:
 

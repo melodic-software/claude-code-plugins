@@ -29,7 +29,7 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
   content is consolidated into a shared file.
 
 You name the target skill when you invoke `/knowledge:book-distill`, so output
-lands somewhere you chose (`${CLAUDE_PROJECT_DIR}/.claude/skills/<target>/`): either an existing skill it extends or a new one it creates. Cross-session state
+lands somewhere you chose (`.claude/skills/<target>/` under the session's git top-level, per [`reference/work-root.md`](reference/work-root.md)): either an existing skill it extends or a new one it creates. Cross-session state
 (the file plan, page map, and a checklist) persists under `${CLAUDE_PLUGIN_DATA}`; for how long
 that directory is kept, see
 [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
@@ -67,11 +67,11 @@ the rest of the knowledge stack.
 
 - A PDF or EPUB you have the right to read. PDF works natively with Claude
   Code's Read tool; EPUB requires unzipping and text extraction first.
-- **Bash + coreutils** for the skills' inline mechanics (`book-distill`
-  hashes its progress-file slug with `sha256sum`/`shasum` on every run). On
-  native Windows, install
+- **Node.js on `PATH`**: every skill resolves its work root, and
+  `book-distill` its progress key, with `scripts/work-root.mjs`.
+- **Bash** for the skills' inline commands. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)
-  so they run under Git Bash, which bundles `sha256sum`.
+  so they run under Git Bash.
 - **`unzip` on `PATH` for the EPUB branch**, not bundled with Git Bash;
   install it or extract the EPUB with another archive tool first. PDF-only
   use does not need it.
@@ -90,7 +90,7 @@ defaults keep every pipeline working):
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
-| `library_dir` | directory | `.` (working-tree root) | Directory where the plugin's ingestion pipelines land synthesized artifacts; a relative value resolves against the root of the working tree the session is in, its worktree when it has entered one. Portable non-project roots: an absolute path, a leading `~` (home-relative), or an env-var reference `${NAME}` / `%NAME%` (e.g. `${KNOWLEDGE_CORPUS_DIR}`) so a machine-varying root never needs a literal machine path in the stored value. Expanded when a pipeline resolves the root (the `video-digest` launcher and the `docpage-digest` work root today), failing loud on an unset variable. `book-distill` is unaffected. It writes to the target skill you name at invocation. `video-digest` relocates its work root here and supports one re-layout (`watch/relayout-slice.js`, run before `close` to keep media). Other project artifacts conventions are not applied automatically. |
+| `library_dir` | directory | `.` (working-tree root) | Directory where the plugin's ingestion pipelines land synthesized artifacts; a relative value resolves against the root of the working tree the session is in, its worktree when it has entered one. Portable non-project roots: an absolute path, a leading `~` (home-relative), or an env-var reference `${NAME}` / `%NAME%` (e.g. `${KNOWLEDGE_CORPUS_DIR}`) so a machine-varying root never needs a literal machine path in the stored value. Expanded by `scripts/work-root.mjs`, the one rule every knowledge skill resolves its root through ([`reference/work-root.md`](reference/work-root.md)), failing loud on an unset variable. `book-distill` is unaffected. It writes to the target skill you name at invocation. `video-digest` relocates its work root here and supports one re-layout (`watch/relayout-slice.js`, run before `close` to keep media). Other project artifacts conventions are not applied automatically. |
 | `yt_dlp_js_runtimes` | string | `node` | `video-digest`: JavaScript runtime yt-dlp uses for YouTube signature deciphering. Set to `off` to omit the flag entirely. |
 | `yt_dlp_cookies_file` | string | (empty) | `video-digest`: path to a Netscape cookies.txt for authenticated acquisition. Never commit cookie files. |
 | `yt_dlp_cookies_from_browser` | string | (empty) | `video-digest`: browser to pull YouTube cookies from (`chrome`, `firefox`, `edge`, …), forcing one instead of the automatic fallback. A cookies file wins over this. |

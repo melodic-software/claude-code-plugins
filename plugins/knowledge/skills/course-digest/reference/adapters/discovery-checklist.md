@@ -17,7 +17,7 @@ Systematic exploration process for adding a new course platform provider to the 
 
 **When to use**: before writing any adapter code for a new platform, or when extraction starts failing on an existing platform (DOM changes, auth changes, new content types).
 
-**Tools needed**: claude-in-chrome (interactive exploration), Playwright (automated testing), ffmpeg (frame extraction verification), browser DevTools network tab.
+**Tools needed**: the browser tool the `/testing:run-e2e` browser-tool rubric picks for interactive exploration (the Playwright CLI through `/playwright:playwright` by default; Claude in Chrome only when the person asks to use their own signed-in browser on an attended run; a missing tool is a prerequisite gap to report, not a reason to switch tools), Playwright (automated testing), ffmpeg (frame extraction verification), browser DevTools network tab.
 
 **Prerequisite**: user must have an active account and be enrolled in at least one course on the platform. Authentication is manual for first run.
 
@@ -27,7 +27,7 @@ Determine underlying technology stack. Course platforms are often white-labeled,
 
 ### 1.1 Navigate to the course page
 
-Open enrolled course URL in claude-in-chrome. Read page at depth 2-3 to get high-level structure.
+Open the enrolled course URL in the browser tool. Read the page at depth 2-3 to get high-level structure.
 
 ### 1.2 Identify the LMS platform
 
