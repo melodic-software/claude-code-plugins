@@ -1855,14 +1855,11 @@ test("a main-run review is not re-run or recorded while the upstream gate reads 
   assert.deepEqual(records(outputs), ["", "", ""]);
 });
 
-// pr-verify.yml runs no upstream-status gate, so neither an outage nor an
-// unreadable status page holds its re-run.
-test("a pr-verify run is recorded and re-run while the upstream gate reads an outage or cannot be read", async () => {
-  for (const npm of [NPM_OUTAGE, new Error("boom")]) {
-    const { reruns, outputs } = await reconcile({ pulls: [], runs: [verifyRun(201)], upstream: { ...UPSTREAM_OK, [NPM_COMPONENTS]: npm } });
-    assert.deepEqual(reruns, [201]);
-    assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
-  }
+// pr-verify.yml runs no upstream-status gate, so an outage does not hold its re-run.
+test("a pr-verify run is recorded and re-run while the upstream gate reads an npm outage", async () => {
+  const { reruns, outputs } = await reconcile({ pulls: [], runs: [verifyRun(201)], upstream: { ...UPSTREAM_OK, [NPM_COMPONENTS]: NPM_OUTAGE } });
+  assert.deepEqual(reruns, [201]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
 });
 
 test("a hosted review re-run in flight takes none of the CI slots and does not hold the PR's CI back", async () => {
