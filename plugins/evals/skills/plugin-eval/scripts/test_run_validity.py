@@ -891,6 +891,125 @@ class RunValidityTest(unittest.TestCase):
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("  unfired: case noise-before-gain, with-arm run 1", proc.stdout)
 
+    def test_an_unfired_invocation_probe_is_its_measured_rate(self):
+        proc = self.fired_case_with_tags("tags: [invocation-probe, train]")
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check skill fired: WARN", proc.stdout)
+        self.assertIn(
+            "  measured: case noise-before-gain fired in 0 of 1 with-arm run\n",
+            proc.stdout,
+        )
+        self.assertNotIn("unfired:", proc.stdout)
+
+    def test_an_unfired_case_beside_an_unfired_probe_is_still_invalid(self):
+        result = self.clean()
+        result["cases"][1]["arms"]["with"][0]["graders"][1]["passed"] = False
+        result["cases"][2]["arms"]["with"][0]["graders"][1]["passed"] = False
+        (self.dir / "suite" / result["cases"][2]["dir"] / "prompt.md").write_text(
+            "---\ndescription: d\ntags: [invocation-probe, train]\n---\n\nQ\n",
+            encoding="utf-8",
+        )
+        proc = self.run_script(self.write(result), "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check skill fired: FAIL (1 of 1 with-arm runs", proc.stdout)
+        self.assertIn("  unfired: case measurable-criterion, with-arm run 1", proc.stdout)
+        self.assertIn(
+            "  measured: case noise-before-gain fired in 0 of 1 with-arm run\n",
+            proc.stdout,
+        )
+        self.assertNotIn("unfired: case noise-before-gain", proc.stdout)
+
+    def capped_probe(
+        self,
+        tool="Skill",
+        error="exit 1: Reached maximum number of turns (8)",
+        trace_error="Reached maximum number of turns (8)",
+        tags="tags: [invocation-probe, train]",
+        graded=None,
+    ):
+        """A no-trigger case whose with-arm run made one tool call and then ended
+        in error, its prompt.md carrying tags."""
+        result = self.clean()
+        case = result["cases"][0]
+        (self.dir / "suite" / case["dir"] / "prompt.md").write_text(
+            "---\ndescription: invocation probe x\n%s\nmax_turns: 8\n---\n\nQ\n" % tags,
+            encoding="utf-8",
+        )
+        call = {"skill": "evals:methodology"} if tool == "Skill" else {"file_path": "x"}
+        trace = self.dir / "capped.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            + json.dumps({"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": "c1", "name": tool, "input": call}]}})
+            + "\n"
+            + json.dumps({"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": "c1", "content": "ok"}]}})
+            + "\n"
+            + json.dumps({"type": "result", "subtype": "error_max_turns",
+                          "is_error": True,
+                          "errors": trace_error if isinstance(trace_error, list) else [trace_error]})
+            + "\n",
+            encoding="utf-8",
+        )
+        path = self.write(result)
+        data = load(path)
+        # The case's max-0 Skill grader fails when it saw the skill under test called.
+        graded = tool == "Skill" if graded is None else graded
+        data["cases"][0]["arms"]["with"][0].update(
+            tracePath=str(trace),
+            error=error,
+            turns=9,
+            graders=[
+                {"name": "names-conftest", "passed": True},
+                {"name": "no-skill-fired", "passed": not graded},
+            ],
+        )
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(path, "--runs", "1")
+
+    def test_a_probe_capped_at_max_turns_after_its_skill_call_is_a_warning(self):
+        proc = self.capped_probe()
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check run errors: WARN", proc.stdout)
+        self.assertIn(
+            "  case control-no-trigger, with-arm run 1: error exit 1: Reached maximum",
+            proc.stdout,
+        )
+
+    def test_a_probe_capped_at_max_turns_with_no_skill_call_is_invalid(self):
+        proc = self.capped_probe(tool="Read")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
+
+    def test_a_probe_with_another_error_is_invalid(self):
+        proc = self.capped_probe(error="rate limited", trace_error="rate limited")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
+        proc = self.capped_probe(trace_error="API error")
+        self.assertVerdict(proc, "INVALID", 1)
+
+    def test_a_probe_capped_after_calling_another_skill_is_invalid(self):
+        proc = self.capped_probe(graded=False)
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
+
+    def test_a_turn_cap_inside_another_run_error_is_invalid(self):
+        proc = self.capped_probe(error="API error after Reached maximum number of turns (8)")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
+
+    def test_a_turn_cap_beside_another_trace_error_is_invalid(self):
+        proc = self.capped_probe(
+            trace_error=["Reached maximum number of turns (8)", "API error: overloaded"]
+        )
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
+
+    def test_a_non_probe_capped_at_max_turns_after_a_skill_call_is_invalid(self):
+        proc = self.capped_probe(tags="tags: [knowledge]")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
+
     def suite_with_guard(self, case, guard_match):
         """Give a case a max-0 Skill guard whose input_match is read from its grader file."""
         result = self.clean()
