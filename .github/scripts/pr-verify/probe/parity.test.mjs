@@ -241,7 +241,7 @@ test("promptText writes the prompt as the bash step does, after the preamble", (
   const source = "Read SPEC_TEXT_FILE and SPEC_FILE;\nDIFF_PARTSCHUNK_NOTE\n\n\n";
   assert.equal(
     promptText(source, "/w/pr-verify-data"),
-    "You run unattended; return only the verdict the schema asks for; nothing you write is posted.\n\n" +
+    "You run unattended; return only the verdict the schema asks for; your summary and notes are public, so never quote a credential.\n\n" +
       "Read /w/pr-verify-data/spec-text.json and /w/pr-verify-data/spec.json;\n  - `/w/pr-verify-data/diff.patch`\n",
   );
 });

@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: ed-graft-reply-records-and-deletes
+description: "contract-change: base step 5 records a graft reply directly (winner, losers, steal/skip entries, what the discarded parts held, UI acceptance criteria) and then deletes the mockup; head runs the combine matrix on a graft reply first (SKILL.md step 4, reference/combine-matrix.md \"When it runs\", evals.json id 17), and a graft that names no base asks for one. The case grades head's behavior, so a base run that records and deletes is the intended change, reported apart from the non-inferiority verdict; the name keeps the base outcome this case now rules out."
+tags: [explore-directions, contract-change, hard]
+runs: 3
+expected_outcome: "The reply treats the graft (delivery-date cards from B, region filter from C, A skipped) as a combine: it asks which variant is the base as one question, or shows the combine matrix keyed by variant pair, before recording anything. docs/decisions/ui-shipments.md is not written and the mockup is not deleted in this turn."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/prototype:explore-directions Here is my reply on the /shipments variants (the mockup is at mockup-run/explore-directions.html):\n\nscreen: /shipments\ndirection: graft\nsteal: delivery-date cards from B\nsteal: region filter from C\nskip: A because the table hides the delivery date\nstate: empty shows the no-parcels message and a track-a-parcel action\ntest-ids: B: shipments-parcel-card, shipments-empty; C: shipments-region-filter\nnext-target: returns panel\n\nRecord the decision and close out the run."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 40
+  timeout_seconds: 900

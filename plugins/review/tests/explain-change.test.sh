@@ -2,6 +2,7 @@
 # Discovery wrapper: scripts/run-plugin-tests.sh finds plugins/**/*.test.sh, so
 # this hands off to the Node suite. SKIPs (exit 0) when Node is unavailable.
 # test-scope: plugins/review/skills/explain-change/SKILL.md
+# test-scope: plugins/review/.claude-plugin/plugin.json
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

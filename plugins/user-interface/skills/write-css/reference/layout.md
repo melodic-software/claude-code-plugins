@@ -4,6 +4,9 @@ The project's design system, tokens and conventions override everything in this 
 values in the examples are this skill's defaults: use one only where the project has no token for
 it, and name each default you used.
 
+The layout rules these recipes implement, with audit severities, are in
+[the web layout spoke](../../../reference/types/web/layout.md).
+
 Each `Baseline:` line links the live compat entry; never copy version numbers from it. As of
 2026-10-11; recheck when that entry's Baseline status changes or the project's browser target moves.
 

@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:audit",
+            "args": "launch"
+          }
+        }
+      ],
+      "why": "the audit skill fired at launch scope"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:audit"
+          }
+        }
+      ],
+      "why": "the audit skill fired"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:audit-launch",
+            "args": "launch"
+          }
+        }
+      ],
+      "why": "near miss: a name that starts with the audit skill's but is not it"
+    }
+  ]
+}

@@ -138,27 +138,41 @@ Rules:
 
 ## Concentric nested radius: `concentric-nested-radius`
 
-Why: an outer radius of inner radius plus padding keeps the two curves parallel, so the nesting
-looks deliberate.
+Why: an inner radius of the outer radius minus the parent's border width minus the padding keeps
+the two curves sharing a center, so the corner gap stays even all the way around.
 
 Baseline: [`border-radius`](https://developer.mozilla.org/en-US/docs/Web/CSS/border-radius#browser_compatibility),
-widely available. As of 2026-10-11, recheck on a status change.
+[`max()`](https://developer.mozilla.org/en-US/docs/Web/CSS/max#browser_compatibility).
+As of 2026-10-29, recheck on a status change.
 
 Use it wherever a rounded element sits inside a padded rounded parent: an image in a card, a
 button in an input.
 
 ```css
 .card {
-  --radius: var(--radius-m, 0.75rem);
+  --radius: var(--radius-l, 1.25rem);
+  --border: 1px;
   --pad: 0.5rem;
+  border: var(--border) solid var(--border-subtle, oklch(0 0 none / 0.08));
   padding: var(--pad);
-  border-radius: calc(var(--radius) + var(--pad));
+  border-radius: var(--radius);
 }
 
-.card > * { border-radius: var(--radius); }
+.card > * {
+  border-radius: max(0px, var(--radius) - var(--border) - var(--pad));
+}
 ```
+
+The rule itself (the subtraction, the floor at zero, and the `css.concentric_radius.max_gap_px`
+limit past which each radius is picked on its own) is the `shape-and-depth` concern of
+`/user-interface:design`. This recipe is the CSS for it.
 
 Rules:
 
-- Derive the outer radius from the inner one. The other way round reaches zero once the padding
-  exceeds the radius.
+- `max(0px, ...)` is the floor. A square inner corner at zero is the correct result, not a bug to
+  round up.
+- A child margin adds to the gap, so subtract it too.
+- [`nested-radius.mjs`](../../../scripts/nested-radius.mjs) works out the value for a pair of
+  lengths and says when the gap passes the limit.
+- Where the project fixes the inner radius as its token, add the gap to it for the outer radius
+  instead; the relation is the same.

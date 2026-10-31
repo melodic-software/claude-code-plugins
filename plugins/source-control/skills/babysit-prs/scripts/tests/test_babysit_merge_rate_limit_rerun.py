@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/*
 """A `--merge` run re-runs an AI review check that failed on the usage limit
 or on its runner install.
 

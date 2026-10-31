@@ -3,6 +3,25 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.132.4] - 2026-10-31
+
+### Fixed
+
+- The interview page's Finish no longer warns that you have not answered Claude in Notes just because Claude's reply was the last Notes entry. It warns only while a Claude note sent with `needsAnswer` has no answer. Each such note stays pinned in Loose ends until a note from you answers it, and each note you send answers the oldest one still open. A second `needsAnswer` note posted in the same apply is now pinned too, and one reply no longer clears both. The Brief's `asked in Notes, not answered` lines follow the same rule ([#11585](https://github.com/melodic-software/claude-code-plugins/issues/11585)).
+
+## [0.132.3] - 2026-10-31
+
+### Fixed
+
+- `/planning:interview`'s page Brief lists a decision once, in its final status, when its commitments are ticked at Confirm. `export-brief` rewrites a Decisions recap line taken while unticked commitments held the row `open` as `answered`, with the row's whole answer (also when the recap cut that answer short), so the row adds no second Constraints line.
+- SKILL.md and the page surface guide now agree that on the page the restate goes out over a procedure-check exit 1 when the only `open` rows are accepted questions waiting on commitment ticks, since the page offers those ticks in the restatement box.
+
+## [0.132.2] - 2026-10-31
+
+### Fixed
+
+- `ledger-check` now checks the ledger that `sync-ledger` or `add-round --sync-ledger` last wrote, recorded as `meta.syncedLedger`, before the ledger the page was seeded from. Both commands also record the check in `meta.ledgerSync`, so the page header shows its ledger line on an interview that was never imported from a ledger ([#11586](https://github.com/melodic-software/claude-code-plugins/issues/11586)).
+
 ## [0.132.1] - 2026-10-31
 
 ### Changed

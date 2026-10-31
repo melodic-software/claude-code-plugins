@@ -235,14 +235,17 @@ def aggregate(records: list[dict]) -> dict:
     perf: Counter = Counter()
     # (side, event key) -> next tool -> {count, ok, failed, unknown}, from the stored events (capped per session).
     next_tools: dict[tuple[str, str], dict[str, dict[str, int]]] = defaultdict(dict)
-    events, dropped, active_s, turns = [], 0, 0, 0
+    events, dropped, duplicates, active_s, turns = [], 0, 0, 0, 0
     classes = Counter(census.session_class(r) for r in records)
     for record in records:
         friction = record.get("friction")
         active_s += (record.get("time") or {}).get("active_s") or 0
         turns += (record.get("human") or {}).get("turns") or 0
         perf["usage_limit_notices"] += (record.get("rate_limit") or {}).get("usage_limit_notices") or 0
-        perf["stop_hook_ms"] += (record.get("stop_hooks") or {}).get("ms_total") or 0
+        stop_hooks = record.get("stop_hooks") or {}
+        # Matching Stop hooks run in parallel: the wait is each stop's slowest hook, the plain sum is process time.
+        perf["stop_hook_wait_ms"] += stop_hooks.get("wait_ms_total") or 0
+        perf["stop_hook_ms"] += stop_hooks.get("ms_total") or 0
         if not isinstance(friction, dict):
             continue
         for side, keys in (friction.get("counts") or {}).items():
@@ -255,6 +258,7 @@ def aggregate(records: list[dict]) -> dict:
             else:
                 perf[name] += value
         dropped += friction.get("events_dropped") or 0
+        duplicates += friction.get("duplicates_dropped") or 0
         for event in friction.get("events") or []:
             if event.get("kind") in ("denied", "prompt-approved") and event.get("shape"):
                 shapes[(event["kind"], event.get("cause"), event.get("tool"), event["shape"])] += 1
@@ -298,6 +302,7 @@ def aggregate(records: list[dict]) -> dict:
         "perf": dict(perf),
         "events": events,
         "events_dropped": dropped,
+        "duplicates_dropped": duplicates,
     }
 
 
@@ -307,7 +312,8 @@ def render_mine(data: dict) -> str:
         f"# Friction: {window['since']} to {window['until']}",
         "",
         f"{data['sessions']} sessions ({', '.join(f'{v} {k}' for k, v in data['session_classes'].items()) or 'none'}), "
-        f"{data['active_hours']} active hours, {data['typed_turns']} typed turns.",
+        f"{data['active_hours']} active hours, {data['typed_turns']} typed turns, "
+        f"{data['duplicates_dropped']} duplicate result records dropped.",
         "",
         "Projects roots: " + "; ".join(f"{r['root']} ({r['via']})" for r in data["projects_roots"]) + ".",
     ]
@@ -337,7 +343,11 @@ def render_mine(data: dict) -> str:
             for tool, t in sorted(row["next_tool"].items(), key=lambda kv: (-kv[1]["count"], kv[0])):
                 lines.append(f"| {row['side']} | {key} | {tool.replace('|', chr(92) + '|')} | {t['count']} | {t['ok']} | {t['failed']} | {t['unknown']} |")
     lines += ["", "Shape flags: " + (", ".join(f"{k} {v}" for k, v in sorted(data["shape_flags"].items())) or "none")]
-    lines += ["", "Perf: " + (", ".join(f"{k} {v}" for k, v in sorted(data["perf"].items())) or "none")]
+    perf = dict(data["perf"])
+    wait, summed = perf.pop("stop_hook_wait_ms", 0), perf.pop("stop_hook_ms", 0)
+    lines += ["", f"Stop-hook wait: {wait} ms, the slowest hook per stop summed over stops "
+                  f"(parallel hook time, every hook's duration summed: {summed} ms)."]
+    lines += ["", "Perf: " + (", ".join(f"{k} {v}" for k, v in sorted(perf.items())) or "none")]
     return "\n".join(lines)
 
 
