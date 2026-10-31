@@ -20,6 +20,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/clean.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# A test must never reach a real OTEL store: drop any inherited store path, and have the prune
+# refuse a store outside this run's temp dir.
+unset CC_OTEL_STORE CLAUDE_PROJECT_DIR
+export CC_OTEL_TEST_ROOT="$TEST_TMPDIR"
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq not installed"
@@ -57,7 +61,8 @@ make_project() { # <name>
 run_clean() { # <project> [args...] ; sets OUT and RC
   local dir="$1"
   shift
-  OUT=$(env CLAUDE_PROJECT_DIR="$dir" CC_OTEL_STORE="$dir/otel" bash "$SCRIPT" --keep-days 30 "$@" 2>&1)
+  OUT=$(env CLAUDE_PROJECT_DIR="$dir" CC_OTEL_STORE="$dir/otel" CC_OTEL_STOP_CMD=true CC_OTEL_START_CMD=true \
+    CC_OTEL_RUNNING_CMD=false bash "$SCRIPT" --keep-days 30 "$@" 2>&1)
   RC=$?
 }
 

@@ -135,7 +135,7 @@ import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from 
 import { emptyRecord, isHandled, markHandled, readRecord, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
-import { final as capFinal, verifyCapReader } from "./verify-cap.mjs";
+import { FAIL as VERIFY_FAIL, final as capFinal, deadlineWarning, verifyCapReader } from "./verify-cap.mjs";
 
 export const DEFAULTS = Object.freeze({
   base: "main",
@@ -505,12 +505,19 @@ export async function dispatchFeedback({
   // later pass clears no cap, and a push past it could never merge, so
   // pr-merge closes the pull request for a fresh attempt. It closes only the
   // lanes App's: an adopted owner's is never skipped.
-  const capped = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha });
+  // A round sent for pr-verify's FAIL at this head (notesSince) expects the
+  // reader's FAIL refusal there.
+  const expected = !passOnly && notesSince !== null ? [VERIFY_FAIL] : [];
+  const capped = owner ? null : await verifyCapped({ number, head, base: pull.base?.sha, expected });
   if (capped) {
     // The cap never clears for the head: later runs skip it before any
     // read. A sibling read that failed is read again next run.
     if (capFinal(capped)) {
       markHandled(record, settings.checkName, head);
+    }
+    const warning = deadlineWarning(number, capped);
+    if (warning) {
+      log(warning);
     }
     return skip(`#${number}: pr-verify's FAILs are at the cap or cannot all be read (${capped}); pr-merge closes it for a fresh attempt, so no ${settings.activity} round`);
   }
