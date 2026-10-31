@@ -84,7 +84,7 @@ work on secret values or settings. A fix round reads a
 something deserves a human's attention, out-of-scope work included.
 Return `pass` only when nothing blocks and you have nothing to add. The size of the diff is never
 a defect: the parts above are cut to one Read each, and a line too long for one Read carries on
-across lines that start `\ continued: `, each of which takes the side of the line it continues. A
+across lines that start `\ continued:`, each of which takes the side of the line it continues. A
 binary file's content is not in the diff: judge the rest, and name each binary file. Return `fail`
 when any of them is executable (a workflow, an action, a script, a hook, compiled code or a
 library, or a file a workflow, script or hook runs) or acts like code (a package or plugin

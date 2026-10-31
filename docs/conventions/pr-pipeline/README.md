@@ -2216,7 +2216,7 @@ tool alone, allowed only on the data files in the working directory's `pr-verify
 is split at file boundaries into at most 4 chunks of at most 300000 bytes, each file whole
 (`chunk-diff.sh`, `split-diff.py`; the same budget as `pr-review-main`), and each chunk gets its own
 judge step with the same spec, cut into parts one Read returns whole; a line over 1800 bytes carries
-on across lines that start `\ continued: `, so every byte of the diff is read. The manifest
+on across lines that start `\ continued:`, so every byte of the diff is read. The manifest
 (`manifest/part-*.txt`) names the part each file starts in, so a judge reads another chunk's part when
 its change references a file there and judges both sides. A `pass` or `pass-notes` counts only when the
 run read every part whole with no permission denial. A `fail` needs the schema and, when it read short,
