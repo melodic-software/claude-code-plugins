@@ -1,0 +1,125 @@
+{
+  "skill": "improvement:find",
+  "plugin": "improvement",
+  "skill_dir": "plugins/improvement/skills/find",
+  "ranking_note": "Authored from the before descriptions at commit fd862a49b848e143ec31bebc054c01d31150a26a, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are improvement:improve (ships one fix as one PR, where find only ranks and never edits), architecture:improve (module-level friction only), code-tidying:tidy (one structure-only tidying PR), codebase-health:audit (doc, config and code drift), review:fanout (breadth review of one change), work-items:scan-todos (TODO and FIXME markers) and performance:go-faster (speed of the development process). find owns the cross-dimension, evidence-cited, sized ranking of what is worth improving.",
+  "competitors": [
+    "improvement:improve",
+    "architecture:improve",
+    "code-tidying:tidy",
+    "codebase-health:audit",
+    "review:fanout",
+    "work-items:scan-todos",
+    "performance:go-faster"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Look over this repo and tell me where our time would be best spent next, ranked, with evidence for each item."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want a list of improvement opportunities for the checkout service, each sized small, medium or large. Don't change anything yet."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Where's the biggest payoff in this project right now? Code, config, our Claude setup, whatever."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Do a tech-debt pass over the billing module and rank what's worth tackling."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Run an unattended sweep tonight and file work items for the best candidates you find."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What are the top things we could make better in the API layer? Back each one with something you actually measured or read."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Give me a prioritized backlog of upgrades for this repo across product, performance and tooling."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Which changes would matter most for the reporting feature? Only the large ones please."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Scan the ingestion pipeline for things worth fixing and tell me which ones we can't judge yet because nothing measures them."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "This retry helper is ugly. Clean it up and open a small PR for it."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Bring the logging setup in Program.cs up to current .NET guidance and send me the PR."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Find the shallow modules in our services and walk me through redesigning the worst interface."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Check whether our README and config still match what the code actually does."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Run every reviewer over this branch and merge their findings into one report."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Pick one small piece of code and fix it right now, no need to show me a list."
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Go through the source and deal with every FIXME and HACK comment."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Do a quick boy-scout pass on the parser: guard clauses, extracted helpers, one structure-only PR."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Our sessions feel sluggish. What in our hooks and git workflow is slowing us down?"
+    }
+  ]
+}

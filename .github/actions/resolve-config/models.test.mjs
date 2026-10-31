@@ -459,18 +459,16 @@ test("live config: verify-pr keeps --model opus and 60 turns", () => {
   assert.equal(modelSettings(models), "");
 });
 
-// The review and triage routes have no caller yet. Their values are owner
-// decisions: both review lanes keep the Sonnet, effort high, 75 turns the
-// ci-workflows review callers pass today; triage moves to Sonnet at effort
-// medium with 30 turns.
+// Both review lanes run Opus at effort high, 75 turns (#11503, Model tiers
+// rules 3 and 4); triage moves to Sonnet at effort medium with 30 turns.
 for (const [route, profile, args] of [
-  ["review-code", "pr-review", "--model sonnet --max-turns 75 --effort high"],
-  ["review-security", "pr-review", "--model sonnet --max-turns 75 --effort high"],
+  ["review-code", "pr-review", "--model opus --max-turns 75 --effort high"],
+  ["review-security", "pr-review", "--model opus --max-turns 75 --effort high"],
   ["triage-issue", "triage", "--model sonnet --max-turns 30 --effort medium"],
   // Owner decision: the reuse summary is a short read-only pass at a low turn budget.
   ["summarize-reuse", "summary", "--model sonnet --max-turns 10 --effort medium"],
   // Owner decision 2026-10-24: the adjudicator of a disputed finding is at
-  // least as strong as the review lanes (Sonnet at effort high): Opus.
+  // least as strong as the review lanes: Opus.
   ["adjudicate-feedback", "review", "--model opus --max-turns 60"],
 ]) {
   test(`live config: ${route} resolves ${args}`, () => {
@@ -480,6 +478,29 @@ for (const [route, profile, args] of [
     assert.equal(modelSettings(models), "");
   });
 }
+
+// docs/plugin-philosophy.md, Model tiers, rules 3 and 4: the review lanes'
+// verdict is chosen before any test lane reports on the head, so no objective
+// signal backs it, and its model is never weaker than any route that writes
+// the code it reviews.
+test("live config: the review lanes' model is never weaker than a code-writing route", () => {
+  const rank = { haiku: 0, sonnet: 1, opus: 2 };
+  const modelOf = (route) => {
+    const doc = parse(LIVE.config);
+    if (!Object.hasOwn(doc.activities, route)) return resolveRoute(LIVE, { route, configPath: CONFIG_PATH }).model;
+    const lane = Object.keys(doc.lanes).find((name) => (doc.lanes[name].slots ?? []).some((slot) => slot.activity === route));
+    return liveSlot(lane, route).models.model;
+  };
+  const writers = ["resolve-issue", "fix-ci", "address-feedback", "resolve-conflicts"];
+  for (const reviewer of ["review-code", "review-security"]) {
+    for (const writer of writers) {
+      assert.ok(
+        rank[modelOf(reviewer)] >= rank[modelOf(writer)],
+        `${reviewer} (${modelOf(reviewer)}) is weaker than ${writer} (${modelOf(writer)})`,
+      );
+    }
+  }
+});
 
 // Role profiles. Expected values read by hand from the role map
 // (plugins/multi-agent/reference/defaults.yaml): worker's model is inherit and
