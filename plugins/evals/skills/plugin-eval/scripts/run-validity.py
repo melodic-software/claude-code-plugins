@@ -656,7 +656,8 @@ def check_started(runs):
             FAIL,
             "%s never started or had no sandbox" % count,
             details,
-            "%s never started or had no sandbox" % count,
+            "harness failure: %s never started or had no sandbox, so the score"
+            " measures the harness, not the skill" % count,
         )
     return PASS, "every run took a turn and no trace shows a sandbox failure", [], None
 

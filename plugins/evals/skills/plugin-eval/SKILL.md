@@ -34,7 +34,7 @@ row under [Sources](#sources). Background for a human reader:
 
 ## Preflight
 
-Print every field, in order, before anything else (the last two: [probe](reference/sandboxes.md)):
+Print every field, in order, before anything else (`leftover_sandboxes` and `tmp_free`: [probe](reference/sandboxes.md); `eval_tmpdir`: [Sandbox start](reference/sandboxes.md#sandbox-start)):
 
 ```text
 cli_version:         <claude --version>
@@ -49,9 +49,17 @@ estimate_usd:        roughly <n> (cases x runs x arms, plus judge calls)
 ceiling:             <n> USD | unlimited
 leftover_sandboxes:  <n> sandboxes (<total size> in <tmp>) | unknown
 tmp_free:            <free space on the temp dir's filesystem> | unknown
+eval_tmpdir:         <dir> (<n> characters) | too long: <dir> (<n> characters) | n/a
 ```
 
-Preflight removes nothing and blocks on neither of the last two fields. When `leftover_sandboxes` is above zero, print `for d in <tmp>/claude-eval-*; do chmod 700 "$d" "$d/sealed"; chmod -R u+rwx "$d"; rm -rf "$d"; done` for the user to run (a bare `chmod -R u+w` cannot enter a kept sandbox's `sealed/` directory: [sandboxes.md](reference/sandboxes.md)), note that a directory `chmod` cannot enter still needs `sudo rm -rf`, and report an unreadable path as `unknown`, never `0`.
+`eval_tmpdir` is the `<dir>` the run step will pass as `TMPDIR` on Linux and WSL2, and `n/a` on
+any other platform. **Refuse before any spend** when it is longer than 24 characters and any case
+requests `Bash` or `PowerShell`: the shell sandbox's sockets are created below `<dir>`, a Unix
+socket path holds at most 107 bytes, and past that limit every shell call fails while the run
+still exits 0 and scores. 24 is the longest length measured to work, not the failure point. The
+route is a shorter `<dir>`, for example `/run/user/<uid>/ev`.
+
+Preflight removes nothing and blocks on neither `leftover_sandboxes` nor `tmp_free`. When `leftover_sandboxes` is above zero, print `for d in <tmp>/claude-eval-*; do chmod 700 "$d" "$d/sealed"; chmod -R u+rwx "$d"; rm -rf "$d"; done` for the user to run (a bare `chmod -R u+w` cannot enter a kept sandbox's `sealed/` directory: [sandboxes.md](reference/sandboxes.md)), note that a directory `chmod` cannot enter still needs `sudo rm -rf`, and report an unreadable path as `unknown`, never `0`.
 
 **Version floor:** Claude Code 2.1.269. Never assert that the command is installed: read `claude --version` and let the number decide. `floor_met: false` stops the run and reports the
 floor; nothing else is worth doing on a binary that cannot execute a case. `plugin eval is
@@ -243,7 +251,7 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
    script first, since it runs as you outside the sandbox (see Gotchas), then add `--scaffold`.
    Without it those cases run against an unstaged workspace, both arms score the same, and their
    delta reads 0, so that share of the pass is wasted. When a script is one you would not run on
-   your own machine, select the other cases with `--case <glob>` or `--tag <tag>`. On Linux and WSL2, run the CLI as `env TMPDIR=<dir> claude plugin eval …`, where `<dir>` is a short directory outside the system temp directories that you create first (for example `/run/user/$(id -u)/ev`). Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start).
+   your own machine, select the other cases with `--case <glob>` or `--tag <tag>`. On Linux and WSL2, run the CLI as `env TMPDIR=<dir> claude plugin eval …`, where `<dir>` is a directory of at most 24 characters outside the system temp directories that you create first (for example `/run/user/$(id -u)/ev`). Why: [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start).
 
    Without `--trust-plugin` a non-TTY run against an untrusted directory is refused with exit 1.
    `--keep-temp` keeps each run's trace for the validity gate under "Reading the delta". A run
@@ -281,8 +289,11 @@ Read in this order. Stopping early at any step is the finding.
    delta, or interval only from `verdict: VALID` (exit 0), naming any warnings it printed. On
    `verdict: INVALID` (exit 1), report INVALID with every reason on that line and no number, then
    fix the cause and rerun. Tell the user to post that INVALID line and its reasons in place of
-   the number; "post nothing" is not the instruction. Exit 2 means the file could not be read or
-   an argument was wrong: say which. The steps below still apply to a VALID run.
+   the number; "post nothing" is not the instruction. A `harness failure:` reason means the
+   session never ran or had no working shell: report the run as a harness failure, never as the skill's
+   result or a null delta, whatever the CLI's exit code, and rerun by
+   [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start). Exit 2 means the file
+   could not be read or an argument was wrong: say which. The steps below still apply to a VALID run.
 
    A with-arm denial aimed at or under the plugin's directory, at a directory above it (which covers
    its files), or with no absolute path or no known plugin directory, is a FAIL: the agent reached
@@ -482,6 +493,7 @@ record a drift outcome in this plugin's CHANGELOG.
 | Git floor | <https://code.claude.com/docs/en/plugin-evals#requirements>; refusal at <https://code.claude.com/docs/en/plugin-evals#git-is-too-old-for-claude-plugin-eval> | 2026-10-10 | That section changes the floor or its no-git exemption |
 | Sandbox backend table and the no-backend refusal | [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2); plugin-evals platform notes | 2026-10-04 | Either names a Windows backend, or adds or drops a package or WSL note |
 | Docker credential-store refusal and the `~/.docker/bin` exemption | <https://code.claude.com/docs/en/changelog> (2.1.293); no docs page covers it | 2026-10-10 | A docs page documents the check, or a release note touches sandbox credential exclusion or exempt paths |
+| `eval_tmpdir` 24-character bound and its refusal | [unix(7)](https://man7.org/linux/man-pages/man7/unix.7.html) `sun_path`; sandbox-runtime's bridge sockets and the 63- and 24-character pair in [sandboxes.md, Sandbox start](reference/sandboxes.md#sandbox-start) | 2026-10-31 | sandbox-runtime renames its bridge sockets, a release note touches `plugin eval` sandbox paths or `TMPDIR`, or a `<dir>` within the bound fails with the bridge-socket error |
 | Cloud route host and packages | [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) | 2026-10-11 | That section changes its host description or package list |
 | Read-only tool set | <https://code.claude.com/docs/en/plugin-evals#grant-tools> | 2026-10-10 | That section's allowed-tools sentence changes |
 | Worktree Bash guard refusal of `claude plugin eval --help`, and which session shapes it covers | Observed on Claude Code 2.1.316 ([records.md](reference/records.md#worktrees)) | 2026-10-31 | A release note touches worktree isolation or `plugin eval` |
