@@ -1,3 +1,4 @@
+# test-scope: .claude/source-control.md .github/workflows/*
 """Table tests for the unattended-merge diff risk scorer.
 
 `babysit_risk.score` is a pure function, so every case builds a `RiskInput` and

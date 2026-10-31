@@ -10,6 +10,7 @@
 # placeholder names under the suite's own temp tree.
 # test-scope: plugins/guardrails/hooks/hooks.json
 # shellcheck disable=SC2016  # commands under test carry literal $ spellings
+# test-scope: plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/prerequisites.json
 
 set -uo pipefail
 
