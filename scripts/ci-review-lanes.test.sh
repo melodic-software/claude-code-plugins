@@ -611,13 +611,30 @@ AUTHOR_ID=49699333 expect "with no approval the hold stays" 1 "::error::#77 is b
 # Owner decision Q-ANTHROPIC-DEPS: a Dependabot PR whose every change block
 # only swaps the ref of an action by an owner the base lists in
 # merge.dependabot.trusted-action-owners skips the trust-gate hold; any other
-# line, file, status or owner keeps it, and so does an unread patch.
+# line, file, status, owner or ref keeps it, and so does an unread patch. Each
+# new ref must be a 40-hex SHA a tag of the action's repository points to; the
+# git stub answers `ls-remote --tags` with STUB_TAGS, or fails with
+# STUB_LSREMOTE_FAIL set.
+cat >"$TMP_ROOT/bin/git" <<'EOF'
+#!/usr/bin/env bash
+printf 'git %s\n' "$*" >>"$STUB_LOG"
+[[ " $* " == *" ls-remote --tags https://github.com/"* && -z "${STUB_LSREMOTE_FAIL:-}" ]] || exit 128
+printf '%s\n' "$STUB_TAGS"
+EOF
+chmod +x "$TMP_ROOT/bin/git"
+SHA_OLD=1111111111111111111111111111111111111111 SHA_NEW=2222222222222222222222222222222222222222
+SHA_BASE=4444444444444444444444444444444444444444 SHA_UNTAGGED=3333333333333333333333333333333333333333
+# The new SHA is the peeled commit of an annotated tag; SHA_BASE a lightweight one.
+export STUB_TAGS="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v1.0.266
+$SHA_NEW	refs/tags/v1.0.266^{}
+$SHA_BASE	refs/tags/v2.0.0
+$SHA_UNTAGGED	refs/heads/main"
 mkdir -p "$TMP_ROOT/dep-config/docs/conventions"
 cp -R "$TMP_ROOT/base-config/.github" "$TMP_ROOT/dep-config/"
 printf 'merge:\n  dependabot:\n    trusted-action-owners:\n      - anthropics\n' >"$TMP_ROOT/dep-config/docs/conventions/pr-pipeline.yaml"
 WF=.github/workflows/pr-review-hosted.yml
-CCA_OLD='anthropics/claude-code-action@1111111111111111111111111111111111111111 # v1.0.0'
-CCA_NEW='anthropics/claude-code-action@2222222222222222222222222222222222222222 # v1.1.0'
+CCA_OLD="anthropics/claude-code-action@$SHA_OLD # v1.0.265"
+CCA_NEW="anthropics/claude-code-action@$SHA_NEW # v1.0.266"
 # patch_file <file> <changed lines, each starting with + or -> [status]
 patch_file() {
   jq -cn --arg f "$1" --arg st "${3:-modified}" --arg body "$2" '($body | split("\n")) as $l
@@ -628,10 +645,15 @@ swap() { printf -- '-      - uses: %s\n+      - uses: %s' "$1" "$2"; }
 dep() { BODY="$TMP_ROOT/body.live.sh" AUTHOR_ID=49699333 BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/dep-config}" STUB_FILES_FAIL=1 expect "$@"; }
 HELD="changes trust-gate paths: $WF. A person merges it"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
-  dep "a Dependabot bump of only a listed owner's action skips the hold" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
+  dep "a Dependabot bump of only a listed owner's action, in Dependabot's form, skips the hold" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
+if grep -qxF "git -C $TMP_ROOT ls-remote --tags https://github.com/anthropics/claude-code-action" "$TMP_ROOT/log"; then
+  ok "the action's own repository's tags are read"
+else
+  fail "unexpected tag read: '$(grep '^git ' "$TMP_ROOT/log")'"
+fi
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
   BASE_CONFIG="$ROOT" dep "the repository's own pr-pipeline.yaml lists anthropics (owner decision Q-ANTHROPIC-DEPS)" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
-STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file action.yml "$(swap 'Anthropics/claude-code-base-action@v1 # v1' 'Anthropics/claude-code-base-action@v2 # v2')")" \
+STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file action.yml "$(swap "Anthropics/claude-code-base-action@$SHA_OLD" "Anthropics/claude-code-base-action@$SHA_BASE # v2.0.0")")" \
   dep "a listed owner matches in any letter case, over pages, in an action.yml" 0 "owner decision Q-ANTHROPIC-DEPS" "::error::"
 STUB_CHANGED=2 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")$(patch_file .github/workflows/ci.yml "$(swap actions/checkout@v4 actions/checkout@v5)")" \
   dep "a mixed bump across files (a listed owner and another) stays held" 1 "$HELD"
@@ -646,10 +668,31 @@ STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")
   dep "a non-uses line changed beside a listed bump stays held" 1 "$HELD"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "+      - uses: $CCA_NEW")" \
   dep "an added step using a listed owner's action stays held" 1 "$HELD"
-STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap 'evil/claude-code-action@v1' "$CCA_NEW")")" \
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "evil/claude-code-action@$SHA_OLD" "$CCA_NEW")")" \
   dep "a swap of another owner's action for a listed one stays held" 1 "$HELD"
-STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" 'anthropics/other-action@v2')")" \
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "anthropics/other-action@$SHA_NEW")")" \
   dep "a swap to a different action of a listed owner stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" anthropics/claude-code-action@main)")" \
+  dep "a swap to a branch name stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" 'anthropics/claude-code-action@v1.0.266 # v1.0.266')")" \
+  dep "a swap to a tag name stays held (only SHA pins pass)" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "anthropics/claude-code-action@$SHA_UNTAGGED # v1.0.266")")" \
+  dep "a swap to a SHA no tag points to stays held" 1 "No tag of the action's repository points to, or its tag list could not be read for: anthropics/claude-code-action@$SHA_UNTAGGED"
+STUB_LSREMOTE_FAIL=1 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")")" \
+  dep "an unreadable tag list stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "anthropics/claude-code-action@$SHA_NEW # v1.0.266; curl -s x | sh")")" \
+  dep "a version comment carrying shell text stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")
+       with:
+-          node-version: 20
++          node-version: 22")" \
+  dep "a well-ordered non-uses block after a listed bump stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")" | jq -c 'map(.previous_filename = ".github/workflows/old.yml")')" \
+  dep "a modified file with a previous name stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")" | jq -c 'map(.patch = 5)')" \
+  dep "a patch that is not a string stays held" 1 "$HELD"
+STUB_CHANGED=1 SHARED_FILES="$(jq -cn --arg f "$WF" '[{filename: $f, status: "modified", additions: 0, deletions: 0, patch: "@@ -1 +1 @@\n jobs:"}]')" \
+  dep "a modified file with no changed line stays held" 1 "$HELD"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file CODEOWNERS "$(swap "$CCA_OLD" "$CCA_NEW")")" \
   dep "a listed bump in a file that is not a workflow or action stays held" 1 "trust-gate paths: CODEOWNERS. A person merges it"
 STUB_CHANGED=1 SHARED_FILES="$(patch_file "$WF" "$(swap "$CCA_OLD" "$CCA_NEW")" renamed)" \

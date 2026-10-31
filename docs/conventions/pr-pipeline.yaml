@@ -1142,8 +1142,9 @@ merge:
     mode: enforce
     majors: review
     # Action owners whose bumps skip ci-status's trust-gate hold on a
-    # Dependabot PR (Q24 below): every change block must swap only the ref of
-    # one `uses: <owner>/...` line. Owner decision Q-ANTHROPIC-DEPS
+    # Dependabot PR (Q24 below): every change block must swap only the SHA
+    # ref of one `uses: <owner>/...` line, to a commit a tag of that
+    # repository points to. Owner decision Q-ANTHROPIC-DEPS
     # (2026-10-31). Absent or empty, Q24 holds every Dependabot PR.
     trusted-action-owners:
       - anthropics

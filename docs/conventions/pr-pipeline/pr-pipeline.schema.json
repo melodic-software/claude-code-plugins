@@ -1282,7 +1282,7 @@
               "items": { "type": "string", "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$" },
               "uniqueItems": true,
               "default": [],
-              "description": "GitHub owners (the segment before the first / in uses: owner/repo@ref) whose action bumps skip ci-status's trust-gate hold on a Dependabot pull request: every changed file must be a modified workflow or action.yml whose every change block swaps only the ref or version comment of one uses: line of an action by a listed owner, matched case-insensitively. Any other line, file or owner, or a patch GitHub omitted or cut short, keeps the hold. Read at the hold config. Empty or absent: every Dependabot pull request touching a trust-gate path is held (README.md, Both lanes review the head)."
+              "description": "GitHub owners (the segment before the first / in uses: owner/repo@ref) whose action bumps skip ci-status's trust-gate hold on a Dependabot pull request: every changed file must be a modified workflow or action.yml whose every change block swaps only the 40-hex SHA ref and # version comment of one uses: line of an action by a listed owner, matched case-insensitively, to a commit a tag of that action's repository points to. Any other line, file, owner or ref, a patch GitHub omitted or cut short, or an unread tag list keeps the hold. Read at the hold config. Empty or absent: every Dependabot pull request touching a trust-gate path is held (README.md, Both lanes review the head)."
             }
           }
         }
