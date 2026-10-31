@@ -851,6 +851,13 @@ limits:
   # Admissions per hour the queued cap never falls below, so a day with no
   # lane merges cannot hold admissions shut (owner decision 2026-10-21).
   admission-min-per-hour: 1
+  # Stranded issues work-unblock's hourly sweep re-fires per run. The SLOTS
+  # queues in work-resolve-issue.yml pace the API quota (3 runs at once, the
+  # rest wait without a runner), so this only needs to cover about two hours
+  # of slot capacity: below that the slots sit idle after each sweep while
+  # stranded issues wait for the next one; far above it, queued runs go stale
+  # on a lane workflow change.
+  restarts-per-run: 10
   # GitHub API margins per pool (`api:` with github-token, lanes-app,
   # graphql, owner-token, content-creation). limit-cap sets each pool's planned
   # budget, the header's x-ratelimit-limit at most the cap (github-token:
