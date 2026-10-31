@@ -26,8 +26,8 @@
 // <b>`) or a group's body `Updates` lines at the start of a line otherwise
 // (release notes are quoted, so they never start one); when both read they
 // must name the same dependencies and agree on which are major. A commit the
-// pr-merge lane refuses (not GitHub-verified, not committed by GitHub, or
-// neither Dependabot's nor the version-bump commit) is a review reason here,
+// pr-merge lane refuses (not GitHub-verified, not committed by GitHub, or not
+// Dependabot's) is a review reason here,
 // so the AI review owns the pull request; it never sorts `auto`.
 
 export const DEPENDABOT_LOGIN = "dependabot[bot]";
@@ -35,11 +35,8 @@ export const DEPENDABOT_LOGIN = "dependabot[bot]";
 // "dependabot[bot]", so a GraphQL listing matches it by id.
 export const DEPENDABOT_ID = 49699333;
 export const DEPENDABOT_AUTHOR = Object.freeze(["dependabot[bot]", "49699333+dependabot[bot]@users.noreply.github.com"]);
-export const ACTIONS_AUTHOR = Object.freeze(["github-actions[bot]", "41898282+github-actions[bot]@users.noreply.github.com"]);
 export const ACTIONS_PUBLISHERS = Object.freeze(["actions", "github", "anthropics"]);
 export const GITHUB_COMMITTER_EMAIL = "noreply@github.com";
-export const SKIP_MARKER = "[dependabot skip]";
-const BUMP_PATH = /^plugins\/[A-Za-z0-9._-]+\/(\.claude-plugin\/plugin\.json|CHANGELOG\.md)$/;
 export const RED = new Set(["failure", "cancelled", "timed_out", "action_required", "startup_failure"]);
 
 const PREFIX = /^[a-z]+(\([^)]*\))?!?:\s*/i;
@@ -141,16 +138,12 @@ export function parseTitle(title, body) {
 const signed = (item) => [item?.commit?.author?.name, item?.commit?.author?.email];
 const isAuthor = (item, author) => signed(item)[0] === author[0] && signed(item)[1] === author[1];
 export const isDependabotCommit = (item) => isAuthor(item, DEPENDABOT_AUTHOR);
-export const isActionsCommit = (item) => isAuthor(item, ACTIONS_AUTHOR);
 
 // Why one REST pull-request commit may not merge, or null: it is
-// GitHub-verified, committed by GitHub, and Dependabot's or the repository's
-// `[dependabot skip]` version-bump commit (github-actions[bot], touching only a
-// plugin's plugin.json or CHANGELOG.md). `files(sha)` lists a commit's paths,
-// or null when unreadable. The pr-merge lane's lanes App admission is left
-// out: a lanes App fix commit keeps the pull request `review`, which pr-merge
-// merges only on a round marker.
-export function commitRefusal(item, files) {
+// GitHub-verified, committed by GitHub, and Dependabot's. The pr-merge lane's
+// lanes App admission is left out: a lanes App fix commit keeps the pull
+// request `review`, which pr-merge merges only on a round marker.
+export function commitRefusal(item) {
   const commit = item?.commit ?? {};
   const sha = String(item?.sha || "?").slice(0, 12);
   if (commit.verification?.verified !== true) {
@@ -159,26 +152,16 @@ export function commitRefusal(item, files) {
   if (commit.committer?.email !== GITHUB_COMMITTER_EMAIL) {
     return `commit-not-committed-by-github:${sha}`;
   }
-  if (isDependabotCommit(item)) {
-    return null;
-  }
-  if (!isActionsCommit(item) || !String(commit.message ?? "").includes(SKIP_MARKER)) {
-    return `commit-not-dependabot:${sha}`;
-  }
-  const paths = files(String(item?.sha ?? ""));
-  if (!paths?.length || paths.some((path) => !BUMP_PATH.test(path))) {
-    return `commit-not-version-bump:${sha}`;
-  }
-  return null;
+  return isDependabotCommit(item) ? null : `commit-not-dependabot:${sha}`;
 }
 
 // The first commit that may not merge, or `commits-missing`.
-export function commitsRefusal(commits, files) {
+export function commitsRefusal(commits) {
   if (!commits.length) {
     return "commits-missing";
   }
   for (const item of commits) {
-    const refusal = commitRefusal(item, files);
+    const refusal = commitRefusal(item);
     if (refusal) return refusal;
   }
   return null;
@@ -362,17 +345,15 @@ function ancestry(sha, bySha) {
   return found;
 }
 
-// Whose push must bring a pull-request commit: Dependabot's, the lanes App's
-// (author id `appId`) or github-actions[bot]'s; null for any other commit.
-const commitPusher = (item, appId) =>
-  isDependabotCommit(item) ? "dependabot" : Number.isInteger(appId) && item?.author?.id === appId ? "lane" : isActionsCommit(item) ? "actions" : null;
+// Whose push must bring a pull-request commit: Dependabot's or the lanes App's
+// (author id `appId`); null for any other commit.
+const commitPusher = (item, appId) => (isDependabotCommit(item) ? "dependabot" : Number.isInteger(appId) && item?.author?.id === appId ? "lane" : null);
 
 // Why the head branch's push history does not bind it to Dependabot, or null.
 // `activities` is the repository activity API for the branch, newest first.
 // Reading back to Dependabot's newest branch creation or force push (which
-// rewrites the branch), every push must be by dependabot[bot], or by
-// github-actions[bot] or the lanes App (actor id `appId`) when it pushed a
-// commit of the pull request. Every commit a push brought (its `after` and the
+// rewrites the branch), every push must be by dependabot[bot], or by the lanes
+// App (actor id `appId`) when it pushed a commit of the pull request. Every commit a push brought (its `after` and the
 // ancestors its `before` lacks) must be its pusher's own (commitPusher), every
 // commit of the pull request must arrive in one of those pushes, and the newest
 // push must have pushed `head`. The pr-merge lane's twin is `push_refusal` in
@@ -389,13 +370,7 @@ export function pushRefusal(activities, head, commits, appId) {
     const brought = [...ancestry(after, bySha)].filter((sha) => !before.has(sha));
     for (const sha of brought) unattributed.delete(sha);
     const pusher =
-      login === DEPENDABOT_LOGIN && push.actor?.type === "Bot"
-        ? "dependabot"
-        : login === ACTIONS_AUTHOR[0]
-          ? "actions"
-          : Number.isInteger(appId) && push.actor?.id === appId
-            ? "lane"
-            : null;
+      login === DEPENDABOT_LOGIN && push.actor?.type === "Bot" ? "dependabot" : Number.isInteger(appId) && push.actor?.id === appId ? "lane" : null;
     if (pusher === null || (pusher !== "dependabot" && !bySha.has(after)) || brought.some((sha) => commitPusher(bySha.get(sha), appId) !== pusher)) {
       return `pushed-by:${login || "unknown"}`;
     }
@@ -600,36 +575,6 @@ export async function fixRefusal(files, config, { entry, text }) {
   return null;
 }
 
-// The version-bump commit's plugin.json: only `version` changes, to a
-// plain version; every other key stays as it was.
-export function pluginJsonRefusal(before, after) {
-  const old = parseJson(before);
-  const now = parseJson(after);
-  if (!old || !now) return "plugin-json-unreadable";
-  if (typeof now.version !== "string" || !LOCK_VERSION.test(now.version)) return "plugin-json-version";
-  const rest = ({ version, ...other }) => canonical(other);
-  return rest(old) === rest(now) ? null : "plugin-json-key";
-}
-
-// The first reason the repository's version-bump commit (its files, as in
-// fixRefusal) is more than a version bump, or null: each file a plugin's
-// plugin.json or CHANGELOG.md, modified in place as a regular file, and a
-// plugin.json changing only its `version`. CHANGELOG.md is text.
-export async function bumpRefusal(files, { entry, text }) {
-  if (!files.length) return "bump-empty";
-  for (const file of files) {
-    const path = String(file?.filename ?? "");
-    if (file?.status !== "modified" || file.previous_filename) return `bump-status:${path}`;
-    if (!BUMP_PATH.test(path)) return `bump-path:${path}`;
-    if (!isFixFile(await entry(path))) return `bump-mode:${path}`;
-    if (path.endsWith("/plugin.json")) {
-      const why = pluginJsonRefusal(await text("before", path), await text("after", path));
-      if (why) return `bump-content:${path}:${why}`;
-    }
-  }
-  return null;
-}
-
 function actionsFile(path, config) {
   return config.some(([eco, folder]) => {
     if (eco !== "github-actions") return false;
@@ -650,7 +595,7 @@ export function usesOnly(patch) {
 
 // `dependabot-content:<path>` for the first changed path (either side of a
 // rename, sorted per file) the rule does not cover and `extra` (the paths the
-// version-bump and lanes App fix commits touched) does not hold, else null.
+// lanes App fix commits touched) does not hold, else null.
 // `files` is the REST pull-request files listing with patches.
 export function contentReason(files, config, extra = new Set()) {
   const pairs = config ?? [];
@@ -671,9 +616,9 @@ export function contentReason(files, config, extra = new Set()) {
 }
 
 // The content step, as the pr-merge lane's _dependabot_content: the paths
-// every non-Dependabot commit touched count as checked, a non-version-bump
-// commit (a lanes App fix) touching .github/ or a commit whose files cannot be
-// read whole is a reason (the pr-merge lane refuses those), an unreadable
+// every non-Dependabot commit (a lanes App fix) touched count as checked, such
+// a commit touching .github/ or a commit whose files cannot be read whole is a
+// reason (the pr-merge lane refuses those), an unreadable
 // config is dependabot-config-unreadable, and a files listing shorter than
 // the PR's changed-file count is dependabot-content:files-incomplete.
 // `commitFiles(sha)` returns a commit's paths, or null when unreadable.
@@ -688,11 +633,9 @@ export function contentStep({ commits = [], commitFiles = () => null, files, con
     if (!Array.isArray(touched)) {
       return `dependabot-commit-files-unreadable:${sha.slice(0, 12)}`;
     }
-    if (!isActionsCommit(item)) {
-      const gated = touched.find((p) => p === ".github" || p.startsWith(".github/"));
-      if (gated) {
-        return `dependabot-fix-content:${gated}`;
-      }
+    const gated = touched.find((p) => p === ".github" || p.startsWith(".github/"));
+    if (gated) {
+      return `dependabot-fix-content:${gated}`;
     }
     for (const path of touched) extra.add(path);
   }
@@ -816,7 +759,7 @@ export function classify(pr) {
     if (!Number.isInteger(pr.totalCommits) || pr.totalCommits !== listed) {
       reasons.push(`commits-listed:${listed}-of:${pr.totalCommits}`);
     }
-    const refusal = commitsRefusal(pr.commits ?? [], pr.commitFiles ?? (() => null));
+    const refusal = commitsRefusal(pr.commits ?? []);
     if (refusal) reasons.push(refusal);
     const content = contentStep(pr);
     if (content) reasons.push(content);

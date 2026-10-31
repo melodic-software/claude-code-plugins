@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { readFileSync } from "node:fs";
 
-import { final, SIBLING_UNREADABLE, VERIFY_SCRIPT, verifyCapReader } from "./verify-cap.mjs";
+import { DEADLINE_UNREADABLE, FAIL, final, LISTING_MISS_PREFIX, SIBLING_UNREADABLE, VERIFY_CAP_TIMEOUT_MS, VERIFY_SCRIPT, verifyCapReader } from "./verify-cap.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -17,7 +17,7 @@ function reader(done) {
   const calls = [];
   const lines = [];
   const spawn = (command, args, options) => {
-    calls.push({ command, args, timeout: options.timeout });
+    calls.push({ command, args, timeout: options.timeout, env: options.env });
     return done;
   };
   const read = verifyCapReader({ GITHUB_REPOSITORY: REPO }, { spawn, log: (line) => lines.push(line) });
@@ -36,11 +36,67 @@ test("a pull request the reader refuses verify:repeated-fail at the head is capp
   assert.ok(calls[0].timeout > 0);
 });
 
-test("any other answer, an allow included, is not the cap", () => {
-  for (const refusal of [null, "verify:fail", "verify:earlier-fail", "verify:too-old", "verify:unreadable"]) {
-    const { read } = reader(answer({ refusal }));
-    assert.equal(read({ number: 42, head: HEAD, base: BASE }), null, String(refusal));
+test("an allow is not the cap, and says nothing", () => {
+  const { read, lines } = reader(answer({ refusal: null }));
+  assert.equal(read({ number: 42, head: HEAD, base: BASE }), null);
+  assert.deepEqual(lines, []);
+});
+
+test("any other refusal is not the cap: the round runs, with a warning naming the reader's detail", () => {
+  for (const [refusal, detail] of [
+    ["verify:fail", `a FAIL at ${HEAD}`],
+    ["verify:earlier-fail", "an earlier head FAILed"],
+    ["verify:too-old", "opened 81 days ago"],
+    ["verify:unreadable", "run of pr-verify-42-x-fail: gh: Bad credentials (HTTP 401)"],
+  ]) {
+    const { read, lines } = reader(answer({ refusal, detail }));
+    assert.equal(read({ number: 42, head: HEAD, base: BASE }), null, refusal);
+    assert.equal(lines.length, 1, refusal);
+    assert.match(lines[0], /^::warning::#42: /, refusal);
+    assert.ok(lines[0].includes(refusal) && lines[0].includes(detail), lines[0]);
   }
+});
+
+// Gap: an address-feedback round is sent for the FAIL at its head, so every
+// such round warned that the reader refused verify:fail.
+test("a refusal the round expects warns nothing; any other still warns, and the cap still caps", () => {
+  const quiet = reader(answer({ refusal: "verify:fail", detail: `a FAIL at ${HEAD}` }));
+  assert.equal(quiet.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), null);
+  assert.deepEqual(quiet.lines, []);
+  const other = reader(answer({ refusal: "verify:earlier-fail", detail: "an earlier head FAILed" }));
+  assert.equal(other.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), null);
+  assert.equal(other.lines.length, 1);
+  assert.match(other.lines[0], /^::warning::#42: .*verify:earlier-fail/);
+  const capped = reader(answer({ refusal: "verify:repeated-fail", detail: CAPPED }));
+  assert.equal(capped.read({ number: 42, head: HEAD, base: BASE, expected: ["verify:fail"] }), `verify:repeated-fail: ${CAPPED}`);
+});
+
+// Gap: the reader's stderr, where its listing misses go
+// (babysit_verify_evidence.py `Reader._incremental`), was dropped, so a
+// round skipped for a listing that outran the limit showed no cause.
+test("the reader's stderr is logged on one line, its listing misses first", () => {
+  const miss = (stage, listed) =>
+    `babysit-listing-miss {"base_age_seconds": 900, "fresh": 120, "kept": 10300, "listed": ${listed}, "pages": 2, "stage": "${stage}", "total_count": 10450}`;
+  const stderr = [miss("incremental", 10420), miss("top-up", 10449), 'babysit-gh-calls {"total": 107}', ""].join("\n");
+  const { read, lines } = reader({ ...answer({ refusal: null }), stderr });
+  assert.equal(read({ number: 42, head: HEAD, base: BASE }), null);
+  assert.equal(lines.length, 1);
+  assert.ok(lines[0].startsWith("#42: the verifier reader's stderr: 3 line(s), 2 babysit-listing-miss: "), lines[0]);
+  assert.ok(lines[0].includes(miss("incremental", 10420)) && lines[0].includes(miss("top-up", 10449)), lines[0]);
+  assert.ok(!lines[0].includes("babysit-gh-calls"), lines[0]);
+
+  // With no miss, the last line; a timed-out read still logs what it wrote.
+  const plain = reader({ ...answer({ refusal: null }), stderr: "first\nlast line\n" });
+  plain.read({ number: 42, head: HEAD, base: BASE });
+  assert.deepEqual(plain.lines, ["#42: the verifier reader's stderr: 2 line(s), 0 babysit-listing-miss: last line"]);
+  const killed = reader({ status: null, stdout: "", stderr: `${miss("incremental", 10420)}\n`, error: new Error("spawnSync python3 ETIMEDOUT") });
+  assert.equal(killed.read({ number: 42, head: HEAD, base: BASE }), null);
+  assert.equal(killed.lines.length, 2);
+  assert.ok(killed.lines[0].includes(miss("incremental", 10420)), killed.lines[0]);
+  assert.match(killed.lines[1], /^::warning::#42: .*ETIMEDOUT/);
+  const silent = reader({ status: null, stdout: "", stderr: null, error: new Error("spawnSync python3 ETIMEDOUT") });
+  silent.read({ number: 42, head: HEAD, base: BASE });
+  assert.equal(silent.lines.length, 1);
 });
 
 test("a read that fails, does not parse or answers for another head runs the round as before, with a warning", () => {
@@ -74,6 +130,18 @@ test("a sibling FAIL run the reader cannot read skips the round, for this run on
   // Another unreadable answer (the pull request's own run) is not the cap.
   const own = reader(answer({ refusal: "verify:unreadable", detail: "run of pr-verify-42-x-fail" }));
   assert.equal(own.read({ number: 42, head: HEAD, base: BASE }), null);
+});
+
+// Gap: a listing that does not fit in this caller's 120 s limit returned an
+// exit-0 `verify:unreadable` the round ran past with no word. It hides the
+// cap as a sibling read does, so it skips the round the same way.
+test("a listing that does not fit in the caller's limit skips the round, for this run only, naming why", () => {
+  const detail = `${DEADLINE_UNREADABLE}: repository artifacts: 10450 artifacts in 105 pages need 112 s`;
+  const { read, lines } = reader(answer({ refusal: "verify:unreadable", detail }));
+  const got = read({ number: 42, head: HEAD, base: BASE });
+  assert.equal(got, `verify:unreadable: ${detail}`);
+  assert.equal(final(got), false);
+  assert.deepEqual(lines, []);
 });
 
 // Both dispatchers' FAIL-cap reads take the listing pr-merge carried
@@ -148,7 +216,23 @@ for (const [workflow, dispatchName] of [
   });
 }
 
-test("the sibling detail is the reader's SIBLING_UNREADABLE", () => {
+test("the sibling and caller-limit details, the FAIL refusal and the listing-miss prefix are the reader's", () => {
   const source = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
   assert.ok(source.includes(`SIBLING_UNREADABLE = "${SIBLING_UNREADABLE}"`));
+  assert.ok(source.includes(`DEADLINE_UNREADABLE = "${DEADLINE_UNREADABLE}"`));
+  assert.ok(source.includes(`FAIL = "${FAIL}"`));
+  assert.ok(source.includes(`LISTING_MISS_PREFIX = "${LISTING_MISS_PREFIX}"`));
+});
+
+// babysit_verify_evidence.py DEADLINE_ENV and CALLER_ENV: the reader sizes its
+// listing to the limit this caller kills it at, and names the caller when a
+// listing cannot fit, rather than being killed with no reason.
+test("the reader is told the limit it is killed at, and who kills it", () => {
+  const { read, calls } = reader(answer({ refusal: null }));
+  read({ number: 42, head: HEAD, base: BASE });
+  assert.equal(calls[0].timeout, 120_000);
+  assert.equal(VERIFY_CAP_TIMEOUT_MS, 120_000);
+  assert.equal(calls[0].env.BABYSIT_VERIFY_DEADLINE_SECONDS, "120");
+  assert.equal(calls[0].env.BABYSIT_VERIFY_CALLER, "verify-cap.mjs");
+  assert.equal(calls[0].env.GITHUB_REPOSITORY, REPO);
 });

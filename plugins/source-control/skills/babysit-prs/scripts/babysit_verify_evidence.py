@@ -165,9 +165,14 @@ cap, an old pull request). Any other refusal is judged again on a recent
 listing, so none dequeues the candidate's queued entry on an older one. A
 candidate the gate refuses for anything else lists nothing more; queued
 entries are judged on a recent listing. A listing that got a 5xx or a fast network
-error is read again after each of `LISTING_WAITS`, every read inside
-`LISTING_TIMEOUT_SECONDS` in all; any other failure, a timeout, a 429 or a rate-limit 403
-included, is not. A failed listing is never saved, and is kept as well, so one
+error is read again after each of `LISTING_WAITS`, every read inside one
+timeout in all; any other failure, a timeout, a 429 or a rate-limit 403
+included, is not. The whole listings' timeout (`listing_timeout`) grows with
+GitHub's live `total_count`, read from one page before them, up to
+`LISTING_TIMEOUT_SECONDS` or what is left of the limit a caller kills the
+reader at (`DEADLINE_ENV`, `listing_cap`); a count whose one whole listing
+cannot fit refuses before paging, naming the pages, the budget and the
+caller. A failed listing is never saved, and is kept as well, so one
 outage refuses every entry of the gate run without paging again: it holds the
 whole queue rather than merging blind. `evidence --shared-listing`
 (enable-auto-merge.mjs's reader) takes the run's saved listing at any age and
@@ -292,10 +297,40 @@ COMMITS_CAP = 250
 LISTING_WAITS = (2.0, 4.0)
 # The listing's pages share one timeout (babysit_gh._run_pages), so it grows
 # with the artifact count, not gh's per-call default: 7,522 artifacts took 76
-# pages at 0.7 to 1 s a page on 2026-10-27, past that default's 60 s. 300 s
-# reads about 300 pages at 1 s a page, inside every reader's step timeout
-# (judgment).
+# pages at 0.7 to 1 s a page on 2026-10-27, past that default's 60 s.
+LISTING_PAGE_SECONDS = 1.0
+# The pages a top-up reads at most: LISTING_OVERLAP's 2 h at the 255 uploads
+# an hour seen 2026-10-27, plus one (judgment on that data).
+LISTING_TOP_UP_PAGES = 7
+# The cap on one listing's timeout: the incremental reads' timeout, and the
+# most the whole listings' (`listing_timeout`) may take. Each fits the job and
+# step timeouts its readers run under (ci-status 20 min, pr-merge's merge job
+# 45 min, enable-auto-merge's step 18 min, the pr-unblock and feedback
+# dispatchers 10 min); a caller that kills the reader sooner names its limit
+# in `DEADLINE_ENV` (judgment).
 LISTING_TIMEOUT_SECONDS = 300.0
+# A caller that kills the reader after a limit of its own (enable-auto-merge.mjs
+# 4 min, verify-cap.mjs 2 min) names it here in seconds, and itself in
+# `CALLER_ENV`: every listing timeout is then at most what is left of it less
+# `DEADLINE_MARGIN_SECONDS`, kept for the reads after the listing and the
+# report, and a whole listing that cannot fit refuses before paging, naming the
+# pages, the budget and the caller, rather than being killed with no reason.
+DEADLINE_ENV = "BABYSIT_VERIFY_DEADLINE_SECONDS"
+CALLER_ENV = "BABYSIT_VERIFY_CALLER"
+DEADLINE_MARGIN_SECONDS = 15.0
+# The start of a `verify:unreadable` detail when the listing does not fit in
+# what the caller's limit leaves: pr-unblock verify-cap.mjs skips the round
+# on it, for that run only, as on `SIBLING_UNREADABLE`.
+DEADLINE_UNREADABLE = "the artifact listing does not fit in the caller's limit"
+# The least a whole listing's timeout takes, gh's per-call default it
+# replaced, unless the cap or a caller's limit leaves less.
+LISTING_TIMEOUT_FLOOR = 60.0
+# The most pages a whole listing and its top-up read inside the cap, at
+# `LISTING_PAGE_SECONDS` a page: past it the whole listings refuse before
+# paging.
+LISTING_PAGES_CAP = (
+    int(LISTING_TIMEOUT_SECONDS / LISTING_PAGE_SECONDS) - LISTING_TOP_UP_PAGES
+)
 # The oldest listing a judgment uses, saved or in memory, but for a
 # provisional one's allow or `STANDING` refusal (`Reader.evidence`), unless
 # `evidence --shared-listing` lifts it (`Reader.listing_max_age`).
@@ -738,6 +773,61 @@ def _transient(detail: str) -> bool:
     return any(phrase in detail.casefold() for phrase in NETWORK_ERRORS)
 
 
+def listing_pages(total_count: int) -> int:
+    """The pages a whole listing of `total_count` artifacts reads."""
+    return -(-total_count // LISTING_PAGE_SIZE)
+
+
+def listing_seconds(total_count: int) -> float:
+    """How long one whole listing of `total_count` artifacts and its top-up
+    take at `LISTING_PAGE_SECONDS` a page."""
+    return (listing_pages(total_count) + LISTING_TOP_UP_PAGES) * LISTING_PAGE_SECONDS
+
+
+def listing_timeout(
+    total_count: int, cap: float = LISTING_TIMEOUT_SECONDS
+) -> float | None:
+    """The whole listings' shared timeout for `total_count` artifacts: each of
+    `LISTING_READS` whole listings and its top-up at `LISTING_PAGE_SECONDS` a
+    page, at least `LISTING_TIMEOUT_FLOOR` and at most `cap`; None when even
+    one does not fit in `cap` (past `LISTING_PAGES_CAP` pages at the default
+    cap)."""
+    each = listing_seconds(total_count)
+    if each > cap:
+        return None
+    return min(cap, max(LISTING_TIMEOUT_FLOOR, LISTING_READS * each))
+
+
+def _elapsed() -> float:
+    """Seconds since this process started reading (`_STARTED`)."""
+    return time.monotonic() - _STARTED
+
+
+_STARTED = time.monotonic()
+
+
+def listing_cap() -> tuple[float, str]:
+    """The most one listing may take, and where that bound comes from:
+    `LISTING_TIMEOUT_SECONDS`, or less when the caller's limit in
+    `DEADLINE_ENV` leaves less after `DEADLINE_MARGIN_SECONDS`. A limit that
+    is not a positive number is ignored."""
+    cap = (LISTING_TIMEOUT_SECONDS, f"the {LISTING_TIMEOUT_SECONDS:.0f} s listing cap")
+    try:
+        limit = float(os.environ.get(DEADLINE_ENV, ""))
+    except ValueError:
+        return cap
+    if not limit > 0 or limit == float("inf"):
+        return cap
+    left = limit - _elapsed() - DEADLINE_MARGIN_SECONDS
+    if left >= cap[0]:
+        return cap
+    caller = os.environ.get(CALLER_ENV, "").strip()[:80] or "the caller"
+    return max(left, 0.0), (
+        f"the {max(left, 0.0):.0f} s left of {caller}'s {limit:.0f} s limit "
+        f"(less {DEADLINE_MARGIN_SECONDS:.0f} s for the reads after it)"
+    )
+
+
 def _listing_sleep(seconds: float) -> None:
     time.sleep(seconds)
 
@@ -1126,7 +1216,7 @@ class Reader:
         # after a wait, every read and wait inside one `LISTING_TIMEOUT_SECONDS`;
         # a failed read lists every page at once, as `_read_listing` decides.
         if base is not None:
-            deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
+            deadline = _listing_clock() + listing_cap()[0]
             for wait in (*INCREMENTAL_WAITS, None):
                 listing = self._incremental(base, deadline, "incremental")
                 if (
@@ -1217,12 +1307,31 @@ class Reader:
         A whole listing can skip an artifact at a page boundary when an
         earlier one expires while it pages, and the next read returns it.
         Raises `_Unreadable` when `LISTING_READS` reads never hold the live
-        count, so no judgment allows on a listing that may lack a FAIL."""
+        count, so no judgment allows on a listing that may lack a FAIL, and
+        before any read when the live count (`_live_count`) is too long to
+        list in time (`listing_timeout`). A caller's limit (`DEADLINE_ENV`)
+        bounds the count read too, and every refusal for want of its time
+        starts with `DEADLINE_UNREADABLE`."""
+        cap, bound = listing_cap()
+        callers = cap < LISTING_TIMEOUT_SECONDS
+        if callers and cap <= 0:
+            raise _Unreadable(f"{DEADLINE_UNREADABLE}: no time is left of {bound}")
+        total = self._live_count(cap if callers else None)
+        cap, bound = listing_cap()
+        budget = listing_timeout(total, cap)
+        if budget is None:
+            spent = f"{DEADLINE_UNREADABLE}: " if cap < LISTING_TIMEOUT_SECONDS else ""
+            raise _Unreadable(
+                f"{spent}repository artifacts: {total} artifacts in "
+                f"{listing_pages(total)} pages need {listing_seconds(total):.0f} s "
+                f"for a whole listing and its top-up at {LISTING_PAGE_SECONDS:.0f} s "
+                f"a page, past {bound}, so none is started"
+            )
         union: dict[int, dict[str, Any]] = {}
         deadline: float | None = None
         for _ in range(LISTING_READS):
             read_at = _wall_clock()
-            payload = self._read_listing(deadline)
+            payload = self._read_listing(deadline, budget)
             deadline = self._read_deadline
             for item in flatten_paginated_items(
                 payload, "repository artifacts", items_key="artifacts"
@@ -1277,7 +1386,7 @@ class Reader:
         high = max((a["id"] for a in carried), default=0)
         floor = base_at - LISTING_OVERLAP
         if deadline is None:
-            deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
+            deadline = _listing_clock() + listing_cap()[0]
         fresh: dict[int, dict[str, Any]] = {}
         total: Any = None
         server_now: datetime | None = None
@@ -1388,10 +1497,39 @@ class Reader:
             tmp.write_text(json.dumps(payload), encoding="utf-8")
             os.replace(tmp, path)
 
-    def _read_listing(self, deadline: float | None = None) -> Any:
+    def _live_count(self, timeout: float | None = None) -> int:
+        """GitHub's live `total_count` of the repository's artifacts, from one
+        one-artifact page, read again after each of `LISTING_WAITS` on a 5xx
+        or a fast network error; `_Unreadable` when it does not read. A
+        `timeout` bounds every read and wait, else each read keeps gh's
+        default."""
+        label = "repository artifact count"
+        args = ["api", f"repos/{self.repo}/actions/artifacts?per_page=1"]
+        deadline = None if timeout is None else _listing_clock() + timeout
+        left = timeout
+        for wait in (*LISTING_WAITS, None):
+            try:
+                page = self._actions(args, label, left)
+                break
+            except _Transient:
+                if wait is None or (
+                    deadline is not None and deadline - _listing_clock() - wait <= 0
+                ):
+                    raise
+                _listing_sleep(wait)
+                if deadline is not None:
+                    left = deadline - _listing_clock()
+        total = json_object(page).get("total_count")
+        if not _is_artifact_id(total) or total < 0:
+            raise _Unreadable(f"{label}: no total_count")
+        return total
+
+    def _read_listing(
+        self, deadline: float | None = None, budget: float = LISTING_TIMEOUT_SECONDS
+    ) -> Any:
         """The listing payload, read again after a 5xx or a fast network
         error while time is left: every page, read and wait fits in
-        `LISTING_TIMEOUT_SECONDS`, so a retry adds no time to the run's worst
+        `budget`, so a retry adds no time to the run's worst
         case. A read cut short (`CUT_SHORT`) is read once more, and that
         read's failure refuses. A `deadline` set by an earlier read is kept;
         this read's is saved as `_read_deadline`."""
@@ -1402,8 +1540,8 @@ class Reader:
             "--slurp",
         ]
         if deadline is None:
-            deadline = _listing_clock() + LISTING_TIMEOUT_SECONDS
-            timeout = LISTING_TIMEOUT_SECONDS
+            deadline = _listing_clock() + budget
+            timeout = budget
         else:
             timeout = deadline - _listing_clock()
             if timeout <= 0:

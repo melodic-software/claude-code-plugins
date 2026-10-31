@@ -34,9 +34,7 @@
 //      workflow or action file is not a full-SHA pin swap (pinSwapRefusal)
 //      escalates dependency-workflow-unpinned. Every commit on the pull request
 //      must be Dependabot's own (its account ids, web-flow, a valid
-//      signature), the repository's version-bump commit changing only
-//      plugin.json `version` and CHANGELOG.md (bumpRefusal), or a
-//      single-parent commit whose files pass the fix rule above against its
+//      signature), or a single-parent commit whose files pass the fix rule above against its
 //      parent; and each commit must arrive in its own author's push, read
 //      from the branch's activity back to Dependabot's newest branch creation
 //      or force push (pushRefusal); else dependency-fix-refused, so a
@@ -82,11 +80,8 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHubApi, need, positive, scanRefusal, SHA } from "./address-feedback.mjs";
 import {
-  bumpRefusal,
   COMMIT_FILES_LIMIT,
-  commitRefusal,
   fixRefusal,
-  isActionsCommit,
   isDependabotSigned,
   isSecurityUpdate,
   parseConfig,
@@ -192,22 +187,22 @@ async function entryAt(api, sha, path) {
   return (await api.listTree(sha, dir)).find((entry) => entry.name === name);
 }
 
-// fixRefusal (or, with `bump`, bumpRefusal) over `files`, the change from
-// `before` to `after`; a read that fails is a refusal, never a pass.
-async function changeRefusal(api, files, pairs, before, after, bump = false) {
+// fixRefusal over `files`, the change from `before` to `after`; a read that
+// fails is a refusal, never a pass.
+async function changeRefusal(api, files, pairs, before, after) {
   const reads = {
     entry: (path) => entryAt(api, after, path),
     text: (side, path) => api.getText(path, side === "before" ? before : after),
   };
   try {
-    return await (bump ? bumpRefusal(files, reads) : fixRefusal(files, pairs, reads));
+    return await fixRefusal(files, pairs, reads);
   } catch (error) {
     return `fix-unreadable:${String(error?.message ?? error).slice(0, 120)}`;
   }
 }
 
 // Why one pull-request commit is not one the merge path may stand on, or
-// null: Dependabot's own, the version-bump commit, or a single-parent commit
+// null: Dependabot's own, or a single-parent commit
 // whose files pass the fix rule against its parent.
 async function commitFixRefusal(api, item, pairs) {
   const sha = String(item?.sha ?? "");
@@ -223,9 +218,7 @@ async function commitFixRefusal(api, item, pairs) {
   if (!Array.isArray(detail.parents) || detail.parents.length !== 1 || !SHA.test(String(detail.parents[0]?.sha))) {
     return `commit-parents:${sha.slice(0, 12)}`;
   }
-  // The version-bump commit: its paths, then only a version in plugin.json.
-  const bump = isActionsCommit(item) && commitRefusal(item, () => files.map((file) => String(file?.filename ?? ""))) === null;
-  return changeRefusal(api, files, pairs, detail.parents[0].sha, sha, bump);
+  return changeRefusal(api, files, pairs, detail.parents[0].sha, sha);
 }
 
 // The base's dependabot.yml pairs, or null when it does not read.

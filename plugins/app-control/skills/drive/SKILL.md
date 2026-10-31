@@ -1,6 +1,6 @@
 ---
-description: "Launch and operate the project's app, observe it and record evidence, without judging it. Actions: drive a feature, ready (what is reachable), capture one artifact, cleanup. Use when another skill, a scheduled run or a CI job needs the real app run and shown (/verification:confirm, /debugging:debug), or when asked to run the app, drive a feature, take a trace or screenshot, or check the app is ready to drive."
-argument-hint: "[ready|capture --kind <kind>|cleanup] [<app>] [<feature>] [--out <dir>] [--attach|--unattended]"
+description: "Launch and operate the project's app, observe it and record evidence, without judging it. Actions: drive a feature, ready (what is reachable), capture one artifact, cleanup, affected (which features a diff touches). Use when another skill, a scheduled run or a CI job needs the real app run and shown (/verification:confirm, /debugging:debug), or when asked to run the app, drive a feature, take a trace or screenshot, or check the app is ready to drive."
+argument-hint: "[ready|capture --kind <kind>|cleanup|affected] [<app>] [<feature>] [--out <dir>] [--unattended…]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,8 +8,9 @@ metadata:
   summary: Run the app, drive it, record evidence, never judge
 ---
 
-**Arguments.** `[ready|capture --kind <kind>|cleanup] [<app>] [<feature>] [--out <dir>] [--attach|--unattended]`.
-`<kind>` is `trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video` or `logs`. e.g. /app-control:drive ready, or /app-control:drive checkout --unattended --out ./evidence
+**Arguments.** `[ready|capture --kind <kind>|cleanup|affected] [<app>] [<feature>] [--out <dir>] [--unattended…]`.
+In full: `[ready|capture --kind <kind>|cleanup|affected --base <ref> [--head <ref>]] [<app>] [<feature>] [--out <dir>] [--attach|--unattended] [--trusted-root <dir>]`.
+`<kind>` is `trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video` or `logs`. e.g. /app-control:drive ready, /app-control:drive checkout --unattended --out ./evidence, or /app-control:drive affected shop --base main --unattended
 
 ## Purpose
 
@@ -34,6 +35,8 @@ keep going.
 | `ready` | Run the control skill's Ready command (read-only) and report what is reachable |
 | `capture --kind <kind>` | Record the kind with the tool the control skill's `## Capture` section names for it, one artifact per tier row; `threads` (a stack of every thread, for a hang), and a `cpu` or `heap` recorder that takes a pid, bind to the launched pid ([`${CLAUDE_SKILL_DIR}/reference/pid-binding.md`](reference/pid-binding.md)) |
 | `cleanup` | Stop only what this run started, then confirm every evidence path in the report still exists and is not empty |
+| `affected --base <ref> [--head <ref>]` | Map the diff `<base>...<head>` (`--head` defaults to `HEAD`) to the control skill's features and write `affected.json` (see [Affected](#affected)); launches nothing |
+| `--trusted-root <dir>` | With any action: read control skills only from `<dir>` and from plugins whose folder sits under it (steps 1 and 2 below), so a checkout under test cannot supply its own control skill |
 | `--attach` | Interactive only: drive or capture against a process already running that the person names, which this run did not start (see [Attach](#attach)) |
 | `--unattended` | With any action: ask nothing, attach to nothing, mark each step that needs a person `blocked` |
 
@@ -42,7 +45,8 @@ keep going.
 Every stop below writes its `blocked: <reason>` line, and any list or path it prints, in the report.
 
 1. **Repository control skills.** The roots are this checkout and, in a worktree, the main
-   checkout, read from `git worktree list --porcelain` (see its output format below). Glob each
+   checkout, read from `git worktree list --porcelain` (see its output format below). With
+   `--trusted-root <dir>`, `<dir>` is the only root. Glob each
    root for `**/.claude/skills/**/SKILL.md`, `**/.claude/skills/*/commands/**/*.md` and
    `**/.claude/commands/**/*.md`, and list `.claude/skills/*/`, its `commands/` and
    `.claude/commands/` with `ls -aR` as well (Glob and ignored files: see below). First drop every
@@ -55,7 +59,8 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    those found, keep each whose folder name, file name without `.md`, or frontmatter `name` is
    `control-<app>` (no `<app>`: starts with `control-`). Its source is `project`.
 2. **Plugin control skills.** For each enabled plugin `claude plugin list --json` reports whose
-   folder step 1 did not already search, take the folder the list reports for it (see the plugin
+   folder step 1 did not already search (with `--trusted-root <dir>`, only one whose folder's real
+   path sits under `<dir>`'s), take the folder the list reports for it (see the plugin
    list below) and search the skill and command files it loads from its default folders and its
    `.claude-plugin/plugin.json` `skills` and `commands` keys, located as the manifest page's
    component paths and path rules say (see the manifest's component paths below). Read no path that
@@ -86,7 +91,7 @@ Every stop below writes its `blocked: <reason>` line, and any list or path it pr
    an interactive run asks and an unattended run stops with the list. With no `<app>` and no
    repository match, a lone plugin match is not used blindly: an interactive run asks first, and an
    unattended run records `blocked: plugin control skill <name> needs <app> named` and stops.
-6. **None:** use the bundled `run` skill when it resolves in this session, else the project-type
+6. **None:** for `affected`, see [Affected](#affected). Otherwise use the bundled `run` skill when it resolves in this session, else the project-type
    recipe in [`${CLAUDE_SKILL_DIR}/reference/project-types.md`](reference/project-types.md), found from the repository's
    own docs and manifests. The report then carries the line `No control skill: drive used
    <fallback>.`
@@ -136,6 +141,25 @@ repository plugins and the skills-directory origin:
 Glob and ignored files: <https://code.claude.com/docs/en/tools-reference#glob-tool-behavior>; which
 worktree entry is the main checkout: <https://git-scm.com/docs/git-worktree#_list_output_format>.
 All as of 2026-10-26; recheck when any of them changes.
+
+## Affected
+
+Find the control skill as above, launch nothing, and run
+`python3 -I ${CLAUDE_PLUGIN_ROOT}/scripts/affected_features.py` with:
+
+- `--repo <this checkout> --base <ref> --head <ref> --out <run directory> --app <app>`;
+- for a chosen control skill, `--hub <its SKILL.md or command file> --skill-dir <its base
+  directory (step 3)> --source <project|plugin> --control-skill <its report.json form>`, and for
+  a project control skill `--project-dir <the folder holding its .claude/>`, at that path in this
+  checkout when the skill came from another root (the main checkout or `--trusted-root`); a plugin
+  control skill's globs resolve against this checkout's root;
+- `--trusted-root <dir>` when the run has it.
+
+With no control skill, pass none of the control-skill arguments and use no fallback: the script
+writes empty `features` and the note `No control skill: nothing matched`. A non-zero exit is a
+`blocked:` line carrying the message the script prints. When `python3` is not on `PATH`, handle
+it as step 9 does. The report names `affected.json`; the file's fields and its glob syntax are in
+[`${CLAUDE_SKILL_DIR}/reference/evidence.md`](reference/evidence.md).
 
 ## Rules
 
