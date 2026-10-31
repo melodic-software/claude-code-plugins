@@ -70,6 +70,39 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # A dispatcher that ran an older copy of its file than the tip sent a run the
+  # broker refuses every write token (workflow-modified), so this job compares
+  # the two before anything else. On a difference no select job starts: no
+  # model turn, no check and no stop, so the run ends green and the next
+  # dispatcher, on the tip's file, finds the head unhandled and sends it again.
+  # Here and not in the read runner, because the jobs after a select job that
+  # proceeded mint a token whatever the model call did. Only base code and a
+  # read-only token; a dispatch with no dispatcher run skips the steps.
+  dispatcher-current:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read # check out main; the dispatcher file at its run's head
+      actions: read # the dispatcher run's file and head
+    outputs:
+      stale: ${{ steps.current.outputs.stale }}
+    steps:
+      - name: Check out the default branch tip
+        if: inputs.dispatcher-run-id != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          persist-credentials: false
+
+      - name: Compare the dispatcher file with the tip's
+        id: current
+        if: inputs.dispatcher-run-id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISPATCHER_RUN_ID: ${{ inputs.dispatcher-run-id }}
+        run: bash .base/.github/scripts/pr-unblock/dispatcher-current.sh
+
   # resolve-conflicts is five jobs, so no model ever holds a write token or
   # runs git. This one runs only base code with a read-only token. Before any
   # model turn it reads the PR head, resolves the slot (draft and held PRs
@@ -84,9 +117,11 @@ jobs:
   # call's scan job, never from its run job, whose runner head code could
   # forge.
   resolve-conflicts-select:
+    needs: dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'resolve-conflicts'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+      && needs.dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -678,9 +713,11 @@ jobs:
   # the jobs after it take comes from here, never from the model job, whose
   # runner head code could forge.
   address-feedback-select:
+    needs: dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'address-feedback'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+      && needs.dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -1582,9 +1619,11 @@ jobs:
   # model-call input from a model call's scan job, never from its run job,
   # whose runner head code could forge.
   review-dependency-select:
+    needs: dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'review-dependency'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+      && needs.dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -2044,9 +2083,11 @@ jobs:
   # the failing checks' names, workflows, annotations and log ends to the
   # context file the model job reads. Logs and annotations are data.
   fix-ci-context:
+    needs: dispatcher-current
     if: >-
       inputs.pr-number != '' && inputs.activity == 'fix-ci'
       && format('{0}', github.event.sender.id) != vars.AUTOMATION_LANES_APP_SENDER_ID
+      && needs.dispatcher-current.outputs.stale != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:

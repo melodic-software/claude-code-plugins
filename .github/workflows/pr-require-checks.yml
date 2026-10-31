@@ -4804,6 +4804,10 @@ jobs:
       #   marker) was written or edited and no comment was deleted in it: a
       #   lanes App escalation adds no label event to a label already on. Its
       #   other comments (review replies, fix notes) keep nothing.
+      # - No github-actions[bot] comment whose first line is pr-verify's
+      #   credential stop (the base's gate-source.mjs CREDENTIAL_HOLD) was
+      #   written or edited in it: that stop adds no label event to a label
+      #   already on either, and a cost decision does not answer it.
       # - The pull request body, outside HTML comments, links a decision comment
       #   as babysit_merge_policy.py's cost_decision reads one: by a User on the
       #   trusted-actor list, not through an App, never edited, first line
@@ -5116,6 +5120,9 @@ jobs:
               elif any($added[]; (.created_at | t) as $at | any($holds[]; .at >= $at and .at - $at <= 600) | not) then "a label was added with no held review after it"
               elif any($comments[][]; .user.id == $app and (.body // "" | contains("<!-- work-items:escalation"))
                 and ([.created_at, .updated_at] | map(t) | max) > $since) then "the lanes App escalated since then"
+              elif any($comments[][]; .user.login == "github-actions[bot]"
+                and (.body // "" | split("\n")[0] | rtrimstr("\r")) == "<!-- stop-reason lane=pr-verify reason=security -->"
+                and ([.created_at, .updated_at] | map(t) | max) >= $since) then "pr-verify held it for a credential since then"
               elif ($gone | type) != "object" or $gone.filteredCount > ($gone.nodes | length)
                 or any($gone.nodes[]; (.createdAt | t) > $since) then "a comment was deleted since then"
               else "cost" end' 2>/dev/null) || keep "the events, holds or comments do not parse"
