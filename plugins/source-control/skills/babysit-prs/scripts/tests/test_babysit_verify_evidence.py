@@ -1401,6 +1401,18 @@ def read_as_lane(fake: FakeGitHub) -> ve.Evidence:
         ).evidence(PR, HEAD, pull())
 
 
+def also_closes_issue_8(fake: FakeGitHub, *closers: int) -> FakeGitHub:
+    """The judged pull request closes issue 8 too, as do `closers`, and the
+    lanes App's capped-close record is on issue 8 alone."""
+    fake.closing.append((8, REPO))
+    fake.closers[8] = [(n, REPO) for n in (*closers, PR)]
+    fake.records[named(HEAD, "pass")] = record(
+        linked_issues=[TRUSTED_ISSUE, {**TRUSTED_ISSUE, "number": 8}]
+    )
+    fake.closing_comments[8] = [capped_record(SIBLING + 2, LANES_APP_ACTOR)]
+    return fake
+
+
 class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
     """A second open pull request for the same issue does not reset the cap:
     counted FAILs of any open pull request in this repository that closes one
@@ -1486,28 +1498,12 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         ]
         self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
 
-    def test_a_hand_close_of_a_lanes_app_attempt_starts_the_count_again(
-        self,
-    ) -> None:
-        # A lanes App pull request for the issue closed unmerged, no record.
-        fake = self.sibling_fails(*SIBLING_HEADS)
-        fake.closers[7] = [(SIBLING, REPO), (SIBLING + 2, REPO), (PR, REPO)]
-        fake.closer_authors[SIBLING + 2] = LANES_APP_ACTOR
-        for closed, refusal in (
-            ("2026-10-05T00:00:00Z", None),
-            ("2026-09-01T00:00:00Z", "verify:repeated-fail"),
-        ):
-            with self.subTest(closed):
-                fake.closed_at[SIBLING + 2] = closed
-                self.assertEqual(read_as_lane(fake).refusal, refusal)
-        # A merge ends no attempt.
-        fake.closer_states[SIBLING + 2] = "MERGED"
-        fake.closed_at[SIBLING + 2] = "2026-10-05T00:00:00Z"
-        self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
-
-    def test_anyone_elses_closed_pull_request_resets_nothing(self) -> None:
-        # Anyone can open a pull request naming the issue and close it.
+    def test_only_the_caps_own_close_resets_the_count(self) -> None:
+        # A pull request for the issue closed unmerged with no record, the
+        # lanes App's included: the lane closes its own for other reasons,
+        # and anyone can open one naming the issue and close it.
         for author in (
+            LANES_APP_ACTOR,
             {"__typename": "User", "login": "someone", "databaseId": 3},
             {"__typename": "Bot", "login": "other-app", "databaseId": 2},
             None,
@@ -1519,6 +1515,18 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
                 if author is not None:
                     fake.closer_authors[SIBLING + 2] = author
                 self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
+
+    def test_a_record_resets_only_its_own_issue(self) -> None:
+        # A close on issue 8 ends no attempt at issue 7, whose FAILs stay.
+        fake = also_closes_issue_8(self.sibling_fails(*SIBLING_HEADS))
+        self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
+        # Records on both of them end the attempts at both.
+        fake.closing_comments[7] = [capped_record(SIBLING + 2, LANES_APP_ACTOR)]
+        self.assertIsNone(read_as_lane(fake).refusal)
+
+    def test_a_pull_request_for_two_issues_counts_for_the_one_not_reset(self) -> None:
+        fake = also_closes_issue_8(self.sibling_fails(*SIBLING_HEADS), SIBLING)
+        self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
 
     def test_a_capped_close_record_anyone_else_wrote_or_edited_resets_nothing(
         self,
@@ -1585,6 +1593,27 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         fake.closer_states[SIBLING] = "CLOSED"
         self.assertIsNone(read(fake).refusal)
 
+    def test_an_unreadable_fail_before_the_record_holds_nothing(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS)
+        del fake.runs[3]
+        fake.closing_comments[7] = [capped_record(SIBLING + 2, LANES_APP_ACTOR)]
+        self.assertIsNone(read_as_lane(fake).refusal)
+
+    def test_an_unreadable_fail_the_record_does_not_cover_refuses(self) -> None:
+        fake = self.sibling_fails(*SIBLING_HEADS[:2])
+        del fake.runs[3]
+        gone = next(a for a in fake.artifacts if a["id"] == 30)
+        gone["created_at"] = "2026-10-06T00:00:00Z"
+        fake.closing_comments[7] = [capped_record(SIBLING + 2, LANES_APP_ACTOR)]
+        evidence = read_as_lane(fake)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertEqual(evidence.detail, ve.SIBLING_UNREADABLE)
+
+    def test_an_unreadable_fail_still_holds_for_an_issue_not_reset(self) -> None:
+        fake = also_closes_issue_8(self.sibling_fails(*SIBLING_HEADS[:2]))
+        del fake.runs[3]
+        self.assertEqual(read_as_lane(fake).refusal, "verify:unreadable")
+
 
 class AFreshAttemptAfterIssue9241sAttemptsStartsItsOwnCount(unittest.TestCase):
     """Issue 9241's shape (2026-10-30): FAILs named for the issue at three
@@ -1614,8 +1643,6 @@ class AFreshAttemptAfterIssue9241sAttemptsStartsItsOwnCount(unittest.TestCase):
                 n, sha, verdict="fail", head_ref=f"lane/{n}"
             )
         fake.closers[7] = [(10451, REPO), (11170, REPO), (PR, REPO)]
-        fake.closed_at = {10451: "2026-09-27T21:08:59Z", 11170: "2026-09-30T14:13:02Z"}
-        fake.closer_authors = {10451: LANES_APP_ACTOR, 11170: LANES_APP_ACTOR}
         fake.pulls = {
             10525: {"merged_at": "2026-09-28T01:09:36Z"},
             10583: {"merged_at": "2026-09-29T15:38:17Z"},
@@ -1678,9 +1705,6 @@ class AnAttemptAfterIssue9727sMergedPullRequestStartsItsOwnCount(unittest.TestCa
             )
         fake.closers[7] = [(10134, REPO), (PR, REPO)]
         fake.closer_states[10134] = state
-        fake.closer_authors[10134] = LANES_APP_ACTOR
-        if state == "MERGED":
-            fake.closed_at[10134] = "2026-10-28T03:32:15Z"
         return fake
 
     def test_a_merged_pull_requests_three_fails_leave_the_attempt_uncapped(
@@ -1928,6 +1952,28 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
         fake = self.named_fails(*SIBLING_HEADS[:1], suffix="-i8")
         del fake.runs[2]
         self.assertIsNone(read(fake).refusal)
+
+    def test_a_record_on_another_issue_leaves_a_named_fail_counted(self) -> None:
+        fake = also_closes_issue_8(self.named_fails(*SIBLING_HEADS))
+        self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
+
+    def test_an_unreadable_named_fail_before_the_record_reads_no_state(self) -> None:
+        fake = self.named_fails(*SIBLING_HEADS)
+        del fake.runs[2]
+        fake.closing_comments[7] = [capped_record(SIBLING + 2, LANES_APP_ACTOR)]
+        self.assertIsNone(read_as_lane(fake).refusal)
+        self.assertFalse(
+            [c for c in fake.calls if any(re.search(r"/pulls/[0-9]+$", a) for a in c)]
+        )
+
+    def test_an_unreadable_off_grammar_fail_before_the_record_holds_nothing(
+        self,
+    ) -> None:
+        fake = passing(artifact(f"{named(SIBLING_HEADS[0], 'fail', SIBLING)}-i07", 9))
+        fake.closers[7] = [(SIBLING, REPO), (PR, REPO)]
+        fake.closer_states[SIBLING] = "OPEN"
+        fake.closing_comments[7] = [capped_record(SIBLING + 2, LANES_APP_ACTOR)]
+        self.assertIsNone(read_as_lane(fake).refusal)
 
     def test_a_foreign_run_never_counts(self) -> None:
         fake = self.named_fails(*SIBLING_HEADS)
