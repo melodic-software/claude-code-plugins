@@ -94,8 +94,8 @@ FLOOR_PATHS_KEY = "merge.diff-check.floor-paths"
 SOURCE_CONTROL_PATH = repo_config.CONFIG_PATH
 LOOP_MERGE_KEY = "babysit_loop_merge"
 # The largest `merge.max-in-flight` the gate takes, as the schema's maximum:
-# twice the 12 the sizing formula gives at the rolling 60-minute peak of the
-# 2026-10-24 to 10-31 merges (judgment). Above it the value reads as unset.
+# over twice the 11 the sizing formula gives for the day recorded in
+# `merge.in-flight-sizing` (judgment). Above it the value reads as unset.
 MAX_IN_FLIGHT_CEILING = 24
 PARSER = Path(__file__).resolve().parents[3] / "lib" / "parse-concern-value.sh"
 

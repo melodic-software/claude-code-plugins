@@ -1009,10 +1009,11 @@ merge:
   # measured day's whole-day means agree with it: 1.7 in flight at 1.75 merges
   # an hour over 58 minutes (peak over mean is judgment). The second term keeps
   # candidate reads inside the 70% planned-load target for the lanes App bucket.
-  # The merge-queue ruleset's 5 and 5 need no raise for a value above 5:
-  # max_entries_to_build throttles builds and max_entries_to_merge sizes a
-  # group, neither limits the queue's length, which reached 8 on the measured
-  # day, and this count also holds merges already out of the queue.
+  # The merge-queue ruleset stays 5 and 5 above a cap of 5: max_entries_to_build
+  # limits pull requests requesting checks at once, max_entries_to_merge sizes
+  # a group, and neither limits the queue's length. The queue held at least 8
+  # at 2026-10-30T22:39Z with the ruleset at 5 and 5, and this count also holds
+  # merges already out of the queue.
   # Inputs, for the day ending at measured: rate and time from each lanes
   # App-enqueued merge's arming, or its AddedToMergeQueueEvent when it was
   # never armed first, to the first pr-merge run after the next full run of
