@@ -855,7 +855,7 @@ export async function select({
     }
     return untaken
       ? { decision: "escalate", escalationReason: "feedback-untaken-threads", threads: kept }
-      : { decision: "skip", skipReason: "not-applicable", resolved: true, threads: kept };
+      : { decision: "skip", skipReason: "stop-resolved", resolved: true, threads: kept };
   }
   // The files listing stops at FILES_CAP, so a longer diff could hide a
   // .github/workflows/ path and is treated as touching one.
