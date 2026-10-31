@@ -142,7 +142,7 @@ reader applies.
 | `pr-verify` | dispatch from `pr-refine` |
 | `pr-explain` | dispatch from `pr-refine`, alongside verify |
 | `pr-require-checks` | each verify result |
-| `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, or a trusted human's dispatch |
+| `pr-unblock` | a dispatch for each conflicting PR but a Dependabot head (Dependabot rebases its own), each unreviewed review-tier Dependabot PR, and each failing lanes App PR after a push to the default branch or at the dispatcher's half-hourly tick, a dispatch after a review lane finishes on a lanes App PR with an open reviewer-bot thread, a dispatch at the half-hourly tick for a fix request on such a thread, or a trusted human's dispatch |
 | `pr-merge` | final check green, or a hold removed |
 | `work-unblock` | an issue closing, by a listed human, and an hourly sweep of the issues a listed human or a merge (a merged PR or a commit) closed in the last three hours (catching PR merges a bot ran); labels `agent-ready` on each issue it blocked that is now unblocked, unheld and owner-ratified; the label starts `work-resolve-issue`. The sweep also restarts or re-fires stopped issue runs and relabels a red-main fix issue a repeat failure reopened |
 | `post-merge-verify` | push to the default branch |
@@ -332,9 +332,15 @@ no review bot commented on), so the lane no longer stops on it with `feedback-un
 A thread anyone else opened, or one without a fix request, is left alone as before. Such a
 thread, and one a trusted person answered after the lane escalated it, is
 worked even when its review is on an earlier head than the one the reviewed-head markers name.
-`pr-feedback-dispatch.yml` runs only when a review run completes, so a fix request posted after
-the head's review starts nothing on its own. To start the round, an account on the trusted-actor
-list dispatches the lane directly:
+On a lanes App PR, the next half-hourly tick picks up a fix request on an unresolved thread the
+reviewer bot opened: each scheduled `pr-unblock-dispatch.yml` run's completion starts
+`pr-feedback-dispatch.yml`, whose sweep sends one such head per tick, ahead of the heads it retries.
+The request must be newer than the head's newest `pr-unblock / address-feedback` check run; check
+runs that started before it stop counting for that dispatch, except a limit stop, which keeps its
+reset hold. Each request is sent once, a head with three rounds or releasing skips is not sent, and
+`dispatchFeedback` re-checks every other condition. This sweep does not take a fix request in a
+thread a trusted person opened or on an owner PR. To start a round at once, an account on the
+trusted-actor list dispatches the lane directly:
 
 ```bash
 gh workflow run pr-unblock.yml -R melodic-software/claude-code-plugins -f pr-number=<n> -f activity=address-feedback
