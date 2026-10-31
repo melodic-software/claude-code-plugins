@@ -751,7 +751,7 @@ const DONE = String.raw`edited|changed|touched|modified|altered|rewritten`;
 const VERB = String.raw`touch(?:es|ing)?|chang(?:e|es|ing)|edit(?:s|ing)?|modif(?:y|ies|ying)|alter(?:s|ing)?|(?:re)?writ(?:e|es|ing)\s+to`;
 const MODAL = String.raw`must|should|shall|will|can`;
 const NOT = String.raw`(?:${MODAL})\s+not|cannot|(?:mustn|shouldn|shan|can)['’]t`;
-const ACT = String.raw`(?!(?:${VERB}|updat|add|remov|delet|creat|replac|renam|mov|fix)\w*(?=[\s,;:!?.]|$))`;
+const ACT = String.raw`(?!(?:${VERB}|update|updating|add|remov|delete|deleting|creat|replac|renam|mov|fix)\w*(?=[\s,;:!?.]|$))`;
 const SUBJECT = String.raw`${ACT}${WORD}(?:\s+${ACT}${WORD}){0,5}`;
 const NEGATED = new RegExp(
   [
