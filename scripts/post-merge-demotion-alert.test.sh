@@ -147,7 +147,11 @@ case "$endpoint" in
       echo '{"workflow_runs": []}' >"$fixture"
     fi
     ;;
-  */actions/workflows/*status=success*) fixture="$STUB_DIR/green.json" ;;
+  */actions/workflows/*status=success*)
+    # The range's base lookup: STUB_FAIL_BASE_READ fails it.
+    [[ "${STUB_FAIL_BASE_READ:-}" != 1 ]] || exit 1
+    fixture="$STUB_DIR/green.json"
+    ;;
   */actions/workflows/*event=push*)
     # The previous canary push run: STUB_FAIL_PREV_READ fails the read.
     [[ "${STUB_FAIL_PREV_READ:-}" != 1 ]] || exit 1
@@ -174,7 +178,22 @@ case "$endpoint" in
     fixture="$STUB_DIR/ancestry.json"
     jq -n --arg s "${STUB_ANCESTRY:-ahead}" '{status: $s}' >"$fixture"
     ;;
-  */compare/*) fixture="$STUB_DIR/compare.json" ;;
+  */compare/*)
+    # compare.json's commits as GitHub serves them: a page of per_page, or the
+    # newest 250 with no paging parameter. STUB_FAIL_COMPARE_PAGE is the page
+    # that answers 403.
+    page=1 per_page=0
+    if [[ "$endpoint" =~ [?\&]page=([0-9]+) ]]; then page="${BASH_REMATCH[1]}"; fi
+    if [[ "$endpoint" =~ [?\&]per_page=([0-9]+) ]]; then per_page="${BASH_REMATCH[1]}"; fi
+    if [[ "${STUB_FAIL_COMPARE_PAGE:-}" == "$page" ]]; then
+      echo 'gh: Resource not accessible by integration (HTTP 403)' >&2
+      exit 1
+    fi
+    fixture="$STUB_DIR/compare.page.json"
+    jq --argjson p "$page" --argjson n "$per_page" '.commits as $all | {total_commits: ($all | length),
+      commits: (if $n > 0 then $all[(($p - 1) * $n):($p * $n)] else $all[-250:] end)}' \
+      "$STUB_DIR/compare.json" >"$fixture"
+    ;;
   */commits/*)
     [[ "${STUB_FAIL_COMMIT_READ:-}" != 1 ]] || exit 1
     fixture="$STUB_DIR/commit.json"
@@ -234,6 +253,15 @@ baseline_run() {
   jq -n --argjson id "$1" --arg c "$2" --arg sha "${3:-$OTHER}" \
     '{id: $id, run_attempt: 1, conclusion: $c, status: "completed", head_branch: "main",
       head_sha: $sha, created_at: "2026-10-17T15:00:00Z"}'
+}
+
+# chain <n> -> n commits of the compare API from OTHER to SHA, comma-joined
+chain() {
+  jq -nr --argjson n "$1" --arg base "$OTHER" --arg head "$SHA" '
+    def id($i): if $i == 0 then $base elif $i == $n then $head
+      else ($i | tostring) as $s | ("0" * (40 - ($s | length))) + $s end;
+    [range(1; $n + 1) | {sha: id(.), parents: [{sha: id(. - 1)}], author: {login: "alice"},
+      commit: {message: "feat: change \(.) (#\(.))"}} | tojson] | join(", ")'
 }
 
 # commit <sha> <parent> <author> <subject> -> one commit of the compare API
@@ -303,7 +331,7 @@ PY
   : >"$TMP_ROOT/stub/log"
   : >"$TMP_ROOT/stub/output"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" GITHUB_OUTPUT="$TMP_ROOT/stub/output" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
-    STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_FAIL_PREV_READ="${FAIL_PREV_READ:-}" STUB_FAIL_COMMIT_READ="${FAIL_COMMIT_READ:-}" STUB_REVERT_POST_FAIL="${REVERT_POST_FAIL:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
+    STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_FAIL_PREV_READ="${FAIL_PREV_READ:-}" STUB_FAIL_BASE_READ="${FAIL_BASE_READ:-}" STUB_FAIL_COMPARE_PAGE="${FAIL_COMPARE_PAGE:-}" STUB_FAIL_COMMIT_READ="${FAIL_COMMIT_READ:-}" STUB_REVERT_POST_FAIL="${REVERT_POST_FAIL:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
@@ -544,7 +572,7 @@ body="$(post_fields)"
 if [[ "$RC" -eq 0 && "$body" == *"- Pull request: https://github.com/o/r/pull/1234"* &&
   "$body" == *"git revert $SHA"* && "$body" == *"title=Post-merge dispatch failure after #1234: unattended"* &&
   "$body" != *"attributed to the range"* ]] &&
-  grep -q "^GET repos/o/r/compare/$OTHER\.\.\.$SHA$" <<<"$LOG"; then
+  grep -q "^GET repos/o/r/compare/$OTHER\.\.\.$SHA?per_page=100&page=1$" <<<"$LOG"; then
   ok "one merge since the last green full run keeps the single pull request and its revert"
 else
   fail "one-merge range: rc=$RC log='$LOG' fields='$body'"
@@ -580,7 +608,7 @@ fi
 
 GREEN='' run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 body="$(post_fields)"
-if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"could not be found"* &&
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"No green full run on main came before this one, so the merges this failure covers are unknown"* &&
   "$body" == *"- Pull request: https://github.com/o/r/pull/1234"* && "$body" == *"- Main at the failing run: \`$SHA\`"* &&
   "$body" != *"git revert"* && "$body" == *"finds the merge responsible before reverting anything."* ]] &&
   ! grep -q '/compare/' <<<"$LOG"; then
@@ -592,7 +620,7 @@ fi
 COMPARE="$(commit "$SHA" "$MID" bob 'ci: record suite times (#8260)')" \
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 body="$(post_fields)"
-if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"could not be found"* &&
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"does not reach its last green full run at \`$OTHER\`, so the merges"* &&
   "$body" != *"attributed to the range"* && "$body" != *"git revert"* ]]; then
   ok "a first-parent chain that never reaches the green SHA lists no range"
 else
@@ -602,7 +630,7 @@ fi
 OLD=1111111111111111111111111111111111111111 PRS=2222222222222222222222222222222222222222
 GREEN="$(green_run "$OLD" workflow_dispatch 2026-10-17T12:00:00Z), $(green_run "$OTHER" schedule 2026-10-17T14:00:00Z), $(green_run "$PRS" pull_request 2026-10-17T15:00:00Z)" \
   run_step "$FULL" schedule failure main o/r "$SHA" '[]'
-if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -q "^GET repos/o/r/compare/$OTHER\.\.\.$SHA$" <<<"$LOG"; then
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -q "^GET repos/o/r/compare/$OTHER\.\.\.$SHA?per_page=100&page=1$" <<<"$LOG"; then
   ok "the base is the newest green schedule or dispatch run, never a pull_request run"
 else
   fail "base choice: rc=$RC log='$LOG'"
@@ -686,8 +714,108 @@ for i in $(seq 1 101); do
 done
 COMPARE="$MANY" PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1 alice User)")" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
 demotes "a range of 101 merges demotes"
-if grep -qx 'GET graphql' <<<"$LOG" || [[ "$(post_fields)" != *"range of 101 merges"* ]]; then
-  fail "a 101-merge range made the lookup or was not read as 101 merges: log='$LOG'"
+if grep -qx 'GET graphql' <<<"$LOG" || [[ "$(post_fields)" != *"range of 101 commits"* ]]; then
+  fail "a 101-merge range made the lookup or was not read as 101 commits: log='$LOG'"
+fi
+
+# --- Why a range could not be walked -------------------------------------------
+# compare_calls: how many compare pages the run read.
+compare_calls() { grep -c "^GET repos/o/r/compare/$OTHER\.\.\.$SHA" <<<"$LOG"; }
+
+FAIL_BASE_READ=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+body="$(post_fields)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$OUT" == *"::warning::"*"full runs"* &&
+  "$body" == *"Main's earlier full runs could not be read, so the merges"* &&
+  "$body" != *"No green full run"* ]] && ! grep -q '/compare/' <<<"$LOG"; then
+  ok "a failed read of main's green runs warns and tells that apart from no green run"
+else
+  fail "base read failure: rc=$RC log='$LOG' out='$OUT' fields='$body'"
+fi
+
+FAIL_COMPARE_PAGE=1 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+body="$(post_fields)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$OUT" == *"::warning::"*"$OTHER"* && "$OUT" == *"HTTP 403"* &&
+  "$body" == *"since main's last green full run at \`$OTHER\` could not be listed, so the merges"* &&
+  "$body" != *"HTTP 403"* && "$body" != *"git revert"* ]]; then
+  ok "a 403 from compare warns and the record says the range could not be listed"
+else
+  fail "compare 403: rc=$RC out='$OUT' fields='$body'"
+fi
+
+COMPARE="$(chain 150)" FAIL_COMPARE_PAGE=2 run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+body="$(post_fields)"
+if [[ "$RC" -eq 0 && "$body" == *"could not be listed"* && "$body" != *"attributed to the range"* &&
+  "$(compare_calls)" -eq 2 ]]; then
+  ok "a compare page that fails after the first discards the pages already read"
+else
+  fail "compare page 2 failure: rc=$RC log='$LOG' fields='$body'"
+fi
+
+COMPARE="$(chain 260)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+body="$(post_fields)"
+if [[ "$RC" -eq 0 && "$body" == *"range of 260 commits"* && "$(compare_calls)" -eq 3 &&
+  "$(grep -c '^  - https://github.com/o/r/pull/' <<<"$body")" -eq 100 && "$body" == *"title=Post-merge schedule failure after #1..#260: unattended"* &&
+  "$body" == *"  - and 160 more: https://github.com/o/r/compare/$OTHER...$SHA"$'\n'* ]]; then
+  ok "a compare past GitHub's 250-commit page limit is paged, and the record lists 100 and links the rest"
+else
+  fail "260-commit compare: rc=$RC log='$LOG' fields='${body:0:600}'"
+fi
+
+COMPARE="$(chain 300)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(post_fields)" == *"range of 300 commits"* && "$(compare_calls)" -eq 3 ]]; then
+  ok "300 commits are the most a run walks, in three reads"
+else
+  fail "300-commit compare: rc=$RC log='$LOG'"
+fi
+
+COMPARE="$(chain 301)" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+body="$(post_fields)"
+if [[ "$RC" -eq 0 && "$body" == *"The 301 commits since main's last green full run at \`$OTHER\` are more than the 300 this check lists, so the merges"* &&
+  "$(compare_calls)" -eq 1 ]]; then
+  ok "a range past the 300-commit bound is named and costs one compare read"
+else
+  fail "301-commit compare: rc=$RC log='$LOG' fields='$body'"
+fi
+
+GREEN="$(green_run "$SHA")" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+body="$(post_fields)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$body" == *"last green full run is at this same commit, so no merge is implicated"* &&
+  "$body" == *"<!-- babysit-merge-demotion sha=$SHA signal=schedule -->"* && "$body" != *"git revert"* ]] &&
+  ! grep -q '/compare/' <<<"$LOG"; then
+  ok "a green full run at the failing SHA says no merge is implicated, reads no compare, and still demotes"
+else
+  fail "green at the failing SHA: rc=$RC log='$LOG' fields='$body'"
+fi
+
+LONG="$(printf 'x%.0s' {1..150})"
+COMPARE="$(commit "$MID" "$OTHER" alice "feat: $LONG (#8259)"), $(commit "$SHA" "$MID" bob 'ci: record suite times (#8260)')" \
+  PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 8259 alice User)" "$(enq 8260 bob User)")" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+body="$(post_fields)"
+if [[ "$RC" -eq 0 && "$body" == *"https://github.com/o/r/pull/8259, merge commit \`$MID\`, by alice"* &&
+  "$body" == *"<!-- post-merge-failure sha=$SHA signal=schedule -->"* && "$body" != *xxx* ]]; then
+  ok "a subject too long to print keeps its pull request number and its human-only verdict"
+else
+  fail "long subject: rc=$RC log='$LOG' fields='$body'"
+fi
+
+CR_SUBJECT="$(jq -n --arg sha "$MID" --arg p "$OTHER" '{sha: $sha, parents: [{sha: $p}], author: {login: "alice"}, commit: {message: "feat: a change (#8259)\r\n\nbody"}}')"
+COMPARE="$CR_SUBJECT, $(commit "$SHA" "$MID" bob 'ci: record suite times (#8260)')" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$(post_fields)" == *"https://github.com/o/r/pull/8259, merge commit \`$MID\`, by alice"* ]]; then
+  ok "a subject with a CRLF ending keeps its pull request number"
+else
+  fail "CRLF subject: rc=$RC fields='$(post_fields)'"
+fi
+
+ODD='fix: a\b `tick` @you [x](y) '"$LONG"
+NOBODY="$(jq -n --arg sha "$MID" --arg p "$OTHER" --arg s "$ODD" '{sha: $sha, parents: [{sha: $p}], author: null, commit: {author: {name: "@free text"}, message: $s}}')"
+COMPARE="$NOBODY, $(commit "$SHA" "$MID" bob 'ci: record suite times (#8260)')" run_step "$FULL" schedule failure main o/r "$SHA" '[]'
+body="$(post_fields)"
+shown="${ODD//\`/}"
+if [[ "$RC" -eq 0 && "$body" == *"  - direct push \`${shown:0:100}\`, commit \`$MID\`, by unknown"$'\n'* &&
+  "$body" != *"free text"* && "$body" != *"merge commit \`$MID\`"* && "$body" != *'a\\b'* ]]; then
+  ok "a direct push is called one, with its subject quoted once, cut to 100 characters, and no free-text author"
+else
+  fail "direct push row: rc=$RC fields='$body'"
 fi
 
 PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1234 octocat User)")" ATTEMPT=1 run_step "$CANARY" push failure main o/r "$SHA" '[]'
