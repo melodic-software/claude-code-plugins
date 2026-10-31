@@ -1142,6 +1142,7 @@ class TestBriefDecisionsOnce(SessionCase):
     ledger, and an answered row the confirmed restatement carries adds no raw Constraints line."""
 
     OLD = ("Cache builds in S3?", "S3 cache", "Use the shared S3 bucket.")
+    LONG = " ".join(["Keep the build cache on the runner's local disk."] * 8)
 
     def section(self, text, name):
         return text.split(f"### {name}")[1].split("###")[0].split("\n## ")[0]
@@ -1262,6 +1263,55 @@ class TestBriefDecisionsOnce(SessionCase):
         self.assertIn("- Q2 Short Q2: alt a: Alt a of Q2\n", constraints)
         self.assertEqual(text.splitlines().count(f"- {own}"), 1)
         self.assertIn("- Q4 Short Q4: accepted: Recommended answer for Q4.", constraints)
+
+    def test_commitments_ticked_at_confirm_leave_one_line_in_its_final_status(self):
+        qs = [
+            question("Q1", commits=["One writer only"]),
+            question("Q2", commits=["Retries stop at three"]),
+            question("Q3"),
+            question("Q4", recommendation=self.LONG, commits=["Cache stays local"]),
+        ]
+        events = [event(i, f"Q{i}", "accept") for i in (1, 2, 3, 4)]
+        self.session(qs, events)
+        recap, _ = exporters.confirmation_recap(self.dir, 20000)
+        self.assertIn("Q1 open: ", recap)
+        self.assertRegex(recap, r"Q4 open: .*…\)")
+        text = self.confirmed(
+            qs,
+            # "Tick these and confirm" ticks Q1's commitment after the recap was taken; Q2 then
+            # takes an alternative, so its answer changed and its line stays as written.
+            [
+                *events,
+                event(5, "Q1", "confirm", alt="0"),
+                event(6, "Q4", "confirm", alt="0"),
+                event(7, "Q2", "alt", alt="a"),
+            ],
+            decisions=recap,
+            **RESTATED,
+        )
+        q1 = [x for x in text.splitlines() if re.match(r"^- Q1\b", x)]
+        self.assertEqual(
+            q1,
+            [
+                "- Q1 answered: Question Q1? "
+                "(accepted: Recommended answer for Q1.; confirmed: One writer only)"
+            ],
+        )
+        self.assertIn(q1[0], self.section(text, "Decisions"))
+        self.assertNotIn("Q1 open", text)
+        self.assertIn("- Q2 open: ", self.section(text, "Decisions"))
+        constraints = self.section(text, "Constraints")
+        self.assertIn("- Q2 Short Q2: alt a: Alt a of Q2\n", constraints)
+        # Q4's recap line cut its long answer; it still reads once, whole.
+        q4 = [x for x in text.splitlines() if re.match(r"^- Q4\b", x)]
+        self.assertEqual(
+            q4,
+            [
+                f"- Q4 answered: Question Q4? "
+                f"(accepted: {self.LONG}; confirmed: Cache stays local)"
+            ],
+        )
+        self.gated("ticked", text)
 
 
 class TestChangedRowsRecap(SessionCase):
