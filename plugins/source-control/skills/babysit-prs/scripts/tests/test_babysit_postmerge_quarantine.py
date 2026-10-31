@@ -250,6 +250,9 @@ class AffectedSet(AffectedBase):
         self.assertIn(f"- Failing run: {SIGHTING}", body)
         self.assertIn(f"- Main at the failing run: `{LATER_SHA}`", body)
         self.assertIn("<!-- work-items:born-triaged -->", body)
+        self.assertIn(
+            "comment on this issue rather than editing it", " ".join(body.split())
+        )
         self.assertIn("labels[]=needs-human", post)
         self.assertNotIn("babysit-merge-demotion", body)
         self.assertFalse(any(a.startswith("assignees[]=") for a in post))
@@ -274,6 +277,29 @@ class AffectedSet(AffectedBase):
         self.assertEqual(
             verdict.quarantines, (pm.Quarantine(FLAKY, SIGHTING, LATER_SHA),)
         )
+
+    def test_a_leg_that_passed_outright_on_attempt_1_is_excused(self) -> None:
+        # A person's whole-run re-run: attempt 1 failed elsewhere, this leg passed.
+        self.red_dispatch(bash_log((FLAKY, False)))
+        self.gh.jobs[(11, 1)] = [
+            failed_job(110, "lint-repo", "Aggregate hygiene results"),
+            {"id": 111, "name": "test-bash (0)", "conclusion": "success", "steps": []},
+        ]
+        verdict = self.check()
+        self.assertEqual(verdict.failures, ())
+        self.assertEqual(
+            verdict.quarantines, (pm.Quarantine(FLAKY, SIGHTING, LATER_SHA),)
+        )
+
+    def test_a_leg_skipped_on_attempt_1_shows_no_pass(self) -> None:
+        self.red_dispatch(bash_log((FLAKY, False)))
+        self.gh.jobs[(11, 1)] = [
+            failed_job(110, "lint-repo", "Aggregate hygiene results"),
+            {"id": 111, "name": "test-bash (0)", "conclusion": "skipped", "steps": []},
+        ]
+        verdict = self.check()
+        self.assertEqual(len(verdict.failures), 1)
+        self.assertEqual(verdict.quarantines, ())
 
     def red_at_green(self, log: str) -> None:
         """The last green commit's run passed on attempt 2; attempt 1 was

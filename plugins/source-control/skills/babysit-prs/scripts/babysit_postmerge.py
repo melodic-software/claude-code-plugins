@@ -1161,6 +1161,8 @@ class _Context:
     # The checks of each attempt counted only because a job's steps were
     # unknown: as a baseline they excuse nothing.
     unknown_checks: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
+    # The jobs that concluded success, by name, on each attempt `failing_checks` read.
+    passed_jobs: dict[tuple[int, int], frozenset[str]] = field(default_factory=dict)
     # Full-history clones `contains` asks first; None until first resolved.
     local_clones: list[Path] | None = None
     # Each commit on the first clone's first-parent chain of the branch, by
@@ -1368,13 +1370,16 @@ class _Context:
 
     def _repeat_excused(self, run: Run, attempt: int, check: str, suite: str) -> bool:
         """Whether `suite`, failing `check` again on re-run `attempt` of `run`,
-        has an excuse: an earlier attempt of the same commit names other
-        failures but not it, so it is non-deterministic, or a full run at the
+        has an excuse: on an earlier attempt of the same commit its leg
+        concluded success, or names other failures but not it, so it is
+        non-deterministic, or a full run at the
         last green commit failed it on some attempt, so the merges did not
         cause it. An attempt whose suites cannot be named shows neither."""
         for earlier in range(1, attempt):
             names = self.failing_suites(run.id, earlier, check)
-            if names is not None and suite not in names:
+            if check in self.passed_jobs[(run.id, earlier)] or (
+                names is not None and suite not in names
+            ):
                 return True
         green = self._last_green(run)
         return green is not None and any(
@@ -1748,16 +1753,18 @@ class _Context:
         """The checks one attempt of a full run failed (see FAILED_CONCLUSIONS)."""
         key = (run_id, attempt)
         if key not in self.checks_cache:
-            jobs = [
-                j
-                for j in _paginated(
-                    f"repos/{self.owner}/{self.name}/actions/runs/{run_id}"
-                    f"/attempts/{attempt}/jobs?per_page=100",
-                    f"run {run_id} attempt {attempt} jobs",
-                    "jobs",
-                )
-                if j.get("conclusion") in FAILED_CONCLUSIONS
-            ]
+            listed = _paginated(
+                f"repos/{self.owner}/{self.name}/actions/runs/{run_id}"
+                f"/attempts/{attempt}/jobs?per_page=100",
+                f"run {run_id} attempt {attempt} jobs",
+                "jobs",
+            )
+            jobs = [j for j in listed if j.get("conclusion") in FAILED_CONCLUSIONS]
+            self.passed_jobs[key] = frozenset(
+                str(j.get("name") or "")
+                for j in listed
+                if j.get("conclusion") == "success"
+            )
             # A red run with no failed job (a workflow file that does not
             # load) is one check of its own, never excused.
             checks: set[str] = (
@@ -3317,7 +3324,8 @@ def _quarantine_body(q: Quarantine, branch: str, days: int) -> str:
             "nothing. It is quarantined: it keeps running, and while this issue is open its",
             f"failures demote no unattended merge, for at most {days} days from when this",
             "issue was filed (`merge.quarantine-days`); after that they demote again. Fix",
-            "the suite, then close this issue.",
+            "the suite, then close this issue. To add anything, comment on this issue",
+            "rather than editing it: an edited issue stops excusing the suite.",
             "",
             f"- Suite: `{q.suite}`",
             f"- Failing run: {q.run_url}",
