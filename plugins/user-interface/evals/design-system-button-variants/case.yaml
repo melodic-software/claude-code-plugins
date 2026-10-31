@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: design-system-button-variants
+description: "Happy path: documenting a small design system for agents lists exactly the Button variants the code defines, closes the set, names the default from the code, and pairs a correct with an incorrect example"
+tags: [web, design-system, happy-path]
+runs: 3
+expected_outcome: "The design skill fires and the docs list exactly the Button variants primary, secondary and danger with the set closed, name secondary as the default, say when primary and danger apply, and give a correct and an incorrect code example"
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Document our design system so agents stop inventing button variants. This run cannot write files, so put the docs in your reply."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 25
+  timeout_seconds: 600

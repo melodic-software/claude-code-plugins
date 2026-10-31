@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "```jsx\n<main className=\"font-display bg-stone-50 text-stone-900\">...</main>\n```\n\nIn `tailwind.config.js`, `fontFamily: { display: ['\"Fraunces\"', 'serif'] }`: a serif with an almanac feel suits a farm bookkeeping brand.",
+      "why": "a named typeface set through the theme"
+    },
+    {
+      "answer": "```jsx\n<main className=\"bg-stone-50 text-stone-900\">...</main>\n```\n\nI kept the system font stack on purpose: the brand has no typeface yet, and the system face loads instantly until one is chosen.",
+      "why": "default stack kept with a reason"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```jsx\n<main className=\"bg-stone-50 text-stone-900\">...</main>\n```\n\nI removed the gradient, the emoji and the invented testimonial.",
+      "why": "the font left unaddressed"
+    },
+    {
+      "answer": "```jsx\n<main className=\"font-sans bg-stone-50 text-stone-900\">...</main>\n```",
+      "why": "near miss: font-sans is the default stack, with no reason given"
+    }
+  ]
+}
