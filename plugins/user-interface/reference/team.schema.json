@@ -51,6 +51,13 @@
         "token_fallback": {
           "enum": ["ask", "propose-token", "literal"],
           "description": "What to do when no design token matches a value: ask, propose a new token, or write the literal."
+        },
+        "concentric_radius": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_gap_px": {"type": "integer", "minimum": 0, "description": "The widest gap in px (the parent's border width plus its padding) at which reference/types/web/shape-and-depth.md, the write-css concentric-nested-radius recipe and scripts/nested-radius.mjs still derive a nested element's radius from its parent's; past it each radius is picked on its own."}
+          }
         }
       }
     },
