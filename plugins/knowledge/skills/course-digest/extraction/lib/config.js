@@ -1,15 +1,13 @@
 /**
  * Platform config validation and adapter resolution.
  *
- * Validates platformConfig at startup (fail-fast) and dynamically imports
- * the correct adapter module for the course platform.
+ * Validates platformConfig at startup (fail-fast) and looks up the adapter
+ * module for the course platform in the static registry.
  */
 
-import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
 import { fail, ok } from "@melodic/video-digestion/shared/result";
+
+import { lookupAdapter } from "../adapters/registry.js";
 
 const REQUIRED_FIELDS = ["videoPlayerSelector", "loginUrl", "authEnvPrefix"];
 
@@ -35,17 +33,12 @@ export function validatePlatformConfig(platformCfg, platform) {
 }
 
 /**
- * Dynamically import an adapter module by platform name.
- * Returns the adapter module or null if not found.
+ * Look up the registered adapter module for a platform name.
+ * Returns the adapter module or null when the registry has no such platform.
  *
- * @param {string} platform — e.g., "dometrain"
+ * @param {string} platform - e.g., "dometrain"
  * @returns {Promise<object|null>}
  */
 export async function resolveAdapter(platform) {
-  const thisDir = dirname(fileURLToPath(import.meta.url));
-  const adapterPath = join(thisDir, "..", "adapters", `${platform}.js`);
-  if (!existsSync(adapterPath)) {
-    return null;
-  }
-  return import(`../adapters/${platform}.js`);
+  return lookupAdapter(platform);
 }

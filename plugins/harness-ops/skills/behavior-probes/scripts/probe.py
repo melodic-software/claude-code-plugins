@@ -32,6 +32,8 @@ Subcommands (standard library only):
       raw stream of each run goes to <out>/raw/, outside the repository, except
       for a verdict-only case, which saves no stream and no tool output text.
       --max-runs defaults to 20 under --live; a dry run has no run ceiling.
+      A case marked explicit runs live only when --case names it; otherwise
+      it is reported skipped.
 
   table RESULTS
       Print a results.jsonl file as a Markdown outcome table for the records.
@@ -295,8 +297,12 @@ def case_problems(case: dict, by_id: dict[str, dict]) -> list[str]:
             and all(isinstance(r, str) and r and "," not in r for r in rules)
         ):
             problems.append(f"{cid}: {field} must be a list of rules with no comma")
-    if not isinstance(case.get("verdict_only", False), bool):
-        problems.append(f"{cid}: verdict_only must be true or false")
+    for flag in ("verdict_only", "explicit"):
+        if not isinstance(case.get(flag, False), bool):
+            problems.append(f"{cid}: {flag} must be true or false")
+    timeout = case.get("timeout", DEFAULT_TIMEOUT)
+    if isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0:
+        problems.append(f"{cid}: timeout must be a positive whole number of seconds")
     if case.get("outcome") in NEGATIVE:
         control = by_id.get(case.get("control", ""))
         if control is None:
@@ -673,7 +679,9 @@ def live_runner(model: str, timeout: int, raw_dir: Path):
         )
         stdout: str = ""
         try:
-            stdout, _ = process.communicate(prompt, timeout=timeout)
+            stdout, _ = process.communicate(
+                prompt, timeout=case.get("timeout", timeout)
+            )
         except subprocess.TimeoutExpired:
             kill_tree(process)
             try:
@@ -911,6 +919,17 @@ def run_suite(cases: list[dict], runner, args) -> list[dict]:
     for case in cases:
         attempts = 0
         while True:
+            if (
+                args.live
+                and case.get("explicit")
+                and case["id"] not in getattr(args, "case", [])
+            ):
+                row = {
+                    **base_row(case),
+                    "verdict": "skipped",
+                    "note": "explicit case: runs live only when --case names it",
+                }
+                break
             if runs >= args.max_runs or spent >= args.max_cost_usd:
                 row = {
                     **base_row(case),
