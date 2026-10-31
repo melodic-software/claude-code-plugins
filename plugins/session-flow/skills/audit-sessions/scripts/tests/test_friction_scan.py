@@ -318,6 +318,38 @@ def test_polling_calls_counts_poll_loops_not_event_waits(name, command, polling)
     assert scan.perf["polling_calls"] == polling
 
 
+CONFLICT_TEXT = "Auto-merging a.py\nCONFLICT (content): Merge conflict in a.py\nAutomatic merge failed; fix conflicts and then commit the result."
+
+
+@pytest.mark.parametrize(
+    ("name", "tool_input", "conflicts"),
+    [
+        ("Bash", {"command": "git merge origin/main"}, 1),
+        ("Bash", {"command": "git fetch origin && git -C /w/repo rebase origin/main"}, 1),
+        ("Bash", {"command": "git --no-pager stash pop"}, 1),
+        ("PowerShell", {"command": "git cherry-pick abc123"}, 1),
+        ("PowerShell", {"command": "& \"C:\\Program Files\\Git\\bin\\git.exe\" -C \"my repo\" merge main"}, 1),
+        ("Bash", {"command": "git -c rebase.autoStash=true pull --rebase"}, 1),
+        ("Bash", {"command": "git -P --git-dir /w/repo/.git revert HEAD"}, 1),
+        ("Bash", {"command": "/usr/bin/git am 0001.patch"}, 1),
+        ("Monitor", {"command": "git merge origin/main"}, 0),
+        ("Bash", {"command": "git-lfs pull"}, 0),
+        ("Bash", {"command": "gh pr merge 7 --squash"}, 0),
+        ("Bash", {"command": "cat merge.log"}, 0),
+        ("Bash", {"command": "grep -n CONFLICT notes.md"}, 0),
+        ("Bash", {"command": "git merge-base HEAD origin/main"}, 0),
+        ("Bash", {"command": "gh run view 123 --log"}, 0),
+        ("Read", {"file_path": "/w/repo/merge.log"}, 0),
+    ],
+)
+def test_merge_conflicts_counts_only_git_commands_that_can_conflict(name, tool_input, conflicts):
+    scan = friction_scan.FrictionScan("/w/repo")
+    scan.start_file("main", None)
+    scan.add(call("t1", name, **tool_input))
+    scan.add({"type": "user", "message": {"content": [{"type": "tool_result", "tool_use_id": "t1", "content": CONFLICT_TEXT}]}})
+    assert scan.perf["merge_conflicts"] == conflicts
+
+
 @pytest.mark.parametrize(
     ("decision", "kinds"),
     [
