@@ -647,6 +647,87 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
   }
 });
 
+test("a head of twelve chunks gets a verdict from every chunk, and none when one leaves none", () => {
+  const COUNT = 12;
+  const dir = tempDir("pr-verify-many-chunks-");
+  const spec = path.join(dir, "spec.json");
+  writeFileSync(spec, JSON.stringify([ISSUE]));
+  const diff = path.join(dir, "diff");
+  const parts = Array.from({ length: COUNT }, (_, i) => {
+    mkdirSync(path.join(diff, `chunk-${i + 1}`), { recursive: true });
+    const part = path.join(diff, `chunk-${i + 1}`, "part-001.patch");
+    writeFileSync(part, `diff --git a/${i + 1} b/${i + 1}\n`);
+    return part;
+  });
+  const manifestDir = path.join(dir, "manifest");
+  mkdirSync(manifestDir);
+  const manifest = path.join(manifestDir, "part-001.txt");
+  writeFileSync(manifest, "chunk 1 diff/chunk-1/part-001.patch modified 1\n");
+  const resultsDir = path.join(dir, "results");
+  mkdirSync(resultsDir);
+  const results = parts.map((_, i) => {
+    const file = path.join(resultsDir, `chunk-${i + 1}.json`);
+    writeFileSync(file, "{}");
+    return file;
+  });
+  let id = 0;
+  const write = (name, value) => {
+    const file = path.join(dir, `${name}-${(id += 1)}`);
+    writeFileSync(file, value);
+    return file;
+  };
+  const execution = (read, output) =>
+    write(
+      "execution.json",
+      JSON.stringify([
+        { type: "assistant", message: { content: read.map((file, i) => ({ type: "tool_use", id: `t${i}`, name: "Read", input: { file_path: file } })) } },
+        { type: "result", subtype: "success", structured_output: output },
+      ]),
+    );
+  const log = () => write("log.jsonl", JSON.stringify({ leg: 1, denials: { count: 0 } }));
+  const run = (label, outputs) => ({
+    PR_NUMBER: "41",
+    HEAD_SHA: HEAD,
+    BASE_SHA: BASE,
+    HEAD_REF: "feat/x",
+    SPEC_FILE: spec,
+    GITHUB_RUN_ID: "9001",
+    CHUNKS: String(COUNT),
+    DIFF_DIR: diff,
+    VERDICT_DIR: path.join(dir, `verdict-${label}`),
+    GITHUB_OUTPUT: path.join(dir, `out-${label}`),
+    EXECUTION_FILES: `${outputs.map((output, i) => (output === null ? "" : execution([parts[i], manifest], output))).join("\n")}\n`,
+    LOG_FILES: `${outputs.map((output) => (output === null ? "" : log())).join("\n")}\n`,
+    FINAL_EXECUTION_FILE: execution([...results, spec, manifest], { ...FINAL_PASS, items: [{ item: "item 1", chunks: [12] }] }),
+    FINAL_LOG_FILE: log(),
+    RESULTS_DIR: resultsDir,
+    MANIFEST_DIR: manifestDir,
+  });
+  const verdictOf = (env) => JSON.parse(readFileSync(path.join(env.VERDICT_DIR, "verdict.json"), "utf8"));
+  const all = (output) => Array.from({ length: COUNT }, () => output);
+
+  const passed = run("pass", all(CHUNK_PASS));
+  main(passed);
+  assert.equal(verdictOf(passed).verdict, "pass");
+  assert.match(readFileSync(passed.GITHUB_OUTPUT, "utf8"), new RegExp(`^name=pr-verify-41-${HEAD}-pass\n`));
+  assert.match(verdictOf(passed).summary, /^Chunk 12 of 12, pass: chunk fine$/m);
+
+  const failing = all(CHUNK_PASS);
+  failing[10] = CHUNK_FAIL;
+  const failed = run("fail", failing);
+  main(failed);
+  assert.equal(verdictOf(failed).verdict, "fail");
+  assert.deepEqual(verdictOf(failed).notes, CHUNK_FAIL.notes);
+  assert.match(verdictOf(failed).summary, /^Chunk 11 of 12, fail: chunk broken$/m);
+
+  const missing = all(CHUNK_PASS);
+  missing[10] = null;
+  const none = run("none", missing);
+  assert.throws(() => main(none), /chunk 11 of 12/);
+  assert.equal(existsSync(path.join(none.VERDICT_DIR, "verdict.json")), false);
+  assert.equal(existsSync(none.GITHUB_OUTPUT), false);
+});
+
 test("checkKeyLeg reads every chunk's log, so a denial in an earlier chunk stops the handoff", () => {
   const dir = tempDir("pr-verify-key-legs-");
   const file = (name, count) => {

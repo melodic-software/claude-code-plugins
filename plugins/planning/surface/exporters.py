@@ -18,7 +18,7 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  text and each note typed on an accept, alternative or hedged choice, in
                  event order, under its Q<N>. An answered row that took the
                  recommendation adds its question basis as a `why:` line to its Constraints
-                 entry. Captured assumptions holds each
+                 entry, or under the restated line that carries it. Captured assumptions holds each
                  unconfirmed commitment as a named risk and a Notes question the user left
                  unanswered; a confirmed
                  commitment stays on its decision's line, or on a TLDR `confirmed so far` line
@@ -919,7 +919,9 @@ def check_ledger(text, where):
 
 def sync_ledger(d, text, where):
     """(text, notes): the ledger's text with its live register rows, and nothing else, replaced
-    by merged_register's rows, written where the first row stood."""
+    by merged_register's rows, written where the first row stood. A register with no rows yet gets
+    them under its heading, with a blank line before any text that follows, which would otherwise
+    read as part of the last row's list item."""
     lines = text.splitlines(keepends=True)
     heads, found = check_ledger(text, where)
     _, rows, notes = merged_register(d, text)
@@ -929,6 +931,8 @@ def sync_ledger(d, text, where):
         at += 1
     eol = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
     new = [row_line(r) + eol for r in rows]
+    if new and not drop and at < len(lines) and lines[at].strip():
+        new.append(eol)
     keep = [line for i, line in enumerate(lines) if i not in drop]
     return "".join(keep[:at] + new + keep[at:]), notes
 
@@ -992,17 +996,33 @@ def bullets(text):
     ]
 
 
+LIST_ITEM = re.compile(r"^\s*[-*+]\s")
+
+
+def goal_lines(text):
+    """The restated goal: its other lines as one paragraph, then its list items as bullets, so
+    the Goal's Intent, Vision and tiebreak lines stay separate bullets under the outcome."""
+    lines = str(text or "").splitlines()
+    prose = para(" ".join(x for x in lines if not LIST_ITEM.match(x)))
+    items = bullets("\n".join(x for x in lines if LIST_ITEM.match(x)))
+    return ([prose] if prose else []) + items
+
+
 LEAD_QN = re.compile(r"^[\\\[(*_]*[Qq]([1-9][0-9]*)\b")
+# A restated bullet that says there is nothing to list.
+NONE_BULLET = re.compile(r"^- none\.?$", re.IGNORECASE)
 
 
 def restated_deferred(sections, rows):
     """The restated `deferred`, then `planningOwned`, bullets as Deferred questions entries, each
     as written (the restatement leads one with its source Q<N> where it has one) and tagged
     ARBITER_PLAN, or ARBITER_USER when its lead Q<N> is a user-reserved row or it says
-    USER-RESERVED itself."""
+    USER-RESERVED itself. A bullet that only says `none` is no entry."""
     reserved = {r["n"] for r in rows if r["reserved"]}
     out = []
     for b in bullets(sections.get("deferred")) + bullets(sections.get("planningOwned")):
+        if NONE_BULLET.match(b):
+            continue
         lead = LEAD_QN.match(b[2:])
         user = (lead and f"Q{lead.group(1)}" in reserved) or "USER-RESERVED" in b
         out.append(f"{b}; {ARBITER_USER if user else ARBITER_PLAN}")
@@ -1018,12 +1038,33 @@ def carried_rows(sections, rows):
     current answer of; its own Constraints line would say it twice. A recap line cut short, or
     written before the answer changed, carries nothing."""
     lines = bullets(sections.get("constraints")) + bullets(sections.get("decisions"))
-    named = [(b, {f"Q{m.group(1)}" for m in QN_REF.finditer(b)}) for b in lines]
-    return {
-        r["n"]
-        for r in rows
-        if r["readable"] and any(r["n"] in ns and r["readable"] in b for b, ns in named)
-    }
+    return {r["n"] for r in rows if any(carries(b, r) for b in lines)}
+
+
+def carries(line, r):
+    """True when a restated line names row r's Q<N> and holds its whole current answer."""
+    named = {f"Q{m.group(1)}" for m in QN_REF.finditer(line)}
+    return bool(r["readable"]) and r["n"] in named and r["readable"] in line
+
+
+def why_of(r):
+    """The question's basis for a row that took the recommendation, else ''."""
+    took = r.get("decision") in ("accept", "hedged")
+    return clean(r["q"].get("basis")) if took else ""
+
+
+def with_whys(lines, rows, given):
+    """Each restated line, followed by a `why:` sub-bullet for each row it carries that has a
+    why_of, once per row across calls; `given` collects the rows that have one."""
+    whys = [(r, why_of(r)) for r in rows]
+    out = []
+    for b in lines:
+        out.append(b)
+        for r, basis in whys:
+            if basis and r["n"] not in given and carries(b, r):
+                given.add(r["n"])
+                out.append(f"  - {brief_label(r)} why: {basis}")
+    return out
 
 
 def replacements(rows):
@@ -1185,12 +1226,12 @@ def user_words(rows, events, intent):
 
 
 def constraint_lines(r, carried):
-    """An answered row's Constraints line, unless a restated line carries it, then, when the
-    row took the recommendation, its `why:` line from the question's basis."""
-    took = r.get("decision") in ("accept", "hedged")
-    basis = clean(r["q"].get("basis")) if took else ""
+    """An answered row's Constraints line, then, when the row took the recommendation, its
+    `why:` line from the question's basis. A row a restated line carries has neither here:
+    with_whys puts its `why:` under that line."""
     if r["n"] in carried:
-        return [f"- {brief_label(r)} why: {basis}"] if basis else []
+        return []
+    basis = why_of(r)
     line = f"- {brief_label(r)} {clean(r['q'].get('short'))}: {r['readable']}"
     return [line, f"  - why: {basis}"] if basis else [line]
 
@@ -1264,7 +1305,7 @@ def export_brief(d, text=None):
     out += ["", "### Intent", "", para(sections.get("intent")) or "none stated"]
     words = user_words(rows, resp.get("events") or [], sections.get("intent"))
     out += ["", *words] if words else []
-    out += ["", "### Goal", "", para(sections.get("goal")) or para(title), ""]
+    out += ["", "### Goal", "", *(goal_lines(sections.get("goal")) or [para(title)]), ""]
     out += [
         "### Work size",
         "",
@@ -1282,14 +1323,15 @@ def export_brief(d, text=None):
         recorded = [f"- {c['id']}: {para(c['text'])}" for c in page]
         seen = {c["id"] for c in page}
         recorded += [b for i, b in ledger_constraints(text) if i not in seen]
-    # An answered row the restatement already carries is said there, once.
+    # An answered row the restatement already carries is said there, once, its `why:` under it.
     carried = carried_rows(sections, answered)
+    given = set()
     out += [
-        *bullets(sections.get("constraints")),
+        *with_whys(bullets(sections.get("constraints")), answered, given),
         *recorded,
         *(line for r in answered for line in constraint_lines(r, carried)),
     ] or ["- none recorded"]
-    decisions = marked_decisions(sections, replaced)
+    decisions = with_whys(marked_decisions(sections, replaced), answered, given)
     if decisions:
         out += ["", "### Decisions", "", *decisions]
     criteria = bullets(sections.get("acceptance"))

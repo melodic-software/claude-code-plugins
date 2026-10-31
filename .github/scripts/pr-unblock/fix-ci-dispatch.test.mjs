@@ -22,7 +22,7 @@ const INFRA_JOBS = MIXED_JOBS.filter((job) => job.name !== "lint-shell");
 // A tested pr-require-checks run that failed, an hour before NOW unless named.
 const NOW = Date.parse("2026-10-22T12:00:00Z");
 const REQUIRED = ".github/workflows/pr-require-checks.yml";
-const ADVISORY = ".github/workflows/pr-test-windows.yml";
+const ADVISORY = ".github/workflows/pr-test-platforms.yml";
 const tested = (attempt, hoursAgo = 1) => ({
   id: 40119285048,
   status: "completed",
@@ -1207,9 +1207,9 @@ test("a tested run that is missing or malformed dispatches fix-ci with the reaso
   assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith("(cause: infra failure, run field run_attempt unreadable)")), lines.join("\n"));
 });
 
-// pr-test-windows is not in ci-status, but the merge gate holds a PR on any
+// pr-test-platforms is not in ci-status, but the merge gate holds a PR on any
 // failing check, such as a macOS test_tunnel flake.
-test("a failed advisory pr-test-windows run with ci-status green is fix-ci's unless a re-run of it is going", async () => {
+test("a failed advisory pr-test-platforms run with ci-status green is fix-ci's unless a re-run of it is going", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const advisory = [lanes("SUCCESS"), check("test-macos-planning-shared", "FAILURE")];
   const requiredRuns = new Map([
@@ -1225,7 +1225,7 @@ test("a failed advisory pr-test-windows run with ci-status green is fix-ci's unl
     [5, 6],
   );
   assert.deepEqual(api.calls.paths, [ADVISORY, ADVISORY, ADVISORY, ADVISORY]);
-  assert.ok(lines.includes("skip fix-ci #7: ci-lanes passed and no pr-test-windows run failed"), lines.join("\n"));
+  assert.ok(lines.includes("skip fix-ci #7: ci-lanes passed and no pr-test-platforms run failed"), lines.join("\n"));
   assert.ok(lines.some((line) => line.startsWith("skip fix-ci #8:")), lines.join("\n"));
 });
 

@@ -160,6 +160,19 @@
         "The answer runs no command other than the one that installs Pencil, reporting any other download, server or config or shell profile edit the page asks for instead of running it",
         "The answer gives the user Pencil's sign-in step, from the pointer"
       ]
+    },
+    {
+      "id": 14,
+      "name": "motion-request-reads-every-matching-spoke",
+      "prompt": "Design the motion for our mobile web bottom sheet: it slides up when opened, people swipe it down to dismiss, and on low-end Android phones it drops frames while it moves.",
+      "expected_output": "The request matches the motion concern, and the read_when of all four of its spokes holds: catalog.md always, behaviors.md for the drawer or sheet, gestures.md for the swipe, and performance.md for the dropped frames. The skill reads all four in this pass and the design uses each: the drawer curve and a duration within the large limit from the catalog, the sheet's open and close behavior, dismissal on a release faster than a velocity threshold set higher than a small element's and tuned on a device, with the release velocity handed to a spring, and transform and opacity only, checked against the frame budget on a device.",
+      "files": [],
+      "expectations": [
+        "The answer uses the drawer easing curve and a duration within the large limit for opening and closing the sheet",
+        "The answer dismisses on a fast release past a velocity threshold, not on drag distance alone, and carries the release velocity into the settle",
+        "The answer animates only transform and opacity, or says layout properties cause the dropped frames",
+        "The answer covers all three parts the request names (opening, swipe to dismiss and dropped frames) in this pass rather than leaving one for a later pass"
+      ]
     }
   ]
 }

@@ -3,6 +3,38 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.8.0] - 2026-10-31
+
+### Changed
+
+- The unattended merge gate reads a `merge.max-in-flight` above 24 as unset instead of taking it,
+  and the pipeline schema states the same maximum.
+
+## [4.7.0] - 2026-10-31
+
+### Added
+
+- `/source-control:babysit-prs` takes an optional `--unattended` modifier, accepted anywhere in its arguments. With it, the run records the `/autofix-pr` offer in its output instead of asking; without it, the run asks.
+- `/source-control:pull-request` lists `--unattended` in its argument hint. With it, on any action, the run records the watch-route recommendation and the `/autofix-pr` prompt in its output instead of asking; without it, the run asks.
+
+### Changed
+
+- `/source-control:pull-request`'s argument hint shortens its action set with `…` to stay within the 100-character budget; the Arguments table keeps the full set.
+
+### Fixed
+
+- `babysit_verify_evidence.py` stops counting a merged pull request's FAILs, and a lanes App pull
+  request's once it is closed unmerged, whoever closed it, toward another pull request's
+  `verify:repeated-fail` cap. Closing any other pull request resets nothing. A FAIL that remains
+  also has to be uploaded after the newest of the lanes App's capped-close records (parked or not)
+  on at least one issue it is for, so a record on one issue erases no other issue's FAILs. An
+  unreadable FAIL run refuses by the same rule. A pull request found only by a FAIL's name gets one
+  state read per reader, and only when one of its FAILs could count. Each fresh attempt now starts
+  its own count, as the owner's 2026-10-29 decision intended. Before this fix, #9241's fresh
+  attempts were closed at the cap without any FAIL of their own. The issue's comments query now
+  reads `createdAt`, its closing-PR query reads each author, and the reader drops its unused
+  `cap_attempts` field.
+
 ## [4.6.0] - 2026-10-31
 
 ### Added
