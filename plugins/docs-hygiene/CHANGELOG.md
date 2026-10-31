@@ -1,5 +1,14 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.20] - 2026-10-31
+
+### Fixed
+
+- `/docs-hygiene:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
 ## [2.0.19] - 2026-10-31
 
 ### Fixed

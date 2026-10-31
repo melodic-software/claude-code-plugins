@@ -509,6 +509,8 @@ lib/resolve-convention-home.sh plugins/docs-naming/lib/resolve-convention-home.s
 lib/yaml-subset.awk plugins/docs-naming/lib/yaml-subset.awk
 lib/lane-push.sh plugins/source-control/scripts/lane-push.sh
 lib/lane-push.sh plugins/work-items/scripts/lane-push.sh
+lib/confirm-verdict.sh plugins/verification/scripts/confirm-verdict.sh
+lib/confirm-verdict.sh plugins/source-control/skills/pull-request/scripts/confirm-verdict.sh
 lib/git-hooks/install.mjs plugins/typos-format/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/ruff-format/lib/git-hooks/install.mjs
 lib/git-hooks/install.mjs plugins/bash-format/lib/git-hooks/install.mjs

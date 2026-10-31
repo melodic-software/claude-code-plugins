@@ -121,7 +121,7 @@ The app's control skill is its feature map: a `.claude/skills/control-<app>/` pr
 `/app-control:drive affected` (Step 1); this skill never matches changed files against the index
 itself. On own driving with a control skill in reach (the person declined drive, or
 `/app-control:drive` does not resolve), its hub is read for own driving's Ready and driving tool
-only. With `trusted-root=<dir>`, it is read from `<dir>/.claude/skills/control-<app>/SKILL.md` or
+and for Step 5's `## Mask` scan only. With `trusted-root=<dir>`, it is read from `<dir>/.claude/skills/control-<app>/SKILL.md` or
 not at all, never from the checkout, so a checkout under test cannot supply the Ready command the
 run executes. Without it, the checkout's `.claude/skills/control-<app>/SKILL.md` is read when
 present.
@@ -265,10 +265,22 @@ that called it. One object:
 `reason` is `null` for `ran`, and `count` is `0` for every other status. A capture that is not `ran`
 fails no entry point: the summary records why, and the run does not fail for it.
 
-`publishable` fails closed. A path joins only after its text is scanned with the literal values and
-patterns drive's reports give for this run and the scan finds no hit; `e2e-summary.json` is
-scanned last, once written. Raw captures and every path in a `secrets_mark` list never join. With
-no values and patterns to scan with, `publishable` is `[]`.
+`publishable` fails closed. It holds the paths in the `publishable` list of each drive run's
+`report.json` (Step 3, drive route), each written as it sits under this run's directory: drive's
+"Mask post-check" has already passed them. Own driving writes no `report.json`, so none of its
+captures joins. Raw captures and every path in a `secrets_mark` list never join.
+
+`e2e-summary.json` joins last. Write it without its own path in `publishable`, then scan the text
+it would hold with that path appended. The scan uses the sources `/app-control:drive`'s "Mask
+post-check" uses, applied the way that check applies them: the values the control skill hub's
+`## Mask` `values:` line resolves to, held in memory and never written to any file, and the
+generic credential pattern. The hub is the file `affected.json`'s `control_skill` names on the
+drive route, and the hub Step 2 reads on own driving; with `trusted-root=`, never the checkout's.
+With no control skill, or a hub with no `values:` line, the generic pattern alone scans it. Only a
+clean scan rewrites the file with its own path at the end of `publishable`. A hit, a `values:`
+source that fails or yields no value, or a scan that cannot run (`/app-control:drive` does not
+resolve) leaves it out, and the report names the hit's kind (a mask value or the credential
+pattern), never the matched text.
 
 ## Native step: run (bundled skill)
 
