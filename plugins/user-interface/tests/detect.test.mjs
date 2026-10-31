@@ -162,6 +162,7 @@ describe("--config", () => {
         important: "utilities-only",
         layer: META,
         token_fallback: "literal",
+        concentric_radius: { max_gap_px: 24 },
       },
       animation: {
         easing: {
@@ -187,6 +188,7 @@ describe("--config", () => {
       "css.important": "team",
       "css.layer": "userConfig",
       "css.token_fallback": "local",
+      "css.concentric_radius.max_gap_px": "defaults",
       "animation.easing.out": "defaults",
       "animation.easing.in_out": "defaults",
       "animation.easing.drawer": "defaults",

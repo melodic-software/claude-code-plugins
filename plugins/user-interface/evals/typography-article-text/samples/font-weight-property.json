@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "h1, h2 {\n  font-weight: 600;\n}",
+      "why": "weight through font-weight"
+    },
+    {
+      "answer": "Not font-variation-settings, but:\n\nh2 { font-weight: 620 }",
+      "why": "property used, the raw tag only in prose"
+    },
+    {
+      "answer": "h1 { font-weight: bold; }",
+      "why": "keyword weight"
+    },
+    {
+      "answer": ":root { --w-head: 600; }\nh1 { font-weight: var(--w-head); }",
+      "why": "weight through a token"
+    },
+    {
+      "answer": "h2 { font-weight: bolder; }",
+      "why": "relative keyword weight"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "h1 {\n  font-variation-settings: \"wght\" 600;\n}",
+      "why": "raw weight tag only"
+    },
+    {
+      "answer": "h1 { font-variation-settings: 'wght' 600, 'opsz' 32; }",
+      "why": "registered axes through the raw tag"
+    },
+    {
+      "answer": "body{font-weight:400} h1{font-variation-settings:\"wght\" 600}",
+      "why": "font-weight only on body; headings still use the raw tag"
+    }
+  ]
+}
