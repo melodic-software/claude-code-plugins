@@ -1,4 +1,4 @@
-# book-distill templates
+# distill templates
 
 The two fill-in templates the SKILL.md phases point to: the progress file (Phase 1.4) and the cross-session continuation prompt (Phase 2, session end).
 

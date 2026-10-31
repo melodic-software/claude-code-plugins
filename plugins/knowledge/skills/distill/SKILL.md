@@ -31,7 +31,7 @@ This tool is a neutral distiller: it applies a method, it does not judge what yo
 
 ## Emit checklist
 
-For multi-session book distillation (Phases 1-5 split across sessions), copy `${CLAUDE_PLUGIN_ROOT}/skills/book-distill/templates/checklist.md` into `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-checklist.md`. `{project-slug}` is the progress key (Phase 1.4); derive `{target-skill-slug}` from the target skill name (Phase 1.1), slugified to lowercase alphanumerics and hyphens. Tick each phase as completed; the ticked state IS the cross-session resume pointer. We keep cross-session state in `${CLAUDE_PLUGIN_DATA}` so it outlives the session. Phase 3 SKIPPED for thin / single-chapter books.
+For multi-session book distillation (Phases 1-5 split across sessions), copy `${CLAUDE_PLUGIN_ROOT}/skills/distill/templates/checklist.md` into `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-checklist.md`. `{project-slug}` is the progress key (Phase 1.4); derive `{target-skill-slug}` from the target skill name (Phase 1.1), slugified to lowercase alphanumerics and hyphens. Tick each phase as completed; the ticked state IS the cross-session resume pointer. We keep cross-session state in `${CLAUDE_PLUGIN_DATA}` so it outlives the session. Phase 3 SKIPPED for thin / single-chapter books.
 
 - **Pointer**: when deciding whether state under `${CLAUDE_PLUGIN_DATA}` will still be there next session, fetch <https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables> live.
 - **As of**: 2026-10-11

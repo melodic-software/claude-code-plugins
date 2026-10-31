@@ -1,7 +1,7 @@
 {
-  "skill": "knowledge:book-distill",
+  "skill": "knowledge:distill",
   "plugin": "knowledge",
-  "skill_dir": "plugins/knowledge/skills/book-distill",
+  "skill_dir": "plugins/knowledge/skills/distill",
   "ranking_note": "Authored from the before descriptions at commit dfef32de45, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other four knowledge skills: course-digest, docpage-digest, map-corpus, video-digest.",
   "competitors": [
     "knowledge:course-digest",

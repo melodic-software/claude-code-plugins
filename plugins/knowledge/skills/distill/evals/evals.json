@@ -1,10 +1,10 @@
 {
-  "skill_name": "book-distill",
+  "skill_name": "distill",
   "evals": [
     {
       "id": 1,
       "name": "phase-1-setup-target-plan-progress",
-      "prompt": "/knowledge:book-distill ~/books/unit-testing.pdf testing — distill this into our testing skill",
+      "prompt": "/knowledge:distill ~/books/unit-testing.pdf testing — distill this into our testing skill",
       "expected_output": "Phase 1 runs before any chapter is read: it decides extend-vs-create for the target skill (bootstrapping the skeleton with an empty reference/ and a minimal SKILL.md when it does not exist), surveys the table of contents to build the chapter list and determine the PDF page offset, writes a file plan named BY CONCEPT rather than by chapter number, and creates a progress file under the plugin data directory keyed by a project slug (basename plus an 8-hex path-hash discriminator) and the target-skill slug. It budgets roughly three chapters per session (two for image-heavy books).",
       "narration": true,
       "expectations": [

@@ -20,7 +20,7 @@ upstream text.
   one web page or post. A private repository is read from its local checkout; the hardened clone
   reads public repositories only. A repository on another git host has no row-link form in the
   convention: say so and stop. A book file, a course or a video is not this skill's source: name
-  `/knowledge:book-distill`, `/knowledge:course-digest` or `/knowledge:video-digest` and stop.
+  `/knowledge:distill`, `/knowledge:course-digest` or `/knowledge:video-digest` and stop.
 - `--scope <dir>`: for a repository, the directory whose units the record maps (default: the
   repository root).
 - `--out <dir>`: the record directory for this run alone: repository-relative, or an absolute
