@@ -348,7 +348,7 @@ proc_problem() { proc_problems="$proc_problems$1"$'\n'; }
 check_sweep() {
   local text lno sweep_ran sweep_matches sweep_line facts_matches facts="" body
   local s_lo=0 s_hi=0 sweep_keys=$'\n' sweep_rows=0 sweep_none=0 row seps key
-  local category class src disposition hedged user_owned qnum qid fid basis found gaps
+  local category class src disposition hedged user_owned qnum qid fid basis found gaps src_rest src_max
   local quote_re='"[^"]+"' loc_re='(https?://[^[:space:]]+|[^[:space:]:]+:[0-9]+)'
 
   while IFS=$'\t' read -r lno text; do
@@ -458,8 +458,24 @@ check_sweep() {
         *" $qid "*) ;;
         *) proc_problem "line $lno: $key names $qid, which has no register row" ;;
         esac
-        if [[ "$hedged" -eq 0 && "$src" =~ (^|[^A-Za-z0-9])[Qq]$qnum([^0-9]|$) ]]; then
-          proc_problem "line $lno: $key names $qid, the row it was found in; a sweep item becomes a new register row at the next Q<N>, asked with a recommendation"
+        if [[ "$hedged" -eq 0 ]]; then
+          if [[ "$src" =~ (^|[^A-Za-z0-9])[Qq]$qnum([^0-9]|$) ]]; then
+            proc_problem "line $lno: $key names $qid, the row it was found in; a sweep item becomes a new register row at the next Q<N>, asked with a recommendation"
+          else
+            # The new row is written after the sweep read its source, so its id is
+            # above every row the source names. An older row (an earlier answer)
+            # would settle the item without asking it.
+            src_rest="$src"
+            src_max=0
+            while [[ "$src_rest" =~ (^|[^A-Za-z0-9])[Qq]([1-9][0-9]*)([^0-9].*)?$ ]]; do
+              [[ "${BASH_REMATCH[2]}" -le "$src_max" ]] || src_max="${BASH_REMATCH[2]}"
+              # Keep an alphanumeric in front of the tail, so a Q right after the
+              # digits is not read as a token the single-row test above would skip.
+              src_rest="x${BASH_REMATCH[3]}"
+            done
+            [[ "$qnum" -gt "$src_max" ]] ||
+              proc_problem "line $lno: $key names $qid, which is not above Q$src_max, the highest row its source names; a sweep item becomes a new register row at the next Q<N>, asked with a recommendation"
+          fi
         fi
       elif [[ "$disposition" =~ ^[Ff]([1-9][0-9]*)$ ]]; then
         fid="F${BASH_REMATCH[1]}"

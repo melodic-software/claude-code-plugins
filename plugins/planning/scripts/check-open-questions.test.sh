@@ -1053,6 +1053,8 @@ expect_sweep_defect "a sweep item with no disposition" '- S1 | sweep 1 | undecid
 expect_sweep_defect "a sweep item naming a missing register row" '- S1 | sweep 1 | undecided | decision | Q2 | Q7' "names Q7, which has no register row"
 expect_sweep_defect "a decision item deferred outside the register" '- S1 | sweep 1 | undecided | decision | Q2 | deferred: later' "deferred outside the register"
 expect_sweep_defect "a decision item pointed at the row it was found in" '- S1 | sweep 1 | undecided | decision | Q2 recommendation | Q2' "names Q2, the row it was found in"
+expect_sweep_defect "a decision item pointed at an older answered row" '- S1 | sweep 1 | undecided | decision | Q3 recommendation, size carrier | Q1' "names Q1, which is not above Q3, the highest row its source names"
+expect_sweep_defect "a decision item pointed at a row below one its source names" '- S1 | sweep 1 | contradiction | decision | Q1 and Q3 | Q2' "names Q2, which is not above Q3"
 expect_sweep_defect "a hedged decision item settled by a fact" '- S1 | sweep 1 | hedged | decision | Q1 resolution | F1' "sweep 1 S1 is a decision item settled by F1"
 expect_sweep_defect "a gap in a sweep's S ids" '- S1 | sweep 1 | undecided | decision | Q1 | Q2
 - S3 | sweep 1 | inherited | fact | C1 | F1' "sweep 1 has no row for S2"
