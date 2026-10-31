@@ -16,6 +16,7 @@ export const SIGNALS = [
   "8 throughput",
   "9 lane stop",
   "10 stalled lane stop",
+  "11 post-merge unreadable",
 ];
 export const LOG_ONLY = new Set(["7 platform incident"]);
 const MUTED = new Set(["not_planned", "duplicate"]);
@@ -120,6 +121,7 @@ const SOURCES = {
   "lane merges": ["8 throughput"],
   "lane stops": ["9 lane stop"],
   "stalled stops": ["10 stalled lane stop"],
+  "post-merge reports": ["11 post-merge unreadable"],
   audits: ["6 report-only audit"],
   "githubstatus.com": [],
 };

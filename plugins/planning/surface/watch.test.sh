@@ -78,7 +78,7 @@ cp "$d/.interview-session.env" "$tmp/env.saved"
 until_waiting() {
   local end=$((SECONDS + 10))
   while [[ "$SECONDS" -lt "$end" ]]; do
-    curl -s --max-time 2 "http://127.0.0.1:${1:-$PORT}/api/state" | grep -q '"waiters": 1' && return 0
+    grep -q '"waiters": 1' < <(curl -s --max-time 2 "http://127.0.0.1:${1:-$PORT}/api/state") && return 0
     sleep 0.1
   done
   return 1
@@ -300,7 +300,7 @@ if bash "$here/round.sh" --dir "$odd" ensure-running --port 0 >/dev/null 2>"$tmp
   WAIT_FAILS=1 bash "$here/watch.sh" "$odd" >"$tmp/i.out" 2>"$tmp/i.err" &
   wpid=$!
   end=$((SECONDS + 10))
-  until curl -s --max-time 2 "http://127.0.0.1:$oport/api/state" | grep -q '"waiters": 1' || [[ "$SECONDS" -ge "$end" ]]; do
+  until grep -q '"waiters": 1' < <(curl -s --max-time 2 "http://127.0.0.1:$oport/api/state") || [[ "$SECONDS" -ge "$end" ]]; do
     sleep 0.1
   done
   code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -H "X-Interview-Token: $otoken" \
@@ -334,7 +334,7 @@ print(d["events"][0]["seq"])
   CLAUDE_PLUGIN_ROOT="$(cd "$here/.." && pwd)" WAIT_FAILS=1 bounded 4 "$tmp/j.out" "$tmp/j.err" bash -c "$next"
   rc=$?
   if [[ "$rc" -eq 124 && "$oseq" =~ ^[0-9]+$ ]] && grep -q '^applied 1 ops' "$tmp/j.out" &&
-    bash "$here/round.sh" --dir "$odd" status | grep -q "handledSeq $oseq;"; then
+    grep -q "handledSeq $oseq;" < <(bash "$here/round.sh" --dir "$odd" status); then
     ok "running next applies ops.json in the odd data dir and re-arms"
   else
     bad "odd dir next: rc=$rc seq=[$oseq] out=$(cat "$tmp/j.out") err=$(cat "$tmp/j.err")"
@@ -368,7 +368,7 @@ if bash "$here/round.sh" --dir "$ld" ensure-running --port 0 >/dev/null 2>"$tmp/
   wait "$apid" 2>/dev/null
   # The killed holder's last poll ends by its 5 s timeout; the lease expires 5 s after that.
   end=$((SECONDS + 20))
-  until curl -s --max-time 2 "http://127.0.0.1:$lport/api/state" | grep -q '"waiting": false' || [[ "$SECONDS" -ge "$end" ]]; do
+  until grep -q '"waiting": false' < <(curl -s --max-time 2 "http://127.0.0.1:$lport/api/state") || [[ "$SECONDS" -ge "$end" ]]; do
     sleep 0.2
   done
   sleep 6
