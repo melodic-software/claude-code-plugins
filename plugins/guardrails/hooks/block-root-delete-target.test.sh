@@ -2622,8 +2622,9 @@ done
 # A path the code computes cannot be placed, so the call is refused: an
 # argument, an expression, an interpolated string, a list element, a `$` the
 # shell may have expanded, and a command built from one. A substitution body
-# is read too. So is a deleter after a comment character that a `/` regex
-# literal on its line may hold (`/\//`, `/\/*/`, `/#/`, `/\#/`).
+# is read too. So is a deleter, a backtick, a ruby %x or a perl qx after a
+# comment character that a `/` regex literal on its line may hold (`/\//`,
+# `/\/*/`, `/#/`, `/\#/`).
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "interpreter: $rdt_cmd blocks" 2 --command "$rdt_cmd"
@@ -2655,6 +2656,10 @@ node -e "'a/b'.replace(/\//g,'_'); require('fs').rmSync('/',{recursive:true})"
 node -e "'a/b'.replace(/\/*/g,''); require('fs').rmSync('/'); /* */"
 ruby -rfileutils -e "x =~ /#/; FileUtils.rm_rf('/')"
 perl -MFile::Path=rmtree -e '$x =~ /\#/; rmtree("/")'
+ruby -e 'x =~ /#/; `rm -rf /`'
+ruby -e 'x =~ /#/; %x(rm -rf /)'
+perl -e '$x =~ /\#/; `rm -rf /`'
+perl -e '$x =~ /\#/; qx(rm -rf /)'
 EOF
 
 # A ruby delete that holds none of the other prefilter words, a program read

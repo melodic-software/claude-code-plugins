@@ -445,7 +445,8 @@
 #     comment, and a comment character in a regex literal no `/` opens, such
 #     as ruby `%r{#}` or perl `m{#}`, which hides the rest of its line: one
 #     after a `/` on its line, as in `/\//` or `/#/`, is refused when the text
-#     it hides names a deleter or a runner); a node option that takes a separate argument and is not
+#     it hides names a deleter or a runner, or holds a backtick, a ruby %x
+#     or a perl qx); a node option that takes a separate argument and is not
 #     listed, written before the code (its argument is read as the script); a
 #     heredoc index that both an opener with no body and an opener on a
 #     segment with no word shift, under the same delimiter; and interpreter
@@ -4086,7 +4087,9 @@ rdt_ix_code() {
   done
   # A comment rdt_ix_lex dropped after a `/` on its line may be a regex
   # literal's text (`/\//`, `/#/`), and the code after it is then unread: one
-  # that names a deleter or a runner is refused.
+  # that names a deleter or a runner is refused. So is one holding a ruby or
+  # perl backtick, a ruby %x or a perl qx, each of which runs a shell command
+  # no name regex sees.
   if [[ -n "$ix_cm" ]]; then
     for ((ix_ri = 1; ix_ri < ${#ix_re[@]}; ix_ri += 2)); do
       if [[ "$ix_cm" =~ ${ix_re[ix_ri]} ]]; then
@@ -4094,6 +4097,21 @@ rdt_ix_code() {
         break
       fi
     done
+    case "$lang" in
+    rb) ix_ri='(`)|(%x)([^A-Za-z0-9]|$)' ;;
+    pl) ix_ri='(`)|(^|[^A-Za-z0-9_$@%>])(qx)([^A-Za-z0-9_]|$)' ;;
+    *) ix_ri="" ;;
+    esac
+    if [[ -n "$ix_ri" && "$ix_cm" =~ $ix_ri ]]; then
+      if [[ -n "${BASH_REMATCH[1]}" ]]; then
+        ix_ri='`'
+      elif [[ "$lang" == rb ]]; then
+        ix_ri='%x'
+      else
+        ix_ri='qx'
+      fi
+      rdt_ix_unplaceable "$ix_ri" "a shell command after a comment character that may sit in a regex literal, run by"
+    fi
   fi
   for ((k = 0; k < ${#ix_k[@]}; k++)); do
     case "${ix_k[k]}" in
