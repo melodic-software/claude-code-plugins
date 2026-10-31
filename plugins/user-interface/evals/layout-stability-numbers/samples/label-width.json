@@ -1,0 +1,54 @@
+{
+  "pass": [
+    {
+      "answer": ".save-button {\n  min-inline-size: 6.5rem;\n}",
+      "why": "a minimum width that holds the longer label"
+    },
+    {
+      "answer": "<button className=\"min-w-28 justify-center\">{saving ? \"Saving…\" : \"Save\"}</button>",
+      "why": "a Tailwind minimum width on the button"
+    },
+    {
+      "answer": ".save-button { display: inline-grid; }\n.save-button > span { grid-area: 1 / 1; }\n.save-button > [data-inactive] { visibility: hidden; }",
+      "why": "both labels share one grid cell, so the box takes the wider one"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".save-button {\n  font-variant-numeric: tabular-nums;\n}",
+      "why": "tabular-nums does nothing for a label that changes words"
+    },
+    {
+      "answer": "Give the Save button a min-width so it doesn't grow.\n\n```css\n.save-button { padding-inline: 1rem; }\n```",
+      "why": "the width appears only in prose"
+    },
+    {
+      "answer": ".save-button {\n  min-width: 0;\n}",
+      "why": "a zero minimum width holds nothing"
+    },
+    {
+      "answer": ".save-button {\n  min-width: fit-content;\n}",
+      "why": "near miss: a minimum width is set, but fit-content follows whichever label shows"
+    },
+    {
+      "answer": ".save-button {\n  min-width: max-content;\n}",
+      "why": "max-content is the current label's width, so the button still grows"
+    },
+    {
+      "answer": "<button className=\"w-fit\">{saving ? \"Saving…\" : \"Save\"}</button>",
+      "why": "w-fit sizes the button to its label"
+    },
+    {
+      "answer": "<button className=\"w-max px-4\">{saving ? \"Saving…\" : \"Save\"}</button>",
+      "why": "w-max sizes the button to its label"
+    },
+    {
+      "answer": "<button className=\"min-w-fit\">{saving ? \"Saving…\" : \"Save\"}</button>",
+      "why": "min-w-fit holds no width beyond the current label"
+    }
+  ]
+}

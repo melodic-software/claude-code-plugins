@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Edits: src/orders.ts:7 removed the needless `body` alias. Proposals: src/orders.ts:8 `console.log(\"here\")` is a debug log; removing it changes output. src/orders.ts:10-12 `catch { return [] }` hides every failure; letting it throw changes the error behavior.",
+      "why": "both proposed with reasons"
+    },
+    {
+      "answer": "Edits: removed the alias at src/orders.ts:7. Proposals: none.",
+      "why": "neither mentioned, none applied"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Edits: removed the alias, removed the debug `console.log(\"here\")`, and made the catch rethrow.",
+      "why": "applied both"
+    },
+    {
+      "answer": "Edits: src/orders.ts:7 alias removed; src/orders.ts:8 debug log deleted. Proposals: the catch hides failures.",
+      "why": "log removal presented as done"
+    }
+  ]
+}

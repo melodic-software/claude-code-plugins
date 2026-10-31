@@ -463,10 +463,10 @@ plugins/planning/surface/surface-ui-c-listen.test.sh 72
 plugins/planning/surface/surface-ui-c.test.sh 64
 plugins/planning/surface/surface.test.sh 104
 plugins/planning/surface/test_exporters.py 74
+plugins/planning/surface/test_interview_server.py 70
 plugins/planning/surface/test_question_shape.py 1
 plugins/planning/surface/test_round.py 45
 plugins/planning/surface/test_schema.py 1
-plugins/planning/surface/test_server.py 70
 plugins/planning/surface/watch.test.sh 48
 plugins/planning/tests/interview-defenses.test.sh 1
 plugins/planning/tests/interview-surface-decision-mirror.test.sh 1

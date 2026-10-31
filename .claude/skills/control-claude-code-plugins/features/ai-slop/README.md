@@ -4,7 +4,7 @@ The skills of `plugins/ai-slop`. Each one is driven with `<plugin-dir>` set to `
 
 ## Parts
 
-- `audit`: Detect and remove AI-writing tells from markdown prose.
+- `audit`: Detect and remove AI-writing tells from markdown, commit messages, PR bodies and interface copy.
 - `setup`: Configure the ai-slop plugin for a consumer repository. No plain-words entry.
 
 ## Sub-features

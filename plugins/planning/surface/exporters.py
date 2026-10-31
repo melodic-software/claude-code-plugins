@@ -105,7 +105,7 @@ import re
 import sys
 from pathlib import Path
 
-from server import (
+from interview_server import (
     EMPTY_RESPONSES,
     IMAGE_TYPES,
     MAX_VISUAL_FILE,

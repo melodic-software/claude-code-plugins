@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "each worker opens one connection at startup",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "each worker connects at startup",
+      "why": "misses the outcome"
+    }
+  ]
+}

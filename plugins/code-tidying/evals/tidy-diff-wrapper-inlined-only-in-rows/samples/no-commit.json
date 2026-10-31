@@ -1,0 +1,36 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -c 'import ast'",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/report.py"
+          }
+        }
+      ],
+      "why": "no git write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add src/report.py && git commit -m tidy",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "committed"
+    }
+  ]
+}

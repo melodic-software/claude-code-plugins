@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Use a library. A hand-built combobox usually misses focus management, arrow-key navigation and the ARIA combobox pattern. Pick by: accessibility (keyboard, ARIA, focus), headless or styled to fit your design system, and active maintenance. Check Vue's current options in its ecosystem and each library's own docs before you commit; Reka UI and Headless UI's Vue package are candidates to verify.",
+      "why": "criteria, no hand-rolling, current check, Vue candidates flagged to verify"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Build it yourself: an input, a filtered list and a click handler is about 80 lines of Vue.",
+      "why": "hand-rolled"
+    },
+    {
+      "answer": "Use Radix Primitives' Select; it is accessible and headless.",
+      "why": "a React-only library for a Vue app"
+    },
+    {
+      "answer": "Use a library rather than hand-rolling: focus management, keyboard support and ARIA are hard to get right. Pick one that is accessible, headless and maintained. Headless UI for Vue is the one to use.",
+      "why": "near miss: criteria given, but the library is settled from memory with no check of current options"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "import { Wheat, FileText } from \"lucide-react\";\n\n<ul className=\"grid gap-4\">\n  <li><Wheat aria-hidden=\"true\" className=\"size-5\" /> Costs tracked per field</li>\n  <li><FileText aria-hidden=\"true\" className=\"size-5\" /> Schedule F in one export</li>\n</ul>",
+      "why": "icons from one icon set replace the emoji"
+    },
+    {
+      "answer": "<ul>\n  <li><strong>Costs per field.</strong> Every input bill lands on the field it was spent on.</li>\n  <li><strong>Tax-ready.</strong> Export a Schedule F when the season closes.</li>\n</ul>",
+      "why": "a features list with no icons at all"
+    },
+    {
+      "answer": "<li>\n  <svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" className=\"size-5\"><path d=\"M12 2v20\" /></svg>\n  Costs per field\n</li>",
+      "why": "an inline SVG icon"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "<div className=\"p-6\">🚀 <h3>Fast</h3><p>Lightning quick books.</p></div>",
+      "why": "the emoji feature marker is kept"
+    },
+    {
+      "answer": "<ul>\n  <li><Wheat aria-hidden=\"true\" /> Costs per field</li>\n  <li><FileText aria-hidden=\"true\" /> Tax-ready</li>\n</ul>\n<span className=\"badge\">✨ New for 2027</span>",
+      "why": "near miss: the features use icons but the sparkle emoji stays in a badge"
+    },
+    {
+      "answer": "<li><span aria-hidden=\"true\">🔒</span> Secure by default</li>",
+      "why": "near miss: the emoji is only hidden from screen readers"
+    },
+    {
+      "answer": "I'd replace the 🚀🔒⚡ emoji with icons from your icon set.",
+      "why": "replacement only in prose, no code"
+    }
+  ]
+}
