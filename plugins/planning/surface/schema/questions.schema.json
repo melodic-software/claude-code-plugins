@@ -295,7 +295,7 @@
         "alt": {"type": ["string", "null"]},
         "changed": {
           "type": "array",
-          "items": {"enum": ["title", "short", "facts", "basis", "recommendation", "alternatives", "commitments"]},
+          "items": {"enum": ["title", "short", "facts", "basis", "recommendation", "alternatives", "commitments", "checkedAgainst"]},
           "description": "On a revise line: the fields that revise changed. The page does not put an answered question back under Review for a revise that changed only its title or short."
         },
         "alternatives": {
@@ -355,6 +355,11 @@
         "recommendation": {"$ref": "https://melodic-software.github.io/claude-code-plugins/planning/shared/question-shape#/$defs/recommendation"},
         "basis": {"type": "string"},
         "commits": {"type": "array", "items": {"type": "string"}},
+        "checkedAgainst": {
+          "description": "The constraint ids this recommendation was checked against. A question without the list predates it and no constraint marks it.",
+          "type": "array",
+          "items": {"type": "string"}
+        },
         "commitsSinceSeq": {
           "description": "Confirm events with a seq at or below this were made against an earlier commitment list and do not count.",
           "type": "integer"

@@ -48,6 +48,10 @@
 # `superseded-by-plan` is NOT terminal: a plan displaced the user's answer and
 # the user has not reconfirmed it. It counts as `superseded=<n>` and blocks the
 # gate exactly like `open`.
+# A row of any status whose resolution ends `stale:: C<N>[, C<N>...]` was not
+# checked against those constraints: the export writes it, the verdict adds
+# `stale=<n>`, and the gate blocks exactly as it does on `open` until Claude
+# revises or reconfirms the question. A ledger with no such row reads as before.
 #
 # --brief is OPT-IN and cross-checks that every `deferred` and `blocked` row
 # reached the Brief's `### Deferred questions` section, keyed by its `Q<N>` id.
@@ -640,6 +644,8 @@ fi
 
 registered=0
 open_count=0
+stale_count=0
+stale_tail_re='(^|\] |(^|[^\\])(\\\\)*; )stale:: C[0-9]+(, C[0-9]+)*$'
 answered=0
 deferred=0
 withdrawn=0
@@ -767,6 +773,7 @@ while IFS= read -r line; do
   if [[ "$resolution" == *"|"* ]]; then resolution="${resolution##*|}"; else resolution=""; fi
   resolution="${resolution#"${resolution%%[![:space:]]*}"}"
   resolution="${resolution%"${resolution##*[![:space:]]}"}"
+  [[ "$resolution" =~ $stale_tail_re ]] && stale_count=$((stale_count + 1))
   if [[ "$round_field" =~ ^[Rr]ound[[:space:]]+([1-9][0-9]*)$ ]]; then
     round_num="${BASH_REMATCH[1]}"
     rounds_seen="$rounds_seen$round_num "
@@ -1015,8 +1022,9 @@ if [[ "$procedure_on" -eq 1 ]]; then
 fi
 
 verdict="registered=$registered open=$open_count deferred=$deferred blocked=$blocked withdrawn=$withdrawn answered=$answered superseded=$superseded brief=$brief_state"
+[[ "$stale_count" -gt 0 ]] && verdict="$verdict stale=$stale_count"
 
-if [[ $((open_count + superseded)) -gt 0 ]]; then
+if [[ $((open_count + superseded + stale_count)) -gt 0 ]]; then
   echo "$verdict status=open procedure=$procedure_state"
   exit 1
 fi
