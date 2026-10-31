@@ -42,6 +42,11 @@ name: pr-verify
 # into a `run:` script, and it takes no artifact or cache. run-claude-cli sets
 # handoff and lane-class after it restores the step files, so the model cannot
 # set them.
+# A diff over one judgment's read budget is judged in chunks, each its own
+# run-claude-cli step in the same job, on its own prompt, against the same
+# spec (chunk-diff.sh, write-verdict.mjs mergeChunks): any chunk's fail fails
+# the head, and a chunk that fails, skips a part or leaves no verdict leaves
+# none for the head, so size alone never writes a fail.
 # The job tokens can only read. Every script and local action comes from the
 # main checkout in .base; the Claude actions are ci-workflows', at main.
 #
@@ -83,16 +88,16 @@ jobs:
       && (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.conclusion == 'failure')
       && github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 100
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its comments and reviews
       actions: read # the upstream run, and verdicts already uploaded
     outputs:
-      lane-class: ${{ steps.judge.outputs.lane-class }}
-      handoff: ${{ steps.judge.outputs.handoff }}
+      lane-class: ${{ steps.judge.outputs.lane-class || steps.judge-2.outputs.lane-class || steps.judge-3.outputs.lane-class || steps.judge-4.outputs.lane-class }}
+      handoff: ${{ steps.judge.outputs.handoff == 'true' || steps.judge-2.outputs.handoff == 'true' || steps.judge-3.outputs.handoff == 'true' || steps.judge-4.outputs.handoff == 'true' }}
       credential-present: ${{ steps.credential.outputs.present }}
-      key-leg-clean: ${{ steps.key-leg.outputs.clean }}
+      key-leg-clean: ${{ steps.key-leg.outputs.clean || steps.key-leg-2.outputs.clean || steps.key-leg-3.outputs.clean || steps.key-leg-4.outputs.clean }}
       reads: ${{ steps.carry.outputs.reads }}
     steps:
       - name: Check out the default branch tip
@@ -195,8 +200,12 @@ jobs:
 
       # A blobless fetch of the two commits into its own repository outside
       # the workspace. git diff reads no attributes or diff drivers from it,
-      # so nothing in the PR runs; the patch is a data file.
+      # so nothing in the PR runs; the patch is a data file. chunk-diff.sh cuts
+      # it into chunks of whole files, and each chunk into parts one Read
+      # returns whole. A file over one chunk, or a diff over MAX_CHUNKS chunks,
+      # fails the step by name: no verdict, so no fail on size alone.
       - name: Write the diff
+        id: diff
         if: steps.agree.outcome == 'success'
         env:
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
@@ -204,6 +213,17 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-verify-data
           SRC: ${{ runner.temp }}/pr-verify-src
+          # About 75k tokens of patch, the budget pr-review-main.yml sets: room
+          # in the review profile's turns to read one chunk whole (judgment).
+          MAX_DIFF_BYTES: "300000"
+          # The most chunks: the job's judge steps (workflow.test.mjs holds
+          # them equal).
+          MAX_CHUNKS: "4"
+          # One Read returns at most 25,000 tokens
+          # (https://code.claude.com/docs/en/tools-reference#large-files), and
+          # a token is at least a byte, so a part this size comes back whole.
+          PART_BYTES: "15000"
+          PART_LINES: "1000"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
@@ -214,6 +234,7 @@ jobs:
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" \
             '{pr: $pr, head_sha: $head, base_sha: $base}' >"$DATA/pr.json"
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
+          bash .base/.github/scripts/pr-verify/chunk-diff.sh
 
       # The reads the subscription job would repeat, from the files and
       # outputs of the steps above, before the model runs: one job output
@@ -280,20 +301,39 @@ jobs:
         env:
           DATA: ${{ github.workspace }}/pr-verify-data
           MODEL: ${{ steps.models.outputs.model }}
-          PROMPT_FILE: ${{ runner.temp }}/pr-verify-prompt.md
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
+          PROMPT_STEM: ${{ runner.temp }}/pr-verify-prompt
           SCHEMA_FILE: ${{ runner.temp }}/pr-verify-schema.json
         run: |
           if [ -z "$MODEL" ]; then
             echo "::error::the verify-pr profile's model is default, which run-claude-cli cannot pass; name an alias"
             exit 1
           fi
-          prompt=$(<.base/.github/scripts/pr-verify/prompt.md)
-          prompt=${prompt//DIFF_FILE/$DATA/diff.patch}
-          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-          prompt=${prompt//PR_FILE/$DATA/pr.json}
-          prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
-          prompt=${prompt//SPEC_FILE/$DATA/spec.json}
-          printf '%s\n' "$prompt" >"$PROMPT_FILE"
+          if ! [[ $CHUNKS =~ ^[1-9]$ ]]; then
+            echo "::error::the chunk count is malformed"
+            exit 1
+          fi
+          template=$(<.base/.github/scripts/pr-verify/prompt.md)
+          for k in $(seq "$CHUNKS"); do
+            prompt=$template
+            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+            parts=$(printf '  - `%s`\n' "$DATA/diff/chunk-$k"/part-*.patch)
+            prompt=${prompt//DIFF_PARTS/$parts}
+            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+            prompt=${prompt//PR_FILE/$DATA/pr.json}
+            prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
+            prompt=${prompt//SPEC_FILE/$DATA/spec.json}
+            note=
+            if [ "$CHUNKS" -gt 1 ]; then
+              note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
+              note=${note//MANIFEST_FILE/$DATA/manifest.txt}
+              note=${note//CHUNK_INDEX/$k}
+              note=${note//CHUNK_COUNT/$CHUNKS}
+              note=$'\n'$note
+            fi
+            prompt=${prompt//CHUNK_NOTE/"$note"}
+            printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
+          done
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
@@ -303,8 +343,8 @@ jobs:
       # verdict steps, and a clean one the outcome step too: the subscription
       # job judges and records the run instead.
       # One leg of leg-timeout-minutes and the CLI install fit in
-      # timeout-minutes, which the outcome step repeats, and that fits in the
-      # job's 30. The model may share its job with the upload: it has Read
+      # timeout-minutes, which the outcome step repeats, and four of those fit in
+      # the job's 100. The model may share its job with the upload: it has Read
       # alone and the job token can only read.
       # Under dontAsk only the allow rule's directory is readable; the deny
       # rules hold if the tools or the working directory change.
@@ -320,7 +360,7 @@ jobs:
         with:
           lane: pr-verify
           role: pr-verify
-          prompt-file: ${{ runner.temp }}/pr-verify-prompt.md
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt-1.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
             nothing you write is posted.
@@ -344,7 +384,7 @@ jobs:
             Agent
             mcp__*
           json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
-          leg-timeout-minutes: "10"
+          leg-timeout-minutes: "15"
 
       # After a handoff: the owner's signal to rotate or replace the key, then
       # the denial check. A denial on the key leg means no verdict, so the
@@ -356,7 +396,8 @@ jobs:
         if: steps.judge.outputs.handoff == 'true'
         continue-on-error: true
         env:
-          LOG_FILE: ${{ steps.judge.outputs.log-file }}
+          LOG_FILES: |
+            ${{ steps.judge.outputs.log-file }}
           LANE_CLASS: ${{ steps.judge.outputs.lane-class }}
         run: |
           case "$LANE_CLASS" in
@@ -396,15 +437,282 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
+      # Chunk 2 on, each the first chunk's steps on its own prompt: chunk k runs
+      # only when the diff has k chunks and chunk k-1 judged and handed nothing
+      # on, so a handoff hands the whole judgment on and the next leg judges
+      # every chunk again. The leg check reads every chunk's log so far.
+      - name: Time chunk 2
+        id: time-2
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Judge chunk 2
+        id: judge-2
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-verify
+          role: pr-verify
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt-2.md
+          preamble: >-
+            You run unattended; return only the verdict the schema asks for;
+            nothing you write is posted.
+          api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-verify-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          leg-timeout-minutes: "15"
+
+      - name: Check the key leg, chunk 2
+        id: key-leg-2
+        if: steps.judge-2.outputs.handoff == 'true'
+        continue-on-error: true
+        env:
+          LOG_FILES: |
+            ${{ steps.judge.outputs.log-file }}
+            ${{ steps.judge-2.outputs.log-file }}
+          LANE_CLASS: ${{ steps.judge-2.outputs.lane-class }}
+        run: |
+          case "$LANE_CLASS" in
+            auth) echo "::warning::the API refused the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY), class auth; the owner must replace the secret" ;;
+            *) echo "::warning::the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY) hit a credit stop; rotate a spare key in" ;;
+          esac
+          node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
+          echo "::notice::check-intent-subscription judges on the subscription token"
+
+      - name: Report chunk 2's outcome
+        if: (steps.judge-2.outcome == 'success' || steps.judge-2.outcome == 'failure') && (steps.judge-2.outputs.handoff != 'true' || steps.key-leg-2.outcome == 'failure')
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        with:
+          outcome: ${{ steps.judge-2.outcome }}
+          execution-file: ${{ steps.judge-2.outputs.execution-file }}
+          log-file: ${{ steps.judge-2.outputs.log-file }}
+          lane: pr-verify
+          lane-id: pr-verify
+          step-started-at: ${{ steps.time-2.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.judge-2.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.judge-2.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-2.outputs.lane-class }}
+
+      - name: Upload chunk 2's sealed transcript
+        if: always() && steps.judge-2.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-2.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-2
+
+      - name: Time chunk 3
+        id: time-3
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Judge chunk 3
+        id: judge-3
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-verify
+          role: pr-verify
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt-3.md
+          preamble: >-
+            You run unattended; return only the verdict the schema asks for;
+            nothing you write is posted.
+          api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-verify-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          leg-timeout-minutes: "15"
+
+      - name: Check the key leg, chunk 3
+        id: key-leg-3
+        if: steps.judge-3.outputs.handoff == 'true'
+        continue-on-error: true
+        env:
+          LOG_FILES: |
+            ${{ steps.judge.outputs.log-file }}
+            ${{ steps.judge-2.outputs.log-file }}
+            ${{ steps.judge-3.outputs.log-file }}
+          LANE_CLASS: ${{ steps.judge-3.outputs.lane-class }}
+        run: |
+          case "$LANE_CLASS" in
+            auth) echo "::warning::the API refused the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY), class auth; the owner must replace the secret" ;;
+            *) echo "::warning::the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY) hit a credit stop; rotate a spare key in" ;;
+          esac
+          node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
+          echo "::notice::check-intent-subscription judges on the subscription token"
+
+      - name: Report chunk 3's outcome
+        if: (steps.judge-3.outcome == 'success' || steps.judge-3.outcome == 'failure') && (steps.judge-3.outputs.handoff != 'true' || steps.key-leg-3.outcome == 'failure')
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        with:
+          outcome: ${{ steps.judge-3.outcome }}
+          execution-file: ${{ steps.judge-3.outputs.execution-file }}
+          log-file: ${{ steps.judge-3.outputs.log-file }}
+          lane: pr-verify
+          lane-id: pr-verify
+          step-started-at: ${{ steps.time-3.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.judge-3.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.judge-3.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-3.outputs.lane-class }}
+
+      - name: Upload chunk 3's sealed transcript
+        if: always() && steps.judge-3.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-3.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-3
+
+      - name: Time chunk 4
+        id: time-4
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Judge chunk 4
+        id: judge-4
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-verify
+          role: pr-verify
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt-4.md
+          preamble: >-
+            You run unattended; return only the verdict the schema asks for;
+            nothing you write is posted.
+          api-key: ${{ secrets.PR_VERIFY_CLAUDE_API_KEY }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-verify-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          leg-timeout-minutes: "15"
+
+      - name: Check the key leg, chunk 4
+        id: key-leg-4
+        if: steps.judge-4.outputs.handoff == 'true'
+        continue-on-error: true
+        env:
+          LOG_FILES: |
+            ${{ steps.judge.outputs.log-file }}
+            ${{ steps.judge-2.outputs.log-file }}
+            ${{ steps.judge-3.outputs.log-file }}
+            ${{ steps.judge-4.outputs.log-file }}
+          LANE_CLASS: ${{ steps.judge-4.outputs.lane-class }}
+        run: |
+          case "$LANE_CLASS" in
+            auth) echo "::warning::the API refused the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY), class auth; the owner must replace the secret" ;;
+            *) echo "::warning::the pr-verify role's API key (PR_VERIFY_CLAUDE_API_KEY) hit a credit stop; rotate a spare key in" ;;
+          esac
+          node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
+          echo "::notice::check-intent-subscription judges on the subscription token"
+
+      - name: Report chunk 4's outcome
+        if: (steps.judge-4.outcome == 'success' || steps.judge-4.outcome == 'failure') && (steps.judge-4.outputs.handoff != 'true' || steps.key-leg-4.outcome == 'failure')
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        with:
+          outcome: ${{ steps.judge-4.outcome }}
+          execution-file: ${{ steps.judge-4.outputs.execution-file }}
+          log-file: ${{ steps.judge-4.outputs.log-file }}
+          lane: pr-verify
+          lane-id: pr-verify
+          step-started-at: ${{ steps.time-4.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.judge-4.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.judge-4.outputs.lane-class == 'credit-stop' && 'rate-limit' || steps.judge-4.outputs.lane-class }}
+
+      - name: Upload chunk 4's sealed transcript
+        if: always() && steps.judge-4.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-4.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-4
+
       # The structured output, in the last result message of the execution
       # file, is untrusted model text: read from the file and checked by the
       # script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
-        if: steps.judge.outcome == 'success'
+        if: steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success')
         env:
-          EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
-          LOG_FILE: ${{ steps.judge.outputs.log-file }}
+          # Each chunk's files in chunk order; a chunk that left none voids it.
+          EXECUTION_FILES: |
+            ${{ steps.judge.outputs.execution-file }}
+            ${{ steps.judge-2.outputs.execution-file }}
+            ${{ steps.judge-3.outputs.execution-file }}
+            ${{ steps.judge-4.outputs.execution-file }}
+          LOG_FILES: |
+            ${{ steps.judge.outputs.log-file }}
+            ${{ steps.judge-2.outputs.log-file }}
+            ${{ steps.judge-3.outputs.log-file }}
+            ${{ steps.judge-4.outputs.log-file }}
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
+          DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
@@ -448,7 +756,7 @@ jobs:
       # A clean handoff or an empty key hands the judgment on; any other
       # run that passed the gates and left no verdict fails here.
       - name: Fail without a verdict
-        if: always() && steps.agree.outcome == 'success' && steps.verdict.outcome != 'success' && steps.credential.outputs.present != 'false' && steps.key-leg.outcome != 'success'
+        if: always() && steps.agree.outcome == 'success' && steps.verdict.outcome != 'success' && steps.credential.outputs.present != 'false' && steps.key-leg.outcome != 'success' && steps.key-leg-2.outcome != 'success' && steps.key-leg-3.outcome != 'success' && steps.key-leg-4.outcome != 'success'
         run: |
           echo "::error::the judgment left no verdict for this head"
           exit 1
@@ -473,15 +781,15 @@ jobs:
       && needs.check-intent.outputs.key-leg-clean == 'true')
       || needs.check-intent.outputs.credential-present == 'false')
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 100
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its comments and reviews
       actions: read # the upstream run, and verdicts already uploaded
     outputs:
-      handoff: ${{ steps.judge.outputs.handoff }}
-      handoff-reason: ${{ steps.judge.outputs.handoff-reason }}
-      leg-clean: ${{ steps.sub-leg.outputs.clean }}
+      handoff: ${{ steps.judge.outputs.handoff == 'true' || steps.judge-2.outputs.handoff == 'true' || steps.judge-3.outputs.handoff == 'true' || steps.judge-4.outputs.handoff == 'true' }}
+      handoff-reason: ${{ steps.judge.outputs.handoff-reason || steps.judge-2.outputs.handoff-reason || steps.judge-3.outputs.handoff-reason || steps.judge-4.outputs.handoff-reason }}
+      leg-clean: ${{ steps.sub-leg.outputs.clean || steps.sub-leg-2.outputs.clean || steps.sub-leg-3.outputs.clean || steps.sub-leg-4.outputs.clean }}
     steps:
       - name: Check out the default branch tip
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -588,8 +896,12 @@ jobs:
 
       # A blobless fetch of the two commits into its own repository outside
       # the workspace. git diff reads no attributes or diff drivers from it,
-      # so nothing in the PR runs; the patch is a data file.
+      # so nothing in the PR runs; the patch is a data file. chunk-diff.sh cuts
+      # it into chunks of whole files, and each chunk into parts one Read
+      # returns whole. A file over one chunk, or a diff over MAX_CHUNKS chunks,
+      # fails the step by name: no verdict, so no fail on size alone.
       - name: Write the diff
+        id: diff
         if: steps.agree.outcome == 'success'
         env:
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
@@ -597,6 +909,17 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-verify-data
           SRC: ${{ runner.temp }}/pr-verify-src
+          # About 75k tokens of patch, the budget pr-review-main.yml sets: room
+          # in the review profile's turns to read one chunk whole (judgment).
+          MAX_DIFF_BYTES: "300000"
+          # The most chunks: the job's judge steps (workflow.test.mjs holds
+          # them equal).
+          MAX_CHUNKS: "4"
+          # One Read returns at most 25,000 tokens
+          # (https://code.claude.com/docs/en/tools-reference#large-files), and
+          # a token is at least a byte, so a part this size comes back whole.
+          PART_BYTES: "15000"
+          PART_LINES: "1000"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
@@ -607,6 +930,7 @@ jobs:
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" \
             '{pr: $pr, head_sha: $head, base_sha: $base}' >"$DATA/pr.json"
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
+          bash .base/.github/scripts/pr-verify/chunk-diff.sh
 
       # The judgment's model, turns and effort: the verify-pr route of the
       # base config's models block.
@@ -661,20 +985,39 @@ jobs:
         env:
           DATA: ${{ github.workspace }}/pr-verify-data
           MODEL: ${{ steps.models.outputs.model }}
-          PROMPT_FILE: ${{ runner.temp }}/pr-verify-prompt.md
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
+          PROMPT_STEM: ${{ runner.temp }}/pr-verify-prompt
           SCHEMA_FILE: ${{ runner.temp }}/pr-verify-schema.json
         run: |
           if [ -z "$MODEL" ]; then
             echo "::error::the verify-pr profile's model is default, which run-claude-cli cannot pass; name an alias"
             exit 1
           fi
-          prompt=$(<.base/.github/scripts/pr-verify/prompt.md)
-          prompt=${prompt//DIFF_FILE/$DATA/diff.patch}
-          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-          prompt=${prompt//PR_FILE/$DATA/pr.json}
-          prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
-          prompt=${prompt//SPEC_FILE/$DATA/spec.json}
-          printf '%s\n' "$prompt" >"$PROMPT_FILE"
+          if ! [[ $CHUNKS =~ ^[1-9]$ ]]; then
+            echo "::error::the chunk count is malformed"
+            exit 1
+          fi
+          template=$(<.base/.github/scripts/pr-verify/prompt.md)
+          for k in $(seq "$CHUNKS"); do
+            prompt=$template
+            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+            parts=$(printf '  - `%s`\n' "$DATA/diff/chunk-$k"/part-*.patch)
+            prompt=${prompt//DIFF_PARTS/$parts}
+            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+            prompt=${prompt//PR_FILE/$DATA/pr.json}
+            prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
+            prompt=${prompt//SPEC_FILE/$DATA/spec.json}
+            note=
+            if [ "$CHUNKS" -gt 1 ]; then
+              note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
+              note=${note//MANIFEST_FILE/$DATA/manifest.txt}
+              note=${note//CHUNK_INDEX/$k}
+              note=${note//CHUNK_COUNT/$CHUNKS}
+              note=$'\n'$note
+            fi
+            prompt=${prompt//CHUNK_NOTE/"$note"}
+            printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
+          done
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
@@ -685,7 +1028,7 @@ jobs:
       # which skips the verdict steps, and a clean one the outcome step too:
       # the fallback job judges and records the run instead. One leg of
       # leg-timeout-minutes and the CLI install fit in timeout-minutes, which
-      # the outcome step repeats, and that fits in the job's 30. The model may
+      # the outcome step repeats, and four of those fit in the job's 100. The model may
       # share its job with the upload: it has Read alone and the job token can
       # only read.
       # Under dontAsk only the allow rule's directory is readable; the deny
@@ -702,7 +1045,7 @@ jobs:
         with:
           lane: pr-verify
           role: pr-verify
-          prompt-file: ${{ runner.temp }}/pr-verify-prompt.md
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt-1.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
             nothing you write is posted.
@@ -727,7 +1070,7 @@ jobs:
             mcp__*
           json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
           fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
-          leg-timeout-minutes: "10"
+          leg-timeout-minutes: "15"
 
       # After a handoff, the denial check: a denial on the subscription leg
       # means no verdict, so the fallback job runs only on this step's
@@ -739,7 +1082,8 @@ jobs:
         if: steps.judge.outputs.handoff == 'true'
         continue-on-error: true
         env:
-          LOG_FILE: ${{ steps.judge.outputs.log-file }}
+          LOG_FILES: |
+            ${{ steps.judge.outputs.log-file }}
           HANDOFF_REASON: ${{ steps.judge.outputs.handoff-reason }}
         run: |
           node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
@@ -775,15 +1119,276 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
+      # Chunk 2 on, each the first chunk's steps on its own prompt: chunk k runs
+      # only when the diff has k chunks and chunk k-1 judged and handed nothing
+      # on, so a handoff hands the whole judgment on and the next leg judges
+      # every chunk again. The leg check reads every chunk's log so far.
+      - name: Time chunk 2
+        id: time-2
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Judge chunk 2
+        id: judge-2
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-verify
+          role: pr-verify
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt-2.md
+          preamble: >-
+            You run unattended; return only the verdict the schema asks for;
+            nothing you write is posted.
+          subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-verify-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          leg-timeout-minutes: "15"
+
+      - name: Check the subscription leg, chunk 2
+        id: sub-leg-2
+        if: steps.judge-2.outputs.handoff == 'true'
+        continue-on-error: true
+        env:
+          LOG_FILES: |
+            ${{ steps.judge.outputs.log-file }}
+            ${{ steps.judge-2.outputs.log-file }}
+          HANDOFF_REASON: ${{ steps.judge-2.outputs.handoff-reason }}
+        run: |
+          node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
+          echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
+
+      - name: Report chunk 2's outcome
+        if: (steps.judge-2.outcome == 'success' || steps.judge-2.outcome == 'failure') && (steps.judge-2.outputs.handoff != 'true' || steps.sub-leg-2.outcome == 'failure')
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        with:
+          outcome: ${{ steps.judge-2.outcome }}
+          execution-file: ${{ steps.judge-2.outputs.execution-file }}
+          log-file: ${{ steps.judge-2.outputs.log-file }}
+          lane: pr-verify
+          lane-id: pr-verify
+          step-started-at: ${{ steps.time-2.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.judge-2.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.judge-2.outputs.lane-class }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+
+      - name: Upload chunk 2's sealed transcript
+        if: always() && steps.judge-2.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-2.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-2
+
+      - name: Time chunk 3
+        id: time-3
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Judge chunk 3
+        id: judge-3
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-verify
+          role: pr-verify
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt-3.md
+          preamble: >-
+            You run unattended; return only the verdict the schema asks for;
+            nothing you write is posted.
+          subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-verify-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          leg-timeout-minutes: "15"
+
+      - name: Check the subscription leg, chunk 3
+        id: sub-leg-3
+        if: steps.judge-3.outputs.handoff == 'true'
+        continue-on-error: true
+        env:
+          LOG_FILES: |
+            ${{ steps.judge.outputs.log-file }}
+            ${{ steps.judge-2.outputs.log-file }}
+            ${{ steps.judge-3.outputs.log-file }}
+          HANDOFF_REASON: ${{ steps.judge-3.outputs.handoff-reason }}
+        run: |
+          node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
+          echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
+
+      - name: Report chunk 3's outcome
+        if: (steps.judge-3.outcome == 'success' || steps.judge-3.outcome == 'failure') && (steps.judge-3.outputs.handoff != 'true' || steps.sub-leg-3.outcome == 'failure')
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        with:
+          outcome: ${{ steps.judge-3.outcome }}
+          execution-file: ${{ steps.judge-3.outputs.execution-file }}
+          log-file: ${{ steps.judge-3.outputs.log-file }}
+          lane: pr-verify
+          lane-id: pr-verify
+          step-started-at: ${{ steps.time-3.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.judge-3.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.judge-3.outputs.lane-class }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+
+      - name: Upload chunk 3's sealed transcript
+        if: always() && steps.judge-3.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-3.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-3
+
+      - name: Time chunk 4
+        id: time-4
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Judge chunk 4
+        id: judge-4
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-verify
+          role: pr-verify
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt-4.md
+          preamble: >-
+            You run unattended; return only the verdict the schema asks for;
+            nothing you write is posted.
+          subscription-token: ${{ secrets.PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-verify-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          leg-timeout-minutes: "15"
+
+      - name: Check the subscription leg, chunk 4
+        id: sub-leg-4
+        if: steps.judge-4.outputs.handoff == 'true'
+        continue-on-error: true
+        env:
+          LOG_FILES: |
+            ${{ steps.judge.outputs.log-file }}
+            ${{ steps.judge-2.outputs.log-file }}
+            ${{ steps.judge-3.outputs.log-file }}
+            ${{ steps.judge-4.outputs.log-file }}
+          HANDOFF_REASON: ${{ steps.judge-4.outputs.handoff-reason }}
+        run: |
+          node .base/.github/scripts/pr-verify/write-verdict.mjs check-key-leg
+          echo "::notice::the subscription leg handed off (${HANDOFF_REASON}); check-intent-fallback judges on the fallback token"
+
+      - name: Report chunk 4's outcome
+        if: (steps.judge-4.outcome == 'success' || steps.judge-4.outcome == 'failure') && (steps.judge-4.outputs.handoff != 'true' || steps.sub-leg-4.outcome == 'failure')
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        with:
+          outcome: ${{ steps.judge-4.outcome }}
+          execution-file: ${{ steps.judge-4.outputs.execution-file }}
+          log-file: ${{ steps.judge-4.outputs.log-file }}
+          lane: pr-verify
+          lane-id: pr-verify
+          step-started-at: ${{ steps.time-4.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.judge-4.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.judge-4.outputs.lane-class }}
+          fallback-reason: ${{ needs.check-intent.outputs.lane-class == 'credit-stop' && 'credit-stop' || needs.check-intent.outputs.lane-class == 'auth' && 'auth' || needs.check-intent.outputs.credential-present == 'false' && 'no-key' || '' }}
+
+      - name: Upload chunk 4's sealed transcript
+        if: always() && steps.judge-4.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-4.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-4
+
       # The structured output, in the last result message of the execution
       # file, is untrusted model text: read from the file and checked by the
       # script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
-        if: steps.judge.outcome == 'success'
+        if: steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success')
         env:
-          EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
-          LOG_FILE: ${{ steps.judge.outputs.log-file }}
+          # Each chunk's files in chunk order; a chunk that left none voids it.
+          EXECUTION_FILES: |
+            ${{ steps.judge.outputs.execution-file }}
+            ${{ steps.judge-2.outputs.execution-file }}
+            ${{ steps.judge-3.outputs.execution-file }}
+            ${{ steps.judge-4.outputs.execution-file }}
+          LOG_FILES: |
+            ${{ steps.judge.outputs.log-file }}
+            ${{ steps.judge-2.outputs.log-file }}
+            ${{ steps.judge-3.outputs.log-file }}
+            ${{ steps.judge-4.outputs.log-file }}
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
+          DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}
@@ -827,7 +1432,7 @@ jobs:
       # A clean handoff hands the judgment on; any other run that passed the
       # gates and left no verdict, an empty token included, fails here.
       - name: Fail without a verdict
-        if: always() && steps.agree.outcome == 'success' && steps.verdict.outcome != 'success' && steps.sub-leg.outcome != 'success'
+        if: always() && steps.agree.outcome == 'success' && steps.verdict.outcome != 'success' && steps.sub-leg.outcome != 'success' && steps.sub-leg-2.outcome != 'success' && steps.sub-leg-3.outcome != 'success' && steps.sub-leg-4.outcome != 'success'
         run: |
           echo "::error::the judgment left no verdict for this head"
           exit 1
@@ -851,7 +1456,7 @@ jobs:
       && needs.check-intent-subscription.outputs.handoff == 'true'
       && needs.check-intent-subscription.outputs.leg-clean == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 100
     permissions:
       contents: read # check out main; read the PR's commits for the diff
       pull-requests: read # the PR, its comments and reviews
@@ -958,8 +1563,12 @@ jobs:
 
       # A blobless fetch of the two commits into its own repository outside
       # the workspace. git diff reads no attributes or diff drivers from it,
-      # so nothing in the PR runs; the patch is a data file.
+      # so nothing in the PR runs; the patch is a data file. chunk-diff.sh cuts
+      # it into chunks of whole files, and each chunk into parts one Read
+      # returns whole. A file over one chunk, or a diff over MAX_CHUNKS chunks,
+      # fails the step by name: no verdict, so no fail on size alone.
       - name: Write the diff
+        id: diff
         if: steps.agree.outcome == 'success'
         env:
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
@@ -967,6 +1576,17 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           DATA: ${{ github.workspace }}/pr-verify-data
           SRC: ${{ runner.temp }}/pr-verify-src
+          # About 75k tokens of patch, the budget pr-review-main.yml sets: room
+          # in the review profile's turns to read one chunk whole (judgment).
+          MAX_DIFF_BYTES: "300000"
+          # The most chunks: the job's judge steps (workflow.test.mjs holds
+          # them equal).
+          MAX_CHUNKS: "4"
+          # One Read returns at most 25,000 tokens
+          # (https://code.claude.com/docs/en/tools-reference#large-files), and
+          # a token is at least a byte, so a part this size comes back whole.
+          PART_BYTES: "15000"
+          PART_LINES: "1000"
         run: |
           export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
           mkdir -p "$DATA"
@@ -977,6 +1597,7 @@ jobs:
           jq -n --argjson pr "$PR_NUMBER" --arg head "$HEAD_SHA" --arg base "$BASE_SHA" \
             '{pr: $pr, head_sha: $head, base_sha: $base}' >"$DATA/pr.json"
           echo "diff: $(wc -l <"$DATA/diff.patch") lines"
+          bash .base/.github/scripts/pr-verify/chunk-diff.sh
 
       # The judgment's model, turns and effort: the verify-pr route of the
       # base config's models block.
@@ -1031,20 +1652,39 @@ jobs:
         env:
           DATA: ${{ github.workspace }}/pr-verify-data
           MODEL: ${{ steps.models.outputs.model }}
-          PROMPT_FILE: ${{ runner.temp }}/pr-verify-prompt.md
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
+          PROMPT_STEM: ${{ runner.temp }}/pr-verify-prompt
           SCHEMA_FILE: ${{ runner.temp }}/pr-verify-schema.json
         run: |
           if [ -z "$MODEL" ]; then
             echo "::error::the verify-pr profile's model is default, which run-claude-cli cannot pass; name an alias"
             exit 1
           fi
-          prompt=$(<.base/.github/scripts/pr-verify/prompt.md)
-          prompt=${prompt//DIFF_FILE/$DATA/diff.patch}
-          prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
-          prompt=${prompt//PR_FILE/$DATA/pr.json}
-          prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
-          prompt=${prompt//SPEC_FILE/$DATA/spec.json}
-          printf '%s\n' "$prompt" >"$PROMPT_FILE"
+          if ! [[ $CHUNKS =~ ^[1-9]$ ]]; then
+            echo "::error::the chunk count is malformed"
+            exit 1
+          fi
+          template=$(<.base/.github/scripts/pr-verify/prompt.md)
+          for k in $(seq "$CHUNKS"); do
+            prompt=$template
+            # shellcheck disable=SC2016 # the backticks are Markdown, not a command
+            parts=$(printf '  - `%s`\n' "$DATA/diff/chunk-$k"/part-*.patch)
+            prompt=${prompt//DIFF_PARTS/$parts}
+            prompt=${prompt//CONTEXT_FILE/$DATA/context.json}
+            prompt=${prompt//PR_FILE/$DATA/pr.json}
+            prompt=${prompt//SPEC_TEXT_FILE/$DATA/spec-text.json}
+            prompt=${prompt//SPEC_FILE/$DATA/spec.json}
+            note=
+            if [ "$CHUNKS" -gt 1 ]; then
+              note=$(<.base/.github/scripts/pr-verify/chunk-note.md)
+              note=${note//MANIFEST_FILE/$DATA/manifest.txt}
+              note=${note//CHUNK_INDEX/$k}
+              note=${note//CHUNK_COUNT/$CHUNKS}
+              note=$'\n'$note
+            fi
+            prompt=${prompt//CHUNK_NOTE/"$note"}
+            printf '%s\n' "$prompt" >"$PROMPT_STEM-$k.md"
+          done
           printf '%s\n' '{"type":"object","properties":{"verdict":{"enum":["pass","pass-notes","fail"]},"summary":{"type":"string"},"notes":{"type":"array","items":{"type":"string"}}},"required":["verdict","summary","notes"],"additionalProperties":false}' >"$SCHEMA_FILE"
           echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
 
@@ -1053,7 +1693,7 @@ jobs:
       # step; "Fail without a verdict" carries the red. The fallback leg
       # never hands off. One leg of
       # leg-timeout-minutes and the CLI install fit in timeout-minutes, which
-      # the outcome step repeats, and that fits in the job's 30. The model may
+      # the outcome step repeats, and four of those fit in the job's 100. The model may
       # share its job with the upload: it has Read alone and the job token can
       # only read.
       # Under dontAsk only the allow rule's directory is readable; the deny
@@ -1070,7 +1710,7 @@ jobs:
         with:
           lane: pr-verify
           role: pr-verify
-          prompt-file: ${{ runner.temp }}/pr-verify-prompt.md
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt-1.md
           preamble: >-
             You run unattended; return only the verdict the schema asks for;
             nothing you write is posted.
@@ -1095,7 +1735,7 @@ jobs:
             mcp__*
           json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
           fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
-          leg-timeout-minutes: "10"
+          leg-timeout-minutes: "15"
 
       - name: Report the judgment's outcome
         if: steps.judge.outcome == 'success' || steps.judge.outcome == 'failure'
@@ -1125,15 +1765,234 @@ jobs:
           public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
           job-id: ${{ github.job }}
 
+      # Chunk 2 on, each the first chunk's steps on its own prompt: chunk k runs
+      # only when the diff has k chunks and chunk k-1 judged and handed nothing
+      # on, so a handoff hands the whole judgment on and the next leg judges
+      # every chunk again. The leg check reads every chunk's log so far.
+      - name: Time chunk 2
+        id: time-2
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Judge chunk 2
+        id: judge-2
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-verify
+          role: pr-verify
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt-2.md
+          preamble: >-
+            You run unattended; return only the verdict the schema asks for;
+            nothing you write is posted.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-verify-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          leg-timeout-minutes: "15"
+
+      - name: Report chunk 2's outcome
+        if: steps.judge-2.outcome == 'success' || steps.judge-2.outcome == 'failure'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        with:
+          outcome: ${{ steps.judge-2.outcome }}
+          execution-file: ${{ steps.judge-2.outputs.execution-file }}
+          log-file: ${{ steps.judge-2.outputs.log-file }}
+          lane: pr-verify
+          lane-id: pr-verify
+          step-started-at: ${{ steps.time-2.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.judge-2.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.judge-2.outputs.lane-class }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+
+      - name: Upload chunk 2's sealed transcript
+        if: always() && steps.judge-2.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-2.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-2
+
+      - name: Time chunk 3
+        id: time-3
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Judge chunk 3
+        id: judge-3
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 3 && steps.judge-2.outcome == 'success' && steps.judge-2.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-verify
+          role: pr-verify
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt-3.md
+          preamble: >-
+            You run unattended; return only the verdict the schema asks for;
+            nothing you write is posted.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-verify-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          leg-timeout-minutes: "15"
+
+      - name: Report chunk 3's outcome
+        if: steps.judge-3.outcome == 'success' || steps.judge-3.outcome == 'failure'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        with:
+          outcome: ${{ steps.judge-3.outcome }}
+          execution-file: ${{ steps.judge-3.outputs.execution-file }}
+          log-file: ${{ steps.judge-3.outputs.log-file }}
+          lane: pr-verify
+          lane-id: pr-verify
+          step-started-at: ${{ steps.time-3.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.judge-3.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.judge-3.outputs.lane-class }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+
+      - name: Upload chunk 3's sealed transcript
+        if: always() && steps.judge-3.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-3.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-3
+
+      - name: Time chunk 4
+        id: time-4
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true'
+        run: echo "started-at=$(date +%s)" >>"$GITHUB_OUTPUT"
+
+      - name: Judge chunk 4
+        id: judge-4
+        if: steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 4 && steps.judge-3.outcome == 'success' && steps.judge-3.outputs.handoff != 'true'
+        continue-on-error: true
+        timeout-minutes: 22
+        uses: melodic-software/ci-workflows/.github/actions/run-claude-cli@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        env:
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          lane: pr-verify
+          role: pr-verify
+          prompt-file: ${{ runner.temp }}/pr-verify-prompt-4.md
+          preamble: >-
+            You run unattended; return only the verdict the schema asks for;
+            nothing you write is posted.
+          fallback-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ steps.models.outputs.model }}
+          effort: ${{ steps.models.outputs.effort }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          permission-mode: dontAsk
+          tools: Read
+          allowed-tools: Read(./pr-verify-data/**)
+          disallowed-tools: |
+            Read(./.base/**)
+            Glob
+            Grep
+            Bash
+            Edit
+            Write
+            NotebookEdit
+            WebFetch
+            WebSearch
+            Agent
+            mcp__*
+          json-schema-file: ${{ runner.temp }}/pr-verify-schema.json
+          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}
+          leg-timeout-minutes: "15"
+
+      - name: Report chunk 4's outcome
+        if: steps.judge-4.outcome == 'success' || steps.judge-4.outcome == 'failure'
+        uses: melodic-software/ci-workflows/.github/actions/report-lane-outcome@2476d5dde8979eab34374150b7e4b0a2b99f4e88 # 2476d5d 2026-10-29
+        with:
+          outcome: ${{ steps.judge-4.outcome }}
+          execution-file: ${{ steps.judge-4.outputs.execution-file }}
+          log-file: ${{ steps.judge-4.outputs.log-file }}
+          lane: pr-verify
+          lane-id: pr-verify
+          step-started-at: ${{ steps.time-4.outputs.started-at }}
+          step-timeout-minutes: 22
+          credential: ${{ steps.judge-4.outputs.credential }}
+          max-turns: ${{ steps.models.outputs.max-turns }}
+          known-failure-class: ${{ steps.judge-4.outputs.lane-class }}
+          fallback-reason: ${{ needs.check-intent-subscription.outputs.handoff-reason == 'limit-stop' && 'limit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'credit-stop' && 'credit-stop' || needs.check-intent-subscription.outputs.handoff-reason == 'auth' && 'auth' || '' }}
+
+      - name: Upload chunk 4's sealed transcript
+        if: always() && steps.judge-4.outputs.execution-file != ''
+        continue-on-error: true
+        uses: ./.base/.github/actions/upload-lane-transcript # zizmor: ignore[self-repository]
+        with:
+          execution-file: ${{ steps.judge-4.outputs.execution-file }}
+          public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
+          job-id: ${{ github.job }}-4
+
       # The structured output, in the last result message of the execution
       # file, is untrusted model text: read from the file and checked by the
       # script, never interpolated into a command.
       - name: Write the verdict
         id: verdict
-        if: steps.judge.outcome == 'success'
+        if: steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || steps.judge-2.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 3 || steps.judge-3.outcome == 'success') && (fromJSON(steps.diff.outputs.chunks || '0') < 4 || steps.judge-4.outcome == 'success')
         env:
-          EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
-          LOG_FILE: ${{ steps.judge.outputs.log-file }}
+          # Each chunk's files in chunk order; a chunk that left none voids it.
+          EXECUTION_FILES: |
+            ${{ steps.judge.outputs.execution-file }}
+            ${{ steps.judge-2.outputs.execution-file }}
+            ${{ steps.judge-3.outputs.execution-file }}
+            ${{ steps.judge-4.outputs.execution-file }}
+          LOG_FILES: |
+            ${{ steps.judge.outputs.log-file }}
+            ${{ steps.judge-2.outputs.log-file }}
+            ${{ steps.judge-3.outputs.log-file }}
+            ${{ steps.judge-4.outputs.log-file }}
+          CHUNKS: ${{ steps.diff.outputs.chunks }}
+          DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           PR_NUMBER: ${{ steps.pr.outputs.pr-number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           BASE_SHA: ${{ steps.pr.outputs.base-sha }}

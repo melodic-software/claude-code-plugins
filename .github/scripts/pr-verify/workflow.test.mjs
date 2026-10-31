@@ -8,7 +8,10 @@
 // job repeats it on the central fallback token only when the subscription job
 // hands it on, so one job per run writes a verdict.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { test } from "node:test";
 
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
@@ -95,6 +98,8 @@ const glob = (pattern) => {
   return new RegExp("^" + literal.replace(/\*\*|\*/g, (star) => (star === "**" ? ".*" : "[^/]*")) + "$");
 };
 const REPO = "melodic-software/claude-code-plugins";
+// A job output read from each chunk's step, chunk 1's id being `first`.
+const chainOf = (build, first) => [first, `${first}-2`, `${first}-3`, `${first}-4`].map(build).join(" || ");
 const upstreamRun = (overrides = {}) => ({
   github: {
     ref: "refs/heads/main",
@@ -122,7 +127,7 @@ test("the upload is each job's only artifact step and follows the written verdic
     assert.match(step("Write the verdict", job), /^ {10}RELINK_SINCE_HEAD: \$\{\{ steps\.pr\.outputs\.relink-since-head \}\}$/m, job);
     // A verdict needs a judge step that succeeded, which run-claude-cli never
     // reports with a lane-class, so a credit stop writes none.
-    assert.match(step("Write the verdict", job), /^ {8}if: steps\.judge\.outcome == 'success'$/m, job);
+    assert.match(step("Write the verdict", job), /^ {8}if: steps\.judge\.outcome == 'success' && /m, job);
   }
   assert.doesNotMatch(text, /actions\/upload-artifact\/merge|gh api .*artifacts.* -X (POST|PUT)|actions\/download-artifact|actions\/cache/);
 });
@@ -185,7 +190,7 @@ test("each job judges on run-claude-cli as the pr-verify role with its one secre
       assert.equal(input(judge, key), `\${{ steps.models.outputs.${key} }}`, key);
     }
     assert.equal(input(judge, "permission-mode"), "dontAsk", job);
-    assert.equal(input(judge, "leg-timeout-minutes"), '"10"', job);
+    assert.equal(input(judge, "leg-timeout-minutes"), '"15"', job);
     assert.match(judge, /^ {8}continue-on-error: true$/m, job);
     assert.match(judge, /^ {8}timeout-minutes: 22$/m, job);
     assert.match(judge, /^ {10}CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"$/m, job);
@@ -280,17 +285,17 @@ test("the subscription job runs only on a clean handoff or an empty key, on a fi
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
-    [CARRIED, `          fallback-reason: ${FALLBACK_REASON}`],
+    [CARRIED, ...Array(4).fill(`          fallback-reason: ${FALLBACK_REASON}`)],
   );
   const key = jobText(KEY);
   const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(key)?.[1];
   assert.equal(
     outputs,
     [
-      "      lane-class: ${{ steps.judge.outputs.lane-class }}",
-      "      handoff: ${{ steps.judge.outputs.handoff }}",
+      `      lane-class: \${{ ${chainOf((id) => `steps.${id}.outputs.lane-class`, "judge")} }}`,
+      `      handoff: \${{ ${chainOf((id) => `steps.${id}.outputs.handoff == 'true'`, "judge")} }}`,
       "      credential-present: ${{ steps.credential.outputs.present }}",
-      "      key-leg-clean: ${{ steps.key-leg.outputs.clean }}",
+      `      key-leg-clean: \${{ ${chainOf((id) => `steps.${id}.outputs.clean`, "key-leg")} }}`,
       "      reads: ${{ steps.carry.outputs.reads }}",
       "",
     ].join("\n"),
@@ -300,9 +305,9 @@ test("the subscription job runs only on a clean handoff or an empty key, on a fi
   assert.equal(
     /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(job)?.[1],
     [
-      "      handoff: ${{ steps.judge.outputs.handoff }}",
-      "      handoff-reason: ${{ steps.judge.outputs.handoff-reason }}",
-      "      leg-clean: ${{ steps.sub-leg.outputs.clean }}",
+      `      handoff: \${{ ${chainOf((id) => `steps.${id}.outputs.handoff == 'true'`, "judge")} }}`,
+      `      handoff-reason: \${{ ${chainOf((id) => `steps.${id}.outputs.handoff-reason`, "judge")} }}`,
+      `      leg-clean: \${{ ${chainOf((id) => `steps.${id}.outputs.clean`, "sub-leg")} }}`,
       "",
     ].join("\n"),
   );
@@ -334,7 +339,7 @@ test("the fallback job runs only on the subscription job's clean handoff, on a f
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
-    [`          fallback-reason: ${FB_REASON}`],
+    Array(4).fill(`          fallback-reason: ${FB_REASON}`),
   );
 });
 
@@ -348,7 +353,7 @@ test("the subscription job hands the judgment on only after a clean handoff, and
   assert.match(leg, /^ {8}id: sub-leg$/m);
   assert.match(leg, /^ {8}if: steps\.judge\.outputs\.handoff == 'true'$/m);
   assert.match(leg, /^ {8}continue-on-error: true$/m);
-  assert.match(leg, /^ {10}LOG_FILE: \$\{\{ steps\.judge\.outputs\.log-file \}\}$/m);
+  assert.match(leg, /^ {12}\$\{\{ steps\.judge\.outputs\.log-file \}\}$/m);
   assert.match(leg, /write-verdict\.mjs check-key-leg\n/);
   const run = /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(leg)[1];
   assert.doesNotMatch(run, /\$\{\{/);
@@ -363,7 +368,7 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
   // run-claude-cli's handoff: a credit stop, or auth with API status 401 or
   // 402; a 403 is auth too but hands nothing off, so it fails the key job.
   assert.match(leg, /^ {8}if: steps\.judge\.outputs\.handoff == 'true'$/m);
-  assert.match(leg, /^ {10}LOG_FILE: \$\{\{ steps\.judge\.outputs\.log-file \}\}$/m);
+  assert.match(leg, /^ {12}\$\{\{ steps\.judge\.outputs\.log-file \}\}$/m);
   assert.match(leg, /^ {10}LANE_CLASS: \$\{\{ steps\.judge\.outputs\.lane-class \}\}$/m);
   assert.match(leg, /write-verdict\.mjs check-key-leg\n/);
   // It runs before the report, which reads its outcome, and its failure
@@ -401,7 +406,7 @@ test("the subscription job repeats the key job's steps but for the credential", 
       .join("\n");
   const normalize = (blocks) =>
     blocks
-      .filter((s) => s.name !== "Check the key leg" && s.name !== "Check the subscription leg" && s.name !== "Hand the reads on")
+      .filter((s) => !s.name.startsWith("Check the key leg") && !s.name.startsWith("Check the subscription leg") && s.name !== "Hand the reads on")
       .map((s) =>
         lines(s.block)
           .replace(`\n${CARRY_ENV.join("\n")}`, "")
@@ -411,12 +416,11 @@ test("the subscription job repeats the key job's steps but for the credential", 
           .replace("\n          fallback-ready: ${{ steps.credential.outputs.fallback-ready }}", "")
           .replace(/PR_VERIFY_CLAUDE_CODE_OAUTH_TOKEN/g, "PR_VERIFY_CLAUDE_API_KEY")
           .replace(/^( {10})subscription-token: /m, "$1api-key: ")
-          .replace(`if: ${KEY_REPORT_IF}`, PLAIN_REPORT_IF)
-          .replace(`if: ${SUB_REPORT_IF}`, PLAIN_REPORT_IF)
-          .replace(`known-failure-class: ${KEY_CLASS}`, "known-failure-class: ${{ steps.judge.outputs.lane-class }}")
+          .replace(/if: \(steps\.(judge(?:-\d)?)\.outcome == 'success' \|\| steps\.\1\.outcome == 'failure'\) && \(steps\.\1\.outputs\.handoff != 'true' \|\| steps\.(?:key|sub)-leg(?:-\d)?\.outcome == 'failure'\)/, "if: steps.$1.outcome == 'success' || steps.$1.outcome == 'failure'")
+          .replace(/known-failure-class: \$\{\{ steps\.(judge(?:-\d)?)\.outputs\.lane-class == 'credit-stop' && 'rate-limit' \|\| steps\.\1\.outputs\.lane-class \}\}/, "known-failure-class: ${{ steps.$1.outputs.lane-class }}")
           .replace(`\n          fallback-reason: ${FALLBACK_REASON}`, "")
-          .replace(/ && steps\.credential\.outputs\.present != 'false' && steps\.key-leg\.outcome != 'success'$/m, "")
-          .replace(/ && steps\.sub-leg\.outcome != 'success'$/m, ""),
+          .replace(/ && steps\.credential\.outputs\.present != 'false'/, "")
+          .replace(/(?: && steps\.(?:key|sub)-leg(?:-\d)?\.outcome != 'success')+$/m, ""),
       );
   assert.deepEqual(normalize(STEPS[SUB]), normalize(STEPS[KEY]));
   // The fallback job reads everything again, as the key job does; its
@@ -512,8 +516,6 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
     // The start time is taken right before the judge, so a timeout is told from other failures.
     assert.equal(input(report, "step-started-at"), "${{ steps.prompt.outputs.started-at }}", job);
     assert.ok(index("Write the prompt and schema", job) === index("Judge the pull request", job) - 1, job);
-    assert.match(step("Write the verdict", job), /^ {10}EXECUTION_FILE: \$\{\{ steps\.judge\.outputs\.execution-file \}\}$/m, job);
-    assert.match(step("Write the verdict", job), /^ {10}LOG_FILE: \$\{\{ steps\.judge\.outputs\.log-file \}\}$/m, job);
     assert.equal(STEPS[job].at(-1).name, "Fail without a verdict", job);
     assert.match(STEPS[job].at(-1).block, /exit 1/, job);
   }
@@ -528,11 +530,11 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
   // Only a hand-off spares the key job its red; an empty token fails the subscription job.
   assert.match(
     STEPS[KEY].at(-1).block,
-    /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success' && steps\.credential\.outputs\.present != 'false' && steps\.key-leg\.outcome != 'success'$/m,
+    /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success' && steps\.credential\.outputs\.present != 'false' && steps\.key-leg\.outcome != 'success' && steps\.key-leg-2\.outcome != 'success' && steps\.key-leg-3\.outcome != 'success' && steps\.key-leg-4\.outcome != 'success'$/m,
   );
   assert.match(
     STEPS[SUB].at(-1).block,
-    /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success' && steps\.sub-leg\.outcome != 'success'$/m,
+    /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success' && steps\.sub-leg\.outcome != 'success' && steps\.sub-leg-2\.outcome != 'success' && steps\.sub-leg-3\.outcome != 'success' && steps\.sub-leg-4\.outcome != 'success'$/m,
   );
   assert.match(STEPS[FB].at(-1).block, /^ {8}if: always\(\) && steps\.agree\.outcome == 'success' && steps\.verdict\.outcome != 'success'$/m);
 });
@@ -582,4 +584,113 @@ test("the resolver reads the trusted-actor list from main in both jobs", () => {
     assert.match(block, /export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS\n/, job);
     assert.match(step("Write the verdict", job), /SPEC_TEXT_FILE: \$\{\{ github\.workspace \}\}\/pr-verify-data\/spec-text\.json\n/, job);
   }
+});
+
+const SLOTS = [1, 2, 3, 4];
+const judgeId = (k) => (k === 1 ? "judge" : `judge-${k}`);
+const judgeName = (k) => (k === 1 ? "Judge the pull request" : `Judge chunk ${k}`);
+const legName = { [KEY]: "Check the key leg", [SUB]: "Check the subscription leg" };
+const legId = { [KEY]: "key-leg", [SUB]: "sub-leg" };
+const chain = (build) => SLOTS.map(build).join(" || ");
+
+test("every job has one judge step per chunk, each repeating the first but for its chunk", () => {
+  for (const job of JOBS) {
+    const first = step("Judge the pull request", job);
+    assert.equal(STEPS[job].filter((s) => /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/m.test(s.block)).length, SLOTS.length, job);
+    assert.equal(input(step("Write the diff", job), "MAX_CHUNKS"), `"${SLOTS.length}"`, job);
+    assert.equal(input(first, "prompt-file"), "${{ runner.temp }}/pr-verify-prompt-1.md", job);
+    const bare = (block) => block.split("\n").filter((line) => !line.trim().startsWith("#")).filter((line) => !/^ +(- )?(name|id|if): /.test(line)).join("\n").trim();
+    for (const k of SLOTS.slice(1)) {
+      const judge = step(judgeName(k), job);
+      assert.equal(/^ {8}id: (.*)$/m.exec(judge)[1], judgeId(k), job);
+      assert.equal(bare(judge), bare(first).replace("pr-verify-prompt-1.md", `pr-verify-prompt-${k}.md`), `${job} chunk ${k}`);
+      const previous = judgeId(k - 1);
+      assert.equal(
+        /^ {8}if: (.*)$/m.exec(judge)[1],
+        `steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= ${k} && steps.${previous}.outcome == 'success' && steps.${previous}.outputs.handoff != 'true'`,
+        `${job} chunk ${k}`,
+      );
+      const report = step(`Report chunk ${k}'s outcome`, job);
+      assert.equal(input(report, "outcome"), `\${{ steps.${judgeId(k)}.outcome }}`, job);
+      assert.equal(input(report, "step-started-at"), `\${{ steps.time-${k}.outputs.started-at }}`, job);
+      assert.equal(input(step(`Upload chunk ${k}'s sealed transcript`, job), "job-id"), `\${{ github.job }}-${k}`, job);
+    }
+    // 22 minutes a chunk and the rest of the job (pr-review-main.yml's arithmetic).
+    assert.match(jobText(job), /^ {4}timeout-minutes: 100$/m, job);
+  }
+});
+
+test("the verdict needs every chunk the diff has, and reads each chunk's files", () => {
+  for (const job of JOBS) {
+    const verdict = step("Write the verdict", job);
+    assert.equal(
+      /^ {8}if: (.*)$/m.exec(verdict)[1],
+      ["steps.judge.outcome == 'success'", ...SLOTS.slice(1).map((k) => `(fromJSON(steps.diff.outputs.chunks || '0') < ${k} || steps.${judgeId(k)}.outcome == 'success')`)].join(" && "),
+      job,
+    );
+    for (const k of SLOTS) {
+      assert.ok(verdict.includes(`            \${{ steps.${judgeId(k)}.outputs.execution-file }}\n`), `${job} execution ${k}`);
+      assert.ok(verdict.includes(`            \${{ steps.${judgeId(k)}.outputs.log-file }}\n`), `${job} log ${k}`);
+    }
+    assert.equal(input(verdict, "CHUNKS"), "${{ steps.diff.outputs.chunks }}", job);
+    assert.equal(input(verdict, "DIFF_DIR"), "${{ github.workspace }}/pr-verify-data/diff", job);
+    assert.match(step("Write the diff", job), /^ {8}id: diff$/m, job);
+    assert.match(step("Write the diff", job), /bash \.base\/\.github\/scripts\/pr-verify\/chunk-diff\.sh\n/, job);
+  }
+});
+
+test("a handoff from any chunk hands the whole judgment on, and a denial in any chunk stops it", () => {
+  for (const job of [KEY, SUB]) {
+    for (const k of SLOTS) {
+      const name = k === 1 ? legName[job] : `${legName[job]}, chunk ${k}`;
+      const leg = step(name, job);
+      assert.match(leg, new RegExp(`^ {8}id: ${legId[job]}${k === 1 ? "" : `-${k}`}$`, "m"), job);
+      assert.match(leg, new RegExp(`^ {8}if: steps\\.${judgeId(k)}\\.outputs\\.handoff == 'true'$`, "m"), job);
+      for (const earlier of SLOTS.slice(0, k)) {
+        assert.ok(leg.includes(`            \${{ steps.${judgeId(earlier)}.outputs.log-file }}\n`), `${job} chunk ${k} reads chunk ${earlier}'s log`);
+      }
+    }
+  }
+  const outputs = (job) => /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(job))[1];
+  const handoff = `      handoff: \${{ ${chain((k) => `steps.${judgeId(k)}.outputs.handoff == 'true'`)} }}\n`;
+  assert.ok(outputs(KEY).includes(handoff));
+  assert.ok(outputs(SUB).includes(handoff));
+  assert.ok(outputs(KEY).includes(`      lane-class: \${{ ${chain((k) => `steps.${judgeId(k)}.outputs.lane-class`)} }}\n`));
+  assert.ok(outputs(KEY).includes(`      key-leg-clean: \${{ ${chain((k) => `steps.key-leg${k === 1 ? "" : `-${k}`}.outputs.clean`)} }}\n`));
+  assert.ok(outputs(SUB).includes(`      handoff-reason: \${{ ${chain((k) => `steps.${judgeId(k)}.outputs.handoff-reason`)} }}\n`));
+  assert.ok(outputs(SUB).includes(`      leg-clean: \${{ ${chain((k) => `steps.sub-leg${k === 1 ? "" : `-${k}`}.outputs.clean`)} }}\n`));
+});
+
+test("the prompt step gives each chunk its own parts, and a lone chunk no note", () => {
+  const run = /^ {8}run: \|\n((?: {10}.*\n?| *\n)+)/m.exec(step("Write the prompt and schema"))[1].replace(/^ {10}/gm, "");
+  const write = (chunks, parts) => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "pr-verify-prompt-"));
+    const scripts = path.join(cwd, ".base/.github/scripts/pr-verify");
+    mkdirSync(scripts, { recursive: true });
+    for (const name of ["prompt.md", "chunk-note.md"]) cpSync(new URL(`../pr-verify/${name}`, import.meta.url), path.join(scripts, name));
+    for (const [k, count] of parts.entries()) {
+      mkdirSync(path.join(cwd, `data/diff/chunk-${k + 1}`), { recursive: true });
+      for (let n = 1; n <= count; n += 1) writeFileSync(path.join(cwd, `data/diff/chunk-${k + 1}/part-00${n}.patch`), "x\n");
+    }
+    const result = spawnSync("bash", ["-euo", "pipefail", "-c", run], {
+      cwd,
+      encoding: "utf8",
+      env: { PATH: process.env.PATH, DATA: path.join(cwd, "data"), MODEL: "opus", CHUNKS: String(chunks), PROMPT_STEM: path.join(cwd, "prompt"), SCHEMA_FILE: path.join(cwd, "schema"), GITHUB_OUTPUT: path.join(cwd, "output") },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return { cwd, prompt: (k) => readFileSync(path.join(cwd, `prompt-${k}.md`), "utf8") };
+  };
+  const { cwd, prompt } = write(2, [2, 1]);
+  assert.ok(prompt(1).includes(`  - \`${cwd}/data/diff/chunk-1/part-001.patch\`\n  - \`${cwd}/data/diff/chunk-1/part-002.patch\`\n- \`${cwd}/data/manifest.txt\`: `));
+  assert.ok(!prompt(1).includes("chunk-2/part"));
+  assert.match(prompt(1), /chunk 1 of 2/);
+  assert.match(prompt(2), /chunk 2 of 2/);
+  assert.ok(prompt(2).includes(`chunk-2/part-001.patch`));
+  const one = write(1, [1]);
+  assert.ok(!one.prompt(1).includes("manifest.txt"));
+  for (const text of [prompt(1), prompt(2), one.prompt(1)]) {
+    assert.doesNotMatch(text, /DIFF_PARTS|CHUNK_NOTE|CHUNK_INDEX|CHUNK_COUNT|MANIFEST_FILE|SPEC_FILE|PR_FILE|CONTEXT_FILE/);
+  }
+  rmSync(cwd, { recursive: true, force: true });
+  rmSync(one.cwd, { recursive: true, force: true });
 });

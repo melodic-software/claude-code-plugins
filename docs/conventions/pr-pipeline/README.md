@@ -2210,7 +2210,18 @@ requirement, and the spec trust rules below are unchanged. resolve-pr marks each
 `spec_kind` (`closes`, `refs` or `pull-request`), and the verdict records it, so the gate refuses a
 pass (`verify:spec-changed`) when the issue is now linked the other way. The model runs
 on ci-workflows' `run-claude-cli` as the `pr-verify` role ([Funding](#funding)), with the Read
-tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The run
+tool alone, allowed only on the data files in the working directory's `pr-verify-data`. The diff
+is split at file boundaries into at most 4 chunks of at most 300000 bytes, each file whole
+(`chunk-diff.sh`, `split-diff.py`; the same budget as `pr-review-main`), and each chunk gets its own
+judge step with the same spec, cut into parts one Read returns whole. A chunk counts only when it
+read every part whole and hit no permission denial. Any chunk's `fail` fails the head, with that
+chunk's notes first; a `pass-notes` makes it `pass-notes`. A chunk that fails, leaves no verdict or
+is off the schema leaves no verdict for the head, and a handoff from any chunk hands the whole
+judgment to the next leg, which judges every chunk again. A file over 300000 bytes, or a diff that
+needs more than 4 chunks (over about 1.2 MB), ends the run red with no verdict and an error naming
+the file or the chunk count, so size alone writes no `fail`. With no verdict `verdictHold` holds the
+head, the trusted approval of the head lifts that, and a `pr-verify-failed` label stays. The diff
+step logs a `pr-verify chunks` notice, and the verdict step a `pr-verify chunk` notice per chunk. The run
 uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON. Every
 reader also accepts that name followed by `-<ref-digest>`, the first 16 hex digits of the SHA-256
 of the `head_ref` the JSON records (`HEAD_REF_DIGEST_HEX` in `write-verdict.mjs`), which the

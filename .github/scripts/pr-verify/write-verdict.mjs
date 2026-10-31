@@ -1,5 +1,5 @@
-// Checks the verifier's structured output, the last result message of
-// run-claude-cli's execution file, and writes the verdict file that
+// Checks the verifier's structured output, the last result message of each
+// chunk's run-claude-cli execution file, and writes the one verdict file that
 // pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>, a FAIL's name
 // followed by `-i` and the issues it records (`artifactName`). Every reader
 // also accepts that name followed by `-<headRefDigest of the head branch>`,
@@ -7,11 +7,12 @@
 // this writer moves to it once the readers have run on main, in the change
 // that adds the digest lookups to resolve-pr, which looks up only the names
 // this writer writes. The output
-// must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
+// of each chunk must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
 // summary a string, notes an array of strings, none matching the shared
 // credential patterns (lib/publish-gate.mjs findSecret), since the verdict is
-// uploaded; a run with any permission
-// denial writes none. The file also records the head
+// uploaded; a run with any permission denial, or a chunk that left no output
+// or read a part of its diff short (pr-review-main readCoverage), writes none.
+// The file also records the head
 // branch and the linked issues with their authors, as the resolver read them
 // (number, author and last body editor login, id and type, last_edited_at;
 // each nullable but the number), which the pr-merge
@@ -22,12 +23,13 @@
 // a capture that is missing, blocked or malformed never fails the verdict.
 
 import { createHash } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { findSecret } from "../../../lib/publish-gate.mjs";
+import { readCoverage } from "../pr-review-main/write-verdict.mjs";
 
 export const VERDICTS = Object.freeze(["pass", "pass-notes", "fail"]);
 const SUMMARY_MAX = 4000;
@@ -123,16 +125,8 @@ export function buildEvidence({ capture, prBody } = {}) {
   return { ...captureEvidence(capture), local_loop: localLoop(prBody) };
 }
 
-export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [], capture, prBody }) {
-  if (
-    !NUMBER.test(String(pr)) ||
-    !SHA.test(headSha ?? "") ||
-    !SHA.test(baseSha ?? "") ||
-    !RUN_ID.test(String(runId)) ||
-    !REF.test(headRef ?? "")
-  ) {
-    throw new Error("the PR number, a SHA, the run id or the head branch is malformed");
-  }
+// One run's structured output, parsed and checked against the verdict schema.
+function parseOutput(output) {
   let parsed = output;
   if (typeof output === "string") {
     try {
@@ -157,6 +151,44 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
       throw new Error(`the structured output holds text shaped like a credential (${hit[0]})`);
     }
   }
+  return parsed;
+}
+
+// One output from each chunk's: the worst verdict, each chunk's summary, and
+// the notes, unprefixed since each starts with its path (verify-notes.mjs
+// noteComments). The worst chunks come first, so the cuts in buildVerdict
+// never drop a fail's notes for a pass-notes chunk's. A single chunk is its
+// own output.
+export function mergeChunks(outputs) {
+  if (!Array.isArray(outputs) || outputs.length === 0) {
+    throw new Error("no chunk left an output");
+  }
+  const chunks = outputs.map(parseOutput);
+  if (chunks.length === 1) {
+    return chunks[0];
+  }
+  const worst = chunks
+    .map((chunk, i) => ({ ...chunk, k: i + 1 }))
+    .sort((a, b) => VERDICTS.indexOf(b.verdict) - VERDICTS.indexOf(a.verdict) || a.k - b.k);
+  const room = Math.floor(SUMMARY_MAX / chunks.length) - 1;
+  return {
+    verdict: worst[0].verdict,
+    summary: worst.map(({ k, verdict, summary }) => `Chunk ${k} of ${chunks.length}, ${verdict}: ${summary}`.slice(0, room)).join("\n"),
+    notes: worst.flatMap((chunk) => chunk.notes),
+  };
+}
+
+export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [], capture, prBody }) {
+  if (
+    !NUMBER.test(String(pr)) ||
+    !SHA.test(headSha ?? "") ||
+    !SHA.test(baseSha ?? "") ||
+    !RUN_ID.test(String(runId)) ||
+    !REF.test(headRef ?? "")
+  ) {
+    throw new Error("the PR number, a SHA, the run id or the head branch is malformed");
+  }
+  const parsed = parseOutput(output);
   const own = Array.isArray(specText) ? specText.find((entry) => entry?.source === "pull-request") : undefined;
   const issues = checkIssues(linkedIssues);
   const refs = Array.isArray(specText) && specText.some((entry) => entry?.spec_kind === "refs");
@@ -211,22 +243,40 @@ export function earlierDenials(logText) {
   }
 }
 
-// After the key leg hands off, the subscription job judges on a new VM
-// that cannot read this leg's log, so the key job records here whether the
-// leg was free of denials; the subscription job runs only on clean=true.
-export function checkKeyLeg(env = process.env) {
-  for (const key of ["LOG_FILE", "GITHUB_OUTPUT"]) {
-    if (!env[key]) {
-      throw new Error(`${key} is not set`);
-    }
-  }
+// A newline-separated list from a workflow's env; a step that did not run
+// renders as a blank line.
+const fileList = (value) =>
+  String(value ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+// One chunk's log, checked for a denial on any of its legs.
+function checkLog(file) {
   let logText;
   try {
-    logText = readFileSync(env.LOG_FILE, "utf8");
+    logText = readFileSync(file, "utf8");
   } catch {
     throw new Error("the run log is unreadable");
   }
   earlierDenials(logText);
+}
+
+// After a leg hands off, the next job judges on a new VM that cannot read
+// this leg's logs, so this job records here whether every chunk it judged was
+// free of denials; the next job runs only on clean=true.
+export function checkKeyLeg(env = process.env) {
+  for (const key of ["LOG_FILES", "GITHUB_OUTPUT"]) {
+    if (!env[key]) {
+      throw new Error(`${key} is not set`);
+    }
+  }
+  // Every chunk listed here ran, so a blank line is a leg that left no log.
+  const logs = env.LOG_FILES.replace(/\n$/, "").split("\n");
+  if (logs.some((line) => line.trim() === "")) {
+    throw new Error("the run log is unreadable");
+  }
+  logs.forEach((line) => checkLog(line.trim()));
   appendFileSync(env.GITHUB_OUTPUT, "clean=true\n");
 }
 
@@ -305,8 +355,10 @@ export function retentionDays(verdict, mayRelink = true) {
 
 export function main(env = process.env) {
   for (const key of [
-    "EXECUTION_FILE",
-    "LOG_FILE",
+    "EXECUTION_FILES",
+    "LOG_FILES",
+    "CHUNKS",
+    "DIFF_DIR",
     "PR_NUMBER",
     "HEAD_SHA",
     "BASE_SHA",
@@ -320,20 +372,34 @@ export function main(env = process.env) {
       throw new Error(`${key} is not set`);
     }
   }
-  let messages;
-  try {
-    messages = JSON.parse(readFileSync(env.EXECUTION_FILE, "utf8"));
-  } catch {
-    throw new Error("the execution file is unreadable");
+  const executions = fileList(env.EXECUTION_FILES);
+  const logs = fileList(env.LOG_FILES);
+  const chunkDirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-[1-9]$/.test(name));
+  const count = Number(env.CHUNKS);
+  if (!/^[1-9]$/.test(env.CHUNKS) || executions.length !== count || logs.length !== count || chunkDirs.length !== count) {
+    throw new Error(`the chunk count does not match ${executions.length} run(s), ${logs.length} log(s) and ${chunkDirs.length} chunk(s) of the diff`);
   }
-  const output = structuredOutput(messages);
-  let logText;
-  try {
-    logText = readFileSync(env.LOG_FILE, "utf8");
-  } catch {
-    throw new Error("the run log is unreadable");
-  }
-  earlierDenials(logText);
+  const outputs = executions.map((file, i) => {
+    try {
+      let messages;
+      try {
+        messages = JSON.parse(readFileSync(file, "utf8"));
+      } catch {
+        throw new Error("the execution file is unreadable");
+      }
+      const dir = path.join(env.DIFF_DIR, `chunk-${i + 1}`);
+      readCoverage(
+        messages,
+        readdirSync(dir).map((name) => path.join(dir, name)),
+      );
+      const output = structuredOutput(messages);
+      checkLog(logs[i]);
+      return output;
+    } catch (error) {
+      throw new Error(`chunk ${i + 1} of ${count}: ${error.message}`);
+    }
+  });
+  const output = mergeChunks(outputs);
   let linkedIssues;
   try {
     linkedIssues = JSON.parse(readFileSync(env.SPEC_FILE, "utf8"));
@@ -385,6 +451,7 @@ export function main(env = process.env) {
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
   const name = artifactName(verdict);
   appendFileSync(env.GITHUB_OUTPUT, `name=${name}\nverdict=${verdict.verdict}\nretention-days=${retentionDays(verdict.verdict, env.RELINK_SINCE_HEAD !== "false")}\n`);
+  outputs.forEach((one, i) => console.log(`::notice title=pr-verify chunk::pr=${verdict.pr} chunk=${i + 1}/${count} verdict=${mergeChunks([one]).verdict}`));
   console.log(`write-verdict: ${name}`);
 }
 

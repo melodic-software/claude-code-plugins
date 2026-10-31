@@ -97,10 +97,9 @@ export const JUDGE = Object.freeze({
     "Agent",
     "mcp__*",
   ],
-  legTimeoutMinutes: 10,
+  legTimeoutMinutes: 15,
   stepEnv: { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1" },
   promptSubstitutions: [
-    ["DIFF_FILE", "diff.patch"],
     ["CONTEXT_FILE", "context.json"],
     ["PR_FILE", "pr.json"],
     ["SPEC_TEXT_FILE", "spec-text.json"],
@@ -153,7 +152,11 @@ export function cliArgs({ model, effort, maxTurns, settingsFile }) {
 // The prompt as the step writes it (bash $(<file) drops trailing newlines,
 // printf adds one), with lane.cjs promptText's preamble in front.
 export function promptText(source, dataDir) {
-  let prompt = source.replace(/\n+$/, "");
+  // A fixture's diff is one part of one chunk, so it has no chunk note.
+  let prompt = source
+    .replace(/\n+$/, "")
+    .replaceAll("DIFF_PARTS", () => `  - \`${dataDir}/diff.patch\``)
+    .replaceAll("CHUNK_NOTE", "");
   for (const [token, file] of JUDGE.promptSubstitutions) {
     prompt = prompt.replaceAll(token, () => `${dataDir}/${file}`);
   }

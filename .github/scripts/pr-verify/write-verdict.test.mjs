@@ -12,7 +12,7 @@
 // id, AKIA plus 16; a PEM private key header, RFC 7468) writes nothing.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
@@ -25,6 +25,7 @@ import {
   headRefDigest,
   localLoop,
   main,
+  mergeChunks,
   retentionDays,
   structuredOutput,
 } from "./write-verdict.mjs";
@@ -345,9 +346,13 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   const dir = tempDir("pr-verify-");
   const spec = path.join(dir, "spec.json");
   writeFileSync(spec, JSON.stringify([ISSUE]));
+  const part = path.join(dir, "diff", "chunk-1", "part-001.patch");
+  mkdirSync(path.dirname(part), { recursive: true });
+  writeFileSync(part, "diff --git a/x b/x\n");
   const execution = (name, output) => {
     const file = path.join(dir, `${name}.json`);
-    writeFileSync(file, JSON.stringify([{ type: "system" }, { type: "result", subtype: "success", structured_output: output }]));
+    const read = { type: "assistant", message: { content: [{ type: "tool_use", id: "t1", name: "Read", input: { file_path: part } }] } };
+    writeFileSync(file, JSON.stringify([{ type: "system" }, read, { type: "result", subtype: "success", structured_output: output }]));
     return file;
   };
   // run-claude-cli's log: one JSON object per leg, each with its denial count.
@@ -357,7 +362,9 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     return file;
   };
   const env = {
-    LOG_FILE: log("clean-log", 0),
+    LOG_FILES: log("clean-log", 0),
+    CHUNKS: "1",
+    DIFF_DIR: path.join(dir, "diff"),
     PR_NUMBER: "41",
     HEAD_SHA: HEAD,
     BASE_SHA: BASE,
@@ -367,7 +374,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     VERDICT_DIR: path.join(dir, "verdict"),
     GITHUB_OUTPUT: path.join(dir, "out"),
   };
-  main({ ...env, EXECUTION_FILE: execution("fail", { verdict: "fail", summary: "wrong", notes: [] }) });
+  main({ ...env, EXECUTION_FILES: execution("fail", { verdict: "fail", summary: "wrong", notes: [] }) });
   const written = JSON.parse(readFileSync(path.join(env.VERDICT_DIR, "verdict.json"), "utf8"));
   assert.equal(written.verdict, "fail");
   assert.equal(written.summary, "wrong");
@@ -392,7 +399,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
     ["an unparsable context file", { CONTEXT_FILE: file("bad-context.json", "{not json") }, NO_APP],
     ["another pull request's context", { CONTEXT_FILE: file("other.json", JSON.stringify({ pr: { number: 42, title: "t", body: "Evidence loop: 2/3" } })) }, NO_APP],
   ]) {
-    const run = { ...env, ...extra, VERDICT_DIR: path.join(dir, `evidence-${label}`), GITHUB_OUTPUT: path.join(dir, `out-evidence-${label}`), EXECUTION_FILE: execution("ev", JSON.parse(ok)) };
+    const run = { ...env, ...extra, VERDICT_DIR: path.join(dir, `evidence-${label}`), GITHUB_OUTPUT: path.join(dir, `out-evidence-${label}`), EXECUTION_FILES: execution("ev", JSON.parse(ok)) };
     main(run);
     assert.deepEqual(JSON.parse(readFileSync(path.join(run.VERDICT_DIR, "verdict.json"), "utf8")).evidence, evidence, label);
   }
@@ -400,22 +407,22 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   const okFile = execution("ok", JSON.parse(ok));
   const okVerdict = JSON.parse(ok).verdict;
   for (const [relink, days] of [["false", 7], ["true", 90], [undefined, 90]]) {
-    const passed = { ...env, VERDICT_DIR: path.join(dir, `verdict-ok-${relink}`), GITHUB_OUTPUT: path.join(dir, `out-ok-${relink}`), EXECUTION_FILE: okFile, RELINK_SINCE_HEAD: relink };
+    const passed = { ...env, VERDICT_DIR: path.join(dir, `verdict-ok-${relink}`), GITHUB_OUTPUT: path.join(dir, `out-ok-${relink}`), EXECUTION_FILES: okFile, RELINK_SINCE_HEAD: relink };
     main(passed);
     assert.equal(readFileSync(passed.GITHUB_OUTPUT, "utf8"), `name=pr-verify-41-${HEAD}-${okVerdict}\nverdict=${okVerdict}\nretention-days=${days}\n`, String(relink));
   }
   const unparsable = path.join(dir, "unparsable.json");
   writeFileSync(unparsable, "{not json");
   for (const [label, extra] of [
-    ["bad output", { EXECUTION_FILE: execution("bad", {}) }],
-    ["a credential in the summary", { EXECUTION_FILE: execution("key", { verdict: "pass", summary: KEY, notes: [] }) }],
-    ["missing execution file", { EXECUTION_FILE: path.join(dir, "missing.json") }],
-    ["unparsable execution file", { EXECUTION_FILE: unparsable }],
-    ["unreadable spec", { EXECUTION_FILE: okFile, SPEC_FILE: path.join(dir, "missing.json") }],
+    ["bad output", { EXECUTION_FILES: execution("bad", {}) }],
+    ["a credential in the summary", { EXECUTION_FILES: execution("key", { verdict: "pass", summary: KEY, notes: [] }) }],
+    ["missing execution file", { EXECUTION_FILES: path.join(dir, "missing.json") }],
+    ["unparsable execution file", { EXECUTION_FILES: unparsable }],
+    ["unreadable spec", { EXECUTION_FILES: okFile, SPEC_FILE: path.join(dir, "missing.json") }],
     // A log with a denial on any leg.
-    ["a denial on an earlier leg", { EXECUTION_FILE: okFile, LOG_FILE: log("denied-log", 1, 0) }],
-    ["missing log file", { EXECUTION_FILE: okFile, LOG_FILE: path.join(dir, "missing.jsonl") }],
-    ["no log file", { EXECUTION_FILE: okFile, LOG_FILE: "" }],
+    ["a denial on an earlier leg", { EXECUTION_FILES: okFile, LOG_FILES: log("denied-log", 1, 0) }],
+    ["missing log file", { EXECUTION_FILES: okFile, LOG_FILES: path.join(dir, "missing.jsonl") }],
+    ["no log file", { EXECUTION_FILES: okFile, LOG_FILES: "" }],
   ]) {
     const other = { ...env, VERDICT_DIR: path.join(dir, `none-${label}`), GITHUB_OUTPUT: path.join(dir, `out-${label}`), ...extra };
     assert.throws(() => main(other), undefined, label);
@@ -431,7 +438,7 @@ test("checkKeyLeg clears the subscription job only for a readable log with no de
     writeFileSync(target, text);
     return target;
   };
-  const clean = { LOG_FILE: file("clean.jsonl", JSON.stringify({ leg: 1, denials: { count: 0 } })), GITHUB_OUTPUT: path.join(dir, "out") };
+  const clean = { LOG_FILES: file("clean.jsonl", JSON.stringify({ leg: 1, denials: { count: 0 } })), GITHUB_OUTPUT: path.join(dir, "out") };
   checkKeyLeg(clean);
   assert.equal(readFileSync(clean.GITHUB_OUTPUT, "utf8"), "clean=true\n");
 
@@ -441,8 +448,138 @@ test("checkKeyLeg clears the subscription job only for a readable log with no de
     ["a missing log", path.join(dir, "missing.jsonl")],
     ["no log", ""],
   ]) {
-    const env = { LOG_FILE: logFile, GITHUB_OUTPUT: path.join(dir, `out-${label}`) };
+    const env = { LOG_FILES: logFile, GITHUB_OUTPUT: path.join(dir, `out-${label}`) };
     assert.throws(() => checkKeyLeg(env), undefined, label);
     assert.equal(existsSync(env.GITHUB_OUTPUT), false, label);
+  }
+});
+
+const CHUNK_PASS = { verdict: "pass", summary: "chunk fine", notes: [] };
+const CHUNK_NOTES = { verdict: "pass-notes", summary: "chunk noted", notes: ["docs/a.md: reads oddly"] };
+const CHUNK_FAIL = { verdict: "fail", summary: "chunk broken", notes: ["src/a.mjs:3: inverted check"] };
+
+test("mergeChunks passes only when every chunk does, and a fail's notes come first", () => {
+  assert.deepEqual(mergeChunks([CHUNK_NOTES]), CHUNK_NOTES);
+  const passed = mergeChunks([CHUNK_PASS, CHUNK_PASS]);
+  assert.equal(passed.verdict, "pass");
+  assert.match(passed.summary, /^Chunk 1 of 2, pass: chunk fine\nChunk 2 of 2, pass: chunk fine$/);
+  assert.equal(mergeChunks([CHUNK_PASS, CHUNK_NOTES]).verdict, "pass-notes");
+  const failed = mergeChunks([CHUNK_NOTES, CHUNK_PASS, CHUNK_FAIL]);
+  assert.equal(failed.verdict, "fail");
+  assert.deepEqual(failed.notes, [...CHUNK_FAIL.notes, ...CHUNK_NOTES.notes]);
+  assert.match(failed.summary, /^Chunk 3 of 3, fail: chunk broken\n/);
+  // Notes start with their path, which verify-notes.mjs noteComments anchors on.
+  assert.ok(failed.notes.every((note) => !note.startsWith("Chunk")));
+  // A fail's note survives buildVerdict's cuts behind a long pass-notes chunk.
+  const crowded = { ...CHUNK_NOTES, notes: Array(40).fill("docs/a.md: note") };
+  const built = buildVerdict({ ...ids, output: mergeChunks([crowded, CHUNK_FAIL]) });
+  assert.equal(built.verdict, "fail");
+  assert.equal(built.notes[0], CHUNK_FAIL.notes[0]);
+  assert.match(built.summary, /^Chunk 2 of 2, fail: chunk broken\n/);
+  assert.equal(mergeChunks(Array(4).fill({ ...CHUNK_PASS, summary: "x".repeat(5000) })).summary.length <= 4000, true);
+});
+
+test("mergeChunks refuses a chunk off the schema, so no verdict is written", () => {
+  assert.throws(() => mergeChunks([CHUNK_PASS, {}]), /schema/);
+  assert.throws(() => mergeChunks([CHUNK_PASS, { ...CHUNK_PASS, verdict: "maybe" }]), /schema/);
+  assert.throws(() => mergeChunks([]), /no chunk/);
+  // A credential past a chunk's share of the summary still voids it.
+  assert.throws(() => mergeChunks([CHUNK_PASS, { ...CHUNK_PASS, summary: `${"x".repeat(3000)} ${KEY}` }]), /credential/);
+});
+
+test("main writes one verdict from every chunk, and none when a chunk leaves none", () => {
+  const dir = tempDir("pr-verify-chunks-");
+  const spec = path.join(dir, "spec.json");
+  writeFileSync(spec, JSON.stringify([ISSUE]));
+  const diff = path.join(dir, "diff");
+  const parts = [1, 2].map((k) => {
+    mkdirSync(path.join(diff, `chunk-${k}`), { recursive: true });
+    const part = path.join(diff, `chunk-${k}`, "part-001.patch");
+    writeFileSync(part, `diff --git a/${k} b/${k}\n`);
+    return part;
+  });
+  let id = 0;
+  const execution = (read, last) => {
+    const file = path.join(dir, `execution-${(id += 1)}.json`);
+    writeFileSync(
+      file,
+      JSON.stringify([
+        { type: "assistant", message: { content: read.map((part, i) => ({ type: "tool_use", id: `t${i}`, name: "Read", input: { file_path: part } })) } },
+        ...(last === null ? [] : [{ type: "result", subtype: "success", ...last }]),
+      ]),
+    );
+    return file;
+  };
+  const log = (count) => {
+    const file = path.join(dir, `log-${(id += 1)}.jsonl`);
+    writeFileSync(file, JSON.stringify({ leg: 1, denials: { count } }));
+    return file;
+  };
+  const env = {
+    PR_NUMBER: "41",
+    HEAD_SHA: HEAD,
+    BASE_SHA: BASE,
+    HEAD_REF: "feat/x",
+    SPEC_FILE: spec,
+    GITHUB_RUN_ID: "9001",
+    CHUNKS: "2",
+    DIFF_DIR: diff,
+  };
+  const run = (label, first, second, logs = [log(0), log(0)], extra = {}) => ({
+    ...env,
+    VERDICT_DIR: path.join(dir, `verdict-${label}`),
+    GITHUB_OUTPUT: path.join(dir, `out-${label}`),
+    // Slots a run skips render as blank lines.
+    EXECUTION_FILES: `${first}\n${second}\n\n\n`,
+    LOG_FILES: `${logs.join("\n")}\n\n\n`,
+    ...extra,
+  });
+  const chunk = (k, output) => execution([parts[k]], { structured_output: output });
+  const passed = run("pass", chunk(0, CHUNK_PASS), chunk(1, CHUNK_NOTES));
+  main(passed);
+  assert.equal(JSON.parse(readFileSync(path.join(passed.VERDICT_DIR, "verdict.json"), "utf8")).verdict, "pass-notes");
+  const failed = run("fail", chunk(0, CHUNK_PASS), chunk(1, CHUNK_FAIL));
+  main(failed);
+  const verdict = JSON.parse(readFileSync(path.join(failed.VERDICT_DIR, "verdict.json"), "utf8"));
+  assert.equal(verdict.verdict, "fail");
+  assert.deepEqual(verdict.notes, CHUNK_FAIL.notes);
+  assert.match(readFileSync(failed.GITHUB_OUTPUT, "utf8"), new RegExp(`^name=pr-verify-41-${HEAD}-fail-i7\n`));
+
+  for (const [label, bad] of [
+    ["a chunk with no result", run("none", chunk(0, CHUNK_PASS), execution([parts[1]], null))],
+    ["a chunk off the schema", run("schema", chunk(0, CHUNK_PASS), chunk(1, {}))],
+    ["a chunk that skipped its part", run("skip", chunk(0, CHUNK_PASS), execution([], { structured_output: CHUNK_PASS }))],
+    ["a chunk that read another's part", run("other", chunk(0, CHUNK_PASS), execution([parts[0]], { structured_output: CHUNK_PASS }))],
+    ["a denial in a later chunk's result", run("denied", chunk(0, CHUNK_PASS), execution([parts[1]], { structured_output: CHUNK_PASS, permission_denials: [{ tool_name: "Bash" }] }))],
+    ["a denial in a later chunk's log", run("log", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), [log(0), log(1)])],
+    ["a chunk that never ran", run("count", chunk(0, CHUNK_PASS), "")],
+    ["fewer logs than chunks", run("logs", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), [log(0)])],
+    ["a count the chunk directories do not match", run("dirs", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { CHUNKS: "1" })],
+    ["a malformed count", run("bad", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { CHUNKS: "two" })],
+  ]) {
+    assert.throws(() => main(bad), undefined, label);
+    assert.equal(existsSync(path.join(bad.VERDICT_DIR, "verdict.json")), false, label);
+    assert.equal(existsSync(bad.GITHUB_OUTPUT), false, label);
+  }
+});
+
+test("checkKeyLeg reads every chunk's log, so a denial in an earlier chunk stops the handoff", () => {
+  const dir = tempDir("pr-verify-key-legs-");
+  const file = (name, count) => {
+    const target = path.join(dir, name);
+    writeFileSync(target, JSON.stringify({ leg: 1, denials: { count } }));
+    return target;
+  };
+  const clean = { LOG_FILES: `${file("a.jsonl", 0)}\n${file("b.jsonl", 0)}\n`, GITHUB_OUTPUT: path.join(dir, "out") };
+  checkKeyLeg(clean);
+  assert.equal(readFileSync(clean.GITHUB_OUTPUT, "utf8"), "clean=true\n");
+  const denied = { LOG_FILES: `${file("c.jsonl", 2)}\n${file("d.jsonl", 0)}\n`, GITHUB_OUTPUT: path.join(dir, "denied") };
+  assert.throws(() => checkKeyLeg(denied), /denial/);
+  assert.equal(existsSync(denied.GITHUB_OUTPUT), false);
+  // A leg that left no log renders a blank line, in any chunk.
+  for (const logs of ["\n", `${file("e.jsonl", 0)}\n\n`]) {
+    const blank = { LOG_FILES: logs, GITHUB_OUTPUT: path.join(dir, "blank") };
+    assert.throws(() => checkKeyLeg(blank), /unreadable/);
+    assert.equal(existsSync(blank.GITHUB_OUTPUT), false);
   }
 });
