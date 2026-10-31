@@ -522,6 +522,24 @@ if command -v jq >/dev/null 2>&1; then
   E2E_OTHER=$(e2e_lint "$FX2")
   assert_eq "end to end: acceptEdits and plan pins in project and local are not flagged" 0 "$(count_matching "$E2E_OTHER" '\[C2-defaultMode\] (project|local)')"
   assert_contains "end to end: that silence is a read plane, not an unread one" "$E2E_OTHER" "status=read"
+
+  # A session started in the home directory has the home directory as its
+  # project root, so the project path is the user file. Keys legal in user
+  # settings must not come back as project-scope findings.
+  FX3="$TEST_TMPDIR/fx3"
+  mkdir -p "$FX3/home/.claude" "$FX3/policy"
+  jq -n '{autoMode: {classifyAllShell: true}, permissions: {defaultMode: "auto"}}' >"$FX3/home/.claude/settings.json"
+  jq -n '{}' >"$FX3/policy/managed-settings.json"
+  E2E_HOME=$(env -u CLAUDE_CONFIG_DIR \
+    HOME="$FX3/home" \
+    PERMISSION_STATE_FIXTURE_DIR="$FX3/home" \
+    PERMISSION_STATE_STARTDIR="$FX3/home" \
+    PERMISSION_STATE_MANAGED_PATH="$FX3/policy/managed-settings.json" \
+    PERMISSION_STATE_REGISTRY_KEYS="" \
+    PERMISSION_STATE_PLIST_DOMAIN="" \
+    bash "$STATE_SCRIPT" | bash "$SCRIPT")
+  assert_eq "end to end: a home-directory root raises no project C2 finding" 0 "$(count_matching "$E2E_HOME" '\[C2-[A-Za-z]+\] project')"
+  assert_contains "end to end: the home-directory skip is not an unread plane" "$E2E_HOME" "status=read"
 else
   pass "end-to-end reader lint (skipped — jq not installed)"
 fi

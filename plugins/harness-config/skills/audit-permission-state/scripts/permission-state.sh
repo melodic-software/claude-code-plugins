@@ -532,8 +532,27 @@ else
   note "User scope not read: neither CLAUDE_CONFIG_DIR nor HOME is set, so ~/.claude could not be resolved."
 fi
 
-emit_json_scope project settings "$PROJECT_ROOT/.claude/settings.json"
-emit_json_scope local settings "$LOCAL_ROOT/.claude/settings.local.json"
+# A session started in the home directory, outside any repository, has the home
+# directory as its project root, so the project path IS the user file. Reading
+# it again would report one file under two scopes and run project-only checks
+# (C2) on keys that are legal in user settings. `-ef` sees through symlinks and
+# differently spelled paths but is false for a file that does not exist, so the
+# string test covers a missing one.
+same_file() { [[ "$1" -ef "$2" || "$1" == "$2" ]]; }
+
+emit_file_scope() {
+  # emit_file_scope <scope> <path>
+  local scope="$1" path="$2"
+  if [[ -n "$USER_CONFIG_ROOT" ]] && same_file "$path" "$USER_CONFIG_ROOT/settings.json"; then
+    emit "$scope" settings not-applicable "$path"
+    note "$scope scope skipped: $path is the user settings file (as when a session starts in the home directory, outside a repository), so it is reported once, as user, and no $scope-scope checks run on it."
+    return 0
+  fi
+  emit_json_scope "$scope" settings "$path"
+}
+
+emit_file_scope project "$PROJECT_ROOT/.claude/settings.json"
+emit_file_scope local "$LOCAL_ROOT/.claude/settings.local.json"
 note "local scope anchored on the $local_basis. The Agent SDK's resolveSettings() helper always reads the file from the starting directory; that is the helper's behavior, not a session property, and no documented environment variable identifies an Agent SDK or headless run, so this reader does not detect either."
 
 # Cloud sessions read a different scope set, and the user scope this reader just
