@@ -41,8 +41,9 @@ one line per check, detail lines indented under it:
                       a FAIL; in an invocation-probe case a denial of a named
                       call other than Skill is a warning when it comes after
                       the graded Skill call, or the run is a should-not-fire
-                      run that never fired; a should-fire miss with a denial
-                      takes the rules above
+                      run that held while every denial-free run of its case
+                      held; a should-fire miss with a denial takes the rules
+                      above
     skill fired       every with-arm run of a should-trigger case fired the skill;
                       in an invocation-probe case a miss is the trigger rate it
                       measures, reported per case and overall as a warning
@@ -828,17 +829,17 @@ def same_as_clean(run, found, runs, roots):
     )
 
 
-def probe_denial(run, found, root):
+def probe_denial(run, found, runs, root):
     """True when a run of an invocation-probe case was denied only named calls other
     than Skill, none of which could have steered the graded decision. The probe
     grades only whether the Skill call fired, which loads the skill without Read,
     Glob or Grep. In a run where it fired, every denial must come after that call in
     the trace; a denial with no tool_use line has no position, so it does not
     qualify. In a should-fire run that missed, a denial may have caused the miss.
-    A should-not-fire run that never fired made its decision over the whole run, so
-    order cannot be checked; it warns (judgment: otherwise no denied should-not-fire
-    run is measurable), and check_denials prints its case's denied and clean fire
-    counts. A denial naming no tool may have been the Skill call."""
+    A should-not-fire run that never fired decided over the whole run, so order
+    cannot show the denial did not cause the hold; it qualifies only when its case
+    has denial-free with-arm runs and every one of them held too. A denial naming
+    no tool may have been the Skill call."""
     if not is_probe(run.case, root) or not all(
         name is not None and name != SKILL_TOOL for _, _, name, _ in found[run]
     ):
@@ -848,7 +849,14 @@ def probe_denial(run, found, root):
         return first is not None and all(
             at.get(use_id, -1) > first for _, _, _, use_id in found[run]
         )
-    return not skill_graders(run.case, root)[0]
+    if skill_graders(run.case, root)[0]:
+        return False
+    clean = [
+        r
+        for r in runs
+        if r.case is run.case and r.arm == run.arm and r in found and not found[r]
+    ]
+    return bool(clean) and not any(graded_call_made(r, root) for r in clean)
 
 
 def probe_split(case, runs, found, root):
@@ -873,7 +881,7 @@ def check_denials(runs, roots, root):
     warned = [
         r
         for r in denied
-        if probe_denial(r, found, root) or same_as_clean(r, found, runs, roots)
+        if probe_denial(r, found, runs, root) or same_as_clean(r, found, runs, roots)
     ]
     failed = [r for r in denied if r not in warned]
     details = [line for r in denied for line, _, _, _ in found[r]]
@@ -886,10 +894,11 @@ def check_denials(runs, roots, root):
     details += [probe_split(c, runs, found, root) for c in probe_cases]
     if warned:
         summary += (
-            "; warnings (an invocation probe denied only calls other than Skill that"
-            " could not have steered its Skill decision, or a run scoring the same as"
-            " its case's denial-free runs in the same arm with no with-arm denial"
-            " inside the plugin): %s" % ", ".join(warned_cases)
+            "; warnings (an invocation probe denied only calls other than Skill, after"
+            " its graded Skill call, or holding as every denial-free run of its"
+            " should-not-fire case held; or a run scoring the same as its case's"
+            " denial-free runs in the same arm with no with-arm denial inside the"
+            " plugin): %s" % ", ".join(warned_cases)
         )
     if failed:
         reason = "%s in the traces" % plural(

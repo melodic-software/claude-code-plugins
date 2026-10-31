@@ -549,13 +549,15 @@ class RunValidityTest(unittest.TestCase):
 
     def denied_probe(
         self, before=(), after=(), fired=True, case_at=1,
-        tags="tags: [invocation-probe, train]",
+        tags="tags: [invocation-probe, train]", sibling=None,
     ):
         """One with-arm run of cases[case_at] (1: should-fire measurable-criterion,
         0: should-not-fire control-no-trigger), its prompt.md carrying tags. Its
         trace makes the denied calls in before, then the Skill call when fired, then
         those in after; each denial is aimed at the plugin's own directory. None in
-        before denies a call naming no tool, with no tool_use line."""
+        before denies a call naming no tool, with no tool_use line. sibling "held"
+        or "fired" gives every arm a second, denial-free run, the target case's
+        holding or firing, and runs with --runs 2."""
         result = self.clean()
         case = result["cases"][case_at]
         prompt = self.dir / "suite" / case["dir"] / "prompt.md"
@@ -595,13 +597,23 @@ class RunValidityTest(unittest.TestCase):
         )
         path = self.write(result)
         data = load(path)
-        run = data["cases"][case_at]["arms"]["with"][0]
-        run["tracePath"] = str(trace)
-        for grader in run["graders"]:
-            if grader["name"] in ("skill-fired", "no-skill-fired"):
-                grader["passed"] = fired == (grader["name"] == "skill-fired")
+        if sibling:
+            for c in data["cases"]:
+                for rows in c["arms"].values():
+                    rows.append(json.loads(json.dumps(rows[0])))
+
+        def set_fired(row, value):
+            for grader in row["graders"]:
+                if grader["name"] in ("skill-fired", "no-skill-fired"):
+                    grader["passed"] = value == (grader["name"] == "skill-fired")
+
+        rows = data["cases"][case_at]["arms"]["with"]
+        rows[0]["tracePath"] = str(trace)
+        set_fired(rows[0], fired)
+        if sibling:
+            set_fired(rows[1], sibling == "fired")
         path.write_text(json.dumps(data), encoding="utf-8")
-        return self.run_script(path, "--runs", "1")
+        return self.run_script(path, "--runs", "2" if sibling else "1")
 
     def assertDenials(self, proc, verdict):
         if verdict == "WARN":
@@ -626,9 +638,20 @@ class RunValidityTest(unittest.TestCase):
     def test_a_should_fire_probe_that_missed_after_a_denied_search_is_invalid(self):
         self.assertDenials(self.denied_probe(before=("Glob",), fired=False), "FAIL")
 
-    def test_a_should_not_fire_probe_that_held_after_a_denied_search_is_a_warning(self):
-        proc = self.denied_probe(before=("Glob",), fired=False, case_at=0)
+    def test_a_denied_hold_whose_clean_runs_held_is_a_warning(self):
+        proc = self.denied_probe(
+            before=("Glob",), fired=False, case_at=0, sibling="held"
+        )
         self.assertDenials(proc, "WARN")
+
+    def test_a_denied_hold_whose_clean_run_fired_is_invalid(self):
+        proc = self.denied_probe(
+            before=("Glob",), fired=False, case_at=0, sibling="fired"
+        )
+        self.assertDenials(proc, "FAIL")
+
+    def test_a_denied_hold_with_no_clean_run_is_invalid(self):
+        self.assertDenials(self.denied_probe(before=("Glob",), fired=False, case_at=0), "FAIL")
 
     def test_a_probe_denied_its_skill_call_is_invalid(self):
         self.assertDenials(self.denied_probe(after=("Skill",)), "FAIL")
