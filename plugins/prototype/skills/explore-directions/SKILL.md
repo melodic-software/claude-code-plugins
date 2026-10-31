@@ -163,7 +163,7 @@ page with synthetic data and an in-page switcher. Assemble one per task:
 
 Constraints:
 
-- **Synthetic data only.** A throwaway prototype binds synthetic data, never real or captured values.
+- **Synthetic data only.** A throwaway prototype binds synthetic data, never real or captured values. Invent every name and record; none is carried over from the app's pages or fixtures, even as a seed for a synthetic row.
 - **Same data across variants.** All variants bind one identical data set; the data is the
   control variable, so the only thing that differs between variants is the design. On the real
   stack, sub-shape A's shared fetching above the switcher already enforces this; on the mockup
@@ -267,8 +267,8 @@ styling system, from its colors, radii, spacing, fonts, easing and duration toke
 existing components worth reusing. The product's personality (a playful consumer app or a crisp
 dashboard) bounds how far the boldest variant may go. If the piece already exists, its current
 implementation is variant A, unchanged, so every other variant is measured against something real
-instead of against a memory. Then load the skills the brief needs, per
-[reference/mockup-setup.md](reference/mockup-setup.md), before step 2 writes any variant code.
+instead of against a memory. On the mockup, variant A keeps that structure and styling but binds the same synthetic data as the other variants, never the app's records.
+Then load the skills the brief needs, per [reference/mockup-setup.md](reference/mockup-setup.md), before step 2 writes any variant code.
 
 **Optional reference pass.** Two to four candidate directions, each described by its layout and
 density, plus color and type only when no app exists or a redesign was asked, can seed step 2 in
@@ -308,12 +308,12 @@ table".
 
 Every variant fully works: real interactions, real motion, real states. No dead buttons, no lorem
 ipsum, no "imagine this part". Then fill it with the content that breaks it: the longest name a
-real user has, the two-line title, forty rows, the empty state. Pretty placeholder content makes
-every variant look fine and hides the decision. On the mockup the worst case is a second
-synthetic content set the switcher's worst-content toggle flips to, the one set allowed beside
-the ordinary one and defined once like it; states still derive from whichever set is shown, so
-the empty state is that set filtered to nothing, never a third set. On the real stack, drive the
-real page to it ([reference/switcher.md](reference/switcher.md#worst-content)).
+real user has, the two-line title, forty rows, the empty state. On the mockup, write synthetic
+values shaped like those, never a real user's record. Pretty placeholder content makes every
+variant look fine and hides the decision. On the mockup the worst case is a second synthetic
+content set the switcher's worst-content toggle flips to, the one set allowed beside the ordinary
+one and defined once like it; states still derive from whichever set is shown, so the empty state
+is that set filtered to nothing, never a third set. On the real stack, drive the real page to it ([reference/switcher.md](reference/switcher.md#worst-content)).
 
 On the real stack, when `/user-interface:write-css` is installed, use it to write each variant's CSS, since it applies the project's design system and conventions first; without it, write the CSS here. On the HTML mockup, write the CSS here: for an existing app, inline the app's own CSS and match it in whatever a variant's structure adds; with no app, or a redesign asked, write it from each variant's declared direction.
 
