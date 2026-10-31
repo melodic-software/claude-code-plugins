@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh\" --profile generic --public-only --out \"$(mktemp -d)\" https://agent-notes.example/posts/retry-loops",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -sL https://agent-notes.example/posts/retry-loops",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh\" --profile generic --out /tmp/x https://agent-notes.example/posts/retry-loops",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

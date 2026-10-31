@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/notes.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/upstream/acme-agent-skills-skills.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "docs/upstream/acme-agent-skills.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

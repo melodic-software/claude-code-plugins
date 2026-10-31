@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "Resolved the work root:\n\n```bash\nnode \"/plugin/scripts/work-root.mjs\" --library-dir 'my-library'\n# /ws/my-library\n```\n\n```bash\nnode \"/plugin/skills/video-digest/extraction/run.mjs\" --data-dir \"/data\" --work-root \"/ws/my-library\" transcript/run-transcript.js \"https://www.youtube.com/watch?v=7zZy1QTvokM\"\n```\n\nTranscript: `/ws/my-library/.work/youtube-watch/<video-slug>/transcript.txt`."
+    },
+    {
+      "answer": "```bash\nnode \"/plugin/skills/video-digest/extraction/run.mjs\" --data-dir \"/data\" --work-root \"${CLAUDE_PROJECT_DIR}/my-library\" transcript/run-transcript.js \"https://www.youtube.com/watch?v=7zZy1QTvokM\"\n```\n\nIt lands at `${CLAUDE_PROJECT_DIR}/my-library/.work/youtube-watch/<video-slug>/transcript.txt`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "node run.mjs --data-dir /data transcript/run-transcript.js URL"
+    },
+    {
+      "answer": "node run.mjs --data-dir /data --work-root \"my-library\" transcript/run-transcript.js URL"
+    },
+    {
+      "answer": "node run.mjs --data-dir /data transcript/run-transcript.js --work-root /ws/my-library URL"
+    },
+    {
+      "answer": "node run.mjs --work-root /ws/my-library --data-dir /data transcript/run-transcript.js URL"
+    }
+  ]
+}

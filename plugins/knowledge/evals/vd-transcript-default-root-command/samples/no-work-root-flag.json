@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```bash\nnode \"/plugin/skills/video-digest/extraction/run.mjs\" --data-dir \"/data\" transcript/run-transcript.js \"https://www.youtube.com/watch?v=7zZy1QTvokM\"\n```\n\nThe transcript would land at `.work/youtube-watch/<video-slug>/transcript.txt`, for example `.work/youtube-watch/ai-coding-tips-7zZy1QTvokM/transcript.txt`, at the checkout root. No `--work-root`: library_dir is the default."
+    },
+    {
+      "answer": "node run.mjs --data-dir /data transcript/run-transcript.js \"https://www.youtube.com/watch?v=7zZy1QTvokM\"\n\nThe default needs no --work-root flag."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```bash\nnode \"/plugin/skills/video-digest/extraction/run.mjs\" --data-dir \"/data\" --work-root \"/ws\" transcript/run-transcript.js \"https://www.youtube.com/watch?v=7zZy1QTvokM\"\n```"
+    },
+    {
+      "answer": "node run.mjs --data-dir /data --work-root '.' transcript/run-transcript.js URL"
+    }
+  ]
+}

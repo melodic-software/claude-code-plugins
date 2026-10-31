@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "```bash\nnode \"/plugin/skills/video-digest/extraction/run.mjs\" --data-dir \"/data\" transcript/run-transcript.js \"https://www.youtube.com/watch?v=7zZy1QTvokM\"\n```\n\nThe transcript would land at `.work/youtube-watch/<video-slug>/transcript.txt`, for example `.work/youtube-watch/ai-coding-tips-7zZy1QTvokM/transcript.txt`, at the checkout root. No `--work-root`: library_dir is the default."
+    },
+    {
+      "answer": "It lands at /ws/.work/youtube-watch/<video-slug>/transcript.txt."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "It lands at transcript.txt in the current directory."
+    },
+    {
+      "answer": "It lands at .work/<video-slug>/transcript.txt."
+    },
+    {
+      "answer": "It lands at .work/youtube-watch/transcript.txt."
+    }
+  ]
+}

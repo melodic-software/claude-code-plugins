@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "courses/dometrain/tdd-csharp-ferreira/course.json"}}]},
+    {"answer": []}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Write", "input": {"file_path": "courses/teachable/event-driven-dotnet-quill/analysis/course-summary.md", "content": "# Summary"}}]}
+  ]
+}

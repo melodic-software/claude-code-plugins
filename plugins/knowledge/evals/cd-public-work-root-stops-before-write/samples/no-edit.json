@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": []}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/eval/cwd/.work/mcp-getting-started/course-digest-checklist.md", "old_string": "- [ ]", "new_string": "- [x]"}}]}
+  ]
+}
