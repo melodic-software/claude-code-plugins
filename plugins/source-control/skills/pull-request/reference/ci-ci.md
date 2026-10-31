@@ -101,10 +101,10 @@ file in the checkout, never from a log line. Then:
    holds. It rewrites only the digest literals and records the reason beside each.
 3. Rerun the check. It is fixed only when it passes.
 
-A pin over text your own fix changed is not this case, and neither is a failing assertion in the
-same test that is not a digest mismatch, such as a guarded phrase that is gone. When the defense
-no longer holds, or a needed pin has no such script, undo any re-pin and escalate
-`weaken-required`.
+Escalate `weaken-required` instead, undoing any re-pin and any edit you made to guarded text, when
+your fix would change text a pin guards, when the same test also fails on something other than a
+digest mismatch (such as a guarded phrase that is gone), when the defense no longer holds, or when
+the test file names no re-pin script.
 
 ## A fresh round after a refused weakening
 
