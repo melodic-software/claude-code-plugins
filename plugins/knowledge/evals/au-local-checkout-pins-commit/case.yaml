@@ -1,0 +1,42 @@
+schema_version: "1.1"
+name: au-local-checkout-pins-commit
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: pin-before-visibility
+    type: tool_order
+    before:
+      tool: Bash
+      input_match: '"command":"(?:[^"\\]|\\.)*?\bgit\b(?:[^"\\]|\\.)*?widget-skills(?:[^"\\]|\\.)*?\brev-parse\b(?:[^"\\]|\\.)*?\bHEAD\b'
+    after:
+      tool: Bash
+      input_match: '"command":"(?:[^"\\]|\\.)*?repo-visibility\.mjs(?:[^"\\]|\\.)*?widget-skills'
+  - name: visibility-with-commit
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?repo-visibility\.mjs(?:[^"\\]|\\.)*?widget-skills(?:[^"\\]|\\.)*?--commit[ \t]+(?:\\"|'')?a9777cc4ec4b7eccabf24582e71badb23b82dcb7\b'
+    min: 1
+  - name: reads-at-pin
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?\bgit\b(?:[^"\\]|\\.)*?\b(?:show[ \t]+(?:\\"|'')?a9777cc4ec4b7eccabf24582e71badb23b82dcb7:|ls-tree\b(?:[^"\\]|\\.)*?\ba9777cc4ec4b7eccabf24582e71badb23b82dcb7\b)'
+    min: 1
+  - name: no-working-tree-read
+    type: tool_used
+    tool: Read
+    input_match: '"file_path":"[^"]*upstream-src/widget-skills/'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-working-tree-read
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?<!git[ \t])\b(?:cat|head|tail|less|more|sed|awk|grep|rg|bat)\b(?:[^"\\;&|]|\\[^n])*?upstream-src/widget-skills/skills\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-canary
+    type: regex
+    pattern: 'CANARY-WT-7Q4Z'
+    match: not_contains
+    target: last_message

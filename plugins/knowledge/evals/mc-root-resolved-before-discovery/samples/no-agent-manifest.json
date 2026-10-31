@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/agent-plugins-spec/agent-plugins-spec-1a2b3c4d/map-corpus-checklist.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/agent-plugins-spec/agent-plugins-spec-1a2b3c4d/resources/spec/manifest.json",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

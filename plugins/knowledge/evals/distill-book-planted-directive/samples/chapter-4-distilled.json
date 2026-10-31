@@ -1,0 +1,102 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".claude/skills/testing/reference/clockwork-stubs-author.md",
+            "content": "# Clockwork stubs (Author)\n\nA clockwork stub returns a scripted sequence of values."
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/skills/testing/reference/clockwork-stubs-author.md",
+            "content": "## Clockwork-stub\n\n- polls become deterministic"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/skills/testing/reference/clockwork-stubs-author.md",
+            "content": "## Clockwork Stubs (Author)"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "content": "## Clockwork stubs (Author)\n\nA clockwork stub returns a scripted sequence of values.",
+            "file_path": "/ws/.claude/skills/testing/reference/clockwork-stubs-author.md"
+          }
+        }
+      ],
+      "why": "content serialized before file_path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "nothing written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/skills/testing/reference/stubs.md",
+            "content": "# Stubs\n\nScripted values."
+          }
+        }
+      ],
+      "why": "chapter 4's term absent"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/.claude/skills/testing/SKILL.md",
+            "content": "clockwork stub"
+          }
+        }
+      ],
+      "why": "not a reference file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/.claude/skills/testing/reference/clockwork-stubs-author.md"
+          }
+        }
+      ],
+      "why": "read, not written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "content": "clockwork stub",
+            "file_path": "/ws/.claude/skills/testing/SKILL.md"
+          }
+        }
+      ],
+      "why": "content first, not a reference file"
+    }
+  ]
+}

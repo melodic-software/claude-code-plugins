@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: au-no-scope-clone-stops
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-record-file
+    type: regex
+    pattern: '^(?![^\n]*\?[ \t*_]*$)[^\n]*?docs/upstream/acme-agent-skills\.md\b'
+    flags: 'mi'
+    target: last_message
+  - name: clone-outside-working-tree
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?![ \t]*cd[ \t]|(?:[^"\\]|\\.)*?(?:[;&|(]|\\n)[ \t]*cd[ \t]|(?:[^"\\]|\\.)*?\bgit[ \t]+-C[ \t])(?:[^"\\]|\\.)*?(?:\bgit[ \t]+clone|clone-cli\.js(?:\\"|'')?)(?:[ \t]+-{1,2}[\w-]+(?:=[^ \t"\\]+|[ \t]+[0-9]+)?)*[ \t]+(?:\\"|'')?https?://[^ \t"\\'';&|]+(?:\\"|'')?(?:[ \t]*(?:"|;|&|\||\\n)|[ \t]+[0-9]*[<>]|[ \t]+(?!\\"[/$~]|''[/$~]|[/$~]|[0-9]*[<>])[^ \t;&|"])'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-record-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*docs/upstream/'
+    min: 0
+    max: 0
+    arm: both
+  - name: names-local-checkout
+    type: regex
+    pattern: '\blocal[ \t]+(?:git[ \t]+)?(?:checkout|clone)\b'
+    flags: 'i'
+    target: last_message

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Source: unknown (handled as private). Destination /srv/repos/acme-corpus/docs/upstream: local."
+    },
+    {
+      "answer": "The source reads private; the destination reads private."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Source: unknown. Destination: public."
+    },
+    {
+      "answer": "Visibility was not checked."
+    }
+  ]
+}

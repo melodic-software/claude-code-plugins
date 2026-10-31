@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: au-traversal-out-dropped
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: names-invalid-out
+    type: regex
+    pattern: '^(?![^\n]*\?[ \t*_]*$)[^\n]*?(?:\.\./elsewhere\b[^\n]{0,160}?(?<!\bnot )(?<!n[’'']t )(?<!\bnot be )\b(?:invalid|rejected|dropped|refused|ignored|not allowed|not valid|traversal|\.\.[ \t]+segment)\b|(?<!\bnot )\b(?:invalid|rejected|dropped|refused|ignored)\b[^\n]{0,160}?\.\./elsewhere\b)'
+    flags: 'mi'
+    target: last_message
+  - name: reports-default-dir
+    type: regex
+    pattern: '^(?![^\n]*\?[ \t*_]*$)[^\n]*?(?:docs/upstream\b[^\n]{0,120}?(?<!\bnot )(?<!\bnot the )\bdefault\b|(?<!\bnot )(?<!\bnot the )\bdefault\b[^\n]{0,120}?docs/upstream\b)'
+    flags: 'mi'
+    target: last_message
+  - name: no-write-elsewhere
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*elsewhere'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write-elsewhere
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?\belsewhere\b)(?=(?:[^"\\]|\\.)*?(?:(?:\b|(?<=\\n))(?:rm|rmdir|mv|cp|tee|touch|mkdir|install|ln|truncate)\b|(?:\b|(?<=\\n))(?:sed|perl)\b(?:[^"\\;&|]|\\[^n])*?[ \t]-[a-zA-Z]*i|(?:\b|(?<=\\n))python3?(?:[ \t]+-[a-zA-Z]+)*?[ \t]+-c\b|>(?!>?[ \t]*(?:&|/dev/null))))'
+    min: 0
+    max: 0
+    arm: both

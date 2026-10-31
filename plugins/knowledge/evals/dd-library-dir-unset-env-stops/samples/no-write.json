@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugin/skills/docpage-digest/templates/checklist.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": ".work/docs-example-com-api-overview-138253a9/docpage-digest-checklist.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

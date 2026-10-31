@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The page is unread (reason: fetch-failed), so it supports no claim and I wrote no record."
+    },
+    {
+      "answer": "The page could not be fetched: its host does not resolve."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Wrote docs/upstream/agent-notes-example-posts-retry-loops.md with 4 rows."
+    },
+    {
+      "answer": "Could the page not be read?"
+    }
+  ]
+}

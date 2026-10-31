@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Record file: docs/upstream/acme-agent-skills.md (not written: the clone failed)."
+    },
+    {
+      "answer": "The record would be `docs/upstream/acme-agent-skills.md`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Record file: docs/upstream/acme-agent-skills-skills.md"
+    },
+    {
+      "answer": "Should I write docs/upstream/acme-agent-skills.md?"
+    },
+    {
+      "answer": "Record file: docs/upstream/acme-agent-skills-root.md"
+    }
+  ]
+}

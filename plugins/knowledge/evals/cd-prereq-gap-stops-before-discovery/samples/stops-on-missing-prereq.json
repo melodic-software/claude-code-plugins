@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Prerequisite check failed: the course-extraction deps are MISSING and setup-deps.mjs could not reach the npm registry. Stopping before Phase 1. Run setup-deps.mjs with network access, then rerun the digest."},
+    {"answer": "Stopped: ffmpeg and ImageMagick 7 are not installed. Install them (sudo apt install ffmpeg imagemagick) and run /knowledge:course-digest again; course discovery has not started."}
+  ],
+  "fail": [
+    {"answer": "Discovered 6 modules and 41 lessons. Which modules should I process, or all?", "why": "claims discovery ran"},
+    {"answer": "Deps are missing, but I went ahead and opened the course page to discover its structure.", "why": "carries on past the failed prerequisite"}
+  ]
+}

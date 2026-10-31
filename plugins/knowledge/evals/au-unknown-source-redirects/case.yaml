@@ -1,0 +1,38 @@
+schema_version: "1.1"
+name: au-unknown-source-redirects
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: runs-visibility-check
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?repo-visibility\.mjs'
+    min: 1
+  - name: unknown-handled-as-private
+    type: regex
+    pattern: '^(?=[\s\S]*?\bunknown\b)(?=[\s\S]*?(?<!\bnot )\b(?:handled|treated|counts?|regarded)[ \t]+as[ \t]+(?:if[ \t]+(?:it[ \t]+(?:were|was)[ \t]+)?)?private\b)'
+    flags: 'i'
+    target: last_message
+  - name: names-absolute-out-rerun
+    type: regex
+    pattern: '--out[ \t]+[''"`]?(?:/|<)[^\n`''"]*?docs/upstream\b'
+    target: last_message
+  - name: absolute-source-in-rerun
+    type: regex
+    pattern: '(?:^|[\s`''"(=])/[^\s`''"]*/upstream-src/acme-internal-skills\b'
+    flags: 'm'
+    target: last_message
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write-docs
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?\bdocs/)(?=(?:[^"\\]|\\.)*?(?:(?:\b|(?<=\\n))(?:rm|rmdir|mv|cp|tee|touch|mkdir|install|ln|truncate)\b|(?:\b|(?<=\\n))(?:sed|perl)\b(?:[^"\\;&|]|\\[^n])*?[ \t]-[a-zA-Z]*i|(?:\b|(?<=\\n))python3?(?:[ \t]+-[a-zA-Z]+)*?[ \t]+-c\b|>(?!>?[ \t]*(?:&|/dev/null))))'
+    min: 0
+    max: 0
+    arm: both
