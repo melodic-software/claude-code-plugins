@@ -1,0 +1,122 @@
+{
+  "skill": "visualization:present",
+  "plugin": "visualization",
+  "skill_dir": "plugins/visualization/skills/present",
+  "ranking_note": "Authored blind from the before descriptions at commit c181a0a1ed5e77a441700aabd8881d2c9cadd6cf, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. The competitor is the other model-invoked visualization skill.",
+  "competitors": [
+    "visualization:visualize"
+  ],
+  "competitor_dirs": {
+    "visualization:visualize": "plugins/visualization/skills/visualize"
+  },
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Can you build me a slide deck out of the meeting notes in docs/standup-2026-10-20.md? I want something I can walk the team through on Friday."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I need slides for the v3.2 release. Summarize the changelog, call out the breaking changes, and keep it to about 8-10 slides."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our caching-layer design doc is in docs/rfc-042.md and I'm presenting it at arch review on Thursday. Put together a deck from it."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make this a deck."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I'm giving a 20-minute KubeCon talk on our migration to eBPF networking. My abstract and rough notes are below. Can you draft the slides?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Build the Q3 quarterly review presentation from the metrics summary and OKR doc I pasted above."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Can you take the postmortem writeup and make something I can screen-share as slides at the incident review?"
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "We're onboarding new hires next week. Build a short presentation that walks through our repo architecture, based on ARCHITECTURE.md."
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Got a five-minute lightning talk tomorrow about how we hunted down our flaky tests. Slides?"
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Convert the roadmap section of the README into a pitch deck for the leadership sync."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Draw a sequence diagram of the OAuth login flow in auth/handler.go."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Explain what PR #482 changes and why, so reviewers can follow the diff."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Write me a 1,500-word blog post about our Postgres 17 upgrade. Prose only, no slides needed."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "The fonts on slide 4 of my exported .pptx are wrong. How do I fix the theme fonts in PowerPoint?"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make a bar chart of build times per package from bench/results.csv."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write the script I'll read aloud for my meetup talk on Rust async. No deck, just what I'll say."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Walk me through the changes in this branch's pull request so I can explain them to my reviewer."
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Open deck.pptx and edit the speaker-notes XML by hand to fix a typo on slide 7."
+    }
+  ]
+}
