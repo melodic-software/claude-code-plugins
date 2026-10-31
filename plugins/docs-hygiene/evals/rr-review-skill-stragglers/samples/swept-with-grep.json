@@ -1,0 +1,119 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "\\B/review([^\\w-]|$)"
+          }
+        },
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "\\{[^}]*\\breview\\b[^}]*\\}"
+          }
+        },
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "\\|\\s*\\d+\\.\\s*review\\b"
+          }
+        },
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "skills/review/"
+          }
+        }
+      ],
+      "why": "four pattern sweeps"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "README.md"
+          }
+        },
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "review"
+          }
+        },
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "/review"
+          }
+        },
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "→\\s*review"
+          }
+        }
+      ],
+      "why": "three sweeps after a read"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "/review"
+          }
+        }
+      ],
+      "why": "single token-only grep"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "/review"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "README.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "CHANGELOG.md"
+          }
+        }
+      ],
+      "why": "one grep then reads"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "TODO"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "README.md"
+          }
+        }
+      ],
+      "why": "unrelated search below the minimum"
+    }
+  ]
+}

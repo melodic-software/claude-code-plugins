@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {"answer": "| docs/releasing.md | 8 | `.claude/skills/release-notes/SKILL.md#version-bump-rules` | A |", "why": "full anchor cite"},
+    {"answer": "Step 3 links the `#version-bump-rules` heading inside the skill body, which is private.", "why": "anchor only"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "docs/releasing.md cites reference/changelog-format.md; that is the only violation.", "why": "missed the anchor"},
+    {"answer": "docs/tooling.md names .claude/skills/release-notes/SKILL.md, which is the legal entry point.", "why": "bare SKILL.md only"},
+    {"answer": "Bump the major version for breaking changes.", "why": "answers a different question"}
+  ]
+}
