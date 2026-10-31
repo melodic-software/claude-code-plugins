@@ -1238,7 +1238,11 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertIn("second", text)
 
     def test_a_failed_stamp_write_leaves_the_ledger_whole(self):
-        import stamp_plugin_usage
+        spec = importlib.util.spec_from_file_location(
+            "stamp_plugin_usage", Path(__file__).with_name("stamp_plugin_usage.py")
+        )
+        stamp_plugin_usage = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(stamp_plugin_usage)
 
         with tempfile.TemporaryDirectory() as d:
             ledger = Path(d) / "x-running-retro-t.md"
