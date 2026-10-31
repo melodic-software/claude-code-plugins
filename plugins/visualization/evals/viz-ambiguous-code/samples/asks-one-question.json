@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "This code could be shown a few ways, and none clearly wins. Which do you want?\n\n1. **Call tree** (recommended): `PostalCarrier.quote` → `RateTable.services_for` and `RateTable.price`.\n2. **Types and signatures**: the classes and method signatures only.\n3. **File tree**: the three modules and what each one holds.\n\nReply with a number and I'll render it."
+    },
+    {
+      "answer": "Before I draw anything: which view fits what you need?\n\n- (Recommended) A call tree from `PostalCarrier.quote` down into `RateTable`.\n- A shallow file tree of where each piece would live.\n- Types and signatures for `Parcel`, `RateTable` and `Carrier`.\n\nI'll render once you pick one."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here's the call tree:\n\n```\nPostalCarrier.quote(parcel)\n├── RateTable.services_for(parcel.dest_country)\n└── RateTable.price(parcel, service)\n```"
+    },
+    {
+      "answer": "Rendering the recommended form: a call tree.\n\n```\nPostalCarrier.quote\n└── RateTable.price\n```"
+    }
+  ]
+}
