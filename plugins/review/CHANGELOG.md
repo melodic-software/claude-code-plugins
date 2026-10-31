@@ -3,6 +3,17 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.4] - 2026-10-31
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
+- The `security-review-kill-switch-fail-open` eval case now requires the fail-open finding at
+  IMPORTANT with `critical-findings: 0`, the kill-switch cap `/review:security-review` states, not
+  CRITICAL.
+
 ## [2.0.3] - 2026-10-31
 
 ### Changed

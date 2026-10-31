@@ -1763,8 +1763,9 @@ the body must still close, or with no closing issue name by a plain `Refs:` line
 pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `linkHold`), so a body
 edited after arming to drop its link or name another issue does not merge on that pass. The
 15-minute schedule arms a pull request the issue lane opened, so it waits up to one scheduled
-interval, and arms or disarms what the events missed; a listed human's edit, unlabel or ready
-wakes it too, so adding a `Hold:` line disarms at once. The issue lane finishing does not wake it:
+interval, and arms or disarms what the events missed; a listed human's unlabel wakes it too. A
+`Hold:` line added after arming fails `ci-status` on that edit, on the pull request and in the
+merge queue, and the next scheduled run disarms. The issue lane finishing does not wake it:
 an event run never arms, and a pull request the lane just opened is not armed, so there is nothing
 to disarm. The token broker mints `merge` only for `pr-merge.yml`, and outside the schedule only
 for a listed human's run. While `merge.report-only` is true it reports each decision and writes
@@ -2082,11 +2083,12 @@ The class is `babysit_dependabot.py` beside the wrapper. Auto-merge armed with `
 entry such an arm makes never gets its `ci-status` run and never lands (#6717, #7512).
 
 `.github/workflows/pr-merge.yml` runs the lane's `merge-pr` activity with no model and no head
-checkout. A label, body or ready change on a PR, a manual dispatch and a schedule every 15 minutes
-each only wake it; it lists the candidates from the API and runs the gate on each under the lanes
-App token the broker mints for that file on `main`. A finished `ci-status` or review run is picked
-up by the next scheduled run, not by a wake-up of its own: runs are serialized, and the triggers
-must start them more slowly than they finish to stay under GitHub's cap on queued runs.
+checkout. A label coming off a PR, a manual dispatch and a schedule every 15 minutes each only
+wake it; it lists the candidates from the API and runs the gate on each under the lanes App token
+the broker mints for that file on `main`. A body or ready change on a PR, or a finished `ci-status`
+or review run, is picked up by the next scheduled run, not by a wake-up of its own: runs are
+serialized, and the triggers must start them more slowly than they finish to stay under GitHub's
+cap on queued runs.
 
 After the gate, a `gate-check` job of its own writes each candidate's verdict on its head as one
 `pr-merge / gate` check run with its `GITHUB_TOKEN`, from the gate's rows the merge job hands it as
@@ -2833,7 +2835,7 @@ findings listed by key. Its scripts and tests are in
 | Signal | Fires when | Key |
 |---|---|---|
 | 1 main red | the newest dispatched or scheduled `pr-require-checks` run on `main` failed, read from each failed job's failure-level annotations; the flake class is named only from GitHub's own runner messages (a timeout, a lost runner) | `main-red:<job>` |
-| 2 ceiling | a reading in the window is over 90%: the lanes App and `GITHUB_TOKEN` REST quotas from pr-merge's `api-budget` notices plus the lane's own `GET /rate_limit`, and this repository's in-progress Actions jobs against 60 | `ceiling:lanes-app-rest`, `ceiling:github-token`, `ceiling:actions-jobs` |
+| 2 ceiling | a reading in the window is over 90%: the lanes App and `GITHUB_TOKEN` REST quotas from pr-merge's `api-budget` notices, the lanes App quota from `request-lane-token`'s `mint lanes-app` notice in lane runs (when the broker returns `rate_limit`), plus the lane's own `GET /rate_limit`, and this repository's in-progress Actions jobs against 60 | `ceiling:lanes-app-rest`, `ceiling:github-token`, `ceiling:actions-jobs` |
 | 3 throttling | a failure annotation in a failed lane run (not a `pr-require-checks` or `pr-test-windows` suite run) names a rate limit, a 429 or `github-rate-limited`, or a reading shows 0 remaining; or the broker refused a lane token (any status except `workflow-modified`, which pr-merge re-fires) or was unreachable | `throttle:rate-limited`, `broker-deny:<status>-<reason>` |
 | 4 merge-queue ejections | more than 2 merge groups failed in the last 24 hours, each listed with its PR and failing steps | `merge-queue-ejections` |
 | 5 held PRs | pr-merge's newest `pr-merge-summary` lists PRs blocked and untouched for over 24 hours, batched | `held-over-24h` |
@@ -2972,6 +2974,17 @@ body version (marker `<!-- intake-triage size-split-decline reason=<code> -->`):
 (a listed human did not file it), `few-lines` (fewer than 2 trusted lines even with the
 refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target), or
 `no-type` (an Issue Type admission does not take).
+
+work-unblock closes a split parent as completed only when every sub-issue closed with
+`state_reason` `completed` by a listed human or a merge and the parent's done-when is covered
+(`admit.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
+for what the parent blocks. A sub-issue closed as not planned, as a duplicate or with no reason
+leaves the parent open. A split record covers the done-when when its parts number every item and
+match the filed sub-issues; a split by hand when its body has a task list whose open items each
+cite a sub-issue. An open task item in a listed human's comment on the parent stays the parent's
+work, unless a split record took it because the comment was last written before the record. A
+parent left open goes through admission's rules like any issue, and a Size Large one is refused
+with `SIZE_SPLIT_DONE`.
 
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
 triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh

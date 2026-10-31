@@ -1,5 +1,12 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.19] - 2026-10-31
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
 ## [2.0.18] - 2026-10-31
 
 ### Changed

@@ -5,6 +5,13 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.22.13] - 2026-10-31
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
 ## [0.22.12] - 2026-10-31
 
 ### Changed
