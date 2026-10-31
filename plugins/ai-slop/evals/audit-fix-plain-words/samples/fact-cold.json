@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "retries when the cache is cold",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "the helper retries",
+      "why": "misses the outcome"
+    }
+  ]
+}

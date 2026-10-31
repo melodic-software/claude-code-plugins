@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Finding: rule-challenges-conclusion docs/status.md line 5, formula match: \"Despite its small team, the project faces challenges\". The closing release line names a version and a date, so nothing to report there.",
+      "why": "closer reported, dated line clean"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs/status.md:5 rule-challenges-conclusion. docs/status.md:10 generic conclusion: \"Version 3.2 ships on 14 January\" fits any article.",
+      "why": "dated closing line reported"
+    },
+    {
+      "answer": "docs/status.md: no findings.",
+      "why": "closer missed"
+    }
+  ]
+}

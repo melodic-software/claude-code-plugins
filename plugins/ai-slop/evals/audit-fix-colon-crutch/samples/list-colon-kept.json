@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "# Paging policy\n\nThe short version: the job retries three times before it pages anyone.\n\nThe job reads three settings:\n\n- `RETRY_LIMIT`, the number of retries before a page\n- `RETRY_DELAY`, the seconds between retries\n- `PAGE_TARGET`, the rotation that receives the page\n",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Paging policy\n\nThe short version: the job retries three times before it pages anyone.\n\nThe job reads three settings.\n\n- `RETRY_LIMIT`, the number of retries before a page\n- `RETRY_DELAY`, the seconds between retries\n- `PAGE_TARGET`, the rotation that receives the page\n",
+      "why": "misses the outcome"
+    }
+  ]
+}
