@@ -2228,7 +2228,8 @@ the step after each judge stops the later chunks, the final judge and any handof
 denied the diff: it reads the spec and every chunk's checked result, whole, in as many files as that
 takes, as untrusted data (`spec-prompt.md`), and maps each done-when item to the chunk that delivers
 it, and a script fails the head on an item mapped to none. It must read the spec, the manifest and
-every result whole, and the context file too when a spec entry's `spec_kind` is `refs`. With no output
+every result whole, and on a spec entry whose `spec_kind` is `refs` the context too, cut into the
+same parts. With no output
 from it, off the schema, or with a denial on anything but a `fail`, and no counted fail, the head gets
 no verdict, so no chunk's `pass-notes` passes a chunked head alone. A single chunk has no final step. A
 chunk that passes short of a part, leaves no output or is off the schema leaves no verdict for the
@@ -2270,9 +2271,10 @@ credential pattern records `blocked`, so a capture never fails the verdict. `mer
 no capture runs), and `retention-days` (default 30, at most 90), how long each capture artifact
 lasts. A model error, an output that fails the schema, or a `pass` or `pass-notes` with a summary or
 note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`) or with any
-permission denial uploads nothing, and the run fails. A `fail` is written with that text masked, and
-a judge step `run-claude-cli` failed on its own credential scan still has its `fail` read, so the head
-is not judged twice. A head that already has a counted verdict from a completed run (a `fail` under any
+permission denial uploads nothing, and the run fails. A `fail` is written with a fixed text in place
+of all the model's, and so is the `fail` of a judge step `run-claude-cli` failed on its own credential
+scan, so the head is not judged twice. The chunk-results step stops with no verdict, before the final
+judge runs, on results over 300000 bytes. A head that already has a counted verdict from a completed run (a `fail` under any
 pull request number) is not judged again, unless its only verdicts are passes the spec has since
 changed under (below). The resolver first looks up the names without issues;
 only when none holds a counted verdict does it read the pull request's linked issues, which the

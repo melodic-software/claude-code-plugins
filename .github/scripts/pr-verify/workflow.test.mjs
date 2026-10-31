@@ -745,8 +745,10 @@ test("the whole-spec step runs only on a chunked head, after every chunk, and ca
     assert.equal(input(verdict, "FINAL_LOG_FILE"), "${{ steps.judge-spec.outputs.log-file }}", job);
     assert.equal(input(verdict, "RESULTS_DIR"), "${{ github.workspace }}/pr-verify-data/chunk-results", job);
     assert.equal(input(verdict, "MANIFEST_DIR"), "${{ github.workspace }}/pr-verify-data/manifest", job);
-    assert.equal(input(verdict, "CONTEXT_FILE"), "${{ github.workspace }}/pr-verify-data/context.json", job);
+    assert.equal(input(verdict, "CONTEXT_FILE"), undefined, job);
     assert.equal(input(verdict, "FINAL_OUTCOME"), "${{ steps.judge-spec.outcome }}", job);
+    // Each chunk's step outcome, so a failed step's text is never written.
+    for (const block of [verdict, results]) assert.deepEqual(list(block, "JUDGE_OUTCOMES"), SLOTS.map((k) => `\${{ steps.${judgeId(k)}.outcome }}`), job);
     // One budget: the results are cut to the size the diff's parts are.
     assert.equal(input(results, "PART_BYTES"), input(step("Write the diff", job), "PART_BYTES"), job);
   }
@@ -766,6 +768,7 @@ test("after each judge a counted fail stops the slots and reaches the verdict st
       assert.equal(/^ {8}if: (.*)$/m.exec(check)[1], `\${{ !cancelled() && ${judged(judgeId(k))} }}`, job);
       assert.match(check, /^ {8}continue-on-error: true$/m, job);
       assert.equal(input(check, "EXECUTION_FILE"), `\${{ steps.${judgeId(k)}.outputs.execution-file }}`, job);
+      assert.equal(input(check, "JUDGE_OUTCOME"), `\${{ steps.${judgeId(k)}.outcome }}`, job);
       assert.equal(input(check, "LOG_FILE"), `\${{ steps.${judgeId(k)}.outputs.log-file }}`, job);
       assert.equal(input(check, "CHUNK"), `"${k}"`, job);
       assert.equal(input(check, "CHUNKS"), "${{ steps.diff.outputs.chunks }}", job);

@@ -114,6 +114,13 @@ test("a fold never splits a UTF-8 character", () => {
   assert.equal(unfold(text), patch);
 });
 
+test("a run of stray UTF-8 continuation bytes folds at the cap, not a byte at a time", () => {
+  const patch = Buffer.concat([Buffer.from(file("a.bin", 1, "+x").replace("+x\n", "+")), Buffer.alloc(500, 0x80), Buffer.from("\n")]);
+  const { status, data } = run(patch, { MAX_DIFF_BYTES: "1000" });
+  assert.equal(status, 0);
+  assert.ok(partsOf(data, 1).join("").split("\n").length < 20);
+});
+
 test("a folded line that reads like a file header moves no file in the manifest", () => {
   const spoof = `+${"x".repeat(99)}diff --git a/evil b/evil${"y".repeat(100)}`;
   const { status, data } = run(file("a.js", 1, spoof) + file("b.js", 1), { MAX_DIFF_BYTES: "300", PART_BYTES: "400" });

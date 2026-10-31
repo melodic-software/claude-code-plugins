@@ -453,14 +453,15 @@ jobs:
       # skipped, and "Write the verdict" runs on it, so no later step can lose
       # it to a re-run. A step that fails before it does not stop the check,
       # and a judge step run-claude-cli failed with no lane class, having left
-      # an execution file, stopped on its credential scan, so its fail is read
-      # like any other.
+      # an execution file, stopped on its credential scan, so its fail counts
+      # with none of its text.
       - name: Read chunk 1's verdict
         id: chunk-fail
         if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && steps.judge.outputs.lane-class == '' && steps.judge.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
+          JUDGE_OUTCOME: ${{ steps.judge.outcome }}
           LOG_FILE: ${{ steps.judge.outputs.log-file }}
           CHUNK: "1"
           CHUNKS: ${{ steps.diff.outputs.chunks }}
@@ -562,6 +563,7 @@ jobs:
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-2.outputs.execution-file }}
+          JUDGE_OUTCOME: ${{ steps.judge-2.outcome }}
           LOG_FILE: ${{ steps.judge-2.outputs.log-file }}
           CHUNK: "2"
           CHUNKS: ${{ steps.diff.outputs.chunks }}
@@ -660,6 +662,7 @@ jobs:
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-3.outputs.execution-file }}
+          JUDGE_OUTCOME: ${{ steps.judge-3.outcome }}
           LOG_FILE: ${{ steps.judge-3.outputs.log-file }}
           CHUNK: "3"
           CHUNKS: ${{ steps.diff.outputs.chunks }}
@@ -759,6 +762,7 @@ jobs:
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-4.outputs.execution-file }}
+          JUDGE_OUTCOME: ${{ steps.judge-4.outcome }}
           LOG_FILE: ${{ steps.judge-4.outputs.log-file }}
           CHUNK: "4"
           CHUNKS: ${{ steps.diff.outputs.chunks }}
@@ -785,6 +789,11 @@ jobs:
             ${{ steps.judge-2.outputs.log-file }}
             ${{ steps.judge-3.outputs.log-file }}
             ${{ steps.judge-4.outputs.log-file }}
+          JUDGE_OUTCOMES: |
+            ${{ steps.judge.outcome }}
+            ${{ steps.judge-2.outcome }}
+            ${{ steps.judge-3.outcome }}
+            ${{ steps.judge-4.outcome }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
@@ -908,6 +917,11 @@ jobs:
             ${{ steps.judge-2.outputs.log-file }}
             ${{ steps.judge-3.outputs.log-file }}
             ${{ steps.judge-4.outputs.log-file }}
+          JUDGE_OUTCOMES: |
+            ${{ steps.judge.outcome }}
+            ${{ steps.judge-2.outcome }}
+            ${{ steps.judge-3.outcome }}
+            ${{ steps.judge-4.outcome }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           # The whole-spec judgment, which a head of two chunks or more must have.
@@ -923,7 +937,6 @@ jobs:
           RELINK_SINCE_HEAD: ${{ steps.pr.outputs.relink-since-head }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
-          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
@@ -1336,14 +1349,15 @@ jobs:
       # skipped, and "Write the verdict" runs on it, so no later step can lose
       # it to a re-run. A step that fails before it does not stop the check,
       # and a judge step run-claude-cli failed with no lane class, having left
-      # an execution file, stopped on its credential scan, so its fail is read
-      # like any other.
+      # an execution file, stopped on its credential scan, so its fail counts
+      # with none of its text.
       - name: Read chunk 1's verdict
         id: chunk-fail
         if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && steps.judge.outputs.lane-class == '' && steps.judge.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
+          JUDGE_OUTCOME: ${{ steps.judge.outcome }}
           LOG_FILE: ${{ steps.judge.outputs.log-file }}
           CHUNK: "1"
           CHUNKS: ${{ steps.diff.outputs.chunks }}
@@ -1443,6 +1457,7 @@ jobs:
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-2.outputs.execution-file }}
+          JUDGE_OUTCOME: ${{ steps.judge-2.outcome }}
           LOG_FILE: ${{ steps.judge-2.outputs.log-file }}
           CHUNK: "2"
           CHUNKS: ${{ steps.diff.outputs.chunks }}
@@ -1539,6 +1554,7 @@ jobs:
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-3.outputs.execution-file }}
+          JUDGE_OUTCOME: ${{ steps.judge-3.outcome }}
           LOG_FILE: ${{ steps.judge-3.outputs.log-file }}
           CHUNK: "3"
           CHUNKS: ${{ steps.diff.outputs.chunks }}
@@ -1636,6 +1652,7 @@ jobs:
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-4.outputs.execution-file }}
+          JUDGE_OUTCOME: ${{ steps.judge-4.outcome }}
           LOG_FILE: ${{ steps.judge-4.outputs.log-file }}
           CHUNK: "4"
           CHUNKS: ${{ steps.diff.outputs.chunks }}
@@ -1662,6 +1679,11 @@ jobs:
             ${{ steps.judge-2.outputs.log-file }}
             ${{ steps.judge-3.outputs.log-file }}
             ${{ steps.judge-4.outputs.log-file }}
+          JUDGE_OUTCOMES: |
+            ${{ steps.judge.outcome }}
+            ${{ steps.judge-2.outcome }}
+            ${{ steps.judge-3.outcome }}
+            ${{ steps.judge-4.outcome }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
@@ -1783,6 +1805,11 @@ jobs:
             ${{ steps.judge-2.outputs.log-file }}
             ${{ steps.judge-3.outputs.log-file }}
             ${{ steps.judge-4.outputs.log-file }}
+          JUDGE_OUTCOMES: |
+            ${{ steps.judge.outcome }}
+            ${{ steps.judge-2.outcome }}
+            ${{ steps.judge-3.outcome }}
+            ${{ steps.judge-4.outcome }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           # The whole-spec judgment, which a head of two chunks or more must have.
@@ -1798,7 +1825,6 @@ jobs:
           RELINK_SINCE_HEAD: ${{ steps.pr.outputs.relink-since-head }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
-          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 
@@ -2180,14 +2206,15 @@ jobs:
       # skipped, and "Write the verdict" runs on it, so no later step can lose
       # it to a re-run. A step that fails before it does not stop the check,
       # and a judge step run-claude-cli failed with no lane class, having left
-      # an execution file, stopped on its credential scan, so its fail is read
-      # like any other.
+      # an execution file, stopped on its credential scan, so its fail counts
+      # with none of its text.
       - name: Read chunk 1's verdict
         id: chunk-fail
         if: ${{ !cancelled() && (steps.judge.outcome == 'success' || (steps.judge.outcome == 'failure' && steps.judge.outputs.lane-class == '' && steps.judge.outputs.execution-file != '')) }}
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge.outputs.execution-file }}
+          JUDGE_OUTCOME: ${{ steps.judge.outcome }}
           LOG_FILE: ${{ steps.judge.outputs.log-file }}
           CHUNK: "1"
           CHUNKS: ${{ steps.diff.outputs.chunks }}
@@ -2274,6 +2301,7 @@ jobs:
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-2.outputs.execution-file }}
+          JUDGE_OUTCOME: ${{ steps.judge-2.outcome }}
           LOG_FILE: ${{ steps.judge-2.outputs.log-file }}
           CHUNK: "2"
           CHUNKS: ${{ steps.diff.outputs.chunks }}
@@ -2356,6 +2384,7 @@ jobs:
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-3.outputs.execution-file }}
+          JUDGE_OUTCOME: ${{ steps.judge-3.outcome }}
           LOG_FILE: ${{ steps.judge-3.outputs.log-file }}
           CHUNK: "3"
           CHUNKS: ${{ steps.diff.outputs.chunks }}
@@ -2438,6 +2467,7 @@ jobs:
         continue-on-error: true
         env:
           EXECUTION_FILE: ${{ steps.judge-4.outputs.execution-file }}
+          JUDGE_OUTCOME: ${{ steps.judge-4.outcome }}
           LOG_FILE: ${{ steps.judge-4.outputs.log-file }}
           CHUNK: "4"
           CHUNKS: ${{ steps.diff.outputs.chunks }}
@@ -2464,6 +2494,11 @@ jobs:
             ${{ steps.judge-2.outputs.log-file }}
             ${{ steps.judge-3.outputs.log-file }}
             ${{ steps.judge-4.outputs.log-file }}
+          JUDGE_OUTCOMES: |
+            ${{ steps.judge.outcome }}
+            ${{ steps.judge-2.outcome }}
+            ${{ steps.judge-3.outcome }}
+            ${{ steps.judge-4.outcome }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           RESULTS_DIR: ${{ github.workspace }}/pr-verify-data/chunk-results
@@ -2568,6 +2603,11 @@ jobs:
             ${{ steps.judge-2.outputs.log-file }}
             ${{ steps.judge-3.outputs.log-file }}
             ${{ steps.judge-4.outputs.log-file }}
+          JUDGE_OUTCOMES: |
+            ${{ steps.judge.outcome }}
+            ${{ steps.judge-2.outcome }}
+            ${{ steps.judge-3.outcome }}
+            ${{ steps.judge-4.outcome }}
           CHUNKS: ${{ steps.diff.outputs.chunks }}
           DIFF_DIR: ${{ github.workspace }}/pr-verify-data/diff
           # The whole-spec judgment, which a head of two chunks or more must have.
@@ -2583,7 +2623,6 @@ jobs:
           RELINK_SINCE_HEAD: ${{ steps.pr.outputs.relink-since-head }}
           SPEC_FILE: ${{ github.workspace }}/pr-verify-data/spec.json
           SPEC_TEXT_FILE: ${{ github.workspace }}/pr-verify-data/spec-text.json
-          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json
           VERDICT_DIR: ${{ runner.temp }}/pr-verify-verdict
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs
 

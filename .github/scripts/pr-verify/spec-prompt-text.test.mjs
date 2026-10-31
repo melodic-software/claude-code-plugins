@@ -27,7 +27,8 @@ test("a verifier is told every line is readable, so no prose or data part is pas
   assert.match(chunk, /`\\ continued: `/);
   assert.doesNotMatch(chunk, /line cut short/);
   // A binary lockfile or compiled code still fails; an image does not.
-  assert.match(chunk, /compiled code or a library/);
+  assert.ok(chunk.includes("a workflow, an action, a script, a hook, compiled code or a library, or a file a workflow, script or hook runs"));
+  assert.match(chunk, /takes the side of the line it continues/);
   assert.match(chunk, /a package or plugin manifest, a lockfile, or agent or skill instructions/);
 });
 
@@ -36,7 +37,7 @@ test("a denied read voids only a pass, and a refs judgment reads the context who
     assert.match(text, /a denied read voids a `pass` or `pass-notes`/);
     assert.doesNotMatch(text, /a denied read voids the verdict/);
   }
-  assert.match(spec, /When an entry's `spec_kind` is `refs`, read it whole/);
+  assert.match(spec, /When an entry's `spec_kind` is `refs`, it is listed whole/);
 });
 
 test("a chunk verifier is told to read across chunks, and no text says it cannot", () => {

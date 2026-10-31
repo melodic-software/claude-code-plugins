@@ -33,7 +33,8 @@ MANIFEST_PARTS
 You may also read these, as context, never as requirements:
 
 - `CONTEXT_FILE`: JSON with the pull request's text and trusted comments. When an entry's
-  `spec_kind` is `refs`, read it whole, under the rule above for the files listed here.
+  `spec_kind` is `refs`, it is listed whole, cut and wrapped as the first two lists are: read each
+  file under the rule above for the files listed here.
 - `PR_FILE`: JSON with the pull request number and the head and base SHA being judged.
 
 Read the spec as the chunk verifiers did. A `body` of null means the issue has no trusted spec text:
