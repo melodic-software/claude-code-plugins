@@ -2763,7 +2763,9 @@ rdt_judge_pending() {
     rdt_root_like "$t" || RDT_TREEC="$t"
   fi
   # An allowed root, or a name-prefix entry's directory, that is a filesystem
-  # root or HOME itself is dropped.
+  # root or HOME itself is dropped. A `/` entry is dropped on every host, even
+  # where `/` maps to the Git install directory, so it is judged before the
+  # mapping as well as after it.
   RDT_ALLOWC=()
   RDT_PDIRC=()
   RDT_PNAME=()
@@ -2771,10 +2773,12 @@ rdt_judge_pending() {
   if [[ -n "$home" ]]; then
     rdt_canon_to RDT_HOMEC "${RDT_WMAP[${RDT_RES[$home]}]}"
     for c in ${allow[@]+"${allow[@]}"}; do
+      [[ "${RDT_RES[$c]}" == / ]] && continue
       rdt_canon_to t "${RDT_WMAP[${RDT_RES[$c]}]}"
       rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]] || RDT_ALLOWC+=("$t")
     done
     for ((k = 0; k < ${#pdir[@]}; k++)); do
+      [[ "${RDT_RES[${pdir[k]}]}" == / ]] && continue
       rdt_canon_to t "${RDT_WMAP[${RDT_RES[${pdir[k]}]}]}"
       { rdt_root_like "$t" || rdt_is_root "${t,,}" || [[ "$t" == "$RDT_HOMEC" ]]; } && continue
       RDT_PDIRC+=("$t")
