@@ -19,7 +19,7 @@
 `sync` is the default action: bring the effective fleet current where you stand. Every step below
 is CLI-mediated: never edit `installed_plugins.json`, `known_marketplaces.json`, or any
 `.claude/settings*.json` directly. `audit` runs this same sequence with every mutating call replaced
-by a prediction (see SKILL.md's "Action: audit").
+by a prediction (see `/harness-ops:plugins-audit`).
 
 ## Execution: one script runs Steps 1 through 5b
 
@@ -331,8 +331,8 @@ Then, for the rest of the run:
   snapshots the attribution split needs come from the three saved reports. Do not re-derive any of
   it from memory of the run.
 
-**`audit` writes no durable journal: it uses a throwaway scratch directory instead.** SKILL.md's
-action table says `audit` mutates nothing, and a run that leaves directories behind under the plugin
+**`audit` writes no durable journal: it uses a throwaway scratch directory instead.**
+`/harness-ops:plugins-audit` says `audit` mutates nothing, and a run that leaves directories behind under the plugin
 data dir does not match that line even though the data dir is not fleet state. But `audit` runs this
 same algorithm, and it writes reports: Step 1 saves its pre-refresh snapshot, and Steps 2–5 project
 their id lists with `--from` against a saved report. So it does need somewhere to put them, and that

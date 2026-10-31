@@ -3,6 +3,18 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.34.1] - 2026-10-31
+
+### Fixed
+
+- `/implementation:implement-dispatch` and the implementer agents no longer say a frontmatter model or effort pin always holds: each now names the upstream section listing what ranks over the pin.
+
+## [0.34.0] - 2026-10-31
+
+### Added
+
+- `/implementation:implement-dispatch` takes an optional `--unattended` modifier, accepted anywhere in its arguments. With it, the run records the `/batch` offer in its output instead of asking; without it, the run asks. The argument hint lists it.
+
 ## [0.33.7] - 2026-10-31
 
 ### Changed

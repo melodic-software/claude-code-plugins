@@ -7,5 +7,9 @@
   },
   "scripts": {
     "test": "node --test"
+  },
+  "dependencies": {
+    "@azure/identity": "4.14.1",
+    "tedious": "20.3.8"
   }
 }

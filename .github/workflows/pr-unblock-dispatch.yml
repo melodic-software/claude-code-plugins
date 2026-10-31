@@ -9,7 +9,7 @@ name: pr-unblock-dispatch
 # classifier sorts `review` whose head has no review-dependency check run yet
 # (.github/scripts/pr-unblock/dependency-dispatch.mjs), and fix-ci for each
 # open lanes App PR, or idle PR of an owner in the config's `adoption`
-# section, whose head's ci-status failed (or passed while its pr-test-windows
+# section, whose head's ci-status failed (or passed while its pr-test-platforms
 # run failed), with no re-run of that run going and no infra-only first
 # failure's reconciler re-run still due, and has no fix-ci run yet,
 # at most limits.fix-ci-per-run per run, from one GraphQL query whose

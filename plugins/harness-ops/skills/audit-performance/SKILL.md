@@ -30,7 +30,7 @@ walk that takes minutes IS the cost the product's retention sweep pays on that t
 | Why is Claude Code slow right now? | **this skill** |
 | The historical cost of these hooks over past sessions | Not this engine (Never read bars transcripts); the person asks a `/doctor` session (see Reading the report) |
 | What exactly is in the install tree, and is anything stale? | `/harness-ops:audit-install-state` |
-| Which plugins are enabled at which scope, and is the fleet current? | `/harness-ops:plugins audit` |
+| Which plugins are enabled at which scope, and is the fleet current? | `/harness-ops:plugins-audit` |
 | Is this a known upstream bug? | `/harness-ops:known-issues` (compose: search the symptoms this report surfaces) |
 | Delete a genuinely unmanaged leftover | `/disk-hygiene:clean` |
 | Shed one project's `~/.claude.json` state | `claude purge <path>` |
@@ -170,7 +170,7 @@ directly.
 **Suspect 3. Component bloat.** Evidence: `plugin_fleet` counts and `processes`. Community-
 confirmed slowness causes cluster here (many MCP servers/plugins each add per-tool-call and
 startup cost). This report only counts; the enablement-and-scope verdict belongs to
-`/harness-ops:plugins audit`. Tell the user to run it rather than eyeballing.
+`/harness-ops:plugins-audit`. Tell the user to run it rather than eyeballing.
 
 **Suspect 4, the fan-out layer.** What the machine pays per spawn, multiplied by everything that
 spawns. Read `fan_out` in this order:

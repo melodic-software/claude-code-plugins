@@ -113,15 +113,19 @@ upstream text. Copy the pin marker and trigger wording from that read; never fro
    `node "${CLAUDE_PLUGIN_ROOT}/vendor/repo-analysis/clone-cli.js" <repository-url> <new-empty-dir>`
    (a shallow clone with no credential helper, no prompt and no LFS download; exit 1 means the
    repository is private, missing or over the time limit: say so, name the local-checkout form for
-   a private repository, and stop), and record its full 40-hex commit
+   a private repository, and stop). It takes only `https://github.com/<owner>/<repo>`, clones over
+   https alone and checks symbolic links out as plain files; exit 2 means the URL is not of that
+   form or the directory is not empty: for a repository hosted elsewhere, say so, name the
+   local-checkout form, and stop. Then record its full 40-hex commit
    (`git -C <clone> rev-parse HEAD`): that commit is the pin, and every file you read is read there,
    under the scope only. For a local checkout, the pin is `git -C <checkout> rev-parse HEAD` and
    the repository is the `repo` its visibility check printed (none means no row-link form: say so
    and stop). Read committed files only, never the working tree:
    `git -C <checkout> ls-tree -r --name-only <pin> -- <scope>` lists them and
    `git -C <checkout> show <pin>:<path>` reads one. Report any uncommitted change that
-   `git -C <checkout> status --porcelain` lists as not read. For a page, record the URL and today's
-   date as the as-of date, and read it with
+   `git -c core.fsmonitor=false -c core.untrackedCache=false -C <checkout> status --porcelain`
+   lists as not read. For a page, record the URL and today's date as the as-of date, and read it
+   with
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --profile generic --public-only --out <new-empty-dir> <url>`:
    read the file its `manifest.json` page record names only when that record's `state` is `read`;
    an `unread` page is reported with its `reason`, and it supports no claim, an absence claim
