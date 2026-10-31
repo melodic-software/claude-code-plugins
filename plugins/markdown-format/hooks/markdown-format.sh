@@ -2,7 +2,7 @@
 # PostToolBatch hook: rewrite the Markdown files a batch of tool calls wrote.
 #
 #   markdown-format.sh                 the PostToolBatch row
-#   markdown-format.sh --end-of-turn   the opt-in Stop row (markdown_format_end_of_turn)
+#   markdown-format.sh --end-of-turn   the Stop row (markdown_format_end_of_turn)
 #
 # Rewrites only: `markdownlint-cli2 --fix`, once per batch over every .md and
 # .mdc file a Write, Edit or MultiEdit in the batch named. It prints nothing and
@@ -35,17 +35,24 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 IFS= read -r -d '' INPUT || :
 
-# The opt-in Stop row: the pre-commit entry run over the uncommitted changes,
-# without rewriting. Findings exit 2 so the model fixes them before the turn
-# ends; once a Stop hook has continued the turn (stop_hook_active) the row stays
-# quiet, so it blocks at most once per turn.
+# The Stop row: the pre-commit entry run over the uncommitted changes, without
+# rewriting. With markdown_format_end_of_turn unset the findings go to the user
+# as a systemMessage on exit 0, so the turn ends; set to true they exit 2, so
+# the model fixes them before the turn ends. Once a Stop hook has continued the
+# turn (stop_hook_active) the row stays quiet, so it blocks at most once per turn.
 if [[ "${1:-}" == --end-of-turn ]]; then
   [[ "$INPUT" =~ \"stop_hook_active\"[[:space:]]*:[[:space:]]*true ]] && exit 0
   err="$("${BASH:-bash}" "$HOOK_DIR/../git-hooks/markdown-check.sh" --worktree 2>&1 >/dev/null)" && exit 0
-  # silent-skip-ok: the SessionStart probe already reports a missing markdownlint-cli2 (prerequisites.json) and /markdown-format:check does too; blocking every turn end on a host problem would not help the model.
+  # silent-skip-ok: the SessionStart probe already reports a missing markdownlint-cli2 (prerequisites.json) and /markdown-format:check does too; reporting it again at every turn end would not help.
   [[ "$err" == "FAIL: "*" missing. Install: "* ]] && exit 0
-  printf '%s\n' "$err" >&2
-  exit 2
+  if [[ "${CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_END_OF_TURN:-}" == true ]]; then
+    printf '%s\n' "$err" >&2
+    exit 2
+  fi
+  # shellcheck source=hook-utils.sh
+  source "$HOOK_DIR/hook-utils.sh"
+  hook::emit_system_message "$err"
+  exit 0
 fi
 
 [[ "$INPUT" == *.md* ]] || exit 0

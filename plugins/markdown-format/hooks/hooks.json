@@ -1,5 +1,5 @@
 {
-  "description": "Rewrites Markdown with markdownlint-cli2 once per batch of tool calls, optionally checks the uncommitted changes when a turn ends, and reports a missing markdownlint-cli2 or a drifted git-hook entry at session start.",
+  "description": "Rewrites Markdown with markdownlint-cli2 once per batch of tool calls, checks the uncommitted changes when a turn ends, and reports a missing markdownlint-cli2 or a drifted git-hook entry at session start.",
   "hooks": {
     "PostToolBatch": [
       {
@@ -30,7 +30,7 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--run-if-unset-or-true",
               "MARKDOWN_FORMAT_ENABLED",
-              "--require-true",
+              "--run-if-unset-or-true",
               "MARKDOWN_FORMAT_END_OF_TURN",
               "${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh",
               "--end-of-turn"

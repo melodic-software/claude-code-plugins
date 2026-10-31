@@ -64,7 +64,7 @@ else
   fail "manifest binding needs jq and $MANIFEST"
 fi
 
-# --- hooks.json: one PostToolBatch row, an opt-in Stop row, no PostToolUse ----
+# --- hooks.json: one PostToolBatch row, one Stop row, no PostToolUse ----------
 # The batch row takes no matcher and no `if`: the hooks reference says neither
 # applies to the event, so its launcher flag is the only filter. The script reads
 # the paths itself.
@@ -77,10 +77,12 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
     "node true true $EXPECTED_ROW" \
     "$(jq -r '.hooks.PostToolBatch[0] as $g | $g.hooks[0] | "\(.command) \($g | has("matcher") | not) \(has("if") | not) \(.args | tojson)"' "$HOOKS_JSON")"
   # shellcheck disable=SC2016
-  EXPECTED_STOP='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED","--require-true","MARKDOWN_FORMAT_END_OF_TURN","${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh","--end-of-turn"]'
+  EXPECTED_STOP='["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED","--run-if-unset-or-true","MARKDOWN_FORMAT_END_OF_TURN","${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh","--end-of-turn"]'
   expect "hooks.json: the Stop row is gated on the end-of-turn option" "$EXPECTED_STOP" "$(jq -c '.hooks.Stop[0].hooks[0].args' "$HOOKS_JSON")"
-  expect "hooks.json: the end-of-turn option is declared, default false" "boolean false" \
-    "$(jq -r '.userConfig.markdown_format_end_of_turn | "\(.type) \(.default)"' "$PLUGIN_ROOT/.claude-plugin/plugin.json")"
+  # Unset is the reporting state, so the option declares no default for a stored
+  # false to stand in for.
+  expect "hooks.json: the end-of-turn option is a boolean with no default" "boolean false" \
+    "$(jq -r '.userConfig.markdown_format_end_of_turn | "\(.type) \(has("default"))"' "$PLUGIN_ROOT/.claude-plugin/plugin.json")"
   expect "hooks.json: SessionStart holds only the two prerequisite probes" "2" \
     "$(jq '[.hooks.SessionStart[].hooks[]] | length' "$HOOKS_JSON")"
 else

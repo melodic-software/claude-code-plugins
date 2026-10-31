@@ -30,8 +30,7 @@
     "markdown_format_end_of_turn": {
       "type": "boolean",
       "title": "Check markdown in uncommitted changes at turn end",
-      "description": "When a turn ends, run the pre-commit check over the uncommitted changes (nothing is rewritten) and hand any markdownlint findings back to Claude, at most once per turn. Off by default.",
-      "default": false
+      "description": "When a turn ends, run the pre-commit check over the uncommitted changes; nothing is rewritten. Unset (the default) shows markdownlint findings to you in a warning and the turn ends. true hands them back to Claude, at most once per turn. false runs no check."
     }
   }
 }

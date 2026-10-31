@@ -38,8 +38,11 @@ and what reaches the model.
 6. **One local place per report-only check.** Each report-only check runs in exactly one local
    place, and CI re-runs it on the change only. Formatters are the one exception: they run once
    per batch in session (when within the ceiling below) and again at `pre-commit`. The opt-in
-   end-of-turn check is not an exception, because the
-   [typos-format pilot](#typos-format-pilot-2026-10-15) left it off by default.
+   end-of-turn hand-back is not an exception, because the
+   [typos-format pilot](#typos-format-pilot-2026-10-15) left it off by default. markdown-format's
+   default end-of-turn report is the one stated exception
+   ([#11502](https://github.com/melodic-software/claude-code-plugins/issues/11502)): its lint
+   runs at turn end and again at `pre-commit`, and the turn-end findings go to the user only.
 
    Blocking guards that stop a tool call are a separate class and are not counted here.
 7. **CI never skips a check because a local hook reported a pass.** A hook can be missing,
@@ -71,8 +74,12 @@ see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-
   lines in the uncommitted diff against `HEAD`) from a `Stop` row behind a
   `<plugin>_end_of_turn` userConfig boolean, default `false`. Its findings exit 2, so the model
   fixes them before the turn ends; the row honors `stop_hook_active` and blocks at most once per
-  turn. It stays off by default for every report-only plugin, per the
+  turn. The hand-back stays off by default for every report-only plugin, per the
   [typos-format pilot](#typos-format-pilot-2026-10-15).
+- **markdown-format reports at turn end by default.** Its `markdown_format_end_of_turn` has no
+  default: unset, the `Stop` row exits 0 with the findings in a `systemMessage`, which the user
+  sees and the model does not, and the turn ends. `true` is the hand-back above; `false` runs
+  no check.
 
 ## The registration contract
 
@@ -326,7 +333,9 @@ Verdicts:
   control's 0/5, with median wall +1.1 s and +0.9 s against a 3.6 s spread, and no failed edits in
   any arm.
 - **End-of-turn stays opt-in, default off, for every report-only plugin.** It did not get findings
-  fixed before turn end in more runs than precommit (5 against 6).
+  fixed before turn end in more runs than precommit (5 against 6). The pilot measured the exit-2
+  hand-back, so the verdict covers that mode; markdown-format's default report to the user is
+  outside it.
 
 Caveats:
 

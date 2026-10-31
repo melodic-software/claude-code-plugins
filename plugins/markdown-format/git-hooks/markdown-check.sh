@@ -5,7 +5,7 @@
 #   markdown-check.sh               the staged changes (git runs it as pre-commit)
 #   markdown-check.sh --worktree    the uncommitted changes against HEAD, untracked
 #                                   files included, reported without rewriting
-#                                   (the opt-in end-of-turn Stop row)
+#                                   (the end-of-turn Stop row)
 #
 # Pre-commit: a partly staged file is refused before anything is rewritten
 # (re-staging a rewrite would stage its unstaged hunks too), and so is a commit
