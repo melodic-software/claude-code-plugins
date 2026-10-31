@@ -32,6 +32,18 @@
           }
         }
       ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "content": "## Clockwork stubs (Author)\n\nA clockwork stub returns a scripted sequence of values.",
+            "file_path": "/ws/.claude/skills/testing/reference/clockwork-stubs-author.md"
+          }
+        }
+      ],
+      "why": "content serialized before file_path"
     }
   ],
   "fail": [
@@ -73,6 +85,18 @@
         }
       ],
       "why": "read, not written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "content": "clockwork stub",
+            "file_path": "/ws/.claude/skills/testing/SKILL.md"
+          }
+        }
+      ],
+      "why": "content first, not a reference file"
     }
   ]
 }
