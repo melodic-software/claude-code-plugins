@@ -507,9 +507,11 @@ async function readiness({ github, repo, humans, closes, bot = DEFAULT_BOT, base
     return `${LABEL} was removed and ${READY} not added since`;
   }
   // The App sent it to intake (unpark): only intake's status: ready admits it,
-  // however often an overlapping sweep reads the same close.
+  // however often an overlapping sweep reads the same close. A later re-park
+  // (status: confirmed added again) ends that unpark, so a later close unparks anew.
   const unparked = (event) => event.event === "unlabeled" && String(event.label?.name).toLowerCase() === CONFIRMED && event.actor?.login === bot;
-  if (!lower.includes(READY) && removalStands(events, unparked, (event) => trustedLabeler(event, { bot, humans }))) {
+  const reMark = (event) => event?.event === "labeled" && [READY, CONFIRMED].includes(String(event.label?.name).toLowerCase());
+  if (!lower.includes(READY) && removalStands(events, unparked, (event) => trustedLabeler(event, { bot, humans }), reMark)) {
     return `${CONFIRMED} was removed for intake and ${READY} not added since`;
   }
   return null;

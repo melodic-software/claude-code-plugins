@@ -3814,6 +3814,18 @@ test("an issue sent to intake is not labeled until a status: ready follows the r
   assert.ok(writes(decided.calls).includes(labeled(20)), writes(decided.calls).join("\n"));
 });
 
+test("an issue intake parked again after an unpark goes back to intake when a later blocker closes", async (t) => {
+  t.mock.method(console, "log", () => {});
+  const events = [
+    { event: "labeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: PARKED_AT },
+    { event: "unlabeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: "2026-10-16T11:05:00Z" },
+    { event: "labeled", label: { name: "status: confirmed" }, actor: LANES_BOT, created_at: "2026-10-16T11:10:00Z" },
+  ];
+  const parked = parkedWorld({ extra: { events: { 20: events } } });
+  assert.equal(await onClose(parked), 0);
+  assert.deepEqual(writes(parked.calls), [unparked]);
+});
+
 test("a failed removal fails the run", async (t) => {
   t.mock.method(console, "log", () => {});
   const parked = parkedWorld({ extra: { failOn: (method, path) => method === "DELETE" && path.endsWith("status%3A%20confirmed") } });
