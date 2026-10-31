@@ -5779,7 +5779,7 @@ jobs:
           # Operator remedy:
           # docs/ci-runner-routing.md, section Contract-only ci-status.
           yield-to-full-run: 'true'
-          yield-wait-seconds: ${{ ((job.status == 'failure' && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) || github.event.pull_request.draft) && '0' || '600' }}
+          yield-wait-seconds: ${{ ((job.status == 'failure' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) || github.event.pull_request.draft) && '0' || '600' }}
           rerun-contract-only-siblings: ${{ github.event.pull_request.draft && 'false' || 'true' }}
           carry-forward-wait-seconds: '0'
           # This step's own name, so the own-step lookup never depends on
