@@ -209,7 +209,7 @@ Is it the single most important action on the screen?
 That tree is the fourth part of the `Button` file above: its variant set has three options, so the
 file ends with it, after the examples.
 
-For token docs, the load-bearing rule is which layer is allowed: components use semantic tokens
+For token docs, the key rule is which layer is allowed: components use semantic tokens
 (`--bg-surface`), never primitives (`--gray-100`) and never raw values. Then a flowchart per role
 ("what background do I use", "what text color do I use") built from the semantic tokens found in
 step 1.
