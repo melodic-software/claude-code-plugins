@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.4.0] - 2026-10-31
+
+### Added
+
+- `/harness-config:draft-auto-mode-rules`, `/harness-config:audit-permission-state` and `/harness-config:audit-permission-grants` take an optional `--unattended` modifier, accepted anywhere in their arguments. With it, the run records its native offer (`/auto-mode-setup` or `/permissions`) in its output instead of asking; without it, the run asks. The argument hints list it, and neither audit passes it to its script.
+
 ## [2.3.0] - 2026-10-31
 
 ### Added

@@ -26,7 +26,7 @@ name: pr-unblock
 # a red ci-status) whose head has no review yet; a base job selects the PR, a
 # read model job returns a verdict and any fix as a patch, and script jobs
 # push a fix verdict's patch and act on the verdict. fix-ci: pr-unblock-dispatch.yml
-# also sends one per lanes App PR whose ci-status or pr-test-windows run failed
+# also sends one per lanes App PR whose ci-status or pr-test-platforms run failed
 # past the lost-run reconciler's re-run. All set dispatcher-run-id; a trusted
 # human may dispatch with pr-number and activity alone. Every job trusts the
 # default branch tip, since a conflicting PR's base SHA is stale and the
