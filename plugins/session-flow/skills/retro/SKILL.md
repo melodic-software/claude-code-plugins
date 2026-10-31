@@ -1,6 +1,6 @@
 ---
 description: "Structured session retrospective: transcript metrics, quality across five dimensions, feedback-memory regression check, and durable codification of learnings. Use when: 'retro', 'retrospective', 'what did we learn', 'how did I do', 'codify learnings', 'show trends', or at end of session; modes: session (default), codify, trends, quick."
-argument-hint: "[unattended] [session [--pattern '<regex>']|codify [reviews]|trends|quick]"
+argument-hint: "[session [--pattern '<regex>']|codify [reviews]|trends|quick] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/fetch-review-comments.sh:*)"]
@@ -9,7 +9,7 @@ metadata:
   summary: Structured session retrospective with codified learnings
 ---
 
-**Arguments.** `[unattended] [session [--pattern '<regex>']|codify [reviews]|trends|quick]`. e.g., /retro, /retro session, /retro session --pattern 'PROJ-\d+', /retro codify, /retro codify reviews, /retro trends, /retro quick
+**Arguments.** `[session [--pattern '<regex>']|codify [reviews]|trends|quick] [--unattended]`. e.g., /retro, /retro session, /retro session --pattern 'PROJ-\d+', /retro codify, /retro codify reviews, /retro trends, /retro quick, /retro quick --unattended
 
 ## Context. Gather first
 
@@ -70,8 +70,9 @@ Resolve at runtime, never hardcode machine-specific paths:
 | "trends", "scores", "how am I doing" | **trends** | `context/trends.md`, cross-session score history |
 | "quick retro", short session, limited context | **quick** | `context/quick.md`, abbreviated pass |
 
-A leading bare `unattended` in `$ARGUMENTS` is stripped first; it only gates the `/export` step
-(record the suggestion in output, do not ask). A `--pattern '<regex>'` pair is taken out next and
+`--unattended`, anywhere in `$ARGUMENTS`, is the caller declaring that nobody is present: take it
+out first. It only gates the `/export` step (record the suggestion in output, do not ask). The bare
+word `unattended` is neither this flag nor a mode: stop and name `--unattended`. A `--pattern '<regex>'` pair is taken out next and
 kept for session mode's ticket section; it selects `session` when no mode is named, and with
 another mode named, stop and say `--pattern` is session mode's only. Read the mode from the remainder. If it specifies a
 mode, use it. Otherwise infer from context; when the session is long or
@@ -143,7 +144,7 @@ are retention-swept (`cleanupPeriodDays`), and the conversation itself has no du
 - **Recheck trigger**: that section stops describing local transcripts as swept after a retention
   period, or a release note names `cleanupPeriodDays`.
 
-If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`unattended`:** record the suggestion in output; do not ask.
+If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. **`--unattended`:** record the suggestion in output; do not ask.
 
 ## Verification record: `/export`
 
@@ -166,8 +167,8 @@ Both look back at how sessions went, so "how did I do" can land on either.
 offer it to the person: If /insights is available in your session (gate basis: ungated, though
 some hosts lack it; records in [reference/native-insights.md](reference/native-insights.md)), you
 can run it instead of or alongside this skill for a cross-session usage report. Make the offer at the end of the run. Prefer this skill for what one
-session taught and for codifying it. An unattended run records the offer in its output instead of
-asking.
+session taught and for codifying it. When the caller passes `--unattended`, the run records the
+offer in its output instead of asking; without that flag it asks.
 
 **Mutation gate.** This skill writes only approved codifications. It never runs `/insights` on the
 person's behalf.
