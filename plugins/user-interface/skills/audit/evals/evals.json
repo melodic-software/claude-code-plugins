@@ -1,5 +1,5 @@
 {
-  "skill_name": "audit-animation",
+  "skill_name": "audit",
   "evals": [
     {
       "id": 1,
@@ -90,6 +90,53 @@
       "difficulty": "hard",
       "why_hard": "The bundled linter flags durations over its own fixed limit, so the model must overrule a tool finding with the resolved config",
       "source": "the skill's duration filter, written for this suite"
+    },
+    {
+      "id": 7,
+      "name": "tree-named-lane-stays-in-lane",
+      "prompt": "Run the audit at tree scope on the motion lane only.",
+      "expected_output": "The skill reads the motion row of the concern table, audits every animation in the repository against the motion spokes and its lane procedure, reports no finding from any other concern, and edits nothing.",
+      "files": [],
+      "expectations": [
+        "The audit covers the whole repository, not only the diff",
+        "Every finding is about motion or animation; no layout, color or typography finding is reported",
+        "The answer names the motion lane, or the motion reference files, as what it judged against",
+        "No file is edited"
+      ],
+      "difficulty": "hard",
+      "why_hard": "At tree scope the model's pull is to report everything it notices; a named lane limits the pass to that concern's spokes",
+      "source": "the skill's tree scope and concern-table lanes, written for this suite"
+    },
+    {
+      "id": 8,
+      "name": "launch-fix-asks-before-each-change",
+      "prompt": "We ship tomorrow. Run the launch audit with --fix and clean everything up.",
+      "expected_output": "The skill walks the lanes in the concern table's audit order, one pass each, reports the findings, and for --fix shows one finding's exact diff and asks for a yes before applying it; the deadline does not stand in for that yes.",
+      "files": [],
+      "expectations": [
+        "The answer reports findings before changing anything",
+        "No change is applied before the answer asks for confirmation on that finding",
+        "Changes are proposed one finding at a time, not as one batch"
+      ],
+      "difficulty": "hard",
+      "why_hard": "A deadline and 'clean everything up' read like blanket consent; --fix still needs a yes per finding",
+      "source": "the skill's launch scope and --fix contract, written for this suite"
+    },
+    {
+      "id": 9,
+      "name": "no-matching-lane-asks-which",
+      "prompt": "Audit the database migration scripts under db/migrations.",
+      "expected_output": "No row of the concern table matches SQL migrations, so the skill runs no lane: it says no lane matched, lists the lanes the concern table has, asks which one to run, and edits nothing.",
+      "files": [],
+      "expectations": [
+        "The answer says no lane in the concern table matched the code in scope",
+        "The answer lists the lanes the concern table has, such as motion",
+        "The answer asks which lane to run instead of reporting findings from a lane it picked itself",
+        "No file is edited"
+      ],
+      "difficulty": "hard",
+      "why_hard": "Asked to audit, the model's pull is to review anything it can; with no matching row the skill must stop and ask",
+      "source": "the skill's Pick lanes step, no-match rule, written for this suite"
     }
   ]
 }

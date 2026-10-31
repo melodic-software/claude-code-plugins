@@ -141,7 +141,10 @@ Both answer "where were we", so a request to catch up can land on either.
   work items, git state, and off-thread work at a glance.
 
 **Routing.** When the person wants only a one-line reminder of this conversation, offer it to
-the person: you can run `/recap` instead of or alongside this skill. Make the offer at the end
+the person: If /recap is available in your session (gate basis: ungated, though some hosts decline
+it, as **Availability is never assumed** below says; records in
+[reference/native-recap.md](reference/native-recap.md)), you can run it instead of or alongside this
+skill. Make the offer at the end
 of the briefing, or at the start when the ask names only the current conversation. Prefer this
 skill whenever durable or off-thread state matters. An unattended run records the offer in its
 output instead of asking.
