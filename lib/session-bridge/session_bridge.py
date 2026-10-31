@@ -57,7 +57,7 @@ LEASE_TIMEOUT = (
 PING_SECONDS = 15  # an idle event stream pings this often, so the page sees it is alive
 LISTEN_GRACE = 10  # seconds after a wait ends before "listening" drops
 READING_WINDOW = (
-    180  # seconds the session is shown as reading after an event was delivered
+    180  # seconds the session is shown as reading after a delivery, unless the app says otherwise
 )
 MAX_STREAMS = 8  # concurrent /events streams; one more gets 503
 MAX_BODY = 64 * 1024
@@ -197,6 +197,10 @@ class Transport(abc.ABC):
         """(quiet, burst): how long a found event waits for more, and the cap on that wait."""
         return QUIET_SECONDS, BURST_SECONDS
 
+    def reading_window(self):
+        """Seconds after a delivery the session is shown as reading, once no watcher listens."""
+        return READING_WINDOW
+
 
 class LoopbackWatcher(Transport):
     """The loopback adapter's shared state: token, watcher lease, liveness, long-poll delivery.
@@ -304,7 +308,7 @@ class LoopbackWatcher(Transport):
         now = time.time()
         if self.waiters > 0 or now - self.last_wait < LISTEN_GRACE:
             state = "listening"
-        elif now - self.last_deliver < READING_WINDOW:
+        elif now - self.last_deliver < self.reading_window():
             state = "reading"
         else:
             state = "idle"
@@ -1419,7 +1423,7 @@ class ChannelRelay(Transport):
         now = time.time()
         if self.waiting or now - self.last_wait < LISTEN_GRACE:
             state = "listening"
-        elif now - self.last_deliver < READING_WINDOW:
+        elif now - self.last_deliver < self.reading_window():
             state = "reading"
         else:
             state = "idle"

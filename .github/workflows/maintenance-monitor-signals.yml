@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
-      actions: read # list runs, jobs and artifacts, download pr-merge-summary
+      actions: read # list runs, jobs and artifacts, download pr-merge-summary and pr-merge-post-merge-report
       checks: read # read check-run annotations
       contents: read # check out main
       issues: write # file and update the lane's own issues

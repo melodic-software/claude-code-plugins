@@ -128,7 +128,7 @@ run_cfg() {
   if [[ "$err_check" == "empty" ]]; then
     [[ -z "$err" ]] || err_ok=0
   else
-    printf '%s' "$err" | grep -Eq -- "$err_check" || err_ok=0
+    grep -Eq -- "$err_check" <<<"$err" || err_ok=0
   fi
   [[ -z "$err_absent" || "$err" != *"$err_absent"* ]] || err_ok=0
   if [[ "$out" == "$want_out" && "$rc" -eq "$want_exit" && "$err_ok" -eq 1 ]]; then
@@ -491,7 +491,7 @@ run_explain() {
   local desc="$1" branch="$2" want_out="$3" want_layer="$4" out err
   out=$(HOME="$CASE_HOME" CLAUDE_PROJECT_DIR="$CASE_REPO" bash "$PARSER" "$branch" "" --explain 2>"${FIXTURES}/stderr")
   err=$(<"${FIXTURES}/stderr")
-  if [[ "$out" == "$want_out" ]] && printf '%s' "$err" | grep -Eq -- "branch_issue_pattern layer: ${want_layer}"; then
+  if [[ "$out" == "$want_out" ]] && grep -Eq -- "branch_issue_pattern layer: ${want_layer}" <<<"$err"; then
     echo "PASS: $desc"
     PASS=$((PASS + 1))
   else
