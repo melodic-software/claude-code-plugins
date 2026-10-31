@@ -1,5 +1,5 @@
 ---
-description: "Write and review CSS in any stack (stylesheets, utility classes, CSS-in-JS, scoped component styles) with modern techniques, after finding the project's tokens, browser targets, lint rules and conventions, which always win. Use when the request is for the styling alone: 'write the CSS for', 'style this component', 'restyle this page', 'review this CSS'. Building the whole component or page, or deciding how it should look: /user-interface:design."
+description: "Write and review CSS in any stack (stylesheets, utility classes, CSS-in-JS, scoped component styles) with modern techniques, after finding the project's tokens, browser targets, lint rules and conventions, which always win. Use when: 'write the CSS for', 'style this component', 'restyle this page', 'review this CSS'."
 argument-hint: "[review] [--no-lint] [--show-suppressed] [--target <query>] [what to style or review]"
 user-invocable: true
 disable-model-invocation: false

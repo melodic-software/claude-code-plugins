@@ -103,37 +103,37 @@
       "id": "pos-validation-build-01",
       "split": "validation",
       "expect_trigger": true,
-      "request": "Build me a pricing tiers section in SvelteKit: three plans (Starter, Team, Enterprise), monthly/annual toggle that updates the prices, the middle card highlighted as most popular, and a contact-sales button on Enterprise instead of a price. Put it in src/lib/components/PricingTiers.svelte."
+      "request": "Build me a pricing table component in React for our marketing site: three tiers (Starter, Team, Enterprise), monthly/annual toggle, the middle tier highlighted as recommended, and a disabled CTA state when the user is already on that plan. We use TypeScript and CSS modules."
     },
     {
       "id": "pos-validation-build-02",
       "split": "validation",
       "expect_trigger": true,
-      "request": "Need a notification preferences page in our Next.js app (app router). It loads the user's settings from /api/me/notifications, shows email / push / SMS toggles per category, saves on change, and should handle the loading, failed-to-load and saving states properly. We use shadcn/ui already."
+      "request": "Can you make the account settings page in our SvelteKit app? It needs sections for profile (name, avatar upload), email preferences with toggles, and a danger zone with delete account. Show a loading skeleton while the user loads and an inline error if the save fails."
     },
     {
       "id": "pos-validation-01",
       "split": "validation",
       "expect_trigger": true,
-      "request": "For the booking form we need a date range picker. Is it worth writing our own or should we just pull in react-day-picker or something similar? It has to block out unavailable dates and work with keyboard + screen readers."
+      "request": "We need a date range picker for the reporting screen. Should I build one on top of our existing Popover and Calendar primitives or just pull in react-day-picker? Accessibility and matching our tokens matter more than bundle size here."
     },
     {
       "id": "pos-validation-02",
       "split": "validation",
       "expect_trigger": true,
-      "request": "Our Rust CLI `shipit deploy` currently dumps every step as plain println! lines and nobody can tell what failed. How should the output look? Thinking spinners per step, a summary at the end, red only for errors... and it needs to stay readable when piped to a log file or when NO_COLOR is set."
+      "request": "My Go CLI `syncctl status` currently dumps everything as one wall of text. I want it to show each remote as a row with a colored state (ok / drifting / failed), a summary line at the bottom, and degrade cleanly when piped or when NO_COLOR is set. How should the output be laid out?"
     },
     {
       "id": "neg-validation-01",
       "split": "validation",
       "expect_trigger": false,
-      "request": "Just the CSS please, markup is done: `<div class=\"toast toast--error\"><span class=\"toast__icon\"></span><p class=\"toast__msg\"></p></div>`. Fixed bottom-right, max 360px wide, error variant uses our --color-danger token."
+      "request": "Here's the stylesheet for our sidebar. Can you rewrite it to use container queries instead of the media queries, and swap the hardcoded hex values for our existing CSS custom properties? Don't touch the markup.\n\n.sidebar { width: 280px; background: #f4f4f6; }\n@media (max-width: 900px) { .sidebar { width: 100%; } }"
     },
     {
       "id": "neg-validation-02",
       "split": "validation",
       "expect_trigger": false,
-      "request": "When the FAQ accordion item opens it just snaps to full height. Add a smooth expand/collapse transition to it."
+      "request": "Add a fade-and-slide-in transition to the toast notifications when they appear, about 200ms, and make sure it respects prefers-reduced-motion."
     }
   ]
 }
