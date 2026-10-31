@@ -1,5 +1,5 @@
 ---
-description: "Rank improvements across code, performance, product, config, Claude Code setup, evidence-cited and sized S/M/L; unmeasured targets yield 'instrument this'. Never edits; unattended files work items. Use when: 'what should we improve', 'improvement sweep', 'what could we improve in X', 'tech debt sweep', 'where is the highest-value work', 'what would move the needle', 'run an improvement scan'. Skip: `architecture:improve`, `code-tidying:tidy`, `codebase-health:audit`, `review:fanout`, `work-items:scan-todos`."
+description: "Ranked improvements across code, performance, product, config, Claude Code setup, evidence-cited and sized S/M/L; unmeasured targets yield 'instrument this'. Never edits; unattended files work items. Use when: 'what should we improve', 'improvement sweep', 'what could we improve in X', 'tech debt sweep', 'where is the highest-value work', 'what would move the needle', 'run an improvement scan'. Skip: `architecture:improve`, `code-tidying:tidy`, `codebase-health:audit`, `review:fanout`, `work-items:scan-todos`."
 argument-hint: "[target] [--small|--medium|--large] [--unattended] [repo-path]"
 user-invocable: true
 disable-model-invocation: false
@@ -18,14 +18,13 @@ invocation:
 - Working tree status (empty = clean), `git status --porcelain | head -10`
 - Shallow repository, `git rev-parse --is-shallow-repository`
 
-The pipe is the bound and belongs in the command. A read-time cap ("read only the first 10 entries")
-bounds nothing: the Bash tool returns the command's complete output into context before there is
-anything to decide about.
+The pipe is the bound and belongs in the command: the Bash tool returns the complete output into
+context, so a read-time cap ("read only the first 10 entries") bounds nothing.
 
-Treat a failure (not a repository, git unavailable) as an unknown value and carry on. A
-worktree-isolated session refuses a compound command that contains git, which is why each call
-above stays on its own. The dated record for that refusal, and for the pre-compute composition that
-makes it bite, is the
+Treat a failure (not a repository, git unavailable) as an unknown value and carry on. Each call
+stays on its own because a worktree-isolated session refuses a compound command that contains
+git. The dated record for that refusal, and for the pre-compute composition that makes it bite, is
+the
 [gather-block convention](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/gather-block/README.md#the-pre-compute-block-runs-as-one-shell-invocation),
 "The pre-compute block runs as one shell invocation".
 
@@ -35,39 +34,33 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-This skill answers "what should we improve here, and how do we know?", the second half of that
-question is its identity. Review evaluates a diff; planning designs already-chosen work; the
-specialized finders each hunt one lens. This skill forms its own cross-dimension judgment about
-what is worth improving in a target: code, product behavior, process surfaces, operational setup, and grounds every proposal in cited evidence, so ranking reflects measurement, not taste. It
-discovers and deliberates only: execution always flows through the repo's normal pipeline
-(interview → discovery → planning → implementation → verification).
+Answer "what should we improve here, and how do we know?" across dimensions, grounding every
+proposal in cited evidence so the ranking reflects measurement, not taste. This skill discovers
+and deliberates only: execution flows through the repo's pipeline (interview → discovery →
+planning → implementation → verification).
 
 ## Prompt interpretation
 
-Parse `$ARGUMENTS` and the invoking prompt for four independent narrowings; each defaults open:
+Parse `$ARGUMENTS` and the prompt for four independent narrowings; each defaults open:
 
-- **Target scope.** Bare invocation scans the whole repo across every dimension below. A targeted
-  ask, "improve <feature>", "improve <path>", "improve <concept>", narrows the scan: map the
-  named feature/path/concept to its concrete surfaces (files, workflows, config, ops touchpoints)
-  before gathering evidence, and gather evidence for those surfaces only. A concept with no
-  resolvable surface is itself a finding (likely instrument-first, below).
-- **Size band.** `--small` / `--medium` / `--large` (or equivalent prose: "quick wins only", "big
-  swings") restricts candidates to that size band. Default: all sizes, ranked together.
-- **Repo as parameter.** One repo per invocation. An explicit repo path in the arguments makes that
-  checkout the target; otherwise the current repo is. When the target is not the session's working
-  directory, resolve its root once (`git -C <repo-path> rev-parse --show-toplevel`) and anchor
-  EVERY probe to it. `git -C <root>` for every git command here and in the `context/` recipes,
-  and file reads under that root, so the evidence never silently comes from the invoking repo.
-  The branch/log calls above describe the session's cwd, not the target; re-run them
-  with `-C <root>` in that case. Fleet-wide sweeps are out of scope. Compose with
+- **Target scope.** Bare invocation scans the whole repo across every dimension. A targeted ask
+  ("improve <feature|path|concept>") first maps the target to its concrete surfaces (files,
+  workflows, config, ops touchpoints), then gathers evidence for those only. A concept with no
+  resolvable surface is itself a finding (likely instrument-first).
+- **Size band.** `--small` / `--medium` / `--large`, or prose ("quick wins only", "big swings"),
+  restricts candidates to that band. Default: all sizes, ranked together.
+- **Repo.** One repo per invocation: an explicit repo path, else the current repo. When the target
+  is not the session's working directory, resolve its root once (`git -C <repo-path> rev-parse
+  --show-toplevel`) and anchor EVERY probe to it (`git -C <root>` here and in the `context/`
+  recipes, file reads under that root), so evidence never silently comes from the invoking repo;
+  re-run the gather calls with `-C <root>`. Fleet-wide sweeps are out of scope: compose with
   `repo-fleet-hygiene` externally, one invocation per repo.
-- **Mode.** Interactive is the default. Unattended is entered ONLY when the caller declares it (see
-  Unattended mode), never inferred from context.
+- **Mode.** Interactive by default. Unattended only when the caller declares it (Unattended mode).
 
 ## Scan dimensions
 
-The scan walks this inventory explicitly, so it cannot silently collapse to code-only. For each
-dimension, gather whatever evidence its tier sources yield, then propose candidates:
+Walk this inventory explicitly so the scan never collapses to code-only. For each dimension,
+gather what its tier sources yield, then propose candidates:
 
 | Dimension | Examples of what to look at |
 |---|---|
@@ -77,48 +70,43 @@ dimension, gather whatever evidence its tier sources yield, then propose candida
 | Config / automation outside the codebase | GitHub labels, Actions workflows, synchronizations, branch protections, bot config |
 | Claude Code operational setup | Cloud environments, MCP servers, hooks, permission rules, plugin/skill configuration |
 
-**Docs/markdown improvement is OUT**. Owned lanes (`docs-hygiene`, `codebase-health`) cover it;
-finding a docs candidate means naming the owning lane, not adding it to this list.
+**Docs/markdown improvement is OUT.** Owned lanes (`docs-hygiene`, `codebase-health`) cover it: a
+docs candidate names the owning lane and stays off the ranked list.
 
 ## Evidence ladder
 
-The skill's core mechanic. Every candidate cites its evidence, and its rung on this ladder sets the
-confidence attached to the ranking (strongest first):
+Every candidate cites its evidence; its rung sets the ranking confidence (strongest first):
 
 1. **Measured telemetry**. Production/application metrics, error rates, cost or latency data from
    a Tier 1/2 source.
 2. **Repo and CI history**. Churn×complexity hotspots, CI failure ratios and duration trends,
-   dependency staleness. Mechanical, reproducible, repo-native.
+   dependency staleness.
 3. **Structural presence signals**. Test-coverage presence/absence, TODO density, missing
    automation where a class of toil demonstrably recurs.
-4. **Model judgment**, the weakest rung: this session's read of the target. Always labeled as
-   such, never dressed up as measurement.
+4. **Model judgment**, the weakest rung, always labeled as such, never dressed up as measurement.
 
-Two hard rules follow:
+Two hard rules:
 
-- **Instrument-first.** When the target has no measurement at all (no telemetry, no usable CI
-  history, nothing above rung 4), the top-ranked candidate becomes "instrument this so future runs
-  can rank on data": a concrete baseline/instrumentation proposal (what to measure, where the
-  signal lands), handed to the pipeline like any other improvement. This mirrors the SRE
-  error-budget posture: measurement precedes prioritization.
-- **Gaps are recorded, never papered over.** An evidence source that is unavailable (no GitHub
-  access path, shallow clone, no telemetry configured) produces an explicit evidence-gap line in
-  the output. Absence of evidence is reported; it is never fabricated, estimated, or silently
-  skipped.
+- **Instrument-first.** When the target has nothing above rung 4 (no telemetry, no usable CI
+  history), the top-ranked candidate is "instrument this so future runs can rank on data": a
+  concrete baseline proposal (what to measure, where the signal lands), handed to the pipeline
+  like any other improvement. This mirrors the SRE error-budget posture: measurement precedes
+  prioritization.
+- **Gaps are recorded, never papered over.** An unavailable source (no GitHub access path, shallow
+  clone, no telemetry configured) produces an explicit evidence-gap line. Absence of evidence is
+  reported, never fabricated, estimated, or silently skipped.
 
 ## Evidence sources (tiered, presence-gated)
 
-- **Tier 0. Repo-native, always available.** Git churn/hotspot analysis (recipe:
-  context/hotspots.md, including its shallow-history gate), CI health via GitHub Actions run data
-  (recipe: context/ci-health.md), dependency staleness from the repo's own manifests,
-  test-coverage presence, TODO density. These ship with the skill and need nothing installed.
+- **Tier 0. Repo-native, always available.** Git churn/hotspots (context/hotspots.md, including
+  its shallow-history gate), CI health from GitHub Actions run data (context/ci-health.md),
+  dependency staleness from the repo's manifests, test-coverage presence, TODO density.
 - **Tier 1. Local Claude Code telemetry.** When `harness-ops:observability` is installed, consult
-  it for session/cost/hook telemetry relevant to the operational-setup dimension.
-- **Tier 2. Configured application telemetry.** Whatever MCP telemetry sources the consumer
-  declares through the `.claude/improvement.md` config cascade (team file + `.local` overlay +
-  user-global; key contract in the plugin's reference/config.md). Never hardcode a vendor; if no
-  source is configured, Tier 2 is an evidence gap, and product-level candidates fall back down the
-  ladder.
+  it for session/cost/hook telemetry for the operational-setup dimension.
+- **Tier 2. Configured application telemetry.** The MCP telemetry sources the consumer declares
+  through the `.claude/improvement.md` config cascade (team file + `.local` overlay +
+  user-global; key contract in the plugin's reference/config.md). Never hardcode a vendor; with no
+  source configured, Tier 2 is an evidence gap and product-level candidates fall down the ladder.
 
 **GitHub access-path probe ladder.** For CI and repo-platform data, probe in order: GitHub MCP
 tools (`actions_*` and repo tools) → `gh` CLI → none. On "none", record the evidence gap and rank
@@ -126,29 +114,26 @@ without CI evidence, never reconstruct CI health from guesswork.
 
 ## Lane delegation as scan input
 
-Where an installed specialized finder covers a dimension more deeply, consult it presence-gated and
-fold its findings into this skill's candidate list as inputs. Delegate, never re-inline its
-method:
+Where an installed finder covers a dimension more deeply, consult it presence-gated and fold its
+findings in as inputs. Delegate, never re-inline its method:
 
-- `architecture:improve` (deepening lens). Depth for the code/architecture dimension.
-- `harness-config:audit-automation-gaps`. Depth for the Claude Code operational-setup dimension.
-- `/code-metrics:audit-duplication`, when it is among the available skills. Copy count and clone
-  trend for the code dimension: run it with `--json --keep --all` and read the document it prints
-  (`--keep` keeps that document as the next run's trend baseline). Each clone class's copy count is
-  its number of instances; code-metrics computes `trend`, including the lists of new and grown
-  classes, and this skill reads only that, never an earlier report. Copy count ranks spread (context/ranking.md). A growing class becomes a
-  candidate whose next step is a lint proposal, written through the findings hand-off under
+- `architecture:improve` (deepening lens) for the code/architecture dimension.
+- `harness-config:audit-automation-gaps` for the Claude Code operational-setup dimension.
+- `/code-metrics:audit-duplication`, when among the available skills, for copy count and clone
+  trend: run it with `--json --keep --all` and read the document it prints (`--keep` keeps it as
+  the next run's trend baseline). A class's copy count is its number of instances; read only the
+  `trend` code-metrics computes (including new and grown classes), never an earlier report. Copy
+  count ranks spread (context/ranking.md). A growing class becomes a candidate whose next step is
+  a lint proposal, written through the findings hand-off under
   `<memory_dir>/improvement/<branch-slug>/` (context/unattended.md "Growing clone classes"). When
   code-metrics is not available, or no detector ran, record a `gap:` line for duplication.
-- Other installed finders that announce an improvement-shaped scan may be consulted the same way.
+- Other installed finders that announce an improvement-shaped scan, the same way.
 
-Delegated findings keep their lane attribution in the evidence citation, and they compete in the
-same ranked list as native candidates. Where no lane is installed, the skill's own Tier 0 scan for
-that dimension stands alone. Reuse-or-replace: never re-implement what an owned lane already does.
+Delegated findings keep their lane attribution in the evidence citation and compete in the same
+ranked list. With no lane installed, the Tier 0 scan for that dimension stands alone.
 
-In unattended mode, consult only lanes that run without interaction; a lane whose flow is
-interview- or confirmation-driven is skipped with a `gap:` line naming it, and Tier 0 stands
-alone for that dimension, never simulate a user to drive an interactive lane.
+In unattended mode, consult only lanes that run without interaction; skip an interview- or
+confirmation-driven lane with a `gap:` line naming it, and never simulate a user to drive it.
 
 ## Candidate output shape
 
@@ -164,25 +149,24 @@ One ranked list, highest value-to-effort first. Every row carries:
 | Confidence | Derived from the evidence rung, stated plainly |
 | Value-to-effort | WSJF-style rationale: cost of delay (value, urgency, risk reduction) against job size |
 
-Scoring and dedupe mechanics: context/ranking.md. Evidence-gap lines appear after the list so the
-reader knows what the ranking could not see.
+Scoring and dedupe: context/ranking.md. Evidence-gap lines follow the list so the reader knows
+what the ranking could not see.
 
 ## Interactive flow
 
-1. Present the ranked candidate list (shape above), evidence gaps included.
+1. Present the ranked list, evidence gaps included.
 2. The user picks a candidate.
-3. Interview on the pick. Invoke `/planning:interview` via the Skill tool when available, to reach a shared shape:
-   what improvement, why now, what evidence, what done looks like.
-4. Hand off to the pipeline, invoking each via the Skill tool: `/discovery:explore` (internal
-   unknowns) or `/discovery:research` (external unknowns) as needed, then `/planning:plan`. The handoff artifact is the interview's
-   output, with the candidate's evidence citation attached. A pick that fits one small PR may
-   instead go to `/improvement:improve`, invoked via the Skill tool with the candidate as its
-   target.
-5. Offer the remainder: unpicked candidates can be filed via `/work-items:track` when installed; the user decides which, if any.
+3. Interview on the pick: invoke `/planning:interview` via the Skill tool when available, to settle
+   what improvement, why now, what evidence, and what done looks like.
+4. Hand off, invoking each via the Skill tool: `/discovery:explore` (internal unknowns) or
+   `/discovery:research` (external unknowns) as needed, then `/planning:plan`, with the interview
+   output and the candidate's evidence citation as the handoff. A pick that fits one small PR may
+   instead go to `/improvement:improve`, invoked via the Skill tool with the candidate as target.
+5. Offer to file unpicked candidates via `/work-items:track` when installed; the user decides
+   which, if any.
 
-Where a named pipeline skill is not installed in the consuming project, summarize the equivalent
-handoff shape inline instead of blocking, but absence of a pipeline skill is never license to
-implement the improvement in this session.
+Where a named pipeline skill is not installed, summarize the equivalent handoff inline instead of
+blocking; a missing pipeline skill never licenses implementing the improvement in this session.
 
 ## Unattended mode
 
@@ -190,40 +174,37 @@ Entered only when the **caller declares it** in the invocation prompt (a routine
 scheduled job, an orchestrating skill), never sniffed from the environment, per the fleet's
 declared-by-the-caller convention. In unattended mode:
 
-- **No questions.** No interview, no picks, no confirmation prompts. Decisions resolve by the
-  defaults below or by the invocation prompt's overrides.
+- **No questions.** No interview, picks, or confirmations; decisions resolve by the defaults below
+  or the invocation prompt's overrides.
 - **The report is persisted**, the full ranked list plus evidence-gap lines, under
-  `${CLAUDE_PLUGIN_DATA}`, keyed per project per the plugin-data-report-keying convention (report
-  shape and keying: context/unattended.md).
-- **Top candidates are filed** via `work-items:track` when installed (absent tracker = report
-  only, noted in the report). Filing behavior:
-  - *Dismissed-candidate memory, at candidate assembly*. Candidates an operator previously
-    dismissed are suppressed before ranking, so they never consume a cap slot or a tracker query.
-    A soft default the invocation prompt can override.
-  - *Dedupe against open work items, at filing time*. Search before creating each item. Baseline
-    behavior, not a tuning knob; filing a duplicate is a bug.
+  `${CLAUDE_PLUGIN_DATA}`, keyed per project per the plugin-data-report-keying convention (shape
+  and keying: context/unattended.md).
+- **Top candidates are filed** via `work-items:track` when installed (absent tracker = report only,
+  noted in the report):
+  - *Dismissed-candidate memory, at candidate assembly.* Suppress candidates an operator
+    previously dismissed before ranking, so they consume no cap slot or tracker query. A soft
+    default the invocation prompt can override.
+  - *Dedupe against open work items, at filing time.* Search before creating each item. Baseline
+    behavior, not a knob: a duplicate is a bug.
   - *Adaptive filing cap*, a soft default bounding how many items one run files (following
-    `work-items:work-loop`'s adaptive-cap precedent), overridable by the invocation prompt.
+    `work-items:work-loop`'s adaptive cap), overridable by the invocation prompt.
 
   Consultation order and its rationale: context/ranking.md.
-- **Nothing else mutates, and nothing self-disposes.** The run is read-only apart from the report,
-  the filed items, and, when code-metrics is enabled, the kept duplication report and the
-  clone-growth findings file (with its memory-root `.gitignore`) that the verb contract below names; it never picks a candidate, never prioritizes the queue, never starts
-  implementation. Prioritization of filed items is human-gated always, the autonomy catalog's
-  `tech-debt-sweep` C1 contract.
+- **Nothing else mutates, and nothing self-disposes.** Read-only apart from the report, the filed
+  items, and the code-metrics writes the verb contract names. It never picks a candidate,
+  prioritizes the queue, or starts implementation: prioritizing filed items is always
+  human-gated, the autonomy catalog's `tech-debt-sweep` C1 contract.
 
 ## Execution requests
 
-"Go implement this", interactively or as a follow-up, routes through the pipeline, never through
-this skill's own hands: interview the pick → `/discovery:explore` / `/discovery:research` →
-`/planning:plan` → `/implementation:implement` → `/verification:confirm`, each delegated to its
-skill by invoking it via the Skill tool. An execution request changes where the handoff goes,
-not what this skill is allowed to touch.
+"Go implement this", interactively or as a follow-up, routes through the pipeline, never this
+skill's own hands: interview the pick → `/discovery:explore` / `/discovery:research` →
+`/planning:plan` → `/implementation:implement` → `/verification:confirm`, each invoked via the
+Skill tool. An execution request changes where the handoff goes, not what this skill may touch.
 
 ## What this skill does NOT do / Skip when
 
-Reuse-or-replace posture: each boundary below names an owned lane this skill delegates to or steps
-aside for. It re-implements none of them.
+Each row names an owned lane this skill delegates to or steps aside for; it re-implements none.
 
 | Skip when the ask is | Owned by | Why not here |
 |---|---|---|
@@ -252,15 +233,15 @@ mode:
     memory-tier write, a `.gitignore` containing `*` in `<memory_dir>` when that file is absent
     (context/unattended.md "Growing clone classes").
 
-No other mutation exists in any mode; there is no flag, prompt, or mode that makes this skill edit
-the target's tracked files.
+No other mutation exists in any mode; no flag, prompt, or mode makes this skill edit the target's
+tracked files.
 
 ## Spoke paths
 
 The `context/` files write the plugin's root directory as `<plugin-root>`, which is
 `${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
+writing it into a brief: those files arrive through the Read tool as plain bytes, so a `${…}`
+token in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
 `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves>, verified
 2026-10-07; recheck when that table adds supporting files to where a `${…}` reference resolves.
@@ -272,17 +253,14 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 ## Gotchas
 
-Known traps, seeded from the research this skill was grounded on:
-
 - **Shallow or truncated clones poison churn rankings.** The hotspot recipe's history-depth gate
   (context/hotspots.md) runs first; a window the history does not cover downgrades churn to a
-  recorded evidence gap. Confidently-wrong rankings from partial history are worse than no
-  ranking.
-- **Never call the Actions `/timing` endpoint**. GitHub marks it as closing down; the dated record
+  recorded evidence gap. A confidently wrong ranking from partial history is worse than none.
+- **Never call the Actions `/timing` endpoint**: GitHub marks it as closing down. The dated record
   for that, and for the documented 1,000-result bound behind the windowing rule, is in
   context/ci-health.md. CI health iterates `/actions/runs` by `created` date windows (never deep
   pagination) and derives failure ratios, duration trends, and `run_attempt` retries per that file.
-- **Unattended is declared, never detected.** There is no supported way to observe
-  non-interactivity; guessing it converts an interactive user's session into a silent filing run.
-- **No access path ≠ healthy CI.** A missing GitHub access path is an evidence-gap line, not a
-  reason to estimate CI health from the working tree's vibes.
+- **Unattended is declared, never detected.** Non-interactivity cannot be observed; guessing turns
+  an interactive user's session into a silent filing run.
+- **No access path ≠ healthy CI.** A missing GitHub access path is an evidence-gap line, never a
+  reason to estimate CI health from the working tree.
