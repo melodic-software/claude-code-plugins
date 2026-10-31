@@ -1,5 +1,23 @@
 # Changelog for the PR pipeline convention
 
+## [8.17.0] - 2026-10-31
+
+### Added
+
+- **A push to main that reverts a pull request the lanes App put in the merge queue now demotes that lane.** `post-merge-demotion-alert.yml` reads every commit each canary push run brings (up to 20), whatever the run concluded, for a `Reverts #N` line, a revert-button subject, `This reverts commit <sha>` or the red-main bot's culprit marker, and files a `babysit-merge-demotion` record with signal `revert`; babysit makes no unattended merge while it is open, and only a person closing it re-enables the lane. A revert of a pull request a person queued files nothing, and a revert commit an existing record lists is never filed again.
+
+### Fixed
+
+- The dispatchers' FAIL-cap reader (verify-cap.mjs) now runs as an async child process, so it no
+  longer blocks the event loop. While it blocked for a minute or more, a reset on the job's idle
+  connection to GitHub went unread. The address-feedback dispatch POST then went out on the dead
+  socket and failed with `fetch failed` (ECONNRESET), so no round was sent or recorded. A reader
+  past its 2-minute limit is still killed and read as not the cap.
+- feedback-dispatch.mjs sends the dispatch POST once more when its connection broke before any
+  answer (ECONNRESET, UND_ERR_SOCKET), unless a run that POST started is already listed for the
+  pull request. An HTTP error answer is never sent again. A failed run's error line now names the
+  cause code.
+
 ## [8.16.0] - 2026-10-31
 
 ### Added
