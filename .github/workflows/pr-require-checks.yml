@@ -135,8 +135,8 @@ concurrency:
 # three test lanes are jobs for a different reason: each runs only when the
 # change selects suites of its ecosystem, and skips otherwise, so a change to
 # shell code starts no Python or Node runner and a C# or docs change starts
-# none. The informational Windows lane runs in
-# .github/workflows/pr-test-windows.yml: nothing gates on it, and in this file it
+# none. The informational Windows and macOS lane runs in
+# .github/workflows/pr-test-platforms.yml: nothing gates on it, and in this file it
 # held the run open past its own required lanes.
 #
 # EVERY JOB'S TIMEOUT IS ceil(max(1.5 x p95, 1.1 x max) / 60) MINUTES, at least
@@ -1083,7 +1083,7 @@ jobs:
           files: >-
             .github/workflows/pr-require-checks.yml
             .github/workflows/post-merge-detect-silent-revert.yml
-            .github/workflows/pr-test-windows.yml
+            .github/workflows/pr-test-platforms.yml
             .github/workflows/release-publish-plugins.yml
 
       - name: Verify shebang files are executable
@@ -2652,7 +2652,7 @@ jobs:
   # (scripts/plan-test-lanes.sh): the shell suites the change selects go to
   # `test-bash`, its Python suites to `test-python`, and the Node packages they
   # reach to `test-node`; a Node suite with a sibling .test.sh runs through
-  # that wrapper in `test-bash`, and a Pester suite in pr-test-windows.yml. The
+  # that wrapper in `test-bash`, and a Pester suite in pr-test-platforms.yml. The
   # whole tree (a schedule, a dispatch, or a change
   # to this workflow or its actions) runs every suite of every lane.
   #

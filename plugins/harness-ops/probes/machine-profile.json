@@ -17,6 +17,7 @@
     "harness-ops:morning-brief",
     "harness-ops:observability",
     "harness-ops:plugins",
+    "harness-ops:plugins-audit",
     "harness-ops:prerequisites",
     "harness-ops:setup",
     "disk-hygiene:clean",
