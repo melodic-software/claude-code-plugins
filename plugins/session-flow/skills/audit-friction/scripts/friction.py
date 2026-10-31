@@ -242,7 +242,10 @@ def aggregate(records: list[dict]) -> dict:
         active_s += (record.get("time") or {}).get("active_s") or 0
         turns += (record.get("human") or {}).get("turns") or 0
         perf["usage_limit_notices"] += (record.get("rate_limit") or {}).get("usage_limit_notices") or 0
-        perf["stop_hook_ms"] += (record.get("stop_hooks") or {}).get("ms_total") or 0
+        stop_hooks = record.get("stop_hooks") or {}
+        # Matching Stop hooks run in parallel: the wait is each stop's slowest hook, the plain sum is process time.
+        perf["stop_hook_wait_ms"] += stop_hooks.get("wait_ms_total") or 0
+        perf["stop_hook_ms"] += stop_hooks.get("ms_total") or 0
         if not isinstance(friction, dict):
             continue
         for side, keys in (friction.get("counts") or {}).items():
@@ -337,7 +340,11 @@ def render_mine(data: dict) -> str:
             for tool, t in sorted(row["next_tool"].items(), key=lambda kv: (-kv[1]["count"], kv[0])):
                 lines.append(f"| {row['side']} | {key} | {tool.replace('|', chr(92) + '|')} | {t['count']} | {t['ok']} | {t['failed']} | {t['unknown']} |")
     lines += ["", "Shape flags: " + (", ".join(f"{k} {v}" for k, v in sorted(data["shape_flags"].items())) or "none")]
-    lines += ["", "Perf: " + (", ".join(f"{k} {v}" for k, v in sorted(data["perf"].items())) or "none")]
+    perf = dict(data["perf"])
+    wait, summed = perf.pop("stop_hook_wait_ms", 0), perf.pop("stop_hook_ms", 0)
+    lines += ["", f"Stop-hook wait: {wait} ms, the slowest hook per stop summed over stops "
+                  f"(parallel hook time, every hook's duration summed: {summed} ms)."]
+    lines += ["", "Perf: " + (", ".join(f"{k} {v}" for k, v in sorted(perf.items())) or "none")]
     return "\n".join(lines)
 
 
