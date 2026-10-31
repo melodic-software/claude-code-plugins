@@ -723,10 +723,12 @@ jobs:
                 and .head_repository.full_name == $repo)]
               | max_by(.id) // empty'
           }
-          done_at=$LANE_DONE_AT pr=
-          # A pr-unblock run's head is main's: the PR's live head is the one, and
-          # the newest pr-unblock/* status github-actions[bot] set on it (the
-          # writer ci-status reads, merge-holds.mjs unblockStops) is the change.
+          done_at=$LANE_DONE_AT pr='' page_full=false
+          # A pr-unblock run's head is main's: the PR's live head is the one. Its
+          # newest pr-unblock/* status github-actions[bot] set (the writer
+          # ci-status reads, merge-holds.mjs unblockStops) stands in for a lane's
+          # finish: when it may be newer than ci-status's read, ci-status is re-run.
+          # A repeated stop costs one extra re-run, bounded by the dispatchers' caps.
           if [[ $LANE_PATH == "$unblock" ]]; then
             # Any workflow's GITHUB_TOKEN can dispatch pr-unblock.yml, and a run its
             # trust gate refused still completes. Only its report-stop-status job,
@@ -749,10 +751,12 @@ jobs:
               exit 0
             fi
             read_api statuses "the statuses of $HEAD_SHA" "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/statuses?per_page=100"
-            # Kept newest first, as GitHub lists them and unblockStops reads them.
-            statuses=$(jq -c '[.[] | select((.context | startswith("pr-unblock/")) and .creator.login == "github-actions[bot]")]' <<<"$statuses")
-            done_at=$(jq -r 'first | .created_at // ""' <<<"$statuses")
-            if [[ ! $done_at =~ $utc ]]; then
+            # One page, newest first. A full page may hide more, so it fails open:
+            # neither exit below that could skip the re-run is taken.
+            [ "$(jq 'length >= 100' <<<"$statuses")" != true ] || page_full=true
+            done_at=$(jq -r '[.[] | select((.context | startswith("pr-unblock/")) and .creator.login == "github-actions[bot]")]
+              | first | .created_at // ""' <<<"$statuses")
+            if [[ ! $done_at =~ $utc && $page_full != true ]]; then
               echo "No pr-unblock/* status on $HEAD_SHA; ci-status holds on none, so nothing to re-run."
               exit 0
             fi
@@ -792,24 +796,9 @@ jobs:
             esac
           fi
           started_at=$(jq -r '.started_at // ""' <<<"${job:-null}")
-          if [ "$(jq -r --arg s "$started_at" --arg d "$done_at" \
+          if [ "$page_full" != true ] && [ "$(jq -r --arg s "$started_at" --arg d "$done_at" \
             'try (($s | fromdateiso8601) > ($d | fromdateiso8601) + 60) catch false' <<<null)" = true ]; then
             echo "ci-status of run $id started at $started_at, after both lanes finished ($done_at); it read them."
-            exit 0
-          fi
-          # report-escalation.sh re-posts failure on every stop. ci-status holds
-          # on the contexts whose newest status (merge-holds.mjs unblockStops)
-          # fails (first per context, newest first), so re-run unless that set is
-          # the same whether ci-status read every status set up to 60 s after it
-          # started or only those set more than 60 s before: one inside that
-          # margin may or may not have been read.
-          if [[ $LANE_PATH == "$unblock" ]] && [ "$(jq -r --arg s "$started_at" '
-            def stops: reduce .[] as $x ({}; if has($x.context) then . else .[$x.context] = $x.state end)
-              | to_entries | map(select(.value == "failure" or .value == "error") | .key) | sort;
-            def before($t): [.[] | select((.created_at | fromdateiso8601) < $t)] | stops;
-            ($s | fromdateiso8601) as $start | stops as $now
-            | $now == before($start - 60) and $now == before($start + 60)' <<<"$statuses")" = true ]; then
-            echo "The stopped pr-unblock/* contexts on $HEAD_SHA are those ci-status read when it started ($started_at); nothing to re-run."
             exit 0
           fi
           while [ "$(jq -r .status <<<"$run")" != completed ]; do

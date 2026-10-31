@@ -554,25 +554,31 @@ done
 STUB_UNBLOCK_JOBS='{"jobs":[]}' unblock_case "a pr-unblock run with no report-stop-status job re-runs nothing" 0 "wrote no status (its report-stop-status job did not succeed)"
 check_reran 0 "a run with no report-stop-status job re-runs nothing"
 check_calls 1 "it stops after the run's jobs (no such job)"
-# Statuses come newest first, as GitHub lists them. A stop re-posted on the
-# context ci-status already read stopped changes nothing.
+# Statuses come newest first, as GitHub lists them. Any github-actions[bot]
+# pr-unblock/* status newer than ci-status's start less the 60 s margin
+# re-runs it, whatever its state: a repeated stop costs one extra re-run.
 STARTED=2026-10-23T09:55:00Z
 STUB_STATUSES="[$(status pr-unblock/address-feedback failure "$LATER"),$(status pr-unblock/address-feedback failure "$EARLY")]"
-STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a failure re-posted over a failure ci-status read re-runs nothing" 0 "are those ci-status read when it started"
-check_reran 0 "failure to failure on one context is no change"
-STUB_STATUSES="[$(status pr-unblock/address-feedback success "$LATER"),$(status pr-unblock/address-feedback failure "$EARLY")]"
-STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a success over a failure ci-status read re-runs it" 0 "Re-running ci-status (job 77)"
-check_reran 1 "failure to success re-runs"
-# Per context: address-feedback stopped then cleared before ci-status
-# started, fix-ci stopped before it and cleared after. The newest status
-# overall is a success both before and after; the stopped set is not.
-STUB_STATUSES="[$(status pr-unblock/fix-ci success "$LATER"),$(status pr-unblock/address-feedback success 2026-10-23T09:40:00Z),$(status pr-unblock/fix-ci failure 2026-10-23T09:30:00Z),$(status pr-unblock/address-feedback failure 2026-10-23T09:20:00Z)]"
-STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a context cleared after ci-status read it stopped re-runs it" 0 "Re-running ci-status (job 77)"
-check_reran 1 "the stopped set, not the newest status, decides"
-# A status inside the 60 s margin around ci-status's start may be unread.
-STUB_STATUSES="[$(status pr-unblock/address-feedback success 2026-10-23T09:54:30Z),$(status pr-unblock/address-feedback failure 2026-10-23T09:00:00Z)]"
-STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a status inside the margin re-runs ci-status" 0 "Re-running ci-status (job 77)"
-check_reran 1 "a possibly unread status re-runs"
+STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a failure re-posted over a failure re-runs ci-status" 0 "Re-running ci-status (job 77)"
+check_reran 1 "a repeated stop re-runs once"
+# fix-ci fails 90 s after ci-status started and clears at 200 s: ci-status
+# may have read the failure, so the clear re-runs it.
+STUB_STATUSES="[$(status pr-unblock/fix-ci success 2026-10-23T09:58:20Z),$(status pr-unblock/fix-ci failure 2026-10-23T09:56:30Z)]"
+STUB_LANE_RUNS="$(runs "$(run 3 completed "$HEAD" "$CODE" pull_request "$EARLY")")"
+STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a stop and clear both after ci-status started re-run it" 0 "Re-running ci-status (job 77)"
+check_reran 1 "a clear after an unseen-or-seen stop re-runs"
+# A status set more than 60 s before ci-status started was read.
+STUB_STATUSES="[$(status pr-unblock/fix-ci success 2026-10-23T09:53:59Z)]"
+STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a status ci-status started after is already read" 0 "after both lanes finished (2026-10-23T09:53:59Z); it read them."
+check_reran 0 "an already read status re-runs nothing"
+# A full first page may hide a newer pr-unblock status: re-run anyway.
+page="$(jq -cn --arg at 2026-10-23T09:00:00Z '[range(100) | {context: "ci/other", state: "success", created_at: $at, creator: {login: "someone"}}]')"
+STUB_STATUSES=$page STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a full page with no pr-unblock status re-runs ci-status" 0 "Re-running ci-status (job 77)"
+check_reran 1 "a full page fails open"
+STUB_STATUSES="$(jq -c --arg at 2026-10-23T09:00:00Z '.[0] = {context: "pr-unblock/fix-ci", state: "success", created_at: $at, creator: {login: "github-actions[bot]"}}' <<<"$page")"
+STUB_JOBS="$(cijob completed "$STARTED")" unblock_case "a full page whose pr-unblock status ci-status read still re-runs it" 0 "Re-running ci-status (job 77)"
+check_reran 1 "a full page skips the already-read exit"
+STUB_LANE_RUNS="$BOTH_LANES"
 STUB_STATUSES="[$(status pr-unblock/address-feedback success "$LATER"),$(status pr-unblock/address-feedback failure "$EARLY")]"
 # The head moving between the first PR read and the one before the re-run is left alone.
 STUB_PR_SEQ="$(pr)
