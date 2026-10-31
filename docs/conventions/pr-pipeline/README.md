@@ -2962,6 +2962,17 @@ body version (marker `<!-- intake-triage size-split-decline reason=<code> -->`):
 refinement), `no-split`, `bad-split`, `bad-subset` (no valid split by line or by target), or
 `no-type` (an Issue Type admission does not take).
 
+work-unblock closes a split parent as completed only when every sub-issue closed with
+`state_reason` `completed` by a listed human or a merge and the parent's done-when is covered
+(`admit.mjs` `splitLeftOpen`); that same rule decides whether the lanes App's close counts as done
+for what the parent blocks. A sub-issue closed as not planned, as a duplicate or with no reason
+leaves the parent open. A split record covers the done-when when its parts number every item and
+match the filed sub-issues; a split by hand when its body has a task list whose open items each
+cite a sub-issue. An open task item in a listed human's comment on the parent stays the parent's
+work, unless a split record took it because the comment was last written before the record. A
+parent left open goes through admission's rules like any issue, and a Size Large one is refused
+with `SIZE_SPLIT_DONE`.
+
 Lanes choose the model by difficulty along one ladder: Sonnet for mechanical work (the review,
 triage and summary profiles), Opus at effort high for code (`code-fix`), Opus at effort xhigh
 (`code-xhigh`) for a high-Complexity issue and fix-ci's one retry, and Fable above it. The Fable
