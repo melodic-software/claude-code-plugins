@@ -2296,6 +2296,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   carries it as a stop-reason code (`intent`, `design`, `security` or `cost`): the marker
   `<!-- stop-reason lane=work-resolve-issue reason=<code> -->` and the line ``Reason: `<code>` ``,
   from the shared `.github/scripts/lib/stop-reason.mjs`, which refuses `none` on such a comment.
+  A `security-risk` hold read from the run's words also names the matched word, reduced to letters,
+  digits, hyphens, underscores and spaces in a code span, so a person can dismiss a false hit in one
+  read; the word changes nothing about the hold.
   collect-base-activity copies `.github/scripts/lib/` beside the script's base copy for that
   import. `hold` labels the issue with the human-gated
   role label, removes `agent-ready` and comments why; `host-run` adds the `host-run` label (the host queue's one signal: an unattended

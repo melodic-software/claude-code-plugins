@@ -280,6 +280,16 @@ test("an ending reason that names an exposed secret without a risk word holds", 
   assert.equal(runCode(pasted), "security-risk", pasted);
 });
 
+// The exposures above that say "took over" also say "attacker", so this case
+// alone holds the phrase in the word list.
+test("an ending reason that says took over, with no other security word, holds", () => {
+  for (const code of ["host-only", "manual-external", "already-done"]) {
+    const reason = `${code}: someone took over the maintainer account`;
+    assert.equal(runCode(reason), "security-risk", reason);
+    assert.equal(stopRoute(runCode(reason)), "hold", reason);
+  }
+});
+
 // Security review: the release takes only an allowlist of capability words
 // beside the secret noun, so an exposure worded with no listed sink word, a
 // pronoun or a bare "key" that points at the secret, or text in another
