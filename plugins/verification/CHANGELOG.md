@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.2] - 2026-10-31
+
+### Fixed
+
+- `/verification:confirm` adds `--unattended` to its `/app-control:map refresh` call only when its own caller passed `--unattended`. A pipeline lane that omits the flag gets a refresh that may ask ([#11578](https://github.com/melodic-software/claude-code-plugins/issues/11578)).
+
 ## [0.15.1] - 2026-10-31
 
 ### Fixed

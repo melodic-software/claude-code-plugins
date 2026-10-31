@@ -3,6 +3,14 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.77.1] - 2026-10-31
+
+### Fixed
+
+- **block-root-delete-target outside-tree fix line.** The refusal now says to put scratch work under the working tree, for example a gitignored `.work/`. It used to name the session scratchpad, which sits under the OS temp directory that every concurrent session shares.
+
+- The `workflow-resilience-check` description says the fan-out it flags has no wave cap of its own, in place of calling it un-throttled, and points at the workflow runtime's concurrency limit.
+
 ## [0.77.0] - 2026-10-31
 
 ### Added
