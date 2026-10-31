@@ -44,6 +44,7 @@ case "$1 $2" in
   if [[ $FAKE_QUEUED == fail ]]; then exit 1; fi
   json="{\"data\":{\"node\":{\"isInMergeQueue\":$FAKE_QUEUED}}}" ;;
 api\ repos/*)
+  if [[ ${FAKE_RUNS:-} == fail ]]; then exit 1; fi
   runs=${FAKE_RUNS:-"[{\"started_at\":\"2026-10-18T01:00:00Z\",\"status\":\"completed\",\"conclusion\":\"$FAKE_CI\",\"app\":{\"id\":15368}}]"}
   # Filter on app_id as the API does, when the query asks for it.
   app=$(sed -n 's/.*[?&]app_id=\([0-9]*\).*/\1/p' <<<"$2")
@@ -198,22 +199,43 @@ FAKE_PRS='[]' run_decide GITHUB_EVENT_NAME=push
 check 'push none: exit 0' 0 "$RC"
 check 'push none: builds one (no checks to cancel)' 'true ' "$(val rebuild) $(val deferred)"
 
-echo '# push: main changed a file it changes'
+echo '# push: main changed a file it changes, no checks running'
 new_fixture no
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=1
 check 'push stale: exit 0' 0 "$RC"
-check 'push stale: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
+check 'push stale: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
 check 'push stale: tree back on main' "$MAIN_SHA" "$(tg rev-parse HEAD)"
 
-echo '# push: merge conflict'
+echo '# push: main changed a file it changes, checks running'
+new_fixture no
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=1 FAKE_RUNS="[{\"started_at\":\"2026-10-18T01:00:00Z\",\"status\":\"in_progress\",\"conclusion\":null,\"app\":{\"id\":15368}}]"
+check 'push stale+running: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
+
+echo '# push: main changed a file it changes, no check has started'
+new_fixture no
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=1 FAKE_RUNS='[]'
+check 'push stale+no run: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
+
+echo '# push: the check read fails'
+new_fixture no
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=1 FAKE_RUNS=fail
+check 'push read failure: non-zero exit' 1 "$((RC != 0))"
+check 'push read failure: no rebuild written' '' "$(val rebuild)"
+
+echo '# push: merge conflict, no checks running'
 new_fixture no
 FAKE_PRS="$(pr_json CONFLICTING)" run_decide GITHUB_EVENT_NAME=push
-check 'push conflict: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
+check 'push conflict: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
+
+echo '# push: merge conflict, checks running'
+new_fixture no
+FAKE_PRS="$(pr_json CONFLICTING)" run_decide GITHUB_EVENT_NAME=push FAKE_RUNS='[]'
+check 'push conflict+no run: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
 
 echo '# push: base behind main, ci-status failed'
 new_fixture yes
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_CI=failure
-check 'push behind+failed: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
+check 'push behind+failed: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
 
 echo '# push: current'
 new_fixture no

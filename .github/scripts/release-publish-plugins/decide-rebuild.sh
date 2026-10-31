@@ -13,10 +13,10 @@
 #            (ci-status.sh) on a base behind main. Fragments main added since the build base do not count: they
 #            ride the next release (ADR 0048, The release pull request and the
 #            2026-10-20 amendment)
-#   deferred true when a push run would have rebuilt an open one: a push never
-#            rebuilds, since each rebuild cancels the release pull request's
-#            running checks; the next scheduled or dispatched run does (ADR
-#            0048, 2026-10-20 amendment). Absent otherwise.
+#   deferred true when a push run would have rebuilt an open one while its
+#            ci-status is pending: each rebuild cancels the release pull
+#            request's running checks, so the next scheduled or dispatched run
+#            does (ADR 0048, 2026-10-31 amendment). Absent otherwise.
 # A gate run leaves the tree detached at <main-sha>. Exit 0 decided, anything
 # else an error.
 set -euo pipefail
@@ -24,10 +24,16 @@ set -euo pipefail
 # Resolved before the checkouts below move the tree; the read runs on main's.
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# rebuild <annotation> <why>: rebuild, or on a push leave it to the next scheduled run.
+# rebuild <annotation> <why>: rebuild, or on a push with the head's (decide's
+# $head) ci-status pending leave it to the next scheduled run. A failed read
+# stops the run, so it never cancels checks it could not see.
 rebuild() {
+  local ci=""
   if [[ $GITHUB_EVENT_NAME == push ]]; then
-    echo "::notice::$2; a push never rebuilds, so the next scheduled run does."
+    ci="$("$here/ci-status.sh" "$head")"
+  fi
+  if [[ $ci == pending ]]; then
+    echo "::notice::$2; its checks are running, so the next scheduled run rebuilds it."
     printf 'rebuild=false\ndeferred=true\n' >>"$GITHUB_OUTPUT"
   else
     echo "$1$2; rebuilding."

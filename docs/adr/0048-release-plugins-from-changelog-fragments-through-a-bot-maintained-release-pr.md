@@ -1,8 +1,8 @@
 # Release plugins from changelog fragments through a bot-maintained release PR
 
-- Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild) and
-  2026-10-20 (a push run never rebuilds, and a release may merge past newer fragments), see the
-  amendments below
+- Status: accepted; amended 2026-10-17 (a failed check on a stale base also starts a rebuild),
+  2026-10-20 (a push run never rebuilds, and a release may merge past newer fragments) and
+  2026-10-31 (a push run rebuilds unless ci-status is pending), see the amendments below
 - Date: 2026-10-03
 
 ## Context
@@ -358,3 +358,17 @@ either is missing. While fragments keep landing, the
 previous rule made every release stale before its checks finished, so each scheduled run would
 rebuild it and cancel them as the push rebuilds did in the 2026-10-20 runs above. The release and
 pull-request-merge owner decided this rule in an owner-session committee decision on 2026-10-20.
+
+## Amendment (2026-10-31): a push run rebuilds unless ci-status is pending
+
+A push run now rebuilds an open release pull request on the same conditions as a scheduled run,
+unless its GitHub Actions `ci-status` reads pending (`ci-status.sh`: no run yet, or one not
+completed). While it is pending the push run defers to the next scheduled run, as every push run
+did under the 2026-10-20 amendment. That rule's "never rebuilds" clause no longer holds; its
+"current" rule stands.
+
+The 2026-10-20 rule existed because a rebuild cancels running checks. With no check running there
+is nothing to cancel, yet a release ejected from the queue waited up to three hours for the next
+scheduled run. A pending read still defers, so fragments landing faster than the checks finish
+cannot cancel them run after run. A failed read stops the run. The owner decided this on
+2026-10-31.
