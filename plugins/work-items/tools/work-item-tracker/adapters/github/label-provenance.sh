@@ -5,8 +5,8 @@
 # `admin` or `write` (maintain maps to write, triage to read). It also reads when the item's
 # body was last edited. `admitted` is true only when every named label is trusted and the body
 # was not edited after the latest of those label events. A failed timeline read exits non-zero;
-# a missing event, a failed permission read or a failed edit-time read is an untrusted entry
-# with its reason.
+# a missing event or a failed permission read is an untrusted entry with its reason, and a
+# failed edit-time read sets body_edit.after_admission null with its reason.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -96,8 +96,10 @@ for label in "${labels[@]}"; do
 done
 
 # Body edits after admission: a brief in the body that its author rewrote after a trusted
-# labeler admitted the item is not the brief the labeler admitted. REST carries no edit time,
-# so this one read is GraphQL; a failed or unparsable read refuses, like any failed read.
+# labeler admitted the item is not the brief the labeler admitted. REST carries no edit time
+# (https://docs.github.com/en/rest/using-the-rest-api/issue-event-types lists no body-edit
+# event), so this one read is GraphQL; a failed or unparsable read refuses, like any failed
+# read, and the work-loop escalates that refusal once.
 errfile="$(mktemp)"
 # shellcheck disable=SC2016 # GraphQL variables, not shell expansions
 edit_json="$(gh api graphql \

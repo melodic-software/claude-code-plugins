@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: ad-scripts-doc-beside-owned-rationale
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:docs-hygiene:)?audit-derivability"'
+  - name: commands-doc-not-kept
+    type: regex
+    pattern: 'docs/commands\.md[^\n]*?(?::|verdict:?)[ \t*`]*(?:delete|remove|drop|convert|replace|pointer)'
+    flags: 'i'
+  - name: payments-doc-kept
+    type: regex
+    pattern: 'docs/payments-retries\.md[^\n]*?(?::|verdict:?)[ \t*`]*keep'
+    flags: 'i'
+  - name: payments-doc-not-cut
+    type: regex
+    pattern: 'docs/payments-retries\.md[^\n]*?(?::|verdict:?)[ \t*`]*(?:delete|remove|drop|convert|replace)'
+    flags: 'i'
+    match: not_contains

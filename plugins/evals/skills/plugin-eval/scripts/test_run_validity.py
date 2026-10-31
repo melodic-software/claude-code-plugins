@@ -547,6 +547,125 @@ class RunValidityTest(unittest.TestCase):
             "  case measurable-criterion, with-arm run 1: Grep x", proc.stdout
         )
 
+    def denied_probe(
+        self, before=(), after=(), fired=True, case_at=1,
+        tags="tags: [invocation-probe, train]", sibling=None,
+    ):
+        """One with-arm run of cases[case_at] (1: should-fire measurable-criterion,
+        0: should-not-fire control-no-trigger), its prompt.md carrying tags. Its
+        trace makes the denied calls in before, then the Skill call when fired, then
+        those in after; each denial is aimed at the plugin's own directory. None in
+        before denies a call naming no tool, with no tool_use line. sibling "held"
+        or "fired" gives every arm a second, denial-free run, the target case's
+        holding or firing, and runs with --runs 2."""
+        result = self.clean()
+        case = result["cases"][case_at]
+        prompt = self.dir / "suite" / case["dir"] / "prompt.md"
+        prompt.write_text(
+            "---\ndescription: invocation probe x\n%s\nmax_turns: 8\n---\n\nQ\n" % tags,
+            encoding="utf-8",
+        )
+        lines, entries = [], []
+
+        def call(use_id, tool):
+            tool_input = (
+                {"skill": "evals:methodology"}
+                if tool in ("Skill", None)
+                else {"pattern": "**/SKILL.md", "path": str(self.dir / "suite")}
+            )
+            if tool is not None:
+                lines.append({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "id": use_id, "name": tool,
+                     "input": tool_input}]}})
+            return tool_input
+
+        for i, tool in enumerate(before + ("+",) + after):
+            if tool == "+":
+                if fired:
+                    call("s1", "Skill")
+                continue
+            entry = {"tool_use_id": "d%d" % i, "tool_input": call("d%d" % i, tool)}
+            if tool is not None:
+                entry["tool_name"] = tool
+            entries.append(entry)
+        lines.append({"type": "result", "is_error": False, "permission_denials": entries})
+        trace = self.dir / "denied-probe.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            + "".join(json.dumps(line) + "\n" for line in lines),
+            encoding="utf-8",
+        )
+        path = self.write(result)
+        data = load(path)
+        if sibling:
+            for c in data["cases"]:
+                for rows in c["arms"].values():
+                    rows.append(json.loads(json.dumps(rows[0])))
+
+        def set_fired(row, value):
+            for grader in row["graders"]:
+                if grader["name"] in ("skill-fired", "no-skill-fired"):
+                    grader["passed"] = value == (grader["name"] == "skill-fired")
+
+        rows = data["cases"][case_at]["arms"]["with"]
+        rows[0]["tracePath"] = str(trace)
+        set_fired(rows[0], fired)
+        if sibling:
+            set_fired(rows[1], sibling == "fired")
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(path, "--runs", "2" if sibling else "1")
+
+    def assertDenials(self, proc, verdict):
+        if verdict == "WARN":
+            self.assertVerdict(proc, "VALID", 0)
+            self.assertNotIn("permission denial in the traces", proc.stdout)
+        else:
+            self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check permission denials: " + verdict, proc.stdout)
+
+    def test_a_probe_denied_a_search_after_its_skill_call_is_a_warning(self):
+        proc = self.denied_probe(after=("Glob",))
+        self.assertDenials(proc, "WARN")
+        self.assertIn(
+            "probe case measurable-criterion: fired in 1 of 1 denied with-arm runs,"
+            " 0 of 0 clean",
+            proc.stdout,
+        )
+
+    def test_a_probe_denied_a_search_before_its_skill_call_is_invalid(self):
+        self.assertDenials(self.denied_probe(before=("Glob",)), "FAIL")
+
+    def test_a_should_fire_probe_that_missed_after_a_denied_search_is_invalid(self):
+        self.assertDenials(self.denied_probe(before=("Glob",), fired=False), "FAIL")
+
+    def test_a_denied_hold_whose_clean_runs_held_is_a_warning(self):
+        proc = self.denied_probe(
+            before=("Glob",), fired=False, case_at=0, sibling="held"
+        )
+        self.assertDenials(proc, "WARN")
+
+    def test_a_denied_hold_whose_clean_run_fired_is_invalid(self):
+        proc = self.denied_probe(
+            before=("Glob",), fired=False, case_at=0, sibling="fired"
+        )
+        self.assertDenials(proc, "FAIL")
+
+    def test_a_denied_hold_with_no_clean_run_is_invalid(self):
+        self.assertDenials(self.denied_probe(before=("Glob",), fired=False, case_at=0), "FAIL")
+
+    def test_a_probe_denied_its_skill_call_is_invalid(self):
+        self.assertDenials(self.denied_probe(after=("Skill",)), "FAIL")
+
+    def test_a_probe_denied_a_search_and_its_skill_call_is_invalid(self):
+        self.assertDenials(self.denied_probe(after=("Glob", "Skill")), "FAIL")
+
+    def test_a_probe_denial_naming_no_tool_is_invalid(self):
+        self.assertDenials(self.denied_probe(before=(None,), fired=False, case_at=0), "FAIL")
+
+    def test_a_non_probe_denied_a_search_inside_the_plugin_is_invalid(self):
+        proc = self.denied_probe(after=("Glob",), tags="tags: [knowledge]")
+        self.assertDenials(proc, "FAIL")
+
     def test_a_denial_names_the_path_it_was_aimed_at(self):
         trace = self.dir / "denied-paths.jsonl"
         trace.write_text(
@@ -890,6 +1009,125 @@ class RunValidityTest(unittest.TestCase):
         proc = self.fired_case_with_tags("tags: [knowledge, hard]")
         self.assertVerdict(proc, "INVALID", 1)
         self.assertIn("  unfired: case noise-before-gain, with-arm run 1", proc.stdout)
+
+    def test_an_unfired_invocation_probe_is_its_measured_rate(self):
+        proc = self.fired_case_with_tags("tags: [invocation-probe, train]")
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check skill fired: WARN", proc.stdout)
+        self.assertIn(
+            "  measured: case noise-before-gain fired in 0 of 1 with-arm run\n",
+            proc.stdout,
+        )
+        self.assertNotIn("unfired:", proc.stdout)
+
+    def test_an_unfired_case_beside_an_unfired_probe_is_still_invalid(self):
+        result = self.clean()
+        result["cases"][1]["arms"]["with"][0]["graders"][1]["passed"] = False
+        result["cases"][2]["arms"]["with"][0]["graders"][1]["passed"] = False
+        (self.dir / "suite" / result["cases"][2]["dir"] / "prompt.md").write_text(
+            "---\ndescription: d\ntags: [invocation-probe, train]\n---\n\nQ\n",
+            encoding="utf-8",
+        )
+        proc = self.run_script(self.write(result), "--runs", "1")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check skill fired: FAIL (1 of 1 with-arm runs", proc.stdout)
+        self.assertIn("  unfired: case measurable-criterion, with-arm run 1", proc.stdout)
+        self.assertIn(
+            "  measured: case noise-before-gain fired in 0 of 1 with-arm run\n",
+            proc.stdout,
+        )
+        self.assertNotIn("unfired: case noise-before-gain", proc.stdout)
+
+    def capped_probe(
+        self,
+        tool="Skill",
+        error="exit 1: Reached maximum number of turns (8)",
+        trace_error="Reached maximum number of turns (8)",
+        tags="tags: [invocation-probe, train]",
+        graded=None,
+    ):
+        """A no-trigger case whose with-arm run made one tool call and then ended
+        in error, its prompt.md carrying tags."""
+        result = self.clean()
+        case = result["cases"][0]
+        (self.dir / "suite" / case["dir"] / "prompt.md").write_text(
+            "---\ndescription: invocation probe x\n%s\nmax_turns: 8\n---\n\nQ\n" % tags,
+            encoding="utf-8",
+        )
+        call = {"skill": "evals:methodology"} if tool == "Skill" else {"file_path": "x"}
+        trace = self.dir / "capped.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            + json.dumps({"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": "c1", "name": tool, "input": call}]}})
+            + "\n"
+            + json.dumps({"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": "c1", "content": "ok"}]}})
+            + "\n"
+            + json.dumps({"type": "result", "subtype": "error_max_turns",
+                          "is_error": True,
+                          "errors": trace_error if isinstance(trace_error, list) else [trace_error]})
+            + "\n",
+            encoding="utf-8",
+        )
+        path = self.write(result)
+        data = load(path)
+        # The case's max-0 Skill grader fails when it saw the skill under test called.
+        graded = tool == "Skill" if graded is None else graded
+        data["cases"][0]["arms"]["with"][0].update(
+            tracePath=str(trace),
+            error=error,
+            turns=9,
+            graders=[
+                {"name": "names-conftest", "passed": True},
+                {"name": "no-skill-fired", "passed": not graded},
+            ],
+        )
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(path, "--runs", "1")
+
+    def test_a_probe_capped_at_max_turns_after_its_skill_call_is_a_warning(self):
+        proc = self.capped_probe()
+        self.assertVerdict(proc, "VALID", 0)
+        self.assertIn("check run errors: WARN", proc.stdout)
+        self.assertIn(
+            "  case control-no-trigger, with-arm run 1: error exit 1: Reached maximum",
+            proc.stdout,
+        )
+
+    def test_a_probe_capped_at_max_turns_with_no_skill_call_is_invalid(self):
+        proc = self.capped_probe(tool="Read")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
+
+    def test_a_probe_with_another_error_is_invalid(self):
+        proc = self.capped_probe(error="rate limited", trace_error="rate limited")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
+        proc = self.capped_probe(trace_error="API error")
+        self.assertVerdict(proc, "INVALID", 1)
+
+    def test_a_probe_capped_after_calling_another_skill_is_invalid(self):
+        proc = self.capped_probe(graded=False)
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
+
+    def test_a_turn_cap_inside_another_run_error_is_invalid(self):
+        proc = self.capped_probe(error="API error after Reached maximum number of turns (8)")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
+
+    def test_a_turn_cap_beside_another_trace_error_is_invalid(self):
+        proc = self.capped_probe(
+            trace_error=["Reached maximum number of turns (8)", "API error: overloaded"]
+        )
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
+
+    def test_a_non_probe_capped_at_max_turns_after_a_skill_call_is_invalid(self):
+        proc = self.capped_probe(tags="tags: [knowledge]")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
 
     def suite_with_guard(self, case, guard_match):
         """Give a case a max-0 Skill guard whose input_match is read from its grader file."""

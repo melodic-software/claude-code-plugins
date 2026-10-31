@@ -1,0 +1,31 @@
+{
+  "pass": [
+    {
+      "answer": "| Rank | Candidate | Dimension | Size | Evidence | Confidence |\n|---|---|---|---|---|---|\n| 1 | Instrument checkout: time buildSummary and each pricing/inventory call so future runs rank on data | Performance | S | nothing measures checkout today (rung 4, judgment) | Low |\n| 2 | Run the per-item pricing and stock calls concurrently | Performance | M | sequential awaits in src/checkout.js:6-9 (rung 4, judgment) | Low |\n\nEvidence gaps:\n- gap: no git history in this checkout\n- gap: no CI runs or telemetry configured",
+      "why": "table row 1"
+    },
+    {
+      "answer": "1. **Add timing around buildSummary and the two fetches** (S). Measurement precedes prioritization; today nothing records checkout latency.\n   Evidence: judgment only.\n2. **Parallelize the awaits in the item loop** (M). Evidence: src/checkout.js, judgment.\n\nNo telemetry configured, and no CI history available to rank on.",
+      "why": "'add timing' phrasing, list item"
+    },
+    {
+      "answer": "## Ranked improvements\n\n| # | Change | Area | Size | Evidence | Confidence |\n|---|---|---|---|---|---|\n| 1 | **Measure it first.** Time the checkout call per cart size and keep p50/p95 before changing anything. | Performance | S | No metrics or timing logs in the directory (code check) | High that measurement is missing |\n| 2 | Run the price and stock lookups in parallel. | Performance | S | `src/checkout.js` awaits each call in a loop | Medium |"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "1. **Run the pricing and inventory calls in parallel** (M). There is no measurement, but sequential awaits are slow.\n2. **Instrument checkout** (S).\n\ngap: no telemetry.",
+      "why": "instrument ranked second; row 1 only says 'no measurement'"
+    },
+    {
+      "answer": "Checkout is slow because of sequential awaits. Parallelize them.",
+      "why": "no ranked list"
+    },
+    {
+      "answer": ""
+    },
+    {
+      "answer": "## Ranked improvements\n\n| # | Change | Area | Size | Evidence | Confidence |\n|---|---|---|---|---|---|\n| 1 | Run the price and stock lookups in parallel. | Performance | S | `src/checkout.js` awaits each call in a loop; nothing measures it today | Medium |\n| 2 | **Measure it first.** Time the checkout call per cart size. | Performance | S | No metrics in the directory | High |"
+    }
+  ]
+}

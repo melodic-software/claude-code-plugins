@@ -8,10 +8,18 @@
 // that adds the digest lookups to resolve-pr, which looks up only the names
 // this writer writes. The output
 // of each chunk must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
-// summary a string, notes an array of strings, none matching the shared
-// credential patterns (lib/publish-gate.mjs findSecret), since the verdict is
-// uploaded; a run with any permission denial, or a chunk that left no output
-// or read a part of its diff short (pr-review-main readCoverage), writes none.
+// summary a string, notes an array of strings. Since the verdict is uploaded,
+// a pass or pass-notes with a permission denial writes none, and so does a chunk
+// that left no output or read a part of its diff short (pr-review-main
+// readCoverage) with no defect in its notes. A fail stands on a denial, since no
+// fail can pass the head. A fail whose text matches the shared credential
+// patterns (lib/publish-gate.mjs findSecret), a pass or pass-notes whose text
+// holds a credential format (those patterns less WARN_ONLY, a secret assignment
+// that may be a fixture), and any verdict whose step's credential scan stopped
+// it become a fail with a fixed text in place of the model's, so the head is not
+// sampled again and no part of it is published. Only this script records such a
+// fail as `withheld: true`, which is what verify-notes.mjs reads to hold the pull
+// request. A pass or pass-notes holding only an assignment writes no verdict.
 // The file also records the head
 // branch and the linked issues with their authors, as the resolver read them
 // (number, author and last body editor login, id and type, last_edited_at;
@@ -28,7 +36,7 @@ import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { findSecret } from "../../../lib/publish-gate.mjs";
+import { deeperLeak, findSecret, firstHit, SECRET_PATTERNS, WARN_ONLY } from "../../../lib/publish-gate.mjs";
 import { readCoverage } from "../pr-review-main/write-verdict.mjs";
 
 export const VERDICTS = Object.freeze(["pass", "pass-notes", "fail"]);
@@ -125,6 +133,59 @@ export function buildEvidence({ capture, prBody } = {}) {
   return { ...captureEvidence(capture), local_loop: localLoop(prBody) };
 }
 
+// run-claude-cli's own scan, which fails its step on a shorter Anthropic key
+// than findSecret's shape, so this script holds text to the same line.
+const KEY_SHAPE = /\bsk-ant-[A-Za-z0-9_-]{8,}/;
+// chunk-diff.sh's fold, which a quoted line carries through the middle of a
+// token, with the white space a quote leaves before it, on the line or across a
+// line end. The lookbehind starts a match only at the head of a white space run,
+// so a long run is not read again from each of its characters; folds in a
+// row, an empty one included, go as one.
+const FOLD = /(?<!\s)(?:\s*\\ continued: ?)+/g;
+// The credential formats, which scanLeak blocks on. findSecret alone would name
+// an assignment first and hide a format later on its line or after it.
+const FORMATS = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
+const formatIn = (text) => firstHit(FORMATS, text)?.[0] ?? (KEY_SHAPE.test(text) ? "Anthropic key" : deeperLeak(text));
+// The texts in order, so a credential split between two of them still reads.
+// The raw text keeps the word boundaries a whole token needs; the second pass
+// joins a token split over a fold or over two quoted diff lines. With no format,
+// any hit left is WARN_ONLY.
+const credentialIn = (texts) => {
+  const text = texts.join("\n");
+  const joined = text.replace(FOLD, "").replace(/\n[-+ ]/g, "\n");
+  return formatIn(text) ?? formatIn(joined) ?? (findSecret(text) ?? findSecret(joined))?.[0] ?? null;
+};
+
+// A pass or pass-notes holding only an assignment: no verdict, and no security
+// stop, unless its step's scan stopped it (readJudgment), which `parsed` is for.
+class AssignmentOnly extends Error {
+  constructor(parsed) {
+    super(`the structured output holds text shaped like a credential (${WARN_ONLY})`);
+    this.parsed = parsed;
+  }
+}
+
+// What a withheld fail says. Its text decides nothing: a genuine fail may quote it.
+export const WITHHELD_SUMMARY = "The verifier returned fail, and its text is withheld: the text was shaped like a credential, or its step stopped on the credential scan.";
+
+// Marks a checked output as withheld. Outputs pass through parseOutput more than
+// once, and a symbol key survives a spread, stays out of its exact-key check, and
+// is one no model's JSON can carry. buildVerdict writes it as `withheld: true`.
+const WITHHELD = Symbol("withheld");
+
+// A fail with none of the model's text, whatever verdict it replaces: no mask
+// finds where a credential ends. Empty notes stay empty. The annotation names
+// the kind alone, so the run shows a credential to rotate.
+const withheld = ({ notes }, kind) => {
+  console.log(`::warning title=pr-verify credential::kind=${kind}`);
+  return {
+    verdict: "fail",
+    summary: WITHHELD_SUMMARY,
+    notes: notes.length > 0 ? ["The verifier's notes are withheld with its summary. Check the diff for a committed credential, and rotate any that is real."] : [],
+    [WITHHELD]: true,
+  };
+};
+
 // One run's structured output, parsed and checked against the verdict schema.
 function parseOutput(output) {
   let parsed = output;
@@ -145,13 +206,11 @@ function parseOutput(output) {
   ) {
     throw new Error("the structured output does not match the verdict schema");
   }
-  for (const text of [parsed.summary, ...parsed.notes]) {
-    const hit = findSecret(text);
-    if (hit) {
-      throw new Error(`the structured output holds text shaped like a credential (${hit[0]})`);
-    }
+  const kind = credentialIn([parsed.summary, ...parsed.notes]);
+  if (kind === WARN_ONLY && parsed.verdict !== "fail") {
+    throw new AssignmentOnly(parsed);
   }
-  return parsed;
+  return kind ? withheld(parsed, kind) : parsed;
 }
 
 // One output from each chunk's and the whole-spec judgment's: the worst
@@ -181,6 +240,7 @@ function mergeEntries(entries) {
     verdict: worst[0].verdict,
     summary: worst.map(({ label, verdict, summary }) => `${label}, ${verdict}: ${summary}`.slice(0, room)).join("\n"),
     notes: worst.flatMap((entry) => entry.notes),
+    ...(entries.some((entry) => entry[WITHHELD]) ? { [WITHHELD]: true } : {}),
   };
 }
 
@@ -237,10 +297,8 @@ export function parseFinal(output, count) {
   return parsed;
 }
 
-// The most one file for the whole-spec judgment holds, so one Read returns it
-// whole (pr-verify.yml PART_BYTES). Read may cut a long line short, so each
-// line is wrapped at WRAP_CHARS characters (pr-review-main.yml LONG_LINE_BYTES).
-const RESULT_BYTES = 15000;
+// Read may cut a long line short, so each line for the whole-spec judgment is
+// wrapped at WRAP_CHARS characters (pr-review-main.yml LONG_LINE_BYTES).
 const WRAP_CHARS = 1500;
 
 function wrapped(text) {
@@ -255,31 +313,17 @@ function wrapped(text) {
   return out.join("\n");
 }
 
-// The spec's text in parts of at most RESULT_BYTES, cut between lines.
-function specParts(text) {
+// Text in parts of at most partBytes, the most one Read returns whole
+// (pr-verify.yml PART_BYTES), cut between lines.
+function readParts(text, partBytes) {
   const parts = [""];
   for (const line of wrapped(text).split("\n")) {
-    if (Buffer.byteLength(parts.at(-1)) + Buffer.byteLength(line) + 1 > RESULT_BYTES) {
+    if (Buffer.byteLength(parts.at(-1)) + Buffer.byteLength(line) + 1 > partBytes) {
       parts.push("");
     }
     parts[parts.length - 1] += `${line}\n`;
   }
   return parts;
-}
-
-// What the whole-spec judgment reads of one chunk: its checked output, cut to
-// one Read, with the count of notes that did not fit.
-function chunkResult(output, k, count) {
-  const { verdict, summary, notes } = parseOutput(output);
-  const result = { chunk: k, of: count, verdict, summary: summary.slice(0, SUMMARY_MAX), notes: [], notes_left_out: 0 };
-  for (const note of notes.map((text) => text.slice(0, NOTE_MAX))) {
-    if (Buffer.byteLength(JSON.stringify({ ...result, notes: [...result.notes, note] })) > RESULT_BYTES - 100) {
-      result.notes_left_out += 1;
-    } else {
-      result.notes.push(note);
-    }
-  }
-  return result;
 }
 
 export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [], capture, prBody }) {
@@ -315,20 +359,29 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
     verdict: parsed.verdict,
     summary: parsed.summary.slice(0, SUMMARY_MAX),
     notes: parsed.notes.slice(0, NOTES_MAX).map((note) => note.slice(0, NOTE_MAX)),
+    ...(parsed[WITHHELD] ? { withheld: true } : {}),
     evidence: buildEvidence({ capture, prBody }),
     run_id: Number(runId),
   };
 }
 
-// The structured output of the last result message in the CLI's messages.
-export function structuredOutput(messages) {
+// The last result message in the CLI's messages, with a structured output.
+function lastResult(messages) {
   const result = Array.isArray(messages) ? messages.findLast((message) => message?.type === "result") : undefined;
   if (result?.structured_output === undefined) {
     throw new Error("the run left no result with a structured output");
   }
-  // A denied call means the model reached past its data files: no verdict.
-  // Only tool names are printed, never a call's input.
-  const denials = Array.isArray(result.permission_denials) ? result.permission_denials : [];
+  return result;
+}
+
+const resultDenials = (result) => (Array.isArray(result.permission_denials) ? result.permission_denials : []);
+
+// The structured output of the last result message in the CLI's messages. A
+// denied call means the model reached past its data files: no pass stands on
+// it. Only tool names are printed, never a call's input.
+export function structuredOutput(messages) {
+  const result = lastResult(messages);
+  const denials = resultDenials(result);
   if (denials.length > 0) {
     const names = [...new Set(denials.map((d) => (/^[A-Za-z0-9_*-]{1,64}$/.test(d?.tool_name ?? "") ? d.tool_name : "unnamed")))];
     throw new Error(`the run hit ${denials.length} permission denial(s): ${names.join(", ")}`);
@@ -337,11 +390,20 @@ export function structuredOutput(messages) {
 }
 
 // run-claude-cli's log, one object per leg, counts every leg's denials.
-export function earlierDenials(logText) {
-  const total = logText
+const logDenials = (logText) =>
+  logText
     .split("\n")
     .filter((line) => line.trim() !== "")
-    .reduce((sum, line) => sum + (JSON.parse(line)?.denials?.count ?? 0), 0);
+    .reduce((sum, line) => {
+      try {
+        return sum + (JSON.parse(line)?.denials?.count ?? 0);
+      } catch {
+        throw new Error("the run log is unreadable");
+      }
+    }, 0);
+
+export function earlierDenials(logText) {
+  const total = logDenials(logText);
   if (total > 0) {
     throw new Error(`the run's legs hit ${total} permission denial(s)`);
   }
@@ -356,16 +418,16 @@ const positions = (value) =>
 
 const fileList = (value) => positions(value).filter(Boolean);
 
-// One chunk's log, checked for a denial on any of its legs.
-function checkLog(file) {
-  let logText;
+function readLog(file) {
   try {
-    logText = readFileSync(file, "utf8");
+    return readFileSync(file, "utf8");
   } catch {
     throw new Error("the run log is unreadable");
   }
-  earlierDenials(logText);
 }
+
+// One chunk's log, checked for a denial on any of its legs.
+const checkLog = (file) => earlierDenials(readLog(file));
 
 // After a leg hands off, the next job judges on a new VM that cannot read
 // this leg's logs, so this job records here whether every chunk it judged was
@@ -469,17 +531,42 @@ function readExecution(file) {
 }
 
 // One run's messages and its checked output: it left an output on the schema
-// and hit no denial, or this throws.
-function readJudgment(file, logFile, parse = parseOutput) {
+// and a readable log, or this throws, and so does a denial on anything but a
+// fail. A fail cannot pass the head, so it stands and records the denials. The
+// workflow reads a failed step only when run-claude-cli's scan stopped it, on
+// text this script may not recognize and with no log when the log held it, so
+// that step's output is a withheld fail.
+function readJudgment(file, logFile, outcome, parse = parseOutput) {
   const messages = readExecution(file);
-  const output = parse(structuredOutput(messages));
-  checkLog(logFile);
-  return { messages, output };
+  const result = lastResult(messages);
+  const stopped = outcome !== "success";
+  let output;
+  try {
+    output = parse(result.structured_output);
+  } catch (error) {
+    if (!stopped || !(error instanceof AssignmentOnly)) {
+      throw error;
+    }
+    output = error.parsed;
+  }
+  if (stopped) {
+    return { messages, output: withheld(output, "credential scan stop") };
+  }
+  const denied = resultDenials(result).length + logDenials(readLog(logFile));
+  if (denied === 0) {
+    return { messages, output };
+  }
+  if (output.verdict !== "fail") {
+    structuredOutput(messages);
+    throw new Error(`the run's legs hit ${denied} permission denial(s)`);
+  }
+  return { messages, output: { ...output, summary: `This judgment hit ${denied} permission denial(s). ${output.summary}` } };
 }
 
 // What a judgment's output counts as, given the files it had to read. A pass
 // or pass-notes needs every one read whole. A fail stands on less, but only
-// with a defect in its notes, and it records how much it read.
+// with a defect in its notes or withheld, whose hold needs no note, and it
+// records how much it read.
 function countedOutput({ messages, output }, files) {
   if (output.verdict !== "fail") {
     readCoverage(messages, files);
@@ -497,7 +584,7 @@ function countedOutput({ messages, output }, files) {
   if (read === files.length) {
     return output;
   }
-  if (output.notes.length === 0) {
+  if (output.notes.length === 0 && !output[WITHHELD]) {
     throw new Error(`a fail that read ${read} of ${files.length} parts names no defect`);
   }
   return { ...output, summary: `This judgment read ${read} of ${files.length} parts. ${output.summary}` };
@@ -514,7 +601,7 @@ const chunkFiles = (env, k, count) => [...filesIn(path.join(env.DIFF_DIR, `chunk
 export function checkChunk(env = process.env) {
   let fail = false;
   try {
-    const judgment = readJudgment(env.EXECUTION_FILE, env.LOG_FILE);
+    const judgment = readJudgment(env.EXECUTION_FILE, env.LOG_FILE, env.JUDGE_OUTCOME);
     fail = countedOutput(judgment, chunkFiles(env, Number(env.CHUNK), Number(env.CHUNKS))).verdict === "fail";
   } catch {
     fail = false;
@@ -524,20 +611,21 @@ export function checkChunk(env = process.env) {
 
 // Each chunk by position: `output`, or `error` for a chunk that did not count.
 function judgedChunks(env) {
-  const chunkDirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-[1-9]$/.test(name));
+  const chunkDirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-[1-9][0-9]?$/.test(name));
   const count = Number(env.CHUNKS);
-  if (!/^[1-9]$/.test(env.CHUNKS) || chunkDirs.length !== count) {
+  if (!/^[1-9][0-9]?$/.test(env.CHUNKS) || chunkDirs.length !== count) {
     throw new Error(`the chunk count does not match ${chunkDirs.length} chunk(s) of the diff`);
   }
   const executions = positions(env.EXECUTION_FILES);
   const logs = positions(env.LOG_FILES);
+  const outcomes = positions(env.JUDGE_OUTCOMES);
   const results = Array.from({ length: count }, (_, i) => {
     const k = i + 1;
     try {
       if (!executions[i]) {
         throw new Error("the chunk left no run");
       }
-      return { k, output: countedOutput(readJudgment(executions[i], logs[i]), chunkFiles(env, k, count)) };
+      return { k, output: countedOutput(readJudgment(executions[i], logs[i], outcomes[i]), chunkFiles(env, k, count)) };
     } catch (error) {
       return { k, error: error.message };
     }
@@ -550,16 +638,18 @@ const firstError = (results, count) => {
   return broken ? new Error(`chunk ${broken.k} of ${count}: ${broken.error}`) : null;
 };
 
-// The whole-spec judgment's output: it ran, read every result, the spec and
-// the manifest whole, and hit no denial, or this throws (countedOutput).
+// The whole-spec judgment's output: it ran, read every result (a `refs`
+// entry's context parts among them), the spec and the manifest whole, and hit
+// no denial, or this throws (countedOutput). A step that failed, which reaches
+// here only from run-claude-cli's credential scan, leaves a withheld fail.
 function finalOutput(env, count) {
   try {
-    for (const key of ["FINAL_EXECUTION_FILE", "FINAL_LOG_FILE", "RESULTS_DIR", "MANIFEST_DIR"]) {
+    for (const key of ["FINAL_EXECUTION_FILE", "RESULTS_DIR", "MANIFEST_DIR"]) {
       if (!env[key]) {
         throw new Error(`${key} is not set`);
       }
     }
-    const judgment = readJudgment(env.FINAL_EXECUTION_FILE, env.FINAL_LOG_FILE, (text) => parseFinal(text, count));
+    const judgment = readJudgment(env.FINAL_EXECUTION_FILE, env.FINAL_LOG_FILE, env.FINAL_OUTCOME, (text) => parseFinal(text, count));
     return countedOutput(judgment, [...filesIn(env.RESULTS_DIR), env.SPEC_FILE, ...filesIn(env.MANIFEST_DIR)]);
   } catch (error) {
     throw new Error(`the whole-spec judgment: ${error.message}`);
@@ -583,40 +673,58 @@ function headOutput(env, count, results) {
   );
 }
 
+// The most chunk results the final judge reads, in bytes: the read budget one
+// judgment gets (pr-verify.yml MAX_DIFF_BYTES). Past it no verdict is the
+// outcome anyway, so the step stops before the model runs.
+const RESULT_BYTES_MAX = 300000;
+
 // What the whole-spec judgment reads, each file one Read, with its prompt and
-// schema: written only when every chunk counts. The prompt lists the spec's
-// parts, whose number only this step knows.
+// schema: written only when every chunk counts. Each chunk's output goes whole,
+// in as many files as it takes: a cut here could hide what a chunk delivers,
+// and the head would fail on size alone. The prompt lists the files, whose
+// number only this step knows.
 export function writeChunkResults(env = process.env) {
-  for (const key of ["EXECUTION_FILES", "LOG_FILES", "CHUNKS", "DIFF_DIR", "RESULTS_DIR", "SPEC_TEXT_FILE", "SPEC_FILE", "CONTEXT_FILE", "PR_FILE", "MANIFEST_DIR", "PROMPT_FILE", "PROMPT_TEMPLATE", "SCHEMA_FILE"]) {
+  for (const key of ["EXECUTION_FILES", "LOG_FILES", "JUDGE_OUTCOMES", "CHUNKS", "DIFF_DIR", "RESULTS_DIR", "PART_BYTES", "SPEC_TEXT_FILE", "SPEC_FILE", "CONTEXT_FILE", "PR_FILE", "MANIFEST_DIR", "PROMPT_FILE", "PROMPT_TEMPLATE", "SCHEMA_FILE"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
+  }
+  // Past three bytes a character, one wrapped line always fits a part.
+  const partBytes = Number(env.PART_BYTES);
+  if (!Number.isSafeInteger(partBytes) || partBytes <= WRAP_CHARS * 3) {
+    throw new Error("PART_BYTES is not a part size");
   }
   const { count, results } = judgedChunks(env);
   const error = firstError(results, count);
   if (error) {
     throw error;
   }
-  const texts = results.map(({ k, output }) => wrapped(JSON.stringify(chunkResult(output, k, count))));
-  const spec = specParts(readFileSync(env.SPEC_TEXT_FILE, "utf8"));
+  const chunkParts = results.map(({ k, output: { verdict, summary, notes } }) => [`chunk-${k}`, readParts(JSON.stringify({ chunk: k, of: count, verdict, summary, notes }), partBytes)]);
+  const resultParts = chunkParts.flatMap(([, parts]) => parts).length;
+  if (resultParts * partBytes > RESULT_BYTES_MAX) {
+    throw new Error(`the chunk results take ${resultParts} parts, more than the final judge reads`);
+  }
+  const specText = readFileSync(env.SPEC_TEXT_FILE, "utf8");
+  const refs = JSON.parse(specText).some?.((entry) => entry?.spec_kind === "refs");
   mkdirSync(env.RESULTS_DIR, { recursive: true });
-  const resultFiles = texts.map((text, i) => {
-    const file = path.join(env.RESULTS_DIR, `chunk-${i + 1}.json`);
-    writeFileSync(file, `${text}\n`);
-    return file;
-  });
-  const partFiles = spec.map((text, i) => {
-    const file = path.join(env.RESULTS_DIR, `spec-part-${String(i + 1).padStart(3, "0")}.txt`);
-    writeFileSync(file, text);
-    return file;
-  });
+  const writeParts = (stem, parts) =>
+    parts.map((part, i) => {
+      const file = path.join(env.RESULTS_DIR, `${stem}-part-${String(i + 1).padStart(3, "0")}.txt`);
+      writeFileSync(file, part);
+      return file;
+    });
+  const resultFiles = chunkParts.flatMap(([stem, parts]) => writeParts(stem, parts));
+  const partFiles = writeParts("spec", readParts(specText, partBytes));
+  // A `refs` entry's delivered part is read from the context, so its parts sit
+  // with the results, which a pass must read whole (finalOutput).
+  const contextFiles = refs ? writeParts("context", readParts(readFileSync(env.CONTEXT_FILE, "utf8"), partBytes)) : [env.CONTEXT_FILE];
   const listed = (files) => files.map((file) => `  - \`${file}\``).join("\n");
   const template = readFileSync(env.PROMPT_TEMPLATE, "utf8");
   const prompt = [
     ["RESULT_FILES", listed(resultFiles)],
     ["SPEC_PARTS", listed(partFiles)],
     ["MANIFEST_PARTS", listed(filesIn(env.MANIFEST_DIR).sort())],
-    ["CONTEXT_FILE", env.CONTEXT_FILE],
+    ["CONTEXT_FILE", contextFiles.join("`, `")],
     ["PR_FILE", env.PR_FILE],
     ["SPEC_FILE", env.SPEC_FILE],
   ].reduce((text, [token, value]) => text.replaceAll(token, () => value), template);

@@ -235,6 +235,24 @@ scenario_e() {
   fi
 }
 
+# ---------------------------------------------------------------- scenario F
+# TMPDIR inside the caller: a failed build's empty path reaches raw `git -C`
+# calls the helper never sees, so sourcing the harness must stop the suite.
+scenario_f() {
+  local caller out rc
+  caller="$(new_caller)"
+  mkdir -p "$caller/tmp"
+  out="$(
+    cd "$caller" || exit 1
+    TMPDIR="$caller/tmp" HELPER="$HELPER" bash -c '. "$HELPER"; echo reached' 2>&1
+  )" && rc=0 || rc=$?
+  if [[ "$rc" == 2 && "$out" != *reached* && "$out" == *"refusing TMPDIR"* ]]; then
+    ok "F TMPDIR inside a repository: the suite stops at source time"
+  else
+    fail "F TMPDIR inside a repository: rc=$rc out='$out'"
+  fi
+}
+
 # The harness must clear every variable that can redirect a fixture write, not
 # just the two the reproduction happens to use — GIT_INDEX_FILE and
 # GIT_OBJECT_DIRECTORY redirect writes the same way, and GIT_CONFIG redirects
@@ -258,6 +276,7 @@ scenario_b
 scenario_c
 scenario_d
 scenario_e
+scenario_f
 scenario_declares_full_env_clear
 
 test_harness::report

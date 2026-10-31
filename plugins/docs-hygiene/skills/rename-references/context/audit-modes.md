@@ -10,25 +10,23 @@
 
 `/docs-hygiene:rename-references audit` supports three sub-modes sharing the survey + triage pipeline from [audit.md](audit.md) but differing in input requirements, algorithm, and output format. Bare `/docs-hygiene:rename-references audit` (no sub-mode) defaults to **Blast**.
 
+Every sub-mode sweeps through the Grep tool with the [patterns.md](patterns.md) regexes. Reading files one by one is not a sweep; Read (or Glob) only confirms a Grep hit in context, or checks that a path exists (Orphans).
+
 | Sub-mode | Charter | Pair required? | Output |
 |---|---|---|---|
 | `audit blast` | Pre-rename impact: counts + per-file + bucket distribution | Optional (smart-default if absent) | Inline report (no file artifact) |
 | `audit half-rename` | Find files containing BOTH old AND new (incomplete-rename hygiene) | Required | Inline table grouped by file |
 | `audit orphans` | Refs at old name OR vanished path AFTER rename | Required (single-token rejected) | Two sub-tables: orphan + stale-but-functional |
 
-Override flags `--include-historical`, `--include-memory`, `--include-plan-docs` apply to all three sub-modes; `--include-bare-token` applies to Blast, Half-rename, and the base audit path, but **not to Orphans** (see the table's note: Orphans sweeps only Forms 1 and 3, so it has no bare-token residue). `--include-plan-docs` and `--include-bare-token` are **audit-mode only**, and apply mode rejects both with an explicit error. The mode-override flags `--container` / `--identifier` apply to every sub-mode and to apply mode, and are mutually exclusive.
+Override flags `--include-historical`, `--include-memory`, `--include-plan-docs` apply to all three sub-modes; `--include-bare-token` applies to Blast, Half-rename, and the base audit path, but **not to Orphans** (Orphans sweeps only Forms 1 and 3, so it has no bare-token residue). `--include-plan-docs` and `--include-bare-token` are **audit-mode only**, and apply mode rejects both with an explicit error. The mode-override flags `--container` / `--identifier` apply to every sub-mode and to apply mode, and are mutually exclusive.
 
 ---
 
 ## Audit Blast
 
-**Purpose:** pre-rename impact preview. Inform go/no-go before committing edits. Cheaper than `preview` mode (no Edit-phase planning), and it surfaces counts, bucket distribution, top-affected files.
+**Purpose:** pre-rename impact preview to inform go/no-go before editing. Cheaper than `preview` mode (no Edit-phase planning); surfaces counts, bucket distribution, top-affected files.
 
-**When to invoke:**
-
-- User asks "how big is this rename?"
-- Pre-rename impact analysis on uncertain blast radius
-- After `git mv` to size the post-move sweep
+**When to invoke:** "how big is this rename?", an uncertain blast radius before renaming, or after `git mv` to size the post-move sweep.
 
 **Inputs:**
 
@@ -44,19 +42,15 @@ Override flags `--include-historical`, `--include-memory`, `--include-plan-docs`
 
 **Defaults / aliasing:** bare `/docs-hygiene:rename-references audit` (no sub-mode keyword) routes to blast, the cheapest sub-mode and the one that needs no rename pair.
 
-**Why no file artifact:** Beck (Tidy First, 2024) and Fowler (Refactoring, 2nd ed.) explicitly reject upfront-analysis artifacts in favor of inline IDE Find Usages. Inline is the right primitive; a plan-file artifact is deferred until cross-team review demand surfaces.
+**Why no file artifact:** inline results are the right primitive, as with an IDE's Find Usages; a plan-file artifact waits until cross-team review needs one.
 
 ---
 
 ## Audit Half-Rename
 
-**Purpose:** detect incomplete rename state, meaning files that mention BOTH old AND new identifier. Common after partial PR work or interrupted `/docs-hygiene:rename-references` apply runs. di Penta et al. (IEEE TSE 2020): ~80% of code smells (incl. half-renames) persist indefinitely once introduced, so early detection prevents calcification.
+**Purpose:** detect incomplete rename state: files that mention BOTH old AND new identifier. Common after partial PR work or interrupted `/docs-hygiene:rename-references` apply runs; half-renames persist once introduced, so catch them early.
 
-**When to invoke:**
-
-- After a partial rename PR was merged but left stragglers
-- Mid-rename pause: "did I miss anything?"
-- Pre-PR safety check post `/docs-hygiene:rename-references <old> to <new>` apply mode
+**When to invoke:** a partial rename PR merged with stragglers, a mid-rename "did I miss anything?", or a pre-PR check after `/docs-hygiene:rename-references <old> to <new>` apply mode.
 
 **Inputs:**
 
@@ -87,7 +81,7 @@ Files containing BOTH (incomplete rename state):
 
 **Edge cases:**
 
-- **Zero half-rename hits:** report "No half-rename state detected. Clean." Positive signal, not error. Common when prior rename was thorough
+- **Zero half-rename hits:** report "No half-rename state detected. Clean." A positive signal, not an error
 - **Self-reference (plan docs):** the active plan/work-notes document mentions BOTH names by design (documenting the rename). Auto-excluded by default; `--include-plan-docs` opts in (read-only, since the apply mode block applies)
 - **Documentation references:** memory files often describe historical renames, so both old + new appear by design. Memory paths auto-excluded by default
 
@@ -114,7 +108,7 @@ Files containing BOTH (incomplete rename state):
 
 **Algorithm:**
 
-1. Sweep for `<old>` references using Form 1 (slash-token `\B/<old>([^\w-]|$)`) and Form 3 (path `context/<old>.md`, `skills/<old>/`, `plugins/<old>`) from [patterns.md](patterns.md)
+1. Sweep for `<old>` references with the Grep tool using Form 1 (slash-token `\B/<old>([^\w-]|$)`) and Form 3 (path `context/<old>.md`, `skills/<old>/`, `plugins/<old>`) from [patterns.md](patterns.md)
 2. For each match, classify:
    - **Orphan (broken):** path-form match where path does not exist on disk after rename. Verify via Glob/Read. E.g. `[text](context/old.md)` matched but `context/old.md` was renamed to `context/new.md`, so the link is now broken
    - **Slash-token orphan:** `/<old>` matched but no skill/command named `<old>` exists any more (skill renamed/removed)
@@ -146,7 +140,7 @@ Suggest: /docs-hygiene:rename-references <old> to <new> to apply, OR git rm <old
 - Orphans audit is PAIR-DRIVEN: what THIS rename orphaned
 - NOT general dead-ref check. Dead `/skill-that-was-never-created` references belong to a repo-wide codebase-audit workflow
 - NOT general dead-link check. Broken `[text](unrelated-path)` = doc lint territory
-- Charter boundary preserves single responsibility, because adding a general scan would conflate rename hygiene with codebase auditing
+- A general scan would conflate rename hygiene with codebase auditing
 
 **Edge cases:**
 
@@ -167,7 +161,7 @@ base audit.md path; `--include-bare-token` applies to every sub-mode except Orph
 | `--include-historical` | Sweep archived/completed work notes and frozen records of past work | Available |
 | `--include-memory` | Sweep the auto-memory directory's `*.md` files and `MEMORY.md` indices (location: [SKILL.md "Auto-memory location"](../SKILL.md#auto-memory-location)) | Available |
 | `--include-plan-docs` | Sweep the active plan/work-notes documents that document THIS rename | **AUDIT-MODE ONLY** |
-| `--include-bare-token` | Surface the bare-token residue that container-rename mode ([patterns.md](patterns.md) "Phase 0b") otherwise reports only as an aggregate count. Always lands **Ambiguous**, never Certain, because the mode excluded it since bare-token position carries no signal for a container rename, and widening the report does not change that. **Not applicable to Orphans**, which sweeps only Forms 1 and 3 and so produces no bare-token residue to surface; passing it there is accepted and reported as not-applicable rather than silently returning the default result | **AUDIT-MODE ONLY** |
+| `--include-bare-token` | Surface the bare-token residue that container-rename mode ([patterns.md](patterns.md) "Phase 0b") otherwise reports only as an aggregate count. Always lands **Ambiguous**, never Certain: the mode excluded it because bare-token position carries no signal for a container rename, and widening the report does not change that. **Not applicable to Orphans**, which sweeps only Forms 1 and 3 and so has no bare-token residue; passing it there is accepted and reported as not-applicable rather than silently returning the default result | **AUDIT-MODE ONLY** |
 | `--container` | Force container-rename mode: rule 1 of the [patterns.md](patterns.md) "Phase 0b" ladder, skipping the evidence checks below it | Available |
 | `--identifier` | Force identifier-rename mode. Mutually exclusive with `--container`; passing both is an error, not a precedence question | Available |
 
@@ -181,9 +175,9 @@ narrative. Use audit modes (audit blast / half-rename / orphans)
 to inspect, then update the plan document by hand if needed.
 ```
 
-**Why hardcoded, not warning:** the self-edit footgun is severe enough to block, not advise. Mitigation: AUDIT MODE remains available for inspection (read-only).
+**Why hardcoded, not warning:** the self-edit footgun is severe enough to block, not advise. AUDIT MODE remains available for read-only inspection.
 
-**Defaults preserved:** without any flag, auto-exclusions match the default behavior (plan docs, frozen historical notes, memory all skipped).
+**Defaults preserved:** without any flag, plan docs, frozen historical notes, and memory are all skipped.
 
 **Flag parsing:**
 

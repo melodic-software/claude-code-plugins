@@ -19,7 +19,7 @@ const fixCommit = {
   commit: { message: "Fix failing CI checks\n\nLane-Activity: pr-unblock/fix-ci\n" },
 };
 const api = {
-  getPull: async () => ({ state: "open", head: { sha: "a".repeat(40) } }),
+  getPull: async () => ({ state: "open", head: { sha: "a".repeat(40), repo: { full_name: "o/r" } } }),
   listPullCommits: async () => [fixCommit, fixCommit, fixCommit],
   // A failing check: the round cap is read only when one fails.
   listCommitCheckRuns: async () =>

@@ -1,0 +1,124 @@
+{
+  "skill": "ai-briefing:generate",
+  "plugin": "ai-briefing",
+  "skill_dir": "plugins/ai-briefing/skills/generate",
+  "ranking_note": "Authored from the before description at commit c7e50d15a0, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Sibling ai-briefing:setup is in this plugin (user-invoked only); the other competitors live in other plugins, and plugin eval loads only this plugin, so near-miss negatives test quietness, not competitor wins.",
+  "competitors": [
+    "ai-briefing:setup",
+    "visualization:present",
+    "x:read",
+    "discovery:research",
+    "knowledge:docpage-digest",
+    "knowledge:video-digest"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Give me a rundown of the biggest model releases and announcements from the AI labs over the past week, with links to where each one came from."
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I have a leadership sync tomorrow and need to sound current on artificial intelligence. Pull together the main industry developments since Monday."
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Summarize what OpenAI, Anthropic and Google DeepMind shipped this month into a briefing I can read in five minutes."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Make a short deck of this week's AI industry headlines for our Friday team meeting."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Did anything big happen with the LLM vendors in the last few days? I've been offline since Tuesday."
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Put together a 30-day digest of generative AI happenings: new models, pricing changes, funding rounds, and cite the source for each item."
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Draft this week's AI landscape update for the newsletter I send to the engineering org every Monday."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Check the vendor blogs and release notes and tell me what has changed across the AI tooling world since yesterday."
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Brief me on recent machine learning industry developments as an HTML page I can share with my team."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Turn my notes from yesterday's design review into a slide deck."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Read this X post and tell me what it says: https://x.com/example/status/1234567890"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Research whether PostgreSQL 17 supports incremental backups natively and cite the official docs."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Configure the ai-briefing plugin for me and add a new profile for my team."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Give me today's top world headlines on politics and the economy."
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Digest this one documentation page into the knowledge base: https://docs.example.com/guide/streaming"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Watch this YouTube talk and pull out what applies to our repo: https://www.youtube.com/watch?v=abc123xyz"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a short essay on the history of artificial intelligence, from the Dartmouth workshop to the expert systems boom."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Is ai-briefing installed correctly on this machine? Verify its profile and tell me if anything is missing."
+    }
+  ]
+}

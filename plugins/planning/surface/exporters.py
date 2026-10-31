@@ -11,14 +11,16 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  restatement rev (without one, each Problem field reads `unknown` and each Work
                  size field `not assessed`; with no confirmed Constraints it lists the page's
                  recorded constraints and the ledger's `## Constraint ledger` rows), as do a
-                 Decisions section from its decisions recap, the Deferred questions entries
+                 Decisions section from its decisions recap (a line taken while unticked
+                 commitments held its row open reads `answered` once they are ticked), the
+                 Deferred questions entries
                  from its deferred and planningOwned bullets and the TLDR's opening scope
                  bullets from its tldr. Intent, above Goal, holds its intent paragraph (else
                  `none stated`), then the user's own words: each live ask, note and own event's
                  text and each note typed on an accept, alternative or hedged choice, in
                  event order, under its Q<N>. An answered row that took the
                  recommendation adds its question basis as a `why:` line to its Constraints
-                 entry. Captured assumptions holds each
+                 entry, or under the restated line that carries it. Captured assumptions holds each
                  unconfirmed commitment as a named risk and a Notes question the user left
                  unanswered; a confirmed
                  commitment stays on its decision's line, or on a TLDR `confirmed so far` line
@@ -71,8 +73,10 @@ present only when it has a value, each value escaped on its own (esc_field), joi
                                   alternative, whose note it is; beside a counted free-text answer
                                   (not a set-aside or superseded-by-plan row's), the user's words
                                   when the question's resolution is the answer (reply --resolution)
-  aside:: E(aside)                the newest decision a user hold set aside, when none counts;
-                                  import restores it still set aside
+  aside:: E(aside)                the newest decision a user hold set aside, when none counts,
+                                  and on an open row with no hold, an accept or hedged accept a
+                                  recommendation revision set aside, named as of the text it
+                                  accepted; import restores it still set aside
   commitments:: M(c1)[; M(c2)...] every commitment in order, M() being `+` (confirmed) or `-`
                                   (unconfirmed) then E(text)
 An accepted or hedged decision with an unconfirmed commitment exports `open`, keeping its answer,
@@ -87,7 +91,8 @@ whose held accept or alternative is set aside, because that decision's note is i
 Import reads these fields by name and refuses, naming the field, an unknown field (a leading one
 too, when a named field follows it), a field out of order or repeated, an unmarked commitment, and
 a contradictory pair: answer with aside, proposal without was, hold or aside on a row the status
-settles, an answer the status contradicts, and a note no field above gives a meaning.
+settles, aside with no hold beside anything but an open row's accept or hedged accept, an answer
+the status contradicts, and a note no field above gives a meaning.
 
 Every older grammar still imports, read as it always was: a held row
 `[plan proposes: E(new); was: E(old); ]waits on:: ...` or `awaiting user:: ...` with `answer:`,
@@ -245,7 +250,8 @@ def decision_fields(q, rec, resolve=True):
     decision, text = rec.get("decision"), rec.get("text") or ""
     if decision in ("accept", "hedged"):
         word = "accepted" if decision == "accept" else "hedged"
-        return f"{word}: {q.get('recommendation') or 'the recommendation'}", text
+        accepted = aside_rec(q, rec) or q.get("recommendation") or "the recommendation"
+        return f"{word}: {accepted}", text
     if decision == "alt":
         key = rec.get("alt") or ""
         alt = next(
@@ -271,6 +277,13 @@ def resolves(resolution, rec):
         and resolution.get("decidedAt") == rec.get("updatedAt")
         and resolution.get("seq") == rec.get("seq")
     )
+
+
+def aside_rec(q, rec):
+    """The recommendation the accept or hedged accept `rec` was given against, when a later
+    recommendation revision set it aside; else None."""
+    aside = q.get("asideRecommendation")
+    return aside["text"] if resolves(aside, rec) else None
 
 
 def seed_proposal(seed):
@@ -615,6 +628,13 @@ def settle(q, responses, events, seed_rows):
         if decision in ("accept", "hedged") and commitments(q, events)[1]:
             status = "open"
         return status, fields, clean(text), decision == "defer"
+    aside = newest_decision(q, responses, aside=True)
+    if status != "superseded-by-plan" and aside and aside_rec(q, aside) is not None:
+        # A revised recommendation set this accept aside: open until the user accepts again,
+        # the accept named as of the text it accepted.
+        fields["aside"], note = decision_fields(q, aside)
+        fields["note"] = note or None
+        return "open", fields, "", False
     fields["note"] = seed_text(seed)
     if status == "superseded-by-plan":
         # A set-aside decision leaves the plan's proposal waiting on the user again.
@@ -919,7 +939,9 @@ def check_ledger(text, where):
 
 def sync_ledger(d, text, where):
     """(text, notes): the ledger's text with its live register rows, and nothing else, replaced
-    by merged_register's rows, written where the first row stood."""
+    by merged_register's rows, written where the first row stood. A register with no rows yet gets
+    them under its heading, with a blank line before any text that follows, which would otherwise
+    read as part of the last row's list item."""
     lines = text.splitlines(keepends=True)
     heads, found = check_ledger(text, where)
     _, rows, notes = merged_register(d, text)
@@ -929,6 +951,8 @@ def sync_ledger(d, text, where):
         at += 1
     eol = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
     new = [row_line(r) + eol for r in rows]
+    if new and not drop and at < len(lines) and lines[at].strip():
+        new.append(eol)
     keep = [line for i, line in enumerate(lines) if i not in drop]
     return "".join(keep[:at] + new + keep[at:]), notes
 
@@ -992,17 +1016,33 @@ def bullets(text):
     ]
 
 
+LIST_ITEM = re.compile(r"^\s*[-*+]\s")
+
+
+def goal_lines(text):
+    """The restated goal: its other lines as one paragraph, then its list items as bullets, so
+    the Goal's Intent, Vision and tiebreak lines stay separate bullets under the outcome."""
+    lines = str(text or "").splitlines()
+    prose = para(" ".join(x for x in lines if not LIST_ITEM.match(x)))
+    items = bullets("\n".join(x for x in lines if LIST_ITEM.match(x)))
+    return ([prose] if prose else []) + items
+
+
 LEAD_QN = re.compile(r"^[\\\[(*_]*[Qq]([1-9][0-9]*)\b")
+# A restated bullet that says there is nothing to list.
+NONE_BULLET = re.compile(r"^- none\.?$", re.IGNORECASE)
 
 
 def restated_deferred(sections, rows):
     """The restated `deferred`, then `planningOwned`, bullets as Deferred questions entries, each
     as written (the restatement leads one with its source Q<N> where it has one) and tagged
     ARBITER_PLAN, or ARBITER_USER when its lead Q<N> is a user-reserved row or it says
-    USER-RESERVED itself."""
+    USER-RESERVED itself. A bullet that only says `none` is no entry."""
     reserved = {r["n"] for r in rows if r["reserved"]}
     out = []
     for b in bullets(sections.get("deferred")) + bullets(sections.get("planningOwned")):
+        if NONE_BULLET.match(b):
+            continue
         lead = LEAD_QN.match(b[2:])
         user = (lead and f"Q{lead.group(1)}" in reserved) or "USER-RESERVED" in b
         out.append(f"{b}; {ARBITER_USER if user else ARBITER_PLAN}")
@@ -1018,12 +1058,33 @@ def carried_rows(sections, rows):
     current answer of; its own Constraints line would say it twice. A recap line cut short, or
     written before the answer changed, carries nothing."""
     lines = bullets(sections.get("constraints")) + bullets(sections.get("decisions"))
-    named = [(b, {f"Q{m.group(1)}" for m in QN_REF.finditer(b)}) for b in lines]
-    return {
-        r["n"]
-        for r in rows
-        if r["readable"] and any(r["n"] in ns and r["readable"] in b for b, ns in named)
-    }
+    return {r["n"] for r in rows if any(carries(b, r) for b in lines)}
+
+
+def carries(line, r):
+    """True when a restated line names row r's Q<N> and holds its whole current answer."""
+    named = {f"Q{m.group(1)}" for m in QN_REF.finditer(line)}
+    return bool(r["readable"]) and r["n"] in named and r["readable"] in line
+
+
+def why_of(r):
+    """The question's basis for a row that took the recommendation, else ''."""
+    took = r.get("decision") in ("accept", "hedged")
+    return clean(r["q"].get("basis")) if took else ""
+
+
+def with_whys(lines, rows, given):
+    """Each restated line, followed by a `why:` sub-bullet for each row it carries that has a
+    why_of, once per row across calls; `given` collects the rows that have one."""
+    whys = [(r, why_of(r)) for r in rows]
+    out = []
+    for b in lines:
+        out.append(b)
+        for r, basis in whys:
+            if basis and r["n"] not in given and carries(b, r):
+                given.add(r["n"])
+                out.append(f"  - {brief_label(r)} why: {basis}")
+    return out
 
 
 def replacements(rows):
@@ -1040,6 +1101,41 @@ def replacements(rows):
         if new in by_id:
             out[r["n"]] = by_id[new]
     return out
+
+
+# A recap line written while the row was open: its Q<N>, then its question and answer.
+OPEN_RECAP = re.compile(r"^(?:[-*+]\s+)?(Q[1-9][0-9]*) open: (.*)\)$")
+
+
+def recap_head(said, answer):
+    """The question part of a recap line's `<question> (<answer>` text, through the `(` and any
+    `[id] ` lead, when the answer it shows is `answer` as it read before its commitments were
+    ticked, or that answer cut short; else None."""
+    base = answer.rpartition("; confirmed: ")[0]
+    for m in re.finditer(r"\((\[[^\]\s]+\] )?", said) if base else ():
+        shown = said[m.end() :]
+        whole = shown == base or shown.startswith(base + "; confirmed: ")
+        cut = shown.endswith("…") and shown[:-1].strip() and answer.startswith(shown[:-1])
+        if whole or cut:
+            return said[: m.end()]
+    return None
+
+
+def ticked_recap(text, rows):
+    """The restated decisions recap, each line written while unticked commitments held its row
+    open rewritten as `answered` with the row's whole answer once they are ticked, as "Tick
+    these and confirm" does after the recap was taken. A line whose answer changed is kept."""
+    by_n = {r["n"]: r for r in rows}
+    out = []
+    for line in str(text or "").splitlines():
+        m = OPEN_RECAP.match(line.strip())
+        r = by_n.get(m.group(1)) if m else None
+        ticked = r and r["status"] == "answered" and r["carries"] and r["confirmed"]
+        head = recap_head(m.group(2), r["readable"]) if ticked else None
+        if head is not None:
+            line = f"{m.group(1)} answered: {head}{r['readable']})"
+        out.append(line)
+    return "\n".join(out)
 
 
 def marked_decisions(sections, replaced):
@@ -1121,19 +1217,25 @@ def ledger_row(n, qid, status, title, res):
 
 
 def unanswered_asks(doc, events):
-    """Each Notes line Claude posted with needsAnswer that no live note from the user is at or
-    after; the page pins the newest of them as a loose end."""
-    said = [
-        str(e.get("at") or "")
-        for e in events
-        if e.get("kind") == "note" and not e.get("withdrawn")
-    ]
-    last = max(said, default=None)
-    return [
-        n
-        for n in doc.get("notes") or []
-        if n.get("needsAnswer") and (last is None or last < str(n.get("at") or ""))
-    ]
+    """Each Notes line Claude posted with needsAnswer that no live note from the user answers.
+    Each user note answers the oldest ask still open at or before it, so two asks need two
+    notes; the page pins the same asks as loose ends."""
+    notes = doc.get("notes") or []
+    thread = sorted(
+        [(str(n.get("at") or ""), 0, i) for i, n in enumerate(notes) if n.get("needsAnswer")]
+        + [
+            (str(e.get("at") or ""), 1, 0)
+            for e in events
+            if e.get("kind") == "note" and not e.get("withdrawn")
+        ]
+    )
+    waiting = []
+    for _, by_user, i in thread:
+        if by_user:
+            waiting = waiting[1:]
+        else:
+            waiting.append(notes[i])
+    return waiting
 
 
 def brief_label(r):
@@ -1185,12 +1287,12 @@ def user_words(rows, events, intent):
 
 
 def constraint_lines(r, carried):
-    """An answered row's Constraints line, unless a restated line carries it, then, when the
-    row took the recommendation, its `why:` line from the question's basis."""
-    took = r.get("decision") in ("accept", "hedged")
-    basis = clean(r["q"].get("basis")) if took else ""
+    """An answered row's Constraints line, then, when the row took the recommendation, its
+    `why:` line from the question's basis. A row a restated line carries has neither here:
+    with_whys puts its `why:` under that line."""
     if r["n"] in carried:
-        return [f"- {brief_label(r)} why: {basis}"] if basis else []
+        return []
+    basis = why_of(r)
     line = f"- {brief_label(r)} {clean(r['q'].get('short'))}: {r['readable']}"
     return [line, f"  - why: {basis}"] if basis else [line]
 
@@ -1211,6 +1313,8 @@ def export_brief(d, text=None):
     rows.sort(key=lambda r: int(r["n"][1:]))
     latest, restated, sign = confirmed_restatement(doc, resp.get("events") or [])
     sections = (restated or {}).get("sections") or {}
+    if sections.get("decisions"):
+        sections = dict(sections, decisions=ticked_recap(sections["decisions"], rows))
     count = {
         s: sum(1 for r in rows if r["status"] == s)
         for s in ("answered", "deferred", "blocked", "withdrawn", *UNSETTLED)
@@ -1264,7 +1368,7 @@ def export_brief(d, text=None):
     out += ["", "### Intent", "", para(sections.get("intent")) or "none stated"]
     words = user_words(rows, resp.get("events") or [], sections.get("intent"))
     out += ["", *words] if words else []
-    out += ["", "### Goal", "", para(sections.get("goal")) or para(title), ""]
+    out += ["", "### Goal", "", *(goal_lines(sections.get("goal")) or [para(title)]), ""]
     out += [
         "### Work size",
         "",
@@ -1282,14 +1386,15 @@ def export_brief(d, text=None):
         recorded = [f"- {c['id']}: {para(c['text'])}" for c in page]
         seen = {c["id"] for c in page}
         recorded += [b for i, b in ledger_constraints(text) if i not in seen]
-    # An answered row the restatement already carries is said there, once.
+    # An answered row the restatement already carries is said there, once, its `why:` under it.
     carried = carried_rows(sections, answered)
+    given = set()
     out += [
-        *bullets(sections.get("constraints")),
+        *with_whys(bullets(sections.get("constraints")), answered, given),
         *recorded,
         *(line for r in answered for line in constraint_lines(r, carried)),
     ] or ["- none recorded"]
-    decisions = marked_decisions(sections, replaced)
+    decisions = with_whys(marked_decisions(sections, replaced), answered, given)
     if decisions:
         out += ["", "### Decisions", "", *decisions]
     criteria = bullets(sections.get("acceptance"))
@@ -1961,7 +2066,14 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
         clash("proposal", "was")
     if hold is not None and status not in UNSETTLED:
         clash("hold", f"status {status}")
-    if "aside" in fields and hold is None:
+    # Without a hold, only a recommendation revision sets a decision aside: an open row's accept.
+    revised_aside = (
+        "aside" in fields
+        and hold is None
+        and status == "open"
+        and fields["aside"].startswith(("accepted: ", "hedged: "))
+    )
+    if "aside" in fields and hold is None and not revised_aside:
         clash("aside", "hold")
     who, sep, waits = (hold or "").partition(" ")
     if hold is not None and (who not in ("claude", "user") or not sep):
@@ -2078,6 +2190,8 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
             q["terminal"] = held_terminal(q, decided, (noted and note) or "", at)
         if "aside" in fields:
             q.update(setAsideAt=at, setAsideSeq=0, setAsideRev=rev)
+        if revised_aside:
+            q["asideRecommendation"] = {"text": q["recommendation"], "decidedAt": at}
     by = "claude" if status in UNSETTLED else "user-terminal"
     line = f"{SEED_NOTE}: {status}" + (", held." if hold is not None else ".")
     if hold is None and status == "superseded-by-plan" and seeded[qid]["resolution"]:

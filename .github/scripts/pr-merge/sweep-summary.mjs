@@ -12,7 +12,10 @@
 //   refusal_counts                    every other row, by normalized reason
 //                                     (`enqueue failed` for a live ready row)
 //   held                              held.json's length
-//   budget_stop                       {reached, skipped, candidates, next_after}
+//   listing_held, listing_held_reason true and why when the open pull requests
+//                                     were unknown, so the job gated nothing;
+//                                     else false and null
+//   budget_stop                      {reached, skipped, candidates, next_after}
 //                                     when the gate ended green before the last
 //                                     gated candidate (its only early exit),
 //                                     else null; reached counts gated rows only
@@ -29,7 +32,8 @@
 //   CANDIDATES_PATH    candidates.json
 //   CURSOR_PATH        the gate cursor, {"last": <PR number>}
 //   SWEEP_SUMMARY_TO   the file to write
-//   GITHUB_RUN_ID, EVENT, LIVE, GATE_OUTCOME, RUN_STARTED_AT
+//   GITHUB_RUN_ID, EVENT, LIVE, GATE_OUTCOME, RUN_STARTED_AT,
+//   LISTING_HELD, LISTING_HELD_REASON
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -65,6 +69,8 @@ export function summarize({
   held,
   gateOutcome,
   cursor,
+  listingHeld = false,
+  listingHeldReason = null,
 }) {
   const refusals = new Map();
   let enqueued = 0;
@@ -105,6 +111,8 @@ export function summarize({
     ready_unmerged: readyUnmerged,
     refusal_counts: Object.fromEntries(refusals),
     held: held.length,
+    listing_held: listingHeld,
+    listing_held_reason: listingHeld ? listingHeldReason : null,
     budget_stop: stopped
       ? {
           reached,
@@ -144,6 +152,8 @@ export function main(env = process.env) {
     held: Array.isArray(held) ? held : [],
     gateOutcome: env.GATE_OUTCOME,
     cursor: readJson(env.CURSOR_PATH, null),
+    listingHeld: env.LISTING_HELD === "true",
+    listingHeldReason: env.LISTING_HELD_REASON || null,
   });
   const to = env.SWEEP_SUMMARY_TO;
   writeFileSync(`${to}.tmp`, JSON.stringify(out));

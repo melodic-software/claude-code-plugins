@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/user-interface/skills/audit/reference/launch-scope.md"
+          }
+        }
+      ],
+      "why": "the launch procedure was read"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "app/layout.tsx"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/user-interface/skills/audit/reference/launch-scope.md",
+            "offset": 120
+          }
+        }
+      ],
+      "why": "the launch procedure was read after a project file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/plugins/user-interface/skills/audit/reference/motion.md"
+          }
+        }
+      ],
+      "why": "near miss: another lane procedure in the same folder, so the launch scope did not run"
+    }
+  ]
+}

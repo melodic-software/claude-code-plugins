@@ -4,10 +4,11 @@
 # unknown or ambiguous label is refused and a matching digest is a no-op, and with several
 # labels either refuses the whole call before any write. It runs with no terminal, as a lane
 # runs it. The copy is a stand-in test with the real call shape (label, then the sha256
-# literal alone on the last line) that prints the same `want X, got Y` failure, so the real
+# literal alone on the last line) that fails a stale pin as the real test does, so the real
 # pins are never touched.
 #
 # test-scope: plugins/planning/tests/repin.sh
+# test-scope: plugins/planning/scripts/repin-digests.sh
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPIN="$HERE/repin.sh"

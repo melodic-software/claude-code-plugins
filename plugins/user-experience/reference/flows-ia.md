@@ -62,9 +62,11 @@ evidence ([nng-task-analysis]).
     <https://baymard.com/research-articles/checkout-flow-average-form-fields>.
   - **As of**: 2026-10-04
   - **Recheck trigger**: Baymard publishes a new checkout benchmark.
-- **Errors at every step boundary.** Give a clearly marked way out of an unwanted action, prevent
-  error-prone conditions or confirm before the person commits, and say what went wrong and how to
-  fix it. These are Nielsen's heuristics 3, 5 and 9; the heuristic set itself belongs to
+- **Errors at every step boundary.** Give a clearly marked way out of an unwanted action, and
+  prevent error-prone conditions or confirm before the person commits. Error pages: explain what
+  went wrong and offer a specific recovery action. "Something went wrong" + a back button ends the
+  journey; specificity continues it. These are Nielsen's heuristics
+  3, 5 and 9; the heuristic set itself belongs to
   `/user-interface:design` when installed. Basis: [nng-heuristics], HIGH (single source); treating
   them as flow-level checks is judgment over MEDIUM evidence.
   - **Pointer**: for the current wording of heuristics 3, 5 and 9, read Nielsen's "10 Usability
@@ -72,6 +74,18 @@ evidence ([nng-task-analysis]).
     <https://www.nngroup.com/articles/ten-usability-heuristics/>.
   - **As of**: 2026-10-04
   - **Recheck trigger**: NN/g revises the page or its review date moves.
+- **Keep the destructive action apart.** Never place "Delete" directly beside "Confirm". Proximity
+  implies equivalence; separate destructive actions with whitespace and a visual break. The flow
+  records which step offers the destructive action and where its confirmation sits; the spacing
+  itself is `/user-interface:design`'s. Basis: judgment over [nng-heuristics] (heuristic 5, error
+  prevention).
+- **Empty states explain and act.** "You haven't created a project yet" + a "Create project"
+  button, not "No projects found". The empty state is a step with an exit, not a dead end;
+  `reference/first-run.md` `## First-use empty states` covers the empty state a new person sees.
+  Basis: judgment.
+- **First value over a tour.** Onboarding that creates the user's first item in one step beats an
+  8-stop feature tour. The tour teaches the product; the shortcut delivers value. Basis: judgment;
+  `reference/first-run.md` has the rest of the first-run flow.
 - **Leaving is as easy as joining.** A cancel, unsubscribe or delete path takes no more steps than
   the sign-up did. Basis: judgment; `reference/evaluation.md` `## Fair-choice check` has the full
   check.
@@ -138,8 +152,34 @@ flowchart TD
   test, not a substitute for participants; agreement drops as cards and labels get more complex.
   Basis: judgment over MEDIUM evidence ([measuringu-chatgpt-sort]).
 - Site search logs (top queries, zero-result queries) are evidence an agent can read without
-  recruiting, to suggest labels and gaps. Treat what they suggest as hypotheses to check with
-  people. Basis: judgment over MEDIUM evidence ([rosenfeld-search-analytics], [nng-taxonomy]).
+  recruiting, to suggest labels and gaps. Search query data is often the most honest signal of
+  where labeling has failed (the search-as-escape-hatch term in `/user-interface:glossary`).
+  Search data is IA feedback: if users keep searching "invoices" while the nav says "Billing",
+  rename the nav item. Basis: judgment over MEDIUM evidence
+  ([rosenfeld-search-analytics], [nng-taxonomy]); what the logs suggest is still a hypothesis to
+  check with people, such as a tree test of the new label.
+- **Depth.** Three levels is generally the limit before users lose track of where they are. Deeper
+  structures need better wayfinding (breadcrumbs, active states in navigation, page titles, URL
+  structure), or a flatter rethink. Three levels of nested dropdowns lose people. Count levels in
+  the tree, not clicks: click count is not interaction cost. Basis: judgment for the three-level limit.
+  - The flat extreme fails too. Forty settings on one flat scrollable page buries everything
+    equally. Group with a sidebar nav and progressive sections: flat lists have no hierarchy.
+    Basis: judgment.
+  - So treat three levels as a point to review the tree, not a hard limit. Kathryn Whitenton
+    (NN/g, 2013-11-10) states both sides: "All other things being equal, deep hierarchies are more
+    difficult to use." and "Like most design questions, there's no single right answer, and going
+    too far to either extreme will backfire." Basis: [nng-flat-deep], HIGH (single source).
+    - **Pointer**: for the current wording of both lines, read "Flat vs. Deep Website
+      Hierarchies" at <https://www.nngroup.com/articles/flat-vs-deep-hierarchy/>.
+    - **As of**: 2026-10-29
+    - **Recheck trigger**: NN/g revises the article.
+- **Tabs are for views of the same thing.** "This week / This month / This year" is the
+  textbook-correct use. "Account / Billing / Notifications" tabs pass when they are views of one
+  account's settings; destinations that are not views of one thing go in the navigation, not in
+  tabs. How the tabs look is `/user-interface:design`'s. Basis: judgment.
+- **Take a content inventory before restructuring**, to identify gaps, duplicates, and orphaned
+  pages (term: `/user-interface:glossary`). Skipping it leads to redesigns that move the same broken
+  content into a new container. Basis: judgment.
 
 An IA tree uses the same `flowchart` form, one node per section with its label as people would say
 it (Basis: judgment):
@@ -151,6 +191,13 @@ flowchart TD
   account --> details[Personal details]
   account --> payments[Payment history]
 ```
+
+A content inventory is a table with one row per page; Action is Keep, Merge (a duplicate) or Delete
+(an orphan), and Evidence says where the row came from: the route list, the sitemap, analytics, or
+"assumption" (Basis: judgment):
+
+| Page | Path | Last updated | Action | Evidence |
+|---|---|---|---|---|
 
 ## Content structure
 
@@ -175,8 +222,15 @@ tone of interface text belong to `/user-interface:design`. Basis: judgment.
   - **Recheck trigger**: GDS updates either page, or moves form guidance into the GOV.UK Design
     System.
 - **The user's own words.** Take labels and terms from research (interview vocabulary, search
-  queries, support tickets), and mark a term with no such source as an assumption. Basis:
-  judgment.
+  queries, support tickets), and mark a term with no such source as an assumption. Name things by
+  the user's mental model, not internal jargon: "Send messages in the background", not "Enable
+  async relay mode". Labels that match user vocabulary get used. Labels that reflect internal naming
+  conventions get ignored or searched around. Basis: judgment.
+- **Keep the primary action in view.** Don't bury the primary action at the bottom of a long page:
+  anchor it persistently in view. Scroll-depth data will confirm most users never reach the bottom.
+  This plugin decides which action is primary on each step; how it stays in view is
+  `/user-interface:design`'s. Basis: judgment; check the claim against the project's own
+  scroll-depth data where it has any.
 
 A content structure is a table per flow (Basis: judgment):
 
@@ -202,5 +256,6 @@ A content structure is a table per flow (Basis: judgment):
 [measuringu-chatgpt-sort]: https://measuringu.com/comparing-chatgpt-to-card-sorting-results/
 [rosenfeld-search-analytics]: https://rosenfeldmedia.com/books/search-analytics-for-your-site-frequently-asked-questions/
 [nng-taxonomy]: https://www.nngroup.com/articles/taxonomy-101/
+[nng-flat-deep]: https://www.nngroup.com/articles/flat-vs-deep-hierarchy/
 [jarrett-protocol]: https://www.uxmatters.com/mt/archives/2010/06/the-question-protocol-how-to-make-sure-every-form-field-is-necessary.php
 [gds-personal-info]: https://www.gov.uk/service-manual/design/collecting-personal-information-from-users

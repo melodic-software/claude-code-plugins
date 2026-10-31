@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "| 1 | split | tier-mismatch | 18 | \"## Billing service conventions\" applies only to services/billing | Move to `.claude/rules/billing.md` with `paths: [\"services/billing/**\"]` |", "why": "rules file with paths"},
+    {"answer": "Billing conventions: make them a path-scoped rule so they load only when billing files are touched.", "why": "path-scoped wording"},
+    {"answer": "Put the billing rules in services/billing/CLAUDE.md; it loads when Claude works in that folder.", "why": "subtree CLAUDE.md"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty"},
+    {"answer": "Move the billing conventions into docs/billing.md and link it from CLAUDE.md.", "why": "unscoped doc"},
+    {"answer": "Everything in CLAUDE.md is short enough to stay where it is.", "why": "no move proposed"},
+    {"answer": "Rotate the webhook key by generating a new one in the provider dashboard.", "why": "answers a different question"}
+  ]
+}

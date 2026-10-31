@@ -158,14 +158,19 @@ resolved effort is lower, pass no `effort`.
 
 When `/multi-agent:route` does not resolve, omit the model for both stages so they inherit the
 session's, except when the session model is frontier or unknown, where pass `opus`; say once in the
-report that enabling the multi-agent plugin makes this routing configurable. With no role map, gates
-pass no `effort` either. Pointer: for the per-spawn
+report that enabling the multi-agent plugin makes this routing configurable. The `opus` fallback is
+this skill's stand-in for the fan-out guard `/multi-agent:route` applies: it keeps a wide fan-out
+off the frontier tier; which model the alias then runs on is the harness's call (model pointer
+below). With no role map, gates pass no `effort` either. Pointer: for the per-spawn
 `effort` and its precedence, see <https://code.claude.com/docs/en/sub-agents#choose-an-effort-level>.
 As of: 2026-10-10. Recheck trigger: that section changes precedence or which spawns honor `effort`.
 
 Name the model and effort each stage was dispatched with in the run metadata: the level passed, or
 `session` when none was. A dispatch the harness rejects means the role map names an alias this
-session cannot use: report it rather than substitute one.
+session cannot use: report it rather than substitute one. The metadata names the model asked for,
+not proof of the model that ran. Pointer: for how a spawn's `model` alias resolves and what happens to a blocked
+one, see <https://code.claude.com/docs/en/sub-agents#choose-a-model>. As of: 2026-10-31. Recheck
+trigger: that section changes how an alias resolves or how a blocked value is handled.
 
 **Breadth by scope.** After Step 1 enumerates the files (test suites excluded), classify the scope:
 

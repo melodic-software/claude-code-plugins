@@ -3,6 +3,19 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.13] - 2026-10-31
+
+### Changed
+
+- The drift-delta sweep routine invokes `/overengineering:delta` with `--unattended`, the spelling that skill now takes.
+
+## [0.32.12] - 2026-10-31
+
+### Changed
+
+- The setup skill's trigger-adapter templates point at the Claude Tag page and the earlier Claude Code in Slack page as two separate products, each with an as-of date and a recheck trigger. The Routine triggers entry now lists issue events among the GitHub triggers, re-dated 2026-10-31.
+- The setup skill's agent-session telemetry records point at the monitoring page's "Attribute telemetry to cloud sessions" section for `ccr.session.id`, with an as-of date and a recheck trigger.
+
 ## [0.32.11] - 2026-10-31
 
 ### Changed

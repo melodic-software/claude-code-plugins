@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/*.py
 """The per-process gh call counter in `babysit_gh._run_gh`.
 
 The method rule comes from `gh api --help`: GET by default, POST once a

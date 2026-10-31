@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { escalationActivity, escalationRoute, gateSource, laneEscalationAllows, listLabelEvents, prHold, reviewReader, ROUTES, SIGNED_COMMITS_HOLD } from "./gate-source.mjs";
+import { escalationActivity, escalationRoute, gateSource, laneEscalationAllows, listLabelEvents, prHold, reviewReader, ROUTES, CREDENTIAL_HOLD, SIGNED_COMMITS_HOLD } from "./gate-source.mjs";
 import { stopSkip } from "./escalation-routes.mjs";
 
 const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
@@ -308,6 +308,16 @@ test("prHold reads the timeline only for the human-gated label, and holds on any
 const noReviews = async () => ({ comments: [], reviews: [] });
 const signedHold = (user, at) =>
   commented(user, `${SIGNED_COMMITS_HOLD}\nLane commit check: these commits are not GitHub-verified, so no lane continues on this pull request until a human reviews them.\n\n- \`${OLD}\``, at);
+
+test("pr-verify's credential stop holds a PR that is otherwise another lane's escalation, until a person lifts it", async () => {
+  const stop = (user, at) => commented(user, `${CREDENTIAL_HOLD}\nReason: \`security\``, at);
+  const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed"), stop(ACTIONS, "2026-10-18T11:00:00Z")];
+  assert.equal(source(timeline), "credential-hold");
+  assert.equal(allows(timeline, "fix-ci"), false);
+  const held = await prHold({ labels: ["needs-human"], holdLabels: [], gateLabel: "needs-human", head: HEAD, activity: "fix-ci", appId: APP.id, readTimeline: async () => timeline, readReviews: noReviews });
+  assert.deepEqual(held, { held: true, laneEscalated: false, why: "held by needs-human: needs-human is not a lane escalation (credential-hold)" });
+  assert.equal(source(timeline.slice(0, 2)), "lane-escalation", "without the comment");
+});
 
 test("check-signed-commits' marked comment holds a PR that is otherwise another lane's escalation", async () => {
   const timeline = [label("labeled", APP, "2026-10-18T10:00:00Z"), escalated("feedback-disputed"), signedHold(ACTIONS, "2026-10-18T11:00:00Z")];

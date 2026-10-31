@@ -13,10 +13,10 @@ This document describes four wiring shapes and the trade each makes. Pick one; n
 Every shape below invokes the same line, and the two arguments are not optional decorations:
 
 ```text
-/overengineering:delta [<layer> ...] unattended
+/overengineering:delta --unattended [<layer> ...]
 ```
 
-- **`unattended` is mandatory for anything unwatched.** It selects the audit's unattended
+- **`--unattended` is mandatory for anything unwatched.** It selects the audit's unattended
   disposition for low-confidence intent (`<plugin-root>/context/scrutiny-method.md` §4): record `OPEN-INTENT`, ask
   nothing, guess nothing. The harness gives a prose skill no reliable probe for whether a human is
   watching, so the caller owns the flag, and a scheduled run that omits it will sit waiting on a
@@ -31,7 +31,7 @@ Every shape below invokes the same line, and the two arguments are not optional 
 ## Shape 1: a fixed-interval loop (interactive, the simplest)
 
 ```text
-/loop 1w /overengineering:delta unattended
+/loop 1w /overengineering:delta --unattended
 ```
 
 `/loop` is a bundled skill and needs no install. This shape supplies an explicit interval; how that
@@ -110,7 +110,7 @@ run, forever, over a thin evidence base.
 
 ## Shape 4: a recurring work item (the lowest-commitment shape)
 
-Register a recurring item in the consumer's own tracker, "run `/overengineering:delta unattended`
+Register a recurring item in the consumer's own tracker, "run `/overengineering:delta --unattended`
 and record what moved", on whatever cadence that tracker already understands, and let the operator's
 existing work-selection routine pick it up when it comes due.
 
@@ -131,7 +131,7 @@ a target rather than a guarantee.
 
 - **No shape reaches `overengineering:realign`.** Recurrence changes nothing about the read-only
   contract, and there is no scheduled remediation path in this plugin at any cadence.
-- **No shape may drop `unattended`.** An unwatched attended run stalls at the first intent
+- **No shape may drop `--unattended`.** An unwatched attended run stalls at the first intent
   checkpoint.
 - **No shape substitutes for the operator's judgment about the cadence.** If a lane's last several
   cycles were all quiet, the correct response is to lengthen the interval or retire the lane, not to

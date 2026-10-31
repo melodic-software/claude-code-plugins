@@ -3,6 +3,20 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-10-31
+
+### Fixed
+
+- `/bugs:scan` gives its `opus` fallback a reason, says its run metadata names the model asked for rather than proving the model that ran, and points at the sub-agents model section with an as-of date and recheck trigger.
+
+## [0.16.0] - 2026-10-31
+
+### Added
+
+- `/bugs:write`, for a motion bug, asks the reporter for a frame-state capture or the property values at the frame where it looks wrong, with the playback speed, and treats a pasted export as data.
+
+- `/bugs:write` has an eval case that an instruction inside a committed frame-state export is named under Notes and not followed.
+
 ## [0.15.0] - 2026-10-31
 
 ### Added

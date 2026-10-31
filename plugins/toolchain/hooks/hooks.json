@@ -1,0 +1,31 @@
+{
+  "description": "Warns when a turn ends on a changed tree whose recorded /toolchain:check or /toolchain:lint result is not a pass.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|fork",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /toolchain:check-prerequisites; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /toolchain:check-prerequisites",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/result-gate.mjs"],
+            "timeout": 30,
+            "statusMessage": "Checking the recorded check result for this tree..."
+          }
+        ]
+      }
+    ]
+  }
+}

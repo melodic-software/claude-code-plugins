@@ -3,6 +3,24 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.3] - 2026-10-31
+
+### Changed
+
+- Shared `publish-gate.mjs` synced where this plugin carries it: the page stamp it removes before scanning now matches only the builders' own stamp names, so a token inside a look-alike comment is still found; no other change to this plugin.
+
+## [0.13.2] - 2026-10-31
+
+### Fixed
+
+- The publish gate now catches a credential that a line break splits in two: it also reads each pair of adjacent lines joined, raw and normalized. A password or secret assignment split across two lines is caught too. The OpenAI key and the R2 key pair patterns still read one line at a time, so an `sk-` word ending a line or an md5 line above a sha256 line raises nothing. Machine paths and hostnames are still read one line at a time.
+
+## [0.13.1] - 2026-10-31
+
+### Added
+
+- Six regex-graded outcome eval cases under `evals/` and frozen trigger probes under `probes/` for `present` and `visualize`. Both skills' descriptions and bodies are unchanged: no shorter version passed the eval measurement on a run the eval tooling judged valid.
+
 ## [0.13.0] - 2026-10-31
 
 ### Added

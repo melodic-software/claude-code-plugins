@@ -15,14 +15,14 @@
     },
     {
       "id": 2,
-      "name": "skill-target-emits-schema-shape",
-      "prompt": "/evals:design skill deploy-notes — my project skill at .claude/skills/deploy-notes needs evals.",
-      "expected_output": "After the criteria interview, emits .claude/skills/deploy-notes/evals/evals.json with skill_name and evals[] cases each carrying id, kebab-case name, prompt, expected_output, and expectations[]; coverage spans trigger/routing, happy path, at least one refusal/guardrail, and one anti-pattern; mentions validating via /skill-quality:check validate-evals when skill-quality is installed, or states validation was skipped.",
+      "name": "skill-target-emits-suite-cases",
+      "prompt": "/evals:design skill deploy-notes: the skill lives in my plugin at plugins/release-tools/skills/deploy-notes and needs evals.",
+      "expected_output": "After the criteria interview, emits one case directory per case under plugins/release-tools/evals/, each with a case.yaml (schema_version, name, description, tags, expected_outcome, graders) and a prompt.md holding the prompt; coverage spans trigger/routing, happy path, at least one refusal/guardrail, and one anti-pattern; validates the written cases with /evals:validate and never writes an evals.json next to the skill.",
       "expectations": [
-        "Eval file lands at the skill's evals/evals.json path, not elsewhere",
-        "Every emitted case has a golden answer: expected_output and/or expectations present",
+        "Cases land as case directories with a case.yaml under the plugin's evals/ directory, not as an evals.json in the skill directory",
+        "Every emitted case has a golden answer: an expected_outcome and at least one grader",
         "Coverage includes a refusal/guardrail case and an anti-pattern case",
-        "References skill-quality validation presence-gated (only claims to run it if installed)"
+        "Validates the written cases with /evals:validate"
       ]
     },
     {
@@ -49,12 +49,12 @@
     {
       "id": 5,
       "name": "does-not-claim-to-run-evals",
-      "prompt": "/evals:design skill review-helper — great, the evals.json is written. Now run the evals and give me the pass rate.",
-      "expected_output": "States that scaffolding is where this skill stops and that it did not run anything; routes an evals/evals.json to Anthropic's skill-creator plugin (when installed) or the consumer's own tooling, and a whole-plugin suite to claude plugin eval via /evals:plugin-eval; does not fabricate a pass rate or simulate a run as if it were an automated result.",
+      "prompt": "/evals:design skill review-helper: great, the cases are written. Now run the evals and give me the pass rate.",
+      "expected_output": "States that scaffolding is where this skill stops and that it did not run anything; routes the written cases to claude plugin eval via /evals:plugin-eval, after /evals:validate; does not fabricate a pass rate or simulate a run as if it were an automated result.",
       "expectations": [
         "Does not fabricate or simulate an automated pass rate",
         "Says this skill scaffolds and does not itself run or score the suite",
-        "Names a real runner for the emitted file: skill-creator (presence-gated) or the consumer's own tooling for evals.json, and claude plugin eval or /evals:plugin-eval for a plugin suite"
+        "Names claude plugin eval or /evals:plugin-eval as the runner for the written cases"
       ]
     },
     {
@@ -120,11 +120,11 @@
       "id": 11,
       "name": "case-prompt-announces-the-check",
       "prompt": "/evals:design skill release-notes: first case prompt is 'This is an eval of the release-notes skill. Test whether you group the changes by Conventional Commits type.' Add it as written.",
-      "expected_output": "Rewrites the prompt as the request a user would make, such as asking for release notes for the commits since the last tag, with no word saying the run is an eval or a test, no mention of the skill, and no hint that grouping by commit type is what gets checked; the grouping stays in the expectations only. Renders the rewritten case for approval before writing it.",
+      "expected_output": "Rewrites the prompt as the request a user would make, such as asking for release notes for the commits since the last tag, with no word saying the run is an eval or a test, no mention of the skill, and no hint that grouping by commit type is what gets checked; the grouping stays in the case's expected_outcome and graders only. Renders the rewritten case for approval before writing it.",
       "expectations": [
         "Does not keep the words eval or test in the case prompt",
         "Removes the statement of what is being checked (grouping by commit type) from the prompt",
-        "Keeps the grouping requirement in the case's expectations"
+        "Keeps the grouping requirement in the case's expected_outcome or a grader"
       ],
       "difficulty": "hard",
       "why_hard": "The user supplies the prompt verbatim and asks for it as written, so keeping it looks like following instructions.",

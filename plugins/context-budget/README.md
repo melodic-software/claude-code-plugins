@@ -61,6 +61,26 @@ The `live_display` option picks where it shows:
 hot reload. In `off` mode, `/context-budget live` shows a toast that says how to turn the display
 on.
 
+**Skills warning.** When the Skills row holds 1% or more of the window, it shows in the warning
+color. In the pane, a line under the row says so and names the fix: run `/skill-doctor`, or check
+`skillListingBudgetFraction`. In the band, the Skills entry in the legend turns the same color, and
+the pane carries the fix. The level is the skill listing's default budget, 1% of the context
+window. Claude Code counts that budget in characters, sized from the window's tokens: the
+documented fallback of 8,000 characters is 1% of a 200k window at 4 characters per token. So a
+listing that fills the default budget is about 1% of the window in the tokens the row counts. With
+`skillListingBudgetFraction` raised, the listing can pass 1% without being over its budget, so the
+line states the row's share and does not say the listing is over a budget. The threshold is fixed,
+with no option to change it. The row shows its percent rounded, so a Skills row at 0.6% reads "1%"
+with no color. No other category has a documented level, so no other row warns. How full the
+context is stays with `context-guard`.
+
+- **Pointer:** [skills § Skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short),
+  and `SLASH_COMMAND_TOOL_CHAR_BUDGET` on [environment variables](https://code.claude.com/docs/en/env-vars)
+  for the 8,000-character fallback.
+- **As of:** 2026-10-31.
+- **Recheck trigger:** either page changes the listing budget's default, unit or fallback, or what
+  the Skills row in `/context` counts.
+
 **Refresh and cost.** The mod reads Claude Code's local estimate of the breakdown, with no network
 call, when you open or switch the view and, while it is shown, when context usage changes. `off`
 makes no reads.
@@ -157,14 +177,14 @@ rules to the path; on 2.1.285 the path is not the cause, and 2.1.258 was not re-
 rules differ: there, an `Edit` rule covers every built-in file-editing tool. One `Edit(...)` gate on
 this `Write|Edit|NotebookEdit` row would therefore drop every Write silently, which is the opposite
 of what the checkpoint exists to do. The row stays unconditioned; splitting it into a gated row per
-tool needs its own probe, and NotebookEdit was not probed. #8985 tracks the upstream report.
+tool needs its own probe, and NotebookEdit was not probed.
 
 - **Pointer:** [hooks § Common fields](https://code.claude.com/docs/en/hooks#common-fields) (`if`
   uses permission rule syntax) and
   [permissions § What `Read` and `Edit` rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover).
 - **As of:** 2026-10-29.
 - **Recheck trigger:** a Claude Code release note saying a hook `if` `Edit(...)` rule matches Write
-  tool calls, or #8985 closes. Re-probe before gating this row.
+  tool calls. Re-probe before gating this row.
 
 ## What makes the numbers trustworthy
 

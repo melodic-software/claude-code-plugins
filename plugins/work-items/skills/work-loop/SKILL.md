@@ -381,13 +381,13 @@ of every named label came from an actor with `write`, `maintain` or `admin`. Any
 closed for this cycle: a triage or read labeler, a label with no `labeled` event, a failed or empty
 timeline or permission read, an adapter without the operation (exit `6`), and a harness-denied
 call. A refused candidate is neither dispatched nor ratify-queued, the cycle changes none of its
-labels, except the body-edit escalation below, and the run continues with the other candidates. The cycle report lists each refused row as
+labels, except the body edit-time escalation below, and the run continues with the other candidates. The cycle report lists each refused row as
 `labeler refused: #<item> "<label>" applied by <actor> (<role or permission>)`, or, with no actor
 to name, `labeler check failed: #<item> (<reason>)`. A refusal is not progress and does not reset
 the no-progress streak. The contract for the operation is in
 [`tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md)
-"Verbs (core public surface)". Unlike the other refusals, one refused only for a body edited after
-admission is escalated once (`kind=escalated`, to human attention), not refused again each cycle. **Rule admission** then runs as a second path, through `${CLAUDE_PLUGIN_ROOT}/scripts/rule-admit.sh`: read [reference/rule-admission.md](reference/rule-admission.md).
+"Verbs (core public surface)". One refused only on its body edit time is escalated once instead: read [reference/body-edit-escalation.md](reference/body-edit-escalation.md).
+**Rule admission** then runs as a second path, through `${CLAUDE_PLUGIN_ROOT}/scripts/rule-admit.sh`: read [reference/rule-admission.md](reference/rule-admission.md).
 
 Pointer: for the permission each GitHub role maps to (`admin`, `write`, `read`, `none`; maintain
 maps to `write`, triage to `read`), see

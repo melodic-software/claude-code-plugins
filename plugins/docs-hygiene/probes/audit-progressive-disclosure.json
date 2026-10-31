@@ -1,0 +1,125 @@
+{
+  "skill": "docs-hygiene:audit-progressive-disclosure",
+  "plugin": "docs-hygiene",
+  "skill_dir": "plugins/docs-hygiene/skills/audit-progressive-disclosure",
+  "ranking_note": "Authored from the before descriptions at commit 4803086565, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the instruction-placement audit, the noise, compression, derivability, agent-writing and SSOT siblings, and the skill linter.",
+  "competitors": [
+    "instruction-placement:audit",
+    "docs-hygiene:audit-noise",
+    "docs-hygiene:compress",
+    "skill-quality:check",
+    "docs-hygiene:audit-derivability",
+    "docs-hygiene:write-for-agents",
+    "docs-hygiene:extract-ssot"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Our AGENTS.md has a deployment runbook in the middle of it. Which parts deserve to load every session?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "This SKILL.md handles both the Postgres path and the MySQL path in one body; should those live in separate files?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Grade the instruction files under .claude/ by how much they cost to load and where each piece belongs."
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "My skill's reference folder has a file nothing links to, and some pointers just say 'see notes.md'. Review the layout."
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "CLAUDE.md is around 350 lines now. Where should I cut it into pieces that load only when needed?"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "My skill hub links to a guide, and that guide links to another one holding the steps the agent must follow. Is that layout a problem?"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Audit this skill directory for spokes nested two levels deep and pointers with no hint about when to read them."
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is the reference doc behind this skill long enough that it needs a table of contents?"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "I'm worried our agent instructions eat too much of the context window. Which tier should each file sit at?"
+    },
+    {
+      "id": "pos-val-05",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Should this 500-line skill body be broken into a hub with reference files?"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Strip the 'as discussed above' residue and stale issue numbers from our rules docs."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Tighten the wording of this README without losing any instructions."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Validate my skill's frontmatter fields and description length."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Our docs folder holds coding conventions agents never see. Which of them should be promoted into instruction files?"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Could an agent work out everything in docs/architecture.md from the code? If so, should the doc exist?"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Write a new CLAUDE.md section telling agents how we name database migrations."
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Find ghost references and why-this-file-exists preambles in our skill bodies."
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "The same setup steps appear in three agent files; merge them into one source and cite it."
+    }
+  ]
+}

@@ -323,12 +323,19 @@ activities:
     # work tree it runs in, refusing a plugin name with a path in it and a
     # linked .changes directory (--carriers-of also makes and removes one
     # temp file); it runs no checkout code and reaches no network.
+    # repin-digests.sh re-pins planning's interview-defenses digest pins: it
+    # reads the checkout's test file and the files it pins as text, computes
+    # each digest with its own copy's lib/pin-digests.sh, rewrites the sha256
+    # literals in that test file, refuses a pin argument that is not a plain
+    # string or names a file outside the plugin, and runs no checkout code
+    # (tests/repin.sh, which also runs the test, stays off this list).
     verify-scripts:
       - plugins/testing/skills/audit/scripts/cant-fail-scan.sh
       - scripts/git-mv-rm.sh
       - plugins/skill-quality/scripts/check-evals-quality.sh
       - scripts/sync-shared-copies.sh
       - scripts/new-changelog-fragment.sh
+      - plugins/planning/scripts/repin-digests.sh
     # Lets the run read web pages, so it can check a fact against its source
     # (a documented default on a vendor docs page) instead of trusting the
     # issue's quote. It may search the web, fetch any page and run the
@@ -683,8 +690,11 @@ models:
     review:
       model: opus
       max-turns: 60
+    # Both review lanes judge work the code-fix and standard profiles write
+    # (opus), with no objective signal on the head when the model is chosen:
+    # docs/plugin-philosophy.md, Model tiers, rules 3 and 4.
     pr-review:
-      model: sonnet
+      model: opus
       effort: high
       max-turns: 75
     triage:
@@ -1134,6 +1144,13 @@ merge:
   dependabot:
     mode: enforce
     majors: review
+    # Action owners whose bumps skip ci-status's trust-gate hold on a
+    # Dependabot PR (Q24 below): every change block must swap only the SHA
+    # ref of one `uses: <owner>/...` line, to a commit a tag of that
+    # repository points to. Owner decision Q-ANTHROPIC-DEPS
+    # (2026-10-31). Absent or empty, Q24 holds every Dependabot PR.
+    trusted-action-owners:
+      - anthropics
   # No path is held for being trusted alone (owner direction 2026-10-24)
   # except the narrow path floor (babysit_risk.py FLOOR_CLASSES, the paths
   # every consumer shares, joined to `floor-paths` below, this repository's
@@ -1164,7 +1181,9 @@ merge:
   # `path-holds` also sets whether ci-status holds an exempt author's PR for
   # a trust-gate path or an App-authored one (`trust-path-hold-apps`), except
   # that ci-status holds a Dependabot PR for one either way (owner decision
-  # Q24, 2026-10-29: its action-pin bumps bring in third-party code).
+  # Q24, 2026-10-29: its action-pin bumps bring in third-party code), unless
+  # it only bumps actions of `dependabot.trusted-action-owners` above (owner
+  # decision Q-ANTHROPIC-DEPS, 2026-10-31).
   # `path-holds: false`: no changed path holds a pull request for its path
   # alone, not the floor above, denied-paths nor `review-path:` (owner
   # decision Q15, 2026-10-29: "We shouldn't really have any path
@@ -1206,6 +1225,8 @@ merge:
       - glob: ".github/scripts/pr-merge/last-report.mjs"
         class: gate
       - glob: ".github/scripts/pr-merge/rate-stop.bash"
+        class: gate
+      - glob: ".github/scripts/pr-merge/retry-call.bash"
         class: gate
       - glob: ".github/scripts/pr-merge/refire-refused.mjs"
         class: gate
@@ -1335,6 +1356,8 @@ merge:
       - glob: ".github/workflows/pr-refine.yml"
         class: gate
       - glob: ".github/workflows/pr-require-checks.yml"
+        class: gate
+      - glob: ".github/workflows/pr-review-approved.yml"
         class: gate
       - glob: ".github/workflows/pr-review-hosted.yml"
         class: gate

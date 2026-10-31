@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "prompt": "count the Skill calls in session-data/x.jsonl"
+          }
+        }
+      ],
+      "why": "delegated"
+    }
+  ]
+}

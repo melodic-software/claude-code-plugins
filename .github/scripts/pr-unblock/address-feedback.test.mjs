@@ -47,7 +47,21 @@ function fakeApi(overrides = {}) {
     posted,
     permissionReads,
     // The lanes App opened the PR unless the case names another opener.
-    getPull: async () => ({ number: 42, user: overrides.opener ? { id: overrides.opener, type: "User" } : { id: APP, type: "Bot" }, labels: (overrides.labels ?? []).map((name) => ({ name })), body: overrides.body ?? "" }),
+    getPull: async () => ({ number: 42, user: overrides.opener ? { id: overrides.opener, type: "User" } : { id: APP, type: "Bot" }, labels: (overrides.labels ?? []).map((name) => ({ name })), body: overrides.body ?? "", created_at: overrides.openedAt }),
+    // The REST issue timeline; an Error stands for a failed read.
+    async listTimeline() {
+      if (overrides.timeline instanceof Error) {
+        throw overrides.timeline;
+      }
+      return overrides.timeline ?? [];
+    },
+    // Comment deletions and review edit times (GraphQL); an Error stands for a failed read.
+    async listRequestHistory() {
+      if (overrides.history instanceof Error) {
+        throw overrides.history;
+      }
+      return { deletions: [], reviewEdits: {}, ...overrides.history };
+    },
     async getPermission(login) {
       permissionReads.push(login);
       return (overrides.permissions ?? { "kyle-sexton": "write" })[login] ?? "none";
@@ -1522,8 +1536,19 @@ const CODEX_LOGIN = "chatgpt-codex-connector[bot]";
 const OTHER_BOT = 206951365;
 const codexRun = (api, extra = {}) =>
   select({ api, pr: 42, headSha: HEAD, repository: "o/r", appId: APP, reviewerId: REVIEWER, reviewerIds: [CODEX], trustedHumans: new Set([HUMAN]), ...extra });
+// A `@codex review` issue comment by `user`, posted before Codex's review: the
+// request a listed bot's undirected thread needs from a trusted person.
+const codexAsk = (user = HUMAN, created = "2026-10-17T08:00:00Z", extra = {}) => ({
+  id: 5,
+  user: { id: user, login: LOGINS[user] },
+  created_at: created,
+  updated_at: created,
+  body: "@codex review",
+  ...extra,
+});
 // A thread whose root (100) the account `root` wrote in a review `reviewer`
-// submitted, with `replies` after it as [id, user id, body].
+// submitted, with `replies` after it as [id, user id, body], on a PR where a
+// trusted person asked Codex for the review.
 function botThread({ root = CODEX, login = CODEX_LOGIN, reviewer = root, replies = [], commit = HEAD } = {}) {
   const rows = [[100, root, "finding 100"], ...replies];
   return {
@@ -1531,7 +1556,8 @@ function botThread({ root = CODEX, login = CODEX_LOGIN, reviewer = root, replies
       comment(id, user, { body, created_at: at(i), user: { id: user, login: user === root ? login : LOGINS[user] } }),
     ),
     threads: [thread("PRRT_1", rows.map(([id]) => id))],
-    reviews: [{ id: 10, user: { id: reviewer, login }, commit_id: commit }],
+    reviews: [{ id: 10, user: { id: reviewer, login }, commit_id: commit, submitted_at: at(0) }],
+    issueComments: [{ id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) }, codexAsk()],
   };
 }
 
@@ -1556,7 +1582,7 @@ const securityHold = (sha, { criteria = "critical-security", user = { id: ACTION
   body: `<!-- claude-lane-hold lane=claude-security-review sha=${sha} criteria=${criteria} -->\n**claude-security-review** holds this pull request for a person.\n\nclaude-lane: claude-security-review`,
 });
 const securityMarked = (sha = HEAD) => ({ id: 3, user: { id: ACTIONS_BOT }, body: marker("claude-security-review", sha) });
-const lanesMarked = (...extra) => [{ id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) }, ...extra];
+const lanesMarked = (...extra) => [{ id: 1, user: { id: ACTIONS_BOT }, body: marker("claude-review", HEAD) }, codexAsk(), ...extra];
 // Codex's review on HEAD, submitted at 10:00.
 const codexAt = (issueComments) => {
   const base = botThread();
@@ -1743,6 +1769,172 @@ test("claimsSecurity holds the reviewer bot's rated or security-lane finding wha
     assert.equal(claimsSecurity(body), false, body);
     assert.equal(holds(body), false, body);
   }
+});
+
+// #8284: anyone can comment `@codex` on a public repository, so a listed
+// bot's thread no trusted person directed is worked only when the `@codex`
+// request behind the bot's review came from a person on the trusted-actor
+// list; any other request, or none, leaves it for a person.
+const askedBy = (asks, extra = {}) => {
+  const base = botThread();
+  return fakeApi({ ...base, issueComments: [base.issueComments[0], ...asks], ...extra });
+};
+const codexLogged = async (api, extra = {}) => {
+  const lines = [];
+  const result = await codexRun(api, { log: (line) => lines.push(line), ...extra });
+  return { result, lines };
+};
+
+test("a Codex thread answering a trusted person's @codex request is worked as today", async () => {
+  for (const [label, api] of [
+    ["an issue comment", askedBy([codexAsk()])],
+    ["a code span", askedBy([codexAsk(HUMAN, undefined, { body: "Please `@codex review` this." })])],
+    ["an inline review comment", fakeApi({ ...botThread(), issueComments: botThread().issueComments.slice(0, 1), reviewComments: [...botThread().reviewComments, comment(90, HUMAN, { pull_request_review_id: 9, created_at: "2026-10-17T08:00:00Z", body: "@Codex review" })] })],
+    ["a review body", fakeApi({ ...botThread(), issueComments: botThread().issueComments.slice(0, 1), reviews: [{ id: 9, user: { id: HUMAN }, commit_id: HEAD, submitted_at: "2026-10-17T08:00:00Z", body: "@codex review" }, ...botThread().reviews] })],
+  ]) {
+    const { result, lines } = await codexLogged(api);
+    assert.equal(result.decision, "proceed", label);
+    assert.deepEqual(result.file.threads.map((row) => row.id), ["PRRT_1"], label);
+    assert.deepEqual(lines, [], label);
+  }
+  // The reply job's re-read keeps it too.
+  const { kept } = await currentThreads({ api: askedBy([codexAsk()]), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX], appId: APP, trustedHumans: new Set([HUMAN]) });
+  assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
+});
+
+test("a Codex thread answering an untrusted author's @codex request is skipped, unworked, with a logged reason", async () => {
+  for (const [label, asks] of [
+    ["a stranger's request", [codexAsk(STRANGER)]],
+    ["a stranger's request beside a trusted one", [codexAsk(STRANGER, "2026-10-17T07:00:00Z"), codexAsk()]],
+    ["a stranger's request after a trusted one", [codexAsk(), codexAsk(STRANGER, "2026-10-17T09:00:00Z")]],
+    ["a stranger's mention glued to other text", [codexAsk(), codexAsk(STRANGER, "2026-10-17T09:00:00Z", { body: "x.@codex review" })]],
+    ["a stranger's old comment edited into a request since the bot's last review", [codexAsk(), codexAsk(STRANGER, "2026-10-01T08:00:00Z", { updated_at: "2026-10-17T09:00:00Z" })]],
+  ]) {
+    const { result, lines } = await codexLogged(askedBy(asks));
+    assert.deepEqual([result.decision, result.escalationReason], ["escalate", "feedback-untaken-threads"], label);
+    assert.deepEqual(result.threads, [], label);
+    assert.equal(result.file, undefined, label);
+    assert.deepEqual(lines, [`skip thread PRRT_1: codex-request-untrusted (the @codex request behind the bot's review came from account ${STRANGER}, not on the trusted-actor list)`], label);
+  }
+  const logged = [];
+  const { kept } = await currentThreads({ api: askedBy([codexAsk(STRANGER)]), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX], appId: APP, trustedHumans: new Set([HUMAN]), log: (line) => logged.push(line) });
+  assert.deepEqual(kept, []);
+  assert.match(logged.join("\n"), /PRRT_1: codex-request-untrusted/);
+});
+
+test("a Codex thread whose @codex request cannot be found is skipped (fail closed)", async () => {
+  const notFound = "skip thread PRRT_1: codex-request-not-found (no trusted @codex request, and no readable opening or ready-for-review event, since the bot's previous review)";
+  const ownText = { id: 6, user: { id: CODEX, login: CODEX_LOGIN }, created_at: "2026-10-17T08:30:00Z", body: 'Reviews are triggered when you comment "@codex review".' };
+  for (const [label, api] of [
+    ["no request and no readable opening time", askedBy([])],
+    ["an opening an earlier Codex review answered", askedBy([], { openedAt: "2026-10-17T07:00:00Z", reviews: [{ id: 9, user: { id: CODEX }, commit_id: OLD_HEAD, submitted_at: "2026-10-17T09:00:00Z" }, ...botThread().reviews] })],
+    ["a timeline that cannot be read", askedBy([], { openedAt: "2026-10-17T07:00:00Z", timeline: new Error("GET timeline returned 502") })],
+    ["a request posted after the review", askedBy([codexAsk(HUMAN, "2026-10-17T21:00:00Z")])],
+    ["a request an earlier Codex review answered", askedBy([codexAsk()], { reviews: [{ id: 9, user: { id: CODEX }, commit_id: OLD_HEAD, submitted_at: "2026-10-17T09:00:00Z" }, ...botThread().reviews] })],
+    ["only the bot's own text naming @codex", askedBy([ownText])],
+    ["a longer handle", askedBy([codexAsk(HUMAN, undefined, { body: "@codex-fan review" })])],
+    ["a review with no readable time", askedBy([codexAsk()], { reviews: [{ ...botThread().reviews[0], submitted_at: undefined }] })],
+  ]) {
+    const { result, lines } = await codexLogged(api);
+    assert.deepEqual([result.decision, result.escalationReason], ["escalate", "feedback-untaken-threads"], label);
+    assert.deepEqual(lines, [notFound], label);
+  }
+  // A stranger's request an earlier Codex review answered is not this one's.
+  const answered = await codexLogged(askedBy([codexAsk(STRANGER, "2026-10-17T07:00:00Z"), codexAsk(HUMAN, "2026-10-17T10:00:00Z")], { reviews: [{ id: 9, user: { id: CODEX }, commit_id: OLD_HEAD, submitted_at: "2026-10-17T09:00:00Z" }, ...botThread().reviews] }));
+  assert.equal(answered.result.decision, "proceed");
+});
+
+// An automatic Codex review (no @codex comment in the window) counts as asked
+// by whoever triggered it: the PR's author for one on opening, the actor of
+// the newest ready-for-review event for one on the ready flip. A trusted
+// person or the lanes App (APP_SENDER_ID) is trusted; anyone else is not.
+const OPENED = "2026-10-17T07:00:00Z";
+const readied = (actor, at = "2026-10-17T09:00:00Z") => ({ event: "ready_for_review", actor: { id: actor }, created_at: at });
+
+test("an automatic Codex review on a PR a trusted person or the lanes App opened or readied is worked", async () => {
+  for (const [label, extra] of [
+    ["an owner-authored PR's opening", { opener: HUMAN, openedAt: OPENED }],
+    ["a lanes App PR's opening", { openedAt: OPENED }],
+    ["an owner PR the owner marked ready", { opener: HUMAN, openedAt: OPENED, timeline: [readied(HUMAN)] }],
+    ["a lanes App PR the lanes App marked ready", { openedAt: OPENED, timeline: [readied(APP)] }],
+  ]) {
+    const { result, lines } = await codexLogged(askedBy([], extra));
+    assert.equal(result.decision, "proceed", `${label}\n${lines.join("\n")}`);
+    assert.deepEqual(lines, [], label);
+  }
+  const { kept } = await currentThreads({ api: askedBy([], { opener: HUMAN, openedAt: OPENED }), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX], appId: APP, trustedHumans: new Set([HUMAN]) });
+  assert.deepEqual(kept.map((row) => row.id), ["PRRT_1"]);
+});
+
+test("an automatic Codex review a stranger triggered is skipped, and an untrusted @codex still skips beside a trusted trigger", async () => {
+  const untrusted = (via) => `skip thread PRRT_1: codex-request-untrusted (the ${via} behind the bot's review came from account ${STRANGER}, not on the trusted-actor list)`;
+  for (const [label, asks, extra, line] of [
+    ["a stranger-authored PR's opening", [], { opener: STRANGER, openedAt: OPENED }, untrusted("opening of the pull request")],
+    ["a ready flip by a stranger, after an owner's opening", [], { opener: HUMAN, openedAt: OPENED, timeline: [readied(HUMAN, "2026-10-17T08:00:00Z"), readied(STRANGER)] }, untrusted("ready-for-review event")],
+    // Which event triggered the review cannot be told apart, so every one in
+    // the window must be trusted.
+    ["a stranger's PR an owner marked ready", [], { opener: STRANGER, openedAt: OPENED, timeline: [readied(HUMAN)] }, untrusted("opening of the pull request")],
+    // github-actions[bot]'s edits are exempt (the lanes' markers), but it is
+    // no trusted trigger: only the lanes App is.
+    ["a ready flip by github-actions[bot]", [], { opener: HUMAN, openedAt: OPENED, timeline: [readied(ACTIONS_BOT)] }, untrusted("ready-for-review event").replace(String(STRANGER), String(ACTIONS_BOT))],
+    ["a stranger's @codex on an owner PR", [codexAsk(STRANGER)], { opener: HUMAN, openedAt: OPENED }, untrusted("@codex request")],
+  ]) {
+    const { result, lines } = await codexLogged(askedBy(asks, extra));
+    assert.deepEqual([result.decision, result.escalationReason], ["escalate", "feedback-untaken-threads"], label);
+    assert.deepEqual(lines, [line], label);
+  }
+  const logged = [];
+  const { kept } = await currentThreads({ api: askedBy([], { opener: STRANGER, openedAt: OPENED }), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX], appId: APP, trustedHumans: new Set([HUMAN]), log: (line) => logged.push(line) });
+  assert.deepEqual(kept, []);
+  assert.deepEqual(logged, [untrusted("opening of the pull request")]);
+});
+
+// A request read after the fact can have been edited out or deleted, so the
+// check fails closed on the history it can read: an untrusted comment or
+// review edited since the window opened counts whatever it says now, a
+// review body edited into a request counts by its GraphQL edit time, and a
+// deleted untrusted comment counts. Our own bots' edits (the review lanes
+// edit their marker in place) count only for what they say.
+test("an untrusted request edited out, deleted, or edited into a review body still skips the thread", async () => {
+  const earlier = { id: 9, user: { id: CODEX }, commit_id: OLD_HEAD, submitted_at: "2026-10-17T09:00:00Z" };
+  const strangerReview = (extra) => ({ id: 8, user: { id: STRANGER }, commit_id: HEAD, ...extra });
+  for (const [label, asks, extra, via] of [
+    ["a stranger's comment edited after the review", [codexAsk(STRANGER, "2026-10-17T09:00:00Z", { body: "thanks", updated_at: "2026-10-17T21:00:00Z" })], { opener: HUMAN, openedAt: OPENED }, "edited comment"],
+    ["a stranger's deleted comment", [], { opener: HUMAN, openedAt: OPENED, history: { deletions: [{ authorId: STRANGER, at: "2026-10-17T21:00:00Z" }] } }, "deleted comment"],
+    ["a stranger's review body edited into a request", [codexAsk(HUMAN, "2026-10-17T10:30:00Z")], { reviews: [earlier, strangerReview({ submitted_at: "2026-10-17T08:00:00Z", body: "@codex review" }), ...botThread().reviews], history: { reviewEdits: { 8: "2026-10-17T10:00:00Z" } } }, "@codex request"],
+    ["a stranger's review body edited out", [], { opener: HUMAN, openedAt: OPENED, reviews: [strangerReview({ submitted_at: "2026-10-17T09:00:00Z", body: "LGTM" }), ...botThread().reviews], history: { reviewEdits: { 8: "2026-10-17T21:00:00Z" } } }, "edited comment"],
+  ]) {
+    const { result, lines } = await codexLogged(askedBy(asks, extra));
+    assert.deepEqual([result.decision, result.escalationReason], ["escalate", "feedback-untaken-threads"], label);
+    assert.deepEqual(lines, [`skip thread PRRT_1: codex-request-untrusted (the ${via} behind the bot's review came from account ${STRANGER}, not on the trusted-actor list)`], label);
+  }
+});
+
+test("an unedited stranger comment, a trusted person's deletion and a review lane's edited marker leave a trusted request standing", async () => {
+  const marked = { id: 1, user: { id: ACTIONS_BOT }, created_at: "2026-10-17T06:00:00Z", updated_at: "2026-10-17T21:00:00Z", body: marker("claude-review", HEAD) };
+  for (const [label, asks, extra] of [
+    ["a stranger's plain comment", [codexAsk(STRANGER, "2026-10-17T09:00:00Z", { body: "nice" })], { opener: HUMAN, openedAt: OPENED }],
+    ["an owner's deleted comment", [], { opener: HUMAN, openedAt: OPENED, history: { deletions: [{ authorId: HUMAN, at: "2026-10-17T21:00:00Z" }] } }],
+  ]) {
+    const { result, lines } = await codexLogged(askedBy(asks, extra));
+    assert.equal(result.decision, "proceed", `${label}\n${lines.join("\n")}`);
+  }
+  const lane = await codexLogged(fakeApi({ ...botThread(), issueComments: [marked, codexAsk()] }));
+  assert.equal(lane.result.decision, "proceed", lane.lines.join("\n"));
+});
+
+test("a request history that cannot be read skips the thread even beside a trusted @codex request", async () => {
+  const { result, lines } = await codexLogged(askedBy([codexAsk()], { history: new Error("POST graphql returned 502") }));
+  assert.deepEqual([result.decision, result.escalationReason], ["escalate", "feedback-untaken-threads"]);
+  assert.match(lines.join("\n"), /codex-request-not-found/);
+});
+
+test("a trusted person's direction on a Codex thread needs no @codex request", async () => {
+  const directed = await codexLogged(askedBy([], { reviewComments: botThread({ replies: [[101, HUMAN, REQUEST]] }).reviewComments, threads: botThread({ replies: [[101, HUMAN, REQUEST]] }).threads }));
+  assert.equal(directed.result.decision, "proceed");
+  assert.deepEqual(directed.lines, []);
+  // The reviewer bot's own finding needs none either.
+  assert.equal((await codexRun(fakeApi())).decision, "proceed");
 });
 
 test("reviewerIdsFrom reads one id per line, an unset value as none, and throws on anything else", async () => {
