@@ -695,7 +695,8 @@ the review could not finish (its cap, an unlanded fix, an unreadable config, a c
 an uncited control, a workflow change beyond a pin swap). `review-dependency` and
 `apply-dependency-patch` do not apply while `needs-session` is on (their `labels-absent` in
 `pr-pipeline.yaml`), so such a stop gets no same-head model re-run and no fresh round budget on a
-rebased head until a session removes the label. It also puts the PR in the
+rebased head until a session removes the label, or `clear-escalations.mjs` does once a same-head
+retry cleared the stop's failing status. It also puts the PR in the
 session-builder queue with that label, which no merge gate reads, so a session builder makes the
 change instead of a person; a person arms it only where the merge gate already asks for one. Every
 other reason is a defect the lane's bounded retries (the

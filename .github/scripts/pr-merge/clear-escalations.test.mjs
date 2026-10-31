@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
-import { main, NATIVE_READS_PER_RUN } from "./clear-escalations.mjs";
+import { main, NATIVE_READS_PER_RUN, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
 import { refusalBody } from "./enable-auto-merge.mjs";
 import { escalationActivity, escalationRoute, ROUTES } from "../pr-unblock/escalation-routes.mjs";
 import { SIGNED_COMMITS_HOLD } from "../pr-unblock/gate-source.mjs";
@@ -1682,7 +1682,7 @@ const sessionLabeled = (actor, at = "2026-10-18T10:00:00Z") => ({ event: "labele
 const stopBody = (reason, head = HEAD) =>
   `<!-- pr-unblock:lane-stopped activity=fix-ci -->\nThe pr-unblock lane stopped \`fix-ci\` on this pull request: why. The lane labels it \`needs-session\` for a session builder, who makes the change this lane cannot, and the run ends in a failing \`pr-unblock/fix-ci\` status on the head the lane gated.\n\n- Reason: \`${reason}\`\n- Head: \`${head}\`\n- Run: https://github.com/${REPO}/actions/runs/1\n`;
 const stopped = (reason = "ci-fix-escalated") => commented(BOT, stopBody(reason), "2026-10-18T10:00:02Z");
-const status = (state, creator = ACTIONS_BOT) => ({ context: "pr-unblock/fix-ci", state, creator });
+const status = (state, creator = ACTIONS_BOT, at = "2026-10-18T11:00:00Z") => ({ context: "pr-unblock/fix-ci", state, creator, created_at: at });
 const sessionWorld = (options) => world({ numbers: [], sessionNumbers: [8], ...options });
 
 test("a rung-0 ci-fix-escalated stop whose same-head retry landed leaves the PR without needs-session, with no comment", async () => {
@@ -1702,6 +1702,27 @@ test("a needs-session stop whose failing status still stands keeps the label", a
     assert.deepEqual(w.writes(), [], JSON.stringify(statuses));
     assert.ok(logs.some((line) => /#8 needs-session kept: ci-fix-escalated still fails/.test(line)), logs.join("\n"));
   }
+});
+
+test("a success from before the stop keeps needs-session: the stop's failure posts in another job", async () => {
+  const earlier = commented(BOT, stopBody("ci-fix-escalated"), "2026-10-18T10:00:02Z", "2026-10-18T12:00:00Z");
+  const w = sessionWorld({ timeline: [sessionLabeled(BOT), earlier], statuses: [status("success")] });
+  const { logs } = await run(w);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.some((line) => /#8 needs-session kept: .*no success since the stop/.test(line)), logs.join("\n"));
+});
+
+test("at most SESSION_CHECKS_PER_RUN pull requests are read a run, kept ones included, and the offset moves", async () => {
+  const sessionNumbers = [1, 2, 3, 4, 5, 6, 7];
+  const readBy = async (GITHUB_RUN_NUMBER) => {
+    const w = world({ numbers: [], sessionNumbers, timeline: [sessionLabeled(BOT), stopped()], statuses: [status("failure")] });
+    const { logs } = await run(w, { GITHUB_RUN_NUMBER });
+    assert.deepEqual(w.writes(), []);
+    assert.equal(logs.filter((line) => /needs-session not checked: 5 read this run/.test(line)).length, sessionNumbers.length - SESSION_CHECKS_PER_RUN);
+    return w.calls.filter((call) => call.path.includes("/timeline")).map((call) => Number(/\/issues\/(\d+)\//.exec(call.path)[1]));
+  };
+  assert.deepEqual(await readBy("0"), [1, 2, 3, 4, 5]);
+  assert.deepEqual(await readBy("3"), [4, 5, 6, 7, 1]);
 });
 
 test("a needs-session a person added, or one with no lane stop since it went on, is kept", async () => {

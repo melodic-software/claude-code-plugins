@@ -139,8 +139,9 @@
 // escalation-routes.json names) comes off with no comment when the lanes App
 // added it last and each lane stop routed to it since then has its failing
 // status cleared on that stop's head: a same-head retry landed and
-// report-escalation.sh `clear` posted success (sessionVerdict). At most
-// CLEARS_PER_RUN a run.
+// report-escalation.sh `clear` posted success after that stop (sessionVerdict).
+// At most SESSION_CHECKS_PER_RUN pull requests are read a run, kept or cleared,
+// from the same rotating offset.
 //
 // Environment:
 //   GH_TOKEN             the lane App token (pull-requests and issues write)
@@ -247,6 +248,9 @@ export const CLEARS_PER_RUN = 5;
 // Each reader run takes up to enable-auto-merge's VERIFY_TIMEOUT_MS; the
 // step's timeout-minutes (pr-merge.yml) allows this many (judgment).
 export const NATIVE_READS_PER_RUN = 3;
+// A kept label is read again every run, so reads are capped, not just clears
+// (judgment: the same five; rotated reaches the rest on later runs).
+export const SESSION_CHECKS_PER_RUN = 5;
 const REFUSAL_CLEARED = "refusal-cleared";
 // The causes the lanes clear, by READER_HOLDS kind: the only recorded ones
 // this script lifts at the same head, and the only ones a lift tolerates
@@ -1481,10 +1485,13 @@ const stopContext = (activity) => (activity === "resolve-conflicts" ? "pr-unbloc
 // and every lanes App lane-stopped comment (one per activity, edited in
 // place) written or edited since then whose reason routes to `label` names a
 // head whose newest status for that activity's context, by
-// github-actions[bot], is `success`: the stop that added it was cleared on
-// that same head. A stop since the label whose reason or head does not parse,
-// none at all, or a status read that fails keeps it. A later head carries no
-// status, so a stop on an older head keeps it for a session. `checks` (the
+// github-actions[bot], is `success` and newer than the stop: the stop that
+// added it was cleared on that same head. report-stop-status posts a stop's
+// failure in a job of its own, so a success older than the comment belongs to
+// an earlier stop and proves nothing. A stop since the label whose reason or
+// head does not parse, none at all, or a status read that fails keeps it. A
+// later head carries no status, so a stop on an older head keeps it for a
+// session. `checks` (the
 // job token) reads the statuses; the lanes App token holds no statuses
 // permission.
 async function sessionVerdict({ github, checks, repo, number, label, bot }) {
@@ -1502,7 +1509,8 @@ async function sessionVerdict({ github, checks, repo, number, label, bot }) {
   }
   const why = [];
   for (const [activity, item] of stops) {
-    if (Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at)) < since) {
+    const stoppedAt = Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at));
+    if (stoppedAt < since) {
       continue;
     }
     const body = String(item.body);
@@ -1526,24 +1534,27 @@ async function sessionVerdict({ github, checks, repo, number, label, bot }) {
     if (newest?.state !== "success") {
       return { reason: `${reason} still fails ${context} at ${head} (${newest?.state ?? "no status"})` };
     }
+    if (!(Date.parse(newest.created_at) > stoppedAt)) {
+      return { reason: `${reason} still fails ${context} at ${head} (no success since the stop)` };
+    }
     why.push(`${reason} no longer fails ${context} at ${head}`);
   }
   return why.length === 0 ? { reason: `no lane stop routed to ${label} since it went on` } : { reason: null, why: why.join("; ") };
 }
 
 // Takes each session label off where sessionVerdict finds its stop cleared,
-// at most CLEARS_PER_RUN a label a run. No comment: the label queues a
-// session and holds nothing a person must see lifted. The failures counted.
+// reading at most SESSION_CHECKS_PER_RUN pull requests a label a run. No
+// comment: the label queues a session and holds nothing a person must see
+// lifted. The failures counted.
 async function clearSessionLabels({ github, checks, repo, bot, runNumber }) {
   let failed = 0;
   for (const label of SESSION_LABELS) {
     const held = (await paginate(github, `/repos/${repo}/issues?state=open&labels=${encodeURIComponent(label)}`)).filter(
       (item) => item.pull_request && Number.isSafeInteger(item.number) && item.number > 0,
     );
-    let cleared = 0;
-    for (const { number } of rotated(held, runNumber)) {
-      if (cleared >= CLEARS_PER_RUN) {
-        console.log(`clear-escalations: #${number} ${label} not checked: ${CLEARS_PER_RUN} cleared this run`);
+    for (const [index, { number }] of rotated(held, runNumber).entries()) {
+      if (index >= SESSION_CHECKS_PER_RUN) {
+        console.log(`clear-escalations: #${number} ${label} not checked: ${SESSION_CHECKS_PER_RUN} read this run`);
         continue;
       }
       try {
@@ -1553,7 +1564,6 @@ async function clearSessionLabels({ github, checks, repo, bot, runNumber }) {
           continue;
         }
         await github("DELETE", `/repos/${repo}/issues/${number}/labels/${encodeURIComponent(label)}`);
-        cleared += 1;
         console.log(`clear-escalations: #${number} ${label} cleared: ${result.why}`);
       } catch (error) {
         failed += 1;
