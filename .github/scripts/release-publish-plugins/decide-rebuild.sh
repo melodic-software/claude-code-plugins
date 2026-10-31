@@ -10,10 +10,10 @@
 #            open, when it has a merge conflict, when main changed a file it
 #            changes (a fragment it consumed, a CHANGELOG.md, a plugin.json)
 #            since its build base, or when its GitHub Actions ci-status failed
-#            (ci-status.sh) on a base behind main with no do-not-merge or
-#            needs-human label. Fragments main added since the build base do not count: they
-#            ride the next release (ADR 0048, The release pull request and the
-#            2026-10-20 amendment)
+#            (ci-status.sh) on a base behind main with no hold label
+#            (label-holds.mjs). Fragments main added since the build base do not
+#            count: they ride the next release (ADR 0048, The release pull
+#            request and the 2026-10-20 amendment)
 #   deferred true when a push run would have rebuilt an open one while its
 #            ci-status is pending or any GitHub Actions check run on its head
 #            has not completed (only the second on a conflicted head, which
@@ -33,17 +33,18 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # <ci> is a ci-status already read, none when it cannot decide, or empty. A
 # failed read stops the run, so it never cancels checks it could not see.
 rebuild() {
-  local head=$1 ci=$2 annotation=$3 why=$4 unfinished=""
+  local head=$1 ci=$2 annotation=$3 why=$4 unfinished="" running=""
   if [[ $GITHUB_EVENT_NAME == push ]]; then
     if [[ -z $ci ]]; then
       ci="$("$here/ci-status.sh" "$head")"
     fi
     if [[ $ci != pending ]]; then
       unfinished="$("$here/ci-status.sh" --unfinished "$head")"
+      running=${unfinished:+ (${unfinished//$'\n'/, })}
     fi
   fi
   if [[ $ci == pending || -n $unfinished ]]; then
-    echo "::notice::$why; its checks are running or have not started, so a later run decides again."
+    echo "::notice::$why; its checks are running or have not started$running, so a later run decides again."
     printf 'rebuild=false\ndeferred=true\n' >>"$GITHUB_OUTPUT"
   else
     echo "$annotation$why; rebuilding."
@@ -97,7 +98,7 @@ decide() {
       # A failed check on a base behind main never clears on a re-run; rebuild on
       # main's tip. A hold label's red never clears on a rebuild, which would
       # only change held content.
-      held="$(jq -r '[.labels[].name | select(. == "do-not-merge" or . == "needs-human")] | first // empty' <<<"$pr")"
+      held="$(node "$here/label-holds.mjs" <<<"$pr")"
       if [[ -z $held ]] && ! git merge-base --is-ancestor "$main_sha" "$head"; then
         ci="$("$here/ci-status.sh" "$head")"
       fi

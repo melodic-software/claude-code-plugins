@@ -375,7 +375,7 @@ so its `ci-status` stays pending with nothing behind it. On a merge conflict a p
 on an unfinished check run.
 
 A failed `ci-status` on a base behind main starts no rebuild, on any event, while the release pull
-request holds `do-not-merge` or `needs-human`: a rebuild cannot clear a label's red, and it changes
+request holds a label the merge lane's `labelHolds` lists: a rebuild cannot clear a label's red, and it changes
 held content.
 
 `ci-status` alone cannot show a full run in flight: it has no run from that full run until the lanes
@@ -387,8 +387,7 @@ endpoint with it.
 Advisory lanes count, since the read takes every GitHub Actions check run, so a slow one such as
 `pr-test-windows.yml` also defers a rebuild. Between two jobs of a run a head can show no unfinished
 check run for some seconds. A push read landing there rebuilds; the accepted worst case is one
-cancelled run, because a new head with no conflict reads pending until its own `ci-status`
-completes.
+cancelled run per such gap.
 
 The 2026-10-20 rule existed because a rebuild cancels running checks. With every check run
 completed there is nothing to cancel, yet a release ejected from the queue waited up to three hours
@@ -397,14 +396,14 @@ checks finish cannot cancel them run after run. A failed read in `decide-rebuild
 The owner decided this on 2026-10-31.
 
 The 2026-10-17 amendment's "every run" now includes every fragment push: while main keeps moving, a
-failing release pull request is rebuilt by each fragment push that finds its checks finished. A
-rebuild's new head with no conflict reads pending until its `ci-status` completes, so these rebuilds
-run no faster than that.
+failing release pull request is rebuilt by each fragment push that finds its checks finished, so
+these rebuilds run no faster than the checks.
 
 Pushes still wait for a running run, and a scheduled or dispatched run still cancels one. Since a
 push run can now write, that cancel can land between its head write and its pull request edit,
-leaving a new head under the old title and body until the next rebuild. The released content is
-correct; only the description of it is stale. This risk is accepted: the window is the seconds
-between two steps, and a run must start inside it.
+leaving a new head under the old title and body. No later run corrects them when that head stays
+current, so they can merge as they are. The released content is correct; only the description of
+it is stale, and nothing reads it. This risk is accepted: the window is the seconds between two
+steps, and a run must start inside it.
 Refreshing the body from the merge job would need the release report only the build job produces,
 and a rebuild for a stale description would cancel checks to correct text.

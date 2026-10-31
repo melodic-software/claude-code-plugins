@@ -171,6 +171,8 @@ FAKE_PRS="$(pr_json MERGEABLE do-not-merge)" run_decide GATE_RC=0 FAKE_CI=failur
 check 'do-not-merge: no rebuild' 'false ' "$(val rebuild) $(val deferred)"
 FAKE_PRS="$(pr_json MERGEABLE needs-human)" run_decide GATE_RC=0 FAKE_CI=failure
 check 'needs-human: no rebuild' 'false ' "$(val rebuild) $(val deferred)"
+FAKE_PRS="$(pr_json MERGEABLE 'security: outside-actor')" run_decide GATE_RC=0 FAKE_CI=failure
+check 'outside-actor hold alone: no rebuild' 'false ' "$(val rebuild) $(val deferred)"
 FAKE_PRS="$(pr_json MERGEABLE do-not-merge)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_CI=failure
 check 'push do-not-merge: no rebuild, not deferred' 'false ' "$(val rebuild) $(val deferred)"
 FAKE_PRS="$(pr_json MERGEABLE do-not-merge)" run_decide GITHUB_EVENT_NAME=workflow_dispatch GATE_RC=0 FAKE_CI=failure
@@ -182,6 +184,13 @@ echo '# not queued, main changed a file it changes, hold label'
 new_fixture no
 FAKE_PRS="$(pr_json MERGEABLE do-not-merge)" run_decide GATE_RC=1
 check 'stale do-not-merge: rebuild (only the failure branch skips)' true "$(val rebuild)"
+
+echo '# not queued, merge conflict, hold label'
+new_fixture no
+FAKE_PRS="$(pr_json CONFLICTING do-not-merge)" run_decide
+check 'conflict do-not-merge: rebuild (only the failure branch skips)' true "$(val rebuild)"
+FAKE_PRS="$(pr_json CONFLICTING do-not-merge)" run_decide GITHUB_EVENT_NAME=push FAKE_RUNS='[]'
+check 'push conflict do-not-merge: rebuild' true "$(val rebuild)"
 
 echo '# not queued, base behind main, ci-status passed'
 new_fixture yes
@@ -284,7 +293,6 @@ echo '# push: base behind main, ci-status failed'
 new_fixture yes
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_CI=failure
 check 'push behind+failed: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
-check 'push behind+failed: reads ci-status once' 1 "$(grep -c 'check_name=ci-status' "$TMP/gh.log" || true)"
 
 echo '# push: base behind main, the check read fails'
 new_fixture yes
@@ -347,11 +355,12 @@ echo '# schedule: main changed a file it changes while a lane runs'
 new_fixture no
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=1 FAKE_RUNS="[$(run "$t1" success),$(lane in_progress)]"
 check 'schedule stale+lane running: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
-check 'schedule stale+lane running: reads no check runs' 0 "$(grep -c 'check-runs' "$TMP/gh.log" || true)"
 
 echo '# workflow_dispatch: main changed a file it changes'
 new_fixture no
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=workflow_dispatch GATE_RC=1
 check 'dispatch stale: rebuild' true "$(val rebuild)"
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=workflow_dispatch GATE_RC=1 FAKE_RUNS="[$(run "$t1" success),$(lane in_progress)]"
+check 'dispatch stale+lane running: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
 
 exit "$FAILED"

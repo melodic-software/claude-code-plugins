@@ -37,10 +37,11 @@ on:
     inputs:
       action:
         description: >-
-          build: open the release pull request, or rebuild it when main holds a
-          fragment it did not consume for a plugin it bumps, or when it has a
-          merge conflict. merge: check it against main's live tip, then queue
-          the head that passed; a failed check rebuilds it instead.
+          build: open the release pull request, or rebuild it when main changed
+          a file it changes, when it has a merge conflict, or when its ci-status
+          failed on a base behind main with no hold label. merge: check it
+          against main's live tip, then queue the head that passed; a failed
+          check rebuilds it instead.
         type: choice
         options: [build, merge]
         default: build
@@ -84,6 +85,11 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
       # Read main at this moment, not at checkout: the check and the queue call
       # are seconds apart, and the merge queue re-runs the check on the exact
       # tree the release lands on (pr-require-checks.yml, check-plugins).
@@ -179,6 +185,11 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
       # The same decision the merge job makes (decide-rebuild.sh): a release
       # pull request in the merge queue is never rebuilt, since GitHub refuses
       # to update a queued branch.
