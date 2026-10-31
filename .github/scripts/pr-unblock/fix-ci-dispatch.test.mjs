@@ -267,6 +267,22 @@ test("a head whose sibling FAIL run cannot be read is skipped but not recorded",
   assert.deepEqual(api.calls.dispatch, []);
 });
 
+// A listing that does not fit in verify-cap's limit (babysit_verify_evidence.py
+// DEADLINE_UNREADABLE) recurs every run while pr-merge's carried listing is
+// missing or stale, so its skip is a warning annotation, not a plain line.
+test("a head skipped because the listing did not fit warns with the reader's detail; a sibling skip does not", async () => {
+  const deadline = "verify:unreadable: the artifact listing does not fit in the caller's limit: repository artifacts: 10450 artifacts in 105 pages need 112 s";
+  const { api, lines } = await run({ pages: [[pr(5)]] }, { verifyCapped: () => deadline });
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.deepEqual(
+    lines.filter((line) => line.startsWith("::warning title=verify-deadline-skip::")),
+    [`::warning title=verify-deadline-skip::#5: ${deadline}`],
+  );
+  const sibling = await run({ pages: [[pr(5)]] }, { verifyCapped: () => "verify:unreadable: a FAIL run of a pull request for the same issue" });
+  assert.deepEqual(sibling.api.calls.dispatch, []);
+  assert.ok(!sibling.lines.some((line) => line.includes("verify-deadline-skip")), sibling.lines.join("\n"));
+});
+
 // A fork PR that pushed the same commit lists its runs under the same head SHA.
 // Its newer run, still going, would read as a re-run in flight and hold fix-ci
 // off (reconcilerOwns); readRequiredRun keeps it out of the tested run.

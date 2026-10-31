@@ -1,6 +1,6 @@
 {
   "name": "review",
-  "version": "1.8.3",
+  "version": "2.0.0",
   "description": "Code-review toolkit: nine agents, read-only over the reviewed code, plus orchestration skills for the quality gate, fan-out, and enforceability audit (/review:audit-enforceability), a pull-request change digest with an interactive view (/review:explain-change), a fan-out sweep workflow (/review:fanout-sweep), and CI lane commands (/review:code-review, /review:security-review) for org reusable workflows.",
   "author": {
     "name": "Melodic Software",
@@ -27,7 +27,7 @@
     "ratchet_offer": {
       "type": "boolean",
       "title": "Ratchet offers",
-      "description": "When on (default), /review:audit-enforceability stubs on a rung that counts violations offer /review:ratchet for a non-zero count once the rule exists. Off leaves the offer out. A repository's docs/conventions/review.yaml ratchet_offer wins over this option.",
+      "description": "When on (default), /review:audit-enforceability stubs on a rung that counts violations offer /toolchain:ratchet for a non-zero count once the rule exists. Off leaves the offer out. A repository's docs/conventions/review.yaml ratchet_offer wins over this option.",
       "default": true
     },
     "downstream_probe": {

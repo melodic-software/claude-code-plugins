@@ -95,6 +95,11 @@ export async function writePlan({ plan, call, repo, labels, runUrl, wait = () =>
   return done;
 }
 
+// Signals the owner asked to surface as an ::error on the monitoring run too,
+// each run while they fire (#9170). The text is already inert.
+const ERROR_SIGNALS = new Set(["11 post-merge unreadable"]);
+export const errorLines = (findings) => findings.filter((f) => ERROR_SIGNALS.has(f.signal)).map((f) => `::error::${f.title}: ${f.summary}`);
+
 function client(env) {
   let used = 0;
   const budget = Number(env.CALL_BUDGET ?? 250);
@@ -133,11 +138,13 @@ async function main(env = process.env) {
     if (!response.ok) throw new Error(`${url}: HTTP ${response.status}`);
     return response.json();
   };
-  const readArtifact = async (id) => {
+  // The artifact's one JSON file, or, given names, each named file's text.
+  const readArtifact = async (id, files = null) => {
     const dir = mkdtempSync(join(env.RUNNER_TEMP ?? tmpdir(), "monitor-"));
+    const unzip = (...name) => execFileSync("unzip", ["-p", join(dir, "a.zip"), ...name], { encoding: "utf8", maxBuffer: 16 << 20 });
     try {
       writeFileSync(join(dir, "a.zip"), await get(`/repos/${repo}/actions/artifacts/${id}/zip`));
-      return JSON.parse(execFileSync("unzip", ["-p", join(dir, "a.zip")], { encoding: "utf8", maxBuffer: 16 << 20 }));
+      return files ? Object.fromEntries(files.map((name) => [name, unzip(name)])) : JSON.parse(unzip());
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -189,6 +196,7 @@ async function main(env = process.env) {
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
   else console.log(lines.join("\n"));
   for (const gap of data.gaps) console.log(`::warning::monitoring lane: not read: ${gap}`);
+  for (const line of errorLines(findings)) console.log(line);
   if (done.failed.length > 0) {
     console.log(`::error::${done.failed.length} monitoring lane write(s) failed; see the step summary`);
     process.exitCode = 1;

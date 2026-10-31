@@ -1,0 +1,33 @@
+{
+  "requires": [
+    {
+      "id": "python3",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:ratchet"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "Python ([0-9.]+)",
+          "min": "3"
+        }
+      },
+      "degrade": "Without Python 3, the count ratchet cannot measure or record a ceiling. The other toolchain skills are unaffected.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/toolchain:check-prerequisites"
+    }
+  ]
+}

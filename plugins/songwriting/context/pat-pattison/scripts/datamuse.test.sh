@@ -113,7 +113,7 @@ cat "$body"
 STUB
 chmod +x "$STUB_BIN/curl"
 
-if ! PATH="$STUB_BIN:$PATH" command -v curl | grep -q "^$STUB_BIN/curl$"; then
+if ! grep -q "^$STUB_BIN/curl$" < <(PATH="$STUB_BIN:$PATH" command -v curl); then
   printf 'FAIL: the curl stub does not shadow the real curl; the suite would hit the network\n' >&2
   exit 1
 fi

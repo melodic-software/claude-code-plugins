@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-10-31
+
+### Removed
+
+- /review:ratchet leaves the review plugin. It is now `/toolchain:ratchet` in the toolchain plugin, with the same behavior; install toolchain to keep using it. The `ratchet_offer` setting stays here, and the offer in `/review:audit-enforceability` stubs now names `/toolchain:ratchet`.
+
 ## [1.8.3] - 2026-10-30
 
 ### Changed

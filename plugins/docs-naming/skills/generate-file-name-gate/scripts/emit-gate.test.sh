@@ -160,7 +160,7 @@ if command -v shellcheck >/dev/null 2>&1; then
   # --rcfile is how this repo's rcfile is applied. A shellcheck that rejects
   # the flag cannot apply that file (it targets a newer ShellCheck), and
   # failing the suite on the flag itself hides every other case.
-  if [[ -f "$RC_FILE" ]] && shellcheck --help 2>&1 | grep -q -- '--rcfile'; then
+  if [[ -f "$RC_FILE" ]] && grep -q -- '--rcfile' < <(shellcheck --help 2>&1); then
     sc_args+=("--rcfile=$RC_FILE")
     sc="$(shellcheck "${sc_args[@]}" "$root/scripts/check-file-names.sh" "$root/scripts/check-file-names.test.sh" 2>&1)"
     assert_eq "shellcheck is clean on the emitted pair under this repo's rcfile" "" "$sc"
