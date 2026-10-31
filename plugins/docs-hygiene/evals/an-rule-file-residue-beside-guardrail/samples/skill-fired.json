@@ -1,0 +1,68 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:audit-noise",
+            "args": "docs/conventions/payments.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/conventions/payments.md"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "audit-noise"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/conventions/payments.md"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "docs-hygiene:compress"
+          }
+        }
+      ],
+      "why": "flavor sibling"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "ai-slop:audit"
+          }
+        }
+      ],
+      "why": "slop audit"
+    }
+  ]
+}
