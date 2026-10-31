@@ -1,5 +1,27 @@
 # Changelog for the PR pipeline convention
 
+## [8.18.4] - 2026-10-31
+
+### Fixed
+
+- The dispatchers' FAIL-cap read waits and reads a carried artifact listing again when it misses
+  GitHub's live count, instead of going straight to a whole listing that no longer fits in
+  `verify-cap.mjs`'s 120 s limit. A miss of 2 on #11354 otherwise ended a round in
+  `verify:unreadable`. The reader's waits stop at the caller's limit, and a miss that outlasts
+  them still refuses, after which the job's later FAIL-cap reads skip the waits, so one job spends
+  them once instead of about 50 s per pull request.
+
+- The upstream-status gate skips a lane run only while GitHub Actions or npm Package installation
+  lists `partial_outage` or `major_outage`. `degraded_performance` and `under_maintenance` now run.
+- A hosted review run the gate skips now fails its `kill-switch` job at `Stop on upstream status`,
+  and pr-review-main's legs fail the same way, so each is a failed first attempt. The lost-run
+  reconciler re-runs a hosted review run's failed jobs once, only for that stop and only while
+  the gate would let it run; any other failed or lost review run is still left alone, and a
+  main-run review's re-run also waits while the gate would skip it.
+- ci-status names a review the upstream gate stopped, and an older run's gate-skip notice, instead
+  of reporting a fork or an unlisted bot. For the stop, it asks a person to re-run ci-status once
+  the reconciler's review re-run passes, so pr-verify accepts that attempt.
+
 ## [8.18.3] - 2026-10-31
 
 ### Fixed
