@@ -5,11 +5,10 @@ a hover or disabled shade, a contrast failure, a gamut question or a focus ring.
 color tokens and theming mechanism win over every rule here; suggest a change to them, never
 override them.
 
-An `oklch()` value reads like a measurement, not a recipe. Lightness tells you how bright the color
-actually looks, chroma tells you how vivid it is, hue tells you where it sits on the wheel, and
-none of the three lies to you the way HSL's channels do. That honesty is the whole pitch: once the
-numbers track perception, palette math, contrast repair, and dark mode all become arithmetic
-instead of eyeballing. Default to oklch for anything new.
+An `oklch()` value describes a color by what the eye sees. Lightness is how bright the color
+looks, chroma is how vivid it is, and hue is where it sits on the wheel. Unlike HSL's channels,
+none of the three misreports perception, so palette math, contrast repair, and dark mode become
+arithmetic instead of eyeballing. Default to oklch for anything new.
 
 The CSS that implements these rules is in `/user-interface:write-css`: its `foundations.md`
 recipes `oklch-color` and `one-set-of-color-tokens-for-light-and-dark`, and its `interaction.md`

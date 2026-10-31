@@ -122,8 +122,8 @@ The property-over-tag rule applies here too: `font-variant-*` properties first,
 }
 ```
 
-Tabular figures deserve special emphasis: any value that updates in place (timers, live prices,
-counters) will shove its neighbors around on every change unless digits share one width. Recipe:
+Any value that updates in place (timers, live prices, counters) shoves its neighbors around on
+every change unless its digits share one width, which is what tabular figures give. Recipe:
 `tabular-numbers` in `/user-interface:write-css`.
 
 ## Small caps, superiors, inferiors

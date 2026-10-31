@@ -1,7 +1,7 @@
 # Scale and rhythm
 
-Size, leading and tracking carry more of typography's quality than any decorative flourish. Get
-these three right and most text problems never appear. The rules these explain are in
+Size, leading and tracking shape text quality more than any decorative flourish. Most text
+problems trace back to one of these three. The rules these explain are in
 `../typography.md` "Hierarchy"; the project's own scale and tokens win.
 
 ## Units for text
@@ -55,8 +55,8 @@ Two anchors:
 - **Display and headings:** around `1.1`. Large sizes carry their own optical spacing; default
   leading leaves them gappy.
 
-State it unitless. `line-height: 1.5` recomputes when the font size changes; `line-height: 24px` is
-a time bomb that detonates on the first size tweak or user zoom.
+State it unitless. `line-height: 1.5` recomputes when the font size changes; `line-height: 24px`
+stays at 24px and breaks on the first size tweak or user zoom.
 
 ## Paragraph spacing
 

@@ -14,14 +14,14 @@ it, and what that finding looks like.
 Depth in an interface comes from how surfaces meet: the radius where they nest, the shadow or border
 that separates them, the gradient that fades them out. Most interfaces that feel "off" fail here:
 mismatched nested radii, harsh solid borders, banded gradients, or light-mode shadows pasted into
-dark mode. These are cheap to fix and compound into an interface that feels considered.
+dark mode. Each is cheap to fix.
 
 ## 1. Derive nested radii, don't repeat them
 
 A rounded child inside a rounded parent gets its radius by subtraction: inner radius = outer radius
 minus the parent's border width minus the padding, floored at zero; at zero the inner corner goes
 square and the two curves no longer share a center. Copying the parent's radius onto the child makes
-the corner gap pinch: the single most frequent giveaway of an unpolished UI. The rule loses force
+the corner gap pinch, which reads as an unpolished UI. The rule loses force
 once the gap between layers (the border width plus the padding) passes
 `css.concentric_radius.max_gap_px` (default 24px); at that distance the surfaces read as
 independent, so pick each radius on its own merits.
@@ -74,14 +74,13 @@ The precise ask:
 > zero) minus padding, floored at zero
 
 With it the photo gets 12px (20px − 0px border − 8px padding), and its corners run
-parallel to the card's with an even 8px gap all the way around. If you say that the corners look
-off, the agent might get it right, but it also might not. You could give it the right formula to
-calculate the correct radius instead. Way more precise, leaves no room for error.
+parallel to the card's with an even 8px gap all the way around. The vague ask may or may not
+produce the right radius. The precise ask hands the agent the formula, so the result can be
+checked against it.
 
-Nested border radii are a common source of frustration. They are easy to get wrong. But there's a
-formula to calculate the correct value, so why not build a tool that checks whether the correct
-value is applied? The plugin's [`scripts/nested-radius.mjs`](../../../scripts/nested-radius.mjs) is
-that tool for a pair of values. `<plugin root>` below is the directory `/user-interface:design` or
+Nested border radii are easy to get wrong, and the formula is mechanical, so a tool can check that the
+correct value is applied. The plugin's [`scripts/nested-radius.mjs`](../../../scripts/nested-radius.mjs) does
+that for a pair of values. `<plugin root>` below is the directory `/user-interface:design` or
 `/user-interface:audit` reads `reference/` from. A frame with 16px corners inset 4px around its card,
 border width zero:
 
@@ -94,9 +93,9 @@ Pass the project's resolved `css.concentric_radius.max_gap_px` (from `detect.mjs
 `--max-gap-px`, a whole number of px; without the flag the script reads the bundled default.
 `past_max_gap: true` means the rule has lost force for that pair.
 
-The rule here covers the code. But maybe you want to do a quick visual check, or you're reviewing
-someone else's work on a preview url. Then a tool that inspects the rendered page is perfect, and a
-person can build a throwaway one from an ask like this:
+The rule here covers the code. For a quick visual check, or a review of someone else's work on a
+preview URL, a tool that inspects the rendered page fits, and a person can have an agent build a
+throwaway one from an ask like this:
 
 > Build me a mountable inspector for nested border radii. Hovering a nested rounded element should
 > show me actual vs expected per corner, the inner radius should equal the outer radius minus the
