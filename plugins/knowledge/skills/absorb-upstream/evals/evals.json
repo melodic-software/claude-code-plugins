@@ -124,6 +124,39 @@
         "Names running the same command from the private checkout as the second rerun",
         "Gives the source in the rerun commands as an absolute path, not ../acme-internal-skills"
       ]
+    },
+    {
+      "id": 10,
+      "name": "absolute-out-into-a-private-checkout-is-used",
+      "prompt": "/knowledge:absorb-upstream ../acme-internal-skills --out /srv/repos/acme-corpus/docs/upstream\n\nThat path is a local checkout of the private repository acme/internal-skills. /srv/repos/acme-corpus is a checkout of the private repository acme/corpus. The visibility check prints {\"visibility\":\"private\",\"repo\":\"acme/internal-skills\"} for the source and {\"visibility\":\"private\",\"repo\":\"acme/corpus\"} for /srv/repos/acme-corpus/docs/upstream.",
+      "expected_output": "Resolves the record directory to the absolute /srv/repos/acme-corpus/docs/upstream from the argument layer and keeps it, because the visibility check reads private for that directory, then proceeds with a private source and a private destination and writes the record at /srv/repos/acme-corpus/docs/upstream/acme-internal-skills.md, writing nothing in this repository.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the record directory /srv/repos/acme-corpus/docs/upstream and that it came from the argument layer",
+        "Runs the visibility check on the absolute --out directory before reading the source",
+        "Does not report the absolute --out as invalid or drop the argument layer",
+        "Proceeds with the private source because the destination reads private",
+        "Writes the record at /srv/repos/acme-corpus/docs/upstream/acme-internal-skills.md",
+        "Writes no file under this repository's docs/upstream or anywhere else in this repository"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "local-checkout-pinned-on-a-public-remote-proceeds",
+      "prompt": "/knowledge:absorb-upstream ../widget-skills\n\nThat path is a local checkout of the public repository acme/widget-skills, and git -C ../widget-skills rev-parse HEAD prints 3f9a1c2e4b5d6f708192a3b4c5d6e7f8091a2b3c, a commit origin/main holds. The visibility check run with ../widget-skills --commit 3f9a1c2e4b5d6f708192a3b4c5d6e7f8091a2b3c prints {\"visibility\":\"public\",\"repo\":\"acme/widget-skills\"}, and it prints {\"visibility\":\"public\"} for this repository's docs/upstream.",
+      "expected_output": "Takes the checkout's pin before the visibility check and passes it with --commit, finds a public source, proceeds into this public repository's docs/upstream, and writes docs/upstream/acme-widget-skills.md pinned at 3f9a1c2e4b5d6f708192a3b4c5d6e7f8091a2b3c, reading only files committed at that pin.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Takes the pin with git -C <checkout> rev-parse HEAD before the source visibility check",
+        "Runs the source visibility check with the checkout path and --commit 3f9a1c2e4b5d6f708192a3b4c5d6e7f8091a2b3c",
+        "Reports the source as public and the destination as public",
+        "Proceeds rather than redirecting the record to a private repository",
+        "Writes the record at docs/upstream/acme-widget-skills.md",
+        "The pin marker holds acme/widget-skills@3f9a1c2e4b5d6f708192a3b4c5d6e7f8091a2b3c",
+        "Reads source files through git ls-tree and git show at the pin, not from the working tree"
+      ]
     }
   ]
 }
