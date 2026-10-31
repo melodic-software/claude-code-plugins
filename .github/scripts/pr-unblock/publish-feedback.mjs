@@ -660,7 +660,7 @@ async function postReplies({ api, pr, headSha, headRef, appId, patchState = "", 
     // review lane re-marks its one marker on this round's fix push. A run.json
     // from before the select job recorded them reads the markers now.
     const heads = run.reviewed_heads && new Set(run.reviewed_heads);
-    const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, reviewerIds, appId, trustedHumans, heads });
+    const { kept, reviewComments } = await currentThreads({ api, pr, reviewerId, reviewerIds, appId, trustedHumans, heads, log });
     const now = new Map(kept.map((thread) => [thread.id, thread]));
     const shown = new Map(run.threads.map((thread) => [thread.id, thread]));
     const createdAt = new Map(reviewComments.map((comment) => [comment.id, comment.created_at]));

@@ -29,7 +29,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadRules, webHostsFrom } from "../intake-triage/admit.mjs";
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { linkedIssues } from "../pr-verify/resolve-pr.mjs";
-import { countedFetch, createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA, trustedHumansFrom } from "./address-feedback.mjs";
+import { anyListed, countedFetch, createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, readTriggers, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA, trustedHumansFrom } from "./address-feedback.mjs";
 import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
 import { FIX_TRAILER as FEEDBACK_TRAILER } from "./publish-feedback.mjs";
 
@@ -189,20 +189,21 @@ async function contextOf(api, run, notes) {
 }
 
 // Each kept thread's opening comment: where it points and what it says.
-async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds }) {
+async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trustedHumans, pull }) {
   const [issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.listIssueComments(pr),
     api.listReviews(pr),
     api.listReviewComments(pr),
     api.listThreads(pr),
   ]);
-  return keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, reviewerIds, appId })
+  const triggers = anyListed(reviewComments.map((row) => row.user?.id), reviewerIds) ? await readTriggers({ api, pr, pull }) : null;
+  return keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, reviewerIds, appId, trustedHumans, issueComments, triggers })
     .slice(0, MAX_FINDINGS)
     .map((thread) => ({ path: String(thread.path ?? ""), line: thread.line, body: String(thread.comments[0].body).slice(0, MAX_FINDING) }));
 }
 
 // readSpec returns linkedIssues' specText for the pull request.
-export async function select({ api, pr, repository, appId, reviewerId, reviewerIds = [], maxRounds, humanGatedLabel = "needs-human", readSpec = async () => [], log = (line) => console.log(line) }) {
+export async function select({ api, pr, repository, appId, reviewerId, reviewerIds = [], trustedHumans = new Set(), maxRounds, humanGatedLabel = "needs-human", readSpec = async () => [], log = (line) => console.log(line) }) {
   const pull = await api.getPull(pr);
   const headSha = pull.head?.sha;
   if (!SHA.test(String(headSha))) {
@@ -269,7 +270,7 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
   // The findings are a lead, so a failed read costs them, not the run.
   let review_findings = [];
   try {
-    review_findings = await reviewFindings(api, pr, { appId, reviewerId, reviewerIds });
+    review_findings = await reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trustedHumans, pull });
   } catch (error) {
     log(`::warning::the review findings could not be read (${error.message}); the context holds none`);
   }
@@ -341,6 +342,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
   const trustedActors = env.TRUSTED_ACTORS || `${env.BASE_PATH || ".base"}/.github/standards/trusted-actors/trusted-actors.json`;
   const reviewerId = reviewerIdFrom(trustedActors);
   const reviewerIds = reviewerIdsFrom(env.REVIEWER_IDS);
+  const trustedHumans = trustedHumansFrom(trustedActors);
   const client =
     api ??
     createGitHubApi({
@@ -369,7 +371,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
     const webHosts = await webHostsOf(env);
     return (await linkedIssues(graphql(false), graphql(true), env.GITHUB_REPOSITORY, pr, humans, appId, taskList, webHosts)).specText;
   };
-  const result = await select({ api: client, pr, repository: env.GITHUB_REPOSITORY, appId, reviewerId, reviewerIds, maxRounds, humanGatedLabel, readSpec, log });
+  const result = await select({ api: client, pr, repository: env.GITHUB_REPOSITORY, appId, reviewerId, reviewerIds, trustedHumans, maxRounds, humanGatedLabel, readSpec, log });
   let sha256 = "";
   if (result.file) {
     const text = contextText(result.file);

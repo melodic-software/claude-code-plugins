@@ -70,6 +70,8 @@ function fakeApi(overrides = {}) {
     listReviews: async () => overrides.reviews ?? [],
     listReviewComments: async () => overrides.reviewComments ?? [],
     listThreads: async () => overrides.threads ?? [],
+    listTimeline: async () => [],
+    listRequestHistory: async () => ({ deletions: [], reviewEdits: {} }),
   };
 }
 
@@ -130,6 +132,21 @@ test("a resolved thread, a person's thread and one a person replied to stay out 
     const result = await selectWith(fakeApi(reviewed(shape)));
     assert.deepEqual(result.file.review_findings, [], JSON.stringify(shape));
   }
+});
+
+// #8284: a listed bot's finding is one address-feedback works only behind a
+// trusted person's `@codex` request.
+test("a Codex finding goes into the context only when a trusted person asked Codex for the review", async () => {
+  const CODEX = 199175422;
+  const codex = (asker) => {
+    const shape = reviewed({ author: CODEX });
+    shape.reviews[0].submitted_at = "2026-10-22T16:18:46Z";
+    shape.issueComments.push({ user: { id: asker }, created_at: "2026-10-22T16:00:00Z", body: "@codex review" });
+    return fakeApi(shape);
+  };
+  const findings = async (asker) => (await select({ api: codex(asker), pr: 42, repository: "o/r", appId: APP, reviewerId: REVIEWER, reviewerIds: [CODEX], trustedHumans: new Set([HUMAN]), maxRounds: 3, log: () => {} })).file.review_findings;
+  assert.equal((await findings(HUMAN)).length, 1);
+  assert.deepEqual(await findings(STRANGER), []);
 });
 
 test("a review-findings read that fails leaves no findings and still proceeds with the checks", async () => {
