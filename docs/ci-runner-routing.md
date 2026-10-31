@@ -190,7 +190,9 @@ A contract-only run waits only on a full run in flight on its SHA:
 
 An earlier failed step (an invalid title, a `do-not-merge` label) and a draft do
 not hold, because such a run cannot pass: that red lands at once and is the
-intended answer. On `merge_group` nothing is contract-only, so the queue never
+intended answer. `Require both review lanes on this head` runs after the
+aggregate for this reason: before it, a review still running failed the job in
+the window a yield happens, and the run never reached the hold. On `merge_group` nothing is contract-only, so the queue never
 holds.
 
 **Operator remedy.** When a contract-only `ci-status` is still red after the
