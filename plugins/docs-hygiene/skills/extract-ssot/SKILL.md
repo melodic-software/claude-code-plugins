@@ -240,6 +240,20 @@ Per-phase checklist: `context/execution-checklist.md`.
 | `/docs-hygiene:rename-references` | An extraction renamed a heading, and every citing form still needs sweeping. |
 | `/docs-hygiene:audit-encapsulation` | The duplication turns out to sit across a skill boundary. |
 
+## Spoke paths
+
+The `actions/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
+Put that path in place of the placeholder before running a command or writing it into a brief;
+never hand a `${…}` token from those files to the Bash tool.
+
+- **Pointer**: when deciding where a `${…}` reference resolves and what the Bash tool's environment
+  carries, fetch
+  [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves)
+  live.
+- **As of**: 2026-10-31
+- **Recheck trigger**: that table adds supporting files to where a `${…}` reference resolves, or the
+  Bash tool's environment starts carrying the plugin variables.
+
 ## Recheck triggers
 
 | Condition | Action |
