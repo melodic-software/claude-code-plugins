@@ -102,15 +102,14 @@
     {
       "id": 8,
       "name": "installed-but-disabled-plugin-is-annotated",
-      "prompt": "What are my options? (A plugin is present in the cache but not in enabledPlugins.)",
-      "expected_output": "Skills from the installed-but-disabled plugin are named with an annotation such as (plugin not enabled), rather than being listed as runnable or silently dropped. The skill reconciles inventory's installed_plugins against enabled_plugins and says which set it used.",
+      "prompt": "What are my options? (A plugin is installed, but enabledPlugins sets it to false.)",
+      "expected_output": "Skills from the installed-but-disabled plugin are named with a (disabled) annotation, taken from the skills index's state field, rather than being listed as runnable or silently dropped.",
       "files": [],
       "narration": true,
       "expectations": [
-        "Reconciles installed_plugins against enabled_plugins rather than treating installation as invocability",
-        "Names skills from a disabled plugin with an annotation instead of omitting them",
-        "Does not present a disabled plugin's skill as directly runnable",
-        "States which set was used"
+        "Reads each skill's state from the skills index rather than treating presence on disk as invocability",
+        "Names skills from a disabled plugin with a (disabled) annotation instead of omitting them",
+        "Does not present a disabled plugin's skill as directly runnable"
       ]
     },
     {
@@ -125,6 +124,62 @@
         "Buckets reflect the on-disk plan and PR state rather than only what the conversation retained",
         "Routes to /session-flow:orient for durable state rather than building its own probe",
         "Does not conclude the session is at an early stage merely because the conversation looks short"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "shortlist-drawn-from-the-index",
+      "prompt": "Which skill fits here? I need to write tests for the invoice exporter I just added. (harness-ops is enabled.)",
+      "expected_output": "The skill builds its pool from /harness-ops:inventory's skills index, shortlists the tier-1 candidates from those index records, and reads only the shortlisted SKILL.md files. Every name it renders is an index record, and the rest of the index's in-domain skills appear by bare name with a count.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Builds the pool from the skills index rather than from the in-context listing",
+        "Every shortlisted name is a record from the index, none taken from memory or invented",
+        "Reads the SKILL.md files of the shortlisted skills only, not of every index record",
+        "Index skills outside the shortlist still appear by name in tier 2 with a count"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "asks-at-most-one-question",
+      "prompt": "What should I run? I'm not sure what I'm doing yet. Ask me whatever you need before you answer.",
+      "expected_output": "With a thin trajectory and an invitation to ask, the skill asks at most one question, the one whose answer would most change the ranking, and then renders the menu. It does not run an interview of several questions, before or after the answer.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Asks no more than one question across the whole run",
+        "The question it asks is one whose answer changes the ranking",
+        "Renders the menu after the one question rather than asking a follow-up",
+        "Does not withhold the menu until several facts are gathered"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "never-enables-or-installs",
+      "prompt": "What should I run next? If the best skill for this is disabled or not installed, just turn it on or install it for me.",
+      "expected_output": "The skill recommends the best-fit skill even when it is (disabled) or (not installed), names the command the operator would run to enable or install it, and runs no install or enable command and edits no enabledPlugins or skillOverrides setting, despite the request.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs no /plugin or claude plugin install or enable command",
+        "Edits no settings file to change enabledPlugins or skillOverrides",
+        "Names the disabled or not-installed skill with its annotation rather than hiding it",
+        "Names the command the operator would run, leaving the run to them"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "exclude-setting-drops-disabled-and-uninstalled",
+      "prompt": "Show me my options. (recommend_skills_exclude is set to disabled,not-installed, and the index holds enabled, disabled and not-installed skills.)",
+      "expected_output": "The skill passes --exclude disabled,not-installed to the skills index, so no disabled or not-installed skill appears in any bucket, and it says once near the top that the setting dropped those two states. Enabled skills render normally.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Passes the setting's states to the skills index as its exclude filter",
+        "No disabled or not-installed skill appears in any bucket",
+        "States near the top which states the setting dropped",
+        "Enabled skills still render with the usual buckets and tiers"
       ]
     }
   ]
