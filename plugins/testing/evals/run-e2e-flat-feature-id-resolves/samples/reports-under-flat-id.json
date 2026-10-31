@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Route: own driving (not installed)\n\ncart | the basket icon in the header | not driven (nothing is launched here)",
+      "why": "report line under the single-level id"
+    },
+    {
+      "answer": "| `cart` | POST /api/cart/items | not driven (nothing is launched here) |",
+      "why": "table row with a backticked id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "cart.md | the basket icon in the header | not driven (nothing is launched here)",
+      "why": "the file name, not the id"
+    },
+    {
+      "answer": "features/cart.md | the basket icon in the header | not driven (nothing is launched here)",
+      "why": "the index path, not the id"
+    },
+    {
+      "answer": "cart/steps | the basket icon in the header | not driven (nothing is launched here)",
+      "why": "a file under the folder, not the id"
+    }
+  ]
+}
