@@ -19,7 +19,9 @@ export const LIMITS = {
   failedJobsPerRun: 3,
   mainFailedJobs: 5,
   mergeGroupRuns: 10,
-  sweepArtifacts: 5,
+  // pr-merge-summary artifacts read newest first: room for a held streak past
+  // LISTING_HELD_SWEEPS and the sweep that listed before it.
+  sweepArtifacts: 8,
   // pr-merge-post-merge-report artifacts listed in one call, newest first; a
   // fork's runs can upload under the same name, so the page is wide.
   postMergeArtifacts: 100,
@@ -281,6 +283,13 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     }
   });
 
+  // The newest sweep that listed, and the held sweeps above it, newest first:
+  // a held summary carries no verdicts, so it never stands in for the sweep
+  // signals 5 and 8 read. A trusted run that kept no summary neither counts
+  // nor resets. Calls: one artifact list, one run read per artifact and one
+  // download per trusted summary, stopping at the sweep that listed (3 while
+  // the listing reads). None within the cap is a gap, so an open issue is not
+  // cleared without a listed sweep.
   await source("pr-merge sweep", async () => {
     const artifacts = (await get(`/repos/${repo}/actions/artifacts?name=pr-merge-summary&per_page=100`)).artifacts;
     const candidates = artifacts
@@ -294,30 +303,33 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       )
       .slice(0, LIMITS.sweepArtifacts);
     data.sweep = null;
-    let newest = null;
+    data.heldSweeps = [];
     for (const a of candidates) {
       const run = await get(`/repos/${repo}/actions/runs/${a.workflow_run.id}`);
-      if (run.path === PR_MERGE_PATH && trustedPrMerge(run)) {
-        newest = a;
-        break;
+      if (run.path !== PR_MERGE_PATH || !trustedPrMerge(run)) continue;
+      const s = await readArtifact(a.id);
+      const runId = String(s.run_id);
+      if (!["number", "string"].includes(typeof s.run_id) || !RUN_ID.test(runId) || runId !== String(a.workflow_run.id)) {
+        throw new Error(`artifact ${a.id} names a run_id that is not its own run's id`);
       }
+      const url = `https://github.com/${repo}/actions/runs/${runId}`;
+      if (s.listing_held === true) {
+        data.heldSweeps.push({ runId: Number(runId), url, reason: s.listing_held_reason ?? null, createdAt: a.created_at });
+        continue;
+      }
+      data.sweep = {
+        runId: Number(runId),
+        url,
+        event: s.event,
+        live: s.live,
+        startedAt: s.started_at ?? a.created_at,
+        candidates: s.candidates,
+        refusalCounts: s.refusal_counts ?? {},
+        results: Array.isArray(s.results) ? s.results : [],
+      };
+      return;
     }
-    if (!newest) return;
-    const s = await readArtifact(newest.id);
-    const runId = String(s.run_id);
-    if (!["number", "string"].includes(typeof s.run_id) || !RUN_ID.test(runId) || runId !== String(newest.workflow_run.id)) {
-      throw new Error(`artifact ${newest.id} names a run_id that is not its own run's id`);
-    }
-    data.sweep = {
-      runId: Number(runId),
-      url: `https://github.com/${repo}/actions/runs/${runId}`,
-      event: s.event,
-      live: s.live,
-      startedAt: s.started_at ?? newest.created_at,
-      candidates: s.candidates,
-      refusalCounts: s.refusal_counts ?? {},
-      results: Array.isArray(s.results) ? s.results : [],
-    };
+    if (data.heldSweeps.length > 0) throw new Error(`no sweep that listed in the ${LIMITS.sweepArtifacts} newest summaries`);
   });
 
   // The report post-merge-dispatch keeps per sweep (pr-merge-post-merge-report:

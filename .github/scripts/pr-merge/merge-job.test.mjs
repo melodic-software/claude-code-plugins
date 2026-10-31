@@ -176,6 +176,7 @@ test("the listing retries a failed gh pr list", () => {
   // Three tries of the one list.
   assert.equal(run.calls, 3);
   assert.match(run.output, /^count=1$/m);
+  assert.match(run.output, /^listed=true$/m);
   assert.doesNotMatch(run.output, /held/);
   // Two capped waits with full jitter, in place of the fixed 15 s and 30 s.
   assert.equal(run.sleeps.length, 2);
@@ -189,7 +190,7 @@ const assertHeld = (run) => {
   assert.match(run.stdout, /^::notice title=Merge lane hold::/m);
   assert.doesNotMatch(run.stdout, /^::error title=GitHub rate limit::gh pr list/m);
   assert.match(run.output, /^held=true$/m);
-  assert.doesNotMatch(run.output, /^count=/m);
+  assert.doesNotMatch(run.output, /^(count|listed)=/m);
   assert.equal(run.prefiltered, false);
   assert.equal(run.candidates, "");
 };
@@ -200,6 +201,7 @@ test("a listing with pull requests missing from a 200 holds the job, and the nex
   // A count that moved between the two reads gets the retries before it holds.
   assert.equal(degraded.calls, 3);
   assert.match(degraded.stderr, /gh pr list holds 1 of 2 open pull requests/);
+  assert.match(degraded.output, /^held-reason=failed 3 times$/m);
   const next = runListing(0, undefined, undefined, {}, undefined, LANES_PR, 1);
   assert.equal(next.status, 0, next.stderr);
   assert.doesNotMatch(next.stdout, /::notice title=Merge lane hold::/);
@@ -216,18 +218,25 @@ test("a listing whose open count cannot be read holds the job", () => {
   assertHeld(runListing(0, undefined, undefined, {}, undefined, LANES_PR, null));
 });
 
-// Everything after the listing that reads, writes or files waits on the hold,
-// directly or through a step that does; only the two cleanup steps do not.
+// Everything after the listing that reads, writes or files waits on `listed`,
+// directly or through a step that does; only the two cleanup steps and the
+// three that run on a hold do not (the tests after the limit's).
 test("no step after the listing acts on a held listing", () => {
   const after = steps.slice(steps.findIndex((s) => s.name === "List the candidate PRs") + 1);
   assert.ok(after.length > 20);
-  const cleanup = ["Log the API budget at job end", "Revoke the lane token"];
+  const exempt = [
+    "Log the API budget at job end",
+    "Revoke the lane token",
+    "Record a failed lane merge",
+    "Count the sweep's refusals",
+    "Upload the sweep's verdicts",
+  ];
   const gated = new Set();
   for (const { name, block } of after) {
-    if (cleanup.includes(name)) continue;
+    if (exempt.includes(name)) continue;
     const condition = /\n {8}if: (>-\n(?: {10}.*\n)+|.*\n)/.exec(`${block}\n`)?.[1] ?? "";
     const id = /\n {8}id: (\S+)/.exec(block)?.[1];
-    const direct = condition.includes("steps.candidates.outputs.held != 'true'");
+    const direct = condition.includes("steps.candidates.outputs.listed == 'true'");
     const follows = [...gated].some((other) => new RegExp(`steps\\.${other}\\.(outcome|outputs)`).test(condition));
     assert.ok(direct || follows, `${name}: ${condition}`);
     if (id) gated.add(id);
@@ -315,10 +324,91 @@ test("an event run lists only its own pull request", () => {
   assert.match(step("List the candidate PRs"), /\n {10}EVENT_PR: \$\{\{ github\.event\.pull_request\.number \}\}\n/);
 });
 
-test("a listing that may be cut short holds the job", () => {
+test("a listing that reaches the limit ends red at once: a lasting fault, not a hold", () => {
   const many = Array.from({ length: 1000 }, (_, i) => listed(i + 1, "app/melodic-automation-lanes"));
-  assertHeld(runListing(0, undefined, undefined, {}, undefined, many));
-  assertHeld(runListing(0, undefined, undefined, {}, undefined, many, 1500));
+  for (const total of [1000, 1500]) {
+    const run = runListing(0, undefined, undefined, {}, undefined, many, total);
+    assert.equal(run.status, 1, run.stderr);
+    assert.equal(run.calls, 1);
+    assert.deepEqual(run.sleeps, []);
+    assert.match(run.stdout, /^::error::gh pr list returned 1000 pull requests, so the listing may be cut short/m);
+    assert.doesNotMatch(run.stdout, /Merge lane hold/);
+    assert.doesNotMatch(run.output, /held|listed/);
+  }
+});
+
+// A step's `if:` as GitHub evaluates it, with `steps` and `needs` as given.
+const runsOn = (name, context, needs = {}) => {
+  const condition = /\n {8}if: (>-\n(?: {10}.*\n)+|.*\n)/.exec(`${step(name)}\n`)[1].replace(">-\n", "");
+  const script = `return (${condition.replace(/\.([a-z]+(?:-[a-z]+)+)/g, '["$1"]')});`;
+  return new Function("steps", "needs", "always", script)(context, needs, () => true);
+};
+
+test("a held listing still records a failed lane merge, on post-merge-dispatch's exit 1", () => {
+  const record = (held, own, dispatch) =>
+    runsOn(
+      "Record a failed lane merge",
+      { "lane-token": { outputs: { token: "t" } }, mode: { outputs: { live: "true" } }, candidates: { outputs: { held } }, "post-merge": { outputs: { code: own } } },
+      { "post-merge-dispatch": { outputs: { "post-merge-code": dispatch } } },
+    );
+  assert.equal(record("true", undefined, "1"), true);
+  assert.equal(record("true", undefined, "0"), false);
+  assert.equal(record("true", undefined, "3"), false);
+  assert.equal(record("true", undefined, ""), false);
+  // A run that listed goes by its own check, the later of the two.
+  assert.equal(record(undefined, "1", "0"), true);
+  assert.equal(record(undefined, "0", "1"), false);
+});
+
+test("a held listing writes a sweep summary with no read, and a monitor can tell it held", () => {
+  const skipped = { gate: { outcome: "skipped" }, candidates: { outputs: {} } };
+  for (const name of ["Count the sweep's refusals", "Upload the sweep's verdicts"]) {
+    assert.equal(runsOn(name, { ...skipped, candidates: { outputs: { held: "true" } } }), true, name);
+    assert.equal(runsOn(name, skipped), false, name);
+  }
+  const dir = tempDir("pr-merge-held-summary-");
+  try {
+    const bin = join(dir, "bin");
+    mkdirSync(bin);
+    writeFileSync(join(bin, "gh"), `#!/usr/bin/env bash\necho "$*" >>"${dir}/gh-calls"\n`);
+    chmodSync(join(bin, "gh"), 0o755);
+    symlinkSync(root, join(dir, ".base"));
+    const to = join(dir, "sweep.json");
+    const result = spawnSync("bash", ["-c", runScript("Count the sweep's refusals")], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        // .base is a symlink here, and the script runs only as the main module.
+        NODE_OPTIONS: "--preserve-symlinks-main",
+        RUNNER_TEMP: dir,
+        REPO: "o/r",
+        GITHUB_RUN_ID: "41",
+        EVENT: "schedule",
+        LIVE: "true",
+        GATE_OUTCOME: "skipped",
+        LIMITED: "",
+        LISTING_HELD: "true",
+        LISTING_HELD_REASON: "failed 3 times",
+        SUMMARY_PATH: join(dir, "pr-merge-summary.json"),
+        HELD_PATH: join(dir, "held.json"),
+        CANDIDATES_PATH: join(dir, "candidates.json"),
+        CURSOR_PATH: join(dir, "cursor.json"),
+        SWEEP_SUMMARY_TO: to,
+      },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(join(dir, "gh-calls")), false);
+    const summary = JSON.parse(readFileSync(to, "utf8"));
+    assert.equal(summary.run_id, 41);
+    assert.equal(summary.listing_held, true);
+    assert.equal(summary.listing_held_reason, "failed 3 times");
+    assert.equal(summary.candidates, null);
+    assert.deepEqual(summary.results, []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("the mode step outputs merge.lane-prs as resolve-config resolved it, and the listing reads it", () => {
@@ -1026,7 +1116,7 @@ test("a failed lane merge reruns the check with --remediate under the lane token
   assert.ok(check >= 0 && record === check + 1, "the record step follows the check");
   assert.ok(record < names.indexOf("Run the merge gate on each candidate"));
   const block = step("Record a failed lane merge");
-  assert.match(block, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.mode\.outputs\.live == 'true' && steps\.post-merge\.outputs\.code == '1'\n/);
+  assert.match(block, /\n {10}steps\.lane-token\.outputs\.token != '' && steps\.mode\.outputs\.live == 'true'\n {10}&& \(steps\.post-merge\.outputs\.code == '1'\n/);
   assert.match(block, /\n {10}GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}\n/);
   assert.match(runScript("Check earlier lane merges"), /^echo "code=\$code" >>"\$GITHUB_OUTPUT"$/m);
 });
@@ -1228,6 +1318,7 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
       if (path === "steps.gate.outputs.rate-limited") return limited;
       if (path === "steps.lane-token.outputs.token") return "t";
       if (path === "steps.mode.outputs.report-only") return "false";
+      if (path === "steps.candidates.outputs.listed") return "true";
       return "";
     };
     for (const name of ["Hand the gate's rows to the check writer", "Re-fire lane runs refused as workflow-modified", "Clear escalations whose reason no longer holds"]) {
@@ -1251,7 +1342,7 @@ test("after the gate's rate-limit stop, no later merge-job step calls GitHub", (
       const result = spawnSync("bash", ["-c", runScript("Count the sweep's refusals")], {
         cwd: dir,
         encoding: "utf8",
-        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LIMITED: limited, REPO: "o/r", GITHUB_RUN_ID: "1", SWEEP_SUMMARY_TO: sweep, RUNNER_TEMP: dir },
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, LIMITED: limited, LISTING_HELD: "", REPO: "o/r", GITHUB_RUN_ID: "1", SWEEP_SUMMARY_TO: sweep, RUNNER_TEMP: dir },
       });
       assert.equal(result.status, 0, result.stderr);
       assert.equal(existsSync(join(dir, "gh")), limited !== "true", `gh with LIMITED=${limited}`);
@@ -1367,7 +1458,7 @@ test("the skip step runs just before the gate and its record between the carry a
   assert.equal(at("Upload the verdict reads for the next run"), at("Keep the refusals the next run may skip") + 1);
   const filter = step("Skip refusals whose inputs have not changed");
   assert.match(filter, /\n {8}continue-on-error: true\n/);
-  assert.match(filter, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.candidates\.outcome == 'success' && steps\.candidates\.outputs\.held != 'true'\n/);
+  assert.match(filter, /\n {8}if: steps\.lane-token\.outputs\.token != '' && steps\.candidates\.outputs\.listed == 'true'\n/);
   assert.match(filter, /GH_TOKEN: \$\{\{ steps\.lane-token\.outputs\.token \}\}/);
   assert.match(filter, /BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}/);
   // The listing it reads is saved where the gate's first candidate looks.
