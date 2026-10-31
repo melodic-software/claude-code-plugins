@@ -1651,6 +1651,47 @@ class AFreshAttemptAfterIssue9241sAttemptsStartsItsOwnCount(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:repeated-fail")
 
 
+class AnAttemptAfterIssue9727sMergedPullRequestStartsItsOwnCount(unittest.TestCase):
+    """Issue 9727's shape (2026-10-30): #11402, a lanes App attempt with no
+    FAIL of its own, was closed at the cap on three FAILs named for the issue
+    at heads of #10134, a lanes App pull request that closes the issue and
+    merged on 2026-10-28. A merged pull request's FAILs never count."""
+
+    HEADS = (
+        "09f699f1" + "0" * 32,
+        "5a4fde34" + "0" * 32,
+        "f70b8c1e" + "0" * 32,
+    )
+
+    def attempt(self, state: str) -> FakeGitHub:
+        runs = {i: judged(i, OLDER_START) for i in range(2, 5)}
+        fake = passing(
+            *(
+                artifact(f"{named(sha, 'fail', 10134)}-i7", i)
+                for i, sha in zip(runs, self.HEADS)
+            ),
+            runs=runs,
+        )
+        for sha in self.HEADS:
+            fake.records[f"{named(sha, 'fail', 10134)}-i7"] = record(
+                10134, sha, verdict="fail", head_ref="lane/10134"
+            )
+        fake.closers[7] = [(10134, REPO), (PR, REPO)]
+        fake.closer_states[10134] = state
+        fake.closer_authors[10134] = LANES_APP_ACTOR
+        if state == "MERGED":
+            fake.closed_at[10134] = "2026-10-28T03:32:15Z"
+        return fake
+
+    def test_a_merged_pull_requests_three_fails_leave_the_attempt_uncapped(
+        self,
+    ) -> None:
+        self.assertIsNone(read(self.attempt("MERGED")).refusal)
+
+    def test_the_same_fails_cap_while_that_pull_request_is_open(self) -> None:
+        self.assertEqual(read(self.attempt("OPEN")).refusal, "verify:repeated-fail")
+
+
 class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
     """A pull request that names the issue without closing it (a `Refs:` pull
     request) never appears among the issue's closing pull requests, so its
