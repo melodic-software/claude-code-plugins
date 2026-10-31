@@ -547,6 +547,125 @@ class RunValidityTest(unittest.TestCase):
             "  case measurable-criterion, with-arm run 1: Grep x", proc.stdout
         )
 
+    def denied_probe(
+        self, before=(), after=(), fired=True, case_at=1,
+        tags="tags: [invocation-probe, train]", sibling=None,
+    ):
+        """One with-arm run of cases[case_at] (1: should-fire measurable-criterion,
+        0: should-not-fire control-no-trigger), its prompt.md carrying tags. Its
+        trace makes the denied calls in before, then the Skill call when fired, then
+        those in after; each denial is aimed at the plugin's own directory. None in
+        before denies a call naming no tool, with no tool_use line. sibling "held"
+        or "fired" gives every arm a second, denial-free run, the target case's
+        holding or firing, and runs with --runs 2."""
+        result = self.clean()
+        case = result["cases"][case_at]
+        prompt = self.dir / "suite" / case["dir"] / "prompt.md"
+        prompt.write_text(
+            "---\ndescription: invocation probe x\n%s\nmax_turns: 8\n---\n\nQ\n" % tags,
+            encoding="utf-8",
+        )
+        lines, entries = [], []
+
+        def call(use_id, tool):
+            tool_input = (
+                {"skill": "evals:methodology"}
+                if tool in ("Skill", None)
+                else {"pattern": "**/SKILL.md", "path": str(self.dir / "suite")}
+            )
+            if tool is not None:
+                lines.append({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "id": use_id, "name": tool,
+                     "input": tool_input}]}})
+            return tool_input
+
+        for i, tool in enumerate(before + ("+",) + after):
+            if tool == "+":
+                if fired:
+                    call("s1", "Skill")
+                continue
+            entry = {"tool_use_id": "d%d" % i, "tool_input": call("d%d" % i, tool)}
+            if tool is not None:
+                entry["tool_name"] = tool
+            entries.append(entry)
+        lines.append({"type": "result", "is_error": False, "permission_denials": entries})
+        trace = self.dir / "denied-probe.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            + "".join(json.dumps(line) + "\n" for line in lines),
+            encoding="utf-8",
+        )
+        path = self.write(result)
+        data = load(path)
+        if sibling:
+            for c in data["cases"]:
+                for rows in c["arms"].values():
+                    rows.append(json.loads(json.dumps(rows[0])))
+
+        def set_fired(row, value):
+            for grader in row["graders"]:
+                if grader["name"] in ("skill-fired", "no-skill-fired"):
+                    grader["passed"] = value == (grader["name"] == "skill-fired")
+
+        rows = data["cases"][case_at]["arms"]["with"]
+        rows[0]["tracePath"] = str(trace)
+        set_fired(rows[0], fired)
+        if sibling:
+            set_fired(rows[1], sibling == "fired")
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(path, "--runs", "2" if sibling else "1")
+
+    def assertDenials(self, proc, verdict):
+        if verdict == "WARN":
+            self.assertVerdict(proc, "VALID", 0)
+            self.assertNotIn("permission denial in the traces", proc.stdout)
+        else:
+            self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check permission denials: " + verdict, proc.stdout)
+
+    def test_a_probe_denied_a_search_after_its_skill_call_is_a_warning(self):
+        proc = self.denied_probe(after=("Glob",))
+        self.assertDenials(proc, "WARN")
+        self.assertIn(
+            "probe case measurable-criterion: fired in 1 of 1 denied with-arm runs,"
+            " 0 of 0 clean",
+            proc.stdout,
+        )
+
+    def test_a_probe_denied_a_search_before_its_skill_call_is_invalid(self):
+        self.assertDenials(self.denied_probe(before=("Glob",)), "FAIL")
+
+    def test_a_should_fire_probe_that_missed_after_a_denied_search_is_invalid(self):
+        self.assertDenials(self.denied_probe(before=("Glob",), fired=False), "FAIL")
+
+    def test_a_denied_hold_whose_clean_runs_held_is_a_warning(self):
+        proc = self.denied_probe(
+            before=("Glob",), fired=False, case_at=0, sibling="held"
+        )
+        self.assertDenials(proc, "WARN")
+
+    def test_a_denied_hold_whose_clean_run_fired_is_invalid(self):
+        proc = self.denied_probe(
+            before=("Glob",), fired=False, case_at=0, sibling="fired"
+        )
+        self.assertDenials(proc, "FAIL")
+
+    def test_a_denied_hold_with_no_clean_run_is_invalid(self):
+        self.assertDenials(self.denied_probe(before=("Glob",), fired=False, case_at=0), "FAIL")
+
+    def test_a_probe_denied_its_skill_call_is_invalid(self):
+        self.assertDenials(self.denied_probe(after=("Skill",)), "FAIL")
+
+    def test_a_probe_denied_a_search_and_its_skill_call_is_invalid(self):
+        self.assertDenials(self.denied_probe(after=("Glob", "Skill")), "FAIL")
+
+    def test_a_probe_denial_naming_no_tool_is_invalid(self):
+        self.assertDenials(self.denied_probe(before=(None,), fired=False, case_at=0), "FAIL")
+
+    def test_a_non_probe_denied_a_search_inside_the_plugin_is_invalid(self):
+        proc = self.denied_probe(after=("Glob",), tags="tags: [knowledge]")
+        self.assertDenials(proc, "FAIL")
+
     def test_a_denial_names_the_path_it_was_aimed_at(self):
         trace = self.dir / "denied-paths.jsonl"
         trace.write_text(
