@@ -237,6 +237,9 @@ export const RECORDED_LANES = new Map([
   [".github/workflows/pr-verify.yml", JUDGE_STEP],
   [".github/workflows/pr-review-main.yml", REVIEW_STEP],
 ]);
+// The recorded lanes whose workflow runs the upstream-status gate; pr-verify.yml
+// runs none, so no outage holds its re-run.
+export const GATED_LANES = new Set([".github/workflows/pr-review-main.yml"]);
 export const MAX_IN_FLIGHT = 3;
 export const WRITE_GAP_MS = 1000;
 // Pages of 100 read per status query of a lane's run listing; a listing that
@@ -806,9 +809,9 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
           noteFailure(`lane run ${r.id}`, error);
         }
       }
-      // A lane re-run during an npm or Actions outage would spend its one
-      // re-run on a run the upstream gate stops again (pr-review-main.yml).
-      const hold = unpublished.length > 0 ? await gateHold() : "";
+      // A gated lane's re-run during an npm or Actions outage would spend its
+      // one re-run on a run the upstream gate stops again.
+      const hold = unpublished.length > 0 && GATED_LANES.has(lanePath) ? await gateHold() : "";
       if (hold) {
         for (const r of unpublished) {
           say(`lane run ${r.id} (${r.path}) ended ${r.conclusion}; waiting, ${hold}`);
