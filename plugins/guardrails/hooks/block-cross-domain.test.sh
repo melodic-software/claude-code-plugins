@@ -58,14 +58,32 @@ NEUTRAL="$TEST_TMPDIR/neutral"
 mkdir -p "$A_ROOT/repo" "$B_ROOT/repo" "$D_ROOT/repo" "$G_ROOT" "$NEUTRAL"
 
 # The placeholder map: alpha and beta with owners and markers (shared-org in
-# both), delta nested in alpha, gamma below HOME, and epsilon on drive Q,
-# spelled as a Windows drive path for Windows and as its WSL mount elsewhere.
-# beta's root carries a trailing separator. No root of epsilon exists on disk:
-# only the text is read. alpha has a gh config directory below HOME and beta an
-# az one, so for gh beta uses the default, and for az alpha does.
+# both), delta nested in alpha, gamma below HOME, and epsilon and zeta on drive
+# Q, spelled as a Windows drive path for Windows and as its WSL mount elsewhere.
+# beta's root carries a trailing separator. No root of epsilon or zeta exists on
+# disk: only the text is read. alpha has a gh config directory below HOME and
+# beta an az one, so for gh beta uses the default, and for az alpha does.
+# epsilon's shared directory is open to zeta.
 GH_A="$HOME_DIR/.config/gh-alpha"
+if [[ "$OS_KEY" == windows ]]; then
+  Q_HOST='Q:\placeholder'
+  Q_SEP="\\"
+else
+  Q_HOST=/mnt/q/placeholder
+  Q_SEP=/
+fi
+E_CWD="$Q_HOST${Q_SEP}epsilon${Q_SEP}repo"
+Z_CWD="$Q_HOST${Q_SEP}zeta${Q_SEP}repo"
+# shared_map <entry JSON>: the placeholder map with that one shared_exceptions
+# entry; a path below drive Q's placeholder directory is given as `@/<rest>`.
+shared_map() {
+  MSYS_NO_PATHCONV=1 jq -c --arg q "$Q_HOST" --arg sep "$Q_SEP" --argjson e "$1" '
+    def q: if startswith("@/") then $q + $sep + (.[2:] | gsub("/"; $sep)) else . end;
+    .shared_exceptions = [$e | if type == "string" then q else .path |= q end]' <<<"$MAP"
+}
 MAP=$(MSYS_NO_PATHCONV=1 jq -n --arg os "$OS_KEY" --arg other "$OTHER_KEY" --arg other_root "$OTHER_ROOT" \
-  --arg a "$A_ROOT" --arg b "$B_ROOT/" --arg d "$D_ROOT" --arg g "$G_ROOT" --arg gha "$GH_A" '{
+  --arg a "$A_ROOT" --arg b "$B_ROOT/" --arg d "$D_ROOT" --arg g "$G_ROOT" --arg gha "$GH_A" \
+  --arg es "$Q_HOST${Q_SEP}epsilon${Q_SEP}shared" '{
     domains: {
       alpha: {roots: {($os): [$a]}, owners: ["alpha-org"], identity_markers: ["alpha-org", "shared-org"],
         gh_config_dir: $gha},
@@ -75,10 +93,12 @@ MAP=$(MSYS_NO_PATHCONV=1 jq -n --arg os "$OS_KEY" --arg other "$OTHER_KEY" --arg
       delta: {roots: {($os): [$d]}},
       gamma: {roots: {($os): [$g]}},
       epsilon: {roots: {windows: ["Q:\\placeholder\\epsilon"], linux: ["/mnt/q/placeholder/epsilon"],
-        macos: ["/mnt/q/placeholder/epsilon"]}}
+        macos: ["/mnt/q/placeholder/epsilon"]}},
+      zeta: {roots: {windows: ["Q:\\placeholder\\zeta"], linux: ["/mnt/q/placeholder/zeta"],
+        macos: ["/mnt/q/placeholder/zeta"]}}
     },
     identity_files: ["/placeholder/identity"],
-    shared_exceptions: ["/placeholder/shared"],
+    shared_exceptions: [{path: $es, from: ["zeta"], to: "epsilon"}],
     messages: {cross_domain: "placeholder message"}
   }')
 
@@ -245,6 +265,97 @@ assert_contains "from beta-org's clone: the reason names beta as the cwd's domai
 call "$DATA" "$OWNED" "ls ~/worktrees/github.com/beta-org/repo/wt $B_ROOT/repo"
 assert_contains "from beta-org's clone, beta's own paths: the parser runs" "$GUARD_ERR" "trace parse"
 verdict "from beta-org's clone, beta's own paths" allow
+
+# --- A shared exception opens one directory one way ---------------------------
+# sp <form> <path below drive Q's placeholder directory>: one spelling of it,
+# the Windows one quoted so the parse keeps its backslashes.
+sp() {
+  case "$1" in
+  windows) printf "'Q:%splaceholder%s%s'" "$BS" "$BS" "${2//"$FS"/"$BS"}" ;;
+  msys) printf '/q/placeholder/%s' "$2" ;;
+  *) printf '/mnt/q/placeholder/%s' "$2" ;;
+  esac
+}
+# shared <label> <deny|allow> <data dir> <cwd> <command, each drive Q path as
+# `{<path below the placeholder directory>}`>: the call in the Windows, MSYS and
+# WSL spellings of every drive Q path. A group holding a comma is shell brace
+# syntax, never a path, and is sent as written.
+shared() {
+  local form cmd rest
+  for form in windows msys wsl; do
+    cmd="" rest=$5
+    while [[ "$rest" =~ ^([^{]*)\{([^},]*)\}(.*)$ ]]; do
+      cmd+=${BASH_REMATCH[1]}$(sp "$form" "${BASH_REMATCH[2]}")
+      rest=${BASH_REMATCH[3]}
+    done
+    call "$3" "$4" "$cmd$rest"
+    assert_exit "$1 ($form): exit 0" 0 "$GUARD_RC"
+    verdict "$1 ($form)" "$2"
+  done
+}
+shared "from a from domain, inside the exception" allow "$DATA" "$Z_CWD" 'ls {epsilon/shared/x}'
+shared "from a from domain, the exception itself" allow "$DATA" "$Z_CWD" 'ls {epsilon/shared}'
+shared "from a from domain, a write inside the exception" allow "$DATA" "$Z_CWD" \
+  'cp {epsilon/shared/a} {epsilon/shared/b} && echo x >{epsilon/shared/c}'
+shared "from a from domain, the exception beside its own path" allow "$DATA" "$Z_CWD" \
+  'cp {zeta/repo/a} {epsilon/shared/b}'
+shared "from the to domain, a from domain's path" deny "$DATA" "$E_CWD" 'ls {zeta/repo/x}'
+shared "from an unlisted domain, the exception" deny "$DATA" "$A_ROOT/repo" 'ls {epsilon/shared/x}'
+shared "from a from domain, the exception with .." deny "$DATA" "$Z_CWD" 'ls {epsilon/shared/../x}'
+shared "from a from domain, a .. elsewhere in the command" deny "$DATA" "$Z_CWD" 'ls {epsilon/shared/x} ../y'
+shared "from a from domain, one foreign path outside the exception" deny "$DATA" "$Z_CWD" \
+  'cp {epsilon/shared/a} {epsilon/private/b}'
+shared "from a from domain, a name that only starts like the exception" deny "$DATA" "$Z_CWD" \
+  'ls {epsilon/shared-not/x}'
+shared "from a from domain, the exception beside a sibling that starts like it" deny "$DATA" "$Z_CWD" \
+  'cp {epsilon/shared/a} {epsilon/shared-private/b}'
+shared "from a from domain, a sibling whose name continues with +" deny "$DATA" "$Z_CWD" 'cat {epsilon/shared+x/f}'
+shared "from a from domain, a sibling whose name continues with ~" deny "$DATA" "$Z_CWD" 'cat {epsilon/shared~x/f}'
+shared "from a from domain, an operator right after the exception" allow "$DATA" "$Z_CWD" 'ls {epsilon/shared}|cat'
+shared "from a from domain, a glob right after the exception" deny "$DATA" "$Z_CWD" 'cat {epsilon/shared}*/x'
+shared "from a from domain, a brace right after the exception" deny "$DATA" "$Z_CWD" 'ls {epsilon/shared}{,-private}'
+shared "from a from domain, an expansion right after the exception" deny "$DATA" "$Z_CWD" 'ls {epsilon/shared}$X'
+shared "from a from domain, a glob below the exception" allow "$DATA" "$Z_CWD" 'ls {epsilon/shared/x}*'
+call "$DATA" "$Z_CWD" "ls $(sp msys epsilon/private/x)"
+assert_contains "a path the exception does not hold: the reason names its to domain" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" "another domain ('epsilon')"
+
+# An entry that grants nothing leaves the map well formed and the user is told
+# once: a path that is not a path of its to domain, and a plain string.
+SHARED_N=0
+# no_grant <label> <entry JSON> <what the notice says>
+no_grant() {
+  SHARED_N=$((SHARED_N + 1))
+  local data="$TEST_TMPDIR/shared-$SHARED_N"
+  write_map "$data" "$(shared_map "$2")"
+  call "$data" "$Z_CWD" "ls $(sp msys epsilon/shared/x)"
+  verdict "$1" deny
+  assert_absent "$1: the map is not malformed" "$GUARD_OUT" "is malformed"
+  assert_contains "$1: the user is told which entry grants nothing" \
+    "$(jq -r '.systemMessage // empty' <<<"$GUARD_OUT")" "shared_exceptions[0] $3"
+  assert_contains "$1: the notice says to re-run setup" "$(jq -r '.systemMessage // empty' <<<"$GUARD_OUT")" \
+    "/guardrails:setup apply identity-domains"
+  shared "$1, again" deny "$data" "$Z_CWD" 'ls {epsilon/shared/x}'
+  assert_absent "$1, again: told once per session" "$GUARD_OUT" systemMessage
+  call "$data" "$A_ROOT/repo" "ls $A_ROOT/repo"
+  verdict "$1, the guard still checks" allow
+  call "$data" "$Z_CWD" "ls $(sp wsl epsilon/x)"
+  verdict "$1, the guard still denies another domain's path" deny
+}
+no_grant "an exception whose path is not in its to domain" '{"path": "@/epsilon/shared", "from": ["zeta"], "to": "delta"}' \
+  "grants nothing: its path is not a path of its to domain, 'delta'"
+no_grant "a string entry" '"@/epsilon/shared"' "grants nothing: it is a plain path"
+call "$TEST_TMPDIR/shared-$SHARED_N" "$NEUTRAL" "ls $A_ROOT"
+assert_silent "a string entry, from a neutral cwd after the notice: silent" "$GUARD_OUT"
+# A path below a domain nested in `to` is that domain's, so `to` cannot open it.
+NESTED_DATA="$TEST_TMPDIR/shared-nested"
+write_map "$NESTED_DATA" "$(shared_map "$(MSYS_NO_PATHCONV=1 jq -nc --arg p "$D_ROOT/x" '{path: $p, from: ["beta"], to: "alpha"}')")"
+call "$NESTED_DATA" "$B_ROOT/repo" "ls $D_ROOT/x/f"
+verdict "an exception below a domain nested in its to" deny
+assert_contains "an exception below a domain nested in its to: the user is told" \
+  "$(jq -r '.systemMessage // empty' <<<"$GUARD_OUT")" "shared_exceptions[0] grants nothing: its path is not a path of its to domain, 'alpha'"
+assert_contains "an exception below a domain nested in its to: the reason names the nested domain" \
+  "$(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$GUARD_OUT")" "another domain ('delta')"
 
 # --- Telemetry: the cwd's class, what the command names, and the decision -----
 TEL="$TEST_TMPDIR/tel.json"
@@ -608,6 +719,23 @@ malformed "a marker that is not a string" '{"domains": {"alpha": {"roots": {}, "
   "domains.alpha.identity_markers[0] is not a non-empty one-line string"
 malformed "a message on two lines" '{"domains": {}, "messages": {"note": "a\nb"}}' \
   "messages.note is not a non-empty one-line string"
+ONE='"domains": {"alpha": {"roots": {}}, "beta": {"roots": {}}}'
+malformed "shared exceptions not an array" "{$ONE, \"shared_exceptions\": {}}" "shared_exceptions is not an array"
+malformed "a shared exception with no to" "{$ONE, \"shared_exceptions\": [{\"path\": \"/x\", \"from\": [\"alpha\"]}]}" \
+  "shared_exceptions[0] needs path, from and to"
+malformed "a shared exception with an unknown key" \
+  "{$ONE, \"shared_exceptions\": [{\"path\": \"/x\", \"from\": [\"alpha\"], \"to\": \"beta\", \"both\": true}]}" \
+  "shared_exceptions[0] has an unknown key, both"
+malformed "a shared exception to no domain" "{$ONE, \"shared_exceptions\": [{\"path\": \"/x\", \"from\": [\"alpha\"], \"to\": \"nope\"}]}" \
+  "shared_exceptions[0].to names no domain of the map"
+malformed "a shared exception from no domain" "{$ONE, \"shared_exceptions\": [{\"path\": \"/x\", \"from\": [\"nope\"], \"to\": \"beta\"}]}" \
+  "shared_exceptions[0].from names no domain of the map"
+malformed "a shared exception from nothing" "{$ONE, \"shared_exceptions\": [{\"path\": \"/x\", \"from\": [], \"to\": \"beta\"}]}" \
+  "shared_exceptions[0].from is empty"
+malformed "a shared exception from its own to" "{$ONE, \"shared_exceptions\": [{\"path\": \"/x\", \"from\": [\"beta\"], \"to\": \"beta\"}]}" \
+  "shared_exceptions[0].from holds its to"
+malformed "a shared exception string on two lines" "{$ONE, \"shared_exceptions\": [\"a\\nb\"]}" \
+  "shared_exceptions[0] is not a non-empty one-line string"
 
 write_map "$TEST_TMPDIR/bad-dispatched" '{'
 guard_invoke --via dispatched --cwd "$A_ROOT/repo" --command "ls $B_ROOT" -- \

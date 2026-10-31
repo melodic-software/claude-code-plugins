@@ -1044,7 +1044,7 @@ test("a labeled pull request whose standing refusal lacks the verifier's answer 
   assert.ok(!heldLane.calls.some(({ body }) => body?.query === DETAIL_QUERY));
 });
 
-test("a risk hold is a person's only for a security finding, a high path, a trusted-actor widening or a cost hold", async () => {
+test("a risk hold is a person's only for a security finding, a trusted-actor widening or a cost hold", async () => {
   // reviewsPerson as babysit_risk.person_reasons answers for each code,
   // read from the Python, the one list.
   const codes = (reviews) => reviews.split("; ").map((part) => part.slice(0, part.indexOf(": ")));
@@ -1060,18 +1060,19 @@ test("a risk hold is a person's only for a security finding, a high path, a trus
   };
   const risk = (reviews) => ({ refusal: null, needsHuman: false, head: HEAD, ineligible: null, reviews, reviewsPerson: answer(reviews) });
   const holding = (reviews) => `pr-merge's gate holds it on its risk score (${reviews})`;
-  const lane = ["evidence-unbound:claude-review: no-marker", "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks", "unreadable: RuntimeError: boom"];
-  const person = [
-    "security-finding: 1 CRITICAL",
+  // A high path is the lanes' (owner decision 2026-10-30, #11020).
+  const lane = [
+    "evidence-unbound:claude-review: no-marker",
+    "manifest-review-required: plugins/a/.claude-plugin/plugin.json: hooks",
+    "unreadable: RuntimeError: boom",
     "high-path:**: 'a' mode '120000' (symlink)",
-    "files-incomplete: x; trust-gate:trusted-actors: entries added",
-    "cost-review-required: infra/main.tf",
     "high-path:docs/**: docs/a.md",
   ];
+  const person = ["security-finding: 1 CRITICAL", "files-incomplete: x; trust-gate:trusted-actors: entries added", "cost-review-required: infra/main.tf"];
   // A new comment wraps a reason line past 100 columns at a space.
   const wrapped = {
     [lane[1]]: "pr-merge's gate holds it on its risk score (manifest-review-required:\n  plugins/a/.claude-plugin/plugin.json: hooks)",
-    [person[2]]: "pr-merge's gate holds it on its risk score (files-incomplete: x; trust-gate:trusted-actors: entries\n  added)",
+    [person[1]]: "pr-merge's gate holds it on its risk score (files-incomplete: x; trust-gate:trusted-actors: entries\n  added)",
   };
   for (const reviews of lane) {
     // A lane's stays a lane's however long its comment has stood: past
@@ -3482,7 +3483,8 @@ test("serve asks for a kept answer only for an unarmed pull request, and never o
   const reader = shadowReader({ 1: MISSING, 2: MISSING });
   const { spawned } = reader;
   const timeouts = [];
-  const spawn = (cmd, args, options) => (timeouts.push(options.timeout), reader.spawn(cmd, args));
+  const deadlines = [];
+  const spawn = (cmd, args, options) => (timeouts.push(options.timeout), deadlines.push([options.env.BABYSIT_VERIFY_DEADLINE_SECONDS, options.env.BABYSIT_VERIFY_CALLER]), reader.spawn(cmd, args));
   const verify = pythonVerify(env, { spawn, clock: () => 0 });
   const log = console.log;
   console.log = () => {};
@@ -3498,6 +3500,10 @@ test("serve asks for a kept answer only for an unarmed pull request, and never o
   assert.deepEqual(spawned.map(mode), ["serve", "shadow", "shadow", "serve"]);
   assert.deepEqual(spawned.map((args) => args.includes("--answers-only")), [false, false, false, true]);
   assert.deepEqual(timeouts, [VERIFY_TIMEOUT_MS, VERIFY_TIMEOUT_MS, VERIFY_TIMEOUT_MS, CACHE_ONLY_TIMEOUT_MS]);
+  // babysit_verify_evidence.py DEADLINE_ENV and CALLER_ENV: each read is told
+  // the limit it is killed at (240 s, or 30 s for a kept-answer lookup).
+  const caller = "enable-auto-merge.mjs";
+  assert.deepEqual(deadlines, [["240", caller], ["240", caller], ["240", caller], ["30", caller]]);
   assert.deepEqual(spawned[0].slice(spawned[0].indexOf("--answers-out"), spawned[0].indexOf("--answers-out") + 6), ["--answers-out", "/tmp/out.json", "--answers-mode", "serve", "--answers-in", "/tmp/in.json"]);
 });
 
@@ -3655,7 +3661,7 @@ test("an approved hold-path escalation keeps its label while anything else stand
 test("pythonClose runs the reader's capped-close at the base with the hold labels, and throws on a failed exit", () => {
   const seen = [];
   const spawn = (cmd, args, options) => {
-    seen.push({ cmd, args, token: options.env.GH_TOKEN });
+    seen.push({ cmd, args, token: options.env.GH_TOKEN, deadline: options.env.BABYSIT_VERIFY_DEADLINE_SECONDS, caller: options.env.BABYSIT_VERIFY_CALLER, timeout: options.timeout });
     return { status: 0, stdout: '{"closed": true, "restarted": [7], "parked": []}\n' };
   };
   const base = "b".repeat(40);
@@ -3666,6 +3672,8 @@ test("pythonClose runs the reader's capped-close at the base with the hold label
   assert.deepEqual(seen[0].args.slice(1), ["capped-close", "--repo", "o/r", "--base-sha", base, "--hold-label", "do-not-merge", "--hold-label", "needs-human", "5", HEAD]);
   // Its writes keep the lanes App token.
   assert.equal(seen[0].token, "app");
+  // Its reader is told the 240 s limit it is killed at (DEADLINE_ENV).
+  assert.deepEqual([seen[0].timeout, seen[0].deadline, seen[0].caller], [VERIFY_TIMEOUT_MS, "240", "enable-auto-merge.mjs"]);
   const failing = () => ({ status: 1, stdout: '{"closed": false, "error": "close: HTTP 403"}\n', stderr: "" });
   assert.throws(() => pythonClose(env, failing)({ number: 5, headRefOid: HEAD, baseRefOid: base }, []), /capped-close exited 1: close: HTTP 403/);
   assert.throws(() => pythonClose(env, spawn)({ number: 5, headRefOid: HEAD, baseRefOid: "main" }, []), /not a commit SHA/);

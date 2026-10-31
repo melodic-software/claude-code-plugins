@@ -205,7 +205,7 @@ test("a PR whose pr-verify FAILs are at the cap gets no address-feedback round",
   const { result, lines } = await decide(api, resolvedLane(), { verifyCapped });
   assert.equal(result, null);
   assert.deepEqual(api.calls.dispatch, []);
-  assert.deepEqual(asked, [{ number: 42, head: HEAD, base: undefined }]);
+  assert.deepEqual(asked, [{ number: 42, head: HEAD, base: undefined, expected: [] }]);
   assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
   // The cap never clears for the head: a later run at it reads nothing.
   const record = emptyRecord();
@@ -232,6 +232,23 @@ test("a PR whose sibling FAIL run cannot be read gets no round this run and is r
   assert.equal(reads, 2);
 });
 
+// A listing that does not fit in verify-cap's limit (babysit_verify_evidence.py
+// DEADLINE_UNREADABLE) recurs every run while pr-merge's carried listing is
+// missing or stale, so its skip is a warning annotation, not a plain line.
+test("a PR skipped because the listing did not fit warns with the reader's detail; a sibling skip does not", async () => {
+  const deadline = "verify:unreadable: the artifact listing does not fit in the caller's limit: repository artifacts: 10450 artifacts in 105 pages need 112 s";
+  const api = fakeApi();
+  const { result, lines } = await decide(api, resolvedLane(), { verifyCapped: () => deadline });
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.deepEqual(
+    lines.filter((line) => line.startsWith("::warning title=verify-deadline-skip::")),
+    [`::warning title=verify-deadline-skip::#42: ${deadline}`],
+  );
+  const sibling = await decide(fakeApi(), resolvedLane(), { verifyCapped: () => "verify:unreadable: a FAIL run of a pull request for the same issue" });
+  assert.ok(!sibling.lines.some((line) => line.includes("verify-deadline-skip")), sibling.lines.join("\n"));
+});
+
 // A verifier PASS at a new head clears no cap, so the pass-only dispatch
 // starts no round either.
 test("a pass-only dispatch of a PR whose pr-verify FAILs are at the cap gets no round", async () => {
@@ -240,6 +257,29 @@ test("a pass-only dispatch of a PR whose pr-verify FAILs are at the cap gets no 
   assert.equal(result, null);
   assert.deepEqual(api.calls.dispatch, []);
   assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
+});
+
+// A round sent for pr-verify's FAIL at the head (notesSince set) finds that
+// FAIL (babysit_verify_evidence.py FAIL, "verify:fail") there by design, so
+// the reader is told to expect it; a review run's round and a pass expect none.
+test("only a round sent for pr-verify's FAIL at the head expects the reader's FAIL refusal", async () => {
+  for (const [extra, expected] of [
+    [{ notesSince: Date.parse("2026-10-17T19:00:00Z") }, ["verify:fail"]],
+    [{}, []],
+    [{ passOnly: true }, []],
+  ]) {
+    const asked = [];
+    const verifyCapped = (request) => {
+      asked.push(request);
+      return null;
+    };
+    await decide(fakeApi(), resolvedLane(), { ...extra, verifyCapped });
+    assert.deepEqual(
+      asked.map((request) => request.expected),
+      [expected],
+      JSON.stringify(extra),
+    );
+  }
 });
 
 test("a PR the reader does not find at the cap dispatches as before", async () => {

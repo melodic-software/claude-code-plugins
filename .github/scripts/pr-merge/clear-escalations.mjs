@@ -747,11 +747,12 @@ function pairedWithPrMerge(appComments, since) {
 //   head, from this repository, has its status job succeeded, recording one
 //   review-complete notice for the lane and the head and no hold notice;
 // - every lane's review was whole, so a finding at an older head was looked
-//   at again, and none leaves a CRITICAL finding: the security lane's
-//   summary reads `critical-findings: 0`; a strict lane (the security lane, or
-//   one a hold names) counted every finding inline; and no unresolved thread a
-//   lane opened is at CRITICAL, or, for a strict lane, has no one readable
-//   `severity:` line. Only a CRITICAL finding holds (owner decision on #11020).
+//   at again, and none leaves a CRITICAL finding: the security lane's summary
+//   reads `critical-findings: 0`; a strict lane (the security lane, or one a
+//   hold names) counted every finding inline; and no unresolved thread a lane
+//   opened is at CRITICAL, or, for a strict lane, has no one readable
+//   `severity:` line. An IMPORTANT or SUGGESTION finding is reported and
+//   keeps nothing (docs/conventions/pr-pipeline/README.md).
 // A read that fails, or a listing that may be cut short, keeps the hold.
 
 export const STALE_HOLD = "stale-review-hold";
@@ -880,12 +881,12 @@ async function laneReview({ checks, repo, head }, [file, check]) {
   }
 }
 
-// Why a lane's review of `head` may leave a CRITICAL finding, or null
-// when none does. Every lane's review must be whole, so a finding at an older
-// head was looked at again. A lane is strict when it is the security lane or a
-// hold names it: every finding it counted must be inline, and an open thread
-// of it with no one readable `severity:` line counts as CRITICAL. Any lane's
-// open thread at CRITICAL counts.
+// Why a lane's review of `head` may leave a CRITICAL finding, or null when
+// none does. Every lane's review must be whole, so a finding at an older head
+// was looked at again. A lane is strict when it is the security lane or a hold
+// names it: every finding it counted must be inline, and an open thread of it
+// with no one readable `severity:` line counts as CRITICAL. Any lane's open
+// thread at CRITICAL counts.
 function findingsHeld({ head, timeline, threads }, reviews, heldLanes) {
   for (const review of reviews) {
     if (!review.whole) {
@@ -910,7 +911,7 @@ function findingsHeld({ head, timeline, threads }, reviews, heldLanes) {
         (thread.severity.length === 1 ? thread.severity[0] === "CRITICAL" : strict || thread.severity.includes("CRITICAL")),
     ).length;
     if (blocking > 0) {
-      return `${blocking} unresolved ${lane} finding(s) at CRITICAL`;
+      return `${blocking} unresolved ${lane} finding(s) at CRITICAL or with no one readable severity`;
     }
   }
   return null;

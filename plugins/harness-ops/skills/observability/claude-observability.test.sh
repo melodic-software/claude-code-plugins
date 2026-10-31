@@ -11,6 +11,10 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# A test must never reach a real OTEL store: drop any inherited store path, and have the prune
+# refuse a store outside this run's temp dir.
+unset CC_OTEL_STORE CLAUDE_PROJECT_DIR
+export CC_OTEL_TEST_ROOT="$TEST_TMPDIR"
 
 # Inline test helpers — self-contained, no external test lib (ships with the plugin).
 FAILED=0
@@ -238,6 +242,8 @@ assert_eq "missing log handled by guard" "0" "$count"
 
 # --- Test 9: clean action — synthetic mixed-age data + dry-run + real run ---
 CLEAN="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/scripts/clean.sh"
+# clean delegates to the OTEL prune; stub its Collector service calls so no run reaches the host's.
+export CC_OTEL_STOP_CMD=true CC_OTEL_START_CMD=true CC_OTEL_RUNNING_CMD=false
 clean_test_dir="$TEST_TMPDIR/clean-test"
 mkdir -p "$clean_test_dir"
 (cd "$clean_test_dir" && git init -q && git config commit.gpgsign false)
@@ -416,7 +422,9 @@ printf '{"a":1}\n' >"$NEW_ROOT/sessions/live.jsonl"
 touch -t 202601010000 "$NEW_ROOT/sessions/stale.jsonl" "$NEW_ROOT/prune-pending/1000-old"
 
 root_dry=$(cd "$clean_test_dir" && env -u CC_OTEL_STORE bash "$CLEAN" --keep-days 30 --dry-run 2>&1)
-assert_contains "clean --dry-run names the hook log root" "$root_dry" "hook log root $NEW_ROOT"
+# clean.sh names the root under git's spelling of the repo (C:/... on Git Bash, not /tmp/...).
+assert_contains "clean --dry-run names the hook log root" "$root_dry" \
+  "hook log root $(git -C "$clean_test_dir" rev-parse --show-toplevel | tr -d '\r')/.observability/claude"
 assert_contains "clean --dry-run counts stale session files" "$root_dry" "sessions/: 1 file(s) untouched for 30 days → would remove"
 assert_contains "clean --dry-run counts stale prune sets" "$root_dry" "prune-pending/: 1 set(s) older than 24 h → would sweep"
 if [[ -f "$NEW_ROOT/sessions/stale.jsonl" ]]; then

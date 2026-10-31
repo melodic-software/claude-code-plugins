@@ -143,22 +143,6 @@
         "d223a6446680fb261e264d1dea9efba46f20ead2"
       ]
     },
-    "melodic-software/ci-workflows/.github/workflows/pr-require-checks-trust-paths.yml": {
-      "routing": "runner-input",
-      "runnerInput": "runner",
-      "allowedInputs": ["runner", "config-path"],
-      "allowedSecrets": {},
-      "allowedCallerPermissions": {
-        "contents": "read",
-        "pull-requests": "read",
-        "statuses": "write"
-      },
-      "approvedShas": [
-        "2097e798cf050506383e1df8d8c0d8c436d9b44c",
-        "4ad14b4f1b4868aa5362590299c93d9117b629f1",
-        "f31f7f9a133d17dab5c64da2602f8d107cf2204b"
-      ]
-    },
     "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml": {
       "routing": "hosted-only",
       "fixedRunsOn": ["ubuntu-24.04"],

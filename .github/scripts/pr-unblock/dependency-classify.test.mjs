@@ -10,7 +10,6 @@ import {
   classify,
   contentReason,
   contentStep,
-  bumpRefusal,
   fixContentRefusal,
   isDependabotSigned,
   isFixFile,
@@ -341,24 +340,25 @@ test("paths another checked commit touched pass", () => {
 });
 
 // The content step, as the pr-merge lane's _dependabot_content.
-const BUMP = commit("chore(plugins): release bump [dependabot skip]", {
+const ACTIONS_COMMIT = commit("chore(plugins): release bump [dependabot skip]", {
   sha: "e".repeat(40),
   name: "github-actions[bot]",
   email: "41898282+github-actions[bot]@users.noreply.github.com",
 });
 const FIX = commit("fix: adapt [dependabot skip]", { sha: "f".repeat(40), name: "lanes", email: "lanes@example.test" });
 
-test("the content step counts the bump commit's paths as checked", () => {
+test("the content step counts a fix commit's paths as checked", () => {
   const files = [changed("plugins/miro/server/package.json"), changed("plugins/miro/CHANGELOG.md")];
-  const commitFiles = (sha) => (sha === BUMP.sha ? ["plugins/miro/CHANGELOG.md"] : null);
-  assert.equal(contentStep({ commits: [commit(""), BUMP], commitFiles, files, config: CONFIG_PAIRS, changedFiles: 2 }), null);
+  const commitFiles = (sha) => (sha === FIX.sha ? ["plugins/miro/CHANGELOG.md"] : null);
+  assert.equal(contentStep({ commits: [commit(""), FIX], commitFiles, files, config: CONFIG_PAIRS, changedFiles: 2 }), null);
 });
 
 test("the content step's refusals and gaps are review reasons", () => {
   const files = [changed("plugins/miro/server/package.json")];
   const base = { files, config: CONFIG_PAIRS, changedFiles: 1 };
-  assert.equal(contentStep({ ...base, commits: [BUMP], commitFiles: () => null }), `dependabot-commit-files-unreadable:${"e".repeat(12)}`);
+  assert.equal(contentStep({ ...base, commits: [ACTIONS_COMMIT], commitFiles: () => null }), `dependabot-commit-files-unreadable:${"e".repeat(12)}`);
   assert.equal(contentStep({ ...base, commits: [FIX], commitFiles: () => [".github/workflows/x.yml"] }), "dependabot-fix-content:.github/workflows/x.yml");
+  assert.equal(contentStep({ ...base, commits: [ACTIONS_COMMIT], commitFiles: () => [".github/workflows/x.yml"] }), "dependabot-fix-content:.github/workflows/x.yml");
   assert.equal(contentStep({ ...base, config: null }), "dependabot-config-unreadable");
   assert.equal(contentStep({ ...base, changedFiles: 2 }), "dependabot-content:files-incomplete");
   const result = classify({
@@ -424,14 +424,13 @@ test("a Dependabot author GitHub did not verify or commit is review", () => {
   assert.ok(full([local], [LOCK]).reasons.includes(`commit-not-committed-by-github:${"d".repeat(12)}`));
 });
 
-test("only the version-bump commit's shape passes for github-actions[bot]", () => {
-  const bump = (message) => commit(message, { sha: H, name: "github-actions[bot]", email: "41898282+github-actions[bot]@users.noreply.github.com" });
-  const files = [LOCK, changed("plugins/miro/CHANGELOG.md")];
-  const changelog = (sha) => (sha === H ? ["plugins/miro/CHANGELOG.md"] : null);
-  assert.equal(full([commit(""), bump("release [dependabot skip]")], files, changelog).tier, "auto");
-  assert.ok(full([commit(""), bump("release")], files, changelog).reasons.includes(`commit-not-dependabot:${H.slice(0, 12)}`));
-  const wide = (sha) => (sha === H ? ["plugins/miro/CHANGELOG.md", "src/x.js"] : null);
-  assert.ok(full([commit(""), bump("release [dependabot skip]")], files, wide).reasons.includes(`commit-not-version-bump:${H.slice(0, 12)}`));
+test("any github-actions[bot] commit is review, even one touching only covered files", () => {
+  const actions = (message) => commit(message, { sha: H, name: "github-actions[bot]", email: "41898282+github-actions[bot]@users.noreply.github.com" });
+  const lock = (sha) => (sha === H ? [LOCK.filename] : null);
+  for (const message of ["release [dependabot skip]", "release"]) {
+    const result = full([commit(""), actions(message)], [LOCK], lock);
+    assert.deepEqual([result.tier, result.reasons], ["review", [`commit-not-dependabot:${H.slice(0, 12)}`]], message);
+  }
 });
 
 test("a lanes App fix commit keeps the pull request review, and no commits is review", () => {
@@ -879,16 +878,16 @@ const PUSH_VECTORS = [
     want: "pushed-by:agent-lanes[bot]",
   },
   {
-    why: "a lanes App push carrying a version-bump commit under its tip",
+    why: "a lanes App push carrying a github-actions[bot] commit under its tip",
     commits: [[D, "dependabot", []], [B, "actions", [D]], [A, "lane", [B]]],
     pushes: [["push", "lane", D, A], ["branch_creation", "dependabot", ZERO, D]],
     want: "pushed-by:agent-lanes[bot]",
   },
   {
-    why: "the version bump, pushed by github-actions[bot]",
+    why: "a github-actions[bot] commit, pushed by github-actions[bot]",
     commits: [[D, "dependabot", []], [B, "actions", [D]]],
     pushes: [["push", "actions", D, B], ["branch_creation", "dependabot", ZERO, D]],
-    want: null,
+    want: "pushed-by:github-actions[bot]",
   },
   {
     why: "a github-actions[bot] push carrying a Dependabot-authored commit",
@@ -950,19 +949,3 @@ test("every commit arrives in its own author's push", () => {
   }
 });
 
-test("the version-bump commit changes only plugin.json's version and CHANGELOG.md", async () => {
-  const plugin = (version, extra = {}) => JSON.stringify({ name: "p", version, description: "d", ...extra });
-  const files = (...paths) => paths.map((filename) => ({ filename, status: "modified" }));
-  const regular = async () => ({ type: "blob", mode: 0o100644 });
-  const texts = (after) => async (side, path) => (path.endsWith("plugin.json") ? (side === "before" ? plugin("1.0.0") : after) : "# Changelog\n");
-  const both = files("plugins/p/.claude-plugin/plugin.json", "plugins/p/CHANGELOG.md");
-  assert.equal(await bumpRefusal(both, { entry: regular, text: texts(plugin("1.0.1")) }), null);
-  assert.equal(
-    await bumpRefusal(both, { entry: regular, text: texts(plugin("1.0.1", { hooks: { PreToolUse: [] } })) }),
-    "bump-content:plugins/p/.claude-plugin/plugin.json:plugin-json-key",
-  );
-  assert.equal(await bumpRefusal(both, { entry: regular, text: texts(plugin("next")) }), "bump-content:plugins/p/.claude-plugin/plugin.json:plugin-json-version");
-  assert.equal(await bumpRefusal(files("plugins/p/hooks/hooks.json"), { entry: regular, text: texts("") }), "bump-path:plugins/p/hooks/hooks.json");
-  assert.equal(await bumpRefusal(both, { entry: async () => ({ type: "blob", mode: 0o120000 }), text: texts(plugin("1.0.1")) }), "bump-mode:plugins/p/.claude-plugin/plugin.json");
-  assert.equal(await bumpRefusal([], { entry: regular, text: texts("") }), "bump-empty");
-});

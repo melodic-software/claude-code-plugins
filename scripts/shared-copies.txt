@@ -156,7 +156,7 @@ lib/state-key.sh plugins/session-flow/lib/state-key.sh
 lib/state-key.sh plugins/performance/lib/state-key.sh
 lib/transcript_reader.py plugins/session-flow/scripts/transcript_reader.py
 lib/transcript_reader.py plugins/performance/lib/transcript_reader.py
-plugins/performance/scripts/ratchet.py plugins/review/skills/ratchet/scripts/ratchet.py
+plugins/performance/scripts/ratchet.py plugins/toolchain/skills/ratchet/scripts/ratchet.py
 lib/rewrite-guard.sh plugins/testing/hooks/rewrite-guard.sh
 lib/exec-bash.mjs plugins/actionlint/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/animation/hooks/exec-bash.mjs
@@ -463,7 +463,7 @@ lib/write-snapshot.mjs plugins/context-guard/lib/write-snapshot.mjs
 lib/publish-gate.mjs plugins/review/lib/publish-gate.mjs
 lib/publish-gate.mjs plugins/visualization/lib/publish-gate.mjs
 lib/suppression-scan.py plugins/code-metrics/skills/audit-suppressions/scripts/suppression-scan.py
-lib/suppression-scan.py plugins/review/skills/ratchet/scripts/suppression-scan.py
+lib/suppression-scan.py plugins/toolchain/skills/ratchet/scripts/suppression-scan.py
 lib/installed.mjs plugins/user-experience/scripts/lib/installed.mjs
 lib/installed.mjs plugins/user-interface/scripts/lib/installed.mjs
 lib/setup-apply.mjs plugins/discipline/lib/setup-apply.mjs
