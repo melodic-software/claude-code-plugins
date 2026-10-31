@@ -992,6 +992,36 @@ class TestBriefRestatements(SessionCase):
         )
         self.assertEqual(rc, 0, out)
 
+    def test_a_restated_deferred_of_none_is_no_entry(self):
+        text = self.brief(
+            [self.rev(1, deferred="- none", planningOwned="- None.\n- cache key layout")],
+            [self.confirm(2, 1)],
+        )
+        self.assertEqual(
+            self.section(text, "Deferred questions"),
+            ["- cache key layout; **arbiter: /planning:plan**"],
+        )
+        text = self.brief([self.rev(1, deferred="- none")], [self.confirm(2, 1)])
+        self.assertEqual(self.section(text, "Deferred questions"), ["- none"])
+
+    def test_the_goal_keeps_its_list_items_as_bullets_under_the_outcome(self):
+        goal = (
+            "Cut p75 load time\nto 2 s.\n"
+            "- Intent (why, in the user's words): pages feel slow\n"
+            "- Vision (where this heads): every page under 1 s\n"
+            "- When goals conflict, prefer: speed"
+        )
+        text = self.brief([self.rev(1, goal=goal)], [self.confirm(2, 1)])
+        self.assertEqual(
+            self.section(text, "Goal"),
+            [
+                "Cut p75 load time to 2 s.",
+                "- Intent (why, in the user's words): pages feel slow",
+                "- Vision (where this heads): every page under 1 s",
+                "- When goals conflict, prefer: speed",
+            ],
+        )
+
     def test_a_restated_deferral_of_a_user_reserved_row_keeps_its_arbiter(self):
         self.session(
             [question("Q1")],
@@ -1543,11 +1573,31 @@ class TestBriefIntent(SessionCase):
             constraints,
             [
                 "- Q2 accepted: Recommended answer for Q2.",
+                "  - Q2 why: Shared buckets leak between forks.",
                 "- Q1 Short Q1: accepted: Recommended answer for Q1.",
                 f"  - why: {basis}",
-                "- Q2 why: Shared buckets leak between forks.",
                 "- Q3 Short Q3: accepted: Recommended answer for Q3.",
                 "- Q4 Short Q4: alt a: Alt a of Q4",
+            ],
+        )
+
+    def test_a_row_a_restated_decision_carries_has_its_why_under_that_line(self):
+        events, revs = confirmed(
+            [event(1, "Q1", "accept"), event(2, "Q2", "accept")],
+            decisions="- Q2 accepted: Recommended answer for Q2.",
+        )
+        self.session(
+            [question("Q1"), question("Q2", basis="Shared buckets leak between forks.")],
+            events,
+            restatements=revs,
+        )
+        text = self.export("brief").read_text(encoding="utf-8")
+        self.assertNotIn("Q2 why", "\n".join(self.section(text, "Constraints")))
+        self.assertEqual(
+            self.section(text, "Decisions"),
+            [
+                "- Q2 accepted: Recommended answer for Q2.",
+                "  - Q2 why: Shared buckets leak between forks.",
             ],
         )
 
@@ -4718,6 +4768,24 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
         rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
         self.assertEqual(rc, 1, out)
         self.assertEqual(register_rows(ledger), answered)
+
+    def test_sync_ledger_into_an_empty_register_keeps_its_prose_apart(self):
+        self.decided()
+        ledger = self.tmp / "empty.md"
+        ledger.write_text(
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "Rows are written by sync-ledger.\n",
+            encoding="utf-8",
+        )
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        rows = register_rows(self.export("ledger"))
+        self.assertEqual(register_rows(ledger), rows)
+        self.assertTrue(
+            ledger.read_text(encoding="utf-8").endswith(
+                f"{rows[-1]}\n\nRows are written by sync-ledger.\n"
+            )
+        )
 
     def test_sync_ledger_keeps_crlf_line_endings(self):
         self.decided()
