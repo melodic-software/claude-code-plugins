@@ -93,6 +93,10 @@ result readable. Carry its numbers into the report:
   audited and blocked counts. Relay that as the outcome too. The rule is the same one the denominator
   serves: the run cannot speak for a scope it never read, and the violation it missed may be sitting
   in the file it could not parse.
+- **A clean bill needs frontmatter coverage when there was frontmatter to cover.** When a run
+  with no finding and no unreadable input excluded every frontmatter candidate as non-loadable, it
+  prints `NO FRONTMATTER AUDITED, NOT A CLEAN BILL` in place of the clean bill. Relay it as the outcome, and check that each plugin
+  directory under the root sits at `plugins/<name>/` or holds `.claude-plugin/plugin.json`.
 - **Say what was not read.** The block counts paths the walk could not open, settings files present
   but not valid JSON (whose rules were skipped entirely), and files an exclusion rule removed. Each
   of those is a hole in the denominator, and each belongs in the report next to the finding count.
