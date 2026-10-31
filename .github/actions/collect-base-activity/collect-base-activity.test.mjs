@@ -1048,7 +1048,8 @@ test("web-access with any domain allows every fetch, search and the research ski
     assert.ok(allowed.includes(rule), `${rule} in ${allowed.join(" | ")}`);
   }
   assert.deepEqual(plugins, ["work-items@melodic-software", "discovery@melodic-software", "knowledge@melodic-software"]);
-  assert.match(args, /\/discovery:research/);
+  // A lane run has nobody to answer an ask, so the prompt passes --unattended.
+  assert.match(args, /\/discovery:research --unattended/);
 });
 
 // pr-run-activity.md, "Skill activities": for `any` only, the two docs

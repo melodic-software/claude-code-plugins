@@ -90,7 +90,9 @@ activities:
     skill: source-control:pull-request
     # The skill's CI mode for review comments: edits only files a finding
     # names, never under .github/workflows/, and writes replies to a file.
-    args: comments --ci
+    # --unattended: nobody is present to answer an ask (live-config.test.mjs
+    # fails a lane call of a skill that takes it without it).
+    args: comments --ci --unattended
     # Before any model turn pr-unblock.yml's address-feedback-select job, which
     # runs only base code, keeps only unresolved threads the reviewer bot
     # opened on a reviewed head, left by it alone or answered by a trusted
@@ -169,7 +171,7 @@ activities:
     # checkout and upstream release notes, runs no command, and leaves a fix
     # to npm or pip manifest and lock files outside .github/ uncommitted;
     # patch-rules.json's dependency-review row lands no other fix.
-    args: dependency --ci
+    args: dependency --ci --unattended
     # Before any model turn pr-unblock.yml's review-dependency-select job,
     # which runs only base code, skips a pull request Dependabot did not open
     # or one sorted `auto`, hands it to a person once
@@ -238,7 +240,7 @@ activities:
     skill: source-control:pull-request
     # The skill's CI mode for failing checks: never weakens a check, never
     # edits .github/workflows/, and reports each check fixed or escalated.
-    args: ci --ci
+    args: ci --ci --unattended
     # Before the run a base job writes the failing checks' names, workflow,
     # annotations and log ends to a context file, or hands the pull request
     # to a person once `loop.fix-ci-rounds` fixes were already pushed. The
