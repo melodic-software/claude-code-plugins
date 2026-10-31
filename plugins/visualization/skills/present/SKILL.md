@@ -79,7 +79,10 @@ escaped text (`&amp;`, `&lt;`, `&gt;`): plain text and layout elements, with `cl
 ```
 
 Pass the real path of the folder, not one through a symlink. Pass `--argument` only when the user's
-own argument to this invocation names that medium. The output names the `medium`:
+own argument to this invocation names that medium. On exit 0, tell the user which layer supplied
+the medium: a `reason` of the form `<layer> sets medium: ...` names it (`hosted, treated as
+artifact` for a `hosted` layer), and any other `reason` means no layer set one, so say "shipped
+default". The output names the `medium`:
 
 - `artifact`: say "publishing as a private Artifact on claude.ai", then create the deck from the
   quickstart's `type_url` with its title set to the `title` the gate printed, which it read from the
