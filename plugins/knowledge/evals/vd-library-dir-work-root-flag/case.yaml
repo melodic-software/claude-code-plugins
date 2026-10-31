@@ -1,0 +1,24 @@
+schema_version: "1.1"
+name: vd-library-dir-work-root-flag
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: leading-work-root-flag
+    type: regex
+    pattern: 'run\.mjs\b(?:[^\n]|\\\n)*?--data-dir\b(?:[^\n]|\\\n)*?--work-root[ \t=]+["'']?[^\s"'']*/my-library["'']?(?:[^\n]|\\\n)*?\btranscript/run-transcript\.js\b'
+    flags: 'i'
+    target: last_message
+  - name: no-bare-relative-root
+    type: regex
+    pattern: '--work-root[ \t=]+["'']?my-library\b'
+    match: not_contains
+    target: last_message
+  - name: transcript-under-library
+    type: regex
+    pattern: 'my-library/\.work/youtube-watch/[^\s`''"/]+/transcript\.txt'
+    target: last_message
+  - name: resolves-with-work-root-mjs
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?work-root\.mjs(?:[^"\\]|\\.)*?--library-dir[ \t]+(?:''my-library''|\\"my-library\\"|my-library\b)'
+    min: 1

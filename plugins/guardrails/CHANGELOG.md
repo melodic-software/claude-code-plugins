@@ -3,6 +3,22 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.75.0] - 2026-10-31
+
+### Added
+
+- `block-root-delete-target` judges a move and a content destroyer the way it judges a recursive `rm`: one aimed at a root or at HOME is refused, and when the payload carries a cwd the target must sit under the git toplevel or strictly under a temp root, the session scratchpad or an allowed root. That covers each source an `mv` moves away, a move onto `/dev/null` included, each file `truncate` or `shred` names, the file `dd of=` writes, and on the PowerShell tool each `Move-Item` and `Clear-Content` path and a `Set-Content` that writes several files (a comma list, or a wildcard in `-Path`). A `Set-Content` of one file, a `dd` writing to `/dev/null`, and a mechanism named inside quoted prose, such as a `git commit -m` message, stay allowed.
+
+## [0.74.0] - 2026-10-31
+
+### Added
+
+- `block-root-delete-target` judges a PowerShell delete run through another command as the delete itself, so its target must sit strictly inside the git toplevel, the session scratchpad or an allowed root, and one aimed at a root, at HOME or outside them is refused. That covers the string `Invoke-Expression` or `iex` runs, the `-Command` text of `pwsh` or `powershell`, an `-EncodedCommand` decoded from base64 of UTF-16LE, the program and argument list of `Start-Process`, a pipeline removal (`gci X | Remove-Item`, `gci X | % { $_.Delete() }`) judged by the `Get-ChildItem` or `Get-Item` path that feeds it, and a .NET delete (`[IO.Directory]::Delete`, `[IO.File]::Delete`, `(Get-Item X).Delete()`) judged by its path argument. A removal fed by anything but such a listing is refused, and an `-EncodedCommand` that is not literal base64 of printable ASCII text is denied whether or not the session is attended. A mechanism named inside quoted prose, such as a `git commit -m` message, stays allowed.
+
+### Changed
+
+- `block-root-delete-target` no longer refuses every PowerShell pipeline into `Remove-Item -Recurse` with no path: when a `Get-ChildItem` or `Get-Item` feeds it, that listing's path is judged instead, so `gci build | Remove-Item -Recurse` from a repository passes.
+
 ## [0.73.0] - 2026-10-31
 
 ### Added

@@ -3542,7 +3542,6 @@ def score_unattended(
             str(inputs["branch"]),
             max_fails=config.max_verify_fails,
             agent_identity=config.agent_identity,
-            cap_attempts=config.verify_cap_attempts,
         )
         # Provisional: an allow is judged again on a listing of this gate
         # run's own below, once nothing else refuses.
@@ -4006,7 +4005,6 @@ def close_capped(
         branch,
         max_fails=config.max_verify_fails,
         agent_identity=identity,
-        cap_attempts=config.verify_cap_attempts,
     )
     return verify_evidence.capped_close(
         reader,
@@ -4297,7 +4295,6 @@ def unattended_writes(
                     branch,
                     max_fails=config.max_verify_fails,
                     agent_identity=config.agent_identity,
-                    cap_attempts=config.verify_cap_attempts,
                 )
                 if inputs.get("authority") == merge_policy.PR_MERGE
                 and config is not None
@@ -4939,7 +4936,14 @@ def unattended_enqueue(
     if entries is None or number not in numbers[: max(room, 0)]:
         # Earlier entries (another host's) fill the room, or the order cannot
         # be read: this entry leaves so no more than `merge.max-in-flight`
-        # unattended merges are in flight.
+        # unattended merges are in flight. Two hosts enqueuing at about the
+        # same time each count before seeing the other's entry; the queue
+        # order then decides, and the later entry removes itself here. An
+        # entry that lands between the gate's count and this re-read is
+        # neither queued nor unverified to it, so that window can still pass
+        # the cap (reference/safety.md). Under `merge.lane-prs: native` the
+        # lane's own pull requests are armed by enable-auto-merge.mjs and
+        # never reach this check.
         mine = next(
             (
                 e

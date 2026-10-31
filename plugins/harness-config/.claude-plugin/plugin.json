@@ -1,12 +1,20 @@
 {
   "name": "harness-config",
-  "version": "2.2.3",
+  "version": "2.4.0",
   "description": "Configuration health for a repo's Claude Code: audit (settings, .mcp.json, hooks, plugins, permission drift), audit-automation-gaps, audit-permission-grants, audit-permission-state (effective rules with provenance), draft-auto-mode-rules (prints an autoMode block), audit-instructions (instructions the model no longer needs, conflicts), audit-prompting-postures, audit-pass (one ordered, resumable pass), unhobble (strip instructions, re-add what evidence earns), and setup.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
+  "userConfig": {
+    "time_units": {
+      "type": "boolean",
+      "title": "Time units in estimates",
+      "description": "When on, /harness-config:audit-automation-gaps may state the size of an implementation plan in minutes, hours, days or weeks; when off it gives a relative size (Small, Medium, Large) instead. A time budget you state is kept in your words either way. Default: off.",
+      "default": false
+    }
+  },
   "keywords": [
     "settings",
     "configuration",

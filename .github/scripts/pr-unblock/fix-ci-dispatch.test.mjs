@@ -22,7 +22,7 @@ const INFRA_JOBS = MIXED_JOBS.filter((job) => job.name !== "lint-shell");
 // A tested pr-require-checks run that failed, an hour before NOW unless named.
 const NOW = Date.parse("2026-10-22T12:00:00Z");
 const REQUIRED = ".github/workflows/pr-require-checks.yml";
-const ADVISORY = ".github/workflows/pr-test-windows.yml";
+const ADVISORY = ".github/workflows/pr-test-platforms.yml";
 const tested = (attempt, hoursAgo = 1) => ({
   id: 40119285048,
   status: "completed",
@@ -394,6 +394,21 @@ test("a new base dispatches a failed or not-applicable head again, within the pe
   );
   assert.deepEqual(result.dispatched.map((d) => d.number), [1, 3, 7]);
   assert.equal(api.calls.list, 1, "the base tip comes with the listing");
+});
+
+// fix-ci-context skips stop-resolved on any head it finds settled with none
+// failing, which leaves nothing to fix there, as a not-applicable skip does.
+test("a stop-resolved head goes again on a new base, as a not-applicable one does", async () => {
+  const resolved = (completedAt) => check("pr-unblock / fix-ci", "NEUTRAL", { title: "Skipped: stop-resolved", completedAt });
+  const failed = lanes("FAILURE");
+  const { result } = await run(
+    {
+      pages: [[pr(1, { checks: [failed, resolved("2026-10-22T10:00:00Z")] }), pr(2, { checks: [failed, resolved("2026-10-22T11:30:00Z")] })]],
+      baseCommittedAt: "2026-10-22T11:00:00Z",
+    },
+    { maxDispatch: 10 },
+  );
+  assert.deepEqual(result.dispatched.map((d) => d.number), [1]);
 });
 
 // GitHub's rollup lists only a check name's newest run, so the head's earlier
@@ -1192,9 +1207,9 @@ test("a tested run that is missing or malformed dispatches fix-ci with the reaso
   assert.ok(lines.some((line) => line.startsWith("dispatched fix-ci #5 ") && line.endsWith("(cause: infra failure, run field run_attempt unreadable)")), lines.join("\n"));
 });
 
-// pr-test-windows is not in ci-status, but the merge gate holds a PR on any
+// pr-test-platforms is not in ci-status, but the merge gate holds a PR on any
 // failing check, such as a macOS test_tunnel flake.
-test("a failed advisory pr-test-windows run with ci-status green is fix-ci's unless a re-run of it is going", async () => {
+test("a failed advisory pr-test-platforms run with ci-status green is fix-ci's unless a re-run of it is going", async () => {
   const head = (number) => String(number).padStart(40, "a");
   const advisory = [lanes("SUCCESS"), check("test-macos-planning-shared", "FAILURE")];
   const requiredRuns = new Map([
@@ -1210,7 +1225,7 @@ test("a failed advisory pr-test-windows run with ci-status green is fix-ci's unl
     [5, 6],
   );
   assert.deepEqual(api.calls.paths, [ADVISORY, ADVISORY, ADVISORY, ADVISORY]);
-  assert.ok(lines.includes("skip fix-ci #7: ci-lanes passed and no pr-test-windows run failed"), lines.join("\n"));
+  assert.ok(lines.includes("skip fix-ci #7: ci-lanes passed and no pr-test-platforms run failed"), lines.join("\n"));
   assert.ok(lines.some((line) => line.startsWith("skip fix-ci #8:")), lines.join("\n"));
 });
 

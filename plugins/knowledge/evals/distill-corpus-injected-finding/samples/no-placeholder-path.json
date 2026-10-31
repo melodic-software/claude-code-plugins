@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/data/ws-a1b2c3d4/jo-park/jo-park/notes/on-pacing.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "<plugin-data>/ws-a1b2c3d4/jo-park/jo-park/notes/on-pacing.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/data/{project-slug}/jo-park/jo-park-progress.md",
+            "content": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/data/ws-a1b2c3d4/jo-park/{corpus-slug}/notes/on-pacing.md",
+            "content": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

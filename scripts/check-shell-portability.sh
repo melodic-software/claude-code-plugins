@@ -443,7 +443,7 @@ done
 # Stale-baseline guard (CI-facing modes only): every entry must name a skill-md
 # file that still carries at least one unexcused hit when scanned. A missing
 # file or a cleaned-up file must leave the list — same shrink-only contract as
-# scripts/orphaned-fixtures-baseline.txt / hook-userconfig-argv-allowlist.txt.
+# scripts/orphaned-fixtures-baseline.txt.
 #
 # All three stale branches share changed-file scoping: --all re-proves the
 # whole list; diff mode only re-proves entries in this run's file set. Missing

@@ -1,0 +1,35 @@
+{
+  "pass": [
+    {
+      "answer": [
+        ".work/agent-plugins-spec/agent-plugins-spec-1a2b3c4d/map-corpus-checklist.md"
+      ]
+    },
+    {
+      "answer": [
+        ".work/.gitignore",
+        ".work/agent-plugins-spec/agent-plugins-spec-0f9e8d7c/seeds.txt"
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        "agent-plugins-spec-1a2b3c4d/map-corpus-checklist.md"
+      ]
+    },
+    {
+      "answer": [
+        ".work/agent-plugins-spec-1a2b3c4d/map-corpus-checklist.md"
+      ]
+    },
+    {
+      "answer": [
+        "corpus/.work/agent-plugins-spec/agent-plugins-spec-1a2b3c4d/seeds.txt"
+      ]
+    }
+  ]
+}

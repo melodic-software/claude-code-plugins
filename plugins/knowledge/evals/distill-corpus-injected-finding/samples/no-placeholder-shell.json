@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node /plugins/knowledge/scripts/repo-visibility.mjs '/data/ws-a1b2c3d4/jo-park/jo-park'",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"<plugin-root>/scripts/repo-visibility.mjs\" '<plugin-data>/x/jo-park/jo-park'",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls '/data/{project-slug}/jo-park'",
+            "description": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

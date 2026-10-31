@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "```jsx\n<div ref={parentRef} style={{ height: 480, overflow: 'auto' }}>\n  <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>\n    {virtualizer.getVirtualItems().map((item) => (\n      <div key={item.key} style={{ position: 'absolute', top: item.start, height: item.size, width: '100%' }}>\n        {rows[item.index].message}\n      </div>\n    ))}\n  </div>\n</div>\n```",
+      "why": "inner element sized to the total and positioned; rows absolute at their start"
+    },
+    {
+      "answer": "```jsx\n<div ref={parentRef} className=\"h-[480px] overflow-auto\">\n  <div className=\"relative w-full\" style={{ height: `${v.getTotalSize()}px` }}>\n    {v.getVirtualItems().map((item) => (\n      <div key={item.key} className=\"absolute left-0 top-0 w-full h-8\" style={{ transform: `translateY(${item.start}px)` }}>\n        {rows[item.index].message}\n      </div>\n    ))}\n  </div>\n</div>\n```",
+      "why": "Tailwind relative on the sized inner element and a translateY offset per row"
+    },
+    {
+      "answer": "```jsx\nconst items = virtualizer.getVirtualItems();\n\nreturn (\n  <div ref={parentRef} style={{ height: 480, overflow: 'auto' }}>\n    <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>\n      <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${items[0]?.start ?? 0}px)` }}>\n        {items.map((item) => (\n          <div key={item.key} data-index={item.index} ref={virtualizer.measureElement}>\n            {rows[item.index].message}\n          </div>\n        ))}\n      </div>\n    </div>\n  </div>\n);\n```",
+      "why": "one wrapper inside the sized, positioned inner element, translated by the first item's start, with the rows in normal flow"
+    },
+    {
+      "answer": "```jsx\nconst items = virtualizer.getVirtualItems();\n\nreturn (\n  <div ref={parentRef} style={{ height: 480, overflow: 'auto' }}>\n    <div style={{ height: virtualizer.getTotalSize() }}>\n      <div style={{ transform: `translateY(${items[0]?.start ?? 0}px)` }}>\n        {items.map((item) => (\n          <div key={item.key} style={{ height: 32 }}>\n            {rows[item.index].message}\n          </div>\n        ))}\n      </div>\n    </div>\n  </div>\n);\n```",
+      "why": "an in-flow wrapper as the first child of the full-height inner element, translated by the first item's start; nothing is absolutely positioned, so the inner element needs no position"
+    },
+    {
+      "answer": "```jsx\nconst items = virtualizer.getVirtualItems();\nconst paddingTop = items.length > 0 ? items[0].start : 0;\nconst paddingBottom = items.length > 0 ? virtualizer.getTotalSize() - items[items.length - 1].end : 0;\n\nreturn (\n  <div ref={parentRef} style={{ height: 480, overflow: 'auto' }}>\n    <div style={{ paddingTop, paddingBottom }}>\n      {items.map((item) => (\n        <div key={item.key} style={{ height: 32 }}>\n          {rows[item.index].message}\n        </div>\n      ))}\n    </div>\n  </div>\n);\n```",
+      "why": "spacer padding: space before the rows equals the first item's start and space after equals the total minus the last item's end"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "```jsx\n<div ref={parentRef} style={{ height: 480, overflow: 'auto' }}>\n  <div style={{ height: virtualizer.getTotalSize() }}>\n    {virtualizer.getVirtualItems().map((item) => (\n      <div key={item.key} style={{ position: 'absolute', top: item.start, height: item.size }}>\n        {rows[item.index].message}\n      </div>\n    ))}\n  </div>\n</div>\n```",
+      "why": "near miss: the inner element has the total height but no position, so the rows measure from outside the scroller"
+    },
+    {
+      "answer": "```jsx\nconst items = virtualizer.getVirtualItems();\n\nreturn (\n  <div ref={parentRef} style={{ height: 480, overflow: 'auto' }}>\n    <div style={{ paddingTop: items[0]?.start ?? 0 }}>\n      {items.map((item) => (\n        <div key={item.key} style={{ height: 32 }}>\n          {rows[item.index].message}\n        </div>\n      ))}\n    </div>\n  </div>\n);\n```",
+      "why": "near miss for the spacer form: space before the rows but none after, so nothing comes to the total size and the scrollbar stops at the rendered rows"
+    },
+    {
+      "answer": "```jsx\n<div ref={parentRef} style={{ height: 480, overflow: 'auto' }}>\n  {virtualizer.getVirtualItems().map((item) => (\n    <div key={item.key} style={{ height: item.size }}>\n      {rows[item.index].message}\n    </div>\n  ))}\n</div>\n```",
+      "why": "no inner element carries the total size and the rows have no offset, so the scrollbar stops at the rendered rows"
+    },
+    {
+      "answer": "Wrap the rows in a relatively positioned container sized to getTotalSize() and absolutely position each row at its start.",
+      "why": "prose only, no code"
+    }
+  ]
+}

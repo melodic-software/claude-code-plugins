@@ -1,5 +1,43 @@
 # Changelog for the PR pipeline convention
 
+## [8.22.1] - 2026-10-31
+
+### Fixed
+
+- The README's `verify:repeated-fail` rule now matches the reader. A merged pull request's FAILs,
+  and a lanes App pull request's once it is closed unmerged, whoever closed it, no longer add to
+  another pull request's count. Closing any other pull request resets nothing. Of the FAILs that
+  remain, only ones uploaded after the newest capped-close record on at least one linked issue
+  they are for count, and no other close moves that floor.
+
+- A red-main run that posts no report, because its red is unconfirmed or the log already reports it, notes every unreported red full run on the log, so a report the repository-wide concurrency group cancelled while pending is named before the next confirmed red. The note counts as neither a report nor a cap decision and never creates the log issue.
+
+## [8.22.0] - 2026-10-31
+
+### Added
+
+- The `skip-reason` enum gains `stop-resolved`. An address-feedback or fix-ci select job posts it
+  where it finds the stop gone on its head, in place of `not-applicable`; `fix-ci-dispatch` reads
+  it as a run with nothing to fix.
+
+### Fixed
+
+- The `stalled lane stop` signal now counts only a `stop-resolved` skip as ending a stop, so a stop
+  a person clears by hand drops off at the same head, while an owner's untaken threads or a fix-ci
+  skip before checks settled no longer read as resolved. It no longer lists the head's checks.
+
+- `pr-verify` no longer fails a pull request on the size of its diff. It splits a diff at file
+  boundaries into up to 4 chunks of at most 300000 bytes, each file whole, and each chunk gets its
+  own judgment against the same spec, reading every part of its chunk whole. The head passes only
+  when every chunk does. A chunk's `fail` stops the later chunks and is written at once, so nothing
+  after it can lose it to a re-run. A judge reads another chunk's part when its change references a
+  file there. A head of two chunks or more also needs a final judge with no diff, which reads the
+  spec and every chunk's result and fails a done-when item no chunk delivers; without its output
+  there is no verdict. A chunk
+  that fails, leaves no verdict, skips a part or hits a permission denial leaves no verdict for the
+  head, so a `pr-verify-failed` label stays. A file over 300000 bytes, or a diff that needs more
+  than 4 chunks, ends the run with no verdict and an error naming the file or the chunk count.
+
 ## [8.21.0] - 2026-10-31
 
 ### Changed

@@ -391,7 +391,7 @@ class HighReasonTests(unittest.TestCase):
             "plugins/foo/requirements.txt",
             # Workflows with no write token, secret or lane token; one that
             # holds any is a `gate` path.
-            ".github/workflows/pr-test-windows.yml",
+            ".github/workflows/pr-test-platforms.yml",
             ".github/workflows/pr-check-managed-files-hosted.yml",
         ):
             with self.subTest(path):
@@ -1309,7 +1309,7 @@ class LanePathFloorTests(unittest.TestCase):
             "package.json",
             "plugins/foo/package-lock.json",
             ".github/requirements-ci.txt",
-            ".github/workflows/pr-test-windows.yml",
+            ".github/workflows/pr-test-platforms.yml",
             ".github/workflows/pr-check-managed-files-hosted.yml",
         ):
             with self.subTest(path):
@@ -1887,7 +1887,7 @@ class TrustGateTests(unittest.TestCase):
             "plugins/source-control/scripts/source-control-babysit-merge",
             "plugins/source-control/skills/babysit-prs/SKILL.md",
             ".github/scripts/pr-merge/gate.mjs",
-            ".github/workflows/pr-test-windows.yml",
+            ".github/workflows/pr-test-platforms.yml",
             ".github/standards/trusted-actors/README.md",
             "plugins/foo/trusted-actors/trusted-actors.json",
         ):
@@ -2164,8 +2164,8 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             workflows = pathlib.Path(tmp)
             for wf in (_REPO / ".github/workflows").glob("*.yml"):
                 shutil.copy(wf, workflows / wf.name)
-            plain = workflows / "pr-test-windows.yml"
-            self.assertNotIn(".github/workflows/pr-test-windows.yml", self.gate())
+            plain = workflows / "pr-test-platforms.yml"
+            self.assertNotIn(".github/workflows/pr-test-platforms.yml", self.gate())
             plain.write_text(
                 plain.read_text() + "\n# added\nenv:\n  K: ${{ secrets.NEW_KEY }}\n"
             )
@@ -2175,7 +2175,7 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                 rows = dict(sync.floor_classes())
             finally:
                 sync.WORKFLOWS = original
-            self.assertEqual(rows.get(".github/workflows/pr-test-windows.yml"), "gate")
+            self.assertEqual(rows.get(".github/workflows/pr-test-platforms.yml"), "gate")
 
     def test_dropping_a_review_workflow_from_the_class_fails_the_check(self):
         # The committed table must match what the generator derives, so a

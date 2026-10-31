@@ -5,8 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { spawn as spawnChild } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -273,7 +272,7 @@ for (const [workflow, dispatchName] of [
 }
 
 test("the carry starts the reader's run cache from pr-merge's file, shares its GET answers, and leaves the dispatch step's outputs alone", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "verify-cap-"));
+  const dir = tempDir("verify-cap-");
   const cache = join(dir, "babysit-run-cache.json");
   const output = join(dir, "output");
   writeFileSync(output, "");
@@ -327,7 +326,7 @@ test("a carry that fails is fetched once, warns, and the reads go on without it"
 // did: here it removes a stale file at the path and stops at the repository
 // name, with no request.
 test("the default carry runs listing-carry.mjs with the job's environment, then the read goes on", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "verify-cap-"));
+  const dir = tempDir("verify-cap-");
   const path = join(dir, "verify-listing-carry.json");
   writeFileSync(path, "stale");
   const reads = [];

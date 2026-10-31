@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "courses/teachable/event-driven-dotnet-quill/course.json"}}]},
+    {"answer": []}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "courses/teachable/event-driven-dotnet-quill/course.json", "old_string": "\"extractFrames\": null", "new_string": "\"extractFrames\": {}"}}]}
+  ]
+}
