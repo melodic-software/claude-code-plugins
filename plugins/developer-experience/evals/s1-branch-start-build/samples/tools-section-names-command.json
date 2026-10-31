@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "---\nwritten_against: developer-experience@0.1.0\n---\n# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=chosen -->\n- `tq commit`: interactive; prompts for type and message. No flags bypass the prompts.\n- `tq item comment <id> --body <text>`: posts a tracker comment (offline outbox in this repo).\n- `tq env check`: checks required tools.\n- `tq branch start <id> <title>`: creates `work/<id>-<slug>` from main, pushes it and opens a draft review request. `--dry-run`, `--json`.\n- `scripts/build.sh`, `scripts/build.ps1`: build on bash and pwsh.\n\n## Shared helpers\n<!-- developer-experience: source=chosen -->\n- Run external processes through `ProcessRunner.Run` in `src/Tarnquill.Cli/Infrastructure/`.\n",
+      "why": "a new Tools line for the command"
+    },
+    {
+      "answer": "## Tools\n<!-- developer-experience: source=chosen -->\n- `tq commit`: interactive.\n- `scripts/build.sh`, `scripts/build.ps1`: build on bash and pwsh.\n- `tq branch start`: start a work branch and open a draft review request.\n\n## Not yet\n- `--json` on `tq commit`.\n",
+      "why": "the last line of the section"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "## Tools\n<!-- developer-experience: source=chosen -->\n- `tq commit`: interactive.\n- `tq env check`: checks required tools.\n\n## Not yet\n- `tq branch start` is not listed yet.\n",
+      "why": "near miss: named under Not yet, not under Tools"
+    },
+    {
+      "answer": "## Tools\n<!-- developer-experience: source=chosen -->\n- `tq commit`: interactive.\n\n## CLI contract\n- New commands such as tq branch start: `--help`, distinct exit codes.\n",
+      "why": "near miss: named in another section"
+    },
+    {
+      "answer": "## Tools\n<!-- developer-experience: source=chosen -->\n- `tq commit`: interactive; prompts for type and message. No flags bypass the prompts.\n- `tq item comment <id> --body <text>`: posts a tracker comment (offline outbox in this repo).\n- `tq env check`: checks required tools.\n- `scripts/build.sh`, `scripts/build.ps1`: build on bash and pwsh.\n",
+      "why": "the seeded section, unchanged"
+    }
+  ]
+}

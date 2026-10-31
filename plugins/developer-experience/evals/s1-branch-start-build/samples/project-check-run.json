@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "make check"}}], "why": "the Makefile check target"},
+    {"answer": [{"tool": "Bash", "input": {"command": "make build check 2>&1 | tail -20"}}], "why": "build and check in one make call"},
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet run --project tests/Tarnquill.Core.Checks"}}],
+      "why": "the checks project the target runs"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cd tests/Tarnquill.Core.Checks && dotnet run"}}],
+      "why": "dotnet run from the checks project directory"
+    }
+  ],
+  "fail": [
+    {"answer": []},
+    {"answer": [{"tool": "Bash", "input": {"command": "make build"}}], "why": "near miss: builds only"},
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat tests/Tarnquill.Core.Checks/Program.cs"}}],
+      "why": "near miss: reads the checks without running them"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "dotnet run --project src/Tarnquill.Cli -- env check"}}],
+      "why": "answer to a different question: runs tq env check"
+    }
+  ]
+}
