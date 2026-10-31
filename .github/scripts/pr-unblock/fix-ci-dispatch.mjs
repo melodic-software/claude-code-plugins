@@ -30,7 +30,7 @@
 // RERUN_DUE_MINUTES; a lost first attempt's too), and when its tested run
 // ended cancelled with no check on the head that fix-ci-context counts as
 // failing (its failingChecks, over the same check-run read), which would only
-// post not-applicable; a check cancelled past its time limit counts, read from
+// post a skip; a check cancelled past its time limit counts, read from
 // its annotations (#9828); a real
 // failure (a test, lint or typecheck step), an infra failure that failed
 // again, and a run or field that cannot be read go to fix-ci, with the cause
@@ -53,6 +53,7 @@ import {
 } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { postingAttempt } from "../../actions/report-check-run/posting-run.mjs";
 import { emptyRecord, isHandled, markHandled } from "./dispatch-record.mjs";
+import { STOP_RESOLVED } from "./escalation-routes.mjs";
 import { HOLD_LINE, runTitle } from "./feedback-dispatch.mjs";
 import { failingChecks } from "./fix-ci-context.mjs";
 import { prHold, reviewReader } from "./gate-source.mjs";
@@ -79,14 +80,14 @@ export const DEFAULTS = Object.freeze({
   holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
   // No owner is adopted unless the config lists one.
   adoption: Object.freeze({ ownerIds: Object.freeze([]), idleHours: 24 }),
-  // Failed or not-applicable fix-ci runs one head gets across base moves:
+  // Failed or nothing-to-fix fix-ci runs one head gets across base moves:
   // limits.limit-stops-per-head's default, which dispatch.mjs passes resolved.
   maxRunsPerHead: 3,
 });
 
-// The neutral check fix-ci-not-run posts when fix-ci-context found no failing
+// The neutral checks fix-ci-not-run posts when fix-ci-context found no failing
 // check to fix (report-check-run's `Skipped: <reason>` title).
-const NOT_APPLICABLE = "Skipped: not-applicable";
+const NOTHING_TO_FIX = new Set(["Skipped: not-applicable", STOP_RESOLVED]);
 // The neutral check a run skipped on a held PR posts.
 const HELD_SKIP = "Skipped: awaiting-human";
 
@@ -214,7 +215,7 @@ const counted = (runs) => runs.filter((run) => !(run.conclusion === "NEUTRAL" &&
 // then, or that the kill switch stopped (paused) may be retried; any other
 // run (going, pushed a fix, escalated) handles the head.
 const paused = (run) => run.conclusion === "NEUTRAL" && (run.title === HELD_SKIP || run.title === KILL_SWITCH_STOP);
-const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || paused(run) || (run.conclusion === "NEUTRAL" && run.title === NOT_APPLICABLE));
+const retryable = (run) => run.status === "COMPLETED" && (run.conclusion === "FAILURE" || paused(run) || (run.conclusion === "NEUTRAL" && NOTHING_TO_FIX.has(run.title)));
 
 // The number of counted fix-ci model runs when every attempt may be retried
 // and they reach maxRunsPerHead, the head's hard end; else 0. An attempt
