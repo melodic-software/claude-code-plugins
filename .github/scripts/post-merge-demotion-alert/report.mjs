@@ -2,7 +2,8 @@
 // dispatched pr-require-checks run on main failed, wait for its one re-run,
 // confirm the red, pin the culprit merge, decide whether the bot may revert
 // it, and report that in the step summary and, for a confirmed red, as one
-// comment on the log issue. It pushes, opens and merges nothing. REST reads
+// comment on the log issue. A run that reports nothing notes any unreported
+// reds on that issue instead. It pushes, opens and merges nothing. REST reads
 // only, paced, within a call budget; a failed or rate-limited read stops the
 // run (no retry). No model.
 //
@@ -26,6 +27,7 @@ import {
   MARKER_PATTERN,
   plannedRevert,
   renderReport,
+  renderUnreportedNote,
   resolveRedMain,
 } from "./red-main.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
@@ -137,6 +139,70 @@ export function revertAppliesWithGit(basePath) {
   };
 }
 
+// The full runs on main before this one, newest 100 completed: about two days
+// of full runs, which pr-merge dispatches after every merge.
+async function fullRuns(call, repo, env) {
+  const listed = await call(
+    "GET",
+    `/repos/${repo}/actions/workflows/${env.RUN_WORKFLOW_ID}/runs?branch=main&status=completed&created=%3C${env.RUN_CREATED}&per_page=100`,
+  );
+  return (listed?.workflow_runs ?? []).filter(
+    (r) => r.head_branch === "main" && FULL_EVENTS.has(r.event) && r.created_at < env.RUN_CREATED,
+  );
+}
+
+const lastGreen = (runs, sha) =>
+  runs.filter((r) => r.conclusion === "success" && r.head_sha !== sha).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+
+// github-actions[bot]'s issues.
+async function botIssues(call, repo) {
+  return (await pages(call, `/repos/${repo}/issues?state=all&creator=${encodeURIComponent(BOT)}`, null)).filter(
+    (i) => !i.pull_request && i.user?.id === BOT_ID,
+  );
+}
+
+// The log is the oldest issue carrying its marker, so a newer one another
+// workflow files can neither take the reports nor reset the cap.
+const logIssue = (issues) => issues.filter((i) => firstLine(i.body) === LOG_MARKER).sort((a, b) => a.number - b.number)[0];
+
+// The log's report markers.
+async function logMarkers(call, repo, log) {
+  if (!log) return [];
+  const comments = await pages(call, `/repos/${repo}/issues/${log.number}/comments`, null);
+  return comments
+    .filter((c) => c.user?.id === BOT_ID)
+    .map((c) => ({ match: MARKER_PATTERN.exec(firstLine(c.body)), at: c.created_at }))
+    .filter((m) => m.match);
+}
+
+// Red full runs since the last green one that the log does not report: a
+// report the repository-wide concurrency group cancelled while pending, or
+// one that confirmed nothing or did not run.
+const unreportedReds = (runs, green, runId, markers) =>
+  green
+    ? runs
+        .filter(
+          (r) =>
+            r.conclusion === "failure" &&
+            String(r.id) !== String(runId) &&
+            r.created_at > green.created_at &&
+            !markers.some((m) => m.match[1] === String(r.id)),
+        )
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))
+        .map((r) => ({ url: r.html_url, sha: r.head_sha }))
+    : [];
+
+// An early return's result: its summary, after noting `unreported` on the log.
+// With no log yet there is nothing to note on, so the summary names the runs.
+async function noteUnreported(call, repo, { log, run, unreported, summary }) {
+  if (unreported.length === 0) return { posted: false, summary };
+  if (!log) {
+    return { posted: false, summary: `${summary} No log issue yet, so no note names these unreported reds: ${unreported.map((r) => r.url).join(", ")}.` };
+  }
+  await call("POST", `/repos/${repo}/issues/${log.number}/comments`, { body: renderUnreportedNote({ run, unreported }) });
+  return { posted: false, summary: `${summary} Noted ${unreported.length} unreported red ${unreported.length === 1 ? "run" : "runs"} on #${log.number}.` };
+}
+
 export async function report(env, { call, sleep, clock, loadConfig, revertApplies }) {
   const repo = env.REPOSITORY;
   if (!/^[0-9a-f]{40}$/.test(env.RUN_SHA ?? "") || !/^[1-9][0-9]*$/.test(env.RUN_ID ?? "") || !Number.isFinite(Date.parse(env.RUN_CREATED))) {
@@ -153,22 +219,18 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
   const now = clock();
   const runInfo = { id: run.id, attempt: run.run_attempt, sha: env.RUN_SHA, url: runUrl };
   if (!verdict.confirmed) {
-    return { posted: false, summary: `Red main not confirmed for ${runUrl}: ${verdict.reason}. Nothing to attribute.` };
+    const summary = `Red main not confirmed for ${runUrl}: ${verdict.reason}. Nothing to attribute.`;
+    const candidates = await fullRuns(call, repo, env);
+    const greenBefore = lastGreen(candidates, env.RUN_SHA);
+    if (unreportedReds(candidates, greenBefore, run.id, []).length === 0) return { posted: false, summary };
+    const log = logIssue(await botIssues(call, repo));
+    const unreported = unreportedReds(candidates, greenBefore, run.id, await logMarkers(call, repo, log));
+    return noteUnreported(call, repo, { log, run: runInfo, unreported, summary });
   }
 
   // The range since main's last green full run, and each merge's own full run.
-  // The newest 100 completed runs on main before this one: about two days of
-  // full runs, which pr-merge dispatches after every merge.
-  const listed = await call(
-    "GET",
-    `/repos/${repo}/actions/workflows/${env.RUN_WORKFLOW_ID}/runs?branch=main&status=completed&created=%3C${env.RUN_CREATED}&per_page=100`,
-  );
-  const runs = (listed?.workflow_runs ?? []).filter(
-    (r) => r.head_branch === "main" && FULL_EVENTS.has(r.event) && r.created_at < env.RUN_CREATED,
-  );
-  const green = runs
-    .filter((r) => r.conclusion === "success" && r.head_sha !== env.RUN_SHA)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  const runs = await fullRuns(call, repo, env);
+  const green = lastGreen(runs, env.RUN_SHA);
   const base = green ? { sha: green.head_sha, url: green.html_url } : null;
   let range = null;
   let commits = [];
@@ -206,14 +268,9 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
 
   // github-actions[bot]'s issues: the log issue, the post-merge record for
   // this run's SHA, and any canary record (a platform-side silent revert) in
-  // the range. The log is the oldest issue carrying its marker, so a newer one
-  // another workflow files can neither take the reports nor reset the cap.
-  const issues = (await pages(call, `/repos/${repo}/issues?state=all&creator=${encodeURIComponent(BOT)}`, null)).filter(
-    (i) => !i.pull_request && i.user?.id === BOT_ID,
-  );
-  const log = issues
-    .filter((i) => firstLine(i.body) === LOG_MARKER)
-    .sort((a, b) => a.number - b.number)[0];
+  // the range.
+  const issues = await botIssues(call, repo);
+  const log = logIssue(issues);
   const record = issues.find((i) =>
     [`<!-- babysit-merge-demotion sha=${env.RUN_SHA} `, `<!-- post-merge-failure sha=${env.RUN_SHA} `].some((p) =>
       firstLine(i.body).startsWith(p),
@@ -224,33 +281,15 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
     return i.state === "open" && (range ?? []).includes(sha);
   });
 
-  const logComments = log
-    ? (await pages(call, `/repos/${repo}/issues/${log.number}/comments`, null)).filter((c) => c.user?.id === BOT_ID)
-    : [];
-  const markers = logComments
-    .map((c) => ({ match: MARKER_PATTERN.exec(firstLine(c.body)), at: c.created_at }))
-    .filter((m) => m.match);
+  const markers = await logMarkers(call, repo, log);
+  // This report's range starts at the last green run, so it decides over the
+  // unreported reds' merges too; it names them, so no dropped report passes
+  // unseen.
+  const unreported = unreportedReds(runs, green, run.id, markers);
   if (markers.some((m) => m.match[1] === String(run.id) && m.match[2] === String(run.run_attempt))) {
-    return { posted: false, summary: `#${log.number} already reports ${runUrl}/attempts/${run.run_attempt}.` };
+    const summary = `#${log.number} already reports ${runUrl}/attempts/${run.run_attempt}.`;
+    return noteUnreported(call, repo, { log, run: runInfo, unreported, summary });
   }
-
-  // Red full runs since the last green one that the log does not report: a
-  // report the repository-wide concurrency group cancelled while pending, or
-  // one that confirmed nothing or did not run. This report's range starts at
-  // that green run, so it decides over their merges too; it names them, so no
-  // dropped report passes unseen.
-  const unreported = green
-    ? runs
-        .filter(
-          (r) =>
-            r.conclusion === "failure" &&
-            String(r.id) !== String(run.id) &&
-            r.created_at > green.created_at &&
-            !markers.some((m) => m.match[1] === String(r.id)),
-        )
-        .sort((a, b) => a.created_at.localeCompare(b.created_at))
-        .map((r) => ({ url: r.html_url, sha: r.head_sha }))
-    : [];
 
   const attribution = range ? attribute(base.sha, range, statuses) : null;
   let culprit = null;
@@ -310,7 +349,7 @@ export async function report(env, { call, sleep, clock, loadConfig, revertApplie
   if (!target) {
     const created = await call("POST", `/repos/${repo}/issues`, {
       title: "Red-main revert decisions (dry-run log)",
-      body: `${LOG_MARKER}\n\nOne comment per confirmed red full run on main: the culprit post-merge-demotion-alert.yml's report job pinned, the evidence runs, and the revert it would open. docs/conventions/pr-pipeline/README.md, "Red main", states the rule. The job writes nothing else while \`red-main.dry-run\` is true.`,
+      body: `${LOG_MARKER}\n\nOne comment per confirmed red full run on main: the culprit post-merge-demotion-alert.yml's report job pinned, the evidence runs, and the revert it would open. A run that reports nothing notes any unreported reds here. docs/conventions/pr-pipeline/README.md, "Red main", states the rule. The job writes nothing else while \`red-main.dry-run\` is true.`,
     });
     target = created.number;
   }
