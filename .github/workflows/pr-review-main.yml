@@ -81,7 +81,7 @@ jobs:
   # text. A lane uses them only from this run attempt: a lane a person re-runs
   # alone ("re-run failed jobs" or one job) keeps an earlier attempt's trigger
   # job, so it gates itself, as every later leg does. The lost-run reconciler
-  # re-runs a lane run in full (reconcile.mjs, the review kind), so this job
+  # re-runs a lane run in full (reconcile.mjs, the lane kind), so this job
   # re-runs too and its own gate checks the reconciler's record.
   trigger:
     if: >-
