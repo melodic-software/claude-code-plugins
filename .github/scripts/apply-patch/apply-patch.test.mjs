@@ -1200,6 +1200,21 @@ test("issue target: a blob-only credential in a patch over max-files escalates p
   assert.deepEqual(api.calls, []);
 });
 
+test("issue target: a blob-only credential in a patch over the row's real file cap escalates patch-credential", async (t) => {
+  const cap = issueRow()["max-files"];
+  const fix = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "blob.bin"), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])]));
+    mkdirSync(join(repo, "gen"));
+    for (let i = 0; i < cap; i += 1) {
+      writeFileSync(join(repo, `gen/f${i}.md`), `${i}\n`);
+    }
+  });
+  assert.doesNotMatch(readFileSync(fix.patchFile, "latin1"), /ghp_/);
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-credential" });
+  assert.deepEqual(api.calls, []);
+});
+
 // A blob over MAX_BLOB_BYTES is read whole before its size is refused, so the
 // size fault does not hide a credential anywhere in it, past the cap included.
 test("issue target: a credential in a patched blob over the size cap escalates patch-credential", async (t) => {
