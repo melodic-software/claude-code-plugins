@@ -48,6 +48,10 @@
 # `superseded-by-plan` is NOT terminal: a plan displaced the user's answer and
 # the user has not reconfirmed it. It counts as `superseded=<n>` and blocks the
 # gate exactly like `open`.
+# A row of any status whose resolution ends `stale:: C<N>[, C<N>...]` was not
+# checked against those constraints: the export writes it, the verdict adds
+# `stale=<n>`, and the gate blocks exactly as it does on `open` until Claude
+# revises or reconfirms the question. A ledger with no such row reads as before.
 #
 # --brief is OPT-IN and cross-checks that every `deferred` and `blocked` row
 # reached the Brief's `### Deferred questions` section, keyed by its `Q<N>` id.
@@ -89,6 +93,21 @@
 #     holds every line of the export's Intent: the intent paragraph and each
 #     live ask, note, own answer and note typed on a choice, compared with
 #     whitespace runs made one space. Needs Python 3, as the page does
+#   - no Step-exit checkbox (`- [ ] Step <N> exit ...`) is unchecked; a skipped
+#     exit step is ticked with `SKIPPED: <reason>`
+#   - every row of the ledger's `## Assumption sweep` section,
+#     `- S<N> | sweep <M> | <category> | <class> | <source> | <disposition>`,
+#     has a disposition: `Q<N>` naming a register row, `F<N>` naming a
+#     `## Self-answered facts` line whose basis quotes its source (`"..."`) with
+#     a file:line or a URL, or `deferred: <where>`. A `decision` or `person`
+#     item never takes `F<N>`, nor `deferred:` unless it is `hedged`. Only a
+#     `hedged` item's `Q<N>` may be a row its source names; any other item
+#     becomes a new row, above the sweep's `- sweep <M> | register through Q<N>`
+#     line, which precedes the sweep's rows and names the register's last row
+#     when that sweep ran. S ids run
+#     contiguously from 1 within each sweep, no S row sits outside the section,
+#     a section with no item says `- none`, and a ticked Step 2 exit that is
+#     not `SKIPPED` needs the section
 # Each defect is named on stderr. Without --procedure the verdict says
 # `procedure=unchecked`, the same convention as `brief=unchecked`. A gradeable
 # register with a procedure defect exits 1 with `status=incomplete` (`open` when
@@ -97,7 +116,9 @@
 # it is ungradeable even when the register retired nothing.
 #
 # What stays a model judgment and is NOT checked here: whether the Step 1
-# survey genuinely grounded the questions, whether the domain was classified,
+# survey genuinely grounded the questions, whether a quoted source says what
+# the F-line claims (the interview's fresh-context quote check owns that),
+# whether every item the sweep returned was recorded, whether the domain was classified,
 # whether the register was written at ask-time rather than answer-time, and
 # whether the frontier was recomputed between rounds. A file written after the
 # fact looks identical to one written at ask-time.
@@ -316,6 +337,230 @@ section_lines() {
   ' "$4"
 }
 
+# Set `trimmed` to $1 without its leading and trailing whitespace (no subshell).
+trim_into() {
+  trimmed="${1#"${1%%[![:space:]]*}"}"
+  trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+}
+
+proc_problem() { proc_problems="$proc_problems$1"$'\n'; }
+
+# The --procedure ledger checks beyond the register: Step-exit checkboxes and the
+# assumption sweep's dispositions (assumption-sweep.md "Disposition"). A sweep
+# item settled in the main loop by an uncited fact, or a `decision` item settled
+# without a register row, is the hole these close: the register alone cannot
+# show an item that never became a row. Runs after the register loop, so
+# `seen_ids` holds every register id.
+check_sweep() {
+  local text lno sweep_ran sweep_matches sweep_line facts_matches facts="" body
+  local s_lo=0 s_hi=0 sweep_keys=$'\n' sweep_rows=0 sweep_none=0 row seps key
+  local sweep_marks=$'\n' sweep_no high_water
+  local category class src disposition hedged user_owned qnum qid fid basis found gaps src_rest src_max
+  local quote_re='"[^"]+"' loc_re='(https?://[^[:space:]]+|[^[:space:]:]+:[0-9]+)'
+
+  while IFS=$'\t' read -r lno text; do
+    [[ -n "$lno" ]] && proc_problem "line $lno: Step-exit checkbox is unchecked: $text (tick it when the step is done; a skipped step is ticked with 'SKIPPED: <reason>')"
+  done <<<"$(awk "$fence_awk"'
+    fence_line($0) { next }
+    fenced { next }
+    {
+      l = tolower($0)
+      if (l ~ /^[[:space:]]*[-*+][[:space:]]+\[ \][[:space:]]+step[[:space:]]+[0-9.]+[[:space:]]+exit/) {
+        match(l, /step[[:space:]]+[0-9.]+[[:space:]]+exit/)
+        print NR "\t" substr($0, RSTART, RLENGTH)
+      }
+    }
+  ' "$ledger")"
+
+  sweep_ran="$(awk "$fence_awk"'
+    fence_line($0) { next }
+    fenced { next }
+    {
+      l = tolower($0)
+      if (l ~ /^[[:space:]]*[-*+][[:space:]]+\[x\][[:space:]]+step[[:space:]]+2[[:space:]]+exit/ && l !~ /skipped:/) { print NR; exit }
+    }
+  ' "$ledger")"
+
+  sweep_matches="$(heading_matches '^#+[[:space:]]+assumption sweep[[:space:]]*$' "$ledger")"
+  if [[ -z "$sweep_matches" ]]; then
+    [[ -z "$sweep_ran" ]] ||
+      proc_problem "line $sweep_ran: Step 2 exit is ticked but the ledger has no '## Assumption sweep' section; record each sweep item there with its disposition, or '- none'"
+  elif [[ "$(match_count "$sweep_matches")" -gt 1 ]]; then
+    proc_problem "$(match_count "$sweep_matches") headings match 'assumption sweep' (lines $(match_lines "$sweep_matches")); keep one section"
+    return
+  else
+    sweep_line="${sweep_matches%%$'\t'*}"
+    facts_matches="$(heading_matches '^#+[[:space:]]+self-answered facts[[:space:]]*$' "$ledger")"
+    if [[ -n "$facts_matches" && "$(match_count "$facts_matches")" -eq 1 ]]; then
+      # One `F<n><TAB><basis>` line per fact; the basis is the text after the last `|`.
+      while IFS= read -r text; do
+        [[ "${text%%$'\t'*}" == "." ]] || continue
+        text="${text#*$'\t'}"
+        [[ "$text" =~ ^[[:space:]]*-[[:space:]]+[Ff]([1-9][0-9]*)[[:space:]]*\| ]] || continue
+        facts="${facts}F${BASH_REMATCH[1]}"$'\t'"${text##*|}"$'\n'
+      done <<<"$(extract_section "${facts_matches%%$'\t'*}" "$ledger")"
+    fi
+
+    body="$(extract_section "$sweep_line" "$ledger")"
+    s_lo=$((sweep_line + 1))
+    lno="$sweep_line"
+    while IFS= read -r text; do
+      lno=$((lno + 1))
+      [[ "${text%%$'\t'*}" == "." ]] || continue
+      text="${text#*$'\t'}"
+      if [[ "$text" =~ ^[[:space:]]*-[[:space:]]+[Nn][Oo][Nn][Ee][[:space:]]*$ ]]; then
+        sweep_none=1
+        continue
+      fi
+      if [[ "$text" =~ ^[[:space:]]*-[[:space:]]+[Ss]weep[[:space:]]+([1-9][0-9]*)[[:space:]]*\|[[:space:]]*(register|Register)[[:space:]]+through[[:space:]]+[Qq]([1-9][0-9]*)[[:space:]]*$ ]]; then
+        sweep_no="${BASH_REMATCH[1]}"
+        qnum="${BASH_REMATCH[3]}"
+        case "$seen_ids" in
+        *" Q$qnum "*) ;;
+        *) proc_problem "line $lno: sweep $sweep_no's high-water line names Q$qnum, which has no register row" ;;
+        esac
+        case "$sweep_marks" in
+        *$'\n'"$sweep_no "*) proc_problem "line $lno: duplicate high-water line for sweep $sweep_no" ;;
+        *) sweep_marks="$sweep_marks$sweep_no $qnum"$'\n' ;;
+        esac
+        continue
+      fi
+      [[ "$text" =~ ^[[:space:]]*-[[:space:]]+[Ss][0-9]+([^0-9]|$) ]] || continue
+      sweep_rows=$((sweep_rows + 1))
+      row="${text#*-}"
+      seps="${row//[!|]/}"
+      if ! [[ "$row" =~ ^[[:space:]]*[Ss]([1-9][0-9]*)[[:space:]]*\|[[:space:]]*[Ss]weep[[:space:]]+([1-9][0-9]*)[[:space:]]*\| ]] || [[ "${#seps}" -lt 5 ]]; then
+        proc_problem "line $lno: malformed sweep row (needs 'S<N> | sweep <M> | category | class | source | disposition'): $text"
+        continue
+      fi
+      sweep_no="${BASH_REMATCH[2]}"
+      key="sweep $sweep_no S${BASH_REMATCH[1]}"
+      case "$sweep_keys" in
+      *$'\n'"$key"$'\n'*)
+        proc_problem "line $lno: duplicate sweep row: $key"
+        continue
+        ;;
+      *) ;;
+      esac
+      sweep_keys="$sweep_keys$key"$'\n'
+      row="${row#*|}"
+      row="${row#*|}"
+      trim_into "${row%%|*}"
+      category="$trimmed"
+      row="${row#*|}"
+      trim_into "${row%%|*}"
+      class="$trimmed"
+      row="${row#*|}"
+      src="${row%|*}"
+      trim_into "${row##*|}"
+      disposition="$trimmed"
+
+      shopt -s nocasematch
+      case "$category" in
+      undecided | hidden-default | contradiction | inherited | hedged | coined-term) ;;
+      *) proc_problem "line $lno: $key has unknown category '$category'" ;;
+      esac
+      case "$class" in
+      decision | fact | tenant | person) ;;
+      *) proc_problem "line $lno: $key has unknown class '$class'" ;;
+      esac
+      # A hedged item points at the answered row it came from and goes to the
+      # confirmation restate; every other item becomes a new row, asked.
+      hedged=0
+      [[ "$category" != hedged ]] || hedged=1
+      user_owned=0
+      [[ "$class" != decision && "$class" != person ]] || user_owned=1
+      shopt -u nocasematch
+
+      if [[ "$disposition" =~ ^[Qq]([1-9][0-9]*)$ ]]; then
+        qnum="${BASH_REMATCH[1]}"
+        qid="Q$qnum"
+        case "$seen_ids" in
+        *" $qid "*) ;;
+        *) proc_problem "line $lno: $key names $qid, which has no register row" ;;
+        esac
+        if [[ "$hedged" -eq 0 ]]; then
+          if [[ "$src" =~ (^|[^A-Za-z0-9])[Qq]$qnum([^0-9]|$) ]]; then
+            proc_problem "line $lno: $key names $qid, the row it was found in; a sweep item becomes a new register row at the next Q<N>, asked with a recommendation"
+          else
+            # The new row is written after the sweep ran, so its id is above the
+            # register's last row at that point, which is also at or above every
+            # row the source names. An older row (an earlier answer) would settle
+            # the item without asking it.
+            src_rest="$src"
+            src_max=0
+            while [[ "$src_rest" =~ (^|[^A-Za-z0-9])[Qq]([1-9][0-9]*)([^0-9].*)?$ ]]; do
+              [[ "${BASH_REMATCH[2]}" -le "$src_max" ]] || src_max="${BASH_REMATCH[2]}"
+              # Keep an alphanumeric in front of the tail, so a Q right after the
+              # digits is not read as a token the single-row test above would skip.
+              src_rest="x${BASH_REMATCH[3]}"
+            done
+            high_water="${sweep_marks#*$'\n'"$sweep_no "}"
+            if [[ "$high_water" == "$sweep_marks" ]]; then
+              proc_problem "line $lno: $key has a Q<N> disposition but sweep $sweep_no has no '- sweep $sweep_no | register through Q<N>' line above it; write that line, with the register's last row, before the sweep runs"
+            else
+              high_water="${high_water%%$'\n'*}"
+              if [[ "$src_max" -gt "$high_water" ]]; then
+                proc_problem "line $lno: $key's source names Q$src_max, above Q$high_water, sweep $sweep_no's high-water line; that line names the register's last row when the sweep ran"
+              elif [[ "$qnum" -le "$high_water" ]]; then
+                proc_problem "line $lno: $key names $qid, which is not above Q$high_water, the last row before sweep $sweep_no; a sweep item becomes a new register row at the next Q<N>, asked with a recommendation"
+              fi
+            fi
+          fi
+        fi
+      elif [[ "$disposition" =~ ^[Ff]([1-9][0-9]*)$ ]]; then
+        fid="F${BASH_REMATCH[1]}"
+        if [[ "$user_owned" -eq 1 ]]; then
+          proc_problem "line $lno: $key is a $class item settled by $fid; a $class item becomes an open register row asked with a recommendation, never a fact"
+          continue
+        fi
+        found=0
+        basis=""
+        while IFS=$'\t' read -r text basis; do
+          if [[ "$text" == "$fid" ]]; then
+            found=1
+            break
+          fi
+        done <<<"$facts"
+        if [[ "$found" -eq 0 ]]; then
+          proc_problem "line $lno: $key names $fid, which has no line in '## Self-answered facts'"
+        elif ! [[ "$basis" =~ $quote_re && "$basis" =~ $loc_re ]]; then
+          proc_problem "line $lno: $key is settled by $fid, whose basis does not quote its source (\"...\") with a file:line or a URL: '$basis'"
+        fi
+      elif [[ "$disposition" =~ ^[Dd]eferred:[[:space:]]*[^[:space:]] ]]; then
+        [[ "$user_owned" -eq 0 || "$hedged" -eq 1 ]] ||
+          proc_problem "line $lno: $key is a $class item deferred outside the register; it becomes a register row (deferred or blocked there when it cannot be asked)"
+      else
+        proc_problem "line $lno: $key has no disposition (Q<N>, F<N> or 'deferred: <where>'): '$disposition'"
+      fi
+    done <<<"$body"
+    s_hi="$lno"
+
+    if [[ "$sweep_rows" -eq 0 && "$sweep_none" -eq 0 ]]; then
+      proc_problem "the '## Assumption sweep' section at line $sweep_line records no item; write '- none' when the sweep returned nothing"
+    fi
+    # S ids run contiguously from 1 within each sweep, so an item dropped
+    # between two recorded ones is caught.
+    gaps="$(printf '%s' "$sweep_keys" | awk '
+      NF < 3 { next }
+      { m = $2; n = substr($3, 2) + 0; if (n > max[m]) max[m] = n; seen[m " " n] = 1 }
+      END { for (m in max) for (n = 1; n <= max[m]; n++) if (!((m " " n) in seen)) print "sweep " m " has no row for S" n }
+    ')"
+    while IFS= read -r text; do
+      [[ -n "$text" ]] && proc_problem "$text (S ids run contiguously from 1 within a sweep)"
+    done <<<"$gaps"
+  fi
+
+  while IFS= read -r lno; do
+    [[ -n "$lno" ]] && proc_problem "line $lno: sweep row outside the '## Assumption sweep' section; move it into the section, above its next heading"
+  done <<<"$(awk -v lo="$s_lo" -v hi="$s_hi" "$fence_awk"'
+    fence_line($0) { next }
+    fenced { next }
+    NR >= lo && NR <= hi { next }
+    /^[[:space:]]*-[[:space:]]+[Ss][0-9]+[[:space:]]*[|]/ { print NR }
+  ' "$ledger")"
+}
+
 ledger=""
 brief=""
 brief_named=0
@@ -426,6 +671,8 @@ fi
 
 registered=0
 open_count=0
+stale_count=0
+stale_tail_re='(^|\] |(^|[^\\])(\\\\)*; )stale:: C[0-9]+(, C[0-9]+)*$'
 answered=0
 deferred=0
 withdrawn=0
@@ -553,6 +800,7 @@ while IFS= read -r line; do
   if [[ "$resolution" == *"|"* ]]; then resolution="${resolution##*|}"; else resolution=""; fi
   resolution="${resolution#"${resolution%%[![:space:]]*}"}"
   resolution="${resolution%"${resolution##*[![:space:]]}"}"
+  [[ "$resolution" =~ $stale_tail_re ]] && stale_count=$((stale_count + 1))
   if [[ "$round_field" =~ ^[Rr]ound[[:space:]]+([1-9][0-9]*)$ ]]; then
     round_num="${BASH_REMATCH[1]}"
     rounds_seen="$rounds_seen$round_num "
@@ -747,6 +995,8 @@ if [[ "$procedure_on" -eq 1 ]]; then
     esac
   done
 
+  check_sweep
+
   if [[ "$brief_named" -eq 1 ]]; then
     brief_bounds
     section_patterns=('tl;?dr' 'problem' 'goal' 'work[- ]size' 'constraints'
@@ -799,8 +1049,9 @@ if [[ "$procedure_on" -eq 1 ]]; then
 fi
 
 verdict="registered=$registered open=$open_count deferred=$deferred blocked=$blocked withdrawn=$withdrawn answered=$answered superseded=$superseded brief=$brief_state"
+[[ "$stale_count" -gt 0 ]] && verdict="$verdict stale=$stale_count"
 
-if [[ $((open_count + superseded)) -gt 0 ]]; then
+if [[ $((open_count + superseded + stale_count)) -gt 0 ]]; then
   echo "$verdict status=open procedure=$procedure_state"
   exit 1
 fi

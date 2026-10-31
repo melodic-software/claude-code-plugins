@@ -3,6 +3,22 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.12] - 2026-10-31
+
+### Fixed
+
+- `/education:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
+## [0.20.11] - 2026-10-31
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
 ## [0.20.10] - 2026-10-30
 
 ### Changed

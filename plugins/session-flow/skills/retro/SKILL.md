@@ -163,8 +163,9 @@ Both look back at how sessions went, so "how did I do" can land on either.
   rules or memory behind approval.
 
 **Routing.** When the person asks about patterns across many sessions, or `trends` mode runs,
-offer it to the person: you can run `/insights` instead of or alongside this skill for a
-cross-session usage report. Make the offer at the end of the run. Prefer this skill for what one
+offer it to the person: If /insights is available in your session (gate basis: ungated, though
+some hosts lack it; records in [reference/native-insights.md](reference/native-insights.md)), you
+can run it instead of or alongside this skill for a cross-session usage report. Make the offer at the end of the run. Prefer this skill for what one
 session taught and for codifying it. An unattended run records the offer in its output instead of
 asking.
 

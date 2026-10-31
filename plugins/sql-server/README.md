@@ -3,9 +3,37 @@
 Read-only access to SQL Server-family databases (a local SQL Server container, Azure SQL Database)
 for agents. The design is [ADR 0086](../../docs/adr/0086-bound-the-sql-server-read-tier-by-a-read-only-principal-and-fixed-registrations.md).
 
-This release ships the parts that need no database: the versioned config schema, its loader and
-the single-statement reject list. The MCP server, its tools and the setup skill come in later
-releases, so the plugin has nothing to invoke yet and is off by default.
+This release ships the parts that need no database: the versioned config schema, its loader, the
+single-statement reject list and the stdio MCP server with its three tools. The database executor
+and the setup skill come in later releases. Until the executor ships, every tool call that passes
+its checks returns a tool error saying no executor exists, so the plugin is off by default.
+
+## The server
+
+One process serves one registration over stdio:
+
+```bash
+node plugins/sql-server/src/launch.mjs --config <path> --environment <name>
+```
+
+`--environment` picks one environment from the config: one server and its database allow-list.
+Every registration exposes the same three tools, and `tools/list` returns the same list every
+time. The `tools` capability declares `listChanged` false.
+
+| Tool | Arguments | Returns |
+|---|---|---|
+| `query` | `sql` (one `SELECT`, optionally led by `WITH`), `database` | The rows |
+| `list_objects` | `database`, `schema` | Schemas, tables and views |
+| `describe_object` | `name`, `schema`, `database` | Columns, keys and indexes |
+
+`database` is optional and defaults to the first database in the allow-list. A name outside the
+list is refused before any connection opens. No argument names a server or an environment, so
+reaching another environment takes another registration. A refusal, whether it comes from the
+allow-list, an unknown argument or the reject list, comes back as a tool error (`isError: true`)
+with the reason.
+
+The server answers the stateless 2026-07-28 MCP protocol (`server/discover` and per-request
+`_meta`) and the `initialize`-based 2025-11-25 protocol.
 
 ## What keeps a registration read-only
 

@@ -4,8 +4,9 @@ The skills of `plugins/user-interface`. Each one is driven with `<plugin-dir>` s
 
 ## Parts
 
-- `audit-animation`: Review interface animation read-only, with severity and evidence per finding.
+- `audit`: Review interface code read-only by concern lane, with severity and evidence per finding.
 - `design`: Design interfaces from the project's system and installed tools; terminal guidance built in.
+- `glossary`: Name the design or front-end term for a described effect, detail or behavior.
 - `setup`: Show where each user-interface setting comes from across the five config layers, or change one key in one layer. No plain-words entry.
 - `write-animation`: Decide whether an element should animate, then write it in the project's stack.
 - `write-css`: Write or review CSS after discovering the project's stack, tokens, targets and conventions.

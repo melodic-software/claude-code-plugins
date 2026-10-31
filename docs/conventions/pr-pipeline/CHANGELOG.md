@@ -1,5 +1,68 @@
 # Changelog for the PR pipeline convention
 
+## [8.20.0] - 2026-10-31
+
+### Added
+
+- The monitoring lane reads the lanes App's own REST quota from lane runs. `request-lane-token`
+  reads an optional `rate_limit` object (`remaining`, `limit` and `reset` in epoch seconds) from
+  the broker's token 200 and writes an `api-budget` notice,
+  `mint lanes-app core remaining=R used=U limit=L reset=<ISO>`, and a job summary line. With no
+  `rate_limit` it writes nothing more; a malformed one warns `lane-token-quota-unread` and the
+  step still passes. The monitor's new `lane api budget` source reads that notice from up to 10
+  completed lane runs in the window and up to 10 jobs whose mint step succeeded. It reads only
+  runs of this repository's own head on an event that runs the default branch's workflow code (a
+  push or dispatch only on `main`), skips the test-suite runs, and leaves a trusted pr-merge run's
+  merge job to the pr-merge source. Signal 2's `ceiling:lanes-app-rest` flags a reading over 90%. The
+  broker half is tracked in melodic-software/azure-iac#103.
+
+### Changed
+
+- `pr-merge.yml` no longer wakes on a pull request's `edited` or `ready_for_review` event, which over a day started 200 runs that enqueued, merged and disarmed nothing. A person's ready or rename restarts their pull request's idle clock, an event run never arms, and `ci-status` already fails on a body hold; the 15-minute schedule picks up each such change. `unlabeled` stays, because `pr-feedback-dispatch.yml` starts on that run's completion.
+
+### Fixed
+
+- work-unblock closes a split parent as completed only when every sub-issue closed as completed
+  and the parent's done-when is covered. A sub-issue closed as not planned, as a duplicate or with
+  no reason leaves the parent open, and so does a split record that leaves an item out, a split by
+  hand with no task list, or an open task item in a listed human's comment on the parent.
+- The lanes App's close of a split parent counts as done for what it blocks only under that same
+  rule (`admit.mjs` `splitLeftOpen`).
+- work-unblock's sweep sends a parent with no open sub-issue through admission even when GitHub's
+  sub-issue summary still shows a wait, so a parent with a duplicate sub-issue gets its one
+  admission note instead of a stale wait.
+
+- The dispatchers' FAIL-cap reads take the run records, run heads and head refs pr-merge carried,
+  fetched with its listing on the job's first read. Without them each read asked GitHub about
+  every FAIL in the repository (458 on 2026-10-31, 1,252 reads), was killed at its 120 s
+  limit with no answer after spending 119 to 188 calls, and let the fix round run. Those reads
+  were 92% of the heaviest `pr-unblock-dispatch` run's calls. Reads now finish, so a pull request past
+  the FAIL cap gets no round from these reads.
+
+## [8.19.1] - 2026-10-31
+
+### Fixed
+
+- pr-merge's `clear-escalations` sweep removes `needs-session`, with no comment, once a same-head
+  retry cleared the lane stop that added it: the lanes App added the label last, and each stop
+  routed to it since then has a `success` status newer than the stop on that stop's head. A person's
+  label, a stop whose failure still stands, or an unread status keeps it. The sweep reads at most
+  five pull requests a run, from a rotating offset. The `merge` job gains `statuses: read` for this.
+
+- The lost-run reconciler now records each hosted review run it re-runs after an upstream stop, as
+  `reconcile-rerun-<run id>-2-<head>`, before it re-runs it. A pass uploads at most three records,
+  so a PR or lane run whose records would pass that waits for a later pass.
+- ci-status's upstream-stop message now says the review's dispatch re-runs ci-status under that
+  record, and a person re-runs it only if that re-run does not come.
+
+- `test-python`'s suite step prints a per-run nonce, repeats it in each suite's call line, and
+  prints an exit line carrying it after each suite. The post-merge demotion judge reads only those
+  lines, so a suite's captured output cannot move a failure onto another suite. The nonce sits in
+  a variable no suite inherits.
+- The quarantine rule in the convention README states what excuses a repeat failure, how a
+  quarantine restarts, what an edited issue does, and that a token without `Actions` read cannot
+  name a suite, so the failure demotes.
+
 ## [8.19.0] - 2026-10-31
 
 ### Changed

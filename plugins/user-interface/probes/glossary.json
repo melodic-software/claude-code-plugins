@@ -1,0 +1,121 @@
+{
+  "skill": "user-interface:glossary",
+  "plugin": "user-interface",
+  "skill_dir": "plugins/user-interface/skills/glossary",
+  "ranking_note": "Written with the first description of the new skill. Competitors are the interface design front door, plain-language explanation and the domain glossary maintainer, the three skills a naming request could reach instead.",
+  "competitors": [
+    "user-interface:design",
+    "education:explain",
+    "domain-driven-design:curate-language"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "What do you call it when a list of cards comes in one after another with a tiny delay between each?"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "There's this rubbery pull-back when I drag past the end of a list on my phone. Is there a name for that?"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "I want to tell the agent to make the thumbnail fly up and turn into the full card. What's the proper term so it gets it right?"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Is a fade where one thing goes out while another comes in, in the same spot, called something specific?"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "Pop in or bounce, which one is it when the badge overshoots a little as it appears?"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "The client keeps saying the transitions should feel snappier. Help me turn that into actual terms I can put in the ticket."
+    },
+    {
+      "id": "pos-validation-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "What's the name for the grey placeholder blocks with a moving shine while content loads?"
+    },
+    {
+      "id": "pos-validation-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Two letters in our wordmark sit too far apart. What's the word for fixing just that pair?"
+    },
+    {
+      "id": "pos-validation-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "Is that wipe between two overlaid photos with a handle in the middle a clip, a mask, or something else?"
+    },
+    {
+      "id": "pos-validation-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "There's an effect where the button squishes down slightly when you press it. I don't know what to search for."
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Design the output for our CLI's deploy command so the progress and errors are easy to scan."
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Make our settings page match the rest of the design system."
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "I don't understand what this reducer is doing. Explain it simply."
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Our team uses both 'order' and 'purchase' for the same thing. Pick one and update the domain glossary."
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "Add a slide-in animation to the notifications drawer."
+    },
+    {
+      "id": "neg-validation-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "That last answer was too technical for me. Say it again in plain words."
+    },
+    {
+      "id": "neg-validation-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "Define 'settlement' as a domain term for the payments bounded context and record the synonyms we rejected."
+    },
+    {
+      "id": "neg-validation-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "How should the empty state for the search results look?"
+    }
+  ]
+}

@@ -435,3 +435,22 @@ runs:
         # shellcheck disable=SC2016  # the backticks are Markdown, not expansions
         printf -- '- Lane token minted: effect `%s`, mint `%s`, expires `%s`\n' "$EFFECT" "$mint_id" "$expires" >>"$GITHUB_STEP_SUMMARY"
         issued=""
+        # The lanes App's REST quota as the broker read it at this mint, an
+        # optional rate_limit {remaining, limit, reset in epoch seconds}: the
+        # monitoring lane's GITHUB_TOKEN cannot read the App's own quota, so it
+        # reads this notice, in log-api-budget's start shape (signals.mjs
+        # parseBudget). Absent, nothing is written; malformed, a warning.
+        quota=$(jq -r 'if type == "object" and has("rate_limit") then .rate_limit
+          | if type == "object" and ([.remaining, .limit, .reset] | all(type == "number" and . >= 0 and . == floor))
+            then "\(.remaining) \(.limit) \(.reset)" else "malformed" end
+          else "" end' "$response" 2>/dev/null) || quota=malformed
+        if [[ $quota =~ ^([0-9]{1,9})\ ([0-9]{1,9})\ ([0-9]{1,12})$ ]] &&
+          [ "${BASH_REMATCH[1]}" -le "${BASH_REMATCH[2]}" ] && [ "${BASH_REMATCH[2]}" -gt 0 ]; then
+          remaining=${BASH_REMATCH[1]} limit=${BASH_REMATCH[2]}
+          resets=$(jq -rn --argjson s "${BASH_REMATCH[3]}" '$s | todate') || resets=unknown
+          echo "::notice title=api-budget::mint lanes-app core remaining=$remaining used=$((limit - remaining)) limit=$limit reset=$resets"
+          # shellcheck disable=SC2016  # the backticks are Markdown, not expansions
+          printf -- '- Lanes App REST quota at mint: `%s` of `%s` remaining, resets `%s`\n' "$remaining" "$limit" "$resets" >>"$GITHUB_STEP_SUMMARY"
+        elif [ -n "$quota" ]; then
+          echo "::warning::lane-token-quota-unread: the broker's rate_limit is not remaining, limit and reset as whole numbers, remaining at most limit"
+        fi

@@ -84,8 +84,10 @@ built-in command performs it.
   grounded in live `gh` state and the fetched GitHub docs; changes only through `--apply`.
 
 **Routing.** When the ask is installing the Claude GitHub App or its Actions workflow on a
-repository, offer it to the person: you can run `/install-github-app` instead of or alongside this
-skill. Keep this skill for the surrounding policy: Actions permissions, secrets scope, rulesets,
+repository, offer it to the person: If /install-github-app is available in your session (gate basis:
+it registers gated; records in
+[reference/native-install-github-app.md](reference/native-install-github-app.md)), you can run it
+instead of or alongside this skill. Keep this skill for the surrounding policy: Actions permissions, secrets scope, rulesets,
 and app access. An unattended run records the offer in its output instead of asking.
 
 **Mutation gate.** `/install-github-app` changes the repository outside this skill's gate. This

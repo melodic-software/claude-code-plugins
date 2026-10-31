@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "concerns": [
+    {
+      "id": "motion",
+      "title": "Motion and animation",
+      "types": ["web", "touch-web", "app"],
+      "triggers": ["animation", "motion", "transition", "easing", "duration", "spring", "gesture", "drag", "swipe", "jank", "dropped frames"],
+      "spokes": [
+        {"path": "reference/animation/catalog.md", "read_when": "always"},
+        {"path": "reference/animation/behaviors.md", "read_when": "a known component moves: modal, popover, menu, toast, tooltip, drawer, accordion"},
+        {"path": "reference/animation/gestures.md", "read_when": "drag, swipe or a spring"},
+        {"path": "reference/animation/performance.md", "read_when": "an animation drops frames, or the performance sub-mode"}
+      ],
+      "recipes": [],
+      "routing_concerns": ["animation-authoring", "animation-audit"],
+      "audit": {"order": 4, "procedure": "skills/audit/reference/motion.md"}
+    }
+  ]
+}

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Generate the lane hold-floor copies from babysit_risk.
+"""Generate the lane hold-floor copies from babysit_risk and pr-pipeline.yaml.
 
     python3 -I scripts/sync-hold-floor.py           rewrite every copy
     python3 -I scripts/sync-hold-floor.py --check   print the diff and exit 1 if a copy is stale
 
-The table is `babysit_risk.FLOOR_CLASSES` (with `COST_PATHS`), whose workflow rows this script
-derives from the workflow files with `babysit_risk.gated_workflow` and writes into its
-`GATE_WORKFLOWS` block. Each copy below sits between
+The table is `babysit_risk.FLOOR_CLASSES` joined to pr-pipeline.yaml's
+`merge.diff-check.floor-paths` rows (with `COST_PATHS`). This script derives the config's workflow
+rows from the workflow files with `babysit_risk.gated_workflow` and writes them into its
+`GATE_WORKFLOWS` block. Row order has no effect on what holds. Each copy below sits between
 `BEGIN hold-floor <name>` and `END hold-floor <name>` comment lines and is never edited by
 hand: change the table, then run this script. test_merge_holds_sync.py runs `--check`.
 
@@ -31,10 +32,11 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "plugins/source-control/skills/babysit-prs/scripts"))
 
+import babysit_merge_policy  # noqa: E402
 import babysit_risk  # noqa: E402
 
 WORKFLOWS = ROOT / ".github/workflows"
-RISK = "plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py"
+PIPELINE = "docs/conventions/pr-pipeline.yaml"
 
 
 def gate_workflows() -> list[str]:
@@ -49,19 +51,29 @@ def gate_workflows() -> list[str]:
     )
 
 
+def config_rows() -> babysit_risk.FloorRows:
+    """pr-pipeline.yaml's `merge.diff-check.floor-paths` rows."""
+    text = (ROOT / PIPELINE).read_text(encoding="utf-8")
+    return babysit_merge_policy.floor_paths_in(text)
+
+
 def floor_classes() -> list[tuple[str, str]]:
-    """The floor as the generated copies hold it: `FLOOR_CLASSES` with its
-    workflow rows derived again from the files."""
+    """The floor as the generated copies hold it: the built-in rows and the
+    config's, with the workflow rows derived again from the files."""
     rows = [
         (g, c)
-        for g, c in babysit_risk.FLOOR_CLASSES
+        for g, c in babysit_risk.floor_for(config_rows()).classes
         if not (c == "gate" and g.startswith(".github/workflows/") and "*" not in g)
     ]
     return rows + [(g, "gate") for g in gate_workflows()]
 
 
 def gate_workflow_rows(indent: str) -> list[str]:
-    return [f'{indent}({json.dumps(g)}, "gate"),' for g in gate_workflows()]
+    return [
+        line
+        for g in gate_workflows()
+        for line in (f"{indent}- glob: {json.dumps(g)}", f"{indent}  class: gate")
+    ]
 
 
 TRUSTED_ACTORS = ".github/standards/trusted-actors/**"
@@ -131,10 +143,9 @@ def hold_patterns(indent: str, holds: bool | None = None) -> list[str]:
     return lines
 
 
-PIPELINE = "docs/conventions/pr-pipeline.yaml"
 MERGE_HOLDS = ".github/scripts/pr-merge/merge-holds.mjs"
 BLOCKS = {
-    RISK: {"GATE_WORKFLOWS": gate_workflow_rows},
+    PIPELINE: {"GATE_WORKFLOWS": gate_workflow_rows},
     MERGE_HOLDS: {"COST_PATHS": cost_rows, "HOLD_PATH_CLASSES": class_rows},
     ".github/workflows/pr-review-hosted.yml": {"hold-paths": hold_paths},
     ".github/workflows/pr-review-security-hosted.yml": {"hold-paths": hold_paths},
