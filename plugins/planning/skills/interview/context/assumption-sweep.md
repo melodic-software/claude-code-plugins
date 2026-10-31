@@ -117,11 +117,12 @@ You write the results, not the sub-agent, so register ids stay contiguous.
   overlaps. With no existing name close to it, recommend keeping the term, defined in one line. An
   accepted or renamed term is written to the glossary; a rename also replaces the term in the
   draft and in the resolutions of the rows that carry it, and the next sweep covers those rows.
-- **unstated-value:** a register row asking the user to confirm the literal value. Run the
-  self-answer step to find a candidate, and recommend it with its literal value and where it was
-  read; finding the value never replaces the row. With no candidate, ask the question withheld.
-  A value the user does not own is a `tenant` item, deferred as above.
-  The confirmed literal is written into the resolution of the row that relied on it.
+- **unstated-value:** a register row asking the user to confirm the literal value, whoever owns
+  it; this item never takes the fact-and-tenant line above. Run the self-answer step to find a
+  candidate, and recommend it with its literal value and where it was read; finding the value
+  never replaces the row. With no candidate, ask the question withheld. When the user does not
+  own the value, the row is `deferred` to the Brief's `### Deferred questions` with its arbiter
+  tag. The confirmed literal is written into the resolution of the row that relied on it.
 - **Unattended:** an item that is the user's decision is `blocked` with **arbiter:
   USER-RESERVED**, per loop.md "Unattended path".
 
@@ -135,9 +136,9 @@ existing row a hedged item points at; the `F<N>` line that settles it; or `defer
 an item settled outside the register (a hedged item's `deferred: confirmation restate`). Only a
 hedged item points at a row its source names; every other item's `Q<N>` is the new row it became,
 above that sweep's `register through` row.
-A `decision` or `person` item never takes an `F<N>`. A sweep that returned nothing records `- none`. Then tick the Step 2 exit box. When the sweep is skipped,
+A `decision`, `person` or `unstated-value` item never takes an `F<N>`. A sweep that returned nothing records `- none`. Then tick the Step 2 exit box. When the sweep is skipped,
 tick the box with `SKIPPED: <reason>`. The `--procedure` gate fails on an unchecked Step-exit box,
-an item with no disposition, a `decision` or `person` item without a `Q<N>`, and an `F<N>` whose
+an item with no disposition, a `decision`, `person` or `unstated-value` item without a `Q<N>`, and an `F<N>` whose
 basis quotes no source with a file:line or URL ([`check-open-questions.sh`](../../../scripts/check-open-questions.sh)).
 The section also tells a later session which items were settled without the user.
 

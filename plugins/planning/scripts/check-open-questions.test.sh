@@ -1092,6 +1092,10 @@ expect_sweep_defect "a duplicate high-water line" '- sweep 1 | register through 
 - sweep 1 | register through Q2
 - none' "duplicate high-water line for sweep 1"
 expect_sweep_defect "a hedged decision item settled by a fact" '- S1 | sweep 1 | hedged | decision | Q1 resolution | F1' "sweep 1 S1 is a decision item settled by F1"
+expect_exit "an unstated-value item that became a new row -> 0" 0 --ledger "$(sweep_ledger "$ticked" '- sweep 1 | register through Q1
+- S1 | sweep 1 | unstated-value | decision | Q1 relies on the alert address but never states it | Q2')" --procedure
+expect_sweep_defect "a tenant-classed unstated-value item settled by a quoted fact" '- S1 | sweep 1 | unstated-value | tenant | Q1 recommendation, alert address | F1' "sweep 1 S1 is a unstated-value item settled by F1"
+expect_sweep_defect "a tenant-classed unstated-value item deferred outside the register" '- S1 | sweep 1 | unstated-value | tenant | Q1 recommendation, alert address | deferred: later' "deferred outside the register"
 expect_sweep_defect "a gap in a sweep's S ids" '- S1 | sweep 1 | undecided | decision | Q1 | Q2
 - S3 | sweep 1 | inherited | fact | C1 | F1' "sweep 1 has no row for S2"
 expect_sweep_defect "a sweep section with no item" '_Nothing recorded._' "records no item"
