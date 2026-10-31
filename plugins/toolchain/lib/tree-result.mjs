@@ -104,10 +104,17 @@ export function treeHash(repo) {
   }
 }
 
+// <line> with each run of control characters replaced by one space, trimmed and capped at
+// MAX_LINE characters. Applied on write and again on read, since a record file can be placed in
+// the store by something other than record().
+function sanitize(line) {
+  return String(line).replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, MAX_LINE);
+}
+
 // Stores <line> as <skill>'s result for <tree>. The line must be an Overall line.
 export function record(repo, tree, skill, line) {
   if (!SKILLS.includes(skill)) throw new Error(`skill must be one of ${SKILLS.join(", ")}`);
-  const clean = String(line).replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, MAX_LINE);
+  const clean = sanitize(line);
   if (verdictOf(clean) === null) throw new Error(`not an Overall line: ${clean}`);
   const dir = join(repo.store, tree);
   mkdirSync(dir, { recursive: true });
@@ -158,7 +165,7 @@ export function results(repo, tree) {
       found.push({ skill, line: "", verdict: null });
       continue;
     }
-    const line = text.split("\n")[0].trim();
+    const line = sanitize(text.split("\n")[0]);
     found.push({ skill, line, verdict: verdictOf(line) });
   }
   return found;
