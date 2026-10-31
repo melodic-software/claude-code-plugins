@@ -2607,6 +2607,7 @@ python3 -c "import shutil; shutil.rmtree('build/rdt-x')"
 python3 -m shutil rmtree /
 python3 script.py --rmtree /
 perl -pi -e 's/rmtree/remove_tree/' lib/rdt-x.pm
+node -e "require('fs').rmSync('build/rdt-x',{recursive:true}); console.log('a/b'.replace(/\//g,'_'))"
 EOF
 rdt_ix_n=0
 for rdt_cmd in \
@@ -2621,7 +2622,8 @@ done
 # A path the code computes cannot be placed, so the call is refused: an
 # argument, an expression, an interpolated string, a list element, a `$` the
 # shell may have expanded, and a command built from one. A substitution body
-# is read too.
+# is read too. So is a deleter after a comment character that a `/` regex
+# literal on its line may hold (`/\//`, `/\/*/`, `/#/`, `/\#/`).
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "interpreter: $rdt_cmd blocks" 2 --command "$rdt_cmd"
@@ -2649,6 +2651,10 @@ perl -e 'unlink for "/opt/nonexistent-rdt/x/f"'
 perl -nle unlink
 ruby -rfileutils -e "FileUtils.rm_rf({'/opt/nonexistent-rdt/x'=>1}.keys)"
 perl -MFile::Path -Fe -e 'BEGIN{rmtree("/")}'
+node -e "'a/b'.replace(/\//g,'_'); require('fs').rmSync('/',{recursive:true})"
+node -e "'a/b'.replace(/\/*/g,''); require('fs').rmSync('/'); /* */"
+ruby -rfileutils -e "x =~ /#/; FileUtils.rm_rf('/')"
+perl -MFile::Path=rmtree -e '$x =~ /\#/; rmtree("/")'
 EOF
 
 # A ruby delete that holds none of the other prefilter words, a program read

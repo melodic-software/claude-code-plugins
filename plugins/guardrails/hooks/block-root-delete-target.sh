@@ -442,7 +442,10 @@
 #     operator this reading does not take (perl `q {...}` with a space, `qx'...'`,
 #     ruby `%x!...!`), and code this reading lexes wrong (a regex literal
 #     holding a quote, a ruby `?'` character, a perl `s#a#b#` read as a
-#     comment); a node option that takes a separate argument and is not
+#     comment, and a comment character in a regex literal no `/` opens, such
+#     as ruby `%r{#}` or perl `m{#}`, which hides the rest of its line: one
+#     after a `/` on its line, as in `/\//` or `/#/`, is refused when the text
+#     it hides names a deleter or a runner); a node option that takes a separate argument and is not
 #     listed, written before the code (its argument is read as the script); a
 #     heredoc index that both an opener with no body and an opener on a
 #     segment with no word shift, under the same delimiter; and interpreter
@@ -4049,34 +4052,49 @@ rdt_ix_slice() {
 # program would receive it, and so does each backtick, perl qx and ruby %x.
 # shellcheck disable=SC2016,SC2329  # literal regex text; invoked from rdt_interp_check
 rdt_ix_code() {
-  local lang="$1" ix_m="" k
-  local -a ix_v=() ix_k=()
+  local lang="$1" ix_m="" ix_cm="" ix_ri k
+  local -a ix_v=() ix_k=() ix_re=()
   case "${2,,}" in
   *rm* | *-delete* | *.delete* | *unlink* | *rsync* | *robocopy* | *worktree* | *remove*) ;;
   *) return 0 ;;
   esac
   rdt_ix_lex "$2"
+  # Each pair is a call kind for rdt_ix_calls and the regex of its names.
   case "$lang" in
   py)
-    rdt_ix_calls del '(^|[^A-Za-z0-9_])(rmtree|os\.remove|os\.unlink|os\.rmdir|os\.removedirs)'
-    rdt_ix_calls run '(^|[^A-Za-z0-9_])(system|popen|run|call|check_call|check_output|Popen|getoutput|getstatusoutput)'
+    ix_re=(del '(^|[^A-Za-z0-9_])(rmtree|os\.remove|os\.unlink|os\.rmdir|os\.removedirs)'
+      run '(^|[^A-Za-z0-9_])(system|popen|run|call|check_call|check_output|Popen|getoutput|getstatusoutput)')
     ;;
   js)
-    rdt_ix_calls del '(^|[^A-Za-z0-9_$])(rmSync|rmdirSync|unlinkSync)'
-    rdt_ix_calls del '(\.)(rm|rmdir|unlink)'
-    rdt_ix_calls run '(^|[^A-Za-z0-9_$])(exec|execSync|spawn|spawnSync|execFile|execFileSync)'
+    ix_re=(del '(^|[^A-Za-z0-9_$])(rmSync|rmdirSync|unlinkSync)'
+      del '(\.)(rm|rmdir|unlink)'
+      run '(^|[^A-Za-z0-9_$])(exec|execSync|spawn|spawnSync|execFile|execFileSync)')
     ;;
   rb)
     # The receiver is part of each alternative, so the longest name at the
     # leftmost match wins: `FileUtils.rm_rf`, never `FileUtils.rm`.
-    rdt_ix_calls del '(^|[^A-Za-z0-9_])((FileUtils\.)?(rm_rf|rm_r|rmtree|remove_dir|remove_entry|remove_entry_secure)|FileUtils\.(rm|rm_f|remove|rmdir|remove_file|safe_unlink)|(File|Dir)\.(delete|unlink|rmdir))'
-    rdt_ix_calls run '(^|[^A-Za-z0-9_])(system|exec|spawn|popen|popen2|popen2e|popen3|capture2|capture2e|capture3)'
+    ix_re=(del '(^|[^A-Za-z0-9_])((FileUtils\.)?(rm_rf|rm_r|rmtree|remove_dir|remove_entry|remove_entry_secure)|FileUtils\.(rm|rm_f|remove|rmdir|remove_file|safe_unlink)|(File|Dir)\.(delete|unlink|rmdir))'
+      run '(^|[^A-Za-z0-9_])(system|exec|spawn|popen|popen2|popen2e|popen3|capture2|capture2e|capture3)')
     ;;
   *)
-    rdt_ix_calls del '(^|[^A-Za-z0-9_$@%>])(rmtree|remove_tree|unlink|rmdir)'
-    rdt_ix_calls run '(^|[^A-Za-z0-9_$@%>])(system|exec)'
+    ix_re=(del '(^|[^A-Za-z0-9_$@%>])(rmtree|remove_tree|unlink|rmdir)'
+      run '(^|[^A-Za-z0-9_$@%>])(system|exec)')
     ;;
   esac
+  for ((ix_ri = 0; ix_ri < ${#ix_re[@]}; ix_ri += 2)); do
+    rdt_ix_calls "${ix_re[ix_ri]}" "${ix_re[ix_ri + 1]}"
+  done
+  # A comment rdt_ix_lex dropped after a `/` on its line may be a regex
+  # literal's text (`/\//`, `/#/`), and the code after it is then unread: one
+  # that names a deleter or a runner is refused.
+  if [[ -n "$ix_cm" ]]; then
+    for ((ix_ri = 1; ix_ri < ${#ix_re[@]}; ix_ri += 2)); do
+      if [[ "$ix_cm" =~ ${ix_re[ix_ri]} ]]; then
+        rdt_ix_unplaceable "${BASH_REMATCH[2]}" "a call after a comment character that may sit in a regex literal, to"
+        break
+      fi
+    done
+  fi
   for ((k = 0; k < ${#ix_k[@]}; k++)); do
     case "${ix_k[k]}" in
     c) rdt_ix_shell "${ix_v[k]}" ;;
@@ -4095,7 +4113,8 @@ rdt_ix_code() {
 # their prefixes and triple quotes; node quotes and template literals; perl
 # and ruby quotes and backticks, perl q, qq, qw and qx, and ruby percent
 # literals opened by a bracket. Comments: `#` (a perl `$#` aside), and node's
-# `//` and `/* */`.
+# `//` and `/* */`. A node, perl or ruby comment opened after a `/` on its
+# line may be a regex literal's text, so its text also goes to ix_cm.
 # shellcheck disable=SC2329  # invoked from rdt_ix_code
 rdt_ix_lex() {
   local r="$1" out="" ch re pfx raw kind mode ip tq cl apos="'" dq='"' bt='`' ce='*/'
@@ -4122,16 +4141,19 @@ rdt_ix_lex() {
         out+='#'
         continue
       fi
+      [[ "$lang" != py && "${out##*$'\n'}" == */* ]] && ix_cm+="${r%%$'\n'*}"$'\n'
       if [[ "$r" == *$'\n'* ]]; then r="${r#*$'\n'}"; else r=""; fi
       out+=$'\n'
       continue
       ;;
     /)
       if [[ "$r" == /* ]]; then
+        [[ "${out##*$'\n'}" == */* ]] && ix_cm+="${r%%$'\n'*}"$'\n'
         if [[ "$r" == *$'\n'* ]]; then r="${r#*$'\n'}"; else r=""; fi
         out+=$'\n'
       elif [[ "$r" == '*'* ]]; then
         r="${r:1}"
+        [[ "${out##*$'\n'}" == */* ]] && ix_cm+="${r%%"$ce"*}"$'\n'
         if [[ "$r" == *"$ce"* ]]; then r="${r#*"$ce"}"; else r=""; fi
         out+=' '
       else
