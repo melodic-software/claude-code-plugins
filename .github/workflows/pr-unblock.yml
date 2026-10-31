@@ -750,9 +750,13 @@ jobs:
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
-          if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+          { read -r sha && read -r head_repo; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .head.repo.full_name') || true
+          if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
+            exit 1
+          fi
+          if [[ ${head_repo:-} != "$GITHUB_REPOSITORY" ]]; then
+            echo "::error::the PR's head is not in this repository"
             exit 1
           fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"
@@ -1640,9 +1644,13 @@ jobs:
             echo "::error::the pr-number input is not a PR number"
             exit 1
           fi
-          sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
-          if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+          { read -r sha && read -r head_repo; } < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha, .head.repo.full_name') || true
+          if ! [[ ${sha:-} =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the PR names no head SHA"
+            exit 1
+          fi
+          if [[ ${head_repo:-} != "$GITHUB_REPOSITORY" ]]; then
+            echo "::error::the PR's head is not in this repository"
             exit 1
           fi
           echo "sha=$sha" >>"$GITHUB_OUTPUT"

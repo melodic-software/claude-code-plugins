@@ -972,8 +972,12 @@ test("post-verify-notes names a deferred verdict exactly as recoverDeferred read
 // The dispatcher sends only same-repository PRs, but a hand dispatch can name
 // any PR. The step runs against a stub gh that applies the step's own --jq
 // filter to a PR payload, printing a null as the empty line gh prints.
-test("pr-unblock.yml: resolve-conflicts-select stops on a head outside this repository, before any sha output", () => {
-  const script = stepScript(stepBlock(UNBLOCK, "resolve-conflicts-select", "Read the PR head"));
+for (const [job, written] of [
+  ["resolve-conflicts-select", "\ndefault-base=true\n"],
+  ["address-feedback-select", "\n"],
+  ["review-dependency-select", "\n"],
+]) test(`pr-unblock.yml: ${job} stops on a head outside this repository, before any sha output`, () => {
+  const script = stepScript(stepBlock(UNBLOCK, job, "Read the PR head"));
   const repo = "melodic-software/claude-code-plugins";
   const sha = "a".repeat(40);
   const dir = mkdtempSync(join(tmpdir(), "pr-head-"));
@@ -992,7 +996,7 @@ test("pr-unblock.yml: resolve-conflicts-select stops on a head outside this repo
     };
     const own = read("own", { full_name: repo });
     assert.equal(own.status, 0, own.stdout);
-    assert.equal(own.written, `sha=${sha}\ndefault-base=true\n`);
+    assert.equal(own.written, `sha=${sha}${written}`);
     for (const [name, headRepo] of [["fork", { full_name: "fork/claude-code-plugins" }], ["deleted-fork", null]]) {
       const refused = read(name, headRepo);
       assert.equal(refused.status, 1, name);
@@ -1002,7 +1006,10 @@ test("pr-unblock.yml: resolve-conflicts-select stops on a head outside this repo
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-  // With no head-sha output, no later job posts a status on that head.
+});
+
+// With no head-sha output, no later job posts a status on that head.
+test("pr-unblock.yml: resolve-conflicts-not-run posts nothing with no head-sha output", () => {
   const { gate } = jobGate(UNBLOCK, "resolve-conflicts-not-run");
   assert.equal(
     evaluate(gate, {

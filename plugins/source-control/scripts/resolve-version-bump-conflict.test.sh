@@ -172,7 +172,7 @@ for listed in demo other; do
 done
 
 # 9. A symlink at either path: refused, and nothing written through the link.
-#    The target exists, so the main loop's -f checks pass and resolve() decides.
+#    The target exists, is missing, or is a directory.
 for file in CHANGELOG.md .claude-plugin/plugin.json; do
   r=$(mkfixture 1.2.1 desc '' 1.2.1)
   git -C "$r" merge -q main >/dev/null 2>&1
@@ -186,6 +186,29 @@ for file in CHANGELOG.md .claude-plugin/plugin.json; do
   assert_eq "symlinked $file: target untouched" outside "$(cat "$outside")"
   [[ -L $r/$P/$file ]]
   assert_exit "symlinked $file: link kept" 0 "$?"
+  for target in "$TEST_TMPDIR/missing" "$TEST_TMPDIR"; do
+    rm -f "$r/$P/$file"
+    ln -s "$target" "$r/$P/$file"
+    out=$(run "$r")
+    assert_exit "$file linked to $target: exit 1" 1 "$?"
+    assert_contains "$file linked to $target: names the plugin" "$out" "left for manual resolution: $P"
+  done
 done
+
+# 10. A symlink in place of .claude-plugin, to a directory or to nothing.
+r=$(mkfixture 1.2.1 desc '' 1.2.1)
+git -C "$r" merge -q main >/dev/null 2>&1
+outside="$(mktemp -d "$TEST_TMPDIR/outsideXXXXXX")"
+cp "$r/$P/.claude-plugin/plugin.json" "$outside/plugin.json"
+before=$(cat "$outside/plugin.json")
+rm -rf "$r/$P/.claude-plugin"
+for target in "$outside" "$TEST_TMPDIR/missing"; do
+  rm -f "$r/$P/.claude-plugin"
+  ln -s "$target" "$r/$P/.claude-plugin"
+  out=$(run "$r")
+  assert_exit ".claude-plugin linked to $target: exit 1" 1 "$?"
+  assert_contains ".claude-plugin linked to $target: names the plugin" "$out" "left for manual resolution: $P"
+done
+assert_eq "linked .claude-plugin: target untouched" "$before" "$(cat "$outside/plugin.json")"
 
 [[ $FAILED -eq 0 ]] || exit 1
