@@ -166,7 +166,7 @@ class TheBuiltInFloorIsShared(unittest.TestCase):
         self.assertEqual(moved, [])
         self.assertEqual(len(risk.FLOOR_CLASSES), 27)
 
-    def test_every_other_row_sits_in_this_repositorys_config(self):
+    def test_every_other_row_sits_in_the_config(self):
         self.assertEqual(len(ROWS), 117 - 27)
         self.assertFalse(table(ROWS) & set(risk.FLOOR_CLASSES))
 
