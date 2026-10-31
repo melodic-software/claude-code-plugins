@@ -136,9 +136,6 @@ jobs:
       # The pool and reset a rate limit stopped this job's GITHUB_TOKEN calls on,
       # if one did: the merge and enable-auto-merge jobs then send nothing.
       rate-limited: ${{ steps.post-merge.outputs.rate-limited || steps.cover.outputs.stop || steps.dispatch.outputs.stop || steps.rerun.outputs.stop || steps.alert.outputs.stop }}
-      # The post-merge check's exit code: a merge job whose listing held runs
-      # no check of its own and records a failed lane merge from this one.
-      post-merge-code: ${{ steps.post-merge.outputs.code }}
     # Each guarded API call's rate-limit reading, for the job-end api-budget
     # notice (.github/actions/log-api-budget).
     env:
