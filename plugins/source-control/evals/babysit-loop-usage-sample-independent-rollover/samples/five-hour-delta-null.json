@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"at\": \"2026-10-30T18:00:00Z\", \"five_hour_pct\": 4.0, \"seven_day_pct\": 73.0, \"five_hour_delta_pct\": null, \"seven_day_delta_pct\": 2.5}\n```",
+      "why": "the hand-derived sample"
+    },
+    {
+      "answer": "usage_sample:\n```json\n{\n  \"at\": \"2026-10-30T18:00:00Z\",\n  \"five_hour_pct\": 4.0,\n  \"seven_day_pct\": 73.0,\n  \"five_hour_delta_pct\": null,\n  \"seven_day_delta_pct\": 2.5\n}\n```\nCycle report: nothing to do.",
+      "why": "pretty-printed with a report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{\"at\": \"2026-10-30T18:00:00Z\", \"five_hour_pct\": 4.0, \"seven_day_pct\": 73.0, \"five_hour_delta_pct\": -84.0, \"seven_day_delta_pct\": 2.5}\n```",
+      "why": "negative delta written across a rollover"
+    },
+    {
+      "answer": "```json\n{\"at\": \"2026-10-30T18:00:00Z\", \"five_hour_pct\": 4.0, \"seven_day_pct\": 73.0, \"five_hour_delta_pct\": 4.0, \"seven_day_delta_pct\": 2.5}\n```",
+      "why": "post-rollover reading taken as the rise"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

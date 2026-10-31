@@ -250,8 +250,8 @@ read's failure) in the session output, and stops: no `ScheduleWakeup`.
    contract (below); a blocked action is escalated, never routed around.
 6. **Report and pace.** Update the no-progress streak, and, at the threshold, raise the stall
    escalation, per the detector below; upsert the telemetry comment (cycle report + updated state
-   block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta
-   covers the preceding interval and never this cycle's work) with the script
+   block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose deltas
+   cover the preceding interval and never this cycle's work) with the script
    [reference/telemetry-upsert.md](telemetry-upsert.md) names, and on any non-zero exit record the
    cycle as UNREPORTED per that file; evaluate the stop condition; if not
    stopping, `ScheduleWakeup` the next cycle. **Ground every claim in the cycle report against a

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```json\n{\"at\": \"2026-10-30T09:00:00Z\", \"five_hour_pct\": 12.5, \"seven_day_pct\": 37.0, \"five_hour_delta_pct\": null, \"seven_day_delta_pct\": null}\n```",
+      "why": "the hand-derived sample"
+    },
+    {
+      "answer": "usage_sample:\n```json\n{\n  \"at\": \"2026-10-30T09:00:00Z\",\n  \"five_hour_pct\": 12.5,\n  \"seven_day_pct\": 37.0,\n  \"five_hour_delta_pct\": null,\n  \"seven_day_delta_pct\": null\n}\n```\nCycle report: nothing to do.",
+      "why": "pretty-printed with a report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```json\n{\"at\": \"2026-10-30T09:00:00Z\", \"five_hour_pct\": 12.5, \"seven_day_pct\": 37.0, \"five_hour_delta_pct\": null}\n```",
+      "why": "no seven-day delta written"
+    },
+    {
+      "answer": "```json\n{\"at\": \"2026-10-30T09:00:00Z\", \"five_hour_pct\": 12.5, \"seven_day_pct\": 37.0, \"five_hour_delta_pct\": 12.5, \"seven_day_delta_pct\": 37.0}\n```",
+      "why": "reading treated as a rise from zero"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}
