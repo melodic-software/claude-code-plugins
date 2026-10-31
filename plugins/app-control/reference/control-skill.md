@@ -12,6 +12,7 @@ Skill tool; it reports one that carries more as a finding and runs none of it.
 - Hub
 - The Ready command
 - Writing the Capture section
+- The Mask section
 - Feature files
 - Shared items
 - Size budget
@@ -26,7 +27,8 @@ Skill tool; it reports one that carries more as a finding and runs none of it.
 ## Hub
 
 The skill's `SKILL.md` (`.claude/skills/control-<app>/` in a project, `skills/control-<app>/` in a
-plugin) holds four sections, an optional `## Gotchas`, and an index:
+plugin) holds four sections, a `## Mask` when `## Capture` records a `screenshot` or `video`, an
+optional `## Gotchas`, and an index:
 
 | Section | Holds |
 |---|---|
@@ -34,6 +36,7 @@ plugin) holds four sections, an optional `## Gotchas`, and an index:
 | `## Ready` | One read-only command that shows a running instance is fit to drive: it answers, it is the expected build when the app exposes one, it uses the expected data. Each check in it exits non-zero when it fails, per [The Ready command](#the-ready-command). Also names the telemetry the app exposes |
 | `## Capture` | For each kind (`trace`, `cpu`, `heap`, `threads`, `screenshot`, `aria`, `video`, `logs`) the tool that records it, or nothing when the project has none; one row per tier (such as `browser` and `server`) when the kind records differently on each |
 | `## Cleanup` | How to stop what a run started and nothing else |
+| `## Mask` | What a `screenshot` or `video` capture hides, and the values drive looks for in it afterward, per [The Mask section](#the-mask-section). Required when `## Capture` records either kind |
 | `## Gotchas` (optional) | What has made a run lie or fail in every feature; a one-feature lesson goes in that feature's own `## Gotchas` |
 | App (above the sections) | The app's name and the path it is built from. `/app-control:map` writes it for the person and for later drive work; drive does not read it |
 | Driving tool (above the sections) | The tool that drives the app, such as a browser driver or the project's CLI. Written and read as the App row is |
@@ -142,6 +145,16 @@ that fails for lack of permission the same way: a shown script when interactive,
 unattended. A command that launches the app as a child of the profiler is never elevated: when it
 is denied, drive blocks it and names the narrowest grant that would allow it.
 
+A `screenshot` or `video` command applies every `## Mask` line ([The Mask section](#the-mask-section))
+to the capture, for example through the driving tool's screenshot mask option, and writes a
+sidecar beside it: the artifact's file name plus `.txt` (`<artifact>.txt`, such as
+`checkout-cart-02-screenshot.png.txt`), holding the text the capture still shows after masking,
+and for a video the text of every frame. Read that text from the saved artifact itself, for example
+by OCR of the image or of each frame, not from the page's DOM: a DOM extract misses text drawn in a
+canvas, an image, an iframe, a shadow DOM or a video overlay. Drive scans the sidecar and nothing
+else, so a capture is only as safe to publish as its sidecar is complete; a capture with a missing
+or empty sidecar is never publishable.
+
 Manuals, each record a pointer, as-of date and recheck trigger:
 
 - Node.js CLI options: CPU profile <https://nodejs.org/api/cli.html#--cpu-prof>, heap profile
@@ -182,6 +195,32 @@ Manuals, each record a pointer, as-of date and recheck trigger:
 - macOS `sample`, `spindump` and `leaks`: no Apple docs page covers their flags as of 2026-10-23,
   so read the man pages on the host (`man sample`). Recheck on a macOS major release, or when an
   Apple docs page starts to cover these tools' flags.
+
+## The Mask section
+
+A hub whose `## Capture` records a `screenshot` or `video` holds a `## Mask` with mask lines, one
+per text the capture must hide, such as the signed-in account and usage lines:
+
+```text
+- <label> | <regex>
+```
+
+or, when the app shows no such text, the single line `none: <reason>`. Write each as a plain line
+outside any fenced block, as the index lines are. An optional `values:` line
+names where the literal values to look for come from at run time, comma-separated:
+`config.<field>` for a config field read through [Config](#config), or a read-only `cli/` command
+in a code span whose stdout is one value per line:
+
+```text
+values: config.account.email, `cli/shop whoami --org`
+```
+
+The mask lines are for the Capture commands, which apply them ([Writing the Capture
+section](#writing-the-capture-section)). Drive's post-check does not read them: it scans each
+sidecar for the `values:` values and a generic credential pattern, so a mask that missed a region
+still fails the check. A value is a secret like a credential: a run never writes it to the report.
+`/app-control:map check` reports a hub whose `## Capture` records a `screenshot` or `video` and
+whose `## Mask` holds no mask line and no `none: <reason>`.
 
 ## Feature files
 
@@ -398,6 +437,16 @@ and `^`; a value that does not, or a placeholder that is not a whole argument, s
 before it launches anything, naming the placeholder and the value. A command with a placeholder
 whose program is a `.cmd` or `.bat` file stops the run the same way, since Windows runs those
 through a shell.
+
+A `## Launch` command may also name `<changed files>`, such as to pass a diff to a `cli/` command
+that loads the plugin folders those files sit in. It is a whole argument that expands to one
+argument per changed file, read from the `affected.json` an earlier `/app-control:drive affected`
+wrote into the same run directory: its features' `matched_files` and its `unmatched_files`, each a
+path relative to the repository root, each once, and only those that exist in this checkout. With
+none left it expands to no argument. A path that is absolute, has a `..` segment, starts with `-`
+or holds a character the url rule above refuses stops the run before launch, naming the
+placeholder and the path, and so does a `<changed files>` with no `affected.json` in the run
+directory.
 
 ## Integrated apps
 

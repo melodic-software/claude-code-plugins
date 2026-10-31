@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [2.0.18] - 2026-10-31
+
+### Changed
+
+- Repointed the dead best-practices anchors to the current headings on that page.
+
 ## [2.0.17] - 2026-10-30
 
 ### Changed
