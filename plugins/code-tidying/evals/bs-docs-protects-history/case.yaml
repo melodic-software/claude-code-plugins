@@ -6,7 +6,7 @@ expected_outcome: 'docs/guide.md no longer tells readers to call say_hello. CHAN
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/code-tidying:batch-simplify unattended 72h docs'
+  prompt: '/code-tidying:batch-simplify 72h --unattended docs'
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent, TaskCreate, TaskUpdate, TaskList]
   max_turns: 150
   timeout_seconds: 2400

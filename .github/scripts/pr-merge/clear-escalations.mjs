@@ -18,6 +18,8 @@
 // - check-signed-commits does not hold it: no github-actions[bot] comment
 //   whose first line is SIGNED_COMMITS_HOLD was written or edited since the
 //   label was last removed (ever, when it never was), by the same rule.
+// - pr-verify does not hold it: no github-actions[bot] comment whose first
+//   line is CREDENTIAL_HOLD was written or edited since then, by the same rule.
 // - Every escalation comment since that label event is the App's: its author
 //   is the bot login and a Bot account, its first line is the pr-unblock
 //   escalation marker, its second the resume-key line, and its `- Reason:`
@@ -189,6 +191,7 @@ import {
   laneHold,
   lines,
   MODEL_RUN,
+  openCredentialHold,
   openReviewHold,
   openSignedCommitsHold,
   PAIRED_MS,
@@ -210,6 +213,7 @@ const REASON = /^- Reason: `([a-z-]+)`$/m;
 // security-outside-actor label keeps its needs-human whatever else cleared.
 const outsideActorHeld = (labels) => (labels ?? []).some((item) => same(item?.name, OUTSIDE_ACTOR));
 const OUTSIDE_ACTOR_KEPT = `it carries ${OUTSIDE_ACTOR}, which a person lifts`;
+const CREDENTIAL_KEPT = "pr-verify holds it for a credential, which a person lifts";
 const clearedMarker = (reason, head) => `<!-- pr-pipeline needs-human-cleared reason=${reason} head=${head} -->`;
 // babysit_merge.py's verifier-refusal escalation, reasons comment, shared-copy
 // escalation and Dependabot-major escalation: the marker on the first or
@@ -285,7 +289,7 @@ function laneCause(kind, reason) {
 
 
 // The workflow whose lanes ci-status aggregates. An advisory lane's failure
-// (pr-test-windows) leaves ci-status green once the label is off, so only
+// (pr-test-platforms) leaves ci-status green once the label is off, so only
 // this workflow's checks count.
 const REQUIRED_WORKFLOW = "pr-require-checks.yml";
 
@@ -1209,13 +1213,17 @@ const LANE_LABELERS = Object.freeze(["github-actions[bot]", "claude[bot]"]);
 // A label a review lane added: what to clear as STALE_HOLD, or { reason }
 // saying why nothing is.
 // Why something besides the review-lane holds keeps the label, from the
-// timeline, or null: check-signed-commits' hold, a lanes App (`bot`) marker
+// timeline, or null: check-signed-commits' hold, pr-verify's credential hold, a
+// lanes App (`bot`) marker
 // other than an address-feedback round's or a clear's since the label went
 // on, or a person who spoke since. clear-escalations and ci-status's recheck
 // both run it.
 function standingStop({ timeline, lifted, since, bot, label }) {
   if (openSignedCommitsHold(timeline, lifted) !== undefined) {
     return "check-signed-commits holds it: a lane commit could not be verified";
+  }
+  if (openCredentialHold(timeline, lifted) !== undefined) {
+    return CREDENTIAL_KEPT;
   }
   const appComments = timeline.filter((item) => item.event === "commented" && isApp(item.user, bot));
   const foreign = foreignMarker(appComments, since, (line) => line === ROUND_MARKER);
@@ -1265,7 +1273,11 @@ async function staleHoldMoved({ github, repo, number, label, result }) {
     return `its head moved to ${pull?.head?.sha ?? "an unread head"} since it was judged`;
   }
   const timeline = await paginate(github, `/repos/${repo}/issues/${number}/timeline`);
-  const holds = holdsSince(timeline, labelHistory(timeline, label).lifted).shas;
+  const { lifted } = labelHistory(timeline, label);
+  if (openCredentialHold(timeline, lifted) !== undefined) {
+    return CREDENTIAL_KEPT;
+  }
+  const holds = holdsSince(timeline, lifted).shas;
   return holds.length !== result.holds || holds.some((sha) => sha === undefined || sha === result.head) ? "a review lane wrote a hold since it was judged" : null;
 }
 
@@ -1289,6 +1301,9 @@ async function verdict({ github, checks, repo, number, label, bot, mainSha, lane
   }
   if (openSignedCommitsHold(timeline, lifted) !== undefined) {
     return { reason: "check-signed-commits holds it: a lane commit could not be verified" };
+  }
+  if (openCredentialHold(timeline, lifted) !== undefined) {
+    return { reason: CREDENTIAL_KEPT };
   }
   // Every escalation since the label went on: a later one posts no new label
   // event, so each reason it recorded must have cleared.

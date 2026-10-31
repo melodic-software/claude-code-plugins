@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "I'm keeping this in the terminal rather than writing an HTML page: content from a pull-request diff from another repository isn't rendered to HTML.\n\n```\npayments-api/\n├── billing/\n│   ├── invoice.py        # adds late-fee calculation\n│   └── late_fee.py       # new: fee rules per plan\n└── tests/\n    └── test_late_fee.py  # new: covers grace period\n```\n\nMedium: the `file` argument asked for a page, overridden by the diff exception."
+    },
+    {
+      "answer": "No page this time, since the source is a PR diff (fetched, third-party content stays a terminal fence).\n\n```text\nbilling/invoice.py         modified  late-fee hook in total()\nbilling/late_fee.py        added     LateFeePolicy\ntests/test_late_fee.py     added     grace-period tests\n```"
+    },
+    {
+      "answer": "I didn't make a page for this. My rules don't allow turning a pull-request diff into HTML yet, and that holds even when a file is asked for (the `file` argument). So here's the view in the terminal instead.\n\n```\npayments-api/\n├── billing/\n│   ├── invoice.py        ~ MODIFIED  Invoice.total() now adds a late fee\n│   └── late_fee.py       + NEW       LateFeePolicy\n└── tests/\n    └── test_late_fee.py  + NEW       grace-period cases\n```"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```\nbilling/\n├── invoice.py\n└── late_fee.py\ntests/\n└── test_late_fee.py\n```"
+    },
+    {
+      "answer": "Here's where it lands.\n\n```\nbilling/invoice.py\nbilling/late_fee.py\ntests/test_late_fee.py\n```\n\nI couldn't write a file in this session, so the tree is inline."
+    },
+    {
+      "answer": "I won't make a page this time; the diff tree below is enough.\n\n```\nbilling/invoice.py\nbilling/late_fee.py\ntests/test_late_fee.py\n```"
+    }
+  ]
+}

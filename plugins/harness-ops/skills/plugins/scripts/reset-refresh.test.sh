@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Black-box contract tests for reset-refresh.sh. Each case builds a throwaway
-# HOME from fixtures/reset-refresh/ and puts stub `claude` and `pgrep` commands
-# first on PATH. The committed fixtures are only copied, never written.
+# HOME from fixtures/reset-refresh/ and puts stub `claude`, `pgrep`, `uname` and
+# `tasklist.exe` commands first on PATH (STUB_UNAME picks the platform). The committed fixtures are only copied, never written.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -92,7 +92,20 @@ if [[ -n "${STUB_PGREP_PID:-}" ]]; then
 fi
 exit 1
 STUB
-  chmod +x "$stubs/claude" "$stubs/pgrep"
+  cat >"$stubs/uname" <<'STUB'
+#!/usr/bin/env bash
+echo "${STUB_UNAME:-Linux}"
+STUB
+  cat >"$stubs/tasklist.exe" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$STUB_LOG.tasklist"
+if [[ -n "${STUB_TASKLIST_PID:-}" ]]; then
+  printf '"claude.exe","%s","Console","1","250,000 K"\r\n' "$STUB_TASKLIST_PID"
+else
+  printf 'INFO: No tasks are running which match the specified criteria.\r\n'
+fi
+STUB
+  chmod +x "$stubs/claude" "$stubs/pgrep" "$stubs/uname" "$stubs/tasklist.exe"
 }
 
 # CASE_NUM is incremented by the caller: this runs in a subshell.
@@ -116,6 +129,7 @@ run_script() {
   local dir="$1"
   shift
   env -u CLAUDE_CODE_REMOTE -u RESET_REFRESH_RUN_DIR -u STUB_PGREP_PID -u STUB_DROP_AUTOUPDATE \
+    -u STUB_UNAME -u STUB_TASKLIST_PID \
     HOME="$dir/home" PATH="$dir/stubs:$PATH" STUB_LOG="$dir/claude.log" \
     ${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"} bash "$SCRIPT" "$@" 2>"$dir/stderr.txt"
 }
@@ -208,6 +222,24 @@ assert_eq "journal inside plugins/: exit 2" "2" "$?"
 assert_eq "journal inside plugins/: the refused root is not created" "absent" \
   "$([[ -e "$dir/home/.claude/plugins/runs" ]] && echo present || echo absent)"
 assert_eq "refusals: nothing was moved or fetched" "0" "$(wc -l <"$dir/claude.log" | tr -d ' ')"
+
+# ============================================================================
+# Case: on Git Bash (no pgrep) tasklist.exe decides whether claude.exe runs
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+dir=$(new_case)
+EXTRA_ENV=(STUB_UNAME=MINGW64_NT-10.0-26300 STUB_TASKLIST_PID=5150 STUB_PGREP_PID=4242)
+run_script "$dir" refresh --journal-root "$dir/journal" >/dev/null
+assert_eq "windows running claude.exe: exit 2" "2" "$?"
+assert_contains "windows running claude.exe: names the tasklist pid" "$(cat "$dir/stderr.txt")" "pid 5150"
+assert_contains "windows: tasklist filters on claude.exe" "$(cat "$dir/claude.log.tasklist")" "IMAGENAME eq claude.exe"
+assert_eq "windows running claude.exe: nothing was moved or fetched" "0" "$(wc -l <"$dir/claude.log" | tr -d ' ')"
+
+CASE_NUM=$((CASE_NUM + 1))
+dir=$(new_case)
+EXTRA_ENV=(STUB_UNAME=MINGW64_NT-10.0-26300 STUB_PGREP_PID=4242)
+run_script "$dir" refresh --journal-root "$dir/journal" >/dev/null
+assert_eq "windows no claude.exe: refresh runs to exit 0 (pgrep is not consulted)" "0" "$?"
 
 if ((FAILED > 0)); then
   echo "$FAILED assertion(s) failed" >&2

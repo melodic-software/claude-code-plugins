@@ -59,7 +59,7 @@ No action → route on completion stage (partway draft → `demo`; near-complete
   writer may skip any box, but a skip names a reason; silent skips are not OK.
 - The rubric's passes are **not** skippable: they are the writer's standing rule for every
   candidate, not choice points offered to him. Run the countable passes as commands, per the rubric
-  row of `/songwriting:co-write`'s hard gate (syllables from `datamuse.sh syllables`, repeats from a
+  row of `/songwriting:co-write`'s hard gate (syllables from `${CLAUDE_PLUGIN_ROOT}/context/pat-pattison/scripts/datamuse.sh syllables <word>`, repeats from a
   word-frequency count), and let that gate's skeptic row test the judgment passes from a fresh
   context. Rewrites and variation sets are line emission: cycle
   [line-edit-rubric](../../context/pat-pattison/research/line-edit-rubric.md) in full on every

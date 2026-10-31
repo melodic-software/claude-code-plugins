@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Sender ID | browser | `SMS_SENDER_ID` | no | `.env` and CI variable |",
+      "why": "table row"
+    },
+    {
+      "answer": "- SMS_SENDER_ID (public): .env plus repository variable, since deploy.yml reads vars.SMS_SENDER_ID",
+      "why": "list form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "| Sender ID | browser | `SMS_SENDER_ID` | no | `.env` |",
+      "why": ".env only"
+    }
+  ]
+}

@@ -12,7 +12,7 @@ import { after, test } from "node:test";
 import { main, NATIVE_READS_PER_RUN, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
 import { refusalBody } from "./enable-auto-merge.mjs";
 import { escalationActivity, escalationRoute, ROUTES } from "../pr-unblock/escalation-routes.mjs";
-import { SIGNED_COMMITS_HOLD } from "../pr-unblock/gate-source.mjs";
+import { CREDENTIAL_HOLD, SIGNED_COMMITS_HOLD } from "../pr-unblock/gate-source.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const BOT = { login: "melodic-automation-lanes[bot]", type: "Bot" };
@@ -399,7 +399,7 @@ test("a fix-ci label comes off only while the head's own checks read failed", as
     ["another app's failure", [check("test-node", "failure", { slug: "someone-else" })], false],
     ["read fails", new Error("HTTP 502"), false],
     // An advisory lane is no pr-require-checks lane: ci-status would go green.
-    ["only pr-test-windows red", [check("test-windows", "failure", { suite: 900 }), check("test-node", "success", { id: 2 })], false],
+    ["only pr-test-platforms red", [check("test-windows", "failure", { suite: 900 }), check("test-node", "success", { id: 2 })], false],
     // A contract-only run's later skip does not hide the real run's failure.
     ["a failed lane with a newer skipped duplicate", [check("test-node", "failure"), check("test-node", "skipped", { id: 2, suite: 501 })], true],
   ]) {
@@ -806,6 +806,24 @@ test("check-signed-commits' hold a person lifted by unlabeling no longer keeps a
   const edited = world({ timeline: [signedHold(ACTIONS_BOT, "2026-10-18T08:00:00Z", "2026-10-18T09:30:00Z"), ...lifted.slice(1)] });
   await run(edited);
   assert.deepEqual(edited.writes(), [], "edited after the unlabel");
+});
+
+// pr-verify's stop on a withheld fail, as verify-notes.mjs posts it with
+// GITHUB_TOKEN under a label already on, which adds no `labeled` event.
+const credentialHold = (user, at, updatedAt) => commented(user, `${CREDENTIAL_HOLD}\nReason: \`security\`\n\npr-verify withheld its fail at head \`${"a".repeat(40)}\`.`, at, updatedAt);
+
+test("pr-verify's credential stop keeps the label a clearing escalation would take off, until a person lifts it", async () => {
+  const held = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), credentialHold(ACTIONS_BOT, "2026-10-18T11:00:00Z")] });
+  const { logs } = await run(held);
+  assert.deepEqual(held.writes(), []);
+  assert.ok(logs.includes("clear-escalations: #7 kept: pr-verify holds it for a credential, which a person lifts"), logs.join("\n"));
+  const lifted = [credentialHold(ACTIONS_BOT, "2026-10-18T08:00:00Z"), unlabeled(OWNER, "2026-10-18T09:00:00Z"), labeled(BOT, "2026-10-18T10:00:00Z"), escalated()];
+  const clear = world({ timeline: lifted });
+  await run(clear, { TRUSTED_ACTORS_PATH: TRUSTED });
+  assert.equal(clear.writes().at(-1)?.method, "DELETE", "a person lifted it");
+  const forged = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(), credentialHold(OWNER, "2026-10-18T11:00:00Z")] });
+  const { logs: forgedLogs } = await run(forged, { TRUSTED_ACTORS_PATH: TRUSTED });
+  assert.ok(!forgedLogs.some((line) => line.includes("for a credential")), "the marker from a person is not the hold");
 });
 
 // enable-auto-merge's own person refusal comment (refusalBody), then its

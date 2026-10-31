@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/scripts/setup-sms.sh",
+            "content": "#!/usr/bin/env bash"
+          }
+        }
+      ],
+      "why": "script written"
+    }
+  ]
+}

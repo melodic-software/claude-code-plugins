@@ -5,6 +5,7 @@
 # Expected values come from the key contract in plugins/education/reference/config.md:
 # explain_starting_rung takes plain or peer, and the file is
 # docs/conventions/education.yaml at the repository root.
+# test-scope: plugins/education/lib/resolve-convention-home.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

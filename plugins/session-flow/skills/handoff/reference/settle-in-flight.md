@@ -21,6 +21,6 @@ alive.
 - **Dependent but stuck or long-running**: say so with the evidence from its real state, and let
   the user choose: wait, cancel it, or hand off with it recorded as in flight, its pending result
   marked `UNVERIFIED (<item> still running)` wherever the save-point leans on it. Under
-  `unattended` no one is asked: take the third option and say so.
+  `--unattended` no one is asked: take the third option and say so.
 
 A user who asked to hand off now, without waiting, gets the third option for every dependent item.

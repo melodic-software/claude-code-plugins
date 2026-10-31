@@ -22,6 +22,9 @@ export const SWEEP_MAX_AGE_MINUTES = 70;
 // The owner's threshold (#9170): this many pr-merge sweeps in a row whose
 // post-merge check exited 3 (unreadable), about an hour at the 15-minute cron.
 export const POST_MERGE_UNREADABLE_SWEEPS = 4;
+// This many scheduled or hand-started pr-merge sweeps in a row whose listing
+// held, about an hour at the same cron.
+export const LISTING_HELD_SWEEPS = 4;
 const MAX_FACTS = 25;
 
 export const inert = (text, max = 300) =>
@@ -114,7 +117,7 @@ const BROKER_DENY = /^lane-(?:token|check)-denied: the broker answered (\d{3}) w
 const BROKER_UNREACHABLE = /^broker-unreachable:/;
 const EXPECTED_REASONS = new Set(["workflow-modified"]);
 
-export function throttleFindings({ failedRuns = [], budgetReadings = [] }) {
+export function throttleFindings({ windowStart, failedRuns = [], budgetReadings = [], heldSweeps = [] }) {
   const groups = new Map();
   const add = (key, runId, line) => {
     const group = groups.get(key) ?? { runs: new Set(), lines: [] };
@@ -137,6 +140,14 @@ export function throttleFindings({ failedRuns = [], budgetReadings = [] }) {
   for (const r of budgetReadings) {
     if (r.limit > 0 && r.remaining === 0) {
       add("throttle:rate-limited", r.runId ?? "this run", `${r.phase} ${r.name}: 0 of ${r.limit} remaining ${r.url ?? "this run"}`);
+    }
+  }
+  // A listing a rate limit held ends its run green, so no annotation names it.
+  // Only a hold still unbroken at the monitoring run is seen: collect's walk
+  // stops at the first listed summary.
+  for (const s of heldSweeps) {
+    if (String(s.reason).startsWith("rate limited") && Date.parse(s.createdAt) >= windowStart.getTime()) {
+      add("throttle:rate-limited", s.runId, `pr-merge listing held ${s.url}: ${s.reason}`);
     }
   }
   return [...groups].map(([key, { runs, lines }]) =>
@@ -366,6 +377,30 @@ export function postMergeUnreadableFindings({ postMergeReports = [] }) {
   ];
 }
 
+// pr-merge's open pull requests were unknown in each of its newest
+// LISTING_HELD_SWEEPS sweeps, so the job gates nothing while its runs end green
+// with only a notice. It only notifies; a sweep that lists clears it. The
+// fingerprint is the newest reason with its counts masked, so a cause that
+// holds is written once.
+export function listingHeldFindings({ heldSweeps = [] }) {
+  if (heldSweeps.length < LISTING_HELD_SWEEPS) return [];
+  const streak = heldSweeps.slice(0, LISTING_HELD_SWEEPS);
+  const [newest] = streak;
+  const reason = (s) => s.reason ?? "no reason recorded";
+  return [
+    finding({
+      key: "listing-held",
+      signal: "12 listing held",
+      title: `Merge lane: listing held in the last ${LISTING_HELD_SWEEPS} pr-merge sweeps`,
+      area: "Merge lane (pr-merge listing)",
+      summary: `pr-merge could not list the open pull requests in each of its last ${LISTING_HELD_SWEEPS} sweeps, so its merge job gated nothing and its runs stayed green. Newest ${newest.url}: ${reason(newest)}`,
+      facts: streak.map((s) => `${s.createdAt} ${s.url}: ${reason(s)}`),
+      evidence: ["listing-held", reason(newest).replace(/\d+/g, "N")],
+      observedAt: newest.createdAt,
+    }),
+  ];
+}
+
 const DETECTORS = [
   mainRedFindings,
   ceilingFindings,
@@ -378,6 +413,7 @@ const DETECTORS = [
   laneStopFindings,
   stalledFindings,
   postMergeUnreadableFindings,
+  listingHeldFindings,
 ];
 
 export function detect(data) {

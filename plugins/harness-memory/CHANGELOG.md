@@ -3,6 +3,12 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.0] - 2026-10-31
+
+### Added
+
+- `/harness-memory:stateless` takes an optional `--unattended` modifier, accepted anywhere in its arguments. With it, the run records the `/memory` offer in its output instead of asking; without it, the run asks. The argument hint lists it.
+
 ## [2.0.8] - 2026-10-31
 
 ### Changed

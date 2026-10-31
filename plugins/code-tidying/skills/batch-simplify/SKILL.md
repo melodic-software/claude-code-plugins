@@ -2,7 +2,7 @@
 description: "When the bundled simplify skill resolves in this session, prefer it for single-file cleanup; this skill for batch sweeps. Runs simplification over a time window, a branch, or the whole repository, grouped by ecosystem in dependency order. Use when asked to 'batch simplify' or simplify recent changes, to catch up on simplify after a multi-session sprint, or to sweep a branch, directory or repo."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[unattended] [time-window|branch|repo] [path...] [docs] [override] [in-place[=commit]]"
+argument-hint: "[time-window|branch|repo] [--unattended] [path...] [docs] [override] [in-place[=commit]]"
 metadata:
   workflow-stage: review
   summary: Batch-run simplification across changed files, or a whole repository, by ecosystem
@@ -47,10 +47,10 @@ Scope: <file groups the step ran over, or none>
 Outside-scope changes: none | <paths>
 ```
 
-**`unattended`:** never invoke `simplify`; the simplifier agent runs every group, and the result
+**`--unattended`:** never invoke `simplify`; the simplifier agent runs every group, and the result
 block records `State: skipped (unattended)` without asking.
 
-**Arguments.** `[unattended] [time-window|branch|repo] [path...] [docs] [override] [in-place[=commit]]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo. Default: 48h
+**Arguments.** `[time-window|branch|repo] [--unattended] [path...] [docs] [override] [in-place[=commit]]`. e.g., /batch-simplify 72h, /batch-simplify branch docs, /batch-simplify repo plugins/foo, /batch-simplify 72h --unattended. Default: 48h
 
 ## Repository context. Gather first
 
@@ -99,7 +99,7 @@ Trigger: the remaining argument, lowercased and whitespace-normalized, **equals*
 
 Match the whole argument, never a substring: an argument that merely *contains* "branch", a path, a filename, a future scope value, is not a branch-mode request, and routing it there silently sweeps the wrong file set.
 
-**Detection heuristic** (after stripping the `docs`, `override`, `unattended`, and `in-place` flags): read the **first** remaining token as the scope. Matches `^\d+[hdw]$` → time-window mode; equals a branch trigger phrase → branch mode; equals `repo` → repo mode. Empty argument → default `48h`. Every token after the scope is a path.
+**Detection heuristic** (after stripping the `docs`, `override`, `--unattended`, and `in-place` flags): read the **first** remaining token as the scope. Matches `^\d+[hdw]$` → time-window mode; equals a branch trigger phrase → branch mode; equals `repo` → repo mode. Empty argument → default `48h`. Every token after the scope is a path.
 
 Decide the scope **before** testing any token as a path, never after. Stripping paths first lets a repository that happens to contain a directory named `repo` or `branch` swallow the scope keyword. `/code-tidying:batch-simplify repo` would resolve `repo` as a path, find no scope left, and silently run the 48-hour default narrowed to that directory instead of the whole-repository sweep that was asked for. If the first token is not a scope, the scope defaults to `48h` and *every* token is a path; a token that resolves to nothing is neither a scope nor a path, so it falls through to asking the user rather than guessing. To sweep a directory genuinely named `repo`, spell it `./repo`.
 
@@ -135,10 +135,12 @@ Append `docs` to any mode to include `.md` files in the sweep. By default, `.md`
 
 Strip token-wise, never by substring: a substring strip mutates any argument that happens to contain those four letters, including a path such as `docs/`. Leaving a corrupted remainder for the mode parser to read.
 
-### Flag: `unattended`
+### Flag: `--unattended`
 
-Skips the Native step: the simplifier agent runs every group (see **Native
-step: simplify** above). Detected and stripped exactly like `docs`.
+The caller declares that nobody is present. Skips the Native step: the simplifier agent runs every
+group (see **Native step: simplify** above). Detected and stripped like `docs`, token-wise and
+anywhere in the arguments, though the token is `--unattended`. The bare word `unattended` is not
+this flag, nor a scope or path: stop and name `--unattended`.
 
 ### Flag: `override`
 
