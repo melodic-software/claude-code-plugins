@@ -965,7 +965,9 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    grants none. With no such thread, a PR a person gated with the human-gated label, or a kept
    thread a person decides (`needsPerson`) escalates `feedback-round-cap`, which skips
    `awaiting-human`: a security lane finding rated `CRITICAL` or unrated, a `claude[bot]` finding
-   (its footer would be model text), a pr-verify note or listed review bot's finding a trusted
+   whose text names the security lane with such a rating (`claimsSecurity`; any other `claude[bot]`
+   finding is ruled as the code lane's, since its footer would be model text), a pr-verify note or
+   listed review bot's finding a trusted
    person directed, or a listed review bot's finding the security lane's `security` state marks
    `held`. Otherwise one more round runs on every kept thread (the fresh fixer), its thread file
    carrying `retry.brief`, a fixed no-weaken brief the read runner adds to the skill's preamble.
@@ -1126,7 +1128,7 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
      adjudication is not adjudicated again: any reply but `VALID` on it escalates
      `feedback-stood-open`. A thread no adjudicator may judge goes elsewhere: a pr-verify note
      left open escalates `feedback-verifier-open`, a thread a trusted person directed, or an
-     `INCORRECT` reply on a CRITICAL, unknown-lane or person-rated security-review finding
+     `INCORRECT` reply on a CRITICAL or person-rated security-review finding or a person's thread
      ([below](#the-adjudicator)), escalates
      `feedback-disputed`, and an `UNCERTAIN` or `VALID-defer` reply on one escalates
      `feedback-uncertain`. A thread or head that changed after the lane's reply, or a failed
@@ -1170,19 +1172,21 @@ suffix so a cited `CLAUDE.md` or `.claude/**` file is never loaded as instructio
 trusted person directed (a fix request, or a reply after an escalation) stays theirs: an
 reply that leaves it open escalates `feedback-disputed` with no adjudication. Only a
 github-actions[bot] review comment whose footer names the code-review lane
-(`claude-lane: claude-review`; the select job tags the thread file's comment with that `lane`, and
-a footer in a claude[bot] comment, whose body the model writes, names none), one whose footer names
-the security-review lane and whose rating is below `CRITICAL` (`SUGGESTION` or `IMPORTANT`;
-only `CRITICAL` holds, `SECURITY_PERSON_SEVERITY` in `address-feedback.mjs`), or a
+(`claude-lane: claude-review`; the select job tags the thread file's comment with that `lane`), a
+claude[bot] comment (tagged with no `lane`, since a footer in its body is model text), adjudicated
+as a code-review comment unless its text names the security-review lane or holds a rating-shaped
+line and is rated `CRITICAL` or carries no rating the lane reads (`claimsSecurity`), one whose
+footer names the security-review lane and whose rating is below `CRITICAL` (`SUGGESTION` or
+`IMPORTANT`; only `CRITICAL` holds, `SECURITY_PERSON_SEVERITY` in `address-feedback.mjs`), or a
 listed review
 bot's comment (`review-threads.reviewer-ids`, tagged `listed: true` from the comment's account
 id), that carries no `severity: CRITICAL` line is adjudicated. The listed bot's own severity badge
 decides nothing, and it is adjudicated only once the security-review lane reviewed the head the
 bot reviewed and holds nothing. A `critical-security` hold on that head, or one posted after the
 bot's review, escalates `feedback-question-security`; before the lane's review the dispute waits
-and the round skips `finding-stands`. A CRITICAL finding, an unrated security-review finding,
-and one
-whose lane its root comment does not name go to a person. The rating is the lane's own line
+and the round skips `finding-stands`. A CRITICAL finding (the code-review lane reports security
+findings too), an unrated security-review finding, and a thread a person opened go to a person.
+The rating is the lane's own line
 (`severityOf`): the body's only `severity:`-shaped line, unindented, outside any fenced block, and
 the comment's first non-blank line or the last one above the footer. Any other shape is unrated,
 so a rating quoted from the pull request never supplies it. For such a finding, an `INCORRECT`

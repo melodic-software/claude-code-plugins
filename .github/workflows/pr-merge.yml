@@ -517,7 +517,7 @@ jobs:
         with:
           name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}
           path: ${{ runner.temp }}/dispatched.json
-          retention-days: 90
+          retention-days: 30
           if-no-files-found: error
 
       # A red attempt 1 of a full run this workflow dispatched waits for its
@@ -2639,7 +2639,7 @@ jobs:
         with:
           name: pr-merge-dispatched-${{ steps.dispatch.outputs.run-id }}
           path: ${{ runner.temp }}/dispatched.json
-          retention-days: 90
+          retention-days: 30
           if-no-files-found: error
 
       - name: Log the API budget at the end
