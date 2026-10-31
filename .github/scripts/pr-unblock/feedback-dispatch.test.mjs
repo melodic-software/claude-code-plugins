@@ -5,7 +5,7 @@ import { test } from "node:test";
 
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, dispatchFeedback, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
+import { createGitHubApi, dispatchFeedback, failureAnnotation, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, SWEEP_HEAD_CAP, sweepReleased } from "./feedback-dispatch.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The title GitHub gives a pr-unblock.yml run, read from the workflow file:
@@ -888,6 +888,20 @@ test("pullsForCommit reads the commit's PRs from GraphQL when the REST answer is
     },
   ]);
   assert.deepEqual(sent, [`GET https://api.example/repos/${REPOSITORY}/commits/${HEAD}/pulls`, "POST https://api.example/graphql"]);
+});
+
+test("a refused read's annotation carries the status, the rate-limit headers and the body prefix", async () => {
+  const body = JSON.stringify({ message: "Bad credentials", documentation_url: "https://docs.github.com/rest", pad: "x".repeat(300) });
+  const headers = { "x-ratelimit-remaining": "4321", "x-ratelimit-reset": "1760767020", "x-ratelimit-resource": "core", "retry-after": "60" };
+  const fetch = async () => new Response(body, { status: 403, headers });
+  const api = createGitHubApi({ token: "bad-token", repository: REPOSITORY, apiUrl: "https://api.example", graphqlUrl: "https://api.example/graphql", fetch });
+  for (const read of [() => api.getWorkflowRun(39102172643), () => api.getPermission("someone")]) {
+    const annotation = failureAnnotation(await read().then(() => assert.fail("the read resolved"), (error) => error));
+    assert.match(annotation, /^::error::pr-feedback dispatch failed: GET https:\/\/api\.example\/repos\/.* returned 403 \[/);
+    for (const field of ["status=403", "x-ratelimit-remaining=4321", "x-ratelimit-reset=1760767020", "x-ratelimit-resource=core", "retry-after=60", `body=${JSON.stringify(body.slice(0, 200))}`]) {
+      assert.ok(annotation.includes(field), `${field} in ${annotation}`);
+    }
+  }
 });
 
 // The GraphQL fallback is a read: it is aborted at the attempt timeout (5 ms
