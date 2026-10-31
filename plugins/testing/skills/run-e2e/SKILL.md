@@ -57,7 +57,8 @@ e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`, `/testing:run-e2e n
   that command prints no ref (CI checkouts and shallow clones often lack `origin/HEAD`), the run
   guesses no other branch: an attended run asks for the base, and an `unattended` run invokes no
   `affected`, takes `blocked: no base ref (pass base=<ref>)` as `affected`'s `blocked:` line
-  (Step 1) and records `capture` as `blocked` with that reason (Step 5).
+  (Step 1) and goes on to own driving of what the scenario names. `capture` is `blocked` with that
+  reason only when the run then drives nothing, and `ran` when it drives an entry point (Step 5).
 - `worst-case`, optional: the action, only as the exact next token after those (scenario text that
   merely starts with the word, such as `worst-case-scenario …`, stays a scenario). It takes a
   `<target>` (a component, screen or route) and runs the Worst-case content section below.
@@ -251,10 +252,13 @@ that called it. One object:
 `capture.status` is one of:
 
 - `ran`: at least one entry point was driven; `count` is the number of evidence artifacts kept.
+  This wins over every other status: a `blocked:` line from `affected` (no base ref included)
+  stays in the report, and `capture` is still `ran`.
 - `not-applicable`: nothing to drive, since `affected.json` lists no feature and the scenario names
   none; `reason` is its `note`, else `no touched feature`. Nothing launches.
-- `blocked`: no capture could run (no usable driver, a gap-report stop, an environment failure, or
-  a `blocked:` line from drive, `affected` included); `reason` names it.
+- `blocked`: no entry point was driven because no capture could run (no usable driver, a
+  gap-report stop, an environment failure, or a `blocked:` line from drive, `affected` included);
+  `reason` names it.
 - `skipped`: the non-UI route ran suites and handshakes, which capture nothing from a running app;
   `reason` names the row.
 
