@@ -19,7 +19,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 | Lane | Rows | Baked | Integration | Verdicts |
 |---|---|---|---|---|
 | Built-in CLI commands | 26 | 25 | route 4, suggest 22 | complementary 25, defer 1 |
-| Bundled skills | 29 | 23 | route 18, suggest 9, wrap 2 | complementary 24, defer 5 |
+| Bundled skills | 30 | 24 | route 19, suggest 9, wrap 2 | complementary 25, defer 5 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 4 | 2 | route 4 | complementary 3, defer 1 |
 | Built-in subagents | 3 | 2 | route 3 | complementary 3 |
@@ -612,6 +612,25 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - reference/prompt-caching.md 'Automation' bullet cites cost-optimize behind the presence gate
 - **Observation:** extraction: extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (registerClaudeApiSkill string plus subcommand array); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
 - **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set or moves it between bundled and marketplace distribution (verified 2026-09-11)
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `claude-code-docs` → `discovery:read-docs`
+
+- **Verdict:** `complementary`: The bundled skill answers questions about Claude Code's own features; ours reads one named upstream docs page from any vendor through the shared lookup and cache, marks what the page does not state, and keeps inference apart. They share a job only on questions about Claude Code itself, so neither replaces the other. Same complementary and route shape as the store's Explore, WebFetch and WebSearch rows. Ruled 2026-10-26 by the owner's recorded direction on #9105.
+- **Integration:** `route`
+- **Native surface:** `claude-code-docs` (bundled skill; markers: gated)
+- **Our component:** `discovery:read-docs` (skill)
+- **Evidence:**
+  - `claude-code-docs` present in the extraction as bundled-skill
+  - markers: gated
+  - native description: Answers questions about Claude Code features
+  - invocation mode (2026-10-31, Claude Code 2.1.314): model-invocable and user-invocable
+  - detect (2026-10-31, Claude Code 2.1.314): score 0.6736, invocable_by model+user
+  - our description (abridged): Read an upstream docs page through the shared docs lookup and cache, with the page's silences marked and inference kept apart; model-invocable
+  - the skills docs page's Bundled skills section names examples and does not list claude-code-docs (read 2026-10-31), so the extraction is this row's only basis
+- **Observation:** extraction: extracted from binary v2.1.314 on 2026-10-31 (the /harness-ops:inventory --binary-only extraction recorded on #9105; bundled_skills degraded with 19 unresolved computed names, so counts are floors) (2026-10-31)
+- **Recheck trigger:** a Claude Code release renames or removes the bundled `claude-code-docs` skill, makes it model-disabled, or widens its job past Claude Code's own features, or the skills docs page's Bundled skills section starts listing it (verified 2026-10-31)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 

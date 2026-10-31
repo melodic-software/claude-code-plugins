@@ -75,9 +75,9 @@
 //   there is UPSTREAM_STOP_STEP: the upstream-status gate skipped the review
 //   while GitHub Actions or npm listed an outage, so the head has no review.
 //   Its failed jobs are re-run once, inside the lookback, only while that gate
-//   would now let it run (check-upstream-status.mjs). The re-run carries no
-//   record, so the ci-status re-run its completion causes is unrecorded and
-//   pr-verify's gate refuses it: ci-status asks a person to re-run ci-status.
+//   would now let it run (check-upstream-status.mjs). The re-run carries a
+//   record, which pr-feedback-dispatch.yml's rerun-ci-status reads, so
+//   pr-verify's gate accepts the ci-status re-run the review's completion causes.
 //   A person's re-run of the review becomes attempt 3, which the merge gate
 //   never binds. The reusable's bot check reads `github.actor`, which a
 //   re-run keeps
@@ -109,7 +109,8 @@
 // but operational, or the status cannot be read, so a re-run never adds load
 // mid-incident. At most MAX_IN_FLIGHT re-runs are in flight at once (PR CI
 // sets and recorded lane runs, counting those already running): merge-critical PRs
-// (auto-merge set) first, then oldest PR, then the oldest lane runs.
+// (auto-merge set) first, then oldest PR, then the oldest lane runs. One pass
+// uploads at most MAX_IN_FLIGHT records, so what would pass that waits too.
 // Writes are at least WRITE_GAP_MS apart. The first rate-limit error stops the
 // run.
 //
@@ -430,9 +431,14 @@ export function classify(runs, since) {
 }
 
 // A CI item with its record, when its re-run makes attempt 2 of a recorded
-// upstream. One PR holds one run per workflow, so a place holds one record.
+// upstream, or of a stopped hosted review, whose completion re-runs ci-status
+// (pr-feedback-dispatch.yml rerun-ci-status). One PR holds one run per
+// workflow, so a place holds at most three records: pr-require-checks' and
+// both hosted reviews'.
 const withRecord = (item) =>
-  RECORDED_UPSTREAMS.has(item.path) && (item.kind === "ci" || item.attempt === 1) ? { ...item, record: rerunRecordName(item.id, item.head) } : item;
+  item.kind === "upstream" || (RECORDED_UPSTREAMS.has(item.path) && (item.kind === "ci" || item.attempt === 1))
+    ? { ...item, record: rerunRecordName(item.id, item.head) }
+    : item;
 // The items the record uploads cover: every lane re-run, and each recorded CI re-run.
 const recorded = (item) => item.kind === "lane" || item.record !== undefined;
 
@@ -983,24 +989,27 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     }
   }
 
-  // Every item takes one place: a PR's CI set, or one lane run.
+  // Every item takes one place: a PR's CI set, or one lane run. A set can hold
+  // several records, and the workflow has MAX_IN_FLIGHT upload steps, so what
+  // does not fit waits for a later pass: a re-run with no record would be refused.
   let room = Math.max(0, MAX_IN_FLIGHT - inFlight);
+  let uploads = MAX_IN_FLIGHT;
   const items = [];
-  for (const set of ready) {
-    if (room > 0) {
-      items.push(...set);
+  const place = (what, taken) => {
+    const records = taken.filter(recorded).length;
+    if (room > 0 && records <= uploads) {
+      items.push(...taken);
       room -= 1;
+      uploads -= records;
     } else {
-      say(`#${set[0].pr}: deferred, ${MAX_IN_FLIGHT} re-runs in flight`);
+      say(`${what}: deferred, ${room > 0 ? "no record upload left this pass" : `${MAX_IN_FLIGHT} re-runs in flight`}`);
     }
+  };
+  for (const set of ready) {
+    place(`#${set[0].pr}`, set);
   }
   for (const lane of lanes.sort(byAge)) {
-    if (room > 0) {
-      items.push(lane);
-      room -= 1;
-    } else {
-      say(`lane run ${lane.id} (${lane.path}): deferred, ${MAX_IN_FLIGHT} re-runs in flight`);
-    }
+    place(`lane run ${lane.id} (${lane.path})`, [lane]);
   }
   items.push(...intake, ...verdicts);
   return { items, failed, settle };

@@ -1,5 +1,5 @@
 ---
-description: "Read an upstream docs page through the shared docs lookup and cache: whole page when small, otherwise the section map, stored notes and the sections you pick, with the page's silences marked and inference kept apart. Use when: 'read the docs page for X', 'what does the official page say about Y', 'check the hooks docs', 'look this up in the vendor docs', a docs page WebFetch truncated or summarized, or a skill points here for an upstream page. Verification reads raw bytes only. A multi-source question is /discovery:research."
+description: "When the bundled claude-code-docs skill resolves in this session, prefer it for a quick answer about a Claude Code feature; this skill for an answer that must rest on a named page's own text. Read an upstream docs page through the shared docs lookup and cache: whole page when small, otherwise the section map, stored notes and the sections you pick, with the page's silences marked and inference kept apart. Use when: 'read the docs page for X', 'what does the official page say about Y', 'check the hooks docs', 'look this up in the vendor docs', a docs page WebFetch truncated or summarized, or a skill points here for an upstream page. Verification reads raw bytes only. A multi-source question is /discovery:research."
 argument-hint: "<url-or-slug> [question]"
 user-invocable: true
 disable-model-invocation: false
@@ -37,6 +37,27 @@ stays fine for finding which page to read.
   <https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior> live.
 - **As of**: 2026-10-04
 - **Recheck trigger**: that section changes, or a WebFetch release note mentions its output format.
+
+## Boundary, the bundled `claude-code-docs` skill
+
+Both surfaces can answer a question about a Claude Code feature, so they get conflated there:
+
+- **`claude-code-docs` (bundled skill)**: answers questions about Claude Code's own features. The
+  model or the person invokes it.
+- **This skill (marketplace plugin)**: reads one named upstream page from any vendor through the
+  shared lookup and cache, marks what the page does not state, and keeps inference apart. The
+  model or the person invokes it, with the page as its argument.
+
+**Routing:** when `claude-code-docs` resolves in this session, prefer it for a quick answer about
+a Claude Code feature. Prefer this skill when the answer must rest on a page's own text, when the
+page is not Claude Code's, or when a skill sends you here for an upstream page.
+
+**Mutation gate:** `claude-code-docs`'s description names answering questions, not a write. This
+skill edits no repository file: it writes only to the shared docs cache and its own temporary
+directory, under the procedure's rules.
+
+The record behind this section is
+[reference/bundled-claude-code-docs.md](reference/bundled-claude-code-docs.md).
 
 ## Output
 
