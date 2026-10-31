@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "Finding on decide.mjs:5.\n\nseverity: IMPORTANT\n\ncritical-findings: 0",
+      "why": "the capped finding, counted as no CRITICAL"
+    },
+    {
+      "answer": "Summary of the review.\n`critical-findings: 0`",
+      "why": "backticked zero count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Finding on decide.mjs:5.\n\nseverity: CRITICAL\n\ncritical-findings: 1",
+      "why": "counts the finding as CRITICAL"
+    },
+    {
+      "answer": "Finding on decide.mjs:5.\n\nseverity: critical\n\ncritical-findings: 1",
+      "why": "lowercase severity, counted as CRITICAL"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

@@ -556,6 +556,41 @@ class SuiteTests(unittest.TestCase):
         self.assertEqual(budgets, [0.4])
         self.assertIn("0.40 USD", rows[1]["note"])
 
+    def test_explicit_case_runs_live_only_when_named(self):
+        calls = []
+
+        def record(c, _cwd, _settings_file, _prompt):
+            calls.append(c["id"])
+            return stream(INIT, final())
+
+        cases = [
+            case(id="a/explicit", outcome="ran", explicit=True, dir=self.tmp),
+            case(id="a/plain", outcome="ran", dir=self.tmp),
+        ]
+        (self.tmp / "settings.json").write_text("{}")
+        (self.tmp / "prompt.md").write_text("p")
+        args = Namespace(
+            max_runs=10, max_cost_usd=100.0, retries=0, keep=False, live=True, case=[]
+        )
+        rows = probe.run_suite(cases, record, args)
+        self.assertEqual(rows[0]["verdict"], "skipped")
+        self.assertIn("--case", rows[0]["note"])
+        self.assertEqual(calls, ["a/plain"])
+        args.case = ["a/explicit"]
+        probe.run_suite(cases[:1], record, args)
+        self.assertEqual(calls, ["a/plain", "a/explicit"])
+
+    def test_explicit_and_timeout_are_validated(self):
+        by_id = {}
+        good = case(outcome="ran", tags=["x"], dir=self.tmp, explicit=True, timeout=60)
+        (self.tmp / "settings.json").write_text("{}")
+        (self.tmp / "prompt.md").write_text("p")
+        self.assertEqual(probe.case_problems(good, by_id), [])
+        bad = good | {"explicit": "yes", "timeout": 0}
+        problems = " ".join(probe.case_problems(bad, by_id))
+        self.assertIn("explicit", problems)
+        self.assertIn("timeout", problems)
+
     def test_retry_reruns_only_inconclusive(self):
         calls = []
 

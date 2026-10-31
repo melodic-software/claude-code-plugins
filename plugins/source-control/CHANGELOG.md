@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.5.2] - 2026-10-31
+
+### Changed
+
+- The babysit hold floor lists `.github/scripts/lib/admission-comment.mjs` as an enforcement path: intake admission and the issue lane's park route import it, so a change to it waits for the security review as their own files do.
+
 ## [4.5.1] - 2026-10-31
 
 ### Fixed
