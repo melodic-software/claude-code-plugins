@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "| contoso-feed | unreadable | timed out after 30 s |",
+      "why": "status table"
+    },
+    {
+      "answer": "- Contoso feed: unreadable (request timed out)",
+      "why": "list"
+    },
+    {
+      "answer": "Unreadable: contoso-feed (timeout, 0 bytes).",
+      "why": "state first"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "- Contoso feed: empty (nothing in the window)",
+      "why": "reported empty"
+    },
+    {
+      "answer": "Contoso had a quiet week.",
+      "why": "quiet day"
+    },
+    {
+      "answer": "- contoso-feed: data",
+      "why": "wrong state"
+    }
+  ]
+}
