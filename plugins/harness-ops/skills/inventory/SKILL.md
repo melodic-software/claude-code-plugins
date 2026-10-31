@@ -30,7 +30,7 @@ or wrong; the neighbors below own those verdicts.
 |---|---|
 | What can I invoke, and where did it come from? | **this skill** |
 | Is my install directory healthy. What is stale, what does the product manage? | `/harness-ops:audit-install-state` |
-| Is the plugin fleet current, and at what scope? | `/harness-ops:plugins audit` |
+| Is the plugin fleet current, and at what scope? | `/harness-ops:plugins-audit` |
 | Are settings, hooks, permissions, and MCP config correct? | `/harness-config:audit` |
 | Which permission scopes hold which rules? | `/harness-config:audit-permission-state` |
 | Are the configured MCP servers safe to run? | `/mcp-tools:audit-posture` (composed below when present) |
@@ -181,7 +181,7 @@ authority on what resolves right now.
 
 **`enabledPlugins: false` does not settle enablement.** It spans several scopes, and a plugin's
 hooks live in its own manifest. Report the map as read and tell the user to run
-`/harness-ops:plugins audit` for the verdict.
+`/harness-ops:plugins-audit` for the verdict.
 
 **Counts that disagree are data, not noise.** `bundled_skill_notes` carries `registrations_seen`
 alongside `resolved`, and `dynamic_roster` when a registration builds its names at runtime (a loop

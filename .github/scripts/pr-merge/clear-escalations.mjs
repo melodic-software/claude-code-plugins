@@ -285,7 +285,7 @@ function laneCause(kind, reason) {
 
 
 // The workflow whose lanes ci-status aggregates. An advisory lane's failure
-// (pr-test-windows) leaves ci-status green once the label is off, so only
+// (pr-test-platforms) leaves ci-status green once the label is off, so only
 // this workflow's checks count.
 const REQUIRED_WORKFLOW = "pr-require-checks.yml";
 

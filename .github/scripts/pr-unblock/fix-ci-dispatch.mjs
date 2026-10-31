@@ -2,7 +2,7 @@
 // lanes App opened, or a trusted actor opened (an App's at once, a person's
 // once idle; the base config's `adoption` section), whose head's lanes failed
 // (the `ci-lanes` commit status ci-status records, not ci-status itself, which
-// a review-lane hold or a pending review also fails) or whose pr-test-windows
+// a review-lane hold or a pending review also fails) or whose pr-test-platforms
 // run failed, from the same
 // dispatcher run
 // as dispatch.mjs (pr-unblock-dispatch.yml), so the trigger gate and the
@@ -23,7 +23,7 @@
 // A head at the cap gets one `::warning::` and goes into the dispatch record
 // (dispatch-record.mjs), so later runs skip it before any read; the next push
 // makes a new head.
-// A head whose lanes passed but whose pr-test-windows run failed is a
+// A head whose lanes passed but whose pr-test-platforms run failed is a
 // candidate too. A head is skipped while a re-run of its tested run is
 // queued or going, while an infra-only first failure's one re-run by the
 // lost-run reconciler is due (infra-failure.mjs reconcilerOwns,
@@ -71,10 +71,10 @@ export const DEFAULTS = Object.freeze({
   // a failed one, which the per-head cap and the restarts retry.
   stopCheckName: "pr-unblock / apply-patch",
   // The run whose failure counts: pr-require-checks when its lanes failed,
-  // else the advisory pr-test-windows, which ci-status does not aggregate but
+  // else the advisory pr-test-platforms, which ci-status does not aggregate but
   // the merge gate holds on.
   requiredWorkflow: ".github/workflows/pr-require-checks.yml",
-  advisoryWorkflow: ".github/workflows/pr-test-windows.yml",
+  advisoryWorkflow: ".github/workflows/pr-test-platforms.yml",
   // The GitHub Actions app, as in dispatch.mjs: only its runs count.
   actionsAppId: 15368,
   holdLabels: Object.freeze(["do-not-merge", "needs-human"]),
@@ -403,14 +403,14 @@ export function skipReason(
   if (!lanesFailed(node) && !advisory) {
     return failedState(lanesStatus(node)?.state) ? "ci-lanes failed but the GitHub Actions bot did not set it" : "ci-lanes has not failed";
   }
-  // node.requiredRun, the head's tested pr-require-checks run (pr-test-windows
+  // node.requiredRun, the head's tested pr-require-checks run (pr-test-platforms
   // when only an advisory check failed) and its latest jobs, and, when that run
   // ended cancelled, node.headCheckRuns, every REST check run on the head, are
   // attached by dispatchCiFixes just before it would dispatch.
   const required = node.requiredRun;
   if (required !== undefined) {
     if (advisory && required.run?.conclusion !== "failure") {
-      return "ci-lanes passed and no pr-test-windows run failed";
+      return "ci-lanes passed and no pr-test-platforms run failed";
     }
     const owned = reconcilerOwns(required, now);
     if (owned !== "") {
