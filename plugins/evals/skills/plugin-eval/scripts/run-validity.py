@@ -157,7 +157,10 @@ CONTROL_DESCRIPTION = re.compile(
 # emit-plugin-eval): a miss is the rate it measures, and a run that hit its turn
 # cap after the Skill call was already graded.
 PROBE_TAG = "invocation-probe"
-MAX_TURNS_ERROR = re.compile(r"Reached maximum number of turns \(\d+\)")
+# The whole error text, optionally after the runner's "exit N: " prefix.
+MAX_TURNS_ERROR = re.compile(
+    r"(?:exit \d+: )?Reached maximum number of turns \(\d+\)\.?"
+)
 TRACE_ERRORS = "errors"  # on the result line
 
 # case.yaml's context.scaffold_script, in block or flow form, read without a
@@ -544,13 +547,25 @@ def shell_failure(run):
     return None
 
 
-def skill_called(run):
-    """True when the trace holds a Skill tool_use."""
-    return any(
-        block.get(BLOCK_TYPE) == TOOL_USE and block.get(USE_NAME) == SKILL_TOOL
-        for line in run.trace or []
-        for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT))
-    )
+def graded_call_made(run, root):
+    """True when the case's own Skill grader registered the skill under test as
+    called in this run: a grader requiring the call passed, or a max-0 grader
+    forbidding it failed."""
+    results = {g.get(GRADER_NAME): g for g in as_list(run.row.get(RUN_GRADERS))}
+    for grader in as_list(run.case.get(CASE_GRADER_DEFS)):
+        config = as_dict(grader.get(GRADER_CONFIG))
+        if (
+            grader.get(GRADER_TYPE) != FIRE_GRADER_TYPE
+            or config.get(CONFIG_TOOL) != SKILL_TOOL
+        ):
+            continue
+        passed = as_dict(results.get(grader.get(GRADER_NAME))).get(GRADER_PASSED)
+        if config.get(CONFIG_MAX) == 0:
+            if passed is False:
+                return True
+        elif passed is True:
+            return True
+    return False
 
 
 def trace_errors(run):
@@ -584,10 +599,14 @@ def check_errors(runs, root):
                     trace_errors(r),
                 )
             )
-        capped = bool(errors) and is_probe(r.case, root) and skill_called(r)
+        capped = bool(errors) and is_probe(r.case, root) and graded_call_made(r, root)
         for detail, texts in errors:
             # Exempt only when every error this detail carries is the turn cap.
-            if capped and texts and all(MAX_TURNS_ERROR.search(t) for t in texts):
+            if (
+                capped
+                and texts
+                and all(MAX_TURNS_ERROR.fullmatch(t.strip()) for t in texts)
+            ):
                 details.append(
                     detail + "; an invocation probe capped after its Skill call"
                 )

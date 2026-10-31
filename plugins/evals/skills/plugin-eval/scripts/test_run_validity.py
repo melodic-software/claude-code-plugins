@@ -925,6 +925,7 @@ class RunValidityTest(unittest.TestCase):
         error="exit 1: Reached maximum number of turns (8)",
         trace_error="Reached maximum number of turns (8)",
         tags="tags: [invocation-probe, train]",
+        graded=None,
     ):
         """A no-trigger case whose with-arm run made one tool call and then ended
         in error, its prompt.md carrying tags."""
@@ -952,8 +953,16 @@ class RunValidityTest(unittest.TestCase):
         )
         path = self.write(result)
         data = load(path)
+        # The case's max-0 Skill grader fails when it saw the skill under test called.
+        graded = tool == "Skill" if graded is None else graded
         data["cases"][0]["arms"]["with"][0].update(
-            tracePath=str(trace), error=error, turns=9
+            tracePath=str(trace),
+            error=error,
+            turns=9,
+            graders=[
+                {"name": "names-conftest", "passed": True},
+                {"name": "no-skill-fired", "passed": not graded},
+            ],
         )
         path.write_text(json.dumps(data), encoding="utf-8")
         return self.run_script(path, "--runs", "1")
@@ -978,6 +987,16 @@ class RunValidityTest(unittest.TestCase):
         self.assertIn("check run errors: FAIL", proc.stdout)
         proc = self.capped_probe(trace_error="API error")
         self.assertVerdict(proc, "INVALID", 1)
+
+    def test_a_probe_capped_after_calling_another_skill_is_invalid(self):
+        proc = self.capped_probe(graded=False)
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
+
+    def test_a_turn_cap_inside_another_run_error_is_invalid(self):
+        proc = self.capped_probe(error="API error after Reached maximum number of turns (8)")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check run errors: FAIL", proc.stdout)
 
     def test_a_turn_cap_beside_another_trace_error_is_invalid(self):
         proc = self.capped_probe(
