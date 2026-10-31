@@ -230,8 +230,8 @@ a committed `mocks/.replay/` so agent mocks replay without a model call.
 2. Run "Calibrating a judge" first unless every `llm` grader it can reproduce has passed with this
    run's judge model. On a miss, fix the rubric or calibrate a stronger `--judge-model` and use it.
 
-3. Invoke the CLI. The target comes first: placed after `--tag`, `--allow-tools`, or `--json` it
-   is swallowed as their value (`--json output path must end in .json`).
+3. Invoke the CLI with the target first, ahead of every flag. Pointer for how the target is parsed:
+   <https://code.claude.com/docs/en/plugin-evals#choose-what-to-evaluate>, as of 2026-10-31; recheck when a release changes a flag that takes values.
 
    ```bash
    claude plugin eval <target> --trust-plugin --keep-temp --judge-model opus --json results.json --threshold 0.8 --max-cost-usd <n> --no-publish
@@ -354,8 +354,7 @@ What the number means:
   `max: 0`) needs.
 - Hold the ablation mode fixed. Under `--ablation none` nothing is excluded, so absolute scores are
   not comparable across modes and mixing them silently breaks a trend line.
-- Spoke reach is version-bound ([records.md](reference/records.md#spoke-reach)): on 2.1.270 and 2.1.287
-  every with-arm `Read` under the plugin directory was denied, so only the hub reached the model; on 2.1.289 a skill's `context/`, `reference/`, `actions/` and `templates/` reads succeeded with no grant.
+- Copy a plugin whose directory is named `evals` under another name before a run. Pointer: the probe pair in [records.md](reference/records.md#spoke-reach), as of 2026-10-31; recheck on a Claude Code release by re-running one case with `--keep-temp`.
   Check the trace for a denied `Read` before crediting a spoke.
 
 End the reading with one line on the change under test: `promote` only when the run is VALID, the
