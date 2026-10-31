@@ -146,6 +146,39 @@ test("a diff that needs more chunks than the job has slots stops and says so", (
   assert.match(stdout, /^::error::.*needs 3 chunks, more than 2/m);
 });
 
+// The limits the "Write the diff" step runs under: its env in pr-verify.yml,
+// and no MAX_CHUNKS, so the script's own ceiling holds.
+const WORKFLOW = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
+const LIMITS = {
+  ...Object.fromEntries(["MAX_DIFF_BYTES", "PART_BYTES", "PART_LINES"].map((key) => [key, new RegExp(`^ +${key}: "(\\d+)"$`, "m").exec(WORKFLOW)[1]])),
+  MAX_CHUNKS: undefined,
+};
+const CEILING = Number(/^MAX_CHUNKS=\$\{MAX_CHUNKS:-(\d+)\}$/m.exec(readFileSync(SCRIPT, "utf8"))[1]);
+// A file of about `bytes` bytes: each content line is `+x\n`, 3 bytes.
+const sized = (name, bytes) => file(name, Math.floor(bytes / 3));
+
+test("under the workflow's limits a 3 MB diff is judged in as many chunks as it needs, with no stop", () => {
+  // Each file over half a chunk, so each takes a chunk of its own: 12 chunks.
+  const patch = Array.from({ length: 12 }, (_, i) => sized(`src/file-${i + 1}.mjs`, 250000)).join("");
+  assert.ok(Buffer.byteLength(patch) > 3000000);
+  const { status, data, outputs, stdout } = run(patch, LIMITS);
+  assert.equal(status, 0, stdout);
+  assert.equal(outputs, "chunks=12\n");
+  assert.doesNotMatch(stdout, /::error::/);
+  for (const k of [1, 10, 12]) assert.ok(partsOf(data, k).join("").startsWith(`diff --git a/src/file-${k}.mjs `), `chunk ${k}`);
+  assert.equal(Array.from({ length: 12 }, (_, i) => partsOf(data, i + 1).join("")).join(""), patch);
+  assert.match(manifestOf(data), /^chunk 12 diff\/chunk-12\/part-001\.patch modified src\/file-12\.mjs$/m);
+});
+
+test("a diff past the ceiling stops, naming its size and the ceiling", () => {
+  const ceiling = CEILING;
+  const patch = Array.from({ length: ceiling + 1 }, (_, i) => sized(`f${i}`, 250000)).join("");
+  const { status, outputs, stdout } = run(patch, LIMITS);
+  assert.equal(status, 1);
+  assert.equal(outputs, "");
+  assert.match(stdout, new RegExp(`^::error::no verdict for this head: the diff is ${Buffer.byteLength(patch)} bytes; the diff needs ${ceiling + 1} chunks, more than ${ceiling}$`, "m"));
+});
+
 test("the manifest names every file's part, in files of one Read each", () => {
   const names = Array.from({ length: 200 }, (_, i) => `src/module-${i}.mjs`);
   const { status, data, stdout } = run(names.map((name) => file(name, 1)).join(""), { MAX_DIFF_BYTES: "8000", PART_BYTES: "1000" });

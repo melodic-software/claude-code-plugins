@@ -39,6 +39,8 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
+// A workflow env list: one line per slot (chunk-diff.sh MAX_CHUNKS), blank for a step that left nothing.
+const slots = (...filled) => `${[...filled, ...Array(12 - filled.length).fill("")].join("\n")}\n`;
 const ISSUE = {
   number: 7,
   author_login: "maintainer",
@@ -440,7 +442,7 @@ test("main writes the verdict file and the artifact name, and nothing on bad out
   };
   const env = {
     LOG_FILES: log("clean-log", 0),
-    JUDGE_OUTCOMES: "success\n\n\n\n",
+    JUDGE_OUTCOMES: slots("success"),
     CHUNKS: "1",
     DIFF_DIR: path.join(dir, "diff"),
     PR_NUMBER: "41",
@@ -615,9 +617,9 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
     VERDICT_DIR: path.join(dir, `verdict-${label}`),
     GITHUB_OUTPUT: path.join(dir, `out-${label}`),
     // Slots a run skips render as blank lines.
-    EXECUTION_FILES: `${first}\n${second}\n\n\n`,
-    LOG_FILES: `${logs.join("\n")}\n\n\n`,
-    JUDGE_OUTCOMES: "success\nsuccess\n\n\n",
+    EXECUTION_FILES: slots(first, second),
+    LOG_FILES: slots(...logs),
+    JUDGE_OUTCOMES: slots("success", "success"),
     FINAL_EXECUTION_FILE: final(),
     FINAL_LOG_FILE: log(0),
     FINAL_OUTCOME: "success",
@@ -651,7 +653,7 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
     ["a later chunk with a denial", execution([parts[1]], { structured_output: CHUNK_PASS, permission_denials: [{ tool_name: "Bash" }] }), {}],
     ["a final judge off the schema", chunk(1, CHUNK_PASS), { FINAL_EXECUTION_FILE: final({}) }],
     ["no final judge", chunk(1, CHUNK_PASS), { FINAL_EXECUTION_FILE: "", FINAL_LOG_FILE: "" }],
-    ["a later chunk's missing log", "", { LOG_FILES: `${log(0)}\n\n\n\n` }],
+    ["a later chunk's missing log", "", { LOG_FILES: slots(log(0)) }],
   ]) {
     const kept = run(`kept-${label}`, counted, second, undefined, extra);
     main(kept);
@@ -677,7 +679,7 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
   assert.doesNotMatch(leakedText, /sk-ant-|a\.mjs/);
   // A chunk whose step failed writes no model text, whatever a scan here finds.
   const unscanned = "the lane's scan found what this one does not";
-  const stepFailed = run("step-failed", chunk(0, { ...CHUNK_FAIL, summary: unscanned }), "", undefined, { JUDGE_OUTCOMES: "failure\n\n\n\n" });
+  const stepFailed = run("step-failed", chunk(0, { ...CHUNK_FAIL, summary: unscanned }), "", undefined, { JUDGE_OUTCOMES: slots("failure") });
   main(stepFailed);
   const stepText = readFileSync(path.join(stepFailed.VERDICT_DIR, "verdict.json"), "utf8");
   assert.equal(JSON.parse(stepText).verdict, "fail");
@@ -688,9 +690,9 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
   for (const [name, env] of [
     ["pass-leak", run("pass-leak", chunk(0, { ...CHUNK_PASS, summary: KEY }), "")],
     ["pass-denied-leak", run("pass-denied-leak", execution([parts[0], manifest], { structured_output: { ...CHUNK_PASS, summary: KEY }, permission_denials: [{ tool_name: "Bash" }] }), "")],
-    ["pass-step", run("pass-step", chunk(0, { ...CHUNK_PASS, summary: unscanned }), "", undefined, { JUDGE_OUTCOMES: "failure\n\n\n\n" })],
+    ["pass-step", run("pass-step", chunk(0, { ...CHUNK_PASS, summary: unscanned }), "", undefined, { JUDGE_OUTCOMES: slots("failure") })],
     // A credential in the log leaves the scan stop no log to read.
-    ["pass-no-log", run("pass-no-log", chunk(0, CHUNK_PASS), "", undefined, { LOG_FILES: "\n\n\n\n", JUDGE_OUTCOMES: "failure\n\n\n\n" })],
+    ["pass-no-log", run("pass-no-log", chunk(0, CHUNK_PASS), "", undefined, { LOG_FILES: slots(), JUDGE_OUTCOMES: slots("failure") })],
   ]) {
     main(env);
     const text = readFileSync(path.join(env.VERDICT_DIR, "verdict.json"), "utf8");
@@ -700,7 +702,7 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
     assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), new RegExp(`^name=pr-verify-41-${HEAD}-fail-i7\nverdict=fail\nretention-days=90\n`), name);
   }
   // Beside a counted fail, a failed step's pass adds none of its text.
-  const passFailed = run("pass-failed", chunk(0, CHUNK_FAIL), chunk(1, { ...CHUNK_PASS, summary: unscanned }), undefined, { JUDGE_OUTCOMES: "success\nfailure\n\n\n" });
+  const passFailed = run("pass-failed", chunk(0, CHUNK_FAIL), chunk(1, { ...CHUNK_PASS, summary: unscanned }), undefined, { JUDGE_OUTCOMES: slots("success", "failure") });
   main(passFailed);
   assert.ok(!readFileSync(path.join(passFailed.VERDICT_DIR, "verdict.json"), "utf8").includes(unscanned));
   // A final fail stands when its step failed on the lane's credential scan,
@@ -753,7 +755,7 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
   // beside another chunk's fail.
   for (const [name, env] of [
     ["bare-withheld", run("bare-withheld", execution([], { structured_output: { ...bare, summary: KEY } }), "", [log(0)], { CHUNKS: "1", DIFF_DIR: oneDir })],
-    ["bare-step", run("bare-step", execution([], { structured_output: bare }), "", [log(0)], { CHUNKS: "1", DIFF_DIR: oneDir, JUDGE_OUTCOMES: "failure\n\n\n\n" })],
+    ["bare-step", run("bare-step", execution([], { structured_output: bare }), "", [log(0)], { CHUNKS: "1", DIFF_DIR: oneDir, JUDGE_OUTCOMES: slots("failure") })],
     ["bare-chunks", run("bare-chunks", execution([], { structured_output: { ...bare, summary: KEY } }), chunk(1, CHUNK_FAIL))],
   ]) {
     main(env);
@@ -812,6 +814,97 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
     assert.equal(existsSync(path.join(bad.VERDICT_DIR, "verdict.json")), false, label);
     assert.equal(existsSync(bad.GITHUB_OUTPUT), false, label);
   }
+});
+
+test("a head of twelve chunks gets a verdict from every chunk, and none when one leaves none", () => {
+  const COUNT = 12;
+  const dir = tempDir("pr-verify-many-chunks-");
+  const spec = path.join(dir, "spec.json");
+  writeFileSync(spec, JSON.stringify([ISSUE]));
+  const diff = path.join(dir, "diff");
+  const parts = Array.from({ length: COUNT }, (_, i) => {
+    mkdirSync(path.join(diff, `chunk-${i + 1}`), { recursive: true });
+    const part = path.join(diff, `chunk-${i + 1}`, "part-001.patch");
+    writeFileSync(part, `diff --git a/${i + 1} b/${i + 1}\n`);
+    return part;
+  });
+  const manifestDir = path.join(dir, "manifest");
+  mkdirSync(manifestDir);
+  const manifest = path.join(manifestDir, "part-001.txt");
+  writeFileSync(manifest, "chunk 1 diff/chunk-1/part-001.patch modified 1\n");
+  const resultsDir = path.join(dir, "results");
+  mkdirSync(resultsDir);
+  const results = parts.map((_, i) => {
+    const file = path.join(resultsDir, `chunk-${i + 1}.json`);
+    writeFileSync(file, "{}");
+    return file;
+  });
+  let id = 0;
+  const write = (name, value) => {
+    const file = path.join(dir, `${name}-${(id += 1)}`);
+    writeFileSync(file, value);
+    return file;
+  };
+  const execution = (read, output) =>
+    write(
+      "execution.json",
+      JSON.stringify([
+        { type: "assistant", message: { content: read.map((file, i) => ({ type: "tool_use", id: `t${i}`, name: "Read", input: { file_path: file } })) } },
+        { type: "result", subtype: "success", structured_output: output },
+      ]),
+    );
+  const log = () => write("log.jsonl", JSON.stringify({ leg: 1, denials: { count: 0 } }));
+  const run = (label, outputs, outcomes = outputs.map((output) => (output === null ? "skipped" : "success"))) => ({
+    PR_NUMBER: "41",
+    HEAD_SHA: HEAD,
+    BASE_SHA: BASE,
+    HEAD_REF: "feat/x",
+    SPEC_FILE: spec,
+    GITHUB_RUN_ID: "9001",
+    CHUNKS: String(COUNT),
+    DIFF_DIR: diff,
+    VERDICT_DIR: path.join(dir, `verdict-${label}`),
+    GITHUB_OUTPUT: path.join(dir, `out-${label}`),
+    EXECUTION_FILES: `${outputs.map((output, i) => (output === null ? "" : execution([parts[i], manifest], output))).join("\n")}\n`,
+    LOG_FILES: `${outputs.map((output) => (output === null ? "" : log())).join("\n")}\n`,
+    JUDGE_OUTCOMES: `${outcomes.join("\n")}\n`,
+    FINAL_EXECUTION_FILE: execution([...results, spec, manifest], { ...FINAL_PASS, items: [{ item: "item 1", chunks: [12] }] }),
+    FINAL_LOG_FILE: log(),
+    FINAL_OUTCOME: "success",
+    RESULTS_DIR: resultsDir,
+    MANIFEST_DIR: manifestDir,
+  });
+  const verdictOf = (env) => JSON.parse(readFileSync(path.join(env.VERDICT_DIR, "verdict.json"), "utf8"));
+  const all = (output) => Array.from({ length: COUNT }, () => output);
+
+  const passed = run("pass", all(CHUNK_PASS));
+  main(passed);
+  assert.equal(verdictOf(passed).verdict, "pass");
+  assert.match(readFileSync(passed.GITHUB_OUTPUT, "utf8"), new RegExp(`^name=pr-verify-41-${HEAD}-pass\n`));
+  assert.match(verdictOf(passed).summary, /^Chunk 12 of 12, pass: chunk fine$/m);
+
+  const failing = all(CHUNK_PASS);
+  failing[10] = CHUNK_FAIL;
+  const failed = run("fail", failing);
+  main(failed);
+  assert.equal(verdictOf(failed).verdict, "fail");
+  assert.deepEqual(verdictOf(failed).notes, CHUNK_FAIL.notes);
+  assert.match(verdictOf(failed).summary, /^Chunk 11 of 12, fail: chunk broken$/m);
+
+  // A scan stop in a late slot still reaches its own position in the list.
+  const outcomes = all("success");
+  outcomes[10] = "failure";
+  const stopped = run("scan-stop", all(CHUNK_PASS), outcomes);
+  main(stopped);
+  assert.equal(verdictOf(stopped).verdict, "fail");
+  assert.equal(verdictOf(stopped).withheld, true);
+
+  const missing = all(CHUNK_PASS);
+  missing[10] = null;
+  const none = run("none", missing);
+  assert.throws(() => main(none), /chunk 11 of 12/);
+  assert.equal(existsSync(path.join(none.VERDICT_DIR, "verdict.json")), false);
+  assert.equal(existsSync(none.GITHUB_OUTPUT), false);
 });
 
 test("checkKeyLeg reads every chunk's log, so a denial in an earlier chunk stops the handoff", () => {
@@ -931,7 +1024,7 @@ test("writeChunkResults hands the final step each chunk's output whole, and the 
     LOG_FILES: logs,
     RESULTS_DIR: path.join(dir, "results"),
     PART_BYTES: "15000",
-    JUDGE_OUTCOMES: "success\nsuccess\n\n\n",
+    JUDGE_OUTCOMES: slots("success", "success"),
     SPEC_TEXT_FILE: write("spec-text.json", `[\n  {"body": "${"é long spec ".repeat(5000)}"}\n]\n`),
     SPEC_FILE: write("spec.json", "[]\n"),
     CONTEXT_FILE: write("context.json", "{}\n"),
@@ -941,7 +1034,7 @@ test("writeChunkResults hands the final step each chunk's output whole, and the 
     PROMPT_TEMPLATE: fileURLToPath(new URL("./spec-prompt.md", import.meta.url)),
     SCHEMA_FILE: path.join(dir, "spec-schema.json"),
   };
-  writeChunkResults({ ...env, EXECUTION_FILES: `${execution("e1.json", parts[0], crowded)}\n${execution("e2.json", parts[1], CHUNK_PASS)}\n\n\n` });
+  writeChunkResults({ ...env, EXECUTION_FILES: slots(execution("e1.json", parts[0], crowded), execution("e2.json", parts[1], CHUNK_PASS)) });
   const resultParts = (k) => readdirSync(env.RESULTS_DIR).filter((name) => name.startsWith(`chunk-${k}-part-`)).sort();
   assert.ok(resultParts(1).length > 1);
   for (const name of resultParts(1)) {
@@ -1006,10 +1099,10 @@ test("checkKeyLeg on the final step reads the chunks that ran, past the blank sl
     return target;
   };
   const [a, b, c] = [file("a"), file("b"), file("c")];
-  const clean = { CHUNKS: "2", LOG_FILES: `${a}\n${b}\n\n\n${c}\n`, GITHUB_OUTPUT: path.join(dir, "out") };
+  const clean = { CHUNKS: "2", LOG_FILES: `${slots(a, b)}${c}\n`, GITHUB_OUTPUT: path.join(dir, "out") };
   checkKeyLeg(clean);
   assert.equal(readFileSync(clean.GITHUB_OUTPUT, "utf8"), "clean=true\n");
-  const short = { CHUNKS: "2", LOG_FILES: `${a}\n\n\n\n${c}\n`, GITHUB_OUTPUT: path.join(dir, "short") };
+  const short = { CHUNKS: "2", LOG_FILES: `${slots(a)}${c}\n`, GITHUB_OUTPUT: path.join(dir, "short") };
   assert.throws(() => checkKeyLeg(short), /unreadable/);
   assert.equal(existsSync(short.GITHUB_OUTPUT), false);
 });

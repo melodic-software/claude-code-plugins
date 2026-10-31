@@ -581,9 +581,9 @@ export function checkChunk(env = process.env) {
 
 // Each chunk by position: `output`, or `error` for a chunk that did not count.
 function judgedChunks(env) {
-  const chunkDirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-[1-9]$/.test(name));
+  const chunkDirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-[1-9][0-9]?$/.test(name));
   const count = Number(env.CHUNKS);
-  if (!/^[1-9]$/.test(env.CHUNKS) || chunkDirs.length !== count) {
+  if (!/^[1-9][0-9]?$/.test(env.CHUNKS) || chunkDirs.length !== count) {
     throw new Error(`the chunk count does not match ${chunkDirs.length} chunk(s) of the diff`);
   }
   const executions = positions(env.EXECUTION_FILES);
