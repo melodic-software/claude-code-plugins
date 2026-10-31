@@ -85,6 +85,12 @@ assert_eq 'a leading comment does not become the base indent' ".scratch" \
 assert_eq 'a longer key is not matched by a shorter one' \
   ".notes" "$(resolve 'memory_dir_extra: .scratch' memory_dir '.notes')"
 
+# --- The setup writer's written_against and provenance keys leave a value as it is ---
+assert_eq 'written_against and provenance beside a key return its value' "$(resolve 'memory_dir: .scratch')" \
+  "$(resolve "$(printf 'written_against: fixture@1.2.0\nmemory_dir: .scratch\nprovenance:\n  memory_dir: chosen (default .work)')")"
+assert_eq 'written_against and provenance beside a key: the value is .scratch' ".scratch" \
+  "$(resolve "$(printf 'written_against: fixture@1.2.0\nmemory_dir: .scratch\nprovenance:\n  memory_dir: chosen (default .work)')")"
+
 # --- Held behavior: unquoted trailing ` # comment` still stripped ---
 assert_eq 'unquoted trailing comment stripped' ".scratch" "$(resolve 'memory_dir: .scratch  # the tier')"
 
