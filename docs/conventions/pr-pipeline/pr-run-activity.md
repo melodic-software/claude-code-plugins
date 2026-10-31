@@ -2411,6 +2411,11 @@ that a listed human re-files the work as a new issue. What changes from the PR f
 - Any event other than `pull_request` whose run job gated no head SHA, including a read run whose
   `broker-check` job failed: the fallback there would be `github.sha`, the dispatch ref, not the
   PR's commit. The report job notes it in its step summary.
+- A dispatched `pr-unblock.yml` or `pr-refine.yml` run whose dispatcher's file at that run's head
+  differs from the tip's, which the broker would refuse as `workflow-modified`. The caller's
+  `dispatcher-current` job (`dispatcher-current.sh`) compares the two before any select job, so
+  nothing runs and the run ends green with no check and no stop, and the next dispatcher finds the
+  head unhandled. A read it cannot make leaves the run to the broker.
 
 ## Bounds
 
