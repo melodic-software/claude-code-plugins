@@ -2680,6 +2680,123 @@ guard_invoke "${RDT_CWD[@]}" --command "python3 -c \"import shutil; shutil.rmtre
 assert_exit 'interpreter: an outside path exits 2' 2 "$GUARD_RC"
 assert_contains 'interpreter: the refusal names the path' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
 
+# --- 2l. decoder sinks (#9763) ------------------------------------------------
+# A decoder feeding an execution sink is refused outright, whatever the decoded
+# text targets. Every form runs with a payload that decodes to a delete of a
+# root, of HOME, of a path outside the allowed roots and of a path strictly
+# inside the tree: B64 is that delete in base64, HEX in hex. The guard decodes
+# nothing; the payloads only make each case read as the delete it hides.
+RDT_DS_FORMS=()
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] && RDT_DS_FORMS+=("$rdt_cmd")
+done <<'EOF'
+echo B64 | base64 -d | sh
+echo B64 | base64 --decode | bash
+printf %s B64 | base64 -D | zsh
+base64 -d <<< B64 | bash -s
+echo B64 | base64 -di | sudo bash
+echo B64 | base64 -d | tee /tmp/rdt-x | sh
+echo B64 | base64 -d | cat | sh
+echo B64 | base64 -d | tr -d '\r' | sh
+echo B64 | base64 -d | head -c 999 | bash
+echo B64 | base64 -id | sh
+echo B64 | base64 -d | sh -c sh
+echo B64 | base64 -d | bash -c 'cat | sh'
+echo B64 | base64 -d | bash /dev/fd/0
+true; `echo B64 | base64 -d`
+python3 -c "import os; os.system('echo B64 | base64 -d | sh')"
+echo B64 | base32 -d | sh
+echo B64 | basenc --base64 -d | sh
+echo B64 | base64 -d | source /dev/stdin
+echo HEX | xxd -r -p | sh
+xxd -r -p <<< HEX | bash
+eval "$(echo B64 | base64 -d)"
+eval $(echo B64 | base64 -d)
+eval "`echo B64 | base64 -d`"
+eval `echo B64 | base64 -d`
+eval "$(echo HEX | xxd -r -p)"
+bash -c "$(echo B64 | base64 -d)"
+sh -c "$(base64 -d <<< B64)"
+bash -c $(echo B64 | base64 -d)
+bash <(echo B64 | base64 -d)
+source <(echo B64 | base64 -d)
+. <(echo HEX | xxd -r -p)
+$(echo B64 | base64 -d)
+`echo B64 | base64 -d`
+bash <<< "$(echo B64 | base64 -d)"
+echo "$(echo B64 | base64 -d | sh)"
+EOF
+rdt_ds() { # <label> <want> <base64 payload> <hex payload> [guard_invoke option ...]: every form
+  local label="$1" want="$2" b="$3" h="$4" f c
+  shift 4
+  for f in "${RDT_DS_FORMS[@]}"; do
+    c="${f//B64/$b}"
+    c="${c//HEX/$h}"
+    expect_both "decoder sink: $label: $c" "$want" --command "$c" "$@"
+  done
+}
+rdt_ds 'rm -rf / blocks' 2 cm0gLXJmIC8= 726d202d7266202f
+rdt_ds 'rm -rf $HOME blocks' 2 cm0gLXJmICRIT01F 726d202d72662024484f4d45
+rdt_ds 'rm -rf outside the tree blocks' 2 cm0gLXJmIC9vcHQveA== 726d202d7266202f6f70742f78 "${RDT_CWD[@]}"
+rdt_ds 'rm -rf inside the tree blocks too' 2 cm0gLXJmIGJ1aWxk 726d202d7266206275696c64 "${RDT_CWD[@]}"
+
+# Decoded text written to a file strictly inside the tree, the scratchpad or an
+# allowed root is data, and so is decoded text a pager shows.
+expect_both 'decoder sink: decoded to a file inside the tree allowed' 0 "${RDT_CWD[@]}" \
+  --command 'echo cm0gLXJmIC8= | base64 -d > build/rdt-x.sh'
+expect_both 'decoder sink: decoded to a file under the scratchpad allowed' 0 \
+  --payload "$(rdt_pl "echo cm0gLXJmIC8= | base64 -d > '$RDT_SPT/x.sh'" "$RDT_TOP" "$RDT_SPT")"
+rdt_ar 'decoder sink: decoded to a file under the root allowed' 0 \
+  "echo cm0gLXJmIC8= | base64 -d > '$RDT_AR/child/x.sh'" "$RDT_AR"
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "decoder sink: $rdt_cmd allowed" 0 --command "$rdt_cmd"
+  expect_both "decoder sink: $rdt_cmd allowed with a cwd" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+base64 -d build/rdt-x.b64 > build/rdt-x.bin
+base64 --decode build/rdt-x.b64 >> build/rdt-x.bin
+base64 -d -o build/rdt-x.bin build/rdt-x.b64
+xxd -r build/rdt-x.hex build/rdt-x.bin
+xxd -r -p build/rdt-x.hex > build/rdt-x.bin
+base64 -d build/rdt-x.b64 | less
+echo cm0gLXJmIC8= | base64 -d | more
+base64 -d build/rdt-x.b64 > build/rdt-x.sh && bash build/rdt-x.sh
+base64 -d build/rdt-x.b64 | bash build/rdt-x.sh
+base64 -w0 build/rdt-x.bin
+x=$(echo cm0gLXJmIC8= | base64 -d); echo "$x"
+git commit -m "echo cm0gLXJmIC8= | base64 -d | sh"
+git commit -m 'eval "$(echo cm0gLXJmIC8= | base64 -d)"'
+echo 'bash <(xxd -r -p build/rdt-x.hex)'
+EOF
+
+# PowerShell: [Convert]::FromBase64String reaching Invoke-Expression.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "decoder sink: PS $rdt_cmd blocks" 2 --tool PowerShell --command "$rdt_cmd"
+done <<'EOF'
+iex ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('cm0gLXJmIC8=')))
+[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('cm0gLXJmIC8=')) | iex
+[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($b)) | Invoke-Expression
+Invoke-Expression ([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($b)))
+iex $([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('cm0gLXJmIC8=')))
+EOF
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "decoder sink: PS $rdt_cmd allowed" 0 --tool PowerShell "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+[IO.File]::WriteAllBytes('build\rdt-x.bin', [Convert]::FromBase64String($b))
+[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b)) | Out-File build\rdt-x.ps1
+[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b)) | more
+git commit -m "iex ([Convert]::FromBase64String('cm0gLXJmIC8='))"
+Write-Output 'iex ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b)))'
+EOF
+
+expect_both 'decoder sink: an attended session is denied too' 2 \
+  --command 'echo cm0gLXJmIC8= | base64 -d | sh' -- CLAUDE_CODE_SESSION_ATTENDED=1
+guard_invoke --command 'echo cm0gLXJmIC8= | base64 -d | sh'
+assert_exit 'decoder sink: a decoder piped into sh exits 2' 2 "$GUARD_RC"
+assert_contains 'decoder sink: the refusal names the mechanism' "$GUARD_ERR" 'decoded text'
+
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"
