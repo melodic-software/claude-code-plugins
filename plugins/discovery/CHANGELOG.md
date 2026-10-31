@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.43.0] - 2026-10-31
+
+### Added
+
+- `/discovery:research` takes an optional `--unattended` modifier, accepted anywhere in its arguments, which is not part of the topic. With it, the run records the `/deep-research` offer in its output instead of asking, and dispatches; without it, the run asks. The argument hint lists it.
+
 ## [0.42.0] - 2026-10-31
 
 ### Changed
