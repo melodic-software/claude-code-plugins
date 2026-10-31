@@ -216,10 +216,7 @@ for (const [workflow, dispatchName] of [
       ["carry", "read", "read"],
     );
     assert.equal(order[0][1][CARRY], "/runner/temp/verify-listing-carry.json");
-    const NO_WAITS = readerEnv("NO_INCREMENTAL_WAITS_ENV");
     for (const [, spawned] of order.slice(1)) {
-      // A carried listing's waits and a whole listing outlast VERIFY_CAP_TIMEOUT_MS.
-      assert.equal(spawned[NO_WAITS], "1", "a miss on the carried listing lists every page at once");
       assert.equal(spawned[CARRY], "/runner/temp/verify-listing-carry.json", "the reader takes the file listing-carry.mjs wrote");
       assert.equal(spawned[LISTING], "/runner/temp/verify-listing.json", "one saved listing for the job's pull requests");
     }

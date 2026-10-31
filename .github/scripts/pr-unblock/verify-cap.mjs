@@ -45,11 +45,6 @@ const SHA = /^[0-9a-f]{40}$/;
 // One full read lists every artifact of the repository; the dispatcher job's
 // timeout-minutes (10) leaves room for a few (judgment).
 export const VERIFY_CAP_TIMEOUT_MS = 2 * 60_000;
-// The reader's waits between incremental reads of a carried listing
-// (babysit_verify_evidence.py INCREMENTAL_WAITS) and the whole listing after
-// them do not fit in that limit, and a killed read is not the cap, so a miss
-// goes straight to the whole listing (NO_INCREMENTAL_WAITS_ENV).
-export const NO_INCREMENTAL_WAITS = { BABYSIT_VERIFY_NO_INCREMENTAL_WAITS: "1" };
 
 // spawnSync's result ({ status, stdout, stderr, error }) from a child that
 // leaves the event loop running. A read blocked behind spawnSync for a minute
@@ -150,7 +145,6 @@ function stderrSummary(stderr) {
 // `carry`: fetches the listing pr-merge carried, before the first read only,
 // when the job names BABYSIT_VERIFY_LISTING_CARRY; a failed fetch is no carry.
 export function verifyCapReader(env, { spawn = spawnAsync, log = (line) => console.log(line), carry = fetchCarry } = {}) {
-  env = { ...env, ...NO_INCREMENTAL_WAITS };
   let carried = null;
   return async ({ number, head, base, expected = [] }) => {
     if (env.BABYSIT_VERIFY_LISTING_CARRY) {
