@@ -3577,15 +3577,21 @@ VERIFY_CAP = (
 )
 
 
-def verify_cap_env() -> dict[str, str]:
-    """The `BABYSIT_VERIFY_*` environment verify-cap.mjs starts this reader with."""
+def verify_cap_env(reads: int = 1) -> dict[str, str]:
+    """The `BABYSIT_VERIFY_*` environment verify-cap.mjs starts this reader with
+    on read number `reads`, every read before it answering `DEADLINE_UNREADABLE`."""
     script = f"""
-    import {{ verifyCapReader }} from {json.dumps(VERIFY_CAP.as_uri())};
+    import {{ DEADLINE_UNREADABLE, verifyCapReader }} from {json.dumps(VERIFY_CAP.as_uri())};
+    const head = "a".repeat(40);
+    const report = {{ head, refusal: "verify:unreadable", detail: DEADLINE_UNREADABLE }};
     const spawn = (command, args, options) => {{
       console.log(JSON.stringify(options.env));
-      return {{ status: 0, stdout: "{{}}", stderr: "" }};
+      return {{ status: 0, stdout: JSON.stringify(report), stderr: "" }};
     }};
-    await verifyCapReader({{}}, {{ spawn, log: () => {{}} }})({{ number: 1, head: "a".repeat(40) }});
+    const read = verifyCapReader({{}}, {{ spawn, log: () => {{}} }});
+    for (let number = 1; number <= {reads}; number += 1) {{
+      await read({{ number, head }});
+    }}
     """
     out = subprocess.run(
         ["node", "--input-type=module", "-e", script],
@@ -3741,15 +3747,44 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertEqual((fake.pages(), fake.full_listings()), (3 + 1, 1))
         self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0, 30.0])
 
-    def verify_cap_read(self) -> tuple[ve.Reader, ve.Evidence, FakeGitHub]:
-        """verify-cap.mjs's read of a carried listing whose pages miss GitHub's
-        live count, a count no whole listing fits in the 105 s its 120 s kill
-        limit leaves. The miss outlasts the waits unless a test ends it."""
+    def test_a_caller_that_skips_the_waits_lists_every_page_after_one_miss(
+        self,
+    ) -> None:
+        # A forged carry under BABYSIT_VERIFY_NO_INCREMENTAL_WAITS=1: one
+        # incremental first page, no wait, then the whole listing, which still
+        # holds the dropped FAIL.
+        fail = dated(named(EARLIER, "fail"), 2, 600, self.base_at - timedelta(days=2))
+        self.write_carry(self.base)
+        fake = self.fake(fail)
+        with mock.patch.dict(
+            "os.environ", {"BABYSIT_VERIFY_NO_INCREMENTAL_WAITS": "1"}
+        ):
+            reader, evidence = self.judge(fake)
+        self.assertEqual(evidence.refusal, "verify:earlier-fail")
+        self.assertEqual(reader.listing_mode, "full")
+        self.assertEqual((fake.pages(), fake.full_listings()), (1 + 1, 1))
+        self.sleep.assert_not_called()
+        # Any other value keeps the waits (with no listing saved by the first).
+        self.saved.unlink()
+        self.sleep.reset_mock()
+        with mock.patch.dict(
+            "os.environ", {"BABYSIT_VERIFY_NO_INCREMENTAL_WAITS": "true"}
+        ):
+            self.judge(self.fake(fail))
+        self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0, 30.0])
+
+    def verify_cap_read(
+        self, reads: int = 1
+    ) -> tuple[ve.Reader, ve.Evidence, FakeGitHub]:
+        """Read number `reads` of a verify-cap.mjs reader on a carried listing
+        whose pages miss GitHub's live count, a count no whole listing fits in
+        the 105 s its 120 s kill limit leaves. The miss outlasts the waits
+        unless a test ends it."""
         self.write_carry(self.base)
         fake = self.miss = self.fake()
         fake.live_total = 12_000
         with (
-            mock.patch.dict("os.environ", verify_cap_env()),
+            mock.patch.dict("os.environ", verify_cap_env(reads)),
             mock.patch.object(ve, "_elapsed", return_value=0.0),
         ):
             reader, evidence = self.judge(fake)
@@ -3771,6 +3806,13 @@ class TheListingBuildsOnACarriedOne(unittest.TestCase):
         self.assertTrue(evidence.detail.startswith(ve.DEADLINE_UNREADABLE))
         self.assertEqual((fake.pages(), fake.full_listings()), (3, 0))
         self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0, 30.0])
+
+    def test_a_read_after_a_refusal_for_the_caller_limit_takes_no_waits(self) -> None:
+        _, evidence, fake = self.verify_cap_read(reads=2)
+        self.assertEqual(evidence.refusal, "verify:unreadable")
+        self.assertTrue(evidence.detail.startswith(ve.DEADLINE_UNREADABLE))
+        self.assertEqual((fake.pages(), fake.full_listings()), (1, 0))
+        self.sleep.assert_not_called()
 
     def test_a_failed_first_read_is_not_read_again_on_the_base(self) -> None:
         # A 429, a rate-limit 403 or a timeout on the first incremental page

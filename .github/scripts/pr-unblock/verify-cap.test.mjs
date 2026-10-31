@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
-import { DEADLINE_UNREADABLE, FAIL, final, LISTING_MISS_PREFIX, SIBLING_UNREADABLE, spawnAsync, VERIFY_CAP_TIMEOUT_MS, VERIFY_SCRIPT, verifyCapReader } from "./verify-cap.mjs";
+import { DEADLINE_UNREADABLE, FAIL, final, LISTING_MISS_PREFIX, NO_INCREMENTAL_WAITS, SIBLING_UNREADABLE, spawnAsync, VERIFY_CAP_TIMEOUT_MS, VERIFY_SCRIPT, verifyCapReader } from "./verify-cap.mjs";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -148,6 +148,36 @@ test("a listing that does not fit in the caller's limit skips the round, for thi
   assert.deepEqual(lines, []);
 });
 
+// The dispatchers read one pull request after another: each read after a
+// caller-limit answer must not repeat the 15 s and 30 s waits.
+test("after a caller-limit answer the same reader's later reads skip the waits; before one, and in a new reader, they wait", async () => {
+  const NO_WAITS = Object.keys(NO_INCREMENTAL_WAITS)[0];
+  const refused = answer({ refusal: "verify:unreadable", detail: `${DEADLINE_UNREADABLE}: repository artifacts` });
+  const allowed = answer({ refusal: null });
+  const replies = [allowed, refused, refused, allowed];
+  const waits = [];
+  const spawn = (command, args, options) => {
+    waits.push(options.env[NO_WAITS]);
+    return replies.shift();
+  };
+  const read = verifyCapReader({ GITHUB_REPOSITORY: REPO }, { spawn, log: () => {} });
+  for (const number of [41, 42, 43, 44]) {
+    await read({ number, head: HEAD, base: BASE });
+  }
+  assert.deepEqual(waits, [undefined, undefined, "1", "1"]);
+  const { read: fresh, calls: freshCalls } = reader(allowed);
+  await fresh({ number: 45, head: HEAD, base: BASE });
+  assert.equal(freshCalls[0].env[NO_WAITS], undefined);
+});
+
+test("a refusal other than the caller limit keeps the waits for later reads", async () => {
+  const NO_WAITS = Object.keys(NO_INCREMENTAL_WAITS)[0];
+  const { read, calls } = reader(answer({ refusal: "verify:unreadable", detail: SIBLING_UNREADABLE }));
+  await read({ number: 42, head: HEAD, base: BASE });
+  await read({ number: 43, head: HEAD, base: BASE });
+  assert.equal(calls[1].env[NO_WAITS], undefined);
+});
+
 // Both dispatchers' FAIL-cap reads take the listing pr-merge carried
 // (listing-carry.mjs) as the first read's base, and share one saved listing
 // across every pull request of the job, as pr-merge.yml's gate does; without
@@ -273,12 +303,13 @@ test("with no carry file named, no carry is fetched", async () => {
   assert.equal(fetched, 0);
 });
 
-test("the sibling and caller-limit details, the FAIL refusal and the listing-miss prefix are the reader's", async () => {
+test("the sibling and caller-limit details, the FAIL refusal, the listing-miss prefix and the no-wait switch are the reader's", async () => {
   const source = readFileSync(new URL("../../../plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", import.meta.url), "utf8");
   assert.ok(source.includes(`SIBLING_UNREADABLE = "${SIBLING_UNREADABLE}"`));
   assert.ok(source.includes(`DEADLINE_UNREADABLE = "${DEADLINE_UNREADABLE}"`));
   assert.ok(source.includes(`FAIL = "${FAIL}"`));
   assert.ok(source.includes(`LISTING_MISS_PREFIX = "${LISTING_MISS_PREFIX}"`));
+  assert.ok(source.includes(`NO_INCREMENTAL_WAITS_ENV = "${Object.keys(NO_INCREMENTAL_WAITS)[0]}"`));
 });
 
 // babysit_verify_evidence.py DEADLINE_ENV and CALLER_ENV: the reader sizes its

@@ -1,8 +1,5 @@
 ---
-bump: patch
+bump: none
 ---
 
-### Changed
-
-- `babysit_verify_evidence.py` drops `BABYSIT_VERIFY_NO_INCREMENTAL_WAITS`. Every caller now takes
-  the incremental read's waits, which stop at the caller's limit (`BABYSIT_VERIFY_DEADLINE_SECONDS`).
+`babysit_verify_evidence.py` changes only its module docstring and tests; the reader behaves as it did.

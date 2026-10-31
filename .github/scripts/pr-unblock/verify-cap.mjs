@@ -22,6 +22,12 @@
 //
 // The listing pr-merge carried (listing-carry.mjs) is fetched on the first
 // read only, so a run that skips before any read spends none of its calls.
+//
+// A count miss on the carried listing takes the reader's waits, about 45 s a
+// read, and a read that ends in DEADLINE_UNREADABLE saves no listing, so the
+// next pull request's read would wait from the same base. The dispatchers read
+// one pull request after another inside a 10-minute job, so after one such
+// answer the reader's later reads skip the waits (NO_INCREMENTAL_WAITS).
 import { spawn as spawnChild } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -45,6 +51,10 @@ const SHA = /^[0-9a-f]{40}$/;
 // One full read lists every artifact of the repository; the dispatcher job's
 // timeout-minutes (10) leaves room for a few (judgment).
 export const VERIFY_CAP_TIMEOUT_MS = 2 * 60_000;
+// babysit_verify_evidence.py NO_INCREMENTAL_WAITS_ENV: one incremental read, and
+// a miss goes straight to the whole listing, which refuses before paging when
+// it cannot fit.
+export const NO_INCREMENTAL_WAITS = { BABYSIT_VERIFY_NO_INCREMENTAL_WAITS: "1" };
 
 // spawnSync's result ({ status, stdout, stderr, error }) from a child that
 // leaves the event loop running. A read blocked behind spawnSync for a minute
@@ -146,6 +156,7 @@ function stderrSummary(stderr) {
 // when the job names BABYSIT_VERIFY_LISTING_CARRY; a failed fetch is no carry.
 export function verifyCapReader(env, { spawn = spawnAsync, log = (line) => console.log(line), carry = fetchCarry } = {}) {
   let carried = null;
+  let deadlineMissed = false;
   return async ({ number, head, base, expected = [] }) => {
     if (env.BABYSIT_VERIFY_LISTING_CARRY) {
       carried ??= Promise.resolve()
@@ -159,7 +170,7 @@ export function verifyCapReader(env, { spawn = spawnAsync, log = (line) => conso
     }
     // The reader sizes its listing to this kill limit and names this caller
     // when a listing cannot fit (babysit_verify_evidence.py DEADLINE_ENV).
-    const readerEnv = { ...env, BABYSIT_VERIFY_DEADLINE_SECONDS: String(VERIFY_CAP_TIMEOUT_MS / 1000), BABYSIT_VERIFY_CALLER: "verify-cap.mjs" };
+    const readerEnv = { ...env, ...(deadlineMissed && NO_INCREMENTAL_WAITS), BABYSIT_VERIFY_DEADLINE_SECONDS: String(VERIFY_CAP_TIMEOUT_MS / 1000), BABYSIT_VERIFY_CALLER: "verify-cap.mjs" };
     const done = await spawn("python3", [...args, String(number), head], { encoding: "utf8", env: readerEnv, timeout: VERIFY_CAP_TIMEOUT_MS });
     const said = stderrSummary(done.stderr);
     if (said) {
@@ -182,6 +193,7 @@ export function verifyCapReader(env, { spawn = spawnAsync, log = (line) => conso
       return `${UNREADABLE}: ${SIBLING_UNREADABLE}`;
     }
     if (report.refusal === UNREADABLE && String(report.detail ?? "").startsWith(DEADLINE_UNREADABLE)) {
+      deadlineMissed = true;
       return `${UNREADABLE}: ${oneLine(report.detail)}`;
     }
     if (report.refusal !== CAPPED) {
