@@ -3777,6 +3777,8 @@ test("scan job: an oversize patch is refused `patch` only after a clean carry sc
     ["a binary hunk", { "patch/patch.diff": over("GIT binary patch\nliteral 4\n") }, undefined, "hit", "output"],
     ["a gate that fails to load", { "patch/patch.diff": Buffer.alloc(262145, 0x61) }, { gate: "throw new Error('broken');\n" }, "hit", "output"],
     ["no gate", { "patch/patch.diff": Buffer.alloc(262145, 0x61) }, { gate: "" }, "hit", "output"],
+    // The gate runs its CLI when process.argv[1] names it, and that reads stdin.
+    ["a gate never run as a script", { "patch/patch.diff": Buffer.alloc(262145, 0x61) }, { gate: `${read("../../../lib/publish-gate.mjs")}\nif (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) throw new Error("run as a script");\n` }, "clean", "patch"],
   ]) {
     const runOutputs = runOutputsAfterCarry(t, files, options);
     assert.equal(runOutputs["carry-patch-scan"], scan, name);

@@ -2073,12 +2073,11 @@ jobs:
             timeout 120 node --input-type=module -e '
               import { readFileSync } from "node:fs";
               import { pathToFileURL } from "node:url";
-              const [gate, patch] = process.argv.slice(1);
-              const { scanLeak } = await import(pathToFileURL(gate).href);
-              const bytes = readFileSync(patch);
+              const { scanLeak } = await import(pathToFileURL(process.env.PATCH_GATE).href);
+              const bytes = readFileSync(process.argv[1]);
               const held = scanLeak(bytes, { diff: true }).block || /^GIT binary patch$/m.test(bytes.toString("latin1"));
               process.exit(held ? 1 : 0);
-            ' "$PATCH_GATE" "$1"
+            ' "$1"
           }
           carry() {
             local name=$1 file=$2 copy=$CARRY_DIR/$3 cap=$4 bytes
