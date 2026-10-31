@@ -1029,8 +1029,20 @@ the rules that only tighten in
   open or not, once main is green at a later commit: a green `pr-require-checks` run on main,
   attempt 1, from a schedule or a `github-actions[bot]` dispatch, created after the record, at a
   commit ahead of the record's SHA and on main's history. The earliest such run's creation is the
-  clear time, read from every such run since the record, so newer runs never move it. Canary and
-  read-back records stay human-close. The wrapper finds these issues by author (the agent identity
+  clear time, read from every such run since the record, so newer runs never move it. Canary,
+  revert and read-back records stay human-close. A push to main files a `revert` record when one
+  of its commits names a pull request it reverts and the lanes App enqueued that pull request or
+  its enqueuer cannot be read; a revert of one a person enqueued files nothing. A commit names it
+  on a line of its squash message: `Reverts` (optionally after a `-` or `*` bullet) followed by `#N`
+  or `<owner>/<repo>#N` references, each counted; a GitHub revert-button subject
+  `Revert "... (#N)" (#M)`; or `This reverts commit <sha>` or the red-main bot's
+  `<!-- red-main-revert culprit=<sha> -->`, through that commit's `(#N)` subject. Every canary push
+  run, whatever it concluded and on every attempt, reads every commit the push brought, a
+  merge-queue batch included: main's first-parent range since the previous canary push run's head,
+  at most 20 commits, and the newest 20 when that head cannot be read or is not on the push's
+  history, read from main's full history. A revert commit any revert record already lists, in any
+  state, is skipped, so a commit is filed once and never again after a person closes its record. A
+  reverted commit whose pull request cannot be read is an unproven revert and files the record. The wrapper finds these issues by author (the agent identity
   or `github-actions[bot]`), so removing the marker or the label does not clear one. When `post-merge-demotion-alert.yml` proves
   that no merge the failing run covers was enqueued by the agent identity, it files a
   post-merge-failure record instead, first line `<!-- post-merge-failure sha=<S> signal=<name> -->`,
