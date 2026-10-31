@@ -2523,6 +2523,167 @@ guard_invoke "${RDT_CWD[@]}" --command 'git worktree remove --force /opt/nonexis
 assert_exit 'git worktree: an outside worktree exits 2' 2 "$GUARD_RC"
 assert_contains 'git worktree: the refusal names the worktree' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
 
+# --- 2k. interpreter deletes (#9762) ------------------------------------------
+# The program a python -c, node -e, perl -e or ruby -e runs, or one it reads
+# from a heredoc or a here-string, is read for its deleter calls and for the
+# commands it runs. A literal path is judged as a recursive rm operand. Every
+# form runs against a root, HOME, `~`, a path outside the allowed roots and a
+# path strictly inside the tree.
+RDT_IX_FORMS=()
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] && RDT_IX_FORMS+=("$rdt_cmd")
+done <<'EOF'
+python3 -c "import shutil; shutil.rmtree('TGT')"
+python -Bc "import shutil; shutil.rmtree('TGT', ignore_errors=True)"
+python3 -c "import os; os.remove('TGT')"
+node -e "require('fs').rmSync('TGT', { recursive: true, force: true })"
+node --eval "const fs = require('fs'); fs.rmSync(\"TGT\", { recursive: true })"
+perl -MFile::Path=rmtree -e "rmtree('TGT')"
+perl -MFile::Path=remove_tree -le "remove_tree 'TGT' or die"
+ruby -rfileutils -e "FileUtils.rm_rf('TGT')"
+ruby -rfileutils -e "FileUtils.rm_rf 'TGT'"
+python3 -c "import subprocess; subprocess.run(['rm', '-rf', 'TGT'], check=True)"
+python3 -c "import os; os.system('rm -rf TGT')"
+node -e "require('child_process').execSync('rm -rf TGT')"
+node -e "require('child_process').spawnSync('rm', ['-rf', 'TGT'])"
+ruby -e "system('rm', '-rf', 'TGT')"
+perl -e "system 'rm -rf TGT'"
+sudo python3 -c "import shutil; shutil.rmtree('TGT')"
+bash -c "python3 -c \"import shutil; shutil.rmtree('TGT')\""
+EOF
+RDT_IX_FORMS+=(
+  $'python3 - <<"EOF"\nimport shutil\nshutil.rmtree("TGT")\nEOF'
+  $'node <<EOF\nrequire("fs").rmSync("TGT", { recursive: true })\nEOF'
+  $'cat <<A\nprint(1)\nA\nruby -rfileutils - <<B\nFileUtils.rm_rf("TGT")\nB'
+  "python3 <<< \"import shutil; shutil.rmtree('TGT')\""
+)
+rdt_ix() { # <label> <want> <target> [guard_invoke option ...]: every form
+  local label="$1" want="$2" t="$3" f c
+  shift 3
+  for f in "${RDT_IX_FORMS[@]}"; do
+    c="${f//TGT/$t}"
+    expect_both "interpreter: $label: $c" "$want" --command "$c" "$@"
+  done
+}
+rdt_ix 'a root blocks' 2 /
+rdt_ix 'HOME blocks' 2 '$HOME'
+rdt_ix '~ blocks' 2 '~'
+rdt_ix 'outside the tree blocks' 2 /opt/nonexistent-rdt/x "${RDT_CWD[@]}"
+rdt_ix 'inside the tree allowed' 0 plugins/rdt-nonexistent "${RDT_CWD[@]}"
+expect_both 'interpreter: a delete under /tmp allowed' 0 "${RDT_CWD[@]}" \
+  --command "python3 -c \"import shutil; shutil.rmtree('/tmp/rdt-x')\""
+expect_both 'interpreter: a delete under the scratchpad allowed' 0 \
+  --payload "$(rdt_pl "python3 -c \"import shutil; shutil.rmtree('$RDT_SPT/x')\"" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'interpreter: the scratchpad itself blocks' 2 \
+  --payload "$(rdt_pl "python3 -c \"import shutil; shutil.rmtree('$RDT_SPT')\"" "$RDT_TOP" "$RDT_SPT")"
+rdt_ar 'interpreter: unset key, a delete under the root blocks' 2 \
+  "node -e \"require('fs').rmSync('$RDT_AR/child', { recursive: true })\""
+rdt_ar 'interpreter: a delete under the root allowed' 0 \
+  "node -e \"require('fs').rmSync('$RDT_AR/child', { recursive: true })\"" "$RDT_AR"
+rdt_ar 'interpreter: a delete of the root itself blocks' 2 \
+  "ruby -rfileutils -e \"FileUtils.rm_rf('$RDT_AR')\"" "$RDT_AR"
+expect_both 'interpreter: a delete of the toplevel blocks' 2 "${RDT_CWD[@]}" \
+  --command "python3 -c \"import shutil; shutil.rmtree('.')\""
+
+# The mechanism as quoted prose, a deleter named inside a string or a comment
+# of the code, a command that deletes nothing, a script file, a module, and a
+# heredoc that is data for a script or belongs to another command.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "interpreter: $rdt_cmd allowed" 0 --command "$rdt_cmd"
+  expect_both "interpreter: $rdt_cmd allowed with a cwd" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+git commit -m "python3 -c 'import shutil; shutil.rmtree(\"/\")'"
+git commit -m 'fix' -m "node -e \"require('fs').rmSync('/', { recursive: true })\""
+echo 'ruby -rfileutils -e "FileUtils.rm_rf(\"/\")"'
+python3 -c "print('never call shutil.rmtree(\"/\")')"
+python3 -c "import shutil  # shutil.rmtree('/')"
+node -e "/* require('fs').rmSync('/') */ console.log(1)"
+perl -e "print 'rmtree(\"/\")'"
+python3 -c "import os; print(os.remove)"
+python3 -c "import os; os.system('ls /')"
+node -e "require('child_process').execSync('git status')"
+python3 -c "import shutil; shutil.rmtree('build/rdt-x')"
+python3 -m shutil rmtree /
+python3 script.py --rmtree /
+perl -pi -e 's/rmtree/remove_tree/' lib/rdt-x.pm
+node -e "require('fs').rmSync('build/rdt-x',{recursive:true}); console.log('a/b'.replace(/\//g,'_'))"
+EOF
+rdt_ix_n=0
+for rdt_cmd in \
+  $'cat <<"EOF"\nimport shutil; shutil.rmtree("/")\nEOF' \
+  $'python3 script.py <<"EOF"\nimport shutil; shutil.rmtree("/")\nEOF' \
+  $'cat <<A\nimport shutil; shutil.rmtree("/")\nA\npython3 - <<B\nprint(1)\nB'; do
+  rdt_ix_n=$((rdt_ix_n + 1))
+  expect_both "interpreter: a heredoc no interpreter reads as its program ($rdt_ix_n) allowed" 0 \
+    "${RDT_CWD[@]}" --command "$rdt_cmd"
+done
+
+# A path the code computes cannot be placed, so the call is refused: an
+# argument, an expression, an interpolated string, a list element, a `$` the
+# shell may have expanded, and a command built from one. A substitution body
+# is read too. So is a deleter, a backtick, a ruby %x or a perl qx after a
+# comment character that a `/` regex literal on its line may hold (`/\//`,
+# `/\/*/`, `/#/`, `/\#/`).
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "interpreter: $rdt_cmd blocks" 2 --command "$rdt_cmd"
+done <<'EOF'
+python3 -c "import shutil, sys; shutil.rmtree(sys.argv[1])" build
+python3 -c "import shutil, os; shutil.rmtree(os.path.expanduser('~'))"
+python3 -c "import shutil; shutil.rmtree(f'{d}/build')"
+python3 -c 'import shutil; shutil.rmtree("$X/build")'
+node -e "require('fs').rmSync(process.argv[1], { recursive: true })" build
+ruby -rfileutils -e "FileUtils.rm_rf(ARGV[0])" build
+ruby -rfileutils -e "FileUtils.rm_rf ARGV"
+perl -MFile::Path=rmtree -e "rmtree(\$ARGV[0])" build
+python3 -c "import subprocess, sys; subprocess.run(['rm', '-rf', sys.argv[1]])" build
+python3 -c "import os; os.system(f'rm -rf {d}')"
+ruby -e 'system("rm -rf #{ARGV[0]}")' build
+perl -e 'system("rm -rf $ARGV[0]")' build
+perl -e 'my $o = qx(rm -rf /);'
+ruby -e 'puts %x(rm -rf /)'
+ruby -e 'puts `rm -rf /`'
+echo "$(python3 -c "import shutil; shutil.rmtree('/')")"
+python3 -c 'import os; os.system("rm\t-rf\t~")'
+python3 -c 'import os; os.system("find \x2f -delete")'
+python3 -BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBc "import shutil; shutil.rmtree('/')"
+perl -e 'unlink for "/opt/nonexistent-rdt/x/f"'
+perl -nle unlink
+ruby -rfileutils -e "FileUtils.rm_rf({'/opt/nonexistent-rdt/x'=>1}.keys)"
+perl -MFile::Path -Fe -e 'BEGIN{rmtree("/")}'
+node -e "'a/b'.replace(/\//g,'_'); require('fs').rmSync('/',{recursive:true})"
+node -e "'a/b'.replace(/\/*/g,''); require('fs').rmSync('/'); /* */"
+ruby -rfileutils -e "x =~ /#/; FileUtils.rm_rf('/')"
+perl -MFile::Path=rmtree -e '$x =~ /\#/; rmtree("/")'
+ruby -e 'x =~ /#/; `rm -rf /`'
+ruby -e 'x =~ /#/; %x(rm -rf /)'
+perl -e '$x =~ /\#/; `rm -rf /`'
+perl -e '$x =~ /\#/; qx(rm -rf /)'
+EOF
+
+# A ruby delete that holds none of the other prefilter words, a program read
+# from /dev/stdin, an unquoted heredoc whose backslash-newline bash removes,
+# and a heredoc judged from where its interpreter ran, not after a later `cd -`.
+expect_both 'interpreter: ruby Dir.delete outside the tree blocks' 2 "${RDT_CWD[@]}" \
+  --command 'ruby -e '\''Dir.delete("/opt/nonexistent-rdt/x")'\'''
+expect_both 'interpreter: a program read from /dev/stdin blocks' 2 \
+  --command $'python3 /dev/stdin <<"EOF"\nimport shutil; shutil.rmtree("/")\nEOF'
+expect_both 'interpreter: an unquoted heredoc with a backslash-newline blocks' 2 \
+  --command $'python3 - <<EOF\nimport shutil; shutil.rm\\\ntree("/")\nEOF'
+expect_both 'interpreter: a heredoc before a later cd - blocks' 2 "${RDT_CWD[@]}" \
+  --command $'python3 - <<"EOF"\nimport shutil; shutil.rmtree("..")\nEOF\ncd -'
+# The items xargs hands an interpreter are its argv, not targets.
+expect_both 'interpreter: xargs into python with a literal path inside the tree allowed' 0 "${RDT_CWD[@]}" \
+  --command "ls | xargs python3 -c \"import shutil; shutil.rmtree('build/rdt-x')\""
+
+guard_invoke --command "python3 -c 'import shutil, sys; shutil.rmtree(sys.argv[1])' build"
+assert_exit 'interpreter: a computed path exits 2' 2 "$GUARD_RC"
+assert_contains 'interpreter: the refusal names the expression' "$GUARD_ERR" 'the path given as sys.argv[1]'
+guard_invoke "${RDT_CWD[@]}" --command "python3 -c \"import shutil; shutil.rmtree('/opt/nonexistent-rdt/x')\""
+assert_exit 'interpreter: an outside path exits 2' 2 "$GUARD_RC"
+assert_contains 'interpreter: the refusal names the path' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
+
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"
