@@ -1517,7 +1517,7 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
                 self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
 
     def test_a_record_resets_only_its_own_issue(self) -> None:
-        # A close on issue 8 ends no attempt at issue 7, whose FAILs stay.
+        # A close on one issue ends no attempt at another, whose FAILs stay.
         fake = also_closes_issue_8(self.sibling_fails(*SIBLING_HEADS))
         self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
         # Records on both of them end the attempts at both.
