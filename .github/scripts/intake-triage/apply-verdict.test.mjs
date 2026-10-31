@@ -1144,6 +1144,20 @@ describe("run", () => {
     );
   });
 
+  test("a field-values answer that is not a list stops the run before any write", async () => {
+    for (const answer of [{ message: "Not Found" }, null, "oops"]) {
+      const fake = fakeGitHub({ comments: [laneComment()], fieldRows: answer });
+      await assert.rejects(() => go(fake), /field values answered .*, not a list/, JSON.stringify(answer));
+      assert.deepEqual(writes(fake.calls), [], JSON.stringify(answer));
+    }
+  });
+
+  test("an empty field-values list reads as no fields set", async () => {
+    const fake = fakeGitHub({ comments: [laneComment()], fieldRows: [] });
+    assert.equal((await go(fake)).outcome, "ready");
+    assert.ok(writes(fake.calls).some(({ path }) => path.endsWith("/issue-field-values")));
+  });
+
   test("hands a ready verdict to admission, and nothing else", async () => {
     const seen = [];
     const admitIssue = async (verdict) => {

@@ -75,6 +75,18 @@ command prints the window with no model turn: a `<synthetic>` assistant message 
 `num_turns` 0, which the verdict reads as printed output (record 16). A model answer reads as
 `inconclusive`.
 
+The `cloud-routine` area checks state a cloud scheduled task (routine) keeps between runs. Its case
+uses `/schedule` to create a one-off task on this marketplace repository, starts one run at once and
+lets the scheduled fire be the second. Each run posts an issue comment on #8991, marked with an id the
+scaffold writes. The case then polls for 35 minutes at most and judges a final read of the second
+run's comment. Each live run creates a routine on the operator's account and posts two public
+comments as the operator's GitHub login. The one-off turns itself off after it fires and stays on
+the account; delete it from its menu at [claude.ai/code/routines](https://claude.ai/code/routines).
+The case is `explicit`, so a live run that does not name it with `--case` skips it. `gh` must be on
+`PATH` and signed in, through its config under `HOME`, to an account that can read the issue: the
+child environment drops `GH_TOKEN` and the keyring's session variables. The comments also record the date and zone
+each run sees, for the date-zone question tracked in #7679 (record 19).
+
 ## Reading a result
 
 | Verdict | Meaning | Do |
@@ -100,7 +112,9 @@ dry run, optional `in_subagent`, `select` of `first|any|all`, `count`); `outcome
 `ran` or `refused`: `allow` accepts `ran` or `refused`, `refused` is an error result with no
 permission denial); optional `reason_type` (the denial's `decision_reason_type`) and `match` (a
 case-insensitive substring of the denial reason or tool result); optional `permission_mode`, `cwd`,
-`env`, `max_turns`, `max_budget_usd`, `model`, `platforms`, `requires`; optional `allowed_tools` and
+`env`, `max_turns`, `max_budget_usd`, `model`, `platforms`, `requires`; optional `timeout` (seconds,
+in place of the run's `--timeout`); optional `explicit` (`true` on a case with effects outside its
+temp directory: a live run skips it unless `--case` names it); optional `allowed_tools` and
 `disallowed_tools` (lists of permission rules, no rule holding a comma, `${PROBE_WORKDIR}`
 substituted) or `tool_rules` (a JSON file in `cases/lib/` holding both lists, for cases that share
 them; a list the case sets itself wins); optional `verdict_only` (`true` on a case whose failure would

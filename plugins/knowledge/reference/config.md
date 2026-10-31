@@ -16,8 +16,9 @@ Resolved lowest first; a later layer wins:
 
 No `userConfig` option, `~/.claude` file or local overlay sets these keys: a key here places tracked
 files, so its value is the repository's. A missing file or key leaves that layer unset, and the
-team layer does not apply outside a git working tree or when the root (`CLAUDE_PROJECT_DIR`, else
-`git rev-parse --show-toplevel`) is `$HOME` or an ancestor of it. Every run that reads a key
+team layer does not apply outside a git working tree or when the root `scripts/work-root.mjs`
+prints (the working directory's git top-level, [`work-root.md`](work-root.md)) is `$HOME` or an
+ancestor of it. Every run that reads a key
 reports the value and the layer that supplied it.
 
 A value outside the key's values in any layer is reported, naming the layer's file (or the
@@ -29,4 +30,11 @@ run never stops on an invalid value.
 
 | Key | Values | Default | Argument | Reader and effect |
 |---|---|---|---|---|
-| `upstream_records_dir` | a repository-relative directory: not absolute, no leading `~`, no `..` segment, inside the working tree | `docs/upstream` | `--out <dir>` | `/knowledge:absorb-upstream` writes its record in this directory. |
+| `upstream_records_dir` | a repository-relative directory: not absolute, no leading `~`, no `..` segment, inside the working tree | `docs/upstream` | `--out <dir>`, which also takes an absolute directory | `/knowledge:absorb-upstream` writes its record in this directory. |
+
+An absolute `--out` is valid only when `scripts/repo-visibility.mjs` reads `private`, `internal`
+or `local` for that directory (`private` or `internal` only when every fetch and push URL of every
+remote reads so), so a private source's record can land in a private checkout from a
+session in another repository. An absolute `--out` that reads `public` or `unknown` is invalid, as
+is an absolute value in the team layer. The record's grounding still searches the session's
+repository, not the `--out` target.

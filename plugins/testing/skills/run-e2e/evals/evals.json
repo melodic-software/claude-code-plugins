@@ -405,8 +405,8 @@
     {
       "id": "affected-01",
       "name": "unattended-drive-route-from-affected",
-      "prompt": "/testing:run-e2e unattended app=shop base=main trusted-root=/srv/trusted/shop\n\nContext, not part of the scenario: the app-control plugin is installed and /app-control:drive resolves; nobody is present to answer. /app-control:drive affected writes an affected.json whose control_skill is `control-shop (project: /srv/trusted/shop/.claude/skills/control-shop/SKILL.md)` and whose features list one entry, id `cart`, matched_files [\"shop/cart/basket.py\"], with two entry points: `Add to cart button` (driven true) and `Saved-cart import` (driven false, reason `needs a signed-in account`). README.md is in unmatched_files. Each /app-control:drive cart run writes a report.md and report.json with screenshots; neither report lists any mask values or patterns.",
-      "expected_output": "Step 1 invokes /app-control:drive affected shop --base main --unattended --trusted-root /srv/trusted/shop and reads affected.json; control_skill is set, so the route is drive. It does not read the control skill's index or match sources globs itself. It drives the cart feature with /app-control:drive shop cart --unattended --trusted-root /srv/trusted/shop and its own --out directory, reports Saved-cart import as not driven (needs a signed-in account), and writes e2e-summary.json with route drive, app shop, affected [\"cart\"], capture status ran, one entry_points line per entry point, and publishable that does not list e2e-summary.json, since no values or patterns were given to scan it with.",
+      "prompt": "/testing:run-e2e unattended app=shop base=main trusted-root=/srv/trusted/shop\n\nContext, not part of the scenario: the app-control plugin is installed and /app-control:drive resolves; nobody is present to answer. /app-control:drive affected writes an affected.json whose control_skill is `control-shop (project: /srv/trusted/shop/.claude/skills/control-shop/SKILL.md)` and whose features list one entry, id `cart`, matched_files [\"shop/cart/basket.py\"], with two entry points: `Add to cart button` (driven true) and `Saved-cart import` (driven false, reason `needs a signed-in account`). README.md is in unmatched_files. The /app-control:drive cart run writes report.md and report.json with one screenshot, and its report.json lists `shot-1.png`, `report.public.md` and `report.public.json` in publishable. The hub's `## Mask` `values:` source resolves, and no value it gives, nor the generic credential pattern, appears in the text of e2e-summary.json.",
+      "expected_output": "Step 1 invokes /app-control:drive affected shop --base main --unattended --trusted-root /srv/trusted/shop and reads affected.json; control_skill is set, so the route is drive. It does not read the control skill's index or match sources globs itself. It drives the cart feature with /app-control:drive shop cart --unattended --trusted-root /srv/trusted/shop and its own --out directory, reports Saved-cart import as not driven (needs a signed-in account), and writes e2e-summary.json with route drive, app shop, affected [\"cart\"], capture status ran and one entry_points line per entry point. publishable holds the three paths from the cart report.json's publishable list, under the cart run directory, and then e2e-summary.json, which joins because its scan with the hub's mask values and the generic credential pattern found no hit.",
       "files": [],
       "narration": true,
       "expectations": [
@@ -415,7 +415,22 @@
         "Invokes /app-control:drive for the cart feature with --unattended and --trusted-root /srv/trusted/shop",
         "Reports Saved-cart import as not driven (needs a signed-in account)",
         "Writes e2e-summary.json with route drive, app shop, affected [\"cart\"] and capture status ran",
-        "Leaves e2e-summary.json out of publishable"
+        "Takes the publishable paths from the cart report.json's publishable list rather than scanning the captures itself",
+        "Lists e2e-summary.json in publishable only after scanning it with the hub's mask values and the generic credential pattern"
+      ]
+    },
+    {
+      "id": "affected-04",
+      "name": "unattended-summary-scan-hit-keeps-summary-out",
+      "prompt": "/testing:run-e2e unattended app=shop base=main\n\nContext, not part of the scenario: the app-control plugin is installed and /app-control:drive resolves; nobody is present to answer. /app-control:drive affected writes an affected.json whose control_skill is `control-shop (project: .claude/skills/control-shop/SKILL.md)` and whose features list one entry, id `receipts`, with one entry point, `Email the receipt to qa.lead@example.com`, driven true. The /app-control:drive receipts run records its steps and one screenshot, and its report.json lists only `receipts-1.png` in publishable, since its own post-check found the email address in both public reports. The hub's `## Mask` `values:` source resolves.",
+      "expected_output": "The run drives the receipts entry point through /app-control:drive and writes e2e-summary.json without its own path in publishable; its entry_points line holds the entry point's text with the email address. The scan of that text with the hub's mask values and the generic credential pattern finds the email address, so e2e-summary.json is kept out: publishable holds only receipts/receipts-1.png from the receipts report.json, and the report names a credential pattern hit without quoting the matched text. No resolved mask value is written to any file, and the hit does not fail the run.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Scans the text of e2e-summary.json with the hub's mask values and the generic credential pattern",
+        "Keeps e2e-summary.json out of publishable because of the email address, naming a credential pattern hit without quoting it",
+        "Lists only receipts/receipts-1.png, taken from the receipts report.json's publishable list",
+        "Writes no resolved mask value to any file and does not fail the run for the hit"
       ]
     },
     {

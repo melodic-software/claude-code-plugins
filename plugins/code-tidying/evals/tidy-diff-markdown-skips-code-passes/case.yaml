@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: tidy-diff-markdown-skips-code-passes
+description: 'a change that is all markdown runs only the markdown passes: the code-looking comment and log inside a fenced block are not treated as code, change-shape never runs, and the report says the code passes had nothing to do. Written from MB:plugins/code-tidying/skills/tidy-diff/SKILL.md:46-48, 58-67, 76-77 and 97-99 (the base contract).'
+tags: [tidy-diff, routing, markdown]
+expected_outcome: 'The fenced js block in docs/setup.md is byte-identical; change-shape.sh is never run; the report says the simplify and comment passes had no code file to work on, and names each markdown pass as run or as skipped with its reason.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/code-tidying:tidy-diff changed-lines.tsv'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 60
+  timeout_seconds: 1200
+graders:
+  - name: fence-unchanged
+    type: regex
+    pattern: '```js\n// increment the counter\ncount\+\+;\nconsole\.log\("here"\);\n```\n'
+    target: { source: file, path: docs/setup.md }
+  - name: no-comment-proof
+    type: tool_used
+    tool: Bash
+    input_match: 'change-shape'
+    min: 0
+    max: 0
+    arm: both
+  - name: markdown-routing-reported
+    type: llm
+    focus: last_message
+    criteria: "The only listed file is docs/setup.md, a markdown file whose fenced js block contains `// increment the counter` and `console.log(\"here\")`. PASS only if the final report (a) says the code passes (the simplify pass and the comment-deletion pass) had nothing to do, ran on no file, or were not applicable because no code file was listed, and (b) names each markdown pass (the docs-hygiene writing rules and the ai-slop fix) as run or as skipped with a reason. FAIL if the report lists a comment deletion, a removed log or any other code cleanup inside the fenced block as an edit, or omits what happened to the markdown passes."

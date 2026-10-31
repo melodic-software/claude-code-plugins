@@ -63,7 +63,7 @@ config, or install anything.
 5. **OS-level media tools**. INFO. Probe `yt-dlp --version` (video acquisition), `ffmpeg
    -version` (frame extraction, watch/course actions), and `magick -version` (ImageMagick 7,
    contact sheets. Watch/course actions). Each absence is INFO with the platform install command
-   from the ingest skill's Prerequisites; this skill never installs system packages. `book-distill`
+   from the ingest skill's Prerequisites; this skill never installs system packages. `distill`
    (PDF) needs none of these.
 
 ## `apply` (idempotent)
@@ -99,13 +99,13 @@ reports "already configured".
    README's option table (`~` prefix or `${NAME}` / `%NAME%` env-var reference) instead of a literal
    machine path, which guardrail hardcoded-path checks rightly block.
 2. **`apply install-deps`. Provision the extraction dependencies.** Only with this subaction, run
-   both idempotent provisioners (each installs the vendored node dependencies into
-   `${CLAUDE_PLUGIN_DATA}`, and course-digest additionally provisions Chromium into
-   `${CLAUDE_PLUGIN_DATA}/ms-playwright`):
+   the shared idempotent provisioner once per extraction package (each run installs that
+   package's vendored node dependencies into `${CLAUDE_PLUGIN_DATA}`, and the course-digest run
+   additionally provisions Chromium into `${CLAUDE_PLUGIN_DATA}/ms-playwright`):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"
-   node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"
+   node "${CLAUDE_PLUGIN_ROOT}/vendor/node-launcher/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --package "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction"
+   node "${CLAUDE_PLUGIN_ROOT}/vendor/node-launcher/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --package "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction"
    ```
 
    A stored fingerprint gates reinstalls, so re-running is safe and cheap. After provisioning,
@@ -118,7 +118,7 @@ reports "already configured".
    installs system packages.
 5. **Confirm.** Report the observed `library_dir`, the repository convention and any mismatch, and
    whether extraction dependencies were provisioned or intentionally skipped. Note that
-   `/knowledge:book-distill` writes to its explicitly named target skill rather than this setting.
+   `/knowledge:distill` writes to its explicitly named target skill rather than this setting.
 
 ## Output
 

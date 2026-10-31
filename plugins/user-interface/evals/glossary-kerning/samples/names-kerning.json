@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "That is kerning: adjusting the space between one specific pair of letters, here A and V.",
+      "why": "names kerning"
+    },
+    {
+      "answer": "The AV pair needs to be kerned tighter; tracking would change every letter.",
+      "why": "verb form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "That is tracking, also called letter spacing.",
+      "why": "names the near-synonym instead"
+    }
+  ]
+}

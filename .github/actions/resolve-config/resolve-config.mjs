@@ -100,8 +100,16 @@ export async function fieldSetters(github, repository, number) {
   if (Array.isArray(answer?.errors) && answer.errors.length > 0) {
     throw new Error(`the issue's field events could not be read: ${answer.errors.map((e) => e?.message).join("; ")}`);
   }
+  const issue = answer?.data?.repository?.issue;
+  if (issue === null || typeof issue !== "object") {
+    throw new Error("the issue's field events answer named no issue");
+  }
+  const nodes = issue.timelineItems?.nodes;
+  if (!Array.isArray(nodes)) {
+    throw new Error("the issue's field events answer holds no event list");
+  }
   const setters = Object.create(null);
-  for (const node of answer?.data?.repository?.issue?.timelineItems?.nodes ?? []) {
+  for (const node of nodes) {
     const field = node?.issueField?.fullDatabaseId;
     if (typeof field === "string" && /^[1-9][0-9]*$/.test(field)) {
       const id = node.actor?.databaseId;
@@ -161,7 +169,10 @@ async function gatherFacts(
       const rows = await github("GET", `/repos/${repository}/issues/${Number(issue.number)}/issue-field-values`, undefined, {
         "X-GitHub-Api-Version": FIELD_API_VERSION,
       });
-      facts.fieldValues = (Array.isArray(rows) ? rows : []).map((row) => ({
+      if (!Array.isArray(rows)) {
+        throw new Error("the issue's field values answer is not a list");
+      }
+      facts.fieldValues = rows.map((row) => ({
         field: row?.issue_field_id,
         option: row?.single_select_option?.id ?? null,
       }));

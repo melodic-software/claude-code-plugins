@@ -26,8 +26,7 @@ unmapped extension, or no PowerShell host for a `.ps1`/`.psm1` file.
 `ps-tokens.ps1` under `pwsh`, not by a tree-sitter grammar: the maintained
 grammar returns ERROR nodes on ordinary PowerShell, which would make every
 real file UNPROVABLE. With no `pwsh` on PATH the answer is exit 2, an
-*unproven* edit, never the exit 3 that lets a coarser reading layer apply
-deletions anyway.
+*unproven* edit.
 
 Two comments the proof must not ignore: a shebang on line 1, which both
 tree-sitter's bash grammar and PowerShell type as a comment, and `#Requires`,

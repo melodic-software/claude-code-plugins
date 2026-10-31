@@ -81,7 +81,7 @@ STATIC = {
     "/core.js": ("core.js", "text/javascript"),
     "/app.js": ("app.js", "text/javascript"),
     "/connect.js": ("connect.js", "text/javascript"),
-    "/question-shape.js": ("question-shape.js", "text/javascript"),  # surface/server.py serves it too
+    "/question-shape.js": ("question-shape.js", "text/javascript"),  # surface/interview_server.py serves it too
     "/core.css": ("core.css", "text/css"),
     "/app.css": ("app.css", "text/css"),
     "/question-shape.css": ("question-shape.css", "text/css"),

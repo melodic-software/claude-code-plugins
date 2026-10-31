@@ -33,7 +33,7 @@
       "expected_output": "Prerequisites are verified first; on success Phase 1 discovers the course structure, then the run STOPS at the mandatory checkpoint to present the module/lesson list and ask which modules to process before any lesson extraction begins. Instructor is read from the landing page, and Phase 2 extraction is sequential.",
       "files": [],
       "expectations": [
-        "Verifies prerequisites (extraction deps, Playwright browsers, ffmpeg, ImageMagick, claude-in-chrome MCP) before starting, and stops to inform the user if any prerequisite fails",
+        "Verifies prerequisites (extraction deps, Playwright browsers, ffmpeg, ImageMagick, and the browser tool the /testing:run-e2e rubric picks: the Playwright CLI) before starting, and stops to inform the user if any prerequisite fails",
         "After Phase 1 discovery, STOPS and presents the module/lesson list and asks which modules to process (or confirm 'all') before extracting — the only mandatory user-interaction gate",
         "Extracts the instructor name from the course landing page (JSON-LD author or 'Meet Your Instructor'), never guessing",
         "Treats Phase 2 lesson extraction as strictly sequential — does not parallelize browser navigation across lessons (bot-detection constraint)"
@@ -76,6 +76,20 @@
         "Runs `/research` (or a live version lookup such as nuget latest-version) on the referenced library/pattern to confirm currency before adoption",
         "Flags any recommendation that research reveals is outdated with a ⚠ STALE marker instead of adopting it silently",
         "Does NOT integrate the course recommendation into repo files without first completing verification"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "public-work-root-stops-before-any-write",
+      "prompt": "/knowledge:course-digest https://dometrain.com/course/getting-started-with-model-context-protocol/\n\nlibrary_dir is unset, and the session runs in a checkout of a public GitHub repository: the visibility check prints {\"visibility\":\"public\"} for the work root.",
+      "expected_output": "Resolves the work root, runs the visibility check on it, and stops before writing anything, the phase checklist under .work/ included. Explains that course material is paid content kept for personal use and tells the person to set library_dir to their private corpus checkout or to run from a private repository.",
+      "files": [],
+      "expectations": [
+        "Runs the visibility check on the work root before the first write",
+        "Writes no file under the work root: no checklist under .work/ and no courses/ directory",
+        "Says course material is paid content kept for personal use",
+        "Tells the person to set library_dir to a private corpus checkout or to run from a private repository",
+        "Does not begin Phase 1 extraction"
       ]
     }
   ]
