@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Read 2 units at a9777cc4ec4b7eccabf24582e71badb23b82dcb7. skills/pr-labeler/SKILL.md has an uncommitted change, not read."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The working tree adds: Uncommitted note: CANARY-WT-7Q4Z"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Rerun the same command from a checkout of a private repository, such as your corpus checkout."
+    },
+    {
+      "answer": "Run the same command again from your private checkout."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I wrote the record to docs/upstream."
+    },
+    {
+      "answer": "Rerun with gh signed in."
+    }
+  ]
+}
