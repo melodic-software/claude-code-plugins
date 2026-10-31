@@ -4,7 +4,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { collect, listFiled } from "./collect.mjs";
+import { collect, LIMITS, listFiled } from "./collect.mjs";
+import { ceilingFindings } from "./signals.mjs";
 
 const repo = "o/r";
 const now = new Date("2026-10-19T16:41:00Z");
@@ -151,6 +152,7 @@ const routes = () => [
       { annotation_level: "notice", title: "other", message: "end lane core remaining=0 used=5200 limit=5200 reset=x" },
     ],
   ],
+  [/actions\/runs\?status=completed/, { workflow_runs: [] }],
   [/actions\/runs\?status=in_progress/, { workflow_runs: [run(20)] }],
   [/runs\/20\/jobs/, { jobs: [{ id: 200, status: "in_progress" }, { id: 201, status: "completed" }] }],
   [
@@ -377,6 +379,94 @@ test("api-budget readings come only from main's scheduled or dispatched pr-merge
     data.budgetReadings.map((r) => r.runId),
     [10],
   );
+});
+
+// request-lane-token's notice from a lane run's mint step, as the action
+// writes it, and the job carrying that step.
+const mintNotice = (remaining, limit = 5200) => ({
+  annotation_level: "notice",
+  title: "api-budget",
+  message: `mint lanes-app core remaining=${remaining} used=${limit - remaining} limit=${limit} reset=2026-10-19T17:00:00Z`,
+});
+const mintJob = (id, conclusion = "success", name = "run") => ({ id, name, conclusion: "success", steps: [{ name: "Set up job", conclusion: "success" }, { name: "Request the lane token", conclusion }] });
+const laneRun = (id, extra = {}) => run(id, { name: "pr-unblock", event: "workflow_run", path: ".github/workflows/pr-unblock.yml", ...extra });
+
+test("a lane run's lanes-app mint notice over 90% becomes a reading the ceiling signal flags", async () => {
+  const api = fakeApi([
+    [/actions\/runs\?status=completed/, { workflow_runs: [laneRun(80)] }],
+    [/runs\/80\/jobs/, { jobs: [mintJob(800), { id: 801, name: "report", conclusion: "success", steps: [] }] }],
+    [/check-runs\/800\/annotations/, [mintNotice(494), { annotation_level: "notice", title: "api-budget", message: "end lane core remaining=1 used=5199 limit=5200 reset=x" }]],
+    ...routes(),
+  ]);
+  const data = await collect(input(api, { ownRate: null }));
+  assert.deepEqual(data.gaps, []);
+  assert.deepEqual(
+    data.budgetReadings.map((r) => [r.phase, r.name, r.used, r.limit, r.runId]),
+    [
+      ["end", "lane", 4706, 5200, 10],
+      ["mint", "lanes-app", 4706, 5200, 80],
+    ],
+  );
+  // Only the job whose mint step ran is read.
+  assert.ok(!api.calls.some((p) => p.includes("check-runs/801/")));
+  const only = ceilingFindings({ now, budgetReadings: data.budgetReadings.filter((r) => r.runId === 80) });
+  assert.deepEqual(only.map((f) => f.key), ["ceiling:lanes-app-rest"]);
+  assert.match(only[0].facts[0], /^mint lanes-app: used 4706 of 5200 \(90\.5%\) https:\/\/github\.com\/o\/r\/actions\/runs\/80$/);
+});
+
+test("a lane run's mint reading at or under 90% is read and not flagged", async () => {
+  const api = fakeApi([
+    [/actions\/runs\?status=completed/, { workflow_runs: [laneRun(80)] }],
+    [/runs\/80\/jobs/, { jobs: [mintJob(800)] }],
+    [/check-runs\/800\/annotations/, [mintNotice(520)]],
+    ...routes(),
+  ]);
+  const data = await collect(input(api, { ownRate: null }));
+  const readings = data.budgetReadings.filter((r) => r.runId === 80);
+  assert.deepEqual(readings.map((r) => r.used), [4680]);
+  assert.deepEqual(ceilingFindings({ now, budgetReadings: readings }), []);
+});
+
+test("lane quota readings skip branch-code, fork and test-suite runs, failed mint steps, and a trusted pr-merge run's merge job", async () => {
+  const api = fakeApi([
+    [
+      /actions\/runs\?status=completed/,
+      {
+        workflow_runs: [
+          laneRun(81, { event: "pull_request" }),
+          laneRun(82, { head_repository: { full_name: "fork/r" } }),
+          laneRun(83, { path: ".github/workflows/pr-require-checks.yml" }),
+          laneRun(85, { event: "push", head_branch: "feature" }),
+          laneRun(86, { event: "pull_request_review" }),
+          laneRun(84),
+          prMergeRun(10),
+        ],
+      },
+    ],
+    [/runs\/84\/jobs/, { jobs: [mintJob(840, "failure")] }],
+    [/runs\/10\/jobs/, { jobs: [mintJob(100, "success", "merge")] }],
+    [/check-runs\/100\/annotations/, [mintNotice(494), { annotation_level: "notice", title: "api-budget", message: "end lane core remaining=494 used=4706 limit=5200 reset=x" }]],
+    ...routes(),
+  ]);
+  const data = await collect(input(api, { ownRate: null }));
+  assert.deepEqual(data.gaps, []);
+  assert.ok(!api.calls.some((p) => /runs\/8[12356]\/jobs|check-runs\/840\//.test(p)));
+  // pr-merge's merge job counts once, through its own source.
+  assert.deepEqual(data.budgetReadings.map((r) => [r.name, r.runId]), [["lanes-app", 10], ["lane", 10]]);
+});
+
+test("lane quota readings stop at the run and mint-job caps", async () => {
+  const many = Array.from({ length: LIMITS.laneRuns + 5 }, (_, i) => laneRun(3000 + i));
+  const api = fakeApi([
+    [/actions\/runs\?status=completed/, { workflow_runs: many }],
+    [/runs\/3\d{3}\/jobs/, (path) => ({ jobs: [mintJob(Number(/runs\/(\d+)/.exec(path)[1]) * 10), mintJob(Number(/runs\/(\d+)/.exec(path)[1]) * 10 + 1)] })],
+    [/check-runs\/3\d{4}\/annotations/, [mintNotice(100)]],
+    ...routes(),
+  ]);
+  const data = await collect(input(api, { ownRate: null }));
+  assert.ok(api.calls.filter((p) => /runs\/3\d{3}\/jobs/.test(p)).length <= LIMITS.laneRuns);
+  assert.equal(api.calls.filter((p) => /check-runs\/3\d{4}\/annotations/.test(p)).length, LIMITS.laneMintJobs);
+  assert.equal(data.budgetReadings.filter((r) => r.name === "lanes-app").length, LIMITS.laneMintJobs);
 });
 
 test("failed runs from a fork head are skipped", async () => {
