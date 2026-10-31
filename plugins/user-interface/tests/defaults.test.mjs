@@ -25,7 +25,7 @@ const CONTRACT = {
   },
   animation: {
     easing: {
-      out: [0.32, 0.72, 0, 1],
+      out: [0.23, 1, 0.32, 1],
       in: [0.3, 0, 1, 1],
       in_out: [0.77, 0, 0.175, 1],
       drawer: [0.32, 0.72, 0, 1],
