@@ -1,5 +1,17 @@
 # Changelog: session-flow plugin
 
+## [3.0.1] - 2026-10-31
+
+### Changed
+
+- `/session-flow:workflow` stage definitions route unsettled users to UX research before the PRD, design a new user-facing flow and its screens before the technical design, and add an interface review to the review of a diff that changes a user interface, each through an installed capability (for example `/user-experience:shape`, `/user-experience:structure`, `/user-interface:design`, `/user-interface:audit`) with an inline fallback.
+
+### Fixed
+
+- **Friction events for one tool call count once.** Each `denied` and `prompt-approved` event the audit-sessions collector stores now carries the call's `tool_use_id`. A session keeps one such event per call and kind, so a repeated result record no longer adds a second event to the counts or the shape tally. The friction block counts the skipped records in `duplicates_dropped`, and `/session-flow:audit-friction`'s `mine` reports their total, so you can trace where the repeats come from.
+
+- `/session-flow:orchestrate`, `/session-flow:keep-going` and the observer docs point at the upstream sections behind their claims, and the effort floor and the cross-vendor advisor preference are labeled as this repository's judgment.
+
 ## [3.0.0] - 2026-10-31
 
 ### Changed
