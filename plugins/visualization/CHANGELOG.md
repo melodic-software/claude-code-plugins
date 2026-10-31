@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.3] - 2026-10-31
+
+### Changed
+
+- Shared `publish-gate.mjs` synced where this plugin carries it: the page stamp it removes before scanning now matches only the builders' own stamp names, so a token inside a look-alike comment is still found; no other change to this plugin.
+
 ## [0.13.2] - 2026-10-31
 
 ### Fixed
