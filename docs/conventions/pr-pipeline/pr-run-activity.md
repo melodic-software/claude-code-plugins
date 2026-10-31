@@ -449,8 +449,9 @@ read-only, denies `Edit` and `Write` on it, allows `Bash(<copy>/bin/<name> *)`, 
 wrapper in `--append-system-prompt`. The wrapper changes to the checkout, refuses any argument (or
 the value after an `=`) naming an existing path whose real path lies outside the checkout, since a
 script may print lines of a file it reads, unsets `GH_TOKEN` and `GITHUB_TOKEN` in the script's
-own environment (code the script runs can still read the token from the wrapper's or the Bash
-shell's `/proc/<pid>/environ`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
+own environment (in the write runner no Bash process holds the token, since the skill's settings
+clear it; under run-claude-cli, code the script runs can still read the job's token from the
+wrapper's or the Bash shell's `/proc/<pid>/environ`), sets `GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`
 and command-scope `core.fsmonitor=false` and `core.hooksPath=/dev/null`, for skill-quality's
 `check-skill.sh` alone sets `HOME` to a fresh `mktemp -d` directory and `CLAUDE_CONFIG_DIR` to its
 `.claude`, since the skill tests it runs write there and the runner's `~/.claude` is read-only,
@@ -1824,8 +1825,10 @@ Claude OAuth token. Two routes reach it and the activity's GitHub token:
   `/proc/<ancestor>/environ`. The skill step sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which
   strips the OAuth token and other credentials from Bash, hook and MCP subprocesses and gives
   Bash its own PID namespace, so an ancestor's `environ` is out of reach. The scrub keeps
-  `GH_TOKEN` and `GITHUB_TOKEN`, so a subprocess still holds the activity's GitHub token: the
-  job `GITHUB_TOKEN` in the read file, the effect-scoped App token in the write file. The action installs
+  `GH_TOKEN` and `GITHUB_TOKEN`, so in the read file a subprocess still holds the job
+  `GITHUB_TOKEN`. The write file's skill step sets both to empty in its settings' `env`, so no Bash
+  process, the sandbox's pid 1 included, holds the effect-scoped App token; the action's MCP
+  servers, commit signing among them, get it from their own config `env`. The action installs
   bubblewrap only for `allowed_non_write_users`, so run job step 9 installs it and fails the job
   when it is missing.
 - Runner memory, with root. A hosted runner holds referenced secrets in the runner's memory.
