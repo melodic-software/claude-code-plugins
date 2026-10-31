@@ -16,11 +16,13 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=../../../scripts/test-helpers.sh
 source "$SCRIPT_DIR/../../../scripts/test-helpers.sh"
 
-# block <heading> [<n>]: the nth (default first) fenced block in that heading's section, with
-# <skill-dir> filled in.
+REPORT_REF="$SKILL_DIR/reference/ready-for-review.md"
+
+# block <heading> [<n>] [<file>]: the nth (default first) fenced block in that heading's section
+# of <file> (default: the GitHub ready reference), with <skill-dir> filled in.
 block() {
   awk -v h="$1" -v n="${2:-1}" '$0 == h { on = 1; next } on && !f && /^## / { exit }
-    on && /^```bash/ { if (++i == n) f = 1; next } f && /^```/ { exit } f' "$REF" |
+    on && /^```bash/ { if (++i == n) f = 1; next } f && /^```/ { exit } f' "${3:-$REF}" |
     sed "s#<skill-dir>#$SKILL_DIR#g"
 }
 
@@ -37,6 +39,12 @@ FLOW="$TEST_TMPDIR/flow.sh"
 } >"$FLOW"
 if ! grep -q 'verify-gate.sh" check --head' "$FLOW" || ! grep -q '^ready_run_seen$' "$FLOW"; then
   echo "FAIL: the wait, flip and confirmation blocks were not found in $REF" >&2
+  exit 1
+fi
+REPORT="$TEST_TMPDIR/report.sh"
+block "## 2.5.6 Report" 1 "$REPORT_REF" >"$REPORT"
+if ! grep -q 'confirm-verdict.sh" show --head' "$REPORT"; then
+  echo "FAIL: the confirm verdict block was not found in $REPORT_REF" >&2
   exit 1
 fi
 
@@ -124,6 +132,46 @@ assert_eq "no verify record for the pushed commit: the PR is not flipped" "no" "
 new_state "$BEFORE"
 out=$(run_flow "$BEFORE" "$BEFORE")
 assert_contains "a record for the pre-push commit only: the guard refuses" "$out" "FLIP_EXIT=2"
+
+# The /verification:confirm verdict: recorded per head, named in the 2.5.6 report for the PR
+# worktree's HEAD, and advisory, so neither NEEDS WORK nor a missing verdict stops the flip or
+# changes the verify gate's result for that head.
+confirm_record() { CONFIRM_VERDICT_DIR="$STATE/confirm" bash "$SKILL_DIR/scripts/confirm-verdict.sh" record "$@"; }
+run_report() {
+  (cd "$REPO" && PATH="$STUB_DIR:$PATH" STUB_STATE="$STATE" STUB_BRANCH="$STUB_BRANCH" STUB_OID="$PUSHED" \
+    CONFIRM_VERDICT_DIR="$STATE/confirm" PR_NUMBER=5 timeout 30 bash "$REPORT" 2>&1)
+}
+
+new_state "$PUSHED"
+confirm_record --head "$PUSHED" --verdict 'NEEDS WORK' --missing 'AC1: unmet' --partial 'AC2: half'
+assert_exit "a NEEDS WORK verdict with items is recorded for the head" 0 "$?"
+READY_VERIFY_DIR="$STATE/verify" bash "$SKILL_DIR/scripts/verify-gate.sh" check --head "$PUSHED"
+assert_exit "a NEEDS WORK verdict leaves the head's verify pass as it was" 0 "$?"
+out=$(CONFIRM_VERDICT_DIR="$STATE/confirm" run_flow "$BEFORE" "$BEFORE")
+assert_contains "a NEEDS WORK verdict for the head: the guarded flip passes" "$out" "FLIP_EXIT=0"
+assert_eq "a NEEDS WORK verdict for the head: the PR is flipped once" "pr ready 5" "$(cat "$STATE/flipped" 2>/dev/null)"
+out=$(run_report)
+assert_exit "the report's confirm verdict line exits 0 after the flip" 0 "$?"
+assert_eq "the report names NEEDS WORK for the head and each MISSING or PARTIAL item" "confirm: NEEDS WORK for head $PUSHED
+  MISSING: AC1: unmet
+  PARTIAL: AC2: half" "$out"
+
+new_state ""
+confirm_record --head "$PUSHED" --verdict CONFIRMED
+assert_exit "a CONFIRMED verdict with no items is recorded for the head" 0 "$?"
+out=$(CONFIRM_VERDICT_DIR="$STATE/confirm" run_flow "$BEFORE" "$BEFORE")
+assert_contains "a CONFIRMED verdict does not stand in for a missing verify record" "$out" "FLIP_EXIT=2"
+assert_eq "the report names a CONFIRMED verdict for the head" "confirm: CONFIRMED for head $PUSHED" "$(run_report)"
+
+new_state "$PUSHED"
+confirm_record --head "$BEFORE" --verdict 'NEEDS WORK' --missing 'AC1: unmet'
+assert_exit "a verdict is recorded for the pre-push head only" 0 "$?"
+out=$(CONFIRM_VERDICT_DIR="$STATE/confirm" run_flow "$BEFORE" "$BEFORE")
+assert_contains "no confirm verdict for the head: the guarded flip passes" "$out" "FLIP_EXIT=0"
+out=$(run_report)
+assert_exit "the report's confirm verdict line exits 0 with no verdict for the head" 0 "$?"
+assert_eq "a verdict for an earlier head only: the report says none is recorded for this head" \
+  "confirm: no verdict recorded for head $PUSHED" "$out"
 
 new_state "$PUSHED"
 out=$(run_flow "$PUSHED" "$PUSHED")
