@@ -3,6 +3,34 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.4.5] - 2026-10-31
+
+### Fixed
+
+- The Dependabot merge gates no longer admit a `github-actions[bot]` commit or push. The `[dependabot skip]` version-bump commit they accepted had one writer, `pr-bump-plugin-version.yml`, which is gone, so `commit_refusal` now refuses every commit but Dependabot's (and, after a review, the lanes App's fix commit) with `commit-not-dependabot:<sha>`, and `push_refusal` refuses a `github-actions[bot]` push with `pushed-by:github-actions[bot]`. `commit_refusal` and `commits_refusal` drop their unused `files` argument, and `bump_refusal` and `plugin_json_refusal` are removed.
+
+## [4.4.4] - 2026-10-30
+
+### Fixed
+
+- **babysit-prs:** a high path (a floor path, a configured denied path, or an aliasing path,
+  symlink, submodule or mode change) no longer stops a pull request for the owner:
+  `babysit_risk.PERSON_PREFIXES` drops `high-path:`, so `person_reasons` no longer names it and the
+  merge gate adds no `needs-human` label for it. The path still holds the pull request. A
+  trusted-actor widening, a listing past the files API's cap and a CRITICAL security finding still
+  stop for the owner; an IMPORTANT security finding does not.
+
+- `babysit_verify_evidence.py` reads GitHub's live artifact `total_count` from one page before its
+  whole listings and sizes their shared timeout from it: each whole listing and its 7-page top-up at
+  1 s a page, at most 300 s (`LISTING_TIMEOUT_SECONDS`), or less when the caller names the limit it
+  kills the reader at in `BABYSIT_VERIFY_DEADLINE_SECONDS` (and itself in `BABYSIT_VERIFY_CALLER`),
+  less 15 s for the reads after the listing. A whole listing that cannot fit refuses
+  `verify:unreadable` before paging, with the pages, the seconds they need and the budget (and the
+  caller) in the detail, instead of being killed with no reason. That detail starts with
+  `DEADLINE_UNREADABLE` when the caller's limit, not the 300 s cap, is what it does not fit in. The
+  caller's limit bounds the count read too, and the whole listings' timeout is at least gh's 60 s
+  per-call default unless the cap or that limit leaves less.
+
 ## [4.4.3] - 2026-10-30
 
 ### Changed

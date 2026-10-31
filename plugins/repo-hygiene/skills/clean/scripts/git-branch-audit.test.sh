@@ -1779,7 +1779,7 @@ assert_contains "--read-only still reports every branch" "$ro_out" "Branch: main
 assert_contains "--read-only still prints the summary" "$ro_out" "Summary:"
 after_state="$(capture_state "$FL/two")"
 if [[ -n "$before_state" && "$before_state" == "$after_state" ]]; then pass "--read-only leaves the capture dir unchanged"; else fail "--read-only leaves the capture dir unchanged" "$before_state" "$after_state"; fi
-if ! find "$FL/two/.git" -name '*.part' | grep -q .; then pass "--read-only leaves no .part file"; else fail "--read-only leaves no .part file" none present; fi
+if ! grep -q . < <(find "$FL/two/.git" -name '*.part'); then pass "--read-only leaves no .part file"; else fail "--read-only leaves no .part file" none present; fi
 # A repo that has never been audited gains no capture directory either.
 git init -q -b main "$FL/fresh"
 git -C "$FL/fresh" config user.email "t@example.com"

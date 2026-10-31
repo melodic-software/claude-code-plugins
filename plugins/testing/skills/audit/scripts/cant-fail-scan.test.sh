@@ -252,8 +252,7 @@ yb_branch_line() {
   mkdir -p "$repo"
   git -C "$TMP_ROOT" init -q -b "$b" "yb$slot" 2>/dev/null
   cp "$FIX/sanity/one-assertion-free.test.js" "$repo/"
-  CANT_FAIL_SCAN_ROOT="$repo" bash "$SCAN" --findings </dev/null 2>/dev/null |
-    LC_ALL=C grep -m1 '^branch:'
+  LC_ALL=C grep -m1 '^branch:' < <(CANT_FAIL_SCAN_ROOT="$repo" bash "$SCAN" --findings </dev/null 2>/dev/null)
 }
 
 # EVERY git-reachable indicator character is asserted, not a sample. A

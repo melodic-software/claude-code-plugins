@@ -29,7 +29,6 @@ from babysit_risk import (
     holding,
     holds,
     normalize_path,
-    person_reasons,
     score,
 )
 
@@ -1514,15 +1513,14 @@ class HoldsTests(unittest.TestCase):
 class PersonReasonsTests(unittest.TestCase):
     """Owner rule 2026-10-26: a person clears only a security issue, a trust
     or provenance hold, or a cost hold; the lanes clear every other holding
-    reason by judging again."""
+    reason by judging again. Owner decision 2026-10-30 (#11020): a high path
+    is not a person's, and only a CRITICAL security finding is."""
 
-    def test_person_reasons_are_security_trust_cost_and_high_paths(self):
+    def test_person_reasons_are_security_trust_cost_and_a_capped_listing(self):
         person = (
             "security-finding",
             "trust-gate:trusted-actors",
             "cost-review-required",
-            "high-path:**",
-            "high-path:**/.gitmodules",
             "files-capped",
         )
         lane = (
@@ -1531,11 +1529,55 @@ class PersonReasonsTests(unittest.TestCase):
             "files-incomplete",
             "manifest-review-required",
             "lines-over",
+            "high-path:**",
+            "high-path:**/.gitmodules",
+            "findings:claude-security-review",
         )
         reasons = [Reason(code, Risk.HIGH, "d") for code in person + lane]
         self.assertEqual(
             tuple(r.code for r in babysit_risk.person_reasons(reasons)), person
         )
+
+    def test_a_floor_denied_or_aliasing_path_holds_with_no_person_reason(self):
+        cases = {
+            "a floor path": dict(files=(_file(".gitmodules"),)),
+            "a denied path": dict(files=(_file("docs/a.md"),), high_paths=("docs/**",)),
+            "an aliasing path": dict(files=(_file("plugins/foo/a b.md"),)),
+            "a symlink": dict(files=(_file("plugins/foo/a.md", mode="120000"),)),
+        }
+        for name, changes in cases.items():
+            with self.subTest(name):
+                result = score(_input(**changes))
+                self.assertTrue(
+                    any(c.startswith("high-path:") for c in _codes(result)),
+                    _codes(result),
+                )
+                self.assertTrue(holds(result))
+                self.assertEqual(babysit_risk.person_reasons(holding(result)), [])
+
+    def test_a_trusted_actor_widening_holds_for_a_person(self):
+        after = _actors(_KYLE, _BOT, '{ "id": 3, "login": "new", "kind": "bot" }')
+        widened = _edit(ACTORS, BASE_ACTORS, after)
+        result = score(_input(files=(widened,), high_floor=False))
+        self.assertEqual(
+            [r.code for r in babysit_risk.person_reasons(holding(result))],
+            ["trust-gate:trusted-actors"],
+        )
+
+    def test_only_a_critical_security_finding_is_a_persons(self):
+        def security(blocking):
+            lane = LaneEvidence(
+                "claude-security-review", True, None, 1, blocking_findings=blocking
+            )
+            return score(_input(lanes=(_lane("claude-review"), lane)))
+
+        self.assertEqual(
+            [r.code for r in babysit_risk.person_reasons(holding(security(1)))],
+            ["security-finding"],
+        )
+        important = security(0)
+        self.assertEqual(babysit_risk.person_reasons(important.reasons), [])
+        self.assertFalse(holds(important))
 
     def test_an_unbound_review_holds_for_the_lanes_and_a_finding_for_a_person(self):
         unbound = score(
@@ -1990,25 +2032,20 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
             with self.subTest(path):
                 self.assertEqual(path in self.gate(), want)
                 result = score(_input(files=(_file(path),)))
-                self.assertEqual(
-                    f"high-path:{path}"
-                    in [r.code for r in person_reasons(result.reasons)],
-                    want,
-                )
+                self.assertEqual(f"high-path:{path}" in _codes(result), want)
         # ci-status, and the job-token dispatchers of gated workflows, are in.
         for name in ("pr-require-checks", "intake-reenter", "pr-feedback-dispatch"):
             self.assertIn(f".github/workflows/{name}.yml", self.gate())
         self.assertLess(held_count, len(found))
 
-    def test_ci_status_holds_for_a_person_after_its_authors_clean_review(self):
+    def test_ci_status_holds_after_its_authors_clean_review(self):
         # It posts ci-status and holds the hold step: a model verdict, or a
         # trusted author's own commits, never clear it.
         path = ".github/workflows/pr-require-checks.yml"
         self.assertEqual(dict(babysit_risk.FLOOR_CLASSES).get(path), "gate")
         result = score(_input(files=(_file(path),), author_reviewed=frozenset({path})))
-        self.assertIn(
-            f"high-path:{path}", [r.code for r in person_reasons(result.reasons)]
-        )
+        self.assertIn(f"high-path:{path}", _codes(result))
+        self.assertTrue(holds(result))
         self.assertNotIn(f"review-path:{path}", _codes(result))
         # Named by file, so trimming its permissions keeps it gated.
         self.assertTrue(babysit_risk.gated_workflow("pr-require-checks", "on: push\n"))
@@ -2160,7 +2197,7 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                     sync.generate(sync.RISK, tampered), tampered, "the check passes"
                 )
 
-    def test_what_agents_may_do_or_reviews_judge_against_holds_for_a_person(self):
+    def test_what_agents_may_do_or_reviews_judge_against_holds(self):
         # Coordinator decision 2026-10-28 on #10743: these change what agents
         # may do unattended (AGENTS.md: ask the owner first) or what later
         # reviews judge against, so an AI review alone does not clear them.
@@ -2181,10 +2218,8 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
         ):
             with self.subTest(path):
                 result = score(_input(files=(_file(path),)))
-                persons = [r.code for r in person_reasons(result.reasons)]
-                self.assertTrue(
-                    any(c.startswith("high-path:") for c in persons), persons
-                )
+                held = [r.code for r in holding(result)]
+                self.assertTrue(any(c.startswith("high-path:") for c in held), held)
         for path in (
             "plugins/foo/.lsp.json",
             "docs/REVIEW.md.bak",
@@ -2195,7 +2230,7 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                     [c for c in codes if c.startswith("high-path:")], codes
                 )
 
-    def test_the_main_run_reviews_own_scripts_hold_for_a_person(self):
+    def test_the_main_run_reviews_own_scripts_hold(self):
         # Its verdict writer sets the counts the gate trusts, so a change to
         # it is not one a review it produces may clear.
         for path in (
@@ -2206,15 +2241,15 @@ class CredentialedWorkflowsAreGate(unittest.TestCase):
                 result = score(_input(files=(_file(path),)))
                 self.assertIn(
                     "high-path:.github/scripts/pr-review-main/**",
-                    [r.code for r in person_reasons(result.reasons)],
+                    [r.code for r in holding(result)],
                 )
 
 
 class ReviewClearedFloorTests(unittest.TestCase):
     """Owner decision Q26 option B: an `enforcement` floor path holds as
     `review-path:` until the security lane's review is bound to the head with
-    no open finding; a `trust` or `gate` path holds for a person whatever
-    the review says."""
+    no open finding; a `trust` or `gate` path holds whatever the review
+    says."""
 
     def _score(self, path, security):
         lanes = (_lane("claude-review"), *security)
@@ -2268,8 +2303,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         self.assertIn(f"review-path:{path}", _codes(result))
 
     def test_the_review_hold_is_not_a_person_code(self):
-        # enable-auto-merge labels a `high-path:` reason for a person; this
-        # one the lanes clear by reviewing again.
+        # The lanes clear it by reviewing again.
         result = self._score(B + "babysit_gh.py", ())
         codes = [c for c in _codes(result) if c.startswith("review-path:")]
         self.assertEqual(codes, [f"review-path:{B}babysit_gh.py"])
@@ -2291,7 +2325,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
                 )
                 self.assertTrue(holds(result))
 
-    def test_a_review_caller_workflow_change_holds_for_a_person(self):
+    def test_a_review_caller_workflow_change_holds(self):
         # A review caller is a gate path: the review cannot judge the file
         # that runs it, whatever a main-run review says.
         import babysit_review_evidence
@@ -2306,8 +2340,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         )
         files = (_file(path), _file(caller))
         result = score(_input(files=files, lanes=lanes))
-        persons = [r.code for r in babysit_risk.person_reasons(result.reasons)]
-        self.assertIn(f"high-path:{caller}", persons)
+        self.assertIn(f"high-path:{caller}", _codes(result))
         self.assertIn(f"review-path:{path}", _codes(result))
         self.assertTrue(holds(result))
 
@@ -2503,9 +2536,8 @@ class AuthorReviewedGatePathTests(unittest.TestCase):
                     )
                 )
                 result = self._score(path, (_lane("claude-security-review"),))
-                person = babysit_risk.person_reasons(result.reasons)
                 self.assertTrue(
-                    [r for r in person if r.code.startswith("high-path:")],
+                    [c for c in _codes(result) if c.startswith("high-path:")],
                     _codes(result),
                 )
                 self.assertTrue(holds(result))

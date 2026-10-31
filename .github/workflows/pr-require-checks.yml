@@ -3363,7 +3363,8 @@ jobs:
     # `rerun-wait-seconds` wait, about four and a half minutes, plus up to
     # 15 s of retry sleeps for each of the hold-lift step's two reads, the
     # review-lane step's six, the lanes-hold step's eight (in the merge
-    # queue the verdict reader's reads more, about 73 with pr-merge's carried
+    # queue 50 s more for its pass record's download, a cold read's listing
+    # more, and the verdict reader's reads more, about 73 with pr-merge's carried
     # reads and about 860 without them, measured 2026-10-25, up to the cold-read
     # headroom check's cold_cost under the listing's caps; its wall time is
     # unmeasured, and a cold one can reach the cap, which fails red) and the pr-unblock status step's one (two in the
@@ -3375,7 +3376,7 @@ jobs:
     # 20: a cold verdict reader in the merge queue takes about 6 to 11
     # minutes (0.4 to 0.7 s a call, as pr-merge's reader logs, for about 860
     # calls), and at most about 15 under the listing's caps (793 per-FAIL
-    # reads at 0.7 s, plus the whole listings' shared 300 s
+    # reads at 0.7 s, plus the whole listings' shared timeout, at most 300 s,
     # LISTING_TIMEOUT_SECONDS), on top of the job's other reads.
     timeout-minutes: 20
     env:
@@ -5909,20 +5910,26 @@ jobs:
             # run cache, or one whose carried sections (carry-run-cache.mjs
             # carry) are all empty, the reader reads every FAIL: 860
             # GITHUB_TOKEN requests measured 2026-10-25, 67 of them the one
-            # whole listing of 6,620 artifacts, so 793 per-FAIL reads. Its
-            # listing is capped by babysit_verify_evidence.py: INCREMENTAL_READS
-            # (3) incremental reads on a carried listing (at most 13 pages each,
-            # LISTING_CARRY_MAX_AGE), then LISTING_READS (3) whole listings, each up to
+            # whole listing of 6,620 artifacts, so 793 per-FAIL reads for 294
+            # FAILs, under the 3 a FAIL can take (its run, a compare and a
+            # download). Its cost comes from the live listing, read here once,
+            # every page: its total_count and the FAILs it lists. The
+            # reader's listing is capped by babysit_verify_evidence.py:
+            # INCREMENTAL_READS (3) incremental reads on a carried listing (at
+            # most 13 pages each, LISTING_CARRY_MAX_AGE), then one count read
+            # and LISTING_READS (3) whole listings, each up to
             # 1 + len(LISTING_WAITS) (3) attempts that page from the first,
-            # and a top-up after each (at most 7 pages: LISTING_OVERLAP's 2 h
-            # at the 255 uploads an hour seen 2026-10-27, plus one). At 77
-            # pages a whole listing (76 at the 7,522-artifact peak of
-            # 2026-10-27, plus one) a cold read costs at most
-            # 793 + 3 x 13 + 3 x (3 x 77 + 7) = 1,546, cold_cost below;
-            # test_babysit_verify_evidence derives it from those caps and fails
-            # when cold_cost differs. It covers this path only: an
+            # and a top-up after each (LISTING_TOP_UP_PAGES, 7). A whole
+            # listing pages ceil(total_count / 100), plus one for uploads while
+            # it pages, so a cold read costs at most
+            # 3 x FAILs + 3 x 13 + 1 + 3 x (3 x pages + 7), plus the pages of
+            # this step's own listing, which every entry the queue builds at
+            # once also reads, cold_cost below: 1,623 at 7,522 artifacts and
+            # 264 FAILs, 2,021 at 10,450 and 300.
+            # test_babysit_verify_evidence runs these lines against those caps
+            # at several sizes. It covers this path only: an
             # entry with a carried run cache but no carried listing pays the
-            # listing's part (up to 753) unguarded. A missing cache is shared,
+            # listing's part unguarded. A listing that does not read holds. A missing cache is shared,
             # so every entry the queue builds at once goes cold together: the
             # cost counts max_entries_to_build of
             # the base branch's merge_queue rule (one read of
@@ -5949,7 +5956,18 @@ jobs:
                 echo "::error::$cold, and the merge queue's max_entries_to_build could not be read, so the headroom for cold reads cannot be judged. Re-queue it."
                 exit 1
               fi
-              cold_cost=1546
+              # The live listing, every page once: GitHub's total_count and the
+              # FAILs it lists (babysit_verify_evidence.py FAIL_PREFIX_RE).
+              # shellcheck disable=SC2016 # jq, not shell
+              listed=$(read_api "the artifact listing" "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --paginate \
+                --jq '"\(.total_count) \([.artifacts[]? | select(.name | test("^pr-verify-[0-9]+-[0-9a-f]{40}-fail"))] | length)"') || listed=
+              if ! read -r total fails < <(awk 'NR == 1 { total = $1 } $2 !~ /^[0-9]+$/ { bad = 1 } { fails += $2 }
+                END { if (NR && !bad && total ~ /^[0-9]+$/) print total, fails; else exit 1 }' <<<"$listed"); then
+                echo "::error::$cold, and the artifact listing could not be read, so the cost of a cold read cannot be judged. Re-queue it."
+                exit 1
+              fi
+              listing_pages=$(((total + 99) / 100 + 1))
+              cold_cost=$((listing_pages + 3 * fails + 3 * 13 + 1 + 3 * (3 * listing_pages + 7)))
               rate=$(read_api "the GITHUB_TOKEN rate limit" rate_limit) || rate=
               if ! remaining=$(jq -er '.resources.core.remaining | numbers | floor' <<<"$rate" 2>/dev/null) ||
                 ! limit=$(jq -er '.resources.core.limit | numbers | floor' <<<"$rate" 2>/dev/null) ||
@@ -6007,16 +6025,26 @@ jobs:
             artifact=$(jq -sr --arg repo "$GITHUB_REPOSITORY" '[.[] | select(.runId as $id | .run | .id == $id and .status == "completed" and .conclusion == "success"
               and .path == ".github/workflows/pr-verify.yml" and .event == "workflow_run" and .head_branch == "main"
               and .repository.full_name == $repo and .head_repository.full_name == $repo)] | first | .artifact // empty' "$RUNNER_TEMP/verdicts.jsonl") || exit 1
+            # A 5xx or a network error with no HTTP response is read again
+            # after each of 5, 15 and 30 s: the grep below takes the reader's
+            # _transient 5xx and NETWORK_ERRORS phrases but the JSON decoder's
+            # (a zip download is not JSON). GitHub answered three downloads
+            # 503 over 26 s in merge group run 41063238235 (judgment on that
+            # run). Any other failure is final.
             record=null
             if [[ $artifact =~ ^[1-9][0-9]*$ ]]; then
-              for attempt in 1 2 3; do
+              for wait in 5 15 30 ''; do
                 # gh-read-exempt: a binary archive, which gh_read's text capture would corrupt.
-                if gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" >"$RUNNER_TEMP/verdict.zip"; then
+                if gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" >"$RUNNER_TEMP/verdict.zip" 2>"$RUNNER_TEMP/verdict.err"; then
                   record=$(unzip -p "$RUNNER_TEMP/verdict.zip" verdict.json | jq -c .) || record=null
                   break
                 fi
-                [ "$attempt" -lt 3 ] || { echo "::error::could not read the verdict of artifact $artifact; re-run this run."; exit 1; }
-                sleep $((attempt * 5))
+                cat "$RUNNER_TEMP/verdict.err" >&2
+                if [ -z "$wait" ] || ! grep -qiE 'HTTP 5[0-9][0-9]|error connecting to|connection reset by peer|connection refused|i/o timeout|tls handshake timeout|unexpected eof' "$RUNNER_TEMP/verdict.err"; then
+                  echo "::error::could not read the verdict of artifact $artifact; re-run this run."
+                  exit 1
+                fi
+                sleep "$wait"
               done
             fi
             # shellcheck disable=SC2016 # GraphQL variables, not shell
