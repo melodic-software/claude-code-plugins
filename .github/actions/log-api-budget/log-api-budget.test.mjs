@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { readingLine, recordReading } from "./api-budget.mjs";
@@ -169,6 +168,7 @@ test("the action emits each named token, the call count as an api-calls notice t
         PATH: process.env.PATH,
         ...RUNNER,
         RUNNER_TEMP: dir,
+        TMPDIR: dir,
         GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname,
         GITHUB_STEP_SUMMARY: join(dir, "summary"),
         GITHUB_OUTPUT: join(dir, "output"),
@@ -193,7 +193,7 @@ test("the action emits each named token, the call count as an api-calls notice t
     writeFileSync(join(dir, "output"), "");
     execFileSync("bash", ["-c", run], {
       encoding: "utf8",
-      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: "", GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname, GITHUB_STEP_SUMMARY: join(dir, "summary"), GITHUB_OUTPUT: join(dir, "output"), TOKENS: "github-token" },
+      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: "", TMPDIR: dir, GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname, GITHUB_STEP_SUMMARY: join(dir, "summary"), GITHUB_OUTPUT: join(dir, "output"), TOKENS: "github-token" },
     });
     assert.equal(readFileSync(join(dir, "output"), "utf8"), "calls=github-token-calls=unknown\n");
     assert.doesNotMatch(ACTION + readFileSync(LIB, "utf8"), /gh api[^\n]*rate_limit/);
@@ -206,7 +206,7 @@ test("ci-status ends with the same api-budget and api-calls notices the action w
     assert.ok(block, "ci-status emits its notices in one block");
     const out = execFileSync("bash", ["-c", block[1]], {
       encoding: "utf8",
-      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") },
+      env: { PATH: process.env.PATH, ...RUNNER, RUNNER_TEMP: dir, TMPDIR: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") },
     });
     assert.equal(
       out,
@@ -216,7 +216,7 @@ test("ci-status ends with the same api-budget and api-calls notices the action w
     // With no reading, no api-budget line and an api-calls count of 0, as the action writes.
     rmSync(join(dir, "api-budget"), { recursive: true });
     assert.equal(
-      execFileSync("bash", ["-c", block[1]], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") } }),
+      execFileSync("bash", ["-c", block[1]], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, TMPDIR: dir, API_BUDGET_SH: readFileSync(LIB, "utf8") } }),
       "::notice title=api-calls::github-token=0 not-modified=0 graphql=0\n",
     );
   }));
@@ -228,7 +228,7 @@ test("api_budget_classify decides every rate-guard vector", () => {
   const floor = apiLimits({ resolvedPath: "" })["github-token"]["read-floor"];
   for (const vector of vectors.vectors) {
     const input = { ...vector.input, now: vectors.vector_now * 1000, pool: poolOf(vector.input.url), floor, cap: vector.limit_cap ?? null };
-    const out = bash(tmpdir(), 'jq -c "$API_BUDGET_CLASSIFY"', { input: JSON.stringify(input) });
+    const out = withDir((dir) => bash(dir, 'jq -c "$API_BUDGET_CLASSIFY"', { input: JSON.stringify(input) }));
     assert.deepEqual(JSON.parse(out.stdout), vector.expect, `${vector.name}: ${out.stderr}`);
   }
 });
@@ -740,7 +740,7 @@ test("api_budget_is_content judges a gh call as rate-guard.mjs's isContentWrite 
     "api --method=GET repos/o/r/issues/7/comments -f per_page=1",
     "pr view 7",
   ];
-  const judge = (args) => bash(tmpdir(), `api_budget_is_content ${args}`).status === 0;
+  const judge = (args) => withDir((dir) => bash(dir, `api_budget_is_content ${args}`)).status === 0;
   for (const args of writes) {
     assert.equal(judge(args), true, args);
   }
@@ -775,6 +775,7 @@ test("the action writes the content-creation notice after the token lines", () =
         PATH: process.env.PATH,
         ...RUNNER,
         RUNNER_TEMP: dir,
+        TMPDIR: dir,
         GITHUB_ACTION_PATH: new URL(".", import.meta.url).pathname,
         GITHUB_STEP_SUMMARY: join(dir, "summary"),
         GITHUB_OUTPUT: join(dir, "output"),
@@ -866,9 +867,9 @@ test("pr-review-main's record job ends with its own api-calls notice in the emit
     const emitted = (count) => {
       if (count !== undefined) writeFileSync(join(dir, "pr-review-main-calls"), `${count}\n`);
       // As Actions runs `shell: bash`: -e ends the step on any failing command.
-      return execFileSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", run], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir } });
+      return execFileSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", run], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, TMPDIR: dir } });
     };
-    const shape = execFileSync("bash", ["-c", `. "${lib}"; api_budget_emit_calls github-token`], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir } });
+    const shape = execFileSync("bash", ["-c", `. "${lib}"; api_budget_emit_calls github-token`], { encoding: "utf8", env: { PATH: process.env.PATH, RUNNER_TEMP: dir, TMPDIR: dir } });
     assert.equal(emitted(), shape, "no count file is 0, as the emitter writes with no reading");
     assert.equal(emitted(2), shape.replace("github-token=0", "github-token=2"));
     assert.equal(emitted("2; rm"), shape, "anything but a count is 0");
@@ -880,7 +881,7 @@ test("pr-review-main's record job ends with its own api-calls notice in the emit
 test("each job that holds the job token and calls no guarded client ends with the log-api-budget step", () => {
   const windows = ["select-tests-windows", ...["rename-1", "rename-2", "secrets", "guards", "hooks", "lib", "worktree"].map((s) => `test-windows-${s}`), "test-macos-planning-shared"];
   const jobs = {
-    "pr-test-windows.yml": Object.fromEntries(windows.map((job) => [job, "./"])),
+    "pr-test-platforms.yml": Object.fromEntries(windows.map((job) => [job, "./"])),
     "post-merge-detect-silent-revert.yml": { "detect-silent-revert": "./" },
     "release-publish-plugins.yml": { merge: "./", build: "./" },
     "dependabot-fragments.yml": { write: "./" },
@@ -992,7 +993,7 @@ test("pr-feedback-dispatch.yml: the wrapper setup keeps the step's stderr for an
       const result = spawnSync("bash", ["-c", `${setup}\nx=$(gh api repos/o/r) || true\ngh api repos/o/r >/dev/null || true\necho reached`], {
         cwd: dir,
         encoding: "utf8",
-        env: { PATH: `${dir}:${process.env.PATH}`, RUNNER_TEMP: dir },
+        env: { PATH: `${dir}:${process.env.PATH}`, RUNNER_TEMP: dir, TMPDIR: dir },
       });
       assert.equal(readFileSync(join(dir, "calls"), "utf8").split("\n").filter(Boolean).length, 1, setup);
       assert.doesNotMatch(result.stdout, /reached/, setup);
@@ -1019,7 +1020,7 @@ test("pr-feedback-dispatch.yml: post-verify-notes keeps the reading of its artif
     const result = spawnSync("bash", ["-e", "-c", body], {
       cwd: dir,
       encoding: "utf8",
-      env: { PATH: `${join(dir, "bin")}:${process.env.PATH}`, RUNNER_TEMP: join(dir, "rt"), RUN_ID: "77", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out") },
+      env: { PATH: `${join(dir, "bin")}:${process.env.PATH}`, RUNNER_TEMP: join(dir, "rt"), TMPDIR: dir, RUN_ID: "77", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out") },
     });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout, "::notice::run 77 uploaded no verdict; nothing to post\n");

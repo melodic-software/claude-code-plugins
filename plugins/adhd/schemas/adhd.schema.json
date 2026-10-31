@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/adhd/schemas/adhd.schema.json",
+  "title": "adhd team config",
+  "description": "Schema for a repository's docs/conventions/adhd.yaml: the team layer of the adhd plugin's settings. A value here overrides the same key in the plugin's userConfig. Resolution: plugins/adhd/skills/shape/SKILL.md rule 6.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "time_units": {
+      "description": "When true, /adhd:shape may state an estimate of work in minutes, hours, days or weeks; when false it gives a relative size (Small, Medium, Large). A time budget the reader states is kept in the reader's words either way. A quoted \"true\" or \"false\" is a string, not a boolean, and is invalid.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

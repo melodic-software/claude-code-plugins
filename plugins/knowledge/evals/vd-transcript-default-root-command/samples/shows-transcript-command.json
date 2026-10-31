@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```bash\nnode \"/plugin/skills/video-digest/extraction/run.mjs\" --data-dir \"/data\" transcript/run-transcript.js \"https://www.youtube.com/watch?v=7zZy1QTvokM\"\n```\n\nThe transcript would land at `.work/youtube-watch/<video-slug>/transcript.txt`, for example `.work/youtube-watch/ai-coding-tips-7zZy1QTvokM/transcript.txt`, at the checkout root. No `--work-root`: library_dir is the default."
+    },
+    {
+      "answer": "node /plugin/skills/video-digest/extraction/run.mjs --data-dir /data \\\n  transcript/run-transcript.js \\\n  'https://www.youtube.com/watch?v=7zZy1QTvokM'"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I can't show the command until the dependencies are installed."
+    },
+    {
+      "answer": "node /plugin/skills/video-digest/extraction/run.mjs --data-dir /data watch/run-watch.js https://www.youtube.com/watch?v=7zZy1QTvokM"
+    }
+  ]
+}

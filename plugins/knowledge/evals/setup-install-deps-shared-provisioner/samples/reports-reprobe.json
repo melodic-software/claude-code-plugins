@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "Ran both provisioners; both failed (npm could not reach the registry). Re-probed afterwards: `node_modules/@melodic/video-digestion` is still absent and no chromium build is under ms-playwright, so nothing is provisioned. yt-dlp is missing: install it with `pip install -U \"yt-dlp[default,curl-cffi]\"` (Linux) or `brew install yt-dlp` (macOS). I installed no system packages."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Both setup-deps.mjs runs exited 0, so the node deps and Chromium are provisioned. I installed yt-dlp with pip."
+    }
+  ]
+}

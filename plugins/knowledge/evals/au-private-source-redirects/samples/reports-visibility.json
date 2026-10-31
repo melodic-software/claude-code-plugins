@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Source: unknown (handled as private). Destination docs/upstream: unknown (handled as public)."
+    },
+    {
+      "answer": "The source reads private and the destination (docs/upstream) reads public."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Source: public. Destination: public."
+    },
+    {
+      "answer": "I wrote the record."
+    }
+  ]
+}

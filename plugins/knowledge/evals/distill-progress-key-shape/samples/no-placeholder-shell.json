@@ -1,0 +1,75 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p \"/eval-home/.claude/plugins/data/knowledge-mkt/ws-a1b2c3d4/testing/unit-testing-epub\"",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /plugins/knowledge/skills/distill/templates/checklist.md '/eval-home/.claude/plugins/data/knowledge-mkt/ws-a1b2c3d4/testing/unit-testing-checklist.md'",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": []
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "mkdir -p \"<plugin-data>/ws-a1b2c3d4/testing/unit-testing-epub\"",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp \"<plugin-root>/skills/distill/templates/checklist.md\" out.md",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "unzip -q books/unit-testing.epub -d \"/eval-home/.claude/plugins/data/knowledge-mkt/{project-slug}/testing/unit-testing-epub\"",
+            "description": "x"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \\\"<plugin-root>/scripts/work-root.mjs\\\" --progress-key",
+            "description": "x"
+          }
+        }
+      ]
+    }
+  ]
+}

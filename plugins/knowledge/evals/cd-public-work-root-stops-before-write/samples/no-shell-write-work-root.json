@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/knowledge/scripts/repo-visibility.mjs\" \"/eval/cwd\"", "description": "run"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "ls -la .work courses 2>/dev/null", "description": "run"}}], "why": "read only"},
+    {"answer": [{"tool": "Bash", "input": {"command": "git remote -v", "description": "run"}}]}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "mkdir -p .work/mcp-getting-started", "description": "run"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "cp templates/checklist.md /eval/cwd/.work/mcp-getting-started/course-digest-checklist.md", "description": "run"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "mkdir -p courses/dometrain/mcp-getting-started", "description": "run"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "printf '*\\n' > .work/.gitignore", "description": "run"}}]}
+  ]
+}

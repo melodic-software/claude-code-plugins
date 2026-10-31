@@ -1248,7 +1248,7 @@ model text, and only on an `UNCERTAIN` reply to a finding that is not security-r
 head before any fix). The select job holds `checks: read`, so it records
 the head's CI in `run.json`'s `ci` (`address-feedback.mjs` `ciSnapshot`): it runs the base copy of
 `scripts/plan-test-lanes.sh` over the pull request's files and reads the latest real run of each github-actions check its lanes post (`test-bash (<leg>)` and
-`test-python (<leg>)` for each leg the plan lists, `test-node` and each `pr-test-windows.yml` job it
+`test-python (<leg>)` for each leg the plan lists, `test-node` and each `pr-test-platforms.yml` job it
 names). The plan reads the base tree, so it can name fewer lanes than the head ran. The state is
 `red` when any `test-*` run on the head failed, planned or not (a cancelled run is `unsettled`, since fix-ci does not take a cancelled-only head), `green` when every
 planned check has a run, each one passed, and no unplanned `test-*` lane ran, and
@@ -2297,7 +2297,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `<!-- stop-reason lane=work-resolve-issue reason=<code> -->` and the line ``Reason: `<code>` ``,
   from the shared `.github/scripts/lib/stop-reason.mjs`, which refuses `none` on such a comment.
   collect-base-activity copies `.github/scripts/lib/` beside the script's base copy for that
-  import. `hold` labels the issue with the human-gated
+  import. A `security-risk` hold read from the run's words also names the matched word, reduced to
+  letters, digits, hyphens, underscores and spaces in a code span, so a person can dismiss a false
+  hit in one read; the word changes nothing about the hold. `hold` labels the issue with the human-gated
   role label, removes `agent-ready` and comments why; `host-run` adds the `host-run` label (the host queue's one signal: an unattended
   agent run on a host) and removes `agent-ready`; `attended` adds the `attended` label (a manual
   external step that needs the owner present, which only a listed human lifts) and removes

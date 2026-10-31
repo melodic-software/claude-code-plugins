@@ -1,0 +1,35 @@
+schema_version: "1.1"
+name: distill-progress-key-shape
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: state-under-progress-key
+    type: regex
+    pattern: '"name":"(?:Bash|Write|Edit)","input":\{(?:[^{}"]|"(?:[^"\\]|\\.)*")*?"(?:command|file_path)":"(?:[^"\\]|\\.)*?/[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{8}/testing/'
+    target: trace
+  - name: progress-file-written
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*/[a-z0-9]+(?:-[a-z0-9]+)*-[0-9a-f]{8}/testing/[a-z0-9-]+-(?:progress|checklist)\.md"'
+    min: 1
+  - name: no-placeholder-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*(?:<plugin-(?:data|root)>|\{(?:project|target-skill|book|corpus)-slug\})'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-placeholder-edit
+    type: tool_used
+    tool: Edit
+    input_match: '"file_path":"[^"]*(?:<plugin-(?:data|root)>|\{(?:project|target-skill|book|corpus)-slug\})'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-placeholder-shell
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?(?:<plugin-(?:data|root)>|\{(?:project|target-skill|book|corpus)-slug\})'
+    min: 0
+    max: 0
+    arm: both

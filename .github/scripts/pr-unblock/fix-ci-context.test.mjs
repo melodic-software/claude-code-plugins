@@ -155,7 +155,7 @@ test("ci-status, passing checks and a check whose later run passed are left out"
   });
   const result = await selectWith(api);
   assert.equal(result.decision, "skip");
-  assert.equal(result.skipReason, "not-applicable");
+  assert.equal(result.skipReason, "stop-resolved");
 });
 
 test("a failure a later skipped or neutral run of the same check hides is still failing", async () => {
@@ -303,7 +303,7 @@ test("a commit apply-patch writes for fix-ci counts as a round", () => {
   assert.equal(countFixRounds([{ sha: "e".repeat(40), author: { id: APP }, commit: { message } }], APP), 1);
 });
 
-// Review finding on #10252: a failing pr-unblock/fix-ci status must come off
+// A failing pr-unblock/fix-ci status must come off
 // a head whose CI went green with no new commit (fixed by hand, or a flaky
 // lane re-run green), including after the round cap; only a whole, settled
 // check listing with nothing failing says so.
@@ -311,7 +311,7 @@ test("a head with no failing check resolves the fix-ci stop, at the round cap to
   const green = [run(11, "lint-shell", "failure"), run(14, "lint-shell", "success"), run(13, "ci-status", "failure")];
   for (const commits of [[], [fixCommit(), fixCommit(), fixCommit()]]) {
     const result = await selectWith(fakeApi({ checkRuns: green, commits }));
-    assert.deepEqual([result.decision, result.skipReason, result.resolved, result.headSha], ["skip", "not-applicable", true, HEAD]);
+    assert.deepEqual([result.decision, result.skipReason, result.resolved, result.headSha], ["skip", "stop-resolved", true, HEAD]);
   }
 });
 
@@ -329,6 +329,9 @@ test("a failing, cancelled or unsettled check, a cut-short listing, a hold or a 
     const result = await selectWith(api);
     assert.notEqual(result.resolved, true, name);
   }
+  for (const name of ["a re-run still in progress", "a cut-short listing"]) {
+    assert.equal((await selectWith(cases[name])).skipReason, "not-applicable", name);
+  }
 });
 
 test("a check listing that fails to read throws, so main writes no outputs and resolves nothing", async () => {
@@ -338,7 +341,7 @@ test("a check listing that fails to read throws, so main writes no outputs and r
     await assert.rejects(main(env, { api: fakeApi({ checkRunsError: new Error("GET check-runs returned 502") }), log: () => {} }), /502/);
     assert.throws(() => readFileSync(env.GITHUB_OUTPUT, "utf8"));
     await main({ ...env, GITHUB_OUTPUT: join(dir, "green") }, { api: fakeApi({ checkRuns: [run(14, "lint-shell", "success")] }), log: () => {} });
-    assert.match(readFileSync(join(dir, "green"), "utf8"), /^stop-resolved=true$/m);
+    assert.match(readFileSync(join(dir, "green"), "utf8"), /^skip-reason=stop-resolved\n(?:.*\n)*stop-resolved=true$/m);
     await main({ ...env, GITHUB_OUTPUT: join(dir, "red") }, { api: fakeApi(), log: () => {} });
     assert.match(readFileSync(join(dir, "red"), "utf8"), /^stop-resolved=false$/m);
   } finally {

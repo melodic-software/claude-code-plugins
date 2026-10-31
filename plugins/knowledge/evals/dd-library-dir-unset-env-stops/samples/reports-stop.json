@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "Stopped: `EVAL_KNOWLEDGE_CORPUS_DIR` is unset, so library_dir `${EVAL_KNOWLEDGE_CORPUS_DIR}` cannot resolve. work-root.mjs exited 1. Nothing was written."
+    },
+    {
+      "answer": "The work root did not resolve: EVAL_KNOWLEDGE_CORPUS_DIR is not set in this environment. Halting before the first write; set the variable and rerun."
+    },
+    {
+      "answer": "**Refusing to continue.** The library_dir reference names an undefined variable, EVAL_KNOWLEDGE_CORPUS_DIR, and an unset variable fails the run."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "EVAL_KNOWLEDGE_CORPUS_DIR is unset, so I used the default root and fetched the page into .work/docs-example-com-api-overview-138253a9/."
+    },
+    {
+      "answer": "EVAL_KNOWLEDGE_CORPUS_DIR is unset. Should I stop?"
+    },
+    {
+      "answer": "EVAL_KNOWLEDGE_CORPUS_DIR is unset; no need to stop, falling back to `.`."
+    },
+    {
+      "answer": "I did not stop: the unset variable expanded to an empty string and the slice was written at the session root."
+    }
+  ]
+}

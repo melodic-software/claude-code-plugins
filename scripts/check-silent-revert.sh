@@ -242,8 +242,7 @@
 #   RETROSPECTIVE -- scripts/silent-revert-acknowledged.txt. A commit message
 #   cannot be amended after the merge, so a fire that turns out to be fine is
 #   cleared by recording the reviewed SHA and its disposition, the same shape
-#   as scripts/changelog-parity-baseline.txt and
-#   scripts/orphaned-fixtures-baseline.txt. Without this, one legitimate fire
+#   as scripts/orphaned-fixtures-baseline.txt. Without this, one legitimate fire
 #   would leave main's canary permanently red, and a permanently red canary is
 #   a canary on its way to being deleted.
 #

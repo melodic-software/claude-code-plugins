@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/upstream/README.md"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "upstream-src/widget-skills/skills/pr-labeler/SKILL.md"
+          }
+        }
+      ]
+    }
+  ]
+}

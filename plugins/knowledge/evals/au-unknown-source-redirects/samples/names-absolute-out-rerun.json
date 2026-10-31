@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "1. `/knowledge:absorb-upstream /work/session/upstream-src/acme-internal-skills --out /srv/corpus/docs/upstream`"
+    },
+    {
+      "answer": "First: the same command with --out <absolute path to the private checkout>/docs/upstream."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rerun with --out docs/upstream."
+    },
+    {
+      "answer": "Rerun from the private checkout."
+    }
+  ]
+}

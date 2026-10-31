@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Record directory: `docs/upstream` (default layer)."
+    },
+    {
+      "answer": "The default layer set the record directory to docs/upstream; the clone failed, so I stopped."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Record directory: docs/provenance (team layer)."
+    },
+    {
+      "answer": "Should the record go to docs/upstream, the default?"
+    },
+    {
+      "answer": "docs/upstream is not the default here."
+    }
+  ]
+}

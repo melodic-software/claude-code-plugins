@@ -123,7 +123,7 @@ cat >"$GOOD" <<'EOF'
       "category": "hooks",
       "verdict": "PASS",
       "evidence": ["shfmt measured at 0.11s", "15% of commits touch shell"],
-      "plan": {"files": [".claude/hooks/shfmt.sh"], "effort": "S"},
+      "plan": {"files": [".claude/hooks/shfmt.sh"], "size": "Small"},
       "approved": true
     },
     {

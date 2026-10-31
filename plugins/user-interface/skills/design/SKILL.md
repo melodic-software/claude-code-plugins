@@ -68,12 +68,7 @@ alone.
 
 Then read `${CLAUDE_PLUGIN_ROOT}/reference/concerns.json`. For each concern the project's system
 does not cover (Step 2), take the rows whose `types` include the interface type and whose
-`triggers` the request names. Read those rows' `spokes` whose `read_when` holds, at most
-`config.values.design.concern_spoke_cap` spokes in this pass (when detect could not run,
-`design.concern_spoke_cap` in `${CLAUDE_PLUGIN_ROOT}/reference/defaults.yaml`). Name
-the spokes left over as next steps the user can run as further passes.
-Why the cap: every spoke is a set of rules the work must meet, and past one or two they pull
-against each other and blur the result, so design a little, look at it, then take the next.
+`triggers` the request names. Read those rows' `spokes` whose `read_when` holds.
 
 ## Step 4: Route each concern
 
