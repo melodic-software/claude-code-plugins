@@ -366,7 +366,17 @@ unless its checks are running: its GitHub Actions `ci-status` reads pending (`ci
 yet, or one not completed), or any GitHub Actions check run on the head has not completed
 (`ci-status.sh --unfinished`). While either holds the push run defers to a later run, as every push
 run did under the 2026-10-20 amendment. That rule's "never rebuilds" clause no longer holds; its
-"current" rule stands.
+"current" rule stands. Scheduled and dispatched runs rebuild regardless of running checks, as
+before, and are the escape valve for a stuck check.
+
+A conflicted head gets no `pull_request` run
+([events that trigger workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows)),
+so its `ci-status` stays pending with nothing behind it. On a merge conflict a push run defers only
+on an unfinished check run.
+
+A failed `ci-status` on a base behind main starts no rebuild, on any event, while the release pull
+request holds `do-not-merge` or `needs-human`: a rebuild cannot clear a label's red, and it changes
+held content.
 
 `ci-status` alone cannot show a full run in flight: it has no run from that full run until the lanes
 finish. The release build's own pull request edit starts a contract-only run, whose `ci-status` can
@@ -377,7 +387,8 @@ endpoint with it.
 Advisory lanes count, since the read takes every GitHub Actions check run, so a slow one such as
 `pr-test-windows.yml` also defers a rebuild. Between two jobs of a run a head can show no unfinished
 check run for some seconds. A push read landing there rebuilds; the accepted worst case is one
-cancelled run, because the new head reads pending until its own `ci-status` completes.
+cancelled run, because a new head with no conflict reads pending until its own `ci-status`
+completes.
 
 The 2026-10-20 rule existed because a rebuild cancels running checks. With every check run
 completed there is nothing to cancel, yet a release ejected from the queue waited up to three hours
@@ -387,8 +398,8 @@ The owner decided this on 2026-10-31.
 
 The 2026-10-17 amendment's "every run" now includes every fragment push: while main keeps moving, a
 failing release pull request is rebuilt by each fragment push that finds its checks finished. A
-rebuild's new head reads pending until its `ci-status` completes, so these rebuilds run no faster
-than that.
+rebuild's new head with no conflict reads pending until its `ci-status` completes, so these rebuilds
+run no faster than that.
 
 Pushes still wait for a running run, and a scheduled or dispatched run still cancels one. Since a
 push run can now write, that cancel can land between its head write and its pull request edit,

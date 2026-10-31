@@ -10,12 +10,14 @@
 #            open, when it has a merge conflict, when main changed a file it
 #            changes (a fragment it consumed, a CHANGELOG.md, a plugin.json)
 #            since its build base, or when its GitHub Actions ci-status failed
-#            (ci-status.sh) on a base behind main. Fragments main added since the build base do not count: they
+#            (ci-status.sh) on a base behind main with no do-not-merge or
+#            needs-human label. Fragments main added since the build base do not count: they
 #            ride the next release (ADR 0048, The release pull request and the
 #            2026-10-20 amendment)
 #   deferred true when a push run would have rebuilt an open one while its
 #            ci-status is pending or any GitHub Actions check run on its head
-#            has not completed: each rebuild cancels the release pull
+#            has not completed (only the second on a conflicted head, which
+#            gets no pull_request run): each rebuild cancels the release pull
 #            request's running checks, so a later run decides again: a fragment
 #            push once they finish, or the next scheduled or dispatched run
 #            (ADR 0048, 2026-10-31 amendment). Absent otherwise.
@@ -28,8 +30,8 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # rebuild <head> <ci> <annotation> <why>: rebuild, or on a push with <head>'s
 # ci-status pending or any of its check runs unfinished leave it to a later run.
-# <ci> is a ci-status already read, or empty. A failed read stops the run, so it
-# never cancels checks it could not see.
+# <ci> is a ci-status already read, none when it cannot decide, or empty. A
+# failed read stops the run, so it never cancels checks it could not see.
 rebuild() {
   local head=$1 ci=$2 annotation=$3 why=$4 unfinished=""
   if [[ $GITHUB_EVENT_NAME == push ]]; then
@@ -50,9 +52,9 @@ rebuild() {
 }
 
 decide() {
-  local main_sha=$1 pr id number head queued ci="" rc=0
+  local main_sha=$1 pr id number head queued held ci="" rc=0
   pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open \
-    --json id,number,headRefOid,mergeable,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
+    --json id,number,headRefOid,mergeable,isCrossRepository,labels --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
   if [[ -z $pr ]]; then
     # With none open there are no checks to cancel, so every run builds one.
     echo "No release pull request is open; building one."
@@ -78,7 +80,8 @@ decide() {
     return
   fi
   if [[ "$(jq -r .mergeable <<<"$pr")" == CONFLICTING ]]; then
-    rebuild "$head" "" "" "Release pull request #$number has a merge conflict"
+    # A conflicted head gets no pull_request run, so its ci-status stays pending.
+    rebuild "$head" none "" "Release pull request #$number has a merge conflict"
     return
   fi
   git fetch -q --no-tags origin "$head"
@@ -91,8 +94,11 @@ decide() {
   git checkout -q -f --detach "$main_sha"
   case "$rc" in
     0)
-      # A failed check on a base behind main never clears on a re-run; rebuild on main's tip.
-      if ! git merge-base --is-ancestor "$main_sha" "$head"; then
+      # A failed check on a base behind main never clears on a re-run; rebuild on
+      # main's tip. A hold label's red never clears on a rebuild, which would
+      # only change held content.
+      held="$(jq -r '[.labels[].name | select(. == "do-not-merge" or . == "needs-human")] | first // empty' <<<"$pr")"
+      if [[ -z $held ]] && ! git merge-base --is-ancestor "$main_sha" "$head"; then
         ci="$("$here/ci-status.sh" "$head")"
       fi
       if [[ $ci == failure ]]; then

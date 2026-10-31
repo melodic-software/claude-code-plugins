@@ -107,7 +107,8 @@ run_decide() {
   GHOUT=$(cat "$TMP/ghout")
 }
 val() { sed -n "s/^$1=//p" <<<"$GHOUT"; }
-pr_json() { printf '[{"id":"PR_n","number":7,"headRefOid":"%s","mergeable":"%s","isCrossRepository":false}]' "$HEAD_SHA" "$1"; }
+# pr_json <mergeable> [label]: one open release pull request.
+pr_json() { printf '[{"id":"PR_n","number":7,"headRefOid":"%s","mergeable":"%s","isCrossRepository":false,"labels":[%s]}]' "$HEAD_SHA" "$1" "${2:+{\"name\":\"$2\"\}}"; }
 
 echo '# no open release pull request'
 new_fixture no
@@ -163,6 +164,24 @@ new_fixture yes
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_RUNS=fail
 check 'behind read failure: non-zero exit' 1 "$((RC != 0))"
 check 'behind read failure: no rebuild written' '' "$(val rebuild)"
+
+echo '# not queued, base behind main, ci-status failed, hold labels'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE do-not-merge)" run_decide GATE_RC=0 FAKE_CI=failure
+check 'do-not-merge: no rebuild' 'false ' "$(val rebuild) $(val deferred)"
+FAKE_PRS="$(pr_json MERGEABLE needs-human)" run_decide GATE_RC=0 FAKE_CI=failure
+check 'needs-human: no rebuild' 'false ' "$(val rebuild) $(val deferred)"
+FAKE_PRS="$(pr_json MERGEABLE do-not-merge)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_CI=failure
+check 'push do-not-merge: no rebuild, not deferred' 'false ' "$(val rebuild) $(val deferred)"
+FAKE_PRS="$(pr_json MERGEABLE do-not-merge)" run_decide GITHUB_EVENT_NAME=workflow_dispatch GATE_RC=0 FAKE_CI=failure
+check 'dispatch do-not-merge: no rebuild' 'false ' "$(val rebuild) $(val deferred)"
+FAKE_PRS="$(pr_json MERGEABLE some-other-label)" run_decide GATE_RC=0 FAKE_CI=failure
+check 'other label: rebuild' true "$(val rebuild)"
+
+echo '# not queued, main changed a file it changes, hold label'
+new_fixture no
+FAKE_PRS="$(pr_json MERGEABLE do-not-merge)" run_decide GATE_RC=1
+check 'stale do-not-merge: rebuild (only the failure branch skips)' true "$(val rebuild)"
 
 echo '# not queued, base behind main, ci-status passed'
 new_fixture yes
@@ -250,6 +269,17 @@ new_fixture no
 FAKE_PRS="$(pr_json CONFLICTING)" run_decide GITHUB_EVENT_NAME=push FAKE_RUNS="[{\"started_at\":\"2026-10-18T01:00:00Z\",\"status\":\"in_progress\",\"conclusion\":null,\"app\":{\"id\":15368}}]"
 check 'push conflict+running: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
 
+echo '# push: merge conflict, no run on the head'
+new_fixture no
+FAKE_PRS="$(pr_json CONFLICTING)" run_decide GITHUB_EVENT_NAME=push FAKE_RUNS='[]'
+check 'push conflict+no run: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
+
+echo '# push: merge conflict, the check-run list read fails'
+new_fixture no
+FAKE_PRS="$(pr_json CONFLICTING)" run_decide GITHUB_EVENT_NAME=push FAKE_RUNS='[]' FAKE_UNFINISHED=fail
+check 'push conflict list read failure: non-zero exit' 1 "$((RC != 0))"
+check 'push conflict list read failure: no rebuild written' '' "$(val rebuild)"
+
 echo '# push: base behind main, ci-status failed'
 new_fixture yes
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_CI=failure
@@ -275,7 +305,7 @@ echo '# push: ci-status completed red while a lane runs'
 new_fixture yes
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_RUNS="[$red,$(lane in_progress)]"
 check 'push red+lane running: no rebuild, deferred' 'false true' "$(val rebuild) $(val deferred)"
-check 'push red+lane running: reads only GitHub Actions runs' 1 "$(grep -c 'check-runs?app_id=15368&filter=latest' "$TMP/gh.log" || true)"
+check 'push red+lane running: reads only GitHub Actions runs' 1 "$(grep -c 'check-runs?app_id=15368&filter=all' "$TMP/gh.log" || true)"
 
 echo '# push: ci-status completed red while a lane waits for a runner'
 new_fixture yes
