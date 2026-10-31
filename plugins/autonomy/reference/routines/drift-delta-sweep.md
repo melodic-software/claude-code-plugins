@@ -71,7 +71,7 @@ fallback in the same sentence.
    findings artifact, so the next cycle has a baseline, and record the cycle as a bootstrap
    in the coverage line.
 
-2. **The enforcement-surface delta lane.** Invoke `/overengineering:delta` with `unattended`
+2. **The enforcement-surface delta lane.** Invoke `/overengineering:delta` with `--unattended`
    and the cycle's two layers when the `overengineering` plugin is installed; where it is
    absent, record the lane as not run and continue. The lane owns what moved in the
    enforcement surface since its own last run. The layer pair rotates on the ISO week number,
