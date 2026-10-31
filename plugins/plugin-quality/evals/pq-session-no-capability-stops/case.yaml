@@ -1,0 +1,50 @@
+schema_version: "1.1"
+name: pq-session-no-capability-stops
+description: 'The operator asks for the session audit with session-flow not loaded. The reply says the session-usage source is missing, stops, and names the by-name form; no subagent is dispatched and no substitute parser is written or run inline. A run needs --allow-tools Bash Write.'
+tags: [audit-session, no-loss]
+plugins: ["../.."]
+expected_outcome: 'The reply says the session-usage source (the session-flow retro parser) is absent, stops, and names /plugin-quality:audit <plugin>:<component> as the form that still works. It builds no substitute parser and dispatches nothing.'
+execution:
+  prompt: 'The session is over and I used a few plugin skills. Run /plugin-quality:audit session.'
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Agent]
+  max_turns: 20
+  timeout_seconds: 420
+graders:
+  - name: skill-invoked
+    type: tool_used
+    tool: Skill
+    input_match: 'plugin-quality:audit'
+    min: 1
+    arm: both
+  - name: says-source-missing
+    type: regex
+    pattern: '(?:parser|parse_transcript|session-flow|session[- ]usage|usage (?:source|data)|plugin_usage)[^\n]{0,120}\b(?:absent|missing|not (?:be )?(?:found|installed|available|present|loaded|located)|unavailable|isn''t|is not|aren''t|cannot|can''t|could not|couldn''t)\b|\b(?:no|missing|absent|without|unavailable|not find|cannot find|can''t find|couldn''t find|could not find|not locate|cannot locate)\b[^\n]{0,80}(?:parser|parse_transcript|session-flow|session[- ]usage|usage (?:source|data)|plugin_usage)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: names-by-name-form
+    type: regex
+    pattern: '/?plugin-quality:audit[`*]*\s+[`*]*(?!(?:session|arm)\b(?!-))[\\<]*[\w-]+[\\>]*\[?:[\\<]*[\w-]+|/?plugin-quality:audit\b[^\n]{0,60}<plugin>|by name[^\n]{0,60}plugin-quality:audit|plugin-quality:audit[^\n]{0,60}by name'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: no-agent-dispatch
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both
+  - name: no-substitute-script-written
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*\.(?:py|sh|js|mjs)"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-inline-transcript-parse
+    type: tool_used
+    tool: Bash
+    input_match: '\bpython[0-9.]*\b(?:[^"]|\\")*?(?:\s-c\b|<<)(?:[^"]|\\")*?(?:jsonl|json\.loads|plugin_usage|tool_use)|\b(?:jq|awk)\b(?:[^"]|\\")*?\.jsonl\b|\bgrep\b(?:[^"]|\\")*?(?:tool_use|\bSkill\b)(?:[^"]|\\")*?\.jsonl\b'
+    min: 0
+    max: 0
+    arm: both

@@ -1,0 +1,52 @@
+schema_version: "1.1"
+name: pq-session-no-usage-artifact-stops
+description: 'The operator asks for the session audit with session-flow loaded, but the session left no usage record to read. The reply says the usage record is missing and stops; it invents no list, dispatches nothing and builds no substitute. A run needs --allow-tools Bash Write.'
+tags: [audit-session, no-loss]
+plugins: ["../..", "../../../session-flow"]
+context:
+  scaffold_script: scaffold.sh
+expected_outcome: 'The reply says the session usage could not be read and stops without a list. It invents no skill names, dispatches nothing, and builds no substitute parser.'
+execution:
+  prompt: "The session is over and I used a few plugin skills. Run /plugin-quality:audit session.\n\nThis session's id is 7f3b1c2e-4d5a-4e6f-8a9b-0c1d2e3f4a5b, and the session data directory is ./session-data under the working directory."
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Agent]
+  max_turns: 20
+  timeout_seconds: 420
+graders:
+  - name: skill-invoked
+    type: tool_used
+    tool: Skill
+    input_match: 'plugin-quality:audit'
+    min: 1
+    arm: both
+  - name: says-usage-record-missing
+    type: regex
+    pattern: '(?:parser|parse_transcript|transcript|ledger|session-flow|session[- ]usage|usage (?:source|data|record)|plugin_usage|record|log)[^\n]{0,120}\b(?:absent|missing|not (?:be )?(?:found|installed|available|present|loaded|located)|unavailable|isn''t|is not|aren''t|cannot|can''t|could not|couldn''t|does not exist|doesn''t exist|no such|not there)\b|\b(?:no|missing|absent|without|unavailable|not find|cannot find|can''t find|couldn''t find|could not find|not locate|cannot locate)\b[^\n]{0,80}(?:parser|parse_transcript|transcript|ledger|session-flow|session[- ]usage|usage (?:source|data|record)|plugin_usage|record|log)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: no-invented-commit-row
+    type: regex
+    pattern: '\bsource-control:commit\b'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: no-agent-dispatch
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both
+  - name: no-substitute-script-written
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*\.(?:py|sh|js|mjs)"'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-fabricated-ledger
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*running-retro'
+    min: 0
+    max: 0
+    arm: both

@@ -53,7 +53,10 @@ can mean either.
   `allow`, `soft_deny`, `hard_deny`), each with stated exclusions and a transcript-visible
   condition, and prints the block without writing anything.
 
-**Routing.** At the start of the run, offer it to the person: you can run `/auto-mode-setup`
+**Routing.** At the start of the run, offer it to the person:
+If /auto-mode-setup is available in your session (gate basis: hidden, gated by plan and version,
+and varying by platform; records in
+[reference/native-auto-mode-setup.md](reference/native-auto-mode-setup.md)), you can run it
 instead of or alongside this skill to have the `environment` section drafted from your sessions
 and saved for you; this interview then covers the allow and deny sections. If they take it, run
 Phase 1 again after it saves so the draft builds on what it wrote. An unattended run records the

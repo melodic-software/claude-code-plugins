@@ -99,7 +99,7 @@ claims:
   - claim: "<one-line claim>"
     id: M1                    # the claim ID every restatement cites; unique in the slice
     confidence: HIGH          # HIGH | HIGH (single source) | MEDIUM | LOW
-    single_source: "<why only one publisher exists>"   # only at HIGH (single source); omit otherwise
+    single_source: "<why only one publisher exists; for a paper's reports-claim, also the paper's publisher and the product it owns that the paper measured>"   # only at HIGH (single source); omit otherwise
     tiers: [0, 1]             # source tiers backing this claim
     applies_to: "<product> <version range>"   # the claim's target, or version-independent
     subject_pool: "<publisher>"   # single-publisher claims only: equals the one pool their Tier 0/1 sources share
@@ -131,7 +131,8 @@ never looks for it.
 **`single_source:` is the flag's reason, and criterion 4 grades it.** A claim at
 `HIGH (single source)` carries it; no other claim does. It states why only one publisher of the
 claim's content exists, so a verifier that never saw the run can judge that reason instead of
-counting corroborators the claim cannot have. A claim at that level without the field fails
+counting corroborators the claim cannot have. For a paper's reports-claim ("paper P reports X under
+conditions Y"), the reason also names P's publisher and the product it owns that P measured. A claim at that level without the field fails
 criterion 4. A repost of the primary is recorded under the primary's `pool`, so it never reads as a
 second source. Definition and limits: `discipline.md`'s "Single-source first-party content claims".
 

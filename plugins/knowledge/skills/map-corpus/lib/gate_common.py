@@ -6,7 +6,16 @@ scripts with no third-party dependency. Stdlib only. Python 3.9+.
 
 from __future__ import annotations
 
+import os
 import sys
+
+sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir, "lib")
+)
+from gates.failures import Failures  # noqa: E402  (the plugin's shared gate primitives)
+
+__all__ = ["Failures", "is_int", "reject_duplicate_keys"]
 
 
 def is_int(value) -> bool:
@@ -24,15 +33,3 @@ def reject_duplicate_keys(pairs):
             raise ValueError(f"duplicate JSON key {key!r}")
         seen[key] = value
     return seen
-
-
-class Failures:
-    """Named check failures, echoed to stderr as they land under `prog`."""
-
-    def __init__(self, prog: str):
-        self.prog = prog
-        self.items = []
-
-    def add(self, message: str):
-        self.items.append(message)
-        sys.stderr.write(f"{self.prog}: FAIL: {message}\n")

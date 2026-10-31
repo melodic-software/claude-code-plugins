@@ -9,9 +9,9 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
 
 | Skill | Invoke | What it does |
 |---|---|---|
-| `absorb-upstream` | `/knowledge:absorb-upstream` | Absorbs one outside source (a GitHub repository at a pinned commit, or one web page or post) into a tracked `docs/upstream/` record: per idea, what it does, the upstream's problem in our own words labeled Stated or Inference with a link, our matching problem, and a take, adapt, already-have or reject disposition with the reason, plus a license notice. The directory is configurable ([`reference/config.md`](reference/config.md)). |
+| `absorb-upstream` | `/knowledge:absorb-upstream` | Absorbs one outside source (a GitHub repository at a pinned commit, read from its local checkout when private, or one web page or post) into a tracked `docs/upstream/` record: per idea, what it does, the upstream's problem in our own words labeled Stated or Inference with a link, our matching problem, and a take, adapt, already-have or reject disposition with the reason, plus a license notice. The directory is configurable ([`reference/config.md`](reference/config.md)); the record of a source not proven public is written only in a private repository, from there or through an absolute `--out` into its checkout. |
 | `book-distill` | `/knowledge:book-distill` | Turns a technical book (PDF/EPUB) into concept-organized, author-attributed skill reference files through a structured, multi-session read-write pipeline, updating the target skill's routing table. |
-| `course-digest` | `/knowledge:course-digest` | Extracts and synthesizes an online video course (Dometrain, Teachable), transcripts, frames, resources, companion code, into repo-applicable recommendations. Actions: full pipeline (default), `extract`, `analyze`, `status`, `resume`, `continue`. |
+| `course-digest` | `/knowledge:course-digest` | Extracts and synthesizes an online video course (Dometrain, Teachable), transcripts, frames, resources, companion code, into repo-applicable recommendations. Course material is paid content, so it is written only under a work root in a private repository or one with no remote. Actions: full pipeline (default), `extract`, `analyze`, `status`, `resume`, `continue`. |
 | `docpage-digest` | `/knowledge:docpage-digest` | Ingests a single online documentation page (docs-site URL) into a verified knowledge slice. Unaltered original, SOURCES.md inventory, per-section model-matched digests, dual verification (one cross-vendor verifier), and an interview-ready handoff artifact. Publisher profiles (fetch channel, applicability filter, doc queue) are separable context files; first profile: Anthropic docs. |
 | `map-corpus` | `/knowledge:map-corpus` | Maps a multi-resource documentation corpus into a verified, classified, triaged slice before any digesting: bounded discovery, a user-approved link map classifying every discovered URL, deterministic node manifests over immutable snapshots, and a per-node relevance inventory whose evidence a script gate verifies, handing an approved queue to N runs of `/knowledge:docpage-digest`. |
 | `video-digest` | `/knowledge:video-digest` | Watches a single public video from YouTube or X (Twitter), transcript + visual frames, harvests reference links, drives external research, and synthesizes a prioritized repo-applicability menu. Actions: `watch`, `queue`, `transcript`, `resume`. |
@@ -29,7 +29,7 @@ concept-organized, author-attributed **skill reference files**; a re-runnable
   content is consolidated into a shared file.
 
 You name the target skill when you invoke `/knowledge:book-distill`, so output
-lands somewhere you chose (`${CLAUDE_PROJECT_DIR}/.claude/skills/<target>/`): either an existing skill it extends or a new one it creates. Cross-session state
+lands somewhere you chose (`.claude/skills/<target>/` under the session's git top-level, per [`reference/work-root.md`](reference/work-root.md)): either an existing skill it extends or a new one it creates. Cross-session state
 (the file plan, page map, and a checklist) persists under `${CLAUDE_PLUGIN_DATA}`; for how long
 that directory is kept, see
 [Environment variables](https://code.claude.com/docs/en/plugins/manifest-reference#environment-variables)
@@ -56,20 +56,22 @@ any instructions injected through its text.
 ## Revisit condition
 
 `video-digest` ships as a skill inside this plugin rather than a standalone plugin
-because a separate plugin cannot reach this one's vendored `video-digestion`
-package. Plugins are isolated, with no sibling reach-outs. Extract a standalone
-`youtube` plugin once that package is independently distributable, or a consumer
-needs video without the rest of the knowledge stack.
+because it shares the plugin's vendored packages (`video-digestion`,
+`repo-analysis` and `node-launcher`, see [`vendor/README.md`](vendor/README.md))
+with `course-digest`, and a separate plugin cannot reach them: plugins are
+isolated, with no sibling reach-outs. Extract a standalone video plugin once those
+packages are independently distributable, or once a consumer needs video without
+the rest of the knowledge stack.
 
 ## Requirements
 
 - A PDF or EPUB you have the right to read. PDF works natively with Claude
   Code's Read tool; EPUB requires unzipping and text extraction first.
-- **Bash + coreutils** for the skills' inline mechanics (`book-distill`
-  hashes its progress-file slug with `sha256sum`/`shasum` on every run). On
-  native Windows, install
+- **Node.js on `PATH`**: every skill resolves its work root, and
+  `book-distill` its progress key, with `scripts/work-root.mjs`.
+- **Bash** for the skills' inline commands. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows)
-  so they run under Git Bash, which bundles `sha256sum`.
+  so they run under Git Bash.
 - **`unzip` on `PATH` for the EPUB branch**, not bundled with Git Bash;
   install it or extract the EPUB with another archive tool first. PDF-only
   use does not need it.
@@ -88,7 +90,7 @@ defaults keep every pipeline working):
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
-| `library_dir` | directory | `.` (working-tree root) | Directory where the plugin's ingestion pipelines land synthesized artifacts; a relative value resolves against the root of the working tree the session is in, its worktree when it has entered one. Portable non-project roots: an absolute path, a leading `~` (home-relative), or an env-var reference `${NAME}` / `%NAME%` (e.g. `${KNOWLEDGE_CORPUS_DIR}`) so a machine-varying root never needs a literal machine path in the stored value. Expanded when a pipeline resolves the root (the `video-digest` launcher and the `docpage-digest` work root today), failing loud on an unset variable. `book-distill` is unaffected. It writes to the target skill you name at invocation. `video-digest` relocates its work root here and supports one re-layout (`watch/relayout-slice.js`, run before `close` to keep media). Other project artifacts conventions are not applied automatically. |
+| `library_dir` | directory | `.` (working-tree root) | Directory where the plugin's ingestion pipelines land synthesized artifacts; a relative value resolves against the root of the working tree the session is in, its worktree when it has entered one. Portable non-project roots: an absolute path, a leading `~` (home-relative), or an env-var reference `${NAME}` / `%NAME%` (e.g. `${KNOWLEDGE_CORPUS_DIR}`) so a machine-varying root never needs a literal machine path in the stored value. Expanded by `scripts/work-root.mjs`, the one rule every knowledge skill resolves its root through ([`reference/work-root.md`](reference/work-root.md)), failing loud on an unset variable. `book-distill` is unaffected. It writes to the target skill you name at invocation. `video-digest` relocates its work root here and supports one re-layout (`watch/relayout-slice.js`, run before `close` to keep media). Other project artifacts conventions are not applied automatically. |
 | `yt_dlp_js_runtimes` | string | `node` | `video-digest`: JavaScript runtime yt-dlp uses for YouTube signature deciphering. Set to `off` to omit the flag entirely. |
 | `yt_dlp_cookies_file` | string | (empty) | `video-digest`: path to a Netscape cookies.txt for authenticated acquisition. Never commit cookie files. |
 | `yt_dlp_cookies_from_browser` | string | (empty) | `video-digest`: browser to pull YouTube cookies from (`chrome`, `firefox`, `edge`, …), forcing one instead of the automatic fallback. A cookies file wins over this. |

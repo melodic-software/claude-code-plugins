@@ -158,7 +158,9 @@ the denominator beside it. `NOTHING TO AUDIT` is **not** that outcome; see "Repo
   across frontmatter and every settings scope, and writes nothing.
 
 **Routing.** When a finding calls for adding, removing, or rewriting a settings rule, offer it to
-the person: you can run `/permissions` instead of or alongside editing the file by hand. A grant
+the person: If /permissions is available in your session (gate basis: not gated in the extraction,
+though a host may lack it; records in [reference/native-surfaces.md](reference/native-surfaces.md)),
+you can run it instead of or alongside editing the file by hand. A grant
 in `allowed-tools` frontmatter is outside the dialog; the finding's own remedy applies there. An
 unattended run records the offer in its output instead of asking.
 

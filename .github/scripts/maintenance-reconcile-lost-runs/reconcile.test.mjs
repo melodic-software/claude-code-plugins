@@ -19,7 +19,7 @@ import { test } from "node:test";
 
 import { createGitHub, GitHubError } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
-import { CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, SETTLED_VERSION, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, main, NPM_STATUS_URL, PR_UNBLOCK_STOP_NOTE, prefilterSpec, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, SETTLED_VERSION, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -501,7 +501,7 @@ test("verify runs that succeeded, are older than the lookback, or ran off main a
   assert.deepEqual(records(outputs), ["", "", ""]);
 });
 
-test("verify re-runs share the cap of 3 with PR CI sets, CI first, then the oldest verify run", async () => {
+test("verify re-runs share the cap of 3 with PR CI sets, CI first, then the newest verify run", async () => {
   // One verify re-run is already in flight, so two places are left.
   const { reruns, outputs } = await reconcile({
     pulls: [pr(1)],
@@ -512,8 +512,19 @@ test("verify re-runs share the cap of 3 with PR CI sets, CI first, then the olde
       verifyRun(201, { created: "2026-10-19T19:10:00Z" }),
     ],
   });
-  assert.deepEqual(reruns, [101, 201]);
-  assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, `reconcile-rerun-201-2-${MAIN_TIP}`, ""]);
+  assert.deepEqual(reruns, [101, 202]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, `reconcile-rerun-202-2-${MAIN_TIP}`, ""]);
+});
+
+test("verify re-runs go before flake re-runs, newest first, since nothing else re-runs them", async () => {
+  const flake = (id, n) => failed(id, sha(n), { jobs: MIXED_JOBS, updated: "2026-10-19T19:00:00Z" });
+  const { reruns, failedJobReruns, outputs } = await reconcile({
+    pulls: [pr(1), pr(2), pr(3)],
+    runs: [flake(101, 1), flake(102, 2), flake(103, 3), verifyRun(201, { created: "2026-10-19T19:10:00Z" }), verifyRun(202, { created: "2026-10-19T19:20:00Z" })],
+  });
+  assert.deepEqual(reruns, [202, 201]);
+  assert.deepEqual(failedJobReruns, [101]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-202-2-${MAIN_TIP}`, `reconcile-rerun-201-2-${MAIN_TIP}`, `reconcile-rerun-101-2-${sha(1)}`]);
 });
 
 test("at most 3 verify runs are recorded and re-run in one run", async () => {
@@ -521,8 +532,8 @@ test("at most 3 verify runs are recorded and re-run in one run", async () => {
     pulls: [],
     runs: [verifyRun(201), verifyRun(202), verifyRun(203), verifyRun(204)].map((r, i) => ({ ...r, created_at: `2026-10-19T19:0${i}:00Z` })),
   });
-  assert.deepEqual(reruns, [201, 202, 203]);
-  assert.deepEqual(records(outputs), [201, 202, 203].map((id) => `reconcile-rerun-${id}-2-${MAIN_TIP}`));
+  assert.deepEqual(reruns, [204, 203, 202]);
+  assert.deepEqual(records(outputs), [204, 203, 202].map((id) => `reconcile-rerun-${id}-2-${MAIN_TIP}`));
 });
 
 // A lane workflow's jobs (pr-verify's legs by default), as name and body.
@@ -724,7 +735,7 @@ test("a verify run lost after it started but before its judge step is re-run", a
       { ...verifyRun(202), jobs: verifyJob("skipped"), created_at: "2026-10-19T19:00:00Z" },
     ],
   });
-  assert.deepEqual(reruns, [201, 202]);
+  assert.deepEqual(reruns, [202, 201]);
 });
 
 test("a verify run none of whose first-attempt jobs started is never re-run or recorded", async () => {
@@ -902,7 +913,7 @@ test("a main-run review whose verdict write started in any lane is held with its
   }
 });
 
-test("a main-run review re-run shares the cap of 3 with pr-verify re-runs, oldest first", async () => {
+test("a main-run review re-run shares the cap of 3 with pr-verify re-runs, newest first", async () => {
   const { reruns, outputs } = await reconcile({
     pulls: [],
     runs: [
@@ -912,8 +923,8 @@ test("a main-run review re-run shares the cap of 3 with pr-verify re-runs, oldes
       mainReviewRun(302, { created: "2026-10-19T19:20:00Z" }),
     ],
   });
-  assert.deepEqual(reruns, [301, 201, 202]);
-  assert.deepEqual(records(outputs), [301, 201, 202].map((id) => `reconcile-rerun-${id}-2-${MAIN_TIP}`));
+  assert.deepEqual(reruns, [302, 202, 201]);
+  assert.deepEqual(records(outputs), [302, 202, 201].map((id) => `reconcile-rerun-${id}-2-${MAIN_TIP}`));
 });
 
 test("a non-operational Actions status records nothing", async () => {
@@ -934,7 +945,7 @@ const lostQueries = (calls) => calls.filter((c) => c.includes("/workflows/pr-ver
 test("a lost-run listing of 150 runs over 2 pages is read in full", async () => {
   const { code, reruns, calls } = await reconcile({ pulls: [], runs: lostDay(150) });
   assert.equal(code, 0);
-  assert.deepEqual(reruns, [1000, 1001, 1002]);
+  assert.deepEqual(reruns, [1149, 1148, 1147]);
   assert.equal(lostQueries(calls).length, 2);
 });
 
@@ -944,8 +955,8 @@ test("700 succeeded verify runs and 2 lost ones plan the 2 lost runs without hit
     runs: [...verifyDay(700, new Map()), verifyRun(201), verifyRun(202, { created: "2026-10-19T19:00:00Z" })],
   });
   assert.equal(code, 0);
-  assert.deepEqual(reruns, [201, 202]);
-  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, `reconcile-rerun-202-2-${MAIN_TIP}`, ""]);
+  assert.deepEqual(reruns, [202, 201]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-202-2-${MAIN_TIP}`, `reconcile-rerun-201-2-${MAIN_TIP}`, ""]);
   assert.ok(calls.every((c) => !c.includes("&page=2")));
 });
 
@@ -961,7 +972,7 @@ test("with 700 succeeded runs listed, verify re-runs already queued or in progre
     ],
   });
   assert.equal(code, 0);
-  assert.deepEqual(reruns, [201]);
+  assert.deepEqual(reruns, [202]);
 });
 
 test("verify re-runs that start while the listing is read still take places", async () => {
@@ -1304,9 +1315,9 @@ test("each re-run that makes attempt 2 of pr-require-checks is recorded before i
   const { code, outputs, reruns, failedJobReruns, planWrites } = await reconcile({ pulls: [pr(1), pr(2), pr(3)], runs });
   assert.equal(code, 0);
   assert.equal(planWrites, 0);
-  assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, `reconcile-rerun-102-2-${sha(2)}`, `reconcile-rerun-103-2-${sha(3)}`]);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, `reconcile-rerun-103-2-${sha(3)}`, `reconcile-rerun-102-2-${sha(2)}`]);
   assert.deepEqual(reruns, [101]);
-  assert.deepEqual(failedJobReruns, [102, 103]);
+  assert.deepEqual(failedJobReruns, [103, 102]);
 });
 
 test("a pr-test-windows re-run is not recorded", async () => {
@@ -1316,7 +1327,7 @@ test("a pr-test-windows re-run is not recorded", async () => {
   assert.deepEqual(reruns, [101]);
 });
 
-test("a PR's CI set carries one record, so the cap of 3 bounds the records at 3", async () => {
+test("a CI set with no stopped review carries one record, so the cap of 3 bounds the records at 3", async () => {
   const runs = [1, 2, 3, 4].flatMap((n) => [run(100 + n, sha(n)), run(200 + n, sha(n), { path: WINDOWS })]);
   const { code, outputs, reruns } = await reconcile({ pulls: [pr(1), pr(2), pr(3), pr(4)], runs: [...runs, verifyRun(301)] });
   assert.equal(code, 0);
@@ -1823,13 +1834,42 @@ test("the reconciler takes the hosted review lanes among its CI workflows", () =
   }
 });
 
-test("a hosted review run the upstream gate stopped has its failed jobs re-run once", async () => {
+test("a hosted review run the upstream gate stopped has its failed jobs re-run once, after the plan names its record", async () => {
   for (const path of [REVIEW, SECURITY_REVIEW]) {
-    const { failedJobReruns, reruns, code } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1), { path })] });
+    const { failedJobReruns, reruns, code, outputs, planWrites } = await reconcile({ pulls: [pr(1)], runs: [gated(201, sha(1), { path })] });
     assert.equal(code, 0, path);
+    assert.equal(planWrites, 0, path);
     assert.deepEqual(failedJobReruns, [201], path);
     assert.deepEqual(reruns, [], path);
+    assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, "", ""], path);
   }
+});
+
+// An outage stops both review lanes at one head, so one PR's set can hold more
+// records than the workflow's upload steps have room for beside another PR's.
+const bothStopped = (n) => [gated(200 + n, sha(n)), gated(300 + n, sha(n), { path: SECURITY_REVIEW })];
+
+test("a PR's two stopped reviews share one place, and a set past the record uploads waits for a later pass", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const runs = [...bothStopped(1), ...bothStopped(2), gated(203, sha(3))];
+  const { code, outputs, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2), pr(3)], runs });
+  assert.equal(code, 0);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, `reconcile-rerun-301-2-${sha(1)}`, `reconcile-rerun-203-2-${sha(3)}`]);
+  assert.deepEqual(failedJobReruns, [201, 301, 203]);
+  assert.ok(log.mock.calls.some((c) => c.arguments[0] === "reconcile: #2: deferred, no record upload left this pass"));
+});
+
+test("a set holding three records fills the uploads, so the items after it wait", async (t) => {
+  const log = t.mock.method(console, "log", () => {});
+  const runs = [run(101, sha(1)), ...bothStopped(1), gated(202, sha(2)), verifyRun(401)];
+  const { code, outputs, reruns, failedJobReruns } = await reconcile({ pulls: [pr(1), pr(2)], runs });
+  assert.equal(code, 0);
+  assert.deepEqual(records(outputs), [`reconcile-rerun-101-2-${sha(1)}`, `reconcile-rerun-201-2-${sha(1)}`, `reconcile-rerun-301-2-${sha(1)}`]);
+  assert.deepEqual(reruns, [101]);
+  assert.deepEqual(failedJobReruns, [201, 301]);
+  const lines = log.mock.calls.map((c) => c.arguments[0]);
+  assert.ok(lines.includes("reconcile: #2: deferred, no record upload left this pass"));
+  assert.ok(lines.includes(`reconcile: lane run 401 (${VERIFY}): deferred, no record upload left this pass`));
 });
 
 test("a hosted review run that failed any other way is never re-run", async () => {
@@ -1889,6 +1929,151 @@ test("a hosted review re-run in flight takes none of the CI slots and does not h
   const going = run(202, sha(1), { path: REVIEW, status: "in_progress", attempt: 2 });
   const { reruns } = await reconcile({ pulls: [pr(1)], runs: [going, run(101, sha(1))] });
   assert.deepEqual(reruns, [101]);
+});
+
+// A hosted review run a kill switch stopped ends success, with its review job
+// skipped. ci-status fails the head with REVIEW_STOP_NOTE; rerun-ci-status
+// re-runs ci-status when the stopped run completes, so the checks run is often
+// past attempt 1. The text is the one pr-require-checks.yml writes (pinned below).
+const stoppedJobs = ({ report = "success", kill = "success", review = "skipped" } = {}) => [
+  { id: 311, name: "resolve-model", status: "completed", conclusion: "success", steps: [] },
+  {
+    id: 312,
+    name: "kill-switch",
+    status: "completed",
+    conclusion: kill,
+    steps: [
+      { name: "Check the kill switch", status: "completed", conclusion: "success" },
+      { name: REVIEW_STOP_STEP, status: "completed", conclusion: report },
+    ],
+  },
+  { id: 313, name: "pr-review", status: "completed", conclusion: review, steps: [] },
+];
+const stoppedRun = (id, head, opts = {}, jobs = stoppedJobs()) => run(id, head, { path: REVIEW, conclusion: "success", jobs, ...opts });
+const redChecks = (id, head, opts = {}) =>
+  failed(id, head, {
+    jobs: switchJobs({ message: `'pr-review / claude-review-status' did not run on ${head} (https://github.com/o/r/actions/runs/1): ${REVIEW_STOP_NOTE}.` }),
+    ...opts,
+  });
+
+test("a review run a kill switch stopped is re-run whole once, recorded, at any ci-status attempt and past the lookback", async () => {
+  for (const opts of [{}, { attempt: 3 }]) {
+    for (const created of ["2026-10-19T19:00:00Z", "2026-10-12T19:00:00Z"]) {
+      const runs = [redChecks(101, sha(1), opts), stoppedRun(201, sha(1), { created })];
+      const { code, outputs, reruns, failedJobReruns, planWrites } = await reconcile({ pulls: [pr(1)], runs });
+      assert.equal(code, 0);
+      assert.equal(planWrites, 0);
+      assert.deepEqual(reruns, [201]);
+      assert.deepEqual(failedJobReruns, []);
+      assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${sha(1)}`, "", ""]);
+    }
+  }
+});
+
+test("both stopped lanes of a head go one per pass, so three heads stay inside the record uploads", async () => {
+  const runs = [1, 2, 3].flatMap((n) => [redChecks(100 + n, sha(n)), stoppedRun(200 + n, sha(n)), stoppedRun(300 + n, sha(n), { path: SECURITY_REVIEW })]);
+  const { code, outputs, reruns } = await reconcile({ pulls: [pr(1), pr(2), pr(3)], runs });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [201, 202, 203]);
+  assert.deepEqual(records(outputs), [201, 202, 203].map((id) => `reconcile-rerun-${id}-2-${sha(id - 200)}`));
+});
+
+test("the second stopped lane goes on the next pass, after the first has its re-run", async () => {
+  const runs = [redChecks(101, sha(1)), stoppedRun(201, sha(1), { attempt: 2 }), stoppedRun(301, sha(1), { path: SECURITY_REVIEW })];
+  const { reruns } = await reconcile({ pulls: [pr(1)], runs });
+  assert.deepEqual(reruns, [301]);
+});
+
+test("a lane's own switch keeps its re-run, with no read, and leaves the other lane's", async () => {
+  const runs = [redChecks(101, sha(1)), stoppedRun(201, sha(1)), stoppedRun(301, sha(1), { path: SECURITY_REVIEW })];
+  const { code, reruns, calls } = await reconcile({ pulls: [pr(1)], runs, env: { CLAUDE_REVIEW_DISABLED: "true" } });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [301]);
+  assert.ok(!calls.some((c) => c.includes("/runs/201/jobs")), JSON.stringify(calls));
+});
+
+test("a lane's switch stops at true in any case, as its caller's expression compares it", async () => {
+  for (const value of ["true", "TRUE", "True"]) {
+    const runs = [redChecks(101, sha(1)), stoppedRun(201, sha(1))];
+    const { reruns } = await reconcile({ pulls: [pr(1)], runs, env: { CLAUDE_REVIEW_DISABLED: value } });
+    assert.deepEqual(reruns, [], value);
+  }
+});
+
+test("each lane's switch stops only at true, as its caller reads it", async () => {
+  for (const value of ["", "false", "1"]) {
+    const env = { CLAUDE_REVIEW_DISABLED: value };
+    const { reruns } = await reconcile({ pulls: [pr(1)], runs: [redChecks(101, sha(1)), stoppedRun(201, sha(1))], env });
+    assert.deepEqual(reruns, [201], value);
+  }
+  for (const [file, name] of REVIEW_SWITCHES) {
+    const caller = readFileSync(new URL(`../../workflows/${file.slice(file.lastIndexOf("/") + 1)}`, import.meta.url), "utf8");
+    assert.ok(caller.includes(`vars.${name} != 'true'`), name);
+    assert.ok(caller.includes(`- name: ${REVIEW_STOP_STEP}`), file);
+  }
+  const reconciler = readFileSync(new URL("../../workflows/maintenance-reconcile-lost-runs.yml", import.meta.url), "utf8");
+  for (const name of REVIEW_SWITCHES.values()) {
+    assert.ok(reconciler.includes(`${name}: \${{ vars.${name} }}`), name);
+  }
+});
+
+test("the lanes switch keeps every stopped review from being read or re-run", async () => {
+  const { code, calls } = await reconcile({ pulls: [pr(1)], runs: [redChecks(101, sha(1)), stoppedRun(201, sha(1))], env: { KILL_SWITCH: "" } });
+  assert.equal(code, 0);
+  assert.deepEqual(calls, []);
+});
+
+test("an upstream outage keeps the one re-run for later", async () => {
+  const npmDown = { components: [{ name: "Package installation", status: "partial_outage", group: false }] };
+  const { reruns } = await reconcile({ pulls: [pr(1)], runs: [redChecks(101, sha(1)), stoppedRun(201, sha(1))], upstream: { ...UPSTREAM_OK, [NPM_COMPONENTS]: npmDown } });
+  assert.deepEqual(reruns, []);
+});
+
+test("only a stopped review on a head ci-status names is re-run", async () => {
+  const cases = [
+    // A real review, whatever ci-status says: never traded for another.
+    [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, stoppedJobs({ review: "success" }))],
+    [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, [stoppedJobs()[1], { id: 314, name: "pr-review / claude-review-status", status: "completed", conclusion: "success", steps: [] }])],
+    // No stop step that ran, or a list cut short.
+    [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, stoppedJobs({ report: "skipped" }))],
+    [redChecks(101, sha(1)), stoppedRun(201, sha(1), {}, stoppedJobs({ kill: "failure" }))],
+    // Its one re-run is spent, or GitHub's window is past.
+    [redChecks(101, sha(1)), stoppedRun(201, sha(1), { attempt: 2 })],
+    [redChecks(101, sha(1)), stoppedRun(201, sha(1), { created: "2026-09-19T19:00:00Z" })],
+    // ci-status does not name a stop, or passed.
+    [failed(101, sha(1), { jobs: switchJobs({ message: "'x' has not finished" }) }), stoppedRun(201, sha(1))],
+    [run(101, sha(1), { conclusion: "success" }), stoppedRun(201, sha(1))],
+    // Another job failed too, so the head is not waiting on the review alone.
+    [failed(101, sha(1), { jobs: switchJobs({ message: REVIEW_STOP_NOTE, lane: "failure" }), attempt: 2 }), stoppedRun(201, sha(1))],
+  ];
+  for (const runs of cases) {
+    const { code, reruns, failedJobReruns } = await reconcile({ pulls: [pr(1)], runs });
+    assert.equal(code, 0, JSON.stringify(runs));
+    assert.deepEqual(reruns, [], JSON.stringify(runs));
+    assert.deepEqual(failedJobReruns, [], JSON.stringify(runs));
+  }
+});
+
+test("a review run that changed since the plan is left alone", async () => {
+  const stopped = stoppedRun(201, sha(1));
+  const { reruns } = await reconcile({
+    pulls: [pr(1)],
+    runs: [redChecks(101, sha(1)), stopped],
+    github: (g) => async (method, path, body) => (method === "GET" && path.endsWith("/actions/runs/201") ? { ...stopped, run_attempt: 2 } : g(method, path, body)),
+  });
+  assert.deepEqual(reruns, []);
+});
+
+test("the review-stop note is the text ci-status writes", () => {
+  const workflow = readFileSync(new URL("../../workflows/pr-require-checks.yml", import.meta.url), "utf8");
+  assert.ok(workflow.includes(`did not run on $HEAD_SHA ($url): ${REVIEW_STOP_NOTE}.`));
+});
+
+test("a ci-status past attempt 1 with no review stop stays with a person", async () => {
+  await withLaneList(async (env) => {
+    const { reruns, failedJobReruns } = await reconcile({ pulls: [lanePr(1)], runs: [failed(101, sha(1), { jobs: switchJobs(), attempt: 2 })], env });
+    assert.deepEqual([...reruns, ...failedJobReruns], []);
+  });
 });
 
 test("a hosted review run that is not a failed first attempt has no jobs read", async () => {
