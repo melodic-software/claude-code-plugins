@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 2,
+  "environments": {
+    "local": { "server": "localhost", "databases": ["app"], "auth": { "type": "entra-default" } }
+  }
+}
