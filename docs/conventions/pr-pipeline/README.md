@@ -241,9 +241,9 @@ that head, and only the comments that head does not hold yet, by file. A PR a pe
 review comment: GitHub lets only a PR's author or a writer resolve a thread, the lanes App is
 neither, and every conversation must be resolved to merge. It gets one PR comment instead, starting
 with the same marker and edited in place on a later fail, and the `pr-verify-failed` label, which
-`ci-status` holds in the merge queue. No round starts there. A withheld fail (its text shaped like
-a credential, or its step stopped on the credential scan, which `write-verdict.mjs` alone records
-as `withheld: true`) also holds for a person, since a later clean commit rotates nothing: at
+`ci-status` holds in the merge queue. No round starts there. A withheld fail (any verdict whose text
+is shaped like a credential, or whose step stopped on the credential scan, which `write-verdict.mjs`
+alone records as `withheld: true`) also holds for a person, and no fix round works past it, since a later clean commit rotates nothing: at
 whatever head the PR has moved to, an open PR takes the human-gated label and leaves the merge
 queue, and in any state, once per head, it takes a comment with a `security` stop reason. That
 comment keeps the label through every clear path (`clear-escalations`, `enable-auto-merge`'s lift,
@@ -2291,11 +2291,11 @@ with no such line or a withheld body). With no capture summary the writer record
 check ran"); a summary it cannot read, that fails its schema, or whose text matches a shared
 credential pattern records `blocked`, so a capture never fails the verdict. `merge.verify-capture` configures the capture: `app`, the app it drives (unset:
 no capture runs), and `retention-days` (default 30, at most 90), how long each capture artifact
-lasts. A model error, an output that fails the schema, or a `pass` or `pass-notes` with a summary or
-note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`) or with any
-permission denial uploads nothing, and the run fails. A `fail` is written with a fixed text in place
-of all the model's, and so is the `fail` of a judge step `run-claude-cli` failed on its own credential
-scan, so the head is not judged twice. The chunk-results step stops with no verdict, before the final
+lasts. A model error, an output that fails the schema, or a `pass` or `pass-notes` with any
+permission denial uploads nothing, and the run fails. Any verdict with a summary or note matching a
+shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or from a judge step
+`run-claude-cli` failed on its own credential scan, is written as a `fail` with a fixed text in place
+of all the model's, which counts toward the repeated-fail cap, so the head is not judged twice. The chunk-results step stops with no verdict, before the final
 judge runs, on results over 300000 bytes. A head that already has a counted verdict from a completed run (a `fail` under any
 pull request number) is not judged again, unless its only verdicts are passes the spec has since
 changed under (below). The resolver first looks up the names without issues;

@@ -467,7 +467,7 @@ jobs:
       # skipped, and "Write the verdict" runs on it, so no later step can lose
       # it to a re-run. A step that fails before it does not stop the check,
       # and a judge step run-claude-cli failed with no lane class, having left
-      # an execution file, stopped on its credential scan, so its fail counts
+      # an execution file, stopped on its credential scan, so it counts as a fail
       # with none of its text.
       - name: Read chunk 1's verdict
         id: chunk-fail
@@ -1376,7 +1376,7 @@ jobs:
       # skipped, and "Write the verdict" runs on it, so no later step can lose
       # it to a re-run. A step that fails before it does not stop the check,
       # and a judge step run-claude-cli failed with no lane class, having left
-      # an execution file, stopped on its credential scan, so its fail counts
+      # an execution file, stopped on its credential scan, so it counts as a fail
       # with none of its text.
       - name: Read chunk 1's verdict
         id: chunk-fail
@@ -2246,7 +2246,7 @@ jobs:
       # skipped, and "Write the verdict" runs on it, so no later step can lose
       # it to a re-run. A step that fails before it does not stop the check,
       # and a judge step run-claude-cli failed with no lane class, having left
-      # an execution file, stopped on its credential scan, so its fail counts
+      # an execution file, stopped on its credential scan, so it counts as a fail
       # with none of its text.
       - name: Read chunk 1's verdict
         id: chunk-fail

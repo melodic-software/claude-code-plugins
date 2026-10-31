@@ -9,16 +9,18 @@ bump: patch
   gone from a chunk's result.
 - `pr-verify` folds a diff line over 1800 bytes onto lines that start `\ continued:`, so a verifier
   reads every byte of it and no head passes on a line Read cut short.
-- A `pr-verify` `fail` that holds credential-shaped text, or that hit a permission denial, is now
-  written instead of leaving no verdict and a second sample of the head. A fail with such text, or
-  from a judge step `run-claude-cli` failed on its own credential scan, publishes a fixed text and
+- A `pr-verify` `fail` that hit a permission denial, and any verdict that holds credential-shaped text
+  or comes from a judge step `run-claude-cli` failed on its own credential scan, is now written instead
+  of leaving no verdict and a second sample of the head. A `pass` or `pass-notes` of that kind becomes a
+  `fail` that counts toward the repeated-fail cap. Each publishes a fixed text and
   none of the model's, logs the credential's kind alone as a warning, and holds the pull request for a person with the
   human-gated label, a dequeue and a `security` stop reason, since a later clean commit rotates nothing. The verdict
   records `withheld: true` in code, so a fail quoting that text gets no hold and no model can claim one. The comment
   posts once per head in any pull request state, whatever else the label stands for, and keeps the label through
   `clear-escalations`, `enable-auto-merge`'s lift and `ci-status`'s cost-hold clear until a person removes it. A failed
-  hold skips no notes, and a withheld fail stands on a short read with no notes. A denial or
-  credential-shaped text still voids a `pass` or `pass-notes`. The scan reads through the
+  hold skips no notes, no fix round works past it, and a withheld fail stands on a short read with no
+  notes or a scan stop that left no log. A denial alone still voids a `pass` or `pass-notes`. The scan
+  reads through the
   `\ continued:` fold, with any white space before it, and across two quoted diff lines, and the prompts forbid quoting
   a credential.
 - On a `refs` entry, a `pr-verify` final judge's `pass` or `pass-notes` needs the context read

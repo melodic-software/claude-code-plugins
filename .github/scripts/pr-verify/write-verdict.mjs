@@ -9,15 +9,15 @@
 // this writer writes. The output
 // of each chunk must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
 // summary a string, notes an array of strings. Since the verdict is uploaded,
-// a pass or pass-notes with text matching the shared credential patterns
-// (lib/publish-gate.mjs findSecret) or a permission denial writes none, and so
-// does a chunk that left no output or read a part of its diff short
-// (pr-review-main readCoverage) with no defect in its notes. A fail stands on a
-// denial, since no fail can pass the head, and with a fixed text in place of
-// the model's when that text or its step's credential scan shows a credential,
-// so the head is not sampled again and no part of it is published. Only this
-// script records such a fail as `withheld: true`, which is what verify-notes.mjs
-// reads to hold the pull request.
+// a pass or pass-notes with a permission denial writes none, and so does a chunk
+// that left no output or read a part of its diff short (pr-review-main
+// readCoverage) with no defect in its notes. A fail stands on a denial, since no
+// fail can pass the head. Any verdict whose text matches the shared credential
+// patterns (lib/publish-gate.mjs findSecret), or whose step's credential scan
+// stopped it, becomes a fail with a fixed text in place of the model's, so the
+// head is not sampled again and no part of it is published. Only this script
+// records such a fail as `withheld: true`, which is what verify-notes.mjs reads
+// to hold the pull request.
 // The file also records the head
 // branch and the linked issues with their authors, as the resolver read them
 // (number, author and last body editor login, id and type, last_edited_at;
@@ -155,13 +155,13 @@ export const WITHHELD_SUMMARY = "The verifier returned fail, and its text is wit
 // is one no model's JSON can carry. buildVerdict writes it as `withheld: true`.
 const WITHHELD = Symbol("withheld");
 
-// A fail with none of the model's text: no mask finds where a credential ends.
-// Empty notes stay empty. The annotation names the kind alone, so the run shows
-// a credential to rotate.
-const withheld = ({ verdict, notes }, kind) => {
+// A fail with none of the model's text, whatever verdict it replaces: no mask
+// finds where a credential ends. Empty notes stay empty. The annotation names
+// the kind alone, so the run shows a credential to rotate.
+const withheld = ({ notes }, kind) => {
   console.log(`::warning title=pr-verify credential::kind=${kind}`);
   return {
-    verdict,
+    verdict: "fail",
     summary: WITHHELD_SUMMARY,
     notes: notes.length > 0 ? ["The verifier's notes are withheld with its summary. Check the diff for a committed credential, and rotate any that is real."] : [],
     [WITHHELD]: true,
@@ -189,13 +189,7 @@ function parseOutput(output) {
     throw new Error("the structured output does not match the verdict schema");
   }
   const kind = credentialIn([parsed.summary, ...parsed.notes]);
-  if (!kind) {
-    return parsed;
-  }
-  if (parsed.verdict !== "fail") {
-    throw new Error(`the structured output holds text shaped like a credential (${kind})`);
-  }
-  return withheld(parsed, kind);
+  return kind ? withheld(parsed, kind) : parsed;
 }
 
 // One output from each chunk's and the whole-spec judgment's: the worst
@@ -516,19 +510,17 @@ function readExecution(file) {
 }
 
 // One run's messages and its checked output: it left an output on the schema
-// and a readable log, or this throws, and so does a denial or a failed step on
-// anything but a fail. A fail cannot pass the head, so it stands: it records
-// the denials, and from a failed step, which run-claude-cli's scan stopped on
-// text this script may not recognize, it keeps none of the model's text.
+// and a readable log, or this throws, and so does a denial on anything but a
+// fail. A fail cannot pass the head, so it stands and records the denials. The
+// workflow reads a failed step only when run-claude-cli's scan stopped it, on
+// text this script may not recognize and with no log when the log held it, so
+// that step's output is a withheld fail.
 function readJudgment(file, logFile, outcome, parse = parseOutput) {
   const messages = readExecution(file);
   const result = lastResult(messages);
-  let output = parse(result.structured_output);
+  const output = parse(result.structured_output);
   if (outcome !== "success") {
-    if (output.verdict !== "fail") {
-      throw new Error("the step failed");
-    }
-    output = withheld(output, "credential scan stop");
+    return { messages, output: withheld(output, "credential scan stop") };
   }
   const denied = resultDenials(result).length + logDenials(readLog(logFile));
   if (denied === 0) {
@@ -619,10 +611,10 @@ const firstError = (results, count) => {
 // The whole-spec judgment's output: it ran, read every result (a `refs`
 // entry's context parts among them), the spec and the manifest whole, and hit
 // no denial, or this throws (countedOutput). A step that failed, which reaches
-// here only from run-claude-cli's credential scan, leaves only a withheld fail.
+// here only from run-claude-cli's credential scan, leaves a withheld fail.
 function finalOutput(env, count) {
   try {
-    for (const key of ["FINAL_EXECUTION_FILE", "FINAL_LOG_FILE", "RESULTS_DIR", "MANIFEST_DIR"]) {
+    for (const key of ["FINAL_EXECUTION_FILE", "RESULTS_DIR", "MANIFEST_DIR"]) {
       if (!env[key]) {
         throw new Error(`${key} is not set`);
       }
