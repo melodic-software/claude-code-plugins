@@ -23,7 +23,7 @@ Transform online video courses into structured knowledge and actionable repo rec
 
 ## How it works
 
-Uses browser automation (claude-in-chrome) to navigate course platforms, extract transcripts, capture screenshots of code/slides, and collect downloadable resources. Synthesizes raw content into analysis focused on what applies to the current repository.
+Uses browser automation (Playwright, driven by the extraction scripts) to navigate course platforms, extract transcripts, capture screenshots of code/slides, and collect downloadable resources. Synthesizes raw content into analysis focused on what applies to the current repository.
 
 Where this skill says "deeper research," use whatever external-research capability your project provides. Repo conventions override course claims. Surface convention conflicts explicitly; never silently adopt a course's shortcut over team rules.
 
@@ -116,6 +116,7 @@ Extraction pipeline uses a **provider adapter pattern**. Platform-specific code 
 extraction/
   adapters/
     adapter-contract.js       # JSDoc interface + validation + factory
+    registry.js               # Static platform-id to adapter map; an unknown id resolves to no adapter and fails closed
     dometrain.js              # Thin adapter: composes mux (player) + clerk (auth)
     teachable.js              # Thin adapter: composes hotmart (player) + teachable-sso (auth)
   lib/

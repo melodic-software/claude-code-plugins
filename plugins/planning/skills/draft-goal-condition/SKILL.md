@@ -245,8 +245,10 @@ and that a goal the page says is removed must be re-set.
   transcript-demonstrable condition sourced from the live docs and passed through the length
   counter. It sets nothing.
 
-**Routing.** At the end of the run, always offer the paste-ready line: you can run
-`/goal <condition>` with the drafted text, instead of or alongside continuing by hand. Also
+**Routing.** At the end of the run, always offer the paste-ready line:
+If /goal is available in your session (gate basis: not gated behind a setting, though a host may
+lack it; records in [reference/native-goal.md](reference/native-goal.md)), you can run `/goal <condition>` with the
+drafted text, instead of or alongside continuing by hand. Also
 propose it with `ProposeGoal`, leaving `ask_user` true, only when all of these hold: the tool
 resolves in this session, the session is the main thread of an interactive local session (not a
 subagent), plan mode is not active, and the condition passes the counter at the tool's own cap.

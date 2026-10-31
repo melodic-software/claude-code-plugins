@@ -112,6 +112,22 @@ every LATER checkpoint do NOT create a second file: locate this session's existi
 equals the current `$CLAUDE_CODE_SESSION_ID`, then re-read it from disk and **append** a new
 `## Checkpoint <TS>` section. Create a new file only when no such match exists.
 
+**Stamp the plugin usage.** After each append, resolve `$PY` as the `arm` block below does, then run:
+
+```bash
+"$PY" "${CLAUDE_PLUGIN_ROOT}/skills/running-retro/scripts/stamp_plugin_usage.py" \
+  --ledger "<ledger>" --session-id "$CLAUDE_CODE_SESSION_ID" --session-data-dir "$SESSION_DATA_DIR"
+```
+
+It sets the frontmatter key `plugin_usage` to one line of JSON, `{"skills": {"<plugin>:<skill>": <count>}}`,
+counted over the whole session by the parser, replacing the last stamp. A non-zero exit leaves the
+ledger as it was: note it and go on. The observer stamps its own appends the same way.
+
+**The ledger is a public artifact.** Its directory, its name glob and its `session_id` and
+`plugin_usage` frontmatter keys are the contract other plugins read (`/plugin-quality:audit session`
+finds the ledger by `session_id` and reads `plugin_usage`), so a change to any of them changes that
+contract.
+
 **Chaining across `/clear`.** When this session resumed a prior one through a handoff chain (retro's
 Phase 1.0 continuity gate), record `previous_running_retro` (the prior session's ledger path) and
 `previous_session_id` in this ledger's frontmatter. These are ledger-continuity pointers THIS skill
@@ -153,6 +169,7 @@ Tick each in the response so the exit shape is verifiable:
 - [ ] **Redaction swept the subagent findings AND the ledger append** (both hops. Step 3 and step 4)
 - [ ] Findings appended to this session's single ledger file (located by `session_id` match, not a
   new per-checkpoint file; self-ignore guard verified on the first memory-tier write)
+- [ ] `plugin_usage` stamped into the ledger frontmatter, or the failed stamp noted (step 4)
 - [ ] Routes offered, nothing auto-applied (step 5); the task continues in this same session
 
 ## Arming a detached observer (`arm`)

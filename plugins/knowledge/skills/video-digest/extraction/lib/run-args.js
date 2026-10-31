@@ -121,36 +121,8 @@ export function buildChildEnv(baseEnv, flags = {}) {
   return { ...baseEnv, ...overlay };
 }
 
-/**
- * The knowledge plugin's data directory for a script Claude runs through the Bash tool.
- *
- * We do not rely on that tool's environment carrying this plugin's `CLAUDE_PLUGIN_DATA`,
- * and another plugin's SessionStart hook can persist its own data directory there under
- * that name, so the
- * skill passes `--data-dir "${CLAUDE_PLUGIN_DATA}"`, substituted when the skill loads,
- * and that value wins. Without the flag an inherited value is used only when its last
- * path segment names this plugin (`knowledge-<marketplace>`), the order the
- * marketplace's on-demand-dependencies convention sets. Pointer: when deciding what
- * the Bash tool's environment holds, fetch
- * https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves
- * live. As of 2026-10-11. Recheck when that section changes what
- * `CLAUDE_PLUGIN_DATA` holds in the Bash tool's environment.
- *
- * @param {string|undefined} flagValue
- * @param {NodeJS.ProcessEnv} env
- * @returns {string|undefined} undefined when neither source names this plugin
- */
-export function resolvePluginData(flagValue, env) {
-  if (flagValue) {
-    if (flagValue.includes("${") || flagValue.includes("<plugin-data>")) {
-      throw new Error(`\`--data-dir\` got an unsubstituted placeholder: \`${flagValue}\``);
-    }
-    return flagValue;
-  }
-  const inherited = env.CLAUDE_PLUGIN_DATA;
-  const lastSegment = inherited?.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "";
-  return /^knowledge(-|$)/.test(lastSegment) ? inherited : undefined;
-}
+/** The data directory resolver every knowledge extraction entry point shares. */
+export { resolvePluginData } from "../../../../vendor/node-launcher/run.mjs";
 
 const ENV_REF = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|%([A-Za-z_][A-Za-z0-9_]*)%/g;
 

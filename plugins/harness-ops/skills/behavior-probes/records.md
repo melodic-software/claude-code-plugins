@@ -440,3 +440,35 @@ substitution, `--allowedTools` or `dontAsk`.
 | `intake-permissions/gh-issue-view-and-denied` | deny | deny, mode | pass |
 | `intake-permissions/gh-issue-view-pipe-denied` | deny | deny, mode | pass |
 | `intake-permissions/gh-issue-view-substitution-denied` | deny | deny, mode | pass |
+
+## Basis for record 19
+
+A hand run on the owner's host on 2026-10-31, before the case existed. The case follows the same
+steps. `claude -p "/schedule ..." --permission-mode auto` created one one-off routine on this
+repository with `run_once_at` 06:03Z, the Default environment and tools `Bash` and `Read`, then ran it
+once. The scheduled fire was the second run. Claude Code **2.1.314** ran on the host and inside both
+runs. Run 1 (manual, 05:47Z) posted
+[a nonce](https://github.com/melodic-software/claude-code-plugins/issues/8991#issuecomment-6539724978),
+and run 2 (scheduled, 06:08Z, a separate session) posted
+[the same nonce read back](https://github.com/melodic-software/claude-code-plugins/issues/8991#issuecomment-6539913643).
+The [host-run report](https://github.com/melodic-software/claude-code-plugins/issues/8991#issuecomment-6540243272)
+has the rest. The case `cloud-routine/state-read-back-next-run` has not run live or in a dry run yet;
+its first live run replaces this basis. The recheck trigger and expiry above apply.
+
+## 19. A cloud routine reads back on its next run the state it posted to an issue comment
+
+**Claim.** A one-off routine's first run posts a state record to an issue comment, and its next run,
+a separate cloud session, reads the same record back. Starting a run by hand does not use up the
+one-off: the scheduled fire still ran it a second time, and then the routine reported
+`"enabled":false,"ended_reason":"run_once_fired"`. The comments post as the owner's GitHub login, not
+a bot, so a reader finds a routine's comments by their marker, not their author. Inside the run the
+shell's zone is UTC (`date +'%Z %z'` gave `UTC +0000`, `TZ` unset). The date in the session's own
+context was `2026-10-31` in both runs, which does not settle its zone: at 05:47Z and 06:08Z that is the
+date in both UTC and New York. That part stays with #7679.
+
+**Recheck trigger.** A release note naming scheduled tasks or routines, `/schedule`, one-off runs,
+**Run now**, or the cloud environment's time zone or GitHub proxy.
+
+| Case | Expected | Observed | Verdict |
+|---|---|---|---|
+| `cloud-routine/state-read-back-next-run` | ran, `result=pass` | hand run: `read-back nonce=267acddb-…, result=pass` | pass (hand run; the case has not run live) |

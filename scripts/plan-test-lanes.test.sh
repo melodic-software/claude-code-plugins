@@ -282,6 +282,14 @@ is "$(key node_packages)" "plugins/knowledge/skills/video-digest/extraction plug
   is "$(key node)" true
 check "a vendor change runs its package and the package that takes it as a file: dependency" $?
 
+mk plugins/knowledge/scripts/work-root.mjs "export const root = 1;"
+mk plugins/knowledge/scripts/work-root.test.sh "bash \"\$(dirname \"\$0\")/work-root.mjs\""
+plan -- plugins/knowledge/scripts/work-root.mjs
+rm -rf "${repo:?}/plugins/knowledge/scripts"
+is "$(key node_packages)" "plugins/knowledge/skills/video-digest/extraction plugins/knowledge/skills/course-digest/extraction" &&
+  is "$(key node)" true
+check "a change to the knowledge plugin's shared scripts runs both extraction packages" $?
+
 plan -- plugins/orphan/o.js
 [[ "$RC" -eq 2 ]] && grep -q 'plugins/orphan/o.test.js is a selected Node suite that no lane runs' "$ERR"
 check "a selected Node suite with no wrapper and no package fails the plan" $?

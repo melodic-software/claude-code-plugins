@@ -239,6 +239,12 @@ jobs:
           # run that reads no FAIL cap spends none of its calls.
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
+          # The FAIL run records, run heads on main and head refs pr-merge's
+          # last such run kept, fetched with the listing: the reader otherwise
+          # reads them for every FAIL in the repository, and each read shares
+          # what it adds here.
+          BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           # The reader's gh calls, with this job's read scopes.
           GH_TOKEN: ${{ github.token }}
           # fix-ci starts on PRs the lanes App opened, matched by this id, and

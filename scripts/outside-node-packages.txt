@@ -36,6 +36,7 @@
 .github/scripts/security-outside-actor
 .github/scripts/work-unblock
 .github/scripts/work-resolve-issue
+plugins/knowledge/vendor/node-launcher
 plugins/knowledge/vendor/repo-analysis
 plugins/knowledge/vendor/video-digestion
 plugins/sql-server

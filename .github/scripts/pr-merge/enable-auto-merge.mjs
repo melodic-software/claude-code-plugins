@@ -49,8 +49,8 @@
 //   scheduled run and
 //   a hand-started one read them (READER_EVENTS), last, for a pull request
 //   every other rule would arm or keep armed, sharing one artifact listing,
-//   read once for the run, and run cache. An event run (a person's edit,
-//   unlabel or ready) never arms and reads no verdict: it only disarms on a
+//   read once for the run, and run cache. An event run (a person's
+//   unlabel) never arms and reads no verdict: it only disarms on a
 //   hold, so a pull request waits up to one scheduled interval to be armed.
 //   An arm survives a push to its head (disarming needs contents: write, which
 //   the arming lanes App token holds and ci-status's GITHUB_TOKEN lacks), so

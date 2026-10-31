@@ -17,6 +17,12 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "setupDeps": {
+    "stamp": ".course-extraction.stamp",
+    "label": "course-digest extraction",
+    "sentinel": "@melodic/video-digestion",
+    "chromium": true
+  },
   "dependencies": {
     "@melodic/repo-analysis": "file:../../../vendor/repo-analysis",
     "@melodic/video-digestion": "file:../../../vendor/video-digestion",

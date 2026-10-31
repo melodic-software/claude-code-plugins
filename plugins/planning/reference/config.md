@@ -85,6 +85,18 @@ after the dead-code removal step, or first when the plan has none. A stub body i
 ordinary not-implemented form. When the stubs leave the build red, that phase carries a
 `**Planned breakage:**` line naming the stub paths. `false` adds no stub phase.
 
+`pre_confirmed_label` is one of two pre-confirmation signals. The other needs no key and no label:
+a comment on the item with a line that reads exactly
+`Pre-confirmed: a person confirms this item's problem`, outside any quote or fenced block. It
+counts only when the run verifies that its author is a user listed as `kind: human` on the
+repository's trusted-actor list read from the default branch (matched by numeric account id;
+`.github/standards/trusted-actors/trusted-actors.json` in this marketplace), that the comment was
+not posted through an App, that the author has `admin` or `write` permission
+(`gh api repos/<owner>/<repo>/collaborators/<login>/permission` on GitHub), that every edit to the
+comment is the author's, and that the item's body is unedited since. A marker by an agent, an App
+or any other account never counts. The full rule is in
+[`../context/problem-framing.md`](../context/problem-framing.md) "Pre-confirmed".
+
 `time_units` governs estimates and budgets of work only. Practice cadence ("integrate at least
 daily") and measurement windows ("within 30 days of launch") are not estimates and are written as
 needed under either value.

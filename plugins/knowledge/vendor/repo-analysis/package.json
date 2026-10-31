@@ -1,13 +1,14 @@
 {
   "name": "@melodic/repo-analysis",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test"
   },
-  "description": "Shared git-repo structure, framework, and section-diff analysis used by the course-digest and youtube extraction backends",
+  "description": "Shared hardened repository clone and git-repo structure, framework, and section-diff analysis used by the knowledge plugin's course-digest, video-digest and absorb-upstream skills",
   "exports": {
-    ".": "./repo-analysis.js"
+    ".": "./repo-analysis.js",
+    "./clone": "./clone.js"
   }
 }

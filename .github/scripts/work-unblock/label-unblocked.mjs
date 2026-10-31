@@ -192,12 +192,14 @@
 //
 // When a sub-issue of a size split (intake's refine.mjs, owner Q93) closes,
 // by a listed human or, on the sweep, a merge, and every sub-issue of its
-// open parent is closed that way, the App comments on the parent and closes
-// it as completed. Only a split parent counts (admit.mjs isSplitParent): one
-// whose split record the App posted, or one split by hand whose every
-// sub-issue the App or a listed human linked, not `recurring`, each open
-// task-list item in its body being one of those sub-issues: its `#N` alone
-// or with that sub-issue's title.
+// open parent closed that way as completed with its done-when covered
+// (admit.mjs splitLeftOpen), the App comments on the parent and closes it as
+// completed. Only a split parent counts (admit.mjs isSplitParent): one whose
+// split record the App posted, or one split by hand whose every sub-issue the
+// App or a listed human linked, not `recurring`, each open task-list item in
+// its body being one of those sub-issues: its `#N` alone or with that
+// sub-issue's title. A parent that stays open gets no comment here: admission
+// says why, in its one comment (readmitReady).
 //
 // The App's admission comment on an open parent in no queue that waits on its
 // sub-issues alone (no blocker) is rewritten when it says only that the split
@@ -245,7 +247,7 @@ import { admissionLine, checkWip, searchRateLimit } from "../../actions/check-wi
 import { clampReset, isLaneBranch, parseOutcomeMarker, refsHoldMarker } from "../work-resolve-issue/report-outcome.mjs";
 import { readLimits, readWip } from "../work-resolve-issue/limits.mjs";
 import { ADMIT_MARKER, admissionFacts, admissionSettled, ATTENDED, attendedHold, blockersOf, CONFIRMED, decide, deferralLapsed, loadRules, NEEDS_DECISION, openPullsFor, openSubIssues, READY, refusalText, removalStands, sayWhy, SIZE_SPLIT_PENDING, specOf, stillBlocking, subIssueWait, UNTRUSTED, untrustedHold } from "../intake-triage/admit.mjs";
-import { clearedPastReport, retriageNote, doneReason, isSplitParent, judgedSince, mergedRefsReader, splitParentClosed } from "../intake-triage/admit.mjs";
+import { clearedPastReport, retriageNote, doneReason, judgedSince, mergedRefsReader, splitLeftOpen, splitParentClosed } from "../intake-triage/admit.mjs";
 import { budgetLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { createJobLogReader } from "./job-log.mjs";
@@ -852,7 +854,10 @@ async function admitMarked({ github, repo, number, issue, events, humans, bot, a
 // Of the open-sub-issue issues left out, those whose number is the UTC hour of
 // `now` modulo 24 get refreshSplitWait: one comments read each, and a
 // sub-issues read only for a comment it may rewrite, so each is read once a
-// day whether or not a sub-issue closes. Returns how many reads or writes failed.
+// day whether or not a sub-issue closes. One that read shows has no open
+// sub-issue goes to the rules: the summary leaves a duplicate close out of
+// `completed`, so it can show a wait with nothing open. Returns how many reads
+// or writes failed.
 async function readmitReady({ github, repo, humans, bot, gate, appId, admission, cap, now }) {
   let listed;
   try {
@@ -869,10 +874,17 @@ async function readmitReady({ github, repo, humans, bot, gate, appId, admission,
   let failed = 0;
   const hour = new Date(now).getUTCHours();
   const rotated = (entry) => Number(entry.number) % 24 === hour && entry.issue_dependencies_summary?.blocked_by === 0 && lower(entry).includes(READY) && !queued(lower(entry));
+  const drained = new Set();
   for (const item of listed.filter((entry) => rotated(entry) && waiting(entry))) {
     const base = `/repos/${repo}/issues/${item.number}`;
     try {
-      const open = async () => (await paginate(github, `${base}/sub_issues`)).filter((child) => child?.state !== "closed");
+      const open = async () => {
+        const left = (await paginate(github, `${base}/sub_issues`)).filter((child) => child?.state !== "closed");
+        if (left.length === 0) {
+          drained.add(item.number);
+        }
+        return left;
+      };
       if (await refreshSplitWait({ github, repo, parent: item, comments: await paginate(github, `${base}/comments`), open, bot })) {
         console.log(`label-unblocked: #${item.number} admission comment now names its open sub-issues`);
       }
@@ -881,7 +893,7 @@ async function readmitReady({ github, repo, humans, bot, gate, appId, admission,
       reportError(item.number, error);
     }
   }
-  let candidates = listed.filter((item) => !queued(lower(item)) && !waiting(item));
+  let candidates = listed.filter((item) => !queued(lower(item)) && (!waiting(item) || drained.has(item.number)));
   if (candidates.length === 0) {
     return failed;
   }
@@ -1863,8 +1875,8 @@ const SPLIT_CLOSED = "<!-- work-unblock split parent closed -->";
 
 // A close that counts as done: by a listed human or a merge, the lanes App's
 // already-done close whose evidence still holds (owner Q9), or the lanes
-// App's close of a size split's parent once each sub-issue's close counts
-// (admit.mjs splitParentClosed, owner Q93).
+// App's close of a size split's parent with its split finished (admit.mjs
+// splitParentClosed, owner Q93).
 async function isTrustedClose(github, repo, issue, humans, bot) {
   const trusted = async (number) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${number}`), humans, bot);
   const isApp = (actor) => actor?.login === bot;
@@ -1888,9 +1900,9 @@ async function closeSplitParents({ github, repo, closed, sweep, humans, bot }) {
   return failed;
 }
 
-// Closes, as completed and with one comment first, the open split parent
-// (admit.mjs isSplitParent) of issue `number`, once every sub-issue is
-// closed by a listed human or a merge (owner Q93). Its body is never edited.
+// Closes, as completed and with one comment first, the open parent of issue
+// `number` once its split is finished (admit.mjs splitLeftOpen, owner Q93).
+// Its body is never edited.
 async function closeSplitParent({ github, repo, number, humans, closes, bot, sweep }) {
   if (!(await github("GET", `/repos/${repo}/issues/${number}`))?.parent_issue_url || (sweep && !(await trustedClose({ github, repo, number, humans, closes, bot })))) {
     return;
@@ -1911,18 +1923,15 @@ async function closeSplitParent({ github, repo, number, humans, closes, bot, swe
   } catch (error) {
     console.log(`::warning::label-unblocked: #${parent.number} admission comment not refreshed: ${escapeCommand(error?.message ?? error)}`);
   }
-  if (!(await isSplitParent({ github, repository: repo, issue: parent, comments, children, isApp: (actor) => actor?.login === bot, humans }))) {
+  const trusted = async (child) => NUMBER.test(String(child)) && trustedClose({ github, repo, number: Number(child), humans, closes, bot });
+  const leftOpen = await splitLeftOpen({ github, repository: repo, issue: parent, comments, children, isApp: (actor) => actor?.login === bot, humans, trusted });
+  if (leftOpen) {
+    console.log(`label-unblocked: #${parent.number} stays open: ${leftOpen}`);
     return;
-  }
-  for (const child of children) {
-    if (child?.state !== "closed" || !NUMBER.test(String(child.number)) || !(await trustedClose({ github, repo, number: Number(child.number), humans, closes, bot }))) {
-      console.log(`label-unblocked: split parent #${parent.number} stays open: sub-issue #${child?.number} is not closed by a listed human or a merge`);
-      return;
-    }
   }
   if (!comments.some((comment) => comment.user?.login === bot && String(comment.body ?? "").startsWith(SPLIT_CLOSED))) {
     await github("POST", `${base}/comments`, {
-      body: `${SPLIT_CLOSED}\nEvery sub-issue of this split is closed by a listed human or a merge (${children.map((child) => `#${child.number}`).join(", ")}), so the lanes App closes it as completed.`,
+      body: `${SPLIT_CLOSED}\nEvery sub-issue of this split is closed as completed by a listed human or a merge (${children.map((child) => `#${child.number}`).join(", ")}), so the lanes App closes it as completed.`,
     });
   }
   await github("PATCH", base, { state: "closed", state_reason: "completed" });
