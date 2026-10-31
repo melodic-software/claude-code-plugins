@@ -14,6 +14,7 @@ holds one approved prompt.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -28,12 +29,16 @@ WINDOW = ("--since", "2026-09-01", "--until", "2026-09-30")
 HOOK_KEY = "denied/hook/shellguard/BLOCKED: file write through the shell. Use the Write tool."
 
 
-def run(script: Path, *args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run([sys.executable, str(script), *args], capture_output=True, text=True, encoding="utf-8", timeout=120)
+def run(script: Path, *args: str, siblings: str = "") -> subprocess.CompletedProcess[str]:
+    # An empty AUDIT_FRICTION_SIBLING_GLOBS turns sibling detection off, so a WSL or Windows test host's own
+    # projects trees never reach these runs.
+    env = {**os.environ, "AUDIT_FRICTION_SIBLING_GLOBS": siblings}
+    return subprocess.run([sys.executable, str(script), *args], capture_output=True, text=True, encoding="utf-8",
+                          timeout=120, env=env)
 
 
-def friction(*args: str) -> subprocess.CompletedProcess[str]:
-    return run(SCRIPTS / "friction.py", *args)
+def friction(*args: str, siblings: str = "") -> subprocess.CompletedProcess[str]:
+    return run(SCRIPTS / "friction.py", *args, siblings=siblings)
 
 
 def data_of(result: subprocess.CompletedProcess[str]) -> dict:
@@ -186,6 +191,43 @@ def test_source_collect_uses_the_given_excerpt_limits(tmp_path):
                             "--excerpt-chars", "0", "--excerpt-words", "5"))
     assert data["sources"][0]["status"] == "pass"
     assert stored(Path(data["sources"][0]["store"]), "sess-f1")["excerpt_limits"] == {"chars": 0, "words": 5}
+
+
+def test_mine_warns_about_an_unread_sibling_projects_tree(store, tmp_path):
+    sibling = tmp_path / "mnt" / "c" / "Users" / "someone" / ".claude" / "projects"
+    sibling.mkdir(parents=True)
+    pattern = str(tmp_path / "mnt" / "*" / "Users" / "*" / ".claude" / "projects")
+    result = friction("mine", "--data-dir", str(store), *WINDOW, siblings=pattern)
+    assert result.returncode == 1, result.stdout
+    data = data_of(result)
+    assert data["sibling_roots_unread"] == [str(sibling)]
+    assert f'add it with --source "{sibling}"' in data["warnings"][0]
+    assert [r["via"] for r in data["projects_roots"]] == ["machine store"]
+    markdown = friction("mine", "--data-dir", str(store), *WINDOW, "--format", "md", siblings=pattern).stdout
+    assert f"Warning: sibling projects tree not read: {sibling}" in markdown
+    assert "Projects roots read: " in markdown
+
+
+def test_mine_reads_a_sibling_given_as_source_without_warning(tmp_path):
+    machine = copy_projects(tmp_path / "machine", tmp_path, "proj-g")
+    sibling = copy_projects(tmp_path / "mnt" / "c" / "Users" / "someone" / ".claude" / "projects", tmp_path, "proj-f")
+    data_dir = tmp_path / "data"
+    assert run(COLLECT, "collect", "--data-dir", str(data_dir), "--projects-root", str(machine)).returncode == 0
+    pattern = str(tmp_path / "mnt" / "*" / "Users" / "*" / ".claude" / "projects")
+    result = friction("mine", "--data-dir", str(data_dir), "--since", "2026-07-01", "--source", str(sibling), siblings=pattern)
+    assert result.returncode == 0, result.stdout
+    data = data_of(result)
+    assert data["sibling_roots_unread"] == []
+    assert data["projects_roots"][1] == {"root": str(sibling), "via": "--source"}
+
+
+def test_mine_without_a_sibling_lists_only_the_machine_root(store, tmp_path):
+    pattern = str(tmp_path / "mnt" / "*" / "Users" / "*" / ".claude" / "projects")
+    result = friction("mine", "--data-dir", str(store), *WINDOW, siblings=pattern)
+    assert result.returncode == 0, result.stdout
+    data = data_of(result)
+    assert (data["sibling_roots_unread"], data["warnings"]) == ([], [])
+    assert len(data["projects_roots"]) == 1
 
 
 MERGE = """CAVEAT: synthetic

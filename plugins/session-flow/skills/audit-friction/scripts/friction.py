@@ -14,7 +14,12 @@
 secondary performance signals and the events themselves. `--source DIR` first runs the audit-sessions
 collector over DIR (laid out like `~/.claude/projects`) into its own store under
 `D/audit-friction/sources/`, so the machine store never mixes in another directory's sessions; the
-retention and excerpt options pass through to that collect.
+retention and excerpt options pass through to that collect. `mine` also lists every projects root it
+read, and warns about a sibling tree the default run skipped: under WSL a Windows user's
+`<automount root>/<drive>/Users/*/.claude/projects`, on Windows a running WSL distribution's
+`\\\\wsl$\\<distro>\\home\\*\\.claude\\projects` (a stopped distribution is listed as unchecked, never
+started). `AUDIT_FRICTION_SIBLING_GLOBS`, when set, replaces that detection with its own
+`os.pathsep`-separated glob patterns; empty turns it off.
 `cause` maps each denial and approved prompt to the permission rules that could match it, read from
 `permission-merge.sh` output. `estimate` sizes each verification mode from a claim inventory, with token and wall-clock ranges.
 `diff` compares a run with a baseline, per session and per active hour.
@@ -26,10 +31,13 @@ stdout; exit 0 pass, 1 warning, 2 error. Stdlib only; Python 3.10+.
 from __future__ import annotations
 
 import argparse
+import configparser
 import fnmatch
+import glob
 import hashlib
 import json
 import math
+import os
 import re
 import subprocess
 import sys
@@ -42,6 +50,7 @@ COLLECTOR = SKILL_DIR.parent / "audit-sessions" / "scripts"
 sys.path.insert(0, str(COLLECTOR))
 
 import census  # noqa: E402  (the audit-sessions store helpers)
+import collect  # noqa: E402  (the machine store's projects root)
 
 MINE_SCHEMA = "audit-friction.mine/v1"
 CAUSE_SCHEMA = "audit-friction.cause/v1"
@@ -122,6 +131,76 @@ def collect_source(data_dir: Path, source: Path, since: str, options: list[str])
     except ValueError:
         envelope = {"status": "error", "summary": done.stderr.strip()[-400:]}
     return target, envelope
+
+
+def _root_key(path: str) -> str:
+    """One spelling per projects root, so a `--source` given as `\\\\wsl.localhost\\...` matches `\\\\wsl$\\...`."""
+    text = os.path.normcase(os.path.realpath(path)).rstrip("\\/")
+    return text.replace("\\\\wsl.localhost\\", "\\\\wsl$\\")
+
+
+def _wsl_automount_root() -> str:
+    """The Windows drives' mount root inside WSL: `[automount] root` in /etc/wsl.conf, else /mnt/."""
+    parser = configparser.ConfigParser()
+    try:
+        parser.read("/etc/wsl.conf", encoding="utf-8")
+        root = parser.get("automount", "root", fallback="/mnt/")
+    except (configparser.Error, UnicodeDecodeError):
+        root = "/mnt/"
+    return root.strip().strip("\"'") or "/mnt/"
+
+
+def _wsl_distros(*flags: str) -> list[str]:
+    try:
+        done = subprocess.run(["wsl.exe", "--list", "--quiet", *flags], capture_output=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if done.returncode != 0:
+        return []
+    raw = done.stdout
+    # wsl.exe writes UTF-16LE unless told otherwise; accept either.
+    text = raw.decode("utf-16-le", errors="replace") if b"\x00" in raw else raw.decode("utf-8", errors="replace")
+    names = (line.strip().lstrip("\ufeff") for line in text.splitlines())
+    return [name for name in names if name]
+
+
+def sibling_patterns() -> tuple[list[str], list[str]]:
+    """Glob patterns for a projects tree the other side of a WSL boundary keeps, and the distributions
+    left unchecked because they are stopped (opening their path could start them)."""
+    override = os.environ.get("AUDIT_FRICTION_SIBLING_GLOBS")
+    if override is not None:
+        return [p for p in override.split(os.pathsep) if p], []
+    if sys.platform == "win32":
+        running = _wsl_distros("--running")
+        stopped = [d for d in _wsl_distros() if d not in running]
+        patterns = [glob.escape("\\\\wsl$\\" + d) + home + "\\.claude\\projects" for d in running for home in ("\\home\\*", "\\root")]
+        return patterns, stopped
+    # WSL registers its Windows-interop binfmt entry under this name (a suffixed variant matches too).
+    if glob.glob("/proc/sys/fs/binfmt_misc/WSLInterop*"):
+        return [str(Path(_wsl_automount_root()) / "*" / "Users" / "*" / ".claude" / "projects")], []
+    return [], []
+
+
+def sibling_roots(read: list[str]) -> tuple[list[str], list[str]]:
+    """Sibling projects trees not among the roots read, and the stopped distributions not checked."""
+    patterns, stopped = sibling_patterns()
+    seen = {_root_key(r) for r in read}
+    found = []
+    for pattern in patterns:
+        for match in sorted(glob.glob(pattern)):
+            key = _root_key(match)
+            if os.path.isdir(match) and key not in seen and not any(_same_dir(match, r) for r in read):
+                seen.add(key)
+                found.append(match)
+    return found, stopped
+
+
+def _same_dir(a: str, b: str) -> bool:
+    """Whether two spellings name one directory, which also catches a case-insensitive mount under WSL."""
+    try:
+        return os.path.samefile(a, b)
+    except OSError:
+        return False
 
 
 def selected(record: dict, since: float, until: float, project: str | None, sessions: set[str]) -> bool:
@@ -220,6 +299,14 @@ def render_mine(data: dict) -> str:
         f"{data['sessions']} sessions ({', '.join(f'{v} {k}' for k, v in data['session_classes'].items()) or 'none'}), "
         f"{data['active_hours']} active hours, {data['typed_turns']} typed turns.",
         "",
+        "Projects roots read: " + "; ".join(f"{r['root']} ({r['via']})" for r in data["projects_roots"]) + ".",
+    ]
+    if data["wsl_distros_unchecked"]:
+        lines.append("Stopped WSL distributions, not checked for a projects tree: "
+                     + ", ".join(data["wsl_distros_unchecked"]) + ".")
+    lines += [f"\nWarning: {w}" for w in data["warnings"]]
+    lines += [
+        "",
         "| Class | Side | Key | Count | Sessions | Per active hour |",
         "|---|---|---|---|---|---|",
     ]
@@ -264,6 +351,11 @@ def cmd_mine(args: argparse.Namespace) -> int:
             warnings.append(f"source {source}: {envelope.get('summary')}")
             continue
         stores.append(store)
+    roots = [{"root": str(collect.default_projects_root()), "via": "machine store"}]
+    roots += [{"root": s["source"], "via": "--source"} for s in sources if s["status"] != "error"]
+    siblings, stopped = sibling_roots([r["root"] for r in roots])
+    for sibling in siblings:
+        warnings.append(f"sibling projects tree not read: {sibling}; add it with --source \"{sibling}\"")
     records, skipped = [], 0
     for store in stores:
         try:
@@ -282,6 +374,9 @@ def cmd_mine(args: argparse.Namespace) -> int:
         "window": {"since": since.strftime("%Y-%m-%d"), "until": (until - timedelta(seconds=1)).strftime("%Y-%m-%d"),
                    "project": args.project, "sessions_filter": sorted(wanted)},
         "sources": sources,
+        "projects_roots": roots,
+        "sibling_roots_unread": siblings,
+        "wsl_distros_unchecked": stopped,
         "skipped_records": skipped,
         "records_without_friction": unmined,
         **aggregate(chosen),
