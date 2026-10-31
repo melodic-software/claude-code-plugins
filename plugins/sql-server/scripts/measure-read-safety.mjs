@@ -99,12 +99,14 @@ async function measure() {
     const reader = password();
     const port = await freePort();
     console.error(`starting ${name} from ${image} on 127.0.0.1:${port}`);
+    // Before the run: `docker run -d` creates the container before it starts it,
+    // so a failed start still leaves one for cleanup to remove.
+    started = true;
     docker(
       ['run', '-d', '--name', name, '--memory', '2g', '-e', 'ACCEPT_EULA=Y', '-e', 'MSSQL_SA_PASSWORD', '-e', 'MSSQL_MEMORY_LIMIT_MB=1536',
         '-p', `127.0.0.1:${port}:1433`, image],
       { ...process.env, MSSQL_SA_PASSWORD: sa },
     );
-    started = true;
     const digest = docker(['image', 'inspect', '--format', '{{index .RepoDigests 0}}', image]);
     const lab = await Lab.open({ port, sa, reader });
     const lines = await runAll(lab, { image, digest, port, reader, work });
@@ -212,10 +214,11 @@ class Lab {
         await sleep(intervalMs);
       }
       connection.close();
-    })();
+    })().catch((error) => error);
     return async () => {
       stop = true;
-      await done;
+      const failure = await done;
+      if (failure) throw failure;
       return {
         sessions: Math.max(0, ...samples.map((s) => s.sessions)),
         lockWaits: samples.filter((s) => s.lockWaits > 0).length,
@@ -374,12 +377,13 @@ async function guardOverhead(lab) {
 }
 
 // One stdio server process: initialize, then `calls` concurrent query calls.
-function serverProcess({ config, cwd, reader, calls, sql }) {
+function serverProcess({ config, cwd, reader, calls, sql, children }) {
   const child = spawn(process.execPath, [SELF, '--serve', '--config', config, '--environment', 'local'], {
     cwd,
     env: { ...process.env, MEASURE_SQL_USER: READER_USER, MEASURE_SQL_PASSWORD: reader },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
+  children.push(child);
   let stderr = '';
   child.stderr.on('data', (chunk) => {
     stderr += chunk;
@@ -442,6 +446,7 @@ async function topology(lab, { work, reader }, processes) {
   const writer = await lab.connect({ appName: 'measure-writer', database: DB });
   let writing = true;
   const writes = [];
+  let writerError;
   const writerLoop = (async () => {
     while (writing) {
       const began = now();
@@ -449,17 +454,29 @@ async function topology(lab, { work, reader }, processes) {
       writes.push(now() - began);
       await sleep(20);
     }
-  })();
+  })().catch((error) => {
+    writerError = error;
+  });
   const stopSampler = lab.sampler([APP_NAME, 'measure-writer'], 50);
+  const children = [];
   const began = now();
-  const latencies = (
-    await Promise.all(Array.from({ length: processes }, () => serverProcess({ config, cwd, reader, calls: 4, sql })))
-  ).flat();
-  const wallMs = Math.round(now() - began);
-  const sample = await stopSampler();
-  writing = false;
-  await writerLoop;
-  writer.close();
+  let latencies;
+  let wallMs;
+  let sample;
+  // A failed call must not leave server processes, the writer or the sampler running.
+  try {
+    latencies = (
+      await Promise.all(Array.from({ length: processes }, () => serverProcess({ config, cwd, reader, calls: 4, sql, children })))
+    ).flat();
+    wallMs = Math.round(now() - began);
+  } finally {
+    for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill();
+    writing = false;
+    sample = await stopSampler();
+    await writerLoop;
+    writer.close();
+  }
+  if (writerError) throw writerError;
   latencies.sort((a, b) => a - b);
   return {
     processes,
