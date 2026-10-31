@@ -1429,7 +1429,7 @@ a checklist of its own:
 
 | Rule | Mechanism that meets it |
 |---|---|
-| Bookmark per source | `/harness-ops:morning-brief`'s per-repo bookmark ("What each section reports"); for ai-briefing, the mechanism tracked in #7678; for state a cloud routine keeps between runs, a tracker comment read back on the next run (the §4 "Telemetry comment" carrier) as the interim store, until the probe tracked in #8991 reports |
+| Bookmark per source | `/harness-ops:morning-brief`'s per-repo bookmark ("What each section reports"); for ai-briefing, the mechanism tracked in #7678; for state a cloud routine keeps between runs, a tracker comment read back on the next run (the §4 "Telemetry comment" carrier), confirmed by a live run on Claude Code 2.1.314 (#8991) and rerunnable with `/harness-ops:behavior-probes`'s `cloud-routine/state-read-back-next-run` case. A routine's comments post as the account owner's GitHub login, so the reader finds them by sentinel marker, never by author |
 | Failed read reported as unreadable | `/harness-ops:morning-brief` "Degraded sections"; for ai-briefing and a headless lane's MCP load check, the mechanism tracked in #7678 |
 | Live re-check before posting | [`pr-run-activity.md`](../../conventions/pr-pipeline/pr-run-activity.md) "prepare: review-threads" |
 | Post confirmed before it is recorded | §2 "Escalation record write" (record first, marker second); §4 "Telemetry comment" (post-write read-back); for overlapping runs, [`posting-lanes.md`](posting-lanes.md) |
