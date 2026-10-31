@@ -3019,9 +3019,11 @@ write-access trusted person's fix request on a thread after the newest round run
 on the requested threads only. With no such request, a security lane finding rated `CRITICAL` (or
 with no rating the lane reads), a pr-verify note or listed review bot's finding a trusted person
 directed, a listed review bot's finding on a head the security lane held as `CRITICAL`, a
-`claude[bot]` finding, whose lane no footer proves, or a person's `needs-human` hold hands the PR
-to a person; any other finding, a security lane `IMPORTANT` or `SUGGESTION`, a listed review bot's
-finding and an undirected pr-verify note included, goes to one fresh fixer round, a new session like
+`claude[bot]` finding whose own text names the security lane and a `CRITICAL` rating or none, or
+a person's `needs-human` hold hands the PR to a person; any other finding, a security lane
+`IMPORTANT` or `SUGGESTION`, a listed review bot's finding, any other `claude[bot]` finding (ruled
+as the code lane's, since a footer in its text is model text, not a review lane's) and an
+undirected pr-verify note included, goes to one fresh fixer round, a new session like
 every round, whose preamble carries a fixed brief: fix each finding in code and never weaken a
 test or check to close one. That is the last automatic round: once it has run, no sweep, schedule
 or dispatch starts another. The next select fails the head as
