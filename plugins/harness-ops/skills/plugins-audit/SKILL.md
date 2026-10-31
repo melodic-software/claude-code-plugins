@@ -60,6 +60,9 @@ Substitute the target and the configured values below into one call:
   --install-new <policy> [--quiet-auto-update <names>] --render
 ```
 
+That path is exact and the script lives in the `plugins` skill, so run it as written with no search
+for it.
+
 - `<policy>` is the word on the **Configured value** line under "userConfig: `install_new`":
   `all`, `none` or `ask`, and `ask` while that line shows the unset placeholder token. Pass the
   word, never the token: a placeholder inside a command is a shell substitution error. Any other
@@ -104,6 +107,10 @@ count, or when the user asks why a step behaved as it did. It is the step sequen
 executes. `${CLAUDE_PLUGIN_ROOT}/skills/plugins/context/stale-records-cache-content.md` covers a
 nonzero `stale_project_records.total` or `cache_content.stale_content`. In those files `<skill-dir>`
 means `${CLAUDE_PLUGIN_ROOT}/skills/plugins`, and "SKILL.md" means that skill's SKILL.md.
+
+Only for a question about a state no render in hand shows,
+`${CLAUDE_PLUGIN_ROOT}/skills/plugins/scripts/render-report.jq` holds the row rules, at that exact
+path. Rows the user already has are the report: quote them as given and never check them against it.
 
 ## userConfig: `install_new`
 
