@@ -30,6 +30,17 @@
 // stops it, so a run that keeps failing the same way waits for a person or a
 // new workflow version.
 //
+// A run of an activity no dispatcher tick re-dispatches (the lane's
+// `transientActivities`; the pr-unblock-dispatch tick dispatches the others,
+// so no head gets two retry paths) also gets the empty commit
+// when its token step failed transiently: `broker-unreachable`, or
+// `lane-token-denied` with a 5xx status. No 403 reason is transient, so a 403
+// other than workflow-modified is never re-fired. The new head starts the
+// review lanes, whose completion is the activity's own fresh event. Such a
+// re-fire is recorded per run in a `transient` marker, and is capped at one
+// per failed run and `TRANSIENT_PER_HEAD` per head tree (an empty commit keeps
+// the tree, so a broker outage cannot chain re-fires on one change).
+//
 // Environment:
 //   GH_TOKEN             the lane App token (contents and pull-requests write)
 //   ACTIONS_TOKEN        the job's GITHUB_TOKEN (actions: read, checks: read)
@@ -92,12 +103,29 @@ const LANES = Object.freeze({
       "apply-patch-rung-up",
       "report-escalation",
     ],
+    // The activities the pr-unblock-dispatch tick does not dispatch: it
+    // dispatches resolve-conflicts, review-dependency and fix-ci itself
+    // (pr-unblock/dispatch.mjs), while address-feedback starts only when the
+    // review lanes finish a head, and a failed check run there holds the head
+    // (pr-unblock/feedback-dispatch.mjs).
+    transientActivities: ["address-feedback"],
+    transientStarts:
+      " The push starts no run itself: both review lanes review the new head, and an address-feedback run starts after them if an unresolved thread is left for it.",
   },
 });
 const REFUSED =
   /^lane-token-denied: the broker answered 403 with reason workflow-modified: (\.github\/workflows\/[A-Za-z0-9._-]+\.yml) differs from refs\/heads\/main$/;
+// A token step that failed for a reason the broker or the network may not
+// give next time (request-lane-token/action.yml): no response at all, or a
+// 5xx after the action's own retries. Group 1 is the label a marker records.
+const TRANSIENT =
+  /^(broker-unreachable): the lanes token broker gave no response|^lane-token-denied: the broker answered (5[0-9]{2}) with reason ([a-z]+(?:-[a-z]+)*)/;
+// At most this many transient re-fires per head tree (judgment, owner decision
+// on #8446: two per head).
+export const TRANSIENT_PER_HEAD = 2;
+const TRANSIENT_MARKER = /^<!-- pr-lane-refire transient run ([1-9][0-9]{0,19}) tree ([0-9a-f]{40}) head ([0-9a-f]{40}) -->/;
 const MARKER = /^<!-- pr-lane-refire (\.github\/workflows\/[A-Za-z0-9._-]+\.yml)@([0-9a-f]{40}) head ([0-9a-f]{40}) -->/;
-const DISPATCH_TITLE = /^pr-unblock [a-z]+(?:-[a-z]+)* #([1-9][0-9]{0,9})$/;
+const DISPATCH_TITLE = /^pr-unblock ([a-z]+(?:-[a-z]+)*) #([1-9][0-9]{0,9})$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 // check-trusted-trigger's head checks.
 const HEAD_REF = /^[A-Za-z0-9._/-]+$/;
@@ -160,8 +188,15 @@ export function qualifies(pull, repo, ids) {
 export const refireComment = (path, blob, head, lane) =>
   `<!-- pr-lane-refire ${path}@${blob} head ${head} -->\nA lane run on this pull request's head failed because the token broker refused it as workflow-modified: \`${path}\` changed on main after the run's event, and a rerun keeps the old file. ${LANES[lane].after} It does this once per version of that file, so if a run fails the same way again, a person looks at it.${LANES[lane].starts ?? ""}`;
 
-const commitMessage = (path) =>
-  `chore: start the lane checks again on main's workflow files\n\nThe token broker refused a lane run on the previous head as workflow-modified (${path}). This commit changes no file.`;
+// The marker and comment for a transient token-step failure: `label` is
+// TRANSIENT's label, `run` the failed run's id.
+export const transientComment = (label, run, tree, head, lane) =>
+  `<!-- pr-lane-refire transient run ${run} tree ${tree} head ${head} -->\nA lane run on this pull request's head failed to get its lane token (\`${label}\`), a failure the next run may not meet, and no dispatcher retries this activity on the same head. pr-merge pushes an empty commit so the activity can start again. It does this once per failed run and at most ${TRANSIENT_PER_HEAD} times per change, so if runs keep failing the same way, a person looks at it.${LANES[lane].transientStarts ?? ""}`;
+
+const commitMessage = (refusal) =>
+  refusal.kind === "transient"
+    ? `chore: start the lane checks again after a lane token failure\n\nA lane run on the previous head could not get its lane token (${refusal.label}). This commit changes no file.`
+    : `chore: start the lane checks again on main's workflow files\n\nThe token broker refused a lane run on the previous head as workflow-modified (${refusal.path}). This commit changes no file.`;
 
 // Failed runs of `file` created in the lookback window.
 async function failedRuns(actions, repo, file, now) {
@@ -196,7 +231,7 @@ async function pullOfRun({ actions, repo, run, lane, byNumber, ids, appId, mainS
   }
   // A dispatched run is on main; its title names the PR, and the check its
   // report job posted on the PR's current head links back to it.
-  const number = DISPATCH_TITLE.exec(String(run.display_title ?? ""))?.[1];
+  const number = DISPATCH_TITLE.exec(String(run.display_title ?? ""))?.[2];
   const pull = number === undefined || run.head_branch !== "main" ? undefined : byNumber.get(Number(number));
   if (pull === undefined || !SHA.test(String(run.head_sha))) {
     return undefined;
@@ -212,8 +247,14 @@ async function pullOfRun({ actions, repo, run, lane, byNumber, ids, appId, mainS
   return linked ? pull : undefined;
 }
 
-// The workflow file the broker named when it refused this run's token, or null.
+// Why this run's token step failed, when an empty commit can help, or null:
+// `{kind: "workflow-modified", path}` for the workflow file the broker named,
+// else, for a run of one of the lane's `transientActivities`,
+// `{kind: "transient", label}` for a TRANSIENT failure.
 async function refusedFile({ actions, repo, run, lane }) {
+  const activity = DISPATCH_TITLE.exec(String(run.display_title ?? ""))?.[1];
+  const transientOk = (lane.transientActivities ?? []).includes(activity);
+  let transient = null;
   const jobs = (await actions("GET", `/repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`))?.jobs;
   if (!Array.isArray(jobs)) {
     throw new Error(`run ${run.id}'s jobs have an unexpected shape`);
@@ -230,18 +271,26 @@ async function refusedFile({ actions, repo, run, lane }) {
     }
     const annotations = await actions("GET", `/repos/${repo}/check-runs/${job.id}/annotations?per_page=100`);
     for (const annotation of Array.isArray(annotations) ? annotations : []) {
-      const path = REFUSED.exec(String(annotation.message ?? ""))?.[1];
-      if (annotation.annotation_level === "failure" && path !== undefined && lane.files.includes(path)) {
-        return path;
+      if (annotation.annotation_level !== "failure") {
+        continue;
+      }
+      const message = String(annotation.message ?? "");
+      const path = REFUSED.exec(message)?.[1];
+      if (path !== undefined && lane.files.includes(path)) {
+        return { kind: "workflow-modified", path };
+      }
+      const match = transientOk && transient === null ? TRANSIENT.exec(message) : null;
+      if (match !== null) {
+        transient = { kind: "transient", label: match[1] ?? `lane-token-denied ${match[2]} ${match[3]}` };
       }
     }
   }
-  return null;
+  return transient;
 }
 
-// Why `pull` is not re-fired for `path` now, or null with whether its marker
-// is already posted.
-async function refusal({ github, repo, pull, path, blob, bot, lane, now, mainSha }) {
+// Why `pull` is not re-fired for `refused` now, or null with whether its
+// marker is already posted.
+async function refusal({ github, repo, pull, refused, run, blob, bot, lane, now, mainSha }) {
   // A run on a head that changes a file the broker compares came from that
   // file, not main's: no empty commit can make it pass, and its refusal could
   // have been printed by the edited file itself.
@@ -255,9 +304,12 @@ async function refusal({ github, repo, pull, path, blob, bot, lane, now, mainSha
   if (touched !== undefined) {
     return { reason: `it changes ${touched}` };
   }
-  const comments = await paginate(github, `/repos/${repo}/issues/${pull.number}/comments`);
+  const comments = (await paginate(github, `/repos/${repo}/issues/${pull.number}/comments`)).filter((comment) => comment.user?.login === bot);
+  if (refused.kind === "transient") {
+    return transientRefusal({ github, repo, pull, run, comments, now });
+  }
+  const { path } = refused;
   const markers = comments
-    .filter((comment) => comment.user?.login === bot)
     .map((comment) => ({ match: MARKER.exec(String(comment.body ?? "")), at: Date.parse(comment.created_at) }))
     .filter(({ match }) => match !== null && match[1] === path && match[2] === blob);
   if (markers.some(({ match }) => match[3] !== pull.head.sha)) {
@@ -267,6 +319,30 @@ async function refusal({ github, repo, pull, path, blob, bot, lane, now, mainSha
     return { reason: `its push for ${path} at ${blob} did not land; a person looks`, warn: true };
   }
   return { reason: null, recorded: markers.length > 0 };
+}
+
+// The transient caps: one re-fire per failed run, TRANSIENT_PER_HEAD per head
+// tree. A marker for this run at the current head means its push did not land.
+async function transientRefusal({ github, repo, pull, run, comments, now }) {
+  const tree = (await github("GET", `/repos/${repo}/git/commits/${pull.head.sha}`))?.tree?.sha;
+  if (!SHA.test(String(tree))) {
+    throw new Error(`the head ${pull.head.sha} has no tree`);
+  }
+  const markers = comments
+    .map((comment) => ({ match: TRANSIENT_MARKER.exec(String(comment.body ?? "")), at: Date.parse(comment.created_at) }))
+    .filter(({ match }) => match !== null);
+  const mine = markers.filter(({ match }) => Number(match[1]) === run);
+  if (mine.some(({ match }) => match[3] !== pull.head.sha)) {
+    return { reason: `already re-fired for run ${run}` };
+  }
+  const others = new Set(markers.filter(({ match }) => match[2] === tree && Number(match[1]) !== run).map(({ match }) => match[1]));
+  if (others.size >= TRANSIENT_PER_HEAD) {
+    return { reason: `re-fired ${others.size} times for this change after lane token failures; a person looks`, warn: true };
+  }
+  if (mine.some(({ at }) => !(now - at < RETRY_MS))) {
+    return { reason: `its push for run ${run} did not land; a person looks`, warn: true };
+  }
+  return { reason: null, recorded: mine.length > 0, tree };
 }
 
 // The head's tree, read after a fresh read of the PR: a PR closed, drafted,
@@ -285,9 +361,9 @@ async function headTree(github, repo, pull) {
 
 // An empty commit on the head, moved onto the branch only as a fast-forward,
 // so a push since the read fails it.
-async function pushEmptyCommit(github, repo, pull, path, tree) {
+async function pushEmptyCommit(github, repo, pull, why, tree) {
   const commit = await github("POST", `/repos/${repo}/git/commits`, {
-    message: commitMessage(path),
+    message: commitMessage(why),
     tree,
     parents: [pull.head.sha],
   });
@@ -401,9 +477,9 @@ export async function main({ env = process.env, github, actions, now = Date.now(
           if (pull === undefined || refused.has(pull.number)) {
             continue;
           }
-          const path = await refusedFile({ actions, repo, run, lane });
-          if (path !== null) {
-            refused.set(pull.number, { pull, path, file, lane, run: run.id });
+          const why = await refusedFile({ actions, repo, run, lane });
+          if (why !== null) {
+            refused.set(pull.number, { pull, why, file, lane, run: run.id });
           }
         } catch (error) {
           throw new Fatal(`run ${run.id}`, error);
@@ -423,11 +499,11 @@ export async function main({ env = process.env, github, actions, now = Date.now(
       return blobs.get(path);
     };
     const ready = [];
-    for (const [number, { pull, path, file, lane, run }] of [...refused].sort((a, b) => a[0] - b[0])) {
-      const blob = await blobOf(path);
+    for (const [number, { pull, why, file, lane, run }] of [...refused].sort((a, b) => a[0] - b[0])) {
+      const blob = why.kind === "transient" ? null : await blobOf(why.path);
       let verdict;
       try {
-        verdict = await refusal({ github, repo, pull, path, blob, bot, lane, now, mainSha });
+        verdict = await refusal({ github, repo, pull, refused: why, run, blob, bot, lane, now, mainSha });
       } catch (error) {
         throw new Fatal(`#${number}`, error);
       }
@@ -436,23 +512,26 @@ export async function main({ env = process.env, github, actions, now = Date.now(
         console.log(`${warn ? "::warning title=refire-refused::" : "refire-refused: "}#${number} not re-fired: ${reason}`);
         continue;
       }
-      ready.push({ pull, path, file, blob, recorded, run });
+      ready.push({ pull, why, file, blob, recorded, run });
     }
     const deferred = ready.slice(REFIRES_PER_RUN);
     outcome.deferred = deferred.length;
     for (const { pull } of deferred) {
       console.log(`refire-refused: #${pull.number} deferred: ${REFIRES_PER_RUN} re-fires this run`);
     }
-    for (const { pull, path, file, blob, recorded, run } of ready.slice(0, REFIRES_PER_RUN)) {
+    for (const { pull, why, file, blob, recorded, run } of ready.slice(0, REFIRES_PER_RUN)) {
       try {
         // The fresh read first, so no marker is posted for a PR that changed;
         // then the record: a failed comment pushes nothing, so the bound holds.
         const tree = await headTree(github, repo, pull);
         if (!recorded) {
-          await github("POST", `/repos/${repo}/issues/${pull.number}/comments`, { body: refireComment(path, blob, pull.head.sha, file) });
+          const body =
+            why.kind === "transient" ? transientComment(why.label, run, tree, pull.head.sha, file) : refireComment(why.path, blob, pull.head.sha, file);
+          await github("POST", `/repos/${repo}/issues/${pull.number}/comments`, { body });
         }
-        const sha = await pushEmptyCommit(github, repo, pull, path, tree);
-        const line = `#${pull.number} moved from ${pull.head.sha} to ${sha} after run ${run} was refused for ${path} at ${blob}`;
+        const sha = await pushEmptyCommit(github, repo, pull, why, tree);
+        const cause = why.kind === "transient" ? `failed at the token step (${why.label})` : `was refused for ${why.path} at ${blob}`;
+        const line = `#${pull.number} moved from ${pull.head.sha} to ${sha} after run ${run} ${cause}`;
         outcome.refired += 1;
         console.log(`refire-refused: ${line}`);
         if (env.GITHUB_STEP_SUMMARY) {

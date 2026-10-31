@@ -113,9 +113,9 @@ if printf '%s' "$OUT" | jq -e '.terminalSequence' >/dev/null 2>&1; then
 else
   fail "permission_prompt → no terminalSequence JSON: $OUT"
 fi
-if printf '%s' "$OUT" | grep -q ']9;'; then ok "permission_prompt → OSC 9 present"; else fail "permission_prompt → OSC 9 missing: $OUT"; fi
-if printf '%s' "$OUT" | grep -q ']2;'; then fail "permission_prompt → OSC 2 present (would clobber session title)"; else ok "permission_prompt → no OSC 2 title"; fi
-if printf '%s' "$OUT" | grep -qE ']1337|]8;'; then fail "permission_prompt → rejected OSC present"; else ok "permission_prompt → no rejected OSC (1337/8)"; fi
+if grep -q ']9;' <<<"$OUT"; then ok "permission_prompt → OSC 9 present"; else fail "permission_prompt → OSC 9 missing: $OUT"; fi
+if grep -q ']2;' <<<"$OUT"; then fail "permission_prompt → OSC 2 present (would clobber session title)"; else ok "permission_prompt → no OSC 2 title"; fi
+if grep -qE ']1337|]8;' <<<"$OUT"; then fail "permission_prompt → rejected OSC present"; else ok "permission_prompt → no rejected OSC (1337/8)"; fi
 
 # --- Case 3: enabled + idle_prompt → terminalSequence -----------------------
 OUT="$(run "$(build_input idle_prompt)")"
@@ -132,7 +132,7 @@ plugin_input() {
     '{notification_type: "plugin_notification", message: $m, title: $t}'
 }
 OUT="$(run "$(plugin_input desktop-notification 'build finished')")"
-if printf '%s' "$OUT" | jq -r '.terminalSequence' 2>/dev/null | grep -q ']9;Claude Code: build finished'; then
+if grep -q ']9;Claude Code: build finished' < <(jq -r '.terminalSequence' <<<"$OUT" 2>/dev/null); then
   ok "plugin_notification titled desktop-notification → OSC 9 with the toast text"
 else
   fail "plugin_notification titled desktop-notification → no OSC 9: $OUT"
@@ -149,17 +149,17 @@ if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "empty stdin → silent exit 0"; else f
 
 # --- Case 6: all channel vars unset → OSC 9 + 2 BELs ------------------------
 OUT="$(run "$(build_input permission_prompt)")"
-if printf '%s' "$OUT" | grep -q ']9;'; then ok "backward-compat → OSC 9 present"; else fail "backward-compat → OSC 9 missing: $OUT"; fi
+if grep -q ']9;' <<<"$OUT"; then ok "backward-compat → OSC 9 present"; else fail "backward-compat → OSC 9 missing: $OUT"; fi
 if [[ "$(bel_count "$OUT")" == "2" ]]; then ok "backward-compat → 2 BELs (OSC terminator + standalone bell)"; else fail "backward-compat → BEL count $(bel_count "$OUT"), want 2"; fi
 
 # --- Case 7: BELL off → OSC 9 + terminator only, 1 BEL ----------------------
 OUT="$(run "$(build_input permission_prompt)" CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_BELL_ENABLED=false)"
-if printf '%s' "$OUT" | grep -q ']9;'; then ok "BELL off → OSC 9 terminator intact"; else fail "BELL off → OSC 9 missing: $OUT"; fi
+if grep -q ']9;' <<<"$OUT"; then ok "BELL off → OSC 9 terminator intact"; else fail "BELL off → OSC 9 missing: $OUT"; fi
 if [[ "$(bel_count "$OUT")" == "1" ]]; then ok "BELL off → 1 BEL (OSC terminator only)"; else fail "BELL off → BEL count $(bel_count "$OUT"), want 1"; fi
 
 # --- Case 8: TERMINAL_NOTIFY off → bare BEL, no OSC 9 -----------------------
 OUT="$(run "$(build_input permission_prompt)" CLAUDE_PLUGIN_OPTION_DESKTOP_NOTIFICATION_TERMINAL_NOTIFY_ENABLED=false)"
-if printf '%s' "$OUT" | grep -q ']9;'; then fail "TERMINAL_NOTIFY off → OSC 9 still present: $OUT"; else ok "TERMINAL_NOTIFY off → no OSC 9"; fi
+if grep -q ']9;' <<<"$OUT"; then fail "TERMINAL_NOTIFY off → OSC 9 still present: $OUT"; else ok "TERMINAL_NOTIFY off → no OSC 9"; fi
 if printf '%s' "$OUT" | jq -e '.terminalSequence' >/dev/null 2>&1; then ok "TERMINAL_NOTIFY off → terminalSequence present"; else fail "TERMINAL_NOTIFY off → no terminalSequence: $OUT"; fi
 if [[ "$(bel_count "$OUT")" == "1" ]]; then ok "TERMINAL_NOTIFY off → 1 BEL (standalone bell only)"; else fail "TERMINAL_NOTIFY off → BEL count $(bel_count "$OUT"), want 1"; fi
 
@@ -334,7 +334,7 @@ if [[ "$ESC_N" == "1" ]]; then ok "sanitize/seq: exactly 1 ESC (framing only, no
 if [[ "$BEL_N" == "1" ]]; then ok "sanitize/seq: exactly 1 BEL (OSC terminator only, no smuggled BEL)"; else fail "sanitize/seq: BEL count $BEL_N, want 1"; fi
 if [[ "$OTHER_N" == "0" ]]; then ok "sanitize/seq: zero other C0 bytes (newline/tab stripped)"; else fail "sanitize/seq: $OTHER_N other C0 bytes remain"; fi
 # Printable payload text survives (proves we stripped control bytes, not content).
-if printf '%s' "$SEQ" | grep -q 'INJECTED'; then ok "sanitize/seq: printable text preserved"; else fail "sanitize/seq: over-stripped printable text: $SEQ"; fi
+if grep -q 'INJECTED' <<<"$SEQ"; then ok "sanitize/seq: printable text preserved"; else fail "sanitize/seq: over-stripped printable text: $SEQ"; fi
 
 # --- Case 16: osascript receives text as argv, not interpolated program ------
 # Stub uname→Darwin (force the macOS branch cross-platform) and osascript→capture
@@ -371,11 +371,11 @@ if [[ -n "$BODY_LINE" ]]; then ok "sanitize/osascript: body passed as argv item 
 BODY_CTL="$(ctl_count "$BODY_LINE" '\000-\037')"
 if [[ "$BODY_CTL" == "0" ]]; then ok "sanitize/osascript: body argv item has no control bytes"; else fail "sanitize/osascript: body argv item carries $BODY_CTL control bytes"; fi
 # The AppleScript program came via stdin, and no ARG= line carries the program.
-if grep '^ARG=' "$OSA_LOG" 2>/dev/null | grep -q 'display notification'; then fail "sanitize/osascript: program leaked into argv (interpolation!)"; else ok "sanitize/osascript: program not in argv"; fi
+if grep -q 'display notification' < <(grep '^ARG=' "$OSA_LOG" 2>/dev/null); then fail "sanitize/osascript: program leaked into argv (interpolation!)"; else ok "sanitize/osascript: program not in argv"; fi
 # The message text must NOT appear inside the stdin program (no interpolation).
 PROG="$(sed -n '/^PROG<</,/^>>PROG/p' "$OSA_LOG" 2>/dev/null)"
-if printf '%s' "$PROG" | grep -q 'danger'; then fail "sanitize/osascript: message text interpolated into program: $PROG"; else ok "sanitize/osascript: message text absent from program (argv-only)"; fi
-if printf '%s' "$PROG" | grep -q 'display notification (item 2 of argv)'; then ok "sanitize/osascript: program reads body from argv"; else fail "sanitize/osascript: program shape unexpected: $PROG"; fi
+if grep -q 'danger' <<<"$PROG"; then fail "sanitize/osascript: message text interpolated into program: $PROG"; else ok "sanitize/osascript: message text absent from program (argv-only)"; fi
+if grep -q 'display notification (item 2 of argv)' <<<"$PROG"; then ok "sanitize/osascript: program reads body from argv"; else fail "sanitize/osascript: program shape unexpected: $PROG"; fi
 
 # --- jq-absent -> exit 0 and print nothing -----------------------------------
 # Without jq the hook can neither classify the notification nor emit its

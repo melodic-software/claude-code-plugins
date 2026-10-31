@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.4.5] - 2026-10-31
+
+### Fixed
+
+- The Dependabot merge gates no longer admit a `github-actions[bot]` commit or push. The `[dependabot skip]` version-bump commit they accepted had one writer, `pr-bump-plugin-version.yml`, which is gone, so `commit_refusal` now refuses every commit but Dependabot's (and, after a review, the lanes App's fix commit) with `commit-not-dependabot:<sha>`, and `push_refusal` refuses a `github-actions[bot]` push with `pushed-by:github-actions[bot]`. `commit_refusal` and `commits_refusal` drop their unused `files` argument, and `bump_refusal` and `plugin_json_refusal` are removed.
+
 ## [4.4.4] - 2026-10-30
 
 ### Fixed
