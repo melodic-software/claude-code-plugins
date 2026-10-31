@@ -176,7 +176,12 @@ FAKE_PRS="$(pr_json MERGEABLE needs-human)" run_decide GATE_RC=0 FAKE_CI=failure
 check 'needs-human: no rebuild' 'false ' "$(val rebuild) $(val deferred)"
 FAKE_PRS="$(pr_json MERGEABLE 'security: outside-actor')" run_decide GATE_RC=0 FAKE_CI=failure
 check 'outside-actor hold alone: no rebuild' 'false ' "$(val rebuild) $(val deferred)"
-check 'outside-actor hold alone: the notice names it' 1 "$(grep -c 'security: outside-actor' <<<"$OUT")"
+check 'outside-actor hold alone: the notice names it' 1 "$(grep -c '^::notice::.*security: outside-actor' <<<"$OUT")"
+FAKE_PRS="$(pr_json MERGEABLE | jq -c '.[0].labels = [{"name":"pr-verify-failed"},{"name":"do-not-merge"}]')" run_decide GATE_RC=0 FAKE_CI=failure
+check 'pr-verify-failed beside a hold: no rebuild' false "$(val rebuild)"
+check 'pr-verify-failed beside a hold: only the hold is named' '1 0' "$(grep -c '^::notice::.*do-not-merge' <<<"$OUT") $(grep -c 'pr-verify-failed' <<<"$OUT" || true)"
+FAKE_PRS="$(pr_json MERGEABLE | jq -c '.[0].labels = [{"name":"needs-human"},{"name":"do-not-merge"}]')" run_decide GATE_RC=0 FAKE_CI=failure
+check 'two holds: both on one notice line' '1 1' "$(grep -c '^::notice::.*do-not-merge.*needs-human' <<<"$OUT") $(wc -l <<<"$OUT")"
 FAKE_PRS="$(pr_json MERGEABLE pr-verify-failed)" run_decide GATE_RC=0 FAKE_CI=failure
 check 'pr-verify-failed: rebuild (a new head can clear it)' true "$(val rebuild)"
 FAKE_PRS="$(pr_json MERGEABLE | jq -c '.[0].labels = null')" run_decide GATE_RC=0 FAKE_CI=failure
@@ -205,6 +210,10 @@ echo '# not queued, base behind main, ci-status passed'
 new_fixture yes
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_CI=success
 check 'behind+passed: no rebuild' false "$(val rebuild)"
+FAKE_PRS="$(pr_json MERGEABLE do-not-merge)" run_decide GATE_RC=0 FAKE_CI=success
+check 'behind+passed, held: no failure notice' '0 false' "$(grep -c 'ci-status failed' <<<"$OUT" || true) $(val rebuild)"
+FAKE_PRS="$(pr_json MERGEABLE | jq -c '.[0].labels = null')" run_decide GATE_RC=0 FAKE_CI=success
+check 'behind+passed: no hold read' '0 false' "$RC $(val rebuild)"
 
 # run <started_at|null> <conclusion> [app id]: one completed ci-status run.
 run() { printf '{"started_at":%s,"status":"completed","conclusion":"%s","app":{"id":%s}}' "$1" "$2" "${3:-15368}"; }

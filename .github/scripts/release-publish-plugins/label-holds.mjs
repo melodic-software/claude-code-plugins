@@ -4,10 +4,11 @@
 // `pr-verify-failed`, which only a pass at a new head removes, so it never
 // holds back the rebuild that makes one.
 import { readFileSync } from "node:fs";
-import { labelHolds } from "../pr-merge/merge-holds.mjs";
+import { labelHolds, PR_VERIFY_FAILED_LABEL } from "../pr-merge/merge-holds.mjs";
 
 const tracker = JSON.parse(readFileSync(new URL("../../../.work-item-tracker.json", import.meta.url), "utf8"));
 const { labels, number } = JSON.parse(readFileSync(0, "utf8"));
-for (const reason of labelHolds(labels.filter(({ name }) => name !== "pr-verify-failed"), tracker, number)) {
+const held = Array.isArray(labels) ? labels.filter((label) => (label?.name ?? label) !== PR_VERIFY_FAILED_LABEL) : labels;
+for (const reason of labelHolds(held, tracker, number)) {
   console.log(reason);
 }
