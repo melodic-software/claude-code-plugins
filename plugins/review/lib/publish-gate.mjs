@@ -55,11 +55,19 @@ export const SECRET_PATTERNS = Object.freeze([
 ]);
 
 // The secret patterns read on each pair of adjacent lines joined, so a credential a line break
-// splits still matches. Left out: the assignment, which the leak scan only warns on; the OpenAI
-// key (any sk- and 20 token characters), since an sk- word ending a line joins the next line's
-// first word; and the R2 key pair (a 32-hex and a 64-hex token), since adjacent md5 and sha256
-// lines pair.
-const JOINABLE = SECRET_PATTERNS.filter(([label]) => !["password or secret assignment", "OpenAI key", "R2 key pair"].includes(label));
+// splits still matches. Left out of every pair pass: the OpenAI key (any sk- and 20 token
+// characters), since an sk- word ending a line joins the next line's first word; and the R2 key
+// pair (a 32-hex and a 64-hex token), since adjacent md5 and sha256 lines pair. The gate's pair
+// pass (findSecret) keeps the assignment, since any label from it keeps a view local or refuses
+// the host; the leak scan's split-line pass (straddles) leaves it out too, since it only warns
+// on it. The labels are checked against SECRET_PATTERNS below, so a renamed one fails loudly.
+export const WARN_ONLY = "password or secret assignment";
+export const UNJOINABLE = Object.freeze(["OpenAI key", "R2 key pair"]);
+for (const label of [WARN_ONLY, ...UNJOINABLE]) {
+  if (!SECRET_PATTERNS.some(([name]) => name === label)) throw new Error(`publish-gate: no secret pattern is labeled ${label}`);
+}
+const GATE_JOINABLE = SECRET_PATTERNS.filter(([label]) => !UNJOINABLE.includes(label));
+const JOINABLE = GATE_JOINABLE.filter(([label]) => label !== WARN_ONLY);
 
 /** Machine paths and hostnames: a hit sends a hosted page to the private host. Only these shapes are caught. */
 export const MACHINE_PATTERNS = Object.freeze([
@@ -122,13 +130,13 @@ export const firstHit = (patterns, text, fold = normalize) => {
 
 /**
  * The first credential-shaped pattern in `text`, as [label, 1-based line], or null. Never the match itself.
- * When no line matches alone, the JOINABLE patterns read each pair of adjacent lines joined, raw and
- * normalized, and a hit names the pair's first line.
+ * When no line matches alone, the GATE_JOINABLE patterns read each pair of adjacent lines joined, raw
+ * and normalized, and a hit names the pair's first line.
  */
 export const findSecret = (text) => {
   const lines = linesOf(text);
   const normalized = lines.map(normalize);
-  return firstIn(SECRET_PATTERNS, lines, normalized) ?? firstIn(JOINABLE, pairs(lines), pairs(normalized));
+  return firstIn(SECRET_PATTERNS, lines, normalized) ?? firstIn(GATE_JOINABLE, pairs(lines), pairs(normalized));
 };
 
 /** The first machine path or hostname in `text`, as [label, 1-based line], or null. Never the match itself. */
@@ -139,8 +147,7 @@ export const findMachine = (text) => firstHit(MACHINE_PATTERNS, text);
 // The lanes' leak scan: the read runner's scan job runs it on what a run
 // leaves, and work-resolve-issue.yml's run-checks job on a reused branch.
 // A credential format blocks and asks for rotation. The one broad label, an
-// assignment that may be a test fixture, only warns, and only on a plain line.
-export const WARN_ONLY = "password or secret assignment";
+// assignment that may be a test fixture (WARN_ONLY, above), only warns, and only on a plain line.
 export const HIDDEN = "assignment hidden by markup or escapes";
 const BLOCKING = SECRET_PATTERNS.filter(([label]) => label !== WARN_ONLY);
 const WARN_PATTERN = SECRET_PATTERNS.find(([label]) => label === WARN_ONLY)?.[1];
