@@ -17,6 +17,13 @@
 # shellcheck disable=SC2154 # the step's env sets DATA and the limits
 set -euo pipefail
 
+# The most chunks a head is judged in, and the run's cost guard: each judging
+# job in pr-verify.yml has a judge step for every chunk up to this, and a
+# timeout that holds them all and the final judge (workflow.test.mjs holds both
+# to it). 12 chunks of MAX_DIFF_BYTES hold a 3 MB diff of whole files. Only a
+# test sets its own.
+MAX_CHUNKS=${MAX_CHUNKS:-12}
+
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 mkdir "$DATA/diff"
 status=0
