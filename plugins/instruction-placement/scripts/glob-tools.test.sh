@@ -245,7 +245,7 @@ assert_contains "an unscoped rule contributes no pattern row" \
   "$(printf '%s\n' "$out" | awk -F'\t' '$1=="PATTERN"{print $2}' | sort -u | tr '\n' ' ')" \
   ".claude/rules/block.md"
 
-if printf '%s\n' "$out" | grep -q 'unscoped.md'; then
+if grep -q 'unscoped.md' <<<"$out"; then
   fail "an unscoped rule contributes no pattern row" "no unscoped.md row" "$out"
 else
   pass "an unscoped rule contributes no pattern row"

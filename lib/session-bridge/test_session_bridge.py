@@ -174,6 +174,18 @@ class TestPort(unittest.TestCase):
         self.assertEqual(relay.unhandled(relay.read_log()), [])
         self.assertEqual(relay.listener()["state"], "idle")
 
+    def test_both_adapters_read_the_reading_window_from_the_app(self):
+        hub = ToyHub(0, tempfile.gettempdir())
+        relay = sb.ChannelRelay(
+            tempfile.gettempdir(), "toy", ["bash", "toy.sh"], None, "w"
+        )
+        self.assertEqual(sb.Transport.reading_window(hub), sb.READING_WINDOW)
+        for adapter in (hub, relay):
+            adapter.last_deliver = time.time() - 30
+            self.assertEqual(adapter.listener()["state"], "reading")
+            adapter.reading_window = lambda: 20
+            self.assertEqual(adapter.listener()["state"], "idle")
+
     def test_the_relay_line_puts_the_note_before_the_events(self):
         relay = sb.ChannelRelay(
             tempfile.gettempdir(), "toy", ["bash", "toy.sh"], None, "w"

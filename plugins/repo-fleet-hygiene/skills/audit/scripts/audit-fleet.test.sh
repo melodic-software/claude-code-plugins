@@ -943,8 +943,7 @@ assert_contains "protected branch with exact-OID merge evidence is reported" \
 assert_contains "merged-protected-branch names the protection reason" \
   "attached to the main worktree"
 # The protection rule is unchanged: it must never become a cleanup candidate.
-if grep -A6 -F "Finding: merged-protected-branch" "$output" |
-  grep -Fq "Run /repo-hygiene:clean git"; then
+if grep -Fq "Run /repo-hygiene:clean git" < <(grep -A6 -F "Finding: merged-protected-branch" "$output"); then
   printf 'FAIL: merged-protected-branch must not route to branch cleanup\n' >&2
   failures=$((failures + 1))
 else
@@ -966,8 +965,7 @@ assert_contains "merged-remote-branch names delete_branch_on_merge as complement
 assert_kind_targets "moved-remote still emits merged-remote-branch on resolved identity" \
   merged-remote-branch "old-repo :: origin/feature/moved-local" "new-clone"
 # ls-remote proof → HIGH; empty ls-remote (auto-deleted upstream) → no finding; probe fail → MEDIUM.
-if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$output" |
-  grep -Fq "Confidence: HIGH"; then
+if grep -Fq "Confidence: HIGH" < <(grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$output"); then
   printf 'PASS: ls-remote-confirmed merged-remote-branch is HIGH\n'
 else
   printf 'FAIL: ls-remote-confirmed merged-remote-branch is HIGH\n' >&2
@@ -976,8 +974,7 @@ fi
 assert_contains "HIGH evidence names ls-remote confirmation" "ls-remote confirmed refs/heads/feature/remote-only"
 assert_not_contains "auto-deleted upstream is not reported as merged-remote-branch" \
   "origin/feature/stale-cached"
-if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/ls-fail" "$output" |
-  grep -Fq "Confidence: MEDIUM"; then
+if grep -Fq "Confidence: MEDIUM" < <(grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/ls-fail" "$output"); then
   printf 'PASS: ls-remote failure demotes merged-remote-branch to MEDIUM\n'
 else
   printf 'FAIL: ls-remote failure demotes merged-remote-branch to MEDIUM\n' >&2
@@ -997,8 +994,8 @@ assert_contains "family row reports family, age and on-default" \
   "family pre-wipe; tip prewipe-tip; age 3 days (committer date); on origin/main: yes"
 assert_contains "agent family row reports off-default" \
   "family agent; tip agent-tip; age 3 days (committer date); on origin/main: no"
-if grep -A8 -F "Target: $TMP/canonical-a :: origin/pre-wipe/x" "$output" | grep -Fq "Confidence: LOW" &&
-  ! grep -A12 -F "Target: $TMP/canonical-a :: origin/pre-wipe/x" "$output" | grep -Fq "push --delete"; then
+if grep -Fq "Confidence: LOW" < <(grep -A8 -F "Target: $TMP/canonical-a :: origin/pre-wipe/x" "$output") &&
+  ! grep -Fq "push --delete" < <(grep -A12 -F "Target: $TMP/canonical-a :: origin/pre-wipe/x" "$output"); then
   printf 'PASS: family row is LOW and names no deletion\n'
 else
   printf 'FAIL: family row is LOW and names no deletion\n' >&2
@@ -1007,8 +1004,7 @@ fi
 assert_kind_targets "a merged-remote-branch finding does not also get a family row" \
   remote-branch-family "canonical-a :: origin/agent-1a2b3c" "origin/feature/remote-only"
 # #5220: tip differs from headRefOid but is an ancestor of it and the head object is local.
-if grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/ancestor-ok" "$output" |
-  grep -Fq "Confidence: MEDIUM"; then
+if grep -Fq "Confidence: MEDIUM" < <(grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/ancestor-ok" "$output"); then
   printf 'PASS: ancestor-of-merged-head tip is merged-remote-branch MEDIUM\n'
 else
   printf 'FAIL: ancestor-of-merged-head tip is merged-remote-branch MEDIUM\n' >&2
@@ -1025,8 +1021,7 @@ FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
   bash "$SCRIPT" --repo "$TMP/canonical-a" --detail >"$all_fail_out" 2>&1 || true
 assert_contains_file "all-fail ls-remote emits fleet unavailable" \
   "Finding: ls-remote-fleet-unavailable" "$all_fail_out"
-if grep -A6 -F "Finding: ls-remote-fleet-unavailable" "$all_fail_out" |
-  grep -Fq "Confidence: UNKNOWN"; then
+if grep -Fq "Confidence: UNKNOWN" < <(grep -A6 -F "Finding: ls-remote-fleet-unavailable" "$all_fail_out"); then
   printf 'PASS: ls-remote-fleet-unavailable is UNKNOWN\n'
 else
   printf 'FAIL: ls-remote-fleet-unavailable is UNKNOWN\n' >&2
@@ -1060,8 +1055,8 @@ for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewh
       printf 'FAIL: global insteadOf %s withholds merged-remote-branch behind the fleet finding\n' "${rewrite%|*}" >&2
       failures=$((failures + 1))
     fi
-  elif grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out" |
-    grep -Fq "Confidence: ${rewrite#*|}"; then
+  elif grep -Fq "Confidence: ${rewrite#*|}" \
+    < <(grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$instead_of_out"); then
     printf 'PASS: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}"
   else
     printf 'FAIL: global insteadOf %s gives merged-remote-branch %s\n' "${rewrite%|*}" "${rewrite#*|}" >&2
@@ -1077,31 +1072,31 @@ MOCK_UNMERGED_REMOTE=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
   HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
   bash "$SCRIPT" --repo "$TMP/canonical-a" --detail --plan-file "$unmerged_plan" >"$unmerged_out" 2>&1 || true
 unmerged_block() { grep -A4 -x -F "Target: $TMP/canonical-a :: origin/feature/$1" "$unmerged_out"; }
-if unmerged_block never-pr | grep -Fq "Finding: unmerged-remote-branch" &&
-  unmerged_block never-pr | grep -Fq "Confidence: HIGH" &&
-  unmerged_block never-pr | grep -Fq "Evidence: class never-pr"; then
+if grep -Fq "Finding: unmerged-remote-branch" < <(unmerged_block never-pr) &&
+  grep -Fq "Confidence: HIGH" < <(unmerged_block never-pr) &&
+  grep -Fq "Evidence: class never-pr" < <(unmerged_block never-pr); then
   printf 'PASS: remote head with no PR of any state is a HIGH never-pr candidate\n'
 else
   printf 'FAIL: remote head with no PR of any state is a HIGH never-pr candidate\n' >&2
   failures=$((failures + 1))
 fi
-if unmerged_block closed | grep -Fq "Confidence: HIGH" &&
-  unmerged_block closed | grep -Fq "Evidence: class closed-unmerged: GitHub PR #60 CLOSED unmerged"; then
+if grep -Fq "Confidence: HIGH" < <(unmerged_block closed) &&
+  grep -Fq "Evidence: class closed-unmerged: GitHub PR #60 CLOSED unmerged" < <(unmerged_block closed); then
   printf 'PASS: closed PR at the live tip is a closed-unmerged candidate\n'
 else
   printf 'FAIL: closed PR at the live tip is a closed-unmerged candidate\n' >&2
   failures=$((failures + 1))
 fi
 for rb in closed-drift truncated; do
-  if unmerged_block "$rb" | grep -Fq "Finding: unmerged-remote-branch-review"; then
+  if grep -Fq "Finding: unmerged-remote-branch-review" < <(unmerged_block "$rb"); then
     printf 'PASS: %s is manual review, not a candidate\n' "$rb"
   else
     printf 'FAIL: %s is manual review, not a candidate\n' "$rb" >&2
     failures=$((failures + 1))
   fi
 done
-if unmerged_block np-ls-fail | grep -Fq "Finding: unmerged-remote-branch-unverified" &&
-  unmerged_block np-ls-fail | grep -Fq "Confidence: MEDIUM"; then
+if grep -Fq "Finding: unmerged-remote-branch-unverified" < <(unmerged_block np-ls-fail) &&
+  grep -Fq "Confidence: MEDIUM" < <(unmerged_block np-ls-fail); then
   printf 'PASS: ls-remote failure is a MEDIUM observation, not a candidate\n'
 else
   printf 'FAIL: ls-remote failure is a MEDIUM observation, not a candidate\n' >&2
@@ -1138,8 +1133,8 @@ else
   failures=$((failures + 1))
 fi
 assert_not_contains "audit without remote candidates emits no remote-branch action" "delete-remote-branches"
-if bash "$SCRIPT" --apply-plan "$unmerged_plan" |
-  grep -Fq "remote branch: origin/feature/closed class=closed-unmerged expected_oid=$(printf 'b%.0s' {1..40})"; then
+if grep -Fq "remote branch: origin/feature/closed class=closed-unmerged expected_oid=$(printf 'b%.0s' {1..40})" \
+  < <(bash "$SCRIPT" --apply-plan "$unmerged_plan"); then
   printf 'PASS: apply-plan preview renders each remote branch with its class and expected tip\n'
 else
   printf 'FAIL: apply-plan preview renders each remote branch with its class and expected tip\n' >&2
@@ -1176,7 +1171,7 @@ if [[ "$status_handoff_evidence" == *"$TMP/wt-old"* ]]; then
   printf 'PASS: moved-remote worktree still named for status handoff\n'
 else
   # wt-old may appear in a separate status-handoff block; re-scan all evidence lines.
-  if grep -A5 -F "Finding: worktree-status-handoff" "$output" | grep -F 'Evidence:' | grep -Fq "$TMP/wt-old"; then
+  if grep -Fq "$TMP/wt-old" < <(grep -A5 -F "Finding: worktree-status-handoff" "$output" | grep -F 'Evidence:'); then
     printf 'PASS: moved-remote worktree still named for status handoff\n'
   else
     printf 'FAIL: moved-remote worktree still named for status handoff\n' >&2
@@ -1197,8 +1192,8 @@ assert_contains "failed repositories not counted successful" "Summary: repositor
 
 # Duplicate detection keys on the CANONICALIZED identity: old-repo (remote still says old/repo,
 # resolved to new/repo) must pair with new-clone (cloned from new/repo directly).
-if grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/old-repo" &&
-  grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/new-clone"; then
+if grep -Fq "$TMP/old-repo" < <(grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:") &&
+  grep -Fq "$TMP/new-clone" < <(grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:"); then
   printf 'PASS: moved-remote checkout pairs with fresh clone via canonical identity\n'
 else
   printf 'FAIL: moved-remote checkout pairs with fresh clone via canonical identity\n' >&2
@@ -1216,20 +1211,20 @@ assert_contains "stale root reason names fleet.root" "configured fleet.root path
 
 # Duplicate checkouts of one identity (repo-b + dup-a) get ONE LOW informational finding listing
 # both paths; a single-checkout identity gets none.
-if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -Fq "Confidence: LOW"; then
+if grep -Fq "Confidence: LOW" < <(grep -A3 -F "Finding: duplicate-checkout" "$output"); then
   printf 'PASS: duplicate-checkout stays LOW\n'
 else
   printf 'FAIL: duplicate-checkout stays LOW\n' >&2
   failures=$((failures + 1))
 fi
-if grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/repo-b" &&
-  grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/dup-a"; then
+if grep -Fq "$TMP/repo-b" < <(grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:") &&
+  grep -Fq "$TMP/dup-a" < <(grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:"); then
   printf 'PASS: duplicate-checkout lists both checkout paths\n'
 else
   printf 'FAIL: duplicate-checkout lists both checkout paths\n' >&2
   failures=$((failures + 1))
 fi
-if grep -B3 -A3 -F "Finding: duplicate-checkout" "$output" | grep -Fq "Target: github.com/acme/repo-a"; then
+if grep -Fq "Target: github.com/acme/repo-a" < <(grep -B3 -A3 -F "Finding: duplicate-checkout" "$output"); then
   printf 'FAIL: single-checkout identity wrongly reported as duplicate\n' >&2
   failures=$((failures + 1))
 else
@@ -1255,13 +1250,13 @@ else
   failures=$((failures + 1))
 fi
 # Exactness: feature/auth must not inherit feature/auth-v2's merged PR.
-if grep -B2 -A6 -Fx "Target: $TMP/prefix-auth :: feature/auth-v2" "$output" | grep -Fq "Finding: merged-local-branch"; then
+if grep -Fq "Finding: merged-local-branch" < <(grep -B2 -A6 -Fx "Target: $TMP/prefix-auth :: feature/auth-v2" "$output"); then
   printf 'PASS: exact headRefName merge for feature/auth-v2\n'
 else
   printf 'FAIL: exact headRefName merge for feature/auth-v2\n' >&2
   failures=$((failures + 1))
 fi
-if grep -B2 -A6 -Fx "Target: $TMP/prefix-auth :: feature/auth" "$output" | grep -Fq "Finding: merged-local-branch"; then
+if grep -Fq "Finding: merged-local-branch" < <(grep -B2 -A6 -Fx "Target: $TMP/prefix-auth :: feature/auth" "$output"); then
   printf 'FAIL: feature/auth wrongly inherited auth-v2 merge evidence\n' >&2
   failures=$((failures + 1))
 else
@@ -1282,13 +1277,13 @@ assert_not_contains "tip-drift evidence never claims unpushed without proof" \
 assert_contains "header names gh account" "GitHub evidence: available (account: test-login)"
 
 # Clean repos say so explicitly instead of ending the section without a marker.
-if grep -A30 -F "Repo: $TMP/root/acme/root-repo" "$output" | grep -Fq "Findings: none"; then
+if grep -Fq "Findings: none" < <(grep -A30 -F "Repo: $TMP/root/acme/root-repo" "$output"); then
   printf 'PASS: clean repo emits explicit Findings: none marker\n'
 else
   printf 'FAIL: clean repo emits explicit Findings: none marker\n' >&2
   failures=$((failures + 1))
 fi
-if grep -A30 -F "Repo: $TMP/discovered-a" "$output" | grep -Fq "Findings: none"; then
+if grep -Fq "Findings: none" < <(grep -A30 -F "Repo: $TMP/discovered-a" "$output"); then
   printf 'FAIL: finding-bearing repo wrongly emitted Findings: none\n' >&2
   failures=$((failures + 1))
 else
@@ -1298,20 +1293,20 @@ fi
 # fleet.ackUnavailable: 404 on an acked identity (mixed-case config entry) is
 # demoted to ACKNOWLEDGED; an unacked 404 stays UNKNOWN; a non-404 failure on
 # an acked identity stays UNKNOWN with its real reason.
-if grep -A5 -F "Target: github.com/gone/away" "$output" | grep -Fq "Confidence: ACKNOWLEDGED"; then
+if grep -Fq "Confidence: ACKNOWLEDGED" < <(grep -A5 -F "Target: github.com/gone/away" "$output"); then
   printf 'PASS: acked 404 demoted to ACKNOWLEDGED\n'
 else
   printf 'FAIL: acked 404 demoted to ACKNOWLEDGED\n' >&2
   failures=$((failures + 1))
 fi
 assert_contains "acked finding names its ack source" "acknowledged known-inaccessible via fleet.ackUnavailable"
-if grep -A5 -F "Target: github.com/lost/cause" "$output" | grep -Fq "Confidence: UNKNOWN"; then
+if grep -Fq "Confidence: UNKNOWN" < <(grep -A5 -F "Target: github.com/lost/cause" "$output"); then
   printf 'PASS: unacked 404 stays UNKNOWN\n'
 else
   printf 'FAIL: unacked 404 stays UNKNOWN\n' >&2
   failures=$((failures + 1))
 fi
-if grep -A5 -F "Target: github.com/gone/net" "$output" | grep -Fq "Confidence: UNKNOWN"; then
+if grep -Fq "Confidence: UNKNOWN" < <(grep -A5 -F "Target: github.com/gone/net" "$output"); then
   printf 'PASS: non-404 failure on acked identity stays UNKNOWN\n'
 else
   printf 'FAIL: non-404 failure on acked identity stays UNKNOWN\n' >&2
@@ -1350,7 +1345,7 @@ fi
 # Every rendering is checked under C and, when the host has one, a UTF-8 operator locale: the
 # verdict must not follow the caller's locale.
 display_locales=(C)
-display_utf8_locale="$(locale -a 2>/dev/null | grep -Ei -m1 '^(C|en_US)\.utf-?8$' || true)"
+display_utf8_locale="$(grep -Ei -m1 '^(C|en_US)\.utf-?8$' < <(locale -a 2>/dev/null) || true)"
 [[ -n "$display_utf8_locale" ]] && display_locales+=("$display_utf8_locale")
 display_err="$TMP/display-value.err"
 assert_display_value() {
@@ -1836,8 +1831,8 @@ REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TM
 if grep -Fq "Finding: merged-pr-window-truncated" "$deep_out"; then
   printf 'FAIL: retired merged-pr-window-truncated still emitted on deep-history fixture\n' >&2
   failures=$((failures + 1))
-elif grep -B2 -A6 -Fx "Target: $TMP/wt-root/zzz-canonical :: feature/linked" "$deep_out" |
-  grep -Fq "Finding: merged-worktree"; then
+elif grep -Fq "Finding: merged-worktree" \
+  < <(grep -B2 -A6 -Fx "Target: $TMP/wt-root/zzz-canonical :: feature/linked" "$deep_out"); then
   printf 'PASS: GraphQL finds merged branch beyond any former REST window\n'
 else
   printf 'FAIL: GraphQL finds merged branch beyond any former REST window\n' >&2
@@ -2079,17 +2074,15 @@ if [[ "$conv_ok" != "true" || "$conv_rejected" != "true" ]]; then
 else
   printf 'PASS: convention git allowlist admits gate+worktree-root read and rejects other config\n'
 fi
-if MOCK_MELODIC_WORKTREE_ROOT="$TMP/conform-root" \
-  run_convention_git -C "$TMP/conform-canon" config --get-all --show-origin --type=path melodic.worktreeroot |
-  grep -Fq "$TMP/conform-root"; then
+if grep -Fq "$TMP/conform-root" < <(MOCK_MELODIC_WORKTREE_ROOT="$TMP/conform-root" \
+  run_convention_git -C "$TMP/conform-canon" config --get-all --show-origin --type=path melodic.worktreeroot); then
   printf 'PASS: convention git returns mocked melodic.worktreeroot\n'
 else
   printf 'FAIL: convention git did not return mocked melodic.worktreeroot\n' >&2
   failures=$((failures + 1))
 fi
-if MOCK_WORKTREEROOT_PATH="$TMP/conform-root" \
-  run_convention_git -C "$TMP/conform-canon" config --get-all --type=path worktreeroot.path |
-  grep -Fq "$TMP/conform-root"; then
+if grep -Fq "$TMP/conform-root" < <(MOCK_WORKTREEROOT_PATH="$TMP/conform-root" \
+  run_convention_git -C "$TMP/conform-canon" config --get-all --type=path worktreeroot.path); then
   printf 'PASS: convention git returns mocked worktreeroot.path\n'
 else
   printf 'FAIL: convention git did not return mocked worktreeroot.path\n' >&2
