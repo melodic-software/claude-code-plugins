@@ -1,0 +1,102 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash -n scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "syntax check"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "shellcheck scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "lint"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cp /opt/plugins/wizard/skills/generate/template.sh scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "copy"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -c '^[[:space:]]*stage \"' scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "stage count"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "./scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "direct run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "bash run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /ws && bash -x scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "after cd, -x"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf 'y\\n' | sh scripts/setup-sms.sh",
+            "description": "run"
+          }
+        }
+      ],
+      "why": "piped answers"
+    }
+  ]
+}

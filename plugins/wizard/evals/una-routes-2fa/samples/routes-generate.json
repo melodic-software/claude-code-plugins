@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "A dashboard and a 2FA approval are steps no script can do; use `/wizard:generate` for a guided wizard.",
+      "why": "names skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here is move-nameservers.ps1 using the registrar API.",
+      "why": "scripts it"
+    }
+  ]
+}

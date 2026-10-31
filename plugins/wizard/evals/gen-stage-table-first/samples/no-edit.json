@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/ws/scripts/setup-sms.sh",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "script edited"
+    }
+  ]
+}

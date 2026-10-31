@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/move-nameservers.ps1",
+            "content": "#requires -Version 7.0"
+          }
+        }
+      ],
+      "why": "script written"
+    }
+  ]
+}

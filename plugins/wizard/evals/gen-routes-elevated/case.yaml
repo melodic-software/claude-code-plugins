@@ -1,0 +1,15 @@
+schema_version: "1.1"
+name: gen-routes-elevated
+graders:
+  - name: routes-unattended
+    type: regex
+    pattern: 'wizard:unattended|\bunattended\b'
+    flags: 'i'
+    target: last_message
+  - name: no-bash-script
+    type: tool_used
+    tool: 'Write'
+    input_match: '"file_path":"(?:[^"\\]|\\.)*?\.sh"'
+    min: 0
+    max: 0
+    arm: 'both'

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "This is a job for `/wizard:unattended`: every step is scriptable and you are only the elevation boundary.",
+      "why": "names skill"
+    },
+    {
+      "answer": "An interactive wizard is the wrong tool; an unattended PowerShell script you launch once elevated fits better.",
+      "why": "describes route"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "Here is swap-portal.ps1. Run it from an admin PowerShell.",
+      "why": "no routing"
+    }
+  ]
+}
