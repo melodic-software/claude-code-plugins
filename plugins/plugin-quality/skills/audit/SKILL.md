@@ -152,7 +152,7 @@ prune, the context-gate re-evaluation, and the step 3 persist-check for each pac
 returns). Do not wait on one auditor before dispatching the next; the per-target audits are
 independent and share nothing but the run nonce.
 
-`session` supplies this list from the session's own transcript, after the operator confirms it.
+`session` supplies this list from the session's running-retro ledger, after the operator confirms it.
 
 The list is what the packet layout is keyed on, never the raw argument. A natural-language phrase
 sanitizes to a slug matching no directory the run ever created, so a post-compaction resume that

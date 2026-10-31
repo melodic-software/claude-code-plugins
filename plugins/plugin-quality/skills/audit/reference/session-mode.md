@@ -44,7 +44,7 @@ ends, so a `session` run inside the live session does not find them from the obs
 Run at session end, over what the session used.
 
 1. **Find the ledger.** Session-flow's running-retro ledger is a documented artifact: the file
-   under `<memory_dir>/running-retros/` (default `.work/running-retros/`) matching
+   in the running-retro ledger directory (default `.work/running-retros/`) matching
    `*-running-retro-*.md` whose frontmatter `session_id` is this session. `/session-flow:running-retro`
    not available: say the session-usage capability is missing and stop; the operator can still run
    `/plugin-quality:audit <plugin>:<component>` by name.
