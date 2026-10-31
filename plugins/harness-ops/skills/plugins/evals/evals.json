@@ -15,16 +15,14 @@
     },
     {
       "id": 2,
-      "name": "audit-issues-zero-mutating-calls",
+      "name": "audit-action-points-to-plugins-audit",
       "prompt": "/harness-ops:plugins audit",
-      "expected_output": "audit runs the same algorithm as sync but every mutating CLI call becomes a prediction: no `claude plugin install|update|uninstall|marketplace update` command is ever run, and normalize-enabled-plugins.sh is invoked with --check rather than written. The reads those calls sit beside still run. Step 1's pre-refresh fleet-state.sh snapshot is taken (into the run's throwaway scratch directory) so the catalog-regression check keeps its first interval, and only the `claude plugin marketplace update` beside it is replaced by a prediction. The response calls fleet-state.sh (read-only) and reports what sync/converge would do without doing it.",
+      "expected_output": "The audit action lives in its own skill. The response does not run sync: it issues no `claude plugin install|update|uninstall|marketplace update` call and no sync-run.sh call without --audit. It runs nothing and points the user to /harness-ops:plugins-audit.",
       "files": [],
       "expectations": [
         "The response issues zero `claude plugin install|update|uninstall` or `claude plugin marketplace update` invocations",
-        "The response still computes state from the read-only fleet-state.sh reads, which sync-run.sh --audit takes",
-        "The response still takes Step 1's pre-refresh fleet-state.sh snapshot before declining the refresh: it does not treat the whole of Step 1 as skipped, and the catalog-regression check still has its pre-refresh to pre interval available",
-        "The response frames its output as a prediction of what `sync` (and, where relevant, `converge`) would do, not as work already performed",
-        "If the response mentions enabledPlugins key order, it uses normalize-enabled-plugins.sh --check (or equivalent prediction) and never writes ~/.claude/settings.json or a committed project settings file"
+        "The response neither runs sync nor shows the action table as if `audit` were an unrecognized action",
+        "The response names /harness-ops:plugins-audit as where the read-only audit lives"
       ]
     },
     {
@@ -255,20 +253,6 @@
         "`Updated:` does not list alpha@market1, beta@market1, or gamma@market1",
         "With --allow-downgrade the three ids are updated and their outcomes render under `Downgraded:`, never under `Updated:`",
         "The ids come from `fleet-state.sh --ids downgrade-candidates`, never from a hand-written jq extraction over the JSON"
-      ]
-    },
-    {
-      "id": 13,
-      "name": "rendered-report-is-pasted-not-restated",
-      "prompt": "/harness-ops:plugins audit: sync-run.sh --audit --render printed the digest line and then the rendered report, whose rows read `Would update: 3 plugin(s)` with three `would run: claude plugin update … -s user` lines, `Would withhold: 1 downgrade(s)` naming gamma@market1 0.5.0 → 0.1.0, `Divergences: 2 behind here → run /harness-ops:plugins converge; on this whole machine 7 actionable: …`, and a `Timing:` row.",
-      "expected_output": "The response pastes the rendered report as printed and appends exactly one line of its own: the reload guidance, stated as the docs' two-step (run /reload-plugins; if it warns that the next message would re-read the conversation, run /reload-plugins --force). It does not retype, paraphrase, or recompute any count, id, scope, or version the render already carries (the 3, the 1, gamma's versions, the 2 and 7 of the Divergences line), does not add rows the render omitted, and does not compute its own Divergences split from the digest. It also does not add a monitor call-out of its own: that bullet is the render's, under Action needed, when the digest's updated_with_monitors is non-empty.",
-      "files": [],
-      "expectations": [
-        "The response reproduces the rendered report verbatim rather than summarizing it in its own words",
-        "The response does not restate a number, id, scope, or version that the render already printed (no separate 'three plugins would be updated' sentence, no re-listing of gamma@market1's versions)",
-        "The response does not add a row, section, or count the render omitted, and does not recompute the Divergences split from the digest",
-        "The only line the response adds after the render is the reload guidance, stated as the docs' two-step: bare /reload-plugins first, /reload-plugins --force only if the bare command warns about re-reading the conversation",
-        "The response does not append its own monitor restart call-out; that bullet comes from the render's Action needed when updated_with_monitors is non-empty"
       ]
     },
     {
