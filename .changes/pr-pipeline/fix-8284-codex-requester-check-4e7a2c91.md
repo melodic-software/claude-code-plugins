@@ -14,7 +14,10 @@ bump: patch
     That is the pull request's author on opening, or the actor of a ready-for-review event. Every
     such event in the window must be a trusted person's or the lanes App's.
   - Any untrusted request or event in the window leaves the thread for a person, and so does none
-    that can be read. The skip is logged as `codex-request-untrusted` or `codex-request-not-found`.
+    that can be read. So do these, since each may have held a request:
+    - an untrusted comment or review edited since the window opened, whatever it says now (review
+      edit times come from GraphQL);
+    - an untrusted comment that was deleted (GraphQL `CommentDeletedEvent`). The skip is logged as `codex-request-untrusted` or `codex-request-not-found`.
   - The select job, the reply job's re-read, `fix-ci-context.mjs` and `pr-feedback-dispatch.yml`
     apply the same check. `chatgpt-codex-connector[bot]` stays on `reviewer-ids`, and the
     trusted-actor list is unchanged.

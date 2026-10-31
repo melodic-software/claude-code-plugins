@@ -715,27 +715,38 @@ const ANY_CODEX_MENTION = /@codex(?![\w-])/i;
 // readable time is not counted, and unreadable triggers (null) count none.
 export function codexRequest({ authorId, submittedAt, reviews, mentions, triggers = null, reviewerIds = [], trustedHumans = new Set(), ownIds = new Set() }) {
   const at = Date.parse(submittedAt ?? "");
-  if (Number.isNaN(at)) {
+  // Unreadable triggers (readTriggers' null) leave edits and deletions unseen.
+  if (Number.isNaN(at) || triggers === null) {
     return { reason: "codex-request-not-found" };
   }
   const since = Math.max(...reviews.filter((review) => review.authorId === authorId).map((review) => Date.parse(review.submittedAt ?? "")).filter((time) => time < at));
   const within = (time) => time > since && time <= at;
+  const untrusted = (requester, via) => ({ reason: "codex-request-untrusted", requester, via });
   let trusted = false;
   for (const mention of mentions) {
-    const trustedAuthor = trustedHumans.has(mention.authorId);
-    if (reviewerIds.includes(mention.authorId) || !(trustedAuthor ? CODEX_MENTION : ANY_CODEX_MENTION).test(String(mention.body ?? ""))) {
+    if (reviewerIds.includes(mention.authorId)) {
       continue;
     }
+    const body = String(mention.body ?? "");
     const created = Date.parse(mention.createdAt ?? "");
-    if (trustedAuthor) {
-      trusted ||= within(created);
-    } else if (Number.isNaN(created) || within(created) || within(Date.parse(mention.editedAt ?? ""))) {
-      return { reason: "codex-request-untrusted", requester: mention.authorId, via: "@codex request" };
+    // A review body's edit time comes from GraphQL (readTriggers' reviewEdits).
+    const edited = Date.parse((mention.reviewId === undefined ? mention.editedAt : triggers.reviewEdits?.[mention.reviewId]) ?? "");
+    if (trustedHumans.has(mention.authorId)) {
+      trusted ||= CODEX_MENTION.test(body) && within(created);
+    } else if (ANY_CODEX_MENTION.test(body) && (Number.isNaN(created) || within(created) || within(edited))) {
+      return untrusted(mention.authorId, "@codex request");
+    } else if (!ownIds.has(mention.authorId) && created <= at && edited > created && edited > since) {
+      // Edited since the window opened: it may have held a request then.
+      return untrusted(mention.authorId, "edited comment");
     }
   }
-  const events = triggers
-    ? [{ via: "opening of the pull request", ...triggers.opened }, ...triggers.ready.map((event) => ({ via: "ready-for-review event", ...event }))]
-    : [];
+  for (const deletion of triggers.deletions ?? []) {
+    const id = deletion.authorId;
+    if (!(Date.parse(deletion.at ?? "") <= since) && !trustedHumans.has(id) && !ownIds.has(id) && !reviewerIds.includes(id)) {
+      return untrusted(id, "deleted comment");
+    }
+  }
+  const events = [{ via: "opening of the pull request", ...triggers.opened }, ...triggers.ready.map((event) => ({ via: "ready-for-review event", ...event }))];
   for (const event of events) {
     if (!within(Date.parse(event.at ?? ""))) {
       continue;
@@ -748,20 +759,49 @@ export function codexRequest({ authorId, submittedAt, reviews, mentions, trigger
   return trusted ? null : { reason: "codex-request-not-found" };
 }
 
-// The events that start an automatic review, for codexRequest: the PR's
-// opening (its author and creation time) and each ready-for-review event of
-// its REST issue timeline. `pull` is the REST pull request when the caller
-// already read it. A failed read is null, which counts no event.
+// The PR history codexRequest reads besides its comments: the events that
+// start an automatic review (the PR's opening, by its author, and each
+// ready-for-review event of its REST issue timeline), and from
+// REQUEST_HISTORY_QUERY each deleted comment's author and time and each
+// review's last edit time. `pull` is the REST pull request when the caller
+// already read it. A failed read is null, which codexRequest fails closed on.
 export async function readTriggers({ api, pr, pull }) {
   try {
-    const [read, timeline] = await Promise.all([pull ?? api.getPull(pr), api.listTimeline(pr)]);
+    const [read, timeline, history] = await Promise.all([pull ?? api.getPull(pr), api.listTimeline(pr), api.listRequestHistory(pr)]);
     return {
       opened: { actorId: read?.user?.id, at: read?.created_at },
       ready: timeline.filter((event) => event?.event === "ready_for_review").map((event) => ({ actorId: event.actor?.id, at: event.created_at })),
+      deletions: history.deletions,
+      reviewEdits: history.reviewEdits,
     };
   } catch {
     return null;
   }
+}
+
+// The deleted comments (CommentDeletedEvent: who wrote each, when it went)
+// and each review's last edit time, which REST does not give. More than one
+// page of either throws, so codexRequest fails closed.
+export const REQUEST_HISTORY_QUERY = `query($owner: String!, $name: String!, $pr: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $pr) {
+      timelineItems(itemTypes: [COMMENT_DELETED_EVENT], first: 100) {
+        pageInfo { hasNextPage }
+        nodes { ... on CommentDeletedEvent { createdAt deletedCommentAuthor { ... on User { databaseId } ... on Bot { databaseId } } } }
+      }
+      reviews(first: 100) { pageInfo { hasNextPage } nodes { databaseId lastEditedAt } }
+    }
+  }
+}`;
+export function requestHistoryOf(data) {
+  const pull = data?.repository?.pullRequest;
+  if (!pull || pull.timelineItems.pageInfo.hasNextPage || pull.reviews.pageInfo.hasNextPage) {
+    throw new Error("the pull request's comment deletions or reviews run past one page");
+  }
+  return {
+    deletions: pull.timelineItems.nodes.map((node) => ({ authorId: node.deletedCommentAuthor?.databaseId, at: node.createdAt })),
+    reviewEdits: Object.fromEntries(pull.reviews.nodes.filter((node) => node.lastEditedAt).map((node) => [node.databaseId, node.lastEditedAt])),
+  };
 }
 
 // Whether any of `authorIds` is a listed bot's, so readTriggers is worth a read.
@@ -799,7 +839,7 @@ export const requestSkipLine = (id, skip) =>
 // The `@codex` request candidates of a PR's REST rows, for codexRequest.
 export const restMentions = ({ issueComments = [], reviewComments = [], reviews = [] }) => [
   ...[...issueComments, ...reviewComments].map((row) => ({ authorId: row.user?.id, createdAt: row.created_at, editedAt: row.updated_at, body: row.body })),
-  ...reviews.map((review) => ({ authorId: review.user?.id, createdAt: review.submitted_at, body: review.body })),
+  ...reviews.map((review) => ({ authorId: review.user?.id, createdAt: review.submitted_at, reviewId: review.id, body: review.body })),
 ];
 
 // Whether a thread threadAuthors accepted (`authors`) sits on a review its
@@ -872,7 +912,7 @@ export function keepThreads({ threads, reviewComments, reviews, heads, security 
       triggers,
       reviewerIds,
       trustedHumans,
-      ownIds: new Set([appId]),
+      ownIds: new Set([appId, MARKER_AUTHOR_ID]),
     });
     if (skip) {
       log(requestSkipLine(thread.id, skip));
@@ -1313,6 +1353,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
         after = page.pageInfo.endCursor;
       }
     },
+    listRequestHistory: async (pr) => requestHistoryOf(await graphql(REQUEST_HISTORY_QUERY, { owner, name, pr })),
     // The entries of the tree at `${sha}:${dir}`, none when it is no tree.
     async listTree(sha, dir) {
       const object = (await graphql(TREE_QUERY, { owner, name, expression: `${sha}:${dir}` })).repository.object;

@@ -128,6 +128,7 @@ function fakeApi({
     },
     listReviews: async () => reviews,
     listTimeline: async () => timeline,
+    listRequestHistory: async () => ({ deletions: [], reviewEdits: {} }),
     async getPermission(login) {
       calls.permission.push(login);
       return permissions[login] ?? "none";

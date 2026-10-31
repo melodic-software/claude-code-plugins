@@ -55,6 +55,13 @@ function fakeApi(overrides = {}) {
       }
       return overrides.timeline ?? [];
     },
+    // Comment deletions and review edit times (GraphQL); an Error stands for a failed read.
+    async listRequestHistory() {
+      if (overrides.history instanceof Error) {
+        throw overrides.history;
+      }
+      return { deletions: [], reviewEdits: {}, ...overrides.history };
+    },
     async getPermission(login) {
       permissionReads.push(login);
       return (overrides.permissions ?? { "kyle-sexton": "write" })[login] ?? "none";
@@ -1877,6 +1884,46 @@ test("an automatic Codex review a stranger triggered is skipped, and an untruste
   const { kept } = await currentThreads({ api: askedBy([], { opener: STRANGER, openedAt: OPENED }), pr: 42, reviewerId: REVIEWER, reviewerIds: [CODEX], appId: APP, trustedHumans: new Set([HUMAN]), log: (line) => logged.push(line) });
   assert.deepEqual(kept, []);
   assert.deepEqual(logged, [untrusted("opening of the pull request")]);
+});
+
+// A request read after the fact can have been edited out or deleted, so the
+// check fails closed on the history it can read: an untrusted comment or
+// review edited since the window opened counts whatever it says now, a
+// review body edited into a request counts by its GraphQL edit time, and a
+// deleted untrusted comment counts. Our own bots' edits (the review lanes
+// edit their marker in place) count only for what they say.
+test("an untrusted request edited out, deleted, or edited into a review body still skips the thread", async () => {
+  const earlier = { id: 9, user: { id: CODEX }, commit_id: OLD_HEAD, submitted_at: "2026-10-17T09:00:00Z" };
+  const strangerReview = (extra) => ({ id: 8, user: { id: STRANGER }, commit_id: HEAD, ...extra });
+  for (const [label, asks, extra, via] of [
+    ["a stranger's comment edited after the review", [codexAsk(STRANGER, "2026-10-17T09:00:00Z", { body: "thanks", updated_at: "2026-10-17T21:00:00Z" })], { opener: HUMAN, openedAt: OPENED }, "edited comment"],
+    ["a stranger's deleted comment", [], { opener: HUMAN, openedAt: OPENED, history: { deletions: [{ authorId: STRANGER, at: "2026-10-17T21:00:00Z" }] } }, "deleted comment"],
+    ["a stranger's review body edited into a request", [codexAsk(HUMAN, "2026-10-17T10:30:00Z")], { reviews: [earlier, strangerReview({ submitted_at: "2026-10-17T08:00:00Z", body: "@codex review" }), ...botThread().reviews], history: { reviewEdits: { 8: "2026-10-17T10:00:00Z" } } }, "@codex request"],
+    ["a stranger's review body edited out", [], { opener: HUMAN, openedAt: OPENED, reviews: [strangerReview({ submitted_at: "2026-10-17T09:00:00Z", body: "LGTM" }), ...botThread().reviews], history: { reviewEdits: { 8: "2026-10-17T21:00:00Z" } } }, "edited comment"],
+  ]) {
+    const { result, lines } = await codexLogged(askedBy(asks, extra));
+    assert.deepEqual([result.decision, result.escalationReason], ["escalate", "feedback-untaken-threads"], label);
+    assert.deepEqual(lines, [`skip thread PRRT_1: codex-request-untrusted (the ${via} behind the bot's review came from account ${STRANGER}, not on the trusted-actor list)`], label);
+  }
+});
+
+test("an unedited stranger comment, a trusted person's deletion and a review lane's edited marker leave a trusted request standing", async () => {
+  const marked = { id: 1, user: { id: ACTIONS_BOT }, created_at: "2026-10-17T06:00:00Z", updated_at: "2026-10-17T21:00:00Z", body: marker("claude-review", HEAD) };
+  for (const [label, asks, extra] of [
+    ["a stranger's plain comment", [codexAsk(STRANGER, "2026-10-17T09:00:00Z", { body: "nice" })], { opener: HUMAN, openedAt: OPENED }],
+    ["an owner's deleted comment", [], { opener: HUMAN, openedAt: OPENED, history: { deletions: [{ authorId: HUMAN, at: "2026-10-17T21:00:00Z" }] } }],
+  ]) {
+    const { result, lines } = await codexLogged(askedBy(asks, extra));
+    assert.equal(result.decision, "proceed", `${label}\n${lines.join("\n")}`);
+  }
+  const lane = await codexLogged(fakeApi({ ...botThread(), issueComments: [marked, codexAsk()] }));
+  assert.equal(lane.result.decision, "proceed", lane.lines.join("\n"));
+});
+
+test("a request history that cannot be read skips the thread even beside a trusted @codex request", async () => {
+  const { result, lines } = await codexLogged(askedBy([codexAsk()], { history: new Error("POST graphql returned 502") }));
+  assert.deepEqual([result.decision, result.escalationReason], ["escalate", "feedback-untaken-threads"]);
+  assert.match(lines.join("\n"), /codex-request-not-found/);
 });
 
 test("a trusted person's direction on a Codex thread needs no @codex request", async () => {

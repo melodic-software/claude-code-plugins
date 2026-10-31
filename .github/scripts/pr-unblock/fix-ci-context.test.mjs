@@ -70,6 +70,8 @@ function fakeApi(overrides = {}) {
     listReviews: async () => overrides.reviews ?? [],
     listReviewComments: async () => overrides.reviewComments ?? [],
     listThreads: async () => overrides.threads ?? [],
+    listTimeline: async () => [],
+    listRequestHistory: async () => ({ deletions: [], reviewEdits: {} }),
   };
 }
 

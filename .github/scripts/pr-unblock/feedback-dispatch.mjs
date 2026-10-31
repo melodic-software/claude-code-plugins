@@ -142,7 +142,7 @@ import { pathToFileURL } from "node:url";
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { anyListed, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { anyListed, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 
 // fix-ci-dispatch.mjs imports HOLD_LINE from here.
 export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
@@ -273,7 +273,7 @@ function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHuman
     triggers,
     reviewerIds,
     trustedHumans,
-    ownIds: new Set([appId]),
+    ownIds: new Set([appId, DEFAULTS.markerAuthorId]),
   });
   if (skip) {
     log(requestSkipLine(thread.id, skip));
@@ -1157,6 +1157,7 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // The REST issue timeline, for a listed bot's automatic review
     // (address-feedback.mjs readTriggers).
     listTimeline: (number) => pages(`${repo}/issues/${number}/timeline?per_page=100`),
+    listRequestHistory: async (number) => requestHistoryOf(await graphql(REQUEST_HISTORY_QUERY, { owner, name, pr: number })),
     async listReviewThreads(number) {
       const threads = [];
       let after = null;

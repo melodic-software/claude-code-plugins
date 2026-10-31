@@ -3447,7 +3447,9 @@ from a person on the trusted-actor list. With no `@codex` comment, the review is
 counts as asked for by whoever triggered it: the pull request's author on opening, or the actor of
 a ready-for-review event. Every such event since the bot's previous review must be a trusted
 person's or the lanes App's (`APP_SENDER_ID`). Any untrusted request or event since that review,
-or none that can be read, leaves the thread for a person, with the reason logged
+or none that can be read, leaves the thread for a person. So does a comment or review by anyone
+else, apart from our own bots, that was edited since the window opened, or a deleted comment
+of theirs, since either may have held a request. The reason is logged
 (`codex-request-untrusted`, `codex-request-not-found`). The list is matched on the
 account id GitHub records for each comment and its review, never on a login, so another account
 using the same name matches nothing. The comment text stays data in every model prompt, as the
