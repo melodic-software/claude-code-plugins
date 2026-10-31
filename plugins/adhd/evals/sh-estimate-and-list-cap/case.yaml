@@ -1,10 +1,16 @@
 schema_version: "1.1"
 name: sh-estimate-and-list-cap
 graders:
-  - name: concrete-time-estimate
+  - name: relative-size
     type: regex
-    pattern: '\b(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?:\s*(?:-|–|to)\s*(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve))?\s*(?:minutes?|hours?|days?|working days?|weeks?)\b|\b(?:an?|one|half an?|half a|a full|one full)\s+(?:hour|afternoon|morning|day|working day|week)\b'
+    pattern: '\b(?:small|medium|large)\b'
     flags: i
+    target: last_message
+  - name: no-time-units
+    type: regex
+    pattern: '\b(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?:\s*(?:-|–|to)\s*(?:\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve))?\s*(?:minutes?|hours?|days?|working days?|weeks?)\b|\b(?:an?|one|half an?|half a|a full|one full)\s+(?:hour|afternoon|morning|day|working day|week)\b|\b(?:a few|a couple(?: of)?|several)\s+(?:minutes|hours|days|weeks)\b|\b\d+\s*(?:h|hrs?|mins?|wks?)\b|\bhalf[- ]day\b'
+    flags: i
+    match: not_contains
     target: last_message
   - name: no-list-over-five
     type: regex

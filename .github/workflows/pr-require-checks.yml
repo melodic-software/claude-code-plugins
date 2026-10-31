@@ -1819,9 +1819,6 @@ jobs:
       # (--check-bump), and no change may DROP a version heading a changelog
       # already carried (--check-preserved). Every plugin is in fragment mode,
       # so no other pull request bumps a version.
-      # Existing "versioned but changelog-less" debt is grandfathered by name
-      # in scripts/changelog-parity-baseline.txt with a stale guard; the bump
-      # gate is never relaxed by the baseline.
       - name: Verify every versioned plugin keeps a CHANGELOG.md at or below its manifest version
         id: changelog_parity_check
         continue-on-error: true

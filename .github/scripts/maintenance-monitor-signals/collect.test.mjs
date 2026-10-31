@@ -728,26 +728,30 @@ test("stalled stops: a skip is no attempt, and a cleared fail-routed label is a 
   assert.ok(data.gaps.includes("stalled stops: #8405 has over 300 comments and none names a stop on its head; older ones not read"), data.gaps.join("\n"));
 });
 
-// Review finding on #10252: a select job that found the stop gone
-// (stop-resolved) skips not-applicable and posts success over the failing
-// status, which the monitor cannot read. address-feedback's select skips
-// not-applicable only then, so on a non-draft PR that skip ends the stop.
-// fix-ci's skips it also with no fixable failure, so it ends the stop only
-// when the head's whole listing is settled with none failing.
-test("stalled stops: a stop-resolved not-applicable skip ends an address-feedback or settled-green fix-ci stop", async () => {
-  const skip = (at) => ({ conclusion: "neutral", output: { title: "Skipped: not-applicable" }, started_at: at });
-  const done = (id, conclusion) => ({ id, name: `check ${id}`, status: "completed", conclusion });
-  const heads = { 8601: [done(1, "success")], 8603: [done(1, "success"), done(2, "skipped")], 8604: [done(1, "failure")], 8605: [done(1, "success"), { id: 2, name: "check 2", status: "in_progress", conclusion: null }] };
-  const pulls = [8601, 8602, 8603, 8604, 8605];
+// A select job that finds the stop gone skips stop-resolved and posts success
+// over the failing status, which the monitor cannot read. That skip ends the
+// stop when it started after the stop's comment. A not-applicable skip ends
+// none: it also covers an owner's untaken threads and a fix-ci skip before
+// checks settled. The head's whole listing is never read.
+test("stalled stops: only a stop-resolved skip ends an address-feedback or fix-ci stop", async () => {
+  const skip = (title, at) => ({ conclusion: "neutral", output: { title }, started_at: at });
+  const RESOLVED = "Skipped: stop-resolved";
+  const OTHER = "Skipped: not-applicable";
+  const stops = { 8601: "address-feedback", 8602: "address-feedback", 8603: "fix-ci", 8604: "fix-ci", 8605: "fix-ci" };
+  const seen = {
+    8601: skip(RESOLVED, "2026-10-19T12:30:00Z"),
+    8602: skip(OTHER, "2026-10-19T12:30:00Z"),
+    8603: skip(RESOLVED, "2026-10-19T12:30:00Z"),
+    8604: skip(OTHER, "2026-10-19T12:30:00Z"),
+    8605: skip(RESOLVED, "2026-10-19T11:30:00Z"),
+  };
+  const pulls = Object.keys(stops).map(Number);
   const api = fakeApi([
     [/\/pulls\?state=open/, pulls.map((number) => ({ number, draft: false, head: { sha: sha(String(number % 10)) } }))],
-    [/\/issues\/8601\/comments/, [stopComment(8601, sha("1"), "2026-10-19T12:00:00Z", { activity: "address-feedback", reason: "feedback-partial" })]],
-    [/\/issues\/8602\/comments/, [stopComment(8602, sha("2"), "2026-10-19T12:00:00Z", { activity: "resolve-conflicts", reason: "repeat-cap" })]],
-    ...[8603, 8604, 8605].map((pr) => [new RegExp(`/issues/${pr}/comments`), [stopComment(pr, sha(String(pr % 10)), "2026-10-19T12:00:00Z", { activity: "fix-ci", reason: "ci-fix-escalated" })]]),
+    ...pulls.map((pr) => [new RegExp(`/issues/${pr}/comments`), [stopComment(pr, sha(String(pr % 10)), "2026-10-19T12:00:00Z", { activity: stops[pr], reason: "repeat-cap" })]]),
     [/\/commits\/([0-9a-f])\1{39}\/check-runs/, (path) => {
-      if (path.includes("check_name=")) return { check_runs: [skip("2026-10-19T12:30:00Z")] };
-      const pr = pulls.find((number) => path.includes(sha(String(number % 10))));
-      return { check_runs: heads[pr] ?? assert.fail(`no listing expected for #${pr}`) };
+      assert.match(path, /check_name=/, "the head's whole listing is not read");
+      return { check_runs: [seen[pulls.find((number) => path.includes(sha(String(number % 10))))]] };
     }],
     ...routes(),
   ]);
@@ -755,7 +759,7 @@ test("stalled stops: a stop-resolved not-applicable skip ends an address-feedbac
   assert.deepEqual(
     data.stalledStops.map((s) => [s.pr, s.activity]),
     [
-      [8602, "resolve-conflicts"],
+      [8602, "address-feedback"],
       [8604, "fix-ci"],
       [8605, "fix-ci"],
     ],
