@@ -85,9 +85,9 @@
 #                               among N, which spend their own pool; 0 for a
 #                               token with no reading
 #
-# pr-require-checks.yml's ci-status job carries this file verbatim in its
-# API_BUDGET_SH env (it has no checkout of this directory);
-# log-api-budget.test.mjs keeps the two the same.
+# pr-require-checks.yml's ci-status job and mark-lanes step carry this file
+# verbatim in their API_BUDGET_SH env (neither has a checkout of this
+# directory); log-api-budget.test.mjs keeps the three the same.
 
 api_budget_read() {
   local state=${RUNNER_TEMP:-}/api-budget/${1:-} lines
