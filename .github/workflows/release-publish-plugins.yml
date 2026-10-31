@@ -18,11 +18,13 @@ name: release-publish-plugins
 # open. Current means main has changed no file the release changes (a fragment
 # it consumed, a CHANGELOG.md, a plugin.json) since its build base, the main
 # commit it was cut from; fragments main added since then ride the next
-# release. A scheduled run also rebuilds one that is not current, conflicted,
-# or failing ci-status on a base behind main; a push run never rebuilds, since
-# each rebuild cancels the release pull request's running checks (ADR 0048,
-# Rollout 3, Resolved decisions 1 and 2, and the 2026-10-17 and 2026-10-20
-# amendments). Neither action rebuilds one in the merge queue:
+# release. It also rebuilds one that is not current, conflicted, or failing
+# ci-status on a base behind main with no hold label; a push run leaves that
+# to a later run while ci-status is pending or a GitHub Actions check run on the
+# head has not completed, since each rebuild cancels the release pull request's
+# running checks (ADR 0048, Rollout 3, Resolved decisions 1 and 2,
+# and the 2026-10-17, 2026-10-20 and 2026-10-31 amendments). Neither action
+# rebuilds one in the merge queue:
 # .github/scripts/release-publish-plugins/decide-rebuild.sh decides for both.
 # workflow_dispatch runs either action by hand.
 on:
@@ -35,19 +37,21 @@ on:
     inputs:
       action:
         description: >-
-          build: open the release pull request, or rebuild it when main holds a
-          fragment it did not consume for a plugin it bumps, or when it has a
-          merge conflict. merge: check it against main's live tip, then queue
-          the head that passed; a failed check rebuilds it instead.
+          build: open the release pull request, or rebuild it when main changed
+          a file it changes, when it has a merge conflict, or when its ci-status
+          failed on a base behind main with no hold label. merge: check it
+          against main's live tip, then queue the head that passed; a failed
+          check rebuilds it instead.
         type: choice
         options: [build, merge]
         default: build
 
 permissions: {}
 
-# One release at a time. A newer run supersedes a running one: the newest run
-# reads the newest main. A push run waits instead, so it never cancels a
-# scheduled run's rebuild that it would not redo.
+# One release at a time. A scheduled or dispatched run supersedes a running one,
+# since it reads the newest main; it can land between a push run's head write
+# and pull request edit, an accepted risk (ADR 0048, 2026-10-31 amendment). A
+# push run waits instead, so a burst of fragments never cuts a build short.
 concurrency:
   group: release-plugins
   cancel-in-progress: ${{ github.event_name != 'push' }}
@@ -81,6 +85,11 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
       # Read main at this moment, not at checkout: the check and the queue call
       # are seconds apart, and the merge queue re-runs the check on the exact
       # tree the release lands on (pr-require-checks.yml, check-plugins).
@@ -176,6 +185,11 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
       # The same decision the merge job makes (decide-rebuild.sh): a release
       # pull request in the merge queue is never rebuilt, since GitHub refuses
       # to update a queued branch.
