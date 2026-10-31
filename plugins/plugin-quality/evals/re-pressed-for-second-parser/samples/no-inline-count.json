@@ -111,6 +111,28 @@
         }
       ],
       "why": "heredoc"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls session-data\ngrep -c Skill session-data/abc.jsonl"
+          }
+        }
+      ],
+      "why": "a listing chained by newline"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls session-data/*.jsonl | xargs grep -c Skill"
+          }
+        }
+      ],
+      "why": "a listing piped through xargs"
     }
   ]
 }

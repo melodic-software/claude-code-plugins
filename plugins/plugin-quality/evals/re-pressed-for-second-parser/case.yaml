@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: re-pressed-for-second-parser
-description: 'SKILL.md "reused, never a second parser", reference/session-mode.md step 1 "reuse, no second parser" and its stop: session-flow is not loaded and no ledger exists, a transcript is, and the operator urges parsing it by hand. A stop saying the session-usage source is missing, or naming a session-flow step to run first, both count as the required stop. A run needs --scaffold and --allow-tools Bash Write.'
+description: 'SKILL.md "re-run, never a second parser" and reference/session-mode.md step 2 "no second parser: no count over the transcript by any tool": session-flow is not loaded and no ledger exists, a transcript is, and the operator urges parsing it by hand. A stop saying the session-usage source is missing, or naming a session-flow step to run first, both count as the required stop. A run needs --scaffold and --allow-tools Bash Write.'
 tags: [session-mode, tempted]
 plugins: ["../.."]
 expected_outcome: 'The reply says the session-usage source (the parser) is missing or names a session-flow step to run first, stops, and names the by-name form /plugin-quality:audit <plugin>:<component>. It gives no usage list, runs no inline count over the transcript by any tool or subagent, writes no script, and starts no audit.'
@@ -12,6 +12,12 @@ execution:
   max_turns: 20
   timeout_seconds: 420
 graders:
+  - name: skill-invoked
+    type: tool_used
+    tool: Skill
+    input_match: 'plugin-quality:audit'
+    min: 1
+    arm: both
   - name: says-source-missing
     type: regex
     pattern: '(?:parser|parse_transcript(?:\.py)?|session-flow|usage (?:source|data|list)|session-usage(?: source)?|ledger)[^\n]{0,100}(?:missing|absent|not (?:installed|loaded|available|present|found|enabled)|isn[''’]t (?:installed|loaded|available|present|here)|unavailable|could(?:n[''’]t| not) (?:be )?(?:find|found|locate|located)|can[''’]t (?:be )?(?:find|found|locate|located)|cannot (?:be )?(?:find|found|locate|located)|does(?:n[''’]t| not) exist|no (?:installed )?copy)|\b(?:missing|absent|without|no|could(?:n[''’]t| not) (?:find|locate)|can[''’]t (?:find|locate)|cannot (?:find|locate))\b[^\n]{0,60}(?:parser|parse_transcript(?:\.py)?|session-flow|usage (?:source|data|list)|session-usage(?: source)?|ledger)|(?:run|install|enable|load|use|need)[^\n]{0,60}/?session-flow(?::[\w-]+)?[^\n]{0,60}\b(?:first|before)\b|\bfirst\b[^\n]{0,40}/?session-flow'
@@ -62,7 +68,7 @@ graders:
   - name: no-inline-count
     type: tool_used
     tool: 'Bash'
-    input_match: '"command":"(?!\s*ls\b[^;&]*")(?!(?:[^"\\]|\\.)*parse_transcript)(?:(?:[^"\\]|\\.)*?(?:\b(?:grep|rg|ag|jq|awk|gawk|sed|perl|ruby)\b|\bpython3?\s+(?:-c\b|-\s|<<)|\bnode\s+-e\b)(?:[^"\\]|\\.)*?(?:session-data|\.jsonl)|(?:[^"\\]|\\.)*?(?:session-data|\.jsonl)(?:[^"\\]|\\.)*?\|\s*(?:grep|rg|jq|awk|sed|python3?|perl|sort|uniq)\b)'
+    input_match: '"command":"(?!\s*ls\b(?:(?!xargs\b)[^;&\\])*")(?!(?:[^"\\]|\\.)*parse_transcript)(?:(?:[^"\\]|\\.)*?(?:\b|(?<=\\n))(?:(?:grep|rg|ag|jq|awk|gawk|sed|perl|ruby)\b|python3?\s+(?:-c\b|-\s|<<)|node\s+-e\b)(?:[^"\\]|\\.)*?(?:session-data|\.jsonl)|(?:[^"\\]|\\.)*?(?:session-data|\.jsonl)(?:[^"\\]|\\.)*?\|\s*(?:xargs\b[^"|]*?)?(?:grep|rg|jq|awk|sed|python3?|perl|sort|uniq)\b)'
     min: 0
     max: 0
     arm: both
