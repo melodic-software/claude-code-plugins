@@ -2425,7 +2425,7 @@ RDT_GWT_FORMS=(
   'git worktree remove -f TGT'
   'git worktree remove -f -f TGT'
   'git worktree remove TGT --force'
-  'git worktree remove --fo -- TGT'
+  'git worktree remove --forc -- TGT'
   'git -c core.x=1 --no-pager worktree remove -ff TGT'
 )
 rdt_gwt() { # <label> <want> <target> [guard_invoke option ...]: every form
