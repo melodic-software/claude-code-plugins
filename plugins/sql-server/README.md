@@ -68,8 +68,10 @@ A timer of `requestTimeoutMs` starts once the call has a connection, covers the 
 statement and the check, and cancels the running request when it fires.
 The row cap counts rows as they stream: the first row past `rowCap` cancels the request, and the
 call returns the rows it kept with `truncated: true`. After a timeout, a cancel, an error or a
-truncated result, the connection is closed. Until measurement sets them, the defaults are
-provisional: `requestTimeoutMs` 30000, `lockTimeoutMs` 5000, `rowCap` 1000.
+truncated result, the connection is closed. The defaults, `requestTimeoutMs` 30000,
+`lockTimeoutMs` 5000 and `rowCap` 1000, come from a measurement against a local container with a
+concurrent writer: [reference/read-safety-measurement.md](reference/read-safety-measurement.md)
+holds the results, the chosen row and how to rerun `scripts/measure-read-safety.mjs`.
 
 The pool holds at most two connections, each opened to one database of the allow-list, and closes
 a connection idle for 30 seconds. Every session carries the application name
