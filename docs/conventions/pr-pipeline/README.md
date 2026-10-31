@@ -1389,16 +1389,25 @@ the rules that only tighten in
   `scripts/plan-test-lanes.sh`, the pull request runs' selector, over the paths changed since that
   run's SHA, run from a worktree of that green SHA with no token in its environment, so no merge
   judged can narrow its own set. A window that changes the selector's own files, or a plan that
-  picks no suite, has no set. A suite is named from its test leg's log; a failed job whose
-  suites cannot be named, a set that cannot be computed, and the merge gate's own suites
-  (`GATE_SUITE_PREFIXES` in `babysit_postmerge.py`) demote as before. A suite outside the set
+  picks no suite, has no set. A suite is named from its test leg's log, in a Python leg only from
+  lines carrying the nonce that step prints; a failed job whose suites cannot be named (a token
+  without GitHub's `Actions` read permission cannot read the log, so it names none), a set that
+  cannot be computed, and the merge gate's own suites
+  (`GATE_SUITE_PREFIXES` in `babysit_postmerge.py`) demote as before. A suite outside the set that
+  failed again on a re-run also demotes, unless it passed on an earlier attempt of the same commit
+  (it is non-deterministic) or a full run at the last green commit failed it on some attempt (the
+  merges did not cause it).
+  Any other suite outside the set
   demotes nothing, the window counts as verified (its `max-in-flight` slots free), and the suite
   is quarantined: an issue marked `<!-- post-merge-quarantine suite=<path> -->`, labeled
   needs-human and assigned to the suite's CODEOWNERS user when a rule names one, filed by the
   agent identity's `--remediate` or by post-merge-demotion-alert.yml. While that issue is open
   and younger than `merge.quarantine-days` (default 7, at most 30), the suite's out-of-set failures
   demote nothing; after that they demote again, even when the suite was already failing before the
-  merge. A failure inside the set demotes whether or not the suite
+  merge. An issue whose body was edited after filing, or whose title no longer names its marker's
+  suite, excuses nothing from then on: the suite demotes until the issue is closed. Closing the
+  issue ends the quarantine, and the suite's next failure outside the set files a new issue whose
+  days start again, so closing an expired issue restarts its quarantine. A failure inside the set demotes whether or not the suite
   is quarantined, and an excused run gets no red-main report. Quarantine never changes a pull request's `ci-status` and starts no
   re-run.
 - **Repeat queue ejections.** `merge.max-queue-ejections` (default 2, at most 20) stops the

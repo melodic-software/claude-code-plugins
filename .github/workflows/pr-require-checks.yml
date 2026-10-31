@@ -3072,11 +3072,18 @@ jobs:
             exit 1
           fi
           rc=0
+          # In a variable no suite inherits, so a suite's output cannot print it:
+          # the post-merge judge reads only the lines carrying it (suite_failures).
+          nonce="$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')"
+          echo "Advisory nonce: $nonce"
           while IFS= read -r suite; do
             workers=()
             [[ $suite == plugins/planning/surface/* ]] && workers=(-n auto --dist loadscope)
-            echo "python -m pytest -q -o tmp_path_retention_policy=none ${workers[*]} -- $suite" >&2
-            python -m pytest -q -o tmp_path_retention_policy=none "${workers[@]}" -- "$suite" || rc=1
+            echo "python -m pytest -q -o tmp_path_retention_policy=none ${workers[*]} -- $suite # nonce $nonce" >&2
+            suite_rc=0
+            python -m pytest -q -o tmp_path_retention_policy=none "${workers[@]}" -- "$suite" || suite_rc=$?
+            echo "pytest exit $suite_rc -- $suite # nonce $nonce" >&2
+            [ "$suite_rc" = 0 ] || rc=1
           done <"$RUNNER_TEMP/leg-suites.txt"
           exit "$rc"
 
