@@ -336,26 +336,35 @@ route to the finding-suppression convention, never a new consumer-side file.
 ### Babysit config
 
 `/source-control:babysit-prs` is configured through the plugin's native `userConfig`, which Claude
-Code owns (`pluginConfigs`), this skill never hand-edits it. It documents and walks the two
-sanctioned paths:
+Code owns (`pluginConfigs`), this skill never hand-edits it. It documents and walks the sanctioned
+routes:
 
 - **Interactive:** `/plugin configure source-control@<marketplace>` (or the `/plugin` dialog → source-control →
   configure), any time. Claude Code prompts per key using the manifest's types and defaults.
-- **Headless / CI:** rerun the install with the new values:
+- **Headless / CI, preferred (Claude Code 2.1.285 or later):** from the project the plugin is
+  installed in, `claude plugin configure source-control@<marketplace> --values-stdin < values.json`,
+  with `values.json` holding `{"KEY": "VALUE"}`: every value a string, booleans included, and keys
+  left out keep their saved values.
+- **Headless / CI, fallback (an older release):** rerun the install with the new values:
   `claude plugin install source-control@<marketplace> -s <scope> --config KEY=VALUE` (repeatable
-  per key). Multi-value keys (`babysit_watched_owners`, `babysit_self_logins`,
-  `babysit_review_bot_logins`, `babysit_extra_bot_logins`) are supplied comma-joined. Against an
-  already-installed plugin it prints `already installed` **and still writes the value** (per the
-  marketplace's plugin-reconfiguration convention,
-  <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
-  which owns the verified-version record). Do **not** uninstall to reconfigure: uninstalling drops
-  this plugin's entire stored `pluginConfigs` entry, resetting every option in the README's
-  Options reference to its manifest default. `-s` defaults to `user`; pass the scope
-  `claude plugin list` reports for this plugin, and run from that project's directory for a
-  `project`/`local` scope. A rerun at another scope adds an install record at that scope and
-  enables the plugin there (measured in both directions); the value itself always lands in user
-  settings. A rejected value
-  prints a warning yet exits 0, so read the output.
+  per key). Against an already-installed plugin it prints `already installed` **and still writes
+  the value**.
+
+Both routes follow the marketplace's plugin-reconfiguration convention
+(<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md>,
+which owns the verified-version record). For the rerun, multi-value keys (`babysit_watched_owners`,
+`babysit_self_logins`, `babysit_review_bot_logins`, `babysit_extra_bot_logins`) are supplied
+comma-joined; the convention's record has not verified `configure` for these `multiple` options, so
+prefer the rerun or the interactive dialog for them. Do **not** uninstall to reconfigure:
+uninstalling drops this plugin's entire stored `pluginConfigs` entry, resetting every option in the
+README's Options reference to its manifest default. Scope: the value always lands in user settings.
+Run either route from the project the plugin is installed in (`configure` has no scope flag). For
+the rerun, `-s` defaults to `user`, so pass the scope `claude plugin list` reports for this plugin:
+a rerun at another scope adds an install record at that scope and enables the plugin there
+(measured in both directions). From the home directory, where the list can label one settings file
+both `user` and `project`, pass `user`. Check each route's own
+failure signal: `configure` rejects a bad value with exit 1 and saves nothing, but stores an empty
+string as `""`; the rerun prints a warning for a rejected value yet exits 0, so read its output.
 
 When an uninstall is warranted for a reason other than reconfiguring (troubleshooting, changing
 scopes, reinstalling a version), pass `--keep-data`. Uninstalling from the **last remaining scope**
@@ -370,7 +379,7 @@ check where the roots actually resolve before assuming the directory is disposab
 worktrees are ephemeral scratch that rebuild from the forge, but the state directory and any
 `/source-control:worktree` tree still holding uncommitted work do not.
 
-Reconfiguring `userConfig` does not reach the already-running session, after either path, the new
+Reconfiguring `userConfig` does not reach the already-running session, after any route, the new
 values become visible only in a fresh session. Do not re-run the babysit `check` in the same session
 expecting the change and report a false failure; instead report "reconfigured; verify with `check` in
 a fresh session".

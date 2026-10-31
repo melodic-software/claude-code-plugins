@@ -6,10 +6,7 @@ first numeric version component changes or, below 1.0, the second does; an
 Actions update is `auto` only from the `actions`, `github` or `anthropics`
 publisher; a red `ci-status` and anything unreadable are `review`. Commit
 shapes are those of the REST pull-request commits API; the metadata block is
-the one Dependabot writes into its commit message; the github-actions[bot]
-commit is the repository's `[dependabot skip]` version bump, as
-`scripts/lib/changelog-fragments.sh` (`dependabot_only`) accepts it; the round
-marker is the one pr-run-activity.md's "prepare: dependency-review" defines.
+the one Dependabot writes into its commit message; the round marker is the one pr-run-activity.md's "prepare: dependency-review" defines.
 """
 
 from __future__ import annotations
@@ -73,10 +70,6 @@ def security(subject: str, name: str, version: str) -> dict[str, Any]:
     """A security update's commit: its metadata carries no update-type."""
     body = metadata((name, None, version)).split("\n", 1)[1]
     return commit(f"{subject}\n{body}")
-
-
-def no_files(sha: str) -> list[str] | None:
-    raise AssertionError(f"files read for a Dependabot commit {sha}")
 
 
 def tier(
@@ -288,31 +281,23 @@ class Commits(unittest.TestCase):
         }
         for reason, other in cases.items():
             with self.subTest(reason=reason):
-                refusal = dependabot.commits_refusal(
-                    [commit(self.MESSAGE), other], no_files
-                )
+                refusal = dependabot.commits_refusal([commit(self.MESSAGE), other])
                 self.assertEqual(refusal, f"{reason}:{SHA[:12]}")
-        self.assertIsNone(dependabot.commits_refusal([commit(self.MESSAGE)], no_files))
-        self.assertEqual(dependabot.commits_refusal([], no_files), "commits-missing")
+        self.assertIsNone(dependabot.commits_refusal([commit(self.MESSAGE)]))
+        self.assertEqual(dependabot.commits_refusal([]), "commits-missing")
 
-    def test_the_version_bump_commit_is_accepted(self) -> None:
-        bump = commit(
+    def test_a_github_actions_commit_is_refused(self) -> None:
+        actions = commit(
             "chore(plugins): release bump for Dependabot update [dependabot skip]",
             sha=ACTIONS_SHA,
             name="github-actions[bot]",
             email="41898282+github-actions[bot]@users.noreply.github.com",
         )
-        paths = ["plugins/miro/.claude-plugin/plugin.json", "plugins/miro/CHANGELOG.md"]
-        self.assertIsNone(dependabot.commit_refusal(bump, lambda sha: paths))
-        for files, message in (
-            (["plugins/miro/server.js"], bump["commit"]["message"]),
-            (None, bump["commit"]["message"]),
-            (paths, "chore(plugins): release bump"),
-        ):
-            with self.subTest(files=files, message=message):
-                other = {**bump, "commit": {**bump["commit"], "message": message}}
-                self.assertIsNotNone(
-                    dependabot.commit_refusal(other, lambda sha, f=files: f)
+        for lane in (None, IDENTITY):
+            with self.subTest(lane=lane):
+                self.assertEqual(
+                    dependabot.commit_refusal(actions, lane),
+                    f"commit-not-dependabot:{ACTIONS_SHA[:12]}",
                 )
 
     def test_a_lanes_app_fix_commit_counts_only_for_a_reviewed_pr(self) -> None:
@@ -323,12 +308,12 @@ class Commits(unittest.TestCase):
             login=IDENTITY,
         )
         self.assertEqual(
-            dependabot.commit_refusal(fix, no_files),
+            dependabot.commit_refusal(fix),
             f"commit-not-dependabot:{SHA[:12]}",
         )
-        self.assertIsNone(dependabot.commit_refusal(fix, no_files, IDENTITY))
+        self.assertIsNone(dependabot.commit_refusal(fix, IDENTITY))
         unmarked = {**fix, "commit": {**fix["commit"], "message": "fix: adapt"}}
-        self.assertIsNotNone(dependabot.commit_refusal(unmarked, no_files, IDENTITY))
+        self.assertIsNotNone(dependabot.commit_refusal(unmarked, IDENTITY))
 
 
 def marker(
@@ -757,7 +742,7 @@ PUSH_VECTORS: list[dict[str, Any]] = [
         "want": "pushed-by:agent-lanes[bot]",
     },
     {
-        "why": "a lanes App push carrying a version-bump commit under its tip",
+        "why": "a lanes App push carrying a github-actions[bot] commit under its tip",
         "commits": [
             (_D, "dependabot", ()),
             (_B, "actions", (_D,)),
@@ -770,13 +755,13 @@ PUSH_VECTORS: list[dict[str, Any]] = [
         "want": "pushed-by:agent-lanes[bot]",
     },
     {
-        "why": "the version bump, pushed by github-actions[bot]",
+        "why": "a github-actions[bot] commit, pushed by github-actions[bot]",
         "commits": [(_D, "dependabot", ()), (_B, "actions", (_D,))],
         "pushes": [
             ("push", "actions", _D, _B),
             ("branch_creation", "dependabot", _ZERO, _D),
         ],
-        "want": None,
+        "want": "pushed-by:github-actions[bot]",
     },
     {
         "why": "a github-actions[bot] push carrying a Dependabot-authored commit",
@@ -867,7 +852,7 @@ class Pushes(unittest.TestCase):
     rewrite of it: a commit's author is text anyone can write; the pusher is
     not."""
 
-    BUMP = commit(
+    ACTIONS_COMMIT = commit(
         "chore(plugins): release bump [dependabot skip]",
         sha=ACTIONS_SHA,
         name="github-actions[bot]",
@@ -887,13 +872,16 @@ class Pushes(unittest.TestCase):
             "pushed-by:maintainer",
         )
 
-    def test_github_actions_may_push_only_its_own_bump_commit(self) -> None:
+    def test_a_github_actions_push_is_refused(self) -> None:
         history = [
             push("push", ACTIONS_SHA, "github-actions[bot]"),
             push("branch_creation", SHA),
         ]
-        self.assertIsNone(
-            dependabot.push_refusal(history, ACTIONS_SHA, [commit("x"), self.BUMP])
+        self.assertEqual(
+            dependabot.push_refusal(
+                history, ACTIONS_SHA, [commit("x"), self.ACTIONS_COMMIT]
+            ),
+            "pushed-by:github-actions[bot]",
         )
         # A forged Dependabot-authored commit pushed by a workflow token.
         forged = [
@@ -1700,58 +1688,6 @@ class FixRule(unittest.TestCase):
         ):
             reason = dependabot.fix_refusal([item], [("npm", "/")], entry, text)
             self.assertTrue(str(reason).startswith(why), reason)
-
-
-class BumpRule(unittest.TestCase):
-    """The version-bump commit (`bump_refusal`, the pr-unblock lane's
-    `bumpRefusal`): plugin.json may change only its `version`."""
-
-    @staticmethod
-    def plugin(version: str, **extra: Any) -> str:
-        return json.dumps(
-            {"name": "p", "version": version, "description": "d", **extra}
-        )
-
-    def refusal(
-        self, after: str, paths: tuple[str, ...] = (), mode: int = 0o100644
-    ) -> Any:
-        files = [
-            {"filename": p, "status": "modified"}
-            for p in paths
-            or ("plugins/p/.claude-plugin/plugin.json", "plugins/p/CHANGELOG.md")
-        ]
-
-        def text(side: str, path: str) -> str:
-            if path.endswith("plugin.json"):
-                return self.plugin("1.0.0") if side == "before" else after
-            return "# Changelog\n"
-
-        return dependabot.bump_refusal(
-            files, lambda path: {"type": "blob", "mode": mode}, text
-        )
-
-    def test_only_the_version_changes(self) -> None:
-        plugin_json = "plugins/p/.claude-plugin/plugin.json"
-        self.assertIsNone(self.refusal(self.plugin("1.0.1")))
-        hooks = self.plugin("1.0.1", hooks={"PreToolUse": []})
-        self.assertEqual(
-            self.refusal(hooks), f"bump-content:{plugin_json}:plugin-json-key"
-        )
-        self.assertEqual(
-            self.refusal(self.plugin("next")),
-            f"bump-content:{plugin_json}:plugin-json-version",
-        )
-        self.assertEqual(
-            self.refusal("", ("plugins/p/hooks/hooks.json",)),
-            "bump-path:plugins/p/hooks/hooks.json",
-        )
-        self.assertEqual(
-            self.refusal(self.plugin("1.0.1"), mode=0o120000),
-            f"bump-mode:{plugin_json}",
-        )
-        self.assertEqual(
-            dependabot.bump_refusal([], lambda p: None, lambda s, p: ""), "bump-empty"
-        )
 
 
 class BaseMergeShape(unittest.TestCase):

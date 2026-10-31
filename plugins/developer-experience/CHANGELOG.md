@@ -3,6 +3,12 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.10] - 2026-10-30
+
+### Changed
+
+- `/developer-experience:build-cli`'s No inherited handles rule now covers Windows ([#9507](https://github.com/melodic-software/claude-code-plugins/issues/9507)). A child given redirected streams starts with an explicit list of the handles it may inherit, naming only its null or file handles, and a child given none starts with inheritance off. The rule points at the Win32 `CreateProcessW` and `STARTUPINFOW` sections for why.
+
 ## [0.2.9] - 2026-10-30
 
 ### Changed

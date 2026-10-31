@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [2.0.3] - 2026-10-30
+
+### Changed
+
+- `/session-flow:setup`: the reconfiguration guidance names `claude plugin configure session-flow@<marketplace> --values-stdin` as the preferred headless route and keeps the `claude plugin install --config` rerun as its fallback for a Claude Code release before 2.1.285, with each route's scope rule and failure signal, per the plugin-reconfiguration convention.
+
 ## [2.0.2] - 2026-10-30
 
 ### Added

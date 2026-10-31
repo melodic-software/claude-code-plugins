@@ -20,6 +20,15 @@ a loop-layer invariant is a major bump (see the top of this file).
   subtraction and its rollover comparison. Measure-only is unchanged: no sample field reaches any
   decision or threshold.
 
+## [12.12.0] - 2026-10-30
+
+Minor. Guidance only; no topology, escalation-contract mechanism, capability-tier or §4 invariant changed.
+
+- **Kept owner holds.** §2 "When work stops for the owner" names the two pr-merge holds the owner
+  keeps, a trusted-actor widening and a file listing past the files API's cap, with the reason for
+  each. A high path still holds a pull request but no longer stops it for the owner, and only a
+  CRITICAL security finding does (owner decision 2026-10-30, #11020).
+
 ## [12.11.1] - 2026-10-30
 
 Patch. Corrects a posting-lanes row; no topology, escalation-contract, capability-tier or §4

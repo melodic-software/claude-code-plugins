@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.7] - 2026-10-30
+
+### Changed
+
+- `/verification:confirm` refreshes the feature a change touched inside a control-skill module, not the module as a whole: a hub match on a module `README.md` is resolved through that README's `## Sub-features` index lines to the `<module>/<feature>` id.
+
 ## [0.13.6] - 2026-10-30
 
 ### Changed

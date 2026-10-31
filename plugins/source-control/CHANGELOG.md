@@ -3,6 +3,44 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.4.5] - 2026-10-31
+
+### Fixed
+
+- The Dependabot merge gates no longer admit a `github-actions[bot]` commit or push. The `[dependabot skip]` version-bump commit they accepted had one writer, `pr-bump-plugin-version.yml`, which is gone, so `commit_refusal` now refuses every commit but Dependabot's (and, after a review, the lanes App's fix commit) with `commit-not-dependabot:<sha>`, and `push_refusal` refuses a `github-actions[bot]` push with `pushed-by:github-actions[bot]`. `commit_refusal` and `commits_refusal` drop their unused `files` argument, and `bump_refusal` and `plugin_json_refusal` are removed.
+
+## [4.4.4] - 2026-10-30
+
+### Fixed
+
+- **babysit-prs:** a high path (a floor path, a configured denied path, or an aliasing path,
+  symlink, submodule or mode change) no longer stops a pull request for the owner:
+  `babysit_risk.PERSON_PREFIXES` drops `high-path:`, so `person_reasons` no longer names it and the
+  merge gate adds no `needs-human` label for it. The path still holds the pull request. A
+  trusted-actor widening, a listing past the files API's cap and a CRITICAL security finding still
+  stop for the owner; an IMPORTANT security finding does not.
+
+- `babysit_verify_evidence.py` reads GitHub's live artifact `total_count` from one page before its
+  whole listings and sizes their shared timeout from it: each whole listing and its 7-page top-up at
+  1 s a page, at most 300 s (`LISTING_TIMEOUT_SECONDS`), or less when the caller names the limit it
+  kills the reader at in `BABYSIT_VERIFY_DEADLINE_SECONDS` (and itself in `BABYSIT_VERIFY_CALLER`),
+  less 15 s for the reads after the listing. A whole listing that cannot fit refuses
+  `verify:unreadable` before paging, with the pages, the seconds they need and the budget (and the
+  caller) in the detail, instead of being killed with no reason. That detail starts with
+  `DEADLINE_UNREADABLE` when the caller's limit, not the 300 s cap, is what it does not fit in. The
+  caller's limit bounds the count read too, and the whole listings' timeout is at least gh's 60 s
+  per-call default unless the cap or that limit leaves less.
+
+## [4.4.3] - 2026-10-30
+
+### Changed
+
+- `/source-control:setup`: the babysit config section names `claude plugin configure source-control@<marketplace> --values-stdin` as the preferred headless route and keeps the `claude plugin install --config` rerun as its fallback for a Claude Code release before 2.1.285, with each route's scope rule and failure signal, per the plugin-reconfiguration convention.
+
+### Fixed
+
+- **resolve-conflicts:** a new second discipline, ahead of the Task, tells the agent to decline a bulk side-pick even when the user asks for it. It names the commands to leave unrun (`git checkout --ours/--theirs`, `git restore --ours/--theirs`, `-X ours/theirs`, `--strategy-option ours/theirs`, `-s ours`, and any command that writes one side's or one ref's version over a conflicted path) and what to do instead: list the unmerged paths, recover each side's intent, then resolve each file or stop and ask. When a file's evidence says one side wins, the agent writes that side by editing the file. Before this, the refusal was only a definition inside the first discipline, and aborting was the only shortcut with a stated alternative.
+
 ## [4.4.2] - 2026-10-30
 
 ### Changed

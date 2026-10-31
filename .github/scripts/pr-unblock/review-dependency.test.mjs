@@ -303,8 +303,8 @@ test("select reads the metadata in Dependabot's commits, and not in another auth
   );
 });
 
-test("select counts a version-bump commit's paths as checked", async () => {
-  const bump = {
+test("select makes a github-actions[bot] commit review, even one touching only covered files", async () => {
+  const actions = {
     sha: OTHER,
     commit: {
       message: "chore: bump [dependabot skip]",
@@ -312,16 +312,17 @@ test("select counts a version-bump commit's paths as checked", async () => {
       ...SIGNED,
     },
   };
-  const files = [{ filename: "package-lock.json" }, { filename: "plugins/x/CHANGELOG.md" }];
+  const files = [{ filename: "package-lock.json" }];
   const result = await select({
-    api: fakeApi({ pull: { title: "bump x from 1.4.0 to 1.4.1" }, files, commits: [dependabotCommit(HEAD), bump], commitFiles: { [OTHER]: ["plugins/x/CHANGELOG.md"] } }),
+    api: fakeApi({ pull: { title: "bump x from 1.4.0 to 1.4.1" }, files, commits: [dependabotCommit(HEAD), actions], commitFiles: { [OTHER]: ["package-lock.json"] } }),
     pr: 7,
     headSha: HEAD,
     appId: APP,
     dependabotId: DEPENDABOT,
     config: [["npm", "/"]],
   });
-  assert.equal(result.decision, "skip");
+  assert.equal(result.decision, "proceed");
+  assert.deepEqual(result.file.classification.reasons, [`commit-not-dependabot:${OTHER.slice(0, 12)}`]);
 });
 
 test("select counts no round marker at a head the pull request no longer has", async () => {

@@ -46,23 +46,31 @@ surface, which setup must not hand-edit (Check-only carve-out, native `userConfi
   plugin-reconfiguration convention
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#verified-version-record>,
   which owns the verified-version record): interactive `/plugin configure skill-quality@<marketplace>`
-  any time, or headless `claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<dir>`
-  (repeatable per key), rerun against the already-installed plugin. Pass the scope
-  `claude plugin list` reports, and run from that project's directory for a `project`/`local`
-  scope, and read the convention's verified-version record (anchored above) for what a rerun at
-  another scope does before presenting it. Do **not** uninstall to reconfigure. Read the command's output
-  rather than trusting its exit code. The convention's
+  any time. Headless, preferred (Claude Code 2.1.285 or later):
+  `claude plugin configure skill-quality@<marketplace> --values-stdin < values.json`, with
+  `values.json` holding `{"skills_root": "<dir>"}` (keys left out keep their saved values).
+  Headless fallback (an older release):
+  `claude plugin install skill-quality@<marketplace> -s <scope> --config skills_root=<dir>`
+  (repeatable per key), rerun against the already-installed plugin. Do **not** uninstall to
+  reconfigure: it resets every option to its manifest default. Scope: the value always lands in
+  user settings; run either route from the project the plugin is installed in (`configure` has
+  no scope flag), and for the rerun pass the scope `claude plugin list` reports, reading the
+  convention's verified-version record (anchored above) for what a rerun at another scope does
+  before presenting it. Observation is next-session (see the fresh-session rerun below). Check
+  each route's own failure signal: `configure` rejects a bad value with exit 1 and saves nothing,
+  but stores an empty string as `""`; the rerun exits 0 even when it rejects a value, so read its
+  output. The convention's
   [caveats section](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/plugin-reconfiguration/README.md#caveats-every-setup-skills-short-form-carries)
   records why for each of these rules; this skill does not restate it.
   This skill never writes user settings or `pluginConfigs`.
-  - **Record**: both convention sections above. **As of**: 2026-10-11. **Recheck trigger**:
+  - **Record**: both convention sections above. **As of**: 2026-10-30. **Recheck trigger**:
     either heading being renamed, or a newer Claude Code release being verified in the record.
   - **Pointer**: when the install, uninstall, or configure command's behavior is in doubt, fetch
     <https://code.claude.com/docs/en/plugins/cli-reference#plugin-install>,
     <https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall> and
     <https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure> live. **As of**:
-    2026-10-11. **Recheck trigger**: any of those sections changing what a rerun, an uninstall,
-    or `--config` does to stored options.
+    2026-10-30. **Recheck trigger**: any of those sections changing what a rerun, an uninstall,
+    `--config` or `--values-stdin` does to stored options.
 - **One-run override (no persistence):** for a single run against a different root, the checker also
   honors the `CHECK_SKILL_SKILLS_ROOT` environment variable; do not persist that variable on the user's
   behalf.
