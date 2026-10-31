@@ -235,7 +235,7 @@ def aggregate(records: list[dict]) -> dict:
     perf: Counter = Counter()
     # (side, event key) -> next tool -> {count, ok, failed, unknown}, from the stored events (capped per session).
     next_tools: dict[tuple[str, str], dict[str, dict[str, int]]] = defaultdict(dict)
-    events, dropped, active_s, turns = [], 0, 0, 0
+    events, dropped, duplicates, active_s, turns = [], 0, 0, 0, 0
     classes = Counter(census.session_class(r) for r in records)
     for record in records:
         friction = record.get("friction")
@@ -255,6 +255,7 @@ def aggregate(records: list[dict]) -> dict:
             else:
                 perf[name] += value
         dropped += friction.get("events_dropped") or 0
+        duplicates += friction.get("duplicates_dropped") or 0
         for event in friction.get("events") or []:
             if event.get("kind") in ("denied", "prompt-approved") and event.get("shape"):
                 shapes[(event["kind"], event.get("cause"), event.get("tool"), event["shape"])] += 1
@@ -298,6 +299,7 @@ def aggregate(records: list[dict]) -> dict:
         "perf": dict(perf),
         "events": events,
         "events_dropped": dropped,
+        "duplicates_dropped": duplicates,
     }
 
 
@@ -307,7 +309,8 @@ def render_mine(data: dict) -> str:
         f"# Friction: {window['since']} to {window['until']}",
         "",
         f"{data['sessions']} sessions ({', '.join(f'{v} {k}' for k, v in data['session_classes'].items()) or 'none'}), "
-        f"{data['active_hours']} active hours, {data['typed_turns']} typed turns.",
+        f"{data['active_hours']} active hours, {data['typed_turns']} typed turns, "
+        f"{data['duplicates_dropped']} duplicate result records dropped.",
         "",
         "Projects roots: " + "; ".join(f"{r['root']} ({r['via']})" for r in data["projects_roots"]) + ".",
     ]
