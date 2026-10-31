@@ -115,6 +115,9 @@ Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/disci
 
 ### Effort, source breadth
 
+The Effort row is the ceiling over discipline 8. Rationale and skipped-phase N/A: the discipline
+file's "Effort, source breadth".
+
 Caller effort for this run is `${CLAUDE_EFFORT}`. If that still begins with `${`, this body was read
 directly and the substitution never ran: run as `high`, every phase below. A value the table below
 does not name also runs as `high`.
@@ -127,9 +130,6 @@ from this load, not the researcher pin. Missing line: `high`, named in the artif
 | `low` | Phase 0 if bounded, Phase 1 at existing floors and under the cap below, Phase 2 as the mandatory falsification query only (no per-gap expansion). Skip Phase 3 and Phase 4 |
 | `medium` | Phase 0 through 2 in full (per-gap Phase 2 queries plus falsification). Skip Phase 3 and Phase 4 |
 | `high`, `xhigh`, `max` | Current full workflow |
-
-The Effort row is the ceiling over discipline 8. Rationale and skipped-phase N/A: the discipline
-file's "Effort, source breadth".
 
 **`breadth=` narrows, never widens.** A `breadth=low` or `breadth=medium` token in `$ARGUMENTS`
 selects that row when it is below caller effort; source breadth is the lower of the two, and
