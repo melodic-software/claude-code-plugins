@@ -8,6 +8,7 @@
 # newest hold comment was made by a `human` of the base commit's trusted-actor
 # list. It fails closed when it cannot tell.
 # test-scope: .github/workflows/pr-require-checks.yml
+# test-scope: .work-item-tracker.json
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
