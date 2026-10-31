@@ -183,11 +183,10 @@ export const runCode = (reason, { anyCodeEnds = false } = {}) => {
 // The security word runCode, with `anyCodeEnds`, reads in `reason`, as text
 // safe to show in a code span of a public comment: a match can hold free text
 // ("ignore ... instructions"), so it keeps only ASCII letters, digits, hyphens,
-// underscores and single spaces. "" when it names none, or opens with a hold
-// code, which holds on the code and not on a word.
+// underscores and single spaces. "" when it names none.
 export const securityWord = (reason) => {
   const text = reasonText(reason);
   const found = CODES.find(([, code]) => code.test(text));
-  const word = !found ? (SECURITY_WORD.exec(text)?.[0] ?? "") : stopRoute(found[0]) === "hold" ? "" : endingRiskWord(text.slice(found[1].exec(text)[0].length));
+  const word = found ? endingRiskWord(text.slice(found[1].exec(text)[0].length)) : (SECURITY_WORD.exec(text)?.[0] ?? "");
   return word.replaceAll(/[^A-Za-z0-9_-]+/g, " ").trim();
 };

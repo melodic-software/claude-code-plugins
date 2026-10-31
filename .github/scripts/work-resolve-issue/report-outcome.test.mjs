@@ -3763,6 +3763,9 @@ test("a spent intake round names the word from whichever of the run's words hold
   const spent = capRetries(plan, 1);
   assert.equal(spent.stop, "security-risk");
   assert.ok(wordLine(spent.comment)?.startsWith(`${WORD_LINE}\`token\`.`), spent.comment);
+  const coded = capRetries(decide({ ...plain, outcome: { exit: "pushback", reason: "Which helper?", title: "", summary: "design-change: the token store needs a new shape" } }), 1);
+  assert.equal(coded.stop, "security-risk");
+  assert.ok(wordLine(coded.comment)?.startsWith(`${WORD_LINE}\`token\`.`), coded.comment);
 });
 
 test("a hold no word put there names no word", () => {
