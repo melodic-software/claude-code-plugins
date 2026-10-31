@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "---\nwritten_against: developer-experience@0.1.0\n---\n# Developer tooling conventions\n\n## Tools\n<!-- developer-experience: source=chosen -->\n- `bfk release <version>`: interactive; asks for confirmation before tagging. No flags bypass the prompt.\n- `bfk report`: prints a summary of `data/accounts.jsonl`.\n- `bfk migrate [--dry-run] [--yes] [--json]`: migrates `data/accounts.jsonl` from v1 to v2, backing up the v1 file first.\n- `scripts/run_tests.sh`: runs the unit tests.\n- `scripts/release.ps1`: tags a release on Windows through `bfk release`.\n\n## Shared helpers\n<!-- developer-experience: source=chosen -->\n- Run external processes through `run` in `bfk/proc.py`.\n",
+      "why": "a Tools line for the subcommand"
+    },
+    {
+      "answer": "## Tools\n<!-- developer-experience: source=chosen -->\n- `bfk report`: prints a summary of `data/accounts.jsonl`.\n- `scripts/migrate_accounts.py`: v1 to v2 Migration of the account store.\n\n## Not yet\n- `--json` on `bfk release`.\n",
+      "why": "a standalone script, capitalized"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "## Tools\n<!-- developer-experience: source=chosen -->\n- `bfk report`: prints a summary of `data/accounts.jsonl`.\n\n## Not yet\n- `bfk migrate` for the v2 record shape.\n",
+      "why": "near miss: listed under Not yet"
+    },
+    {
+      "answer": "## Tools\n<!-- developer-experience: source=chosen -->\n- `bfk release <version>`: interactive; asks for confirmation before tagging. No flags bypass the prompt.\n- `bfk report`: prints a summary of `data/accounts.jsonl`.\n- `scripts/run_tests.sh`: runs the unit tests.\n- `scripts/release.ps1`: tags a release on Windows through `bfk release`.\n",
+      "why": "the seeded section, unchanged"
+    },
+    {
+      "answer": "# brackenfold\n\nAccount tooling. Run `python3 -m bfk.cli migrate --dry-run` before migrating.\n",
+      "why": "answer to a different question: README text with no Tools section"
+    }
+  ]
+}

@@ -48,12 +48,16 @@ that asymmetry explicitly rather than leaving it to a positional restatement:
   value is context the guard resolves at runtime.
 
 This module sits on the always-on ``Bash|PowerShell`` PreToolUse path, so it
-imports nothing beyond ``re`` and builds its tables once at import.
+imports only the standard library (the platform's lock module only when the
+run-marker lock is taken) and builds its tables once at import.
 """
 
 from __future__ import annotations
 
+import os
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 
 TIERS = frozenset({"high", "medium", "low"})
 
@@ -82,8 +86,58 @@ ENGINE_OWNED_DIRS = frozenset(
 ENGINE_OWNED_FILES = frozenset({"catalog.json", "catalog.md"})
 
 # A run marker this old reads as no open run: the belt stands down, and the
-# engine deletes the marker on its next call.
+# engine deletes the marker on that session's next call.
 RUN_IDLE_TIMEOUT_SECONDS = 3600.0
+
+# Held while the guard reads and rewrites a run marker and while the engine
+# reads and deletes one, so two hooks in one parallel batch cannot interleave
+# a check with another's write. Not ``*.json``, so it is never read as a marker.
+RUN_LOCK_FILENAME = ".lock"
+
+
+def run_marker_filename(session_id: str) -> str:
+    """The run marker's file name under ``RUN_MARKER_DIRNAME`` for one session."""
+    safe = "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in session_id)
+    return f"{safe}.json"
+
+
+def _set_run_marker_lock(fd: int, take: bool) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_LOCK if take else msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(fd, fcntl.LOCK_EX if take else fcntl.LOCK_UN)
+
+
+@contextmanager
+def run_marker_lock(runs: str | os.PathLike[str]) -> Iterator[None]:
+    """Hold the exclusive run-marker lock in ``runs``, creating both if absent.
+
+    Best effort: when the lock file cannot be opened or locked, the body runs
+    unlocked, so a lock failure never costs the marker write it guards.
+    """
+    os.makedirs(runs, exist_ok=True)
+    fd: int | None = None
+    try:
+        fd = os.open(
+            os.path.join(runs, RUN_LOCK_FILENAME), os.O_RDWR | os.O_CREAT, 0o600
+        )
+        _set_run_marker_lock(fd, True)
+    except OSError:
+        if fd is not None:
+            os.close(fd)
+        fd = None
+    try:
+        yield
+    finally:
+        if fd is not None:
+            with suppress(OSError):
+                _set_run_marker_lock(fd, False)
+            os.close(fd)
 
 
 def is_engine_owned(relative: str) -> bool:

@@ -1535,6 +1535,29 @@ jobs:
             cp -R "$RUNNER_TEMP/setup-env/$dir/node_modules" "$GITHUB_WORKSPACE/$dir/"
           done
 
+      # claude-code-action sets GH_TOKEN and GITHUB_TOKEN to the lane token in
+      # its own environment and hands that whole environment to Claude
+      # (src/entrypoints/run.ts:189-191, base-action/src/parse-sdk-options.ts:279
+      # at the pinned SHA).
+      # The environment scrub keeps both for Bash, so checkout code a wrapper
+      # runs could read the token from the Bash shell's or the sandbox's pid 1
+      # /proc/<pid>/environ. The settings' env sets both to empty for Claude's
+      # own subprocesses; the action's MCP servers, commit signing among them,
+      # still get the token from their own config env
+      # (src/mcp/install-mcp-server.ts:116-148). Bash here runs only what the
+      # allow rules name, the wrappers among them, which unset both anyway.
+      - name: Keep the GitHub token out of Bash
+        id: skill-settings
+        if: >-
+          steps.lane-token.outputs.token != '' && steps.config.outputs.kind == 'skill'
+        env:
+          SETTINGS_JSON: ${{ steps.config.outputs.settings-json }}
+        run: |
+          settings=$SETTINGS_JSON
+          [ -n "$settings" ] || settings='{}'
+          json=$(jq -c '.env = (.env // {}) + {GH_TOKEN: "", GITHUB_TOKEN: ""}' <<<"$settings")
+          echo "json=$json" >>"$GITHUB_OUTPUT"
+
       # A failure does not stop the job here: the next step fails it unless the failure
       # is only the turn cap on a successful result.
       - name: Run the skill activity
@@ -1546,11 +1569,10 @@ jobs:
         env:
           # Strips the OAuth token and other credentials from Bash, hook and
           # MCP subprocesses and gives Bash its own PID namespace, so /proc
-          # shows no ancestor's env. It keeps GH_TOKEN and GITHUB_TOKEN, so a
-          # subprocess still holds this activity's GitHub token
+          # shows no ancestor's env. It keeps GH_TOKEN and GITHUB_TOKEN
           # (code.claude.com/docs/en/env-vars, as of 2026-10-04; recheck when
           # the CLAUDE_CODE_SUBPROCESS_ENV_SCRUB row stops listing GH_TOKEN
-          # and GITHUB_TOKEN as kept).
+          # and GITHUB_TOKEN as kept), which the settings below clear.
           CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
           # The action stops reading at Claude's first result message
           # (base-action/src/run-claude-sdk.ts:198-209), so background work
@@ -1579,8 +1601,9 @@ jobs:
           plugins: ${{ steps.stage.outputs.plugins }}
           prompt: ${{ steps.stage.outputs.prompt }}
           # The model, turns and effort come from the base config's models
-          # profile (resolve-config), never from text the run reads.
-          settings: ${{ steps.config.outputs.settings-json }}
+          # profile (resolve-config), never from text the run reads, with the
+          # GitHub token cleared for Bash.
+          settings: ${{ steps.skill-settings.outputs.json }}
           claude_args: >-
             --setting-sources user
             --permission-mode dontAsk

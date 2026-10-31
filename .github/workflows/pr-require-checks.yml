@@ -3958,7 +3958,7 @@ jobs:
           # closed as before. pr_read_put <answer> <args>... keeps an answer a
           # step read its own way; pr_read_forget drops every kept answer, and
           # every step that writes to the pull request runs it after its write
-          # (the cost-hold step and the lanes App step's auto-merge disarm).
+          # (the cost-hold step).
           # check-contract writes before any step reads through this cache.
           pr_read() {
             local file out
@@ -5777,7 +5777,6 @@ jobs:
           BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
           API_BUDGET_TOKEN: github-token
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          EVENT_ACTION: ${{ github.event.action }}
           GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
           GROUP_BASE_REF: ${{ github.event.merge_group.base_ref }}
           # The lanes kill switches, as check-kill-switch reads them: only the
@@ -5869,26 +5868,7 @@ jobs:
               exit 0
             fi
             BASE_SHA=$(jq -r '.base.sha' <<<"$pull")
-            # A push gives an armed pull request a head enable-auto-merge's
-            # reader has not judged: turn its auto-merge off until a reader
-            # run arms the new head. A failed mutation only warns: failing
-            # here would hold every push to an armed pull request red if this
-            # token cannot disarm. A missed disarm is backstopped by the merge
-            # queue's check for a pr-verify pass at the exact head it merges
-            # (below) and by enable-auto-merge's scheduled reader, which
-            # disarms a head it refuses within 15 minutes.
-            if [ "${EVENT_ACTION:-}" = synchronize ] && jq -e '.auto_merge != null' <<<"$pull" >/dev/null; then
-              # shellcheck disable=SC2016 # $id is a GraphQL variable
-              # gh-read-exempt: a GraphQL mutation, a write that is not retried; a failure only warns.
-              if gh api graphql -f query='mutation($id: ID!) { disablePullRequestAutoMerge(input: {pullRequestId: $id}) { clientMutationId } }' \
-                -f id="$(jq -r '.node_id' <<<"$pull")" >/dev/null; then
-                echo "#$pr: a push moved its head, so its native auto-merge is off until enable-auto-merge's next scheduled run judges the new head."
-                # The pull changed: later reads take it live.
-                pr_read_forget
-              else
-                echo "::warning::could not turn off native auto-merge on #$pr after a push to its head; the merge queue still needs a pr-verify pass at the head it merges, and the next scheduled enable-auto-merge run disarms a head its reader refuses."
-              fi
-            fi
+            # An armed pull request's new head is held by the merge queue's check for a pr-verify pass at the exact head it merges (below).
           fi
           if [[ ! $BASE_SHA =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::the base commit '$BASE_SHA' is not a commit SHA."
