@@ -19,6 +19,8 @@ Moved to [this section](../../contracts/commit-convention/README.md#the-neutral-
 
 Moved to [this section](../../contracts/commit-convention/README.md#two-governing-contracts).
 
+Layer rule in brief: enforcement reads the team-tracked pattern, and only where the team sets no `subject_pattern` does it fall back to the operator's git-ignored `docs/conventions/source-control.local.yaml`, never merged with a team pattern.
+
 ## Consumers
 
 Moved to [this section](../../contracts/commit-convention/README.md#consumers).
