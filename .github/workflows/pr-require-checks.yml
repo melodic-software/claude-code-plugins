@@ -4967,9 +4967,10 @@ jobs:
       # kill switch stopped (its kill-switch job succeeded and ran its
       # `Report the kill switch` step, so a switch was on when the run
       # started) fails too: the kill switch pauses review, it never waives it.
-      # Once it is off, a trusted person re-runs the review run, whose
+      # Once it is off, the lost-run reconciler re-runs the review run, whose
       # completion re-runs ci-status (pr-feedback-dispatch.yml rerun-ci-status);
-      # the admin bypass stays the break-glass. A
+      # reconcile.mjs matches the error below, and a trusted person's re-run
+      # does the same. The admin bypass stays the break-glass. A
       # kill-switch job that failed stopped the review too, and fails.
       # Dependabot, the release App and the
       # standards-sync App, by numeric author id, are exempt: no review lane
@@ -5329,7 +5330,7 @@ jobs:
               failed=1
               ;;
             stopped)
-              echo "::error::'$check' did not run on $HEAD_SHA ($url): a kill switch was on when it started. Once it is off, re-run all jobs of $url; ci-status re-runs when it finishes."
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): a kill switch was on when it started. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of $url; ci-status re-runs when it finishes."
               failed=1
               ;;
             upstream)

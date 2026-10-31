@@ -85,6 +85,20 @@
 //   and the merge gate binds the re-run (babysit_review_evidence
 //   `_upstream_stopped`). Any other failure or loss of these runs is not
 //   re-run here.
+// - Review: a hosted review run whose first attempt a kill switch stopped, on a
+//   head whose newest pr-require-checks run failed only in ci-status with its
+//   note of that stop (REVIEW_STOP_NOTE), at any attempt: rerun-ci-status
+//   re-runs ci-status when a stopped run completes. ci-status reads the
+//   newest review run, so re-running ci-status alone stays red. The whole
+//   review run is re-run, as none of its jobs failed. Its completion re-runs
+//   ci-status, which that listener records on the strength of this workflow's
+//   record. Only attempt 2 binds in the merge
+//   gate (babysit_review_evidence `_kill_switch_stopped`), so the one re-run
+//   waits until nothing would stop it again: the lane's own switch, read as its
+//   caller reads it (REVIEW_SWITCHES, only `true` stops), and the upstream
+//   gate. One lane per head per pass, so a place holds one record; the other
+//   lane goes on the next pass. No lookback: a switch may be on for days, up
+//   to GitHub's RERUN_WINDOW_DAYS.
 // Other lost lane runs (a review lane run lost any other way, refine) are listed
 // in the summary for a person: a review re-run would trade one review for
 // another, and refine's lanes token broker refuses a re-run
@@ -124,6 +138,9 @@
 //   VERIFY_AUTHORS, LANE_IDENTITY, SPEC_FROM_BODY_APPS  as pr-verify.yml passes
 //                        resolve-pr; LANE_IDENTITY also names the lanes App
 //   KILL_SWITCH         `proceed` from the kill-switch step; anything else stops
+//   CLAUDE_REVIEW_DISABLED, CLAUDE_SECURITY_REVIEW_DISABLED  each lane's switch,
+//                        as its caller reads it: only `true` stops, and unset
+//                        reads empty
 //   STATUS_URL           the status page's components endpoint (default githubstatus.com)
 //   SETTLED_PATH         plan reads the last pass's settled runs, then writes
 //                        this pass's there for the upload; unset carries nothing
@@ -183,6 +200,18 @@ export const CI_WORKFLOWS = new Set([
 // the upstream-status gate skips the review.
 export const GATE_JOB = "kill-switch";
 export const UPSTREAM_STOP_STEP = "Stop on upstream status";
+// The step that job runs when a kill switch stops the review, and the caller's
+// job names for the review itself (`pr-review`, or a reusable's `pr-review / x`).
+export const REVIEW_STOP_STEP = "Report the kill switch";
+const REVIEW_JOB = /^pr-review/;
+// Each hosted review's own switch, by the name its caller reads from `vars`.
+export const REVIEW_SWITCHES = new Map([
+  [".github/workflows/pr-review-hosted.yml", "CLAUDE_REVIEW_DISABLED"],
+  [".github/workflows/pr-review-security-hosted.yml", "CLAUDE_SECURITY_REVIEW_DISABLED"],
+]);
+// GitHub re-runs a run up to 30 days after its initial run
+// (https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
+export const RERUN_WINDOW_DAYS = 30;
 // The CI workflows a recorded lane runs after on workflow_run. A re-run that
 // makes attempt 2 of one is recorded too: the lane trusts that attempt's
 // github-actions[bot] only through its record. A later attempt gets none, and
@@ -351,9 +380,9 @@ const isPassedChecks = (r) =>
 // The error ci-status's lanes-hold step writes for a lanes App PR while the
 // kill switch is on (pr-require-checks.yml; reconcile.test.mjs pins it there).
 export const KILL_SWITCH_NOTE = "the lanes kill switch is on";
+const isRedChecks = (r) => RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "failure";
 // The checks run a lifted kill switch leaves red: failed on its first attempt.
-const isFailedChecks = (r) =>
-  RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1;
+const isFailedChecks = (r) => isRedChecks(r) && r.run_attempt === 1;
 // The failed ci-status job when it is the run's only failed job, else undefined.
 const onlyAggregateFailed = (jobs) =>
   Array.isArray(jobs) && jobs.every((job) => !FAILED.has(job?.conclusion) || AGGREGATE_JOBS.has(job.name))
@@ -363,6 +392,11 @@ const onlyAggregateFailed = (jobs) =>
 // error: a re-run with the switch off passes that step.
 export const killSwitchNoted = (annotations) =>
   Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(KILL_SWITCH_NOTE));
+// The error ci-status's review-lane step writes for a lane a kill switch
+// stopped (pr-require-checks.yml; reconcile.test.mjs pins it there).
+export const REVIEW_STOP_NOTE = "a kill switch was on when it started";
+export const reviewStopNoted = (annotations) =>
+  Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(REVIEW_STOP_NOTE));
 // The error ci-status's pr-unblock step writes for each `pr-unblock/*` status
 // failing the head (pr-require-checks.yml; reconcile.test.mjs pins it there).
 export const PR_UNBLOCK_STOP_NOTE = /^'pr-unblock\/[a-z]+(?:-[a-z]+)*' is (?:failure|error) on [0-9a-f]{40}: /;
@@ -393,6 +427,9 @@ async function unblockStopStands(call, repo, head) {
   }
   return false;
 }
+// A hosted review run a kill switch may have stopped: it reads success with no
+// job failed, so only its jobs can tell (`reviewStopped`).
+const isUnreviewed = (r) => GATED_REVIEWS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "success" && r.run_attempt === 1;
 // A failed run whose failed jobs may be re-run now, if its failures are infra only.
 const isRetryable = (r, now) => reconcilerRetries(r, now) && now - Date.parse(r.updated_at) >= INFRA_BACKOFF_MINUTES * 60_000;
 const lostNow = (item, r, since) => {
@@ -401,6 +438,9 @@ const lostNow = (item, r, since) => {
   }
   if (item.kind === "infra" || item.kind === "flake" || item.kind === "switch" || item.kind === "stop" || item.kind === "upstream") {
     return r.status === "completed" && r.conclusion === "failure" && r.run_attempt === item.attempt;
+  }
+  if (item.kind === "review") {
+    return isUnreviewed(r);
   }
   if (item.kind === "intake") {
     return isFailedIntake(r, since);
@@ -468,6 +508,14 @@ export const upstreamStopped = (jobs) =>
       Array.isArray(job.steps) &&
       job.steps.some((step) => step?.name === UPSTREAM_STOP_STEP && step.conclusion === "failure"),
   );
+
+// True when a kill switch stopped a hosted review run: ci-status's `stopped`
+// and the merge gate's `_kill_switch_stopped`, read from the steps. A list cut
+// short proves nothing, so that head stays with a person (ci-status names it).
+export const reviewStopped = (jobs) =>
+  Array.isArray(jobs) &&
+  !jobs.some((job) => REVIEW_JOB.test(job?.name ?? "") && job.conclusion !== "skipped") &&
+  jobs.some((job) => job?.name === GATE_JOB && job.conclusion === "success" && job.steps?.some((step) => step?.name === REVIEW_STOP_STEP && step.conclusion === "success"));
 
 // Why the run's first attempt must not be re-run, with whether that hold is
 // final (`settle`), or undefined when it may be re-run: no job started any
@@ -621,7 +669,7 @@ export async function prefilterSpec(call, repo, candidates) {
 // Reads every open PR's head and the recorded lanes' runs, and returns the
 // re-runs to make in order, with a record name on each lane re-run and each
 // recorded CI re-run.
-async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled = new Map() }) {
+async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled = new Map(), env = {} }) {
   // The runs to carry to the next pass, {id, reason}: read and settled now, or carried and still listed.
   const settle = [];
   const sayHeld = (r, held) => {
@@ -753,17 +801,46 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         }
         set.push({ kind: "infra", pr: pull.number, id: r.id, path: r.path, conclusion: "failure (infra only)", attempt: r.run_attempt, head: pull.head.sha });
       }
+      // The one stopped review lane this head re-runs now, as an item, if any.
+      const stoppedReview = async () => {
+        for (const [path, name] of REVIEW_SWITCHES) {
+          const r = newestByWorkflow(own).find((candidate) => candidate.path === path);
+          if (!isUnreviewed(r)) {
+            continue;
+          }
+          if (env[name] === "true") {
+            say(`#${pull.number}: review run ${r.id} (${r.path}) waits for ${name}`);
+            continue;
+          }
+          if (now - Date.parse(r.created_at) >= RERUN_WINDOW_DAYS * 86_400_000 || !reviewStopped(await readJobs(r))) {
+            continue;
+          }
+          const hold = await gateHold();
+          if (hold) {
+            say(`#${pull.number}: review run ${r.id} (${r.path}) was stopped by a kill switch; waiting, ${hold}`);
+            continue;
+          }
+          return { kind: "review", pr: pull.number, id: r.id, path: r.path, conclusion: "success (kill switch stop)", attempt: 1, head: pull.head.sha, record: rerunRecordName(r.id, pull.head.sha) };
+        }
+        return undefined;
+      };
       const checks = newestByWorkflow(own).find((r) => RECORDED_UPSTREAMS.has(r.path));
-      // A newest checks run that failed only in ci-status: a lanes App PR's
-      // that the kill switch failed is re-run now that the switch is off, and
-      // any PR's that a pr-unblock stop failed once no stop fails the head.
+      // A newest checks run that failed only in ci-status: a review a kill
+      // switch stopped is re-run once nothing would stop it again, a lanes App
+      // PR's that the kill switch failed is re-run now that the switch is off,
+      // and any PR's that a pr-unblock stop failed once no stop fails the head.
       // The tested run's jobs are reused when it is that run.
-      if (set.length === 0 && isFailedChecks(checks)) {
+      if (set.length === 0 && isRedChecks(checks)) {
         const status = onlyAggregateFailed(tested.find((t) => t?.run?.id === checks.id)?.jobs ?? (await readJobs(checks)));
         const notes = status && (status.annotations ?? (await call("GET", `/repos/${repo}/check-runs/${status.id}/annotations?per_page=100`)));
-        if (notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes)) {
+        if (reviewStopNoted(notes)) {
+          const review = await stoppedReview();
+          if (review) {
+            set.push(review);
+          }
+        } else if (isFailedChecks(checks) && notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes)) {
           set.push({ kind: "switch", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (kill switch)", attempt: 1, head: pull.head.sha });
-        } else if (notes && unblockStopNoted(notes)) {
+        } else if (isFailedChecks(checks) && notes && unblockStopNoted(notes)) {
           // An unreadable status list re-runs nothing and fails no listing: the next run reads it again.
           let stands = true;
           try {
@@ -1066,7 +1143,9 @@ async function act({ repo, call, say, since, sleep, items }) {
       say(
         item.kind === "spec"
           ? `${where}: re-ran run ${item.id} (${item.path}) so pr-verify judges the head again: its spec changed after the pass`
-          : `${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`,
+          : item.kind === "review"
+            ? `${where}: re-ran review run ${item.id} (${item.path}), which a kill switch stopped; its completion re-runs ci-status`
+            : `${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`,
       );
     } catch (error) {
       if (error instanceof RateLimited) {
@@ -1206,7 +1285,7 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
         console.log(`::warning title=reconcile::no settled runs carried, so every run is read: ${escapeCommand(error?.message ?? error)}`);
       }
     }
-    const { settle, ...planned } = await plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled });
+    const { settle, ...planned } = await plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled, env });
     result = planned;
     if (result.items.some(recorded) && !env.RECORD_PATH) {
       throw new Error("RECORD_PATH is not set");

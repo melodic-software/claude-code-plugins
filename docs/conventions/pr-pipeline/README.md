@@ -2610,8 +2610,12 @@ them on every `pull_request` run, contract-only runs included:
   `pr-review-security / security-review`) whose `Apply the hold` step ran. A summary-mode run or
   one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
   the cause named. A lane a kill switch stopped (the switch was on when the review run started)
-  fails too: the kill switch pauses review and never waives it. Once it is off, a person on the
-  trusted-actor list re-runs all jobs of that review run, and its completion re-runs ci-status.
+  fails too: the kill switch pauses review and never waives it. Once it is off, the lost-run
+  reconciler re-runs that review run, one lane per head per half-hourly pass, and its completion
+  re-runs ci-status; a person on the trusted-actor list can re-run all its jobs sooner. A review
+  switch stops no merge of its own: a head with no review is red here, the merge gate holds it
+  (`evidence-unbound`), and a head already reviewed needs no further review. To stop merges, set
+  the lanes switch.
   No admin bypass exists: the ruleset requires ci-status and the merge queue even for an admin
   merge. Only runs from this repository's head count, never a
   fork's run on the same commit, and a PR whose head is a fork fails as a fork before any run is read. A kill-switch job that failed also fails. A review skips a fork and a bot outside the caller's

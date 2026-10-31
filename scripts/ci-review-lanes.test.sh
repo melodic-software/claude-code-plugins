@@ -461,7 +461,7 @@ JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed 
 expect "a skipped review (fork or unlisted bot) fails" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10; kill-switch job: success)"
 JOBS_10="$(jobs "$(kill_job success success)")"
 expect "a lane the kill switch stopped fails: the kill switch never waives review" 1 \
-  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started. Once it is off, re-run all jobs of https://github.com/o/r/actions/runs/10; ci-status re-runs when it finishes." "::notice::"
+  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): a kill switch was on when it started. Once it is off, the lost-run reconciler re-runs it, or a person on the trusted-actor list re-runs all jobs of https://github.com/o/r/actions/runs/10; ci-status re-runs when it finishes." "::notice::"
 JOBS_10="$(jobs "$(kill_job success success)" "$(status "$CODE_CHECK" completed skipped skipped)")"
 expect "a kill-switch stop with the review listed as skipped fails" 1 "a kill switch was on when it started" "::notice::"
 JOBS_10="$(jobs "$(kill_job success success)")" JOBS_20="$(jobs "$(kill_job success success)")"
