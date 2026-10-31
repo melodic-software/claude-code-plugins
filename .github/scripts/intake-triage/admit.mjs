@@ -11,7 +11,8 @@
 // cost rule adds needs-human; criterion 6 is checked here too, on the charge
 // words rule-admit.sh refuses (chargePattern), whatever the verdict flagged.
 // Criterion 4 (no protected path named) applies only to the paths the issue
-// lane cannot push (unpushablePaths). This checks the rest:
+// lane cannot push (unpushablePaths), named outside a clause that leaves them
+// unchanged ("no file under X is edited"). This checks the rest:
 //
 // - 2: the Issue Type is in `types`, or in `types-under-parent` under an open
 //   parent issue a listed human filed that awaits no decision; a type in
@@ -110,11 +111,13 @@ import { appCloseKind, isTrustedClose, paginate } from "../../actions/check-trus
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { PROTECTED_REFUSALS } from "../apply-patch/protected-paths.mjs";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
+import { ADMIT_MARKER, refusalText, sayWhy as writeWhy } from "../lib/admission-comment.mjs";
+
+export { ADMIT_MARKER, refusalText };
 import { closingPulls } from "../work-resolve-issue/report-outcome.mjs";
 
 export const AGENT_READY = "agent-ready";
 export const DEFERRED = "admission-deferred";
-export const ADMIT_MARKER = "<!-- intake-triage admission -->";
 // Opens the lanes App's refinement comment (refine.mjs).
 export const REFINE_MARKER = "<!-- intake-triage refinement -->";
 // The last line of each refinement refine.mjs renders: `questions` closes one
@@ -581,11 +584,6 @@ export const taskItems = (body, taskList) => {
   return items;
 };
 
-// The admission comment's text for a refusal, after ADMIT_MARKER: each reason
-// names what admission needs; only a security or intent reason asks a person.
-export const refusalText = (reasons) =>
-  `Not admitted to the issue lane: ${reasons}. Admission takes the issue once each of those is met, when intake triages it again (\`.github/actions/resolve-config/admission-rules.json\`).`;
-
 // [{n, kind, text}] for each task-list item (1-based n) the lane cannot
 // perform, each item's text read as plainText. `webHosts` is resolve-issue's
 // web-access domains: "any" skips the URL check, an absent list allows only
@@ -722,11 +720,59 @@ const dotted = (path) =>
 // A line that opens its own list item, such as a nested evidence bullet.
 const BULLET = /^\s*(?:[-*+]|\d+[.)])\s/;
 
+// The bounded shapes that say a path is left unmodified; a path is dropped
+// only inside one, and any other wording keeps it:
+// 1. `no`/`none of` + a short phrase holding the path + `is`/`are`/`was`/
+//    `were`/`gets`/`will be`/`should be`/`must be` + a participle ("No file
+//    under X is edited", "No file under X should be edited");
+// 2. a modification verb + `no` + the path phrase, or a comma-separated list
+//    of paths ("the diff touches no X, Y or Z file");
+// 3. `does not`/`do not`/`don't`/`never`/`won't`, or a modal negation
+//    (`must not`, `should not`, `mustn't`, `can't`, `cannot`, ...), + a
+//    modification verb + the path phrase ("does not edit X", "MUST NOT
+//    modify X");
+// 4. `leaves` + the path phrase + `unchanged`/`untouched`/`as is`;
+// 5. `no change(s)`/`edit(s)`/`modification(s)` + `to`/`in` + the path phrase
+//    ("No changes to X");
+// 6. at the start of the item or a sentence, the path phrase + a negated
+//    passive (`is not`, `isn't`, `must not be`, ...) + a participle that ends
+//    the sentence ("X is not edited.", "X must not be modified.").
+// A path phrase is up to six words, with no comma, sentence end, or word that
+// turns it toward a change or a condition (but, other, after, ...); in shape
+// 6 it also holds no modification verb.
+const STOP = String.raw`(?!(?:but|except|other|outside|beyond|besides|apart|aside|and|or|nor|while|so|then|unless|yet|whereas|instead|after|before|when|once|until|if|to|for|that|which|who|where)(?=[\s,;:!?.]|$))`;
+const WORD = String.raw`${STOP}(?:[^\s,;:!?.]|\.(?=\S))+`;
+const PHRASE = String.raw`${WORD}(?:\s+${WORD}){0,5}`;
+const LIST = String.raw`${WORD}(?:(?:,\s*(?:(?:or|nor)\s+)?|\s+(?:or|nor)\s+)${WORD})+(?:\s+(?:files?|director(?:y|ies)|folders?|paths?|lines?))?`;
+const DONE = String.raw`edited|changed|touched|modified|altered|rewritten`;
+const VERB = String.raw`touch(?:es|ing)?|chang(?:e|es|ing)|edit(?:s|ing)?|modif(?:y|ies|ying)|alter(?:s|ing)?|(?:re)?writ(?:e|es|ing)\s+to`;
+const MODAL = String.raw`must|should|shall|will|can`;
+const NOT = String.raw`(?:${MODAL})\s+not|cannot|(?:mustn|shouldn|shan|can)['’]t`;
+const ACT = String.raw`(?!(?:${VERB}|update|updating|add|remov|delete|deleting|creat|replac|renam|mov|fix)\w*(?=[\s,;:!?.]|$))`;
+const SUBJECT = String.raw`${ACT}${WORD}(?:\s+${ACT}${WORD}){0,5}`;
+// The idioms where `no` opens an affirmation, not a negation: "No doubt X
+// must be edited" asks for the edit, so shape 1 never starts at one.
+const IDIOM = String.raw`(?:doubt|question|wonder|way|matter|one)(?=[\s,;:!?.]|$)`;
+const NEGATED = new RegExp(
+  [
+    String.raw`\b(?:no(?!\s+${IDIOM})|none\s+of)\s+${PHRASE}\s+(?:is|are|was|were|gets?|(?:${MODAL})\s+be)\s+(?:${DONE})\b`,
+    String.raw`\b(?:${VERB})\s+no\s+(?:${LIST}|${PHRASE})`,
+    String.raw`\b(?:(?:does|do|did)\s+not|never|(?:won|doesn|don|didn)['’]t|${NOT})\s+(?:${VERB})\s+${PHRASE}`,
+    String.raw`\bleav(?:e|es|ing)\s+${PHRASE}\s+(?:unchanged|untouched|as\s+is)\b`,
+    String.raw`\bno\s+(?:changes?|edits?|modifications?|alterations?)\s+(?:to|in)\s+${PHRASE}`,
+    String.raw`(?:^|(?<=[.;:!?]\s))\s*${SUBJECT}\s+(?:(?:is|are|was|were|gets?)\s+(?:not|never)|(?:is|are|was|were)n['’]t|(?:${NOT}|won['’]t)\s+be)\s+(?:${DONE})(?=\s*(?:[.;!?](?:\s|$)|$))`,
+  ].join("|"),
+  "gi",
+);
+const withoutNegated = (text) => text.replace(NEGATED, " ");
+
 // The paths the task-list items in `body`, with the wrapped text below each up
 // to its first nested bullet outside a code fence, read as plainText, name
 // that apply-patch refuses under `names` (issuePushRefusals) in any case or
 // with a dot-led name's dot left off (DOTLESS), in order, each once, a bare
-// name in `workflows` (workflowFiles) read as that workflow's path. Pure.
+// name in `workflows` (workflowFiles) read as that workflow's path. A path
+// named only in a shape that leaves it unmodified (NEGATED) is left out.
+// Pure.
 export function unpushablePaths(body, taskList, names, workflows) {
   const lines = String(body ?? "").split("\n");
   const blocks = fenceBlocks(lines);
@@ -735,7 +781,7 @@ export function unpushablePaths(body, taskList, names, workflows) {
     return (end === -1 ? more : more.slice(0, end)).map((index) => lines[index]);
   };
   const paths = taskItems(body, taskList).flatMap(({ text, more }) =>
-    pathTokens(plainText([text, ...wrapped(more)].join("\n")), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))),
+    pathTokens(withoutNegated(plainText([text, ...wrapped(more)].join("\n"))), workflows).filter((path) => names.some((name) => PROTECTED_REFUSALS[name].test({ path: dotted(path) }))),
   );
   return [...new Set(paths)];
 }
@@ -1324,23 +1370,8 @@ export async function parentDecisionOpen({ github, repository, parent, humans, a
   }
 }
 
-// One App comment carrying ADMIT_MARKER, edited in place on a later run.
-export async function sayWhy(github, repository, base, comments, text) {
-  const body = `${ADMIT_MARKER}\n${text}`;
-  const own = comments.find(
-    (comment) => comment.user?.login === LANES_APP_LOGIN && String(comment.body ?? "").startsWith(ADMIT_MARKER),
-  );
-  if (own?.body === body) {
-    return;
-  }
-  if (own) {
-    await github("PATCH", `/repos/${repository}/issues/comments/${own.id}`, {
-      body,
-    });
-  } else {
-    await github("POST", `${base}/comments`, { body });
-  }
-}
+// The lanes App's one admission comment (../lib/admission-comment.mjs).
+export const sayWhy = (github, repository, base, comments, text) => writeWhy(github, repository, base, comments, text, LANES_APP_LOGIN);
 
 // The body, the comment count and the first 100 comments, each with its
 // author, last editor and edit time: the first 100 comments are what pr-verify
@@ -1385,8 +1416,10 @@ export async function splitParentOf(github, repository, parent, appId) {
 
 // Whether issue `number` is a trusted size-split sub-issue: the lanes App
 // (`appId`) filed it with SPLIT_CHILD_MARKER and splitChildBody counts it
-// against its native parent. work-resolve-issue's check-blockers.mjs reads it
-// and hands it to resolve-config as the splitChild fact (pr-pipeline.yaml
+// against its native parent, exactly as admission (decide) does, so a child
+// admission takes at Size large is not skipped as split-required.
+// work-resolve-issue's check-blockers.mjs reads it and hands it to
+// resolve-config as the splitChild fact (pr-pipeline.yaml
 // models.issue-dimensions.split-child-size). Reads only.
 export async function trustedSplitChild(github, repository, number, humans, appId, taskList) {
   const spec = await specOf(github, repository, number);
@@ -1394,7 +1427,7 @@ export async function trustedSplitChild(github, repository, number, humans, appI
     return false;
   }
   const parent = await splitParentOf(github, repository, await parentOf(github, `/repos/${repository}/issues/${Number(number)}`), appId);
-  return parent !== undefined && humanWritten(parent.spec, humans) && splitChildBody({ ...spec, splitParent: parent }, humans, taskList) !== null;
+  return parent !== undefined && splitChildBody({ ...spec, splitParent: parent }, humans, taskList) !== null;
 }
 
 // The one comment of the lanes App's (a Bot whose id is `appId`) that counts

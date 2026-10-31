@@ -144,10 +144,10 @@ expires during the read can only make the counts differ. Pages that read
 whole but hold any other count print one `LISTING_MISS_PREFIX` line on stderr
 (the counts, the pages read, the base's age) and are read again on the same
 base after each of `INCREMENTAL_WAITS`, up to `INCREMENTAL_READS` reads inside
-one `LISTING_TIMEOUT_SECONDS` (a caller that sets `NO_INCREMENTAL_WAITS_ENV`
-to `1`, killing the reader sooner than those waits and a whole listing take,
-skips the waits and reads once); no wait or miss loosens the check, and after
-those reads, on any failed read (a timeout, a 429
+one `LISTING_TIMEOUT_SECONDS`, or a caller's shorter limit, which ends the waits
+that do not fit (a caller that sets `NO_INCREMENTAL_WAITS_ENV` to `1` skips the
+waits and reads once); no wait or miss loosens the check, and after those
+reads, on any failed read (a timeout, a 429
 or a rate-limit 403 included, which are never read again), or with a base
 that is missing, older or of another shape, it lists every page, checked the
 same way. A carry forged to drop a FAIL must therefore

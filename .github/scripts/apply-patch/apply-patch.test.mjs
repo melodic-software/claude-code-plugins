@@ -4,8 +4,10 @@ import { createHash } from "node:crypto";
 import { chmodSync, cpSync, mkdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { checkRow, createGitHubApi, credentialIn, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, mergeFrom, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { checkRow, createGitHubApi, CREDENTIAL_SHAPES, credentialIn, leakedBlob, fixedThreadsFrom, hasConflictMarkers, keptThreadsFrom, loadRules, main, MAX_PATCH_BYTES, mergeFrom, patchProblem, push, pushReason, REFUSALS, refusalsOf, RULES_PATH, rowFor, select } from "./apply-patch.mjs";
+import { CREDENTIAL_SHAPES as GATE_SHAPES, findSecret, scanLeak } from "../../../lib/publish-gate.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 // The registry as committed: the rows these tests hold apply-patch to.
@@ -1158,6 +1160,236 @@ test("a credential inside a binary patch is caught in the patched blob", async (
   assert.deepEqual(api.calls, []);
 });
 
+// The issue row names a credential shape apart from any other invalid patch
+// (owner decision on #11021): a credential is a token-leak path the owner keeps
+// a hold on, patch-credential; any other invalid patch is patch-invalid, which
+// the issue lane retries. Rows without patch-credential keep patch-invalid.
+test("issue target: a credential shape in the patch or a patched blob escalates patch-credential", async (t) => {
+  const text = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), `# changed\ntoken=${GITHUB_TOKENS[0]}\n`));
+  const api = fakeApi(text.repo, text.head, { labels: READY });
+  assert.deepEqual(await pushIssue(text, api), { outcome: "escalate", escalationReason: "patch-credential" });
+  assert.deepEqual(api.calls, []);
+  const selected = select({ row: issueRow(), patchState: "written", patchSha256: text.sum, patchHeadSha: text.head, headSha: text.head, patchDir: dirname(text.patchFile) });
+  assert.deepEqual(selected, { proceed: false, skipReason: "awaiting-human", escalationReason: "patch-credential" });
+  const binary = repoWithPatch(t, (repo) => writeFileSync(join(repo, "blob.bin"), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])])));
+  assert.deepEqual(await pushIssue(binary, fakeApi(binary.repo, binary.head, { labels: READY })), { outcome: "escalate", escalationReason: "patch-credential" });
+});
+
+// A patch whose bytes carry a credential holds whatever else is wrong with it,
+// so a SHA-256 mismatch cannot turn the hold into a retry.
+test("issue target: a credential shape outranks a SHA-256 mismatch, and a mismatch alone is patch-invalid", (t) => {
+  const leaky = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), `# changed\ntoken=${GITHUB_TOKENS[0]}\n`));
+  const clean = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  const at = (fix) => ({ row: issueRow(), patchState: "written", patchSha256: "0".repeat(64), patchHeadSha: fix.head, headSha: fix.head, patchDir: dirname(fix.patchFile) });
+  assert.equal(select(at(leaky)).escalationReason, "patch-credential");
+  assert.equal(select(at(clean)).escalationReason, "patch-invalid");
+  assert.equal(select({ ...at(leaky), row: row("default") }).escalationReason, "patch-invalid", "a row without patch-credential");
+});
+
+// The credential scan runs before every patch-invalid refusal, so a fault
+// beside a credential cannot turn the hold into a retry: here a credential
+// seen only in a binary hunk's blob, in a patch over max-files.
+test("issue target: a blob-only credential in a patch over max-files escalates patch-credential", async (t) => {
+  const fix = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "blob.bin"), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])]));
+    writeFileSync(join(repo, "README.md"), "# changed\n");
+  });
+  assert.doesNotMatch(readFileSync(fix.patchFile, "latin1"), /ghp_/);
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api, { row: { ...issueRow(), "max-files": 1 } }), { outcome: "escalate", escalationReason: "patch-credential" });
+  assert.deepEqual(api.calls, []);
+});
+
+test("issue target: a blob-only credential in a patch over the row's real file cap escalates patch-credential", async (t) => {
+  const cap = issueRow()["max-files"];
+  assert.equal(typeof cap, "number");
+  const fix = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "blob.bin"), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])]));
+    mkdirSync(join(repo, "gen"));
+    for (let i = 0; i < cap; i += 1) {
+      writeFileSync(join(repo, `gen/f${i}.md`), `${i}\n`);
+    }
+  });
+  assert.doesNotMatch(readFileSync(fix.patchFile, "latin1"), /ghp_/);
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-credential" });
+  assert.deepEqual(api.calls, []);
+});
+
+// The count is refused after every blob was read, so a clean binary hunk there
+// is proven clear and retries.
+test("issue target: the same patch over the file cap with a clean blob escalates patch-invalid", async (t) => {
+  const cap = issueRow()["max-files"];
+  assert.equal(typeof cap, "number");
+  const fix = repoWithPatch(t, (repo) => {
+    writeFileSync(join(repo, "blob.bin"), Buffer.from([0, 1, 2, 0, 3, 4, 5]));
+    mkdirSync(join(repo, "gen"));
+    for (let i = 0; i < cap; i += 1) {
+      writeFileSync(join(repo, `gen/f${i}.md`), `${i}\n`);
+    }
+  });
+  assert.match(readFileSync(fix.patchFile, "latin1"), /^GIT binary patch$/m);
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-invalid" });
+  assert.deepEqual(api.calls, []);
+});
+
+// A binary hunk's bytes are compressed in the patch text, so a patch refused
+// or unapplied before its blob exists is not proven clear.
+const BINARY_BLOB = Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])]);
+const binaryFix = (t) => repoWithPatch(t, (repo) => writeFileSync(join(repo, "blob.bin"), BINARY_BLOB));
+const textFix = (t) => repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+
+test("patchProblem: a refusal of a patch with a binary hunk is kind credential, of a text-only patch invalid", (t) => {
+  const binary = binaryFix(t);
+  assert.match(readFileSync(binary.patchFile, "latin1"), /^GIT binary patch$/m);
+  assert.doesNotMatch(readFileSync(binary.patchFile, "latin1"), /ghp_/);
+  assert.equal(patchProblem(binary.patchFile, "0".repeat(64)).kind, "credential", "a wrong SHA-256");
+  assert.equal(patchProblem(binary.patchFile, "").kind, "credential", "no SHA-256");
+  const text = textFix(t);
+  assert.equal(patchProblem(text.patchFile, "0".repeat(64)).kind, "invalid", "a wrong SHA-256");
+  assert.equal(patchProblem(text.patchFile, "").kind, "invalid", "no SHA-256");
+  for (const [fix, kind] of [[binary, "credential"], [text, "invalid"]]) {
+    writeFileSync(fix.patchFile, Buffer.concat([readFileSync(fix.patchFile), Buffer.alloc(MAX_PATCH_BYTES + 1, "\n")]));
+    assert.equal(patchProblem(fix.patchFile, "0".repeat(64)).kind, kind, "over the size cap");
+  }
+  const far = textFix(t);
+  writeFileSync(far.patchFile, Buffer.concat([Buffer.alloc(MAX_PATCH_BYTES * 3, "\n"), Buffer.from("GIT binary patch\n")]));
+  assert.equal(patchProblem(far.patchFile, "0".repeat(64)).kind, "credential", "a binary hunk past the first chunk");
+});
+
+test("select: a refused patch with a binary hunk gives patch-credential, a text-only one patch-invalid", (t) => {
+  for (const [fix, reason] of [[binaryFix(t), "patch-credential"], [textFix(t), "patch-invalid"]]) {
+    const dir = dirname(fix.patchFile);
+    const args = { row: issueRow(), patchState: "written", patchSha256: "0".repeat(64), patchHeadSha: "a".repeat(40), headSha: "a".repeat(40), patchDir: dir };
+    assert.equal(select(args).escalationReason, reason, "a wrong SHA-256");
+    assert.equal(select({ ...args, patchSha256: sha256(readFileSync(fix.patchFile)) }).proceed, true);
+    writeFileSync(join(dir, "extra.txt"), "x\n");
+    assert.equal(select({ ...args, patchSha256: sha256(readFileSync(fix.patchFile)) }).escalationReason, reason, "an extra file");
+  }
+});
+
+test("issue target: a patch that does not apply holds with a binary hunk and is not-applied without one", async (t) => {
+  const run = async (fix, file) => {
+    writeFileSync(join(fix.repo, file), "moved on\n");
+    const moved = commitAll(fix.repo, "moved on");
+    const api = fakeApi(fix.repo, moved, { labels: READY });
+    const result = await pushIssue(fix, api, { headSha: moved, patchHeadSha: moved });
+    assert.deepEqual(api.calls, []);
+    return result.escalationReason;
+  };
+  const binary = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), BINARY_BLOB));
+  assert.equal(await run(binary, "scripts/x.sh"), "patch-credential");
+  const text = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\necho ok\n"));
+  assert.equal(await run(text, "scripts/x.sh"), "patch-not-applied");
+});
+
+test("a row with no credential reason keeps its not-applied reason for a binary hunk", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), BINARY_BLOB));
+  writeFileSync(join(fix.repo, "scripts/x.sh"), "moved on\n");
+  const moved = commitAll(fix.repo, "moved on");
+  assert.deepEqual(await ciPush(fix, fakeApi(fix.repo, moved), { headSha: moved, patchHeadSha: moved }), { outcome: "escalate", escalationReason: "ci-fix-not-applied" });
+});
+
+// A blob over MAX_BLOB_BYTES is read whole before its size is refused, so the
+// size fault does not hide a credential anywhere in it, past the cap included.
+test("issue target: a credential in a patched blob over the size cap escalates patch-credential", async (t) => {
+  const big = Buffer.alloc(6 * 1024 * 1024, 7);
+  big[0] = 0;
+  const fix = repoWithPatch(t, (repo) => {
+    const changed = Buffer.from(big);
+    changed.write(GITHUB_TOKENS[0], 5.5 * 1024 * 1024, "latin1");
+    writeFileSync(join(repo, "big.bin"), changed);
+  }, { head: (repo) => writeFileSync(join(repo, "big.bin"), big) });
+  assert.doesNotMatch(readFileSync(fix.patchFile, "latin1"), /ghp_/);
+  const api = fakeApi(fix.repo, fix.head, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-credential" });
+});
+
+// The two scanners share one list (lib/publish-gate.mjs CREDENTIAL_SHAPES):
+// the read runner's scan job and apply-patch catch a key glued to a word and
+// a 40-character fine-grained token alike, which they once disagreed on.
+test("the publish gate and apply-patch catch the same shared credential shapes", () => {
+  const glued = `X${"sk-ant"}-api03-${"k".repeat(40)}`;
+  const pat = `${"github"}_pat_${"A1".repeat(20)}`;
+  assert.equal(pat.length - "github_pat_".length, 40);
+  for (const text of [`key=${glued}`, `t ${pat} t`]) {
+    assert.notEqual(credentialIn(text), "", text);
+    assert.notEqual(findSecret(text), null, text);
+    assert.ok(scanLeak(Buffer.from(text)).block, text);
+  }
+});
+
+// apply-patch keeps its own copy of the shapes (it runs from a staged copy that
+// cannot reach root lib/), so this test is what keeps the two lists one.
+test("apply-patch's CREDENTIAL_SHAPES equals lib/publish-gate.mjs's, in order", () => {
+  const shape = (list) => list.map(([name, pattern]) => [name, pattern.source, pattern.flags]);
+  assert.deepEqual(shape(CREDENTIAL_SHAPES), shape(GATE_SHAPES));
+});
+
+// collect-base-activity runs apply-patch from $RUNNER_TEMP/base-script, a copy
+// of this directory, beside $RUNNER_TEMP/lib (.github/scripts/lib) and what the
+// write runner's apply-base step stages: pr-merge/merge-holds.mjs and four
+// pr-unblock files. Every import must resolve there.
+test("apply-patch loads from the staged layout its script activity runs in", async () => {
+  const root = tempDir("base-activity-");
+  try {
+    const here = dirname(fileURLToPath(import.meta.url));
+    cpSync(here, join(root, "base-script"), { recursive: true });
+    cpSync(join(here, "..", "lib"), join(root, "lib"), { recursive: true });
+    mkdirSync(join(root, "pr-merge"));
+    cpSync(join(here, "..", "pr-merge", "merge-holds.mjs"), join(root, "pr-merge", "merge-holds.mjs"));
+    mkdirSync(join(root, "pr-unblock"));
+    for (const file of ["thread-scope.mjs", "dependency-classify.mjs", "escalation-routes.mjs", "escalation-routes.json"]) {
+      cpSync(join(here, "..", "pr-unblock", file), join(root, "pr-unblock", file));
+    }
+    const staged = await import(pathToFileURL(join(root, "base-script", "apply-patch.mjs")).href);
+    assert.equal(typeof staged.push, "function");
+    assert.equal(staged.credentialIn(`t ${GITHUB_TOKENS[0]} t`), "GitHub token");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// A blob too large for the runner's buffer cannot be cleared, so it counts as
+// leaked and holds rather than throwing out of push as a retry.
+test("leakedBlob counts a blob the runner cannot read whole as leaked", (t) => {
+  const fix = repoWithPatch(t, () => {});
+  writeFileSync(join(fix.repo, "big.txt"), "x".repeat(4096));
+  git(fix.repo, ["add", "big.txt"]);
+  const sha = git(fix.repo, ["rev-parse", ":big.txt"]);
+  const entry = { newSha: sha, newMode: "100644", path: "big.txt" };
+  const small = (args) => execFileSync("git", args, { cwd: fix.repo, maxBuffer: 64, stdio: ["ignore", "pipe", "ignore"] });
+  assert.equal(leakedBlob(small, [entry])?.path, "big.txt");
+  const roomy = (args) => execFileSync("git", args, { cwd: fix.repo, stdio: ["ignore", "pipe", "ignore"] });
+  assert.equal(leakedBlob(roomy, [entry]), undefined, "the same clean blob read whole is not leaked");
+});
+
+// A patch made on another commit is refused, but its blobs on that commit are
+// scanned first, so a credential there holds rather than retries.
+test("issue target: a blob-only credential in a patch made on another commit escalates patch-credential", async (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "blob.bin"), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])])));
+  writeFileSync(join(fix.repo, "notes.md"), "moved\n");
+  const moved = commitAll(fix.repo, "moved");
+  const api = fakeApi(fix.repo, moved, { labels: READY });
+  assert.deepEqual(await pushIssue(fix, api, { headSha: moved }), { outcome: "escalate", escalationReason: "patch-credential" });
+  const clean = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  writeFileSync(join(clean.repo, "notes.md"), "moved\n");
+  const cleanMoved = commitAll(clean.repo, "moved");
+  assert.deepEqual(await pushIssue(clean, fakeApi(clean.repo, cleanMoved, { labels: READY }), { headSha: cleanMoved }), { outcome: "escalate", escalationReason: "patch-invalid" });
+});
+
+// select scans patch.diff for a credential even when another file sits beside it.
+test("select: a credential in patch.diff outranks an extra file beside it", (t) => {
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), `# changed\ntoken=${GITHUB_TOKENS[0]}\n`));
+  writeFileSync(join(dirname(fix.patchFile), "extra.txt"), "x\n");
+  const at = { row: issueRow(), patchState: "written", patchSha256: fix.sum, patchHeadSha: fix.head, headSha: fix.head, patchDir: dirname(fix.patchFile) };
+  assert.equal(select(at).escalationReason, "patch-credential");
+  rmSync(fix.patchFile);
+  writeFileSync(fix.patchFile, "diff --git a/x b/x\n");
+  assert.equal(select(at).escalationReason, "patch-invalid", "no credential, an extra file is invalid");
+});
+
 // --- a head that moved since the model job ---
 
 test("a moved tip takes the patch with --3way when the moved commits touch no patched path", async (t) => {
@@ -1289,6 +1521,51 @@ test("a patch over 1 MiB is invalid in select and in the push", async (t) => {
     escalationReason: "ci-fix-invalid",
   });
   assert.deepEqual(api.calls, []);
+});
+
+// The credential scan reads the whole patch, past the size cap, so an
+// oversized patch holds for a token anywhere in it, one across a scan chunk's
+// edge included, and stays invalid without one.
+test("issue target: an oversized patch escalates patch-credential for a token past 1 MiB, else patch-invalid", async (t) => {
+  const MiB = 1024 * 1024;
+  const cases = [
+    ["a token past the first MiB", `diff --git a/x b/x\n${"x".repeat(MiB + 100)}\n${GITHUB_TOKENS[0]}\n`, "patch-credential"],
+    ["a token across the first MiB's edge", `${"x".repeat(MiB - 10)} ${GITHUB_TOKENS[0]}\n${"x".repeat(100)}`, "patch-credential"],
+    ["no token", `diff --git a/x b/x\n${"x".repeat(MiB + 100)}\n`, "patch-invalid"],
+  ];
+  for (const [what, text, reason] of cases) {
+    const big = patchDirOf(t, text);
+    const selected = select({ row: issueRow(), patchState: "written", patchSha256: big.sum, patchHeadSha: "a".repeat(40), headSha: "a".repeat(40), patchDir: big.dir });
+    assert.equal(selected.escalationReason, reason, `select: ${what}`);
+    const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
+    const api = fakeApi(fix.repo, fix.head, { labels: READY });
+    assert.deepEqual(await pushIssue(fix, api, { patchFile: join(big.dir, "patch.diff"), patchSha256: big.sum }), { outcome: "escalate", escalationReason: reason }, what);
+    assert.deepEqual(api.calls, [], what);
+  }
+});
+
+// A patch made on another commit whose binary hunk cannot be read there, the
+// commit missing or the patch not applying to it, holds as an unread blob does;
+// a text-only one was scanned whole, so it is the invalid refusal.
+test("issue target: a moved head whose producer commit is missing or rejects the patch escalates patch-credential with a binary hunk, else patch-invalid", async (t) => {
+  const text = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
+  writeFileSync(join(text.repo, "README.md"), "# moved\n");
+  const movedText = commitAll(text.repo, "moved");
+  assert.deepEqual(await pushIssue(text, fakeApi(text.repo, movedText, { labels: READY }), { headSha: movedText, patchHeadSha: "f".repeat(40) }), { outcome: "escalate", escalationReason: "patch-invalid" });
+  writeFileSync(join(text.repo, "notes.md"), "moved again\n");
+  const tipText = commitAll(text.repo, "moved again");
+  assert.deepEqual(await pushIssue(text, fakeApi(text.repo, tipText, { labels: READY }), { headSha: tipText, patchHeadSha: movedText }), { outcome: "escalate", escalationReason: "patch-invalid" }, "a producer commit the patch does not apply to");
+  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), BINARY_BLOB));
+  writeFileSync(join(fix.repo, "README.md"), "# moved\n");
+  const moved = commitAll(fix.repo, "moved");
+  const lines = [];
+  const missing = await pushIssue(fix, fakeApi(fix.repo, moved, { labels: READY }), { headSha: moved, patchHeadSha: "f".repeat(40), log: (line) => lines.push(line) });
+  assert.deepEqual(missing, { outcome: "escalate", escalationReason: "patch-credential" });
+  assert.match(lines.join("\n"), /cannot be read/);
+  writeFileSync(join(fix.repo, "notes.md"), "moved again\n");
+  const tip = commitAll(fix.repo, "moved again");
+  const rejects = await pushIssue(fix, fakeApi(fix.repo, tip, { labels: READY }), { headSha: tip, patchHeadSha: moved });
+  assert.deepEqual(rejects, { outcome: "escalate", escalationReason: "patch-credential" }, "a producer commit the patch does not apply to");
 });
 
 test("a patch that does not apply to the gated head is not applied", async (t) => {
@@ -2070,6 +2347,24 @@ test("a conflicted path left with markers escalates unresolved-conflict before a
   // A resolution that writes new marker lines is no resolution either.
   const marked = mergeFixture(t, { ...CONFLICT, resolve: (repo) => writeFileSync(join(repo, "a.txt"), "<<<<<<< x\npr\n=======\nmain\n>>>>>>> y\n") });
   assert.deepEqual(await mergePush(marked, fakeApi(marked.repo, marked.head)), { outcome: "escalate", escalationReason: "unresolved-conflict" });
+});
+
+// Under the merge row a credential beside a refused symlink is named as the
+// credential: the scan runs before the refusals (the row folds both into
+// conflict-patch-invalid, so the log names which).
+test("a merge resolution with a blob-only credential beside a symlink escalates for the credential", async (t) => {
+  const fix = mergeFixture(t, {
+    ...CONFLICT,
+    resolve: (repo) => {
+      writeFileSync(join(repo, "a.txt"), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])]));
+      symlinkSync("keep.txt", join(repo, "link"));
+    },
+  });
+  assert.doesNotMatch(readFileSync(fix.patchFile, "latin1"), /ghp_/);
+  const lines = [];
+  assert.deepEqual(await mergePush(fix, fakeApi(fix.repo, fix.head), { log: (line) => lines.push(line) }), { outcome: "escalate", escalationReason: "conflict-patch-invalid" });
+  assert.match(lines.join("\n"), /carries a credential shape/);
+  assert.doesNotMatch(lines.join("\n"), /symlink/);
 });
 
 test("a model may delete a conflicted path", async (t) => {

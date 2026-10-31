@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.5.1] - 2026-10-31
+
+### Fixed
+
+- The babysit merge gate binds a review lane's second attempt after the upstream-status gate
+  stopped the first (class `upstream-degraded`): the caller's `kill-switch` job failed with the
+  lane's `an upstream outage stops this review (` error and no lane job ran. A failed
+  `kill-switch` job without that error, the error at another level, or the error beside a lane
+  job still does not bind.
+
+## [4.5.0] - 2026-10-31
+
+### Added
+
+- The loop telemetry `usage_sample` records `seven_day_delta_pct` beside `five_hour_delta_pct`, derived the same way from `seven_day_pct` (null on a missing reading on either side, a first cycle, or a rollover), so a lane keeps a usage-rate measure on an account that reports no five-hour window. Measure-only, as before: no decision or threshold reads it. Follows loop-lane convention 13.0.0.
+
 ## [4.4.7] - 2026-10-31
 
 ### Changed

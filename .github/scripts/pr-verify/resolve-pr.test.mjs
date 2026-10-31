@@ -16,7 +16,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 
-import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, HOLD_STEP, main, packReads, resolvePull, takeReads } from "./resolve-pr.mjs";
+import { createRateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { CARRY_MAX, carryMain, CONTRACT_STEP, DO_NOT_MERGE_LINE, failureAnnotation, HOLD_STEP, main, packReads, resolvePull, takeReads } from "./resolve-pr.mjs";
 import { artifactName } from "./write-verdict.mjs";
 import { bodyVersion, loadRules, REFINE_MARKER, splitItemsLine } from "../intake-triage/admit.mjs";
 import { holds, labelHolds } from "../pr-merge/merge-holds.mjs";
@@ -280,6 +281,34 @@ test("main with the real GitHub helper reads a Refs typo as no linked issue", as
   await main(env, { fetchImpl });
   assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), /^proceed=true\nreason=ok\n/);
   assert.deepEqual(JSON.parse(readFileSync(env.SPEC_FILE, "utf8")), []);
+});
+
+// retry-after latches the rate guard, so main gets a latch of its own.
+test("a refused upstream-run read's annotation carries the status, the rate-limit headers and the body prefix", async () => {
+  const dir = tempDir("pr-verify-");
+  const actors = path.join(dir, "trusted-actors.json");
+  writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ id: 100, login: "maintainer", kind: "human" }] }));
+  const env = {
+    GITHUB_TOKEN: "bad-token",
+    GITHUB_API_URL: "https://api.example.test",
+    GITHUB_REPOSITORY: REPO,
+    GITHUB_OUTPUT: path.join(dir, "out"),
+    UPSTREAM_RUN_ID: String(RUN),
+    SPEC_FILE: path.join(dir, "spec.json"),
+    SPEC_TEXT_FILE: path.join(dir, "spec-text.json"),
+    TRUSTED_ACTORS_PATH: actors,
+    LANE_IDENTITY: LANE,
+  };
+  const body = JSON.stringify({ message: "Bad credentials", documentation_url: "https://docs.github.com/rest", pad: "x".repeat(300) });
+  const headers = { "x-ratelimit-remaining": "4321", "x-ratelimit-reset": "1760767020", "x-ratelimit-resource": "core", "retry-after": "60" };
+  const fetchImpl = async () => new Response(body, { status: 403, headers });
+  const latch = createRateLimitLatch({ log: () => {}, fail: () => {}, stopFile: null, limits: () => ({}) });
+  const error = await main(env, { fetchImpl, latch }).then(() => assert.fail("main resolved"), (thrown) => thrown);
+  const annotation = failureAnnotation(error);
+  assert.match(annotation, new RegExp(`^::error::pr-verify could not resolve the pull request: GET /repos/${REPO}/actions/runs/${RUN} failed with status 403 \\[`));
+  for (const field of ["status=403", "x-ratelimit-remaining=4321", "x-ratelimit-reset=1760767020", "x-ratelimit-resource=core", "retry-after=60", `body=${JSON.stringify(body.slice(0, 200))}`]) {
+    assert.ok(annotation.includes(field), `${field} in ${annotation}`);
+  }
 });
 
 test("a run that is not a passing pr-require-checks pull_request run of this repository starts nothing", async () => {

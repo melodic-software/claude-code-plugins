@@ -21,8 +21,24 @@ test("a hold row's comment carries its class as the stop-reason code, and no oth
     assert.equal(code === "none", row.route !== "hold", `${reason}: ${code}`);
   }
   assert.equal(stopReasonCode("pushback"), "intent");
-  assert.equal(stopReasonCode("patch-invalid"), "security");
-  assert.equal(stopReasonCode("probe-first"), "design");
+  assert.equal(stopReasonCode("patch-credential"), "security");
+  assert.equal(stopReasonCode("patch-invalid"), "none");
+  assert.equal(stopReasonCode("probe-first"), "none");
+});
+
+// Owner decision on #11021: an issue its Uncertainty skips parks at
+// status: confirmed with no person, as admission parks the same refusal, and
+// one its Size skips goes to intake's size split (owner Q93). A patch carrying
+// a credential shape holds for the owner as a token-leak path (section 10); any
+// other invalid patch retries like patch-apply-failed.
+test("the dimension skips reach no person, and only a credential-shaped patch holds", () => {
+  assert.equal(stopRoute("research-first"), "park");
+  assert.equal(stopRoute("probe-first"), "park");
+  assert.equal(stopRoute("split-required"), "intake");
+  assert.equal(stopRoute("patch-credential"), "hold");
+  assert.equal(STOP_ROUTES["patch-credential"].class, "security-risk");
+  assert.equal(stopRoute("patch-invalid"), stopRoute("patch-apply-failed"));
+  assert.equal(stopRoute("patch-invalid"), "retry");
 });
 
 // stop-routes.mjs's header: a person only for an intent, design, security or

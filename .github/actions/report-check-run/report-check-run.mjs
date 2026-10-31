@@ -6,7 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { createGitHub } from "../check-trusted-trigger/check-trusted-trigger.mjs";
+import { createGitHub, detailSuffix } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 import { decide } from "./decide.mjs";
 import { laneRecordOutput } from "./lane-record.mjs";
 import { externalIdOf } from "./posting-run.mjs";
@@ -60,6 +60,7 @@ export async function main({
   env = process.env,
   fetchImpl = fetch,
   log = console.log,
+  latch,
 } = {}) {
   if (
     !REPOSITORY.test(env.GITHUB_REPOSITORY ?? "") ||
@@ -132,12 +133,13 @@ export async function main({
       token: env.GITHUB_TOKEN,
       apiUrl: env.GITHUB_API_URL,
       fetchImpl,
+      latch,
     });
     await github("POST", `/repos/${env.GITHUB_REPOSITORY}/check-runs`, body);
   } catch (error) {
     const detail =
       error?.name === "GitHubError" ? error.message : (error?.name ?? "error");
-    log(`::error::report-check-run: could not post the check run (${detail})`);
+    log(`::error::report-check-run: could not post the check run (${detail})${detailSuffix(error)}`);
     return 1;
   }
   log(

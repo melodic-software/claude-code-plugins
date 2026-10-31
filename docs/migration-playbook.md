@@ -119,7 +119,7 @@ Namespaces name capability domains; categories are curation.
 **Boundaries are defended by design arguments, never incumbency.** A plugin's shape is justified by
 change-together, useful-alone, and distinct discovery intent, not by the fact that it already ships
 that way ("current state is evidence, never justification", `melodic-software/standards`
-`conventions/engineering/engineering-philosophy.md`).
+`standards/engineering/engineering-philosophy.md`).
 
 ## Naming
 

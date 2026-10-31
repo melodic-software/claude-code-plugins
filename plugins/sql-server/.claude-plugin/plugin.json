@@ -1,0 +1,18 @@
+{
+  "name": "sql-server",
+  "version": "0.1.0",
+  "description": "Read-only SQL Server and Azure SQL Database access for agents, bounded by a read-only database principal (ADR 0086). This release ships the versioned config schema, its loader and the single-statement reject list; the MCP server and setup skill come later.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "sql-server",
+    "azure-sql",
+    "t-sql",
+    "database",
+    "read-only",
+    "mcp"
+  ]
+}

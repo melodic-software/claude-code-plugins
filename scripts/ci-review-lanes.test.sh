@@ -472,6 +472,40 @@ expect "a failed kill-switch job fails" 1 "kill-switch job: failure"
 JOBS_10="$(jobs "$(kill_job success skipped)")"
 expect "a kill-switch job that let the review run, with no review, fails" 1 "did not run on $HEAD"
 
+# An upstream-status skip is named, not read as a fork or an unlisted bot:
+# the hosted callers' `Stop on upstream status` step fails the kill-switch job
+# with its error, and an older run's gate left its notice on a kill-switch job
+# that succeeded with the review skipped (runs 41102428120, 41106612430).
+for caller in pr-review-hosted.yml pr-review-security-hosted.yml; do
+  if grep -qE '^ +echo "::error::an upstream outage stops this (security )?review \(' "$ROOT/.github/workflows/$caller"; then
+    ok "$caller's upstream stop writes the error ci-status reads"
+  else
+    fail "$caller's upstream stop no longer writes 'an upstream outage stops this [security ]review ('"
+  fi
+done
+upstream_job() { jq -cn --argjson id "$1" --arg c "$2" --arg u "$3" --arg r "$4" --arg s "$5" '{id: $id, name: "kill-switch", status: "completed", conclusion: $c,
+  steps: [{name: "Check the kill switch", conclusion: "success"}, {name: "Check upstream status", conclusion: $u},
+    {name: "Report the kill switch", conclusion: $r}, {name: "Stop on upstream status", conclusion: $s}]}'; }
+export NOTES_42 NOTES_43
+JOBS_10="$(jobs "$(upstream_job 42 failure success skipped failure)" "$(status "$CODE_CHECK" completed skipped skipped)")"
+NOTES_42="$(notes "$(note failure '' 'an upstream outage stops this review (Actions major_outage); the lost-run reconciler re-runs it once GitHub Actions is operational')")"
+expect "a review the upstream gate stopped is named, with the reconciler's re-run" 1 \
+  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, a person re-runs this ci-status job, not the review run, so pr-verify accepts it; after 24 hours, push to the head." "a fork, or a bot"
+JOBS_10="$(jobs '{"id":42,"name":"kill-switch","status":"completed","conclusion":"failure","steps":[]}')"
+expect "a failed kill-switch job listed with no steps counts as an upstream stop on its error" 1 "GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler" "a fork, or a bot"
+NOTES_42="$(notes "$(note notice '' 'an upstream outage stops this review (Actions major_outage)')")"
+expect "a notice copying the upstream error is no upstream stop" 1 "kill-switch job: failure"
+JOBS_10="$(jobs "$(upstream_job 42 failure success skipped skipped)")"
+expect "a kill-switch job that failed at another step is no upstream stop" 1 "kill-switch job: failure" "listed an outage"
+JOBS_10="$(jobs "$(upstream_job 43 success success skipped skipped)" "$(status "$CODE_CHECK" completed skipped skipped)")"
+NOTES_43="$(notes "$(note notice '' 'upstream status: www.githubstatus.com lists Actions as degraded_performance; this run is skipped')")"
+expect "an older run's upstream skip notice is named, with a re-run to start" 1 \
+  "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): the upstream status gate skipped it when it started. Once GitHub Actions and npm are operational, re-run all jobs of https://github.com/o/r/actions/runs/10; ci-status re-runs when it finishes." "a fork, or a bot"
+NOTES_43="$(notes "$(note notice '' 'upstream status: status.npmjs.org could not be read (offline); the gate fails open for it')")"
+expect "a fail-open upstream notice is no skip" 1 "kill-switch job: success" "upstream status gate skipped"
+NOTES_43="$(notes "$(note warning '' 'upstream status: www.githubstatus.com lists Actions as major_outage; this run is skipped')")"
+expect "a warning copying the skip notice is no skip" 1 "kill-switch job: success" "upstream status gate skipped"
+
 JOBS_10="$PASS_CODE"
 RUNS_SEC="$(runs)"
 expect "the security lane is required too" 1 "::error::'$SEC_CHECK' is missing" "'$CODE_CHECK' is missing"

@@ -1,5 +1,66 @@
 # Changelog for the PR pipeline convention
 
+## [8.18.5] - 2026-10-31
+
+### Changed
+
+- **`pr-merge-dispatched-*` artifacts now expire after 30 days instead of 90.** The post-merge check reads these records only back to its floor, and its run listing goes unreadable at 1000 dispatch runs, about 19 days at the current rate, so the rest of the 90 days was dead weight: over half of the repository's artifacts, paid for on every full listing. The other 11 days cover a stopped check. A record that expires early fails closed: it can hold the lane or demote, never verify a merge. Artifacts already uploaded keep their 90-day expiry.
+
+## [8.18.4] - 2026-10-31
+
+### Fixed
+
+- The dispatchers' FAIL-cap read waits and reads a carried artifact listing again when it misses
+  GitHub's live count, instead of going straight to a whole listing that no longer fits in
+  `verify-cap.mjs`'s 120 s limit. A miss of 2 on #11354 otherwise ended a round in
+  `verify:unreadable`. The reader's waits stop at the caller's limit, and a miss that outlasts
+  them still refuses, after which the job's later FAIL-cap reads skip the waits, so one job spends
+  them once instead of about 50 s per pull request.
+
+- The upstream-status gate skips a lane run only while GitHub Actions or npm Package installation
+  lists `partial_outage` or `major_outage`. `degraded_performance` and `under_maintenance` now run.
+- A hosted review run the gate skips now fails its `kill-switch` job at `Stop on upstream status`,
+  and pr-review-main's legs fail the same way, so each is a failed first attempt. The lost-run
+  reconciler re-runs a hosted review run's failed jobs once, only for that stop and only while
+  the gate would let it run; any other failed or lost review run is still left alone, and a
+  main-run review's re-run also waits while the gate would skip it.
+- ci-status names a review the upstream gate stopped, and an older run's gate-skip notice, instead
+  of reporting a fork or an unlisted bot. For the stop, it asks a person to re-run ci-status once
+  the reconciler's review re-run passes, so pr-verify accepts that attempt.
+
+## [8.18.3] - 2026-10-31
+
+### Fixed
+
+- A post-merge demotion or failure record now says why it lists no range: main's runs could not be
+  read, no green full run came first, the compare could not be listed, the range passes 300
+  commits, the first-parent walk missed the base, or the last green run is at the failing commit,
+  which implicates no merge. A failed read also emits a `::warning::`. Compare is paged, so a range
+  past GitHub's 250-commit limit is walked, and the record lists 100 commits with an "and N more"
+  compare link. A direct push is called one, its subject is quoted without backticks and cut to 100
+  characters with its backslashes intact, and a commit with no GitHub login reads `unknown`.
+
+### Security
+
+- The write runner's skill step sets `GH_TOKEN` and `GITHUB_TOKEN` to empty in its settings' `env`, so no Bash process holds the effect-scoped App token in its `/proc/<pid>/environ`, the sandbox's pid 1 and the Bash shell above a `verify-scripts` wrapper included. claude-code-action's MCP servers, commit signing among them, still get the token from their own config `env`. Under run-claude-cli, code a listed script runs can still read the job's read-only token from an ancestor ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#skill-activities)).
+
+## [8.18.2] - 2026-10-31
+
+### Changed
+
+- pr-feedback-dispatch.yml and pr-unblock-dispatch.yml no longer run a step that fetches pr-merge's
+  carried artifact listing on every run. `verify-cap.mjs` runs `listing-carry.mjs` (provenance
+  checks unchanged, the same 2-minute limit and its own api-calls notice) on the job's first
+  FAIL-cap read only, so a run that skips before any FAIL-cap read spends none of the carry's
+  calls. A failed fetch warns, and the reader lists every page as before.
+
+### Fixed
+
+- `ci-status` no longer tries to turn off an armed pull request's auto-merge on a push: turning
+  it off needs `contents: write`, which the lanes App's arming token holds and `ci-status`'s
+  `GITHUB_TOKEN` deliberately lacks, so the mutation could not succeed. The merge queue's check for
+  a pr-verify pass at the exact head it merges is what holds a new head.
+
 ## [8.18.1] - 2026-10-31
 
 ### Fixed

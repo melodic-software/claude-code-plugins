@@ -3,6 +3,13 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.2] - 2026-10-31
+
+### Changed
+
+- `/review:explain-change` tells the reader which layer supplied `medium`, or "shipped default"
+  when no layer set it. The publish gate is unchanged.
+
 ## [2.0.1] - 2026-10-31
 
 ### Changed
