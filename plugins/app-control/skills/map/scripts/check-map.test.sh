@@ -81,6 +81,11 @@ screenshot: the browser driver
 
 Stop the process the launch started.
 
+## Mask
+
+- account email | [A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+
+values: config.account.email
+
 ## Index
 
 ```text
@@ -372,6 +377,53 @@ assert_equals "ready-listing: kubectl get with --as is still a listing" "$(run_c
 new_case
 replace "$SKILL/SKILL.md" "curl -fsS http://localhost:8080/healthz" "kubectl get -f shop.yaml"
 assert_equals "ready-listing: kubectl get -f names its objects" "$(run_check)" ""
+
+# mask-missing: a Capture that records a screenshot or video needs a ## Mask line.
+MASK_LINES="- account email | [A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+
+values: config.account.email"
+MASK_DETAIL="with no ## Mask line"
+new_case
+replace "$SKILL/SKILL.md" "## Mask
+
+$MASK_LINES" ""
+assert_equals "mask-missing: no ## Mask section" "$(run_check)" \
+  "mask-missing | SKILL.md | ## Capture records screenshot $MASK_DETAIL"
+new_case
+replace "$SKILL/SKILL.md" "$MASK_LINES" "values: config.account.email"
+assert_equals "mask-missing: a values line alone is no mask line" "$(run_check)" \
+  "mask-missing | SKILL.md | ## Capture records screenshot $MASK_DETAIL"
+new_case
+replace "$SKILL/SKILL.md" "$MASK_LINES" "none: the app shows no account or usage text"
+assert_equals "mask-missing: none with a reason is a mask line" "$(run_check)" ""
+new_case
+replace "$SKILL/SKILL.md" "$MASK_LINES" "none:"
+assert_equals "mask-missing: none with no reason" "$(run_check)" \
+  "mask-missing | SKILL.md | ## Capture records screenshot $MASK_DETAIL"
+new_case
+replace "$SKILL/SKILL.md" "$MASK_LINES" '```text
+- account email | [^@]+@[^@]+
+```'
+assert_equals "mask-missing: a fenced mask line does not count" "$(run_check)" \
+  "mask-missing | SKILL.md | ## Capture records screenshot $MASK_DETAIL"
+new_case
+replace "$SKILL/SKILL.md" "screenshot: the browser driver" "| Video | Screenshot | the browser driver |"
+replace "$SKILL/SKILL.md" "$MASK_LINES" ""
+assert_equals "mask-missing: a table row names both kinds, any case" "$(run_check)" \
+  "mask-missing | SKILL.md | ## Capture records screenshot, video $MASK_DETAIL"
+new_case
+replace "$SKILL/SKILL.md" "screenshot: the browser driver" "logs: the server log file"
+replace "$SKILL/SKILL.md" "$MASK_LINES" ""
+assert_equals "mask-missing: a Capture with no image or video kind needs no mask" "$(run_check)" ""
+new_case
+replace "$SKILL/SKILL.md" "screenshot: the browser driver" "- logs: the server log file
+- \`trace\`, \`screenshot\`, \`video\`: none"
+replace "$SKILL/SKILL.md" "$MASK_LINES" ""
+assert_equals "mask-missing: a kind whose tool is none needs no mask" "$(run_check)" ""
+new_case
+replace "$SKILL/SKILL.md" "screenshot: the browser driver" "Screenshots and videos: the browser driver"
+replace "$SKILL/SKILL.md" "$MASK_LINES" ""
+assert_equals "mask-missing: plural kind names" "$(run_check)" \
+  "mask-missing | SKILL.md | ## Capture records screenshot, video $MASK_DETAIL"
 
 bash "$CHECK" "$SKILL" --root >/dev/null 2>&1
 assert_equals "usage: --root with no value exits 2" "$?" "2"
