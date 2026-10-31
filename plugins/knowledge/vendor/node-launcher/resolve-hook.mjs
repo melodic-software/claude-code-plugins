@@ -4,7 +4,7 @@
  *
  * The extraction dependencies (`@melodic/*`, `imghash`) are installed into the
  * persistent plugin data directory, not into the plugin itself (setup-deps.mjs).
- * NODE_PATH — the CommonJS mechanism for this — is ignored by the ESM loader, so
+ * NODE_PATH, the CommonJS mechanism for this, is ignored by the ESM loader, so
  * a resolve hook is the ESM-native equivalent. When node's default resolution
  * fails, this retries with `parentURL` pointing into the data directory's
  * `node_modules`, delegating to node's own resolver so package `exports` maps

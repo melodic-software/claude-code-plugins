@@ -55,6 +55,12 @@ describe("shallowCloneGitHubRepo", () => {
     expect(capturedArgs).toEqual([
       "-c",
       "credential.helper=",
+      "-c",
+      "protocol.allow=never",
+      "-c",
+      "protocol.https.allow=always",
+      "-c",
+      "core.symlinks=false",
       "clone",
       "--depth",
       "1",
@@ -82,7 +88,8 @@ describe("shallowCloneGitHubRepo hardening", () => {
 
     await shallowCloneGitHubRepo("https://github.com/owner/repo", "dest", spawnFn);
 
-    expect(capturedArgs.slice(0, 3)).toEqual(["-c", "credential.helper=", "clone"]);
+    expect(capturedArgs.slice(0, 2)).toEqual(["-c", "credential.helper="]);
+    expect(capturedArgs[8]).toBe("clone");
     const home = capturedOptions.env.HOME;
     expect(home).not.toBe(os.homedir());
     expect(path.basename(home)).toMatch(/^harvest-clone-home-/);
