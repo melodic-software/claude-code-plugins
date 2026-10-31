@@ -296,6 +296,13 @@
         ".github/workflows/maintenance-reconcile-lost-runs.yml#reconcile"
       ]
     },
+    "reconcile-settled-runs": {
+      "retention-days": 1,
+      "readers": [
+        ".github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs SETTLED_ARTIFACT, from the newest trusted run"
+      ],
+      "reason": "Read by the next pass; 1 day is the minimum."
+    },
     "pr-feedback-dispatched-*": {
       "retention-days": 1,
       "readers": [

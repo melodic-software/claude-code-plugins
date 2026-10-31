@@ -1,0 +1,27 @@
+schema_version: "1.1"
+name: wl-usage-sample-first-cycle-deltas-null
+description: "A first cycle copies both readings and writes both deltas null"
+tags: [work-loop, usage-sample]
+plugins: ["../.."]
+expected_outcome: "The usage_sample is {\"at\": \"2026-10-30T09:00:00Z\", \"five_hour_pct\": 12.5, \"seven_day_pct\": 37.0, \"five_hour_delta_pct\": null, \"seven_day_delta_pct\": null}; no sample field changes pacing, a cap, admission, a merge or an escalation."
+execution:
+  prompt: "/work-items:work-loop --standing\n\nLane start: this is cycle 1 and the durable-state block holds no usage_sample yet. At this cycle's start the rate-limit guard read the snapshot file at 2026-10-30T09:00:00Z; its captured_at is 2026-10-30T08:59:00Z (fresh) and it holds five_hour used_percentage 12.5 and seven_day used_percentage 37.0. Durable state shows no_progress_streak=0, item_cap=3. The seam's list-frontier --autonomous exits 0 with {\"schema_version\":\"1.0\",\"items\":[],\"truncated\":false}; no raw intake is open.\n\nTreat the state above as what this cycle's reads return. No forge, tracker or telemetry store is reachable in this session, so make no such call. Give the usage_sample this cycle writes into its durable-state block as one JSON object in a json code block, then the cycle report."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 15
+  timeout_seconds: 420
+graders:
+  - name: seven-day-delta-null
+    type: regex
+    pattern: "\"?seven_day_delta_pct\"?\\s*:\\s*null\\b"
+    target: last_message
+    arm: both
+  - name: five-hour-delta-null
+    type: regex
+    pattern: "\"?five_hour_delta_pct\"?\\s*:\\s*null\\b"
+    target: last_message
+    arm: both
+  - name: readings-copied
+    type: regex
+    pattern: "^(?=[\\s\\S]*\"?five_hour_pct\"?\\s*:\\s*12\\.50*(?![0-9]))(?=[\\s\\S]*\"?seven_day_pct\"?\\s*:\\s*37(?:\\.0+)?(?![0-9.]))"
+    target: last_message
+    arm: both
