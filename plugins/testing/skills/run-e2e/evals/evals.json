@@ -368,11 +368,12 @@
     {
       "id": "feature-map-03",
       "name": "every-entry-point-of-touched-feature",
-      "prompt": "/testing:run-e2e the dashboard start button. This branch changes src/timers/start.ts. The control skill's features/start-a-timer/README.md lists three entry points: the dashboard `Start` button, pressing `t` on the dashboard, and `POST /api/timers` from the browser extension.\n\nContext, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: \"No, I'm good. Just use what you have.\"",
-      "expected_output": "The changed file maps to the Start a timer feature, so all three listed entry points are driven, not only the button the scenario names. The report has one line per entry point, each passed, failed, or not driven with a reason.",
+      "prompt": "/testing:run-e2e app=timer the dashboard start button. This branch changes src/timers/start.ts.\n\nContext, not part of the scenario: the app-control plugin is installed and /app-control:drive resolves. /app-control:drive affected writes an affected.json whose control_skill is `control-timer (project: .claude/skills/control-timer/SKILL.md)` and whose features list one entry, id `start-a-timer`, matched_files [\"src/timers/start.ts\"], with three entry points, each driven true: the dashboard `Start` button, pressing `t` on the dashboard, and `POST /api/timers` from the browser extension. When the run says it goes through /app-control:drive, the user answers: \"Fine, go ahead.\"",
+      "expected_output": "affected.json maps the change to the start-a-timer feature, so all three listed entry points are driven through /app-control:drive, not only the button the scenario names. The report has one line per entry point, each passed, failed, or not driven with a reason.",
       "files": [],
       "narration": true,
       "expectations": [
+        "Takes the touched feature from affected.json rather than matching the index's sources globs itself",
         "Drives the keyboard shortcut and the API entry point as well as the button",
         "Reports one line per listed entry point with passed, failed or not driven and a reason"
       ]
@@ -399,6 +400,65 @@
       "expectations": [
         "Warns that a legacy feature map is present at docs/maps/web and names /app-control:map refresh docs/maps/web without running it",
         "Continues the run, driving the export page the scenario names, without running the legacy map's Doctor"
+      ]
+    },
+    {
+      "id": "affected-01",
+      "name": "unattended-drive-route-from-affected",
+      "prompt": "/testing:run-e2e unattended app=shop base=main trusted-root=/srv/trusted/shop\n\nContext, not part of the scenario: the app-control plugin is installed and /app-control:drive resolves; nobody is present to answer. /app-control:drive affected writes an affected.json whose control_skill is `control-shop (project: /srv/trusted/shop/.claude/skills/control-shop/SKILL.md)` and whose features list one entry, id `cart`, matched_files [\"shop/cart/basket.py\"], with two entry points: `Add to cart button` (driven true) and `Saved-cart import` (driven false, reason `needs a signed-in account`). README.md is in unmatched_files. The /app-control:drive cart run writes report.md and report.json with one screenshot, and its report.json lists `shot-1.png`, `report.public.md` and `report.public.json` in publishable. The hub's `## Mask` `values:` source resolves, and no value it gives, nor the generic credential pattern, appears in the text of e2e-summary.json.",
+      "expected_output": "Step 1 invokes /app-control:drive affected shop --base main --unattended --trusted-root /srv/trusted/shop and reads affected.json; control_skill is set, so the route is drive. It does not read the control skill's index or match sources globs itself. It drives the cart feature with /app-control:drive shop cart --unattended --trusted-root /srv/trusted/shop and its own --out directory, reports Saved-cart import as not driven (needs a signed-in account), and writes e2e-summary.json with route drive, app shop, affected [\"cart\"], capture status ran and one entry_points line per entry point. publishable holds the three paths from the cart report.json's publishable list, under the cart run directory, and then e2e-summary.json, which joins because its scan with the hub's mask values and the generic credential pattern found no hit.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Invokes /app-control:drive affected with shop, --base main, --unattended and --trusted-root /srv/trusted/shop",
+        "Does not match changed files against the control skill's sources globs itself",
+        "Invokes /app-control:drive for the cart feature with --unattended and --trusted-root /srv/trusted/shop",
+        "Reports Saved-cart import as not driven (needs a signed-in account)",
+        "Writes e2e-summary.json with route drive, app shop, affected [\"cart\"] and capture status ran",
+        "Takes the publishable paths from the cart report.json's publishable list rather than scanning the captures itself",
+        "Lists e2e-summary.json in publishable only after scanning it with the hub's mask values and the generic credential pattern"
+      ]
+    },
+    {
+      "id": "affected-04",
+      "name": "unattended-summary-scan-hit-keeps-summary-out",
+      "prompt": "/testing:run-e2e unattended app=shop base=main\n\nContext, not part of the scenario: the app-control plugin is installed and /app-control:drive resolves; nobody is present to answer. /app-control:drive affected writes an affected.json whose control_skill is `control-shop (project: .claude/skills/control-shop/SKILL.md)` and whose features list one entry, id `receipts`, with one entry point, `Email the receipt to qa.lead@example.com`, driven true. The /app-control:drive receipts run records its steps and one screenshot, and its report.json lists only `receipts-1.png` in publishable, since its own post-check found the email address in both public reports. The hub's `## Mask` `values:` source resolves.",
+      "expected_output": "The run drives the receipts entry point through /app-control:drive and writes e2e-summary.json without its own path in publishable; its entry_points line holds the entry point's text with the email address. The scan of that text with the hub's mask values and the generic credential pattern finds the email address, so e2e-summary.json is kept out: publishable holds only receipts/receipts-1.png from the receipts report.json, and the report names a credential pattern hit without quoting the matched text. No resolved mask value is written to any file, and the hit does not fail the run.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Scans the text of e2e-summary.json with the hub's mask values and the generic credential pattern",
+        "Keeps e2e-summary.json out of publishable because of the email address, naming a credential pattern hit without quoting it",
+        "Lists only receipts/receipts-1.png, taken from the receipts report.json's publishable list",
+        "Writes no resolved mask value to any file and does not fail the run for the hit"
+      ]
+    },
+    {
+      "id": "affected-02",
+      "name": "app-control-absent-touched-features-not-matched",
+      "prompt": "/testing:run-e2e the cart page. This branch changes shop/cart/basket.py, and .claude/skills/control-shop/ exists with an index whose cart feature lists `shop/cart/**` in its sources.\n\nContext, not part of the scenario: the app-control plugin is not installed. When the run suggests installing it, the user answers: \"No, I'm good. Just use what you have.\"",
+      "expected_output": "/app-control:drive does not resolve, so no affected call runs and the run does not match changed files against the index itself. The report carries `touched features not matched (app-control not installed)`, the route is own driving (declined), the run drives the cart page the scenario names, and it does not stop or error. Step 4 refreshes nothing and the Next section names installing app-control.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not read the index's sources globs to match shop/cart/basket.py",
+        "Reports `touched features not matched (app-control not installed)`",
+        "Drives the cart page the scenario names on own driving",
+        "Does not stop or report an error for the missing plugin"
+      ]
+    },
+    {
+      "id": "affected-03",
+      "name": "unattended-nothing-affected-capture-not-applicable",
+      "prompt": "/testing:run-e2e unattended app=shop base=main\n\nContext, not part of the scenario: the app-control plugin is installed and /app-control:drive resolves; nobody is present to answer. /app-control:drive affected writes an affected.json whose control_skill is `control-shop (project: .claude/skills/control-shop/SKILL.md)`, whose features list is empty, whose unmatched_files is [\"docs/notes.md\"] and whose note is `control skill present, 1 files unmatched`.",
+      "expected_output": "With no touched feature and no scenario there is nothing to drive: the run launches nothing, invokes no /app-control:drive feature run and no /app-control:map refresh, and writes e2e-summary.json with affected [], entry_points [], and capture status not-applicable, reason `control skill present, 1 files unmatched`, count 0. The run ends without a failure.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Launches nothing and invokes no /app-control:drive feature run",
+        "Invokes no /app-control:map refresh",
+        "Writes e2e-summary.json with capture status not-applicable and the note as its reason",
+        "Reports no failed entry point and does not fail the run"
       ]
     },
     {

@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
-import { main, NATIVE_READS_PER_RUN } from "./clear-escalations.mjs";
+import { main, NATIVE_READS_PER_RUN, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
 import { refusalBody } from "./enable-auto-merge.mjs";
 import { escalationActivity, escalationRoute, ROUTES } from "../pr-unblock/escalation-routes.mjs";
 import { SIGNED_COMMITS_HOLD } from "../pr-unblock/gate-source.mjs";
@@ -42,10 +42,18 @@ const RED = [check("test-node", "failure")];
 // `evidence` is what the gate's reader (enable-auto-merge pythonVerify) answers.
 // `reviewThreads` is the GraphQL reviewThreads page answered for a cursor.
 const threadPage = (nodes, hasNextPage = false) => ({ nodes, pageInfo: { hasNextPage, endCursor: hasNextPage ? "next" : null } });
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"] }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [] }) {
   const calls = [];
+  const known = (number) => numbers.includes(number) || sessionNumbers.includes(number);
   const checks = async (method, path) => {
     calls.push({ method, path, token: "checks" });
+    // `statuses` is the HEAD's REST statuses, newest first, or an Error.
+    if (path.startsWith(`/repos/${REPO}/commits/${HEAD}/statuses?`)) {
+      if (statuses instanceof Error) {
+        throw statuses;
+      }
+      return path.endsWith("page=1") ? statuses : [];
+    }
     if (headChecks instanceof Error) {
       throw headChecks;
     }
@@ -69,8 +77,11 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
     if (method === "GET" && route === `/repos/${REPO}/issues?state=open&labels=needs-human`) {
       return path.endsWith("page=1") ? numbers.map((number) => ({ number, pull_request: {}, labels: listed.map((name) => ({ name })) })) : [];
     }
+    if (method === "GET" && route === `/repos/${REPO}/issues?state=open&labels=needs-session`) {
+      return path.endsWith("page=1") ? sessionNumbers.map((number) => ({ number, pull_request: {}, labels: [{ name: "needs-session" }] })) : [];
+    }
     const [, kind, number] = /^\/repos\/[^/]+\/[^/]+\/(issues|pulls)\/(\d+)(?:\/timeline)?$/.exec(route) ?? [];
-    if (method === "GET" && kind === "issues" && route.endsWith("/timeline") && numbers.includes(Number(number))) {
+    if (method === "GET" && kind === "issues" && route.endsWith("/timeline") && known(Number(number))) {
       return path.endsWith("page=1") ? timeline : [];
     }
     if (method === "GET" && kind === "pulls" && numbers.includes(Number(number))) {
@@ -1234,14 +1245,18 @@ const REVIEWER_AUTHOR = { __typename: "Bot", login: "github-actions" };
 const severityThread = (severity) => ({ ...reviewThread(false, [REVIEWER_AUTHOR]), opening: { nodes: [{ body: `Finding.\n\n${severity}\n\nclaude-lane: claude-security-review` }] } });
 const WAITING = `a push no trusted person made moved the head; waiting for clean review lanes at ${HEAD}`;
 
-test("feedback-not-landed comes off after a lanes App push once both review lanes read the new head clean", async () => {
-  const w = world({ timeline: notLandedTimeline(), reader: laneReader(), reviewThreads: () => threadPage([reviewThread(true, [LANE_AUTHOR]), severityThread("severity: SUGGESTION")]) });
-  const { code } = await run(w, TRUST_ENV);
-  assert.equal(code, 0);
-  const [comment, removal] = w.writes();
-  assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=feedback-not-landed head=${HEAD} -->`);
-  assert.match(comment.body.body, /both review lanes completed a review of it/);
-  assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+// An open SUGGESTION or IMPORTANT finding is reported, not held: only a
+// CRITICAL one holds (owner decision on #11020).
+test("feedback-not-landed comes off after a lanes App push once both review lanes read the new head clean, an open SUGGESTION or IMPORTANT thread included", async () => {
+  for (const severity of ["severity: SUGGESTION", "severity: IMPORTANT"]) {
+    const w = world({ timeline: notLandedTimeline(), reader: laneReader(), reviewThreads: () => threadPage([reviewThread(true, [LANE_AUTHOR]), severityThread(severity)]) });
+    const { code } = await run(w, TRUST_ENV);
+    assert.equal(code, 0, severity);
+    const [comment, removal] = w.writes();
+    assert.equal(comment.body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=feedback-not-landed head=${HEAD} -->`, severity);
+    assert.match(comment.body.body, /both review lanes completed a review of it/);
+    assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined }, severity);
+  }
 });
 
 test("feedback-not-landed stays after a lanes App push while the review lanes have not reviewed the new head", async () => {
@@ -1261,8 +1276,8 @@ test("feedback-not-landed stays after a lanes App push while the review lanes ha
   }
 });
 
-test("feedback-not-landed stays after a lanes App push while an unresolved review thread carries a CRITICAL, IMPORTANT or unreadable severity", async () => {
-  for (const severity of ["severity: IMPORTANT", "severity: CRITICAL", "", "severity: SUGGESTION\nseverity: IMPORTANT"]) {
+test("feedback-not-landed stays after a lanes App push while an unresolved review thread carries a CRITICAL or unreadable severity", async () => {
+  for (const severity of ["severity: CRITICAL", "", "severity: SUGGESTION\nseverity: IMPORTANT"]) {
     const w = world({ timeline: notLandedTimeline(), reader: laneReader(), reviewThreads: () => threadPage([severityThread(severity)]) });
     const { logs } = await run(w, TRUST_ENV);
     assert.deepEqual(w.writes(), [], severity);
@@ -1657,4 +1672,75 @@ test("a person's comment written before the label and edited after it, or in the
     await run(w);
     assert.deepEqual(w.writes(), [], spoke.body);
   }
+});
+
+// The session-builder queue label (#11087): report-escalation.sh puts
+// needs-session on before its lane-stopped comment for a fail-routed reason
+// whose escalation-routes.json entry names it, and its `clear` mode posts
+// success over the stop's failing status when a same-head retry lands.
+const sessionLabeled = (actor, at = "2026-10-18T10:00:00Z") => ({ event: "labeled", actor, label: { name: "needs-session" }, created_at: at });
+const stopBody = (reason, head = HEAD) =>
+  `<!-- pr-unblock:lane-stopped activity=fix-ci -->\nThe pr-unblock lane stopped \`fix-ci\` on this pull request: why. The lane labels it \`needs-session\` for a session builder, who makes the change this lane cannot, and the run ends in a failing \`pr-unblock/fix-ci\` status on the head the lane gated.\n\n- Reason: \`${reason}\`\n- Head: \`${head}\`\n- Run: https://github.com/${REPO}/actions/runs/1\n`;
+const stopped = (reason = "ci-fix-escalated") => commented(BOT, stopBody(reason), "2026-10-18T10:00:02Z");
+const status = (state, creator = ACTIONS_BOT, at = "2026-10-18T11:00:00Z") => ({ context: "pr-unblock/fix-ci", state, creator, created_at: at });
+const sessionWorld = (options) => world({ numbers: [], sessionNumbers: [8], ...options });
+
+test("a rung-0 ci-fix-escalated stop whose same-head retry landed leaves the PR without needs-session, with no comment", async () => {
+  assert.equal(ROUTES["ci-fix-escalated"].label, "needs-session");
+  const w = sessionWorld({ timeline: [sessionLabeled(BOT), stopped()], statuses: [status("success"), status("failure")] });
+  const { code, logs } = await run(w);
+  assert.equal(code, 0);
+  assert.deepEqual(w.writes(), [{ method: "DELETE", path: `/repos/${REPO}/issues/8/labels/needs-session`, body: undefined }]);
+  assert.ok(logs.some((line) => /#8 needs-session cleared: ci-fix-escalated no longer fails pr-unblock\/fix-ci/.test(line)), logs.join("\n"));
+});
+
+test("a needs-session stop whose failing status still stands keeps the label", async () => {
+  for (const statuses of [[status("failure")], [status("error"), status("success")], [], [status("success", OWNER), status("failure")]]) {
+    const w = sessionWorld({ timeline: [sessionLabeled(BOT), stopped()], statuses });
+    const { code, logs } = await run(w);
+    assert.equal(code, 0);
+    assert.deepEqual(w.writes(), [], JSON.stringify(statuses));
+    assert.ok(logs.some((line) => /#8 needs-session kept: ci-fix-escalated still fails/.test(line)), logs.join("\n"));
+  }
+});
+
+test("a success from before the stop keeps needs-session: the stop's failure posts in another job", async () => {
+  const earlier = commented(BOT, stopBody("ci-fix-escalated"), "2026-10-18T10:00:02Z", "2026-10-18T12:00:00Z");
+  const w = sessionWorld({ timeline: [sessionLabeled(BOT), earlier], statuses: [status("success")] });
+  const { logs } = await run(w);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.some((line) => /#8 needs-session kept: .*no success since the stop/.test(line)), logs.join("\n"));
+});
+
+test("at most SESSION_CHECKS_PER_RUN pull requests are read a run, kept ones included, and the offset moves", async () => {
+  const sessionNumbers = [1, 2, 3, 4, 5, 6, 7];
+  const readBy = async (GITHUB_RUN_NUMBER) => {
+    const w = world({ numbers: [], sessionNumbers, timeline: [sessionLabeled(BOT), stopped()], statuses: [status("failure")] });
+    const { logs } = await run(w, { GITHUB_RUN_NUMBER });
+    assert.deepEqual(w.writes(), []);
+    assert.equal(logs.filter((line) => /needs-session not checked: 5 read this run/.test(line)).length, sessionNumbers.length - SESSION_CHECKS_PER_RUN);
+    return w.calls.filter((call) => call.path.includes("/timeline")).map((call) => Number(/\/issues\/(\d+)\//.exec(call.path)[1]));
+  };
+  assert.deepEqual(await readBy("0"), [1, 2, 3, 4, 5]);
+  assert.deepEqual(await readBy("3"), [4, 5, 6, 7, 1]);
+});
+
+test("a needs-session a person added, or one with no lane stop since it went on, is kept", async () => {
+  for (const timeline of [
+    [sessionLabeled(OWNER), stopped()],
+    [commented(BOT, stopBody("ci-fix-escalated"), "2026-10-18T09:00:00Z"), sessionLabeled(BOT)],
+    [sessionLabeled(BOT), stopped("ci-fix-round-cap")],
+  ]) {
+    const w = sessionWorld({ timeline, statuses: [status("success")] });
+    await run(w);
+    assert.deepEqual(w.writes(), [], JSON.stringify(timeline));
+  }
+});
+
+test("a needs-session stop whose head statuses do not read keeps the label without failing the run", async () => {
+  const w = sessionWorld({ timeline: [sessionLabeled(BOT), stopped()], statuses: new Error("HTTP 403") });
+  const { code, logs } = await run(w);
+  assert.equal(code, 0);
+  assert.deepEqual(w.writes(), []);
+  assert.ok(logs.some((line) => /::warning title=clear-escalations::#8: HTTP 403/.test(line)), logs.join("\n"));
 });

@@ -10,6 +10,7 @@ import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { createRateLimitLatch } from "../log-api-budget/rate-guard.mjs";
 import { anyHandles, limitResetsAt } from "../../scripts/pr-unblock/limit-stop.mjs";
 import { main } from "./report-check-run.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -347,6 +348,15 @@ test("a workflow-modified skip from a run job that succeeded POSTs neutral", asy
   assert.equal(calls[0].body.output.summary, "Skip reason: workflow-modified");
 });
 
+test("a stop-resolved skip POSTs neutral under the schema's enum", async () => {
+  const verdict = { ...JSON.parse(readFileSync(fixture("verdict-skipped.json"), "utf8")), "skip-reason": "stop-resolved", outcome: "skipped" };
+  const verdictPath = path.join(dir, "verdict.json");
+  writeFileSync(verdictPath, JSON.stringify(verdict));
+  const { calls } = await run({ VERDICT_PATH: verdictPath, ACT_OUTCOME: "skipped" });
+  assert.equal(calls[0].body.conclusion, "neutral");
+  assert.equal(calls[0].body.output.title, "Skipped: stop-resolved");
+});
+
 test("the enum is read from base-path: a base schema without the reason POSTs failure", async () => {
   const schemaPath = path.join(basePath, SCHEMA_REL);
   const schema = JSON.parse(readFileSync(schemaPath, "utf8"));
@@ -396,6 +406,47 @@ test("an API error exits non-zero", async () => {
   const { code, calls } = await run({}, 403);
   assert.equal(code, 1);
   assert.equal(calls.length, 1);
+});
+
+// A bad token's 403, with every header the annotation reads. retry-after
+// latches the rate guard, so the test hands main a latch of its own.
+const REFUSED_BODY = JSON.stringify({ message: "Bad credentials", documentation_url: "https://docs.github.com/rest", pad: "x".repeat(300) });
+const REFUSED_HEADERS = {
+  "x-ratelimit-remaining": "4321",
+  "x-ratelimit-reset": "1760767020",
+  "x-ratelimit-resource": "core",
+  "retry-after": "60",
+};
+const quietLatch = () => createRateLimitLatch({ log: () => {}, fail: () => {}, stopFile: null, limits: () => ({}) });
+
+test("a refused POST's annotation carries the status, the rate-limit headers and the body prefix", async () => {
+  const lines = [];
+  const code = await main({
+    env: { LANE: "pr-refine", ACTIVITY: "simplify", RUN_RESULT: "success", ACT_OUTCOME: "success", CAN_COMMIT: "false", HEAD_SHA: HEAD, HEAD_SHA_FALLBACK: FALLBACK, VERDICT_PATH: fixture("verdict-success.json"), BASE_PATH: basePath, GITHUB_REPOSITORY: REPOSITORY, GITHUB_TOKEN: "bad-token", GITHUB_API_URL: "https://api.example.test" },
+    fetchImpl: async () => new Response(REFUSED_BODY, { status: 403, headers: REFUSED_HEADERS }),
+    log: (line) => lines.push(line),
+    latch: quietLatch(),
+  });
+  assert.equal(code, 1);
+  const annotation = lines.find((line) => line.startsWith("::error::report-check-run: could not post"));
+  assert.ok(annotation, lines.join("\n"));
+  for (const field of ["status=403", "x-ratelimit-remaining=4321", "x-ratelimit-reset=1760767020", "x-ratelimit-resource=core", "retry-after=60", `body=${JSON.stringify(REFUSED_BODY.slice(0, 200))}`]) {
+    assert.ok(annotation.includes(field), `${field} in ${annotation}`);
+  }
+});
+
+test("a refused answer's body cannot end or re-encode its annotation line", async () => {
+  const lines = [];
+  await main({
+    env: { LANE: "pr-refine", ACTIVITY: "simplify", RUN_RESULT: "success", ACT_OUTCOME: "success", CAN_COMMIT: "false", HEAD_SHA: HEAD, HEAD_SHA_FALLBACK: FALLBACK, VERDICT_PATH: fixture("verdict-success.json"), BASE_PATH: basePath, GITHUB_REPOSITORY: REPOSITORY, GITHUB_TOKEN: "t", GITHUB_API_URL: "https://api.example.test" },
+    fetchImpl: async () => new Response("oops\n::warning::injected %0A", { status: 404 }),
+    log: (line) => lines.push(line),
+    latch: quietLatch(),
+  });
+  const annotation = lines.find((line) => line.startsWith("::error::report-check-run: could not post"));
+  assert.ok(!annotation.includes("\n"));
+  assert.ok(annotation.includes(String.raw`body="oops\n::warning::injected %250A"`), annotation);
+  assert.ok(annotation.includes("x-ratelimit-remaining=none") && !annotation.includes("retry-after="), annotation);
 });
 
 test("a malformed repository exits non-zero with no API call", async () => {

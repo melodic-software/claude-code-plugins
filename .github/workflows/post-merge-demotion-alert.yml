@@ -39,8 +39,10 @@ name: post-merge-demotion-alert
 # nothing beside another failed job, and the gitleaks gate, which scans every
 # branch on these events, counts against no merge. Of those, a run whose every
 # newly failing test-leg suite is outside the affected set of the merges since
-# main's last green full run, or quarantined, files nothing but each suite's
-# quarantine issue (babysit_postmerge.py --judge-run, run from main's tip).
+# main's last green full run, or quarantined, with a failure on a re-run also
+# having passed on an earlier attempt or failed at green, files nothing but each
+# suite's quarantine issue
+# (babysit_postmerge.py --judge-run, run from main's tip).
 #
 # Beside a new record of a full run, it files one fix issue per newly failing
 # check (at most 5) and dispatches intake-triage.yml for each, so an agent can
@@ -516,30 +518,65 @@ jobs:
 
           # A full run covers every first-parent commit since main's last
           # green full run, so the failure is charged to that whole range.
+          # no_range says, for the record, why there is none. Compare pages
+          # past the first are read only for a range of at most 300 commits,
+          # from the first page's total: the walk needs all of them, and
+          # GitHub lists at most 250 without paging. The subject stays whole
+          # here, for its (#N).
           range=()
+          no_range=''
+          unknown='so the merges this failure covers are unknown; only the head commit is listed.'
           declare -A parent=() entry=()
           if [[ "$signal" != canary ]]; then
-            base="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&created=%3C$RUN_CREATED&per_page=100" \
+            if ! base="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$RUN_WORKFLOW_ID/runs?branch=main&status=success&created=%3C$RUN_CREATED&per_page=100" \
               --jq '[.workflow_runs[] | select(.head_branch == "main" and (.event | IN("schedule", "workflow_dispatch"))
-                and .head_sha != env.RUN_SHA and .created_at < env.RUN_CREATED)]
-                | max_by(.created_at) // empty | .head_sha')" || base=''
-            if [[ "$base" =~ ^[0-9a-f]{40}$ ]]; then
-              commits="$(gh api "repos/$GITHUB_REPOSITORY/compare/$base...$RUN_SHA" \
-                --jq '.commits[] | [.sha, (.parents[0].sha // "none"), (.author.login // .commit.author.name // "unknown"),
-                  (.commit.message | split("\n")[0])] | @tsv')" || commits=''
-              while IFS=$'\t' read -r c p a s; do
-                if [[ -n "$c" ]]; then
-                  parent[$c]="$p"
-                  entry[$c]="$a"$'\t'"$s"
+                and .created_at < env.RUN_CREATED)]
+                | max_by(.created_at) // empty | .head_sha')"; then
+              base=''
+              echo "::warning::could not read main's green full runs before $RUN_URL: its range is unknown"
+              no_range="Main's earlier full runs could not be read, $unknown"
+            elif [[ ! "$base" =~ ^[0-9a-f]{40}$ ]]; then
+              no_range="No green full run on main came before this one, $unknown"
+            elif [[ "$base" == "$RUN_SHA" ]]; then
+              no_range="Main's last green full run is at this same commit, so no merge is implicated; only the head commit is listed."
+            else
+              commits='' page=1 pages=1
+              while [[ "$page" -le "$pages" ]]; do
+                if ! got="$(gh api "repos/$GITHUB_REPOSITORY/compare/$base...$RUN_SHA?per_page=100&page=$page" \
+                  --jq '(.total_commits | tostring), (.commits[] | [.sha, (.parents[0].sha // "none"), (.author.login // "unknown"),
+                    (.commit.message | split("\n")[0] | gsub("\r"; "") | gsub("\t"; " "))] | join("\t"))')" ||
+                  [[ ! "${got%%$'\n'*}" =~ ^[0-9]+$ ]]; then
+                  echo "::warning::could not list page $page of the commits from $base to $RUN_SHA: the range is unknown"
+                  no_range="The commits since main's last green full run at \`$base\` could not be listed, $unknown"
+                  break
                 fi
-              done <<<"$commits"
-              at="$RUN_SHA"
-              while [[ -n "$at" && "$at" != "$base" && -n "${entry[$at]+x}" ]]; do
-                range=("$at" "${range[@]}")
-                at="${parent[$at]}"
+                if [[ "$page" -eq 1 ]]; then
+                  total="${got%%$'\n'*}"
+                  pages=$(((total + 99) / 100))
+                  if [[ "$total" -gt 300 ]]; then
+                    no_range="The $total commits since main's last green full run at \`$base\` are more than the 300 this check lists, $unknown"
+                    break
+                  fi
+                fi
+                commits="$commits$(sed 1d <<<"$got")"$'\n'
+                page=$((page + 1))
               done
-              if [[ "$at" != "$base" ]]; then
-                range=()
+              if [[ -z "$no_range" ]]; then
+                while IFS=$'\t' read -r c p a s; do
+                  if [[ -n "$c" ]]; then
+                    parent[$c]="$p"
+                    entry[$c]="$a"$'\t'"$s"
+                  fi
+                done <<<"$commits"
+                at="$RUN_SHA"
+                while [[ -n "$at" && "$at" != "$base" && -n "${entry[$at]+x}" ]]; do
+                  range=("$at" "${range[@]}")
+                  at="${parent[$at]}"
+                done
+                if [[ "$at" != "$base" ]]; then
+                  range=()
+                  no_range="Main's first-parent history from this commit does not reach its last green full run at \`$base\`, $unknown"
+                fi
               fi
             fi
           fi
@@ -907,25 +944,38 @@ jobs:
           pr_line="- Pull request: $pr
           "
           if [[ "${#range[@]}" -gt 1 ]]; then
-            lead="$lead It is attributed to the range of ${#range[@]} merges since main's last green full run at \`$base\`, not to one pull request."
-            pr_line="- Merges in the range, oldest first:
+            lead="$lead It is attributed to the range of ${#range[@]} commits since main's last green full run at \`$base\`, not to one pull request."
+            pr_line="- Commits in the range, oldest first:
           "
-            first='' last=''
+            first='' last='' listed=0
             for c in "${range[@]}"; do
               IFS=$'\t' read -r a s <<<"${entry[$c]}"
-              name="${c:0:12}" link="no pull request ($s)"
+              # A subject is free text only a bypass push brings: in code
+              # font, without backticks, it mentions no one and renders plain.
+              s_shown="${s//\`/}"
+              name="${c:0:12}" link="direct push \`${s_shown:0:100}\`, commit"
               if [[ "$s" =~ \(#([0-9]+)\)$ ]]; then
-                name="#${BASH_REMATCH[1]}" link="$pulls/${BASH_REMATCH[1]}"
+                name="#${BASH_REMATCH[1]}" link="$pulls/${BASH_REMATCH[1]}, merge commit"
               fi
               first="${first:-$name}" last="$name"
-              pr_line="$pr_line  - $link, merge commit \`$c\`, by $a
+              listed=$((listed + 1))
+              if [[ "$listed" -le 100 ]]; then
+                pr_line="$pr_line  - $link \`$c\`, by $a
           "
+              fi
             done
+            if [[ "$listed" -gt 100 ]]; then
+              pr_line="$pr_line  - and $((listed - 100)) more: ${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY/compare/$base...$RUN_SHA
+          "
+            fi
             title="Post-merge $signal failure after $first..$last: $outcome"
             revert='A human reads the failing suites in the run above, picks the merge responsible, and reverts that one.'
           elif [[ "$signal" != canary && "${#range[@]}" -eq 0 ]]; then
-            lead="$lead The last green full run on main before this one could not be found, so the merges this failure covers are unknown; only the head commit is listed."
+            lead="$lead $no_range"
             revert='A human reads the failing suites in the run above and finds the merge responsible before reverting anything.'
+            if [[ "$base" == "$RUN_SHA" ]]; then
+              revert='A human reads the failing suites in the run above; no merge is there to revert.'
+            fi
           fi
           rung="The unattended merge path stays at
           rung off while any demotion record is open. Fix main first, then close every open demotion record directly (not through a pull request's closing keyword); a new sighting of the same failure reopens its record."

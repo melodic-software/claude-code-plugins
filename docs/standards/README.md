@@ -5,7 +5,7 @@ standards-contract: 1.0.2
 # Standards index
 
 Team-layer engineering standards synced from melodic-software/standards
-(`conventions/engineering/`). Change them there, not here.
+(`standards/engineering/`). Change them there, not here.
 
 | Surface | Applies when | File |
 |---|---|---|

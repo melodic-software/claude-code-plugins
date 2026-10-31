@@ -18,7 +18,7 @@
 
 ## Trust boundaries
 
-The target path, optional policy, model-authored plan, filesystem metadata, Git output, and process
+The target path, optional policy, `--plan` file, filesystem metadata, Git output, and process
 handle output are untrusted inputs. The Python boundary parses them without shell interpolation,
 canonicalizes every selected path under the snapshot root, and rejects absolute paths, traversal,
 overlap, and entries absent from the snapshot.
@@ -614,8 +614,9 @@ its `hooks` stay registered for the rest of the process, so the belt decides for
 
 **When a run is open.** The belt keeps one marker per session id, `clean-runs/<session_id>.json` under
 the plugin data directory. Admitting a `preview` writes it, and so does admitting an `apply` or
-`handoff-apply`. Each records the file whose writing ends that step: the preview's `--plan`, or the
-mutation's `--report`. Admitting a `handoff-verify` writes it too, with no end file: a manual-lane delete
+`handoff-apply`. Each records the file whose writing ends that step: the plan the preview reads (`--plan`) or
+writes (`plan-<tier>.json` beside the snapshot, in the inline `--tier`/`--path` form), or the mutation's
+`--report`. Admitting a `handoff-verify` writes it too, with no end file: a manual-lane delete
 follows each verify, and its PowerShell spelling gets its `ask` only from the belt, so only the idle
 timeout ends that step. While a verify's run is open, a later `preview`, `apply` or `handoff-apply`
 only restarts its idle clock and records no end file, so no engine call can end the manual lane early;
@@ -623,10 +624,15 @@ only a `handoff-verify` opens it and only the timeout ends it. Any other admitte
 idle clock, so a completed or refused scan with no preview after it is a scan-only outcome. With no
 marker, the belt denies no command that does not name the engine (the read-only supporting allowlist
 keeps its `allow`); a command that names the engine gets the same verdict as during a run. The engine
-deletes the marker when the run ends: after an `apply` or `handoff-apply` writes the report the marker
-names, and when a `preview` of the plan it names ends in `manual-handoff-lane` or `blocked`. A marker
-that goes an hour without an engine call reads as no run, and the engine deletes it on its next call.
-The guard never deletes a marker. The kill switch wins over the release: when `disk_hygiene_enabled`
+deletes the calling session's marker, named by `CLAUDE_CODE_SESSION_ID`, when the run ends: after an
+`apply` or `handoff-apply` writes the report the marker names, and when a `preview` of the plan it names
+ends in `manual-handoff-lane` or `blocked`. A marker that goes an hour without an engine call reads as
+no run, and the engine deletes it on that session's next call. The engine never reads another
+session's marker, so one session cannot end another's run; an engine call with no session id deletes
+no marker, and its run ends at the idle timeout. The guard never deletes a marker. The guard's check
+and write and the engine's read and delete take one lock file in `clean-runs/`, so hooks in one
+parallel batch cannot interleave them; when that lock cannot be taken, both run unlocked rather than
+skip the marker. The kill switch wins over the release: when `disk_hygiene_enabled`
 is `false` the belt never stands down, so Bash keeps its deny-by-default and PowerShell deletion
 spellings stay denied whether or not a run is open. `clean-runs/` is engine-owned state, so no engine `--output` or
 `--report` can land on a marker.

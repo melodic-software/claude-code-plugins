@@ -1,0 +1,108 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/vendor/repo-analysis/clone-cli.js\" https://github.com/acme/agent-skills \"$(mktemp -d)/clone\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git clone --depth 1 https://github.com/acme/agent-skills /tmp/absorb-xyz/repo",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "d=$(mktemp -d) && git clone https://github.com/acme/agent-skills \"$d/repo\" 2>&1",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cd /tmp/x && git clone https://github.com/acme/agent-skills repo",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git clone https://github.com/acme/agent-skills",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git clone --depth 1 https://github.com/acme/agent-skills upstream-clone",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/vendor/repo-analysis/clone-cli.js\" https://github.com/acme/agent-skills ./clone",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git clone https://github.com/acme/agent-skills && ls",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git clone https://github.com/acme/agent-skills 2>&1 | tail -3",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

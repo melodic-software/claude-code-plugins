@@ -1,78 +1,47 @@
 #!/usr/bin/env node
 /**
- * Cross-platform launcher for the youtube extraction entry points.
- *
- * The pipeline's node dependencies live in `${CLAUDE_PLUGIN_DATA}/node_modules`
- * (installed by setup-deps.mjs), not inside the cache-isolated plugin directory.
- * This launcher re-execs the target script with an ESM resolve hook that finds
- * bare specifiers like `@melodic/video-digestion` in the data directory, so
- * every documented invocation is a plain `node run.mjs <script> …` with no
- * shell-specific env-var syntax. (An inline `NODE_PATH=… node` prefix is both
- * bash-only — it fails under PowerShell — and ignored by the ESM loader, which
- * does not honor NODE_PATH at all.)
+ * Cross-platform launcher for the video-digest extraction entry points: the shared
+ * launcher (`vendor/node-launcher/run.mjs`) with this package's leading flags.
  *
  * OPTIONAL leading flags let the invoking skill wire the knowledge plugin's
  * personal userConfig options into the pipeline the same cross-platform way: each
- * double-quoted CLI arg (safe in bash and PowerShell) is translated here into the
- * env var the extraction child reads — `--work-root` → `VIDEO_DIGEST_WORK_ROOT`
- * (`resolveWorkRoot()`), plus the yt-dlp / throttle scalars. Omit a flag to keep
- * the child's own default; for `--work-root` the repo-root fallback chain applies.
- * The `--work-root` value may use the portable `library_dir` forms — a leading `~`
- * or `${NAME}` / `%NAME%` env-var references — expanded here (`expandPathValue`)
- * so machine-varying roots never require a literal path in stored configuration.
+ * double-quoted CLI arg (safe in bash and PowerShell) is translated into the env
+ * var the extraction child reads (`lib/run-args.js`): `--work-root` sets
+ * `VIDEO_DIGEST_WORK_ROOT` (`resolveWorkRoot()`), plus the yt-dlp / throttle
+ * scalars. Omit a flag to keep the child's own default; for `--work-root` the
+ * repo-root fallback chain applies. The `--work-root` value may use the portable
+ * `library_dir` forms, a leading `~` or `${NAME}` / `%NAME%` env-var references,
+ * expanded here (`expandPathValue`) so machine-varying roots never require a
+ * literal path in stored configuration.
  *
- * `--data-dir` names the plugin data directory the hook resolves dependencies from.
- * The child sees only the value `resolvePluginData` accepts, never an inherited
+ * `--data-dir` names the plugin data directory the resolve hook finds dependencies
+ * in. The child sees only the value `resolvePluginData` accepts, never an inherited
  * `CLAUDE_PLUGIN_DATA` that names another plugin.
  *
  * Usage: node run.mjs [--data-dir <dir>] [--work-root <dir>] [--js-runtimes <v>]
  *   [--cookies-file <path>] [--cookies-from-browser <name>] [--max-concurrent-acquires <n>]
  *   [--acquire-phase-gap <sec>] [--asr-python <path>] <relative-script.js> [args…]
  */
-import { spawnSync } from "node:child_process";
 import os from "node:os";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
 
-import { buildChildEnv, expandPathValue, parseRunArgs, resolvePluginData } from "./lib/run-args.js";
+import { launch } from "../../../vendor/node-launcher/run.mjs";
+import { buildChildEnv, expandPathValue, parseRunArgs } from "./lib/run-args.js";
 
-const here = import.meta.dirname;
-
-let parsed;
 const usage =
   "Usage: node run.mjs [--data-dir <dir>] [--work-root <dir>] [--js-runtimes <v>] [--cookies-file <path>] " +
   "[--cookies-from-browser <name>] [--max-concurrent-acquires <n>] " +
   "[--acquire-phase-gap <sec>] [--asr-python <path>] <relative-script.js> [args…]\n";
 
-try {
-  parsed = parseRunArgs(process.argv.slice(2));
-  parsed.dataDir = resolvePluginData(parsed.dataDir, process.env);
-  if (parsed.workRoot) {
-    parsed.workRoot = expandPathValue(parsed.workRoot, process.env, os.homedir());
-  }
-} catch (error) {
-  process.stderr.write(`${error.message}\n${usage}`);
-  process.exit(2);
-}
-const { script, rest } = parsed;
-
-if (!script) {
-  process.stderr.write(usage);
-  process.exit(2);
-}
-
-const target = path.resolve(here, script);
-const rel = path.relative(here, target);
-if (rel.startsWith("..") || path.isAbsolute(rel)) {
-  process.stderr.write(`Refusing to run a script outside the extraction directory: ${script}\n`);
-  process.exit(2);
-}
-
-const { CLAUDE_PLUGIN_DATA: _inherited, ...inheritedEnv } = process.env;
-const registerHook = path.join(here, "register-hook.mjs");
-const result = spawnSync(
-  process.execPath,
-  ["--import", pathToFileURL(registerHook).href, target, ...rest],
-  { stdio: "inherit", env: buildChildEnv(inheritedEnv, parsed) },
+process.exit(
+  launch({
+    packageDir: import.meta.dirname,
+    argv: process.argv.slice(2),
+    usage,
+    parse: parseRunArgs,
+    childEnv: (inherited, parsed, env) =>
+      buildChildEnv(
+        inherited,
+        parsed.workRoot ? { ...parsed, workRoot: expandPathValue(parsed.workRoot, env, os.homedir()) } : parsed,
+      ),
+  }),
 );
-process.exit(result.status ?? 1);

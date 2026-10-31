@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": ".stats {\n  display: flex;\n  gap: var(--space-m, 1.5rem);\n}\n.stat { padding: var(--space-s, 1rem); }",
+      "why": "gap on the parent, no child margin"
+    },
+    {
+      "answer": "<section class=\"stats flex gap-6\">",
+      "why": "Tailwind gap utility on the parent"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".stat { margin-bottom: 16px; padding: 12px; }",
+      "why": "per-child margin kept, only the values rounded"
+    },
+    {
+      "answer": ".stats { display: flex; gap: 1rem; }\n.stat { margin-bottom: 13px; padding: 9px; }",
+      "why": "gap added on the parent but .stat keeps its margin-bottom"
+    },
+    {
+      "answer": "Use gap on the parent instead of margins.",
+      "why": "names gap in prose but writes no CSS"
+    }
+  ]
+}

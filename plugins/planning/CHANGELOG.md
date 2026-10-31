@@ -3,6 +3,81 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.130.2] - 2026-10-31
+
+### Fixed
+
+- The interview surface's `server.py` and `test_server.py` are now `interview_server.py` and
+  `test_interview_server.py`, so `pytest plugins/planning` no longer stops on an import file
+  mismatch, and a surface module can no longer import the shared `server.py` in its place.
+
+## [0.130.1] - 2026-10-31
+
+### Fixed
+
+- `/planning:interview` requires a recommendation that reuses an existing value (an email address,
+  account, subscription, region, secret name or repository) to state the literal value and where
+  it was read; "the existing X" alone is not enough. Contact addresses and identities are
+  owner-reserved: the user confirms the literal before anything is created with it.
+- The assumption sweep flags an `unstated-value` item, a reference to an existing value whose
+  literal the ledger never states, and asks the user to confirm the literal in a register row.
+  The `--procedure` gate accepts the category and fails such an item that a fact line settles.
+
+## [0.130.0] - 2026-10-31
+
+### Added
+
+- An unattended planning run counts an item's stated problem as confirmed when a comment on the item has a line reading exactly `Pre-confirmed: a person confirms this item's problem`, with no setting or label. Before the marker counts, the run checks that the author is a user listed as `kind: human` on the repository's trusted-actor list (matched by account id), that the comment was not posted through an App, that the author has `admin` or `write` permission, that every edit to the comment is the author's, and that the item's body is unedited since. A marker from an agent, an App or any other account, or one inside quoted or fenced text, never counts. The rule is in `context/problem-framing.md` "Pre-confirmed" and `reference/config.md`; two `/planning:plan` evals cover a trusted human's marker and a bot's marker.
+
+### Changed
+
+- `draft-goal-condition` and `plan` offer `/goal` and `/plan` as suggest sentences, `If /<name> is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when an offer is deleted or reworded.
+
+### Fixed
+
+- `/planning:interview` no longer lets a session settle an assumption-sweep `decision` item with an
+  uncited fact and still pass the gate. Each sweep item is now recorded in the ledger's
+  `## Assumption sweep` section with its disposition: a `Q<N>` register row, an `F<N>` fact whose
+  basis quotes its source with a file:line or URL, or `deferred: <where>`. A fresh-context check
+  confirms each quote before the item counts as settled. `check-open-questions.sh --procedure` now
+  fails on an item with no disposition, a `decision` or `person` item settled outside the register,
+  an unquoted fact, a non-hedged item whose `Q<N>` is not above the register's last row when that
+  sweep ran (each sweep records it as `- sweep <M> | register through Q<N>`), and any unchecked
+  `Step <N> exit` box. A skipped exit step is ticked with `SKIPPED: <reason>`.
+
+## [0.129.1] - 2026-10-31
+
+### Fixed
+
+- `/planning:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
+- interview: the gather-block record link now points at the gather-block convention doc, at the
+  same heading, instead of a file inside source-control's worktree skill.
+
+## [0.129.0] - 2026-10-31
+
+### Added
+
+- `/planning:interview`: a question stores the constraint ids its recommendation was checked against as `checkedAgainst`, set by `add` and `revise`. A newer constraint marks every open and answered question without it `Upstream changed`, the Constraints panel says whether the round's recommendations are current, and the exported ledger row ends `stale:: C<N>`. `check-open-questions.sh` then reports `stale=<n>` and exits 1 until a `revise` naming the constraint or a `reconfirm` clears the row. A question or ledger without the list reads as before. ([#5769](https://github.com/melodic-software/claude-code-plugins/issues/5769))
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
+## [0.128.0] - 2026-10-31
+
+### Added
+
+- **interview:** a `readingWindow` setting (default 180, 5 to 600 seconds) sets how long after an event is delivered the 1:1 interview page shows Claude working once no watcher waits. Before, the window was a fixed 180 seconds. The Settings panel shows it as a read-only row ([#8757](https://github.com/melodic-software/claude-code-plugins/issues/8757)).
+
+### Changed
+
+- The interview surface's browser suites are shorter. The journey's data dir sets `readingWindow` to 5, so phase 7 no longer waits out the 180-second window before it checks the Idle pill. `ui_page` moved into its own suite, `surface-page.test.sh`. The `ui_c` phases now run as three suites: `surface-ui-c.test.sh` (phases 1 to 3), `surface-ui-c-listen.test.sh` (4 to 6) and `surface-ui-c-ledger.test.sh` (7 to 10). Every check still runs ([#8757](https://github.com/melodic-software/claude-code-plugins/issues/8757)).
+
 ## [0.127.5] - 2026-10-30
 
 ### Fixed

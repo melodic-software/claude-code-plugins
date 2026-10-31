@@ -86,7 +86,7 @@ for (const job of JOBS) {
     assert.deepEqual(envOf(judge), JUDGE.stepEnv);
     // The judge reads the files the prompt step writes.
     const written = envOf(step(job, "Write the prompt and schema"));
-    assert.equal(input(judge, "prompt-file"), written.PROMPT_FILE);
+    assert.equal(input(judge, "prompt-file"), `${written.PROMPT_STEM}-1.md`);
     assert.equal(input(judge, "json-schema-file"), written.SCHEMA_FILE);
   });
 
@@ -98,11 +98,11 @@ for (const job of JOBS) {
 
   test(`${job}: the prompt, schema and data directory are the replay's`, () => {
     const prompt = step(job, "Write the prompt and schema");
-    assert.match(prompt, /prompt=\$\(<\.base\/\.github\/scripts\/pr-verify\/prompt\.md\)/);
+    assert.match(prompt, /template=\$\(<\.base\/\.github\/scripts\/pr-verify\/prompt\.md\)/);
     assert.equal(envOf(prompt).DATA, `\${{ github.workspace }}/${JUDGE.dataDir}`);
     const substitutions = [...prompt.matchAll(/prompt=\$\{prompt\/\/([A-Z_]+)\/\$DATA\/([\w.-]+)\}/g)].map(([, token, file]) => [token, file]);
     assert.deepEqual(substitutions, JUDGE.promptSubstitutions);
-    assert.match(prompt, /printf '%s\\n' "\$prompt" >"\$PROMPT_FILE"/);
+    assert.match(prompt, /printf '%s\\n' "\$prompt" >"\$PROMPT_STEM-\$k\.md"/);
     const schema = /printf '%s\\n' '(\{.*\})' >"\$SCHEMA_FILE"/.exec(prompt)?.[1];
     assert.deepEqual(JSON.parse(schema), JUDGE.schema);
     const resolve = step(job, "Resolve the verifier's model");
@@ -238,10 +238,10 @@ test("promptText writes the prompt as the bash step does, after the preamble", (
   // $(<file) drops trailing newlines, each ${prompt//TOKEN/...} replaces every
   // occurrence, printf '%s\n' adds one newline, and lane.cjs puts the trimmed
   // preamble and a blank line in front.
-  const source = "Read DIFF_FILE, SPEC_TEXT_FILE and SPEC_FILE; DIFF_FILE again.\n\n\n";
+  const source = "Read SPEC_TEXT_FILE and SPEC_FILE;\nDIFF_PARTSCHUNK_NOTE\n\n\n";
   assert.equal(
     promptText(source, "/w/pr-verify-data"),
     "You run unattended; return only the verdict the schema asks for; nothing you write is posted.\n\n" +
-      "Read /w/pr-verify-data/diff.patch, /w/pr-verify-data/spec-text.json and /w/pr-verify-data/spec.json; /w/pr-verify-data/diff.patch again.\n",
+      "Read /w/pr-verify-data/spec-text.json and /w/pr-verify-data/spec.json;\n  - `/w/pr-verify-data/diff.patch`\n",
   );
 });

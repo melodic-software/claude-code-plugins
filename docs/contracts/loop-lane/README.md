@@ -368,7 +368,12 @@ threat model: throughput phase"):
 > Phase: maximum throughput until open issues and open PRs both reach 0. Hardening (re-adding holds, pins, reviews) is deferred to after that, as configuration edits.
 <!-- spellchecker:on -->
 
-Trust holds (untrusted provenance, an untrusted spec) are security controls the owner keeps.
+Trust holds (untrusted provenance, an untrusted spec) are security controls the owner keeps, and so
+is the issue lane's hold on a patch carrying a credential shape or not proven clear of one
+(`patch-credential` and `scan-refused-output` in
+[`stop-routes.json`](../../../.github/scripts/work-resolve-issue/stop-routes.json)), a token-leak
+path under section 10. A patch proven clear, or a fault that says nothing about credentials,
+retries.
 
 The pr-merge gate keeps two more holds for the owner, each a reason
 [`babysit_risk.person_reasons`](../../../plugins/source-control/skills/babysit-prs/scripts/babysit_risk.py)
@@ -398,7 +403,8 @@ Three labels take work off the unattended path, and each means one thing (owner 
 `needs-session` is the session-builder queue, not an owner stop: a pr-unblock stop on a change the
 lane cannot make (a protected path, a weakened required check, a check the `fix-ci` rung-up could
 not fix, an unfinished dependency review)
-goes to an agent session, which removes the label once it has made the change
+goes to an agent session, which removes the label once it has made the change; pr-merge's
+`clear-escalations` sweep removes it when a same-head retry cleared the stop
 ([routing table](../../conventions/pr-pipeline/README.md#activities)).
 
 Intake admission refuses `attended` and `host-run` alike, parked at `status: confirmed`, and adds
@@ -994,17 +1000,20 @@ disposition to the operator.
 **Per-cycle usage sample (measure-only).** No lane's spend was measured: nothing recorded how much
 of the shared subscription windows a cycle consumed. Each lane therefore records a `usage_sample` in
 that same durable-state block every cycle, holding the two window percentages the rate-limit guard
-(§6) already read that cycle plus the rise since the previous sample. The reading is already in hand,
-so measuring costs nothing beyond the write. **The one permitted readback.** The previous cycle's
-sample is read back for exactly one purpose: deriving the new sample's `five_hour_delta_pct` from its
-`five_hour_pct`, covering the subtraction and the rollover comparison deciding whether a delta is
-written at all. That derivation is the field's only permitted consumer. No other read is permitted, and the
-value never reaches a decision at any threshold, in a lane or in any gate a lane runs: not pacing,
-backoff, an adaptive or item cap, a merge rung, admission, escalation, a warning, or a pause. **The delta measures the preceding interval.** The guard reading is taken at cycle start,
-before that cycle's own work, so `at` is the cycle-start observation time and `five_hour_delta_pct` is
-the rise between the previous cycle's reading and this one: it covers the interval **preceding** the
-cycle whose report carries it, and that cycle's own consumption lands in the next cycle's sample. Read
-the series as a lagging one. Measure first; whether the data supports acting on it is a later,
+(§6) already read that cycle plus each window's rise since the previous sample. The reading is
+already in hand, so measuring costs nothing beyond the write. **The one permitted readback.** The
+previous cycle's sample is read back for exactly one purpose: deriving the new sample's
+`five_hour_delta_pct` and `seven_day_delta_pct` from its `five_hour_pct` and `seven_day_pct`,
+covering each subtraction and the rollover comparison deciding whether that delta is written at all.
+That derivation is the delta fields' only permitted consumer. Both deltas are kept, each independent
+of the other, because an account may report only some of the windows, and the five-hour delta alone
+left such an account with no rate measure. No other read is permitted, and no sample field reaches a
+decision at any threshold, in a lane or in any gate a lane runs: not pacing, backoff, an adaptive or
+item cap, a merge rung, admission, escalation, a warning, or a pause. **The delta measures the
+preceding interval.** The guard reading is taken at cycle start, before that cycle's own work, so
+`at` is the cycle-start observation time and each delta is the rise between the previous cycle's
+reading and this one: it covers the interval **preceding** the cycle whose report carries it, and
+that cycle's own consumption lands in the next cycle's sample. Read the series as a lagging one. Measure first; whether the data supports acting on it is a later,
 separately decided question. Three properties bound that decision, stated here once and held by
 citation from each lane body: the reading is a snapshot no fresher than the guard's staleness rule
 allows, from a **machine-local**, last-writer-wins file that rate-limit-guard's mod writes in
@@ -1426,7 +1435,7 @@ a checklist of its own:
 
 | Rule | Mechanism that meets it |
 |---|---|
-| Bookmark per source | `/harness-ops:morning-brief`'s per-repo bookmark ("What each section reports"); for ai-briefing, the mechanism tracked in #7678; for state a cloud routine keeps between runs, a tracker comment read back on the next run (the §4 "Telemetry comment" carrier) as the interim store, until the probe tracked in #8991 reports |
+| Bookmark per source | `/harness-ops:morning-brief`'s per-repo bookmark ("What each section reports"); for ai-briefing, the mechanism tracked in #7678; for state a cloud routine keeps between runs, a tracker comment read back on the next run (the §4 "Telemetry comment" carrier), confirmed by a live run on Claude Code 2.1.314 (#8991) and rerunnable with `/harness-ops:behavior-probes`'s `cloud-routine/state-read-back-next-run` case. A routine's comments post as the account owner's GitHub login, so the reader finds them by sentinel marker, never by author |
 | Failed read reported as unreadable | `/harness-ops:morning-brief` "Degraded sections"; for ai-briefing and a headless lane's MCP load check, the mechanism tracked in #7678 |
 | Live re-check before posting | [`pr-run-activity.md`](../../conventions/pr-pipeline/pr-run-activity.md) "prepare: review-threads" |
 | Post confirmed before it is recorded | §2 "Escalation record write" (record first, marker second); §4 "Telemetry comment" (post-write read-back); for overlapping runs, [`posting-lanes.md`](posting-lanes.md) |

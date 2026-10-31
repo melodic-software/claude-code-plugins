@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "type SelectProps = {\n  size?: \"sm\" | \"md\" | \"lg\";\n};",
+      "why": "size as a union of fixed values"
+    },
+    {
+      "answer": "interface SelectProps { size: 'sm' | 'md' }",
+      "why": "single-quoted union"
+    },
+    {
+      "answer": "type SelectSize = \"sm\" | \"md\" | \"lg\";\ntype SelectProps = { size?: SelectSize };",
+      "why": "named union alias"
+    },
+    {
+      "answer": "type SelectProps = {\n  size?:\n    | \"sm\"\n    | \"md\"\n    | \"2xl\";\n};",
+      "why": "multi-line union with a leading pipe and a digit in a value"
+    },
+    {
+      "answer": "type SelectSize =\n  | 'sm'\n  | 'md';\ntype SelectProps = { size?: SelectSize };",
+      "why": "multi-line named union alias with a leading pipe"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "type SelectProps = { size?: string };",
+      "why": "open string"
+    },
+    {
+      "answer": "type SelectProps = { isLarge?: boolean };",
+      "why": "boolean in place of a size"
+    },
+    {
+      "answer": "type SelectProps = {\n  size?: \"md\";\n};",
+      "why": "a single fixed value, not a union"
+    }
+  ]
+}

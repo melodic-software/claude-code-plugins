@@ -200,7 +200,7 @@ routing-affecting half and earns its separate gate.
 
 ## Enforceability
 
-Classified per `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`:
+Classified per `melodic-software/standards` `standards/engineering/enforceability-tiers.md`:
 
 | Judgment | Tier |
 |---|---|
@@ -235,6 +235,7 @@ Classified per `melodic-software/standards` `conventions/engineering/enforceabil
 | `/session-flow:orient`, `/session-flow:continue-in-background`, `/session-flow:retro` | `## Boundary` sections for `/recap`, for `/subtask`, `/fork` and `/background`, and for `/insights` (integration `suggest`, verdict `complementary`); no description phrase |
 | `/planning:draft-goal-condition`, `/planning:plan` | `## Boundary` sections for `/goal` and `/plan` (integration `suggest`, verdict `complementary`); no description phrase |
 | `/instruction-placement:migrate` | `## Boundary` section for the plugin-backed built-in `cc-plugin-agents-md` plugin (integration `route`, verdict `complementary`, the loader of `AGENTS.md` versus the migration into it); detail in the skill's `reference/sources.md`; no description phrase |
+| `/discovery:read-docs` | Description phrase + `## Boundary` section for the bundled `claude-code-docs` skill (integration `route`, verdict `complementary`, a quick answer about a Claude Code feature versus a named page's own text); detail in the skill's `reference/` file |
 | `/discovery:explore`, `/planning:plan`, `/firecrawl:firecrawl` | `## Boundary` sections for the built-in `Explore` and `Plan` agents and the built-in `WebFetch` and `WebSearch` tools (integration `route`, verdict `complementary`); the `discovery:explorer` agent's `Explore` row is registry-only; detail in each skill's `reference/` or `context/` file; no description phrase |
 
 Applying **description phrases** fleet-wide is a reserved, separately gated sweep: one plugin per

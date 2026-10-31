@@ -35,13 +35,19 @@ import os
 import re
 import sys
 
+sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir, "lib")
+)
+from gates import headings  # noqa: E402  (the plugin's shared gate primitives)
+
 PROG = "check-sources-parity"
 EPILOG = """\
 exit codes: 0 parity, 1 a named mismatch or nothing parsed, 2 unusable input"""
 
-MD_HEADING = re.compile(r"^ {0,3}(#{1,6})(?!#)(?:[ \t]+(.*?))?[ \t]*#*[ \t]*$")
-HTML_HEADING = re.compile(r"^\s*<h([1-6])\s[^>]*(?<![\w-])id\s*=[^>]*>(.*)$", re.IGNORECASE)
-FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
+MD_HEADING = headings.atx_heading(trail=headings.TRAIL_CLOSING)
+HTML_HEADING = headings.html_heading(line_start=True, require_id=True)
+FENCE = headings.fence(indent=headings.INDENT_ANY)
 DIGEST_NAME = re.compile(r"\b\d+-[A-Za-z0-9._-]+\.md\b")
 RANGE = re.compile(r"^(\d+)\s*[-–]\s*(\d+)$")
 LEVEL = re.compile(r"^H?([1-6])$", re.IGNORECASE)
@@ -75,7 +81,7 @@ def source_headings(lines):
     for number, line in enumerate(lines, 1):
         m = FENCE.match(line)
         if fence:
-            if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence) and not m.group(2).strip():
+            if headings.closes_fence(m, fence):
                 fence = None
             continue
         if m:

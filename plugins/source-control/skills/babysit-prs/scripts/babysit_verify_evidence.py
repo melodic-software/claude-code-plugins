@@ -139,10 +139,10 @@ expires during the read can only make the counts differ. Pages that read
 whole but hold any other count print one `LISTING_MISS_PREFIX` line on stderr
 (the counts, the pages read, the base's age) and are read again on the same
 base after each of `INCREMENTAL_WAITS`, up to `INCREMENTAL_READS` reads inside
-one `LISTING_TIMEOUT_SECONDS` (a caller that sets `NO_INCREMENTAL_WAITS_ENV`
-to `1`, killing the reader sooner than those waits and a whole listing take,
-skips the waits and reads once); no wait or miss loosens the check, and after
-those reads, on any failed read (a timeout, a 429
+one `LISTING_TIMEOUT_SECONDS`, or a caller's shorter limit, which ends the waits
+that do not fit (a caller that sets `NO_INCREMENTAL_WAITS_ENV` to `1` skips the
+waits and reads once); no wait or miss loosens the check, and after those
+reads, on any failed read (a timeout, a 429
 or a rate-limit 403 included, which are never read again), or with a base
 that is missing, older or of another shape, it lists every page, checked the
 same way. A carry forged to drop a FAIL must therefore
@@ -2839,6 +2839,7 @@ def lane_risk_refusal(
             [p for f in files for p in (f.path, f.previous_path) if p]
             if complete
             else None,
+            config.floor,
         )
         files = merge_policy.with_contents(repo, pr, files)
         private = json_object(json_object(pr.get("base")).get("repo")).get("private")
@@ -2852,6 +2853,7 @@ def lane_risk_refusal(
             public=True if private is False else None,
             pulumi_dirs=merge_policy.pulumi_dirs_at(repo, pr),
             base_sha=json_object(pr.get("base")).get("sha"),
+            floor_rows=config.floor_paths,
             high_floor=config.high_path_floor,
             path_holds=config.path_holds,
             max_changed_files=config.max_changed_files,
@@ -2884,7 +2886,12 @@ def lane_risk_refusal(
             # only the base's changes.
             lifted = bool(merge_policy.path_lifters(reviews, trusted, head)) or bool(
                 merge_policy.carried_lifters(
-                    repo, pr, reviews, trusted, list(config.denied_paths)
+                    repo,
+                    pr,
+                    reviews,
+                    trusted,
+                    list(config.denied_paths),
+                    floor=config.floor,
                 )
             )
         except Exception:  # noqa: BLE001 - an unread approval lifts nothing

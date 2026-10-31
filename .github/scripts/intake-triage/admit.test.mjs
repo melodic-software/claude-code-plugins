@@ -7,7 +7,7 @@ import { join } from "node:path";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, unrunnableCriteria, untrustedHold } from "./admit.mjs";
+import { ADMIT_MARKER, AGENT_READY, DEFERRED, PATCH_ROW, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, isSplitParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, issuePushRefusals, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, pushRefusalsOf, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, splitParentClosed, titleWraps, unrunnableCriteria, untrustedHold, workCharges } from "./admit.mjs";
 import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
 import { VERDICT_MARKER } from "./apply-verdict.mjs";
 import { TARGETS } from "../apply-patch/apply-patch.mjs";
@@ -708,6 +708,86 @@ describe("decide", () => {
       });
     }
 
+    // A clause that says a protected path is left alone asks for no push to it.
+    const negated = [
+      // #7540's refinement criterion.
+      "- [ ] No file under .github/workflows is edited.",
+      // #8279's 2026-10-30T15:05Z record.
+      "- [ ] `scripts/sync-hold-floor.py` reads the built-in rows plus the config rows. Run on the branch, it leaves every generated copy byte-identical to main, so the diff touches no `.github/workflows`, `.github/scripts` or `.github/trust-path-hold.json` file.",
+      "- [ ] The diff changes no .github/workflows/a.yml line.",
+      "- [ ] The fix edits no file in `.github/workflows`.",
+      "- [ ] The script does not edit .github/workflows/a.yml.",
+      "- [ ] It doesn’t touch .github/CODEOWNERS.",
+      "- [ ] The run leaves .github/workflows/a.yml unchanged.",
+      "- [ ] The script never writes to .github/workflows/a.yml.",
+      "- [ ] No changes to .github/workflows/a.yml.",
+      "- [ ] No edits to `.github/workflows`.",
+      "- [ ] No change to .gitmodules is made.",
+      "- [ ] The script MUST NOT modify .github/workflows.",
+      "- [ ] The fix should not touch .github/CODEOWNERS.",
+      "- [ ] It mustn't edit .github/workflows/a.yml.",
+      "- [ ] It shouldn’t change .gitmodules.",
+      "- [ ] The lane can't modify .github/workflows/a.yml.",
+      "- [ ] The lane cannot edit .github/workflows/a.yml.",
+      "- [ ] Do not edit .github/workflows/a.yml.",
+      "- [ ] It didn't touch .github/workflows/a.yml.",
+      "- [ ] .github/workflows/a.yml is not edited.",
+      "- [ ] `.github/CODEOWNERS` isn't modified.",
+      "- [ ] No file under .github/workflows should be edited.",
+      "- [ ] The docs change. .github/workflows/a.yml must not be modified.",
+    ];
+    for (const line of negated) {
+      test(`admits the negated ${line}`, () => {
+        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "admit", reasons: [] });
+      });
+    }
+
+    test("admits #7540: its App refinement names .github/workflows only in a negated criterion", () => {
+      const thin = issueOf({ body: "Bind the convention home." });
+      const refinement = written(APP_ACTOR, { body: `${REFINE_MARKER}\n**Refinement.**\n\n- [ ] AGENTS.md binds docs/conventions.\n- [ ] No file under .github/workflows is edited.` });
+      assert.deepEqual(decide(facts({ issue: thin, spec: humanSpec(thin, [refinement]) })), { verdict: "admit", reasons: [] });
+    });
+
+    // The negation ends where the clause turns back to a change, and drops a
+    // path only when it negates a modification.
+    const turned = [
+      ["- [ ] No file other than .github/workflows/a.yml is edited.", ".github/workflows/a.yml"],
+      ["- [ ] No file outside .github/workflows is edited.", ".github/workflows"],
+      ["- [ ] The diff touches no docs file but edits .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      ["- [ ] It does not change the tests; it edits .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      ["- [ ] No file under docs is edited, and .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
+      ["- [ ] No file under docs is edited. .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
+      ["- [ ] Edit .github/workflows/a.yml so it does not change the timeout.", ".github/workflows/a.yml"],
+      // A negation with no modification verb asks for edits under the path.
+      ["- [ ] No file under `.github/workflows` references the retired action.", ".github/workflows"],
+      ["- [ ] No file under .github/workflows references X.", ".github/workflows"],
+      ["- [ ] No workflow under .github/workflows uses Y.", ".github/workflows"],
+      ["- [ ] No file under .github/workflows lists the changes.", ".github/workflows"],
+      ["- [ ] No test fails after .github/workflows/a.yml is edited.", ".github/workflows/a.yml"],
+      ["- [ ] Edit .github/workflows/a.yml and leave docs unchanged.", ".github/workflows/a.yml"],
+      // A `no` idiom affirms the change it opens.
+      ["- [ ] No doubt .github/workflows/a.yml must be edited.", ".github/workflows/a.yml"],
+      ["- [ ] No question .github/workflows/a.yml should be changed.", ".github/workflows/a.yml"],
+      // Only a bounded shape around the path drops it, never a negation and a
+      // participle that a comma or another clause separates.
+      ["- [ ] No need to wait, update .github/workflows/a.yml, the file already edited upstream.", ".github/workflows/a.yml"],
+      ["- [ ] Nothing blocks this; edit .github/workflows/a.yml once it is changed upstream.", ".github/workflows/a.yml"],
+      ["- [ ] Must not wait; edit .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      ["- [ ] No changes to the docs, but edit .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      ["- [ ] No changes to the docs; .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
+      ["- [ ] The lane must not change the docs but edits .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      // A negated passive drops its subject only from the start of a sentence,
+      // with no modification verb before it and the participle ending it.
+      ["- [ ] .github/workflows/a.yml is not edited yet, so edit it now.", ".github/workflows/a.yml"],
+      ["- [ ] Edit .github/workflows/a.yml the docs are not edited.", ".github/workflows/a.yml"],
+      ["- [ ] A step in .github/workflows/a.yml is added and docs are not edited.", ".github/workflows/a.yml"],
+    ];
+    for (const [line, path] of turned) {
+      test(`still refuses ${line}`, () => {
+        assert.deepEqual(decide(facts({ issue: withCriteria(line) })), { verdict: "refuse", reasons: [pushReason(path)] });
+      });
+    }
+
     // A title names the subject, not the change: #8682 and #9054 named an
     // existing workflow in theirs and changed only scripts.
     test("admits an issue whose title alone names an existing workflow", () => {
@@ -731,7 +811,7 @@ describe("decide", () => {
 
   // rule-admit.sh's fixed checks: its charge words, read from one definition,
   // and its body-edited-after-the-verdict refusal.
-  describe("a charge word in the title or body", () => {
+  describe("a charge word in what the issue will do", () => {
     const CHARGE = /names a charge \(([^)]+)\), which needs an owner decision/;
 
     test("refuses and holds for a person, naming each word once", () => {
@@ -818,6 +898,274 @@ describe("decide", () => {
       const { code, cost, costPrivate } = chargePattern();
       assert.deepEqual([code.source, cost.source, costPrivate.source], [shared.code, shared.cost, shared.cost_private].map((p) => new RegExp(p).source));
       assert.deepEqual(chargeHits("Turn on auto-renewal for the Codespaces plan.", chargePattern()), ["auto-renewal", "codespaces"]);
+    });
+
+    // Background text and model usage are not what an issue will do; a
+    // body with a task line or a known heading is read only where it states work.
+    describe("stays quiet on text that states no work", () => {
+      const DONE = "## Done when\n\n- [ ] Line 3 says nineteen.";
+      const admitted = (body) => assert.deepEqual(decide(facts({ issue: issueOf({ body }) })), { verdict: "admit", reasons: [] });
+
+      test("a quoted past question under a background heading", () => {
+        admitted(`## Problem\n\n- A session asked: "Claude creates the subscription budget now, ok?"\n\n${DONE}`);
+      });
+
+      test("an example list outside a task item", () => {
+        admitted(`## Problem\n\n1. A recommendation reuses a value (an address, account, subscription, region).\n\n${DONE}`);
+      });
+
+      test("model usage on a task line", () => {
+        admitted(`## Done when\n\n- [ ] Every change is backed by a valid measured pass on the subscription.`);
+        admitted(`## Done when\n\n- [ ] Every change is backed by a valid Measured Pass Run on the Subscription.`);
+      });
+
+      test("a heading in code opens no section", () => {
+        admitted(`## Problem\n\n\`\`\`markdown\n## Fix\n\nBuy a seat.\n\`\`\`\n\nThe seat count is wrong.\n\n${DONE}`);
+      });
+
+      test("a section ends at the next heading at its level", () => {
+        admitted(`## Fix\n\nReword line 3.\n\n## Context\n\nThe old seat table.\n\n${DONE}`);
+      });
+
+      test("a comment's task item alone, whoever wrote it", () => {
+        const body = "- [ ] Buy a seat.";
+        for (const comment of [written(USER(HUMAN), { body }), written(USER(OUTSIDER), { body }), written(APP_ACTOR, { body: `${REFINE_MARKER}\n${body}` })]) {
+          assert.deepEqual(decide(facts({ spec: humanSpec(issueOf(), [comment]) })), { verdict: "admit", reasons: [] });
+        }
+      });
+    });
+
+    describe("still fires on what the issue will do", () => {
+      const DONE = "## Done when\n\n- [ ] Line 3 says nineteen.";
+      const word = (extra) => CHARGE.exec(decide(facts(extra)).reasons.join("; "))?.[1];
+      const inBody = (body) => word({ issue: issueOf({ body }) });
+
+      test("the title", () => {
+        assert.equal(word({ issue: issueOf({ title: "chore: drop the billing alert" }) }), "billing");
+      });
+
+      test("a task item and its deeper lines", () => {
+        assert.equal(inBody("## Problem\n\nA gap.\n\n- [ ] Move the job to larger runners."), "larger runners");
+        assert.equal(inBody("- [ ] Move the job\n  to a paid plan."), "paid plan");
+        assert.equal(inBody("## Done when\r\n\r\n- [ ] Buy a seat.\r\n"), "seat");
+      });
+
+      test("a task item's lines past one that holds only code", () => {
+        assert.equal(inBody(`## Problem\n\n- [ ] Update:\n  \`a.md\`\n  and buy a seat.\n\n${DONE}`), "seat");
+        assert.equal(inBody(`## Problem\n\n- [ ] Update:\n  \`\`\`\n  a.md\n  \`\`\`\n  and buy a seat.\n\n${DONE}`), "seat");
+      });
+
+      test("a Fix step, its sub-headings and markup on the heading", () => {
+        assert.equal(inBody(`## Fix\n\n1. Create the database so it pauses instead of billing.\n\n${DONE}`), "billing");
+        assert.equal(inBody(`## Fix\n\n### Step one\n\nCreate the database so it pauses instead of billing.\n\n${DONE}`), "billing");
+        assert.equal(inBody("## **Fix:** `resolve`\r\n\r\nBuy a seat.\r\n\r\n## Problem\r\n"), "seat");
+        assert.equal(inBody("## `Fix`\n\nBuy a seat.\n\n- [ ] Line 3."), "seat");
+      });
+
+      test("a heading after an unclosed fence, which code masking leaves as prose", () => {
+        assert.equal(inBody(`${DONE}\n\n\`\`\`\n\n## Fix\n\nBuy a seat.`), "seat");
+      });
+
+      test("an unstructured body, read whole", () => {
+        assert.equal(inBody("Move the job to larger runners."), "larger runners");
+        assert.equal(inBody("## Problem\n\nThe job needs a seat."), "seat");
+        assert.equal(inBody("```\n- [ ] in a fence\n```\n\nThe job needs a seat."), "seat");
+      });
+
+      test("a task item of a body no listed human last edited", () => {
+        const issue = issueOf({ body: "- [ ] Buy a seat." });
+        assert.equal(word({ issue, spec: { ...humanSpec(issue), editor: APP_ACTOR, lastEditedAt: "2026-10-20T00:00:00Z" } }), "seat");
+      });
+
+      test("a word beside an escaped backtick, which opens no code span", () => {
+        assert.equal(inBody("- [ ] Buy a \\`subscription\\`."), "subscription");
+        assert.deepEqual(chargeHits("the \\`seat\\` table", chargePattern()), ["seat"]);
+      });
+
+      test("the real use of each word", () => {
+        for (const [item, found] of [
+          ["Raise the billing cap.", "billing"],
+          ["Runs are billed per job.", "billed"],
+          ["Raise the spending limit.", "spending limit"],
+          ["Take the subscription upgrade.", "subscription"],
+          ["Run a pass on the subscription tier we buy.", "subscription"],
+          ["Move to a larger SKU.", "sku"],
+          ["Raise artifact retention to 90 days.", "retention"],
+          ["Move to larger runners.", "larger runners"],
+          ["Add a self-hosted runner.", "self-hosted runner, hosted runner"],
+          ["Buy a seat.", "seat"],
+          ["Turn on Codespaces.", "codespaces"],
+          ["Take a paid plan.", "paid plan"],
+          ["Buy a top-up.", "top-up"],
+          ["Turn on auto-renewal.", "auto-renewal"],
+          ["Turn on extra usage.", "extra usage"],
+        ]) {
+          assert.equal(inBody(`- [ ] ${item}`), found);
+        }
+      });
+
+      test("names each word once across the title and body", () => {
+        assert.deepEqual(workCharges({ title: "Buy a seat", body: "- [ ] Buy a seat." }, chargePattern(), false, RULES["task-list"]), ["seat"]);
+      });
+    });
+
+    // The comparison rests on `diff` holding each revision's full text, newest
+    // first, against its schema description; these fixtures pin that shape.
+    describe("an edit that moves a charge word into code", () => {
+      const charges = chargePattern();
+      const WRAPPED = "- [ ] Reuse the `subscription` value.";
+      const PROSE = "- [ ] Reuse the subscription value.";
+      const revisionsOf = (...texts) => ({
+        includesCreatedEdit: true,
+        userContentEdits: {
+          pageInfo: { hasNextPage: false },
+          nodes: texts.map((diff, index) => ({ editedAt: `2026-10-2${9 - index}T05:00:00Z`, deletedAt: null, diff })),
+        },
+      });
+      const wraps = (text, node) => revisionWraps(text, node, charges, true);
+
+      test("flags a wrap, naming the edit and the word", () => {
+        assert.deepEqual(wraps(WRAPPED, revisionsOf(WRAPPED, PROSE)), [{ where: "the body", word: "subscription", at: "2026-10-29T05:00:00Z" }]);
+      });
+
+      test("flags a wrap into an identifier and a fence", () => {
+        assert.equal(wraps("The `fix-ci-subscription` job.", revisionsOf("The `fix-ci-subscription` job.", "The fix-ci-subscription job."))[0].word, "subscription");
+        const fenced = "```\nBuy a seat.\n```";
+        assert.equal(wraps(fenced, revisionsOf(fenced, "Buy a seat."))[0].word, "seat");
+      });
+
+      test("sorts revisions by edit time, whatever order they arrive in", () => {
+        const node = revisionsOf(PROSE, WRAPPED);
+        const { nodes } = node.userContentEdits;
+        [nodes[0].editedAt, nodes[1].editedAt] = [nodes[1].editedAt, nodes[0].editedAt];
+        assert.equal(wraps(WRAPPED, node).length, 1);
+      });
+
+      test("a clean edit stays quiet", () => {
+        const text = `${WRAPPED}\n- [ ] More.`;
+        assert.deepEqual(wraps(text, revisionsOf(text, WRAPPED)), []);
+      });
+
+      test("removing a word from prose is no wrap", () => {
+        assert.deepEqual(wraps(WRAPPED, revisionsOf(WRAPPED, `${WRAPPED}\nBuy a subscription.`)), []);
+      });
+
+      test("a word no longer in code is not flagged", () => {
+        assert.deepEqual(wraps("Plain `seat`.", revisionsOf("Plain `seat`.", PROSE, WRAPPED, PROSE)), []);
+      });
+
+      test("a deleted revision or a history over one page is reported for a hold", () => {
+        const deleted = revisionsOf(WRAPPED, PROSE);
+        deleted.userContentEdits.nodes[1].deletedAt = "2026-10-30T00:00:00Z";
+        deleted.userContentEdits.nodes[1].diff = null;
+        assert.deepEqual(wraps(WRAPPED, deleted), [{ unreadable: "a revision of the body is deleted" }]);
+        const paged = revisionsOf(WRAPPED, PROSE);
+        paged.userContentEdits.pageInfo.hasNextPage = true;
+        assert.deepEqual(wraps(WRAPPED, paged), [{ unreadable: "the body has more than one page of revisions" }]);
+      });
+
+      test("throws on a read it cannot compare", () => {
+        // A real patch in `diff` is no longer the text this reads.
+        assert.throws(() => wraps(WRAPPED, revisionsOf("@@ -1 +1 @@", "@@ -0,0 +1 @@")), /newest revision of the body is not its current text/);
+        assert.throws(() => wraps(`${WRAPPED}\n- [ ] Edited between reads.`, revisionsOf(WRAPPED, PROSE)), /newest revision of the body is not its current text/);
+        const empty = revisionsOf(WRAPPED, PROSE);
+        empty.userContentEdits.nodes[1].diff = null;
+        assert.throws(() => wraps(WRAPPED, empty), /a revision of the body has no text or edit time/);
+        assert.throws(() => wraps(WRAPPED, undefined), /no complete revision list/);
+        assert.throws(() => wraps(WRAPPED, { ...revisionsOf(WRAPPED), includesCreatedEdit: false }), /no complete revision list/);
+      });
+
+      test("titles compare through renamed events", () => {
+        const renamed = (from, to) => ({ event: "renamed", rename: { from, to }, created_at: "2026-10-29T05:00:00Z" });
+        const title = "docs: the `fix-ci-subscription` start";
+        const wrap = renamed("docs: the fix-ci-subscription start", title);
+        assert.deepEqual(titleWraps(title, [wrap], charges, true), [{ where: "the title", word: "subscription", at: "2026-10-29T05:00:00Z" }]);
+        assert.deepEqual(titleWraps(title, [renamed("docs: start", title)], charges, true), []);
+        const result = decide(facts({ issue: issueOf({ title }), events: [wrap], public: true }));
+        assert.equal(result.hold, true);
+        assert.deepEqual(result.reasons, ["an edit of the title at 2026-10-29T05:00:00Z moved a charge word (subscription) from prose into code, which needs an owner decision"]);
+      });
+
+      test("decide holds with a reason distinct from a charge hit", () => {
+        const flagged = decide(facts({ chargeEdits: [{ where: "the body", word: "seat", at: "2026-10-29T05:00:00Z" }] }));
+        assert.equal(flagged.hold, true);
+        assert.deepEqual(flagged.reasons, ["an edit of the body at 2026-10-29T05:00:00Z moved a charge word (seat) from prose into code, which needs an owner decision"]);
+        const unreadable = decide(facts({ chargeEdits: [{ unreadable: "a revision of the body is deleted" }] }));
+        assert.equal(unreadable.hold, true);
+        assert.match(unreadable.reasons[0], /could not be compared with its edit history \(a revision of the body is deleted\), which needs an owner decision/);
+        assert.equal(CHARGE.exec(unreadable.reasons[0]), null);
+      });
+
+      test("a failed read refuses without a hold", () => {
+        const failed = decide(facts({ chargeEdits: [{ failed: "POST /graphql failed with status 502" }] }));
+        assert.equal(failed.verdict, "refuse");
+        assert.equal(failed.hold, undefined);
+        assert.deepEqual(failed.reasons, ["a charge word in code could not be compared with its edit history (POST /graphql failed with status 502), which no person must answer: dispatching intake again judges it anew"]);
+      });
+
+      describe("chargeEditsOf", () => {
+        const edited = { editor: USER(HUMAN), lastEditedAt: "2026-10-29T05:00:00Z" };
+        const WRAPPED_SPEC = { ...written(USER(HUMAN), { body: WRAPPED, ...edited }), comments: [] };
+        const read = async ({ spec, answer }) => {
+          const calls = [];
+          const github = async (method, path, body) => {
+            calls.push(body);
+            return answer(body);
+          };
+          return { found: await chargeEditsOf({ github, repository: "o/r", number: 7, spec, charges, public: true }), calls };
+        };
+        const history = (node) => () => ({ data: { repository: { issue: node } } });
+
+        test("reads nothing without a charge word in code on an edited body", async () => {
+          for (const spec of [
+            { ...written(USER(HUMAN), { body: WRAPPED }), comments: [] },
+            { ...written(USER(HUMAN), { body: PROSE, ...edited }), comments: [] },
+          ]) {
+            assert.deepEqual(await read({ spec, answer: () => assert.fail("no read") }), { found: [], calls: [] });
+          }
+        });
+
+        test("flags a wrap on the body", async () => {
+          const { found, calls } = await read({ spec: WRAPPED_SPEC, answer: history(revisionsOf(WRAPPED, PROSE)) });
+          assert.deepEqual(found.map(({ where, word }) => [where, word]), [["the body", "subscription"]]);
+          assert.deepEqual(calls.map(({ variables }) => variables), [{ owner: "o", name: "r", number: 7 }]);
+        });
+
+        test("reads no comment's history, however a comment was edited", async () => {
+          const comment = { ...written(USER(HUMAN), { body: WRAPPED, ...edited }), databaseId: 9 };
+          assert.deepEqual(await read({ spec: humanSpec(issueOf(), [comment]), answer: () => assert.fail("no read") }), { found: [], calls: [] });
+        });
+
+        test("a failed read, a null diff and a body edited between reads each come back failed", async () => {
+          const refused = () => {
+            throw new Error("POST /graphql failed with status 502");
+          };
+          assert.deepEqual((await read({ spec: WRAPPED_SPEC, answer: refused })).found, [{ failed: "POST /graphql failed with status 502" }]);
+          assert.deepEqual((await read({ spec: WRAPPED_SPEC, answer: history(null) })).found, [{ failed: "the body has no complete revision list" }]);
+          const empty = revisionsOf(WRAPPED, PROSE);
+          empty.userContentEdits.nodes[0].diff = null;
+          assert.deepEqual((await read({ spec: WRAPPED_SPEC, answer: history(empty) })).found, [{ failed: "a revision of the body has no text or edit time" }]);
+          const moved = { ...WRAPPED_SPEC, body: `${WRAPPED}\n- [ ] Edited between reads.` };
+          assert.deepEqual((await read({ spec: moved, answer: history(revisionsOf(WRAPPED, PROSE)) })).found, [{ failed: "the newest revision of the body is not its current text" }]);
+        });
+
+        test("a deleted revision comes back to hold", async () => {
+          const deleted = revisionsOf(WRAPPED, PROSE);
+          deleted.userContentEdits.nodes[1].deletedAt = "2026-10-30T00:00:00Z";
+          assert.deepEqual((await read({ spec: WRAPPED_SPEC, answer: history(deleted) })).found, [{ unreadable: "a revision of the body is deleted" }]);
+        });
+      });
+
+      test("admissionFacts hands decide a failed read, which refuses without a hold", async () => {
+        const issue = issueOf();
+        const spec = { ...written(USER(HUMAN), { body: WRAPPED, editor: USER(HUMAN) }), comments: [] };
+        const fake = fakeGitHub({ issue, spec, failOn: (method, path, body) => method === "POST" && path === "/graphql" && body.query.includes("userContentEdits") });
+        const read = await admissionFacts({ github: fake.github, repository: "o/r", number: 7, issue, rules: RULES, humans, appId: APP, isTrusted: async () => true });
+        assert.deepEqual(read.chargeEdits, [{ failed: "POST /graphql failed with status 500" }]);
+        const result = decide({ ...read, verdict: VERDICT, rules: RULES, humans, appId: APP, webHosts: HOSTS, repository: "o/r" });
+        assert.equal(result.verdict, "refuse");
+        assert.equal(result.hold, undefined);
+      });
     });
   });
 
@@ -2128,7 +2476,7 @@ describe("size split sub-issues", () => {
 
   test("a blocker the lanes App closed counts only as a split parent whose sub-issues a listed human closed", async () => {
     const record = { user: { id: APP, login: "melodic-automation-lanes[bot]" }, body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts: [[1], [2]], order: [], filed: [31, 32] })}` };
-    const blocker = { number: PARENT, state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r", closed_by: { id: APP }, user: { id: HUMAN } };
+    const blocker = { number: PARENT, body: "- [ ] #31\n- [ ] #32", state: "closed", state_reason: "completed", repository_url: "https://api.github.com/repos/o/r", closed_by: { id: APP }, user: { id: HUMAN } };
     const closedChild = (number) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: HUMAN }, repository_url: "https://api.github.com/repos/o/r" });
     // A split made by hand: a listed human linked each sub-issue.
     const link = (number, id = HUMAN) => ({ event: "sub_issue_added", actor: { id }, created_at: "2026-10-15T00:00:00Z", sub_issue: { number, repository: { full_name: "o/r" } } });
@@ -2449,6 +2797,112 @@ test("trustedSplitChild reads the issue and its native parent and applies splitC
   assert.equal(await trustedSplitChild(fake(node(childBody, human)), "o/r", 8, humansSet, LANES, "- [ ] "), false, "not the lanes App's");
   assert.equal(await trustedSplitChild(fake(node(childBody, app), null), "o/r", 8, humansSet, LANES, "- [ ] "), false, "no parent");
   assert.equal(await trustedSplitChild(fake(node("Plain issue.", human)), "o/r", 8, humansSet, LANES, "- [ ] "), false, "no split marker, no parent read");
+});
+
+// Owner decision on #11021: a trusted size-split child that admission admits
+// at Size large is not refused as split-required. The issue lane reads its
+// split-child fact through trustedSplitChild (check-blockers.mjs), and that
+// fact moves a Large child to split-child-size (dimensions.mjs
+// splitChildDims), so trustedSplitChild must answer as admission's
+// splitChildBody does on every case.
+describe("trustedSplitChild agrees with admission", () => {
+  const actorOf = (actor) => (actor ? { __typename: actor.type, databaseId: actor.id } : null);
+  const commentOf = (c) => ({ databaseId: c.id, createdAt: c.created_at, updatedAt: c.updated_at, body: c.body, lastEditedAt: c.last_edited_at, author: actorOf(c.author), editor: actorOf(c.editor) });
+  const reader = ({ child, parent: parentNode, parentLink }) => async (method, path, body) => {
+    if (method === "POST" && path === "/graphql") {
+      return { data: { repository: { issue: body.variables.number === 8 ? child : parentNode } } };
+    }
+    if (method === "GET" && path === "/repos/o/r/issues/8/parent") {
+      if (parentLink === null) {
+        throw Object.assign(new Error("404"), { status: 404 });
+      }
+      return parentLink;
+    }
+    throw new Error(`unexpected ${method} ${path}`);
+  };
+  for (const vector of VECTORS.cases) {
+    test(`split-child vector through trustedSplitChild: ${vector.name}`, async () => {
+      const appId = ("app_id" in vector ? vector.app_id : VECTORS.app_id) ?? undefined;
+      const parent = VECTORS.parents[vector.parent];
+      const github = reader({
+        child: { body: vector.child.body, lastEditedAt: vector.child.last_edited_at, author: actorOf(vector.child.author), editor: actorOf(vector.child.editor), comments: { totalCount: 0, nodes: [] } },
+        parent: parent && { body: parent.body, lastEditedAt: null, author: actorOf(parent.author), editor: null, comments: { totalCount: parent.comments.length, nodes: parent.comments.map(commentOf) } },
+        parentLink: vector.child.parent === null ? null : { number: vector.child.parent.number, repository_url: `https://api.github.com/repos/${vector.child.parent.repo ?? "o/r"}` },
+      });
+      assert.equal(await trustedSplitChild(github, "o/r", 8, new Set(VECTORS.humans), appId, RULES["task-list"]), vector.expect.trusted, vector.expect.reason);
+    });
+  }
+
+  // A parent a listed human filed whose body someone else edited since, with
+  // its criteria in a listed human's own comment: admission takes the child's
+  // copy of those lines at Size large, so the lane's fact must too.
+  test("a child of a parent whose body another account edited, its lines from a listed human's comment, is admitted at Size large and trusted by the lane", async () => {
+    const lines = ["- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty."];
+    const decision = { databaseId: 77, createdAt: "2026-10-21T00:00:00Z", updatedAt: "2026-10-21T00:00:00Z", body: `**Decision recorded.**\n\n${lines.join("\n")}`, lastEditedAt: null, author: USER(HUMAN), editor: null };
+    const parentSpec = { ...written(USER(HUMAN), { body: "## Done when\n\nSee the decision below.", editor: USER(OUTSIDER) }), commentCount: 1, comments: [decision] };
+    const childBody = `${splitChildHeader(5, 1, 2)}\n${lines[0]}`;
+    const app = { __typename: "Bot", databaseId: APP };
+    const spec = { body: childBody, lastEditedAt: null, author: app, editor: null, comments: [], splitParent: { number: 5, spec: parentSpec, appId: APP } };
+    const large = { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } };
+    assert.deepEqual(decide(facts({ issue: issueOf({ user: { id: APP }, body: childBody }), spec, verdict: large })), { verdict: "admit", reasons: [] });
+    const github = reader({
+      child: { body: childBody, lastEditedAt: null, author: app, editor: null, comments: { totalCount: 0, nodes: [] } },
+      parent: { body: parentSpec.body, lastEditedAt: parentSpec.lastEditedAt, author: parentSpec.author, editor: parentSpec.editor, comments: { totalCount: 1, nodes: [decision] } },
+      parentLink: { number: 5, repository_url: "https://api.github.com/repos/o/r" },
+    });
+    assert.equal(await trustedSplitChild(github, "o/r", 8, humans, APP, RULES["task-list"]), true);
+  });
+});
+
+// splitParentClosed holds the App's close of a split parent to the same rule
+// as the close itself.
+describe("splitParentClosed", () => {
+  const humans = new Set([HUMAN]);
+  const repository_url = "https://api.github.com/repos/o/r";
+  const child = (number, state_reason = "completed") => ({ number, state: "closed", state_reason, closed_by: { id: HUMAN }, repository_url });
+  const app = { id: APP, login: "melodic-automation-lanes[bot]" };
+  const record = (parts = [[1], [2]], filed = [31, 32]) => ({ user: app, created_at: "2026-10-16T00:00:00Z", body: `${SIZE_SPLIT_MARKER}\n${renderSplitRecord({ items: "a".repeat(64), parts, order: [], filed })}` });
+  const link = (number) => ({ event: "sub_issue_added", actor: { id: HUMAN }, created_at: "2026-10-15T00:00:00Z", sub_issue: { number, repository: { full_name: "o/r" } } });
+  const closed = ({ body = "- [ ] One\n- [ ] Two", comments = [record()], children = [child(31), child(32)] } = {}) => {
+    const github = async (method, path) => (path.includes("/sub_issues") ? children : path.includes("/comments") ? comments : path.includes("/events") ? [link(31), link(32)] : []);
+    return splitParentClosed({
+      github,
+      repository: "o/r",
+      issue: { number: 30, body, labels: [], state: "closed", state_reason: "completed", closed_by: { id: APP } },
+      isApp: (actor) => actor?.id === APP,
+      humans,
+      trusted: async () => true,
+    });
+  };
+
+  test("every sub-issue completed and every item covered counts", async () => {
+    assert.equal(await closed(), true);
+    assert.equal(await closed({ body: "- [ ] #31\n- [ ] #32", comments: [] }), true);
+    assert.equal(await closed({ body: "- [x] One\n- [x] Two", comments: [] }), true);
+  });
+  test("a sub-issue closed as not planned, as a duplicate or with no reason does not count", async () => {
+    for (const reason of ["not_planned", "duplicate", null]) {
+      assert.equal(await closed({ children: [child(31), child(32, reason)] }), false, String(reason));
+    }
+  });
+  test("a split record that leaves an item out does not count", async () => {
+    assert.equal(await closed({ comments: [record([[1], [3]])] }), false, "a gap in the parts");
+    assert.equal(await closed({ body: "- [ ] One\n- [ ] Two\n- [ ] Three" }), false, "an item past the parts");
+    assert.equal(await closed({ comments: [record([[1], [2]], [31, 33])] }), false, "a filed number that is no sub-issue");
+  });
+  test("an item a listed human left on the parent does not count", async () => {
+    const stays = { user: { id: HUMAN }, created_at: "2026-10-17T00:00:00Z", body: "- [ ] The broker change stays here." };
+    assert.equal(await closed({ comments: [record(), stays] }), false);
+    assert.equal(await closed({ body: "- [ ] #31\n- [ ] #32", comments: [stays] }), false, "split by hand");
+  });
+  test("an item in a listed human's comment last written before the split record was split with the rest", async () => {
+    const carried = { user: { id: HUMAN }, created_at: "2026-10-15T00:00:00Z", body: "- [ ] A line a part holds." };
+    assert.equal(await closed({ comments: [carried, record()] }), true);
+    assert.equal(await closed({ comments: [{ ...carried, updated_at: "2026-10-17T00:00:00Z" }, record()] }), false, "edited since");
+  });
+  test("a split by hand with no task list does not count", async () => {
+    assert.equal(await closed({ body: "## Acceptance\n\n- Prose only.", comments: [] }), false);
+  });
 });
 
 // A split made by hand (no App split record): a listed human linked two

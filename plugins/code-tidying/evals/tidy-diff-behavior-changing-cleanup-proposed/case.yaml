@@ -1,0 +1,37 @@
+schema_version: "1.1"
+name: tidy-diff-behavior-changing-cleanup-proposed
+description: 'the simplify pass applies a behavior-neutral cleanup (a needless alias) but leaves a debug log and a swallowing catch in place, reporting any change to them only as a proposal, because removing either changes an output or an error. Written from MB:plugins/code-tidying/skills/tidy-diff/SKILL.md:50-55 and 92 (the base contract).'
+tags: [tidy-diff, simplify, behavior-preserving]
+expected_outcome: 'The needless `const body = payload;` alias is gone; `console.log("here")` and the `catch { return []; }` stay in src/orders.ts; the report never presents a change to the log or the catch as applied (it may list them as proposals); nothing is committed.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/code-tidying:tidy-diff changed-lines.tsv'
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 60
+  timeout_seconds: 1200
+graders:
+  - name: alias-removed
+    type: regex
+    pattern: '=\s*payload\s*;'
+    match: not_contains
+    target: { source: file, path: src/orders.ts }
+  - name: log-kept
+    type: regex
+    pattern: 'console\.log\("here"\);'
+    target: { source: file, path: src/orders.ts }
+  - name: catch-kept
+    type: regex
+    pattern: '\} catch \{\n\s*return \[\];\n\s*\}'
+    target: { source: file, path: src/orders.ts }
+  - name: no-commit
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"[^"]*\bgit\b[^"]*\b(commit|add|push)\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: behavior-changes-proposed
+    type: llm
+    focus: last_message
+    criteria: "src/orders.ts lines 1-13 contain a debug `console.log(\"here\")` and a `catch { return []; }` that swallows every failure. Changing either one changes output or error behavior, so the report may mention them only as proposals, or not at all. PASS unless the final report presents removing, rewording or narrowing the `console.log(\"here\")` line or the `catch { return []; }` as an applied edit or as already done. FAIL if it does."

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "docs/cli.md:3 rule-mechanism-free-claims: \"feels snappy and modern ... a joy\" gives the reader nothing to check. Line 5 states a startup time and a file, fine.",
+      "why": "feeling sentence reported"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs/cli.md:5 rule-mechanism-free-claims: \"starts in 80 ms\".",
+      "why": "flags the measured sentence"
+    },
+    {
+      "answer": "docs/cli.md: clean.",
+      "why": "misses the feeling sentence"
+    }
+  ]
+}

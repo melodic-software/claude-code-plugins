@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugin/vendor/node-launcher/setup-deps.mjs\" --data-dir \"/data\" --package \"/plugin/skills/video-digest/extraction\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugin/skills/video-digest/extraction/setup-deps.mjs\" --data-dir \"/data\"",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugin/vendor/node-launcher/setup-deps.mjs\" --data-dir \"/data\" --package \"/plugin/skills/course-digest/extraction\"",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls /plugin/skills/video-digest/extraction",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

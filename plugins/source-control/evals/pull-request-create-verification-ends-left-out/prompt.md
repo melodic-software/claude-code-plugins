@@ -1,6 +1,7 @@
 ---
 description: The drafted PR body's Verification section ends with a Left out line
 tags: [pull-request, source-control]
+plugins: ["../..", "gh-forge-path"]
 runs: 3
 max_turns: 30
 allowed_tools: [Read, Glob, Grep, Skill, Bash, Write]

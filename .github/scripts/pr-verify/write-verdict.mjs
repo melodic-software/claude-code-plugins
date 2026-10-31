@@ -1,5 +1,5 @@
-// Checks the verifier's structured output, the last result message of
-// run-claude-cli's execution file, and writes the verdict file that
+// Checks the verifier's structured output, the last result message of each
+// chunk's run-claude-cli execution file, and writes the one verdict file that
 // pr-verify.yml uploads as pr-verify-<pr>-<head-sha>-<verdict>, a FAIL's name
 // followed by `-i` and the issues it records (`artifactName`). Every reader
 // also accepts that name followed by `-<headRefDigest of the head branch>`,
@@ -7,25 +7,29 @@
 // this writer moves to it once the readers have run on main, in the change
 // that adds the digest lookups to resolve-pr, which looks up only the names
 // this writer writes. The output
-// must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
+// of each chunk must be exactly {verdict, summary, notes}: verdict pass, pass-notes or fail,
 // summary a string, notes an array of strings, none matching the shared
 // credential patterns (lib/publish-gate.mjs findSecret), since the verdict is
-// uploaded; a run with any permission
-// denial writes none. The file also records the head
+// uploaded; a run with any permission denial, or a chunk that left no output
+// or read a part of its diff short (pr-review-main readCoverage), writes none.
+// The file also records the head
 // branch and the linked issues with their authors, as the resolver read them
 // (number, author and last body editor login, id and type, last_edited_at;
 // each nullable but the number), which the pr-merge
 // lane's reader checks. Anything malformed throws, so the job fails and
 // uploads nothing. Model text is cut to fixed lengths (judgment) and never
-// reaches a shell.
+// reaches a shell. The file's evidence block (buildEvidence) is the one
+// exception: it records the capture and the author's evidence-loop count, and
+// a capture that is missing, blocked or malformed never fails the verdict.
 
 import { createHash } from "node:crypto";
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { findSecret } from "../../../lib/publish-gate.mjs";
+import { readCoverage } from "../pr-review-main/write-verdict.mjs";
 
 export const VERDICTS = Object.freeze(["pass", "pass-notes", "fail"]);
 const SUMMARY_MAX = 4000;
@@ -69,16 +73,60 @@ function checkIssues(issues) {
   return issues;
 }
 
-export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [] }) {
-  if (
-    !NUMBER.test(String(pr)) ||
-    !SHA.test(headSha ?? "") ||
-    !SHA.test(baseSha ?? "") ||
-    !RUN_ID.test(String(runId)) ||
-    !REF.test(headRef ?? "")
-  ) {
-    throw new Error("the PR number, a SHA, the run id or the head branch is malformed");
+// The capture outcomes a capture summary may record (merge.verify-capture).
+export const CAPTURES = Object.freeze(["ran", "skipped", "blocked", "not-applicable", "no-app"]);
+const CAPTURE_KEYS = "capture,capture_count,features,reason";
+const REASON_MAX = 1000;
+const FEATURE_MAX = 200;
+const FEATURES_MAX = 30;
+const noApp = () => ({ capture: "no-app", reason: "no app check ran", capture_count: 0, features: [] });
+const unreadable = () => ({
+  capture: "blocked",
+  reason: "the capture summary is unreadable or outside its schema",
+  capture_count: 0,
+  features: [],
+});
+
+// The capture summary as recorded: undefined (no summary) is no-app, and
+// anything outside the schema, credential-shaped text included, is blocked.
+function captureEvidence(summary) {
+  if (summary === undefined) {
+    return noApp();
   }
+  if (
+    !isObject(summary) ||
+    Object.keys(summary).sort().join() !== CAPTURE_KEYS ||
+    !CAPTURES.includes(summary.capture) ||
+    !stringOrNull(summary.reason) ||
+    !Number.isSafeInteger(summary.capture_count) ||
+    summary.capture_count < 0 ||
+    !Array.isArray(summary.features) ||
+    !summary.features.every((feature) => typeof feature === "string") ||
+    [summary.reason ?? "", ...summary.features].some((text) => findSecret(text))
+  ) {
+    return unreadable();
+  }
+  return {
+    capture: summary.capture,
+    reason: summary.reason === null ? null : summary.reason.slice(0, REASON_MAX),
+    capture_count: summary.capture_count,
+    features: summary.features.slice(0, FEATURES_MAX).map((feature) => feature.slice(0, FEATURE_MAX)),
+  };
+}
+
+// The author's own count from the trusted PR body's `Evidence loop: k/3`
+// line, read as data: null when the body is withheld or holds no such line.
+export function localLoop(body) {
+  const match = typeof body === "string" ? /^Evidence loop: ([0-3])\/3[ \t\r]*$/m.exec(body) : null;
+  return match ? Number(match[1]) : null;
+}
+
+export function buildEvidence({ capture, prBody } = {}) {
+  return { ...captureEvidence(capture), local_loop: localLoop(prBody) };
+}
+
+// One run's structured output, parsed and checked against the verdict schema.
+function parseOutput(output) {
   let parsed = output;
   if (typeof output === "string") {
     try {
@@ -103,6 +151,148 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
       throw new Error(`the structured output holds text shaped like a credential (${hit[0]})`);
     }
   }
+  return parsed;
+}
+
+// One output from each chunk's and the whole-spec judgment's: the worst
+// verdict, each summary, and the notes, unprefixed since each starts with its
+// path (verify-notes.mjs noteComments). The worst come first, so the cuts in
+// buildVerdict never drop a fail's notes for a pass-notes chunk's. A single
+// chunk is its own output; two or more never stand without `final`, so no
+// chunk's pass or pass-notes becomes the head's alone.
+export function mergeChunks(outputs, final) {
+  if (!Array.isArray(outputs) || outputs.length === 0) {
+    throw new Error("no chunk left an output");
+  }
+  const chunks = outputs.map(parseOutput);
+  if (chunks.length === 1) {
+    return chunks[0];
+  }
+  if (final === undefined || final === null) {
+    throw new Error("the whole-spec judgment left no output");
+  }
+  return mergeEntries([...chunks.map((chunk, i) => ({ ...chunk, label: `Chunk ${i + 1} of ${chunks.length}` })), { ...parseOutput(final), label: "Whole spec" }]);
+}
+
+function mergeEntries(entries) {
+  const worst = [...entries].sort((a, b) => VERDICTS.indexOf(b.verdict) - VERDICTS.indexOf(a.verdict));
+  const room = Math.floor(SUMMARY_MAX / worst.length) - 1;
+  return {
+    verdict: worst[0].verdict,
+    summary: worst.map(({ label, verdict, summary }) => `${label}, ${verdict}: ${summary}`.slice(0, room)).join("\n"),
+    notes: worst.flatMap((entry) => entry.notes),
+  };
+}
+
+// The whole-spec judgment's schema: the verdict's, and each done-when item with
+// the chunks that together deliver it, none when no chunk does.
+export const FINAL_SCHEMA = Object.freeze({
+  type: "object",
+  properties: {
+    verdict: { enum: VERDICTS },
+    summary: { type: "string" },
+    notes: { type: "array", items: { type: "string" } },
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { item: { type: "string" }, chunks: { type: "array", items: { type: "integer", minimum: 1 } } },
+        required: ["item", "chunks"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["verdict", "summary", "notes", "items"],
+  additionalProperties: false,
+});
+
+// The whole-spec judgment's output as a verdict output. The script holds it to
+// its own mapping: an item it maps to no chunk fails the head whatever verdict
+// it gave, and a pass or pass-notes that maps no item, or names a chunk that
+// does not exist, counts for nothing. The script cannot tell whether a named
+// chunk holds the item: that stays the judgment's.
+export function parseFinal(output, count) {
+  if (!isObject(output) || !Array.isArray(output.items)) {
+    throw new Error("the structured output does not match the verdict schema");
+  }
+  const { items, ...rest } = output;
+  if (!items.every((entry) => isObject(entry) && typeof entry.item === "string" && Array.isArray(entry.chunks) && entry.chunks.every(Number.isInteger))) {
+    throw new Error("the structured output does not match the verdict schema");
+  }
+  const parsed = parseOutput(rest);
+  if (parsed.verdict === "fail") {
+    return parsed;
+  }
+  const nowhere = items.filter(({ chunks }) => chunks.length === 0);
+  if (nowhere.length > 0) {
+    return parseOutput({
+      verdict: "fail",
+      summary: `${nowhere.length} done-when item(s) delivered by no chunk. ${parsed.summary}`,
+      notes: [...nowhere.map(({ item }) => `${item}: delivered by no chunk`), ...parsed.notes],
+    });
+  }
+  if (items.length === 0 || items.some(({ chunks }) => chunks.some((chunk) => chunk < 1 || chunk > count))) {
+    throw new Error("the whole-spec judgment mapped no item, or an item to no such chunk");
+  }
+  return parsed;
+}
+
+// The most one file for the whole-spec judgment holds, so one Read returns it
+// whole (pr-verify.yml PART_BYTES). Read may cut a long line short, so each
+// line is wrapped at WRAP_CHARS characters (pr-review-main.yml LONG_LINE_BYTES).
+const RESULT_BYTES = 15000;
+const WRAP_CHARS = 1500;
+
+function wrapped(text) {
+  const out = [];
+  for (const line of text.split("\n")) {
+    let rest = line;
+    for (; rest.length > WRAP_CHARS; rest = rest.slice(WRAP_CHARS)) {
+      out.push(rest.slice(0, WRAP_CHARS));
+    }
+    out.push(rest);
+  }
+  return out.join("\n");
+}
+
+// The spec's text in parts of at most RESULT_BYTES, cut between lines.
+function specParts(text) {
+  const parts = [""];
+  for (const line of wrapped(text).split("\n")) {
+    if (Buffer.byteLength(parts.at(-1)) + Buffer.byteLength(line) + 1 > RESULT_BYTES) {
+      parts.push("");
+    }
+    parts[parts.length - 1] += `${line}\n`;
+  }
+  return parts;
+}
+
+// What the whole-spec judgment reads of one chunk: its checked output, cut to
+// one Read, with the count of notes that did not fit.
+function chunkResult(output, k, count) {
+  const { verdict, summary, notes } = parseOutput(output);
+  const result = { chunk: k, of: count, verdict, summary: summary.slice(0, SUMMARY_MAX), notes: [], notes_left_out: 0 };
+  for (const note of notes.map((text) => text.slice(0, NOTE_MAX))) {
+    if (Buffer.byteLength(JSON.stringify({ ...result, notes: [...result.notes, note] })) > RESULT_BYTES - 100) {
+      result.notes_left_out += 1;
+    } else {
+      result.notes.push(note);
+    }
+  }
+  return result;
+}
+
+export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, linkedIssues, specText = [], capture, prBody }) {
+  if (
+    !NUMBER.test(String(pr)) ||
+    !SHA.test(headSha ?? "") ||
+    !SHA.test(baseSha ?? "") ||
+    !RUN_ID.test(String(runId)) ||
+    !REF.test(headRef ?? "")
+  ) {
+    throw new Error("the PR number, a SHA, the run id or the head branch is malformed");
+  }
+  const parsed = parseOutput(output);
   const own = Array.isArray(specText) ? specText.find((entry) => entry?.source === "pull-request") : undefined;
   const issues = checkIssues(linkedIssues);
   const refs = Array.isArray(specText) && specText.some((entry) => entry?.spec_kind === "refs");
@@ -125,6 +315,7 @@ export function buildVerdict({ output, pr, headSha, baseSha, runId, headRef, lin
     verdict: parsed.verdict,
     summary: parsed.summary.slice(0, SUMMARY_MAX),
     notes: parsed.notes.slice(0, NOTES_MAX).map((note) => note.slice(0, NOTE_MAX)),
+    evidence: buildEvidence({ capture, prBody }),
     run_id: Number(runId),
   };
 }
@@ -156,22 +347,43 @@ export function earlierDenials(logText) {
   }
 }
 
-// After the key leg hands off, the subscription job judges on a new VM
-// that cannot read this leg's log, so the key job records here whether the
-// leg was free of denials; the subscription job runs only on clean=true.
-export function checkKeyLeg(env = process.env) {
-  for (const key of ["LOG_FILE", "GITHUB_OUTPUT"]) {
-    if (!env[key]) {
-      throw new Error(`${key} is not set`);
-    }
-  }
+// A newline-separated list from a workflow's env, by position; a step that
+// did not run renders as a blank line.
+const positions = (value) =>
+  String(value ?? "")
+    .split("\n")
+    .map((line) => line.trim());
+
+const fileList = (value) => positions(value).filter(Boolean);
+
+// One chunk's log, checked for a denial on any of its legs.
+function checkLog(file) {
   let logText;
   try {
-    logText = readFileSync(env.LOG_FILE, "utf8");
+    logText = readFileSync(file, "utf8");
   } catch {
     throw new Error("the run log is unreadable");
   }
   earlierDenials(logText);
+}
+
+// After a leg hands off, the next job judges on a new VM that cannot read
+// this leg's logs, so this job records here whether every chunk it judged was
+// free of denials; the next job runs only on clean=true.
+export function checkKeyLeg(env = process.env) {
+  for (const key of ["LOG_FILES", "GITHUB_OUTPUT"]) {
+    if (!env[key]) {
+      throw new Error(`${key} is not set`);
+    }
+  }
+  // Every chunk listed ran, so a blank line is a leg that left no log. The
+  // whole-spec leg lists every slot, and CHUNKS says how many ran before it.
+  const lines = env.LOG_FILES.replace(/\n$/, "").split("\n");
+  const logs = fileList(env.LOG_FILES);
+  if (logs.length !== (env.CHUNKS ? Number(env.CHUNKS) + 1 : lines.length)) {
+    throw new Error("the run log is unreadable");
+  }
+  logs.forEach(checkLog);
   appendFileSync(env.GITHUB_OUTPUT, "clean=true\n");
 }
 
@@ -248,10 +460,176 @@ export function retentionDays(verdict, mayRelink = true) {
   return ["pass", "pass-notes"].includes(verdict) && mayRelink === false ? 7 : 90;
 }
 
+function readExecution(file) {
+  try {
+    return JSON.parse(readFileSync(file, "utf8"));
+  } catch {
+    throw new Error("the execution file is unreadable");
+  }
+}
+
+// One run's messages and its checked output: it left an output on the schema
+// and hit no denial, or this throws.
+function readJudgment(file, logFile, parse = parseOutput) {
+  const messages = readExecution(file);
+  const output = parse(structuredOutput(messages));
+  checkLog(logFile);
+  return { messages, output };
+}
+
+// What a judgment's output counts as, given the files it had to read. A pass
+// or pass-notes needs every one read whole. A fail stands on less, but only
+// with a defect in its notes, and it records how much it read.
+function countedOutput({ messages, output }, files) {
+  if (output.verdict !== "fail") {
+    readCoverage(messages, files);
+    return output;
+  }
+  const whole = (file) => {
+    try {
+      readCoverage(messages, [file]);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const read = files.filter(whole).length;
+  if (read === files.length) {
+    return output;
+  }
+  if (output.notes.length === 0) {
+    throw new Error(`a fail that read ${read} of ${files.length} parts names no defect`);
+  }
+  return { ...output, summary: `This judgment read ${read} of ${files.length} parts. ${output.summary}` };
+}
+
+const filesIn = (dir) => readdirSync(dir).map((name) => path.join(dir, name));
+
+// The files chunk k had to read: its parts and, with more than one chunk, the
+// manifest.
+const chunkFiles = (env, k, count) => [...filesIn(path.join(env.DIFF_DIR, `chunk-${k}`)), ...(count > 1 ? filesIn(env.MANIFEST_DIR) : [])];
+
+// After each judge step: whether its run left a fail the head can count, which
+// stops the later chunks. Anything else, a broken run included, is no fail.
+export function checkChunk(env = process.env) {
+  let fail = false;
+  try {
+    const judgment = readJudgment(env.EXECUTION_FILE, env.LOG_FILE);
+    fail = countedOutput(judgment, chunkFiles(env, Number(env.CHUNK), Number(env.CHUNKS))).verdict === "fail";
+  } catch {
+    fail = false;
+  }
+  appendFileSync(env.GITHUB_OUTPUT, `fail=${fail}\n`);
+}
+
+// Each chunk by position: `output`, or `error` for a chunk that did not count.
+function judgedChunks(env) {
+  const chunkDirs = readdirSync(env.DIFF_DIR).filter((name) => /^chunk-[1-9]$/.test(name));
+  const count = Number(env.CHUNKS);
+  if (!/^[1-9]$/.test(env.CHUNKS) || chunkDirs.length !== count) {
+    throw new Error(`the chunk count does not match ${chunkDirs.length} chunk(s) of the diff`);
+  }
+  const executions = positions(env.EXECUTION_FILES);
+  const logs = positions(env.LOG_FILES);
+  const results = Array.from({ length: count }, (_, i) => {
+    const k = i + 1;
+    try {
+      if (!executions[i]) {
+        throw new Error("the chunk left no run");
+      }
+      return { k, output: countedOutput(readJudgment(executions[i], logs[i]), chunkFiles(env, k, count)) };
+    } catch (error) {
+      return { k, error: error.message };
+    }
+  });
+  return { count, results };
+}
+
+const firstError = (results, count) => {
+  const broken = results.find((result) => result.error !== undefined);
+  return broken ? new Error(`chunk ${broken.k} of ${count}: ${broken.error}`) : null;
+};
+
+// The whole-spec judgment's output: it ran, read every result, the spec and
+// the manifest whole, and hit no denial, or this throws (countedOutput).
+function finalOutput(env, count) {
+  try {
+    for (const key of ["FINAL_EXECUTION_FILE", "FINAL_LOG_FILE", "RESULTS_DIR", "MANIFEST_DIR"]) {
+      if (!env[key]) {
+        throw new Error(`${key} is not set`);
+      }
+    }
+    const judgment = readJudgment(env.FINAL_EXECUTION_FILE, env.FINAL_LOG_FILE, (text) => parseFinal(text, count));
+    return countedOutput(judgment, [...filesIn(env.RESULTS_DIR), env.SPEC_FILE, ...filesIn(env.MANIFEST_DIR)]);
+  } catch (error) {
+    throw new Error(`the whole-spec judgment: ${error.message}`);
+  }
+}
+
+// The head's output. A fail any chunk left stands alone, so nothing after it
+// can discard it; anything else needs every chunk and the whole-spec judgment.
+function headOutput(env, count, results) {
+  const counted = results.filter((result) => result.output !== undefined);
+  if (counted.some(({ output }) => output.verdict === "fail")) {
+    return count === 1 ? counted[0].output : mergeEntries(counted.map(({ k, output }) => ({ ...output, label: `Chunk ${k} of ${count}` })));
+  }
+  const error = firstError(results, count);
+  if (error) {
+    throw error;
+  }
+  return mergeChunks(
+    counted.map(({ output }) => output),
+    count > 1 ? finalOutput(env, count) : undefined,
+  );
+}
+
+// What the whole-spec judgment reads, each file one Read, with its prompt and
+// schema: written only when every chunk counts. The prompt lists the spec's
+// parts, whose number only this step knows.
+export function writeChunkResults(env = process.env) {
+  for (const key of ["EXECUTION_FILES", "LOG_FILES", "CHUNKS", "DIFF_DIR", "RESULTS_DIR", "SPEC_TEXT_FILE", "SPEC_FILE", "CONTEXT_FILE", "PR_FILE", "MANIFEST_DIR", "PROMPT_FILE", "PROMPT_TEMPLATE", "SCHEMA_FILE"]) {
+    if (!env[key]) {
+      throw new Error(`${key} is not set`);
+    }
+  }
+  const { count, results } = judgedChunks(env);
+  const error = firstError(results, count);
+  if (error) {
+    throw error;
+  }
+  const texts = results.map(({ k, output }) => wrapped(JSON.stringify(chunkResult(output, k, count))));
+  const spec = specParts(readFileSync(env.SPEC_TEXT_FILE, "utf8"));
+  mkdirSync(env.RESULTS_DIR, { recursive: true });
+  const resultFiles = texts.map((text, i) => {
+    const file = path.join(env.RESULTS_DIR, `chunk-${i + 1}.json`);
+    writeFileSync(file, `${text}\n`);
+    return file;
+  });
+  const partFiles = spec.map((text, i) => {
+    const file = path.join(env.RESULTS_DIR, `spec-part-${String(i + 1).padStart(3, "0")}.txt`);
+    writeFileSync(file, text);
+    return file;
+  });
+  const listed = (files) => files.map((file) => `  - \`${file}\``).join("\n");
+  const template = readFileSync(env.PROMPT_TEMPLATE, "utf8");
+  const prompt = [
+    ["RESULT_FILES", listed(resultFiles)],
+    ["SPEC_PARTS", listed(partFiles)],
+    ["MANIFEST_PARTS", listed(filesIn(env.MANIFEST_DIR).sort())],
+    ["CONTEXT_FILE", env.CONTEXT_FILE],
+    ["PR_FILE", env.PR_FILE],
+    ["SPEC_FILE", env.SPEC_FILE],
+  ].reduce((text, [token, value]) => text.replaceAll(token, () => value), template);
+  writeFileSync(env.PROMPT_FILE, prompt);
+  writeFileSync(env.SCHEMA_FILE, `${JSON.stringify(FINAL_SCHEMA)}\n`);
+}
+
 export function main(env = process.env) {
   for (const key of [
-    "EXECUTION_FILE",
-    "LOG_FILE",
+    "EXECUTION_FILES",
+    "LOG_FILES",
+    "CHUNKS",
+    "DIFF_DIR",
     "PR_NUMBER",
     "HEAD_SHA",
     "BASE_SHA",
@@ -265,20 +643,8 @@ export function main(env = process.env) {
       throw new Error(`${key} is not set`);
     }
   }
-  let messages;
-  try {
-    messages = JSON.parse(readFileSync(env.EXECUTION_FILE, "utf8"));
-  } catch {
-    throw new Error("the execution file is unreadable");
-  }
-  const output = structuredOutput(messages);
-  let logText;
-  try {
-    logText = readFileSync(env.LOG_FILE, "utf8");
-  } catch {
-    throw new Error("the run log is unreadable");
-  }
-  earlierDenials(logText);
+  const { count, results } = judgedChunks(env);
+  const output = headOutput(env, count, results);
   let linkedIssues;
   try {
     linkedIssues = JSON.parse(readFileSync(env.SPEC_FILE, "utf8"));
@@ -293,6 +659,27 @@ export function main(env = process.env) {
       throw new Error("the spec text file is unreadable");
     }
   }
+  // The evidence inputs are optional: no capture summary file is no-app, and
+  // an unreadable one is blocked (null); a trusted PR text file
+  // (select-trusted-text's context) that is unreadable or for another pull
+  // request leaves local_loop null.
+  let capture;
+  if (env.CAPTURE_FILE && existsSync(env.CAPTURE_FILE)) {
+    try {
+      capture = JSON.parse(readFileSync(env.CAPTURE_FILE, "utf8"));
+    } catch {
+      capture = null;
+    }
+  }
+  let prBody = null;
+  if (env.CONTEXT_FILE) {
+    try {
+      const pull = JSON.parse(readFileSync(env.CONTEXT_FILE, "utf8"))?.pr;
+      prBody = String(pull?.number) === env.PR_NUMBER ? (pull.body ?? null) : null;
+    } catch {
+      prBody = null;
+    }
+  }
   const verdict = buildVerdict({
     output,
     pr: env.PR_NUMBER,
@@ -302,11 +689,14 @@ export function main(env = process.env) {
     headRef: env.HEAD_REF,
     linkedIssues,
     specText,
+    capture,
+    prBody,
   });
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
   const name = artifactName(verdict);
   appendFileSync(env.GITHUB_OUTPUT, `name=${name}\nverdict=${verdict.verdict}\nretention-days=${retentionDays(verdict.verdict, env.RELINK_SINCE_HEAD !== "false")}\n`);
+  results.forEach(({ k, output: one }) => console.log(`::notice title=pr-verify chunk::pr=${verdict.pr} chunk=${k}/${count} verdict=${one?.verdict ?? "none"}`));
   console.log(`write-verdict: ${name}`);
 }
 
@@ -314,6 +704,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     if (process.argv[2] === "check-key-leg") {
       checkKeyLeg();
+    } else if (process.argv[2] === "chunk-fail") {
+      checkChunk();
+    } else if (process.argv[2] === "chunk-results") {
+      writeChunkResults();
     } else {
       main();
     }

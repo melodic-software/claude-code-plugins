@@ -1,10 +1,24 @@
 {
-  "negatives": true,
-  "findings": [],
+  "negatives": false,
+  "findings": [
+    {
+      "class": "restated-fact",
+      "tier": "source-fetched-similar",
+      "span": { "start_line": 3, "end_line": 3 },
+      "rule": "attribution/audit/rule-restated-upstream-fact"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "three blind judges, unanimous on verdict and class",
+    "rubric": "restated-fact",
+    "rubric_version": 1
+  },
   "notes": {
-    "shape": "Hard negative. A model-adaptation chapter states the model's default effort and how one settings key applies to it, and cites a guide section and a documentation page on the same span.",
-    "carve_outs": "Distilling-file surface applies. Each fact carries an inline citation on its span: (vendor-reported; guide, \"Calibrate effort\") and (Claude Code model-config page). Quote those; the carve-out needs them.",
-    "rubric": "Not graded.",
-    "carries": "Two facts in one paragraph, each with its own citation. A run that clears the first and flags the second has read only part of the attribution."
+    "shape": "A model-adaptation chapter states the model's default effort and how one settings key applies to it, and cites a guide section and a documentation page on the same span.",
+    "carve_outs": "The panel did not apply the distilling-file carve-out; why is not recorded. The inline citations are (vendor-reported; guide, \"Calibrate effort\") and (Claude Code model-config page).",
+    "rubric": "Every judge graded R4 PASS: the citations name a document or a page and carry no URL, as-of date or recheck trigger.",
+    "owner_decision": "Recorded as a hard negative until the 0.14.4 re-score, whose unanimous restated-fact v1 panel returned a finding on line 3. Converted under the owner's rule of 2026-10-26 that a unanimous blind label is accepted, recorded at https://github.com/melodic-software/claude-code-plugins/issues/5654#issuecomment-6417188551. The 0.8.2 panel returned near-verbatim on the same missing URL and as-of date. Only the copy rubric emits that class, which indicates 0.8.2 judged this case under copy, though its routing is not recorded; the documented routing sends it to restated-fact because the fingerprint does not fire and the passage states a checkable external fact.",
+    "carries": "Two facts in one paragraph, each with its own citation. A run that clears the paragraph on the citations alone disagrees with the panel's unanimous finding."
   }
 }

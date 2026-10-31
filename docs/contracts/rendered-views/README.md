@@ -549,8 +549,13 @@ residence are how this convention prices them.
 
 Wave-1 adopter (cascade wiring plus chrome citation): `visualization:visualize`.
 
+Emitters that resolve `medium` from the cascade, keeping their shipped default only when no layer
+sets it: `adhd:clarify`. A `terminal` or `file` from any layer keeps its page local; `artifact`, or
+`hosted` read as `artifact`, publishes only from the argument, the user-global layer, or an
+untracked, gitignored overlay. Its output names the layer that decided, or "shipped default".
+
 Current emitters, grandfathered on their shipped ladder and `medium` only, since the
-content-class rules bind them now (see Content classes): `adhd:clarify`,
+content-class rules bind them now (see Content classes):
 `architecture:improve`, `education:teach` (topic mode),
 `prototype:explore-directions`, `prototype:pressure-test`,
 `machine-health:audit` (its step-6 static report view; the decision page is on the shared builder),
@@ -628,12 +633,12 @@ helpers of the loop-closure reference and fails on a dropped case that lints cle
 
 Two emitters stay off `lib/html-escape.mjs`. Each is held to the baseline above by other means.
 
-- **Python emitters.** `plugins/planning/surface/exporters.py`, `plugins/planning/surface/server.py`
+- **Python emitters.** `plugins/planning/surface/exporters.py`, `plugins/planning/surface/interview_server.py`
   and `plugins/pixel-art/scripts/gallery.py` escape with the stdlib `html.escape`,
   which replaces `&`, `<`, `>`, `"` and `'`, the same five characters the helper does. The helper is
   a JavaScript module and these emitters run in Python, so a shared Python helper would be a second
   copy of the same five-character table. `quote=True` is the default in Python 3, so the
-  one-argument call escapes the same five. The URL-position rule still applies: `server.py` checks
+  one-argument call escapes the same five. The URL-position rule still applies: `interview_server.py` checks
   an image `src` against a `data:image/` or `http(s)` prefix before it escapes it. A new Python
   emitter uses `html.escape` and never passes `quote=False`.
 - **`/playbooks:repo-sweep` page.** `render.sh` splices one JSON document into the template's

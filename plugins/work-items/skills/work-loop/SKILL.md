@@ -98,7 +98,7 @@ the source of truth for these counters):
  "paused_until":null,"latched_account":null,"effort":"unset",
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
- "five_hour_delta_pct":1.8}}
+ "five_hour_delta_pct":1.8,"seven_day_delta_pct":0.4}}
 ```
 
 `stop_mode`, `ordering`, `shard` (`{"index":i,"count":n}` or `null`), and `scope` (label string or
@@ -125,19 +125,19 @@ a paused lane is never adopted as a dead one. That reference also owns the `inst
 line.
 
 `usage_sample` copies the **same** two window percentages the rate-limit guard step below already
-read at this cycle's **start**, never a second reading, so `at` is when the lane read the snapshot file,
-not the snapshot's own `captured_at` (which the staleness rule lets lag it) and never the report
-time. `at` is always written, so a cycle that could not observe stays distinguishable from one
-that never sampled. `five_hour_pct` / `seven_day_pct` are the readings as taken: both `null` when
-the guard is not proactive, and independently `null` when a window is unreadable, absent, or
-rejected as unknown, never the rejected value, a stale reading carried forward, or a fabricated
-one. `five_hour_delta_pct` is `null` whenever either side's `five_hour_pct` is unavailable, no
-previous sample at all (so a first cycle's always is), or a `null` reading on either side, and
-`null` when the current reading is **lower** than the previous one (the window rolled over); only
-the five-hour window carries a delta, since a seven-day window moves too little per cycle to clear
-the readings' own approximation. Everything else, the single permitted readback, the delta
-covering the interval *preceding* its reporting cycle, and the three properties bounding what the
-data supports, is the convention's (§4, "Per-cycle usage sample"), held by citation.
+read at this cycle's **start**, never a second reading, so `at` is when the lane read the snapshot
+file, not the snapshot's own `captured_at` (which the staleness rule lets lag it) and never the
+report time. `at` is always written, so a cycle that could not observe stays distinguishable from
+one that never sampled. `five_hour_pct` / `seven_day_pct` are the readings as taken: both `null`
+when the guard is not proactive, and independently `null` when a window is unreadable, absent, or
+rejected as unknown, never the rejected value, a stale reading carried forward, or a fabricated one.
+`five_hour_delta_pct` and `seven_day_delta_pct` are per window, since an account may report only
+some windows: `null` when that window's reading is unavailable on either side, on a first cycle, and
+when the current reading is **lower** than the previous one (a rollover). Pointer: for which windows
+exist, the `windows` keys `mcp__rate-limit-guard__status` returns. As of: 2026-10-30. Recheck
+trigger: the guard changes which windows it carries. Everything else, the single permitted readback,
+each delta covering the interval *preceding* its reporting cycle, and the three properties bounding
+what the data supports, is the convention's (§4, "Per-cycle usage sample"), held by citation.
 
 ## Rate-limit guard floor (inlined)
 
@@ -242,17 +242,17 @@ the former default-on pause).
    in-flight precondition below) or held by its Objection window ([reference/objection-window.md](reference/objection-window.md),
    which also escalates an objected one), then classify the rest and admit per the gate. Fail-closed.
 4. **Execute.** Work admitted items by invoking `/work-items:work` via the Skill tool (one invocation per item slot), up to
-   the adaptive item cap. When more than one item was admitted, sort the admitted set on the
-   `created_at` each snapshot item already carries (the seam `CONTRACT.md`, "JSON output
-   contract") before filling cap slots, with no further read: `oldest-first` ascending,
-   `newest-first` descending. An item whose `created_at` is `null` or absent sorts after every
-   timestamped item; among those, and on equal timestamps, order by item number in the same
-   direction, a fixed tie-break so the order is deterministic. Each invocation uses that skill's
-   **autonomous invocation** path: it names the admitted item id and states that this loop's
-   admission gate (and any required ratification marker) passed, so `/work-items:work` proceeds
-   without its interactive confirmation prompt. Selection, claim (assignee + lease), staleness
-   pre-check, dispatch mechanics, the PR contract, the review pass, and the never-merge boundary are
-   all owned there, this loop restates none of them. Loop-level deltas only:
+   the adaptive item cap. When more than one item was admitted, sort the admitted set before filling cap slots, with no
+   further read: first by each item's `priority:` label rank in the `work_priority_order` setting, resolved and applied
+   as `/work-items:work`'s "Selection Priority" states, then between equal ranks on the `created_at` each snapshot item
+   already carries (the seam `CONTRACT.md`, "JSON output contract"): `oldest-first` ascending, `newest-first`
+   descending. An item whose `created_at` is `null` or absent sorts after every timestamped item of its rank; among
+   those, and on equal timestamps, order by item number in the same direction, a fixed tie-break so the order is
+   deterministic. Each invocation uses that skill's **autonomous invocation** path: it names the admitted item id and
+   states that this loop's admission gate (and any required ratification marker) passed, so `/work-items:work` proceeds
+   without its interactive confirmation prompt. Selection, claim (assignee + lease), staleness pre-check, dispatch
+   mechanics, the PR contract, the review pass, and the never-merge boundary are all owned there, this loop restates
+   none of them. Loop-level deltas only:
    - **Worker-side provisioning, owned by `/work-items:work`.** The dispatched subagent
      materializes its own out-of-tree worktree first and works against it via `git -C` without
      entering it; the orchestrator never invokes `/source-control:worktree create`, whose
@@ -318,8 +318,8 @@ the former default-on pause).
    changes its block or skip rules, or a release note changes background-session isolation.
 6. **Report and pace.** Update the no-progress streak, and, at the threshold, raise the stall
    escalation, per the detector below; upsert the telemetry comment (cycle report + updated state
-   block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta
-   covers the preceding interval and never this cycle's work); then evaluate the exit condition; if
+   block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose deltas
+   cover the preceding interval and never this cycle's work); then evaluate the exit condition; if
    not exiting, `ScheduleWakeup` the next cycle (`--single-pass`: start it now or end the run).
    **Ground every claim in the cycle report against a tool result from this cycle, and say which work
    is unverified rather than omitting the distinction.** Nobody watched this cycle, so the report is

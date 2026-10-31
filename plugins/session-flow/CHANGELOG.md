@@ -1,5 +1,51 @@
 # Changelog: session-flow plugin
 
+## [2.2.0] - 2026-10-31
+
+### Added
+
+- `/session-flow:handoff` and `/session-flow:continue-in-background` hand this session's worktree
+  claims to the session that resumes the work. Each worktree whose lock names this session gets an
+  Environment to re-establish entry with its path and the old session id, and the handover through
+  source-control's `worktree-claim.sh handover` is the first remaining action (prompt-only: the
+  first bullet), so the resuming session runs it before `check-enter`.
+
+### Changed
+
+- `orient`, `continue-in-background`, `retro` and `audit-sessions` offer `/recap`, `/background`, `/fork`, `/subtask` and `/insights` as suggest sentences, `If /<name> is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when an offer is deleted or reworded.
+
+## [2.1.1] - 2026-10-31
+
+### Fixed
+
+- `/session-flow:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
+## [2.1.0] - 2026-10-31
+
+### Added
+
+- `recommend_skills_exclude` option: `none` (default), `disabled`, `not-installed` or `disabled,not-installed`. `/session-flow:recommend-skills` drops skills in those states from its menu and says which states it dropped.
+
+- `/session-flow:running-retro`: each checkpoint, in session or from the observer, stamps the ledger frontmatter with `plugin_usage`, one line of JSON (`{"skills": {"<plugin>:<skill>": <count>}}`) counted over the whole session by the retro parser. The ledger's path, name glob and `session_id` and `plugin_usage` keys are now a documented artifact other plugins read, so they need not find session-flow's parser. ([#5819](https://github.com/melodic-software/claude-code-plugins/issues/5819))
+
+### Changed
+
+- `/session-flow:recommend-skills` builds its pool from `/harness-ops:inventory --skills-index`, which indexes every skill's frontmatter whether it is enabled, disabled or not installed. It shortlists from the index and reads only the shortlisted SKILL.md files. Disabled and not-installed skills are annotated `(disabled)` and `(not installed)`, replacing the `(plugin not enabled)` annotation. The skill asks at most one question and never enables or installs a skill.
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
+## [2.0.4] - 2026-10-31
+
+### Changed
+
+- Repointed the dead best-practices anchors to the current headings on that page.
+
 ## [2.0.3] - 2026-10-30
 
 ### Changed

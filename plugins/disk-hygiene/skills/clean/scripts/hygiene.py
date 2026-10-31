@@ -454,33 +454,37 @@ def model_output_path(value: str) -> Path:
 
 
 def close_clean_runs(ended: Path | None = None) -> None:
-    """Delete the clean skill's run markers this step ends, and timed-out ones.
+    """Delete the calling session's run marker if this step ends it or it timed out.
 
     The belt writes one marker per session under ``clean-runs`` when it admits
     a step, naming the file whose writing ends the run (``ends_with``). A step
     that writes that file, or a preview that ends the run on its plan, passes
-    it as ``ended``. Best effort: a marker left in place holds the belt until
-    its idle timeout, the fail-closed direction, and never changes a result.
+    it as ``ended``. Only the marker of the session Claude Code names in
+    ``CLAUDE_CODE_SESSION_ID`` is read, so no session ends another's run.
+    Best effort: a marker left in place, with no session id included, holds
+    the belt until its idle timeout, the fail-closed direction, and never
+    changes a result.
     """
-    if not DATA_ROOT_OVERRIDE:
+    session_id = os.environ.get("CLAUDE_CODE_SESSION_ID")
+    if not DATA_ROOT_OVERRIDE or not session_id:
         return
     runs = (
         Path(DATA_ROOT_OVERRIDE).expanduser().resolve(strict=False)
         / engine_grammar.RUN_MARKER_DIRNAME
     )
+    marker = runs / engine_grammar.run_marker_filename(session_id)
     try:
         if runs.is_symlink() or not runs.is_dir():
             return
-        markers = sorted(runs.glob("*.json"))
-    except OSError:
-        return
-    now = time.time()
-    for marker in markers:
-        try:
+        # The guard rewrites a marker under the same lock, so a verify admitted
+        # in a parallel batch cannot land between this read and the delete.
+        with engine_grammar.run_marker_lock(runs):
             info = marker.lstat()
             if not stat.S_ISREG(info.st_mode):
-                continue
-            close = now - info.st_mtime >= engine_grammar.RUN_IDLE_TIMEOUT_SECONDS
+                return
+            close = (
+                time.time() - info.st_mtime >= engine_grammar.RUN_IDLE_TIMEOUT_SECONDS
+            )
             if not close and ended is not None:
                 recorded = json.loads(marker.read_text(encoding="utf-8"))["ends_with"]
                 close = isinstance(recorded, str) and os.path.normcase(
@@ -488,8 +492,8 @@ def close_clean_runs(ended: Path | None = None) -> None:
                 ) == os.path.normcase(ended)
             if close:
                 marker.unlink(missing_ok=True)
-        except (OSError, ValueError, TypeError, KeyError):
-            continue
+    except (OSError, ValueError, TypeError, KeyError):
+        return
 
 
 def load_input_json(value: str) -> dict[str, Any]:
@@ -3225,6 +3229,9 @@ def snapshot_protection_globs(snapshot: dict[str, Any]) -> list[dict[str, str]]:
     return [entry for entry in entries if entry is not None]
 
 
+INLINE_PLAN_NOTE = "recorded in the audit report for this path"
+
+
 def validate_plan(
     plan: dict[str, Any], entries: dict[str, dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -3347,6 +3354,41 @@ def validate_handoff_paths(
         seen.append(pure)
         normalized.append(relative)
     return normalized
+
+
+def inline_plan(
+    snapshot_path: str,
+    tier: str | None,
+    paths: list[str],
+    entries: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], Path]:
+    """Build the plan a ``preview --tier --path`` call names, and its fixed path.
+
+    Its candidates are all unmanaged, with fixed prose: the audit report carries
+    the evidence, as it does for a manual-handoff list. The caller names no
+    output, so the plan lands only beside the snapshot, under a name of the
+    engine's own.
+    """
+    if tier is None or not paths:
+        raise HygieneError("preview needs --tier and --path together, without --plan")
+    approved = validate_handoff_paths(
+        {"version": SCHEMA_VERSION, "paths": paths}, entries
+    )
+    candidates = [
+        {
+            "path": relative,
+            "tier": tier,
+            "provenance": INLINE_PLAN_NOTE,
+            "reason": INLINE_PLAN_NOTE,
+            "evidence": [INLINE_PLAN_NOTE],
+            "why_not_work_product": INLINE_PLAN_NOTE,
+            "risk": INLINE_PLAN_NOTE,
+            "owner": "unmanaged",
+        }
+        for relative in approved
+    ]
+    plan = {"version": SCHEMA_VERSION, "tier": tier, "candidates": candidates}
+    return plan, model_output_path(engine_grammar.inline_plan_path(snapshot_path, tier))
 
 
 def validate_vcs_evidence(
@@ -6485,11 +6527,20 @@ def main(argv: list[str] | None = None) -> int:
                 report,
                 {"completed": 0, "completed-with-skips": 4}.get(report["status"], 3),
             )
-        plan = load_input_json(args.plan)
+        inline = args.command == "preview" and bool(args.path or args.tier)
+        if inline:
+            plan, plan_path = inline_plan(
+                args.snapshot, args.tier, args.path, entry_map(snapshot)
+            )
+        else:
+            plan = load_input_json(args.plan)
+            plan_path = Path(args.plan).expanduser().resolve(strict=False)
         checked = preview(snapshot, plan)
+        if inline:
+            write_json(plan_path, plan)
         if args.command == "preview":
             if checked["outcome"] != "explicit-approval":
-                close_clean_runs(Path(args.plan).expanduser().resolve(strict=False))
+                close_clean_runs(plan_path)
             return emit(checked, 3 if checked["outcome"] == "blocked" else 0)
         if not args.execute:
             raise HygieneError("apply requires the explicit --execute flag")

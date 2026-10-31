@@ -459,8 +459,7 @@ activities:
     # off on an armed one that now carries a hold or while the gate holds the
     # lane off; auto-merge a person turned off stays off. No
     # model. The enable-auto-merge job of .github/workflows/pr-merge.yml runs
-    # it on a listed human's PR edit, unlabel or ready, and on the schedule,
-    # which arms.
+    # it on a listed human's PR unlabel, and on the schedule, which arms.
     script: .github/scripts/pr-merge/enable-auto-merge.mjs
     effect: merge
     gating: advisory
@@ -508,8 +507,9 @@ activities:
     # .github/workflows/work-unblock.yml runs it.
     script: .github/scripts/work-unblock/label-unblocked.mjs
     # Labels, unlabels and comments on issues, and closes as completed the
-    # parent of a size split (owner Q93) once every sub-issue is closed by a
-    # listed human or a merge, a close it then counts as done; nothing else.
+    # parent of a size split (owner Q93) once every sub-issue is closed as
+    # completed by a listed human or a merge and its done-when is covered, a
+    # close it then counts as done; nothing else.
     effect: mutate-tracker
     gating: advisory
     # Reads issue comments for the lanes App's outcome markers.
@@ -1086,6 +1086,12 @@ merge:
   # idle owner PR the pr-merge lane adopts has a verdict (owner decision Q22),
   # the owner account's; `lane` judges the App's alone, `any` every author's.
   verify-authors: lane-or-owner
+  # The app pr-verify drives to capture evidence of a change working, and how
+  # long each capture artifact lasts. `app` unset: no capture runs, and each
+  # verdict's evidence records `capture: no-app`. 30 days is judgment: long
+  # enough for a review round, short of the 90-day verdict.
+  verify-capture:
+    retention-days: 30
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge
@@ -1098,8 +1104,11 @@ merge:
     mode: enforce
     majors: review
   # No path is held for being trusted alone (owner direction 2026-10-24)
-  # except the narrow path floor (babysit_risk.py FLOOR_CLASSES, owner
-  # decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B). Its `trust`
+  # except the narrow path floor (babysit_risk.py FLOOR_CLASSES, the paths
+  # every consumer shares, joined to `floor-paths` below, this repository's
+  # own rows; owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B).
+  # `author-lift: false` keeps a `gate` row with a person (owner decision
+  # Q11 (A)). Change a row here, then run scripts/sync-hold-floor.py. Its `trust`
   # globs (request-lane-token, check-trusted-trigger, check-kill-switch,
   # CODEOWNERS, .gitmodules) and `gate` globs (resolve-config, the rate
   # guard, every pr-merge script, this file, babysit_merge*, babysit_risk.py,
@@ -1134,3 +1143,188 @@ merge:
     denied-paths: []
     high-path-floor: false
     path-holds: false
+    floor-paths:
+      - glob: ".github/actions/check-trusted-trigger/**"
+        class: trust
+      - glob: ".github/actions/resolve-config/**"
+        class: trust
+      - glob: ".github/actions/check-kill-switch/**"
+        class: trust
+      - glob: ".github/actions/request-lane-token/**"
+        class: trust
+      - glob: ".github/actions/log-api-budget/rate-guard.mjs"
+        class: gate
+      - glob: ".github/actions/log-api-budget/rate-limits.json"
+        class: gate
+      - glob: ".github/scripts/pr-merge/merge-holds.mjs"
+        class: trust
+      - glob: ".github/scripts/pr-merge/enable-auto-merge.mjs"
+        class: trust
+      - glob: ".github/scripts/pr-merge/superseded.mjs"
+        class: trust
+      - glob: ".github/scripts/pr-merge/clear-escalations.mjs"
+        class: trust
+      - glob: ".github/scripts/pr-merge/carry-run-cache.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-merge/gate-check.mjs"
+        class: trust
+      - glob: ".github/scripts/pr-merge/head-ref-map.mjs"
+        class: trust
+      - glob: ".github/scripts/pr-merge/lane-records.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-merge/last-report.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-merge/rate-stop.bash"
+        class: gate
+      - glob: ".github/scripts/pr-merge/refire-refused.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-merge/rotation.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-merge/sweep-summary.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-merge/who.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-merge/post-unarmed-status.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-merge/verify-answers.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-merge/listing-carry.mjs"
+        class: gate
+      - glob: ".github/actions/report-check-run/posting-run.mjs"
+        class: gate
+      - glob: "scripts/sync-hold-floor.py"
+        class: trust
+      - glob: ".github/scripts/pr-unblock/address-feedback.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/escalation-routes.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/escalation-routes.json"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/gate-source.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/thread-scope.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/retry-fetch.mjs"
+        class: enforcement
+      - glob: ".github/scripts/work-resolve-issue/report-outcome.mjs"
+        class: enforcement
+      - glob: ".github/scripts/work-resolve-issue/limits.mjs"
+        class: enforcement
+      - glob: ".github/scripts/work-resolve-issue/retry-fetch.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/report-escalation.sh"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/adjudicate-feedback.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/publish-feedback.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/request-budget.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-verify/resolve-pr.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-verify/write-verdict.mjs"
+        class: enforcement
+      - glob: ".github/scripts/intake-triage/admit.mjs"
+        class: enforcement
+      - glob: ".github/actions/select-trusted-text/select-trusted-text.mjs"
+        class: enforcement
+      - glob: "lib/publish-gate.mjs"
+        class: enforcement
+      - glob: ".github/recurring-schedule.json"
+        class: enforcement
+      - glob: "plugins/work-items/scripts/charge-words.json"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/dependency-classify.mjs"
+        class: enforcement
+      - glob: ".github/scripts/apply-patch/apply-patch.mjs"
+        class: enforcement
+      - glob: ".github/scripts/apply-patch/predicates.mjs"
+        class: enforcement
+      - glob: ".github/scripts/apply-patch/protected-paths.mjs"
+        class: enforcement
+      - glob: ".github/scripts/apply-patch/retry-fetch.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/fix-ci-context.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/feedback-dispatch.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/verify-notes.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/limit-stop.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/dispatch-record.mjs"
+        class: enforcement
+      - glob: ".github/scripts/pr-unblock/verify-cap.mjs"
+        class: enforcement
+      - glob: ".github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs"
+        class: enforcement
+      - glob: ".github/scripts/work-resolve-issue/stop-routes.json"
+        class: enforcement
+      - glob: ".github/scripts/work-resolve-issue/stop-routes.mjs"
+        class: enforcement
+      - glob: ".github/scripts/lib/stop-reason.mjs"
+        class: enforcement
+      - glob: ".github/scripts/lib/admission-comment.mjs"
+        class: enforcement
+      - glob: ".github/scripts/lib/done-evidence.mjs"
+        class: trust
+      - glob: ".github/scripts/pr-review-main/**"
+        class: gate
+        author-lift: false
+      - glob: "docs/conventions/instruction-exception-register/**"
+        class: gate
+        author-lift: false
+      - glob: "docs/conventions/untrusted-content/**"
+        class: gate
+        author-lift: false
+      - glob: "docs/standards/**"
+        class: gate
+        author-lift: false
+      # BEGIN hold-floor GATE_WORKFLOWS: generated by scripts/sync-hold-floor.py
+      - glob: ".github/workflows/dependabot-fragments.yml"
+        class: gate
+      - glob: ".github/workflows/eval-browser-dispatch.yml"
+        class: gate
+      - glob: ".github/workflows/intake-reenter.yml"
+        class: gate
+      - glob: ".github/workflows/intake-triage.yml"
+        class: gate
+      - glob: ".github/workflows/maintenance-audit-lane-runs.yml"
+        class: gate
+      - glob: ".github/workflows/maintenance-reconcile-lost-runs.yml"
+        class: gate
+      - glob: ".github/workflows/post-merge-demotion-alert.yml"
+        class: gate
+      - glob: ".github/workflows/post-merge-test-mutation.yml"
+        class: gate
+      - glob: ".github/workflows/pr-feedback-dispatch.yml"
+        class: gate
+      - glob: ".github/workflows/pr-merge.yml"
+        class: gate
+      - glob: ".github/workflows/pr-refine.yml"
+        class: gate
+      - glob: ".github/workflows/pr-require-checks.yml"
+        class: gate
+      - glob: ".github/workflows/pr-review-hosted.yml"
+        class: gate
+      - glob: ".github/workflows/pr-review-main.yml"
+        class: gate
+      - glob: ".github/workflows/pr-review-security-hosted.yml"
+        class: gate
+      - glob: ".github/workflows/pr-run-activity-read.yml"
+        class: gate
+      - glob: ".github/workflows/pr-run-activity-write.yml"
+        class: gate
+      - glob: ".github/workflows/pr-unblock-dispatch.yml"
+        class: gate
+      - glob: ".github/workflows/pr-unblock.yml"
+        class: gate
+      - glob: ".github/workflows/pr-verify.yml"
+        class: gate
+      - glob: ".github/workflows/release-publish-plugins.yml"
+        class: gate
+      - glob: ".github/workflows/work-resolve-issue.yml"
+        class: gate
+      - glob: ".github/workflows/work-unblock.yml"
+        class: gate
+      # END hold-floor GATE_WORKFLOWS

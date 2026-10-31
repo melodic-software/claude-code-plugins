@@ -19,7 +19,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
 | Lane | Rows | Baked | Integration | Verdicts |
 |---|---|---|---|---|
 | Built-in CLI commands | 26 | 25 | route 4, suggest 22 | complementary 25, defer 1 |
-| Bundled skills | 29 | 23 | route 18, suggest 9, wrap 2 | complementary 24, defer 5 |
+| Bundled skills | 30 | 24 | route 19, suggest 9, wrap 2 | complementary 25, defer 5 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 4 | 2 | route 4 | complementary 3, defer 1 |
 | Built-in subagents | 3 | 2 | route 3 | complementary 3 |
@@ -45,7 +45,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/auto-mode-setup`, changes its argument contract or what it writes, un-hides it, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `autofix-pr` → `source-control:babysit-prs`
@@ -63,7 +63,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/autofix-pr`, un-hides it, changes its gating, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `autofix-pr` → `source-control:pull-request`
@@ -81,7 +81,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/autofix-pr`, un-hides it, changes its gating, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `background` → `session-flow:continue-in-background`
@@ -101,7 +101,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/background` or its `bg` alias, changes its gating, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `bug` → `bugs:write`
@@ -121,7 +121,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/bug` or its `share` alias, changes what it sends, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `commit-push-pr` → `source-control:commit`
@@ -242,7 +242,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/fork` (the changelog records a 2.1.77 rename to `/branch` that the 2.1.284 registration does not show), changes its gating, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `goal` → `planning:draft-goal-condition`
@@ -261,7 +261,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/goal`, changes its condition contract or length limit, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `insights` → `session-flow:audit-sessions`
@@ -279,7 +279,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/insights`, changes its report scope, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `insights` → `session-flow:retro`
@@ -297,7 +297,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/insights`, changes its report scope, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `install-github-app` → `github:advise`
@@ -315,7 +315,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/install-github-app`, ungates it, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `memory` → `harness-memory:stateless`
@@ -333,7 +333,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/memory`, drops its auto-memory toggle, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `pause-memory` → `harness-memory:stateless`
@@ -370,7 +370,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames `/permissions`, changes its `allowed-tools` alias, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `permissions` → `harness-config:audit-permission-state`
@@ -389,7 +389,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/permissions` or its `allowed-tools` alias, changes its tabs, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `plan` → `planning:plan`
@@ -408,7 +408,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/plan`, changes what it persists, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `plugin eval` → `evals:plugin-eval`
@@ -446,7 +446,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/recap`, widens it beyond the current session, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `skill-doctor` → `context-budget:audit`
@@ -503,7 +503,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes `/subtask`, changes its gating, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ## Bundled skills
@@ -562,7 +562,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `batch` skill, changes its worker range or PR behavior, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `claude-api` → `evals:methodology`
@@ -612,6 +612,25 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - reference/prompt-caching.md 'Automation' bullet cites cost-optimize behind the presence gate
 - **Observation:** extraction: extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (registerClaudeApiSkill string plus subcommand array); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
 - **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set or moves it between bundled and marketplace distribution (verified 2026-09-11)
+- **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
+### `claude-code-docs` → `discovery:read-docs`
+
+- **Verdict:** `complementary`: The bundled skill answers questions about Claude Code's own features; ours reads one named upstream docs page from any vendor through the shared lookup and cache, marks what the page does not state, and keeps inference apart. They share a job only on questions about Claude Code itself, so neither replaces the other. Same complementary and route shape as the store's Explore, WebFetch and WebSearch rows. Ruled 2026-10-26 by the owner's recorded direction on #9105.
+- **Integration:** `route`
+- **Native surface:** `claude-code-docs` (bundled skill; markers: gated)
+- **Our component:** `discovery:read-docs` (skill)
+- **Evidence:**
+  - `claude-code-docs` present in the extraction as bundled-skill
+  - markers: gated
+  - native description: Answers questions about Claude Code features
+  - invocation mode (2026-10-31, Claude Code 2.1.314): model-invocable and user-invocable
+  - detect (2026-10-31, Claude Code 2.1.314): score 0.6736, invocable_by model+user
+  - our description (abridged): Read an upstream docs page through the shared docs lookup and cache, with the page's silences marked and inference kept apart; model-invocable
+  - the skills docs page's Bundled skills section names examples and does not list claude-code-docs (read 2026-10-31), so the extraction is this row's only basis
+- **Observation:** extraction: extracted from binary v2.1.314 on 2026-10-31 (the /harness-ops:inventory --binary-only extraction recorded on #9105; bundled_skills degraded with 19 unresolved computed names, so counts are floors) (2026-10-31)
+- **Recheck trigger:** a Claude Code release renames or removes the bundled `claude-code-docs` skill, makes it model-disabled, or widens its job past Claude Code's own features, or the skills docs page's Bundled skills section starts listing it (verified 2026-10-31)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
@@ -686,7 +705,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `debug` skill, widens it beyond Claude Code's own session log, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `design` → `prototype:explore-directions`
@@ -773,7 +792,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: read from binary v2.1.296 on 2026-10-10: the doctor skill registration carries `disableModelInvocation: true` and `aliases: ["checkup"]`; the native description and argument hint above are from the v2.1.284 extraction of 2026-09-29 (2026-10-10)
 - **Recheck trigger:** a Claude Code release changes the `prompt-audit` subcommand of `/doctor`, the skill's alias or gating, or lets the model invoke it (verified 2026-10-10)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `doctor` → `harness-ops:audit-install-state`
@@ -1016,7 +1035,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `verify` skill, changes what it bootstraps, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ## Bundled workflows
@@ -1036,7 +1055,7 @@ and when. See [`docs/contracts/native-references/`](contracts/native-references/
   - docs cross-check (commands reference, 2026-09-29): documented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
 - **Recheck trigger:** a Claude Code release renames or removes the bundled `deep-research` workflow, changes its phases, or makes it model-invocable (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ## Plugin-backed built-ins
@@ -1376,7 +1395,7 @@ Pairs ruled not an overlap by a person or a session acting on the owner's record
 | `Write` | builtin-tool | `bugs:write` | The Write tool writes a file; ours drafts a structured bug report. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Write` | builtin-tool | `docs-hygiene:write-for-agents` | The Write tool writes a file; ours authors agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
 | `Write` | builtin-tool | `docs-hygiene:write-for-humans` | The Write tool writes a file; ours authors human-facing prose. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-09-29 |
-| `agents` | builtin-command | `docs-hygiene:write-for-agents` | /agents manages subagents (its registration now reads "(removed)"); ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `agents` | builtin-command | `docs-hygiene:write-for-agents` | /agents manages subagents (its registration now reads "(removed)"); ours writes agent-consumed markdown. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.314 | 2026-10-31 |
 | `agents` | builtin-command | `multi-agent:assess` | /agents manages subagents (its registration reads "(removed)"); ours decides whether a task runs as a workflow, subagents or inline. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation. | 2.1.288 | 2026-10-02 |
 | `agents` | builtin-command | `multi-agent:route` | /agents manages subagents (its registration reads "(removed)"); ours resolves the model and effort per agent role. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation. | 2.1.288 | 2026-10-02 |
 | `artifact-design` | bundled-skill | `planning:design` | Design guidance for Artifact pages versus resolving code design decisions (types, contracts, module boundaries). Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
@@ -1389,6 +1408,7 @@ Pairs ruled not an overlap by a person or a session acting on the owner's record
 | `brief` | builtin-command | `ai-briefing:generate` | /brief toggles brief-only output mode; ours builds a sourced AI industry briefing. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `brief` | builtin-command | `ai-briefing:setup` | /brief toggles brief-only output mode; ours configures an AI industry briefing profile. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `brief` | builtin-command | `harness-ops:morning-brief` | /brief toggles brief-only output mode; ours prints a repository's morning operator view. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `brief` | builtin-command | `review:brief-reviewer (agent)` | /brief toggles brief-only output mode; ours is a read-only reviewer agent that runs the review brief it is dispatched with. Shared word only. Ruled 2026-10-26 by the owner's recorded direction on #9105. | 2.1.314 | 2026-10-31 |
 | `bug` | builtin-command | `bugs:setup` | /bug reports a Claude Code bug to Anthropic; ours configures the bugs plugin for a repository. The reporting overlap is recorded against bugs:write. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `cc-plugin-agents-md` | plugin-backed-builtin | `docs-hygiene:write-for-agents` | The built-in agents-md plugin loads AGENTS.md as project instructions; ours writes agent-consumed markdown. Loader versus writer, shared words only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.287 | 2026-10-01 |
 | `cc-plugin-claude-test` | plugin-backed-builtin | `prototype:pressure-test` | The built-in claude-test plugin runs plain-language specs against a local dev server in a browser; ours builds a throwaway terminal app to pressure-test logic before committing to it. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.287 | 2026-10-01 |
@@ -1441,16 +1461,16 @@ Pairs ruled not an overlap by a person or a session acting on the owner's record
 | `plugin-authoring` | plugin-backed-builtin | `playbooks:skill-authoring` | The built-in plugin-authoring skill teaches writing a mod, a plugin of function hooks; ours is the skill-authoring playbook. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.287 | 2026-10-01 |
 | `pr` | bundled-skill | `review:explain-change` | Creates a pull request versus explaining an existing one. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `pr` | bundled-skill | `source-control:babysit-prs` | Creates one pull request versus a loop that advances already-open ones. The creation pair is recorded against source-control:pull-request. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `rename` | builtin-command | `docs-hygiene:rename-references` | /rename renames the conversation; ours sweeps stale references after a file or symbol rename. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation. | 2.1.288 | 2026-10-02 |
+| `rename` | builtin-command | `docs-hygiene:rename-references` | /rename renames the conversation; ours sweeps stale references after a file or symbol rename. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation. | 2.1.314 | 2026-10-31 |
 | `rename` | builtin-command | `docs-naming:audit-file-names` | /rename renames the conversation; ours audits a docs tree's file names. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `rename` | builtin-command | `docs-naming:realign-file-names` | /rename renames the conversation; ours applies a file rename plan. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `rename` | builtin-command | `naming:name-it-better` | /rename renames the conversation; ours generates names for code and domain terms. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `restart` | builtin-command | `firecrawl:update` | /restart (alias /update) restarts Claude Code and keeps the session; ours drift-checks the firecrawl wrapper against its upstream. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation. | 2.1.288 | 2026-10-02 |
 | `restart` | builtin-command | `playbooks:update` | /restart (alias /update) restarts Claude Code and keeps the session; ours drift-checks the playbooks plugin's vendored packs. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation. | 2.1.288 | 2026-10-02 |
-| `resume` | builtin-command | `session-flow:continue-in-background` | /resume reopens a previous conversation; ours launches a new detached session to carry the current work. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `resume` | builtin-command | `session-flow:continue-in-background` | /resume reopens a previous conversation; ours launches a new detached session to carry the current work. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.314 | 2026-10-31 |
 | `runner` | plugin-backed-builtin | `session-flow:running-retro` | The built-in claude-test plugin's runner agent drives the app under test in a fenced browser; ours files mid-session retro findings. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.287 | 2026-10-01 |
 | `security-review` | plugin-backed-builtin | `review:code-reviewer (agent)` | The code-reviewer agent leaves security to security-reviewer by its own description. The security pair is recorded against review:security-reviewer. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `stop` | builtin-command | `session-flow:clean-stop` | /stop ends a background session; ours sweeps repositories for unpushed work before the machine goes away. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `stop` | builtin-command | `session-flow:clean-stop` | /stop ends a background session; ours sweeps repositories for unpushed work before the machine goes away. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.314 | 2026-10-31 |
 | `update-config` | bundled-skill | `firecrawl:update` | Edits Claude Code settings.json versus drift-checking the firecrawl wrapper against its upstream. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `verify` | bundled-skill | `performance:verify` | Exercises a code change end to end versus re-deriving a performance measurement in a fresh context. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `verify` | bundled-skill | `verification:setup` | The bundled verify skill exercises a code change end to end before committing; verification:setup reports where the verification plugin's artifacts land. Both are user-only, so no routing exists. Shared words only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.287 | 2026-10-01 |

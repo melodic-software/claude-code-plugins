@@ -3,6 +3,43 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.2] - 2026-10-31
+
+### Fixed
+
+- **run-e2e:** `e2e-summary.json`'s `publishable` list is no longer always empty. It takes the
+  paths from the `publishable` list in each drive run's `report.json`, then adds
+  `e2e-summary.json` only when a scan of its text finds no hit. The scan uses the same sources as
+  `/app-control:drive`'s "Mask post-check": the control skill hub's `## Mask` `values:` and the
+  generic credential pattern. A hit or an unresolved value source keeps the summary out
+  ([#11388](https://github.com/melodic-software/claude-code-plugins/issues/11388)).
+
+## [1.7.1] - 2026-10-31
+
+### Fixed
+
+- The `run-e2e-app-control-absent-reports-drift`, `run-e2e-flat-feature-id-resolves` and
+  `run-e2e-grouped-feature-id-resolves` eval cases now expect what `/testing:run-e2e` does without
+  app-control: `touched features not matched (app-control not installed)`, no refresh, and a next
+  step of installing app-control. The flat and grouped cases check the feature id on the report
+  lines.
+
+## [1.7.0] - 2026-10-31
+
+### Added
+
+- **run-e2e:** `app=`, `base=` and `trusted-root=` arguments, passed to every `/app-control:drive` call. An `unattended` run writes `e2e-summary.json`: the route, the touched features, a `capture` status (`ran`, `not-applicable`, `blocked` or `skipped`) with its reason, one line per entry point, and a `publishable` list the file joins only after a scan finds no hit ([#11388](https://github.com/melodic-software/claude-code-plugins/issues/11388)).
+
+### Changed
+
+- **run-e2e:** touched features come from `/app-control:drive affected`; the skill no longer matches changed files against a control skill's `sources` globs itself. Without app-control the report says `touched features not matched (app-control not installed)` ([#11388](https://github.com/melodic-software/claude-code-plugins/issues/11388)).
+
+## [1.6.6] - 2026-10-31
+
+### Changed
+
+- Repointed the dead best-practices anchors to the current headings on that page.
+
 ## [1.6.5] - 2026-10-30
 
 ### Changed

@@ -42,6 +42,13 @@ name: maintenance-reconcile-lost-runs
 # once no such status fails the head (the lane that stopped cleared it); a
 # status post starts no run, and a failed re-run of it is only a warning.
 #
+# A hosted review run a kill switch stopped, on a head whose newest
+# pr-require-checks run failed only in ci-status with its note of that stop, is
+# re-run once, recorded, once neither the lanes switch, the lane's own switch
+# nor the upstream gate would stop it again; its completion re-runs ci-status
+# (pr-feedback-dispatch.yml rerun-ci-status). One lane per head per pass, and a
+# place under the cap, whatever the run's age up to GitHub's 30 days.
+#
 # An intake-triage run an issue event started whose first attempt failed only
 # in its intake-label-needs-triage job (a rate limit, most often) left the
 # issue without its floor label; its failed jobs are re-run once, taking no
@@ -55,9 +62,10 @@ name: maintenance-reconcile-lost-runs
 # pr-verify's and pr-review-main's trigger checks trust a re-run github-actions[bot] starts only
 # through this run's record of it: the plan step names an artifact
 # reconcile-rerun-<run id>-2-<head sha> for each pr-verify or pr-review-main run it will re-run,
-# and for each pr-require-checks run whose re-run makes its attempt 2 (pr-verify
-# runs after it), the upload steps below write them, and only then does the act
-# step re-run those runs. That no other run can upload into this run's artifacts is
+# for each pr-require-checks run whose re-run makes its attempt 2 (pr-verify
+# runs after it), and for each hosted review run a kill switch or the
+# upstream-status gate stopped, the upload steps below write them, and only then
+# does the act step re-run those runs. That no other run can upload into this run's artifacts is
 # UNVERIFIED: GitHub does not document that it scopes the runtime upload token
 # to its own run, and the REST API has no endpoint that creates an artifact.
 # A forged record still needs a github-actions[bot] attempt-2 re-run of the
@@ -154,12 +162,16 @@ jobs:
           MODE: plan
           PLAN_PATH: ${{ runner.temp }}/reconcile-plan.json
           RECORD_PATH: ${{ runner.temp }}/reconcile-record/record.json
+          SETTLED_PATH: ${{ runner.temp }}/reconcile-settled/settled.json
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
+          # Read as the review callers read them: only `true`, in any case, stops the lane.
+          CLAUDE_REVIEW_DISABLED: ${{ vars.CLAUDE_REVIEW_DISABLED }}
+          CLAUDE_SECURITY_REVIEW_DISABLED: ${{ vars.CLAUDE_SECURITY_REVIEW_DISABLED }}
           TRUSTED_ACTORS_PATH: .base/.github/standards/trusted-actors/trusted-actors.json
         run: |
-          mkdir -p "$RUNNER_TEMP/reconcile-record"
+          mkdir -p "$RUNNER_TEMP/reconcile-record" "$RUNNER_TEMP/reconcile-settled"
           # pr-verify.yml's resolver inputs, for the spec-changed re-runs.
           VERIFY_AUTHORS=$(yq '.merge."verify-authors" // "lane"' .base/docs/conventions/pr-pipeline.yaml)
           LANE_IDENTITY=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
@@ -167,9 +179,9 @@ jobs:
           export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS
           node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
 
-      # One record per pr-verify or pr-review-main run, and per pr-require-checks run made attempt
-      # 2, the act step re-runs, uploaded first. A failed upload fails the job,
-      # so that run is not re-run.
+      # One record per pr-verify or pr-review-main run, per pr-require-checks run made attempt
+      # 2, and per stopped hosted review run the act step re-runs, uploaded
+      # first. A failed upload fails the job, so that run is not re-run.
       - name: Record re-run 1
         if: steps.plan.outputs.record-1 != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -205,6 +217,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node .base/.github/scripts/maintenance-reconcile-lost-runs/reconcile.mjs
+
+      # The runs this pass settled for good, which the next pass skips
+      # (reconcile.mjs SETTLED_ARTIFACT). A missing upload costs the next pass
+      # a full read, never a re-run.
+      - name: Carry the settled runs
+        if: ${{ !cancelled() && steps.plan.outcome == 'success' }}
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: reconcile-settled-runs
+          path: ${{ runner.temp }}/reconcile-settled/settled.json
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Log the API budget at the end
         if: always()

@@ -21,7 +21,10 @@
 # 40892244877, and the shell rows that had drifted 20 s or more, the three
 # ui-<part>.test.sh rows among them, 2026-10-30 from whole-tree runs
 # 41008699340, 41011766261, 41014729392, 41018860128, 41022240380,
-# 41025494621 and 41029147192. A shell suite runs from the moment
+# 41025494621 and 41029147192, and the six planning surface*.test.sh rows
+# 2026-10-31 from the TIME lines of whole-suite main runs 41152418272,
+# 41155134524, 41155547615, 41156806410, 41157904887, 41161299347, 41166490299,
+# 41168736310, 41170732066 and 41172804312. A shell suite runs from the moment
 # run-plugin-tests.sh could start it (three at a time) to its result block, a
 # Python suite from its pytest command to the next one, at least 1. A suite not
 # listed counts the mean of the listed suites of its runner, rounded and at
@@ -453,14 +456,17 @@ plugins/planning/shared/tests/tracer.test.sh 10
 plugins/planning/shared/tests/ui-a.test.sh 187
 plugins/planning/shared/tests/ui-b.test.sh 219
 plugins/planning/shared/tests/ui-c.test.sh 174
-plugins/planning/surface/surface-journey.test.sh 290
-plugins/planning/surface/surface-ui-c.test.sh 153
-plugins/planning/surface/surface.test.sh 195
+plugins/planning/surface/surface-journey.test.sh 164
+plugins/planning/surface/surface-page.test.sh 85
+plugins/planning/surface/surface-ui-c-ledger.test.sh 24
+plugins/planning/surface/surface-ui-c-listen.test.sh 72
+plugins/planning/surface/surface-ui-c.test.sh 64
+plugins/planning/surface/surface.test.sh 104
 plugins/planning/surface/test_exporters.py 74
+plugins/planning/surface/test_interview_server.py 70
 plugins/planning/surface/test_question_shape.py 1
 plugins/planning/surface/test_round.py 45
 plugins/planning/surface/test_schema.py 1
-plugins/planning/surface/test_server.py 70
 plugins/planning/surface/watch.test.sh 48
 plugins/planning/tests/interview-defenses.test.sh 1
 plugins/planning/tests/interview-surface-decision-mirror.test.sh 1

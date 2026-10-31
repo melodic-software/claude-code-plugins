@@ -3,6 +3,26 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.21.0] - 2026-10-31
+
+### Added
+
+- `/harness-ops:behavior-probes` has a `cloud-routine/state-read-back-next-run` case. It uses
+  `/schedule` to create a one-off cloud routine, runs it once at once and lets the scheduled fire be
+  the second run, then judges whether the second run read back the state record the first run
+  posted to an issue comment. Record 19 holds the 2026-10-31 hand run on Claude Code 2.1.314: the
+  read-back passed, the shell inside the run is in UTC, and the session's own date zone stays open.
+- Cases take an optional `timeout` (seconds, in place of `--timeout`) and an optional `explicit`
+  flag. A live run skips an `explicit` case unless `--case` names it, because the case creates a
+  routine on the operator's account and posts public comments.
+
+## [4.20.5] - 2026-10-31
+
+### Fixed
+
+- `telemetry-upsert.sh` no longer posts a duplicate telemetry comment when the comment list is empty, `null`, `false` or holds a non-object element, or when its detection `jq` fails. Each case exits 5 with nothing written.
+- Under a personal token with `--app-slug`, a failed `gh api user` resolves to `SLUG[bot]` only when the token can list its installation's repositories. A transient failure under a personal token now exits 4 and writes nothing, where it used to post a duplicate.
+
 ## [4.20.4] - 2026-10-30
 
 ### Fixed

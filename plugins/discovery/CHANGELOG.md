@@ -1,5 +1,33 @@
 # Changelog: discovery plugin
 
+## [0.42.0] - 2026-10-31
+
+### Changed
+
+- `/discovery:read-docs`: its description now routes a quick question about a Claude Code feature to the bundled `claude-code-docs` skill when that skill resolves in the session, and keeps this skill for an answer that must rest on a named page's own text. A new `## Boundary` section states the split and the mutation gate, and `reference/bundled-claude-code-docs.md` records the basis. ([#9105](https://github.com/melodic-software/claude-code-plugins/issues/9105))
+
+- `research` offers `/deep-research` as a suggest sentence, `If /deep-research is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when the offer is deleted or reworded.
+
+## [0.41.1] - 2026-10-31
+
+### Fixed
+
+- `/discovery:setup` `apply` shows the operator the convention-home offer the settings script
+  prints on exit 0, or the refusal printed in its place, and asks whether to add the pointer
+  region and the overlay ignore line: a yes re-runs with `--yes`, a no records the decline with
+  `--decline`.
+
+## [0.41.0] - 2026-10-31
+
+### Changed
+
+- `/discovery:research`: "paper P reports X under conditions Y" now counts as a first-party content claim, accepted at `HIGH (single source)`, when P comes from the publisher authoritative on its topic: the publisher owns the product or system the result measures, such as an Anthropic paper on how Claude or its agents behave. The `single_source:` reason also names the publisher and the product it owns that P measured, so the verifier can grade it. A paper whose publisher does not own what it measured gets no flag: it is one source for X, which still needs two independent corroborators. X stated as a fact about the publisher or its product is a separate claim: the behavior-claim split and the single-publisher MEDIUM cap still apply to it. Two outcome-gate eval cases cover an authoritative paper's reports-claim, which is accepted, and a non-authoritative paper's, which is not. ([#7652](https://github.com/melodic-software/claude-code-plugins/issues/7652))
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
 ## [0.40.3] - 2026-10-30
 
 ### Changed

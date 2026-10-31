@@ -1,5 +1,237 @@
 # Changelog for the PR pipeline convention
 
+## [8.21.0] - 2026-10-31
+
+### Changed
+
+- `merge.diff-check.floor-paths` returns with a new shape: class-tagged rows (`glob`, `class`, and on a `gate` row an optional `author-lift: false`), joined to the built-in path floor. The plain-string list the key held until it was removed fails validation, and a row the loader cannot use turns the rung off. This repository's own floor paths move there, and its effective floor is unchanged.
+
+### Fixed
+
+- A `pr-verify` run the lanes kill switch stopped now gets its re-run on the first reconciler pass
+  after the switch lifts. `maintenance-reconcile-lost-runs` placed every pull request's CI set
+  before any lane run and took lane runs oldest first, so flake re-runs used the three places and
+  the few left went to runs of pull requests that had already moved on. A green lanes App pull
+  request sat on `verify:missing` until someone re-ran `ci-status` by hand. Lane runs now go after
+  every set except a flake-only one, newest first. The deferral note no longer says
+  `3 re-runs in flight` when this pass's own placements took the places.
+
+- The lost-run reconciler now re-runs a hosted review run a kill switch stopped, recorded, once
+  neither the lanes switch, the lane's own switch nor the upstream gate would stop it again. Its
+  completion re-runs ci-status, so a head a review switch left red clears without a person. One
+  lane per head per half-hourly pass, up to GitHub's 30-day re-run window.
+
+## [8.20.0] - 2026-10-31
+
+### Added
+
+- The monitoring lane reads the lanes App's own REST quota from lane runs. `request-lane-token`
+  reads an optional `rate_limit` object (`remaining`, `limit` and `reset` in epoch seconds) from
+  the broker's token 200 and writes an `api-budget` notice,
+  `mint lanes-app core remaining=R used=U limit=L reset=<ISO>`, and a job summary line. With no
+  `rate_limit` it writes nothing more; a malformed one warns `lane-token-quota-unread` and the
+  step still passes. The monitor's new `lane api budget` source reads that notice from up to 10
+  completed lane runs in the window and up to 10 jobs whose mint step succeeded. It reads only
+  runs of this repository's own head on an event that runs the default branch's workflow code (a
+  push or dispatch only on `main`), skips the test-suite runs, and leaves a trusted pr-merge run's
+  merge job to the pr-merge source. Signal 2's `ceiling:lanes-app-rest` flags a reading over 90%. The
+  broker half is tracked in melodic-software/azure-iac#103.
+
+### Changed
+
+- `pr-merge.yml` no longer wakes on a pull request's `edited` or `ready_for_review` event, which over a day started 200 runs that enqueued, merged and disarmed nothing. A person's ready or rename restarts their pull request's idle clock, an event run never arms, and `ci-status` already fails on a body hold; the 15-minute schedule picks up each such change. `unlabeled` stays, because `pr-feedback-dispatch.yml` starts on that run's completion.
+
+### Fixed
+
+- work-unblock closes a split parent as completed only when every sub-issue closed as completed
+  and the parent's done-when is covered. A sub-issue closed as not planned, as a duplicate or with
+  no reason leaves the parent open, and so does a split record that leaves an item out, a split by
+  hand with no task list, or an open task item in a listed human's comment on the parent.
+- The lanes App's close of a split parent counts as done for what it blocks only under that same
+  rule (`admit.mjs` `splitLeftOpen`).
+- work-unblock's sweep sends a parent with no open sub-issue through admission even when GitHub's
+  sub-issue summary still shows a wait, so a parent with a duplicate sub-issue gets its one
+  admission note instead of a stale wait.
+
+- The dispatchers' FAIL-cap reads take the run records, run heads and head refs pr-merge carried,
+  fetched with its listing on the job's first read. Without them each read asked GitHub about
+  every FAIL in the repository (458 on 2026-10-31, 1,252 reads), was killed at its 120 s
+  limit with no answer after spending 119 to 188 calls, and let the fix round run. Those reads
+  were 92% of the heaviest `pr-unblock-dispatch` run's calls. Reads now finish, so a pull request past
+  the FAIL cap gets no round from these reads.
+
+## [8.19.1] - 2026-10-31
+
+### Fixed
+
+- pr-merge's `clear-escalations` sweep removes `needs-session`, with no comment, once a same-head
+  retry cleared the lane stop that added it: the lanes App added the label last, and each stop
+  routed to it since then has a `success` status newer than the stop on that stop's head. A person's
+  label, a stop whose failure still stands, or an unread status keeps it. The sweep reads at most
+  five pull requests a run, from a rotating offset. The `merge` job gains `statuses: read` for this.
+
+- The lost-run reconciler now records each hosted review run it re-runs after an upstream stop, as
+  `reconcile-rerun-<run id>-2-<head>`, before it re-runs it. A pass uploads at most three records,
+  so a PR or lane run whose records would pass that waits for a later pass.
+- ci-status's upstream-stop message now says the review's dispatch re-runs ci-status under that
+  record, and a person re-runs it only if that re-run does not come.
+
+- `test-python`'s suite step prints a per-run nonce, repeats it in each suite's call line, and
+  prints an exit line carrying it after each suite. The post-merge demotion judge reads only those
+  lines, so a suite's captured output cannot move a failure onto another suite. The nonce sits in
+  a variable no suite inherits.
+- The quarantine rule in the convention README states what excuses a repeat failure, how a
+  quarantine restarts, what an edited issue does, and that a token without `Actions` read cannot
+  name a suite, so the failure demotes.
+
+## [8.19.0] - 2026-10-31
+
+### Changed
+
+- **The issue lane's `research-first` and `probe-first` skips reach no person.** They take a new `park` route in `stop-routes.json`: the lanes App writes admission's comment naming the next step, adds `status: confirmed`, and removes `agent-ready`, `status: ready` and `admission-deferred`, as admission parks the same refusal, so a listed human's `**Decision recorded.**` comment sends the issue back through intake. The lane comment carries an `outcome=parked` marker. `split-required` keeps its `intake` route to intake's size split (owner Q93). Admission's comment helpers moved to `.github/scripts/lib/admission-comment.mjs`, which admission and report-outcome share; the hold floor lists it as an enforcement path.
+- **Only a credential-shaped patch holds for a person.** apply-patch escalates a credential shape in an issue patch or a patched blob as the new `patch-credential` reason, ahead of every `-invalid` refusal (a SHA-256 mismatch, an extra file beside the patch, a symlink, the path count, a blob's size; a patch made on another commit; each blob is read whole before its size is refused), with the token shapes of the read runner's scan job (`lib/publish-gate.mjs` `CREDENTIAL_SHAPES`, which apply-patch copies under a test that fails when they differ; a blob too large to read counts as carrying one), and the issue lane holds it as `security-risk`. Any other `patch-invalid` now retries like `patch-apply-failed`. Rows other than `issue` keep escalating their `-invalid` reason for a credential shape.
+- **A patch not proven clear of a credential holds; a scan fault retries.** An issue patch refused or unapplied with a `GIT binary patch` line escalates `patch-credential`, since no scan read its blobs, and a text-only one stays `patch-invalid` or `patch-not-applied`, on the moved-head branch too. The read runner's carry step runs `lib/publish-gate.mjs` `scanLeak` on a patch over its cap before removing the copy, and only a clean result is refused `patch`, which retries; a block, a binary hunk or a failed scan is refused `output`, which holds. `report-outcome` holds on `patch-credential` and `scan-refused-output` on any exit and ahead of any funding, limit or turn-cap record. A patch that does not apply to the scanned head and an unfinished scan write the new `fault` marker, which routes `scan-refused-fault` to retry under `limits.stop-retries`, only once the patch's text was judged with no binary hunk's bytes unread, or when the run left no patch; a throw before the judge holds, the scan step retries a 5xx from its gate calls so a blip does not, and a credential hit stays a hit when a later scan step throws.
+
+### Fixed
+
+- pr-unblock's address-feedback: a `claude[bot]` review finding with no review lane footer is ruled as a code-review finding. A disputed one (`INCORRECT`, `UNCERTAIN` or `VALID-defer`) goes to the adjudicator instead of `feedback-disputed` or `feedback-uncertain`. Past the round cap it gets the fresh fixer's round and then fails the head as `feedback-not-converging`, with no `needs-human` label. A footer in its body is model text, so it still names no lane. A `claude[bot]` finding whose own text names the security-review lane or holds a rating-shaped line, rated `CRITICAL` or with no rating the lane reads, keeps that lane's hold (`claimsSecurity`). A disputed finding with a `CRITICAL` rating line goes to a person, as a code-review one does, and that line now counts in any rating shape, bold or with trailing text. At the round cap, a `claude[bot]` finding a person directed gets the fresh fixer's round, as a code-review finding does, unless `claimsSecurity` holds it. Before, any `claude[bot]` finding held there.
+
+- pr-feedback-dispatch's tick now recovers a run whose `dispatch` job failed after it started, as it
+  already recovered a cancelled, timed-out or never-started one: runs 41151634518 and 41151650975
+  failed on `fetch failed` for #11344 and nothing sent their round again. Each failed or lost run
+  sends at most one round per pull request: a finished `pr-unblock` address-feedback run for the
+  pull request created after it holds that pull request, read from every run created since. A
+  failed run is retried for 2 hours, since a dispatch the API rejects starts no round to end it.
+- A pass-only address-feedback round is no longer stranded when pr-verify's FAIL cap cannot be read
+  (`verify:unreadable`, as on #11354). It skips only on a cap the reader found; the deadline
+  warning is still logged. A FAIL or review round still skips on an unreadable cap.
+
+- **A trusted size-split child admission takes at Size large is no longer skipped as `split-required`.** `trustedSplitChild`, which feeds the issue lane's `split-child` fact, applies `splitChildBody` exactly as admission does; it no longer also refuses a child whose parent body someone else last edited when the child's lines come from a listed human's comment.
+
+- pr-feedback-dispatch.yml's rerun-ci-status records the ci-status re-run that a review run's
+  attempt 2 causes when github-actions[bot] started that attempt and the lost-run reconciler's
+  `reconcile-rerun-<run id>-2-<head>` record passes check-trusted-trigger's own reconciler check
+  (`reconcilerRecordVouches`, run through `reconciler-record.mjs`), so pr-verify's trigger check
+  accepts that ci-status attempt. Attempt 3, another re-runner, or a missing or refused record
+  still records nothing.
+
+## [8.18.5] - 2026-10-31
+
+### Changed
+
+- **`pr-merge-dispatched-*` artifacts now expire after 30 days instead of 90.** The post-merge check reads these records only back to its floor, and its run listing goes unreadable at 1000 dispatch runs, about 19 days at the current rate, so the rest of the 90 days was dead weight: over half of the repository's artifacts, paid for on every full listing. The other 11 days cover a stopped check. A record that expires early fails closed: it can hold the lane or demote, never verify a merge. Artifacts already uploaded keep their 90-day expiry.
+
+## [8.18.4] - 2026-10-31
+
+### Fixed
+
+- The dispatchers' FAIL-cap read waits and reads a carried artifact listing again when it misses
+  GitHub's live count, instead of going straight to a whole listing that no longer fits in
+  `verify-cap.mjs`'s 120 s limit. A miss of 2 on #11354 otherwise ended a round in
+  `verify:unreadable`. The reader's waits stop at the caller's limit, and a miss that outlasts
+  them still refuses, after which the job's later FAIL-cap reads skip the waits, so one job spends
+  them once instead of about 50 s per pull request.
+
+- The upstream-status gate skips a lane run only while GitHub Actions or npm Package installation
+  lists `partial_outage` or `major_outage`. `degraded_performance` and `under_maintenance` now run.
+- A hosted review run the gate skips now fails its `kill-switch` job at `Stop on upstream status`,
+  and pr-review-main's legs fail the same way, so each is a failed first attempt. The lost-run
+  reconciler re-runs a hosted review run's failed jobs once, only for that stop and only while
+  the gate would let it run; any other failed or lost review run is still left alone, and a
+  main-run review's re-run also waits while the gate would skip it.
+- ci-status names a review the upstream gate stopped, and an older run's gate-skip notice, instead
+  of reporting a fork or an unlisted bot. For the stop, it asks a person to re-run ci-status once
+  the reconciler's review re-run passes, so pr-verify accepts that attempt.
+
+## [8.18.3] - 2026-10-31
+
+### Fixed
+
+- A post-merge demotion or failure record now says why it lists no range: main's runs could not be
+  read, no green full run came first, the compare could not be listed, the range passes 300
+  commits, the first-parent walk missed the base, or the last green run is at the failing commit,
+  which implicates no merge. A failed read also emits a `::warning::`. Compare is paged, so a range
+  past GitHub's 250-commit limit is walked, and the record lists 100 commits with an "and N more"
+  compare link. A direct push is called one, its subject is quoted without backticks and cut to 100
+  characters with its backslashes intact, and a commit with no GitHub login reads `unknown`.
+
+### Security
+
+- The write runner's skill step sets `GH_TOKEN` and `GITHUB_TOKEN` to empty in its settings' `env`, so no Bash process holds the effect-scoped App token in its `/proc/<pid>/environ`, the sandbox's pid 1 and the Bash shell above a `verify-scripts` wrapper included. claude-code-action's MCP servers, commit signing among them, still get the token from their own config `env`. Under run-claude-cli, code a listed script runs can still read the job's read-only token from an ancestor ([pr-run-activity.md](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/pr-run-activity.md#skill-activities)).
+
+## [8.18.2] - 2026-10-31
+
+### Changed
+
+- pr-feedback-dispatch.yml and pr-unblock-dispatch.yml no longer run a step that fetches pr-merge's
+  carried artifact listing on every run. `verify-cap.mjs` runs `listing-carry.mjs` (provenance
+  checks unchanged, the same 2-minute limit and its own api-calls notice) on the job's first
+  FAIL-cap read only, so a run that skips before any FAIL-cap read spends none of the carry's
+  calls. A failed fetch warns, and the reader lists every page as before.
+
+### Fixed
+
+- `ci-status` no longer tries to turn off an armed pull request's auto-merge on a push: turning
+  it off needs `contents: write`, which the lanes App's arming token holds and `ci-status`'s
+  `GITHUB_TOKEN` deliberately lacks, so the mutation could not succeed. The merge queue's check for
+  a pr-verify pass at the exact head it merges is what holds a new head.
+
+## [8.18.1] - 2026-10-31
+
+### Fixed
+
+- Only a `CRITICAL` security finding holds a pull request for a person, as the owner decided on
+  #11020. In pr-unblock's address-feedback, a disputed `IMPORTANT` security-review finding goes to
+  the adjudicator instead of `feedback-disputed`, and one the fresh fixer's round leaves open fails
+  the head as `feedback-not-converging` instead of `feedback-round-cap`. A `dependencies` flag
+  rated below `CRITICAL` that `hardRequire` does not settle ends `feedback-unadjudicated`, a
+  failing status. pr-merge's `clear-escalations` no longer keeps `feedback-not-landed` for an open
+  `IMPORTANT` thread; a `CRITICAL` or unreadable one still keeps it.
+
+## [8.18.0] - 2026-10-31
+
+### Added
+
+- `merge.verify-capture` configures pr-verify's evidence capture: `app`, the app it drives (unset: no capture runs), and `retention-days` (default 30, at most 90) for each capture artifact.
+- Every verdict file records an `evidence` block: the capture's outcome (`no-app` when no capture summary exists, `blocked` when one cannot be read) with its reason, capture count and features, and `local_loop`, the author's count from an `Evidence loop: k/3` line in the trusted pull request body, read as data and `null` without one. A capture never fails the verdict.
+
+## [8.17.0] - 2026-10-31
+
+### Added
+
+- **A push to main that reverts a pull request the lanes App put in the merge queue now demotes that lane.** `post-merge-demotion-alert.yml` reads every commit each canary push run brings (up to 20), whatever the run concluded, for a `Reverts #N` line, a revert-button subject, `This reverts commit <sha>` or the red-main bot's culprit marker, and files a `babysit-merge-demotion` record with signal `revert`; babysit makes no unattended merge while it is open, and only a person closing it re-enables the lane. A revert of a pull request a person queued files nothing, and a revert commit an existing record lists is never filed again.
+
+### Fixed
+
+- The dispatchers' FAIL-cap reader (verify-cap.mjs) now runs as an async child process, so it no
+  longer blocks the event loop. While it blocked for a minute or more, a reset on the job's idle
+  connection to GitHub went unread. The address-feedback dispatch POST then went out on the dead
+  socket and failed with `fetch failed` (ECONNRESET), so no round was sent or recorded. A reader
+  past its 2-minute limit is still killed and read as not the cap.
+- feedback-dispatch.mjs sends the dispatch POST once more when its connection broke before any
+  answer (ECONNRESET, UND_ERR_SOCKET), unless a run that POST started is already listed for the
+  pull request. An HTTP error answer is never sent again. A failed run's error line now names the
+  cause code.
+
+## [8.16.0] - 2026-10-31
+
+### Added
+
+- pr-merge's re-fire step (`refire-refused.mjs`) now also pushes an empty commit for a pr-unblock `address-feedback` run whose "Request the lane token" step failed transiently: `broker-unreachable`, or `lane-token-denied` with a 5xx status. The `pr-unblock-dispatch` tick does not dispatch that activity, and its failed check run holds the head, so such a run stranded the pull request until a person re-fired it. The activities that tick dispatches (resolve-conflicts, review-dependency, fix-ci) are left to it, and a token 403 is re-fired only for `workflow-modified`, as before. Each transient re-fire is recorded in a `<!-- pr-lane-refire transient run <id> tree <tree> head <head> -->` marker and capped at one per failed run and two per head tree, so a broker outage cannot chain empty commits on one change.
+
+- The monitoring lane has signal 11, post-merge unreadable: when the newest 4 post-merge reports that `pr-merge`'s `post-merge-dispatch` kept all exited 3 (the check could not read lane merges, so merges hold with only a warning), it files or reopens one rolling issue naming the newest report's reason, and each monitoring run prints it as an `::error` while it holds. It only notifies, and the next readable report closes it. No report within 70 minutes leaves the signal unread rather than clearing it.
+
+### Changed
+
+- The cost hold section names the infrastructure-as-code files the merge gate now holds:
+  - Pulumi project and stack files in their `.yml` and `.json` forms.
+  - `*.tf.json` and `*.tfvars.json`.
+  - The ARM template names `azuredeploy.json`, `azuredeploy.*.json`, `*.azuredeploy.json` and `*.azuredeploy.*.json`.
+  - Any file under a directory that holds a Pulumi project file.
+
+  It also says why a `secrets` reference moved within one file is accepted: the move adds no
+  charge, and where it moved is the review lanes' call.
+
 ## [8.15.5] - 2026-10-31
 
 ### Changed

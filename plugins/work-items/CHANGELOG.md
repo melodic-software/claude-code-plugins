@@ -3,6 +3,37 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.15.0] - 2026-10-31
+
+### Added
+
+- `/work-items:work` ranks the candidates in each selection tier by their `priority:` label, highest first, and keeps the tier's own order (`next_due`, the guardrails preference, or oldest-first) only as the tie-break, and the work-loop lane ranks its admitted items the same way before its `created_at` order, so a priority raised at triage now changes what a lane picks. The rank comes from the new `work_priority_order` key in the repository's `docs/conventions/work-items.yaml` (default `priority: critical`, `high`, `medium`, `low`); an item with no listed label ranks last in its tier.
+
+### Changed
+
+- `charge-words.json` gains `work_headings`, the section headings intake admission reads as stating
+  work. Its `description` records that `rule-admit.sh` still reads the whole title and body.
+
+### Fixed
+
+- `charge-words.json` stops counting a measured pass run on the subscription as a charge: that
+  phrase is model usage, which its description already said is no charge. A real use such as a
+  subscription upgrade still matches.
+- A backslash-escaped backtick no longer opens a code span in the `code` pattern, so a word between
+  escaped backticks counts as prose and `rule-admit.sh` refuses it.
+
+## [3.14.0] - 2026-10-31
+
+### Added
+
+- The loop telemetry `usage_sample` records `seven_day_delta_pct` beside `five_hour_delta_pct`, derived the same way from `seven_day_pct` (null on a missing reading on either side, a first cycle, or a rollover), so a lane keeps a usage-rate measure on an account that reports no five-hour window. Measure-only, as before: no decision or threshold reads it. Follows loop-lane convention 13.0.0.
+
+## [3.13.2] - 2026-10-31
+
+### Changed
+
+- The view bridge's `session_bridge.py` copy has a new `reading_window()` app hook from the shared session-bridge library. It sets how long after a delivery the listener reports `reading`. The default is still 180 seconds and this plugin does not override it, so its behavior is unchanged ([#8757](https://github.com/melodic-software/claude-code-plugins/issues/8757)).
+
 ## [3.13.1] - 2026-10-30
 
 ### Fixed

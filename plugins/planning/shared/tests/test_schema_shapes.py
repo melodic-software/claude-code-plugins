@@ -18,7 +18,7 @@ SCHEMA_DIR = SHARED / "schema"
 FIXTURES = HERE / "fixtures"
 SURFACE = SHARED.parent / "surface"
 QUESTION_SHAPE_DOC = SHARED.parent / "skills" / "interview" / "context" / "question-shape.md"
-# Appended, as session.py does: prepended, surface/test_server.py would shadow ours at discovery.
+# Appended, as session.py does: prepended, surface/session_bridge.py would shadow ours.
 if str(SURFACE) not in sys.path:
     sys.path.append(str(SURFACE))
 

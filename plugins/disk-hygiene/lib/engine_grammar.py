@@ -40,6 +40,9 @@ that asymmetry explicitly rather than leaving it to a positional restatement:
   must be present. The parser declares each group as a required mutually
   exclusive group; the guard admits the members in the optional tail and
   refuses an invocation carrying none or more than one.
+* ``preview --tier`` and ``preview --path`` travel together. The engine refuses
+  either one alone, or ``--tier`` beside ``--plan``, before it reads the plan:
+  ``requires`` cannot state a pairing with a ``one_of`` member.
 * ``example`` is one literal the flag admits, carried beside the ``pattern``
   that enforces it so an invocation of any subcommand can be built from this
   declaration alone. That is what lets the agreement suite exercise a newly
@@ -48,12 +51,16 @@ that asymmetry explicitly rather than leaving it to a positional restatement:
   value is context the guard resolves at runtime.
 
 This module sits on the always-on ``Bash|PowerShell`` PreToolUse path, so it
-imports nothing beyond ``re`` and builds its tables once at import.
+imports only the standard library (the platform's lock module only when the
+run-marker lock is taken) and builds its tables once at import.
 """
 
 from __future__ import annotations
 
+import os
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager, suppress
 
 TIERS = frozenset({"high", "medium", "low"})
 
@@ -82,8 +89,63 @@ ENGINE_OWNED_DIRS = frozenset(
 ENGINE_OWNED_FILES = frozenset({"catalog.json", "catalog.md"})
 
 # A run marker this old reads as no open run: the belt stands down, and the
-# engine deletes the marker on its next call.
+# engine deletes the marker on that session's next call.
 RUN_IDLE_TIMEOUT_SECONDS = 3600.0
+
+# Held while the guard reads and rewrites a run marker and while the engine
+# reads and deletes one, so two hooks in one parallel batch cannot interleave
+# a check with another's write. Not ``*.json``, so it is never read as a marker.
+RUN_LOCK_FILENAME = ".lock"
+
+
+def inline_plan_path(snapshot: str, tier: str) -> str:
+    """The fixed plan file an inline ``preview`` writes beside its snapshot."""
+    return os.path.join(os.path.dirname(snapshot), f"plan-{tier}.json")
+
+
+def run_marker_filename(session_id: str) -> str:
+    """The run marker's file name under ``RUN_MARKER_DIRNAME`` for one session."""
+    safe = "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in session_id)
+    return f"{safe}.json"
+
+
+def _set_run_marker_lock(fd: int, take: bool) -> None:
+    if os.name == "nt":
+        import msvcrt
+
+        os.lseek(fd, 0, os.SEEK_SET)
+        msvcrt.locking(fd, msvcrt.LK_LOCK if take else msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+
+        fcntl.flock(fd, fcntl.LOCK_EX if take else fcntl.LOCK_UN)
+
+
+@contextmanager
+def run_marker_lock(runs: str | os.PathLike[str]) -> Iterator[None]:
+    """Hold the exclusive run-marker lock in ``runs``, creating both if absent.
+
+    Best effort: when the lock file cannot be opened or locked, the body runs
+    unlocked, so a lock failure never costs the marker write it guards.
+    """
+    os.makedirs(runs, exist_ok=True)
+    fd: int | None = None
+    try:
+        fd = os.open(
+            os.path.join(runs, RUN_LOCK_FILENAME), os.O_RDWR | os.O_CREAT, 0o600
+        )
+        _set_run_marker_lock(fd, True)
+    except OSError:
+        if fd is not None:
+            os.close(fd)
+        fd = None
+    try:
+        yield
+    finally:
+        if fd is not None:
+            with suppress(OSError):
+                _set_run_marker_lock(fd, False)
+            os.close(fd)
 
 
 def is_engine_owned(relative: str) -> bool:
@@ -302,9 +364,26 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         "preview",
         (
             _file_flag("--snapshot", required=True),
-            _file_flag("--plan", required=True),
+            _file_flag("--plan", help="tier plan file; the form with candidate prose"),
+            Flag(
+                "--path",
+                repeatable=True,
+                metavar="RELATIVE",
+                example="relative/exact.tmp",
+                help=(
+                    "snapshot-relative path of the tier, inline; repeatable; needs "
+                    "--tier, and the engine writes the tier's plan file itself"
+                ),
+            ),
+            Flag(
+                "--tier",
+                choices=TIERS,
+                example="high",
+                help="the one tier of the inline --path form",
+            ),
             _data_root_flag(),
         ),
+        one_of=(("--plan", "--path"),),
     ),
     Subcommand(
         "handoff-verify",

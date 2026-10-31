@@ -1,0 +1,46 @@
+{
+  "pass": [
+    {
+      "answer": "```jsx\n<form onSubmit={handleSubmit}>\n  <textarea id=\"answer\" />\n  <button type=\"submit\">Continue</button>\n</form>\n```",
+      "why": "a form with a submit handler"
+    },
+    {
+      "answer": "```jsx\n<form\n  className=\"step\"\n  onSubmit={(e) => { e.preventDefault(); save(); }}\n>\n```",
+      "why": "multi-line form tag with an arrow function before the handler closes"
+    },
+    {
+      "answer": "```jsx\n<form action={saveAnswer}>\n  <textarea name=\"answer\" />\n  <SubmitButton />\n</form>\n```",
+      "why": "a React 19 form action submits on Enter too"
+    },
+    {
+      "answer": "```tsx\n<Form onSubmit={form.handleSubmit(onSubmit)}>\n  <Textarea name=\"answer\" />\n</Form>\n```",
+      "why": "a capitalized Form component from the project's library"
+    },
+    {
+      "answer": "```jsx\nconst cls = `step step-${index}`;\nreturn (\n  <form className={cls} onSubmit={handleSubmit}>\n    <textarea name=\"answer\" />\n    <button type=\"submit\">Continue</button>\n  </form>\n);\n```",
+      "why": "a template literal in the code block before the form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "```jsx\n<div className=\"step\">\n  <textarea placeholder=\"Tell us what you were trying to do…\" />\n  <div className=\"button\" onClick={save}>Continue</div>\n</div>\n```",
+      "why": "no form; Continue is a div with onClick"
+    },
+    {
+      "answer": "```jsx\n<form>\n  <textarea />\n  <button onClick={save}>Continue</button>\n</form>\n```",
+      "why": "a form with no onSubmit or action"
+    },
+    {
+      "answer": "You should wrap the step in a <form onSubmit={handleSubmit}> so Enter submits.\n\n```jsx\n<div>\n  <textarea />\n  <div onClick={save}>Continue</div>\n</div>\n```",
+      "why": "the form is only mentioned in prose; the code has none"
+    },
+    {
+      "answer": "```jsx\n<form onSubmit={(e) => e.preventDefault()}>\n  <textarea name=\"answer\" />\n  <button type=\"button\" onClick={save}>Continue</button>\n</form>\n```",
+      "why": "onSubmit only prevents the default; Continue's onClick saves, so submitting saves nothing"
+    }
+  ]
+}

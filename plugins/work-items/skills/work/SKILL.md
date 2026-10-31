@@ -268,13 +268,15 @@ until an operator resolves the gap is expected, not a reason to stop the lane.
 
 `/work-items:work` evaluates these tiers top-down, only falling through to the next tier when the current one yields no candidates. Tiers flagged last-resort are skipped if any prior tier already yielded a candidate.
 
-1. **Due recurring items**. `recurring-schedule`, where `next_due <= today`, sorted by `next_due`. Schedule commitments take precedence over category flags.
+**Within each tier, priority orders the candidates first.** Sort a tier's candidates by their `priority:` label's rank in the `work_priority_order` setting (label names, highest first), and use the tier's own order below only between candidates of equal rank. Resolve the setting once, before the first tier query, from the repository root: `bash "${CLAUDE_PLUGIN_ROOT}/skills/triage/scripts/parse-concern-value.sh" --list docs/conventions/work-items.yaml work_priority_order`. Each non-blank output line is one label, in rank order. No non-blank line (no file, no key, or a document the parser rejects) means the schema default, `priority: critical`, `priority: high`, `priority: medium`, `priority: low` ([`${CLAUDE_PLUGIN_ROOT}/schemas/work-items.schema.json`](${CLAUDE_PLUGIN_ROOT}/schemas/work-items.schema.json)). Report the order in use and whether it came from the repository file or the default. A candidate with no `priority:` label, or one the order does not list, ranks below every listed label. Priority lives only on the `priority:` labels; no other field sets the rank. [context/candidate-discovery.md](context/candidate-discovery.md) says where each tier reads its candidates' labels.
 
-2. **Non-recurring guardrails items**, the frontier (open ∧ unblocked ∧ unassigned) filtered to `area: guardrails` (when the repo defines that area), non-recurring. Force multipliers: each one completed makes all future autonomous work more reliable. Within this tier, prefer: enforcement mechanisms (CI/CD gates, architecture tests, hooks) > tool validation > research/planning.
+1. **Due recurring items**. `recurring-schedule`, where `next_due <= today`, by priority, then by `next_due`. Schedule commitments take precedence over category flags.
 
-3. **Highest-impact non-recurring unassigned items**, the remaining frontier, non-recurring, oldest-first. Select based on: items that unblock others, items in smaller categories, shorter well-scoped items over sprawling research epics.
+2. **Non-recurring guardrails items**, the frontier (open ∧ unblocked ∧ unassigned) filtered to `area: guardrails` (when the repo defines that area), non-recurring. Force multipliers: each one completed makes all future autonomous work more reliable. By priority; between equal ranks, prefer: enforcement mechanisms (CI/CD gates, architecture tests, hooks) > tool validation > research/planning.
 
-4. **Recurring items not yet due** (last-resort). `recurring-schedule`, where `next_due > today`, sorted by `next_due`. LAST RESORT only, when tiers 1–3 are empty: picking a recurring item before its `next_due` shifts the cadence forward. Prefer items closest to `next_due`.
+3. **Highest-impact non-recurring unassigned items**, the remaining frontier, non-recurring, by priority, then oldest-first. Select based on: items that unblock others, items in smaller categories, shorter well-scoped items over sprawling research epics.
+
+4. **Recurring items not yet due** (last-resort). `recurring-schedule`, where `next_due > today`, by priority, then by `next_due`. LAST RESORT only, when tiers 1–3 are empty: picking a recurring item before its `next_due` shifts the cadence forward. Prefer items closest to `next_due` among equal ranks.
 
 ## Workflow
 

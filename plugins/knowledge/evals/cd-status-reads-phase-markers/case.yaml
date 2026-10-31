@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: cd-status-reads-phase-markers
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: complete-course-state
+    type: regex
+    pattern: 'tdd-csharp-ferreira\b(?:(?!event-driven-dotnet-quill)[\s\S]){0,400}?(?<!\bnot )(?<!n[’'']t )(?<!\bnot yet )\b(?:complete[d]?|done|finished|fully (?:digested|analy[sz]ed|extracted)|analy[sz]ed|all (?:\d+ |seven )?phases)\b(?![^\n]*\?[ \t*_]*$)'
+    flags: 'mi'
+    target: last_message
+  - name: partial-course-state
+    type: regex
+    pattern: 'event-driven-dotnet-quill\b(?:(?!tdd-csharp-ferreira)[\s\S]){0,400}?(?:\bin[ -]progress\b|\bpartial(?:ly)?\b|\bincomplete\b|\bextracting\b|\bnot (?:yet )?(?:started|complete[d]?|run|done)\b|\bpending\b|\bremaining\b|\bstopped after\b|\bnext (?:phase|step)\b|\bresume\b)'
+    flags: 'mi'
+    target: last_message
+  - name: no-extraction
+    type: tool_used
+    tool: Bash
+    input_match: '(?:extract-course|discover-resources|download-resources|build-course-json|classify-frames|generate-manifests|validate-extraction|analyze-code-repo)\.js|\brun\.mjs\b|\bplaywright\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    input_match: '.'
+    min: 0
+    max: 0
+    arm: both

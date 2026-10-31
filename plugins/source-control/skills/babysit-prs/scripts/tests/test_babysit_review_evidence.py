@@ -21,8 +21,16 @@ from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_merge_policy as policy
 import babysit_review_evidence as ev
 import babysit_risk as risk
+
+# This repository's rows, which the floor paths below sit on.
+FLOOR_ROWS = policy.floor_paths_in(
+    (pathlib.Path(__file__).resolve().parents[6] / "docs/conventions/pr-pipeline.yaml").read_text(encoding="utf-8")
+)
+FLOOR = risk.floor_for(FLOOR_ROWS)
+
 
 FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures" / "review_evidence"
 PROBE = json.loads((FIXTURES / "probe_rerun_after_success.json").read_text())
@@ -265,6 +273,7 @@ class ProbeFixtureTests(unittest.TestCase):
                 data["threads"],
                 is_human=is_human,
                 changed_paths=(),
+                floor=risk.floor_for(),
             )
         )
 
@@ -332,6 +341,7 @@ class Base(unittest.TestCase):
                 is_human=is_human,
                 head_file=head_file,
                 changed_paths=changed_paths,
+                floor=risk.floor_for(),
             )
         )
 
@@ -355,6 +365,7 @@ class LostEvidenceTests(Base):
                 is_human=is_human,
                 base_changed=True,
                 changed_paths=(),
+                floor=risk.floor_for(),
             )
         )
         for lane in LANES:
@@ -570,6 +581,7 @@ class ReadOnlyWorkflowTests(Base):
                 changed_paths=("app.py", *files, *extra),
                 head_file=reader(files),
                 base_sha=base,
+                floor=FLOOR,
             )
         )
 
@@ -635,6 +647,7 @@ class ReadOnlyWorkflowTests(Base):
                 changed_paths=(floored, WORKFLOW),
                 head_file=reader({WORKFLOW: READ_ONLY}),
                 base_sha=BASE,
+                floor=risk.floor_for(),
             )
         )
         self.assertBinds(lanes)
@@ -655,6 +668,7 @@ class ReadOnlyWorkflowTests(Base):
                 changed_paths=(floored, WORKFLOW),
                 head_file=reader({WORKFLOW: READ_ONLY}),
                 base_sha=BASE,
+                floor=risk.floor_for(),
             )
         )
         result = scored(critical)
@@ -687,7 +701,7 @@ class ReadOnlyWorkflowTests(Base):
     ) -> None:
         floored = [
             path
-            for path, _ in risk.FLOOR_CLASSES
+            for path, _ in FLOOR.classes
             if ev.WORKFLOW_PATH_RE.match(path) and path not in ev.REVIEW_CALLERS
         ]
         self.assertIn(".github/workflows/pr-merge.yml", floored)
@@ -822,6 +836,7 @@ class ReadOnlyWorkflowTests(Base):
                 is_human=is_human,
                 changed_paths=(WORKFLOW,),
                 base_sha=BASE,
+                floor=risk.floor_for(),
             )
         )
         self.assertHeld(result)
@@ -843,6 +858,7 @@ class ReadOnlyWorkflowTests(Base):
                 changed_paths=(WORKFLOW, "CLAUDE.md"),
                 head_file=read,
                 base_sha=BASE,
+                floor=risk.floor_for(),
             )
         )
         self.assertHeld(result)
@@ -874,6 +890,7 @@ jobs:
                 changed_paths=(".github/workflows/forge.yml",),
                 head_file=reader({".github/workflows/forge.yml": forger}),
                 base_sha=BASE,
+                floor=risk.floor_for(),
             )
         )
         self.assertHeld(result)
@@ -994,6 +1011,7 @@ class MainRunReviewTests(Base):
                 head_file=fixed_head,
                 main_reviews=reviews,
                 main_context=recorded(reviews, context),
+                floor=risk.floor_for(),
             )
         )
 
@@ -1102,6 +1120,7 @@ class MainRunReviewTests(Base):
                         head_file=fixed_head,
                         main_reviews=reviews,
                         main_context=recorded(reviews, CONTEXT),
+                        floor=risk.floor_for(),
                     )
                     for runs in (security, both)
                 ]
@@ -1290,6 +1309,7 @@ class MainRunReviewTests(Base):
                 main_context=recorded(
                     [main_review("claude-review"), runs_review], CONTEXT
                 ),
+                floor=risk.floor_for(),
             )
         )
         security = result["claude-security-review"]
@@ -1359,6 +1379,7 @@ class MainRunReviewTests(Base):
                 changed_paths=(self.SOURCE,),
                 main_reviews=[main_review(lane) for lane in LANES],
                 main_context=recorded([main_review(lane) for lane in LANES], CONTEXT),
+                floor=risk.floor_for(),
             )
         )
         for lane in LANES:
@@ -1408,11 +1429,11 @@ class MainRunReviewTests(Base):
         self.assertTrue(risk.holds(scored))
 
     def test_needs_main_review_matches_what_bind_reads(self) -> None:
-        self.assertTrue(ev.needs_main_review([self.SOURCE], fixed_head, None))
-        self.assertTrue(ev.needs_main_review(None, fixed_head, None))
-        self.assertTrue(ev.needs_main_review(["CLAUDE.md"], fixed_head, None))
-        self.assertFalse(ev.needs_main_review(["app.py"], fixed_head, None))
-        self.assertFalse(ev.needs_main_review([], fixed_head, None))
+        self.assertTrue(ev.needs_main_review([self.SOURCE], fixed_head, None, FLOOR))
+        self.assertTrue(ev.needs_main_review(None, fixed_head, None, FLOOR))
+        self.assertTrue(ev.needs_main_review(["CLAUDE.md"], fixed_head, None, FLOOR))
+        self.assertFalse(ev.needs_main_review(["app.py"], fixed_head, None, FLOOR))
+        self.assertFalse(ev.needs_main_review([], fixed_head, None, FLOOR))
 
 
 class RunSelectionTests(Base):
@@ -1421,7 +1442,7 @@ class RunSelectionTests(Base):
         self.assertEqual([r.bound for r in result.values()], [True, True])
 
     def test_result_has_one_entry_per_lane_in_order(self) -> None:
-        result = ev.bind(S, [], [], [], is_human=is_human, changed_paths=())
+        result = ev.bind(S, [], [], [], is_human=is_human, changed_paths=(), floor=risk.floor_for())
         self.assertEqual([item.lane for item in result], list(LANES))
 
     def test_no_run_on_the_pinned_head(self) -> None:
@@ -2060,6 +2081,138 @@ class KillSwitchRerunTests(Base):
             self.assertUnbound(result[lane], "lane-source-changed")
 
 
+# The caller workflows' `Stop on upstream status` error (pr-review-hosted.yml,
+# pr-review-security-hosted.yml), which fails the kill-switch job.
+UPSTREAM_STOP = {
+    "claude-review": "an upstream outage stops this review"
+    " (Actions major_outage); the lost-run reconciler re-runs it",
+    "claude-security-review": "an upstream outage stops this security review"
+    " (Package installation partial_outage); the lost-run reconciler re-runs it",
+}
+
+
+def upstream_stopped(
+    lane: str,
+    sha: str = S,
+    *,
+    message: str | None = None,
+    level: str = "failure",
+    kill_conclusion: str = "failure",
+) -> dict[str, Any]:
+    """Attempt 1 when the upstream gate stopped it: the kill-switch job
+    failed at `Stop on upstream status` with its error, the run failed, and
+    the reusable's caller job was skipped, so no lane job exists."""
+    first = kill_switched(
+        lane,
+        sha,
+        message=UPSTREAM_STOP[lane] if message is None else message,
+        level=level,
+        kill_conclusion=kill_conclusion,
+    )
+    first["conclusion"] = "failure"
+    return first
+
+
+class UpstreamDegradedRerunTests(Base):
+    """A re-run after the upstream gate stopped attempt 1: the review never
+    started, so attempt 2 is the first review of the head."""
+
+    def lane_run(self, lane: str, *attempts: dict[str, Any]) -> dict[str, Any]:
+        return run(lane, S, attempts=list(attempts))
+
+    def ok(self, lane: str, n: int = 2) -> dict[str, Any]:
+        return attempt(lane, S, n, [record(lane, S, "findings=0 inline=0 scope=whole")])
+
+    def test_second_attempt_after_an_upstream_stop_binds(self) -> None:
+        for lane in LANES:
+            with self.subTest(lane=lane):
+                result = self.bind(
+                    [self.lane_run(lane, upstream_stopped(lane), self.ok(lane))]
+                )
+                self.assertTrue(result[lane].bound)
+                self.assertEqual(result[lane].open_findings, 0)
+
+    def test_the_class_is_named(self) -> None:
+        self.assertEqual(ev.UPSTREAM_DEGRADED, "upstream-degraded")
+
+    def test_an_unrelated_kill_switch_failure_does_not_bind(self) -> None:
+        for message in (
+            "Process completed with exit code 1.",
+            UPSTREAM_STOP["claude-security-review"],
+            "the log says: an upstream outage stops this review (x)",
+            KILL_NOTICE["claude-review"],
+        ):
+            with self.subTest(message=message):
+                first = upstream_stopped("claude-review", message=message)
+                result = self.bind(
+                    [self.lane_run("claude-review", first, self.ok("claude-review"))]
+                )
+                self.assertUnbound(result["claude-review"], "no-lane-job")
+
+    def test_the_error_at_another_level_does_not_bind(self) -> None:
+        for level in ("notice", "warning"):
+            with self.subTest(level=level):
+                first = upstream_stopped("claude-review", level=level)
+                result = self.bind(
+                    [self.lane_run("claude-review", first, self.ok("claude-review"))]
+                )
+                self.assertUnbound(result["claude-review"], "no-lane-job")
+
+    def test_the_error_on_a_kill_switch_job_that_succeeded_does_not_bind(self) -> None:
+        first = upstream_stopped("claude-review", kill_conclusion="success")
+        result = self.bind(
+            [self.lane_run("claude-review", first, self.ok("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "no-lane-job")
+
+    def test_a_lane_job_failure_of_another_class_does_not_bind(self) -> None:
+        failed = attempt("claude-review", S, 1, [])
+        failed["conclusion"] = "failure"
+        failed["jobs"][0]["conclusion"] = "failure"
+        failed["jobs"][0]["annotations"] = [
+            {
+                "path": ".github",
+                "annotation_level": "failure",
+                "title": "",
+                "message": UPSTREAM_STOP["claude-review"],
+            }
+        ]
+        result = self.bind(
+            [self.lane_run("claude-review", failed, self.ok("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_the_error_beside_a_lane_job_does_not_bind(self) -> None:
+        first = upstream_stopped("claude-review")
+        first["jobs"].append(self.ok("claude-review", 1)["jobs"][0])
+        result = self.bind(
+            [self.lane_run("claude-review", first, self.ok("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "rerun-not-allowed")
+
+    def test_unread_kill_switch_annotations_are_missing_evidence(self) -> None:
+        first = upstream_stopped("claude-review")
+        del first["jobs"][0]["annotations"]
+        result = self.bind(
+            [self.lane_run("claude-review", first, self.ok("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "evidence-missing")
+
+    def test_an_upstream_stopped_head_alone_does_not_bind(self) -> None:
+        result = self.bind(
+            [self.lane_run("claude-review", upstream_stopped("claude-review"))]
+        )
+        self.assertUnbound(result["claude-review"], "run-not-success")
+
+    def test_a_changed_caller_workflow_still_binds_no_lane(self) -> None:
+        runs = [
+            self.lane_run(lane, upstream_stopped(lane), self.ok(lane)) for lane in LANES
+        ]
+        result = self.bind(runs, changed_paths=[FILES["claude-review"]])
+        for lane in LANES:
+            self.assertUnbound(result[lane], "lane-source-changed")
+
+
 class RecordTests(Base):
     def test_no_completion_record(self) -> None:
         result = self.bind([run("claude-review", S)])
@@ -2187,14 +2340,96 @@ class SkipTests(Base):
         # (3 - 1) summary findings plus one open inline thread.
         self.assertEqual(result["claude-review"].open_findings, 3)
 
-    def test_no_change_skip_to_another_skip_is_unbound(self) -> None:
+    def test_two_clean_base_merges_carry_the_review_forward(self) -> None:
+        # Each merge-only push skips through the head before it, so the chain
+        # reaches the review two hops back and scores as that review did.
         runs = [
-            run("claude-review", S1, "findings=0 inline=0 scope=whole"),
+            run("claude-review", S1, "findings=3 inline=1 scope=whole"),
+            run("claude-review", S0, f"skip=no-change through={S1}"),
+            run("claude-review", S, f"skip=no-change through={S0}"),
+        ]
+        result = self.bind(runs, threads=[thread()])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 3)
+
+    def test_three_clean_base_merges_carry_the_review_forward(self) -> None:
+        s2 = "c2" * 20
+        runs = [
+            run("claude-review", s2, "findings=2 inline=0 scope=whole"),
+            run("claude-review", S1, f"skip=no-change through={s2}"),
             run("claude-review", S0, f"skip=no-change through={S1}"),
             run("claude-review", S, f"skip=no-change through={S0}"),
         ]
         result = self.bind(runs)
-        self.assertUnbound(result["claude-review"], "skip-chain")
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 2)
+
+    def skip_chain(self, heads: int) -> list[dict[str, Any]]:
+        """S skips through `heads` earlier heads; the last is a whole review."""
+        shas = [f"{i:040x}" for i in range(1, heads + 1)]
+        runs = [run("claude-review", shas[-1], "findings=0 inline=0 scope=whole")]
+        runs += [
+            run("claude-review", sha, f"skip=no-change through={nxt}")
+            for sha, nxt in zip(shas, shas[1:])
+        ]
+        return [*runs, run("claude-review", S, f"skip=no-change through={shas[0]}")]
+
+    def test_skip_chain_binds_at_the_hop_cap(self) -> None:
+        # ci-status follows the same cap (pr-require-checks.yml `carried`).
+        self.assertEqual(ev.SKIP_HOPS, 10)
+        self.assertTrue(self.bind(self.skip_chain(10))["claude-review"].bound)
+
+    def test_skip_chain_past_the_hop_cap_is_unbound(self) -> None:
+        self.assertUnbound(
+            self.bind(self.skip_chain(11))["claude-review"], "incremental-gap"
+        )
+
+    def test_a_merge_that_changed_content_is_reviewed_not_carried(self) -> None:
+        # S0 merged the base and changed content, so its lane reviewed it
+        # (incremental) rather than skipping; the clean merge after it carries
+        # that fresh review forward, and its findings count.
+        s2 = "c2" * 20
+        runs = [
+            run("claude-review", s2, "findings=1 inline=0 scope=whole"),
+            run("claude-review", S1, f"skip=no-change through={s2}"),
+            run(
+                "claude-review", S0, f"findings=2 inline=0 scope=incremental since={S1}"
+            ),
+            run("claude-review", S, f"skip=no-change through={S0}"),
+        ]
+        result = self.bind(runs)
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 3)
+
+    def test_a_merge_that_changed_content_with_no_review_is_unbound(self) -> None:
+        # S0 changed content and its lane run failed, so no review covers it:
+        # the clean merge after it cannot carry an older review past it.
+        failed = run(
+            "claude-review",
+            S0,
+            attempts=[attempt("claude-review", S0, 1, [OTHER_FAILURE], "failure")],
+        )
+        runs = [
+            run("claude-review", S1, "findings=0 inline=0 scope=whole"),
+            failed,
+            run("claude-review", S, f"skip=no-change through={S0}"),
+        ]
+        self.assertUnbound(self.bind(runs)["claude-review"], "incremental-gap")
+
+    def test_skip_chain_ending_in_a_docs_only_skip_is_unbound(self) -> None:
+        runs = [
+            run("claude-review", S1, "skip=docs-only"),
+            run("claude-review", S0, f"skip=no-change through={S1}"),
+            run("claude-review", S, f"skip=no-change through={S0}"),
+        ]
+        self.assertUnbound(self.bind(runs)["claude-review"], "skip-not-no-change")
+
+    def test_skip_chain_cycle_is_unbound(self) -> None:
+        runs = [
+            run("claude-review", S0, f"skip=no-change through={S}"),
+            run("claude-review", S, f"skip=no-change through={S0}"),
+        ]
+        self.assertUnbound(self.bind(runs)["claude-review"], "incremental-gap")
 
     def test_no_change_skip_to_an_unreviewed_head(self) -> None:
         result = self.bind([run("claude-review", S, f"skip=no-change through={S0}")])
@@ -3218,8 +3453,7 @@ class FailClosedTests(Base):
     def test_garbage_input_never_raises(self) -> None:
         for runs in (None, [None], [{"attempts": "x"}], "runs", [{"id": 1}]):
             result = ev.bind(
-                S, runs, [None], [None], is_human=is_human, changed_paths=()
-            )  # type: ignore[arg-type]
+                S, runs, [None], [None], is_human=is_human, changed_paths=(), floor=risk.floor_for())  # type: ignore[arg-type]
             self.assertEqual(len(result), 2)
             for item in result:
                 self.assertFalse(item.bound)
@@ -3236,6 +3470,7 @@ class FailClosedTests(Base):
             [],
             is_human=is_human,
             changed_paths=(),
+            floor=risk.floor_for(),
         )
         self.assertTrue(all(isinstance(r, babysit_risk.LaneEvidence) for r in result))
 
@@ -3247,6 +3482,7 @@ class FailClosedTests(Base):
             [],
             is_human=is_human,
             changed_paths=(),
+            floor=risk.floor_for(),
         )
         for item in result:
             self.assertFalse(item.bound)
@@ -3263,6 +3499,7 @@ class FailClosedTests(Base):
             threads,
             is_human=boom,
             changed_paths=(),
+            floor=risk.floor_for(),
         )
         self.assertFalse(result[0].bound)
 
@@ -3316,6 +3553,7 @@ class CarriedBlockingTests(Base):
                 head_file=fixed_head,
                 changed_paths=(),
                 base_changed=True,
+                floor=risk.floor_for(),
             )
         )
         self.assertUnbound(lanes[self.SEC], "base-retargeted")
@@ -3348,6 +3586,7 @@ class CarriedBlockingTests(Base):
                         is_human=is_human,
                         head_file=fixed_head,
                         changed_paths=(),
+                        floor=risk.floor_for(),
                     )
                 )
                 self.assertFalse(lanes[self.SEC].bound)
@@ -3379,6 +3618,7 @@ class CarriedBlockingTests(Base):
                 is_human=is_human,
                 head_file=fixed_head,
                 changed_paths=(),
+                floor=risk.floor_for(),
             )
         )
         self.assertIsNone(lanes[self.SEC].blocking_findings)

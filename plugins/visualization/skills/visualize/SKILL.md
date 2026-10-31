@@ -139,6 +139,9 @@ HTML file → published Artifact**. Selection layers, first hit wins:
    a rich page for a composite, interactive, large, or truly graphical result
    (rendered diagrams, real charts, dashboards).
 
+Whichever rung decides, name it in the output: the argument, the configured
+preference, the cascade layer's path, or "shipped default" for auto.
+
 **Surface gate: the rich page is a capability that can be absent.** A published
 Artifact is gated;
 [the catalog's availability entry](context/decision-matrix.md#availability-gating-why-the-surface-is-often-absent)

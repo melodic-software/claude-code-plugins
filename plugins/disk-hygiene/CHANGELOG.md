@@ -3,6 +3,26 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.50.0] - 2026-10-31
+
+### Changed
+
+- `/disk-hygiene:clean`: `preview` now takes the tier and its paths inline (`--tier` plus repeated `--path`, in place of `--plan`), and the engine writes an all-`unmanaged` `plan-<tier>.json` beside the snapshot under that fixed name. Step 4 no longer has the model write the plan, so a tier costs no protected-path write under `~/.claude` for it: a prompt in default and acceptEdits mode, a classifier round trip in auto, a denial in dontAsk. An inline path follows the handoff-list rules (relative, no traversal, present in the snapshot, non-overlapping). The inline plan's prose is fixed text, so the approval table reads provenance and risk from the audit report. `--plan` still works, and the `apply`, `handoff-apply` and lexer shapes are unchanged. ([#4225](https://github.com/melodic-software/claude-code-plugins/issues/4225))
+
+## [0.49.6] - 2026-10-31
+
+### Fixed
+
+- `/disk-hygiene:clean`: the session belt's run-marker check and write, and the engine's run-end read
+  and delete, now hold one lock in `clean-runs/`. Before, a `preview` and a `handoff-verify` admitted
+  in one parallel batch could leave the preview's end file over the verify's marker, so the next
+  preview ending in `manual-handoff-lane` deleted it and dropped the `ask` on the manual lane's
+  PowerShell deletes.
+- `/disk-hygiene:clean`: the engine now reads and deletes only the calling session's run marker,
+  named by `CLAUDE_CODE_SESSION_ID`. Before, a run end in one session also deleted another session's
+  marker when it named the same plan or report, which ended that session's run early. With no session
+  id, the engine deletes no marker and the run ends at the idle timeout.
+
 ## [0.49.5] - 2026-10-30
 
 ### Fixed

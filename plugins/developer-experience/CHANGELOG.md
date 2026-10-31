@@ -3,6 +3,29 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0] - 2026-10-31
+
+### Added
+
+- `/developer-experience:setup` `check` step 5 runs the new `lib/check-convention-facts.mjs` on the conventions file first. It lists each `every`, `all`, `always`, `never` or `each` claim outside `## Not yet` with its line, for the model to verify against the repository alongside its own reading.
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
+## [0.2.12] - 2026-10-31
+
+### Added
+
+- Eval cases `s1-branch-start-build` and `s4-migrator-build`, the build turns of scenarios S1 and S4. Each resumes a recorded plan turn that changed nothing and sends the source scenario's "Yes, go ahead.". S1's free graders check that a Write call runs git through `ProcessRunner.Run`, that no Write or Edit adds `Process.Start` or `ProcessStartInfo` outside `Infrastructure/ProcessRunner.cs`, and that a written file names `TARNQUILL_FORGE_TOKEN` and calls `GetEnvironmentVariable`. They also check that the conventions Tools section names `branch start`, that a shell call runs `tq branch start` and another runs `make check` or the checks project, and that the run created a `.cs` file under `src/Tarnquill.Cli/`. S4's free graders check that the conventions Tools section names the migration, that `pyproject.toml` still declares no dependency, and that a shell call runs the helper itself rather than only its tests. Items that run the built command, and the judge items whose labels grade a two-turn report, are not graded. ([#9953](https://github.com/melodic-software/claude-code-plugins/issues/9953))
+
+## [0.2.11] - 2026-10-31
+
+### Changed
+
+- Repointed the dead best-practices anchors to the current headings on that page.
+
 ## [0.2.10] - 2026-10-30
 
 ### Changed

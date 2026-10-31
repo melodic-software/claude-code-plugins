@@ -112,6 +112,9 @@ function world({ later = {}, timeline = baseTimeline(), threads = baseThreads(),
     if (method === "GET" && route === `/repos/${REPO}/issues?state=open&labels=needs-human`) {
       return first ? [{ number: 7, pull_request: {} }] : [];
     }
+    if (method === "GET" && route === `/repos/${REPO}/issues?state=open&labels=needs-session`) {
+      return [];
+    }
     if (method === "GET" && route === `/repos/${REPO}/issues/7/timeline`) {
       if (first) {
         seen.timeline += 1;
@@ -276,6 +279,13 @@ test("an open code-lane thread at CRITICAL keeps the hold, and so does an unrate
   );
   const codeHold = commented(ACTIONS_BOT, `<!-- claude-lane-hold lane=claude-review sha=${OLD} criteria=critical-security -->\nHeld.\n\nclaude-lane: claude-review`, "2026-10-18T10:00:02Z");
   await assertKept(world({ timeline: [baseTimeline()[0], codeHold, summary()] }), "1 unresolved claude-review finding\\(s\\) at CRITICAL or with no one readable severity");
+});
+
+test("an open IMPORTANT security-lane thread no longer keeps the hold", async () => {
+  const w = world({ threads: [...baseThreads(), securityThread("severity: IMPORTANT")] });
+  const { code } = await run(w);
+  assert.equal(code, 0);
+  assert.deepEqual(w.writes().at(-1), { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
 });
 
 // A kept label gets no comment saying it came off (threads PRRT_kwDOTCGFQM6xqa-M, PRRT_kwDOTCGFQM6xqmzn).

@@ -220,27 +220,6 @@ jobs:
             exit 1
           }
 
-      # The artifact listing pr-merge's last scheduled or hand-started run on
-      # main saved (the pr-merge-verify-listing artifact): the FAIL-cap reader
-      # lists only the pages uploaded since and keeps the result only when it
-      # holds GitHub's live artifact count, else lists every page. Any error
-      # leaves no file, and the reader lists every page. Rules:
-      # .github/scripts/pr-merge/listing-carry.mjs and
-      # babysit_verify_evidence.py `Reader._incremental`.
-      - name: Read the artifact listing pr-merge last kept
-        if: >-
-          steps.kill.outputs.proceed == 'true' && steps.upstream.outputs.degraded != 'true'
-          && (steps.gate.outcome == 'skipped' || steps.gate.outputs.proceed == 'true')
-          && steps.pace.outputs.paced != 'true'
-        continue-on-error: true
-        timeout-minutes: 2
-        env:
-          API_BUDGET_TOKEN: github-token
-          API_BUDGET_SCRIPT: listing-carry
-          ACTIONS_TOKEN: ${{ github.token }}
-          BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
-        run: node .base/.github/scripts/pr-merge/listing-carry.mjs
-
       - name: Dispatch pr-unblock for conflicting, review-tier Dependabot, failing lanes App and Markdown-changing PRs
         id: dispatch
         if: >-
@@ -254,9 +233,18 @@ jobs:
           VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py
           # Each pull request's FAIL-cap read saves its listing here, and the
           # next one reads it (or lists only the pages since it) instead of
-          # every page; the first starts from pr-merge's carried listing.
+          # every page. The first starts from the listing pr-merge's last
+          # scheduled or hand-started run on main saved, which verify-cap.mjs
+          # fetches through listing-carry.mjs on that first read only, so a
+          # run that reads no FAIL cap spends none of its calls.
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
           BABYSIT_VERIFY_LISTING_CARRY: ${{ runner.temp }}/verify-listing-carry.json
+          # The FAIL run records, run heads on main and head refs pr-merge's
+          # last such run kept, fetched with the listing: the reader otherwise
+          # reads them for every FAIL in the repository, and each read shares
+          # what it adds here.
+          BABYSIT_RUN_CACHE: ${{ runner.temp }}/babysit-run-cache.json
+          BABYSIT_VERIFY_HEAD_REFS: ${{ runner.temp }}/head-refs-in.json
           # The reader's gh calls, with this job's read scopes.
           GH_TOKEN: ${{ github.token }}
           # fix-ci starts on PRs the lanes App opened, matched by this id, and

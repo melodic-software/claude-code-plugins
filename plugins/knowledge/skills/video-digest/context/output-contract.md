@@ -13,37 +13,38 @@ staging a slice, and when grading a finished watch.
 
 Every extraction command in this skill runs through `run.mjs`, and each writes its
 `.work/<watch-epic>/…` artifacts under a work root resolved by `resolveWorkRoot()`. That root
-honors the knowledge plugin's personal `library_dir` user-configuration setting. This file arrives
-through Read unsubstituted, so take the value from the `library_dir` row of SKILL.md's "Configured
-options" table, written `<library_dir>` below:
+follows the knowledge plugin's one rule (`<skill-dir>/../../reference/work-root.md`), which honors
+the personal `library_dir` setting. This file arrives through Read unsubstituted, so take the value
+from the `library_dir` row of SKILL.md's "Configured options" table, written `<library_dir>` below:
 
-- **Non-default**: when `<library_dir>` is a non-empty value other than the repo-root default `.`
-  (and not an unexpanded `user_config` token), pass it as a **leading** `--work-root` flag on
-  **every** `run.mjs` invocation in this skill:
+- **Non-default**: when `<library_dir>` is a non-empty value other than the default `.` (and not
+  an unexpanded `user_config` token), resolve the work root **once**, before the first write, from
+  the session's working directory, passing the value verbatim in **single quotes** (literal in
+  bash and PowerShell; the script expands `~` and `${NAME}` / `%NAME%` itself and exits non-zero
+  on an unset variable, where a shell would substitute an empty string):
 
   ```bash
-  node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" --work-root "${CLAUDE_PROJECT_DIR}/<library_dir>" <script.js> [args…]
+  node "<skill-dir>/../../scripts/work-root.mjs" --library-dir '<library_dir>'
+  ```
+
+  Then pass the printed absolute path as a **leading** `--work-root` flag on **every** `run.mjs`
+  invocation in this skill:
+
+  ```bash
+  node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" --work-root "<work-root>" <script.js> [args…]
   ```
 
   `run.mjs` forwards it to the extraction child as an environment variable (a double-quoted CLI
   arg is cross-platform; an inline `VAR=… node` prefix is bash-only and fails under PowerShell).
-  When `library_dir` is already absolute, pass it directly and drop the `${CLAUDE_PROJECT_DIR}/`
-  prefix. Two further **portable value forms** keep a machine-varying root out of stored
-  configuration (a literal machine path in a settings value is what the guardrails hardcoded-path
-  check exists to block): a leading `~` (home-relative, e.g. `~/knowledge-corpus`) and an
-  environment-variable reference `${NAME}` or `%NAME%` (e.g. `${KNOWLEDGE_CORPUS_DIR}`, pointing
-  at an OS user environment variable that holds the machine-specific root). Treat both like the
-  absolute case, with no `${CLAUDE_PROJECT_DIR}/` prefix, and pass the value verbatim in **single
-  quotes** (literal in both bash and PowerShell), e.g. `--work-root '${KNOWLEDGE_CORPUS_DIR}'`:
-  the launcher expands `~` and the variable reference itself and exits loudly on an unset
-  variable, whereas shell-level expansion would silently substitute an empty string. This applies
-  to **all** run-script sites: `run-transcript.js`, `preflight-metadata.js`, `queue-claim.js`,
-  `run-watch.js`, `watch-state.js`, `vision-gated-promote.js`, `init-watch-checklist.js`,
-  `analyze-harvested-repos.js`, `check-research-complete.js`, `check-watch-outcomes.js`, and
-  `run-resume.js`, not only the first.
+  This applies to **all** run-script sites: `run-transcript.js`, `preflight-metadata.js`,
+  `queue-claim.js`, `run-watch.js`, `watch-state.js`, `vision-gated-promote.js`,
+  `init-watch-checklist.js`, `analyze-harvested-repos.js`, `check-research-complete.js`,
+  `check-watch-outcomes.js`, and `run-resume.js`, not only the first.
 
-- **Default / unset**: when `<library_dir>` is `.`, empty, or still an unexpanded token, invoke `run.mjs` **without** `--work-root`. `resolveWorkRoot()` falls back to
-  `${CLAUDE_PROJECT_DIR}` (then `process.cwd()`), landing artifacts at the consuming repo root.
+- **Default / unset**: when `<library_dir>` is `.`, empty, or still an unexpanded token, invoke
+  `run.mjs` **without** `--work-root`. `resolveWorkRoot()` falls back to the git top-level of the
+  working directory (that directory itself outside git), landing artifacts at the root of the
+  checkout the session is in.
 
 The `setup-deps.mjs` install step takes no `--work-root`. It installs node dependencies into the
 plugin data directory its `--data-dir "<plugin-data>"` flag names, not the work root.
@@ -87,14 +88,10 @@ paths you materialize by hand: the `mkdir -p .work/<watch-epic>/claims` and `QUE
 copy/append steps, the `claims/*.json` stubs, and every agent-authored slice artifact in the
 Output contract below.
 
-When `<library_dir>` is non-default, write them all under
-`${CLAUDE_PROJECT_DIR}/<library_dir>/.work/<watch-epic>/…` so the queue table, its
-concurrency claims, and the `--work-root` script output share one root; a split root would let
-`queue list` / `watch` read claims from a different directory than the table being edited. For the
-portable value forms, resolve the root **once** before writing anything. `~` is the home
-directory; an env-var reference reads via `printenv NAME` (bash) or `$env:NAME` (PowerShell). Then
-use that resolved absolute root for every agent-written path, matching what the launcher resolves
-for the scripts. Default / unset → repo-root `.work/<watch-epic>/…` as written.
+Resolve `<work-root>` once with `work-root.mjs` as above (with no `--library-dir` for the default:
+it then prints the session root) and write them all under `<work-root>/.work/<watch-epic>/…`, so
+the queue table, its concurrency claims, and the script output share one root; a split root would let
+`queue list` / `watch` read claims from a different directory than the table being edited.
 
 **Work root and slug rules.** This skill's `.work/` root resolves through the knowledge plugin's own
 `library_dir` setting; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars,

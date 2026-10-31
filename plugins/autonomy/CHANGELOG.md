@@ -3,6 +3,14 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.32.11] - 2026-10-31
+
+### Changed
+
+- `admission-policy.md` states what intake admission's charge check reads (the title and the body's
+  task items and work sections, or a whole unstructured body), its hold on an edit that moves a
+  charge term from prose into code, the measured-pass exemption and the escaped-backtick rule.
+
 ## [0.32.10] - 2026-10-30
 
 ### Changed

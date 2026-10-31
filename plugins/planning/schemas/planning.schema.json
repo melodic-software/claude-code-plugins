@@ -33,7 +33,7 @@
       "default": false
     },
     "pre_confirmed_label": {
-      "description": "A tracker label name. In an unattended run, an item carrying it that states its problem counts as problem-confirmed. Unset: no pre-confirmation.",
+      "description": "A tracker label name. In an unattended run, an item carrying it that states its problem counts as problem-confirmed. Unset: no label pre-confirms; the comment marker in context/problem-framing.md still applies.",
       "type": "string",
       "minLength": 1
     },

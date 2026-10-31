@@ -14,6 +14,11 @@
     "build": "tsc --noEmit",
     "test": "vitest run"
   },
+  "setupDeps": {
+    "stamp": ".video-extraction.stamp",
+    "label": "video extraction",
+    "sentinel": "@melodic/video-digestion"
+  },
   "dependencies": {
     "@melodic/repo-analysis": "file:../../../vendor/repo-analysis",
     "@melodic/video-digestion": "file:../../../vendor/video-digestion",

@@ -1,10 +1,6 @@
 {
   "pass": [
     {
-      "answer": [],
-      "why": "nothing written"
-    },
-    {
       "answer": [
         {
           "tool": "Write",
@@ -29,6 +25,22 @@
         }
       ],
       "why": "the criterion's absolute local path is copied verbatim"
+    },
+    {
+      "answer": [],
+      "why": "no body written: the grader needs a body Write to pass"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/pr-body.md",
+            "content": "Refs: #1\n\n## Summary\n\nx\n"
+          }
+        }
+      ],
+      "why": "a Write with no Acceptance criteria section"
     }
   ]
 }

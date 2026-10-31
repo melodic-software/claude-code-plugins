@@ -70,8 +70,38 @@
 //   from an attempt-1 dispatcher; it records the head instead, and the next
 //   pr-unblock-dispatch tick sends the round (feedback-dispatch.mjs
 //   recoverDeferred).
-// Other lost lane runs (the pull_request review lanes, refine) are listed in the summary for
-// a person: their gates or the lanes token broker refuse a re-run
+// - Upstream: a pull_request run of a hosted review caller (GATED_REVIEWS), at
+//   attempt 1, whose only failed job is kill-switch and whose failed step
+//   there is UPSTREAM_STOP_STEP: the upstream-status gate skipped the review
+//   while GitHub Actions or npm listed an outage, so the head has no review.
+//   Its failed jobs are re-run once, inside the lookback, only while that gate
+//   would now let it run (check-upstream-status.mjs). The re-run carries a
+//   record, which pr-feedback-dispatch.yml's rerun-ci-status reads, so
+//   pr-verify's gate accepts the ci-status re-run the review's completion causes.
+//   A person's re-run of the review becomes attempt 3, which the merge gate
+//   never binds. The reusable's bot check reads `github.actor`, which a
+//   re-run keeps
+//   (https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context),
+//   and the merge gate binds the re-run (babysit_review_evidence
+//   `_upstream_stopped`). Any other failure or loss of these runs is not
+//   re-run here.
+// - Review: a hosted review run whose first attempt a kill switch stopped, on a
+//   head whose newest pr-require-checks run failed only in ci-status with its
+//   note of that stop (REVIEW_STOP_NOTE), at any attempt: rerun-ci-status
+//   re-runs ci-status when a stopped run completes. ci-status reads the
+//   newest review run, so re-running ci-status alone stays red. The whole
+//   review run is re-run, as none of its jobs failed. Its completion re-runs
+//   ci-status, which that listener records on the strength of this workflow's
+//   record. Only attempt 2 binds in the merge
+//   gate (babysit_review_evidence `_kill_switch_stopped`), so the one re-run
+//   waits until nothing would stop it again: the lane's own switch, read as its
+//   caller reads it (REVIEW_SWITCHES, only `true`, in any case, stops), and the upstream
+//   gate. One lane per head per pass, so a place holds one record; the other
+//   lane goes on the next pass. No lookback: a switch may be on for days, up
+//   to GitHub's RERUN_WINDOW_DAYS.
+// Other lost lane runs (a review lane run lost any other way, refine) are listed
+// in the summary for a person: a review re-run would trade one review for
+// another, and refine's lanes token broker refuses a re-run
 // github-actions[bot] starts. Their own paths recover them instead: the babysit
 // merge gate re-runs a lost review run under the owner's token, and the
 // dispatchers send refine and feedback dispatch a fresh attempt-1 run
@@ -79,11 +109,27 @@
 // covered: a re-run puts no PR back in the queue, and pr-merge re-enqueues its
 // own PRs once their checks pass.
 //
+// A run's attempt-1 jobs never change once it completed, so a lost lane run
+// held for good, and a failed intake or verdict run that is not one to re-run,
+// is read once: its id is carried in the SETTLED_ARTIFACT this pass uploads,
+// and the next pass, reading the newest scheduled or hand-started run of
+// main's copy of this workflow that holds one, skips each carried id its
+// listing still shows. A run to re-run is never carried (a deferred one still
+// gets its place later, and a re-run that fails is tried again), nor one whose
+// failed job's steps did not list in full. A carry that is missing or cannot be
+// read reads every run, as before.
+//
 // Nothing is read from GitHub while githubstatus.com shows Actions as anything
 // but operational, or the status cannot be read, so a re-run never adds load
 // mid-incident. At most MAX_IN_FLIGHT re-runs are in flight at once (PR CI
-// sets and recorded lane runs, counting those already running): merge-critical PRs
-// (auto-merge set) first, then oldest PR, then the oldest lane runs.
+// sets and recorded lane runs, counting those already running), in three
+// bands, the PR sets in each merge-critical (auto-merge set) first, then
+// oldest PR: PR sets with anything but a flake re-run, then lane runs, newest
+// first, then flake-only sets. Nothing else re-runs a lane run, while fix-ci
+// does not wait for a flake re-run, and a newer lane run more likely belongs
+// to a head still open: a run's listing does not name its PR, so an older run
+// may be spent on a merged one. One pass uploads at most MAX_IN_FLIGHT
+// records, so what would pass that waits too.
 // Writes are at least WRITE_GAP_MS apart. The first rate-limit error stops the
 // run.
 //
@@ -98,7 +144,13 @@
 //   VERIFY_AUTHORS, LANE_IDENTITY, SPEC_FROM_BODY_APPS  as pr-verify.yml passes
 //                        resolve-pr; LANE_IDENTITY also names the lanes App
 //   KILL_SWITCH         `proceed` from the kill-switch step; anything else stops
+//   CLAUDE_REVIEW_DISABLED, CLAUDE_SECURITY_REVIEW_DISABLED  each lane's switch,
+//                        as its caller reads it: only `true`, in any case, stops, and unset
+//                        reads empty
 //   STATUS_URL           the status page's components endpoint (default githubstatus.com)
+//   SETTLED_PATH         plan reads the last pass's settled runs, then writes
+//                        this pass's there for the upload; unset carries nothing
+//   GITHUB_RUN_ID, RUNNER_TEMP  this run, and where the last carry is downloaded
 //   GITHUB_OUTPUT        plan writes record-1 to record-3 there (empty when unused)
 //   GITHUB_STEP_SUMMARY  the outcome is listed there when set
 //   GITHUB_API_URL
@@ -109,7 +161,9 @@ import { pathToFileURL } from "node:url";
 
 import { writeOutputs } from "../../actions/check-kill-switch/check-kill-switch.mjs";
 import { createGitHub, loadTrustedList, paginate, rerunRecordName } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { ghDownload, newestTrustedRun } from "../pr-merge/rotation.mjs";
 import { refsIssue, resolvePull, specFromBodyApps } from "../pr-verify/resolve-pr.mjs";
+import { checkUpstreamStatus } from "../../actions/check-upstream-status/check-upstream-status.mjs";
 import { ACTIONS, componentStatus, fetchStatus } from "./component-status.mjs";
 import {
   AGGREGATE_JOBS,
@@ -139,11 +193,31 @@ export { LOST };
 // it started, or a run the kill switch stopped, leaves the head with no verdict.
 export const LANE_LOST = new Set([...LOST, "failure"]);
 // Workflows with no trigger-actor check, which a github-actions[bot] re-run passes.
+// The hosted review callers among them are re-run only for an upstream stop
+// (GATED_REVIEWS).
+export const GATED_REVIEWS = new Set([".github/workflows/pr-review-hosted.yml", ".github/workflows/pr-review-security-hosted.yml"]);
 export const CI_WORKFLOWS = new Set([
   ".github/workflows/pr-require-checks.yml",
   ".github/workflows/pr-test-windows.yml",
   ".github/workflows/pr-check-managed-files-hosted.yml",
+  ...GATED_REVIEWS,
 ]);
+// The hosted review callers' kill-switch job and the step that fails it while
+// the upstream-status gate skips the review.
+export const GATE_JOB = "kill-switch";
+export const UPSTREAM_STOP_STEP = "Stop on upstream status";
+// The step that job runs when a kill switch stops the review, and the caller's
+// job names for the review itself (`pr-review`, or a reusable's `pr-review / x`).
+export const REVIEW_STOP_STEP = "Report the kill switch";
+const REVIEW_JOB = /^pr-review/;
+// Each hosted review's own switch, by the name its caller reads from `vars`.
+export const REVIEW_SWITCHES = new Map([
+  [".github/workflows/pr-review-hosted.yml", "CLAUDE_REVIEW_DISABLED"],
+  [".github/workflows/pr-review-security-hosted.yml", "CLAUDE_SECURITY_REVIEW_DISABLED"],
+]);
+// GitHub re-runs a run up to 30 days after its initial run
+// (https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
+export const RERUN_WINDOW_DAYS = 30;
 // The CI workflows a recorded lane runs after on workflow_run. A re-run that
 // makes attempt 2 of one is recorded too: the lane trusts that attempt's
 // github-actions[bot] only through its record. A later attempt gets none, and
@@ -212,6 +286,9 @@ export const RECORDED_LANES = new Map([
   [".github/workflows/pr-verify.yml", JUDGE_STEP],
   [".github/workflows/pr-review-main.yml", REVIEW_STEP],
 ]);
+// The recorded lanes whose workflow runs the upstream-status gate; pr-verify.yml
+// runs none, so no outage holds its re-run.
+export const GATED_LANES = new Set([".github/workflows/pr-review-main.yml"]);
 export const MAX_IN_FLIGHT = 3;
 export const WRITE_GAP_MS = 1000;
 // Pages of 100 read per status query of a lane's run listing; a listing that
@@ -223,7 +300,41 @@ export const LANE_RUN_PAGES = 5;
 // run that starts between two queries is still listed by the later one.
 export const LANE_LIST_STATUSES = [...LANE_LOST, "requested", "pending", "waiting", "queued", "in_progress"];
 
+// The artifact that carries settled runs from one pass to the next.
+export const SETTLED_ARTIFACT = "reconcile-settled-runs";
+export const SETTLED_FILE = "settled.json";
+const WORKFLOW_PATH = ".github/workflows/maintenance-reconcile-lost-runs.yml";
+// Bump whenever the rules that settle a run change, so no pass skips a run
+// settled under the old rules.
+export const SETTLED_VERSION = 2;
+
 class RateLimited extends Error {}
+
+// The carried runs, id to hold reason ("" for an intake or verdict run), or
+// an error for any other shape.
+export function parseSettled(text, repo) {
+  const data = JSON.parse(text);
+  if (
+    data?.version !== SETTLED_VERSION ||
+    data.repository !== repo ||
+    !Array.isArray(data.runs) ||
+    !data.runs.every((r) => Number.isSafeInteger(r?.id) && r.id > 0 && typeof r.reason === "string")
+  ) {
+    throw new Error("the settled runs file has an unexpected shape");
+  }
+  return new Map(data.runs.map((r) => [r.id, r.reason]));
+}
+
+// The newest trusted pass's settled runs, empty when no pass carries any.
+async function readSettled({ repo, runId, call, download }) {
+  const id = await newestTrustedRun({ repo, runId, actions: call, name: SETTLED_ARTIFACT, workflow: WORKFLOW_PATH });
+  return id === undefined ? new Map() : parseSettled(download(id), repo);
+}
+
+// True when a job listing is whole and final: every job it counts is listed,
+// completed, with a conclusion. Only such a read is carried.
+const wholeListing = (listing) =>
+  Array.isArray(listing?.jobs) && listing.jobs.length === listing.total_count && listing.jobs.every((job) => job?.status === "completed" && job.conclusion != null);
 
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
@@ -275,9 +386,9 @@ const isPassedChecks = (r) =>
 // The error ci-status's lanes-hold step writes for a lanes App PR while the
 // kill switch is on (pr-require-checks.yml; reconcile.test.mjs pins it there).
 export const KILL_SWITCH_NOTE = "the lanes kill switch is on";
+const isRedChecks = (r) => RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "failure";
 // The checks run a lifted kill switch leaves red: failed on its first attempt.
-const isFailedChecks = (r) =>
-  RECORDED_UPSTREAMS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "failure" && r.run_attempt === 1;
+const isFailedChecks = (r) => isRedChecks(r) && r.run_attempt === 1;
 // The failed ci-status job when it is the run's only failed job, else undefined.
 const onlyAggregateFailed = (jobs) =>
   Array.isArray(jobs) && jobs.every((job) => !FAILED.has(job?.conclusion) || AGGREGATE_JOBS.has(job.name))
@@ -287,6 +398,11 @@ const onlyAggregateFailed = (jobs) =>
 // error: a re-run with the switch off passes that step.
 export const killSwitchNoted = (annotations) =>
   Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(KILL_SWITCH_NOTE));
+// The error ci-status's review-lane step writes for a lane a kill switch
+// stopped (pr-require-checks.yml; reconcile.test.mjs pins it there).
+export const REVIEW_STOP_NOTE = "a kill switch was on when it started";
+export const reviewStopNoted = (annotations) =>
+  Array.isArray(annotations) && annotations.some((a) => a?.annotation_level === "failure" && String(a.message ?? "").includes(REVIEW_STOP_NOTE));
 // The error ci-status's pr-unblock step writes for each `pr-unblock/*` status
 // failing the head (pr-require-checks.yml; reconcile.test.mjs pins it there).
 export const PR_UNBLOCK_STOP_NOTE = /^'pr-unblock\/[a-z]+(?:-[a-z]+)*' is (?:failure|error) on [0-9a-f]{40}: /;
@@ -317,14 +433,20 @@ async function unblockStopStands(call, repo, head) {
   }
   return false;
 }
+// A hosted review run a kill switch may have stopped: it reads success with no
+// job failed, so only its jobs can tell (`reviewStopped`).
+const isUnreviewed = (r) => GATED_REVIEWS.has(r?.path) && r.event === "pull_request" && r.status === "completed" && r.conclusion === "success" && r.run_attempt === 1;
 // A failed run whose failed jobs may be re-run now, if its failures are infra only.
 const isRetryable = (r, now) => reconcilerRetries(r, now) && now - Date.parse(r.updated_at) >= INFRA_BACKOFF_MINUTES * 60_000;
 const lostNow = (item, r, since) => {
   if (r?.head_sha !== item.head) {
     return false;
   }
-  if (item.kind === "infra" || item.kind === "flake" || item.kind === "switch" || item.kind === "stop") {
+  if (item.kind === "infra" || item.kind === "flake" || item.kind === "switch" || item.kind === "stop" || item.kind === "upstream") {
     return r.status === "completed" && r.conclusion === "failure" && r.run_attempt === item.attempt;
+  }
+  if (item.kind === "review") {
+    return isUnreviewed(r);
   }
   if (item.kind === "intake") {
     return isFailedIntake(r, since);
@@ -343,18 +465,25 @@ const lostNow = (item, r, since) => {
 export function classify(runs, since) {
   const newest = newestByWorkflow(runs);
   const ci = newest.filter((r) => CI_WORKFLOWS.has(r.path));
+  const plain = ci.filter((r) => !GATED_REVIEWS.has(r.path));
   return {
-    rerun: ci.filter((r) => r.event === "pull_request" && isLost(r, since)),
-    again: ci.filter((r) => r.event === "pull_request" && isLostAgain(r, since)),
-    lane: newest.filter((r) => !CI_WORKFLOWS.has(r.path) && isLost(r, since)),
-    inFlight: ci.some((r) => r.status !== "completed" && r.run_attempt > 1),
+    rerun: plain.filter((r) => r.event === "pull_request" && isLost(r, since)),
+    again: plain.filter((r) => r.event === "pull_request" && isLostAgain(r, since)),
+    lane: newest.filter((r) => (!CI_WORKFLOWS.has(r.path) || GATED_REVIEWS.has(r.path)) && isLost(r, since)),
+    // A hosted review re-run takes no CI slot: it holds no PR's CI back.
+    inFlight: plain.some((r) => r.status !== "completed" && r.run_attempt > 1),
   };
 }
 
 // A CI item with its record, when its re-run makes attempt 2 of a recorded
-// upstream. One PR holds one run per workflow, so a place holds one record.
+// upstream, or of a stopped hosted review, whose completion re-runs ci-status
+// (pr-feedback-dispatch.yml rerun-ci-status). One PR holds one run per
+// workflow, so a place holds at most three records: pr-require-checks' and
+// both hosted reviews'.
 const withRecord = (item) =>
-  RECORDED_UPSTREAMS.has(item.path) && (item.kind === "ci" || item.attempt === 1) ? { ...item, record: rerunRecordName(item.id, item.head) } : item;
+  item.kind === "upstream" || (RECORDED_UPSTREAMS.has(item.path) && (item.kind === "ci" || item.attempt === 1))
+    ? { ...item, record: rerunRecordName(item.id, item.head) }
+    : item;
 // The items the record uploads cover: every lane re-run, and each recorded CI re-run.
 const recorded = (item) => item.kind === "lane" || item.record !== undefined;
 
@@ -374,11 +503,40 @@ const withAnnotations = (call, repo, jobs, wanted = () => true) =>
   );
 
 const NOT_STARTED = "before any of its jobs started";
+// The schedule's interval: a listing of no jobs read this long after its run
+// last changed is final, as one read sooner may not yet show them.
+export const PASS_MINUTES = 30;
 
-// Why the run's first attempt must not be re-run, or undefined when it may be:
-// no job started any step, or a verdict write started. An unreadable listing
-// throws.
-async function holdReason(call, repo, runId, judge) {
+// True when the upstream-status gate alone failed a hosted review run: its one
+// failed job is the kill-switch job, failed at UPSTREAM_STOP_STEP.
+export const upstreamStopped = (jobs) =>
+  Array.isArray(jobs) &&
+  jobs.filter((job) => FAILED.has(job?.conclusion)).length === 1 &&
+  jobs.some(
+    (job) =>
+      job?.name === GATE_JOB &&
+      job.conclusion === "failure" &&
+      Array.isArray(job.steps) &&
+      job.steps.some((step) => step?.name === UPSTREAM_STOP_STEP && step.conclusion === "failure"),
+  );
+
+// True when a kill switch stopped a hosted review run: ci-status's `stopped`
+// and the merge gate's `_kill_switch_stopped`, read from the steps. A list cut
+// short proves nothing, so that head stays with a person (ci-status names it).
+export const reviewStopped = (jobs) =>
+  Array.isArray(jobs) &&
+  !jobs.some((job) => REVIEW_JOB.test(job?.name ?? "") && job.conclusion !== "skipped") &&
+  jobs.some((job) => job?.name === GATE_JOB && job.conclusion === "success" && job.steps?.some((step) => step?.name === REVIEW_STOP_STEP && step.conclusion === "success"));
+
+// Why the run's first attempt must not be re-run, with whether that hold is
+// final (`settle`), or undefined when it may be re-run: no job started any
+// step, or a verdict write started. An unreadable listing throws. A judge
+// hold rests on a cut that a lost runner left, which stays cut for good, and
+// a write hold on a step that started, which stays started; both are final.
+// A not-started hold is final only on a whole listing whose steps all listed,
+// and, when it lists no job, only once `settled` (the run's last change is a
+// pass interval old).
+async function holdReason(call, repo, runId, judge, settled) {
   const listing = await call("GET", `/repos/${repo}/actions/runs/${runId}/attempts/1/jobs?per_page=100`);
   if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
     throw new Error("its job listing is not one complete page");
@@ -397,16 +555,16 @@ async function holdReason(call, repo, runId, judge) {
   // An annotation can be echoed text, so a cut list that reaches the judge
   // step or its predecessor stays held rather than read as a lost runner.
   if (cut.some((job) => job.steps?.some((s) => s?.name === JUDGE_PREDECESSOR || s?.name === judge))) {
-    return "after its judge step may have started";
+    return { reason: "after its judge step may have started", settle: true };
   }
   // The judge step is continue-on-error, so it lists success even when it
   // broke; the verdict write runs only on its true success. Once that write
   // started, the judgment may be a FAIL the run then failed to write or
   // upload, and a re-run would judge the head a second time.
   if (started.some((s) => s.name === WRITE_STEP)) {
-    return "after its verdict write started, so a re-run would judge the head again";
+    return { reason: "after its verdict write started, so a re-run would judge the head again", settle: true };
   }
-  return started.length === 0 ? NOT_STARTED : undefined;
+  return started.length === 0 ? { reason: NOT_STARTED, settle: wholeListing(listing) && cut.length === 0 && (jobs.length > 0 || settled) } : undefined;
 }
 
 // The start times of the runs that uploaded the PR's unexpired pr-verify
@@ -522,7 +680,13 @@ export async function prefilterSpec(call, repo, candidates) {
 // Reads every open PR's head and the recorded lanes' runs, and returns the
 // re-runs to make in order, with a record name on each lane re-run and each
 // recorded CI re-run.
-async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp }) {
+async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled = new Map(), env = {} }) {
+  // The runs to carry to the next pass, {id, reason}: read and settled now, or carried and still listed.
+  const settle = [];
+  const sayHeld = (r, held) => {
+    const why = held === NOT_STARTED ? "; a newer run judges the head, so it is not re-run" : "; not re-run";
+    say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}${why}`);
+  };
   const pulls = (await paginate(call, `/repos/${repo}/pulls?state=open&base=main`, 5))
     .filter((p) => p.state === "open" && p.draft !== true && p.base?.ref === "main" && p.head?.repo?.full_name === repo && SHA.test(p.head?.sha ?? ""))
     .sort(byMergeCriticality);
@@ -535,6 +699,14 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
   const specCandidates = [];
   // Read once, on the first infra-only run: why its re-run waits, or "" when npm and GitHub are clear.
   let upstream;
+  // Read once, on the first upstream-stopped review: why its re-run waits, or
+  // "" when the gate would let the review run now.
+  let gate;
+  const gateHold = async () =>
+    (gate ??= checkUpstreamStatus({ fetchStatus: readStatus }).then(
+      (result) => (result.degraded === "true" ? `the upstream gate still reads ${escapeCommand(result.reason)}` : ""),
+      (error) => `the upstream gate could not be read (${escapeCommand(error?.message ?? error)})`,
+    ));
   const upstreamHold = async () =>
     (upstream ??= (async () => {
       for (const url of [NPM_STATUS_URL, GITHUB_STATUS_URL]) {
@@ -595,16 +767,33 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       };
       const tested = [];
       for (const runs of ciRunsByWorkflow(own)) {
+        // A hosted review run is re-run only as a failed first attempt
+        // (`upstream`), so no other one's jobs are read.
+        if (GATED_REVIEWS.has(runs[0].path) && !reconcilerRetries(runs[0], now)) {
+          continue;
+        }
         tested.push(await testedRun(runs, readJobs));
       }
       // A re-run still going under a newer failed contract-only run is in
       // flight too, though classify sees only the newest run.
-      if (tested.some((t) => t?.run?.status !== "completed" && t?.run?.run_attempt > 1)) {
+      if (tested.some((t) => !GATED_REVIEWS.has(t?.run?.path) && t?.run?.status !== "completed" && t?.run?.run_attempt > 1)) {
         inFlight += 1;
         continue;
       }
       for (const { run: r, jobs } of tested.filter(Boolean)) {
         if (!jobs) {
+          continue;
+        }
+        if (GATED_REVIEWS.has(r.path)) {
+          if (!firstFailure(r, jobs, now) || !upstreamStopped(jobs)) {
+            continue;
+          }
+          const hold = await gateHold();
+          if (hold) {
+            say(`#${pull.number}: review run ${r.id} (${r.path}) was stopped by the upstream gate; waiting, ${hold}`);
+            continue;
+          }
+          set.push({ kind: "upstream", pr: pull.number, id: r.id, path: r.path, conclusion: "failure (upstream stop)", attempt: 1, head: pull.head.sha });
           continue;
         }
         if (!infraOnly(jobs)) {
@@ -623,17 +812,46 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
         }
         set.push({ kind: "infra", pr: pull.number, id: r.id, path: r.path, conclusion: "failure (infra only)", attempt: r.run_attempt, head: pull.head.sha });
       }
+      // The one stopped review lane this head re-runs now, as an item, if any.
+      const stoppedReview = async () => {
+        for (const [path, name] of REVIEW_SWITCHES) {
+          const r = newestByWorkflow(own).find((candidate) => candidate.path === path);
+          if (!isUnreviewed(r)) {
+            continue;
+          }
+          if (env[name]?.toLowerCase() === "true") {
+            say(`#${pull.number}: review run ${r.id} (${r.path}) waits for ${name}`);
+            continue;
+          }
+          if (now - Date.parse(r.created_at) >= RERUN_WINDOW_DAYS * 86_400_000 || !reviewStopped(await readJobs(r))) {
+            continue;
+          }
+          const hold = await gateHold();
+          if (hold) {
+            say(`#${pull.number}: review run ${r.id} (${r.path}) was stopped by a kill switch; waiting, ${hold}`);
+            continue;
+          }
+          return { kind: "review", pr: pull.number, id: r.id, path: r.path, conclusion: "success (kill switch stop)", attempt: 1, head: pull.head.sha, record: rerunRecordName(r.id, pull.head.sha) };
+        }
+        return undefined;
+      };
       const checks = newestByWorkflow(own).find((r) => RECORDED_UPSTREAMS.has(r.path));
-      // A newest checks run that failed only in ci-status: a lanes App PR's
-      // that the kill switch failed is re-run now that the switch is off, and
-      // any PR's that a pr-unblock stop failed once no stop fails the head.
+      // A newest checks run that failed only in ci-status: a review a kill
+      // switch stopped is re-run once nothing would stop it again, a lanes App
+      // PR's that the kill switch failed is re-run now that the switch is off,
+      // and any PR's that a pr-unblock stop failed once no stop fails the head.
       // The tested run's jobs are reused when it is that run.
-      if (set.length === 0 && isFailedChecks(checks)) {
+      if (set.length === 0 && isRedChecks(checks)) {
         const status = onlyAggregateFailed(tested.find((t) => t?.run?.id === checks.id)?.jobs ?? (await readJobs(checks)));
         const notes = status && (status.annotations ?? (await call("GET", `/repos/${repo}/check-runs/${status.id}/annotations?per_page=100`)));
-        if (notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes)) {
+        if (reviewStopNoted(notes)) {
+          const review = await stoppedReview();
+          if (review) {
+            set.push(review);
+          }
+        } else if (isFailedChecks(checks) && notes && laneApp !== undefined && pull.user?.id === laneApp && pull.user?.type === "Bot" && killSwitchNoted(notes)) {
           set.push({ kind: "switch", pr: pull.number, id: checks.id, path: checks.path, conclusion: "failure (kill switch)", attempt: 1, head: pull.head.sha });
-        } else if (notes && unblockStopNoted(notes)) {
+        } else if (isFailedChecks(checks) && notes && unblockStopNoted(notes)) {
           // An unreadable status list re-runs nothing and fails no listing: the next run reads it again.
           let stands = true;
           try {
@@ -729,17 +947,33 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       inFlight += runs.filter((r) => r.status !== "completed" && r.run_attempt > 1).length;
       const unpublished = [];
       for (const r of runs.filter((run) => isLostLane(run, since))) {
+        if (settled.has(r.id)) {
+          settle.push({ id: r.id, reason: settled.get(r.id) });
+          sayHeld(r, settled.get(r.id));
+          continue;
+        }
         try {
-          const held = await holdReason(call, repo, r.id, judge);
+          const held = await holdReason(call, repo, r.id, judge, now - Date.parse(r.updated_at) >= PASS_MINUTES * 60_000);
           if (held) {
-            const why = held === NOT_STARTED ? "; a newer run judges the head, so it is not re-run" : "; not re-run";
-            say(`lane run ${r.id} (${r.path}) ended ${r.conclusion} ${held}${why}`);
+            if (held.settle) {
+              settle.push({ id: r.id, reason: held.reason });
+            }
+            sayHeld(r, held.reason);
           } else {
             unpublished.push(r);
           }
         } catch (error) {
           noteFailure(`lane run ${r.id}`, error);
         }
+      }
+      // A gated lane's re-run during an npm or Actions outage would spend its
+      // one re-run on a run the upstream gate stops again.
+      const hold = unpublished.length > 0 && GATED_LANES.has(lanePath) ? await gateHold() : "";
+      if (hold) {
+        for (const r of unpublished) {
+          say(`lane run ${r.id} (${r.path}) ended ${r.conclusion}; waiting, ${hold}`);
+        }
+        unpublished.length = 0;
       }
       // The record's head is the lane run's own head_sha (main's tip), not
       // the pull request's head: the PR binding is the live gate's job
@@ -772,6 +1006,10 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     noteFailure(INTAKE, error);
   }
   for (const r of candidates) {
+    if (settled.has(r.id)) {
+      settle.push({ id: r.id, reason: "" });
+      continue;
+    }
     try {
       const listing = await call("GET", `/repos/${repo}/actions/runs/${r.id}/attempts/1/jobs?per_page=100`);
       if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
@@ -780,6 +1018,8 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const rerun = listing.jobs.filter((job) => !NOT_RERUN.has(job?.conclusion));
       if (rerun.length > 0 && rerun.every((job) => String(job?.name ?? "").startsWith(`${INTAKE_LABEL_JOB} / `))) {
         intake.push({ kind: "intake", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha });
+      } else if (rerun.length > 0 && wholeListing(listing)) {
+        settle.push({ id: r.id, reason: "" });
       }
     } catch (error) {
       noteFailure(`intake run ${r.id}`, error);
@@ -808,6 +1048,10 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
     noteFailure(VERDICT_DISPATCH, error);
   }
   for (const r of stopped) {
+    if (settled.has(r.id)) {
+      settle.push({ id: r.id, reason: "" });
+      continue;
+    }
     try {
       const listing = await call("GET", `/repos/${repo}/actions/runs/${r.id}/attempts/1/jobs?per_page=100`);
       if (!Array.isArray(listing?.jobs) || listing.total_count > 100) {
@@ -817,33 +1061,44 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const failedSteps = (rerun[0]?.steps ?? []).filter((step) => step?.conclusion === "failure").map((step) => step.name);
       if (rerun.length === 1 && rerun[0].name === VERDICT_JOB && failedSteps.length === 1 && failedSteps[0] === VERDICT_STOP_STEP) {
         verdicts.push({ kind: "verdict", id: r.id, path: r.path, conclusion: r.conclusion, head: r.head_sha });
+      } else if (wholeListing(listing) && (rerun.length > 1 || (rerun.length === 1 && (rerun[0].name !== VERDICT_JOB || stepsKnown(rerun[0]))))) {
+        // A listing with no failed job, a job without its conclusion, or a
+        // step list read before it was whole, is read again next pass.
+        settle.push({ id: r.id, reason: "" });
       }
     } catch (error) {
       noteFailure(`verdict run ${r.id}`, error);
     }
   }
 
-  // Every item takes one place: a PR's CI set, or one lane run.
+  // Every item takes one place: a PR's CI set, or one lane run. A set can hold
+  // several records, and the workflow has MAX_IN_FLIGHT upload steps, so what
+  // does not fit waits for a later pass: a re-run with no record would be refused.
   let room = Math.max(0, MAX_IN_FLIGHT - inFlight);
+  let uploads = MAX_IN_FLIGHT;
   const items = [];
-  for (const set of ready) {
-    if (room > 0) {
-      items.push(...set);
+  const place = (what, taken) => {
+    const records = taken.filter(recorded).length;
+    if (room > 0 && records <= uploads) {
+      items.push(...taken);
       room -= 1;
+      uploads -= records;
     } else {
-      say(`#${set[0].pr}: deferred, ${MAX_IN_FLIGHT} re-runs in flight`);
+      say(`${what}: deferred, ${room > 0 ? "no record upload left this pass" : `all ${MAX_IN_FLIGHT} re-run places taken`}`);
     }
+  };
+  const flakeOnly = (set) => set.every((item) => item.kind === "flake");
+  for (const set of ready.filter((s) => !flakeOnly(s))) {
+    place(`#${set[0].pr}`, set);
   }
-  for (const lane of lanes.sort(byAge)) {
-    if (room > 0) {
-      items.push(lane);
-      room -= 1;
-    } else {
-      say(`lane run ${lane.id} (${lane.path}): deferred, ${MAX_IN_FLIGHT} re-runs in flight`);
-    }
+  for (const lane of lanes.sort(newerFirst)) {
+    place(`lane run ${lane.id} (${lane.path})`, [lane]);
+  }
+  for (const set of ready.filter(flakeOnly)) {
+    place(`#${set[0].pr}`, set);
   }
   items.push(...intake, ...verdicts);
-  return { items, failed };
+  return { items, failed, settle };
 }
 
 // Re-runs each planned item still lost on a fresh read.
@@ -874,7 +1129,15 @@ async function act({ repo, call, say, since, sleep, items }) {
         await sleep(WRITE_GAP_MS);
       }
       wrote = true;
-      if (item.kind === "intake" || item.kind === "verdict" || item.kind === "infra" || item.kind === "flake" || item.kind === "switch" || item.kind === "stop") {
+      if (
+        item.kind === "intake" ||
+        item.kind === "verdict" ||
+        item.kind === "infra" ||
+        item.kind === "flake" ||
+        item.kind === "switch" ||
+        item.kind === "stop" ||
+        item.kind === "upstream"
+      ) {
         await call("POST", `/repos/${repo}/actions/runs/${item.id}/rerun-failed-jobs`);
         const why = {
           intake: "",
@@ -883,6 +1146,7 @@ async function act({ repo, call, say, since, sleep, items }) {
           flake: ", its one re-run before fix-ci takes it",
           switch: ": ci-status failed while the lanes kill switch was on",
           stop: ": ci-status failed on a pr-unblock stop the lane has since cleared",
+          upstream: ": the upstream-status gate stopped its review, and the gate lets it run now",
         }[item.kind];
         say(
           item.kind === "intake"
@@ -897,7 +1161,9 @@ async function act({ repo, call, say, since, sleep, items }) {
       say(
         item.kind === "spec"
           ? `${where}: re-ran run ${item.id} (${item.path}) so pr-verify judges the head again: its spec changed after the pass`
-          : `${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`,
+          : item.kind === "review"
+            ? `${where}: re-ran review run ${item.id} (${item.path}), which a kill switch stopped; its completion re-runs ci-status`
+            : `${where}: re-ran run ${item.id} (${item.path}), which ended ${item.conclusion}`,
       );
     } catch (error) {
       if (error instanceof RateLimited) {
@@ -923,7 +1189,7 @@ function recordOutputs(items) {
   return Object.fromEntries(Array.from({ length: MAX_IN_FLIGHT }, (_, i) => [`record-${i + 1}`, names[i] ?? ""]));
 }
 
-export async function main({ env = process.env, github, fetchStatus: readStatus = fetchStatus, sleep = delay, now = Date.now() } = {}) {
+export async function main({ env = process.env, github, fetchStatus: readStatus = fetchStatus, sleep = delay, now = Date.now(), download } = {}) {
   const lines = [];
   const say = (line) => {
     console.log(`reconcile: ${line}`);
@@ -1025,11 +1291,27 @@ export async function main({ env = process.env, github, fetchStatus: readStatus 
           specFromBodyApps: specFromBodyApps(env.SPEC_FROM_BODY_APPS),
         });
     }
-    result = await plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp });
+    let settled = new Map();
+    if (env.SETTLED_PATH) {
+      try {
+        download ??= ghDownload({ repo, token: env.GH_TOKEN, dir: env.RUNNER_TEMP, name: SETTLED_ARTIFACT, file: SETTLED_FILE });
+        settled = await readSettled({ repo, runId: String(env.GITHUB_RUN_ID), call, download });
+      } catch (error) {
+        if (error instanceof RateLimited) {
+          throw error;
+        }
+        console.log(`::warning title=reconcile::no settled runs carried, so every run is read: ${escapeCommand(error?.message ?? error)}`);
+      }
+    }
+    const { settle, ...planned } = await plan({ repo, call, say, since, now, readStatus, judgeSpec, laneApp, settled, env });
+    result = planned;
     if (result.items.some(recorded) && !env.RECORD_PATH) {
       throw new Error("RECORD_PATH is not set");
     }
     write();
+    if (env.SETTLED_PATH) {
+      writeFileSync(env.SETTLED_PATH, JSON.stringify({ version: SETTLED_VERSION, repository: repo, runs: [...new Map(settle.map((r) => [r.id, r])).values()] }));
+    }
     if (lines.length === 0 && result.items.length === 0) {
       say(result.failed > 0 ? `${result.failed} listings failed; what was lost is unknown` : "nothing lost");
     }
