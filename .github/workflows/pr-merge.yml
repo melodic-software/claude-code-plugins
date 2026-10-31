@@ -1116,9 +1116,10 @@ jobs:
           # says, so it leaves the retry at once and ends the step red below.
           # Under the limit, gh pr list --json prints no total, so the same
           # connection's totalCount is read after it.
-          listing_full=
+          listing_full='' listing_fault=''
           list_open_prs() {
             local total held
+            listing_fault=
             gh pr list --repo "$REPO" --base main --state open --limit "$limit" \
               --json id,number,headRefOid,isDraft,updatedAt,labels,body,author >"$listing" || return 1
             held=$(jq 'map(.number) | unique | length' "$listing") || return 1
@@ -1131,14 +1132,17 @@ jobs:
               -f query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) {
                 pullRequests(states: OPEN, baseRefName: "main") { totalCount } } }') || return 1
             if [ "$held" != "$total" ]; then
+              listing_fault="count mismatch"
               echo "gh pr list holds $held of $total open pull requests" >&2
               return 1
             fi
           }
-          if [ "${#authors[@]}" -gt 0 ] && ! retry_call --read 60 list_open_prs; then
-            echo "::notice title=Merge lane hold::the open pull requests are unknown ($retry_call_unknown); this job gates, merges, re-readies, re-fires and clears nothing; it still writes the sweep summary and, when post-merge-dispatch's check found a failed lane merge, records it; the next scheduled run lists again"
+          if [ "${#authors[@]}" -gt 0 ] && ! retry_call 60 list_open_prs; then
+            # The reason reaches a public issue: fixed text, never a call's stderr.
+            reason="$retry_call_unknown${listing_fault:+ ($listing_fault)}"
+            echo "::notice title=Merge lane hold::the open pull requests are unknown ($reason); this job gates, merges, re-readies, re-fires and clears nothing; it still writes the sweep summary and, when post-merge-dispatch's check found a failed lane merge, records it; the next scheduled run lists again"
             echo "held=true" >>"$GITHUB_OUTPUT"
-            echo "held-reason=$retry_call_unknown" >>"$GITHUB_OUTPUT"
+            echo "held-reason=$reason" >>"$GITHUB_OUTPUT"
             exit 0
           fi
           if [ -n "$listing_full" ]; then
@@ -1288,12 +1292,14 @@ jobs:
       # report is kept before this step starts, unless that job failed or kept
       # none; with none, or any other, this job runs the check. A pattern, not
       # a name: a pattern that matches nothing downloads nothing and does not
-      # fail.
+      # fail. A held listing with that check's exit 1 reads it too, for the
+      # lane records the record step starts from.
       - name: Read this run's post-merge report
         if: >-
           steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
           && needs.post-merge-dispatch.result != 'skipped'
-          && steps.candidates.outputs.listed == 'true'
+          && (steps.candidates.outputs.listed == 'true'
+          || (steps.candidates.outputs.held == 'true' && needs.post-merge-dispatch.outputs.post-merge-code == '1'))
         continue-on-error: true
         timeout-minutes: 2
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1362,12 +1368,12 @@ jobs:
       # permission, so the re-run and dispatch --remediate also attempts fail
       # here and are reported as a write failure (exit 4); the
       # post-merge-dispatch job starts those. Live mode only.
-      # A held listing does not stop this: --remediate takes no listing and
+      # On a held listing it starts on post-merge-dispatch's exit 1, from the
+      # lane records in that job's report: --remediate takes no listing and
       # judges the merges again from its own reads, and this step dequeues
-      # the lane's entries, which would land through the hold. It starts then on
-      # post-merge-dispatch's exit 1. Under a rate stop still in force the
-      # guard refuses its calls, the step reports no record, and the next run
-      # tries again.
+      # the lane's entries, which would land through the hold. Only a rate stop
+      # still in force holds it back: the guard refuses its calls, the step
+      # reports no record, and the next run tries again.
       - name: Record a failed lane merge
         if: >-
           steps.lane-token.outputs.token != '' && steps.mode.outputs.live == 'true'
@@ -1377,9 +1383,14 @@ jobs:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
           API_BUDGET_TOKEN: lanes-app
           BABYSIT_POSTMERGE_LANE_RECORDS: ${{ runner.temp }}/lane-records.json
+          LISTING_HELD: ${{ steps.candidates.outputs.held }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          kept=$RUNNER_TEMP/post-merge-kept/lane-records.json
+          if [ "$LISTING_HELD" = true ] && [ -f "$kept" ]; then
+            cp "$kept" "$RUNNER_TEMP/lane-records.json"
+          fi
           identity=$(yq '.merge."agent-identity" // ""' .base/docs/conventions/pr-pipeline.yaml)
           code=0
           python3 .base/plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py \
@@ -1843,7 +1854,8 @@ jobs:
       # most five a run, and once per PR per version of the file the
       # broker named, recorded in a marker comment first. It runs after the
       # gate, which refuses a PR with a failing check, and not while the lane
-      # is report-only or after the gate's rate-limit stop. A PR from a branch
+      # is report-only, after the gate's rate-limit stop, or on a listing that
+      # held or ended red. A PR from a branch
       # merge.refire-skip-branches names (one a workflow rebuilds) is left
       # alone. A PR that changed since the listing, or whose branch a fresh
       # read shows moved or gone after a 409 or 422 on the ref update, is a
@@ -1880,7 +1892,8 @@ jobs:
       # job's own token and the base trusted-actor list), after a comment naming the reason
       # and the head: never a label a person set, and never after anyone but
       # the App commented or reviewed since it went on. At most five a run, and not
-      # while the lane is report-only or after the gate's rate-limit stop.
+      # while the lane is report-only, after the gate's rate-limit stop, or on a
+      # listing that held or ended red.
       # Under merge.lane-prs native, a label enable-auto-merge set at the
       # current head is judged again with the gate's reader, at most three
       # reads a run of up to four minutes each, sharing the gate step's run
@@ -1951,13 +1964,15 @@ jobs:
       # this job sent (the api-calls count; the rise in a pool's shared
       # counter is not this job's cost), `unknown` when the job-end step
       # wrote none, the candidates listed, how many the gate reached before
-      # it ended, and how many it skipped as unchanged.
+      # it ended, and how many it skipped as unchanged. A held listing's line
+      # ends `listing-held=true`, its counts past the tokens' unknown.
       - name: Write the sweep cost
-        if: always() && steps.gate.outcome != 'skipped'
+        if: always() && (steps.gate.outcome != 'skipped' || steps.candidates.outputs.held == 'true')
         continue-on-error: true
         env:
           CALLS: ${{ steps.budget-end.outputs.calls }}
           CANDIDATES: ${{ steps.candidates.outputs.count }}
+          LISTING_HELD: ${{ steps.candidates.outputs.held }}
         run: |
           lane=unknown github_token=unknown
           for count in $CALLS; do
@@ -1970,6 +1985,7 @@ jobs:
             '($s[0] | map(select(has("carried") | not)) | length) - ($h[0] | length)' 2>/dev/null) || reached=unknown
           skipped=$(jq '[.[] | select(has("carried"))] | length' "$RUNNER_TEMP/pr-merge-summary.json" 2>/dev/null) || skipped=unknown
           line="sweep-calls=$lane github-token-calls=$github_token candidates=${CANDIDATES:-unknown} reached=$reached skipped=$skipped"
+          [ "$LISTING_HELD" != true ] || line="$line listing-held=true"
           echo "$line"
           echo "$line" >>"$GITHUB_STEP_SUMMARY"
 

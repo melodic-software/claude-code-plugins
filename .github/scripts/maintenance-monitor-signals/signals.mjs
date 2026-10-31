@@ -117,7 +117,7 @@ const BROKER_DENY = /^lane-(?:token|check)-denied: the broker answered (\d{3}) w
 const BROKER_UNREACHABLE = /^broker-unreachable:/;
 const EXPECTED_REASONS = new Set(["workflow-modified"]);
 
-export function throttleFindings({ failedRuns = [], budgetReadings = [] }) {
+export function throttleFindings({ windowStart, failedRuns = [], budgetReadings = [], heldSweeps = [] }) {
   const groups = new Map();
   const add = (key, runId, line) => {
     const group = groups.get(key) ?? { runs: new Set(), lines: [] };
@@ -140,6 +140,12 @@ export function throttleFindings({ failedRuns = [], budgetReadings = [] }) {
   for (const r of budgetReadings) {
     if (r.limit > 0 && r.remaining === 0) {
       add("throttle:rate-limited", r.runId ?? "this run", `${r.phase} ${r.name}: 0 of ${r.limit} remaining ${r.url ?? "this run"}`);
+    }
+  }
+  // A listing a rate limit held ends its run green, so no annotation names it.
+  for (const s of heldSweeps) {
+    if (String(s.reason).startsWith("rate limited") && Date.parse(s.createdAt) >= windowStart.getTime()) {
+      add("throttle:rate-limited", s.runId, `pr-merge listing held ${s.url}: ${s.reason}`);
     }
   }
   return [...groups].map(([key, { runs, lines }]) =>

@@ -2868,7 +2868,7 @@ findings listed by key. Its scripts and tests are in
 |---|---|---|
 | 1 main red | the newest dispatched or scheduled `pr-require-checks` run on `main` failed, read from each failed job's failure-level annotations; the flake class is named only from GitHub's own runner messages (a timeout, a lost runner) | `main-red:<job>` |
 | 2 ceiling | a reading in the window is over 90%: the lanes App and `GITHUB_TOKEN` REST quotas from pr-merge's `api-budget` notices, the lanes App quota from `request-lane-token`'s `mint lanes-app` notice in lane runs (when the broker returns `rate_limit`), plus the lane's own `GET /rate_limit`, and this repository's in-progress Actions jobs against 60 | `ceiling:lanes-app-rest`, `ceiling:github-token`, `ceiling:actions-jobs` |
-| 3 throttling | a failure annotation in a failed lane run (not a `pr-require-checks` or `pr-test-windows` suite run) names a rate limit, a 429 or `github-rate-limited`, or a reading shows 0 remaining; or the broker refused a lane token (any status except `workflow-modified`, which pr-merge re-fires) or was unreachable | `throttle:rate-limited`, `broker-deny:<status>-<reason>` |
+| 3 throttling | a failure annotation in a failed lane run (not a `pr-require-checks` or `pr-test-windows` suite run) names a rate limit, a 429 or `github-rate-limited`, or a reading shows 0 remaining, or a held `pr-merge` listing's reason starts `rate limited`; or the broker refused a lane token (any status except `workflow-modified`, which pr-merge re-fires) or was unreachable | `throttle:rate-limited`, `broker-deny:<status>-<reason>` |
 | 4 merge-queue ejections | more than 2 merge groups failed in the last 24 hours, each listed with its PR and failing steps | `merge-queue-ejections` |
 | 5 held PRs | pr-merge's newest `pr-merge-summary` lists PRs blocked and untouched for over 24 hours, batched | `held-over-24h` |
 | 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-check-upstream-drift` failed, which each does on findings | `audit:<workflow>` |
@@ -2877,7 +2877,7 @@ findings listed by key. Its scripts and tests are in
 | 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap\|failed ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap`, `lane-stop:failed` |
 | 10 stalled lane stop | an open pull request into main, of any author, carries a pr-unblock lane-stopped comment by `merge.agent-identity` naming its current head, or a `needs-human-cleared` comment for that head whose reason now routes to a failing status, older than 2 hours (four `pr-unblock-dispatch.yml` ticks), with no `pr-unblock / <activity>` check run but a skip started on that head since, and no `stop-resolved` skip since: its same-head retries are spent; one issue lists each such stop | `stalled-lane-stop` |
 | 11 post-merge unreadable | each of the newest 4 post-merge reports (`pr-merge-post-merge-report`, kept by `post-merge-dispatch` in a trusted scheduled or manual `pr-merge` run on `main`) has exit code 3: the post-merge check could not read lane merges, so merges hold with only a warning; the issue names the newest report's reason, each monitoring run prints it as an `::error` while it holds, and it only notifies and clears on a readable report. A run that kept no report neither counts nor resets; no report within 70 minutes leaves the signal unread | `post-merge-unreadable` |
-| 12 listing held | each of the newest 4 `pr-merge-summary` artifacts of trusted scheduled or manual `pr-merge` runs on `main` has `listing_held: true`: the merge job could not list the open pull requests, so it gated nothing while its runs stayed green; the issue names the newest summary's `listing_held_reason`, and it only notifies and clears on a sweep that listed. A run that kept no summary neither counts nor resets | `listing-held` |
+| 12 listing held | each of the newest 4 `pr-merge-summary` artifacts of trusted scheduled or manual `pr-merge` runs on `main` has `listing_held: true`: the merge job could not list the open pull requests, so it gated nothing while its runs stayed green; the issue names the newest summary's `listing_held_reason`, and it only notifies and clears on a sweep that listed. A run that kept no summary neither counts nor resets. The 4 must be unbroken: a fault that lets one sweep in 4 list never fires, and that sweep does gate. A 4-of-8 rule would read 8 summaries on every monitoring run in place of 1 | `listing-held` |
 
 A rolling issue, titled `Monitoring: <signal>`, has the first body line
 `<!-- factory-monitor key=family:<signal> fp=<state> -->`; the body names the signal and its state
@@ -2900,7 +2900,7 @@ label exists, never `needs-triage`: a rolling issue is a status record, and the 
 no `intake-triage` run. It writes 1 s apart and stops at 250 REST calls. A source it
 cannot read is listed in the step summary and the other signals still run. Failed runs are read 100
 to a page, up to 5 pages, until 12 lane runs are kept, so fork and pull-request runs dropped after
-the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3. Signal 11 reuses the `pr-merge` run list the budget read makes, lists the report artifacts once, and downloads reports newest first until one is readable: 2 calls while the check reads, at most 5 while it does not. Signal 12 shares one read with signals 5 and 8: the summary artifact list, then a run read per artifact and a download per trusted summary, newest first, until one listed: 3 calls while the listing reads, at most 17 through a hold. Signals 5 and 8 read the sweep that listed; no such sweep in the newest 8 summaries is a gap for those two, and signal 12 still counts the held sweeps it read.
+the read cannot hide one; 5 full pages that keep fewer are a gap for signal 3. Signal 11 reuses the `pr-merge` run list the budget read makes, lists the report artifacts once, and downloads reports newest first until one is readable: 2 calls while the check reads, at most 5 while it does not. Signal 12 shares one read with signals 5 and 8: the summary artifact list, then a run read per artifact and a download per trusted summary, newest first, until one listed: 3 calls while the listing reads, at most 17 through a hold. Signals 5 and 8 read the sweep that listed; no such sweep in the newest 8 summaries, or a hold that leaves it over 70 minutes old, is a gap for those two, and signals 3 and 12 still read the held sweeps.
 
 It holds the job's own `GITHUB_TOKEN` (`actions`, `checks`, `contents` and `pull-requests` read,
 `issues: write`), never a lanes App token, so its issues come from `github-actions[bot]` and start no
@@ -3140,14 +3140,15 @@ A listing that reaches its limit of 1000 may be cut short whatever the count say
 reads the same, so it ends the job red with no retry. A listing still unknown after that ends the
 step green with a `::notice::` hold: every step that needs the listing waits on the step's `listed`
 output, so the job gates, merges, re-fires and clears nothing, and the next scheduled run lists
-again. A failed read and a past-budget rate stop leave this job green.
+again. A failed read and a past-budget rate stop leave this job green. The re-fire and
+escalation-clear steps wait on `listed` too, so they skip on a red listing as well.
 
 A held run still does two things. It writes the `pr-merge-summary` artifact with `listing_held`,
 `listing_held_reason` and no verdicts, so readers can aggregate holds and signal 12 can count them.
-And on `post-merge-dispatch`'s exit 1 it runs `Record a failed lane merge`: `--remediate` takes no
-listing, judges the merges again from its own reads, and is the step that dequeues the lane's
-merge-queue entries, which would otherwise land through the hold. While a rate stop is in force the
-guard refuses its calls and the next run tries again.
+And on `post-merge-dispatch`'s exit 1 it runs `Record a failed lane merge`, starting from the lane
+records in that job's report: `--remediate` takes no listing, judges the merges again from its own reads, and is the step that dequeues the lane's
+merge-queue entries, which would otherwise land through the hold. Only a rate stop still in force
+holds that back: the guard refuses its calls and the next run tries again.
 
 ## WIP cap
 

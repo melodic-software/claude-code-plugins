@@ -11,10 +11,12 @@ bump: patch
   200 with items missing no longer reaches the gate. A listing still unknown ends the step green
   with a `::notice::` hold: the job gates, merges, re-fires and clears nothing, and the next
   scheduled run lists again. A listing that reaches its limit of 1000 ends the job red at once with
-  no retry.
+  no retry. The re-fire and escalation-clear steps skip on a red listing too.
 - A held `pr-merge` run still writes the `pr-merge-summary` artifact, with `listing_held` and
-  `listing_held_reason`, and still records a failed lane merge on `post-merge-dispatch`'s exit 1,
-  so its dequeue and demotion record are not held back.
+  `listing_held_reason`, writes its sweep cost line, and still records a failed lane merge on
+  `post-merge-dispatch`'s exit 1, so its dequeue and demotion record are not held back unless a
+  rate stop is in force.
 - `maintenance-monitor-signals` has a new signal, `12 listing held`: 4 scheduled or hand-started
   `pr-merge` sweeps in a row whose listing held raise a rolling issue. Signals 5 and 8 read the
-  newest sweep that listed.
+  newest sweep that listed, and a hold that leaves it over 70 minutes old is a gap for them.
+  Signal 3 counts a listing a rate limit held.

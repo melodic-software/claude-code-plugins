@@ -494,6 +494,21 @@ test("signal 12: 3 held sweeps stay quiet, the 4th in a row fires one finding na
   assert.equal(f.observedAt, heldSweep(5).createdAt);
 });
 
+test("signal 3: a listing a rate limit held in the window counts, though its run is green", () => {
+  const at = (runId, reason, createdAt) => ({ ...heldSweep(runId, reason), createdAt });
+  const limited = "rate limited (the core pool until 2026-10-19T17:00:00Z)";
+  const found = throttleFindings({
+    ...base,
+    heldSweeps: [at(2, limited, "2026-10-19T16:30:00Z"), at(1, "failed 3 times (count mismatch)", "2026-10-19T16:15:00Z")],
+  });
+  assert.deepEqual(found.map((f) => f.key), ["throttle:rate-limited"]);
+  assert.match(found[0].summary, /^1 occurrences across 1 runs/);
+  assert.match(found[0].facts[0], /actions\/runs\/2: rate limited \(the core pool/);
+  assert.deepEqual(throttleFindings({ ...base, heldSweeps: [at(2, "failed 3 times", "2026-10-19T16:30:00Z")] }), []);
+  // Before the window, as every other signal 3 source.
+  assert.deepEqual(throttleFindings({ ...base, heldSweeps: [at(2, limited, "2026-10-19T12:00:00Z")] }), []);
+});
+
 test("signal 12: the fingerprint holds while the cause holds, through new runs and reset times", () => {
   const fp = (sweeps) => listingHeldFindings({ heldSweeps: sweeps })[0].fingerprint;
   const limited = (id, at) => heldSweep(id, `rate limited (core until 2026-10-30T${at}:00:00Z)`);

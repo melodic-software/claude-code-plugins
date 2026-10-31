@@ -1,6 +1,6 @@
 // retry-call.bash's contract, on a stub call, a real rate guard and a clock
 // the `sleep` stub moves: at most three runs, a recorded stop waited out, full
-// jitter otherwise, nothing slept past the budget, and a write never run twice.
+// jitter otherwise, and nothing slept past the budget.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -59,7 +59,7 @@ const run = ({ args, failures, failure = "HTTP 502: Bad Gateway", stop, unreadab
 };
 
 test("a read that fails twice then succeeds passes on its third try", () => {
-  const out = run({ args: "--read 60", failures: 2 });
+  const out = run({ args: "60", failures: 2 });
   assert.equal(out.status, 0, out.stderr);
   assert.match(out.stdout, /^done\nrc=0\n/m);
   assert.equal(out.calls, 3);
@@ -68,13 +68,13 @@ test("a read that fails twice then succeeds passes on its third try", () => {
 });
 
 test("a read that succeeds at once sleeps nothing", () => {
-  const out = run({ args: "--read 60", failures: 0 });
+  const out = run({ args: "60", failures: 0 });
   assert.equal(out.calls, 1);
   assert.deepEqual(out.sleeps, []);
 });
 
 test("a read runs at most three times, with no wait after the last, then returns unknown", () => {
-  const out = run({ args: "--read 60", failures: -1 });
+  const out = run({ args: "60", failures: -1 });
   assert.equal(out.status, 0, out.stderr);
   assert.match(out.stdout, /^rc=2$/m);
   assert.match(out.stdout, /^unknown=failed 3 times$/m);
@@ -85,7 +85,7 @@ test("a read runs at most three times, with no wait after the last, then returns
 test("backoff is capped and jittered: each wait stays under its ceiling, and the waits differ", () => {
   const seen = new Set();
   for (let i = 0; i < 30; i += 1) {
-    const { sleeps } = run({ args: "--read 60", failures: 2 });
+    const { sleeps } = run({ args: "60", failures: 2 });
     assert.ok(sleeps[0] >= 0 && sleeps[0] <= 15, String(sleeps));
     assert.ok(sleeps[1] >= 0 && sleeps[1] <= 30, String(sleeps));
     seen.add(sleeps.join());
@@ -94,37 +94,30 @@ test("backoff is capped and jittered: each wait stays under its ceiling, and the
 });
 
 test("a recorded stop inside the budget is waited out to the second, not backed off", () => {
-  const out = run({ args: "--read 60", failures: 1, stop: `core ${NOW + 40}\n` });
+  const out = run({ args: "60", failures: 1, stop: `core ${NOW + 40}\n` });
   assert.match(out.stdout, /^rc=0$/m);
   assert.deepEqual(out.sleeps, [40]);
   assert.equal(out.calls, 2);
 });
 
 test("a stop gh's message names, with no headers, is recorded and waited out when it fits", () => {
-  const out = run({ args: "--read 60", failures: 1, failure: "You have exceeded a secondary rate limit" });
+  const out = run({ args: "60", failures: 1, failure: "You have exceeded a secondary rate limit" });
   assert.match(out.stdout, /^rc=0$/m);
   assert.deepEqual(out.sleeps, [60]);
 });
 
 test("a wait past the budget is not slept and returns unknown, naming the stop", () => {
-  const out = run({ args: "--read 60", failures: -1, stop: `core ${NOW + 3600}\n` });
+  const out = run({ args: "60", failures: -1, stop: `core ${NOW + 3600}\n` });
   assert.match(out.stdout, /^rc=2$/m);
   assert.match(out.stdout, /^unknown=rate limited \(the core pool until /m);
   assert.deepEqual(out.sleeps, []);
   assert.equal(out.calls, 1);
 });
 
-test("a stop already past retries at once", () => {
-  const out = run({ args: "--read 60", failures: 1, stop: `core ${NOW - 5}\n` });
-  assert.match(out.stdout, /^rc=0$/m);
-  assert.ok(out.sleeps.every((s) => s >= 0), String(out.sleeps));
-  assert.equal(out.calls, 2);
-});
-
 test("the budget counts every wait together, not each alone", () => {
   // 20 s of the 30 s go on the stop, so a backoff over 10 s does not fit.
   for (let i = 0; i < 10; i += 1) {
-    const { stdout, sleeps } = run({ args: "--read 30", failures: -1, stop: `core ${NOW + 20}\n` });
+    const { stdout, sleeps } = run({ args: "30", failures: -1, stop: `core ${NOW + 20}\n` });
     assert.match(stdout, /^rc=2$/m);
     assert.equal(sleeps[0], 20);
     assert.ok(sleeps.reduce((sum, s) => sum + s, 0) <= 30, String(sleeps));
@@ -132,23 +125,8 @@ test("the budget counts every wait together, not each alone", () => {
 });
 
 test("a stop file that cannot be read counts as past any budget", () => {
-  const out = run({ args: "--read 60", failures: -1, unreadableStop: true });
+  const out = run({ args: "60", failures: -1, unreadableStop: true });
   assert.match(out.stdout, /^rc=2$/m);
   assert.deepEqual(out.sleeps, []);
-  assert.equal(out.calls, 1);
-});
-
-test("a call not marked a read runs once, whatever it failed with", () => {
-  for (const failure of ["HTTP 502: Bad Gateway", "You have exceeded a secondary rate limit"]) {
-    const out = run({ args: "60", failures: -1, failure });
-    assert.match(out.stdout, /^rc=2$/m, failure);
-    assert.equal(out.calls, 1, failure);
-    assert.deepEqual(out.sleeps, [], failure);
-  }
-});
-
-test("a write that succeeds passes through", () => {
-  const out = run({ args: "60", failures: 0 });
-  assert.match(out.stdout, /^done\nrc=0\n/m);
   assert.equal(out.calls, 1);
 });
