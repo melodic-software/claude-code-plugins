@@ -33,6 +33,7 @@ implements `wait`, `release` and `listener`. The app implements the log hooks:
 | `unhandled(log)` | The events the session has not handled |
 | `lease_timeout()` | Seconds a watcher with no wait in flight keeps its lease (default 600) |
 | `settle_window()` | `(quiet, burst)`: a found event waits `quiet` seconds for more, `burst` at most (default 3 and 12) |
+| `reading_window()` | Seconds after a delivery until which `listener()` reports `reading`, once the listen grace after the last wait has ended (default 180) |
 
 An app binds to the loopback adapter by subclassing `LoopbackWatcher`, setting `name`, and adding
 the page hooks `read_state()` (the state frame and whether it is stale), `signature()` (changes

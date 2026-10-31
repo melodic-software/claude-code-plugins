@@ -2187,14 +2187,96 @@ class SkipTests(Base):
         # (3 - 1) summary findings plus one open inline thread.
         self.assertEqual(result["claude-review"].open_findings, 3)
 
-    def test_no_change_skip_to_another_skip_is_unbound(self) -> None:
+    def test_two_clean_base_merges_carry_the_review_forward(self) -> None:
+        # Each merge-only push skips through the head before it, so the chain
+        # reaches the review two hops back and scores as that review did.
         runs = [
-            run("claude-review", S1, "findings=0 inline=0 scope=whole"),
+            run("claude-review", S1, "findings=3 inline=1 scope=whole"),
+            run("claude-review", S0, f"skip=no-change through={S1}"),
+            run("claude-review", S, f"skip=no-change through={S0}"),
+        ]
+        result = self.bind(runs, threads=[thread()])
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 3)
+
+    def test_three_clean_base_merges_carry_the_review_forward(self) -> None:
+        s2 = "c2" * 20
+        runs = [
+            run("claude-review", s2, "findings=2 inline=0 scope=whole"),
+            run("claude-review", S1, f"skip=no-change through={s2}"),
             run("claude-review", S0, f"skip=no-change through={S1}"),
             run("claude-review", S, f"skip=no-change through={S0}"),
         ]
         result = self.bind(runs)
-        self.assertUnbound(result["claude-review"], "skip-chain")
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 2)
+
+    def skip_chain(self, heads: int) -> list[dict[str, Any]]:
+        """S skips through `heads` earlier heads; the last is a whole review."""
+        shas = [f"{i:040x}" for i in range(1, heads + 1)]
+        runs = [run("claude-review", shas[-1], "findings=0 inline=0 scope=whole")]
+        runs += [
+            run("claude-review", sha, f"skip=no-change through={nxt}")
+            for sha, nxt in zip(shas, shas[1:])
+        ]
+        return [*runs, run("claude-review", S, f"skip=no-change through={shas[0]}")]
+
+    def test_skip_chain_binds_at_the_hop_cap(self) -> None:
+        # ci-status follows the same cap (pr-require-checks.yml `carried`).
+        self.assertEqual(ev.SKIP_HOPS, 10)
+        self.assertTrue(self.bind(self.skip_chain(10))["claude-review"].bound)
+
+    def test_skip_chain_past_the_hop_cap_is_unbound(self) -> None:
+        self.assertUnbound(
+            self.bind(self.skip_chain(11))["claude-review"], "incremental-gap"
+        )
+
+    def test_a_merge_that_changed_content_is_reviewed_not_carried(self) -> None:
+        # S0 merged the base and changed content, so its lane reviewed it
+        # (incremental) rather than skipping; the clean merge after it carries
+        # that fresh review forward, and its findings count.
+        s2 = "c2" * 20
+        runs = [
+            run("claude-review", s2, "findings=1 inline=0 scope=whole"),
+            run("claude-review", S1, f"skip=no-change through={s2}"),
+            run(
+                "claude-review", S0, f"findings=2 inline=0 scope=incremental since={S1}"
+            ),
+            run("claude-review", S, f"skip=no-change through={S0}"),
+        ]
+        result = self.bind(runs)
+        self.assertTrue(result["claude-review"].bound)
+        self.assertEqual(result["claude-review"].open_findings, 3)
+
+    def test_a_merge_that_changed_content_with_no_review_is_unbound(self) -> None:
+        # S0 changed content and its lane run failed, so no review covers it:
+        # the clean merge after it cannot carry an older review past it.
+        failed = run(
+            "claude-review",
+            S0,
+            attempts=[attempt("claude-review", S0, 1, [OTHER_FAILURE], "failure")],
+        )
+        runs = [
+            run("claude-review", S1, "findings=0 inline=0 scope=whole"),
+            failed,
+            run("claude-review", S, f"skip=no-change through={S0}"),
+        ]
+        self.assertUnbound(self.bind(runs)["claude-review"], "incremental-gap")
+
+    def test_skip_chain_ending_in_a_docs_only_skip_is_unbound(self) -> None:
+        runs = [
+            run("claude-review", S1, "skip=docs-only"),
+            run("claude-review", S0, f"skip=no-change through={S1}"),
+            run("claude-review", S, f"skip=no-change through={S0}"),
+        ]
+        self.assertUnbound(self.bind(runs)["claude-review"], "skip-not-no-change")
+
+    def test_skip_chain_cycle_is_unbound(self) -> None:
+        runs = [
+            run("claude-review", S0, f"skip=no-change through={S}"),
+            run("claude-review", S, f"skip=no-change through={S0}"),
+        ]
+        self.assertUnbound(self.bind(runs)["claude-review"], "incremental-gap")
 
     def test_no_change_skip_to_an_unreviewed_head(self) -> None:
         result = self.bind([run("claude-review", S, f"skip=no-change through={S0}")])

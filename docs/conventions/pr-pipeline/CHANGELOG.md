@@ -1,5 +1,55 @@
 # Changelog for the PR pipeline convention
 
+## [8.18.0] - 2026-10-31
+
+### Added
+
+- `merge.verify-capture` configures pr-verify's evidence capture: `app`, the app it drives (unset: no capture runs), and `retention-days` (default 30, at most 90) for each capture artifact.
+- Every verdict file records an `evidence` block: the capture's outcome (`no-app` when no capture summary exists, `blocked` when one cannot be read) with its reason, capture count and features, and `local_loop`, the author's count from an `Evidence loop: k/3` line in the trusted pull request body, read as data and `null` without one. A capture never fails the verdict.
+
+## [8.17.0] - 2026-10-31
+
+### Added
+
+- **A push to main that reverts a pull request the lanes App put in the merge queue now demotes that lane.** `post-merge-demotion-alert.yml` reads every commit each canary push run brings (up to 20), whatever the run concluded, for a `Reverts #N` line, a revert-button subject, `This reverts commit <sha>` or the red-main bot's culprit marker, and files a `babysit-merge-demotion` record with signal `revert`; babysit makes no unattended merge while it is open, and only a person closing it re-enables the lane. A revert of a pull request a person queued files nothing, and a revert commit an existing record lists is never filed again.
+
+### Fixed
+
+- The dispatchers' FAIL-cap reader (verify-cap.mjs) now runs as an async child process, so it no
+  longer blocks the event loop. While it blocked for a minute or more, a reset on the job's idle
+  connection to GitHub went unread. The address-feedback dispatch POST then went out on the dead
+  socket and failed with `fetch failed` (ECONNRESET), so no round was sent or recorded. A reader
+  past its 2-minute limit is still killed and read as not the cap.
+- feedback-dispatch.mjs sends the dispatch POST once more when its connection broke before any
+  answer (ECONNRESET, UND_ERR_SOCKET), unless a run that POST started is already listed for the
+  pull request. An HTTP error answer is never sent again. A failed run's error line now names the
+  cause code.
+
+## [8.16.0] - 2026-10-31
+
+### Added
+
+- pr-merge's re-fire step (`refire-refused.mjs`) now also pushes an empty commit for a pr-unblock `address-feedback` run whose "Request the lane token" step failed transiently: `broker-unreachable`, or `lane-token-denied` with a 5xx status. The `pr-unblock-dispatch` tick does not dispatch that activity, and its failed check run holds the head, so such a run stranded the pull request until a person re-fired it. The activities that tick dispatches (resolve-conflicts, review-dependency, fix-ci) are left to it, and a token 403 is re-fired only for `workflow-modified`, as before. Each transient re-fire is recorded in a `<!-- pr-lane-refire transient run <id> tree <tree> head <head> -->` marker and capped at one per failed run and two per head tree, so a broker outage cannot chain empty commits on one change.
+
+- The monitoring lane has signal 11, post-merge unreadable: when the newest 4 post-merge reports that `pr-merge`'s `post-merge-dispatch` kept all exited 3 (the check could not read lane merges, so merges hold with only a warning), it files or reopens one rolling issue naming the newest report's reason, and each monitoring run prints it as an `::error` while it holds. It only notifies, and the next readable report closes it. No report within 70 minutes leaves the signal unread rather than clearing it.
+
+### Changed
+
+- The cost hold section names the infrastructure-as-code files the merge gate now holds:
+  - Pulumi project and stack files in their `.yml` and `.json` forms.
+  - `*.tf.json` and `*.tfvars.json`.
+  - The ARM template names `azuredeploy.json`, `azuredeploy.*.json`, `*.azuredeploy.json` and `*.azuredeploy.*.json`.
+  - Any file under a directory that holds a Pulumi project file.
+
+  It also says why a `secrets` reference moved within one file is accepted: the move adds no
+  charge, and where it moved is the review lanes' call.
+
+## [8.15.5] - 2026-10-31
+
+### Changed
+
+- "Dependabot pull requests" and the review-dependency activity no longer list the `[dependabot skip]` version-bump commit as an allowed commit: every commit must be Dependabot's or, after a review, the lanes App's fix commit, and a `github-actions[bot]` push is refused (`pushed-by:github-actions[bot]`).
+
 ## [8.15.4] - 2026-10-30
 
 ### Fixed

@@ -20,8 +20,8 @@ an unattended run, a phase whose acceptance criteria are executable, a behavior 
 special-case.
 
 - **Pointer**: the test-writer split in
-  [best practices: run multiple Claude sessions](https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions).
-- **As of**: 2026-10-11.
+  [best practices: run sessions in parallel](https://code.claude.com/docs/en/best-practices#run-sessions-in-parallel).
+- **As of**: 2026-10-30.
 - **Recheck trigger**: that page drops or reframes the separate test writer, or a second study
   measures hidden tests' effect on legitimate performance.
 

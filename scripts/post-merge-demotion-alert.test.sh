@@ -13,9 +13,13 @@
 # instead; a run that is not a failed scheduled or dispatched full run, or a
 # failed canary push run, on main files nothing. A full run's first failed
 # attempt is re-run instead, and a later one files only for checks green on
-# main's previous run of the same event; the gitleaks gate files nothing.
+# main's previous run of the same event; the gitleaks gate files nothing. A
+# canary push run, whatever it concluded, files a `revert` record when a commit
+# the push brought, and no record lists, reverts a pull request the lanes App
+# enqueued.
 # test-scope: .github/workflows/post-merge-demotion-alert.yml
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/post-merge-demotion-alert.yml"
@@ -110,6 +114,10 @@ fi
 if [[ "$method" == PATCH && "${STUB_PATCH_FAIL:-}" == 1 ]]; then
   exit 1
 fi
+# STUB_REVERT_POST_FAIL fails the write of a revert record.
+if [[ "$method" == POST && "${STUB_REVERT_POST_FAIL:-}" == 1 ]] && printf '%s\n' "${fields[@]}" | grep -q 'signal=revert -->'; then
+  exit 1
+fi
 # A write answers with issue number 900 + its log line, through --jq as gh does.
 if [[ "$method" != GET ]]; then
   printf '%s\n' "${fields[@]}" >"$STUB_DIR/post.$n"
@@ -140,6 +148,11 @@ case "$endpoint" in
     fi
     ;;
   */actions/workflows/*status=success*) fixture="$STUB_DIR/green.json" ;;
+  */actions/workflows/*event=push*)
+    # The previous canary push run: STUB_FAIL_PREV_READ fails the read.
+    [[ "${STUB_FAIL_PREV_READ:-}" != 1 ]] || exit 1
+    fixture="$STUB_DIR/runs.json"
+    ;;
   */actions/workflows/*) fixture="$STUB_DIR/runs.json" ;;
   */git/ref/heads/main)
     # main's tip, unambiguous where a tag shares the name.
@@ -162,6 +175,10 @@ case "$endpoint" in
     jq -n --arg s "${STUB_ANCESTRY:-ahead}" '{status: $s}' >"$fixture"
     ;;
   */compare/*) fixture="$STUB_DIR/compare.json" ;;
+  */commits/*)
+    [[ "${STUB_FAIL_COMMIT_READ:-}" != 1 ]] || exit 1
+    fixture="$STUB_DIR/commit.json"
+    ;;
   */contents/*) exec cat "$STUB_DIR/pipeline.yaml" ;;
   graphql)
     printf '%s\n' "${fields[@]}" >"$STUB_DIR/graphql.$n"
@@ -242,6 +259,10 @@ run_step() {
   mkdir -p "$TMP_ROOT/stub" "$TMP_ROOT/work/.base/.github/scripts"
   # The step judges each attempt with main's failing-checks.mjs: this tree's.
   ln -s "$ROOT/.github/scripts/post-merge-demotion-alert" "$TMP_ROOT/work/.base/.github/scripts/post-merge-demotion-alert"
+  # BASE_GIT: main's history in the checkout, a copy of that repository.
+  if [[ -n "${BASE_GIT:-}" ]]; then
+    cp -R "$BASE_GIT/.git" "$TMP_ROOT/work/.base/.git"
+  fi
   # JUDGE: the exit of a stub babysit_postmerge.py --judge-run in main's
   # checkout, which logs its arguments and the checks files it is given and
   # prints JUDGE_DEMOTING (a JSON list) as its verdict's `demoting`; unset,
@@ -272,6 +293,7 @@ PY
   printf '{"workflow_runs": [%s]}\n' "${GREEN-$(green_run "$OTHER")}" >"$TMP_ROOT/stub/green.json"
   printf '{"commits": [%s]}\n' "${COMPARE-$(commit "$SHA" "$OTHER" octocat 'fix: a change (#1234)')}" >"$TMP_ROOT/stub/compare.json"
   printf '[]\n' >"$TMP_ROOT/stub/annotations.none.json"
+  printf '%s\n' "${COMMIT_API:-null}" >"$TMP_ROOT/stub/commit.json"
   printf '%s\n' "${ANNOTATIONS_7:-[]}" >"$TMP_ROOT/stub/annotations.7.json"
   if [[ -n "${PIPELINE:-}" ]]; then
     printf '%s\n' "$PIPELINE" >"$TMP_ROOT/stub/pipeline.yaml"
@@ -281,7 +303,7 @@ PY
   : >"$TMP_ROOT/stub/log"
   : >"$TMP_ROOT/stub/output"
   OUT="$(PATH="$TMP_ROOT/bin:$PATH" STUB_DIR="$TMP_ROOT/stub" GITHUB_OUTPUT="$TMP_ROOT/stub/output" STUB_FAIL_READ="${FAIL_READ:-}" STUB_FAIL_LANE_READ="${FAIL_LANE_READ:-}" \
-    STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
+    STUB_FAIL_GRAPHQL="${FAIL_GRAPHQL:-}" STUB_FAIL_NEWER_READ="${FAIL_NEWER_READ:-}" STUB_FAIL_PREV_READ="${FAIL_PREV_READ:-}" STUB_FAIL_COMMIT_READ="${FAIL_COMMIT_READ:-}" STUB_REVERT_POST_FAIL="${REVERT_POST_FAIL:-}" STUB_NEWER_FROM="${NEWER_FROM:-}" \
     STUB_RUN_SHA="$6" STUB_RUN_CREATED="$CREATED" STUB_RERUN="${RERUN:-}" POLL_SECONDS=0 \
     STUB_ANCESTRY="${ANCESTRY:-}" STUB_ON_MAIN="${ON_MAIN:-}" STUB_RERUN_POST_FAIL="${RERUN_POST_FAIL:-}" STUB_DISPATCH_FAIL="${DISPATCH_FAIL:-}" STUB_PATCH_FAIL="${PATCH_FAIL:-}" STUB_LOCK_FAIL="${LOCK_FAIL:-}" RUN_TRIGGERING_ACTOR="${STARTER:-octocat}" \
     GH_TOKEN=x GITHUB_REPOSITORY=o/r EVENT_NAME="${VIA:-workflow_run}" RUN_WORKFLOW="$1" RUN_EVENT="$2" RUN_CONCLUSION="$3" \
@@ -674,6 +696,257 @@ if grep -qx 'GET graphql' <<<"$LOG"; then
   fail "a canary made the lookup: log='$LOG'"
 fi
 
+# --- A push to main that reverts a pull request ---------------------------------
+# The canary push run passed on attempt 1. The push's commits are read from
+# main's history in the checkout (BASE_GIT), back to the previous canary push
+# run's head (RUNS); each is the squash of a pull request (title, blank line,
+# body), as this repository's PR_TITLE/PR_BODY squash writes it.
+REVERTS=$'revert(planning): undo the join prompt (#1300)\n\nReverts #1234. It broke the join flow.\n'
+PUSH_REPO="$TMP_ROOT/push-repo"
+push_commit() {
+  git -C "$PUSH_REPO" -c user.name=t -c user.email=t@example.com -c commit.gpgsign=false commit -q --allow-empty -m "$1"
+}
+# push_repo <message>...: main's history: lane merge #1234 (REVERTED), a
+# direct push (DIRECT), the previous canary push run's head (PREV), then one
+# commit per message, @REVERTED@ and @DIRECT@ replaced; HEAD_SHA is the last.
+push_repo() {
+  local m
+  rm -rf "$PUSH_REPO"
+  git init -q "$PUSH_REPO"
+  push_commit 'feat(planning): a join prompt (#1234)'
+  REVERTED="$(git -C "$PUSH_REPO" rev-parse HEAD)"
+  push_commit 'chore: a direct push'
+  DIRECT="$(git -C "$PUSH_REPO" rev-parse HEAD)"
+  push_commit 'chore: the previous push (#1250)'
+  PREV="$(git -C "$PUSH_REPO" rev-parse HEAD)"
+  for m in "$@"; do
+    m="${m//@REVERTED@/$REVERTED}"
+    push_commit "${m//@DIRECT@/$DIRECT}"
+  done
+  HEAD_SHA="$(git -C "$PUSH_REPO" rev-parse HEAD)"
+}
+# run_push [issues-json]: the canary push run at HEAD_SHA passed on attempt 1.
+run_push() {
+  BASE_GIT="$PUSH_REPO" RUNS="${RUNS-$(baseline_run 4100 success "$PREV")}" PIPELINE="$PIPE" ATTEMPT=1 \
+    run_step "$CANARY" push success main o/r "$HEAD_SHA" "${1:-[]}"
+}
+# reverts <label> [revert commit] [n]: the run filed one revert demotion
+# record naming #<n> and the commit that reverts it.
+reverts() {
+  local label="$1" commit="${2:-$HEAD_SHA}" n="${3:-1234}" fields body
+  fields="$(post_fields 2>/dev/null)"
+  body="${fields#*body=}"
+  if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(fixes)$(dispatches)" == 00 ]] &&
+    grep -qx 'POST repos/o/r/issues' <<<"$LOG" &&
+    [[ "$body" == "<!-- babysit-merge-demotion sha=$HEAD_SHA signal=revert -->"$'\n'* &&
+      "$fields" == *"title=Post-merge revert of #$n at ${HEAD_SHA:0:12}: unattended merging demoted"* &&
+      "$body" == *"- Reverted pull request: https://github.com/o/r/pull/$n"$'\n'* &&
+      "$body" == *"- Revert commit: \`$commit\`"$'\n'* && "$body" == *"- Main at the push: \`$HEAD_SHA\`"* &&
+      "$body" == *"- Canary run: $RUN_URL/attempts/1"* &&
+      "$body" == *"A person closes it directly"* && "$body" != *"git revert"* && "$body" != *"Failing run"* ]] &&
+    grep -qx 'labels\[\]=needs-human' <<<"$fields" &&
+    ! grep -qE 'rerun-failed-jobs|/compare/|status=success' <<<"$LOG" &&
+    grep -q "p$n: pullRequest(number: $n)" "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
+    ok "$label"
+  else
+    fail "$label: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
+  fi
+}
+# no_revert <label>: the run filed, commented and reopened nothing.
+no_revert() {
+  if [[ "$RC" -eq 0 ]] && ! grep -qE '^(POST|PATCH|PUT) ' <<<"$LOG"; then
+    ok "$1"
+  else
+    fail "$1: rc=$RC log='$LOG' out='$OUT'"
+  fi
+}
+LANE="$(gq "$(enq 1234 melodic-automation-lanes Bot)")"
+
+push_repo "$REVERTS"
+GRAPHQL="$LANE" run_push
+reverts "a revert of a pull request the lanes App enqueued files a revert demotion record"
+if ! grep -q 'actions/workflows/77/runs?event=push&branch=main&created=' <<<"$LOG"; then
+  fail "the previous canary push run was not read: log='$LOG'"
+fi
+
+GRAPHQL="$(gq "$(enq 1234 octocat User)")" run_push
+no_revert "a revert of a pull request a person enqueued files nothing"
+if ! grep -qx 'GET graphql' <<<"$LOG" || [[ "$OUT" != *"was put in the merge queue by the lanes App: no revert record"* ]] ||
+  ! grep -q 'p1234: pullRequest(number: 1234)' "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
+  fail "the person-merged revert was not looked up for #1234 and judged: log='$LOG' out='$OUT'"
+fi
+
+FAIL_GRAPHQL=1 run_push
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$(post_fields)" == *"signal=revert -->"* ]]; then
+  ok "a revert whose merge-queue lookup fails demotes"
+else
+  fail "unproven revert: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+push_repo $'Revert "feat: a join prompt"\n\nReverts o/r#1234\n'
+GRAPHQL="$(gq "$(enq 1234 octocat User melodic-automation-lanes Bot)")" run_push
+reverts "GitHub's revert-button body, Reverts <this repository>#N, enqueued by the lanes App, files a revert record"
+
+push_repo $'fix: back out the join prompt (#1300)\n\nThis reverts commit @REVERTED@.\n'
+GRAPHQL="$LANE" run_push
+reverts "This reverts commit <sha> of a lanes App merge on main files a revert record"
+push_repo $'fix: back out a push (#1300)\n\nThis reverts commit @DIRECT@.\n'
+GRAPHQL="$LANE" run_push
+no_revert "This reverts commit <sha> of a commit that names no pull request files nothing"
+
+for message in \
+  $'revert(discovery): drop the K3 check (#1300)\n\nReverts the K3 coverage-check bullet that #1234 added.\n' \
+  $'feat: do not revert the guard (#1300)\n\nIt never reverts #1234.\n' \
+  $'revert: undo a change (#1300)\n\nReverts other/repo#1234\n' \
+  $'fix: quote the old note (#1300)\n\n> Reverts #1234\n' \
+  $'fix: a typo (#1300)\n\nReverts #1234abc\n'; do
+  push_repo "$message"
+  GRAPHQL="$LANE" run_push
+  if [[ "$RC" -eq 0 && "$OUT" == *"names a pull request it reverts: no revert record"* ]] &&
+    ! grep -qE '^(POST|PATCH|PUT) |^GET graphql$' <<<"$LOG"; then
+    ok "a message naming no reverted pull request of this repository files nothing: ${message%%$'\n'*}"
+  else
+    fail "prose revert '${message%%$'\n'*}': rc=$RC log='$LOG' out='$OUT'"
+  fi
+done
+
+# A merge-queue batch pushes several merges at once.
+push_repo 'feat: a change (#1301)' "$REVERTS" 'fix: another change (#1303)'
+GRAPHQL="$LANE" run_push
+reverts "a batch of three with the revert in the middle files a revert record" "$(git -C "$PUSH_REPO" rev-parse HEAD~1)"
+
+push_repo 'feat: a change (#1301)' 'fix: a second change (#1302)' 'fix: a third change (#1303)'
+GRAPHQL="$LANE" run_push
+if [[ "$RC" -eq 0 && "$OUT" == *"no new commit among the 3 pushed up to ${HEAD_SHA:0:12} names a pull request"* ]] &&
+  ! grep -qE '^(POST|PATCH|PUT) |^GET graphql$|issues\?state=all|contents/docs' <<<"$LOG"; then
+  ok "a batch with no revert files nothing and reads no records or merge queue"
+else
+  fail "batch with no revert: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+push_repo "$REVERTS" 'fix: another change (#1303)'
+FAIL_PREV_READ=1 GRAPHQL="$LANE" run_push
+reverts "an unreadable previous canary run falls back to the newest 20 commits and still files" "$(git -C "$PUSH_REPO" rev-parse HEAD~1)"
+if [[ "$OUT" != *"could not be read or is not on"*"reading the newest 20 commits"* ]]; then
+  fail "the fallback was not logged: out='$OUT'"
+fi
+RUNS="$(baseline_run 4100 success "$OTHER")" GRAPHQL="$LANE" run_push
+reverts "a previous canary run head off main's history falls back to the newest 20 commits" "$(git -C "$PUSH_REPO" rev-parse HEAD~1)"
+
+many=()
+for i in $(seq 1 21); do many+=("fix: change $i (#$((1400 + i)))"); done
+push_repo "${many[@]}" "$REVERTS"
+GRAPHQL="$LANE" run_push
+reverts "a push of more than 20 commits reads the newest 20"
+if [[ "$OUT" != *"more than 20 commits since the previous canary push run"* ]]; then
+  fail "the cap was not logged: out='$OUT'"
+fi
+
+# One revert commit, one record: a record of either filer that lists it, in
+# any state, keeps a later run from filing it again.
+push_repo "$REVERTS"
+FIRST="$HEAD_SHA"
+GRAPHQL="$LANE" run_push
+reverts "the first run over a revert files its record"
+filed_body="$(post_fields)"
+filed_body="${filed_body#*body=}"
+if [[ "$(grep -c 'event=push&branch=main&created=' <<<"$LOG")" -ne 1 || "$LOG" == *"event=push&branch=main&status="* ]]; then
+  fail "the previous canary push run was read with a status filter: log='$LOG'"
+fi
+push_commit 'fix: a later change (#1310)'
+HEAD_SHA="$(git -C "$PUSH_REPO" rev-parse HEAD)"
+# The overlapping run: its previous run is still the one before the revert.
+GRAPHQL="$LANE" run_push "[$(issue 41 "$filed_body")]"
+no_revert "an overlapping run over the same revert files no second record"
+if [[ "$OUT" != *"${FIRST:0:12} is already listed on a revert record"* ]]; then
+  fail "the overlapping run did not skip the listed revert commit: out='$OUT'"
+fi
+FAIL_PREV_READ=1 GRAPHQL="$LANE" run_push "[$(issue 41 "$filed_body" '' closed)]"
+no_revert "a later push whose newest 20 still hold a revert a closed record lists files nothing"
+ATTEMPT=2 BASE_GIT="$PUSH_REPO" RUNS="$(baseline_run 4100 success "$PREV")" PIPELINE="$PIPE" GRAPHQL="$LANE" \
+  run_step "$CANARY" push success main o/r "$FIRST" "[$(issue 41 "$filed_body" '' closed)]"
+no_revert "a canary re-run over a recorded revert files nothing and reopens nothing"
+
+push_repo $'revert(planning): undo the join prompt (#1300)\n\n- Reverts #1234\n'
+GRAPHQL="$LANE" run_push
+reverts "a bulleted '- Reverts #N' line files a revert record"
+
+push_repo $'revert: undo two changes (#1300)\n\nReverts #1234, #1235\n'
+GRAPHQL="$(gq "$(enq 1234 octocat User)" "$(enq 1235 melodic-automation-lanes Bot)")" run_push
+fields="$(post_fields 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$fields" == *"signal=revert -->"* &&
+  "$fields" == *"- Reverted pull request: https://github.com/o/r/pull/1234"* &&
+  "$fields" == *"- Reverted pull request: https://github.com/o/r/pull/1235"* ]] &&
+  grep -q 'p1235: pullRequest(number: 1235)' "$TMP_ROOT/stub/graphql.$(grep -nx 'GET graphql' <<<"$LOG" | cut -d: -f1)"; then
+  ok "Reverts #A, #B files when the lanes App enqueued B though a person enqueued A"
+else
+  fail "two reverted pull requests: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
+fi
+
+push_repo 'Revert "feat(planning): a join prompt (#1234)" (#1300)'
+GRAPHQL="$LANE" run_push
+reverts "a GitHub revert-button subject files through its inner (#N)"
+
+push_repo $'revert: feat(planning): a join prompt\n\n<!-- red-main-revert culprit=@REVERTED@ -->\nRefs the culprit.\n'
+GRAPHQL="$LANE" run_push
+reverts "the red-main bot's culprit marker files through the culprit's subject"
+
+# A reverted commit outside the checkout's history is read through the API.
+OUTSIDE=1111111111111111111111111111111111111111
+push_repo $'fix: back out an old change (#1300)\n\nThis reverts commit '"$OUTSIDE"$'.\n'
+COMMIT_API='{"commit": {"message": "feat(planning): a join prompt (#1234)\n\nbody"}}' GRAPHQL="$LANE" run_push
+reverts "a reverted commit outside the checkout is read through the API"
+if ! grep -qx "GET repos/o/r/commits/$OUTSIDE" <<<"$LOG"; then
+  fail "the reverted commit was not read through the API: log='$LOG'"
+fi
+# Neither read answers: an unproven revert, which demotes.
+FAIL_COMMIT_READ=1 GRAPHQL="$LANE" run_push
+fields="$(post_fields 2>/dev/null)"
+if [[ "$RC" -eq 0 && "$(posts)" -eq 1 && "$fields" == *"<!-- babysit-merge-demotion sha=$HEAD_SHA signal=revert -->"* &&
+  "$fields" == *"title=Post-merge revert at ${HEAD_SHA:0:12}: unattended merging demoted"* &&
+  "$fields" == *"- Reverted pull request could not be read: commit \`$OUTSIDE\`"* &&
+  "$fields" == *"- Revert commit: \`$HEAD_SHA\`"* ]] && ! grep -qx 'GET graphql' <<<"$LOG"; then
+  ok "a reverted commit whose pull request cannot be read files a revert record"
+else
+  fail "unreadable reverted commit: rc=$RC log='$LOG' out='$OUT' fields='$fields'"
+fi
+
+# Only a revert record's list counts: another record quoting the commit does not.
+push_repo "$REVERTS"
+GRAPHQL="$LANE" run_push "[$(issue 41 "<!-- babysit-merge-demotion sha=$HEAD_SHA signal=canary -->"$'\n'"- Revert commit: \`$HEAD_SHA\`"), $(issue 42 "<!-- post-merge-fix check=lint -->"$'\n'"- Revert commit: \`$HEAD_SHA\`")]"
+reverts "a revert commit quoted only on another kind of record still files"
+
+# A revert record that cannot be written still lets the canary record file.
+BASE_GIT="$PUSH_REPO" RUNS="$(baseline_run 4100 success "$PREV")" PIPELINE="$PIPE" GRAPHQL="$LANE" ATTEMPT=1 REVERT_POST_FAIL=1 \
+  run_step "$CANARY" push failure main o/r "$HEAD_SHA" '[]'
+issues_posted="$(grep -nx 'POST repos/o/r/issues' <<<"$LOG" | cut -d: -f1)"
+if [[ "$RC" -eq 1 && "$(wc -l <<<"$issues_posted")" -eq 2 && "$OUT" == *"the revert demotion issue was not filed"* ]] &&
+  grep -q '^body=<!-- babysit-merge-demotion sha='"$HEAD_SHA"' signal=canary -->' "$TMP_ROOT/stub/post.$(tail -1 <<<"$issues_posted")"; then
+  ok "a failed revert record write still files the canary record, then fails the job"
+else
+  fail "failed revert write: rc=$RC log='$LOG' out='$OUT'"
+fi
+
+# A failed canary on a revert push files its canary record and the revert's.
+push_repo "$REVERTS"
+BASE_GIT="$PUSH_REPO" RUNS="$(baseline_run 4100 success "$PREV")" PIPELINE="$PIPE" GRAPHQL="$LANE" ATTEMPT=1 \
+  run_step "$CANARY" push failure main o/r "$HEAD_SHA" '[]'
+issues_posted="$(grep -nx 'POST repos/o/r/issues' <<<"$LOG" | cut -d: -f1)"
+bodies="$(for n in $issues_posted; do grep '^body=<!--' "$TMP_ROOT/stub/post.$n"; done)"
+if [[ "$RC" -eq 0 && "$(wc -l <<<"$issues_posted")" -eq 2 &&
+  "$bodies" == *"sha=$HEAD_SHA signal=revert -->"* && "$bodies" == *"sha=$HEAD_SHA signal=canary -->"* ]]; then
+  ok "a failed canary run on a revert push files both the revert and the canary record"
+else
+  fail "failed canary on a revert: rc=$RC log='$LOG' out='$OUT' bodies='$bodies'"
+fi
+
+COMMIT_MESSAGE="$REVERTS" PIPELINE="$PIPE" GRAPHQL="$(gq "$(enq 1234 octocat User)")" ATTEMPT=1 \
+  run_step "$CANARY" push failure main o/r "$SHA" '[]'
+demotes "a failed canary run on a person-enqueued revert files only the canary record"
+if [[ "$(post_fields)" != *"signal=canary -->"* ]]; then
+  fail "the failed canary on a revert filed another signal: fields='$(post_fields)'"
+fi
+
 PIPELINE="$PIPE" FAIL_GRAPHQL=1 run_step "$FULL" workflow_dispatch failure main o/r "$SHA" \
   "[$(issue 41 "<!-- post-merge-failure sha=$SHA signal=dispatch -->")]"
 if [[ "$RC" -eq 0 && "$(posts)" -eq 1 ]] && grep -qx 'POST repos/o/r/issues/41/comments' <<<"$LOG" &&
@@ -859,7 +1132,13 @@ quiet "a failed pull_request run files nothing" "$FULL" pull_request failure mai
 quiet "a failed merge_group run files nothing" "$FULL" merge_group failure main o/r
 quiet "a dispatched canary run files nothing" "$CANARY" workflow_dispatch failure main o/r
 quiet "a successful scheduled run files nothing" "$FULL" schedule success main o/r
-quiet "a successful canary push run files nothing" "$CANARY" push success main o/r
+ATTEMPT=1 run_step "$CANARY" push success main o/r "$SHA" '[]'
+if [[ "$RC" -eq 0 && "$OUT" == *"names a pull request it reverts: no revert record"* && "$OUT" == *"no canary record to file"* ]] &&
+  ! grep -qE '^(POST|PATCH|PUT) |^GET graphql$' <<<"$LOG"; then
+  ok "a successful canary push run whose commits name no revert files nothing"
+else
+  fail "successful canary push run: rc=$RC log='$LOG' out='$OUT'"
+fi
 CONCLUSION=cancelled files "a cancelled scheduled run files a record" schedule "$FULL" schedule '[]'
 # pr-require-checks.yml's main-dispatch group replaces a waiting dispatch with
 # a newer one, cancelling it before any job starts (GitHub lists such a run

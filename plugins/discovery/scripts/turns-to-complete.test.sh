@@ -65,7 +65,7 @@ expect() {
 expect_absent() {
   local label="$1" pattern="$2"
   shift 2
-  if python3 "$SUT" "$@" 2>&1 | grep -Eq -- "$pattern"; then
+  if grep -Eq -- "$pattern" < <(python3 "$SUT" "$@" 2>&1); then
     fail "$label: output unexpectedly matches /$pattern/"
   else
     pass "$label"
