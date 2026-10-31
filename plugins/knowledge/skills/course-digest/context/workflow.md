@@ -35,7 +35,7 @@ Repo → Validate → THEN Synthesize.
 
 **Steps:**
 
-1. Navigate to course URL using `navigate` tool
+1. Open the course URL in the browser tool (SKILL.md Prerequisites)
 2. Read page to identify modules and lessons (use platform adapter for selectors)
 3. For each module, extract:
    - Module title and position
@@ -116,8 +116,9 @@ Postman collections, etc.) so they're available locally for Phase 3 analysis.
 use ZIPs for per-lesson code state, GitHub for final/latest state. ZIPs capture
 code-at-recording-time; repo may have post-publication updates.
 
-**Security note:** Downloaded files gitignored (`**/courses/**/code/*`, `**/courses/**/slides/*`,
-`**/courses/**/resources/*`). Never commit third-party course resources to the repository.
+**Security note:** Keep downloaded files under `<work-root>/courses/<platform>/<slug>/` out of git
+with ignore patterns such as `**/courses/**/code/*`, `**/courses/**/slides/*` and
+`**/courses/**/resources/*`. Never commit third-party course resources to the repository.
 
 ## Phase 2c-ii: Analyze Code Repo
 
@@ -146,7 +147,8 @@ downloaded source code ZIPs. If neither exists, skip.
 **Output:** `code/analysis.json`, `code/README.md`, `code/repo/` (gitignored, local only)
 
 **Security note:** Never commit `code/repo/`. It may contain third-party copyrighted code.
-Gitignore pattern `**/courses/**/code/*` blocks everything except `analysis.json` and `README.md`.
+Ignore `<work-root>/courses/<platform>/<slug>/code/*` (pattern `**/courses/**/code/*`) except
+`analysis.json` and `README.md`.
 Verify clone URLs are clean public URLs, and never embed PATs or tokens in `course.json`.
 
 **Freshness caveat:** Course companion repos may be updated after publication. Authors sometimes
@@ -287,7 +289,8 @@ Runs throughout all phases, not a separate step. See [storage-schema.md](storage
 
 - Write artifacts as they're produced, don't buffer
 - Update `course.json` status after each lesson/module
-- All paths relative to `data/courses/<slug>/`
+- All paths relative to the course directory, `<work-root>/courses/<platform>/<slug>/`; the phase checklist lives at `<work-root>/.work/<slug>/course-digest-checklist.md`
+- Nothing is written under `<work-root>` until its visibility check in SKILL.md ("Paid content stays private") reads `private`, `internal` or `local`
 
 ## Resuming
 
@@ -327,7 +330,7 @@ lessons. Do NOT parallelize DOM interactions, browser contexts, lesson navigatio
 
 - 45-lesson course: ~90 min for transcripts, ~30+ min for frames
 - Use `nohup` pattern for unattended runs (see SKILL.md)
-- Monitor via `tail -20 extraction.log` and `run-report.json`
+- Monitor via `tail -20 <work-root>/.work/<slug>/extraction.log` and `run-report.json`
 
 ## Freshness verification (Phase 5 prerequisite)
 

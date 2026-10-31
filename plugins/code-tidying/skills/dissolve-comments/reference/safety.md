@@ -91,13 +91,15 @@ rejected (see [tooling.md](tooling.md)). Consequences worth knowing:
 - The residual caveat is the one the verdict has in every language: string-keyed access the tokens
   cannot see, here `Get-Variable -Name old`, `$PSBoundParameters['old']`, `Set-Variable old`.
 
-With no `pwsh` on PATH the answer is exit **2**, an unproven
-edit, never the exit 3 below, which would let a coarser reading layer apply the deletion anyway.
+With no `pwsh` on PATH the answer is exit **2**, an unproven edit.
 
-When tree-sitter is unavailable (exit 3), tier 0 falls back to whatever reading layer the tooling
-probe reported: a pygments-level read may still apply deletions; a grep-level read applies nothing
-in a language with heredocs or block comments, because it cannot tell a comment from string data.
-Tier 1 without its proof is tier 2.
+When tree-sitter is unavailable (exit 3, UNAVAILABLE), no deletion or rename carries a proof, so
+every one is a proposal. The same holds when `change-shape.sh` is missing or returns no verdict. A
+pygments-level read still feeds the census and triage, and a grep-level read cannot tell a comment
+from string data in a language with heredocs or block comments; neither reading applies an edit.
+The gate binds every way of writing the file: a deletion made with `sed -i`, a redirect or a
+script needs the same COMMENT-ONLY verdict as one made with an Edit call. Tier 1 without its proof
+is tier 2.
 
 Knobs move tiers without changing any gate: `apply_local_renames=false` makes tier 1 a proposal even
 when RENAME-ONLY holds, and posture `conservative` makes every tier above 0 a proposal (safe mode as

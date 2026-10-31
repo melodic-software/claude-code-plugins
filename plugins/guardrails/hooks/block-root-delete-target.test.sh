@@ -1595,13 +1595,8 @@ rdt_rel="$RDT_AR"
 if [[ "$rdt_rel" =~ ^[A-Za-z]:/ ]]; then rdt_rel="${rdt_rel:3}"; else rdt_rel="${rdt_rel#/}"; fi
 rdt_ar 'a relative root grants nothing' 2 "rm -rf '$RDT_AR/child'" "$rdt_rel"
 rdt_ar "the root '/' grants nothing" 2 "rm -rf '$RDT_AR/child'" /
-# Under MSYS `/` is the Git install directory, not a volume root, so /opt lies under it.
-rdt_slash=$(cygpath -m / 2>/dev/null || true)
-if [[ -z "$rdt_slash" || "$rdt_slash" =~ ^([A-Za-z]:)?/$ ]]; then
-  rdt_ar "the root '/' does not allow a top-level path" 2 'rm -rf /opt/rdt-allowed-x/y' /
-else
-  rdt_skip "'/' is $rdt_slash here, not a volume root (1 case)"
-fi
+# The guard drops `/` even where it maps to the Git install directory, which /opt lies under.
+rdt_ar "the root '/' does not allow a top-level path" 2 'rm -rf /opt/rdt-allowed-x/y' /
 rdt_ar 'an empty entry grants nothing' 2 "rm -rf '$RDT_AR/child'" ","
 rdt_ar 'a root equal to HOME grants nothing' 2 "rm -rf '$RDT_AH/x'" "$RDT_AH"
 rdt_ar 'HOME with a trailing slash grants nothing' 2 "rm -rf '$RDT_AH/x'" "$RDT_AH/"
@@ -1654,6 +1649,7 @@ rdt_ar 'prefix: a path outside blocks' 2 "rm -rf '$RDT_AO/x'" "$RDT_PX"
 rdt_ar 'prefix: rm -rf / blocks' 2 'rm -rf /' "$RDT_PX"
 rdt_ar 'prefix: a prefix under HOME grants nothing' 2 "rm -rf '$RDT_AH/.tmp-x'" "$RDT_AH/.tmp-*"
 rdt_ar 'prefix: a root-level prefix grants nothing' 2 'rm -rf /.tmp-rdt-x' '/.tmp-*'
+rdt_ar "prefix: a directory that resolves to '/' grants nothing" 2 'rm -rf /.tmp-rdt-x' '/./.tmp-*'
 rdt_ar 'prefix: an empty name grants nothing' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_PP/*"
 rdt_ar 'prefix: a second glob character grants nothing' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_PP/.tmp-?*"
 rdt_ar 'prefix: a glob in the directory grants nothing' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_AB/w*/.tmp-*"
@@ -2522,6 +2518,284 @@ rdt_gw 'a worktree under an allowed root by trailing name allowed' 0 'git worktr
 guard_invoke "${RDT_CWD[@]}" --command 'git worktree remove --force /opt/nonexistent-rdt/x'
 assert_exit 'git worktree: an outside worktree exits 2' 2 "$GUARD_RC"
 assert_contains 'git worktree: the refusal names the worktree' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
+
+# --- 2k. interpreter deletes (#9762) ------------------------------------------
+# The program a python -c, node -e, perl -e or ruby -e runs, or one it reads
+# from a heredoc or a here-string, is read for its deleter calls and for the
+# commands it runs. A literal path is judged as a recursive rm operand. Every
+# form runs against a root, HOME, `~`, a path outside the allowed roots and a
+# path strictly inside the tree.
+RDT_IX_FORMS=()
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] && RDT_IX_FORMS+=("$rdt_cmd")
+done <<'EOF'
+python3 -c "import shutil; shutil.rmtree('TGT')"
+python -Bc "import shutil; shutil.rmtree('TGT', ignore_errors=True)"
+python3 -c "import os; os.remove('TGT')"
+node -e "require('fs').rmSync('TGT', { recursive: true, force: true })"
+node --eval "const fs = require('fs'); fs.rmSync(\"TGT\", { recursive: true })"
+perl -MFile::Path=rmtree -e "rmtree('TGT')"
+perl -MFile::Path=remove_tree -le "remove_tree 'TGT' or die"
+ruby -rfileutils -e "FileUtils.rm_rf('TGT')"
+ruby -rfileutils -e "FileUtils.rm_rf 'TGT'"
+python3 -c "import subprocess; subprocess.run(['rm', '-rf', 'TGT'], check=True)"
+python3 -c "import os; os.system('rm -rf TGT')"
+node -e "require('child_process').execSync('rm -rf TGT')"
+node -e "require('child_process').spawnSync('rm', ['-rf', 'TGT'])"
+ruby -e "system('rm', '-rf', 'TGT')"
+perl -e "system 'rm -rf TGT'"
+sudo python3 -c "import shutil; shutil.rmtree('TGT')"
+bash -c "python3 -c \"import shutil; shutil.rmtree('TGT')\""
+EOF
+RDT_IX_FORMS+=(
+  $'python3 - <<"EOF"\nimport shutil\nshutil.rmtree("TGT")\nEOF'
+  $'node <<EOF\nrequire("fs").rmSync("TGT", { recursive: true })\nEOF'
+  $'cat <<A\nprint(1)\nA\nruby -rfileutils - <<B\nFileUtils.rm_rf("TGT")\nB'
+  "python3 <<< \"import shutil; shutil.rmtree('TGT')\""
+)
+rdt_ix() { # <label> <want> <target> [guard_invoke option ...]: every form
+  local label="$1" want="$2" t="$3" f c
+  shift 3
+  for f in "${RDT_IX_FORMS[@]}"; do
+    c="${f//TGT/$t}"
+    expect_both "interpreter: $label: $c" "$want" --command "$c" "$@"
+  done
+}
+rdt_ix 'a root blocks' 2 /
+rdt_ix 'HOME blocks' 2 '$HOME'
+rdt_ix '~ blocks' 2 '~'
+rdt_ix 'outside the tree blocks' 2 /opt/nonexistent-rdt/x "${RDT_CWD[@]}"
+rdt_ix 'inside the tree allowed' 0 plugins/rdt-nonexistent "${RDT_CWD[@]}"
+expect_both 'interpreter: a delete under /tmp allowed' 0 "${RDT_CWD[@]}" \
+  --command "python3 -c \"import shutil; shutil.rmtree('/tmp/rdt-x')\""
+expect_both 'interpreter: a delete under the scratchpad allowed' 0 \
+  --payload "$(rdt_pl "python3 -c \"import shutil; shutil.rmtree('$RDT_SPT/x')\"" "$RDT_TOP" "$RDT_SPT")"
+expect_both 'interpreter: the scratchpad itself blocks' 2 \
+  --payload "$(rdt_pl "python3 -c \"import shutil; shutil.rmtree('$RDT_SPT')\"" "$RDT_TOP" "$RDT_SPT")"
+rdt_ar 'interpreter: unset key, a delete under the root blocks' 2 \
+  "node -e \"require('fs').rmSync('$RDT_AR/child', { recursive: true })\""
+rdt_ar 'interpreter: a delete under the root allowed' 0 \
+  "node -e \"require('fs').rmSync('$RDT_AR/child', { recursive: true })\"" "$RDT_AR"
+rdt_ar 'interpreter: a delete of the root itself blocks' 2 \
+  "ruby -rfileutils -e \"FileUtils.rm_rf('$RDT_AR')\"" "$RDT_AR"
+expect_both 'interpreter: a delete of the toplevel blocks' 2 "${RDT_CWD[@]}" \
+  --command "python3 -c \"import shutil; shutil.rmtree('.')\""
+
+# The mechanism as quoted prose, a deleter named inside a string or a comment
+# of the code, a command that deletes nothing, a script file, a module, and a
+# heredoc that is data for a script or belongs to another command.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "interpreter: $rdt_cmd allowed" 0 --command "$rdt_cmd"
+  expect_both "interpreter: $rdt_cmd allowed with a cwd" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+git commit -m "python3 -c 'import shutil; shutil.rmtree(\"/\")'"
+git commit -m 'fix' -m "node -e \"require('fs').rmSync('/', { recursive: true })\""
+echo 'ruby -rfileutils -e "FileUtils.rm_rf(\"/\")"'
+python3 -c "print('never call shutil.rmtree(\"/\")')"
+python3 -c "import shutil  # shutil.rmtree('/')"
+node -e "/* require('fs').rmSync('/') */ console.log(1)"
+perl -e "print 'rmtree(\"/\")'"
+python3 -c "import os; print(os.remove)"
+python3 -c "import os; os.system('ls /')"
+node -e "require('child_process').execSync('git status')"
+python3 -c "import shutil; shutil.rmtree('build/rdt-x')"
+python3 -m shutil rmtree /
+python3 script.py --rmtree /
+perl -pi -e 's/rmtree/remove_tree/' lib/rdt-x.pm
+node -e "require('fs').rmSync('build/rdt-x',{recursive:true}); console.log('a/b'.replace(/\//g,'_'))"
+EOF
+rdt_ix_n=0
+for rdt_cmd in \
+  $'cat <<"EOF"\nimport shutil; shutil.rmtree("/")\nEOF' \
+  $'python3 script.py <<"EOF"\nimport shutil; shutil.rmtree("/")\nEOF' \
+  $'cat <<A\nimport shutil; shutil.rmtree("/")\nA\npython3 - <<B\nprint(1)\nB'; do
+  rdt_ix_n=$((rdt_ix_n + 1))
+  expect_both "interpreter: a heredoc no interpreter reads as its program ($rdt_ix_n) allowed" 0 \
+    "${RDT_CWD[@]}" --command "$rdt_cmd"
+done
+
+# A path the code computes cannot be placed, so the call is refused: an
+# argument, an expression, an interpolated string, a list element, a `$` the
+# shell may have expanded, and a command built from one. A substitution body
+# is read too. So is a deleter, a backtick, a ruby %x or a perl qx after a
+# comment character that a `/` regex literal on its line may hold (`/\//`,
+# `/\/*/`, `/#/`, `/\#/`).
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "interpreter: $rdt_cmd blocks" 2 --command "$rdt_cmd"
+done <<'EOF'
+python3 -c "import shutil, sys; shutil.rmtree(sys.argv[1])" build
+python3 -c "import shutil, os; shutil.rmtree(os.path.expanduser('~'))"
+python3 -c "import shutil; shutil.rmtree(f'{d}/build')"
+python3 -c 'import shutil; shutil.rmtree("$X/build")'
+node -e "require('fs').rmSync(process.argv[1], { recursive: true })" build
+ruby -rfileutils -e "FileUtils.rm_rf(ARGV[0])" build
+ruby -rfileutils -e "FileUtils.rm_rf ARGV"
+perl -MFile::Path=rmtree -e "rmtree(\$ARGV[0])" build
+python3 -c "import subprocess, sys; subprocess.run(['rm', '-rf', sys.argv[1]])" build
+python3 -c "import os; os.system(f'rm -rf {d}')"
+ruby -e 'system("rm -rf #{ARGV[0]}")' build
+perl -e 'system("rm -rf $ARGV[0]")' build
+perl -e 'my $o = qx(rm -rf /);'
+ruby -e 'puts %x(rm -rf /)'
+ruby -e 'puts `rm -rf /`'
+echo "$(python3 -c "import shutil; shutil.rmtree('/')")"
+python3 -c 'import os; os.system("rm\t-rf\t~")'
+python3 -c 'import os; os.system("find \x2f -delete")'
+python3 -BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBc "import shutil; shutil.rmtree('/')"
+perl -e 'unlink for "/opt/nonexistent-rdt/x/f"'
+perl -nle unlink
+ruby -rfileutils -e "FileUtils.rm_rf({'/opt/nonexistent-rdt/x'=>1}.keys)"
+perl -MFile::Path -Fe -e 'BEGIN{rmtree("/")}'
+node -e "'a/b'.replace(/\//g,'_'); require('fs').rmSync('/',{recursive:true})"
+node -e "'a/b'.replace(/\/*/g,''); require('fs').rmSync('/'); /* */"
+ruby -rfileutils -e "x =~ /#/; FileUtils.rm_rf('/')"
+perl -MFile::Path=rmtree -e '$x =~ /\#/; rmtree("/")'
+ruby -e 'x =~ /#/; `rm -rf /`'
+ruby -e 'x =~ /#/; %x(rm -rf /)'
+perl -e '$x =~ /\#/; `rm -rf /`'
+perl -e '$x =~ /\#/; qx(rm -rf /)'
+EOF
+
+# A ruby delete that holds none of the other prefilter words, a program read
+# from /dev/stdin, an unquoted heredoc whose backslash-newline bash removes,
+# and a heredoc judged from where its interpreter ran, not after a later `cd -`.
+expect_both 'interpreter: ruby Dir.delete outside the tree blocks' 2 "${RDT_CWD[@]}" \
+  --command 'ruby -e '\''Dir.delete("/opt/nonexistent-rdt/x")'\'''
+expect_both 'interpreter: a program read from /dev/stdin blocks' 2 \
+  --command $'python3 /dev/stdin <<"EOF"\nimport shutil; shutil.rmtree("/")\nEOF'
+expect_both 'interpreter: an unquoted heredoc with a backslash-newline blocks' 2 \
+  --command $'python3 - <<EOF\nimport shutil; shutil.rm\\\ntree("/")\nEOF'
+expect_both 'interpreter: a heredoc before a later cd - blocks' 2 "${RDT_CWD[@]}" \
+  --command $'python3 - <<"EOF"\nimport shutil; shutil.rmtree("..")\nEOF\ncd -'
+# The items xargs hands an interpreter are its argv, not targets.
+expect_both 'interpreter: xargs into python with a literal path inside the tree allowed' 0 "${RDT_CWD[@]}" \
+  --command "ls | xargs python3 -c \"import shutil; shutil.rmtree('build/rdt-x')\""
+
+guard_invoke --command "python3 -c 'import shutil, sys; shutil.rmtree(sys.argv[1])' build"
+assert_exit 'interpreter: a computed path exits 2' 2 "$GUARD_RC"
+assert_contains 'interpreter: the refusal names the expression' "$GUARD_ERR" 'the path given as sys.argv[1]'
+guard_invoke "${RDT_CWD[@]}" --command "python3 -c \"import shutil; shutil.rmtree('/opt/nonexistent-rdt/x')\""
+assert_exit 'interpreter: an outside path exits 2' 2 "$GUARD_RC"
+assert_contains 'interpreter: the refusal names the path' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
+
+# --- 2l. decoder sinks (#9763) ------------------------------------------------
+# A decoder feeding an execution sink is refused outright, whatever the decoded
+# text targets. Every form runs with a payload that decodes to a delete of a
+# root, of HOME, of a path outside the allowed roots and of a path strictly
+# inside the tree: B64 is that delete in base64, HEX in hex. The guard decodes
+# nothing; the payloads only make each case read as the delete it hides.
+RDT_DS_FORMS=()
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] && RDT_DS_FORMS+=("$rdt_cmd")
+done <<'EOF'
+echo B64 | base64 -d | sh
+echo B64 | base64 --decode | bash
+printf %s B64 | base64 -D | zsh
+base64 -d <<< B64 | bash -s
+echo B64 | base64 -di | sudo bash
+echo B64 | base64 -d | tee /tmp/rdt-x | sh
+echo B64 | base64 -d | cat | sh
+echo B64 | base64 -d | tr -d '\r' | sh
+echo B64 | base64 -d | head -c 999 | bash
+echo B64 | base64 -id | sh
+echo B64 | base64 -d | sh -c sh
+echo B64 | base64 -d | bash -c 'cat | sh'
+echo B64 | base64 -d | bash /dev/fd/0
+true; `echo B64 | base64 -d`
+python3 -c "import os; os.system('echo B64 | base64 -d | sh')"
+echo B64 | base32 -d | sh
+echo B64 | basenc --base64 -d | sh
+echo B64 | base64 -d | source /dev/stdin
+echo HEX | xxd -r -p | sh
+xxd -r -p <<< HEX | bash
+eval "$(echo B64 | base64 -d)"
+eval $(echo B64 | base64 -d)
+eval "`echo B64 | base64 -d`"
+eval `echo B64 | base64 -d`
+eval "$(echo HEX | xxd -r -p)"
+bash -c "$(echo B64 | base64 -d)"
+sh -c "$(base64 -d <<< B64)"
+bash -c $(echo B64 | base64 -d)
+bash <(echo B64 | base64 -d)
+source <(echo B64 | base64 -d)
+. <(echo HEX | xxd -r -p)
+$(echo B64 | base64 -d)
+`echo B64 | base64 -d`
+bash <<< "$(echo B64 | base64 -d)"
+echo "$(echo B64 | base64 -d | sh)"
+EOF
+rdt_ds() { # <label> <want> <base64 payload> <hex payload> [guard_invoke option ...]: every form
+  local label="$1" want="$2" b="$3" h="$4" f c
+  shift 4
+  for f in "${RDT_DS_FORMS[@]}"; do
+    c="${f//B64/$b}"
+    c="${c//HEX/$h}"
+    expect_both "decoder sink: $label: $c" "$want" --command "$c" "$@"
+  done
+}
+rdt_ds 'rm -rf / blocks' 2 cm0gLXJmIC8= 726d202d7266202f
+rdt_ds 'rm -rf $HOME blocks' 2 cm0gLXJmICRIT01F 726d202d72662024484f4d45
+rdt_ds 'rm -rf outside the tree blocks' 2 cm0gLXJmIC9vcHQveA== 726d202d7266202f6f70742f78 "${RDT_CWD[@]}"
+rdt_ds 'rm -rf inside the tree blocks too' 2 cm0gLXJmIGJ1aWxk 726d202d7266206275696c64 "${RDT_CWD[@]}"
+
+# Decoded text written to a file strictly inside the tree, the scratchpad or an
+# allowed root is data, and so is decoded text a pager shows.
+expect_both 'decoder sink: decoded to a file inside the tree allowed' 0 "${RDT_CWD[@]}" \
+  --command 'echo cm0gLXJmIC8= | base64 -d > build/rdt-x.sh'
+expect_both 'decoder sink: decoded to a file under the scratchpad allowed' 0 \
+  --payload "$(rdt_pl "echo cm0gLXJmIC8= | base64 -d > '$RDT_SPT/x.sh'" "$RDT_TOP" "$RDT_SPT")"
+rdt_ar 'decoder sink: decoded to a file under the root allowed' 0 \
+  "echo cm0gLXJmIC8= | base64 -d > '$RDT_AR/child/x.sh'" "$RDT_AR"
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "decoder sink: $rdt_cmd allowed" 0 --command "$rdt_cmd"
+  expect_both "decoder sink: $rdt_cmd allowed with a cwd" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+base64 -d build/rdt-x.b64 > build/rdt-x.bin
+base64 --decode build/rdt-x.b64 >> build/rdt-x.bin
+base64 -d -o build/rdt-x.bin build/rdt-x.b64
+xxd -r build/rdt-x.hex build/rdt-x.bin
+xxd -r -p build/rdt-x.hex > build/rdt-x.bin
+base64 -d build/rdt-x.b64 | less
+echo cm0gLXJmIC8= | base64 -d | more
+base64 -d build/rdt-x.b64 > build/rdt-x.sh && bash build/rdt-x.sh
+base64 -d build/rdt-x.b64 | bash build/rdt-x.sh
+base64 -w0 build/rdt-x.bin
+x=$(echo cm0gLXJmIC8= | base64 -d); echo "$x"
+git commit -m "echo cm0gLXJmIC8= | base64 -d | sh"
+git commit -m 'eval "$(echo cm0gLXJmIC8= | base64 -d)"'
+echo 'bash <(xxd -r -p build/rdt-x.hex)'
+EOF
+
+# PowerShell: [Convert]::FromBase64String reaching Invoke-Expression.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "decoder sink: PS $rdt_cmd blocks" 2 --tool PowerShell --command "$rdt_cmd"
+done <<'EOF'
+iex ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('cm0gLXJmIC8=')))
+[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('cm0gLXJmIC8=')) | iex
+[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($b)) | Invoke-Expression
+Invoke-Expression ([Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($b)))
+iex $([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('cm0gLXJmIC8=')))
+EOF
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "decoder sink: PS $rdt_cmd allowed" 0 --tool PowerShell "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+[IO.File]::WriteAllBytes('build\rdt-x.bin', [Convert]::FromBase64String($b))
+[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b)) | Out-File build\rdt-x.ps1
+[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b)) | more
+git commit -m "iex ([Convert]::FromBase64String('cm0gLXJmIC8='))"
+Write-Output 'iex ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b)))'
+EOF
+
+expect_both 'decoder sink: an attended session is denied too' 2 \
+  --command 'echo cm0gLXJmIC8= | base64 -d | sh' -- CLAUDE_CODE_SESSION_ATTENDED=1
+guard_invoke --command 'echo cm0gLXJmIC8= | base64 -d | sh'
+assert_exit 'decoder sink: a decoder piped into sh exits 2' 2 "$GUARD_RC"
+assert_contains 'decoder sink: the refusal names the mechanism' "$GUARD_ERR" 'decoded text'
 
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'

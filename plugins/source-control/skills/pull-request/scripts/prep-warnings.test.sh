@@ -2,7 +2,7 @@
 # Regression tests for prep-warnings.sh against a fixture repository. Expected
 # lines come from the rules prep_warnings.py states: a cut to an existing
 # SKILL.md or agent body warns unless its eval home changes too, and a path in
-# babysit_risk.HIGH_FLOOR, the configured denied paths or a manifest warns.
+# the floor's person-held globs, the configured denied paths or a manifest warns.
 
 set -uo pipefail
 
@@ -36,7 +36,8 @@ write plugins/p/agents/a.md "# a" "one" "two"
 write plugins/p/.claude-plugin/plugin.json '{"name": "p"}'
 write .github/scripts/pr-unblock/thread-scope.mjs "export {};"
 write .github/scripts/pr-merge/gate-check.mjs "export {};"
-write docs/conventions/pr-pipeline.yaml "merge:" "  diff-check:" '    denied-paths: ["notes/**"]'
+write docs/conventions/pr-pipeline.yaml "merge:" "  diff-check:" '    denied-paths: ["notes/**"]' \
+  "    floor-paths:" '      - glob: ".github/scripts/pr-merge/gate-check.mjs"' "        class: trust"
 write notes/n.md "n"
 write README.md "readme"
 g add -A
@@ -152,6 +153,18 @@ assert_exit "an unreadable pipeline file is still a read" 0 "$?"
 assert_contains "an unreadable pipeline file is reported" "$out" \
   "merge.diff-check.denied-paths not checked"
 assert_not_contains "no configured path matches when it is unread" "$out" "protected-path notes/n.md"
+
+branch bad-floor-config
+write docs/conventions/pr-pipeline.yaml "merge:" "  diff-check:" "    floor-paths:" '      - "x/**"'
+commit bad-floor
+g checkout -q -b bad-floor-child
+write .github/scripts/pr-merge/gate-check.mjs "export {};" "// edited"
+commit gate-check
+out=$(bash "$SCRIPT" --dir "$REPO" --base bad-floor-config)
+assert_contains "a floor-paths row the merge refuses is reported" "$out" \
+  "only the built-in floor is matched"
+assert_not_contains "a refused row adds nothing to the floor" "$out" \
+  "protected-path .github/scripts/pr-merge/gate-check.mjs"
 
 bash "$SCRIPT" --dir "$REPO" >/dev/null 2>&1
 assert_exit "a missing --base exits 1" 1 "$?"

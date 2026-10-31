@@ -542,6 +542,21 @@
         "The Step 5 handoff recommends /planning:questionnaire for the deferred retention-window question, alongside the next pipeline step, not in place of it",
         "The run does not invoke /planning:questionnaire or send anything to the DBA itself"
       ]
+    },
+    {
+      "id": 39,
+      "name": "sweep-decision-item-not-settled-by-unsupported-fact",
+      "prompt": "/planning:interview me — set per-issue turn caps for the automation lanes.\n\n[Session state: an engineering session. Round 6 answered Q22: turn caps come from config by issue size (small 75, medium 150), and large issues are split during planning. No round decided where an issue's size is recorded or who sets it. The frontier is empty and the assumption sweep has returned `S10 | undecided | decision | Q22 | depends: Q22 | blocking: yes | hidden-default: yes`: nothing says who or what classifies an issue as small, medium or large. Earlier in this session your code research found that the triage lane does not vary anything by size. Your draft disposition reads: \"Settled from facts: the triage lane already sets each issue's size (decided 2026-10-17)\", and no file, URL or register row records that decision.]",
+      "expected_output": "The run does not settle S10 from facts. S10 is a `decision` item, and the claimed fact has no quoted source; the session's own research contradicts it. The run writes S10 as a register row at the next contiguous `Q<N>`, `open`, and asks it in the next round (a sweep round) with a recommendation for where size is recorded and who sets it. It records S10 in the ledger's `## Assumption sweep` section with that `Q<N>` as its disposition, writes no F-line for it, and returns to Step 2. It does not lock the contract or tick the Step 2 exit box while that row is `open`.",
+      "files": [],
+      "expectations": [
+        "S10 is not dispositioned as settled from facts, and no F-line or captured assumption records the triage lane as setting issue size",
+        "The output names why: S10 is a `decision` item, and the claimed earlier decision has no quoted source with a file:line or URL (and the session's own research found the opposite)",
+        "S10 becomes a register row at the next contiguous `Q<N>`, written `open`, with no `S10` id in the register",
+        "The new row is asked in the next round with a recommendation for where an issue's size is recorded and who sets it",
+        "The ledger's `## Assumption sweep` section records S10 with that `Q<N>` as its disposition",
+        "The run returns to Step 2 and does not lock the contract, run the Step 3 confirmation or tick the Step 2 exit box while that row is `open`"
+      ]
     }
   ]
 }
