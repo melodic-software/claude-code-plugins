@@ -13,7 +13,7 @@ graders:
     flags: 'i'
   - name: postmark-p3-not-pass
     type: regex
-    pattern: '(?:^|\n)(?=[^\n]*\bpostmark\b)(?=[^\n]*\bP3\b)(?=[^\n]*\|\s*\**PASS\**\s*\|)'
+    pattern: '(?:^|\n)(?=[^\n]*\bpostmark\b)[^\n]*\bP3\b[^|\n]*\|(?:\s*\**postmark\**\s*\|)?\s*\**PASS\b'
     flags: 'i'
     match: 'not_contains'
   - name: no-lookup-or-run

@@ -1,6 +1,6 @@
 ---
 description: "Hard because a fixed-looking image tag (:1.4) reads as pinned: the contract says only an @sha256 digest pins a container, so browser is P1 WARN (mutable tag, container launcher) and the digest image PASSes."
-tags: [mcp-tools, audit-posture, outcome, floating-version, container]
+tags: [mcp-tools, audit-posture, outcome, floating-version, container, ap-1]
 runs: 3
 max_turns: 20
 timeout_seconds: 600

@@ -30,3 +30,8 @@ graders:
     pattern: '(?:^|\n)(?=[^\n]*(?:\bC12\b|readOnlyHint))(?=[^\n]*\b(?:not|never|no|doesn''t|does\s+not|didn''t|did\s+not|won''t|wouldn''t|isn''t)\s+(?:an?\s+)?WARN)'
     flags: 'i'
     match: 'not_contains'
+  - name: audit-skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:mcp-tools:)?audit"'
+    min: 1

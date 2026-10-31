@@ -1,6 +1,6 @@
 ---
 description: "A shared config with an npx @latest server and an unversioned uvx server: P1 grades both FAIL by the checklist table, the report keeps its inventory and coverage sections, and no config file is edited. Write/Edit graders are inert unless an operator grants those tools; the shell-write grader carries the edits-nothing evidence."
-tags: [mcp-tools, audit-posture, outcome, floating-version, output-contract, edits-nothing]
+tags: [mcp-tools, audit-posture, outcome, floating-version, output-contract, edits-nothing, ap-1]
 runs: 3
 max_turns: 20
 timeout_seconds: 600

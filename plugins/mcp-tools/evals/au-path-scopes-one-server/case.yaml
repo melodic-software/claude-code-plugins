@@ -15,3 +15,8 @@ graders:
     pattern: '\binventory_list_items\b[^\n]{0,40}\b(?:not|wasn''t|was\s+not|never)\s+(?:audited|found|discovered|evaluated)\b'
     flags: 'i'
     match: 'not_contains'
+  - name: audit-skill-fired
+    type: tool_used
+    tool: 'Skill'
+    input_match: '"skill"\s*:\s*"(?:mcp-tools:)?audit"'
+    min: 1

@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "mcp-tools:audit", "args": "servers/x"}}], "why": "audit skill fired"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Skill", "input": {"skill": "mcp-tools:audit-posture"}}], "why": "sibling skill"},
+    {"answer": [{"tool": "Read", "input": {"file_path": "servers/x/server.py"}}], "why": "no skill call"}
+  ]
+}
