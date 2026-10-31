@@ -18,6 +18,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import types
 import unittest
@@ -11136,14 +11137,20 @@ class GuardTests(unittest.TestCase):
         run.mkdir(parents=True, exist_ok=True)
         return run / name
 
-    def _engine(self, *argv: str, **stubs: object) -> int:
+    def _engine(self, *argv: str, session: str | None = "s", **stubs: object) -> int:
         """Run the engine CLI on this data root with its file and lane steps stubbed.
 
         The stubs stand in for the snapshot, plan and deletion work, so what
         runs for real is the CLI's own run-end bookkeeping after each step.
+        ``session`` is the calling session's id, as Claude Code sets it in a
+        Bash tool subprocess; None runs the engine with none set.
         """
         root = os.fspath(self._data_root.resolve())
         with ExitStack() as stack:
+            stack.enter_context(mock.patch.dict(os.environ))
+            os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
+            if session is not None:
+                os.environ["CLAUDE_CODE_SESSION_ID"] = session
             stack.enter_context(
                 mock.patch.object(
                     hygiene, "load_input_json", return_value={"tier": "high"}
@@ -11154,7 +11161,7 @@ class GuardTests(unittest.TestCase):
             stack.enter_context(redirect_stdout(io.StringIO()))
             return hygiene.main([*argv, "--data-root", root])
 
-    def _engine_preview(self, outcome: str) -> int:
+    def _engine_preview(self, outcome: str, session: str | None = "s") -> int:
         status = {"explicit-approval": "ready-for-explicit-approval"}
         result = {"outcome": outcome, "status": status.get(outcome, "blocked")}
         return self._engine(
@@ -11163,6 +11170,7 @@ class GuardTests(unittest.TestCase):
             os.fspath(self._run_file("snapshot.json")),
             "--plan",
             os.fspath(self._run_file("plan.json")),
+            session=session,
             preview=mock.Mock(return_value=result),
         )
 
@@ -11413,6 +11421,98 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(0, self._engine_handoff_apply())
         self.assertTrue(self._run_marker().is_file())
         self.assertEqual("ask", self._belt("Remove-Item x", tool_name="PowerShell"))
+
+    def test_apply_after_a_verify_keeps_the_manual_lane_open(self) -> None:
+        self._scan()
+        verify = self._engine_words(
+            f"handoff-verify --snapshot {self.snapshot_arg} --path rel/junk"
+        )
+        self.assertEqual("allow", self._belt(verify))
+        apply = self._engine_words(
+            f"apply --execute --snapshot {self.snapshot_arg} --plan {self.plan_arg} "
+            f"--confirm-tier high --approval-token {'a' * 24} --report {self.report_arg}"
+        )
+        self.assertEqual("ask", self._belt(apply))
+        self.assertEqual(0, self._engine_apply())
+        self.assertTrue(self._run_marker().is_file())
+        self.assertEqual("ask", self._belt("Remove-Item x", tool_name="PowerShell"))
+
+    def test_preview_over_an_unreadable_marker_leaves_the_manual_lane(self) -> None:
+        self.authorize_data_root()
+        marker = self._run_marker()
+        marker.parent.mkdir(parents=True)
+        marker.write_text("{not json", encoding="utf-8")
+        preview = self._engine_words(
+            f"preview --snapshot {self.snapshot_arg} --plan {self.plan_arg}"
+        )
+        self.assertEqual("allow", self._belt(preview))
+        self.assertEqual("{not json", marker.read_text(encoding="utf-8"))
+        self.assertEqual(0, self._engine_preview("manual-handoff-lane"))
+        self.assertTrue(marker.is_file())
+        self.assertEqual("ask", self._belt("Remove-Item x", tool_name="PowerShell"))
+
+    def test_a_verify_racing_a_preview_keeps_the_manual_lane_open(self) -> None:
+        # Two hooks in one parallel batch: the verify writes its marker after
+        # the preview has checked for one and before the preview writes.
+        self._scan()
+        authority = os.fspath(self._data_root)
+        verify = self._engine_words(
+            f"handoff-verify --snapshot {self.snapshot_arg} --path rel/junk"
+        )
+        preview = self._engine_words(
+            f"preview --snapshot {self.snapshot_arg} --plan {self.plan_arg}"
+        )
+        racer = threading.Thread(
+            target=guard._record_run_step,
+            args=(verify, "handoff-verify", authority, "s"),
+        )
+        checked = guard._manual_lane_open
+
+        def check_then_race(*args: object) -> bool:
+            lane_open = checked(*args)  # type: ignore[arg-type]
+            racer.start()
+            racer.join(0.5)
+            return lane_open
+
+        with mock.patch.object(guard, "_manual_lane_open", side_effect=check_then_race):
+            guard._record_run_step(preview, "preview", authority, "s")
+        racer.join()
+        self.assertEqual(0, self._engine_preview("manual-handoff-lane"))
+        self.assertTrue(self._run_marker().is_file())
+        self.assertEqual("ask", self._belt("Remove-Item x", tool_name="PowerShell"))
+
+    def test_a_lock_that_cannot_be_taken_still_opens_the_run(self) -> None:
+        lock = self._run_marker().parent / guard.engine_grammar.RUN_LOCK_FILENAME
+        lock.mkdir(parents=True)
+        self._open_run_by_preview()
+        self.assertEqual("deny", self._belt("gh issue list"))
+        self.assertEqual(3, self._engine_preview("blocked"))
+        self.assertFalse(self._run_marker().exists())
+
+    def test_run_end_leaves_other_sessions_markers_naming_the_same_file(
+        self,
+    ) -> None:
+        self._open_run_by_preview()
+        same_plan = self._other_session_marker(os.fspath(self._run_file("plan.json")))
+        aged = self._run_marker("aged")
+        aged.write_text(json.dumps({"version": 1, "ends_with": None}), "utf-8")
+        old = time.time() - guard._RUN_IDLE_TIMEOUT_SECONDS - 1
+        os.utime(aged, (old, old))
+        self.assertEqual(3, self._engine_preview("blocked"))
+        self.assertFalse(self._run_marker().exists())
+        self.assertTrue(same_plan.is_file())
+        self.assertTrue(aged.is_file())
+
+    def test_engine_without_a_session_id_ends_no_run(self) -> None:
+        self._open_run_by_preview()
+        self.assertEqual(3, self._engine_preview("blocked", session=None))
+        self.assertTrue(self._run_marker().is_file())
+        self.assertEqual("deny", self._belt("gh issue list"))
+        self._age_run_marker()
+        self.assertEqual(3, self._engine_preview("blocked", session=None))
+        self.assertTrue(self._run_marker().is_file())
+        self.assertEqual(3, self._engine_preview("blocked"))
+        self.assertFalse(self._run_marker().exists())
 
     def test_scan_after_a_timed_out_run_does_not_reopen_it(self) -> None:
         self._scan()

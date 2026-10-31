@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "python3 -m bfk.cli migrate --dry-run"}}],
+      "why": "the new subcommand, dry run"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cp -r data /tmp/s4 && python3 -I -m bfk.cli migrate --path /tmp/s4/accounts.jsonl --backup gzip --yes; echo \"exit=$?\""}}],
+      "why": "a real run on a copy, after another command"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "python3 bfk/migrate.py --help"}}],
+      "why": "the helper module run as a script"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "PYTHONPATH=. python3 scripts/migrate_accounts.py --dry-run"}}],
+      "why": "a standalone script under scripts/"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "python -m bfk.migrate --dry-run"}}],
+      "why": "the module through -m"
+    }
+  ],
+  "fail": [
+    {"answer": []},
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "python3 -m unittest tests.test_migrate -v"}}],
+      "why": "near miss: runs the helper's tests, not the helper"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "bash scripts/run_tests.sh && python3 -m pytest tests/test_migrate.py"}}],
+      "why": "near miss: test runs only"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "python3 -m bfk.cli report"}}],
+      "why": "answer to a different question: runs the existing report command"
+    }
+  ]
+}

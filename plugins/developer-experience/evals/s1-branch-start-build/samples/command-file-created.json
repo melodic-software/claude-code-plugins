@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {"answer": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "why": "the new command file"},
+    {
+      "answer": "src/Tarnquill.Core/BranchNames.cs\n/tmp/run-1/work/src/Tarnquill.Cli/Commands/BranchStartCommand.cs\n/tmp/run-1/work/src/Tarnquill.Cli/Infrastructure/ForgeClient.cs\nsrc/Tarnquill.Cli/obj/Debug/net10.0/tq.AssemblyInfo.cs",
+      "why": "absolute paths beside a Core file and build output"
+    }
+  ],
+  "fail": [
+    {"answer": ""},
+    {
+      "answer": "src/Tarnquill.Cli/obj/Debug/net10.0/tq.AssemblyInfo.cs\nsrc/Tarnquill.Cli/obj/Debug/net10.0/tq.GlobalUsings.g.cs\nsrc/Tarnquill.Cli/bin/Debug/net10.0/tq.dll",
+      "why": "near miss: build output only"
+    },
+    {"answer": "src/Tarnquill.Core/BranchNames.cs", "why": "near miss: a Core file, no CLI file"},
+    {"answer": ".tarnquill/outbox/42.json", "why": "answer to a different question: a queued comment"}
+  ]
+}
