@@ -136,7 +136,7 @@
       "expected_output": "Reads the rendered library_dir value from SKILL.md's Configured options table, passes it as a leading --work-root flag on the run.mjs invocation, and writes the slice under that work root.",
       "expectations": [
         "Takes library_dir from the Configured options table in SKILL.md, not from a ${user_config.*} token in a spoke",
-        "Passes --work-root \"${CLAUDE_PROJECT_DIR}/my-library\" as a leading flag on run.mjs, after --data-dir",
+        "Resolves the work root with work-root.mjs --library-dir 'my-library' and passes the absolute path it prints as --work-root, a leading flag on run.mjs after --data-dir",
         "Writes .work/<watch-epic>/<video-slug>/transcript.txt under the my-library work root, not the repo root"
       ]
     },
