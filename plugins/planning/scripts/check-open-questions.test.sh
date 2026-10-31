@@ -93,6 +93,26 @@ one_open="$(
 EOF
 )"
 expect_exit "one open row -> 1" 1 --ledger "$one_open"
+
+# A row a newer constraint marked blocks the gate on an answered row too, and a
+# ledger with no such row keeps its verdict line.
+stale_row="$(mkledger <<'EOF'
+- Q1 | answered | round 1 | a | answer:: accepted: yes; stale:: C2, C3
+- Q2 | answered | round 1 | b | answer:: accepted: yes
+EOF
+)"
+expect_exit "stale answered row -> 1" 1 --ledger "$stale_row"
+expect_stdout "stale row is counted" "stale=1" --ledger "$stale_row"
+stale_text="$(mkledger <<'EOF'
+- Q1 | answered | round 1 | a | answer:: said\; stale:: C2
+EOF
+)"
+expect_exit "an escaped separator is answer text, not a mark -> 0" 0 --ledger "$stale_text"
+stale_backslash="$(mkledger <<'EOF'
+- Q1 | answered | round 1 | a | answer:: free-text: C:\\; stale:: C2
+EOF
+)"
+expect_exit "a mark after an escaped backslash still blocks -> 1" 1 --ledger "$stale_backslash"
 expect_stdout "open verdict counts the open row" "open=1" --ledger "$one_open"
 
 # 8. Mixed terminal statuses all count as resolved.
