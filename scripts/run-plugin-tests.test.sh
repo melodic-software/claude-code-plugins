@@ -159,6 +159,35 @@ assert_output_has "the bad job count is named" "--jobs must be a positive intege
 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "an unknown flag prints usage" --root "$r" --parallel
 assert_output_has "usage names the flags" "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR]"
 
+# --- --timings and suite arguments --------------------------------------------
+
+r="$(make_root timings)"
+write_suite "$r" plugins/a/a.test.sh 'echo "ok: a"'
+write_suite "$r" plugins/b/b.test.sh 'echo "FAIL: b broke" >&2; exit 3'
+write_suite "$r" plugins/c/c.test.sh 'echo "ok: c"'
+tfile="$scratch/timings.tsv"
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "one suite argument runs that suite alone" --root "$r" --timings "$tfile" plugins/a/a.test.sh
+assert_output_lacks "a suite not named is not run" "plugins/c/c.test.sh"
+one_row=$'^plugins/a/a\\.test\\.sh\t[0-9]+\t0$'
+if [[ "$(<"$tfile")" =~ $one_row ]]; then
+  ok "--timings writes one row of path, seconds and exit code"
+else
+  fail "--timings one suite: got [$(<"$tfile")]"
+fi
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 1 "--timings keeps the exit contract" --root "$r" --timings="$tfile"
+if [[ "$(cut -f1,3 "$tfile")" == $'plugins/a/a.test.sh\t0\nplugins/b/b.test.sh\t3\nplugins/c/c.test.sh\t0' ]]; then
+  ok "--timings overwrites the file with a row per suite in corpus order, a failure's exit code kept"
+else
+  fail "--timings whole corpus: got [$(<"$tfile")]"
+fi
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "a suite argument that is not a file is rejected" --root "$r" plugins/nope.test.sh
+assert_output_has "the missing suite is named" "suite argument 'plugins/nope.test.sh' is not a file"
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "a --timings file in a missing directory is rejected" --root "$r" --timings "$scratch/no-such-dir/t.tsv"
+assert_output_has "the missing directory is named" "--timings directory not found"
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "an empty --timings value is a usage error" --root "$r" --timings=
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "without --timings the run is unchanged" --root "$r" plugins/c/c.test.sh
+assert_output_has "the TIME line still prints" "TIME: plugins/c/c.test.sh "
+
 # A Bash-run caller can export another plugin's data directory. The runner
 # clears it before spawning, so the suite sees the variable unset.
 r="$(make_root plugin-data)"
