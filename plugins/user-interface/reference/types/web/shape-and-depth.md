@@ -94,8 +94,8 @@ Pass the project's resolved `css.concentric_radius.max_gap_px` (from `detect.mjs
 `past_max_gap: true` means the rule has lost force for that pair.
 
 The rule here covers the code. For a quick visual check, or a review of someone else's work on a
-preview URL, a tool that inspects the rendered page fits, and a person can have an agent build a
-throwaway one from an ask like this:
+preview URL, a tool that inspects the rendered page fits, and a person can build a throwaway one
+with `/prototype:build-generator` from an ask like this:
 
 > Build me a mountable inspector for nested border radii. Hovering a nested rounded element should
 > show me actual vs expected per corner, the inner radius should equal the outer radius minus the

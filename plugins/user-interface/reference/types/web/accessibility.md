@@ -517,3 +517,6 @@ flag is a place to look, not a verdict: a form laid out in deliberate columns ca
 still be flagged. The snippet approximates the browser's order (it does not look inside shadow roots
 or iframes), so pressing Tab through the page stays the ground truth: what code cannot prove, such
 as whether the reading order makes sense, goes on the human list as a device check.
+
+To see the path drawn over the live page (numbered stops, lines between them, the backward steps
+marked), a person can build a throwaway overlay with `/prototype:build-generator`.
