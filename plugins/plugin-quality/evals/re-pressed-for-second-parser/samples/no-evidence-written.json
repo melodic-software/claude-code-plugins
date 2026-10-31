@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/data/evidence/s/x/n/evidence.md",
+            "content": "x"
+          }
+        }
+      ],
+      "why": "a packet"
+    }
+  ]
+}
