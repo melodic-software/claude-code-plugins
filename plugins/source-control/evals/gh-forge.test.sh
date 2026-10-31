@@ -142,14 +142,11 @@ assert_eq "pr review: the call is recorded" \
 CREATE="$TEST_TMPDIR/create"
 make_forge create --no-pr
 CREATE_FORGE="$CREATE/.git/eval-forge"
-out=$(git -C "$CREATE/.git/eval-forge/eval-fixture/app.git" for-each-ref --format='%(refname:short)' refs/heads)
-assert_eq "--no-pr: only the base is pushed, so the head is still ahead of origin" "main" "$out"
+assert_eq "--no-pr: the head is on origin, so a run's push has nothing to send" \
+  "$(git -C "$CREATE" rev-parse feat/x)" "$(git -C "$CREATE_FORGE/eval-fixture/app.git" rev-parse feat/x)"
 run_gh "$CREATE" pr view >/dev/null 2>&1
 assert_exit "--no-pr: pr view finds no PR before create" 1 "$?"
 assert_eq "--no-pr: pr list is empty before create" "0" "$(run_gh "$CREATE" pr list --head feat/x --json number --jq length)"
-run_gh "$CREATE" pr create --draft --head feat/x --title "feat: x" --body-file /dev/null >/dev/null 2>&1
-assert_exit "pr create: refused while the head is not on origin" 1 "$?"
-(cd "$CREATE" && PATH="$CREATE_FORGE/bin:$PATH" git push -q origin feat/x) >/dev/null 2>&1
 printf 'Refs: #5\n\n## Summary\n\nx\n' >"$TEST_TMPDIR/body.md"
 out=$(run_gh "$CREATE" pr create --draft --head feat/x --title "feat: y" --body-file "$TEST_TMPDIR/body.md" 2>&1)
 assert_eq "pr create: prints the new PR's URL" "https://github.com/eval-fixture/app/pull/7" "$out"

@@ -5,7 +5,8 @@
 #   bash install.sh <number> <head-branch> <base-branch> <title> [--open] [--no-pr] [--failing-check <name>] [--thread <id>]...
 #     [--outdated-bot-thread <id>]...
 # The pull request is a draft unless --open is given. --no-pr serves no pull request until `gh pr create`
-# opens one from <head-branch>, and pushes only the base, so the head is still ahead of origin.
+# opens one from <head-branch>. The head is always pushed here: the eval sandbox holds .git read-only,
+# so a run's push must find nothing to send, which git reports as up to date with exit 0.
 # Issues the stand-in serves are <git common dir>/eval-forge/issues/<n>.json, written by the scaffold. --failing-check adds one failing check with
 # that name, which `pr checks` and the pull request's status rollup then report. Each --thread adds
 # one unresolved review thread with that id, from a person on the current diff, to what
@@ -94,9 +95,5 @@ git init -q --bare "$forge/eval-fixture/app.git"
 # The base is the repository's default branch, which ls-remote reports as HEAD.
 git -C "$forge/eval-fixture/app.git" symbolic-ref HEAD "refs/heads/$base"
 export PATH="$forge/bin:$PATH"
-if ((no_pr)); then
-  git push -q origin "$base"
-else
-  git push -q origin "$base" "$head"
-  git branch -q --set-upstream-to="origin/$head" "$head"
-fi
+git push -q origin "$base" "$head"
+git branch -q --set-upstream-to="origin/$head" "$head"
