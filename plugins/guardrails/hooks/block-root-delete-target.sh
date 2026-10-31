@@ -107,8 +107,13 @@
 # case, `/NAME` or `/NAME:value`, and `//NAME` and `-NAME` are read as
 # `/NAME` too, except that from the Bash tool a one-letter word with a single
 # slash (`/e`) is the drive root MSYS rewrites it to, as the root arm reads it
-# elsewhere, and never an option (`robocopy src /e /MIR` mirrors onto `E:\`);
-# the words after /XF, /XD or /IF up to the next option are its list. Of the
+# elsewhere, and never an option (`robocopy src /e /MIR` mirrors onto `E:\`).
+# That rewrite runs only while path conversion is on, so a prefix assignment
+# that turns it off for the robocopy (`MSYS_NO_PATHCONV=<any>`, or an
+# `MSYS2_ARG_CONV_EXCL` entry that is `*` or a prefix of the word) makes the
+# word an option again (`MSYS_NO_PATHCONV=1 robocopy /e empty <dest> /MIR`
+# mirrors onto <dest>). An exported suppressor is
+# block-exported-msys-pathconv.sh's to refuse; the words after /XF, /XD or /IF up to the next option are its list. Of the
 # other words the first is the source and the second the destination. A word that can become several words or none changes which
 # word comes first or second, so with one every operand is judged instead:
 # from the Bash tool an unquoted brace, glob, `$` or backtick, or a quoted
@@ -3421,23 +3426,39 @@ rdt_rsync_check() {
   return 0
 }
 
-# rdt_robocopy_scan <msys> <word> ...: read the words after a robocopy command
-# word into RDT_RC_DEST (it purges its destination: /MIR or /PURGE),
+# rdt_msys_excluded <word> <list>: status 0 when the MSYS2_ARG_CONV_EXCL value
+# <list> leaves <word> unconverted, that is when one of its `;`-separated
+# entries is `*` or a non-empty prefix of <word>. An empty <list> excludes
+# nothing.
+rdt_msys_excluded() {
+  local e rest="$2;"
+  while [[ -n "$rest" ]]; do
+    e="${rest%%;*}"
+    rest="${rest#*;}"
+    [[ "$e" == '*' || (-n "$e" && "$1" == "$e"*) ]] && return 0
+  done
+  return 1
+}
+
+# rdt_robocopy_scan <msys> <excl> <word> ...: read the words after a robocopy
+# command word into RDT_RC_DEST (it purges its destination: /MIR or /PURGE),
 # RDT_RC_SRC (it deletes from its source: /MOVE or /MOV) and RDT_RC_OP (the
 # 0-based index among the words of each word that is neither an option nor in
 # a /XF, /XD or /IF list), the first of which is the source and the second the
 # destination (ROBOCOPY DELETES in the header). Shared by the Bash and
 # PowerShell lanes. <msys> is 1 for the Bash lane, where MSYS rewrites a
 # single-slash one-letter word (`/e`) to that drive's root before robocopy
-# sees it, so that word is an operand and never an option.
+# sees it, so that word is an operand and never an option, unless the
+# MSYS2_ARG_CONV_EXCL value <excl> leaves it unconverted. It is 0 for the
+# PowerShell lane and for a Bash robocopy whose prefix sets MSYS_NO_PATHCONV.
 rdt_robocopy_scan() {
-  local k w msys="$1" list=0
-  shift
+  local k w msys="$1" excl="$2" list=0
+  shift 2
   RDT_RC_DEST=0 RDT_RC_SRC=0
   RDT_RC_OP=()
   for ((k = 1; k <= $#; k++)); do
     w="${!k}"
-    if ((msys)) && [[ "$w" =~ ^/[A-Za-z]$ ]]; then
+    if ((msys)) && [[ "$w" =~ ^/[A-Za-z]$ ]] && ! rdt_msys_excluded "$w" "$excl"; then
       ((list)) || RDT_RC_OP+=("$((k - 1))")
       continue
     fi
@@ -3470,9 +3491,20 @@ rdt_robocopy_scan() {
 # bash's dynamic scope.
 # shellcheck disable=SC2329  # invoked from rdt_check_segment, itself a parser callback
 rdt_robocopy_check() {
-  local k
+  local k msys=1 excl=''
   local -a op=() tg=()
-  rdt_robocopy_scan 1 ${words[@]+"${words[@]:$1+1}"}
+  # A prefix assignment is in the environment the MSYS runtime spawns
+  # robocopy from: MSYS_NO_PATHCONV, set to anything, turns path conversion
+  # off, and MSYS2_ARG_CONV_EXCL lists the words it leaves alone. The last
+  # assignment of a name is the one robocopy gets.
+  for ((k = 0; k < $1; k++)); do
+    case "${words[k]}" in
+    MSYS_NO_PATHCONV=*) msys=0 ;;
+    MSYS2_ARG_CONV_EXCL=*) excl="${words[k]#*=}" ;;
+    *) ;;
+    esac
+  done
+  rdt_robocopy_scan "$msys" "$excl" ${words[@]+"${words[@]:$1+1}"}
   ((RDT_RC_DEST || RDT_RC_SRC)) || return 0
   rdt_deleter=1
   for k in ${RDT_RC_OP[@]+"${RDT_RC_OP[@]}"}; do
@@ -4641,7 +4673,7 @@ rdt_ps_robocopy_check() {
   for __p in "$@"; do
     [[ "$__p" == "--%" ]] || __w+=("$__p")
   done
-  rdt_robocopy_scan 0 ${__w[@]+"${__w[@]}"}
+  rdt_robocopy_scan 0 '' ${__w[@]+"${__w[@]}"}
   ((RDT_RC_DEST || RDT_RC_SRC)) || return 0
   for __k in ${RDT_RC_OP[@]+"${RDT_RC_OP[@]}"}; do
     case "${__w[__k]}" in

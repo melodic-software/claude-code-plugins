@@ -2361,6 +2361,31 @@ EOF
 expect_both 'robocopy: PS robocopy src /e /MIR allowed' 0 --tool PowerShell "${RDT_CWD[@]}" \
   --command 'robocopy src /e /MIR'
 
+# A prefix that turns MSYS path conversion off for the robocopy makes `/e` the
+# /E option again, so the destination is the word after the source. A bare
+# assignment in its own segment is not exported, and an exclusion list that
+# does not cover the word leaves it converted.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "robocopy: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+MSYS_NO_PATHCONV=1 robocopy /e empty /opt/nonexistent-rdt/x /MIR
+MSYS2_ARG_CONV_EXCL='*' robocopy /e empty /opt/nonexistent-rdt/x /MIR
+MSYS2_ARG_CONV_EXCL='--x;/e' robocopy /e empty /opt/nonexistent-rdt/x /MIR
+env MSYS_NO_PATHCONV=1 robocopy /e empty /opt/nonexistent-rdt/x /MIR
+MSYS_NO_PATHCONV=1; robocopy src /e /MIR
+MSYS2_ARG_CONV_EXCL=--x robocopy src /e /MIR
+MSYS2_ARG_CONV_EXCL= robocopy src /e /MIR
+EOF
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "robocopy: $rdt_cmd allowed" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+MSYS_NO_PATHCONV=1 robocopy src /e /MIR
+MSYS2_ARG_CONV_EXCL='*' robocopy src /e /MIR
+MSYS_NO_PATHCONV=1 robocopy /e empty build/rdt-out /MIR
+EOF
+
 # From the PowerShell tool an array, an unset variable or a grouping can
 # change which word is the destination, and `--%` is dropped before robocopy
 # sees its arguments.
