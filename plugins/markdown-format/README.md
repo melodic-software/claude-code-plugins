@@ -156,7 +156,9 @@ rewrite case is `markdownlint-cli2` itself, one Node process per root.
 With the option unset, its default, the `Stop` row starts bash and the check script on every
 turn end. On a clean tree that costs 20 spawns (11 creations, 9 execs) and 45.6 ms mean against
 25.3 ms with the option `false` (WSL2 Ubuntu, `hyperfine -N`, 60 runs each), held at 20 spawns in
-`.performance/ratchets.json`.
+`.performance/ratchets.json`. On Windows (Git Bash 5.3.15, 40 runs each) the same path takes 447.5 ms
+mean against 90.6 ms with the option `false`, about 357 ms per turn end: inside the 2,000 ms Stop
+wall and the 1 s per-fire ceiling, and the spawn count is what any reduction would cut.
 
 ## Install
 
