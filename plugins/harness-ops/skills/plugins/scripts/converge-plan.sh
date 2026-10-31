@@ -55,9 +55,12 @@
 # worktree row with a committed enable keeps uninstall as `default: false` with a
 # `warning`, since neither strategy is the default there.
 #
-# Committed-enable read: for each distinct present path that needs it, one
-# `git ls-files --error-unmatch` and, when tracked, one jq read of that file's
-# enabledPlugins keys. This script is that sanctioned read; nothing is written.
+# Committed-enable check: for each distinct present path that needs it, one
+# `git ls-files --error-unmatch .claude/settings.json`. Whether that file holds
+# an entry for the id comes from the report's `projectEnabledEntry`, which
+# fleet-state.sh reads; this script reads no settings file. A tracked file whose
+# entry is "true", "false" or "other" is a committed enable; "absent" is not; a
+# report without the field, or "unreadable", counts as one. Nothing is written.
 #
 # Exit codes:
 #   0  plan emitted (an empty plan is success)
@@ -190,9 +193,9 @@ if [[ -n "$TARGET" && "$TARGET" != "${shape#ok:}" ]]; then
 fi
 
 # The row program, shared by the path-listing pass and the plan pass so the two
-# cannot disagree about which rows need the committed-enable read. `$committed`
-# maps a path to {all: <bool>, ids: [...]}; `all` is true when the check could
-# not be read, which counts as a committed enable.
+# cannot disagree about which rows need the committed-enable check. `$committed`
+# maps a path to "tracked", "untracked" or "unknown"; "unknown" (the check could
+# not be read) counts as a committed enable.
 # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
 ROWS_PROGRAM='
   def triple:
@@ -216,6 +219,7 @@ ROWS_PROGRAM='
        present: (.projectPathPresent == true),
        isHome: (.projectPathIsHome == true),
        worktree: (.linkedWorktree == true),
+       entry: (.projectEnabledEntry // null),
        userHolds: $user_holds,
        catalogLower: ($cat != null and $cat < $hi)}
     | . + {needsCheck: (.scope == "project" and .userHolds and .present and (.isHome | not))};
@@ -230,25 +234,20 @@ if ! jq_to paths_needed -r "$ROWS_PROGRAM"'
   exit 2
 fi
 
-# Committed-enable state per path, fail closed: `all` true means "treat every id
-# as a committed enable". Exit 1 from ls-files is "not tracked" (untracked or
-# missing file); any other failure decides nothing, so it stays closed.
+# Tracked state per path, fail closed: "unknown" counts every id as a committed
+# enable. Exit 1 from ls-files is "not tracked" (untracked or missing file); any
+# other failure decides nothing, so it stays closed.
 committed_lines=""
 while IFS= read -r p; do
   [[ -n "$p" ]] || continue
-  state='{"all":true,"ids":[]}'
+  state='"unknown"'
   pfs="${p//\\//}"
   ls_rc=0
   git -C "$pfs" ls-files --error-unmatch .claude/settings.json >/dev/null 2>&1 || ls_rc=$?
   if ((ls_rc == 1)); then
-    state='{"all":false,"ids":[]}'
+    state='"untracked"'
   elif ((ls_rc == 0)); then
-    keys=""
-    # shellcheck disable=SC2016  # a jq program
-    if jq_to keys -c '(.enabledPlugins // {}) | if type == "object" then keys else error("shape") end' \
-      "$pfs/.claude/settings.json" 2>/dev/null; then
-      state="{\"all\":false,\"ids\":$keys}"
-    fi
+    state='"tracked"'
   fi
   line=""
   # shellcheck disable=SC2016  # a jq program
@@ -265,8 +264,10 @@ PLAN_PROGRAM="$ROWS_PROGRAM"'
   def classify:
     . as $r
     | (if $r.scope == "project" and $r.needsCheck
-       then (($committed[$r.projectPath] // {all: true, ids: []}) as $c
-             | $c.all or (($c.ids | index($r.id)) != null))
+       then (($committed[$r.projectPath] // "unknown") as $t
+             | if $t == "untracked" then false
+               elif $t == "tracked" then ($r.entry != "absent")
+               else true end)
        else false end) as $committed_enable
     | (if $r.worktree then (if $r.userHolds then "uninstall" else "none" end)
        elif $r.scope == "user" then "update"
