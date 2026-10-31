@@ -100,7 +100,8 @@
 #     has a disposition: `Q<N>` naming a register row, `F<N>` naming a
 #     `## Self-answered facts` line whose basis quotes its source (`"..."`) with
 #     a file:line or a URL, or `deferred: <where>`. A `decision` or `person`
-#     item never takes `F<N>`, nor `deferred:` unless it is `hedged`. Only a
+#     item, or any `unstated-value` item, never takes `F<N>`, nor `deferred:`
+#     unless it is `hedged`. Only a
 #     `hedged` item's `Q<N>` may be a row its source names; any other item
 #     becomes a new row, above the sweep's `- sweep <M> | register through Q<N>`
 #     line, which precedes the sweep's rows and names the register's last row
@@ -355,7 +356,7 @@ check_sweep() {
   local text lno sweep_ran sweep_matches sweep_line facts_matches facts="" body
   local s_lo=0 s_hi=0 sweep_keys=$'\n' sweep_rows=0 sweep_none=0 row seps key
   local sweep_marks=$'\n' sweep_no high_water
-  local category class src disposition hedged user_owned qnum qid fid basis found gaps src_rest src_max
+  local category class src disposition hedged user_owned owned_kind qnum qid fid basis found gaps src_rest src_max
   local quote_re='"[^"]+"' loc_re='(https?://[^[:space:]]+|[^[:space:]:]+:[0-9]+)'
 
   while IFS=$'\t' read -r lno text; do
@@ -457,7 +458,7 @@ check_sweep() {
 
       shopt -s nocasematch
       case "$category" in
-      undecided | hidden-default | contradiction | inherited | hedged | coined-term) ;;
+      undecided | hidden-default | contradiction | inherited | hedged | coined-term | unstated-value) ;;
       *) proc_problem "line $lno: $key has unknown category '$category'" ;;
       esac
       case "$class" in
@@ -469,7 +470,9 @@ check_sweep() {
       hedged=0
       [[ "$category" != hedged ]] || hedged=1
       user_owned=0
-      [[ "$class" != decision && "$class" != person ]] || user_owned=1
+      [[ "$class" != decision && "$class" != person && "$category" != unstated-value ]] || user_owned=1
+      owned_kind="$class"
+      [[ "$category" != unstated-value ]] || owned_kind="$category"
       shopt -u nocasematch
 
       if [[ "$disposition" =~ ^[Qq]([1-9][0-9]*)$ ]]; then
@@ -511,7 +514,7 @@ check_sweep() {
       elif [[ "$disposition" =~ ^[Ff]([1-9][0-9]*)$ ]]; then
         fid="F${BASH_REMATCH[1]}"
         if [[ "$user_owned" -eq 1 ]]; then
-          proc_problem "line $lno: $key is a $class item settled by $fid; a $class item becomes an open register row asked with a recommendation, never a fact"
+          proc_problem "line $lno: $key is a $owned_kind item settled by $fid; a $owned_kind item becomes an open register row asked with a recommendation, never a fact"
           continue
         fi
         found=0
@@ -529,7 +532,7 @@ check_sweep() {
         fi
       elif [[ "$disposition" =~ ^[Dd]eferred:[[:space:]]*[^[:space:]] ]]; then
         [[ "$user_owned" -eq 0 || "$hedged" -eq 1 ]] ||
-          proc_problem "line $lno: $key is a $class item deferred outside the register; it becomes a register row (deferred or blocked there when it cannot be asked)"
+          proc_problem "line $lno: $key is a $owned_kind item deferred outside the register; it becomes a register row (deferred or blocked there when it cannot be asked)"
       else
         proc_problem "line $lno: $key has no disposition (Q<N>, F<N> or 'deferred: <where>'): '$disposition'"
       fi
