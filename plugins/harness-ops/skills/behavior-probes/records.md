@@ -452,8 +452,8 @@ runs. Run 1 (manual, 05:47Z) posted
 and run 2 (scheduled, 06:08Z, a separate session) posted
 [the same nonce read back](https://github.com/melodic-software/claude-code-plugins/issues/8991#issuecomment-6539913643).
 The [host-run report](https://github.com/melodic-software/claude-code-plugins/issues/8991#issuecomment-6540243272)
-has the rest. The case `cloud-routine/state-read-back-next-run` has passed a dry run but has not run
-live; its first live run replaces this basis. The recheck trigger and expiry above apply.
+has the rest. The case `cloud-routine/state-read-back-next-run` has not run live or in a dry run yet;
+its first live run replaces this basis. The recheck trigger and expiry above apply.
 
 ## 19. A cloud routine reads back on its next run the state it posted to an issue comment
 
