@@ -4010,6 +4010,24 @@ class TestRoundTooling(DirCase):
         rows = ledger.read_text(encoding="utf-8").splitlines()
         self.assertIn("- Q4 | open | round 2 | Question Q4? |", rows)
 
+    def test_sync_ledger_names_the_ledger_ledger_check_reads(self):
+        ledger = self.ledger()
+        self.assertNotIn("seededFrom", self.doc()["meta"])
+        rc, out, err = self.rp(
+            "add-round",
+            "--file",
+            self.round_file(question("Q4")),
+            "--sync-ledger",
+            str(ledger),
+        )
+        self.assertEqual(rc, 0, out + err)
+        meta = self.doc()["meta"]
+        self.assertEqual(meta["syncedLedger"], str(ledger.resolve()))
+        self.assertEqual(meta["ledgerSync"], {"rev": self.doc()["rev"], "rows": []})
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 0, out + err)
+        self.assertIn("ledger in sync", out)
+
     def test_sync_ledger_with_a_missing_ledger_writes_nothing(self):
         self.assert_refused(
             "add-round",
@@ -4638,6 +4656,18 @@ class TestLedgerCheck(DirCase):
         rc, out, err = self.rp("ledger-check")
         self.assertEqual(rc, 0, out + err)
         self.assertNotIn("ledgerSync", self.doc()["meta"])
+
+    def test_a_page_synced_to_a_ledger_is_checked_against_it(self):
+        doc = self.doc()
+        del doc["meta"]["seededFrom"]
+        self.write_doc(doc)
+        rc, out, err = self.rp("sync-ledger", "--ledger", str(self.ledger))
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], [])
+        self.drift_one_row()
+        rc, out, err = self.rp("ledger-check")
+        self.assertEqual(rc, 1, out + err)
+        self.assertEqual(self.doc()["meta"]["ledgerSync"]["rows"], ["Q2"])
 
     def test_wake_logs_the_disagreeing_row_after_apply(self):
         self.drift_one_row()
