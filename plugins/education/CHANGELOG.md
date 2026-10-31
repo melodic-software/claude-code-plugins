@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.13] - 2026-10-31
+
+### Changed
+
+- `/education:teach` routes book extraction to `/knowledge:distill`, the knowledge plugin's new name for its book distillation skill.
+
 ## [0.20.12] - 2026-10-31
 
 ### Fixed

@@ -3,6 +3,28 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.74.0] - 2026-10-31
+
+### Added
+
+- `block-root-delete-target` judges a PowerShell delete run through another command as the delete itself, so its target must sit strictly inside the git toplevel, the session scratchpad or an allowed root, and one aimed at a root, at HOME or outside them is refused. That covers the string `Invoke-Expression` or `iex` runs, the `-Command` text of `pwsh` or `powershell`, an `-EncodedCommand` decoded from base64 of UTF-16LE, the program and argument list of `Start-Process`, a pipeline removal (`gci X | Remove-Item`, `gci X | % { $_.Delete() }`) judged by the `Get-ChildItem` or `Get-Item` path that feeds it, and a .NET delete (`[IO.Directory]::Delete`, `[IO.File]::Delete`, `(Get-Item X).Delete()`) judged by its path argument. A removal fed by anything but such a listing is refused, and an `-EncodedCommand` that is not literal base64 of printable ASCII text is denied whether or not the session is attended. A mechanism named inside quoted prose, such as a `git commit -m` message, stays allowed.
+
+### Changed
+
+- `block-root-delete-target` no longer refuses every PowerShell pipeline into `Remove-Item -Recurse` with no path: when a `Get-ChildItem` or `Get-Item` feeds it, that listing's path is judged instead, so `gci build | Remove-Item -Recurse` from a repository passes.
+
+## [0.73.0] - 2026-10-31
+
+### Added
+
+- `block-root-delete-target` refuses a decoder feeding an execution sink outright, whatever the decoded text targets, and denies it in an attended session too, because the decoded text never appears in the command. On the Bash tool that is `base64 -d`, `base32 -d`, `basenc -d` or `xxd -r` whose output a shell reading stdin, `source /dev/stdin`, `eval`, a `-c` operand or a substitution in command position runs, so `echo <b64> | base64 -d | sh`, `eval "$(echo <b64> | base64 -d)"` and `bash <(xxd -r -p dump.hex)` are refused. On the PowerShell tool it is `[Convert]::FromBase64String` reaching `Invoke-Expression` or `iex`. Decoded output written to a file or shown in a pager (`base64 -d x > out.bin`, `base64 -d x | less`) passes, and so does a decoder named inside quoted prose, such as a `git commit -m` message.
+
+### Fixed
+
+- `block-root-delete-target` drops a `/` entry in `block_root_delete_target_allowed_roots`, or a name-prefix entry whose directory is `/`, on every host. Under Git Bash `/` maps to the Git install directory, so the entry was kept and allowed a recursive delete of every path under that directory, such as `/opt/...`.
+
+- The plugin description's Blocks list now names the PR-fix lane request that `block_fix_request_post_enabled` blocks, and lists cross-domain paths with the other blocks. The guard count stays fifteen.
+
 ## [0.72.0] - 2026-10-31
 
 ### Added

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "docs/cache.md:6 rule-generic-conclusions: \"The future looks bright.\" fits any article. Lines 3-4 give a date and figures; no finding.",
+      "why": "closer under a rule other than the two named, specific paragraph left alone"
+    },
+    {
+      "answer": "No script or rubric findings in docs/cache.md. Line 6 \"The future looks bright.\" matches no shipped rule.",
+      "why": "no finding at all for the closer"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs/cache.md:6 rule-challenges-conclusion: \"The future looks bright.\"",
+      "why": "bare closer filed as the formulaic challenges tell"
+    },
+    {
+      "answer": "docs/cache.md:6 rule-generic-conclusions: \"The future looks bright.\" docs/cache.md:3 rule-significance-inflation: \"went live on 3 March\".",
+      "why": "the specific paragraph reported"
+    }
+  ]
+}

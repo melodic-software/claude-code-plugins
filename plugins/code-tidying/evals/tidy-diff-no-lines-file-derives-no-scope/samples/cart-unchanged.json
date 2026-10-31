@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "def cart_total(items):\n    return sum(item.price for item in items)\n\n\ndef count_items(items):\n    count = 0\n    for item in items:\n        # increment the counter\n        count = count + 1\n    return count\n",
+      "why": "seeded file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def cart_total(items):\n    return sum(item.price for item in items)\n\n\ndef count_items(items):\n    count = 0\n    for item in items:\n        count = count + 1\n    return count\n",
+      "why": "comment deleted"
+    },
+    {
+      "answer": "def cart_total(items):\n    return sum(item.price for item in items)\n\n\ndef count_items(items):\n    return len(items)\n",
+      "why": "loop simplified"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": "docs/cache.md"}}],
+      "why": "read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Edit", "input": {"file_path": "sandbox/docs/cache.md", "old_string": "The future looks bright.", "new_string": ""}}],
+      "why": "edited the audited file"
+    }
+  ]
+}

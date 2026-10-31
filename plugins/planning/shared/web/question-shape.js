@@ -1,5 +1,5 @@
 // The browser half of question-shape knowledge that both interview pages share, served by both servers (the shared
-// page's server.py and the 1:1 page's surface/server.py): the id of a person's own option, the markdown both pages
+// page's server.py and the 1:1 page's surface/interview_server.py): the id of a person's own option, the markdown both pages
 // render, the composer kit every text box people write in uses, and the fit to the visual viewport that keeps an
 // on-screen keyboard off the field being typed in. One classic script, one global: QuestionShape.
 (() => {

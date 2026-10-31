@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "<aside className=\"drawer\" data-open={open || undefined} inert={!open}>\n  <button aria-label=\"Close menu\" onClick={() => setOpen(false)}><XIcon aria-hidden /></button>\n  <nav>{links}</nav>\n</aside>",
+      "why": "the closed panel is inert, so Tab skips its links"
+    },
+    {
+      "answer": ".drawer { transform: translateX(-100%); visibility: hidden; transition: transform 200ms, visibility 0s 200ms; }\n.drawer[data-open] { transform: none; visibility: visible; transition: transform 200ms, visibility 0s; }",
+      "why": "visibility hidden while closed, flipped after the exit slide finishes"
+    },
+    {
+      "answer": "{open && (\n  <aside className=\"drawer\">\n    <button aria-label=\"Close navigation\" onClick={close}><XIcon aria-hidden /></button>\n    <nav>{links}</nav>\n  </aside>\n)}",
+      "why": "the panel is not rendered while closed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ".drawer { transform: translateX(-100%); opacity: 0; transition: transform 200ms, opacity 200ms; }\n.drawer[data-open] { transform: none; opacity: 1; }",
+      "why": "the prompt's own CSS: opacity and transform leave the links tabbable"
+    },
+    {
+      "answer": "<aside className=\"drawer\" data-open={open || undefined} aria-hidden={!open}>\n  <nav>{links}</nav>\n</aside>",
+      "why": "near miss: aria-hidden hides it from screen readers but Tab still reaches the links"
+    },
+    {
+      "answer": ".drawer { transform: translateX(-100%); opacity: 0; pointer-events: none; }\n.drawer[data-open] { transform: none; opacity: 1; pointer-events: auto; }",
+      "why": "near miss: pointer-events stops clicks, not keyboard focus"
+    },
+    {
+      "answer": "Make sure the closed drawer is removed from the tab order so keyboard users can't reach it.",
+      "why": "the fix only in prose, no code"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Button\n\nVariants: `primary`, `secondary`, `danger`. Nothing else exists: an unlisted variant is a bug, not an option.",
+      "why": "exactly the union's three variants, set closed"
+    },
+    {
+      "answer": "## Button\n\nOnly `primary`, `secondary` and `danger` exist (the union in Button.tsx). Never use any other variant.\n\n```tsx\n// Incorrect: ghost doesn't exist here\n<Button variant=\"ghost\">Cancel</Button>\n```",
+      "why": "closed set; ghost appears only as the incorrect example"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "## Button\n\nVariants: `primary`, `secondary`, `danger`, `ghost`.",
+      "why": "documents ghost, which the code does not define"
+    },
+    {
+      "answer": "## Button\n\nVariants: `primary`, `secondary`, `danger`.\n\n- `primary`: the main action.\n- `danger`: destructive actions.\n- `secondary`: everything else.",
+      "why": "near miss: the right three variants, but the set is never closed"
+    }
+  ]
+}
