@@ -184,8 +184,7 @@ for file in CHANGELOG.md .claude-plugin/plugin.json; do
   assert_exit "symlinked $file: exit 1" 1 "$?"
   assert_contains "symlinked $file: names the plugin" "$out" "left for manual resolution: $P"
   assert_eq "symlinked $file: target untouched" outside "$(cat "$outside")"
-  [[ -L $r/$P/$file ]]
-  assert_exit "symlinked $file: link kept" 0 "$?"
+  assert_eq "symlinked $file: link kept" "$outside" "$(readlink "$r/$P/$file")"
   for target in "$TEST_TMPDIR/missing" "$TEST_TMPDIR"; do
     rm -f "$r/$P/$file"
     ln -s "$target" "$r/$P/$file"
