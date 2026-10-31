@@ -907,7 +907,8 @@ const fieldEvent = (type, field, actor) => ({
   actor: { databaseId: actor },
   issueField: { fullDatabaseId: String(field) },
 });
-async function mainOnIssue(events, splitChild = "false") {
+const FIELD_ROWS = [fieldRow(15462270, 27053567), fieldRow(48625720, 85127653), fieldRow(48625721, 85127654)];
+async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROWS) {
   const env = routeEnv({
     MODEL_ROUTE: "",
     LANE: "work-resolve-issue",
@@ -923,7 +924,7 @@ async function mainOnIssue(events, splitChild = "false") {
   const github = async (method, path, body, headers) => {
     calls.push({ method, path, headers });
     if (path === "/repos/o/r/issues/7/issue-field-values") {
-      return [fieldRow(15462270, 27053567), fieldRow(48625720, 85127653), fieldRow(48625721, 85127654)];
+      return fieldValues;
     }
     if (path === "/graphql") {
       assert.deepEqual(body.variables, { owner: "o", name: "r", number: 7 });
@@ -979,6 +980,36 @@ test("main fails when the field events answer with GraphQL errors", async () => 
   const { fieldSetters } = await import("./resolve-config.mjs");
   const github = async () => ({ errors: [{ message: "Resource not accessible by integration" }] });
   await assert.rejects(() => fieldSetters(github, "o/r", 7), /field events could not be read: Resource not accessible/);
+});
+
+test("main fails when the field values answer is not a list", async () => {
+  for (const answer of [{ message: "Not Found" }, null]) {
+    const { code, outputs } = await mainOnIssue([], "false", answer);
+    assert.equal(code, 1, JSON.stringify(answer));
+    assert.equal(outputs["issue-dimensions"], undefined, JSON.stringify(answer));
+  }
+});
+
+test("fieldSetters fails on an answer with no data and no errors, or a null issue", async () => {
+  const { fieldSetters } = await import("./resolve-config.mjs");
+  for (const answer of [{}, null, { data: null }, { data: { repository: null } }, { data: { repository: { issue: null } } }]) {
+    const github = async () => answer;
+    await assert.rejects(() => fieldSetters(github, "o/r", 7), /field events answer named no issue/, JSON.stringify(answer));
+  }
+});
+
+test("fieldSetters fails on an issue with no event list", async () => {
+  const { fieldSetters } = await import("./resolve-config.mjs");
+  for (const issue of [{}, { timelineItems: null }, { timelineItems: { nodes: null } }]) {
+    const github = async () => ({ data: { repository: { issue } } });
+    await assert.rejects(() => fieldSetters(github, "o/r", 7), /field events answer holds no event list/, JSON.stringify(issue));
+  }
+});
+
+test("fieldSetters reads an empty event list as no setters", async () => {
+  const { fieldSetters } = await import("./resolve-config.mjs");
+  const github = async () => ({ data: { repository: { issue: { timelineItems: { nodes: [] } } } } });
+  assert.deepEqual({ ...(await fieldSetters(github, "o/r", 7)) }, {});
 });
 
 test("main reads a field removed after it was set as unset", async () => {

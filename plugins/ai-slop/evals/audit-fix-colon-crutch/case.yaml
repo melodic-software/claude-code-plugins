@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-fix-colon-crutch
+description: "Fix states a colon-crutch point once without swapping the colon for a dash or semicolon, and keeps the colon that introduces a list. Written from MB:plugins/ai-slop/skills/audit/reference/rewrite-guide.md:87-90, MB:plugins/ai-slop/skills/audit/reference/catalog.md:924-936, MB:plugins/ai-slop/skills/audit/SKILL.md:243-245 (the base contract)."
+tags: [fix, rubric, colon-crutch]
+runs: 3
+expected_outcome: "After an explicit fix, docs/paging.md no longer stages 'The short version:' with a colon, dash or semicolon; it still says the job retries three times before it pages anyone; the line 'The job reads three settings:' keeps its colon before the list; and the line that states the retry claim carries no em dash, en dash, spaced hyphen or semicolon in place of the colon (a semicolon or dash elsewhere in the file is not this case's concern). The fix reads reference/rewrite-guide.md first."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/ai-slop:audit fix docs/paging.md"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent]
+  max_turns: 80
+  timeout_seconds: 1500

@@ -1,11 +1,12 @@
 # ai-slop
 
-Detects and removes AI-writing tells ("slop") in checked-in markdown prose.
+Detects and removes AI-writing tells ("slop") in checked-in markdown prose, commit messages, PR bodies and interface copy.
 
 ## Skills
 
 - `/ai-slop:audit [target]` reports AI-writing tells in the target (default: the whole repo's
-  tracked markdown). Read-only. `fix` as an explicit argument applies rewrites behind a
+  tracked markdown; `commit [rev]`, `pr-body` and `copy <files>` audit a commit message, a pull
+  request body or interface strings). Read-only. `fix` as an explicit argument applies rewrites behind a
   semantic-diff guard.
 - `/ai-slop:audit user-scope [memory]` audits the user-level Claude Code markdown
   (`CLAUDE.md`, rules, skills, commands, agents, output styles) under `CLAUDE_CONFIG_DIR`,

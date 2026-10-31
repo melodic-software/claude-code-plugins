@@ -3,6 +3,63 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-10-31
+
+### Added
+
+- `/user-interface:design` and `/user-interface:audit` gain forms and inputs guidance for the web (associated labels, the right input type and `autocomplete`, decorations over the input, autofocus gated on a coarse pointer, a wrapping `<form>` with Enter and Cmd or Ctrl+Enter submit, real buttons that disable while submitting, failed submits that keep what was typed, late validation with errors beside their field, dead-zone-free checkbox rows, confirmed destructive actions, prefilled fields and drafts that survive a refresh), each audit-checked rule with its severity.
+
+- `/user-interface:design` and `/user-interface:audit` gain icon and illustration guidance for the web (an icon size ladder with stroke weights per size, thinner strokes at small sizes and filled variants below 12px, one icon library per surface, round caps, single-path icons, one meaning per icon, labels for ambiguous metaphors, icon-to-label gaps, and illustrations matched to the icon stroke, the color tokens, a small palette and the interface's light direction), each audit-checked rule with its severity.
+
+- `/user-interface:design` and `/user-interface:audit` gain interface state guidance for web screens: empty states that teach and create the first item, failed requests with a specific recovery, delayed wait indicators, skeletons that hold the page's shape, optimistic updates that revert on failure, copy confirmations, feedback while the user acts, toast durations from word count, and badges versus tags.
+
+- `/user-interface:design` and `/user-interface:audit` gain component API guidance for shared web components (composition over configuration, compound parts, finite variants typed as unions, platform prop names, controlled and uncontrolled state, refs and prop spreading, safe defaults) with React implementation patterns.
+
+- `/user-interface:design` and `/user-interface:audit` gain marketing page guidance for landing pages, pricing, docs sites, blogs and changelogs: motion that follows the visitor, page titles, descriptions and link previews, crawler files and icons, header submenus kept in the DOM, auth-aware calls to action, a working conversion path, copyable docs, feeds, and code-built illustrations, each rule with its audit severity.
+
+- Theming and dark mode guidance for web interfaces in `reference/types/web/theming.md`: declaring only the color schemes that were designed, finishing or turning off a half-built dark mode, flipping one variable scale at the theme root instead of per-component `dark:` overrides, hardcoded colors, images and third-party widgets that miss the second theme, `theme-color` and autofill in both themes, and theme switches that do not animate every color, each with the severity `/user-interface:audit` reports.
+
+- Generic-defaults guidance for `/user-interface:design` and `/user-interface:audit`: a pass that deletes what nothing needs, then replaces the tells that make a web screen look generated (unchosen indigo, stacked gradients, gradient headlines, glass over nothing, template heroes and feature grids, emoji as icons), flags placeholder content and invented social proof as blocking, and gives marketing and brand surfaces a point of view while application UI keeps the system font stack.
+
+- A design-system note procedure behind `/user-interface:design` filling gaps: inventory the real tokens, components and variant unions first, size the note to the system, document each component with when to use it and its alternative, a closed variant set, the default, a correct and an incorrect example and a flowchart for three or more options, write rules as numbers with their why, then test the note by prompting for a real screen and fix the note, not the output, with a worked example `DESIGN.md`.
+
+## [0.11.0] - 2026-10-31
+
+### Added
+
+- A shape-and-depth concern for `/user-interface:design` and `/user-interface:audit`: nested radii, shadows over borders, hairlines, eased gradients and mask fades, and image outlines, with audit severities, plus `scripts/nested-radius.mjs`, which works out a nested element's radius and says when the gap is too wide for the rule to apply.
+
+- `/user-interface:design` and `/user-interface:audit` gain web layout guidance: settle hierarchy, spacing and alignment first, one primary action per view, spacing from a scale with `gap` on the parent, optical alignment, capped content containers and content-driven breakpoints, sticky headers capped against the viewport, text beside rather than over full-bleed images, `z-index` from a token scale or a local stacking context, and decorative layers that never take clicks.
+
+- `/user-interface:design` and `/user-interface:audit` gain web color guidance: oklch for new colors, contrast repaired by moving lightness only against the WCAG 2.2 AA bar with APCA as an advisory second check, every text pair checked in both themes, tonal scales with one fixed hue and per-hue chroma, dark-mode colors from a remap of the scale's roles, value-for-value conversion from hex, `rgb()` and `hsl()` with `none` as the hue of grays, gamut clamping with a Display P3 layer, a `--focus-ring` token held to 3:1 in both themes, and Tailwind `@theme` color tokens read only in Tailwind projects.
+
+- `/user-interface:design` and `/user-interface:audit` gain web typography guidance (font files and synthesized styles, variable axes and OpenType features, type scale, leading and tracking, line length, wrap modes, truncation, the right typographic characters, underlines, selection, smoothing and size floors), with a Tailwind map read only when the project uses Tailwind.
+
+## [0.10.0] - 2026-10-31
+
+### Added
+
+- `reference/concerns.json`, the interface concern table, with `reference/concerns.schema.json` and `scripts/lib/concerns-validate.mjs`. Each row names the reference files (spokes) a concern reads, its routing concerns and its audit order; the first row is `motion`.
+- `design.concern_spoke_cap` (default 2, an integer of at least 1) bounds how many concern spokes one `/user-interface:design` pass loads.
+
+- `/user-interface:glossary`, a model-invoked reverse term lookup: given an effect, visual detail or behavior someone can describe but not name, it answers with the term, separates near-synonyms, turns a vague feel request into named terms, and asks for a reference image when no term fits. Its term files cover typography, color, icons, layout, interaction, motion, easing and springs, rendering performance, accessibility, information architecture, copywriting, design tools, analytics, components and front-end engineering; each entry gives the term, a definition and the line against its nearest near-synonym.
+
+### Changed
+
+- The animation audit skill is now `/user-interface:audit`. It takes a scope, `diff` (the default), `tree`, or `launch`, which walks every lane in the concern table's audit order, one pass each, and reviews one concern lane per pass. The motion lane keeps the `opportunities` and `performance` sub-modes, now in its procedure file `skills/audit/reference/motion.md`. `--fix` still applies one finding at a time after a yes, at every scope.
+- `/user-interface:design` Step 3 loads spokes for the concerns the project's own system does not cover from the concern table, up to the cap, and names the rest as next steps.
+
+### Fixed
+
+- `/user-interface:design` now applies the routing-as-data 2.0.0 team-row limits. A team `routing.rows` entry is dropped when its id matches neither a bundled row nor its own installed plugin or skill, when it adds a `kind: tool` row, or when it reuses a bundled id but changes that row's `kind`, `detect` or `account`. When the installed list cannot be read, a row whose id matches no bundled row is also dropped. `scripts/detect.mjs --config` names each dropped row and the rule it broke in `routing_notes`. `reference/team.schema.json` states the three rules.
+
+## [0.9.6] - 2026-10-31
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
 ## [0.9.5] - 2026-10-30
 
 ### Changed

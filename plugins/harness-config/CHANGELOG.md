@@ -5,6 +5,19 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [2.2.3] - 2026-10-31
+
+### Changed
+
+- `draft-auto-mode-rules`, `audit-instructions`, `audit-permission-state` and `audit-permission-grants` offer `/auto-mode-setup`, `/doctor` and `/permissions` as suggest sentences, `If /<name> is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when an offer is deleted or reworded.
+
+## [2.2.2] - 2026-10-31
+
+### Fixed
+
+- The convention-home resolver refuses a pointer that names `.git` or a path inside it, and a
+  working-tree home reached through a symlink: both exit 3.
+
 ## [2.2.1] - 2026-10-31
 
 ### Changed

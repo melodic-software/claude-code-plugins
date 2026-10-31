@@ -1,72 +1,76 @@
 #!/usr/bin/env node
 /**
- * Cross-platform launcher for the course-digest extraction entry points.
+ * Cross-platform launcher for the course-digest extraction entry points: the shared
+ * launcher (`vendor/node-launcher/run.mjs`) with this package's child environment.
  *
- * The pipeline's node dependencies live in `${CLAUDE_PLUGIN_DATA}/node_modules`
- * (installed by setup-deps.mjs), not inside the cache-isolated plugin directory.
- * This launcher re-execs the target script with an ESM resolve hook that finds
- * bare specifiers like `@melodic/video-digestion` in the data directory, so
- * every documented invocation is a plain `node run.mjs <script> …` with no
- * shell-specific env-var syntax. (An inline `NODE_PATH=… node` prefix is both
- * bash-only — it fails under PowerShell — and ignored by the ESM loader, which
- * does not honor NODE_PATH at all.)
+ * It pins `PLAYWRIGHT_BROWSERS_PATH` to the data-directory location setup-deps.mjs
+ * installs Chromium into, so the browser binary resolves at runtime no matter what
+ * cwd the pipeline runs from. Setting it at the single choke point every script
+ * launch passes through keeps install path and lookup path in lockstep. An explicit
+ * value already in the environment wins (honored, not overwritten).
  *
- * It also pins `PLAYWRIGHT_BROWSERS_PATH` to the same data-directory location
- * setup-deps.mjs installs Chromium into, so the browser binary resolves at
- * runtime no matter what cwd the pipeline runs from. Setting it here — the single
- * choke point every script launch passes through — keeps install path and lookup
- * path in lockstep. An explicit value already in the environment wins (honored,
- * not overwritten).
+ * The leading `--data-dir` names the data directory. The child sees only the value
+ * `resolvePluginData` accepts, never an inherited `CLAUDE_PLUGIN_DATA` that names
+ * another plugin.
  *
- * The leading `--data-dir` names the data directory (`lib/plugin-data.js`). The child
- * sees only the value `resolvePluginData` accepts, never an inherited
- * `CLAUDE_PLUGIN_DATA` that names another plugin.
+ * Course material is paid content kept for personal use. Before launching, every
+ * `--course-dir` and `--output-dir` value (`--flag <dir>` or `--flag=<dir>`) is
+ * judged by `scripts/repo-visibility.mjs`; unless each reads private, internal or
+ * local, nothing launches and the exit is 1.
  *
  * Usage: node run.mjs [--data-dir <dir>] <relative-script.js> [args…]
  */
-import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { resolvePluginData, takeDataDirFlag } from "./lib/plugin-data.js";
+import { directoryVisibility } from "../../../scripts/repo-visibility.mjs";
+import { dataDirEnv, launch } from "../../../vendor/node-launcher/run.mjs";
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const usage = "Usage: node run.mjs [--data-dir <dir>] <relative-script.js> [args…]\n";
+const PRIVATE = new Set(["private", "internal", "local"]);
+const COURSE_DIR_FLAGS = ["--course-dir", "--output-dir"];
 
-let dataDir;
-let script;
-let rest;
-try {
-  const taken = takeDataDirFlag(process.argv.slice(2));
-  [script, ...rest] = taken.rest;
-  dataDir = resolvePluginData(taken.dataDir, process.env);
-} catch (error) {
-  process.stderr.write(`${error.message}\n${usage}`);
-  process.exit(2);
+/**
+ * Every course directory `argv` names, in order.
+ *
+ * @param {string[]} argv
+ * @returns {string[]}
+ */
+function courseDirs(argv) {
+  const dirs = [];
+  argv.forEach((arg, i) => {
+    for (const flag of COURSE_DIR_FLAGS) {
+      if (arg === flag && i + 1 < argv.length) dirs.push(argv[i + 1]);
+      else if (arg.startsWith(`${flag}=`)) dirs.push(arg.slice(flag.length + 1));
+    }
+  });
+  return dirs;
 }
 
-if (!script) {
-  process.stderr.write(usage);
-  process.exit(2);
+const argv = process.argv.slice(2);
+for (const dir of courseDirs(argv)) {
+  const target = path.resolve(dir);
+  const { visibility, reason } = directoryVisibility(target);
+  if (!PRIVATE.has(visibility)) {
+    process.stderr.write(
+      `Refusing to write course material to ${target}: it reads ${visibility} (${reason}). ` +
+        "Course material is paid content kept for personal use, so it lands only where the visibility " +
+        "check reads private, internal or local. Set the knowledge plugin's library_dir to a private " +
+        "corpus checkout, or run from a private repository.\n",
+    );
+    process.exit(1);
+  }
 }
 
-const target = path.resolve(here, script);
-const rel = path.relative(here, target);
-if (rel.startsWith("..") || path.isAbsolute(rel)) {
-  process.stderr.write(`Refusing to run a script outside the extraction directory: ${script}\n`);
-  process.exit(2);
-}
-
-const { CLAUDE_PLUGIN_DATA: _inherited, ...env } = process.env;
-if (dataDir) {
-  env.CLAUDE_PLUGIN_DATA = dataDir;
-  env.PLAYWRIGHT_BROWSERS_PATH ||= path.join(dataDir, "ms-playwright");
-}
-
-const registerHook = path.join(here, "register-hook.mjs");
-const result = spawnSync(
-  process.execPath,
-  ["--import", pathToFileURL(registerHook).href, target, ...rest],
-  { stdio: "inherit", env },
+process.exit(
+  launch({
+    packageDir: import.meta.dirname,
+    argv,
+    usage: "Usage: node run.mjs [--data-dir <dir>] <relative-script.js> [args…]\n",
+    childEnv: (inherited, parsed) =>
+      parsed.dataDir
+        ? {
+            ...dataDirEnv(inherited, parsed),
+            PLAYWRIGHT_BROWSERS_PATH: inherited.PLAYWRIGHT_BROWSERS_PATH || path.join(parsed.dataDir, "ms-playwright"),
+          }
+        : inherited,
+  }),
 );
-process.exit(result.status ?? 1);

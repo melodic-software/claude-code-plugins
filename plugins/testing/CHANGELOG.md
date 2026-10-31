@@ -3,6 +3,27 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.7.2] - 2026-10-31
+
+### Fixed
+
+- **run-e2e:** `e2e-summary.json`'s `publishable` list is no longer always empty. It takes the
+  paths from the `publishable` list in each drive run's `report.json`, then adds
+  `e2e-summary.json` only when a scan of its text finds no hit. The scan uses the same sources as
+  `/app-control:drive`'s "Mask post-check": the control skill hub's `## Mask` `values:` and the
+  generic credential pattern. A hit or an unresolved value source keeps the summary out
+  ([#11388](https://github.com/melodic-software/claude-code-plugins/issues/11388)).
+
+## [1.7.1] - 2026-10-31
+
+### Fixed
+
+- The `run-e2e-app-control-absent-reports-drift`, `run-e2e-flat-feature-id-resolves` and
+  `run-e2e-grouped-feature-id-resolves` eval cases now expect what `/testing:run-e2e` does without
+  app-control: `touched features not matched (app-control not installed)`, no refresh, and a next
+  step of installing app-control. The flat and grouped cases check the feature id on the report
+  lines.
+
 ## [1.7.0] - 2026-10-31
 
 ### Added

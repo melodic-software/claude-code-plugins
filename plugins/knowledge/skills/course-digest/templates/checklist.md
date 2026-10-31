@@ -1,6 +1,6 @@
 # /knowledge:course-digest Checklist
 
-Copy into `.work/<slug>/course-digest-checklist.md`. Tick each phase as it completes; skip per the criteria below.
+Copy into `<work-root>/.work/<slug>/course-digest-checklist.md`. Tick each phase as it completes; skip per the criteria below.
 
 ## Phases (`[full-context]` synthesis requires transcript + frames + code)
 

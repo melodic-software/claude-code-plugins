@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "- `primary`: the single most important action on a screen. One per view.\n- `danger`: destructive or hard-to-undo actions only.\n- `secondary`: everything else. This is the default.\n\n```tsx\n// Correct\n<Button>Cancel</Button>\n\n// Incorrect: two primaries in one footer\n<Button variant=\"primary\">Cancel</Button>\n<Button variant=\"primary\">Send invoice</Button>\n```",
+      "why": "secondary is the default, primary and danger have rules, one correct and one incorrect example"
+    },
+    {
+      "answer": "Most buttons are `secondary` (the component's default). `primary` marks the one most important action per screen; `danger` is for voiding or deleting.\n\n```tsx\n<Button variant=\"danger\">Void invoice</Button> // correct\n<Button variant=\"primary\">Void invoice</Button> // incorrect: destructive actions use danger\n```",
+      "why": "default named, rules given, correct and incorrect usage in code"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "- `primary`: the default for most buttons.\n- `secondary`: less important actions.\n- `danger`: destructive actions.\n\n```tsx\n<Button variant=\"primary\">Save</Button>\n<Button variant=\"ghost\">Cancel</Button> // wrong\n```",
+      "why": "names primary as the default"
+    },
+    {
+      "answer": "- `primary`: the single most important action, one per view.\n- `danger`: destructive actions.\n- `secondary`: the default.\n\n```tsx\n<Button>Cancel</Button>\n<Button variant=\"primary\">Send invoice</Button>\n```",
+      "why": "near miss: default and rules right, but no incorrect example"
+    }
+  ]
+}

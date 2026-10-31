@@ -51,6 +51,50 @@
         "The row with a .. segment is dropped and named",
         "Only src/app.ts lines 10-12 are tidied"
       ]
+    },
+    {
+      "id": 5,
+      "name": "residue-pass-proposes-behavior-changes",
+      "prompt": "Run tidy-diff on lines.tsv, paths relative to the skill directory. Its one row is `3\t12\tevals/fixtures/orders.ts`. Lines 3-14 add `// Updated to use the new API` above a fetch call, `const order = body as any`, `console.log(\"here\")`, and a `catch { return [] }` around the parse.",
+      "expected_output": "The residue pass finds all four. The reviewer-facing comment is deleted only behind a COMMENT-ONLY verdict from change-shape.sh (or reported as a proposal without one). The `as any` cast, the debug log and the silent fallback stay unedited and are reported as proposals, each naming its residue kind and the fix (a real type at the boundary, delete the log, let the failure surface). Nothing is staged or committed.",
+      "files": [
+        "evals/fixtures/orders.ts"
+      ],
+      "narration": true,
+      "expectations": [
+        "The '// Updated to use the new API' deletion is tied to a COMMENT-ONLY verdict, or reported as a proposal when no verdict is available",
+        "The `as any` cast, the `console.log(\"here\")` line and the `catch { return [] }` are left unedited in evals/fixtures/orders.ts",
+        "Each of those three is reported as a proposal naming its residue kind and its fix",
+        "The output stages, commits and pushes nothing"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "no-lines-file-stops",
+      "prompt": "/code-tidying:tidy-diff clean up this diff before I open the PR",
+      "expected_output": "No lines file is given, so the skill reports that the caller writes one with `${CLAUDE_PLUGIN_ROOT}/scripts/added-lines.sh <base>` and stops. It derives no scope of its own: it runs no git command to find the diff, runs none of the five passes, and edits no file.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Names `added-lines.sh <base>` as the way the caller writes the lines file",
+        "Runs no git command to work out the diff or a base ref",
+        "Runs none of the passes and edits no file"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "residue-pass-applies-a-pass-1-edit",
+      "prompt": "Run tidy-diff on lines.tsv, paths relative to the skill directory. Its one row is `1\t10\tevals/fixtures/report.py`, the whole file: a private `_load_rows` helper that only forwards to `read_csv_rows`, and its only caller, `summarize`.",
+      "expected_output": "`_load_rows` is a private one-call wrapper whose only caller sits in the listed lines, so it is inlined as an applied edit, by pass 1 as a simplification or by the residue pass under its one-call wrapper kind with pass 1 rule: `summarize` calls `read_csv_rows(path)` directly and the `_load_rows` definition is removed. `summarize` still returns the number of rows `read_csv_rows(path)` returns. The report lists the edit by file:line as applied, not as a proposal. Nothing is staged or committed.",
+      "files": [
+        "evals/fixtures/report.py"
+      ],
+      "expectations": [
+        "The `_load_rows` definition is gone from report.py and `summarize` calls `read_csv_rows(path)` directly",
+        "summarize still returns the length of what `read_csv_rows(path)` returns, and its name and signature are unchanged",
+        "The report lists the inlining as an applied edit by file:line, under pass 1 or under the residue pass's one-call wrapper kind, not as a proposal",
+        "The output stages, commits and pushes nothing"
+      ]
     }
   ]
 }

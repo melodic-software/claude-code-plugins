@@ -57,6 +57,27 @@ Measuring broken code is meaningless, and a baseline captured on a broken tree p
 | Verdict is DEGRADED or NOT CONFIRMED | Surface immediately; the claim does not hold. Fix or withdraw it |
 | Measurement complete | Feed the comparison table into the `/verification:confirm` outcome report; surface the summary in the plan artifact / PR body |
 
+## Record the verdict for the head it judged
+
+Once a `compare` verdict is final, store it for the commit it judged, so the pull request `ready`
+report can name it:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/confirm-verdict.sh" record --of measure --head <sha> --verdict '<verdict>' --claim '<claim>'
+```
+
+- `<sha>` is the full `git rev-parse HEAD`, run as its own call.
+- `<verdict>` is `CANNOT QUANTIFY` whenever no baseline was captured before the change, in place of
+  the `NOT CONFIRMED` or `INCONCLUSIVE` the family file gives that case; otherwise the family's
+  verdict word.
+- `<claim>` is the improvement claim judged, on one line.
+- Skip the record when the working tree was not clean at measurement: the verdict then judged
+  uncommitted changes, not that head. Say it was not recorded and why.
+- A non-zero exit leaves no record; report it, and the verdict stands.
+
+The record is advisory. It never gates the `ready` flip, and a commit after it leaves the new head
+with no verdict. A `baseline` phase records nothing.
+
 ## What this skill does NOT do
 
 - **Does not confirm intent/outcome**. "did we build the right thing" is `/verification:confirm` (`outcome` / `fix` / `refactor` criteria).

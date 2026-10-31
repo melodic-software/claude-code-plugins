@@ -21,8 +21,16 @@ from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
+import babysit_merge_policy as policy
 import babysit_review_evidence as ev
 import babysit_risk as risk
+
+# This repository's rows, which the floor paths below sit on.
+FLOOR_ROWS = policy.floor_paths_in(
+    (pathlib.Path(__file__).resolve().parents[6] / "docs/conventions/pr-pipeline.yaml").read_text(encoding="utf-8")
+)
+FLOOR = risk.floor_for(FLOOR_ROWS)
+
 
 FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures" / "review_evidence"
 PROBE = json.loads((FIXTURES / "probe_rerun_after_success.json").read_text())
@@ -265,6 +273,7 @@ class ProbeFixtureTests(unittest.TestCase):
                 data["threads"],
                 is_human=is_human,
                 changed_paths=(),
+                floor=risk.floor_for(),
             )
         )
 
@@ -332,6 +341,7 @@ class Base(unittest.TestCase):
                 is_human=is_human,
                 head_file=head_file,
                 changed_paths=changed_paths,
+                floor=risk.floor_for(),
             )
         )
 
@@ -355,6 +365,7 @@ class LostEvidenceTests(Base):
                 is_human=is_human,
                 base_changed=True,
                 changed_paths=(),
+                floor=risk.floor_for(),
             )
         )
         for lane in LANES:
@@ -570,6 +581,7 @@ class ReadOnlyWorkflowTests(Base):
                 changed_paths=("app.py", *files, *extra),
                 head_file=reader(files),
                 base_sha=base,
+                floor=FLOOR,
             )
         )
 
@@ -635,6 +647,7 @@ class ReadOnlyWorkflowTests(Base):
                 changed_paths=(floored, WORKFLOW),
                 head_file=reader({WORKFLOW: READ_ONLY}),
                 base_sha=BASE,
+                floor=risk.floor_for(),
             )
         )
         self.assertBinds(lanes)
@@ -655,6 +668,7 @@ class ReadOnlyWorkflowTests(Base):
                 changed_paths=(floored, WORKFLOW),
                 head_file=reader({WORKFLOW: READ_ONLY}),
                 base_sha=BASE,
+                floor=risk.floor_for(),
             )
         )
         result = scored(critical)
@@ -687,7 +701,7 @@ class ReadOnlyWorkflowTests(Base):
     ) -> None:
         floored = [
             path
-            for path, _ in risk.FLOOR_CLASSES
+            for path, _ in FLOOR.classes
             if ev.WORKFLOW_PATH_RE.match(path) and path not in ev.REVIEW_CALLERS
         ]
         self.assertIn(".github/workflows/pr-merge.yml", floored)
@@ -822,6 +836,7 @@ class ReadOnlyWorkflowTests(Base):
                 is_human=is_human,
                 changed_paths=(WORKFLOW,),
                 base_sha=BASE,
+                floor=risk.floor_for(),
             )
         )
         self.assertHeld(result)
@@ -843,6 +858,7 @@ class ReadOnlyWorkflowTests(Base):
                 changed_paths=(WORKFLOW, "CLAUDE.md"),
                 head_file=read,
                 base_sha=BASE,
+                floor=risk.floor_for(),
             )
         )
         self.assertHeld(result)
@@ -874,6 +890,7 @@ jobs:
                 changed_paths=(".github/workflows/forge.yml",),
                 head_file=reader({".github/workflows/forge.yml": forger}),
                 base_sha=BASE,
+                floor=risk.floor_for(),
             )
         )
         self.assertHeld(result)
@@ -994,6 +1011,7 @@ class MainRunReviewTests(Base):
                 head_file=fixed_head,
                 main_reviews=reviews,
                 main_context=recorded(reviews, context),
+                floor=risk.floor_for(),
             )
         )
 
@@ -1102,6 +1120,7 @@ class MainRunReviewTests(Base):
                         head_file=fixed_head,
                         main_reviews=reviews,
                         main_context=recorded(reviews, CONTEXT),
+                        floor=risk.floor_for(),
                     )
                     for runs in (security, both)
                 ]
@@ -1290,6 +1309,7 @@ class MainRunReviewTests(Base):
                 main_context=recorded(
                     [main_review("claude-review"), runs_review], CONTEXT
                 ),
+                floor=risk.floor_for(),
             )
         )
         security = result["claude-security-review"]
@@ -1359,6 +1379,7 @@ class MainRunReviewTests(Base):
                 changed_paths=(self.SOURCE,),
                 main_reviews=[main_review(lane) for lane in LANES],
                 main_context=recorded([main_review(lane) for lane in LANES], CONTEXT),
+                floor=risk.floor_for(),
             )
         )
         for lane in LANES:
@@ -1408,11 +1429,11 @@ class MainRunReviewTests(Base):
         self.assertTrue(risk.holds(scored))
 
     def test_needs_main_review_matches_what_bind_reads(self) -> None:
-        self.assertTrue(ev.needs_main_review([self.SOURCE], fixed_head, None))
-        self.assertTrue(ev.needs_main_review(None, fixed_head, None))
-        self.assertTrue(ev.needs_main_review(["CLAUDE.md"], fixed_head, None))
-        self.assertFalse(ev.needs_main_review(["app.py"], fixed_head, None))
-        self.assertFalse(ev.needs_main_review([], fixed_head, None))
+        self.assertTrue(ev.needs_main_review([self.SOURCE], fixed_head, None, FLOOR))
+        self.assertTrue(ev.needs_main_review(None, fixed_head, None, FLOOR))
+        self.assertTrue(ev.needs_main_review(["CLAUDE.md"], fixed_head, None, FLOOR))
+        self.assertFalse(ev.needs_main_review(["app.py"], fixed_head, None, FLOOR))
+        self.assertFalse(ev.needs_main_review([], fixed_head, None, FLOOR))
 
 
 class RunSelectionTests(Base):
@@ -1421,7 +1442,7 @@ class RunSelectionTests(Base):
         self.assertEqual([r.bound for r in result.values()], [True, True])
 
     def test_result_has_one_entry_per_lane_in_order(self) -> None:
-        result = ev.bind(S, [], [], [], is_human=is_human, changed_paths=())
+        result = ev.bind(S, [], [], [], is_human=is_human, changed_paths=(), floor=risk.floor_for())
         self.assertEqual([item.lane for item in result], list(LANES))
 
     def test_no_run_on_the_pinned_head(self) -> None:
@@ -3432,8 +3453,7 @@ class FailClosedTests(Base):
     def test_garbage_input_never_raises(self) -> None:
         for runs in (None, [None], [{"attempts": "x"}], "runs", [{"id": 1}]):
             result = ev.bind(
-                S, runs, [None], [None], is_human=is_human, changed_paths=()
-            )  # type: ignore[arg-type]
+                S, runs, [None], [None], is_human=is_human, changed_paths=(), floor=risk.floor_for())  # type: ignore[arg-type]
             self.assertEqual(len(result), 2)
             for item in result:
                 self.assertFalse(item.bound)
@@ -3450,6 +3470,7 @@ class FailClosedTests(Base):
             [],
             is_human=is_human,
             changed_paths=(),
+            floor=risk.floor_for(),
         )
         self.assertTrue(all(isinstance(r, babysit_risk.LaneEvidence) for r in result))
 
@@ -3461,6 +3482,7 @@ class FailClosedTests(Base):
             [],
             is_human=is_human,
             changed_paths=(),
+            floor=risk.floor_for(),
         )
         for item in result:
             self.assertFalse(item.bound)
@@ -3477,6 +3499,7 @@ class FailClosedTests(Base):
             threads,
             is_human=boom,
             changed_paths=(),
+            floor=risk.floor_for(),
         )
         self.assertFalse(result[0].bound)
 
@@ -3530,6 +3553,7 @@ class CarriedBlockingTests(Base):
                 head_file=fixed_head,
                 changed_paths=(),
                 base_changed=True,
+                floor=risk.floor_for(),
             )
         )
         self.assertUnbound(lanes[self.SEC], "base-retargeted")
@@ -3562,6 +3586,7 @@ class CarriedBlockingTests(Base):
                         is_human=is_human,
                         head_file=fixed_head,
                         changed_paths=(),
+                        floor=risk.floor_for(),
                     )
                 )
                 self.assertFalse(lanes[self.SEC].bound)
@@ -3593,6 +3618,7 @@ class CarriedBlockingTests(Base):
                 is_human=is_human,
                 head_file=fixed_head,
                 changed_paths=(),
+                floor=risk.floor_for(),
             )
         )
         self.assertIsNone(lanes[self.SEC].blocking_findings)

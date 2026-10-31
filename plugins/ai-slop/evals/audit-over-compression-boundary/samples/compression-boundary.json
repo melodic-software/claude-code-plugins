@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "docs/exporter.md:19 rule-over-compression: \"Job fail → check creds, re-auth w/ token. Retry = rerun job\". Arrow and = stand in for words; creds and w/ are shorthand. The option and command tables are reference rows, out of scope.",
+      "why": "paragraph reported, tables left"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "docs/exporter.md:7 rule-over-compression: \"out fmt, csv/json\". docs/exporter.md:19 rule-over-compression: \"Job fail → check creds\".",
+      "why": "flags an option table row"
+    },
+    {
+      "answer": "No over-compression findings.",
+      "why": "misses the paragraph"
+    }
+  ]
+}

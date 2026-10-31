@@ -1,0 +1,93 @@
+schema_version: "1.1"
+name: pq-session-lists-and-waits
+description: 'The operator asks for the session audit and the session used three plugin skills. The reply lists them with counts, highest count first, and asks the operator to confirm; no evidence is captured and nothing is dispatched. The scaffold writes a transcript and a running-retro ledger with the same counts, so any correct reader reaches one answer. A run needs --scaffold and --allow-tools Bash Write.'
+tags: [audit-session, no-loss]
+plugins: ["../..", "../../../session-flow"]
+expected_outcome: 'The reply lists source-control:commit (3), review:code-review (1) and docs-hygiene:compress (1), ordered by count, then stops and waits for the operator to confirm, edit or accept the list. No evidence capture and no dispatch happen before that confirmation.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "The session is over and I used a few plugin skills. Run /plugin-quality:audit session.\n\nThis session's id is 7f3b1c2e-4d5a-4e6f-8a9b-0c1d2e3f4a5b, and the session data directory is ./session-data under the working directory."
+  allowed_tools: [Bash, Read, Glob, Grep, Skill, Write, Agent]
+  max_turns: 20
+  timeout_seconds: 420
+graders:
+  - name: skill-invoked
+    type: tool_used
+    tool: Skill
+    input_match: 'plugin-quality:audit'
+    min: 1
+    arm: both
+  - name: names-commit
+    type: regex
+    pattern: 'source-control:commit'
+    target: last_message
+    arm: both
+  - name: names-code-review
+    type: regex
+    pattern: 'review:code-review'
+    target: last_message
+    arm: both
+  - name: names-compress
+    type: regex
+    pattern: 'docs-hygiene:compress'
+    target: last_message
+    arm: both
+  - name: commit-listed-first
+    type: regex
+    pattern: '^(?:(?!source-control:commit)[\s\S])*?(?:review:code-review|docs-hygiene:compress)'
+    match: not_contains
+    target: last_message
+    arm: both
+  - name: commit-count-shown
+    type: regex
+    pattern: 'source-control:commit[^\n]*?(?:(?<![a-wyz0-9.])3(?:x\b|(?!\w))|three)|(?:(?<![a-wyz0-9.])3(?:x\b|(?!\w))|three)[^\n]*?source-control:commit'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: asks-to-confirm
+    type: regex
+    pattern: '^[^\n]*\b(?:confirm|accept|approve|proceed|go ahead|continue|remove|add|edit|keep|drop|change|adjust|audit|run|start|correct|right|look)\b[^\n]*\?|\b(?:reply|respond|tell me|let me know|say|please|waiting|wait for|awaiting|once you|when you)\b[^\n]*\b(?:confirm|accept|approv|proceed|go ahead|remov|add|edit|keep|drop|yes|ok)|(?:^|[.:!]\s+)[*_`\s]*(?:confirm|accept|approve|remove|edit|add)\b'
+    flags: 'im'
+    target: last_message
+    arm: both
+  - name: no-agent-dispatch
+    type: tool_used
+    tool: Agent
+    min: 0
+    max: 0
+    arm: both
+  - name: no-evidence-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*(?:/evidence/|evidence\.md|audit-notes\.md|contract\.md)'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-evidence-dir-from-shell
+    type: tool_used
+    tool: Bash
+    input_match: '\b(?:mkdir|touch|tee)\b(?:[^";&|]|\\")*?evidence|>\s*(?:\\")?[^\s";&|]*evidence'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-evidence-md
+    type: file_exists
+    path: '**/evidence.md'
+    exists: false
+    arm: both
+  - name: no-audit-notes
+    type: file_exists
+    path: '**/audit-notes.md'
+    exists: false
+    arm: both
+  - name: no-contract-md
+    type: file_exists
+    path: '**/contract.md'
+    exists: false
+    arm: both
+  - name: no-evidence-dir
+    type: file_exists
+    path: '**/evidence/**'
+    exists: false
+    arm: both

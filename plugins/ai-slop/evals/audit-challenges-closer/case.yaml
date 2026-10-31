@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: audit-challenges-closer
+description: "Audit reports the formulaic challenges closer as a detector finding and leaves a dated closing line alone. Written from MB:plugins/ai-slop/skills/audit/reference/catalog.md:267-272, MB:plugins/ai-slop/skills/audit/SKILL.md:116-118 and 296-297 (the base contract). Bash, Edit and Write are listed so the no-edit, no-write and fixture-unchanged graders can fail."
+tags: [audit, detector, conclusions]
+runs: 3
+expected_outcome: "The audit reports docs/status.md line 5 ('Despite its small team, the project faces challenges...') under rule-challenges-conclusion as a detector finding. The closing line 'Version 3.2 ships on 14 January with the streaming parser enabled by default.' gets no finding from any rule. No file is edited."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/ai-slop:audit docs/status.md"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 40
+  timeout_seconds: 900

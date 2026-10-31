@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "article p {\n  line-height: 1.6;\n}",
+      "why": "unitless body leading"
+    },
+    {
+      "answer": "Use a unitless value rather than 24px:\n\n.prose { font-size: 1rem; line-height: 1.5 }",
+      "why": "unitless, the proposed px value only in prose"
+    },
+    {
+      "answer": "article { font: 1rem/1.6 serif; }",
+      "why": "unitless leading in the font shorthand"
+    },
+    {
+      "answer": ":root { --leading-body: 1.6; }\narticle p { line-height: var(--leading-body); }",
+      "why": "a token defined as a unitless number"
+    },
+    {
+      "answer": "article p { line-height: 1.6 !important; }",
+      "why": "unitless value with !important"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "article p {\n  line-height: 24px;\n}",
+      "why": "fixed pixel line height"
+    },
+    {
+      "answer": "body { line-height: 1.5rem; }",
+      "why": "line height with a unit"
+    },
+    {
+      "answer": "body { line-height: 24px; }\nh1 { line-height: 1.1; }",
+      "why": "unitless only on the heading; the body keeps 24px"
+    }
+  ]
+}
