@@ -42,3 +42,6 @@ animation:
     large: 500
   gesture:
     velocity_threshold: 0.11
+# The most concern spokes (reference/concerns.json) one /user-interface:design pass loads.
+design:
+  concern_spoke_cap: 2
