@@ -723,7 +723,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 # Re-pin for #8293: adds the quoted-source rule and fresh-context quote check for fact-settled items, a `decision` line that is never settled from facts, and the `## Assumption sweep` record the gate grades; every category, item-shape field and existing disposition is unchanged, and a decision still becomes a register row, so cases A and B survive.
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "39b818b0734420c9aa242a0dcb4ebdc06f2fc7b3af0c1b28b1e479939f5145c2"
+  "97babe157bf17c1ea051f42fa60738248eb001d936afb6415f8a35247fb1276d"
 # The coverage prompt's exemption from the register, the gate and the unattended ladder moved
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.
@@ -774,7 +774,7 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # Case 38 (person-deferred-routes-to-questionnaire) defers the DBA retention window with an arbiter tag, resolves no row on the DBA behalf and only recommends /planning:questionnaire, so it agrees with cases 15 and 16.
 # Re-pin for #8293: case 39 (sweep-decision-item-not-settled-by-unsupported-fact) requires an undecided `decision` sweep item to become an `open` register row, asked, never a fact or a captured assumption, and blocks the lock while it is open, so it agrees with cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "73b718c38373b405afd807180b4e6b020a7b5061a508771a9bf9ea27cbb943c2"
+  "129a4959648813007501cddb18c7683144009b7dfd77f642d87e837a03e7b5de"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
