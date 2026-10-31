@@ -108,6 +108,15 @@ whatever it cannot show clean is not publishable.
 With no control skill there are no values: the public reports are scanned for the generic pattern
 alone, and every capture is `not-checked`.
 
+The post-check reads only the sidecar. It never looks at the image or the video frames, and it
+cannot tell whether the masks were applied to the pixels. So `applied`, `none-declared` and a
+capture's `publishable: true` mean no more than "the sidecar is clean", and they are only as good as
+the sidecar's coverage. Text the sidecar leaves out, such as text in a canvas, an image, an iframe,
+a shadow DOM or a video overlay, passes unseen. A capture whose sidecar comes from the page's DOM
+rather than from the rendered capture is exposed to that gap. The control-skill contract
+("Writing the Capture section") asks for a sidecar read from the saved artifact. Before uploading a
+capture, the caller confirms that the control skill's Capture command writes one that way.
+
 ## affected.json
 
 Written by `affected` into the run directory, by `scripts/affected_features.py`. One object:

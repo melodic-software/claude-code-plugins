@@ -149,8 +149,11 @@ A `screenshot` or `video` command applies every `## Mask` line ([The Mask sectio
 to the capture, for example through the driving tool's screenshot mask option, and writes a
 sidecar beside it: the artifact's file name plus `.txt` (`<artifact>.txt`, such as
 `checkout-cart-02-screenshot.png.txt`), holding the text the capture still shows after masking,
-and for a video the text of every frame. Drive scans the sidecar; a capture with a missing or
-empty sidecar is never publishable.
+and for a video the text of every frame. Read that text from the saved artifact itself, for example
+by OCR of the image or of each frame, not from the page's DOM: a DOM extract misses text drawn in a
+canvas, an image, an iframe, a shadow DOM or a video overlay. Drive scans the sidecar and nothing
+else, so a capture is only as safe to publish as its sidecar is complete; a capture with a missing
+or empty sidecar is never publishable.
 
 Manuals, each record a pointer, as-of date and recheck trigger:
 
