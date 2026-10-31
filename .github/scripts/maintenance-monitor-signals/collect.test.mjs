@@ -167,7 +167,7 @@ const routes = () => [
     {
       workflow_runs: [
         run(50, { name: "pr-require-checks", head_branch: "gh-readonly-queue/main/pr-8225-aaaa", created_at: "2026-10-19T15:00:00Z" }),
-        run(51, { name: "pr-test-windows", head_branch: "gh-readonly-queue/main/pr-8225-aaaa", created_at: "2026-10-19T15:00:00Z" }),
+        run(51, { name: "pr-test-platforms", head_branch: "gh-readonly-queue/main/pr-8225-aaaa", created_at: "2026-10-19T15:00:00Z" }),
         run(52, { name: "pr-require-checks", head_branch: "gh-readonly-queue/main/pr-8031-bbbb", created_at: "2026-10-19T15:10:00Z" }),
       ],
     },
@@ -601,7 +601,7 @@ test("failed test-suite runs on main are not read as lane runs, so a test named 
       {
         workflow_runs: [
           run(35, { name: "pr-require-checks", path: ".github/workflows/pr-require-checks.yml" }),
-          run(36, { name: "pr-test-windows", path: ".github/workflows/pr-test-windows.yml", event: "workflow_dispatch" }),
+          run(36, { name: "pr-test-platforms", path: ".github/workflows/pr-test-platforms.yml", event: "workflow_dispatch" }),
           run(30, { name: "pr-unblock" }),
         ],
       },

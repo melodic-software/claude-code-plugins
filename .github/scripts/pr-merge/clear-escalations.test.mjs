@@ -399,7 +399,7 @@ test("a fix-ci label comes off only while the head's own checks read failed", as
     ["another app's failure", [check("test-node", "failure", { slug: "someone-else" })], false],
     ["read fails", new Error("HTTP 502"), false],
     // An advisory lane is no pr-require-checks lane: ci-status would go green.
-    ["only pr-test-windows red", [check("test-windows", "failure", { suite: 900 }), check("test-node", "success", { id: 2 })], false],
+    ["only pr-test-platforms red", [check("test-windows", "failure", { suite: 900 }), check("test-node", "success", { id: 2 })], false],
     // A contract-only run's later skip does not hide the real run's failure.
     ["a failed lane with a newer skipped duplicate", [check("test-node", "failure"), check("test-node", "skipped", { id: 2, suite: 501 })], true],
   ]) {
