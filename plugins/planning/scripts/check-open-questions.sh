@@ -412,9 +412,9 @@ check_sweep() {
         sweep_none=1
         continue
       fi
-      if [[ "$text" =~ ^[[:space:]]*-[[:space:]]+[Ss]weep[[:space:]]+([1-9][0-9]*)[[:space:]]*\|[[:space:]]*[Rr]egister[[:space:]]+through[[:space:]]+[Qq]([1-9][0-9]*)[[:space:]]*$ ]]; then
+      if [[ "$text" =~ ^[[:space:]]*-[[:space:]]+[Ss]weep[[:space:]]+([1-9][0-9]*)[[:space:]]*\|[[:space:]]*(register|Register)[[:space:]]+through[[:space:]]+[Qq]([1-9][0-9]*)[[:space:]]*$ ]]; then
         sweep_no="${BASH_REMATCH[1]}"
-        qnum="${BASH_REMATCH[2]}"
+        qnum="${BASH_REMATCH[3]}"
         case "$seen_ids" in
         *" Q$qnum "*) ;;
         *) proc_problem "line $lno: sweep $sweep_no's high-water line names Q$qnum, which has no register row" ;;
