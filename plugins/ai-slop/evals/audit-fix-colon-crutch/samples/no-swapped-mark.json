@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "# Paging policy\n\nThe job retries three times before it pages anyone.\n\nThe job reads three settings:\n\n- `RETRY_LIMIT`, the number of retries before a page\n- `RETRY_DELAY`, the seconds between retries\n- `PAGE_TARGET`, the rotation that receives the page\n",
+      "why": "crutch stated once, no swapped mark"
+    },
+    {
+      "answer": "# Paging policy\n\nThe job retries three times before it pages anyone.\n\nThe job reads three settings:\n\n- `RETRY_LIMIT`, the number of retries before a page; default 3\n- `RETRY_DELAY`, the seconds between retries – 30 by default\n- `PAGE_TARGET`, the rotation that receives the page\n",
+      "why": "a semicolon and an en dash in list items, away from the crutch, are out of this grader's scope"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Paging policy\n\nThe short version; the job retries three times before it pages anyone.\n\nThe job reads three settings:\n\n- `RETRY_LIMIT`, the number of retries before a page\n- `RETRY_DELAY`, the seconds between retries\n- `PAGE_TARGET`, the rotation that receives the page\n",
+      "why": "colon swapped for a semicolon"
+    },
+    {
+      "answer": "# Paging policy\n\nThe short version — the job retries three times before it pages anyone.\n\nThe job reads three settings:\n\n- `RETRY_LIMIT`, the number of retries before a page\n- `RETRY_DELAY`, the seconds between retries\n- `PAGE_TARGET`, the rotation that receives the page\n",
+      "why": "colon swapped for an em dash"
+    },
+    {
+      "answer": "# Paging policy\n\nThe job retries three times – then it pages anyone.\n\nThe job reads three settings:\n\n- `RETRY_LIMIT`, the number of retries before a page\n- `RETRY_DELAY`, the seconds between retries\n- `PAGE_TARGET`, the rotation that receives the page\n",
+      "why": "en dash staging the same retry line"
+    },
+    {
+      "answer": "# Paging policy\n\nThe short version - the job retries three times before it pages anyone.\n\nThe job reads three settings:\n\n- `RETRY_LIMIT`, the number of retries before a page\n- `RETRY_DELAY`, the seconds between retries\n- `PAGE_TARGET`, the rotation that receives the page\n",
+      "why": "colon swapped for a spaced hyphen"
+    }
+  ]
+}

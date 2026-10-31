@@ -7,6 +7,7 @@
 - [Inventory](#inventory)
 - [False-positive posture (source Caveats)](#false-positive-posture-source-caveats)
 - [Quotation exemption (policy-level)](#quotation-exemption-policy-level)
+- [Target kinds](#target-kinds)
 - [Calibration record (V1)](#calibration-record-v1)
 - [Content](#content)
 - [Language and grammar](#language-and-grammar)
@@ -83,7 +84,7 @@ Wikipedia; the page's text is read at the pointer, not stored here.
 
 ## Inventory
 
-65 tells catalogued from the Wikipedia source revision, plus 9 in the "General-prose additions"
+65 tells catalogued from the Wikipedia source revision, plus 10 in the "General-prose additions"
 section and 4 in the "Model-era additions (repo-owned)" section at the end of this file. Entry
 marker: `### rule-<slug>: <name>`. The qualified id used
 in crosswalk rows and findings files is `ai-slop/audit/rule-<slug>`. Fields:
@@ -141,6 +142,20 @@ blockquote form or the fenced marker.
 
 The class assignments live in the detector's rule registry. The exemption moves candidates from
 findings to declines and never changes a rule's crosswalk tier.
+
+## Target kinds
+
+Besides markdown files, the audit reads two more kinds of text, each copied into a scratch
+markdown file first (the skill's "Commit messages, PR bodies and interface copy"): a commit
+message or pull request body, and interface copy, the strings a product shows its users. Every
+rule applies to them as it does to markdown except the rows below, keyed by tell id. Each row's
+boundary is also stated in that rule's own entry, which is the copy a rubric batch reads.
+
+| Tell id | Commit message or PR body | Interface copy |
+|---|---|---|
+| `rule-curly-artifacts` | Applies, read with the entry's narrower test | Does not apply: rendered interface copy takes typographic quotes and apostrophes |
+| `rule-over-compression` | The commit subject is out of scope; the body is in scope | Button labels, menu items and short status strings are out of scope; longer prose such as onboarding text and error explanations is in scope |
+| `rule-mechanism-free-claims` | Applies as written | Adds the headline cue: copy a competitor could paste unchanged |
 
 ## Calibration record (V1)
 
@@ -234,7 +249,8 @@ then-current 1,361-file tracked-markdown corpus:
 - applicability: wikipedia-specific
 - v1: recorded-only
 - Repetitive listing of source types and phrases like "independent coverage" to argue notability.
-  Wikipedia's notability model; no general-prose analogue worth a rule.
+  Wikipedia's notability model. Its general-prose form, a name-drop list with nothing quoted, is
+  `rule-vague-attribution`'s name-drop cue.
 
 ### rule-superficial-analysis: Superficial analyses
 
@@ -262,7 +278,11 @@ then-current 1,361-file tracked-markdown corpus:
 - applicability: general-prose
 - v1: rubric
 - Weasel wording implying consensus from nothing: "industry reports", "experts argue",
-  "many consider", "widely regarded".
+  "many consider", "widely regarded", "some critics argue".
+- **Name-drop cue.** Name-drop lists ("featured in TechCrunch, Wired, and The Verge") with no
+  quote attached. Report one when no name in the list comes with what that source said; a list
+  where each name carries its quote, finding or link is attribution done right. The Wikipedia
+  notability form stays `rule-canned-notability`.
 
 ### rule-challenges-conclusion: Outline-like conclusions about challenges and future prospects
 
@@ -438,6 +458,17 @@ then-current 1,361-file tracked-markdown corpus:
 - v1: script
 - Smart quotes and apostrophes plus adjacent Unicode residue characteristic of chat-interface
   copy-paste, in files whose convention is straight quotes.
+- **Reading a finding.** The detector matches every curly character; the tell is narrower:
+  curly quotes where no human would have typed them. Markdown, commit messages, code comments,
+  and docs source get straight quotes. Curly quotes appearing in raw text are a generation
+  artifact. Text drafted in a word processor or on a phone, or set to a publishing style, can
+  carry them because a person's tools or style put them there. That text keeps them, and the
+  remedy is the marker or `rule_allowed_paths`, never a rewrite.
+- **Interface copy is out of scope.** Rendered UI copy is the opposite territory: there, real
+  typographic characters are correct. On the interface-copy target kind the audit declines this
+  rule's detector findings, never reporting them, and names their count as declined by target
+  kind; the detector's `Summary` row still counts them as findings, since it does not know the
+  target kind.
 
 ### rule-skipped-heading-levels: Skipping heading levels
 
@@ -849,12 +880,12 @@ either layer, and those rows say so.
 | Pattern | Where it lives here |
 |---|---|
 | Puffery | `rule-significance-inflation` |
-| Name-dropping | **Not detected. Deliberately out of scope for general prose.** `rule-canned-notability` records the Wikipedia-specific form and is `recorded-only`; its own entry says there is no general-prose analogue worth a rule. Not `rule-vague-attribution`, which is the opposite tell (naming *no* source, not naming many with no content) |
+| Name-dropping | `rule-vague-attribution`, as its name-drop cue: a list of outlets or people with nothing they said attached. `rule-canned-notability` keeps the Wikipedia notability form and stays `recorded-only` |
 | Superficial -ing phrases | `rule-superficial-analysis` |
 | Promotional language | `rule-promotional-language` |
 | Vague attributions | `rule-vague-attribution` |
 | Formulaic challenges | `rule-challenges-conclusion`, the "Despite its X, faces challenges" formula its ERE actually matches |
-| Generic conclusions | **Only the formulaic half is detected**, by the row above. A bare optimism closer ("The future looks bright") matches no shipped rule: `rule-superficial-analysis` needs a present-participle tail and does not reach it |
+| Generic conclusions | The formulaic half by the row above; a bare closer that fits any article ("The future looks bright") by `rule-generic-conclusions` below |
 | AI vocabulary; prefer the plain word | `rule-ai-vocabulary` (the plain-word list joined the shipped vocabulary default; see the calibration record) |
 | Fancy ways to say "is" | `rule-copulative-avoidance` |
 | "Not just X, but Y" | `rule-negative-parallelism` |
@@ -1027,6 +1058,24 @@ either layer, and those rows say so.
   ("the config feels lightweight" where "the config file has four keys" would serve). Report it
   when it gives the reader nothing to act on or check (no step, fact, or number), or when it is
   generic enough to fit any project's docs.
+- Reported: "SQL you can read" and "types that follow your schema", where "`.toSQL()` returns
+  the exact string sent to the database" and "a column rename fails the build" say what happens.
+- **Interface-copy cue.** On the interface-copy target kind: "Build faster. Ship smarter." A
+  headline any of ten thousand products could run is a visual element that says nothing, however
+  good it looks set in type. The test: could a competitor paste this headline unchanged? Then
+  report it. A label that names the
+  action ("Save draft", "Export CSV") is specific by its function and is not reported.
+
+### rule-generic-conclusions: A closing line that fits any article
+
+- detectability: judgment
+- applicability: general-prose
+- v1: rubric
+- A conclusion with no tie to what came before: "The future looks bright." "Only time will
+  tell." "Exciting times ahead." Report it when
+  the closing sentence could end an unrelated document unchanged. The formulaic "Despite its X,
+  Y faces challenges" closer is `rule-challenges-conclusion`'s, and a closing sentence that
+  names a plan, a date or a fact from the text is not this tell.
 
 ### rule-over-compression: Clipped prose the reader has to rebuild
 
@@ -1048,7 +1097,10 @@ either layer, and those rows say so.
   re-login req'd" becomes "We moved the authentication service to the new identity provider.
   Existing sessions ended, so every user has to sign in again."
 - Out of scope: tables, command and option references, code and code comments, commit subjects,
-  and operative lists kept terse for an agent reader (rules files, skill steps). A repository
+  short interface strings (button labels, menu items, short status strings), which are terse by
+  design, and operative lists kept terse for an agent reader (rules files, skill steps). A commit message
+  body, a PR body, and longer interface prose (onboarding text, error explanations) are running
+  prose for people and are in scope. A repository
   that compresses agent-read files with `/docs-hygiene:compress` and its `compress_articles`
   setting at `cut` drops articles there on purpose; that setting's default, `keep`, does not
   produce this tell.
