@@ -29,7 +29,7 @@
     {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "What's the capital of Australia?"},
     {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "Prove the fix achieved its goal: build, test, lint, then confirm it does what the issue asked."},
     {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "Save the browser auth state from playwright-cli so later sessions start logged in."},
-    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "Take before and after PNGs of the settings modal and count the differing pixels."},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "Take before and after PNG images of the settings modal and count the differing pixels."},
     {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "Does the project still compile?"}
   ]
 }
