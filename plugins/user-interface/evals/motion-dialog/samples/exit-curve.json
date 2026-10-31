@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "```css\n.confirm, .confirm::backdrop {\n  opacity: 0;\n  transition: opacity 160ms cubic-bezier(0.3, 0, 1, 1), display 160ms allow-discrete, overlay 160ms allow-discrete;\n}\n.confirm[open], .confirm[open]::backdrop {\n  opacity: 1;\n  transition: opacity 220ms cubic-bezier(0.32, 0.72, 0, 1), display 220ms allow-discrete, overlay 220ms allow-discrete;\n}\n@starting-style { .confirm[open], .confirm[open]::backdrop { opacity: 0; } }\n```",
+      "why": "the closed-state rule carries an accelerate curve, the open rule a decelerating one"
+    },
+    {
+      "answer": "```css\n:root {\n  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);\n  --ease-in: cubic-bezier(0.4, 0, 1, 1);\n}\ndialog.confirm { opacity: 0; transition: opacity 150ms var(--ease-in), display 150ms allow-discrete, overlay 150ms allow-discrete; }\ndialog.confirm[open] { opacity: 1; transition: opacity 200ms var(--ease-out), display 200ms allow-discrete, overlay 200ms allow-discrete; }\n@starting-style { dialog.confirm[open] { opacity: 0; } }\n```",
+      "why": "a defined accelerate token on the close and the entrance token on the open"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```css\n.confirm { opacity: 0; transition: opacity 200ms cubic-bezier(0.32, 0.72, 0, 1), display 200ms allow-discrete, overlay 200ms allow-discrete; }\n.confirm[open] { opacity: 1; }\n@starting-style { .confirm[open] { opacity: 0; } }\n```",
+      "why": "near miss: a good entrance, but one shared transition closes the dialog on the decelerating curve"
+    },
+    {
+      "answer": "```css\n.confirm { opacity: 0; transition: opacity 150ms ease-in, display 150ms allow-discrete, overlay 150ms allow-discrete; }\n.confirm[open] { opacity: 1; transition: opacity 200ms ease-out, display 200ms allow-discrete, overlay 200ms allow-discrete; }\n@starting-style { .confirm[open] { opacity: 0; } }\n```",
+      "why": "near miss: the close accelerates, but on the bare ease-in keyword"
+    },
+    {
+      "answer": "```css\n.confirm { opacity: 0; transition: opacity 150ms cubic-bezier(0.77, 0, 0.175, 1), display 150ms allow-discrete, overlay 150ms allow-discrete; }\n.confirm[open] { opacity: 1; transition: opacity 200ms cubic-bezier(0.32, 0.72, 0, 1), display 200ms allow-discrete, overlay 200ms allow-discrete; }\n```",
+      "why": "the close runs on an ease-in-out shape that settles slowly, not an accelerate curve"
+    },
+    {
+      "answer": "Close the dialog on an accelerating curve and open it on a decelerating one.",
+      "why": "no CSS"
+    }
+  ]
+}

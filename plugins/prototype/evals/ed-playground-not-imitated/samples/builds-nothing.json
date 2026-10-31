@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/tmp/x/shadow.html",
+            "content": "<input type=range>"
+          }
+        }
+      ],
+      "why": "imitation"
+    }
+  ]
+}

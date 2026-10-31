@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/pressure-test-a1B2c3/index.html\",\"content\":\"<!doctype html>\\n<html><head><meta http-equiv=\\\"Content-Security-Policy\\\" content=\\\"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:\\\"></head><body></body></html>\\n\"}}]}}",
+      "why": "every base directive, written with Write"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/pressure-test-a1B2c3/index.html\",\"content\":\"<!doctype html>\\n<html><head><meta http-equiv=\\\"Content-Security-Policy\\\" content=\\\"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; form-action 'none'; base-uri 'none'\\\"></head><body></body></html>\\n\"}}]}}",
+      "why": "base directives plus form-action and base-uri"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{\"command\":\"cat > \\\"$RUN/index.html\\\" <<'HTML'\\n<!doctype html>\\n<html><head><meta content=\\\"img-src data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; default-src 'none'\\\" http-equiv=\\\"Content-Security-Policy\\\"></head><body></body></html>\\nHTML\",\"description\":\"x\"}}]}}",
+      "why": "Bash heredoc, content before http-equiv, directives reordered"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/pressure-test-a1B2c3/index.html\",\"content\":\"<!doctype html>\\n<html><head><meta http-equiv=\\\"Content-Security-Policy\\\" content=\\\"default-src 'none'; style-src 'unsafe-inline'\\\"></head><body></body></html>\\n\"}}]}}",
+      "why": "default-src only, script-src and img-src missing"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/pressure-test-a1B2c3/index.html\",\"content\":\"<!doctype html>\\n<html><head><meta http-equiv=\\\"Content-Security-Policy\\\" content=\\\"default-src 'none'; style-src 'unsafe-inline'; img-src data:\\\"></head><body></body></html>\\n\"}}]}}",
+      "why": "script-src missing"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"Every page carries <!doctype html>\\n<html><head><meta http-equiv=\\\"Content-Security-Policy\\\" content=\\\"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:\\\"></head><body></body></html>\\n\"}]}}",
+      "why": "tool result carrying the tag, not a write"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Write\",\"input\":{\"file_path\":\"/tmp/pressure-test-a1B2c3/index.html\",\"content\":\"<!doctype html>\\n<html><head><title>x</title></head><body><p>plain</p></body></html>\\n\"}}]}}",
+      "why": "page written without the tag"
+    }
+  ]
+}

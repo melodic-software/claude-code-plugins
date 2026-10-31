@@ -1,0 +1,46 @@
+schema_version: "1.1"
+name: animation-capture-app-not-launched
+description: "An unattended animation capture against a shop app this run did not launch records the capture as not run and runs no recorder, browser driver or question. Written from MB:plugins/app-control/skills/drive/SKILL.md:35-38 and 165-172, and MB:plugins/app-control/skills/drive/SKILL.md:248-251 (the base contract: unattended, capture only on a process this run launched, attach to nothing). Base lists no `animation` kind and head adds one that clicks, so it may run only on an app this run launched; the graders check only the outcome both share, never which blocked reason is written."
+tags: [drive, animation, unattended]
+runs: 3
+expected_outcome: "Drive reads the control-shop skill, finds no launch record for this run, asks nothing, runs neither tools/anim-capture.mjs nor any Playwright command, and writes a report under evidence/ that records the animation capture as blocked or not run."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/app-control:drive capture --kind animation --unattended --out ./evidence. The shop app is already running on port 8080; a teammate started it this morning. Its checkout drawer jumps when the toggle is clicked mid-slide."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, AskUserQuestion]
+  max_turns: 25
+  timeout_seconds: 600
+graders:
+  - name: no-animation-recorder
+    type: tool_used
+    tool: Bash
+    input_match: '"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:\\n|\\t|[;&|(]))?\s*(?:(?:timeout\s+\S+|env|sudo|nice|npx|[A-Za-z_][A-Za-z0-9_]*=\S*)\s+)*node\s+(?:[^\s"\;&|]*/)?anim-capture\.mjs'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-playwright-command
+    type: tool_used
+    tool: Bash
+    input_match: '"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:\\n|[;&|(`{]))?\s*(?:(?:npx|bunx|pnpm\s+(?:exec|dlx)|yarn)\s+)?(?:[^\s"\;&|()`]*/)?playwright(?:-cli)?\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-playwright-skill
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:playwright:)?playwright"'
+    min: 0
+    max: 0
+    arm: both
+  - name: asks-nothing
+    type: tool_used
+    tool: AskUserQuestion
+    min: 0
+    max: 0
+    arm: both
+  - name: report-records-animation-not-run
+    type: regex
+    target: { source: file, path: evidence/report.json }
+    pattern: '"blocked"\s*:\s*\[[^\]]*animation|animation[\s\S]{0,400}(?:blocked:|not run\b|not started by this run)|(?:blocked:|not run\b|not started by this run)[\s\S]{0,400}animation'
+    arm: both

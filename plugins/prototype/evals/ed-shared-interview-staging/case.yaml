@@ -1,0 +1,13 @@
+schema_version: "1.1"
+name: ed-shared-interview-staging
+description: "Base shared-interview contract: output goes under the interview's data dir in staging/<run>/, never a mktemp directory, with a manifest.json carrying a top-level lookAt and one HTML snapshot per variant starting with a doctype."
+tags: [explore-directions, hard]
+runs: 3
+expected_outcome: "The agent writes interview-data/staging/<run>/manifest.json with a top-level lookAt and one HTML snapshot per variant starting with <!doctype html> in that folder, runs no mktemp, and hands over the manifest path."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/prototype:explore-directions planning:interview's shared session asks for variants of the checkout address form (no app exists yet). Data dir: interview-data (relative to the current directory). Offered tiers: snapshot only. Variant keys: A, B. The plan lists no states."
+  allowed_tools: [Read, Glob, Grep, Bash, Write, Edit]
+  max_turns: 60
+  timeout_seconds: 900

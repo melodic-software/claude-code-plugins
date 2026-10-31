@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "## Output\n\nWrite the title in imperative mood, area in parentheses after the type, under 60 characters, no trailing period, naming the user-visible change.\n\nInput: added retry to the upload client after timeouts\nOutput: fix(upload): retry uploads that time out\n\nInput: renamed config keys in settings.ts and docs\nOutput: refactor(settings): rename the cache keys users set",
+      "why": "meets the outcome"
+    },
+    {
+      "answer": "## Output\n\nRule: imperative, `type(area): subject`, under 60 characters, no period, the user-visible change.\n\n| Change | Title |\n|---|---|\n| Dark mode toggle added to the settings page | feat(settings): add a dark mode toggle |\n| Login no longer drops the redirect URL | fix(auth): keep the redirect after login |",
+      "why": "meets the outcome"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Output\n\nWrite the title in imperative mood, area in parentheses after the type, under 60 characters, no trailing period, naming the user-visible change rather than the files touched.",
+      "why": "prose rule only, no examples"
+    },
+    {
+      "answer": "## Output\n\nUse imperative mood, the area in parentheses, under 60 characters, no period.\n\nGood titles:\n- fix(upload): retry uploads that time out\n- feat(settings): add a dark mode toggle",
+      "why": "titles without their inputs"
+    },
+    {
+      "answer": "## Output\n\nInput: added retry to the upload client\nOutput: fix(upload): retry uploads that time out\n\nInput: dark mode toggle on settings\nOutput: feat(settings): add a dark mode toggle",
+      "why": "pairs with no line naming the rule"
+    }
+  ]
+}
