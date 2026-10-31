@@ -6,7 +6,7 @@ expected_outcome: 'The Skill tool is called for code-tidying:batch-simplify and 
 context:
   scaffold_script: scaffold.sh
 execution:
-  prompt: '/code-tidying:batch-simplify unattended 72h src ./repo'
+  prompt: '/code-tidying:batch-simplify --unattended 72h src ./repo'
   allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent]
   max_turns: 150
   timeout_seconds: 2400
