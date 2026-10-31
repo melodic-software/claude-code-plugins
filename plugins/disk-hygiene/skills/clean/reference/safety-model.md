@@ -614,8 +614,9 @@ its `hooks` stay registered for the rest of the process, so the belt decides for
 
 **When a run is open.** The belt keeps one marker per session id, `clean-runs/<session_id>.json` under
 the plugin data directory. Admitting a `preview` writes it, and so does admitting an `apply` or
-`handoff-apply`. Each records the file whose writing ends that step: the preview's `--plan`, or the
-mutation's `--report`. Admitting a `handoff-verify` writes it too, with no end file: a manual-lane delete
+`handoff-apply`. Each records the file whose writing ends that step: the plan the preview reads (`--plan`) or
+writes (`plan-<tier>.json` beside the snapshot, in the inline `--tier`/`--path` form), or the mutation's
+`--report`. Admitting a `handoff-verify` writes it too, with no end file: a manual-lane delete
 follows each verify, and its PowerShell spelling gets its `ask` only from the belt, so only the idle
 timeout ends that step. While a verify's run is open, a later `preview`, `apply` or `handoff-apply`
 only restarts its idle clock and records no end file, so no engine call can end the manual lane early;
