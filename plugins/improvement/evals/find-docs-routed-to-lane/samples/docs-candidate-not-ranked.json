@@ -11,6 +11,14 @@
     {
       "answer": "1. Share one rounding helper (S).",
       "why": "no docs mention at all"
+    },
+    {
+      "answer": "| Rank | Candidate | Size |\n|---|---|---|\n| 1 | Share one rounding helper for report.js and export.js | S |\n| 2 | Add tests for report and export | S |\n| - | README names config/ledger.yaml, the code reads config/ledger.json | routed to docs-hygiene |",
+      "why": "unnumbered table row right after the ranked rows, routed"
+    },
+    {
+      "answer": "1. Share one rounding helper (S).\n2. Add tests for report and export (S).\nNot ranked: README names config/ledger.yaml but the code reads config/ledger.json; that belongs to docs-hygiene.",
+      "why": "unindented routing line right after the list, no blank line"
     }
   ],
   "fail": [
@@ -21,6 +29,10 @@
     {
       "answer": "1. **Share one rounding helper** (S).\n2. **Update README to say ledger.json** (S).",
       "why": "README fix ranked second"
+    },
+    {
+      "answer": "1. Fix README to name config/ledger.json instead of config/ledger.yaml via docs-hygiene.\n2. Share one rounding helper (S).",
+      "why": "docs fix ranked first; naming its lane in the same item does not unrank it"
     }
   ]
 }
