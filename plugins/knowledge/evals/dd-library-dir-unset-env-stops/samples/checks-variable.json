@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugin/scripts/work-root.mjs\" --library-dir '${EVAL_KNOWLEDGE_CORPUS_DIR}'",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printenv EVAL_KNOWLEDGE_CORPUS_DIR || echo unset",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"/plugin/scripts/work-root.mjs\" --library-dir '.'",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

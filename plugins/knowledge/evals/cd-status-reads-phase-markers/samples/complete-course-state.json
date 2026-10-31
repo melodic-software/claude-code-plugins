@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "| Slug | Platform | State |\n|---|---|---|\n| tdd-csharp-ferreira | dometrain | complete (all 7 phases) |\n| event-driven-dotnet-quill | teachable | in progress: extract done |"},
+    {"answer": "## tdd-csharp-ferreira\n\nStatus: analyzed. Every phase marker is set.\n\n## event-driven-dotnet-quill\n\nStopped after extract."},
+    {"answer": "event-driven-dotnet-quill is not complete; it stopped after extract.\ntdd-csharp-ferreira is done: all phases have completedAt timestamps.", "why": "negation belongs to the other course"}
+  ],
+  "fail": [
+    {"answer": "tdd-csharp-ferreira is not complete yet.", "why": "negated"},
+    {"answer": "Is tdd-csharp-ferreira complete?", "why": "question"},
+    {"answer": "tdd-csharp-ferreira: synthesize pending.\nevent-driven-dotnet-quill: complete.", "why": "state attached to the wrong slug"},
+    {"answer": "Found two courses. Both look complete.", "why": "no slug"}
+  ]
+}

@@ -549,7 +549,7 @@ test("a head with no unresolved thread resolves the address-feedback stop", asyn
   });
   for (const api of [handResolved, fakeApi({ threads: [] })]) {
     const result = await run(api);
-    assert.deepEqual([result.decision, result.skipReason, result.resolved], ["skip", "not-applicable", true]);
+    assert.deepEqual([result.decision, result.skipReason, result.resolved], ["skip", "stop-resolved", true]);
   }
 });
 
@@ -572,7 +572,7 @@ test("a thread read that fails throws, so main writes no outputs and resolves no
   await assert.rejects(main(["select"], env, { api: broken, log: () => {} }), /timeout/);
   assert.throws(() => readFileSync(env.GITHUB_OUTPUT, "utf8"));
   await main(["select"], { ...env, GITHUB_OUTPUT: join(dir, "resolved") }, { api: fakeApi({ threads: [] }), log: () => {} });
-  assert.match(readFileSync(join(dir, "resolved"), "utf8"), /^stop-resolved=true$/m);
+  assert.match(readFileSync(join(dir, "resolved"), "utf8"), /^skip-reason=stop-resolved\n(?:.*\n)*stop-resolved=true$/m);
 });
 
 test("a review on a head no marker confirms is dropped", async () => {
@@ -635,7 +635,7 @@ const withNotes = (notes, extra = {}) =>
 // waits on, would never pass and no pass could come.
 test("stale verifier notes alone are no untaken thread: the stop clears", async () => {
   const result = await run(withNotes([failNote("PRRT_n1", 200, OLD_HEAD), failNote("PRRT_n2", 201, OLD_HEAD)]));
-  assert.deepEqual([result.decision, result.skipReason, result.resolved], ["skip", "not-applicable", true]);
+  assert.deepEqual([result.decision, result.skipReason, result.resolved], ["skip", "stop-resolved", true]);
 });
 
 test("stale verifier notes beside an untaken reviewer thread still escalate", async () => {
@@ -1773,7 +1773,7 @@ test("select asks for model rung 1 only after a lane stop on the head's reply ch
 });
 
 // #10092's silent stall: an unresolved thread the lane does not take left
-// the head with a neutral not-applicable skip, no stop and no signal. The
+// the head with a neutral stop-resolved skip, no stop and no signal. The
 // select job now ends it in feedback-untaken-threads (routed to a failing
 // status); only a PR with no unresolved thread still skips.
 test("an unresolved thread the lane does not take escalates feedback-untaken-threads", async () => {
@@ -1792,7 +1792,7 @@ test("an unresolved thread the lane does not take escalates feedback-untaken-thr
   );
   assert.deepEqual([stale.decision, stale.escalationReason], ["escalate", "feedback-untaken-threads"], "a lane thread on an older head");
   const none = await run(fakeApi({ threads: [thread("PRRT_1", [100], { isResolved: true })] }));
-  assert.deepEqual([none.decision, none.skipReason], ["skip", "not-applicable"], "no unresolved thread");
+  assert.deepEqual([none.decision, none.skipReason], ["skip", "stop-resolved"], "no unresolved thread");
   const held = await run(fakeApi({ labels: ["needs-human"], reviewComments: [comment(100, CODEX)], reviews: [{ id: 10, user: { id: CODEX }, commit_id: HEAD }] }));
   assert.deepEqual([held.decision, held.skipReason], ["skip", "awaiting-human"], "a person holds the PR");
 });

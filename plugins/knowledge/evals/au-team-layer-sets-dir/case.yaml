@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: au-team-layer-sets-dir
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: reports-team-dir
+    type: regex
+    pattern: '^(?=[\s\S]*?docs/provenance\b)(?=[\s\S]*?(?:\bteam\b|docs/conventions/knowledge\.yaml))(?![\s\S]*?\b(?:skip(?:ped|s)?|ignored|ignoring|ignores)\b[^\n]{0,60}\bteam\b)(?![\s\S]*?\bteam\b[^\n]{0,40}\b(?:skip(?:ped)?|ignored|not appl(?:y|ied)|does not apply)\b)'
+    target: last_message
+  - name: no-default-dir-write
+    type: tool_used
+    tool: Write
+    input_match: '"file_path":"[^"]*docs/upstream/'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-shell-write-default-dir
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?=(?:[^"\\]|\\.)*?docs/upstream\b)(?=(?:[^"\\]|\\.)*?(?:(?:\b|(?<=\\n))(?:rm|rmdir|mv|cp|tee|touch|mkdir|install|ln|truncate)\b|(?:\b|(?<=\\n))(?:sed|perl)\b(?:[^"\\;&|]|\\[^n])*?[ \t]-[a-zA-Z]*i|(?:\b|(?<=\\n))python3?(?:[ \t]+-[a-zA-Z]+)*?[ \t]+-c\b|>(?!>?[ \t]*(?:&|/dev/null))))'
+    min: 0
+    max: 0
+    arm: both

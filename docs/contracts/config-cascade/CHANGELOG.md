@@ -11,6 +11,8 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 
 No contract change.
 
+- **`adhd` and `harness-config` (`audit-automation-gaps`) join the Implementers table.** Each reads
+  `time_units` from the plugin's `userConfig` option and a team file, no-floor, later layer wins.
 - **`work-items` gains `ai_disclaimer`.** The Implementers row, renamed `work-items` (settings
   keys), adds the key beside the triage keys; this repository's `docs/conventions/work-items.yaml`
   now exists and sets it `false`.

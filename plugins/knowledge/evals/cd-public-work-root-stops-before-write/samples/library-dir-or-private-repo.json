@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Set this plugin's library_dir to your private corpus checkout, or run from a private repository."},
+    {"answer": "Run this from a private repository instead, or point `library_dir` at a private checkout."},
+    {"answer": "To continue, configure library_dir to a private corpus checkout."}
+  ],
+  "fail": [
+    {"answer": "Stopped: the repository is public."},
+    {"answer": "Set library_dir to another folder and rerun.", "why": "no private destination"},
+    {"answer": "Stopped: library_dir is unset and the work root is public, not private.", "why": "echoes the prompt, no advice"},
+    {"answer": "library_dir is unset, so I used the session root.", "why": "no advice"}
+  ]
+}

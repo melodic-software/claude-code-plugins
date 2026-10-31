@@ -1,0 +1,11 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/knowledge/skills/course-digest/extraction/setup-deps.mjs\" --data-dir \"/data/knowledge\"", "description": "run"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "ffmpeg -version | head -1", "description": "run"}}]},
+    {"answer": []}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node run.mjs --data-dir /d extract-course.js --course-dir courses/dometrain/mcp-getting-started --metadata-only", "description": "run"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "node run.mjs --data-dir /d discover-resources.js --course-dir x", "description": "run"}}]}
+  ]
+}
