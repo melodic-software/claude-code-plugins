@@ -1,13 +1,13 @@
 schema_version: "1.1"
 name: animation-audit-readonly
-description: "Hard (Edit and Write are allowed and the defects are obvious): a bare audit run reports and edits nothing"
+description: "Hard (the defects are obvious and the request does not say read-only; a pull request run grants no Edit or Write, so the no-write and no-edit graders read the trace for any write or edit call, or a Skill call with --fix): a bare audit run reports and edits nothing"
 tags: [audit, read-only, hard]
 runs: 3
-expected_outcome: "user-interface:audit reports the defects in src/notifications.css and makes no Edit or Write call; it may offer --fix"
+expected_outcome: "user-interface:audit reports the defects in src/notifications.css and makes no Edit or Write call and no Skill call with --fix; it may offer --fix"
 context:
   scaffold_script: scaffold.sh
 execution:
   prompt: "Audit the animations in src/notifications.css."
-  allowed_tools: [Read, Glob, Grep, Skill, Edit, Write]
+  allowed_tools: [Read, Glob, Grep, Skill]
   max_turns: 30
   timeout_seconds: 600

@@ -3,12 +3,20 @@
     {
       "answer": "import ReportCover from './components/ReportCover.jsx';\nexport default function App() { return <ReportCover />; }",
       "why": "removed"
+    },
+    {
+      "answer": "import ReportCover from './components/ReportCover.jsx';\nexport default function App() { return <ReportCover label=\"Annual report\" />; }",
+      "why": "removed; the word label is not the lab route"
     }
   ],
   "fail": [
     {
       "answer": "import TornEdgeLab from './lab/torn-edge/TornEdgeLab.jsx';",
       "why": "still routed"
+    },
+    {
+      "answer": "export default function App() {\n  if (location.pathname === '/lab/torn-edge') return null;\n  return <ReportCover label=\"Annual report\" />;\n}",
+      "why": "route check still present beside a label prop"
     }
   ]
 }

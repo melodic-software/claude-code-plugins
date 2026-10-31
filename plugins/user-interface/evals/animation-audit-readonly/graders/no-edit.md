@@ -1,7 +1,7 @@
 ---
-type: tool_used
-tool: Edit
-min: 0
-max: 0
+type: regex
+target: trace
+match: not_contains
 arm: both
+pattern: '"name":"(?:Edit|MultiEdit)","input":\{'
 ---
