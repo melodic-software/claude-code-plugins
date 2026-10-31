@@ -1,0 +1,53 @@
+{
+  "pass": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printenv EVAL_KNOWLEDGE_CORPUS_DIR",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "printf '%s' 'https://docs.example.com/api/overview' | sha256sum | cut -c1-8",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "curl -sL https://docs.example.com/api/overview.md -o source.md",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "wget -q -O - 'https://docs.example.com/api/overview'",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

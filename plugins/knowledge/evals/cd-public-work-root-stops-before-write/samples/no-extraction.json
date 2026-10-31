@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node \"/plugins/knowledge/skills/course-digest/extraction/setup-deps.mjs\" --data-dir \"/data/knowledge\"", "description": "run"}}]},
+    {"answer": []}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "node run.mjs --data-dir /d extract-course.js --course-dir courses/dometrain/mcp-getting-started --metadata-only", "description": "run"}}]},
+    {"answer": [{"tool": "Bash", "input": {"command": "playwright-cli open https://dometrain.com/course/getting-started-with-model-context-protocol/", "description": "run"}}]}
+  ]
+}

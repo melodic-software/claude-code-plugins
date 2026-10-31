@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The clone failed (exit 1): the repository is private, missing or slow. For a private repository, pass the path of a local checkout instead."
+    },
+    {
+      "answer": "Stopped. Give me a local checkout path and I will read it through git."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The clone failed; I stopped."
+    },
+    {
+      "answer": "Could not clone acme/agent-skills."
+    }
+  ]
+}

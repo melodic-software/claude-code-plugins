@@ -1,0 +1,61 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C upstream-src/widget-skills show a9777cc4ec4b7eccabf24582e71badb23b82dcb7:skills/pr-labeler/SKILL.md",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls upstream-src/widget-skills/skills",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git -C upstream-src/widget-skills grep -n label a9777cc4ec4b7eccabf24582e71badb23b82dcb7 -- skills",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat upstream-src/widget-skills/skills/pr-labeler/SKILL.md",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "grep -r label upstream-src/widget-skills/skills",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

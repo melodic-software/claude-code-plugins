@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/repo-visibility.mjs\" upstream-src/widget-skills --commit a9777cc4ec4b7eccabf24582e71badb23b82dcb7",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/repo-visibility.mjs\" upstream-src/widget-skills",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/repo-visibility.mjs\" docs/upstream",
+            "description": "run"
+          }
+        }
+      ]
+    }
+  ]
+}

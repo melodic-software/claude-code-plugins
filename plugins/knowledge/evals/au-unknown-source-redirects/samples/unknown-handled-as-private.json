@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The source reads unknown, so it is handled as private."
+    },
+    {
+      "answer": "Source visibility: unknown (treated as private)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The source reads unknown; proceeding as public."
+    },
+    {
+      "answer": "Source unknown, not treated as private."
+    }
+  ]
+}

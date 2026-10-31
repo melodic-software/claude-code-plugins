@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_00\",\"name\":\"Bash\",\"input\":{\"command\":\"mkdir -p \\\"/eval-home/.claude/plugins/data/knowledge-mkt/ws-a1b2c3d4/testing/unit-testing-epub\\\" && unzip -l books/unit-testing.epub\",\"description\":\"x\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_00\",\"name\":\"Write\",\"input\":{\"file_path\":\"/eval-home/.claude/plugins/data/knowledge-mkt/eval-ws-0f9e8d7c/testing/unit-testing-progress.md\",\"content\":\"# p\"}}]}}\n"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_00\",\"name\":\"Read\",\"input\":{\"file_path\":\"books/unit-testing.epub\"}}]}}\n{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"Bash\",\"input\":{\"command\":\"cp tpl.md '/eval-home/.claude/plugins/data/knowledge-mkt/my-repo-12ab34cd/testing/unit-testing-checklist.md'\",\"description\":\"x\"}}]}}\n"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_00\",\"name\":\"Bash\",\"input\":{\"command\":\"mkdir -p \\\"/eval-home/.claude/plugins/data/knowledge-mkt/ws/testing/unit-testing-epub\\\"\",\"description\":\"x\"}}]}}\n",
+      "why": "basename only, no hash"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_00\",\"name\":\"Write\",\"input\":{\"file_path\":\"/eval-home/.claude/plugins/data/knowledge-mkt/ws-a1b2c3d/testing/unit-testing-progress.md\",\"content\":\"x\"}}]}}\n",
+      "why": "7 hex"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_00\",\"name\":\"Write\",\"input\":{\"file_path\":\"/eval-home/.claude/plugins/data/knowledge-mkt/ws-a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4/testing/unit-testing-progress.md\",\"content\":\"x\"}}]}}\n",
+      "why": "full 64-hex digest"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_00\",\"name\":\"Write\",\"input\":{\"file_path\":\"/eval-home/.claude/plugins/data/knowledge-mkt/ws-A1B2C3D4/testing/unit-testing-progress.md\",\"content\":\"x\"}}]}}\n",
+      "why": "uppercase hex"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_00\",\"name\":\"Read\",\"input\":{\"file_path\":\"/eval-home/.claude/plugins/data/knowledge-mkt/ws-a1b2c3d4/testing/unit-testing-progress.md\"}}]}}\n",
+      "why": "read, not a write or command"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_00\",\"name\":\"Write\",\"input\":{\"file_path\":\"/eval-home/.claude/plugins/data/knowledge-mkt/ws-a1b2c3d4/unit-testing-progress.md\",\"content\":\"x\"}}]}}\n",
+      "why": "no target-slug directory"
+    }
+  ]
+}

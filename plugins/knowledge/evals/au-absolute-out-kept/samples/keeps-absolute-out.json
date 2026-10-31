@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "Record directory: /srv/repos/acme-corpus/docs/upstream (argument layer; it reads local, so the absolute --out is valid)."
+    },
+    {
+      "answer": "Kept --out /srv/repos/acme-corpus/docs/upstream from the argument layer."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "--out /srv/repos/acme-corpus/docs/upstream is invalid (absolute); dropped the argument layer and used docs/upstream."
+    },
+    {
+      "answer": "Record directory: docs/upstream (default layer)."
+    },
+    {
+      "answer": "Dropped the argument value /srv/repos/acme-corpus/docs/upstream."
+    }
+  ]
+}
