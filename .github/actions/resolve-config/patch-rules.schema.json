@@ -11,6 +11,7 @@
     "review-threads": { "$ref": "#/$defs/row" },
     "dependency-review": { "$ref": "#/$defs/row" },
     "merge-base": { "$ref": "#/$defs/row" },
+    "shared-copies": { "$ref": "#/$defs/row" },
     "docs": { "$ref": "#/$defs/row" },
     "default": { "$ref": "#/$defs/row" },
     "issue": { "$ref": "#/$defs/row" }
@@ -47,7 +48,7 @@
           "minItems": 1,
           "uniqueItems": true,
           "items": { "enum": ["any", "markdown", "kept-threads", "dependency-manifests", "merge-result", "shared-copies"] },
-          "description": "What a path the refusals pass must also meet. any: nothing more; markdown: a path ending in .md, in that case; kept-threads: the path of a thread the run kept; dependency-manifests: an npm or pip manifest or lock file outside .github/; merge-result: a path the base merge left conflicted, which the patch must leave with no conflict markers; the merge's own changes from the base side pass through without facing the rules."
+          "description": "What a path the refusals pass must also meet. any: nothing more; markdown: a path ending in .md, in that case; kept-threads: the path of a thread the run kept; dependency-manifests: an npm or pip manifest or lock file outside .github/; merge-result: a path the base merge left conflicted, which the patch must leave with no conflict markers; the merge's own changes from the base side pass through without facing the rules; shared-copies: a copy the base-tip scripts/shared-copies.txt registers."
         },
         "max-files": {
           "oneOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }],
