@@ -605,7 +605,9 @@ catalog that moved backward roll back exactly the deliberate pins this step is m
 holding. Verified safe: `plugin update
 -s project` does not write the committed `.claude/settings.json` (see
 [scope-semantics.md](scope-semantics.md)), so no settings-diff review is needed for this step,
-unlike `converge`.
+unlike `converge`. The step still checks it, with the same `.claude/` check as Step 3a run in the
+project root: a change after a call stops the step, that call is a failure, and each record after it
+is reported as not tried.
 
 **The call can update a sibling worktree's record instead of the run's own**
 ([scope-semantics.md](scope-semantics.md)). `sync-run.sh` reads a project/local version only from

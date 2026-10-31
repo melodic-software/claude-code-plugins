@@ -25,8 +25,9 @@ the merged effective value (`enabled`) and, per project/local record in a presen
 raw `.claude/settings.json` entry (`projectEnabledEntry`), but not the raw local or user maps, so
 never claim the report surfaces a mismatch, and never hand-parse a settings file to work around the
 gap. `projectEnabledEntry` exists because the CLI's plugin list reports a project-level explicit
-`false` and no entry alike (observed 2026-10-31; recheck when `claude plugin list --json` gains a
-field that tells them apart), and Step 2 needs the difference.
+`false` and no entry alike (Basis: the
+[decision record, Q3](https://github.com/melodic-software/claude-code-plugins/issues/7458#issuecomment-6547672521);
+as of 2026-10-31; recheck when `claude plugin list --json` gains a field that tells them apart), and Step 2 needs the difference.
 
 ## Step 1: Detect
 

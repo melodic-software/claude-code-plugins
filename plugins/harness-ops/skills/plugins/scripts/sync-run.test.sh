@@ -170,6 +170,8 @@ case "$verb" in
   *) ;;
   esac
   new="${CLAUDE_STUB_NEW_VERSION:-9.9.9}"
+  # CLAUDE_STUB_DIRTY_FILE: every update rewrites that settings file.
+  [[ -z "${CLAUDE_STUB_DIRTY_FILE:-}" ]] || printf '{"enabledPlugins":{"%s":true}}\n' "$id" >"$CLAUDE_STUB_DIRTY_FILE"
   # CLAUDE_STUB_MISFIRE_PATH: the CLI moves only the record keyed to that path,
   # as it did to a sibling worktree's record, whatever the cwd.
   only="${CLAUDE_STUB_MISFIRE_PATH:-}"
@@ -3163,6 +3165,39 @@ assert_eq "guard: an untried present pin stays counted for converge" "1" \
   "$(jq -r '.marketplaces[0].divergences.actionable_elsewhere' <<<"$out")"
 report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
 assert_contains "guard: the failure is under Action needed" "$report" "update stopped in"
+
+# The same check in the run's own project: a settings change after Step 2's first
+# call stops further in-repo calls there.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 2.0.0
+catalog_plugin "$case_dir" market1 beta 2.0.0
+mkdir -p "$case_dir/proj/.claude"
+printf '{"enabledPlugins":{}}\n' >"$case_dir/proj/.claude/settings.json"
+proj=$(norm_path "$case_dir/proj")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"2.0.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$proj\", \"installPath\": \"a\", \"version\": \"1.0.0\"}],
+    \"beta@market1\": [{\"scope\": \"user\", \"installPath\": \"b\", \"version\": \"2.0.0\"},
+      {\"scope\": \"project\", \"projectPath\": \"$proj\", \"installPath\": \"b\", \"version\": \"1.0.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir/proj" CLAUDE_STUB_NEW_VERSION=2.0.0
+  CLAUDE_STUB_DIRTY_FILE="$case_dir/proj/.claude/settings.json" CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_eq "in-repo guard: one project update call, then the step stops" "1" \
+  "$(grep -c -- '-s project' "$case_dir/claude.log")"
+assert_eq "in-repo guard: the stopping call and the untried record are failures" "changed after this call|not tried" \
+  "$(jq -r '[.marketplaces[0].in_repo.failed[] | select(.stopped == true) | .reason
+    | if test("changed after this call") then "changed after this call" else "not tried" end] | join("|")' <<<"$out")"
+report=$(jq -r -f "$SCRIPT_DIR/render-report.jq" <<<"$out")
+assert_contains "in-repo guard: the stop is under Action needed" "$report" "update stopped in $proj"
 
 # ============================================================================
 if ((FAILED > 0)); then

@@ -1629,10 +1629,27 @@ run_marketplace() {
               | if eqp($p; $r) or eqp(($p | .[0:($r | length) + 1]); $r + "/") then $p else "" end
             else "" end' "$RUN_DIR/pre.$mp.json"
       fi
+      # The same .claude/ check as Step 3a, in the project root: taken before the
+      # first call and after each one, and a change stops the step there.
+      local ir_root=""
+      local ir_before=""
+      local ir_after=""
+      local ir_stopped=0
+      jq_to ir_root -r '.project_root // ""' "$RUN_DIR/pre.$mp.json"
+      ir_root="${ir_root//\\//}"
+      if [[ "$MODE" == "sync" && -n "$ir_root" ]]; then
+        settings_state ir_before "$ir_root"
+      fi
       while IFS=$'\t' read -r id scope; do
         id="${id//$'\r'/}"
         scope="${scope//$'\r'/}"
         [[ -n "$id" ]] || continue
+        if ((ir_stopped == 1)); then
+          IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg path "$ir_root" \
+            '{id: $id, scope: $sc, rc: 0, output: "", path: $path, stopped: true,
+              reason: "not tried: the .claude/ settings in this path changed after an earlier call"}')")
+          continue
+        fi
         version_at old "$RUN_DIR/pre.$mp.json" "$id" "$scope"
         if [[ "$MODE" == "audit" && -n "$live_path" ]]; then
           IR_LIVE+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg old "$old" --arg path "$live_path" \
@@ -1646,6 +1663,16 @@ run_marketplace() {
           continue
         fi
         run_cli "claude plugin update $id -s $scope --json" plugin update "$id" -s "$scope" --json
+        if [[ -n "$ir_root" ]]; then
+          settings_state ir_after "$ir_root"
+          if [[ "$ir_after" != "$ir_before" ]]; then
+            ir_stopped=1
+            IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --arg path "$ir_root" \
+              '{id: $id, scope: $sc, rc: 0, output: "", path: $path, stopped: true,
+                reason: "the .claude/ settings in this path changed after this call, so the path was stopped"}')")
+            continue
+          fi
+        fi
         if ((CLI_RC != 0)); then
           reason=$(cli_outcome_line "$CLI_OUT")
           trunc out "$CLI_OUT"

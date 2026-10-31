@@ -191,7 +191,8 @@ def block($d):
          listed("enable gap deferred (marketplace refresh failed)"; .enable_gap)
        else empty end),
       $enable_pending[],
-      ($failed[] | ["update failed (exit \(.rc)): \(.id) -s \(.scope): \(reported)"]),
+      ($failed[] | if .stopped == true then ["update stopped in \(.path): \(.id) -s \(.scope): \(.reason)"]
+                   else ["update failed (exit \(.rc)): \(.id) -s \(.scope): \(reported)"] end),
       (($op.failed // [])[]
        | ["update \(if .stopped then "stopped" else "failed" end) in \(.path): \(.id) -s \(.scope): \(.reason)"]),
       ($installed_failed[] | ["install failed (exit \(.rc)): \(.id): \(reported)"]),
