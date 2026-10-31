@@ -242,11 +242,13 @@ the former default-on pause).
    in-flight precondition below) or held by its Objection window ([reference/objection-window.md](reference/objection-window.md),
    which also escalates an objected one), then classify the rest and admit per the gate. Fail-closed.
 4. **Execute.** Work admitted items by invoking `/work-items:work` via the Skill tool (one invocation per item slot), up to
-   the adaptive item cap. When more than one item was admitted, sort the admitted set on the
-   `created_at` each snapshot item already carries (the seam `CONTRACT.md`, "JSON output
-   contract") before filling cap slots, with no further read: `oldest-first` ascending,
+   the adaptive item cap. When more than one item was admitted, sort the admitted set before
+   filling cap slots, with no further read: first by each item's `priority:` label rank in the
+   `work_priority_order` setting, resolved and applied as `/work-items:work`'s "Selection
+   Priority" states, then between equal ranks on the `created_at` each snapshot item already
+   carries (the seam `CONTRACT.md`, "JSON output contract"): `oldest-first` ascending,
    `newest-first` descending. An item whose `created_at` is `null` or absent sorts after every
-   timestamped item; among those, and on equal timestamps, order by item number in the same
+   timestamped item of its rank; among those, and on equal timestamps, order by item number in the same
    direction, a fixed tie-break so the order is deterministic. Each invocation uses that skill's
    **autonomous invocation** path: it names the admitted item id and states that this loop's
    admission gate (and any required ratification marker) passed, so `/work-items:work` proceeds
