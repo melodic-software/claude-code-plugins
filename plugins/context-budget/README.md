@@ -157,14 +157,14 @@ rules to the path; on 2.1.285 the path is not the cause, and 2.1.258 was not re-
 rules differ: there, an `Edit` rule covers every built-in file-editing tool. One `Edit(...)` gate on
 this `Write|Edit|NotebookEdit` row would therefore drop every Write silently, which is the opposite
 of what the checkpoint exists to do. The row stays unconditioned; splitting it into a gated row per
-tool needs its own probe, and NotebookEdit was not probed. #8985 tracks the upstream report.
+tool needs its own probe, and NotebookEdit was not probed.
 
 - **Pointer:** [hooks § Common fields](https://code.claude.com/docs/en/hooks#common-fields) (`if`
   uses permission rule syntax) and
   [permissions § What `Read` and `Edit` rules cover](https://code.claude.com/docs/en/permissions#what-read-and-edit-rules-cover).
 - **As of:** 2026-10-29.
 - **Recheck trigger:** a Claude Code release note saying a hook `if` `Edit(...)` rule matches Write
-  tool calls, or #8985 closes. Re-probe before gating this row.
+  tool calls. Re-probe before gating this row.
 
 ## What makes the numbers trustworthy
 
