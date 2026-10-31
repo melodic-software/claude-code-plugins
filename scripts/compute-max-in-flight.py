@@ -21,7 +21,7 @@ import babysit_risk  # noqa: E402
 CONFIG = ROOT / "docs/conventions/pr-pipeline.yaml"
 INPUTS = (
     "peak-merges-per-hour",
-    "p90-minutes-in-flight",
+    "mean-minutes-in-flight",
     "app-hourly-limit",
     "app-target-percent",
     "app-peak-hourly-used",
@@ -33,7 +33,7 @@ INPUTS = (
 def cap(sizing: dict[str, int]) -> int:
     """The smaller of the peak rate over the time in flight and what the
     lanes App's hourly target leaves for candidate reads; at least 1."""
-    rate = -(-sizing["peak-merges-per-hour"] * sizing["p90-minutes-in-flight"] // 60)
+    rate = -(-sizing["peak-merges-per-hour"] * sizing["mean-minutes-in-flight"] // 60)
     spare = (
         sizing["app-hourly-limit"] * sizing["app-target-percent"] // 100
         - sizing["app-peak-hourly-used"]

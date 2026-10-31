@@ -1068,11 +1068,11 @@
           "type": "object",
           "additionalProperties": false,
           "description": "The recorded inputs `max-in-flight` is computed from; pr-pipeline.yaml states the formula beside them.",
-          "required": ["measured", "peak-merges-per-hour", "p90-minutes-in-flight", "app-hourly-limit", "app-target-percent", "app-peak-hourly-used", "app-calls-per-candidate", "reader-runs-per-hour"],
+          "required": ["measured", "peak-merges-per-hour", "mean-minutes-in-flight", "app-hourly-limit", "app-target-percent", "app-peak-hourly-used", "app-calls-per-candidate", "reader-runs-per-hour"],
           "properties": {
             "measured": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "description": "The last day of the measured day." },
             "peak-merges-per-hour": { "type": "integer", "minimum": 1, "description": "Most lanes App-enqueued merges in any 60 minutes of the measured day." },
-            "p90-minutes-in-flight": { "type": "integer", "minimum": 1, "description": "90th percentile of the minutes from a lanes App enqueue to the pr-merge run that frees its room." },
+            "mean-minutes-in-flight": { "type": "integer", "minimum": 1, "description": "Mean minutes from a lanes App merge's arming or enqueue, whichever came first, to the pr-merge run that frees its room." },
             "app-hourly-limit": { "type": "integer", "minimum": 1, "description": "The lanes App's core requests per hour, from the api-budget notices." },
             "app-target-percent": { "type": "integer", "minimum": 1, "maximum": 100, "description": "Largest planned share of that limit." },
             "app-peak-hourly-used": { "type": "integer", "minimum": 0, "description": "Highest lanes App core `used` in the sampled pr-merge runs." },

@@ -26,7 +26,7 @@ import babysit_merge_policy as policy  # noqa: E402
 
 INPUTS = {
     "peak-merges-per-hour": 11,
-    "p90-minutes-in-flight": 59,
+    "mean-minutes-in-flight": 58,
     "app-hourly-limit": 5200,
     "app-target-percent": 70,
     "app-peak-hourly-used": 1974,
