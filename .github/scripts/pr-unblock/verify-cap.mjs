@@ -27,8 +27,7 @@
 // The listing pr-merge carried (listing-carry.mjs) is fetched on the first
 // read only, so a run that skips before any read spends none of its calls.
 import { execFile } from "node:child_process";
-
-import { main as carryListing } from "../pr-merge/listing-carry.mjs";
+import { fileURLToPath } from "node:url";
 
 export const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
 export const CAPPED = "verify:repeated-fail";
@@ -71,9 +70,21 @@ export function spawnReader(command, args, { env, timeout }) {
   });
 }
 
-// listing-carry.mjs, run in this process with the job's token, once: it
-// writes BABYSIT_VERIFY_LISTING_CARRY or warns and writes nothing.
-const fetchCarry = (env) => carryListing({ env: { ...env, ACTIONS_TOKEN: env.ACTIONS_TOKEN || env.GITHUB_TOKEN } });
+// listing-carry.mjs with the job's token, as the step that ran it every run
+// did: a child process under CARRY_TIMEOUT_MS that logs its own api-calls
+// notice. It writes BABYSIT_VERIFY_LISTING_CARRY, or warns and writes nothing.
+const CARRY_SCRIPT = fileURLToPath(new URL("../pr-merge/listing-carry.mjs", import.meta.url));
+export const CARRY_TIMEOUT_MS = 2 * 60_000;
+async function fetchCarry(env) {
+  const done = await spawnReader(process.execPath, [CARRY_SCRIPT], {
+    env: { ...env, ACTIONS_TOKEN: env.ACTIONS_TOKEN || env.GITHUB_TOKEN, API_BUDGET_SCRIPT: "listing-carry" },
+    timeout: CARRY_TIMEOUT_MS,
+  });
+  process.stdout.write(done.stdout ?? "");
+  if (done.status !== 0) {
+    throw new Error(oneLine(done.error?.message ?? String(done.stderr).trim().split("\n").at(-1)) || `exit ${done.status}`);
+  }
+}
 
 // The reader's waits between incremental reads of a carried listing
 // (babysit_verify_evidence.py INCREMENTAL_WAITS) and the whole listing after

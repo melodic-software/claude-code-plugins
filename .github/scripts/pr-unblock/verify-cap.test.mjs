@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -248,6 +248,23 @@ test("a carry that fails is fetched once, warns, and the reads go on without it"
   assert.deepEqual(reads, ["42", "43"]);
   assert.equal(lines.length, 1);
   assert.match(lines[0], /^::warning::the carried artifact listing was not fetched \(HTTP 502\)/);
+});
+
+// The default carry runs listing-carry.mjs as a bounded child, as the step
+// did: here it removes a stale file at the path and stops at the repository
+// name, with no request.
+test("the default carry runs listing-carry.mjs with the job's environment, then the read goes on", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "verify-cap-"));
+  const path = join(dir, "verify-listing-carry.json");
+  writeFileSync(path, "stale");
+  const reads = [];
+  const read = verifyCapReader(
+    { PATH: process.env.PATH, GITHUB_REPOSITORY: "not a repository", RUNNER_TEMP: dir, BABYSIT_VERIFY_LISTING_CARRY: path },
+    { spawn: (command, args) => (reads.push(args.at(-2)), answer({ refusal: null })), log: () => {} },
+  );
+  assert.equal(await read({ number: 42, head: HEAD, base: BASE }), null);
+  assert.equal(existsSync(path), false, "listing-carry.mjs removed the stale file before reading");
+  assert.deepEqual(reads, ["42"]);
 });
 
 test("with no carry file named, no carry is fetched", async () => {
