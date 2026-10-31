@@ -71,7 +71,7 @@ Common flows (this is what `help` prints, along with the effective configuration
 /source-control:babysit-prs owner/repo#87       one specific PR
 /source-control:babysit-prs worker              full-auto (your PRs): fix + resolve-outdated + merge-ready
 /source-control:babysit-prs autopilot           max autonomy: ALL authors, fix+resolve+merge, escalate stuck PRs
-/source-control:babysit-prs help                list these flows and stop
+/source-control:babysit-prs help                list these flows and stop; lead any flow with unattended when nobody is present
 Looped worker:    /loop 15m /source-control:babysit-prs worker
 Looped autopilot: /loop 15m /source-control:babysit-prs autopilot
 Explicit order (any tier): "merge owner/repo#87 now" | "resolve bot threads on #87"
