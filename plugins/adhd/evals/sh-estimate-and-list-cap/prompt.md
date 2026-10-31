@@ -1,10 +1,10 @@
 ---
-description: "With shape set, a seven-task request gets a concrete time estimate in real units and no single list longer than five items (split into groups instead)"
+description: "With shape set and time_units off, a seven-task request gets a relative size (Small, Medium, Large) with no estimate in time units, and no single list longer than five items (split into groups instead)"
 tags: [adhd, shape, outcome, estimate]
 max_turns: 6
 timeout_seconds: 300
 allowed_tools: [Skill, Read]
-expected_outcome: "A time estimate with a number and a real unit (hours, days) or a named span (an afternoon, a day), not 'some work' or 'it depends' alone; the seven tasks are split into groups (do now / later, must / nice to have) so no list runs past five items; no preamble opener."
+expected_outcome: "A relative size (Small, Medium or Large) with what makes it that size, and no estimate in minutes, hours, days, weeks or a named span such as an afternoon; the seven tasks are split into groups (do now / later, must / nice to have) so no list runs past five items; no preamble opener."
 ---
 
 /adhd:shape
