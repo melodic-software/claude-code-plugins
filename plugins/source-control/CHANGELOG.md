@@ -3,6 +3,34 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [4.4.7] - 2026-10-31
+
+### Changed
+
+- `read_demotion` tests cover the `revert` demotion record that `post-merge-demotion-alert.yml` now files when a push to main reverts a pull request the lanes App put in the merge queue: it holds the rung off while open, clears only when a person closes it directly, and a later green main run does not clear it. No change to the plugin's behavior.
+
+### Fixed
+
+- The babysit merge gate follows a no-change skip through clean base merges, up to 10 earlier heads (the cap ci-status shares), back to the newest reviewed head, instead of stopping after one hop and scoring a reviewed pull request as unreviewed. A merge that changed content still needs its own review.
+- The pull-request skill evals cover the remerge-diff rule: a base merge with an empty remerge-diff carries the earlier review forward, and a non-empty one needs a substitute review.
+- Readiness Gate 5 no longer marks a review lane absent on a base merge whose `git show --remerge-diff` is fully empty: it applies B2's test, and the review on the pre-merge head counts.
+
+- The usage check before `/source-control:pull-request` picks who watches a PR now covers a snapshot with one window: every window in the file below the line counts as clear, where the rule named "both windows".
+
+## [4.4.6] - 2026-10-31
+
+### Changed
+
+- The `cost-review-required` hold now covers more infrastructure-as-code files:
+  - Pulumi project and stack files in their `.yml` and `.json` forms (`Pulumi.yml`, `Pulumi.json`,
+    `Pulumi.*.yml`, `Pulumi.*.json`).
+  - Terraform's JSON files (`*.tf.json`, `*.tfvars.json`).
+  - The ARM template names `azuredeploy.json`, `azuredeploy.*.json`, `*.azuredeploy.json` and `*.azuredeploy.*.json`.
+
+  A directory holding any Pulumi project file at the base now counts as a Pulumi project, and
+  `merge-holds.mjs` carries the same paths. A `secrets` reference moved within one file still
+  passes, because it adds no charge.
+
 ## [4.4.5] - 2026-10-31
 
 ### Fixed

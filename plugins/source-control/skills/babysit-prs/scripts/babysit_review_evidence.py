@@ -277,6 +277,10 @@ SUMMARY_CRITICAL_RE = re.compile(
     r"^\s*`?critical-findings: (\d{1,6})`?\s*$", re.MULTILINE
 )
 MAX_CHAIN = 100
+# How many earlier heads a no-change skip chain may pass through to reach a
+# review (`_skip_target`); ci-status's `carried` in pr-require-checks.yml
+# follows the same cap, so the two gates agree on every chain.
+SKIP_HOPS = 10
 
 
 @dataclass(frozen=True)
@@ -917,7 +921,8 @@ def _resolve(
     and return the head of the review that covers `head` with the chain of
     review records that covers it, newest first, back to the whole review.
 
-    A no-change skip binds to the review it names, one hop; an incremental
+    A no-change skip binds to the review it names, following further
+    no-change skips back to it (`_skip_target`); an incremental
     review needs every earlier link bound, back to a whole review. Each link
     is the newest run's latest attempt at its head (`_bound_record`).
     """
@@ -948,10 +953,19 @@ def _skip_target(
     seen: set[str],
     posted: Poster,
 ) -> _Record:
-    rec = _link(lane, sha, lane_runs, seen, posted)
-    if rec.through is not None or rec.skip is not None:
-        raise Unbound("skip-chain")
-    return rec
+    """The review a no-change skip carries forward: its `through` head, and
+    on through each further no-change skip (one per push that changed no file
+    of the pull request, such as a clean base merge) to the first head the
+    lane reviewed, at most `SKIP_HOPS` heads back. A head whose content
+    changed has its own review record, so the chain stops there."""
+    for _ in range(SKIP_HOPS):
+        rec = _link(lane, sha, lane_runs, seen, posted)
+        if rec.skip is not None:
+            raise Unbound("skip-not-no-change")
+        if rec.through is None:
+            return rec
+        sha = rec.through
+    raise Unbound("incremental-gap")
 
 
 def _link(

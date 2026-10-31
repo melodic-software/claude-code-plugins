@@ -502,8 +502,9 @@ const newestById = (items) => items.reduce((newest, item) => (newest === undefin
 // is a whole review. The security lane's newest reviewed-head marker names
 // the head, is unedited (an edit's author is not read), and carries one
 // `critical-findings: 0` line. Every unresolved review thread opens with one
-// `severity: SUGGESTION` line: a CRITICAL, IMPORTANT or unreadable one, as on
-// a claude-review or a person's thread, keeps it. For a clear that a push no
+// readable `severity:` line below CRITICAL: a CRITICAL or unreadable one, as
+// on a person's thread, keeps it (only a CRITICAL finding holds, owner
+// decision on #11020). For a clear that a push no
 // trusted person made may lift.
 async function reviewLanesClean(context) {
   const { read, repo, pull, timeline } = context;
@@ -557,12 +558,12 @@ async function reviewLanesClean(context) {
   const open = await context.threads();
   const severe = (thread) => {
     const found = [...String(thread?.opening?.nodes?.[0]?.body ?? "").matchAll(SEVERITY)];
-    return found.length !== 1 || found[0][1] !== "SUGGESTION";
+    return found.length !== 1 || found[0][1] === "CRITICAL";
   };
   if (open === null || open.some(severe)) {
     return null;
   }
-  return "both review lanes completed a review of it, the security review whole with critical-findings: 0, and no unresolved review thread carries a CRITICAL, IMPORTANT or unreadable severity";
+  return "both review lanes completed a review of it, the security review whole with critical-findings: 0, and no unresolved review thread carries a CRITICAL or unreadable severity";
 }
 
 // main's tip when the newest `reason` escalation was written, when the head

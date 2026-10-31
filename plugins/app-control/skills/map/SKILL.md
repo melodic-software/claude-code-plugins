@@ -108,7 +108,8 @@ drive finds a control skill by its hub.
   available in this session, invoke it through the Skill tool to write the CLI; otherwise write a
   documented script.
 - **Hub**, per the contract's Hub section, with the app's name, the driving tool, and
-  `Attended runs only.` when that tool drives the person's own signed-in browser. Launch names the
+  `Attended runs only.` when that tool drives the person's own signed-in browser, and a `## Mask`
+  when Capture records a `screenshot` or `video` (the contract's "The Mask section"). Launch names the
   recipe, first found: a `run-<name>` project skill; a recorded `.claude/skills/verify/SKILL.md`;
   else the documented start command, and offer the person `/run-skill-generator` to type. Our rule:
   name a recipe, never copy it or write into its directory; the upstream behavior of those two is

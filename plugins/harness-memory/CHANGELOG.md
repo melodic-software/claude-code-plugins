@@ -3,6 +3,12 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.7] - 2026-10-31
+
+### Changed
+
+- Repointed the dead best-practices anchors to the current headings on that page.
+
 ## [2.0.6] - 2026-10-30
 
 ### Changed

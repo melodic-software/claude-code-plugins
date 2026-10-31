@@ -27,6 +27,9 @@
 #                      line with no code span) ends in a container or resource listing, which exits
 #                      0 with no rows; the contract's "The Ready command" says to end it in grep -q.
 #                      A kubectl get that names an object exits 1 when it is missing: not a listing
+#   mask-missing       the hub's `## Capture` names `screenshot` or `video` on a row whose tool is
+#                      not `none`, and its `## Mask` holds no unfenced `- <label> | <regex>` line
+#                      and no `none: <reason>` line
 #
 # A legacy `features/<f>.md` gets the index and link rules only: the contract keeps it working as
 # written. A README.md inside a feature's folder belongs to that feature, not to a new one. Hidden
@@ -337,5 +340,23 @@ while IFS= read -r cmd; do
   fi
   finding ready-listing SKILL.md "$(trim "$cmd"): ends in a listing, which exits 0 with no rows; end it in grep -q on the expected row"
 done < <(ready_commands "$dir/SKILL.md")
+
+# Lines under the hub's `## <heading>`, fence markers left out; fenced lines only with `fenced`.
+section_lines() { # <file> <heading> [fenced]
+  awk -v h="## $2" -v keep="${3:-}" '
+    /^[[:space:]]*(```|~~~)/ { fence = !fence; next }
+    !fence && /^## / { sub(/[[:space:]]+$/, ""); inside = ($0 == h); next }
+    inside && (!fence || keep == "fenced")' "$1"
+}
+# A row whose tool is `none` (`- trace, video: none`, `| video | none |`) records nothing.
+image_kinds="$(section_lines "$dir/SKILL.md" Capture fenced |
+  { grep -viE '(:|\|)[[:space:]]*none[[:space:]]*\|?[[:space:]]*$' || true; } |
+  { grep -oiwE 'screenshots?|videos?' || true; } |
+  tr '[:upper:]' '[:lower:]' | sed 's/s$//' | LC_ALL=C sort -u | awk 'NR > 1 { printf ", " } { printf "%s", $0 }')"
+if [[ -n "$image_kinds" ]]; then
+  mask_lines="$(section_lines "$dir/SKILL.md" Mask |
+    { grep -cE '^[[:space:]]*(-[[:space:]]+[^|]*[^|[:space:]][^|]*\|[[:space:]]*[^[:space:]]|none:[[:space:]]*[^[:space:]])' || true; })"
+  [[ "$mask_lines" != 0 ]] || finding mask-missing SKILL.md "## Capture records $image_kinds with no ## Mask line"
+fi
 
 exit 0

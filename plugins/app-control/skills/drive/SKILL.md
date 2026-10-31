@@ -262,6 +262,14 @@ feature and entry point it came from. Raw captures stay in the run directory as 
 never deletes them. The layout and the `report.json` fields are in
 [`${CLAUDE_SKILL_DIR}/reference/evidence.md`](reference/evidence.md); read it before writing the report.
 
+Only files in `report.json`'s `publishable` list may be uploaded. After the last capture, run
+evidence.md's "Mask post-check": it writes the redacted `report.public.md` and
+`report.public.json`, scans them and each `screenshot` and `video` sidecar for the control skill's
+`## Mask` `values:` and a generic credential pattern, and sets each capture's `artifacts[].mask`.
+It fails closed: a hit, a missing or empty sidecar, no `## Mask` line or an unresolved value source keeps a
+file out. A raw capture and any file with a `secrets_mark` entry are never publishable. Never
+write a `values:` value to any file.
+
 ## Next
 
 - Evidence in hand, needs a judgment: /verification:confirm.
