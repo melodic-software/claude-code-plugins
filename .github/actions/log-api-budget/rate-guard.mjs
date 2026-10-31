@@ -142,19 +142,66 @@ export const entryOf = (pool, token = process.env.API_BUDGET_TOKEN) =>
 // Never throws.
 const READING = { limit: /^\d+$/, remaining: /^\d+$/, used: /^\d+$/, reset: /^\d+$/, resource: /^[a-z_]+$/ };
 
-export function readingLine(status, headers) {
+export function readingLine(status, headers, route = "other") {
   const values = Object.entries(READING).map(([key, re]) => {
     const value = String(headers?.get?.(`x-ratelimit-${key}`) ?? "");
     return re.test(value) ? value : "na";
   });
-  return `${status} ${values.join(" ")}\n`;
+  return `${status} ${values.join(" ")} ${ROUTE_SHAPE.test(route) && route.length <= 80 ? route : "other"}\n`;
 }
 
-export function recordReading({ token = process.env.API_BUDGET_TOKEN, dir = process.env.RUNNER_TEMP, status, headers }) {
+// A request's URL as a route that holds no query, name or token, for the
+// job-end api-routes notice: api-budget.bash's API_BUDGET_ROUTE, which says
+// how each segment is templated.
+const ROUTE_SHAPE = /^[a-z{}_/-]+$/;
+const ROUTE_TAIL = /^(contents|ref|refs|matching-refs|readme|compare|tarball|zipball)$/;
+const ROUTE_NAME = /^(labels|branches|tags|users|orgs|teams|members|collaborators|assignees|environments|secrets|variables|workflows|topics|rules)$/;
+export function routeOf(url) {
+  const path = String(url?.url ?? url ?? "")
+    .replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*/i, "")
+    .replace(/[?#][\s\S]*$/, "")
+    .replace(/^\/+/, "")
+    .replace(/^api\/v3\//, "")
+    .replace(/\/+$/, "");
+  if (/(^|\/)graphql$/.test(path)) {
+    return "graphql";
+  }
+  if (path === "") {
+    return "other";
+  }
+  const segments = path.split("/");
+  const out = [];
+  let tail = false;
+  let name = false;
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (tail || name) {
+      out.push(/^[0-9]+$/.test(seg) ? "{n}" : "{x}");
+      name = false;
+    } else if (i === 1 && segments[0] === "repos" && segments.length >= 3) {
+      out.push("{repo}");
+      i++;
+    } else if (/^[0-9]+$/.test(seg)) {
+      out.push("{n}");
+    } else if (seg.length >= 7 && /^[0-9a-f]+$/i.test(seg)) {
+      out.push("{sha}");
+    } else if (!/^[a-z]+([_-][a-z]+)*$/.test(seg) || seg.length > 32 || /^(gh[a-z]|github)_/.test(seg)) {
+      out.push("{x}");
+    } else {
+      out.push(seg);
+      tail = ROUTE_TAIL.test(seg);
+      name = ROUTE_NAME.test(seg);
+    }
+  }
+  const route = out.join("/");
+  return route.length > 80 ? "other" : route;
+}
+
+export function recordReading({ token = process.env.API_BUDGET_TOKEN, dir = process.env.RUNNER_TEMP, status, headers, route }) {
   if (!dir || !/^[a-z][a-z0-9-]{0,39}$/.test(token ?? "")) {
     return;
   }
-  const line = readingLine(status, headers);
+  const line = readingLine(status, headers, route);
   try {
     mkdirSync(join(dir, "api-budget"), { recursive: true });
     appendFileSync(join(dir, "api-budget", token), line);
@@ -250,7 +297,7 @@ export function countRequests(fetchImpl, { token } = {}) {
   }
   return countsRequests(async function counted(url, init = {}) {
     const response = await fetchImpl(url, init);
-    recordReading({ token: budgetToken(init, { token }), status: response.status, headers: response.headers });
+    recordReading({ token: budgetToken(init, { token }), status: response.status, headers: response.headers, route: routeOf(url) });
     if (response.status >= 400) {
       recordFailure({ method: init.method, url, status: response.status });
     }
