@@ -101,7 +101,7 @@
         },
         "rows": {
           "type": "array",
-          "description": "Re-rank a bundled row, matched by concern plus id, or add one.",
+          "description": "Re-rank a bundled row, matched by concern plus id, or add one. A new row's id must match a bundled row or an installed plugin or skill; a new kind: tool row is refused; a row reusing a bundled id may not change its kind, detect or account. A row that breaks any of these rules is dropped and named in the routing notes.",
           "items": {
             "type": "object",
             "additionalProperties": false,
