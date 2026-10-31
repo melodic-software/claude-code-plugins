@@ -19,7 +19,11 @@
 // with a warning naming it, unless the caller expects that refusal (a FAIL
 // at the head of a round sent for that FAIL). Each read's stderr, the
 // reader's `babysit-listing-miss` lines first, is logged on one line.
+//
+// The listing pr-merge carried (listing-carry.mjs) is fetched on the first
+// read only, so a run that skips before any read spends none of its calls.
 import { spawn as spawnChild } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 export const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
 export const CAPPED = "verify:repeated-fail";
@@ -89,6 +93,23 @@ export function spawnAsync(command, args, { timeout, encoding, ...options } = {}
   });
 }
 
+// listing-carry.mjs with the job's token, as the workflow step that ran it
+// every run did: a child process under CARRY_TIMEOUT_MS that logs its own
+// api-calls notice. It writes BABYSIT_VERIFY_LISTING_CARRY, or warns and
+// writes nothing.
+const CARRY_SCRIPT = fileURLToPath(new URL("../pr-merge/listing-carry.mjs", import.meta.url));
+export const CARRY_TIMEOUT_MS = 2 * 60_000;
+async function fetchCarry(env) {
+  const done = await spawnAsync(process.execPath, [CARRY_SCRIPT], {
+    env: { ...env, ACTIONS_TOKEN: env.ACTIONS_TOKEN || env.GITHUB_TOKEN, API_BUDGET_SCRIPT: "listing-carry" },
+    timeout: CARRY_TIMEOUT_MS,
+  });
+  process.stdout.write(done.stdout ?? "");
+  if (done.status !== 0) {
+    throw new Error(oneLine(done.error?.message ?? String(done.stderr).trim().split("\n").at(-1)) || `exit ${done.status}`);
+  }
+}
+
 // Whether a verifyCapReader answer never clears for the head, so a
 // dispatcher records the head as handled: the cap does, a sibling read that
 // failed may clear next run.
@@ -126,9 +147,18 @@ function stderrSummary(stderr) {
 // `base`: the pull request's base commit, so the reader takes the gate's
 // merge.max-verify-fails (the lower of that commit's and main's).
 // `expected`: refusals the round is sent for, which warn nothing.
-export function verifyCapReader(env, { spawn = spawnAsync, log = (line) => console.log(line) } = {}) {
+// `carry`: fetches the listing pr-merge carried, before the first read only,
+// when the job names BABYSIT_VERIFY_LISTING_CARRY; a failed fetch is no carry.
+export function verifyCapReader(env, { spawn = spawnAsync, log = (line) => console.log(line), carry = fetchCarry } = {}) {
   env = { ...env, ...NO_INCREMENTAL_WAITS };
+  let carried = null;
   return async ({ number, head, base, expected = [] }) => {
+    if (env.BABYSIT_VERIFY_LISTING_CARRY) {
+      carried ??= Promise.resolve()
+        .then(() => carry(env))
+        .catch((error) => log(`::warning::the carried artifact listing was not fetched (${oneLine(error?.message ?? error)}); the reader lists every page`));
+      await carried;
+    }
     const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--repo", env.GITHUB_REPOSITORY];
     if (SHA.test(String(base ?? ""))) {
       args.push("--base-sha", base);
