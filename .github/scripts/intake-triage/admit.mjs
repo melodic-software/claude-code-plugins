@@ -726,26 +726,41 @@ const BULLET = /^\s*(?:[-*+]|\d+[.)])\s/;
 // The bounded shapes that say a path is left unmodified; a path is dropped
 // only inside one, and any other wording keeps it:
 // 1. `no`/`none of` + a short phrase holding the path + `is`/`are`/`was`/
-//    `were`/`gets`/`will be` + a participle ("No file under X is edited");
+//    `were`/`gets`/`will be`/`should be`/`must be` + a participle ("No file
+//    under X is edited", "No file under X should be edited");
 // 2. a modification verb + `no` + the path phrase, or a comma-separated list
 //    of paths ("the diff touches no X, Y or Z file");
-// 3. `does not`/`never`/`won't` + a modification verb + the path phrase
-//    ("does not edit X");
-// 4. `leaves` + the path phrase + `unchanged`/`untouched`/`as is`.
+// 3. `does not`/`do not`/`don't`/`never`/`won't`, or a modal negation
+//    (`must not`, `should not`, `mustn't`, `can't`, `cannot`, ...), + a
+//    modification verb + the path phrase ("does not edit X", "MUST NOT
+//    modify X");
+// 4. `leaves` + the path phrase + `unchanged`/`untouched`/`as is`;
+// 5. `no change(s)`/`edit(s)`/`modification(s)` + `to`/`in` + the path phrase
+//    ("No changes to X");
+// 6. at the start of the item or a sentence, the path phrase + a negated
+//    passive (`is not`, `isn't`, `must not be`, ...) + a participle that ends
+//    the sentence ("X is not edited.", "X must not be modified.").
 // A path phrase is up to six words, with no comma, sentence end, or word that
-// turns it toward a change or a condition (but, other, after, ...).
+// turns it toward a change or a condition (but, other, after, ...); in shape
+// 6 it also holds no modification verb.
 const STOP = String.raw`(?!(?:but|except|other|outside|beyond|besides|apart|aside|and|or|nor|while|so|then|unless|yet|whereas|instead|after|before|when|once|until|if|to|for|that|which|who|where)(?=[\s,;:!?.]|$))`;
 const WORD = String.raw`${STOP}(?:[^\s,;:!?.]|\.(?=\S))+`;
 const PHRASE = String.raw`${WORD}(?:\s+${WORD}){0,5}`;
 const LIST = String.raw`${WORD}(?:(?:,\s*(?:(?:or|nor)\s+)?|\s+(?:or|nor)\s+)${WORD})+(?:\s+(?:files?|director(?:y|ies)|folders?|paths?|lines?))?`;
 const DONE = String.raw`edited|changed|touched|modified|altered|rewritten`;
 const VERB = String.raw`touch(?:es|ing)?|chang(?:e|es|ing)|edit(?:s|ing)?|modif(?:y|ies|ying)|alter(?:s|ing)?|(?:re)?writ(?:e|es|ing)\s+to`;
+const MODAL = String.raw`must|should|shall|will|can`;
+const NOT = String.raw`(?:${MODAL})\s+not|cannot|(?:mustn|shouldn|shan|can)['’]t`;
+const ACT = String.raw`(?!(?:${VERB}|updat|add|remov|delet|creat|replac|renam|mov|fix)\w*(?=[\s,;:!?.]|$))`;
+const SUBJECT = String.raw`${ACT}${WORD}(?:\s+${ACT}${WORD}){0,5}`;
 const NEGATED = new RegExp(
   [
-    String.raw`\b(?:no|none\s+of)\s+${PHRASE}\s+(?:is|are|was|were|gets?|will\s+be)\s+(?:${DONE})\b`,
+    String.raw`\b(?:no|none\s+of)\s+${PHRASE}\s+(?:is|are|was|were|gets?|(?:${MODAL})\s+be)\s+(?:${DONE})\b`,
     String.raw`\b(?:${VERB})\s+no\s+(?:${LIST}|${PHRASE})`,
-    String.raw`\b(?:(?:does|do|did)\s+not|never|(?:won|doesn|don|didn)['’]t)\s+(?:${VERB})\s+${PHRASE}`,
+    String.raw`\b(?:(?:does|do|did)\s+not|never|(?:won|doesn|don|didn)['’]t|${NOT})\s+(?:${VERB})\s+${PHRASE}`,
     String.raw`\bleav(?:e|es|ing)\s+${PHRASE}\s+(?:unchanged|untouched|as\s+is)\b`,
+    String.raw`\bno\s+(?:changes?|edits?|modifications?|alterations?)\s+(?:to|in)\s+${PHRASE}`,
+    String.raw`(?:^|(?<=[.;:!?]\s))\s*${SUBJECT}\s+(?:(?:is|are|was|were|gets?)\s+(?:not|never)|(?:is|are|was|were)n['’]t|(?:${NOT}|won['’]t)\s+be)\s+(?:${DONE})(?=\s*(?:[.;!?](?:\s|$)|$))`,
   ].join("|"),
   "gi",
 );

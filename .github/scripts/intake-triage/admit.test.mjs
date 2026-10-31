@@ -720,6 +720,21 @@ describe("decide", () => {
       "- [ ] It doesn’t touch .github/CODEOWNERS.",
       "- [ ] The run leaves .github/workflows/a.yml unchanged.",
       "- [ ] The script never writes to .github/workflows/a.yml.",
+      "- [ ] No changes to .github/workflows/a.yml.",
+      "- [ ] No edits to `.github/workflows`.",
+      "- [ ] No change to .gitmodules is made.",
+      "- [ ] The script MUST NOT modify .github/workflows.",
+      "- [ ] The fix should not touch .github/CODEOWNERS.",
+      "- [ ] It mustn't edit .github/workflows/a.yml.",
+      "- [ ] It shouldn’t change .gitmodules.",
+      "- [ ] The lane can't modify .github/workflows/a.yml.",
+      "- [ ] The lane cannot edit .github/workflows/a.yml.",
+      "- [ ] Do not edit .github/workflows/a.yml.",
+      "- [ ] It didn't touch .github/workflows/a.yml.",
+      "- [ ] .github/workflows/a.yml is not edited.",
+      "- [ ] `.github/CODEOWNERS` isn't modified.",
+      "- [ ] No file under .github/workflows should be edited.",
+      "- [ ] The docs change. .github/workflows/a.yml must not be modified.",
     ];
     for (const line of negated) {
       test(`admits the negated ${line}`, () => {
@@ -754,7 +769,15 @@ describe("decide", () => {
       // participle that a comma or another clause separates.
       ["- [ ] No need to wait, update .github/workflows/a.yml, the file already edited upstream.", ".github/workflows/a.yml"],
       ["- [ ] Nothing blocks this; edit .github/workflows/a.yml once it is changed upstream.", ".github/workflows/a.yml"],
-      ["- [ ] No change to .gitmodules is made.", ".gitmodules"],
+      ["- [ ] Must not wait; edit .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      ["- [ ] No changes to the docs, but edit .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      ["- [ ] No changes to the docs; .github/workflows/a.yml gains a step.", ".github/workflows/a.yml"],
+      ["- [ ] The lane must not change the docs but edits .github/workflows/a.yml.", ".github/workflows/a.yml"],
+      // A negated passive drops its subject only from the start of a sentence,
+      // with no modification verb before it and the participle ending it.
+      ["- [ ] .github/workflows/a.yml is not edited yet, so edit it now.", ".github/workflows/a.yml"],
+      ["- [ ] Edit .github/workflows/a.yml the docs are not edited.", ".github/workflows/a.yml"],
+      ["- [ ] A step in .github/workflows/a.yml is added and docs are not edited.", ".github/workflows/a.yml"],
     ];
     for (const [line, path] of turned) {
       test(`still refuses ${line}`, () => {
