@@ -538,7 +538,7 @@ assert_eq "an unbound repository with --home: exits 0" "0" "$?"
 assert_eq "an unbound repository with --home: the region names it" "Documentation" "$(resolved_home "$R")"
 assert_eq "an unbound repository with --home: the file lands there" "mode: slow" "$(grep -x 'mode: slow' "$R/Documentation/fixture.yaml")"
 assert_eq "an unbound repository with --home: the ignore line follows the home" "1" "$(grep -cxF 'Documentation/**/*.local.*' "$R/.gitignore")"
-for bad in /abs ../up 'a b' '~x' "a$(printf '\134')b"; do
+for bad in /abs ../up 'a b' '~x' "a$(printf '\134')b" .git .git/hooks 'a;b'; do
   R="$(git_root "home-bad-$CASE_NUM")"
   out="$(run --root "$R" --yes --home "$bad" mode=slow)"
   assert_eq "--home $bad: exits 2" "2" "$?"
