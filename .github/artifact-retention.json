@@ -36,23 +36,22 @@
       ]
     },
     "pr-merge-dispatched-*": {
-      "retention-days": "max",
+      "retention-days": 30,
       "readers": [
-        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py LANE_DISPATCH_ARTIFACT proves a lane dispatch covered a merge",
-        ".github/scripts/pr-merge/lane-records.mjs keeps the records the post-merge check proved"
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py _Context.lane_dispatched (LANE_DISPATCH_ARTIFACT) reads the record of each dispatch run covering a lane merge, on every check, back to merged_since with no cursor; the run listing it reads from stops at RUN_SEARCH_CAP",
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py _lane_reruns reads records of runs created within confirm-wait-minutes plus FULL_RUN_ALLOWANCE",
+        ".github/scripts/pr-merge/lane-records.mjs carries the records the post-merge check proved, each only until its artifact's expires_at, so the carry adds no lifetime"
       ],
-      "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
-      "reason": "The post-merge check reads the dispatch record of every merge it judges, back to the merges it has not yet judged.",
-      "pending-cut": "Under owner review (poteto): about 5,660 artifacts at 90 days."
+      "reason": "The look-back is merged_since, the later of the enabling commit and the newest demotion clear, with no bound in days. It stops at the post-merge check's 1000-run listing cap (babysit_gh.py RUN_SEARCH_CAP): past that the check is unreadable and holds the lane whatever this row says. At the 48 and 57 dispatch runs in the two days to 2026-10-31T05:00Z, after the 30-minute cap and its bypass landed, that is about 19 days, and demotion clears had come at most 4.8 days apart; 30 days leaves about 11 more for a stopped check, whose runs then accumulate only at the human merge rate. This holds while the listing reaches 1000 runs, or a clear moves the floor, within 30 days: at least 34 runs a day. A record that has left the listing never verifies a merge: its run stops counting as the lane's, so the merge holds as an unlisted record until a later recorded run covers it, and a flaked or in-between red run can read red and demote."
     },
     "pr-merge-rerun-*": {
       "retention-days": "max",
       "readers": [
-        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py LANE_RERUN_ARTIFACT, read back to merged_since with no age cap",
+        "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py LANE_RERUN_ARTIFACT, read back to merged_since, and only while the run's pr-merge-dispatched record exists (lane_rerun)",
         ".github/scripts/pr-merge/lane-records.mjs keeps the records the post-merge check proved"
       ],
       "max-reader": "plugins/source-control/skills/babysit-prs/scripts/babysit_postmerge.py",
-      "reason": "The post-merge check reads the lane's re-run record back to merged_since, with no age cap."
+      "reason": "The post-merge check reads the lane's re-run record back to merged_since, only while the run's pr-merge-dispatched record exists; keep this at or above that family's days."
     },
     "pr-merge-alerted-*": {
       "retention-days": 1,
