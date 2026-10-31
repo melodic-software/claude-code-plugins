@@ -528,8 +528,8 @@ async page => { // the user journey in order on one page, no reload after phase 
     ok("after the wrap-up a restatement to confirm still outranks the later Notes reply in the notice", /restated the shared understanding/i.test(nt16) && !/Claude replied in Notes/.test(nt16) && (await text("#notice [data-go]")) === "Go to the summary", nt16);
     if (await page.$eval("#fly", el => el.classList.contains("open"))) { await page.click("#title"); await page.keyboard.press("l"); await settle(300); }
     await tap("#sumBtn", 300);
-    const ask = await page.$eval(".loose li:first-child .ask", el => ({ta: !!el.querySelector("textarea"), btn: !!el.querySelector("[data-looseans]"), text: el.innerText})).catch(() => null);
-    ok("a Claude note flagged as needing an answer is the first Loose end, with a reply box", !!ask && ask.ta && ask.btn && /Anything else before the Brief/.test(ask.text), JSON.stringify(ask));
+    const asks = await page.$$eval(".loose li .ask", els => els.map(el => ({ta: !!el.querySelector("textarea"), btn: !!el.querySelector("[data-looseans]"), text: el.innerText})));
+    ok("every flagged Claude note still unanswered leads the Loose ends, oldest first, with the reply box on the oldest only", !!(await page.$(".loose li:first-child .ask")) && asks.length >= 2 && asks[0].ta && asks[0].btn && asks.slice(1).every(a => !a.ta && !a.btn) && /Anything else before the Brief/.test(asks[asks.length - 1].text), JSON.stringify(asks));
     ok("a later ordinary Claude note leaves the flagged question pinned", (await state()).questions.notes.slice(-1)[0].needsAnswer !== true, JSON.stringify((await state()).questions.notes));
     // one label scheme
     await pick("Q10");
