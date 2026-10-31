@@ -68,6 +68,8 @@ set_version() { awk -v v="$1" '!done && sub(/"version"[ \t]*:[ \t]*"[^"]*"/, "\"
 resolve() {
   local dir=$1 manifest=$1/.claude-plugin/plugin.json changelog=$1/CHANGELOG.md
   local b p m new added side
+  # cp below would write through a link, out of the checkout.
+  [[ -L $changelog || -L $manifest ]] && return 1
   b=$(version_at "$base" "$manifest") p=$(version_at "$pr" "$manifest") m=$(version_at "$main" "$manifest")
   semver "$b" || return 1
   local bM=${BASH_REMATCH[1]} bm=${BASH_REMATCH[2]} bp=${BASH_REMATCH[3]}

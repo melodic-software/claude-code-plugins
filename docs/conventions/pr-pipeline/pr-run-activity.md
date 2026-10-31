@@ -821,9 +821,9 @@ the repeat cap counts by), `loop.no-progress` as `LOOP_NO_PROGRESS` and
 `GIT_NO_REPLACE_OBJECTS=1`.
 
 1. `resolve-conflicts-select` runs only default-branch-tip code with a read-only token. It reads
-   the PR head, resolves the slot (`applied-by-supported: patch`), pins the default branch tip as
-   the round's base, checks the head out with full history and no persisted credentials, and runs
-   `prepare.sh`: it escalates `repeat-cap` before merging, runs
+   the PR head, failing with no head output when the head is in another repository, resolves the
+   slot (`applied-by-supported: patch`), pins the default branch tip as the round's base, checks
+   the head out with full history and no persisted credentials, and runs `prepare.sh`: it escalates `repeat-cap` before merging, runs
    `git merge --no-commit --no-ff <pinned base>` and the version-bump script (under `LC_ALL=C`),
    snapshots the index, and escalates `protected-path-conflict` (a conflicted path under
    `.github/workflows/`, a `.gitmodules` or a `settings*.json`) or `unresolved-conflict` (a
