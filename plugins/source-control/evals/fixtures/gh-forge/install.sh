@@ -97,3 +97,7 @@ git -C "$forge/eval-fixture/app.git" symbolic-ref HEAD "refs/heads/$base"
 export PATH="$forge/bin:$PATH"
 git push -q origin "$base" "$head"
 git branch -q --set-upstream-to="origin/$head" "$head"
+# A fetch opens FETCH_HEAD for writing before anything else, and nothing under the run root is
+# writable to a run's Bash on Linux, so the file points at the one writable path every run has.
+# A later read of FETCH_HEAD resolves to nothing; origin/<branch> is unaffected.
+ln -sf /dev/null "$(git rev-parse --path-format=absolute --git-path FETCH_HEAD)"

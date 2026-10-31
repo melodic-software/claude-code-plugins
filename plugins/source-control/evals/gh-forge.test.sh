@@ -138,6 +138,14 @@ assert_exit "pr review: exit 0" 0 "$?"
 assert_eq "pr review: the call is recorded" \
   '{"command":"pr review","pr":7,"args":["7","--approve","--body","ok"]}' "$(tail -n 1 "$CALLS")"
 
+# The eval sandbox holds .git read-only and a fetch opens FETCH_HEAD for writing before it reads anything.
+READONLY="$TEST_TMPDIR/readonly"
+make_forge readonly --no-pr
+chmod -R a-w "$READONLY/.git"
+out=$(cd "$READONLY" && PATH="$READONLY/.git/eval-forge/bin:$PATH" git fetch origin main 2>&1)
+assert_exit "read-only .git: git fetch exits 0 ($out)" 0 "$?"
+chmod -R u+w "$READONLY/.git"
+
 # --no-pr: the create phase's path. No PR until `pr create`, which takes the body file and opens it.
 CREATE="$TEST_TMPDIR/create"
 make_forge create --no-pr
