@@ -360,7 +360,13 @@ async page => { // the question page itself: choices, chips, banners, header and
     await page.setViewportSize({width: 1440, height: 900});
     await page.reload(); await page.waitForSelector(".qbtn", {state: "attached"}); await page.waitForTimeout(400);
     const sum = await text("#consSum");
-    ok("the header shows \"Constraints (2)\" for two recorded constraints", sum === "Constraints (2)" && await page.$eval("#consPanel", el => !el.hidden), sum);
+    ok("the header shows \"Constraints (2)\" for two recorded constraints", sum.startsWith("Constraints (2)") && await page.$eval("#consPanel", el => !el.hidden), sum);
+    await page.selectOption("#filter", "all"); await page.waitForTimeout(150);
+    const consTitle = await page.$eval('.qbtn[data-q="Q1"] .upchip', el => el.title).catch(e => String(e));
+    ok("#5769: a constraint-marked question names the constraint, not an answer", /Constraint C2 was added/.test(consTitle) && !/answer to C2/.test(consTitle), consTitle);
+    await pick("Q1");
+    const consBan = await text("#upstreamChanged");
+    ok("#5769: its detail pane says the same", /constraint C2 was added/.test(consBan) && !/answer to/.test(consBan), consBan);
     await page.click("#consSum"); await page.waitForTimeout(150);
     const items = await page.$$eval("#consList li", els => els.map(li => li.textContent));
     ok("the open panel lists each constraint with its id", items.length === 2 && items[0] === "C1Builds stop at ten minutes." && items[1] === "C2Stdlib only.", JSON.stringify(items));

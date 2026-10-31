@@ -523,6 +523,13 @@ lib/git-hooks/install.mjs -> plugins/*/lib/git-hooks/install.mjs
 lib/redact.py -> plugins/session-flow/skills/audit-sessions/scripts/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/check-convention-facts.mjs, the advisory current-facts check a setup
+# skill runs on its conventions file. developer-experience carries the only
+# copy today, so a path-within-plugin line stays out until a second plugin
+# carries it. The arrow line is the duplication audit's cluster.
+lib/check-convention-facts.mjs -> plugins/*/lib/check-convention-facts.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/git-hooks/check-lib.sh, the shared helpers each pre-commit entry sources.
 lib/git-hooks/check-lib.sh
 

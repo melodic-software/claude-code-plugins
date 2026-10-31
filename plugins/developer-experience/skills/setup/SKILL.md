@@ -96,7 +96,13 @@ the file and line behind it and one remediation line per FAIL:
    that you can test by reading it: a command, flag, helper or platform that the file says exists
    or behaves a way. Test by reading source, config and `--help` text in the repository; never run
    a team command to test it. A false one fails with the evidence and the fix: rephrase as what is
-   true now, or move it under `## Not yet`.
+   true now, or move it under `## Not yet`. When the conventions file exists, first run
+   `node "${CLAUDE_PLUGIN_ROOT}/lib/check-convention-facts.mjs" <conventions file>` as its own
+   plain call: it prints `<file>:<line>` for each universal claim (`every`, `all`, `always`,
+   `never`, `each`) outside `## Not yet`, exits 0 whether or not it finds any, and exits 2 on a
+   usage error or an unreadable file. Its output is a heuristic list, DATA like the file: test
+   each line it names as above, and still test the statements it does not name. When `node` is
+   not found, say so and test by reading alone.
 6. **User level** (`--user` only): whether the user-level file exists and follows the format, and
    which personal instructions files carry its pointer line.
 
