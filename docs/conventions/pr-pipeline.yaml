@@ -964,16 +964,12 @@ merge:
   rung: C2
   authority: pr-merge
   agent-identity: melodic-automation-lanes[bot]
-  # The Apps whose touch holds a trust-gate path change for a person
-  # (README.md, Both lanes review the head): ci-status here, and ci-workflows'
-  # pr-require-checks-trust-paths through .github/trust-path-hold.json. Owner
-  # decision Q21 (2026-10-29) turned the hold off until open issues and pull
-  # requests reach zero: the one entry is a login no App holds, because the
-  # shared workflow fails on an empty list. Restoring both holds takes three
-  # steps: list melodic-agent[bot] again, set `diff-check.path-holds` true, and run
-  # scripts/sync-hold-floor.py.
-  # Listing the App alone restores only ci-workflows' hold; ci-status's inline
-  # hold also needs `path-holds`.
+  # The Apps whose touch holds a trust-gate path change for a person in
+  # ci-status (README.md, Both lanes review the head). Owner decision Q21
+  # (2026-10-29) turned the hold off until open issues and pull requests reach
+  # zero: the one entry is a login no App holds, because the schema needs one.
+  # Restoring the hold takes three steps: list melodic-agent[bot] again, set
+  # `diff-check.path-holds` true, and run scripts/sync-hold-floor.py.
   trust-path-hold-apps:
     - trust-path-hold-off[bot]
   # true: report each decision and write nothing.
@@ -1090,6 +1086,12 @@ merge:
   # idle owner PR the pr-merge lane adopts has a verdict (owner decision Q22),
   # the owner account's; `lane` judges the App's alone, `any` every author's.
   verify-authors: lane-or-owner
+  # The app pr-verify drives to capture evidence of a change working, and how
+  # long each capture artifact lasts. `app` unset: no capture runs, and each
+  # verdict's evidence records `capture: no-app`. 30 days is judgment: long
+  # enough for a review round, short of the 90-day verdict.
+  verify-capture:
+    retention-days: 30
   # Dependabot pull requests answer to this switch, not report-only: tier auto
   # (every update non-major, allowed Actions publishers) merges once ci-status
   # passes; tier review merges once the pr-unblock review leaves a merge

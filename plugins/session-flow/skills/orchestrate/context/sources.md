@@ -61,9 +61,9 @@ context that produced it. The verifier gets concrete pass/fail criteria, is scop
 and the stated requirements, and judges the final state, not the process.
 
 - **Pointer**: for a fresh-context review step, see
-  <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step>; for giving the
+  <https://code.claude.com/docs/en/best-practices#review-against-your-spec>; for giving the
   model a check it can run, see
-  <https://code.claude.com/docs/en/best-practices#give-claude-a-way-to-verify-its-work>; for
+  <https://code.claude.com/docs/en/best-practices#give-claude-a-check-to-run>; for
   verifier subagents in long runs, see
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5#recommended-scaffolding-changes>.
   (correlate with <https://claude.com/blog/multi-agent-coordination-patterns>;

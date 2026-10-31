@@ -3,6 +3,18 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.10] - 2026-10-31
+
+### Changed
+
+- Repointed the dead best-practices anchors to the current headings on that page.
+
+## [0.12.9] - 2026-10-31
+
+### Changed
+
+- `/performance:protect` hands a verified counter to `/toolchain:ratchet`, the ratchet's new name, when that skill is available; without it, protect still runs its own ceiling steps.
+
 ## [0.12.8] - 2026-10-30
 
 ### Changed

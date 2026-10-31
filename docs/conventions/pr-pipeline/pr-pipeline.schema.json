@@ -1146,6 +1146,25 @@
           "default": "lane",
           "description": "Whose pull requests pr-verify.yml judges. lane: only those the lanes App (agent-identity, a Bot account) opened; lane-or-owner: those and the owner account's (a User matched by account id), whose idle pull requests the pr-merge lane adopts; any: every author's. The resolver skips on any other value (README.md, Verifier verdict)."
         },
+        "verify-capture": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Evidence capture for pr-verify: the app it drives to show the change working, and how long each capture artifact lasts. Each verdict records the capture's outcome in its evidence block (README.md, Verifier verdict).",
+          "properties": {
+            "app": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The app the capture drives. Absent: no capture runs, and the verdict records `capture: no-app`."
+            },
+            "retention-days": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 90,
+              "default": 30,
+              "description": "Days each capture artifact lasts. At most 90, the longest this repository keeps an artifact (README.md, Verifier verdict)."
+            }
+          }
+        },
         "agent-identity": {
           "type": "string",
           "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$",
@@ -1159,7 +1178,7 @@
           "items": { "type": "string", "pattern": "^[A-Za-z0-9]+(-[A-Za-z0-9]+)*\\[bot\\]$" },
           "uniqueItems": true,
           "minItems": 1,
-          "description": "[bot] logins of GitHub Apps whose touch puts a trust-gate path change in a person's hands. ci-status fails a same-repository pull request that changes a trust-gate path when one of them opened it, authored or committed one of its commits, or pushed to its head branch, as it fails an exempt author's (README.md, Both lanes review the head). It is read at the base commit. It needs at least one entry, because the shared ci-workflows hold fails on an empty list; a login no App holds turns the hold off."
+          "description": "[bot] logins of GitHub Apps whose touch puts a trust-gate path change in a person's hands. ci-status fails a same-repository pull request that changes a trust-gate path when one of them opened it, authored or committed one of its commits, or pushed to its head branch, as it fails an exempt author's (README.md, Both lanes review the head). It is read at the base commit. It needs at least one entry; a login no App holds turns the hold off."
         },
         "diff-check": {
           "type": "object",

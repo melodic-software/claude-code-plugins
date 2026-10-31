@@ -3,6 +3,24 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.13.2] - 2026-10-31
+
+### Changed
+
+- The view bridge's `session_bridge.py` copy has a new `reading_window()` app hook from the shared session-bridge library. It sets how long after a delivery the listener reports `reading`. The default is still 180 seconds and this plugin does not override it, so its behavior is unchanged ([#8757](https://github.com/melodic-software/claude-code-plugins/issues/8757)).
+
+## [3.13.1] - 2026-10-30
+
+### Fixed
+
+- `/work-items:work` pushes back only on an intent question, adding `"cause": "intent"` to the
+  outcome file. A choice of means or a design detail the issue leaves open is decided on evidence
+  and built, with the choice and its basis in `summary`, instead of being sent to a person. A pushback reaches a person
+  through `"cause": "intent"`, a reason or cause that opens with a hold code, a host-run or
+  attended code followed by a security risk, or a spent intake round whose reason, summary,
+  not-done item or cause names a security risk again; a security mention alone first goes back
+  through intake.
+
 ## [3.13.0] - 2026-10-30
 
 ### Added

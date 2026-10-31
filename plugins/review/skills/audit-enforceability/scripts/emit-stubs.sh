@@ -1264,7 +1264,7 @@ while IFS= read -r record; do
       editorconfig-severity | analyzer-pack-rule | custom-analyzer | semgrep-rule | architecture-test)
         printf '\n## Ratchet offer\n\n'
         # shellcheck disable=SC2016
-        printf 'Once the rule exists, count its violations. A count above zero goes to `/review:ratchet`, which holds it as a ceiling in CI so it can only fall; a count of zero lands the rule with no ceiling.\n'
+        printf 'Once the rule exists, count its violations. A count above zero goes to `/toolchain:ratchet`, which holds it as a ceiling in CI so it can only fall; a count of zero lands the rule with no ceiling.\n'
         ;;
       *) ;;
       esac

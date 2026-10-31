@@ -44,11 +44,11 @@
       "id": 4,
       "name": "a-counter-for-the-ratchet-is-the-scanner-count",
       "prompt": "/code-metrics:audit-suppressions give me a command that prints the suppression count so I can hold it in CI",
-      "expected_output": "Runs the bundled suppression-scan.py with --count, quotes its suppressions=<n> and unjustified=<n> lines, and names /review:ratchet as the skill that holds such a count in CI when it is available; it sets up no CI step itself.",
+      "expected_output": "Runs the bundled suppression-scan.py with --count, quotes its suppressions=<n> and unjustified=<n> lines, and names /toolchain:ratchet as the skill that holds such a count in CI when it is available; it sets up no CI step itself.",
       "files": [],
       "expectations": [
         "Runs suppression-scan.py --count and quotes both lines it prints",
-        "Names /review:ratchet for holding the count, without wiring CI itself"
+        "Names /toolchain:ratchet for holding the count, without wiring CI itself"
       ]
     },
     {

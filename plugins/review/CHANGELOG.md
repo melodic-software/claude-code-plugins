@@ -3,6 +3,18 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-10-31
+
+### Changed
+
+- The view bridge's `session_bridge.py` copy has a new `reading_window()` app hook from the shared session-bridge library. It sets how long after a delivery the listener reports `reading`. The default is still 180 seconds and this plugin does not override it, so its behavior is unchanged ([#8757](https://github.com/melodic-software/claude-code-plugins/issues/8757)).
+
+## [2.0.0] - 2026-10-31
+
+### Removed
+
+- /review:ratchet leaves the review plugin. It is now `/toolchain:ratchet` in the toolchain plugin, with the same behavior; install toolchain to keep using it. The `ratchet_offer` setting stays here, and the offer in `/review:audit-enforceability` stubs now names `/toolchain:ratchet`.
+
 ## [1.8.3] - 2026-10-30
 
 ### Changed

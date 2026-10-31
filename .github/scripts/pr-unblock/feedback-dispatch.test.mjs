@@ -205,7 +205,7 @@ test("a PR whose pr-verify FAILs are at the cap gets no address-feedback round",
   const { result, lines } = await decide(api, resolvedLane(), { verifyCapped });
   assert.equal(result, null);
   assert.deepEqual(api.calls.dispatch, []);
-  assert.deepEqual(asked, [{ number: 42, head: HEAD, base: undefined }]);
+  assert.deepEqual(asked, [{ number: 42, head: HEAD, base: undefined, expected: [] }]);
   assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
   // The cap never clears for the head: a later run at it reads nothing.
   const record = emptyRecord();
@@ -232,6 +232,23 @@ test("a PR whose sibling FAIL run cannot be read gets no round this run and is r
   assert.equal(reads, 2);
 });
 
+// A listing that does not fit in verify-cap's limit (babysit_verify_evidence.py
+// DEADLINE_UNREADABLE) recurs every run while pr-merge's carried listing is
+// missing or stale, so its skip is a warning annotation, not a plain line.
+test("a PR skipped because the listing did not fit warns with the reader's detail; a sibling skip does not", async () => {
+  const deadline = "verify:unreadable: the artifact listing does not fit in the caller's limit: repository artifacts: 10450 artifacts in 105 pages need 112 s";
+  const api = fakeApi();
+  const { result, lines } = await decide(api, resolvedLane(), { verifyCapped: () => deadline });
+  assert.equal(result, null);
+  assert.deepEqual(api.calls.dispatch, []);
+  assert.deepEqual(
+    lines.filter((line) => line.startsWith("::warning title=verify-deadline-skip::")),
+    [`::warning title=verify-deadline-skip::#42: ${deadline}`],
+  );
+  const sibling = await decide(fakeApi(), resolvedLane(), { verifyCapped: () => "verify:unreadable: a FAIL run of a pull request for the same issue" });
+  assert.ok(!sibling.lines.some((line) => line.includes("verify-deadline-skip")), sibling.lines.join("\n"));
+});
+
 // A verifier PASS at a new head clears no cap, so the pass-only dispatch
 // starts no round either.
 test("a pass-only dispatch of a PR whose pr-verify FAILs are at the cap gets no round", async () => {
@@ -242,10 +259,106 @@ test("a pass-only dispatch of a PR whose pr-verify FAILs are at the cap gets no 
   assert.match(lines.join("\n"), /^skip: #42: .*verify:repeated-fail/m);
 });
 
+// A round sent for pr-verify's FAIL at the head (notesSince set) finds that
+// FAIL (babysit_verify_evidence.py FAIL, "verify:fail") there by design, so
+// the reader is told to expect it; a review run's round and a pass expect none.
+test("only a round sent for pr-verify's FAIL at the head expects the reader's FAIL refusal", async () => {
+  for (const [extra, expected] of [
+    [{ notesSince: Date.parse("2026-10-17T19:00:00Z") }, ["verify:fail"]],
+    [{}, []],
+    [{ passOnly: true }, []],
+  ]) {
+    const asked = [];
+    const verifyCapped = (request) => {
+      asked.push(request);
+      return null;
+    };
+    await decide(fakeApi(), resolvedLane(), { ...extra, verifyCapped });
+    assert.deepEqual(
+      asked.map((request) => request.expected),
+      [expected],
+      JSON.stringify(extra),
+    );
+  }
+});
+
 test("a PR the reader does not find at the cap dispatches as before", async () => {
   const api = fakeApi();
   const { result } = await decide(api, resolvedLane(), { verifyCapped: () => null });
   assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+});
+
+// undici's error for a request sent on a socket the peer had reset, as a
+// local reproduction of runs 41078771801 and 41085939386 threw it:
+// TypeError "fetch failed", cause "read ECONNRESET".
+const connectionLost = (code = "ECONNRESET") => Object.assign(new TypeError("fetch failed"), { cause: Object.assign(new Error(`read ${code}`), { code }) });
+const failingOnce = (api, error) => {
+  const send = api.dispatchWorkflow;
+  let failed = false;
+  api.dispatchWorkflow = async (request) => {
+    if (!failed) {
+      failed = true;
+      api.calls.dispatch.push(request);
+      throw error;
+    }
+    return send(request);
+  };
+  return api;
+};
+
+for (const code of ["ECONNRESET", "UND_ERR_SOCKET"]) {
+  test(`a dispatch whose connection broke (${code}) before any answer is sent once more`, async () => {
+    const api = failingOnce(fakeApi(), connectionLost(code));
+    api.listRecentRuns = async () => [];
+    const { result, lines } = await decide(api);
+    assert.deepEqual(result, { number: 42, workflowRunId: "38779200001" });
+    assert.equal(api.calls.dispatch.length, 2);
+    assert.deepEqual(api.calls.dispatch[0], api.calls.dispatch[1]);
+    assert.match(lines.join("\n"), new RegExp(`^::warning::#42: .*no answer \\(TypeError ${code}\\); sending it once more$`, "m"));
+  });
+}
+
+test("a dispatch whose connection broke is not sent again when the run it started is listed", async () => {
+  const api = failingOnce(fakeApi({ run: { run_started_at: "2026-10-30T15:30:00Z" } }), connectionLost());
+  const since = [];
+  api.listRecentRuns = async (workflow, from) => {
+    since.push([workflow, from]);
+    return [{ id: 38779200077, status: "queued", display_title: TITLE_42, created_at: "2026-10-30T15:35:03Z" }];
+  };
+  const { result } = await decide(api, resolvedLane(), { now: Date.parse("2026-10-30T15:32:38Z") });
+  assert.deepEqual(result, { number: 42, workflowRunId: "38779200077" });
+  assert.equal(api.calls.dispatch.length, 1);
+  assert.deepEqual(since, [["pr-unblock.yml", "2026-10-30T15:31:38Z"]]);
+});
+
+test("a dispatch is sent at most twice, and an HTTP error answer never again", async () => {
+  const twice = fakeApi();
+  twice.listRecentRuns = async () => [];
+  twice.dispatchWorkflow = async (request) => {
+    twice.calls.dispatch.push(request);
+    throw connectionLost();
+  };
+  await assert.rejects(decide(twice), /fetch failed/);
+  assert.equal(twice.calls.dispatch.length, 2);
+
+  for (const status of [422, 500]) {
+    const sent = [];
+    const github = createGitHubApi({
+      token: "t",
+      repository: REPOSITORY,
+      apiUrl: "https://api.example.test",
+      graphqlUrl: "https://api.example.test/graphql",
+      fetch: async (url, init) => {
+        sent.push([init.method, url]);
+        return new Response("{}", { status, headers: { "content-type": "application/json" } });
+      },
+    });
+    const api = fakeApi();
+    api.listRecentRuns = async () => assert.fail("an HTTP answer reads no runs");
+    api.dispatchWorkflow = github.dispatchWorkflow;
+    await assert.rejects(decide(api), new RegExp(`returned ${status}`));
+    assert.deepEqual(sent, [["POST", `https://api.example.test/repos/${REPOSITORY}/actions/workflows/pr-unblock.yml/dispatches`]]);
+  }
 });
 
 test("a reviewed lanes App PR with a reviewer-bot thread dispatches address-feedback on main", async () => {

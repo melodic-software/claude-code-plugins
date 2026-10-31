@@ -1079,8 +1079,8 @@ done
 # ---------------------------------------------------------------------------
 for agent in explorer researcher intent-tracer research-verifier; do
   file="agents/$agent.md"
-  if awk 'NR == 1 && $0 == "---" { on = 1; next } on && $0 == "---" { exit } on' "$PLUGIN_ROOT/$file" |
-    grep -qE "^skills:.*report|^[[:space:]]+-[[:space:]]*[\"']?(discovery:)?report[\"']?[[:space:]]*$"; then
+  if grep -qE "^skills:.*report|^[[:space:]]+-[[:space:]]*[\"']?(discovery:)?report[\"']?[[:space:]]*$" \
+    < <(awk 'NR == 1 && $0 == "---" { on = 1; next } on && $0 == "---" { exit } on' "$PLUGIN_ROOT/$file"); then
     fail "$file does not preload the report return contract"
   else
     pass "$file does not preload the report return contract"

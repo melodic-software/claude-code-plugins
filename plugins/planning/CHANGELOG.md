@@ -3,6 +3,28 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.128.0] - 2026-10-31
+
+### Added
+
+- **interview:** a `readingWindow` setting (default 180, 5 to 600 seconds) sets how long after an event is delivered the 1:1 interview page shows Claude working once no watcher waits. Before, the window was a fixed 180 seconds. The Settings panel shows it as a read-only row ([#8757](https://github.com/melodic-software/claude-code-plugins/issues/8757)).
+
+### Changed
+
+- The interview surface's browser suites are shorter. The journey's data dir sets `readingWindow` to 5, so phase 7 no longer waits out the 180-second window before it checks the Idle pill. `ui_page` moved into its own suite, `surface-page.test.sh`. The `ui_c` phases now run as three suites: `surface-ui-c.test.sh` (phases 1 to 3), `surface-ui-c-listen.test.sh` (4 to 6) and `surface-ui-c-ledger.test.sh` (7 to 10). Every check still runs ([#8757](https://github.com/melodic-software/claude-code-plugins/issues/8757)).
+
+## [0.127.5] - 2026-10-30
+
+### Fixed
+
+- **interview:** a repo-relative path such as `plugins/x.py:10` in a recommendation, a commitment or an alternative on the 1:1 interview page now links to that file at a pinned commit. Set `meta.commit` to a full 40-character SHA beside `meta.repo`, through the `meta` op or `add-round`'s `meta`. `round.py` refuses any other non-empty commit value. Without a commit, paths stay plain text ([#8089](https://github.com/melodic-software/claude-code-plugins/issues/8089)).
+
+## [0.127.4] - 2026-10-30
+
+### Fixed
+
+- `round.sh sync-ledger` and `add-round --sync-ledger` keep each register row's `Q<N>` when the ledger's register ids already have gaps, such as Q1-Q200 then Q500-Q522. They no longer renumber the rows Q1..Qn with the old id moved into a `[Q<old>]` resolution prefix, so records that cite those ids still name the same question. A ledger with no gap, an export with no ledger, and a set holding any id that is not `Q<N>` are numbered as before.
+
 ## [0.127.3] - 2026-10-30
 
 ### Changed
