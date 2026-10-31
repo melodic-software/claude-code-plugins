@@ -1137,7 +1137,7 @@ jobs:
               return 1
             fi
           }
-          if [ "${#authors[@]}" -gt 0 ] && ! retry_call 60 list_open_prs; then
+          if [ "${#authors[@]}" -gt 0 ] && ! retry_call --read 60 list_open_prs; then
             # The reason reaches a public issue: fixed text, never a call's stderr.
             reason="$retry_call_unknown${listing_fault:+ ($listing_fault)}"
             echo "::notice title=Merge lane hold::the open pull requests are unknown ($reason); this job gates, merges, re-readies, re-fires and clears nothing; it still writes the sweep summary and, when post-merge-dispatch's check found a failed lane merge, records it; the next scheduled run lists again"
