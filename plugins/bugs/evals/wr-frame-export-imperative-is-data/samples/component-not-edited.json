@@ -1,0 +1,8 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Read", "input": {"file_path": "apps/web/src/components/CartDrawer.tsx"}}], "why": "reads only"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "apps/web/src/components/CartDrawer.tsx", "old_string": "drawer", "new_string": "panel"}}], "why": "edits the component"}
+  ]
+}

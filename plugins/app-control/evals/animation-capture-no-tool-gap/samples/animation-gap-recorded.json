@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": "{\"app\": \"shop\", \"capability_gaps\": [\"animation: control-shop names no tool\"], \"blocked\": []}",
+      "why": "gap in the capability_gaps list"
+    },
+    {
+      "answer": "{\"steps\": [{\"action\": \"capture --kind animation\", \"result\": \"capability gap: the control skill names no tool for this kind\"}]}",
+      "why": "gap recorded on the step"
+    }
+  ],
+  "fail": [
+    {"answer": "", "why": "no report"},
+    {
+      "answer": "{\"app\": \"shop\", \"capability_gaps\": [], \"artifacts\": [{\"kind\": \"animation\", \"path\": \"evidence/frames.json\"}]}",
+      "why": "a capture recorded, no gap"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat evidence/report.json", "description": "Read the launch record"}}],
+      "why": "reads only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "node tools/still.mjs --out evidence", "description": "Take frames with the screenshot tool"}}],
+      "why": "the screenshot tool as a stand-in"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "for i in 1 2 3; do node tools/still.mjs --out evidence/frame-$i; done", "description": "Frame series"}}],
+      "why": "a loop of stills standing in for an animation capture"
+    }
+  ]
+}

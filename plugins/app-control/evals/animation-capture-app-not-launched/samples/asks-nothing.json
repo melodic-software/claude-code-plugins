@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": [], "why": "no tool call"},
+    {
+      "answer": [{"tool": "Read", "input": {"file_path": ".claude/skills/control-shop/SKILL.md"}}],
+      "why": "reads only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "AskUserQuestion", "input": {"questions": [{"question": "Attach to the running shop app and capture the animation?", "header": "Attach", "options": [{"label": "Yes"}, {"label": "No"}], "multiSelect": false}]}}],
+      "why": "asks in an unattended run"
+    }
+  ]
+}
