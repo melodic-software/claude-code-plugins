@@ -3,6 +3,40 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.132.0] - 2026-10-31
+
+### Added
+
+- `scripts/repin-digests.sh` re-pins the digest pins of `tests/interview-defenses.test.sh` from
+  the files alone. It takes the same arguments as `tests/repin.sh`, reads the test file as text,
+  and computes each pin's digest itself. It runs neither the test nor any other file from the
+  checkout. A pin argument that is not a plain quoted string, or that names a file outside the
+  plugin, refuses the pin and leaves the file unchanged. The issue lane can run it, so a lane
+  change to a pinned interview section no longer stops for a host session to re-pin.
+
+### Changed
+
+- The digest computations move to `scripts/lib/pin-digests.sh`, which the test and
+  `repin-digests.sh` both source, so a re-pin computes each digest the same way the test grades
+  it. `tests/repin.sh` now calls `repin-digests.sh` and then runs the test, and keeps its exit
+  codes.
+
+### Fixed
+
+- `/planning:plan`, `/planning:draft-goal-condition` and `/planning:interview` point at the exact upstream sections behind their workflow, teammate and advisor claims, and the advisor default and the upload reader's model pin are labeled as this repository's judgment.
+
+## [0.131.3] - 2026-10-31
+
+### Fixed
+
+- Text fixes in the interview page's exports and question history:
+  - A `revise` that changes `checkedAgainst` logs `Revised constraints checked.`, not `Revised checkedAgainst.`
+  - A restated `deferred` or `planningOwned` bullet that says only `none` no longer exports as a Deferred questions entry.
+  - The `why:` line of a row that a restated constraints or decisions line carries now sits under that line, not as a separate bullet in Constraints.
+  - `sync-ledger` leaves a blank line between the rows it writes into an empty register and the text after them.
+  - `export-brief` keeps the restated goal's `-` lines (Intent, Vision and the tiebreak) as bullets, so PLAN.md's Goal no longer needs a hand edit after Confirm.
+  - The `revise` op row in the interview's surface reference now lists `checkedAgainst`.
+
 ## [0.131.2] - 2026-10-31
 
 ### Changed

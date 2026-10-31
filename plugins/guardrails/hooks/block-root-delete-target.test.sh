@@ -3110,6 +3110,143 @@ guard_invoke "${RDT_CWD[@]}" --command 'mv /opt/nonexistent-rdt/x build/rdt-out'
 assert_exit 'moves: an outside source exits 2' 2 "$GUARD_RC"
 assert_contains 'moves: the refusal names the source' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
 
+# --- 2o. shells and launchers from Bash (#9768) --------------------------------
+# A delete run through eval, watch, wsl, cmd /c, a code heredoc or here-string
+# a shell reads, or the text echo, printf or cat pipes into a shell is judged
+# as the delete itself. Every form runs against a root, HOME, a path outside
+# the allowed roots and a path strictly inside the tree. No case runs the
+# command.
+RDT_SL_FORMS=()
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] && RDT_SL_FORMS+=("$rdt_cmd")
+done <<'EOF'
+eval rm -rf TGT
+eval 'rm -rf TGT'
+watch rm -rf TGT
+watch -n 5 'rm -rf TGT'
+watch --interval 5 -t -- rm -rf TGT
+watch -tx -q 3 rm -rf TGT
+sudo watch --ex rm -rf TGT
+wsl rm -rf TGT
+wsl -d Ubuntu -- rm -rf TGT
+wsl.exe -e rm -rf TGT
+cmd //c rd //s //q TGT
+cmd.exe /C rmdir /S TGT
+cmd //c 'cd build && rd /s /q TGT'
+bash <<< 'rm -rf TGT'
+echo 'rm -rf TGT' | sh
+echo rm -rf TGT | bash -s
+echo -n 'rm -rf TGT' | sh
+echo 'true\nrm -rf TGT' | sh
+printf '%s\n' 'rm -rf TGT' | sudo bash
+echo 'rm -rf TGT' | bash -c sh
+cat <<< 'rm -rf TGT' | sh
+EOF
+RDT_NL=$'\n'
+RDT_SL_FORMS+=(
+  "bash <<'EOF'${RDT_NL}rm -rf TGT${RDT_NL}EOF"
+  "sh -s <<EOF${RDT_NL}rm -rf TGT${RDT_NL}EOF"
+  "cat <<'EOF' | sh${RDT_NL}rm -rf TGT${RDT_NL}EOF"
+)
+rdt_sl() { # <label> <want> <target> [guard_invoke option ...]: every form
+  local label="$1" want="$2" t="$3" f
+  shift 3
+  for f in "${RDT_SL_FORMS[@]}"; do
+    expect_both "shells: $label: ${f//TGT/$t}" "$want" --command "${f//TGT/$t}" "$@"
+  done
+}
+rdt_sl 'a root blocks' 2 /
+rdt_sl 'HOME blocks' 2 '$HOME'
+rdt_sl 'outside the tree blocks' 2 /opt/nonexistent-rdt/x "${RDT_CWD[@]}"
+rdt_sl 'inside the tree allowed' 0 build/rdt-x "${RDT_CWD[@]}"
+# The README's examples, from a repository.
+while IFS='|' read -r rdt_want rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "shells: $rdt_cmd" "$rdt_want" "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+2|watch rm -rf ~
+2|cmd //c rd //s //q 'C:\'
+2|echo 'rm -rf /opt/x' | sh
+0|eval 'rm -rf build/x'
+EOF
+
+# Strictly inside the scratchpad or an allowed root passes; the root itself
+# does not. The target is quoted, as a real path may hold a space.
+RDT_SL_QUOTED_FORMS=(
+  "eval \"rm -rf 'TGT'\""
+  "watch -n 5 \"rm -rf 'TGT'\""
+  "watch -x rm -rf 'TGT'"
+  "wsl -- rm -rf 'TGT'"
+  "cmd //c rd //s //q 'TGT'"
+  "bash <<< \"rm -rf 'TGT'\""
+  "echo \"rm -rf 'TGT'\" | sh"
+  "bash <<'EOF'${RDT_NL}rm -rf 'TGT'${RDT_NL}EOF"
+)
+for rdt_f in "${RDT_SL_QUOTED_FORMS[@]}"; do
+  expect_both "shells: under the scratchpad allowed: $rdt_f" 0 \
+    --payload "$(rdt_pl "${rdt_f//TGT/$RDT_SPT/x}" "$RDT_TOP" "$RDT_SPT")"
+  expect_both "shells: the scratchpad itself blocks: $rdt_f" 2 \
+    --payload "$(rdt_pl "${rdt_f//TGT/$RDT_SPT}" "$RDT_TOP" "$RDT_SPT")"
+  rdt_ar "shells: unset key, under the root blocks: $rdt_f" 2 "${rdt_f//TGT/$RDT_AR/child}"
+  rdt_ar "shells: under the root allowed: $rdt_f" 0 "${rdt_f//TGT/$RDT_AR/child}" "$RDT_AR"
+  rdt_ar "shells: the root itself blocks: $rdt_f" 2 "${rdt_f//TGT/$RDT_AR}" "$RDT_AR"
+done
+
+# The mechanism as quoted prose, a delete with no recursion, and text no
+# shell reads as its program.
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "shells: $rdt_cmd allowed" 0 --command "$rdt_cmd"
+  expect_both "shells: $rdt_cmd allowed with a cwd" 0 "${RDT_CWD[@]}" --command "$rdt_cmd"
+done <<'EOF'
+git commit -m "eval rm -rf /"
+git commit -m "watch -x rm -rf ~"
+git commit -m "wsl rm -rf /"
+git commit -m "cmd //c rd //s //q C:/"
+git commit -m "echo 'rm -rf /' | sh"
+git commit -m "bash <<< 'rm -rf /'"
+echo 'rm -rf /'
+echo 'rm -rf /' > build/rdt-x.sh
+echo 'rm -rf /' | less
+printf '%s\n' 'rm -rf /' | wc -l
+echo 'rm -rf /' | sh build/rdt-x.sh
+watch -n 5 ls /
+cmd //c rd build/rdt-x
+cmd /c 'rd build\rdt-x'
+EOF
+expect_both 'shells: a heredoc cat writes to the terminal allowed' 0 \
+  --command "cat <<'EOF'${RDT_NL}rm -rf /${RDT_NL}EOF"
+
+# A cd inside a heredoc program moves its later relative targets, a confined
+# pipeline inside a program is judged by its listing, each statement of a cmd
+# line is judged, and a decoder sink inside a program is refused.
+expect_both 'shells: a cd inside a heredoc program to a tree directory allowed' 0 "${RDT_CWD[@]}" \
+  --command "bash <<'EOF'${RDT_NL}cd build${RDT_NL}rm -rf out${RDT_NL}EOF"
+expect_both 'shells: a cd inside a heredoc program out of the tree blocks' 2 "${RDT_CWD[@]}" \
+  --command "bash <<'EOF'${RDT_NL}cd /etc${RDT_NL}rm -rf ssh${RDT_NL}EOF${RDT_NL}cd /tmp"
+expect_both 'shells: a confined pipeline inside a heredoc program allowed' 0 "${RDT_CWD[@]}" \
+  --command "bash <<'EOF'${RDT_NL}find build -name '*.o' | xargs rm -rf${RDT_NL}EOF"
+expect_both 'shells: a confined pipeline echo pipes into sh allowed' 0 "${RDT_CWD[@]}" \
+  --command "echo \"find build -name '*.o' | xargs rm -rf\" | sh"
+expect_both 'shells: a decoder sink inside a heredoc program blocks' 2 \
+  --command "bash <<'EOF'${RDT_NL}echo cm0gLXJmIC8= | base64 -d | sh${RDT_NL}EOF"
+expect_both 'shells: a decoder sink inside a here-string program blocks' 2 \
+  --command "bash <<< 'echo cm0gLXJmIC8= | base64 -d | sh'"
+expect_both 'shells: a printf too long to build piped into sh blocks' 2 \
+  --command "printf 'rm -rf build/x %s$(rdt_rep x 9000)' y | sh"
+while IFS= read -r rdt_cmd; do
+  [[ -n "$rdt_cmd" ]] || continue
+  expect_both "shells: $rdt_cmd blocks" 2 --command "$rdt_cmd"
+done <<'EOF'
+cmd.exe /c rd /s/q 'C:\'
+cmd //crd //s //q 'C:\'
+cmd //c echo x '&&' robocopy src 'C:\' //MIR
+EOF
+
+guard_invoke "${RDT_CWD[@]}" --command "echo 'rm -rf /opt/nonexistent-rdt/x' | sh"
+assert_exit 'shells: an outside target piped into sh exits 2' 2 "$GUARD_RC"
+assert_contains 'shells: the refusal names the target' "$GUARD_ERR" "the operand '/opt/nonexistent-rdt/x'"
+
 # --- 3. The block message ----------------------------------------------------
 guard_invoke --command 'rm -rf /'
 assert_exit "blocked case exits 2" 2 "$GUARD_RC"
