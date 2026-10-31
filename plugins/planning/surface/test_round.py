@@ -5270,14 +5270,20 @@ class TestConstraintRecheck(DirCase):
         out = self.op_refused("revise", id="Q1", checkedAgainst=["C9"])
         self.assertIn("names no recorded constraint", out)
 
-    def test_an_added_question_starts_with_a_list(self):
-        rc, out, err = self.rp(
-            "apply",
-            "--file",
-            self.file("a.json", {"ops": [{"op": "add", "question": question("Q3")}]}),
-        )
+    def add_q3(self, **extra):
+        ops = {"ops": [{"op": "add", "question": question("Q3", **extra)}]}
+        rc, out, err = self.rp("apply", "--file", self.file("a.json", ops))
         self.assertEqual(rc, 0, out + err)
-        self.assertEqual(self.q("Q3")["checkedAgainst"], [])
+
+    def test_an_added_question_answers_to_the_constraints_recorded_so_far(self):
+        self.add_q3()
+        self.assertEqual(self.q("Q3")["checkedAgainst"], ["C1"])
+        self.assertEqual(self.status(), {})
+        self.new_constraint()
+        self.assertEqual(self.status()["Q3"], ["C2"])
+
+    def test_an_added_question_can_name_a_narrower_list(self):
+        self.add_q3(checkedAgainst=[])
         self.assertEqual(self.status(), {"Q3": ["C1"]})
 
     def test_the_ledger_marks_the_row_and_an_import_drops_the_mark(self):

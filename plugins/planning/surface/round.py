@@ -461,7 +461,12 @@ def add_question(doc, q, repoint=False, latest=None, earlier=None):
     began (default: now), so questions added in one write date against the same round; `earlier`
     is the question ids that existed before it (default: now), which `reconciles` may name.
     Exits before any write."""
-    q["checkedAgainst"] = checked_list(doc, q.get("checkedAgainst") or [])
+    # Written now, so it answers to every constraint already recorded; only a later one marks it.
+    q["checkedAgainst"] = (
+        [c["id"] for c in doc.get("constraints") or []]
+        if q.get("checkedAgainst") is None
+        else checked_list(doc, q["checkedAgainst"])
+    )
     for req, gloss in REQUIRED_FIELDS:
         if not q.get(req):
             name = q.get("id") or (
