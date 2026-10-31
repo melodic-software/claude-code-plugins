@@ -3,6 +3,12 @@
 All notable changes to the `developer-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.11] - 2026-10-31
+
+### Changed
+
+- Repointed the dead best-practices anchors to the current headings on that page.
+
 ## [0.2.10] - 2026-10-30
 
 ### Changed

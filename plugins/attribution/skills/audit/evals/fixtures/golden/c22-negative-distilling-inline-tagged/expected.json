@@ -1,10 +1,24 @@
 {
-  "negatives": true,
-  "findings": [],
+  "negatives": false,
+  "findings": [
+    {
+      "class": "restated-fact",
+      "tier": "source-fetched-similar",
+      "span": { "start_line": 3, "end_line": 3 },
+      "rule": "attribution/audit/rule-restated-upstream-fact"
+    }
+  ],
+  "adjudication": {
+    "verdict": "STANDS",
+    "panel": "three blind judges, unanimous on verdict and class",
+    "rubric": "restated-fact",
+    "rubric_version": 1
+  },
   "notes": {
-    "shape": "Hard negative. A model-adaptation chapter states the model's thinking default and the frequency steer, and tags the span with the guide and the section it comes from.",
-    "carve_outs": "Distilling-file surface applies. The attribution that accounts for the fact is the inline citation on the span: (guide, \"Calibrating effort and thinking depth\"). Quote that line; the carve-out needs it.",
-    "rubric": "Not graded. The paragraph that follows the tagged one is the chapter's own correction and states no external fact.",
-    "carries": "Per-span source tags are the second attribution shape the carve-out names, after a Sources section. A run that recognizes only Sources sections fails this case."
+    "shape": "A model-adaptation chapter states the model's thinking default and the frequency steer, and tags the span with the guide and the section it comes from.",
+    "carve_outs": "The panel did not apply the distilling-file carve-out; why is not recorded. The inline citation on the span is (guide, \"Calibrating effort and thinking depth\").",
+    "rubric": "Every judge graded R4 PASS: the citation names a document and a section and carries no URL, as-of date or recheck trigger. The paragraph that follows the tagged one is the chapter's own correction and states no external fact.",
+    "owner_decision": "Recorded as a hard negative until the 0.14.4 re-score, whose unanimous restated-fact v1 panel returned a finding on line 3. Converted under the owner's rule of 2026-10-26 that a unanimous blind label is accepted, recorded at https://github.com/melodic-software/claude-code-plugins/issues/5654#issuecomment-6417188551. The 0.8.2 panel recorded no finding; it did not record the rubric it applied.",
+    "carries": "Per-span source tags are the second attribution shape the distilling-file carve-out names, after a Sources section. This case fails a run that clears the span on the tag alone, against the panel's unanimous finding."
   }
 }

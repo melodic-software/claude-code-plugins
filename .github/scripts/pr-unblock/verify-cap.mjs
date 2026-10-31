@@ -19,7 +19,7 @@
 // with a warning naming it, unless the caller expects that refusal (a FAIL
 // at the head of a round sent for that FAIL). Each read's stderr, the
 // reader's `babysit-listing-miss` lines first, is logged on one line.
-import { spawnSync } from "node:child_process";
+import { spawn as spawnChild } from "node:child_process";
 
 export const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
 export const CAPPED = "verify:repeated-fail";
@@ -46,6 +46,48 @@ export const VERIFY_CAP_TIMEOUT_MS = 2 * 60_000;
 // them do not fit in that limit, and a killed read is not the cap, so a miss
 // goes straight to the whole listing (NO_INCREMENTAL_WAITS_ENV).
 export const NO_INCREMENTAL_WAITS = { BABYSIT_VERIFY_NO_INCREMENTAL_WAITS: "1" };
+
+// spawnSync's result ({ status, stdout, stderr, error }) from a child that
+// leaves the event loop running. A read blocked behind spawnSync for a minute
+// or more left the job's idle keep-alive socket to GitHub unread: a reset on it
+// went unseen, undici's own idle timer could not fire, and the dispatch POST
+// sent on that socket next failed (`fetch failed`, ECONNRESET). A child past
+// `timeout` is killed and answers spawnSync's ETIMEDOUT error.
+export function spawnAsync(command, args, { timeout, encoding, ...options } = {}) {
+  return new Promise((resolve) => {
+    const child = spawnChild(command, args, { ...options, stdio: ["ignore", "pipe", "pipe"] });
+    const out = { stdout: "", stderr: "" };
+    let error;
+    let settled = false;
+    const settle = (status) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve({ status: error ? null : status, ...out, error });
+      }
+    };
+    for (const stream of ["stdout", "stderr"]) {
+      child[stream].setEncoding(encoding ?? "utf8").on("data", (chunk) => {
+        out[stream] += chunk;
+      });
+    }
+    child.on("error", (thrown) => {
+      error ??= thrown;
+    });
+    child.on("close", settle);
+    // A child the reader started (gh) can hold the pipes open past the kill.
+    const timer =
+      timeout > 0 &&
+      setTimeout(() => {
+        error = Object.assign(new Error(`spawn ${command} ETIMEDOUT`), { code: "ETIMEDOUT" });
+        child.kill();
+        child.stdout.destroy();
+        child.stderr.destroy();
+        child.unref();
+        settle(null);
+      }, timeout);
+  });
+}
 
 // Whether a verifyCapReader answer never clears for the head, so a
 // dispatcher records the head as handled: the cap does, a sibling read that
@@ -84,9 +126,9 @@ function stderrSummary(stderr) {
 // `base`: the pull request's base commit, so the reader takes the gate's
 // merge.max-verify-fails (the lower of that commit's and main's).
 // `expected`: refusals the round is sent for, which warn nothing.
-export function verifyCapReader(env, { spawn = spawnSync, log = (line) => console.log(line) } = {}) {
+export function verifyCapReader(env, { spawn = spawnAsync, log = (line) => console.log(line) } = {}) {
   env = { ...env, ...NO_INCREMENTAL_WAITS };
-  return ({ number, head, base, expected = [] }) => {
+  return async ({ number, head, base, expected = [] }) => {
     const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", "--repo", env.GITHUB_REPOSITORY];
     if (SHA.test(String(base ?? ""))) {
       args.push("--base-sha", base);
@@ -94,7 +136,7 @@ export function verifyCapReader(env, { spawn = spawnSync, log = (line) => consol
     // The reader sizes its listing to this kill limit and names this caller
     // when a listing cannot fit (babysit_verify_evidence.py DEADLINE_ENV).
     const readerEnv = { ...env, BABYSIT_VERIFY_DEADLINE_SECONDS: String(VERIFY_CAP_TIMEOUT_MS / 1000), BABYSIT_VERIFY_CALLER: "verify-cap.mjs" };
-    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env: readerEnv, timeout: VERIFY_CAP_TIMEOUT_MS });
+    const done = await spawn("python3", [...args, String(number), head], { encoding: "utf8", env: readerEnv, timeout: VERIFY_CAP_TIMEOUT_MS });
     const said = stderrSummary(done.stderr);
     if (said) {
       log(`#${number}: the verifier reader's stderr: ${said}`);
