@@ -469,7 +469,20 @@ code and a `parallel` item), and the PowerShell prefilter one holding `move`, `m
 `Clear-Content` or `Set-Content`, or `mi` or `clc` as a word, so such a call pays the tokenizer parse
 (Bash) or the statement walk (PowerShell). `mv` and `Set-Content` are common commands, so more calls
 pay that parse than under the earlier arms, and every `mv` from a repository pays the recursive-`rm`
-judgment. The measured wall time is recorded under #5946.
+judgment. Measured on melo-lap-001 (Windows 11 build 26300 on AC, Git Bash 5.3.15, Node 24.21.0)
+with the method of the #9754 entry, guardrails at `480308656` against `c210da2bb` (the parent of
+`0e920fea1`, the #9756 change; the only hook or lib difference from `b76fecf22` is
+`--skip-unless-marker`, which this row does not pass), so one run times the #9756 through #9767
+arms together; the head arm also holds #11347 (`block-cross-domain.sh`) and #11507 (an
+allowed-roots fix), both in this row. The host was busier than in the #9754 run: the harness's S
+was 24 to 26 ms and hyperfine's `bash -c :` floor 93 ms. Fan-out harness, 15 interleaved rounds of `--runs 7`, S = 20 ms
+for the conversions below: the `Bash` row's paired median moved +17 ms and the `$(…)` sample −14 ms,
+inside the +1 and +18 ms the untouched `Write` and `Edit` rows moved, so the common call shows no
+change outside noise and keeps its k. With `hyperfine -N` (300 runs per arm per payload in five
+alternating blocks), the `rm -rf ./build` control went from 558.1 to 533.7 ms and `mv ./a ./b` from
+213.4 to 529.1 ms: +316 ms, about 16 S, which is what a recursive `rm` pays. That is overage against
+the row's k × S, held as guardrails spawn-reduction work under the hook-budget contract's Rule 2
+(the budget does not relax to absorb it).
 
 **block-root-delete-target PowerShell indirection and pipelines (#9765).** The arm starts no process
 of its own: the text `Invoke-Expression`, `pwsh -Command` or `Start-Process` runs goes through the
@@ -480,7 +493,12 @@ k a recursive `rm` has (4 in the #9752 census: `git`, `realpath` and two `timeou
 that names no target (an `-EncodedCommand` it cannot decode, a removal fed by no listing) starts no
 process. The PowerShell prefilter now also passes a command whose text holds `pwsh` or `powershell`,
 so such a call pays the statement walk; one with no delete ends there with no target to judge, and
-every other call keeps its k. The measured wall time is recorded under #5946.
+every other call keeps its k. In the #9767 entry's run, the common call shows no change outside
+noise, and `[IO.Directory]::Delete('build', $true)` went from 236.4 to 509.7 ms: +273 ms, about
+14 S, the cost of the recursive-`rm` judgment (control 533.7 ms).
+`Get-ChildItem ./build | Remove-Item -Recurse -Force`, which the earlier arm refused without judging
+a target, now passes at 477.9 ms against that refusal's 198.4 ms. That is overage against the row's k × S, held as
+spawn-reduction work under Rule 2.
 
 **block-root-delete-target decoder sinks (#9763).** The arm starts no process of its own: it reads
 each command's argv and redirections from the parse the guard already makes, and a program an
@@ -489,8 +507,10 @@ A decoder sink is refused before any target is judged, so its refusal adds no pr
 (no `git`, `realpath` or `timeout`). The Bash prefilter now also passes a command whose text holds `base64`, `base32`, `basenc` or
 `xxd`, and the PowerShell prefilter one whose text holds `FromBase64`, so such a call pays the
 tokenizer parse (Bash) or the statement walk (PowerShell); one with no decoder sink and no delete ends
-there with no target to judge, and every other call keeps its k. The measured wall time is recorded
-under #5946.
+there with no target to judge, and every other call keeps its k. In the #9767 entry's run, the common
+call shows no change outside noise, and `echo cm0gLXJmIC8= | base64 -d > build/rdt-x.sh` (a decoder
+that passes the prefilter and is judged, with no sink) went from 188.2 to 188.1 ms: the decoder arm
+adds no measurable cost.
 
 **block-root-delete-target interpreter deletes (#9762).** The arm starts no process of its own: it
 reads the interpreter's argv from the parse the guard already makes, lexes the program and finds its
@@ -502,7 +522,10 @@ its k, an interpreter delete with a literal path has the k a recursive `rm` has 
 census: `git`, `realpath` and two `timeout`), and one refused because its path cannot be placed starts
 no process. The Bash prefilter now also passes a command whose text holds `remove` or `.delete`, so
 such a call pays the tokenizer parse; one with no interpreter delete ends there with no target to judge. Every
-PowerShell call takes the same path as before. The measured wall time is recorded under #5946.
+PowerShell call takes the same path as before. In the #9767 entry's run, the common call shows no
+change outside noise, and `python3 -c "import shutil; shutil.rmtree('./build')"` went from 190.9 to
+487.9 ms: +297 ms, about 15 S, the cost of the recursive-`rm` judgment (control 533.7 ms). That is
+overage against the row's k × S, held as spawn-reduction work under Rule 2.
 
 **block-root-delete-target git worktree remove (#9760).** The arm starts no process of its own: it
 reads git's argv from the parse the guard already makes, matches the operand against the worktree
@@ -512,7 +535,10 @@ path a recursive `rm` operand takes, through the same one `realpath` (and, on Wi
 recursive `rm` has (4 in the #9752 census: `git`, `realpath` and two `timeout`). The Bash prefilter
 now also passes a command whose text holds `worktree`, so such a call pays the tokenizer parse; one
 that is not a forced `git worktree remove` ends there with no target to judge. Every PowerShell call
-takes the same path as before. The measured wall time is recorded under #5946.
+takes the same path as before. In the #9767 entry's run, the common call shows no change outside
+noise, and `git worktree remove --force ./wt` went from 202.8 to 465.9 ms: +263 ms, about 13 S, the
+cost of the recursive-`rm` judgment (control 533.7 ms). That is overage against the row's k × S, held
+as spawn-reduction work under Rule 2.
 
 **block-root-delete-target robocopy deletes (#9758).** The arm starts no process of its own: it
 reads robocopy's argv from the parse the guard already makes, and each judged destination or source
@@ -521,14 +547,20 @@ one `cygpath`). So a call with no robocopy delete keeps its k, and a robocopy de
 recursive `rm` has (4 in the #9752 census: `git`, `realpath` and two `timeout`). Both prefilters now
 also pass a command whose text holds `robocopy`, so a robocopy call pays the tokenizer parse (Bash)
 or the statement walk (PowerShell); one without `/MIR`, `/PURGE`, `/MOVE` or `/MOV` ends there with
-no target to judge. The measured wall time is recorded under #5946.
+no target to judge. In the #9767 entry's run, the common call shows no change outside noise, and
+`robocopy src build /MIR` from the PowerShell tool went from 187.1 to 503.6 ms: +316 ms, about 16 S,
+the cost of the recursive-`rm` judgment (control 533.7 ms). That is overage against the row's k × S,
+held as spawn-reduction work under Rule 2.
 
 **block-root-delete-target rsync deletes (#9756).** The arm starts no process of its own: it reads
 rsync's argv from the parse the guard already makes, and each judged destination or source takes
 the path a recursive `rm` operand takes, through the same one `realpath` (and, on Windows, the one
 `cygpath`). The Bash prefilter now also passes a command whose text holds `rsync`, so an rsync
 call pays the tokenizer parse; one without a deleting option ends there with no target to judge.
-Every other Bash call, and every PowerShell call, takes the same path as before.
+Every other Bash call, and every PowerShell call, takes the same path as before. In the #9767 entry's
+run, the common call shows no change outside noise, and `rsync -a --delete ./src/ ./build/` went
+from 231.9 to 508.3 ms: +276 ms, about 14 S, the cost of the recursive-`rm` judgment (control
+533.7 ms). That is overage against the row's k × S, held as spawn-reduction work under Rule 2.
 
 **block-root-delete-target pipeline-fed deletes (#9754).** The arm starts no process of its own,
 and the prefilter is unchanged, because every `xargs` or `parallel` delete it judges holds `rm`,
