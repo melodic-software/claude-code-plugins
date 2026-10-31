@@ -830,6 +830,7 @@ jobs:
       # write: the gate-check job below writes the check runs.
       checks: read
       issues: read # the post-merge check's demotion records, read with this job's token
+      statuses: read # a lane stop's pr-unblock status (the lanes App holds no statuses permission)
       id-token: write # prove to the token broker which workflow this is
     outputs:
       # `true` when the gate's rows were handed to the gate-check job.
@@ -1847,7 +1848,9 @@ jobs:
       # cache, listing and head-ref map. A review lane's hold at an older head
       # comes off as stale-review-hold once trusted human pushes moved the
       # head and both review lanes passed there with no HIGH or CRITICAL
-      # security finding.
+      # security finding. needs-session comes off, with no comment, once a
+      # same-head retry cleared the lane stop that added it, reading at most
+      # five pull requests a run.
       # Rules: .github/scripts/pr-merge/clear-escalations.mjs.
       - name: Clear escalations whose reason no longer holds
         if: >-
@@ -1858,8 +1861,9 @@ jobs:
         timeout-minutes: 15
         env:
           GH_TOKEN: ${{ steps.lane-token.outputs.token }}
-          # The job's own token reads a fix-ci stop's head runs and checks
-          # (actions: read, checks: read); the lane token holds neither.
+          # The job's own token reads a fix-ci stop's head runs and checks and
+          # a lane stop's statuses (actions: read, checks: read, statuses:
+          # read); the lane token holds none of them.
           CHECKS_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_GH_TOKEN: ${{ github.token }}
           BABYSIT_VERIFY_LISTING: ${{ runner.temp }}/verify-listing.json
