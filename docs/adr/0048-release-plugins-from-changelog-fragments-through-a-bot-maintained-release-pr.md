@@ -375,8 +375,8 @@ so its `ci-status` stays pending with nothing behind it. On a merge conflict a p
 on an unfinished check run.
 
 A failed `ci-status` on a base behind main starts no rebuild, on any event, while the release pull
-request holds a label the merge lane's `labelHolds` lists: a rebuild cannot clear a label's red, and it changes
-held content.
+request holds a label the merge lane's `labelHolds` lists: a rebuild cannot clear a label's red, and
+it changes held content. `pr-verify-failed` is left out, since a pass at a new head removes it.
 
 `ci-status` alone cannot show a full run in flight: it has no run from that full run until the lanes
 finish. The release build's own pull request edit starts a contract-only run, whose `ci-status` can

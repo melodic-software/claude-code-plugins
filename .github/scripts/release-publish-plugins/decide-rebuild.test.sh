@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: .work-item-tracker.json
 # Tests for decide-rebuild.sh on a throwaway origin and clone, with a stub gh
 # on PATH and a stub fragment gate on main whose exit code GATE_RC sets; the
 # gate's own cases (scripts/check-changelog-fragments.test.sh) cover what it
@@ -47,6 +48,8 @@ case "$1 $2" in
   if [[ $FAKE_QUEUED == fail ]]; then exit 1; fi
   json="{\"data\":{\"node\":{\"isInMergeQueue\":$FAKE_QUEUED}}}" ;;
 api\ repos/*)
+  # Only the release head has checks, so a read of any other commit fails.
+  if [[ $2 != */commits/$HEAD_SHA/* ]]; then exit 8; fi
   if [[ ${FAKE_RUNS:-} == fail ]]; then exit 1; fi
   if [[ ${FAKE_UNFINISHED:-} == fail && $2 != *check_name=* ]]; then exit 1; fi
   runs=${FAKE_RUNS:-"[{\"started_at\":\"2026-10-18T01:00:00Z\",\"status\":\"completed\",\"conclusion\":\"$FAKE_CI\",\"app\":{\"id\":15368}}]"}
@@ -100,7 +103,7 @@ run_decide() {
   : >"$TMP/ghout"
   : >"$TMP/gh.log"
   RC=0
-  OUT=$(cd "$R" && env PATH="$TMP/bin:$PATH" GH_LOG="$TMP/gh.log" GH_TOKEN=t \
+  OUT=$(cd "$R" && env PATH="$TMP/bin:$PATH" GH_LOG="$TMP/gh.log" GH_TOKEN=t HEAD_SHA="$HEAD_SHA" \
     GITHUB_REPOSITORY=o/r GITHUB_OUTPUT="$TMP/ghout" GITHUB_EVENT_NAME=schedule \
     FAKE_PRS="${FAKE_PRS-}" FAKE_QUEUED=false FAKE_CI=success "$@" \
     bash "$DECIDE" "$MAIN_SHA" 2>"$TMP/err") || RC=$?
@@ -173,6 +176,12 @@ FAKE_PRS="$(pr_json MERGEABLE needs-human)" run_decide GATE_RC=0 FAKE_CI=failure
 check 'needs-human: no rebuild' 'false ' "$(val rebuild) $(val deferred)"
 FAKE_PRS="$(pr_json MERGEABLE 'security: outside-actor')" run_decide GATE_RC=0 FAKE_CI=failure
 check 'outside-actor hold alone: no rebuild' 'false ' "$(val rebuild) $(val deferred)"
+check 'outside-actor hold alone: the notice names it' 1 "$(grep -c 'security: outside-actor' <<<"$OUT")"
+FAKE_PRS="$(pr_json MERGEABLE pr-verify-failed)" run_decide GATE_RC=0 FAKE_CI=failure
+check 'pr-verify-failed: rebuild (a new head can clear it)' true "$(val rebuild)"
+FAKE_PRS="$(pr_json MERGEABLE | jq -c '.[0].labels = null')" run_decide GATE_RC=0 FAKE_CI=failure
+check 'hold read failure: non-zero exit' 1 "$((RC != 0))"
+check 'hold read failure: no rebuild written' '' "$(val rebuild)"
 FAKE_PRS="$(pr_json MERGEABLE do-not-merge)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_CI=failure
 check 'push do-not-merge: no rebuild, not deferred' 'false ' "$(val rebuild) $(val deferred)"
 FAKE_PRS="$(pr_json MERGEABLE do-not-merge)" run_decide GITHUB_EVENT_NAME=workflow_dispatch GATE_RC=0 FAKE_CI=failure
@@ -223,7 +232,7 @@ FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_RUNS="[$(run "$t1" fai
 check 'later success: no rebuild' false "$(val rebuild)"
 
 # ci_status <runs>: what ci-status.sh, which the queue step also reads, prints.
-ci_status() { env PATH="$TMP/bin:$PATH" GH_LOG=/dev/null GITHUB_REPOSITORY=o/r FAKE_RUNS="$1" bash "$SCRIPT_DIR/ci-status.sh" "$HEAD_SHA"; }
+ci_status() { env PATH="$TMP/bin:$PATH" GH_LOG=/dev/null HEAD_SHA="$HEAD_SHA" GITHUB_REPOSITORY=o/r FAKE_RUNS="$1" bash "$SCRIPT_DIR/ci-status.sh" "$HEAD_SHA"; }
 echo '# ci-status.sh'
 check 'ci-status: no run is pending' pending "$(ci_status '[]')"
 check 'ci-status: only another app ran, pending' pending "$(ci_status "[$(run "$t2" success 99)]")"

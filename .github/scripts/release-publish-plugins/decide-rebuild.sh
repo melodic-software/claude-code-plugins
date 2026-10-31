@@ -53,7 +53,7 @@ rebuild() {
 }
 
 decide() {
-  local main_sha=$1 pr id number head queued held ci="" rc=0
+  local main_sha=$1 pr id number head queued held="" ci="" rc=0
   pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open \
     --json id,number,headRefOid,mergeable,isCrossRepository,labels --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
   if [[ -z $pr ]]; then
@@ -98,11 +98,16 @@ decide() {
       # A failed check on a base behind main never clears on a re-run; rebuild on
       # main's tip. A hold label's red never clears on a rebuild, which would
       # only change held content.
-      held="$(node "$here/label-holds.mjs" <<<"$pr")"
-      if [[ -z $held ]] && ! git merge-base --is-ancestor "$main_sha" "$head"; then
+      if ! git merge-base --is-ancestor "$main_sha" "$head"; then
         ci="$("$here/ci-status.sh" "$head")"
       fi
       if [[ $ci == failure ]]; then
+        held="$(node "$here/label-holds.mjs" <<<"$pr")"
+      fi
+      if [[ -n $held ]]; then
+        echo "::notice::ci-status failed on release pull request #$number; not rebuilding it: ${held//$'\n'/ }"
+        echo "rebuild=false" >>"$GITHUB_OUTPUT"
+      elif [[ $ci == failure ]]; then
         rebuild "$head" "$ci" ::warning:: "ci-status failed on release pull request #$number and its base is behind main"
       else
         echo "Release pull request #$number changes no file main changed since its build base."
