@@ -13,9 +13,14 @@ bump: patch
   written instead of leaving no verdict and a second sample of the head. A fail with such text, or
   from a judge step `run-claude-cli` failed on its own credential scan, publishes a fixed text and
   none of the model's, logs the credential's kind alone as a warning, and holds the pull request for a person with the
-  human-gated label and a `security` stop reason, since a later clean commit rotates nothing. A denial or
+  human-gated label, a dequeue and a `security` stop reason, since a later clean commit rotates nothing. The verdict
+  records `withheld: true` in code, so a fail quoting that text gets no hold and no model can claim one. The comment
+  posts once per head in any pull request state, whatever else the label stands for, and keeps the label through
+  `clear-escalations`, `enable-auto-merge`'s lift and `ci-status`'s cost-hold clear until a person removes it. A failed
+  hold skips no notes, and a withheld fail stands on a short read with no notes. A denial or
   credential-shaped text still voids a `pass` or `pass-notes`. The scan reads through the
-  `\ continued:` fold and across two quoted diff lines, and the prompts forbid quoting a credential.
+  `\ continued:` fold, with any white space before it, and across two quoted diff lines, and the prompts forbid quoting
+  a credential.
 - On a `refs` entry, a `pr-verify` final judge's `pass` or `pass-notes` needs the context read
   whole, in parts one Read returns, since the delivered part is named there. Chunk results over
   300000 bytes stop with no verdict before the final judge runs.
