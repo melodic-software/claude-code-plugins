@@ -3,7 +3,7 @@
 // docs/conventions/review.yaml, against schemas/review.schema.json.
 //
 // Usage:
-//   setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ...
+//   setup-apply.mjs [--root <dir>] [--yes] [--default <key>] ... <key>=<value> ...
 //   setup-apply.mjs [--root <dir>] --check [--ref <ref>]
 //
 // --ref reads the file as committed at a 40-hex commit id or origin/<name>, so
@@ -18,6 +18,7 @@ import { run } from "../../../lib/setup-apply.mjs";
 const PLUGIN = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 run({
   plugin: "review",
+  provenance: true,
   schema: join(PLUGIN, "schemas", "review.schema.json"),
   reader: join(PLUGIN, "lib", "parse-concern-value.sh"),
   ref: true,

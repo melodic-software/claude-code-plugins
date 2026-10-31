@@ -657,6 +657,8 @@ prov_plugin() {
     '  "additionalProperties": false,' \
     '  "properties": {' \
     '    "$schema": { "type": "string" },' \
+    '    "written_against": { "type": "string" },' \
+    '    "provenance": { "type": "object", "additionalProperties": { "type": "string" } },' \
     "    \"mode\": { \"type\": \"string\", \"enum\": [\"fast\", \"slow\", \"safe\"], \"default\": \"$2\" }," \
     "    \"workers\": { \"type\": \"integer\", \"minimum\": 1, \"maximum\": 8, \"default\": $3 }," \
     '    "label": { "type": "string" }' \
@@ -713,6 +715,26 @@ assert_eq "a file without provenance, written: exits 0 with one INFO line" "0:1"
 assert_eq "a file without provenance, written: its existing value is recorded as chosen" \
   $'mode: slow\nworkers: 3\nwritten_against: fixture@1.1.0\nprovenance:\n  mode: chosen (default safe)\n  workers: chosen (default 4)' \
   "$(cat "$(yaml_of "$R")")"
+
+# Declared in the schema, both keys stay the writer's: neither is a setting.
+R="$(new_root prov-declared)"
+out="$(prun --root "$R" mode=slow)"
+out="$(prun --root "$R" --check)"
+assert_eq "declared keys: --check prints a PASS line for settings only" "0" "$(printf '%s\n' "$out" | grep -cE '^PASS (written_against|provenance):')"
+out="$(prun --root "$R" written_against=fixture@9.9.9)"
+assert_eq "declared keys: written_against is not set from the command line (exit 1)" "1" "$?"
+assert_contains "declared keys: the refusal names the key" "$out" "written_against is not a key of"
+out="$(prun --root "$R" --default provenance)"
+assert_eq "declared keys: --default refuses provenance (exit 1)" "1" "$?"
+
+# A closed schema that does not declare both keys would refuse the file written.
+R="$(new_root prov-undeclared)"
+sed -i.bak '/"written_against"/d;/"provenance"/d' "$PROV/schemas/fixture.schema.json"
+out="$(prun --root "$R" mode=slow)"
+assert_eq "provenance on a schema without the keys: a usage error (exit 2)" "2" "$?"
+assert_contains "provenance on a schema without the keys: the refusal names them" "$out" "does not declare written_against and provenance"
+assert_eq "provenance on a schema without the keys: nothing written" "0" "$(exists "$(yaml_of "$R")")"
+prov_plugin 1.1.0 safe 4
 
 # An entry point without provenance accepts both keys and keeps them as written.
 R="$(new_root prov-off)"

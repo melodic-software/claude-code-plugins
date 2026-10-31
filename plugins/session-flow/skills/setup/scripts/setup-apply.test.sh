@@ -9,6 +9,12 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# settings <file>: the file without the record the writer keeps beside the
+# settings, for cases about the settings; the record has its own case below.
+settings() {
+  awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
+}
 SUT="$SCRIPT_DIR/setup-apply.mjs"
 READER="$SCRIPT_DIR/../../retro/scripts/parse-concern-value.sh"
 REL="docs/conventions/session-flow.yaml"
@@ -58,16 +64,16 @@ assert_true 'fresh write creates the file' test -f "$f"
 assert_true 'the written value reads back as respawn' [ "$(bash "$READER" "$f" worker_continuation)" = respawn ]
 assert_true 'fresh write creates no other file' [ "$(find "$repo" -path "$repo/.git" -prune -o -type f -print | wc -l)" -eq 1 ]
 assert_true 'fresh write leaves no temp file' [ -z "$(find "$repo/docs" -name '*.tmp')" ]
-before="$(cat "$f")"
+before="$(settings "$f")"
 run "$repo" worker_continuation=respawn
 assert_true 'an unchanged value reports already configured' out_has 'already configured'
-assert_true 'an unchanged value leaves the file' [ "$(cat "$f")" = "$before" ]
+assert_true 'an unchanged value leaves the file' [ "$(settings "$f")" = "$before" ]
 
 # Existing file that would change: diff, then --yes.
 repo="$(new_repo)"
 f="$repo/$REL"
 seed "$repo" '# team pick\nworker_continuation: resume\n'
-before="$(cat "$f")"
+before="$(settings "$f")"
 run "$repo" worker_continuation=respawn
 assert_true 'an existing file that would change exits 3 without --yes' code_is 3
 assert_true 'the refusal prints the diff' out_has '+worker_continuation: respawn'
@@ -75,7 +81,7 @@ assert_true 'the diff shows the old value' out_has '-worker_continuation: resume
 assert_true 'the file is untouched without --yes' [ "$(cat "$f")" = "$before" ]
 run "$repo" --yes worker_continuation=respawn
 assert_true 'with --yes the change is written' code_is 0
-assert_true 'the comment is kept and the value is respawn' [ "$(cat "$f")" = $'# team pick\nworker_continuation: respawn' ]
+assert_true 'the comment is kept and the value is respawn' [ "$(settings "$f")" = $'# team pick\nworker_continuation: respawn' ]
 
 # Invalid value and unknown key.
 repo="$(new_repo)"
@@ -99,7 +105,7 @@ for doc in 'worker_continuation:\n' \
   assert_true "--check names the bad value for $(printf '%b' "$doc" | tr '\n' ' ')" out_has 'worker_continuation'
   run "$repo" --yes worker_continuation=respawn
   assert_true "apply replaces $(printf '%b' "$doc" | tr '\n' ' ')" code_is 0
-  assert_true "the replaced file holds one valid line for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(cat "$repo/$REL")" = 'worker_continuation: respawn' ]
+  assert_true "the replaced file holds one valid line for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(settings "$repo/$REL")" = 'worker_continuation: respawn' ]
 done
 
 # Duplicate keys (also with a space before the colon), a block or one-line
@@ -121,7 +127,7 @@ for doc in 'worker_continuation: resume\nworker_continuation: respawn\n' \
   'stray:\n  a: b\n'; do
   repo="$(new_repo)"
   seed "$repo" "$doc"
-  before="$(cat "$repo/$REL")"
+  before="$(settings "$repo/$REL")"
   run "$repo" --check
   assert_true "--check flags $(printf '%b' "$doc" | tr '\n' ' ')" code_is 1
   run "$repo" --yes worker_continuation=respawn
@@ -148,7 +154,7 @@ assert_true '--check prefixes each key with PASS' [ "$(grep -c '^PASS worker_con
 run "$repo" --yes worker_continuation=respawn
 assert_true 'apply beside an unknown key exits 0' code_is 0
 assert_true 'apply names the unknown key in one warning' [ "$(grep -c 'WARN.*key stray is not in the schema' <<<"$OUT")" -eq 1 ]
-assert_true 'apply keeps the unknown key line' [ "$(cat "$repo/$REL")" = $'worker_continuation: respawn\nstray:' ]
+assert_true 'apply keeps the unknown key line' [ "$(settings "$repo/$REL")" = $'worker_continuation: respawn\nstray:' ]
 
 # An invalid existing scalar is replaced by a valid one.
 repo="$(new_repo)"
@@ -160,7 +166,7 @@ assert_true 'the replacement reads back as resume' [ "$(bash "$READER" "$repo/$R
 # A key given twice on the command line is refused, with or without a file.
 repo="$(new_repo)"
 seed "$repo" 'worker_continuation: resume\n'
-before="$(cat "$repo/$REL")"
+before="$(settings "$repo/$REL")"
 run "$repo" --yes worker_continuation=respawn worker_continuation=resume
 assert_true 'a key given twice is refused against an existing file' code_is 1
 assert_true 'a key given twice leaves the existing file unchanged' [ "$(cat "$repo/$REL")" = "$before" ]
@@ -206,7 +212,7 @@ repo="$(new_repo)"
 OUT="$(HOOK_MODE=pre-tmp HOOK_ROOT="$repo" node --import "$PRELOAD" "$SUT" --root "$repo" worker_continuation=respawn 2>&1)"
 CODE=$?
 assert_true 'an existing file at the temp name makes the write exit 1' code_is 1
-assert_true 'the file at the temp name, not created by this run, survives' [ "$(cat "$repo/docs/conventions/.session-flow.yaml."*.tmp 2>/dev/null)" = 'not mine' ]
+assert_true 'the file at the temp name, not created by this run, survives' [ "$(settings "$repo/docs/conventions/.session-flow.yaml."*.tmp 2>/dev/null)" = 'not mine' ]
 assert_true 'nothing is written when the temp name is taken' [ ! -e "$repo/$REL" ]
 
 # Symlinks and hard links.
@@ -272,12 +278,12 @@ for doc in 'review_mining_prs: "20"\n' 'review_mining_prs: 500\n' 'review_mining
   assert_true "--check names review_mining_prs for $(printf '%b' "$doc" | tr '\n' ' ')" out_has 'review_mining_prs'
   run "$repo" --yes review_mining_prs=30
   assert_true "apply replaces $(printf '%b' "$doc" | tr '\n' ' ')" code_is 0
-  assert_true "the replaced file holds review_mining_prs: 30 for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(cat "$repo/$REL")" = 'review_mining_prs: 30' ]
+  assert_true "the replaced file holds review_mining_prs: 30 for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(settings "$repo/$REL")" = 'review_mining_prs: 30' ]
 done
 for doc in 'review_mining_prs: [20]\n' 'review_mining_prs: ""\n' 'encode_policy:\n  - strongest-first\n'; do
   repo="$(new_repo)"
   seed "$repo" "$doc"
-  before="$(cat "$repo/$REL")"
+  before="$(settings "$repo/$REL")"
   run "$repo" --yes review_mining_prs=30
   assert_true "apply refuses $(printf '%b' "$doc" | tr '\n' ' ')" code_is 1
   assert_true "the file is unchanged for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(cat "$repo/$REL")" = "$before" ]
@@ -309,12 +315,12 @@ for doc in 'wip_commit: "true"\n' "wip_commit: 'false'\n" 'wip_commit: yes\n' 'w
   assert_true "--check names wip_commit for $(printf '%b' "$doc" | tr '\n' ' ')" out_has 'wip_commit'
   run "$repo" --yes wip_commit=false
   assert_true "apply replaces $(printf '%b' "$doc" | tr '\n' ' ')" code_is 0
-  assert_true "the replaced file holds wip_commit: false for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(cat "$repo/$REL")" = 'wip_commit: false' ]
+  assert_true "the replaced file holds wip_commit: false for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(settings "$repo/$REL")" = 'wip_commit: false' ]
 done
 for doc in 'wip_commit: [true]\n' 'wip_commit: ""\n' 'wip_commit:\n  on: true\n'; do
   repo="$(new_repo)"
   seed "$repo" "$doc"
-  before="$(cat "$repo/$REL")"
+  before="$(settings "$repo/$REL")"
   run "$repo" --yes wip_commit=true
   assert_true "apply refuses $(printf '%b' "$doc" | tr '\n' ' ')" code_is 1
   assert_true "the file is unchanged for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(cat "$repo/$REL")" = "$before" ]
@@ -375,6 +381,20 @@ assert_true '--check with a pair exits 2' code_is 2
 OUT="$(cd "$WORKROOT" && GIT_CEILING_DIRECTORIES="$WORKROOT" node "$SUT" worker_continuation=resume 2>&1)"
 CODE=$?
 assert_true 'outside a git working tree without --root exits 2' code_is 2
+
+# --- The writer's record: written_against from plugin.json, one entry per key ---
+VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
+repo="$(new_repo)"
+run "$repo" worker_continuation=respawn
+record="$(grep -v '^# ' "$repo/docs/conventions/session-flow.yaml")"
+record_ok=0
+[[ "$CODE" -eq 0 && "$record" == $'written_against: session-flow@'"$VERSION"$'\nworker_continuation: respawn\nprovenance:\n  worker_continuation: chosen'* ]] && record_ok=1
+repo="$(new_repo)"
+run "$repo" --default worker_continuation
+default_ok=0
+[[ "$CODE" -eq 0 && "$(grep -c '^  worker_continuation: default$' "$repo/docs/conventions/session-flow.yaml")" -eq 1 ]] && default_ok=1
+assert_true 'the file records written_against and a chosen entry' test "$record_ok" -eq 1
+assert_true '--default records a default entry' test "$default_ok" -eq 1
 
 if ((fails)); then
   printf '%d failure(s)\n' "$fails" >&2

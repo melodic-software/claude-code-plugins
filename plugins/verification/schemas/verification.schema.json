@@ -7,6 +7,15 @@
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
+    "written_against": {
+      "type": "string",
+      "description": "The plugin version the setup writer last wrote this file against, as <plugin>@<version>. The writer owns it; it is not a setting."
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Per setting, whether the team chose the value or it was filled at the plugin default. The writer owns it; it is not a setting."
+    },
     "proof_level": {
       "enum": ["path", "live", "strict"],
       "default": "path",

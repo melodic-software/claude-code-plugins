@@ -9,6 +9,12 @@ set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# settings <file>: the file without the record the writer keeps beside the
+# settings, for cases about the settings; the record has its own case below.
+settings() {
+  awk '/^ *written_against: /{next} /^ *provenance:\r?$/{inblock=1;next} inblock&&/^ +[^ ]+: /{next} {inblock=0;print}' "$1"
+}
 APPLY="$SCRIPT_DIR/setup-apply.mjs"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'chmod -R u+w "$TEST_TMPDIR" 2>/dev/null; rm -rf "$TEST_TMPDIR"' EXIT
@@ -61,14 +67,14 @@ R1="$(new_root c1)"
 out="$(run --root "$R1" ratchet_offer=false)"
 assert_eq "case 1: writing to an absent file exits 0" "0" "$?"
 assert_eq "case 1: the file holds the value on its own line" "1" "$(grep -cx 'ratchet_offer: false' "$(yaml_of "$R1")")"
-assert_contains "case 1: the file names its schema" "$(cat "$(yaml_of "$R1")")" "review.schema.json"
+assert_contains "case 1: the file names its schema" "$(settings "$(yaml_of "$R1")")" "review.schema.json"
 assert_contains "case 1: the output names the written path" "$out" "wrote docs/conventions/review.yaml"
 
 R1B="$TEST_TMPDIR/c1b"
 mkdir -p "$R1B"
 run --root "$R1B" ratchet_offer=true >/dev/null
 assert_eq "case 1: missing docs/conventions directories are created" "0" "$?"
-assert_contains "case 1: the created file holds the value" "$(cat "$(yaml_of "$R1B")")" "ratchet_offer: true"
+assert_contains "case 1: the created file holds the value" "$(settings "$(yaml_of "$R1B")")" "ratchet_offer: true"
 
 # --- Case 2: the same value again writes nothing ---------------------------
 out="$(run --root "$R1" ratchet_offer=false)"
@@ -76,11 +82,11 @@ assert_eq "case 2: a value already in place exits 0" "0" "$?"
 assert_contains "case 2: it says already configured" "$out" "already configured"
 
 # --- Case 3: a change to an existing file needs --yes ------------------------
-before="$(cat "$(yaml_of "$R1")")"
+before="$(settings "$(yaml_of "$R1")")"
 out="$(run --root "$R1" ratchet_offer=true)"
 assert_eq "case 3: a change without --yes exits 3" "3" "$?"
 assert_contains "case 3: the diff shows the new line" "$out" "+ratchet_offer: true"
-assert_eq "case 3: the file is unchanged without --yes" "$before" "$(cat "$(yaml_of "$R1")")"
+assert_eq "case 3: the file is unchanged without --yes" "$before" "$(settings "$(yaml_of "$R1")")"
 run --root "$R1" --yes ratchet_offer=true >/dev/null
 assert_eq "case 3: the change with --yes exits 0" "0" "$?"
 assert_eq "case 3: the file holds the new value on its own line" "1" "$(grep -cx 'ratchet_offer: true' "$(yaml_of "$R1")")"
@@ -138,13 +144,13 @@ check_warns "an unknown key" $'ratchet_offer: true\nratchet_offers: false\n'
 # --- Case 7: apply refuses a result that would not validate ------------------
 R7="$(new_root c7)"
 printf 'ratchet_offer: true\nratchet_offer: true\n' >"$(yaml_of "$R7")"
-before="$(cat "$(yaml_of "$R7")")"
+before="$(settings "$(yaml_of "$R7")")"
 run --root "$R7" --yes ratchet_offer=false >/dev/null
 assert_eq "case 7: apply over a duplicate key exits 1" "1" "$?"
 assert_eq "case 7: the duplicate-key file is unchanged" "$before" "$(cat "$(yaml_of "$R7")")"
 R7B="$(new_root c7b)"
 printf 'ratchet_offer:\n  - true\n' >"$(yaml_of "$R7B")"
-before="$(cat "$(yaml_of "$R7B")")"
+before="$(settings "$(yaml_of "$R7B")")"
 run --root "$R7B" --yes ratchet_offer=false >/dev/null
 assert_eq "case 7: apply over a block list exits 1" "1" "$?"
 assert_eq "case 7: the block-list file is unchanged" "$before" "$(cat "$(yaml_of "$R7B")")"
@@ -259,7 +265,7 @@ apply_keeps_unknown() { # apply_keeps_unknown <label> <file body> <expected file
   out="$(run --root "$r" --yes ratchet_offer=false)"
   assert_eq "case 12: apply beside $1 exits 0" "0" "$?"
   assert_eq "case 12: apply beside $1 warns once" "1" "$(printf '%s\n' "$out" | grep -c 'WARN.*key stray is not in the schema')"
-  assert_eq "case 12: apply beside $1 keeps its line" "$3" "$(cat "$f")"
+  assert_eq "case 12: apply beside $1 keeps its line" "$3" "$(settings "$f")"
 }
 apply_keeps_unknown "an unknown key alone" $'stray: 1\n' $'stray: 1\nratchet_offer: false'
 apply_keeps_unknown "an unknown empty key" $'stray:\n' $'stray:\nratchet_offer: false'
@@ -278,7 +284,7 @@ apply_replaces() {
   printf '%s' "$2" >"$f"
   run --root "$r" --yes ratchet_offer=true >/dev/null
   assert_eq "case 13: apply over $1 exits 0" "0" "$?"
-  assert_eq "case 13: apply over $1 leaves the asked-for line" "ratchet_offer: true" "$(cat "$f")"
+  assert_eq "case 13: apply over $1 leaves the asked-for line" "ratchet_offer: true" "$(settings "$f")"
 }
 apply_replaces "an out-of-list word" $'ratchet_offer: maybe\n'
 apply_replaces "a quoted boolean" $'ratchet_offer: "false"\n'
@@ -423,7 +429,7 @@ out="$(node --require "$P19P" "$APPLY" --root "$R19P" ratchet_offer=false 2>&1)"
 assert_eq "case 19: a temp name already taken exits 1" "1" "$?"
 one_line "case 19: a temp name already taken" "$out"
 assert_eq "case 19: a temp file this run did not create is kept" "someone else" \
-  "$(cat "$R19P/docs/conventions/.review.yaml.4242.tmp")"
+  "$(settings "$R19P/docs/conventions/.review.yaml.4242.tmp")"
 
 # --- Case 20: downstream_probe takes run or report (the schema's enum) ---------
 R20="$(new_root c20)"
@@ -621,12 +627,22 @@ out="$(run --root "$R26" --check)"
 assert_contains "case 26: --check reports fanout_diversity" "$out" "PASS fanout_diversity: model"
 R26B="$(new_root c26b)"
 printf 'ratchet_offer: true\n' >"$(yaml_of "$R26B")"
-before="$(cat "$(yaml_of "$R26B")")"
+before="$(settings "$(yaml_of "$R26B")")"
 out="$(run --root "$R26B" --yes fanout_diversity=models)"
 assert_eq "case 26: fanout_diversity=models exits 1" "1" "$?"
 assert_eq "case 26: the refusal is one line" "1" "$(printf '%s\n' "$out" | grep -c .)"
 assert_contains "case 26: the refusal names the key and value" "$out" "fanout_diversity"
 assert_eq "case 26: a refused value leaves the file untouched" "$before" "$(cat "$(yaml_of "$R26B")")"
+
+# --- The writer's record: written_against from plugin.json, one entry per key ---
+VERSION="$(sed -n 's/^ *"version": "\(.*\)",*$/\1/p' "$SCRIPT_DIR/../../../.claude-plugin/plugin.json")"
+R="$(new_root record-chosen)"
+out="$(run --root "$R" ratchet_offer=false)"
+assert_eq "the file records written_against and a chosen entry" "written_against: review@$VERSION" "$(grep '^written_against: ' "$(yaml_of "$R")")"
+assert_contains "the file holds a chosen entry for the key" "$(cat "$(yaml_of "$R")")" "  ratchet_offer: chosen"
+R="$(new_root record-default)"
+out="$(run --root "$R" --default ratchet_offer)"
+assert_contains "--default records a default entry" "$(cat "$(yaml_of "$R")")" "  ratchet_offer: default"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

@@ -7,6 +7,15 @@
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
+    "written_against": {
+      "type": "string",
+      "description": "The plugin version the setup writer last wrote this file against, as <plugin>@<version>. The writer owns it; it is not a setting."
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Per setting, whether the team chose the value or it was filled at the plugin default. The writer owns it; it is not a setting."
+    },
     "lever_scope": {
       "description": "When /discipline:script-the-deterministic-work lever-check answers build-a-lever for a change repeated across many sites. deterministic: only when the change is a mechanical transformation. non-trivial: for any non-trivial repeated change, built with an established codemod tool rather than a hand-written refactoring script.",
       "enum": ["deterministic", "non-trivial"],
