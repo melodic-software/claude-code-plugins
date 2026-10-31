@@ -432,9 +432,8 @@ either.
 
 **Routing.** When the person wants one PR watched after this session ends, offer it to the
 person: you can run `/autofix-pr` instead of or alongside this skill for that PR. Prefer this
-skill for the fleet, for tiered merge authority, and for anything the gates must prove. When the
-caller passes `unattended` as the first argument, the run records the offer in its output instead
-of asking; without that argument it asks.
+skill for the fleet, for tiered merge authority, and for anything the gates must prove. With a
+leading `unattended` argument, record the offer in the output instead of asking; without it, ask.
 
 **Mutation gate.** Both push to the PR branch. When `/autofix-pr` runs on a PR this skill also
 works, fetch before each fix commit and skip a finding the cloud session already fixed. This skill

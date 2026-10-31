@@ -35,11 +35,7 @@ Project ecosystems: !`${CLAUDE_SKILL_DIR}/scripts/detect-ecosystems.sh 2>/dev/nu
 
 ## Variables
 
-Arguments: `$ARGUMENTS`
-
-A leading `unattended` is not part of the scope: it is the caller declaring that nobody is
-present, which governs the `/design` suggestion under "Boundary". Take it out before reading the
-scope, so the suggestion's `/design <scope>` never carries it.
+Arguments: `$ARGUMENTS`. A leading `unattended` (the caller declaring nobody is present, which governs the `/design` suggestion under "Boundary") is not scope: take it out first, so `/design <scope>` never carries it.
 
 ## Purpose
 
@@ -419,9 +415,8 @@ shadows the bundled command, and the bundled one never appears in your skill lis
 user a local `design` skill shadows the bundled canvas command. A local `design` skill that
 disables model invocation shadows it too and is hidden from you, so every offer adds that
 `/design`'s description should read "Make a new Design artifact from a brief"; anything else is
-a local skill, not the canvas, and not to be run for it. When the caller passes `unattended` as the
-first argument, record the `/design` suggestion, with its lifecycle difference, in the run's output
-and build the mockup without asking the person; without that argument, tell the user as above.
+a local skill, not the canvas, and not to be run for it. With a leading `unattended` argument,
+record the suggestion, with its lifecycle difference, in the run's output and build without asking.
 
 **Mutation gate.** The canvas persists under the user's account. This skill never runs it, never
 publishes on its own initiative, and never references the canvas from anything tracked in the
