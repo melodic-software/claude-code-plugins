@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "parse_transcript",
+            "path": "/p"
+          }
+        }
+      ],
+      "why": "looks for the parser"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "skill",
+            "path": "session-data"
+          }
+        }
+      ],
+      "why": "counts by Grep"
+    }
+  ]
+}
