@@ -31,6 +31,12 @@
 #     Inverse of claim: unlock a linked worktree whose reason names this
 #     session. An unlocked tree is a no-op; a foreign or reasonless lock is
 #     never removed (reason printed).
+#   handover <path> --session-id OLD --to NEW [--repo-dir DIR]
+#     Move this session's claim to the session that resumes the work (a
+#     handoff then /clear starts a new session id). Re-locks only when the
+#     reason names OLD, the proof release uses, and writes NEW's reason through
+#     worktree_lock_reason, keeping the creator script it named. Both ids are
+#     explicit: CLAUDE_SESSION_ID is never read for OLD.
 #   stale <path> [--repo-dir DIR] [--idle-minutes N]
 #     Read-only. Exit 0 only when the lock is provably stale: a linked worktree
 #     whose reason reads `lane active on <host> session <sid> since`, <host> is
@@ -55,15 +61,21 @@
 #      claim: locked, or already claimed by this session
 #      check-enter: our claim, or path is not a linked worktree
 #      release: unlocked this session's lock, or the tree was already unlocked
+#      handover: the lock now names NEW (or already did)
 #   1  report: one or more linked worktrees have no lock reason
 #      stale: not provably stale (unlocked, reasonless, no session, another
 #      host, or a transcript changed within the idle window)
-#   2  usage (release: main worktree, or no session id to prove ownership)
+#   2  usage (release: main worktree, or no session id to prove ownership;
+#      handover: main worktree, or --session-id / --to missing)
 #   3  check-enter: the worktree is unclaimed (no lock reason)
+#      handover: the worktree is unlocked, so there is no claim to hand over
 #   4  check-enter: foreign live claim (reason printed)
 #      claim: path already has a reason that is not this session's
 #      release: the lock is foreign or carries no session (reason printed)
+#      handover: the lock names a session other than OLD (reason printed), or
+#      carries no reason at all
 #   5  environment: not a git repository, or path is not a registered worktree
+#      handover: git could not re-lock (the old reason is restored when it can be)
 #
 # Session identity (claim / check-enter / release):
 #   1. --session-id
@@ -72,7 +84,8 @@
 #   3. claim only: a generated host+pid+random token so two concurrent
 #      invocations on one host still produce different reasons
 #   check-enter without a session id cannot prove ownership: any lock reason
-#   is treated as foreign. release without one exits 2.
+#   is treated as foreign. release without one exits 2. handover reads only
+#   --session-id and --to, never CLAUDE_SESSION_ID.
 set -uo pipefail
 
 PROG=${0##*/}
@@ -100,6 +113,7 @@ Usage:
   $PROG claim --all-unclaimed [--repo-dir DIR] [--session-id ID]
   $PROG check-enter <path> [--repo-dir DIR] [--session-id ID]
   $PROG release <path> [--repo-dir DIR] [--session-id ID]
+  $PROG handover <path> --session-id OLD --to NEW [--repo-dir DIR]
   $PROG stale <path> [--repo-dir DIR] [--idle-minutes N]
   $PROG stale --batch --repo-dir DIR [--idle-minutes N] < NUL-delimited paths
 EOF
@@ -213,6 +227,7 @@ parse_worktrees() {
   local repo="$1" porcelain i canon
   WT_PATHS=()
   WT_REASONS=()
+  WT_IS_LOCKED=()
   WT_IS_LINKED=()
   porcelain="$(mktemp)" || return 1
   if ! git_unlocated -C "$repo" worktree list --porcelain -z >"$porcelain"; then
@@ -227,6 +242,7 @@ parse_worktrees() {
     canonicalize_path_to canon "${WT_FACT_PATH[$i]}"
     WT_PATHS+=("$canon")
     WT_REASONS+=("${WT_FACT_LOCKED[$i]}")
+    WT_IS_LOCKED+=("${WT_FACT_IS_LOCKED[$i]}")
     if [[ "${WT_FACT_LINKED[$i]}" == "yes" ]]; then
       WT_IS_LINKED+=(1)
     else
@@ -275,6 +291,8 @@ shift
 
 repo_dir=""
 session_id=""
+session_id_given=0
+to_session=""
 path=""
 all_unclaimed=0
 batch=0
@@ -291,6 +309,12 @@ while [[ $# -gt 0 ]]; do
   --session-id)
     [[ $# -ge 2 ]] || usage
     session_id="$2"
+    [[ -z "$2" ]] || session_id_given=1
+    shift 2
+    ;;
+  --to)
+    [[ $# -ge 2 ]] || usage
+    to_session="$2"
     shift 2
     ;;
   --root)
@@ -340,7 +364,7 @@ if [[ -n "$session_id" ]] && ! valid_session_id "$session_id"; then
 fi
 
 case "$cmd" in
-report | claim | check-enter | release | stale) ;;
+report | claim | check-enter | release | handover | stale) ;;
 *)
   printf '%s: unknown verb: %s\n' "$PROG" "$cmd" >&2
   usage
@@ -367,6 +391,23 @@ if [[ "$cmd" == "release" && -z "$path" ]]; then
 fi
 if [[ "$cmd" == "release" && -z "$session_id" ]]; then
   printf '%s: release needs --session-id or CLAUDE_SESSION_ID to prove ownership\n' "$PROG" >&2
+  exit "$EX_USAGE"
+fi
+if [[ "$cmd" == "handover" ]]; then
+  if [[ -z "$path" ]]; then
+    printf '%s: handover requires a path\n' "$PROG" >&2
+    exit "$EX_USAGE"
+  fi
+  if ((session_id_given == 0)) || [[ -z "$to_session" ]]; then
+    printf '%s: handover needs --session-id OLD and --to NEW\n' "$PROG" >&2
+    exit "$EX_USAGE"
+  fi
+  if ! valid_session_id "$to_session"; then
+    printf '%s: --to must match ^[A-Za-z0-9._:-]{1,128}$\n' "$PROG" >&2
+    exit "$EX_USAGE"
+  fi
+elif [[ -n "$to_session" ]]; then
+  printf '%s: --to applies to handover only\n' "$PROG" >&2
   exit "$EX_USAGE"
 fi
 if ((batch)) && [[ "$cmd" != "stale" ]]; then
@@ -576,6 +617,51 @@ do_release() {
   printf 'released %s\n' "$wt"
 }
 
+do_handover() {
+  local idx wt reason creator=worktree-claim.sh new_reason
+  if ! find_worktree_index "$path"; then
+    printf '%s: not a registered worktree: %s\n' "$PROG" "$path" >&2
+    return "$EX_ENV"
+  fi
+  idx="$WT_INDEX"
+  wt="${WT_PATHS[idx]}"
+  if ((WT_IS_LINKED[idx] == 0)); then
+    printf '%s: refusing to hand over the main worktree: %s\n' "$PROG" "$wt" >&2
+    return "$EX_USAGE"
+  fi
+  reason="${WT_REASONS[idx]}"
+  if [[ -z "$reason" && "${WT_IS_LOCKED[idx]}" == "yes" ]]; then
+    printf '%s: not handed over, the lock carries no reason, so it names no session: %s\n' "$PROG" "$wt" >&2
+    return "$EX_FOREIGN"
+  fi
+  if [[ -z "$reason" ]]; then
+    printf '%s: not locked, no claim to hand over: %s\n' "$PROG" "$wt" >&2
+    printf '  claim it instead: %s claim %s --session-id %s\n' "$PROG" "$wt" "$to_session" >&2
+    return "$EX_UNCLAIMED"
+  fi
+  if worktree_reason_is_ours "$reason" "$to_session"; then
+    printf '%s\n' "$reason"
+    return "$EX_OK"
+  fi
+  if ! worktree_reason_is_ours "$reason" "$session_id"; then
+    printf '%s: not handed over, the lock does not name session %s: %s\n' "$PROG" "$session_id" "$reason" >&2
+    return "$EX_FOREIGN"
+  fi
+  [[ "$reason" == worktree-create.sh:* ]] && creator=worktree-create.sh
+  new_reason="$(worktree_lock_reason "$creator" "$to_session")"
+  if ! git_unlocated -C "$repo_dir" worktree unlock "$wt" >&2; then
+    printf '%s: git worktree unlock failed for %s\n' "$PROG" "$wt" >&2
+    return "$EX_ENV"
+  fi
+  if ! git_unlocated -C "$repo_dir" worktree lock --reason "$new_reason" "$wt" >&2; then
+    printf '%s: git worktree lock failed for %s\n' "$PROG" "$wt" >&2
+    git_unlocated -C "$repo_dir" worktree lock --reason "$reason" "$wt" >&2 ||
+      printf '%s: the old lock could not be restored on %s; read git worktree list --porcelain for its state\n' "$PROG" "$wt" >&2
+    return "$EX_ENV"
+  fi
+  printf '%s\n' "$new_reason"
+}
+
 # scan_transcripts <name> [-quit]: on its first call only, list each
 # <projects>/*/<name> changed within the idle window into TRANSCRIPTS, one per
 # line with a newline on each side, so a session's lookup is one string match.
@@ -712,6 +798,10 @@ check-enter)
   ;;
 release)
   do_release
+  exit $?
+  ;;
+handover)
+  do_handover
   exit $?
   ;;
 # Unknown verbs already exited above, where the verb was validated.

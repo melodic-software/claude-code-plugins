@@ -283,8 +283,11 @@ monitor, or merge.
 made, pick between this skill's monitor, a background agent, `/background`, `/autofix-pr` and the
 babysit loop by whether the person is staying and whether the machine stays on, after reading the
 plan's rate-limit windows: at 95% or above, report the window and the options, and the person decides. For a route only
-the person can start, print it ready to run; `/autofix-pr` gets a filled-in prompt carrying this
-skill's review discipline. The matrix and the prompt:
+the person can start, print it ready to run. If /autofix-pr is available in your session (gate
+basis: it registers gated and needs forge CLI and cloud-session access; records in
+[reference/native-surfaces.md](reference/native-surfaces.md)), the person can run it instead of or
+alongside this skill's monitor, with a filled-in prompt carrying this skill's review discipline. The
+matrix and the prompt:
 [reference/watch-handoff.md](reference/watch-handoff.md).
 
 **Mutation gate.** `pr` and `/commit-push-pr` commit, push, and open a PR; `/autofix-pr` pushes

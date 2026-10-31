@@ -74,10 +74,10 @@
       "id": 7,
       "name": "animation-review-routes-to-audit",
       "prompt": "Can you check whether the animations we added in this branch are any good?",
-      "expected_output": "Reviewing existing animation is the animation-audit concern, whose first route is /user-interface:audit-animation; the skill routes there instead of reviewing the motion itself.",
+      "expected_output": "Reviewing existing animation is the animation-audit concern, whose first route is /user-interface:audit; the skill routes there instead of reviewing the motion itself.",
       "files": [],
       "expectations": [
-        "The response routes the review to /user-interface:audit-animation or the animation-audit concern"
+        "The response routes the review to /user-interface:audit or the animation-audit concern"
       ]
     },
     {

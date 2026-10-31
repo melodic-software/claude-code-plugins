@@ -175,7 +175,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/review:security-review`](../plugins/review/skills/security-review/SKILL.md) | `review` | Org CI security-review lane command for a GitHub pull request |
 | [`/skill-quality:check`](../plugins/skill-quality/skills/check/SKILL.md) | `skill-quality` | Static QA gate for skill frontmatter, caps, and evals |
 | [`/toolchain:ratchet`](../plugins/toolchain/skills/ratchet/SKILL.md) | `toolchain` | Hold a count in CI with a checked-in ceiling a human merges |
-| [`/user-interface:audit-animation`](../plugins/user-interface/skills/audit-animation/SKILL.md) | `user-interface` | Review interface animation read-only, with severity and evidence per finding |
+| [`/user-interface:audit`](../plugins/user-interface/skills/audit/SKILL.md) | `user-interface` | Review interface code read-only by concern lane, with severity and evidence per finding |
 
 ## 11. Verify outcome
 
@@ -335,6 +335,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/user-experience:structure`](../plugins/user-experience/skills/structure/SKILL.md) | `user-experience` | Shape user flows, information architecture and content structure, evidence-labeled |
 | [`/user-experience:synthesize`](../plugins/user-experience/skills/synthesize/SKILL.md) | `user-experience` | Synthesize research data into labeled themes, insights, needs, personas or jobs |
 | [`/user-interface:design`](../plugins/user-interface/skills/design/SKILL.md) | `user-interface` | Design interfaces from the project's system and installed tools; terminal guidance built in |
+| [`/user-interface:glossary`](../plugins/user-interface/skills/glossary/SKILL.md) | `user-interface` | Name the design or front-end term for a described effect, detail or behavior |
 | [`/visualization:present`](../plugins/visualization/skills/present/SKILL.md) | `visualization` | Slide deck through the claude.ai Slides Artifact type, outline markdown as the record |
 | [`/visualization:visualize`](../plugins/visualization/skills/visualize/SKILL.md) | `visualization` | Pick the best visual form for what is in the conversation and render it |
 | [`/wizard:generate`](../plugins/wizard/skills/generate/SKILL.md) | `wizard` | Author a hardened interactive bash wizard for human-only setup, credential, and cutover steps |

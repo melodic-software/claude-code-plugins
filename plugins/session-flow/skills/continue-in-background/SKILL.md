@@ -66,6 +66,14 @@ Walk it top to bottom; do not restate or improvise any of its steps. On the full
 shape 2: `save_point.py validate <file>` must exit 0 before anything launches (an unfinished
 skeleton, one still carrying `<!-- FILL` slots, fails there and cannot be launched from).
 
+The launched session has its own session id, so hand it this session's worktree claims exactly as
+the sibling `handoff` skill's "Hand worktree claims to the resuming session" does. On the full
+path the payload ends at the `Read @` directive, so the file carries the handover: the Environment
+to re-establish entry and the first item of `Remaining actions, in order`. On prompt-only the first
+remaining-work bullet carries it, in the resume region the payload includes. Either way the
+successor runs the handover before `check-enter`. `--cloud` skips it: the cloud session has no
+local worktree to re-lock.
+
 ## Completion condition gate
 
 No one is present to say the work is done, so the launched session starts only with a checkable
@@ -364,6 +372,8 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
   inline `Purpose:` line between the rails, never discarded (the launched agent receives exactly
   the rails prompt); a goal-conflicting purpose flagged rather than obeyed; never embedded in the
   launch command. No purpose given → nothing to tick
+- [ ] Worktree claims handed to the successor ("Produce the save-point"): each worktree whose
+  lock names this session carries the handover before `check-enter` (OR none held)
 - [ ] Dirty-tree gate evaluated this turn: `git rev-parse --is-inside-work-tree` first, then
   `git status --porcelain -uall` when it says `true`, ignoring save-point files under the handoff
   location; effective `worktree.bgIsolation` read before judging other changes, and `none` → launch with the
@@ -412,10 +422,15 @@ can mean any of them.
   payload, so the continuation carries no conversation history, survives on disk, and ends on a
   checked condition.
 
-**Routing.** At the start of the run, offer them to the person: you can run `/background` to
-detach this session as it is, `/fork` to copy it into a background session, or `/subtask` for a
-side task whose result should come back here, instead of or alongside this skill. Prefer this
-skill when the continuation should start clean from a durable save-point. An unattended run
+**Routing.** At the start of the run, offer them to the person, each instead of or alongside this
+skill. If /background is available in your session (gate basis: gated, per **Availability is
+never assumed** below; records in
+[native-surfaces § verification record](reference/native-surfaces.md#native-background-surfaces-verification-record)),
+you can run it to detach this session as it is. If /fork is available in your session (gate basis:
+gated, per the same paragraph and records), you can run it to copy this session into a background
+session. If /subtask is available in your session (gate basis: gated, per the same paragraph and
+records), you can run it for a side task whose result should come back here. Prefer this skill
+when the continuation should start clean from a durable save-point. An unattended run
 records the offer in its output instead of asking.
 
 **Mutation gate.** This skill writes the save-point and launches one session, only on explicit

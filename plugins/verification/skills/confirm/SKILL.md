@@ -190,6 +190,24 @@ Read the criterion context file for the dispatched mode, then run the flow below
 
 **Independence of the verdict.** This skill usually runs in the context that produced the changes, and that context carries the assumptions that produced any defect, converging on approval rather than detection. Stage 1's mechanical pass/fail is objective and needs no escalation, but for the Stage 2 outcome verdict on anything beyond a mechanical, behavior-preserving change, render `CONFIRMED` / `NEEDS WORK` from an agent that did NOT produce the artifact: dispatch a fresh-context verifier with the acceptance criteria and the diff, withholding your rationale so it audits the artifact and not your story. The verifier checks the provenance of every test it cites (`/testing:test-value`): a test added or changed in the diff under review is a producer claim until its expected value names an independent source. This is stricter than the `implementation:phase-verifier` agent, which reports an unsourced expected value as a finding without changing its verdict: here a criterion proved only by such a test is not COMPLETE ([context/outcome.md](context/outcome.md) "Evidence ranking"). When the work was produced on a model stronger than this session's (a security-surface phase routed to the frontier alias, say) and you know that model, pass the dispatch a per-invocation `model` at or above it; this override routes upward only and keeps the checked-work rule in the marketplace's `docs/plugin-philosophy.md` "Model tiers". When the producing model is not known, the report says the verifier's model was not matched to it. Where the outcome is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up**, e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs, with the fresh-context same-vendor verifier above as the stated fallback, never a route to a command that may not resolve (per `docs/plugin-philosophy.md` "Fresh-eyes checkpoints" in the marketplace repository).
 
+**Record the verdict for the head it judged.** Once the verdict is final (including a
+`NOT VERIFIED` from the Stage 1 gate), store it for the commit it judged, so the pull request
+`ready` report can name it:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/confirm-verdict.sh" record --head <sha> --verdict '<verdict>' --missing '<item>' --partial '<item>'
+```
+
+- `<sha>` is the full `git rev-parse HEAD`, run as its own call.
+- Pass one `--missing` per `MISSING` plan item and one `--partial` per `PARTIAL` one, each a single
+  line naming the requirement, and none for `COMPLETE` items.
+- Skip the record when the gathered working-tree status was not empty: the verdict then judged
+  uncommitted changes, not that head. The report says the verdict was not recorded and why.
+- A non-zero exit leaves no record; the report names it and the verdict stands.
+
+The record is advisory. It never gates the `ready` flip, and a commit after it leaves the new head
+with no verdict.
+
 When `/testing:run-e2e` ran, persist an assertion-only evidence manifest (what was asserted, at which commit. Record `verified_at_sha`) to the topic's memory slice at `<memory_dir>/<slug>/verification/` (default `.work/`), placed per the lifecycle artifact protocol ([`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md)). The manifest is never committed; paste it into the pull request body or the linked issue, its publication surface. It carries distilled assertions only, because the paste is shared. No raw command captures, no machine-local paths, no usernames or credentials; cite a `## Reproduction` block instead. Raw captures stay in the memory tier at `<memory_dir>/<slug>/scratch/` (default `.work/`), never committed.
 
 ## Delegation: live-app run + observe
@@ -235,8 +253,10 @@ either.
   evidence table, and an independent verdict.
 
 **Routing.** When the change has a runtime surface to drive (an `e2e-*` category above, or any
-product source), offer it to the person at the end of the run, beside the report: "you can run
-`/verify` alongside this skill to drive the change end to end". Skip the offer for a diff touching
+product source), offer it to the person at the end of the run, beside the report:
+If /verify is available in your session (gate basis: `disableBundledSkills` or a `skillOverrides`
+entry hides it; records in [reference/native-verify.md](reference/native-verify.md)), you can run
+it alongside this skill to drive the change end to end. Skip the offer for a diff touching
 only tests, docs, or code with no runtime surface. An unattended run records the offer in its
 output instead of asking. Its result is added evidence; it replaces neither Stage 1 nor the verdict.
 

@@ -3229,6 +3229,9 @@ def snapshot_protection_globs(snapshot: dict[str, Any]) -> list[dict[str, str]]:
     return [entry for entry in entries if entry is not None]
 
 
+INLINE_PLAN_NOTE = "recorded in the audit report for this path"
+
+
 def validate_plan(
     plan: dict[str, Any], entries: dict[str, dict[str, Any]]
 ) -> list[dict[str, Any]]:
@@ -3351,6 +3354,41 @@ def validate_handoff_paths(
         seen.append(pure)
         normalized.append(relative)
     return normalized
+
+
+def inline_plan(
+    snapshot_path: str,
+    tier: str | None,
+    paths: list[str],
+    entries: dict[str, dict[str, Any]],
+) -> tuple[dict[str, Any], Path]:
+    """Build the plan a ``preview --tier --path`` call names, and its fixed path.
+
+    Its candidates are all unmanaged, with fixed prose: the audit report carries
+    the evidence, as it does for a manual-handoff list. The caller names no
+    output, so the plan lands only beside the snapshot, under a name of the
+    engine's own.
+    """
+    if tier is None or not paths:
+        raise HygieneError("preview needs --tier and --path together, without --plan")
+    approved = validate_handoff_paths(
+        {"version": SCHEMA_VERSION, "paths": paths}, entries
+    )
+    candidates = [
+        {
+            "path": relative,
+            "tier": tier,
+            "provenance": INLINE_PLAN_NOTE,
+            "reason": INLINE_PLAN_NOTE,
+            "evidence": [INLINE_PLAN_NOTE],
+            "why_not_work_product": INLINE_PLAN_NOTE,
+            "risk": INLINE_PLAN_NOTE,
+            "owner": "unmanaged",
+        }
+        for relative in approved
+    ]
+    plan = {"version": SCHEMA_VERSION, "tier": tier, "candidates": candidates}
+    return plan, model_output_path(engine_grammar.inline_plan_path(snapshot_path, tier))
 
 
 def validate_vcs_evidence(
@@ -6489,11 +6527,20 @@ def main(argv: list[str] | None = None) -> int:
                 report,
                 {"completed": 0, "completed-with-skips": 4}.get(report["status"], 3),
             )
-        plan = load_input_json(args.plan)
+        inline = args.command == "preview" and bool(args.path or args.tier)
+        if inline:
+            plan, plan_path = inline_plan(
+                args.snapshot, args.tier, args.path, entry_map(snapshot)
+            )
+        else:
+            plan = load_input_json(args.plan)
+            plan_path = Path(args.plan).expanduser().resolve(strict=False)
         checked = preview(snapshot, plan)
+        if inline:
+            write_json(plan_path, plan)
         if args.command == "preview":
             if checked["outcome"] != "explicit-approval":
-                close_clean_runs(Path(args.plan).expanduser().resolve(strict=False))
+                close_clean_runs(plan_path)
             return emit(checked, 3 if checked["outcome"] == "blocked" else 0)
         if not args.execute:
             raise HygieneError("apply requires the explicit --execute flag")
