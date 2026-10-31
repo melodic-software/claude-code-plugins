@@ -1,0 +1,31 @@
+name: pr-review-approved
+
+# Relays an approving review to pr-feedback-dispatch.yml's rerun-ci-status
+# job, which re-runs the head's ci-status when the reviewer is a person on the
+# default branch's trusted-actor list: such an approval lifts ci-status's
+# trust-gate and merge-hold holds, and no pull_request event re-runs it.
+# pr-feedback-dispatch.yml takes only workflow_run events, which run the
+# default branch's file and are the one recorder kind pr-verify's trigger gate
+# accepts, so the review reaches it as this run's completion.
+#
+# No permission, no checkout, no secret: the run carries nothing but its
+# triggering actor (the reviewer) and head, which the rerun job reads from its
+# workflow_run event. Any other review state is skipped here, so it starts no
+# runner here or there. A fork pull request is skipped too: rerun-ci-status
+# re-runs only a same-repository head.
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions: {}
+
+jobs:
+  relay:
+    if: >-
+      github.event.review.state == 'approved'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    steps:
+      - name: Relay the approval
+        run: echo "An approval of the head; pr-feedback-dispatch.yml decides whether ci-status re-runs."
