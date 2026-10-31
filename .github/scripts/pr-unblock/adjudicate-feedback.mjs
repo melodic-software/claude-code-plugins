@@ -39,7 +39,7 @@ import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, writeFi
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createGitHubApi, FINDING_STANDS, need, SECURITY_PERSON_SEVERITY, securityNeedsPerson, severityOf, SHA } from "./address-feedback.mjs";
+import { claimsSecurity, createGitHubApi, FINDING_STANDS, need, SECURITY_PERSON_SEVERITY, securityNeedsPerson, severityOf, SEVERITY_SHAPED, SHA } from "./address-feedback.mjs";
 
 // The most disputed threads one round adjudicates: pr-unblock.yml runs one
 // model step per slot. A thread past it is not adjudicated, and the round
@@ -84,9 +84,10 @@ const DOT_SEGMENT = /(^|\/)\.\.?(\/|$)/;
 const THREAD_ID = /^PRRT_[A-Za-z0-9_-]{1,100}$/;
 // A path:line token in review prose; the path must hold a `/` or a `.`.
 const PROSE_LOCATION = /(?<![\w@+./:-])((?:[\w@+.-]+\/)*[\w@+.-]+):([1-9][0-9]{0,6})(?![\w])/g;
-// The security-review lane's severity line (security-review SKILL.md,
-// "Reporting"), anywhere in the comment.
-const CRITICAL = /^[ \t]*severity:[ \t]*critical[ \t]*$/im;
+// A CRITICAL rating anywhere in the comment: any rating-shaped line
+// (SEVERITY_SHAPED), so a bold or trailed one fails closed. Only non-letters
+// may sit before the word, so `severity: not critical` is no match.
+const CRITICAL = new RegExp(`${SEVERITY_SHAPED.source}[^A-Za-z\\n]*critical\\b`, "im");
 const firstLine = (body) => String(body ?? "").split("\n")[0].replace(/\r$/, "");
 const safePath = (path) => typeof path === "string" && PATH.test(path) && !DOT_SEGMENT.test(path);
 
@@ -102,18 +103,21 @@ export const directed = (comments) => (comments ?? []).some((comment) => comment
 
 // Whether an adjudicator may judge a dispute on the thread: a review comment
 // that carries no `severity: CRITICAL` line and that keepThreads tagged with
-// the code-review lane (a github-actions[bot] footer; claude[bot] writes its
-// own body, so it names no lane), with the security-review lane and a rating
-// below the one a person decides (securityNeedsPerson), or as a listed review
-// bot's (from its account id) whose `security` state is clear: the
-// security-review lane reviewed the head the bot reviewed and holds nothing
-// there or since. The bot's own severity badge decides nothing. A listed
-// bot's finding the lane held goes to a person (feedback-question-security);
-// one the lane has not reviewed yet waits for the next round
-// (settleDisputes). A CRITICAL finding, a security-review finding a person
-// decides (CRITICAL or unrated), one of no tagged lane, and a pr-verify verifier note (resolving it
-// leaves the verifier's FAIL holding the merge, and pr-verify judges each
-// head once) always go to a person.
+// the code-review lane (a github-actions[bot] footer), with no lane (the
+// reviewer bot's own finding: claude[bot] writes its own body, so it names no
+// lane, and it is judged as a code-review finding unless its text claims the
+// security-review lane at a rating a person decides, claimsSecurity), with
+// the security-review lane and a rating below the one a person decides
+// (securityNeedsPerson), or as a listed review bot's (from its account id)
+// whose `security` state is clear: the security-review lane reviewed the head
+// the bot reviewed and holds nothing there or since. The bot's own severity
+// badge decides nothing. A listed bot's finding the lane held goes to a
+// person (feedback-question-security); one the lane has not reviewed yet
+// waits for the next round (settleDisputes). A CRITICAL finding (the
+// code-review lane reports security there too), a security-review finding a
+// person decides (CRITICAL or unrated), a thread a person opened, and a
+// pr-verify verifier note (resolving it leaves the verifier's FAIL holding
+// the merge, and pr-verify judges each head once) are never adjudicated.
 const listedState = (comments) => (comments?.[0]?.listed === true ? comments[0].security ?? "pending" : null);
 // Whether the thread's root is a security-review lane finding rated below the
 // one a person decides.
@@ -123,7 +127,13 @@ export const adjudicable = (comments) => {
   if (root?.author !== "reviewer" || CRITICAL.test(String(root.body ?? ""))) {
     return false;
   }
-  return root.listed === true ? listedState(comments) === "clear" : root.lane === "claude-review" || minorSecurity(comments);
+  if (root.listed === true) {
+    return listedState(comments) === "clear";
+  }
+  if (root.lane === undefined) {
+    return !claimsSecurity(root.body);
+  }
+  return root.lane === "claude-review" || minorSecurity(comments);
 };
 
 // The security-review lane's first line on an inline comment for a manifest
@@ -674,7 +684,8 @@ export const FINDING_STANDS_SKIP = "finding-stands";
 //   otherwise it is settled as any other DISPUTED thread below;
 // - any other DISPUTED thread that is not adjudicable (a CRITICAL finding, a
 //   security-review finding rated at or above SECURITY_PERSON_SEVERITY or
-//   with no readable rating, or one of unknown lane) goes to a person:
+//   with no readable rating, one a person opened, or one the re-read no
+//   longer keeps) goes to a person:
 //   feedback-disputed when the reply is INCORRECT, else feedback-uncertain,
 //   and any verdict for it is ignored;
 // - a DISPUTED thread with no verdict escalates feedback-unadjudicated;
@@ -809,7 +820,7 @@ export async function settleDisputes({ api, pr, adjudicatedSha, headSha = adjudi
       log(`${thread}: a dependencies flag hardRequire does not settle (${found.why})`);
     }
     if (!adjudicable(comments)) {
-      log(`${thread}: not a non-CRITICAL code-review finding or a security-review finding rated below ${SECURITY_PERSON_SEVERITY}; it goes to a person, not to an adjudicator`);
+      log(`${thread}: a CRITICAL finding, a security-review finding rated ${SECURITY_PERSON_SEVERITY} or above or unrated, or a person's own thread; it goes to a person, not to an adjudicator`);
       raise(disposition === "INCORRECT" ? "feedback-disputed" : "feedback-uncertain");
       continue;
     }
