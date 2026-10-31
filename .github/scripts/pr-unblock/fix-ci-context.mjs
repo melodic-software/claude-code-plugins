@@ -138,11 +138,14 @@ async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds }) {
     .map((thread) => ({ path: String(thread.path ?? ""), line: thread.line, body: String(thread.comments[0].body).slice(0, MAX_FINDING) }));
 }
 
-export async function select({ api, pr, appId, reviewerId, reviewerIds = [], maxRounds, humanGatedLabel = "needs-human", log = (line) => console.log(line) }) {
+export async function select({ api, pr, repository, appId, reviewerId, reviewerIds = [], maxRounds, humanGatedLabel = "needs-human", log = (line) => console.log(line) }) {
   const pull = await api.getPull(pr);
   const headSha = pull.head?.sha;
   if (!SHA.test(String(headSha))) {
     throw new Error("the pull request names no head SHA");
+  }
+  if (pull.head?.repo?.full_name !== repository) {
+    throw new Error("the pull request's head is not in this repository");
   }
   if (pull.state !== "open") {
     return { decision: "skip", skipReason: "not-applicable", headSha };
@@ -247,7 +250,7 @@ export async function main(env, { api, log = (line) => console.log(line) } = {})
       fetch: await countedFetch(),
     });
   const humanGatedLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || `${env.BASE_PATH || ".base"}/.work-item-tracker.json`);
-  const result = await select({ api: client, pr, appId, reviewerId, reviewerIds, maxRounds, humanGatedLabel, log });
+  const result = await select({ api: client, pr, repository: env.GITHUB_REPOSITORY, appId, reviewerId, reviewerIds, maxRounds, humanGatedLabel, log });
   let sha256 = "";
   if (result.file) {
     const text = `${JSON.stringify(result.file, null, 2)}\n`;

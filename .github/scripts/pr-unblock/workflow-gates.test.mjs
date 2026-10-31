@@ -924,6 +924,17 @@ function stepBlock(file, job, name) {
   return block.slice(start, end === -1 ? undefined : end);
 }
 
+// A step's `run: |` script, indentation removed.
+function stepScript(step) {
+  const at = step.findIndex((line) => line === "        run: |");
+  assert.notEqual(at, -1, "the step has a run: | script");
+  return step
+    .slice(at + 1)
+    .filter((line) => line.startsWith("          ") || line === "")
+    .map((line) => line.slice(10))
+    .join("\n");
+}
+
 // While the switch is on, every pr-verify run fails at its own kill step and
 // carries no verdict; the reconciler re-runs that run itself. Only a run that
 // finished, and so may hold a verdict, is recorded by failing this job.
@@ -938,13 +949,7 @@ test("post-verify-notes fails at the kill switch only for a pr-verify run that s
 });
 
 test("post-verify-notes names a deferred verdict exactly as recoverDeferred reads it", () => {
-  const step = stepBlock("pr-feedback-dispatch.yml", "post-verify-notes", "Name the deferred verdict");
-  const at = step.findIndex((line) => line === "        run: |");
-  const script = step
-    .slice(at + 1)
-    .filter((line) => line.startsWith("          ") || line === "")
-    .map((line) => line.slice(10))
-    .join("\n");
+  const script = stepScript(stepBlock("pr-feedback-dispatch.yml", "post-verify-notes", "Name the deferred verdict"));
   const dir = mkdtempSync(join(tmpdir(), "deferred-name-"));
   try {
     for (const [fail, pass, verdict] of [["a".repeat(40), "", "fail"], ["", "b".repeat(40), "pass"]]) {
@@ -961,5 +966,66 @@ test("post-verify-notes names a deferred verdict exactly as recoverDeferred read
     assert.notEqual(bad.status, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// The dispatcher sends only same-repository PRs, but a hand dispatch can name
+// any PR. The step runs against a stub gh that applies the step's own --jq
+// filter to a PR payload, printing a null as the empty line gh prints.
+for (const [job, written] of [
+  ["resolve-conflicts-select", "\ndefault-base=true\n"],
+  ["address-feedback-select", "\n"],
+  ["review-dependency-select", "\n"],
+]) test(`pr-unblock.yml: ${job} stops on a head outside this repository, before any sha output`, () => {
+  const script = stepScript(stepBlock(UNBLOCK, job, "Read the PR head"));
+  const repo = "melodic-software/claude-code-plugins";
+  const sha = "a".repeat(40);
+  const dir = mkdtempSync(join(tmpdir(), "pr-head-"));
+  try {
+    writeFileSync(join(dir, "gh"), '#!/usr/bin/env bash\nexec jq -r "$4 | . // \\"\\"" "$PR_PAYLOAD"\n', { mode: 0o755 });
+    const read = (name, headRepo) => {
+      const payload = join(dir, `${name}.json`);
+      const output = join(dir, `${name}.output`);
+      writeFileSync(payload, JSON.stringify({ head: { sha, repo: headRepo }, base: { ref: "main" } }));
+      writeFileSync(output, "");
+      const run = spawnSync("bash", ["-e", "-c", script], {
+        env: { PATH: `${dir}:${process.env.PATH}`, PR_PAYLOAD: payload, PR_NUMBER: "7", DEFAULT_BRANCH: "main", GITHUB_REPOSITORY: repo, GITHUB_OUTPUT: output },
+        encoding: "utf8",
+      });
+      return { status: run.status, stdout: run.stdout, written: readFileSync(output, "utf8") };
+    };
+    const own = read("own", { full_name: repo });
+    assert.equal(own.status, 0, own.stdout);
+    assert.equal(own.written, `sha=${sha}${written}`);
+    for (const [name, headRepo] of [["fork", { full_name: "fork/claude-code-plugins" }], ["deleted-fork", null]]) {
+      const refused = read(name, headRepo);
+      assert.equal(refused.status, 1, name);
+      assert.match(refused.stdout, /^::error::the PR's head is not in this repository$/m, name);
+      assert.equal(refused.written, "", `${name} writes no output`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// With no head-sha output, no later job posts a status on that head.
+for (const [activity, select] of [
+  ["resolve-conflicts", "resolve-conflicts-select"],
+  ["address-feedback", "address-feedback-select"],
+  ["review-dependency", "review-dependency-select"],
+  ["fix-ci", "fix-ci-context"],
+]) test(`pr-unblock.yml: ${activity}-not-run posts nothing with no head-sha output`, () => {
+  const { gate } = jobGate(UNBLOCK, `${activity}-not-run`);
+  for (const proceed of ["", "false"]) {
+    assert.equal(
+      evaluate(gate, {
+        "inputs.activity": activity,
+        [`needs.${select}.outputs.proceed`]: proceed,
+        [`needs.${select}.outputs.skip-reason`]: "",
+        [`needs.${select}.outputs.head-sha`]: "",
+      }),
+      false,
+      proceed,
+    );
   }
 });
