@@ -25,7 +25,7 @@ graders:
   - name: nothing-under-reviews
     type: 'tool_used'
     tool: 'Write'
-    input_match: '\.work/reviews'
+    input_match: '"file_path":"[^"]*\.work/reviews'
     min: 0
     max: 0
     arm: 'both'

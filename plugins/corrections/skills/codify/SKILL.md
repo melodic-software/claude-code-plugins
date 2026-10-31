@@ -79,8 +79,9 @@ first when its project instructions give one; the ladder's "Reordering" section 
 Choose the **strongest** rung that can decide the mistake, strongest first, and apply the ladder's
 guardrail criterion to it; a mistake that fails the criterion stays on the guidance tier or
 `human-review`. Before choosing, ask the ladder's recurring-correction question: was the rule loaded
-and ignored, or never loaded. A rule that was never loaded is fixed where it lives, not moved up.
-Name the rung by its id and say which criterion items decided the choice.
+and ignored, or never loaded. A rule that was never loaded is also fixed where it lives; a mistake
+that meets the criterion still takes its checking rung. Name the rung by its id, never by where the
+check runs (the ladder's tier 2 note), and say which criterion items decided the choice.
 
 Check that no existing check already catches the mistake. A recurring mistake that meets the
 criterion with no check is reported as a "no guardrail" finding, naming the "Guardrail criterion"
@@ -160,8 +161,9 @@ a counting rung's proposal also carries that section's offer; false leaves it ou
 ## Report
 
 Problems first: an unproven check, a count below threshold, an unresolved old ref. Then the count,
-the rung, the scope, the proof line from the script, and the proposal path or that nothing was
-written. End with the question for any blocking install.
+the rung by its id, any "no guardrail" finding naming the ladder's "Guardrail criterion" section,
+the scope, the proof line from the script, and the proposal path or that nothing was written. End
+with the question for any blocking install.
 
 ## Boundary
 
