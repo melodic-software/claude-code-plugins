@@ -23,7 +23,7 @@ import { appendFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { countedFetch, createGitHubApi, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA, trustedHumansFrom } from "./address-feedback.mjs";
+import { anyListed, countedFetch, createGitHubApi, readTriggers, humanGatedLabelFrom, keepThreads, need, positive, reviewedHeads, reviewerIdFrom, reviewerIdsFrom, SHA, trustedHumansFrom } from "./address-feedback.mjs";
 import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
 
 // clear-escalations reads the head the same way, so the reader lives on the
@@ -126,14 +126,15 @@ async function contextOf(api, run, notes) {
 }
 
 // Each kept thread's opening comment: where it points and what it says.
-async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trustedHumans }) {
+async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trustedHumans, pull }) {
   const [issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.listIssueComments(pr),
     api.listReviews(pr),
     api.listReviewComments(pr),
     api.listThreads(pr),
   ]);
-  return keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, reviewerIds, appId, trustedHumans, issueComments })
+  const triggers = anyListed(reviewComments.map((row) => row.user?.id), reviewerIds) ? await readTriggers({ api, pr, pull }) : null;
+  return keepThreads({ threads, reviewComments, reviews, heads: reviewedHeads(issueComments), reviewerId, reviewerIds, appId, trustedHumans, issueComments, triggers })
     .slice(0, MAX_FINDINGS)
     .map((thread) => ({ path: String(thread.path ?? ""), line: thread.line, body: String(thread.comments[0].body).slice(0, MAX_FINDING) }));
 }
@@ -204,7 +205,7 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
   // The findings are a lead, so a failed read costs them, not the run.
   let review_findings = [];
   try {
-    review_findings = await reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trustedHumans });
+    review_findings = await reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trustedHumans, pull });
   } catch (error) {
     log(`::warning::the review findings could not be read (${error.message}); the context holds none`);
   }

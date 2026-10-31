@@ -948,7 +948,9 @@ the base's `.github/scripts/pr-unblock/address-feedback.mjs`, `apply-patch.mjs` 
    be the reviewer bot's, the lanes App's or such a human's, or the thread is left alone. A
    thread holding a `review-threads.reviewer-ids` bot's comment and no such human's direction is
    kept only when a `human` on that list wrote the `@codex` request behind that bot's review, and
-   no one else wrote one, since the bot's previous review; otherwise it is left alone, logged
+   no one else wrote one, since the bot's previous review. With no such request, the review is
+   automatic: the pull request's opening and each ready-for-review event since then must be by
+   such a `human` or the lanes App. Otherwise the thread is left alone, logged
    `codex-request-untrusted` or `codex-request-not-found`. The
    thread file gives each comment an `author` (`reviewer`, `lane`, `trusted-human`) and marks
    `direction: true` the replies after the escalation, or with no escalation every human comment

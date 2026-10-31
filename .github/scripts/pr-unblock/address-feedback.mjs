@@ -706,7 +706,14 @@ const ANY_CODEX_MENTION = /@codex(?![\w-])/i;
 // window, by creation or last edit, fails it; so does none from a trusted
 // person (an automatic review, or a request answered earlier), or an
 // unreadable review time.
-export function codexRequest({ authorId, submittedAt, reviews, mentions, reviewerIds = [], trustedHumans = new Set() }) {
+//
+// With no `@codex` comment the review is automatic, asked for by whoever
+// triggered it: the PR's author on opening, or the actor of a ready-for-review
+// event (`triggers`, readTriggers). Which one cannot be told apart, so every
+// such event in the window must be a trusted person's or one of `ownIds` (the
+// lanes App, APP_SENDER_ID); one by anyone else fails it. An event with no
+// readable time is not counted, and unreadable triggers (null) count none.
+export function codexRequest({ authorId, submittedAt, reviews, mentions, triggers = null, reviewerIds = [], trustedHumans = new Set(), ownIds = new Set() }) {
   const at = Date.parse(submittedAt ?? "");
   if (Number.isNaN(at)) {
     return { reason: "codex-request-not-found" };
@@ -723,25 +730,56 @@ export function codexRequest({ authorId, submittedAt, reviews, mentions, reviewe
     if (trustedAuthor) {
       trusted ||= within(created);
     } else if (Number.isNaN(created) || within(created) || within(Date.parse(mention.editedAt ?? ""))) {
-      return { reason: "codex-request-untrusted", requester: mention.authorId };
+      return { reason: "codex-request-untrusted", requester: mention.authorId, via: "@codex request" };
     }
+  }
+  const events = triggers
+    ? [{ via: "opening of the pull request", ...triggers.opened }, ...triggers.ready.map((event) => ({ via: "ready-for-review event", ...event }))]
+    : [];
+  for (const event of events) {
+    if (!within(Date.parse(event.at ?? ""))) {
+      continue;
+    }
+    if (!trustedHumans.has(event.actorId) && !ownIds.has(event.actorId)) {
+      return { reason: "codex-request-untrusted", requester: event.actorId, via: event.via };
+    }
+    trusted = true;
   }
   return trusted ? null : { reason: "codex-request-not-found" };
 }
+
+// The events that start an automatic review, for codexRequest: the PR's
+// opening (its author and creation time) and each ready-for-review event of
+// its REST issue timeline. `pull` is the REST pull request when the caller
+// already read it. A failed read is null, which counts no event.
+export async function readTriggers({ api, pr, pull }) {
+  try {
+    const [read, timeline] = await Promise.all([pull ?? api.getPull(pr), api.listTimeline(pr)]);
+    return {
+      opened: { actorId: read?.user?.id, at: read?.created_at },
+      ready: timeline.filter((event) => event?.event === "ready_for_review").map((event) => ({ actorId: event.actor?.id, at: event.created_at })),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Whether any of `authorIds` is a listed bot's, so readTriggers is worth a read.
+export const anyListed = (authorIds, reviewerIds = []) => reviewerIds.length > 0 && authorIds.some((id) => reviewerIds.includes(id));
 
 // Why a thread threadAuthors accepted (`authors`) is not worked for want of a
 // trusted `@codex` request (codexRequest), or null. Only a thread no trusted
 // person directed is checked, at each listed bot's comment (`comments`, each
 // { authorId, review: { authorId, submittedAt } }). The select step and the
 // reply job (keepThreads) and the dispatcher (feedback-dispatch.mjs) all ask.
-export function requestSkip({ authors, comments, reviews, mentions, reviewerIds = [], trustedHumans }) {
+export function requestSkip({ authors, comments, reviews, mentions, triggers = null, reviewerIds = [], trustedHumans, ownIds = new Set() }) {
   if (authors.some((author) => author.direction === true)) {
     return null;
   }
   for (const comment of comments) {
     if (reviewerIds.includes(comment.authorId)) {
       const submittedAt = comment.review?.authorId === comment.authorId ? comment.review.submittedAt : undefined;
-      const skip = codexRequest({ authorId: comment.authorId, submittedAt, reviews, mentions, reviewerIds, trustedHumans });
+      const skip = codexRequest({ authorId: comment.authorId, submittedAt, reviews, mentions, triggers, reviewerIds, trustedHumans, ownIds });
       if (skip) {
         return skip;
       }
@@ -754,8 +792,8 @@ export function requestSkip({ authors, comments, reviews, mentions, reviewerIds 
 export const requestSkipLine = (id, skip) =>
   `skip thread ${id}: ${skip.reason} (${
     skip.reason === "codex-request-untrusted"
-      ? `the @codex request behind the bot's review came from account ${skip.requester}, not on the trusted-actor list`
-      : "no @codex request from a trusted person since the bot's previous review"
+      ? `the ${skip.via} behind the bot's review came from account ${skip.requester}, not on the trusted-actor list`
+      : "no trusted @codex request, and no readable opening or ready-for-review event, since the bot's previous review"
   })`;
 
 // The `@codex` request candidates of a PR's REST rows, for codexRequest.
@@ -791,7 +829,7 @@ export function onReviewedHead({ authors, firstAuthorId, review, heads }) {
 // thread requestSkip refuses (no trusted `@codex` request behind a listed
 // bot's review, read from `issueComments`, the review comments and the
 // reviews) is left alone, its reason logged.
-export function keepThreads({ threads, reviewComments, reviews, heads, security = { reviewed: new Set(), holds: [] }, reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set(), issueComments = [], log = () => {} }) {
+export function keepThreads({ threads, reviewComments, reviews, heads, security = { reviewed: new Set(), holds: [] }, reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set(), issueComments = [], triggers = null, log = () => {} }) {
   const comments = new Map(reviewComments.map((comment) => [comment.id, comment]));
   const reviewsById = new Map(reviews.map((review) => [review.id, review]));
   const mentions = restMentions({ issueComments, reviewComments, reviews });
@@ -831,8 +869,10 @@ export function keepThreads({ threads, reviewComments, reviews, heads, security 
       }),
       reviews: reviewTimes,
       mentions,
+      triggers,
       reviewerIds,
       trustedHumans,
+      ownIds: new Set([appId]),
     });
     if (skip) {
       log(requestSkipLine(thread.id, skip));
@@ -930,6 +970,7 @@ export async function select({
     requesters: gated ? fixers : null,
     fixers,
     issueComments,
+    triggers: anyListed(reviewComments.map((row) => row.user?.id), reviewerIds) ? await readTriggers({ api, pr, pull }) : null,
     log,
   });
   // An unresolved thread the lane does not take (a reviewer it does not
@@ -1072,10 +1113,11 @@ export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], ap
     api.listThreads(pr),
   ]);
   const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
+  const triggers = anyListed(reviewComments.map((row) => row.user?.id), reviewerIds) ? await readTriggers({ api, pr }) : null;
   return {
     issueComments,
     reviewComments,
-    kept: keepThreads({ threads, reviewComments, reviews, heads: heads ?? reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers, issueComments, log }),
+    kept: keepThreads({ threads, reviewComments, reviews, heads: heads ?? reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers, issueComments, triggers, log }),
   };
 }
 

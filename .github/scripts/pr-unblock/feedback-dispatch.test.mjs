@@ -94,6 +94,7 @@ function fakeApi({
   labelEvents = [],
   reviewComments = [],
   reviews = [],
+  timeline = [],
 } = {}) {
   const calls = { dispatch: [], permission: [], labelEvents: 0, reviewReads: [] };
   return {
@@ -126,6 +127,7 @@ function fakeApi({
       return reviewComments;
     },
     listReviews: async () => reviews,
+    listTimeline: async () => timeline,
     async getPermission(login) {
       calls.permission.push(login);
       return permissions[login] ?? "none";
@@ -2768,8 +2770,10 @@ const codexThread = () => ({
   },
 });
 const codexAsk = (id, created = "2026-10-28T07:00:00Z") => ({ user: { id, login: id === KYLE.databaseId ? "kyle-sexton" : "stranger" }, created_at: created, updated_at: created, body: "@codex review" });
-const codexOwner = (asks) =>
+const codexOwner = (asks, { openedAt, timeline = [] } = {}) =>
   ownerApi({
+    pulls: ownerPull({ created_at: openedAt }),
+    timeline,
     threads: [codexThread()],
     comments: [marker("claude-review"), marker("claude-security-review"), ...asks],
     reviews: [{ user: { id: CODEX.databaseId }, commit_id: HEAD, submitted_at: CODEX_REVIEWED, body: 'Reviews are triggered when you comment "@codex review".' }],
@@ -2782,14 +2786,26 @@ test("an owner PR's Codex thread dispatches when a trusted person asked Codex fo
   assert.equal(api.calls.dispatch.length, 1);
 });
 
+test("an owner PR's automatic Codex review, on the owner's opening or ready flip, dispatches", async () => {
+  for (const [label, triggers] of [
+    ["opened by the owner", { openedAt: "2026-10-28T06:00:00Z" }],
+    ["readied by the owner", { openedAt: "2026-10-28T06:00:00Z", timeline: [{ event: "ready_for_review", actor: { id: KYLE.databaseId }, created_at: "2026-10-28T07:00:00Z" }] }],
+  ]) {
+    const api = codexOwner([], triggers);
+    const { result, lines } = await decideOwner(api, { reviewerIds: [CODEX.databaseId] });
+    assert.equal(result?.number, 42, `${label}\n${lines.join("\n")}`);
+  }
+});
+
 test("an owner PR's Codex thread answering an untrusted or missing @codex request starts no round, with the reason logged", async () => {
-  for (const [label, asks, reason] of [
+  for (const [label, asks, reason, triggers] of [
     ["a stranger's request", [codexAsk(STRANGER.databaseId)], /^skip thread PRRT_9: codex-request-untrusted \(.*account 4242/],
     ["a stranger's request beside a trusted one", [codexAsk(KYLE.databaseId), codexAsk(STRANGER.databaseId, "2026-10-28T07:30:00Z")], /^skip thread PRRT_9: codex-request-untrusted/],
-    ["no request", [], /^skip thread PRRT_9: codex-request-not-found/],
+    ["no request and no readable opening time", [], /^skip thread PRRT_9: codex-request-not-found/],
     ["a request after the review", [codexAsk(KYLE.databaseId, "2026-10-28T09:00:00Z")], /^skip thread PRRT_9: codex-request-not-found/],
+    ["an automatic review after a stranger's ready flip", [], /^skip thread PRRT_9: codex-request-untrusted \(the ready-for-review event .*account 4242/, { openedAt: "2026-10-28T06:00:00Z", timeline: [{ event: "ready_for_review", actor: { id: STRANGER.databaseId }, created_at: "2026-10-28T07:00:00Z" }] }],
   ]) {
-    const api = codexOwner(asks);
+    const api = codexOwner(asks, triggers);
     const { result, lines } = await decideOwner(api, { reviewerIds: [CODEX.databaseId] });
     assert.equal(result, null, label);
     assert.ok(lines.some((line) => reason.test(line)), `${label}\n${lines.join("\n")}`);

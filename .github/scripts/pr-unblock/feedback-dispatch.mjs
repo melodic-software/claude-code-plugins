@@ -142,7 +142,7 @@ import { pathToFileURL } from "node:url";
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
-import { fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
+import { anyListed, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom } from "./address-feedback.mjs";
 
 // fix-ci-dispatch.mjs imports HOLD_LINE from here.
 export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
@@ -235,7 +235,7 @@ export function markedHead(comments, lane, markerAuthorId = DEFAULTS.markerAutho
 // head (onReviewedHead), unless requestSkip finds no trusted `@codex` request
 // behind a listed bot's review in `mentions` and `reviews` (its reason goes to
 // `log`). `heads` is reviewedHeads of the PR's issue comments.
-function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHumans, heads, requesters = null, fixers = requesters ?? new Set(), mentions = [], reviews = [], log = () => {} }) {
+function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHumans, heads, requesters = null, fixers = requesters ?? new Set(), mentions = [], reviews = [], triggers = null, log = () => {} }) {
   if (thread.isResolved !== false || thread.comments.pageInfo?.hasNextPage === true) {
     return null;
   }
@@ -270,8 +270,10 @@ function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHuman
     })),
     reviews,
     mentions,
+    triggers,
     reviewerIds,
     trustedHumans,
+    ownIds: new Set([appId]),
   });
   if (skip) {
     log(requestSkipLine(thread.id, skip));
@@ -283,13 +285,14 @@ function keptAuthors(thread, { reviewerId, reviewerIds = [], appId, trustedHuman
 // The `@codex` request candidates and review times requestSkip reads, from
 // the PR's issue comments (REST), its threads (THREADS_QUERY) and, only when
 // an unresolved thread holds a listed bot's comment, one read of its reviews.
-async function requestEvidence({ api, number, comments, threads, reviewerIds }) {
-  const listed = threads.some((thread) => thread.isResolved === false && thread.comments.nodes.some((node) => reviewerIds.includes(node.author?.databaseId)));
+async function requestEvidence({ api, number, pull, comments, threads, reviewerIds }) {
+  const listed = threads.some((thread) => thread.isResolved === false && anyListed(thread.comments.nodes.map((node) => node.author?.databaseId), reviewerIds));
   if (!listed) {
-    return { mentions: [], reviews: [] };
+    return { mentions: [], reviews: [], triggers: null };
   }
-  const reviews = await api.listReviews(number);
+  const [reviews, triggers] = await Promise.all([api.listReviews(number), readTriggers({ api, pr: number, pull })]);
   return {
+    triggers,
     mentions: [
       ...restMentions({ issueComments: comments, reviews }),
       ...threads.flatMap((thread) => thread.comments.nodes.map((node) => ({ authorId: node.author?.databaseId, createdAt: node.createdAt, editedAt: node.lastEditedAt, body: node.body }))),
@@ -501,7 +504,7 @@ export async function dispatchFeedback({
     // job will not keep (a reviewer the lane does not act on, a review of an
     // older head): select then escalates feedback-untaken-threads, and its
     // lane-stopped check handles the head, so the stall gets a stop once.
-    const evidence = await requestEvidence({ api, number, comments, threads, reviewerIds });
+    const evidence = await requestEvidence({ api, number, pull, comments, threads, reviewerIds });
     const workable = hasWorkableThread(threads, { reviewerId: settings.reviewerId, reviewerIds, appId: appSenderId, trustedHumans, heads: reviewedHeads(comments), requesters, fixers, ...evidence, log });
     if (gated && !workable) {
       return skip(`#${number} is labeled ${humanGatedLabel} (${why}) and has no thread a trusted person with write access asked the lane to fix`);
@@ -1151,6 +1154,9 @@ export function createGitHubApi({ token, repository, apiUrl, graphqlUrl, fetch: 
     // carrying the human-gated label only.
     listReviewComments: (number, since) => pages(`${repo}/pulls/${number}/comments?since=${encodeURIComponent(since)}&per_page=100`),
     listReviews: (number) => pages(`${repo}/pulls/${number}/reviews?per_page=100`),
+    // The REST issue timeline, for a listed bot's automatic review
+    // (address-feedback.mjs readTriggers).
+    listTimeline: (number) => pages(`${repo}/issues/${number}/timeline?per_page=100`),
     async listReviewThreads(number) {
       const threads = [];
       let after = null;
