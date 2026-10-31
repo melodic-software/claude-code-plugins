@@ -1793,6 +1793,7 @@ test("a Codex thread answering an untrusted author's @codex request is skipped, 
     ["a stranger's request", [codexAsk(STRANGER)]],
     ["a stranger's request beside a trusted one", [codexAsk(STRANGER, "2026-10-17T07:00:00Z"), codexAsk()]],
     ["a stranger's request after a trusted one", [codexAsk(), codexAsk(STRANGER, "2026-10-17T09:00:00Z")]],
+    ["a stranger's mention glued to other text", [codexAsk(), codexAsk(STRANGER, "2026-10-17T09:00:00Z", { body: "x.@codex review" })]],
     ["a stranger's old comment edited into a request since the bot's last review", [codexAsk(), codexAsk(STRANGER, "2026-10-01T08:00:00Z", { updated_at: "2026-10-17T09:00:00Z" })]],
   ]) {
     const { result, lines } = await codexLogged(askedBy(asks));

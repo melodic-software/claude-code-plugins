@@ -691,6 +691,9 @@ export function threadAuthors(comments, { reviewerId, reviewerIds = [], appId, t
 // chatgpt-codex-connector[bot] for a review. Code spans and fences count, as
 // the bot answers a mention there.
 export const CODEX_MENTION = /(?:^|[^\w@/.-])@codex(?![\w-])/i;
+// What counts as an untrusted request: `@codex` after any character, so a
+// form the bot may also answer (`x.@codex`) never slips past (fail closed).
+const ANY_CODEX_MENTION = /@codex(?![\w-])/i;
 
 // Why the `@codex` request behind a listed bot's review is not a trusted
 // person's, or null when it is. Anyone can comment `@codex` on a public repository, so a
@@ -712,11 +715,12 @@ export function codexRequest({ authorId, submittedAt, reviews, mentions, reviewe
   const within = (time) => time > since && time <= at;
   let trusted = false;
   for (const mention of mentions) {
-    if (reviewerIds.includes(mention.authorId) || !CODEX_MENTION.test(String(mention.body ?? ""))) {
+    const trustedAuthor = trustedHumans.has(mention.authorId);
+    if (reviewerIds.includes(mention.authorId) || !(trustedAuthor ? CODEX_MENTION : ANY_CODEX_MENTION).test(String(mention.body ?? ""))) {
       continue;
     }
     const created = Date.parse(mention.createdAt ?? "");
-    if (trustedHumans.has(mention.authorId)) {
+    if (trustedAuthor) {
       trusted ||= within(created);
     } else if (Number.isNaN(created) || within(created) || within(Date.parse(mention.editedAt ?? ""))) {
       return { reason: "codex-request-untrusted", requester: mention.authorId };
