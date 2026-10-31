@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1] - 2026-10-31
+
+### Added
+
+- Six regex-graded outcome eval cases under `evals/` and frozen trigger probes under `probes/` for `present` and `visualize`. Both skills' descriptions and bodies are unchanged: no shorter version passed the eval measurement on a run the eval tooling judged valid.
+
 ## [0.13.0] - 2026-10-31
 
 ### Added

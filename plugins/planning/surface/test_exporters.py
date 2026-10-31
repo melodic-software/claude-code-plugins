@@ -4671,7 +4671,7 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
         )
         before = ledger.read_text(encoding="utf-8")
         rc, out = self.rp("export-ledger", "--diff", str(ledger))
-        self.assertEqual(rc, 1, out)
+        self.assertEqual(rc, 6, out)
         self.assertIn("Q1 round: kept 'round 1 (design)' (page: 'round 1')", out)
         self.assertIn("Q3: only in the ledger; kept", out)
         self.assertIn("Q2 status: conflict, kept the ledger's 'answered'", out)
@@ -4681,7 +4681,7 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
         rc, out = self.rp(
             "export-ledger", "--out", str(merged), "--ledger", str(ledger)
         )
-        self.assertEqual(rc, 1, out)
+        self.assertEqual(rc, 6, out)
         self.assertIn("conflict", out)
         rows = register_rows(merged)
         self.assertIn("| round 1 (design) |", rows[0])
@@ -4704,7 +4704,7 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
             ]
         )
         rc, out = self.rp("export-ledger", "--diff", str(ledger))
-        self.assertEqual(rc, 1, out)
+        self.assertEqual(rc, 6, out)
         self.assertIn("Q1 status: 'deferred' -> 'answered'", out)
         self.assertNotIn("conflict", out)
 
@@ -4762,11 +4762,11 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
         ]
         ledger = self.ledger(answered)
         rc, out = self.rp("export-ledger", "--diff", str(ledger))
-        self.assertEqual(rc, 1, out)
+        self.assertEqual(rc, 6, out)
         self.assertIn("Q1 status: conflict, kept the ledger's 'answered'", out)
         self.assertIn("Q2 status: conflict, kept the ledger's 'answered'", out)
         rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
-        self.assertEqual(rc, 1, out)
+        self.assertEqual(rc, 6, out)
         self.assertEqual(register_rows(ledger), answered)
 
     def test_sync_ledger_into_an_empty_register_keeps_its_prose_apart(self):
