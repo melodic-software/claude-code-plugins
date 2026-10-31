@@ -243,9 +243,11 @@ runs:
         # so the files a script reads beside itself come along. Each runs
         # through a wrapper that starts in the checkout, refuses an argument
         # naming a path outside it (a script may print what it reads), unsets
-        # GH_TOKEN and GITHUB_TOKEN in the script's own environment (an
-        # ancestor's /proc/<pid>/environ still holds them), and keeps git from
-        # loading system, global or hook and fsmonitor programs. As for the
+        # GH_TOKEN and GITHUB_TOKEN in the script's own environment (under
+        # run-claude-cli an ancestor's /proc/<pid>/environ still holds them;
+        # the write runner's skill settings clear them for all of Bash), and
+        # keeps git from loading system, global or hook and fsmonitor
+        # programs. As for the
         # checks, <dir> is where the copy is written and <at> where it runs.
         # Sets verify_wrappers and verify_prompt.
         stage_verify() {

@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "src/Tarnquill.Cli/Infrastructure/ForgeClient.cs", "content": "var token = Environment.GetEnvironmentVariable(\"TARNQUILL_FORGE_TOKEN\");\nif (string.IsNullOrEmpty(token)) { Console.Error.WriteLine(\"TARNQUILL_FORGE_TOKEN is not set\"); return 1; }\n"}}],
+      "why": "reads the token from the environment"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "/tmp/run-1/work/src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "content": "private const string TokenVariable = \"TARNQUILL_FORGE_TOKEN\";\n\nvar token = Environment.GetEnvironmentVariable(TokenVariable);\n"}}],
+      "why": "the variable name held in a constant"
+    }
+  ],
+  "fail": [
+    {"answer": []},
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "content": "var token = Option(args, \"--token\");\n"}}],
+      "why": "near miss: takes the token from an option"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "src/Tarnquill.Cli/Commands/BranchStartCommand.cs", "content": "var url = Environment.GetEnvironmentVariable(\"TARNQUILL_FORGE_URL\");\n"}}],
+      "why": "near miss: reads only the forge URL"
+    },
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": "docs/conventions/developer-experience.md", "content": "- Tokens come from the environment (`TARNQUILL_FORGE_TOKEN`), never from a flag.\n"}}],
+      "why": "answer to a different question: names the variable in the conventions only"
+    }
+  ]
+}
