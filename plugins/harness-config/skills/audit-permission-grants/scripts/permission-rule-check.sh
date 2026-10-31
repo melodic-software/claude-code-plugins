@@ -571,6 +571,18 @@ extract_allowed_tools() {
 # how many files it removed. An exclusion nothing counts is invisible, and an
 # invisible exclusion is indistinguishable from a tree that had nothing in it —
 # the same confusion the coverage block exists to remove.
+#
+# A plugin's own `skills/`, `agents/` and `commands/` sit at its plugin root, the
+# directory holding `.claude-plugin/plugin.json` (plugins-reference "Standard
+# layout"). That root is not always `plugins/<name>/`: the installed cache puts it
+# at `cache/<marketplace>/<plugin>/<version>/`, and a single-plugin repository is
+# its own root. So a path also loads when the directory above its `skills/`,
+# `agents/` or `commands/` segment, at or below the scan root, holds the manifest.
+# A manifestless plugin outside `plugins/<name>/` is still excluded and counted.
+plugin_root_has_manifest() {
+  # plugin_root_has_manifest <dir relative to ROOT, empty for ROOT itself>
+  [[ -f "$ROOT${1:+/$1}/.claude-plugin/plugin.json" ]]
+}
 frontmatter_is_loadable() {
   # frontmatter_is_loadable <absolute-file-path> — 0 when Claude Code would load
   # this frontmatter file per the skills/agents/commands discovery rules.
@@ -579,6 +591,9 @@ frontmatter_is_loadable() {
   */SKILL.md)
     [[ "$rel" =~ (^|/)\.claude/skills/[^/]+/SKILL\.md$ ]] && return 0
     [[ "$rel" =~ ^plugins/[^/]+/skills/[^/]+/SKILL\.md$ ]] && return 0
+    if [[ "$rel" =~ ^(.+/)?skills/[^/]+/SKILL\.md$ ]]; then
+      plugin_root_has_manifest "${BASH_REMATCH[1]%/}" && return 0
+    fi
     return 1
     ;;
   *)
@@ -586,6 +601,9 @@ frontmatter_is_loadable() {
     [[ "$rel" =~ (^|/)\.claude/commands/[^/]+\.md$ ]] && return 0
     [[ "$rel" =~ ^plugins/[^/]+/agents/[^/]+\.md$ ]] && return 0
     [[ "$rel" =~ ^plugins/[^/]+/commands/[^/]+\.md$ ]] && return 0
+    if [[ "$rel" =~ ^(.+/)?(agents|commands)/[^/]+\.md$ ]]; then
+      plugin_root_has_manifest "${BASH_REMATCH[1]%/}" && return 0
+    fi
     return 1
     ;;
   esac
@@ -833,6 +851,12 @@ if [[ "${#findings[@]}" -eq 0 ]]; then
     # `audited == 0` corner where it happened to be implemented.
     printf 'INCOMPLETE SCAN, NOT A CLEAN BILL: no fragile permission grants were found in the %d input(s) this run successfully examined, but %d input(s) could not be read or parsed and were NOT audited. A fragile grant inside an input the run could not open is precisely what it could not see, so this is not a statement about the grants in this tree. See the coverage block below for which inputs were not read.\n' \
       "$audited" "$blocked"
+  elif [[ "$fm_candidates" -gt 0 && "$fm_excluded_non_loadable" -eq "$fm_candidates" ]]; then
+    # Settings scopes keep `audited` above zero, so a root whose every
+    # frontmatter candidate sits at an unrecognized layout would otherwise print
+    # the clean bill without having parsed one skill, agent or command.
+    printf 'NO FRONTMATTER AUDITED, NOT A CLEAN BILL: all %d frontmatter candidate(s) under this root were excluded as non-loadable, so no skill, agent or command allowed-tools block was parsed. The %d settings input(s) this run examined hold no fragile grant, but that says nothing about frontmatter it never read. A plugin directory loads here when it sits at plugins/<name>/ or holds .claude-plugin/plugin.json. See the coverage block below.\n' \
+      "$fm_candidates" "$audited"
   else
     echo "No fragile permission grants found."
   fi
