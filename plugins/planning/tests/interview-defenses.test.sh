@@ -73,9 +73,11 @@
 # fix, and so is any edit inside a digested region. That is the contract for a load-bearing
 # behavioral rule with no runner behind it: re-read the defense, confirm it still holds,
 # then update the skill body and this suite in one change. Any session, a lane included, may
-# re-pin a digest after that re-read: tests/repin.sh rewrites the sha256 literal of each pin
-# it names, and the commit records the old and new digest and why the defense still holds, so
-# the PR review judges the change against the text it guards.
+# re-pin a digest after that re-read: scripts/repin-digests.sh rewrites the sha256 literal of
+# each pin it names from the files alone, running no test (the issue lane's path), and
+# tests/repin.sh does the same and then runs this suite. The commit records the old and new
+# digest and why the defense still holds, so the PR review judges the change against the text
+# it guards.
 #
 # Relationship to the older cases. evals.json ships three narrative cases over the same two
 # defenses — `auto-guard-never-folds-user-choice` (2), `lock-mode-does-not-fudge-gap` (3),
@@ -105,9 +107,9 @@ EVALS="$PLUGIN_DIR/skills/interview/evals/evals.json"
 FIXTURES="$PLUGIN_DIR/skills/interview/evals/fixtures"
 
 UPDATE_RULE="Read the git diff of this text first; the commit that updates the pin states, for each pin, old -> new and why the defense still holds."
-# Appended to the digest-pin failures only: repin.sh rewrites a sha256 literal, so the exact-line
+# Appended to the digest-pin failures only: a re-pin rewrites a sha256 literal, so the exact-line
 # pins and the boundary failure have nothing for it to recompute.
-REPIN_HINT="Re-pin with: bash plugins/planning/tests/repin.sh '<pin label text>'... '<why the defense still holds>'"
+REPIN_HINT="Re-pin with: bash plugins/planning/tests/repin.sh '<pin label text>'... '<why the defense still holds>' (or, where no test may run, plugins/planning/scripts/repin-digests.sh with the same arguments)"
 PASS=0
 FAIL=0
 fail() {
@@ -184,51 +186,14 @@ pin_exact() {
   fi
 }
 
-# sha256 of stdin. GNU coreutils ships sha256sum; a BSD userland (macOS) ships
-# `shasum -a 256` instead. Probe both — a missing digest tool would otherwise silently
-# vacate every section and case pin below, which is the one failure mode this suite may
-# never have.
-sha256_stdin() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum | cut -d' ' -f1
-  elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 | cut -d' ' -f1
-  else
-    echo "NO-DIGEST-TOOL"
-  fi
-}
-
-# sha256 of jq's stdout. A Windows jq writes through a text-mode stdout, so every record
-# it prints ends CRLF where the same jq on Linux ends LF — which moves every case and
-# roster digest below on that host alone, for a file nobody touched. The only literal CR
-# jq can emit is a line terminator (a CR inside a JSON string is escaped `\r`), so
-# dropping it is the identity wherever stdout is already LF. Deliberately NOT folded into
-# `sha256_stdin`: `pin_file` hashes a fixture's own bytes and must keep hashing them raw.
-sha256_jq_stdin() {
-  tr -d '\r' | sha256_stdin
-}
-
-# section_digest <file> <open heading line> <close heading line>
-# sha256 of everything strictly BETWEEN the two heading lines, each matched as a WHOLE
-# LINE. Whole-line matching is load-bearing, not tidiness: a prefix match let a crafted
-# heading MOVE the region's own boundary. Appending
-# `### Step 2 — Drive the frontier-rounds loop, and how to read Step 1.5 before it` plus an
-# override paragraph as the last thing inside Step 1.5 closed the region early under a
-# prefix match, so the override fell outside the hash and the suite stayed green. Under
-# whole-line matching that crafted heading is just another line inside the region, and the
-# digest changes. `pin_section` additionally requires each boundary to occur EXACTLY ONCE,
-# so a duplicated heading cannot truncate the region either.
-#
-# `close` is a builtin in mawk (and `open` reads badly beside it), so the awk variables are
-# named h_open / h_close — assigning to a builtin name is a run-time error, not a warning,
-# and mawk is the default awk on Debian-family runners.
-section_digest() {
-  awk -v h_open="$2" -v h_close="$3" '
-    $0 == h_open { inside = 1; next }
-    $0 == h_close { inside = 0 }
-    inside { print }
-  ' "$1" | sha256_stdin
-}
+# The digest computations (section_digest, frontmatter_digest, case_digest, case_set_digest,
+# file_digest) live in scripts/lib/pin-digests.sh, which scripts/repin-digests.sh also sources,
+# so a re-pin computes each digest exactly as the pins below grade it.
+# shellcheck source=../scripts/lib/pin-digests.sh
+if ! source "$PLUGIN_DIR/scripts/lib/pin-digests.sh"; then
+  echo "FAIL: cannot load $PLUGIN_DIR/scripts/lib/pin-digests.sh" >&2
+  exit 1
+fi
 
 # pin_section <label> <file> <open heading> <close heading> <expected sha256>
 # WHOLE-SECTION digest. `pin_exact` closes the same-line neutralize-in-place edit; it is
@@ -270,7 +235,7 @@ pin_section() {
 # every key is covered, present and future.
 pin_frontmatter() {
   local label="$1" file="$2" want="$3" got
-  got="$(awk 'NR == 1 && $0 == "---" { inside = 1; next } inside && $0 == "---" { exit } inside { print }' "$file" | sha256_stdin)"
+  got="$(frontmatter_digest "$file")"
   if [[ "$got" == "NO-DIGEST-TOOL" ]]; then
     fail "$label — neither sha256sum nor shasum is available; the frontmatter pin cannot be graded"
   elif [[ "$got" == "$want" ]]; then
@@ -288,7 +253,7 @@ pin_frontmatter() {
 # survives. Digesting the whole case object closes that.
 pin_case_digest() {
   local label="$1" name="$2" want="$3" got
-  got="$(jq -S -c --arg n "$name" '.evals[] | select(.name == $n)' "$EVALS" | sha256_jq_stdin)"
+  got="$(case_digest "$EVALS" "$name")"
   if [[ "$got" == "NO-DIGEST-TOOL" ]]; then
     fail "$label — neither sha256sum nor shasum is available; the case pin cannot be graded"
   elif [[ "$got" == "$want" ]]; then
@@ -305,7 +270,7 @@ pin_case_digest() {
 # the case's input; they are pinned like the case itself.
 pin_file() {
   local label="$1" file="$2" want="$3" got
-  got="$(sha256_stdin <"$file")"
+  got="$(file_digest "$file")"
   if [[ "$got" == "NO-DIGEST-TOOL" ]]; then
     fail "$label — neither sha256sum nor shasum is available; the fixture pin cannot be graded"
   elif [[ "$got" == "$want" ]]; then
@@ -325,7 +290,7 @@ pin_file() {
 # below.
 pin_case_set() {
   local label="$1" want="$2" got
-  got="$(jq -r '.evals[] | "\(.id):\(.name)"' "$EVALS" | sort | sha256_jq_stdin)"
+  got="$(case_set_digest "$EVALS")"
   if [[ "$got" == "NO-DIGEST-TOOL" ]]; then
     fail "$label — neither sha256sum nor shasum is available; the roster pin cannot be graded"
   elif [[ "$got" == "$want" ]]; then
@@ -434,7 +399,7 @@ declares_both_fixtures B "$CASE_B"
 #
 # Update procedure when one of these fires: read `git diff` for the named section or case,
 # confirm in words that neither defense was weakened, qualified, or contradicted by the
-# change, then re-pin the digest below IN THE SAME COMMIT (tests/repin.sh), with old -> new
+# change, then re-pin the digest below IN THE SAME COMMIT (tests/repin.sh, or scripts/repin-digests.sh where no test may run), with old -> new
 # and that reason in the commit message.
 #
 # The boundary tests below MUST match `section_digest`'s — whole-line equality, not a

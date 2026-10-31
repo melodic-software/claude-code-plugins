@@ -323,12 +323,19 @@ activities:
     # work tree it runs in, refusing a plugin name with a path in it and a
     # linked .changes directory (--carriers-of also makes and removes one
     # temp file); it runs no checkout code and reaches no network.
+    # repin-digests.sh re-pins planning's interview-defenses digest pins: it
+    # reads the checkout's test file and the files it pins as text, computes
+    # each digest with its own copy's lib/pin-digests.sh, rewrites the sha256
+    # literals in that test file, refuses a pin argument that is not a plain
+    # string or names a file outside the plugin, and runs no checkout code
+    # (tests/repin.sh, which also runs the test, stays off this list).
     verify-scripts:
       - plugins/testing/skills/audit/scripts/cant-fail-scan.sh
       - scripts/git-mv-rm.sh
       - plugins/skill-quality/scripts/check-evals-quality.sh
       - scripts/sync-shared-copies.sh
       - scripts/new-changelog-fragment.sh
+      - plugins/planning/scripts/repin-digests.sh
     # Lets the run read web pages, so it can check a fact against its source
     # (a documented default on a vendor docs page) instead of trusting the
     # issue's quote. It may search the web, fetch any page and run the
