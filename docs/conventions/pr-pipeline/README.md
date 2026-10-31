@@ -2212,8 +2212,16 @@ an artifact name holding `"`, `:`, `<`, `>`, `|`, `*`, `?`, `\`, `/`, a carriage
 line feed
 ([`validateArtifactName`](https://github.com/actions/toolkit/blob/main/packages/artifact/src/internal/upload/path-and-artifact-name-validation.ts)),
 so digits, `-` and `.` are safe, and the longest name is 194 characters. The JSON holds `pr`, `head_sha`, `base_sha`, `head_ref`, `linked_issues` with each issue's author login, id and
-account type, `verdict`, `summary`, `notes` and `run_id`. The head SHA is the one `pr-require-checks`
-ran on, never the pull request's live head. A model error, an output that fails the schema, a
+account type, `verdict`, `summary`, `notes`, `evidence` and `run_id`. The head SHA is the one `pr-require-checks`
+ran on, never the pull request's live head. `evidence` records per head the app capture's outcome,
+`capture` (`ran`, `skipped`, `blocked`, `not-applicable` or `no-app`), with its `reason`,
+`capture_count` and `features`, and `local_loop`, the count `k` from an `Evidence loop: k/3` line
+in the trusted pull request body, which the author reports and the writer reads as data only (`null`
+with no such line or a withheld body). With no capture summary the writer records `no-app` ("no app
+check ran"); a summary it cannot read, that fails its schema, or whose text matches a shared
+credential pattern records `blocked`, so a capture never fails the verdict. `merge.verify-capture` configures the capture: `app`, the app it drives (unset:
+no capture runs), and `retention-days` (default 30, at most 90), how long each capture artifact
+lasts. A model error, an output that fails the schema, a
 summary or note matching a shared credential pattern (`findSecret` in `lib/publish-gate.mjs`), or a run with any permission denial
 uploads nothing, and the run fails. A head that already has a counted verdict from a completed run (a `fail` under any
 pull request number) is not judged again, unless its only verdicts are passes the spec has since
