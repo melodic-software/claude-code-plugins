@@ -14,10 +14,15 @@
 # block-noncanonical-commit gate enforces the message MECHANIC (`-F -`); this
 # gate reads the CONTENT that mechanic carries.
 #
-# UNRESOLVED = NO ENFORCEMENT. No team-tracked pattern -> the gate no-ops; a
+# Where the team tracks no `subject_pattern`, the resolver falls back to the
+# operator's own, from a git-ignored `docs/conventions/source-control.local.yaml`;
+# it is never merged with a team pattern, and PR titles never read it.
+#
+# UNRESOLVED = NO ENFORCEMENT. No team-tracked or personal pattern -> the gate no-ops; a
 # non-ERE pattern or an unreadable config no-ops too, with a notice (below). It never blocks against the bundled
 # Conventional Commits default: enforcement strength equals the strength of
-# explicit team config, so a repo that never opted in is never gated.
+# explicit config, the team's or else the operator's own, so a repo where
+# neither opted in is never gated.
 #
 # A BROKEN CONVENTION IS NOT AN UNRESOLVED ONE, AND THE GUARD FAILS OPEN ON IT.
 # The resolver's exit code and stderr tell them apart, with no change to its
@@ -150,10 +155,11 @@ RESOLVER="$_HOOK_SELF/resolve-convention-pattern.sh"
 # RESIDUAL, deliberately not solved here: the resolver honors
 # `docs/conventions/source-control.yaml` and the well-known
 # `docs/conventions/source-control/commit-convention.yml` only when git reports
-# them TRACKED, and tracked status can change with no mtime change on any file
-# below. Such a change is picked up when any dependency is next written, not at
-# the moment of `git add`. Probing it would cost the `git ls-files` spawn this
-# cache exists to avoid.
+# them TRACKED, and the personal `docs/conventions/source-control.local.yaml`
+# only when git reports it IGNORED. Either status can change with no mtime change
+# on any file below. Such a change is picked up when any dependency is next
+# written, not at the moment of `git add` or an ignore-rule edit. Probing it would
+# cost the git spawns this cache exists to avoid.
 
 SUBJECT_ERE=""
 TITLE_ERE=""
@@ -199,6 +205,7 @@ ensure_convention_patterns() {
     "$REPO_ROOT/docs/conventions/source-control.yaml"
     "$REPO_ROOT/.claude/source-control.md"
     "$REPO_ROOT/docs/conventions/source-control/commit-convention.yml"
+    "$REPO_ROOT/docs/conventions/source-control.local.yaml"
   )
   conv_pointer
   [[ -n "$CONV_POINTER" ]] && CONV_DEPS+=("$REPO_ROOT/$CONV_POINTER")
@@ -405,10 +412,10 @@ first_herestring_subject() {
 
 # shellcheck disable=SC2329  # invoked from check_segment (callback chain)
 block_subject() {
-  echo "BLOCKED: commit subject does not match the team convention." >&2
+  echo "BLOCKED: commit subject does not match the commit convention." >&2
   echo "  subject: $1" >&2
   echo "  pattern: $SUBJECT_ERE" >&2
-  echo "Rewrite it to match; /source-control:commit drafts against the convention." >&2
+  echo "Rewrite it to match the pattern above; /source-control:commit drafts against the team convention." >&2
   emit_tel "blocked" "subject-pattern"
   exit 2
 }

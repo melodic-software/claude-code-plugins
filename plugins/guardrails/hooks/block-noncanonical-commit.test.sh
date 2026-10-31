@@ -1606,4 +1606,25 @@ expect_both "dispatched parity: PowerShell canonical -F - allowed" 0 \
   --tool PowerShell --lib lib/powershell/ps-command.sh \
   --command "$(printf '%s\n%s\n%s' "@'" "feat: x" "'@ | git commit -F -")"
 
+# --- A personal convention layer leaves this guard's verdicts alone -----------
+# This guard judges the message MECHANIC, never its content; the sibling
+# block-convention-violation checks a subject against the convention the
+# resolver returns. A repository whose team tracks no pattern and whose operator
+# keeps a git-ignored personal one (docs/conventions/source-control.local.yaml)
+# gets the same verdicts here as any other. core.excludesFile names a missing
+# file, so no global ignore rule on the host decides the fixture.
+PREPO="$TEST_TMPDIR/personal-layer"
+git init -q -b main "$PREPO"
+git -C "$PREPO" config core.excludesFile "$TEST_TMPDIR/no-global-excludes"
+mkdir -p "$PREPO/docs/conventions"
+printf '%s\n' "subject_pattern: '^[A-Z]+-[0-9]+: .+'" >"$PREPO/docs/conventions/source-control.local.yaml"
+printf '%s\n' 'docs/conventions/**/*.local.*' >"$PREPO/.gitignore"
+# The personal pattern is live in the fixture, so the verdicts below discriminate.
+assert_eq "personal layer: the fixture's pattern resolves" '^[A-Z]+-[0-9]+: .+' \
+  "$(sh "$HOOK_DIR/resolve-convention-pattern.sh" "$PREPO" subject_pattern 2>/dev/null)"
+expect "personal layer: canonical -F - with an off-pattern subject allowed (content is not this guard's)" 0 \
+  --command $'git commit -F - <<\'EOF\'\njunk subject\nEOF' --cwd "$PREPO" -- "CLAUDE_PROJECT_DIR=$PREPO"
+expect "personal layer: an expanding -m with an on-pattern subject still blocked" 2 \
+  --command "git commit -m \"ABC-1: x \$body\"" --cwd "$PREPO" -- "CLAUDE_PROJECT_DIR=$PREPO"
+
 report

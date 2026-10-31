@@ -25,23 +25,38 @@
 #      in `.claude/source-control.md`, else the well-known
 #      `docs/conventions/source-control/commit-convention.yml`), then the
 #      `## <key>` H2 of `.claude/source-control.md`.
-#   A YAML file counts only while git tracks it.
+#   A team YAML file counts only while git tracks it.
 #
 # POSIX sh, so the commit-msg hook runs it with `sh`, needs no bash beside that
 # sh, and never starts a bash by name: on Windows that can be System32's WSL
 # launcher. It runs the same under bash.
 #
 # ENFORCEMENT ≠ DRAFTING — the policy-floor contract:
-#   Enforcement reads the TEAM-TRACKED layer ONLY: the files above. The
-#   user-global (`~/.claude/source-control.md`) and gitignored local
+#   Enforcement reads the TEAM-TRACKED layer: the files above. The user-global
+#   (`~/.claude/source-control.md`) and gitignored local
 #   (`.claude/source-control.local.md`) overlays are DRAFTING inputs the model
 #   merges per `reference/config-resolution.md`; a blocking gate never reads
-#   them. That is the floor by construction: a personal/gitignored file cannot
-#   weaken what the gate enforces because the gate never looks at it, and
-#   "is regex A stricter than B" is undecidable so no merge could honor "tighten
-#   only" anyway. A team with no tracked pattern gets NO enforcement (never the
-#   bundled Conventional Commits default — that default is not lane-1-eligible,
-#   so gating an un-opted-in repo against it violates the two-lane posture).
+#   them. "Is regex A stricter than B" is undecidable, so no merge of a personal
+#   pattern with a team one could honor "tighten only".
+#
+#   THE PERSONAL LAYER IS FALLBACK-ONLY: `subject_pattern` in
+#   `docs/conventions/source-control.local.yaml` (ADR 0075's
+#   `<home>/<concern>.local.<ext>`) applies only when the team layer supplies no
+#   `subject_pattern`, and is never merged with a team pattern. Adding
+#   enforcement where the team sets none only tightens the floor. A team pattern
+#   always wins, and a broken or non-ERE team value disables enforcement rather
+#   than falling back to the personal one, so the personal file can never weaken
+#   or replace a team pattern. The file is read only while git ignores it
+#   (`.gitignore`, `.git/info/exclude` or `core.excludesFile`; git never reports
+#   a tracked file ignored), and it fails closed on the same checks as the team
+#   file. `pr_title_pattern` never reads it, a deferral included: a PR title is
+#   the team's record. A git hook cannot read `userConfig`, so this file is the
+#   personal source.
+#
+#   With neither a team pattern nor a personal one there is NO enforcement
+#   (never the bundled Conventional Commits default — that default is not
+#   lane-1-eligible, so gating an un-opted-in repo against it violates the
+#   two-lane posture).
 #
 # SINGLE SOURCE OF TRUTH: lib/resolve-convention-pattern.sh at the marketplace
 # repo root, beside lib/yaml-subset.awk. Copies materialized into consuming
@@ -76,6 +91,8 @@ readonly PR_DEFERRAL='Same as `subject_pattern`.'
 
 # The team file, at the fixed root the source-control plugin reads it from.
 readonly TEAM_YAML_REL="docs/conventions/source-control.yaml"
+# The personal file beside it, read only where the team sets no subject_pattern.
+readonly PERSONAL_YAML_REL="docs/conventions/source-control.local.yaml"
 # The legacy markdown team file, read for one release.
 readonly LEGACY_MD_REL=".claude/source-control.md"
 # Well-known default path for the legacy neutral convention file. When the
@@ -254,7 +271,7 @@ neutral_key() {
 in_repo_or_exit() {
   ir_file="$repo_root/$1"
   if [ -L "$ir_file" ]; then
-    printf '%s\n' "resolve-convention-pattern: $2 '$1' is a symlink; the file must be a regular tracked file — enforcement disabled." >&2
+    printf '%s\n' "resolve-convention-pattern: $2 '$1' is a symlink; the file must be a regular file — enforcement disabled." >&2
     exit 1
   fi
   canon_root="$(cd "$repo_root" 2>/dev/null && pwd -P)"
@@ -280,27 +297,44 @@ in_repo_or_exit() {
 # rejects (a duplicate key included) disables enforcement with a diagnostic,
 # never a fallback to legacy values the migration retired. The records are read
 # once; every lookup below is shell builtins.
+#
+# One YAML file is loaded at a time: the team file here, and the personal file
+# later, once every team lookup is done. YAML_REL and YAML_PATH name the loaded
+# file for yaml_lookup, check_yaml_key, yaml_bare_key and check_yaml_dialect.
 YAML_ACTIVE=0
 YAML_RECORDS=""
-if [ -f "$TEAM_YAML" ] &&
-  git -C "$repo_root" ls-files --error-unmatch -- "$TEAM_YAML_REL" >/dev/null 2>&1; then
-  in_repo_or_exit "$TEAM_YAML_REL" "the team file"
+YAML_REL=""
+YAML_PATH=""
+
+# load_yaml <repo-relative path> <name>: parse the file into YAML_RECORDS and
+# make it the loaded file, or disable enforcement (exit 1) with a diagnostic
+# when it is a symlink or leaves the repository, its parser is missing, or the
+# parser rejects it. Called at top level so the exit reaches the caller.
+load_yaml() {
+  YAML_REL="$1"
+  YAML_PATH="$repo_root/$1"
+  in_repo_or_exit "$1" "$2"
   if [ ! -f "$YAML_PARSER" ]; then
-    printf '%s\n' "resolve-convention-pattern: cannot read $TEAM_YAML_REL: its parser, yaml-subset.awk, is not beside the resolver; enforcement disabled." >&2
+    printf '%s\n' "resolve-convention-pattern: cannot read $1: its parser, yaml-subset.awk, is not beside the resolver; enforcement disabled." >&2
     exit 1
   fi
   # On stdin, so awk never reads a root holding `=` as an assignment operand.
-  if ! YAML_RECORDS="$(LC_ALL=C awk -v STRICT=1 -f "$YAML_PARSER" <"$TEAM_YAML" 2>/dev/null)"; then
+  if ! YAML_RECORDS="$(LC_ALL=C awk -v STRICT=1 -f "$YAML_PARSER" <"$YAML_PATH" 2>/dev/null)"; then
     # The parser's last record is `error<TAB><line><TAB><message>`.
     yaml_err="${YAML_RECORDS##*"$nl"}"
     yaml_err="${yaml_err#error"$tab"}"
-    printf '%s\n' "resolve-convention-pattern: $TEAM_YAML_REL does not parse (line ${yaml_err%%"$tab"*}: ${yaml_err#*"$tab"}); enforcement disabled." >&2
+    printf '%s\n' "resolve-convention-pattern: $1 does not parse (line ${yaml_err%%"$tab"*}: ${yaml_err#*"$tab"}); enforcement disabled." >&2
     exit 1
   fi
   YAML_ACTIVE=1
+}
+
+if [ -f "$TEAM_YAML" ] &&
+  git -C "$repo_root" ls-files --error-unmatch -- "$TEAM_YAML_REL" >/dev/null 2>&1; then
+  load_yaml "$TEAM_YAML_REL" "the team file"
 fi
 
-# yaml_lookup <key>: YAML_HAS=1 and YAML_VAL=<value> when the team file carries
+# yaml_lookup <key>: YAML_HAS=1 and YAML_VAL=<value> when the loaded file carries
 # <key> as a root scalar (the value may be empty); YAML_HAS=0 and YAML_VAL
 # empty otherwise.
 yaml_lookup() {
@@ -319,8 +353,8 @@ yaml_lookup() {
   return 0
 }
 
-# yaml_bare_key <key>: true when the team file has a root `<key>:` line (the key
-# plain or quoted) with no value, which the parser reports no record for.
+# yaml_bare_key <key>: true when the loaded file has a root `<key>:` line (the
+# key plain or quoted) with no value, which the parser reports no record for.
 yaml_bare_key() {
   yb_first=1
   while IFS= read -r yb_line || [ -n "$yb_line" ]; do
@@ -340,11 +374,11 @@ yaml_bare_key() {
     "" | "#"*) return 0 ;;
     *) ;;
     esac
-  done <"$TEAM_YAML"
+  done <"$YAML_PATH"
   return 1
 }
 
-# check_yaml_key <key>: a key the team file CARRIES must hold one value.
+# check_yaml_key <key>: a key the loaded file CARRIES must hold one value.
 # Present-but-empty (`subject_pattern: ''`, or `subject_pattern:` alone) or a
 # list or mapping in its place is a configuration error, not an omission —
 # falling back to a legacy value would enforce a stale pattern the migration
@@ -360,17 +394,20 @@ check_yaml_key() {
     *) yaml_bare_key "$1" || return 0 ;;
     esac
   fi
-  printf '%s\n' "resolve-convention-pattern: $TEAM_YAML_REL carries '$1' without one non-empty value; a carried key must hold one value (delete the line to fall back) — enforcement disabled." >&2
+  printf '%s\n' "resolve-convention-pattern: $YAML_REL carries '$1' without one non-empty value; a carried key must hold one value (delete the line to fall back) — enforcement disabled." >&2
   exit 1
 }
 
-# `dialect:` (optional, default posix-ere) names the dialect the team file's
-# patterns are written in. Enforcement consumes posix-ere only.
-yaml_lookup dialect
-if [ -n "$YAML_VAL" ] && [ "$YAML_VAL" != "posix-ere" ]; then
-  printf '%s\n' "resolve-convention-pattern: $TEAM_YAML_REL declares dialect '$YAML_VAL'; enforcement consumes posix-ere only — enforcement disabled." >&2
-  exit 1
-fi
+# check_yaml_dialect: `dialect:` (optional, default posix-ere) names the dialect
+# the loaded file's patterns are written in. Enforcement consumes posix-ere only.
+check_yaml_dialect() {
+  yaml_lookup dialect
+  if [ -n "$YAML_VAL" ] && [ "$YAML_VAL" != "posix-ere" ]; then
+    printf '%s\n' "resolve-convention-pattern: $YAML_REL declares dialect '$YAML_VAL'; enforcement consumes posix-ere only — enforcement disabled." >&2
+    exit 1
+  fi
+}
+check_yaml_dialect
 
 # --- Legacy surfaces, read for one release: the neutral file and the markdown ---
 # The markdown team file MAY declare `## convention_source` naming a
@@ -544,6 +581,36 @@ layer="$RV_LAYER"
 if [ "$key" = "pr_title_pattern" ] && [ "$TV" = "$PR_DEFERRAL" ]; then
   raw_value "subject_pattern"
   value="$RV"
+fi
+
+# --- The personal layer: docs/conventions/source-control.local.yaml ---
+# Read only for subject_pattern and only when the team layer supplied none (see
+# the policy-floor contract in the header). git check-ignore exits 0 only for a
+# path an exclude rule matches that the index does not track. A file present but
+# not ignored is reported and not read, since a plain `git add` would commit it
+# as a pattern for everyone. The CC keyword expands as on every surface.
+read_personal() {
+  [ -f "$repo_root/$PERSONAL_YAML_REL" ] || return 0
+  ignore_rc=0
+  git -C "$repo_root" check-ignore -q -- "$PERSONAL_YAML_REL" >/dev/null 2>&1 || ignore_rc=$?
+  if [ "$ignore_rc" -eq 1 ]; then
+    printf '%s\n' "resolve-convention-pattern: $PERSONAL_YAML_REL is not ignored by git (it is tracked, or no .gitignore, .git/info/exclude or core.excludesFile rule matches it); the personal layer is read only while git ignores it — enforcement disabled." >&2
+    exit 1
+  fi
+  if [ "$ignore_rc" -ne 0 ]; then
+    printf '%s\n' "resolve-convention-pattern: git could not tell whether $PERSONAL_YAML_REL is ignored (git check-ignore exit $ignore_rc); the personal layer is read only while git ignores it — enforcement disabled." >&2
+    exit 1
+  fi
+  load_yaml "$PERSONAL_YAML_REL" "the personal file"
+  check_yaml_dialect
+  check_yaml_key subject_pattern
+  yaml_lookup subject_pattern
+  value="$YAML_VAL"
+  layer="$PERSONAL_YAML_REL"
+  [ "$value" != "Conventional Commits" ] || value="$CC_ERE"
+}
+if [ -z "$value" ] && [ "$key" = "subject_pattern" ]; then
+  read_personal
 fi
 
 # Unresolved -> no enforcement (exit 1, stdout empty). Never fall back to CC_ERE.

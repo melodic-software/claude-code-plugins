@@ -110,6 +110,30 @@ run "team yaml: conforming PR title allowed" "$r" \
 run "team yaml: violating PR title blocked" "$r" \
   "gh pr create --title 'junk title' --body-file b.md" 2
 
+# --- the personal layer: only where the team tracks no subject_pattern --------
+# personal_repo [team markdown body]: a repo whose operator keeps a git-ignored
+# docs/conventions/source-control.local.yaml holding a ticket pattern.
+# core.excludesFile names a missing file, so no global ignore rule decides a case.
+personal_repo() {
+  local d
+  d="$(newrepo "${1:-}")"
+  git -C "$d" config core.excludesFile "$TEST_TMPDIR/no-global-excludes"
+  mkdir -p "$d/docs/conventions"
+  printf '%s\n' "subject_pattern: '^[A-Z]+-[0-9]+: .+'" >"$d/docs/conventions/source-control.local.yaml"
+  printf '%s\n' 'docs/conventions/**/*.local.*' >"$d/.gitignore"
+  printf '%s' "$d"
+}
+r="$(personal_repo "")"
+run "personal layer, no team pattern: conforming subject allowed" "$r" "$GOOD_COMMIT" 0
+run "personal layer, no team pattern: violating subject blocked" "$r" "$BAD_COMMIT" 2
+run "personal layer: a PR title is never gated by it" "$r" \
+  "gh pr create --title 'junk title' --body-file b.md" 0
+r="$(personal_repo "$CC")"
+run "personal layer under a team pattern: a subject only the team allows passes" "$r" \
+  $'git commit -F - <<\'EOF\'\nfeat: add thing\nEOF' 0
+run "personal layer under a team pattern: a subject only the personal file allows is blocked" "$r" \
+  "$GOOD_COMMIT" 2
+
 # --- exemption taxonomy (inherited from block-noncanonical-commit) ------------
 r="$(newrepo "$TICKET")"
 run "--amend exempt" "$r" "git commit --amend --no-edit" 0
@@ -442,6 +466,8 @@ assert_contains "cache: entry records the absent well-known file" "$(cat "$CACHE
   "DEP 0 $(git -C "$r" rev-parse --show-toplevel | tr -d '\r')/docs/conventions/source-control/commit-convention.yml"
 assert_contains "cache: entry records the absent team yaml" "$(cat "$CACHE_FILE")" \
   "DEP 0 $(git -C "$r" rev-parse --show-toplevel | tr -d '\r')/docs/conventions/source-control.yaml"
+assert_contains "cache: entry records the absent personal file" "$(cat "$CACHE_FILE")" \
+  "DEP 0 $(git -C "$r" rev-parse --show-toplevel | tr -d '\r')/docs/conventions/source-control.local.yaml"
 
 # 3. A warm cache must not fork the resolver again. Counted through a shim ahead
 #    of the real bash on PATH, so this measures the spawn the change removes.
@@ -572,6 +598,21 @@ cache_run "$r6" "$pd6" "$CONFORMING"
 assert_exit "cache: team yaml appeared -> its pattern now governs (ticket subject blocked)" 2 "$CACHE_RC"
 cache_run "$r6" "$pd6" "$CONV_SUBJECT"
 assert_exit "cache: the team yaml's pattern is what is served warm" 0 "$CACHE_RC"
+
+# 10. The personal file is a dependency too: once it appears, ignored, its
+#     pattern governs a repository whose team tracks none.
+r7="$(newrepo "")"
+pd7="$TEST_TMPDIR/pdata-personal"
+rm -rf "$pd7"
+cache_run "$r7" "$pd7" "$VIOLATING"
+assert_exit "cache: warmed with no pattern anywhere (violating subject allowed)" 0 "$CACHE_RC"
+git -C "$r7" config core.excludesFile "$TEST_TMPDIR/no-global-excludes"
+printf '%s\n' 'docs/conventions/**/*.local.*' >"$r7/.gitignore"
+mkdir -p "$r7/docs/conventions"
+printf '%s\n' "subject_pattern: '^[A-Z]+-[0-9]+: .+'" >"$r7/docs/conventions/source-control.local.yaml"
+touch -d '1 minute ago' "$r7/docs/conventions/source-control.local.yaml"
+cache_run "$r7" "$pd7" "$VIOLATING"
+assert_exit "cache: personal file appeared -> its pattern now governs (violating subject blocked)" 2 "$CACHE_RC"
 
 # --- resolver failure: fail open, and say so once ------------------------------
 # A copy of the hooks directory with a stub resolver, so the resolver's exit code
