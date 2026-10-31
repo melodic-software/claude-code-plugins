@@ -30,18 +30,15 @@ the newest review-dependency round marker the lanes App posted names the
 current head with `verdict=merge` (`merge_verdict`).
 
 `commit_refusal()` is the merge gate's commit check: a GitHub-verified
-Dependabot commit, the repository's `[dependabot skip]` version-bump commit
-(github-actions[bot], touching only a plugin's `plugin.json` or `CHANGELOG.md`;
-the shape `scripts/lib/changelog-fragments.sh` `dependabot_only` accepts), or,
-for a reviewed pull request, a verified `[dependabot skip]` fix commit the
-lanes App authored. A commit's author is text whoever creates it chooses, so
-two more checks bind the pull request to Dependabot. `push_refusal()` reads
-who pushed each update of the head branch (the repository activity API) and
-admits only pushes by Dependabot, github-actions or the lanes App, each
-bringing only its pusher's own commits; a failure there always refuses. `content_refusal()` names any path
-beyond the manifests and lock files `.github/dependabot.yml` covers, a
-workflow or action file whose diff changes only `uses:` lines, and the paths
-the version-bump commits touched; the caller makes such a pull request tier
+Dependabot commit or, for a reviewed pull request, a verified
+`[dependabot skip]` fix commit the lanes App authored. A commit's author is
+text whoever creates it chooses, so two more checks bind the pull request to
+Dependabot. `push_refusal()` reads who pushed each update of the head branch
+(the repository activity API) and admits only pushes by Dependabot or the
+lanes App, each bringing only its pusher's own commits; a failure there always
+refuses. `content_refusal()` names any path beyond the manifests and lock
+files `.github/dependabot.yml` covers and a workflow or action file whose diff
+changes only `uses:` lines; the caller makes such a pull request tier
 `review`, for the AI review to judge. A lanes App fix commit is never counted
 as checked: `fix_refusal()` (the pr-unblock lane's `fixRefusal`) requires each
 of its files to be modified in place, in `in_fix_scope()`, a regular file, and
@@ -70,10 +67,6 @@ DEPENDABOT_LOGINS = frozenset({"app/dependabot", "dependabot[bot]", "dependabot"
 DEPENDABOT_AUTHOR = (
     "dependabot[bot]",
     "49699333+dependabot[bot]@users.noreply.github.com",
-)
-ACTIONS_AUTHOR = (
-    "github-actions[bot]",
-    "41898282+github-actions[bot]@users.noreply.github.com",
 )
 GITHUB_COMMITTER_EMAIL = "noreply@github.com"
 SKIP_MARKER = "[dependabot skip]"
@@ -104,9 +97,6 @@ _FIELD = re.compile(
 _MARKER = re.compile(
     r"^<!-- pr-unblock:review-dependency-round head=([0-9a-f]{40}) "
     r"verdict=([a-z]+) run=([0-9]+-[0-9]+) -->$"
-)
-_BUMP_PATH = re.compile(
-    r"^plugins/[A-Za-z0-9._-]+/(\.claude-plugin/plugin\.json|CHANGELOG\.md)$"
 )
 # The files each ecosystem's updates edit, in the configured directory.
 MANIFESTS = {
@@ -853,15 +843,11 @@ def merge_verdict(
     return run, None
 
 
-def commit_refusal(
-    item: Any,
-    files: Callable[[str], Sequence[str] | None],
-    lane_identity: str | None = None,
-) -> str | None:
-    """Why one REST pull-request commit may not merge, or None. `files(sha)`
-    lists a commit's changed paths, or None when unreadable; it is read only
-    for a github-actions[bot] commit. `lane_identity`, given for a reviewed
-    pull request, admits the lanes App's `[dependabot skip]` fix commits."""
+def commit_refusal(item: Any, lane_identity: str | None = None) -> str | None:
+    """Why one REST pull-request commit may not merge, or None: it must be
+    GitHub-verified, committed by GitHub, and Dependabot's. `lane_identity`,
+    given for a reviewed pull request, admits the lanes App's
+    `[dependabot skip]` fix commits."""
     entry = json_object(item)
     commit = json_object(entry.get("commit"))
     sha = str(entry.get("sha") or "?")[:12]
@@ -876,27 +862,17 @@ def commit_refusal(
     if signed == DEPENDABOT_AUTHOR:
         return None
     login = str(json_object(entry.get("author")).get("login") or "")
-    if lane_identity and login.casefold() == lane_identity.casefold():
-        return None if SKIP_MARKER in message else f"commit-not-dependabot:{sha}"
-    if signed != ACTIONS_AUTHOR or SKIP_MARKER not in message:
-        return f"commit-not-dependabot:{sha}"
-    paths = files(str(entry.get("sha") or ""))
-    if not paths or any(not _BUMP_PATH.match(p) for p in paths):
-        return f"commit-not-version-bump:{sha}"
-    return None
+    lane = lane_identity and login.casefold() == lane_identity.casefold()
+    return None if lane and SKIP_MARKER in message else f"commit-not-dependabot:{sha}"
 
 
 def commits_refusal(
-    commits: Sequence[Any],
-    files: Callable[[str], Sequence[str] | None],
-    lane_identity: str | None = None,
+    commits: Sequence[Any], lane_identity: str | None = None
 ) -> str | None:
     """The first commit that may not merge, or `commits-missing`."""
     if not commits:
         return "commits-missing"
-    return next(
-        (r for c in commits if (r := commit_refusal(c, files, lane_identity))), None
-    )
+    return next((r for c in commits if (r := commit_refusal(c, lane_identity))), None)
 
 
 def _signed(item: Any) -> tuple[Any, Any]:
@@ -906,10 +882,6 @@ def _signed(item: Any) -> tuple[Any, Any]:
 
 def is_dependabot_commit(item: Any) -> bool:
     return _signed(item) == DEPENDABOT_AUTHOR
-
-
-def is_actions_commit(item: Any) -> bool:
-    return _signed(item) == ACTIONS_AUTHOR
 
 
 def parse_config(text: str) -> list[tuple[str, str]] | None:
@@ -1003,8 +975,8 @@ def content_refusal(
     """`dependabot-content:<path>` for the first changed path (either side of
     a rename) that is neither a manifest or lock file an ecosystem in `config`
     covers, nor a workflow or action file whose diff changes only `uses:`
-    lines, nor in `extra` (the paths the version-bump and lanes App fix
-    commits touched, each checked on its own). `files` is the REST
+    lines, nor in `extra` (the paths the lanes App fix commits touched, each
+    checked on its own). `files` is the REST
     pull-request files listing, patches included."""
     for item in files:
         entry = json_object(item)
@@ -1043,15 +1015,12 @@ def _ancestry(sha: str, by_sha: dict[str, Any]) -> set[str]:
 
 
 def _pusher(item: Any, lane: str | None) -> str | None:
-    """The login whose push must bring a pull-request commit: Dependabot's,
-    the lanes App's (author login `lane`) or github-actions[bot]'s; None for
-    any other commit."""
+    """The login whose push must bring a pull-request commit: Dependabot's or
+    the lanes App's (author login `lane`); None for any other commit."""
     if _signed(item) == DEPENDABOT_AUTHOR:
         return DEPENDABOT_AUTHOR[0]
     login = json_object(json_object(item).get("author")).get("login")
-    if lane and str(login or "").casefold() == lane:
-        return lane
-    return ACTIONS_AUTHOR[0] if _signed(item) == ACTIONS_AUTHOR else None
+    return lane if lane and str(login or "").casefold() == lane else None
 
 
 def push_refusal(
@@ -1063,9 +1032,9 @@ def push_refusal(
     """Why the head branch's push history does not bind it to Dependabot, or
     None. `activities` is the repository activity API for the branch, newest
     first. Reading back to Dependabot's newest branch creation or force push
-    (which rewrites the branch), every push must be by `dependabot[bot]`, or
-    by github-actions[bot] (or, for a reviewed pull request, the lanes App)
-    when it pushed a commit of the pull request. Every commit a push brought
+    (which rewrites the branch), every push must be by `dependabot[bot]`, or,
+    for a reviewed pull request, by the lanes App when it pushed a commit of
+    the pull request. Every commit a push brought
     (its `after` and the ancestors its `before` lacks) must be its pusher's
     own (`_pusher`), every commit of the pull request must arrive in one of
     those pushes, and the newest push must have pushed `head`. The pr-unblock
@@ -1087,9 +1056,9 @@ def push_refusal(
         brought = _ancestry(after, by_sha) - _ancestry(str(push.get("before")), by_sha)
         unattributed -= brought
         dependabot = login == DEPENDABOT_AUTHOR[0] and actor.get("type") == "Bot"
-        if not (
-            dependabot or (after in by_sha and login in (ACTIONS_AUTHOR[0], lane))
-        ) or any(_pusher(by_sha[sha], lane) != login for sha in brought):
+        if not (dependabot or (after in by_sha and lane and login == lane)) or any(
+            _pusher(by_sha[sha], lane) != login for sha in brought
+        ):
             return f"pushed-by:{login or 'unknown'}"
         rewrite = push.get("activity_type") in ("force_push", "branch_creation")
         if dependabot and rewrite:
@@ -1379,47 +1348,4 @@ def fix_refusal(
         why = fix_content_refusal(path, text("before", path), text("after", path))
         if why:
             return f"fix-content:{path}:{why}"
-    return None
-
-
-def plugin_json_refusal(before: Any, after: Any) -> str | None:
-    """The version-bump commit's plugin.json: only `version` changes, to a
-    plain version; every other key stays as it was."""
-    old, now = _json_mapping(before), _json_mapping(after)
-    if old is None or now is None:
-        return "plugin-json-unreadable"
-    version = now.get("version")
-    if not isinstance(version, str) or not _LOCK_VERSION.fullmatch(version):
-        return "plugin-json-version"
-    rest = [
-        _canonical({k: v for k, v in side.items() if k != "version"})
-        for side in (old, now)
-    ]
-    return None if rest[0] == rest[1] else "plugin-json-key"
-
-
-def bump_refusal(
-    files: Sequence[Any],
-    entry: Callable[[str], Any],
-    text: Callable[[str, str], str | None],
-) -> str | None:
-    """The first reason the repository's version-bump commit is more than a
-    version bump, or None (the pr-unblock lane's `bumpRefusal`): each file a
-    plugin's plugin.json or CHANGELOG.md, modified in place as a regular file,
-    and a plugin.json changing only its `version`."""
-    if not files:
-        return "bump-empty"
-    for item in files:
-        file = json_object(item)
-        path = str(file.get("filename") or "")
-        if file.get("status") != "modified" or file.get("previous_filename"):
-            return f"bump-status:{path}"
-        if not _BUMP_PATH.match(path):
-            return f"bump-path:{path}"
-        if not is_fix_file(entry(path)):
-            return f"bump-mode:{path}"
-        if path.endswith("/plugin.json"):
-            why = plugin_json_refusal(text("before", path), text("after", path))
-            if why:
-                return f"bump-content:{path}:{why}"
     return None

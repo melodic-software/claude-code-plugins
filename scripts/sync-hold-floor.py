@@ -18,11 +18,6 @@ hand: change the table, then run this script. test_merge_holds_sync.py runs `--c
   (`**/X` is `X` and `*/X`; a trailing `/**` is `/*`). While pr-pipeline.yaml's
   `merge.diff-check.path-holds` is absent or false, a guard line after the list empties it for
   every author but Dependabot (owner decisions Q21 and Q24, 2026-10-29).
-- `.github/trust-path-hold.json`, the whole file, which ci-workflows'
-  pr-require-checks-trust-paths reads at the base SHA: `.github/**`, then the `hold_patterns`
-  outside `.github/`, and `merge.trust-path-hold-apps` from pr-pipeline.yaml as `apps`. Its
-  globs match whole paths case-insensitively with `*` crossing `/`, as bash patterns under
-  nocasematch do, so the bash forms carry over unchanged.
 """
 
 from __future__ import annotations
@@ -136,25 +131,6 @@ def hold_patterns(indent: str, holds: bool | None = None) -> list[str]:
     return lines
 
 
-def trust_path_hold() -> str:
-    found = subprocess.run(
-        ["bash", str(ROOT / "lib/parse-concern-value.sh"), "--strict", "--list"]
-        + [str(ROOT / PIPELINE), "merge.trust-path-hold-apps"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    apps = found.stdout.split()
-    if found.returncode != 0 or not apps:
-        raise SystemExit(
-            f"sync-hold-floor: no merge.trust-path-hold-apps in {PIPELINE}: {found.stderr}"
-        )
-    globs = [g for g in HOLD_PATHS if g not in SCRUTINY_ONLY]
-    patterns = [p for g in globs for p in bash_patterns(g)]
-    paths = [".github/**", *(p for p in patterns if not p.startswith(".github/"))]
-    return json.dumps({"paths": paths, "apps": apps}, indent=2) + "\n"
-
-
 PIPELINE = "docs/conventions/pr-pipeline.yaml"
 MERGE_HOLDS = ".github/scripts/pr-merge/merge-holds.mjs"
 BLOCKS = {
@@ -164,7 +140,6 @@ BLOCKS = {
     ".github/workflows/pr-review-security-hosted.yml": {"hold-paths": hold_paths},
     ".github/workflows/pr-require-checks.yml": {"hold_patterns": hold_patterns},
 }
-WHOLE = {".github/trust-path-hold.json": trust_path_hold}
 
 
 def marker(lines: list[str], text: str, path: str) -> int:
@@ -177,8 +152,6 @@ def marker(lines: list[str], text: str, path: str) -> int:
 
 
 def generate(path: str, text: str) -> str:
-    if path in WHOLE:
-        return WHOLE[path]()
     lines = text.split("\n")
     for name, render in BLOCKS[path].items():
         begin = marker(lines, f"BEGIN hold-floor {name}", path)
@@ -196,12 +169,10 @@ def main(argv: list[str]) -> int:
         print(__doc__, file=sys.stderr)
         return 2
     stale = 0
-    for path in (*BLOCKS, *WHOLE):
+    for path in BLOCKS:
         file = ROOT / path
-        text = ""
-        if file.exists() or path not in WHOLE:
-            with open(file, encoding="utf-8", newline="") as handle:
-                text = handle.read()
+        with open(file, encoding="utf-8", newline="") as handle:
+            text = handle.read()
         want = generate(path, text)
         if want == text:
             continue

@@ -175,7 +175,8 @@ class ATrustedApprovalLiftsAHighPath(unittest.TestCase):
             held_by((DOC, FLOORED), reviews=[review("APPROVED")], humans=TRUSTED)
         )
 
-    def test_a_floor_path_holds_for_a_person_without_that_approval(self) -> None:
+    def test_a_floor_path_holds_without_that_approval(self) -> None:
+        # A high path is not a person's (owner decision 2026-10-30, #11020).
         later = "2026-10-26T17:20:00Z"
         cases = {
             "no review": [],
@@ -195,7 +196,7 @@ class ATrustedApprovalLiftsAHighPath(unittest.TestCase):
                     (
                         "high-path:.github/actions/resolve-config/**: "
                         ".github/actions/resolve-config/resolve.mjs",
-                        True,
+                        False,
                     ),
                 )
         # The trusted list that did not read lifts nothing either.
@@ -647,15 +648,16 @@ class LaneRiskRefusal(unittest.TestCase):
         self.assertEqual(len(held), 3, held)
         self.assertEqual(held[1:], (False, False))
 
-    def test_only_a_security_finding_or_a_path_hold_needs_a_person(self) -> None:
+    def test_only_a_security_finding_needs_a_person(self) -> None:
         # Owner rule 2026-10-26: unbound review evidence, the manifest review
-        # and a failed read go back to the lanes; a CRITICAL finding and a
-        # symlink or submodule (an unsafe path) stay a person's.
+        # and a failed read go back to the lanes; a CRITICAL finding stays a
+        # person's. A symlink or submodule (an unsafe path) holds but is not a
+        # person's (owner decision 2026-10-30, #11020).
         after = PLUGIN_BASE.replace('"name": "foo",', '"name": "foo", "hooks": {},')
         unproven = babysit_merge.HeadPusherUnproven("head-pusher-unproven:a")
         cases = {
             "critical finding": (held_by(evidence=lanes(critical=1)), True),
-            "symlink": (held_by((DOC, SYMLINK)), True),
+            "symlink": (held_by((DOC, SYMLINK)), False),
             "unbound review": (held_by(evidence=lanes(bound=False)), False),
             "manifest": (held_by((DOC, manifest(after)), config=FLOOR_ON), False),
             "failed read": (held_by(evidence=unproven), False),
@@ -704,11 +706,11 @@ class AWholeReviewClearsTheHold(unittest.TestCase):
         )
         self.assertEqual(lifted and lifted[1:], (False, True))
         held = scored((DOC, REVIEWED, FLOORED), evidence=evidence)
-        self.assertEqual(held and held[1:], (True, False))
+        self.assertEqual(held and held[1:], (False, False))
 
     def test_another_holding_reason_wants_no_whole_review(self) -> None:
         held = scored((DOC, REVIEWED, SYMLINK), evidence=security(total=2, clears=True))
-        self.assertEqual(held and held[1:], (True, False))
+        self.assertEqual(held and held[1:], (False, False))
 
 
 class EvidenceCommandReadsTheRisk(unittest.TestCase):

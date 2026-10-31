@@ -3,6 +3,29 @@
 All notable changes to the `app-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0] - 2026-10-31
+
+### Added
+
+- `/app-control:drive affected --base <ref> [--head <ref>]` maps a diff to the control skill's features and writes `affected.json`, launching nothing ([#11384](https://github.com/melodic-software/claude-code-plugins/issues/11384)). `scripts/affected_features.py` does the matching. With no control skill it writes empty features and the note `No control skill: nothing matched`.
+- `--trusted-root <dir>` on every drive action reads control skills only from `<dir>` and from plugins whose folder sits under it, so a checkout under test cannot supply its own control skill.
+
+### Changed
+
+- The control-skill contract fixes the `sources` glob syntax: `**` matches across `/`, `*` and `?` match within one path segment. A plugin control skill's globs resolve against the root of the repository under verification.
+
+## [0.17.12] - 2026-10-30
+
+### Changed
+
+- A module `README.md` that the hub indexes in place of its features now lists each feature under `## Sub-features` as a full index line (path, entry-point count and `sources` globs). A caller that matches the module's hub line reads those lines to find the exact feature a changed file touches, and `/app-control:map refresh` keeps both sets of lines true. Each feature's own `README.md` is the source of truth for its entry points; the module `README.md`'s copy is rewritten from the features when they disagree, and refresh rewrites it in the same edit that changes a feature's entry point or its `driven` mark.
+
+- The control-skill contract now states four rules it was missing ([#9507](https://github.com/melodic-software/claude-code-plugins/issues/9507)).
+  - A module folder's `README.md` indexes the features under it, and the hub's index then names it in place of a line per feature.
+  - A drive through one entry point never marks another `driven`.
+  - A journey belongs to the control skill of the app where the user starts and ends it. The pages it crosses in an integrated app are steps that app owns, and every service it depends on is a dependency service that Ready checks.
+  - The server tier's Capture rows record the app's own process, and the `logs` row may name a counters recorder such as `dotnet-counters collect`.
+
 ## [0.17.11] - 2026-10-30
 
 ### Changed

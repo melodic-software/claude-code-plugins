@@ -80,16 +80,33 @@ class CostHold(_Finding):
     def test_infrastructure_as_code_holds_floor_or_not(self):
         for path in (
             "infra/Pulumi.yaml",
+            "infra/Pulumi.yml",
+            "infra/Pulumi.json",
             "infra/Pulumi.prod.yaml",
+            "infra/Pulumi.prod.yml",
+            "infra/Pulumi.prod.json",
             "infra/main.tf",
+            "infra/main.tf.json",
             "infra/prod.tfvars",
+            "infra/terraform.tfvars.json",
+            "infra/prod.auto.tfvars.json",
             "infra/main.bicep",
             "infra/main.bicepparam",
+            "deploy/azuredeploy.json",
+            "deploy/azuredeploy.parameters.json",
+            "deploy/azuredeploy.parameters.us.json",
+            "deploy/prereq.azuredeploy.json",
+            "deploy/prereqs/prereq.azuredeploy.parameters.json",
         ):
             with self.subTest(path=path):
                 result = _cost([_file(path)])
                 self.assertEqual(result.score, Risk.HIGH)
                 self.assertIn(COST_CODE, _codes(result))
+
+    def test_names_near_an_infrastructure_file_do_not_hold(self):
+        for path in ("infra/main.json", "infra/tf.json", "deploy/azuredeploy.md"):
+            with self.subTest(path=path):
+                self.assertNotIn(COST_CODE, _codes(_cost([_file(path)])))
 
     def test_a_cited_owner_decision_clears_it(self):
         result = _cost([_file("infra/Pulumi.yaml")], cost_decision=DECISION)
@@ -215,10 +232,8 @@ class ModelSpendDetections(_Finding):
         )
         result = _cost([_file(config, patch=patch)], public=True)
         self.assertReported(result)
-        self.assertEqual(
-            [r.code for r in person_reasons(holding(result))],
-            [f"high-path:{config}"],
-        )
+        self.assertIn(f"high-path:{config}", [r.code for r in holding(result)])
+        self.assertEqual(person_reasons(holding(result)), [])
         consumer = _file("conventions/pr-pipeline.yaml", patch=patch)
         result = _cost([consumer], public=True)
         self.assertReported(result)

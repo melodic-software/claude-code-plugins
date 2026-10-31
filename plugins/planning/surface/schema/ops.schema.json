@@ -215,7 +215,8 @@
         "eyebrow": {"type": "string"},
         "stages": {"type": "object", "additionalProperties": {"type": "string"}},
         "next": {"type": "string"},
-        "repo": {"type": "string"}
+        "repo": {"type": "string"},
+        "commit": {"description": "A full 40-character commit SHA, or empty to unlink paths; anything else is refused.", "type": "string"}
       }
     },
     "roundMeta": {
@@ -228,6 +229,7 @@
         "stages": {"type": "object", "additionalProperties": {"type": "string"}},
         "next": {"type": "string"},
         "repo": {"type": "string"},
+        "commit": {"type": "string"},
         "kind": {"enum": ["sweep"]}
       }
     },
