@@ -1582,6 +1582,18 @@ allowed something changes meaning. The directory follows the rules above, and a 
 glob character grants nothing. An alternative that needs no entry: point the user-level `TEMP` or
 `TMPDIR` at a directory on the drive you want, which the guard already treats as a temp root.
 
+A **segment entry** has one `*` that is a whole path segment, followed by one literal name, for
+example `D:/worktrees/*/.work` for the scratch each worktree keeps. It allows only a path strictly
+under that name inside a direct child of the directory before the `*`
+(`D:/worktrees/wt-a/.work/tmp`), and never one that is itself a symlink. It refuses the named directory itself
+(`D:/worktrees/wt-a/.work`) and its glob, a sibling of it (`D:/worktrees/wt-a/src`), the same name
+at any other depth (`D:/worktrees/wt-a/b/.work/tmp`), a one-level name or a target ending in a dot
+or a space, which Windows trims (`.work/...` names `.work`), and a trailing-slash operand whose
+target does not exist yet. The protected trees are judged first, so a `.git` or a worktree root
+stays refused. The directory before the `*` follows the rules above. An entry whose `*` shares a segment with
+other text (`D:/worktrees/wt-*/.work`) or that holds a second `*`, any other glob character, a name
+of `.` or `..`, or more than one name after the `*` grants nothing.
+
 **`block_root_delete_target_protected_trees`.** The list ADDS TO the protected trees the guard
 already refuses, and wins over every allowed root, the working tree and the temp roots included.
 A recursive delete of a listed directory, of anything under it, or of a directory holding it is
