@@ -1,0 +1,76 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:design"
+          }
+        }
+      ],
+      "why": "the design skill fired"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "design"
+          }
+        }
+      ],
+      "why": "the design skill fired by its bare name"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:audit"
+          }
+        }
+      ],
+      "why": "the audit skill fired: 'looks vibe-coded, fix it' fairly reads as a review request"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "frontend-design:frontend-design"
+          }
+        }
+      ],
+      "why": "another design skill instead"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "ai-slop:audit"
+          }
+        }
+      ],
+      "why": "near miss: the prose slop audit fired instead of the design skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "user-interface:audit-launch"
+          }
+        }
+      ],
+      "why": "near miss: a name that shares the audit prefix but is not the audit skill (launch is its argument)"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "# Why we moved the build to a single runner\n\nThe old build ran on three runners, and the cache may have drifted out of sync between them, which would explain the flaky tests.\n\nMoving to one runner cut the median build from 14 minutes to 9. The cost: two builds now queue behind each other at peak hours.\n",
+      "why": "facts kept, one hedge"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Why we moved the build to a single runner\n\nThe old build ran on three runners, and cache drift between them caused the flaky tests, as our SRE lead Dana confirmed.\n\nMoving to one runner cut the median build from 14 minutes to 9, saving 40 hours a month.\n",
+      "why": "certainty, invented person and number, queue cost dropped"
+    },
+    {
+      "answer": "# Why we moved the build to a single runner\n\nThe old build ran on three runers, and the cache may have drifted between them.\n\nMoving to one runner cut the median build from 14 minutes to 9. Two builds now queue at peak hours.\n",
+      "why": "typo planted"
+    }
+  ]
+}

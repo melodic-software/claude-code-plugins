@@ -1,0 +1,48 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "ls src",
+            "description": "x"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "src/orders.ts"
+          }
+        }
+      ],
+      "why": "no git write"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add src/orders.ts",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "staged"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git commit -m tidy",
+            "description": "x"
+          }
+        }
+      ],
+      "why": "committed"
+    }
+  ]
+}

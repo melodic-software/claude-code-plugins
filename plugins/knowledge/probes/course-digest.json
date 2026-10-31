@@ -2,9 +2,9 @@
   "skill": "knowledge:course-digest",
   "plugin": "knowledge",
   "skill_dir": "plugins/knowledge/skills/course-digest",
-  "ranking_note": "Authored from the before descriptions at commit dfef32de45, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other four knowledge skills: book-distill, docpage-digest, map-corpus, video-digest.",
+  "ranking_note": "Authored from the before descriptions at commit dfef32de45, frozen before the rewrite; protocol per /playbooks:skill-authoring ## Measurement. Competitors are the other four knowledge skills: distill, docpage-digest, map-corpus, video-digest.",
   "competitors": [
-    "knowledge:book-distill",
+    "knowledge:distill",
     "knowledge:docpage-digest",
     "knowledge:map-corpus",
     "knowledge:video-digest"

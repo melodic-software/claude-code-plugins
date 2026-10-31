@@ -3,6 +3,12 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.39] - 2026-10-31
+
+### Changed
+
+- `advise` offers `/install-github-app` as a suggest sentence, `If /install-github-app is available in your session (<gate basis>), ...`, so the marketplace's native-overlap self-check fails when the offer is deleted or reworded.
+
 ## [0.3.38] - 2026-10-30
 
 ### Changed

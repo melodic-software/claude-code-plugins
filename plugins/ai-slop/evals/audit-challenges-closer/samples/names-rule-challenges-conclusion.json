@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "docs/x.md:3 ai-slop/audit/rule-challenges-conclusion: quoted text",
+      "why": "rule named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "docs/x.md:3 reads fine.",
+      "why": "rule not named"
+    }
+  ]
+}

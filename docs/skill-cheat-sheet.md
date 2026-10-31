@@ -214,7 +214,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/actionlint:check`](../plugins/actionlint/skills/check/SKILL.md) | `actionlint` | Report whether actionlint and node are installed. Never installs. |
 | [`/adhd:clarify`](../plugins/adhd/skills/clarify/SKILL.md) | `adhd` | Reshape a dense, decision-heavy message into clear one-decision-at-a-time chunks, losing nothing |
 | [`/adhd:shape`](../plugins/adhd/skills/shape/SKILL.md) | `adhd` | Set a standing action-first output posture. Lead with the next action, cut preamble |
-| [`/ai-slop:audit`](../plugins/ai-slop/skills/audit/SKILL.md) | `ai-slop` | Detect and remove AI-writing tells from markdown prose |
+| [`/ai-slop:audit`](../plugins/ai-slop/skills/audit/SKILL.md) | `ai-slop` | Detect and remove AI-writing tells from markdown, commit messages, PR bodies and interface copy |
 | [`/animation:check-prerequisites`](../plugins/animation/skills/check-prerequisites/SKILL.md) | `animation` | Report whether the tools animation declares resolve. Never installs. |
 | [`/architecture:record-decision`](../plugins/architecture/skills/record-decision/SKILL.md) | `architecture` | Record an architecture decision in the repository's existing ADR convention |
 | [`/attribution:audit`](../plugins/attribution/skills/audit/SKILL.md) | `attribution` | Find prose copied from external sources and convert it into pointers |
@@ -335,6 +335,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/user-experience:structure`](../plugins/user-experience/skills/structure/SKILL.md) | `user-experience` | Shape user flows, information architecture and content structure, evidence-labeled |
 | [`/user-experience:synthesize`](../plugins/user-experience/skills/synthesize/SKILL.md) | `user-experience` | Synthesize research data into labeled themes, insights, needs, personas or jobs |
 | [`/user-interface:design`](../plugins/user-interface/skills/design/SKILL.md) | `user-interface` | Design interfaces from the project's system and installed tools; terminal guidance built in |
+| [`/user-interface:glossary`](../plugins/user-interface/skills/glossary/SKILL.md) | `user-interface` | Name the design or front-end term for a described effect, detail or behavior |
 | [`/visualization:present`](../plugins/visualization/skills/present/SKILL.md) | `visualization` | Slide deck through the claude.ai Slides Artifact type, outline markdown as the record |
 | [`/visualization:visualize`](../plugins/visualization/skills/visualize/SKILL.md) | `visualization` | Pick the best visual form for what is in the conversation and render it |
 | [`/wizard:generate`](../plugins/wizard/skills/generate/SKILL.md) | `wizard` | Author a hardened interactive bash wizard for human-only setup, credential, and cutover steps |

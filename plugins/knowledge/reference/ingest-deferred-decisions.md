@@ -53,7 +53,7 @@ live path; and an explicit migration of 14 live work slices.
 
 ## 4. Retrofitting sibling ingest skills to a shared ingest-slice contract
 
-Retrofitting `video-digest`, `course-digest`, and `book-distill` to a shared
+Retrofitting `video-digest`, `course-digest`, and `distill` to a shared
 ingest-slice contract was rejected for now on evidence, not preference: their
 input contracts, human-interaction points, terminal artifacts, and git posture
 diverge. `video-digest`'s slice artifacts are a committed durable base,

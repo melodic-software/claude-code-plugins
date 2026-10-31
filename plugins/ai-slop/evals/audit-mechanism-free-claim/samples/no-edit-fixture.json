@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "docs/x.md"
+          }
+        }
+      ],
+      "why": "read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/sandbox/docs/cli.md",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "edited the audited file"
+    }
+  ]
+}

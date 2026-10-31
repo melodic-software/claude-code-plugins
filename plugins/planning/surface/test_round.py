@@ -113,7 +113,7 @@ class DirCase(unittest.TestCase):
         (self.dir / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
 
     def write_events(self, events):
-        from server import rebuild_responses
+        from interview_server import rebuild_responses
 
         responses, history = rebuild_responses(events)
         seq = max([e["seq"] for e in events] or [0])
@@ -3122,7 +3122,7 @@ class TestPropose(DirCase):
         return out + err
 
     def state(self, qid):
-        from server import EMPTY_RESPONSES, load_json, question_states
+        from interview_server import EMPTY_RESPONSES, load_json, question_states
 
         r = load_json(self.dir / "responses.json", EMPTY_RESPONSES)
         return question_states(self.doc(), r)[qid][0]
@@ -3402,7 +3402,7 @@ class TestRebuild(unittest.TestCase):
             conn.close()
 
     def test_full_scenario_rebuilds_equal(self):
-        from server import rebuild_responses
+        from interview_server import rebuild_responses
 
         steps = [
             {"id": "Q1", "kind": "accept", "text": ""},
@@ -3436,7 +3436,7 @@ class TestRebuild(unittest.TestCase):
         self.assertEqual(rc, 0, out + err)
 
     def test_confirm_records_no_decision(self):
-        from server import rebuild_responses
+        from interview_server import rebuild_responses
 
         at = "2026-09-24T10:00:00Z"
         events = [
@@ -3474,7 +3474,7 @@ class TestRestartsAnOldServer(unittest.TestCase):
         )
         self.addCleanup(run_round, self.dir, "stop")
         self.old = subprocess.Popen(
-            [sys.executable, str(old / "server.py"), "--dir", str(self.dir), "--nonce", "old"],
+            [sys.executable, str(old / "interview_server.py"), "--dir", str(self.dir), "--nonce", "old"],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -5217,7 +5217,7 @@ class TestConstraintRecheck(DirCase):
         return {u["id"]: u["changedBy"] for u in json.loads(out)["upstreamChanged"]}
 
     def state(self, qid):
-        from server import EMPTY_RESPONSES, derive_states, load_json
+        from interview_server import EMPTY_RESPONSES, derive_states, load_json
 
         responses = load_json(self.dir / "responses.json", EMPTY_RESPONSES)
         return derive_states(self.doc(), responses)[0][qid][0]

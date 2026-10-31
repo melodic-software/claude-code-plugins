@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "I need the changed lines named first: pass a lines file (one `<start>\t<count>\t<path>` row per hunk). I did not tidy anything.",
+      "why": "names the missing input, no tidy"
+    },
+    {
+      "answer": "No lines file was given, so there is no scope to tidy. Write a file-and-line list of your change and run me again with it; nothing was changed.",
+      "why": "names the missing input"
+    },
+    {
+      "answer": "Rows taken: none. `tidy` is not a readable lines file, so no row is left: nothing to tidy.",
+      "why": "base nothing-to-tidy stop"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Tidied src/cart.py: deleted `# increment the counter` (COMMENT-ONLY) and proposed `return len(items)`.",
+      "why": "tidied without a lines file"
+    },
+    {
+      "answer": "I read `git diff` to find your changed lines (src/cart.py 4-9) and tidied them.",
+      "why": "derived scope from git"
+    }
+  ]
+}

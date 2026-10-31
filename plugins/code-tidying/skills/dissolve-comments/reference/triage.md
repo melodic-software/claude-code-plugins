@@ -19,7 +19,12 @@ The comment adds nothing beyond the adjacent code, or is actively wrong.
 - Obsolete: describes behavior the code no longer has, including a class-C claim the re-check
   below finds the current code contradicts
 - Commented-out code (version control owns history)
+- A section divider (`// ===== Helpers =====`)
+- A file-level summary block that lists everything the code below does: it goes stale on the first
+  edit and nobody reads it
 - Names where the block came from or when it was added (git history owns origin)
+- Describes the change rather than the code (`// Updated to use the new API`, `// Now handles
+  null`, `// NEW:`): its explanation belongs in the commit message
 
 Deletion is the complete treatment: no refactor needed, no information lost. This class overlaps
 `/code-tidying:audit-comment-residue`'s five residue shapes (history narration, plan references,
@@ -157,7 +162,8 @@ before the deletion is final. See [safety.md](safety.md).
   quasi-behavioral. Never touched, in any mode.
 - **Private/internal doc comments** get the same three-way triage as any comment, a deliberate
   doctrine choice (the Martin pole for internal interfaces): a private method whose docstring
-  restates its name and parameters is class A/B; one carrying a real contract is class C.
+  restates its name and parameters is class A/B; one carrying a real contract (constraints, units,
+  side effects, surprising behavior) is class C.
 
 ## Worked examples
 
@@ -165,6 +171,10 @@ before the deletion is final. See [safety.md](safety.md).
 |---|---|---|
 | `// loop over users` above a `foreach` | A | Delete |
 | `# TODO remove this later` (no issue) | A | Delete (a `TODO(#123)` is exempt) |
+| `// ===== Helpers =====` | A | Delete |
+| A file header listing everything the code below does | A | Delete |
+| `@param userId - the ID of the user` on a private method | A | Delete (on an exported surface it is exempt, see Doc comments) |
+| `// Step 1: parse input` inside a long function | B | Extract Function `parseInput`, test, delete |
 | `// check if the order qualifies for the discount` above 6 lines of conditions | B | Extract Function `QualifiesForDiscount(order)`, test, delete |
 | `// 86400 = seconds per day` | B | Replace Magic Literal `SecondsPerDay`, delete |
 | `// items must stay sorted; binary search below depends on it` | C | Keep (constraint, load-bearing, terse) |
