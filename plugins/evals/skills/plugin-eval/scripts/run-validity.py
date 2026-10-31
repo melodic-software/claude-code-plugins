@@ -38,7 +38,9 @@ one line per check, detail lines indented under it:
                       at or under the plugin's directory (suite.root or a
                       suite.plugins path), at a directory above it, or with
                       no absolute path or no known plugin directory, is
-                      always a FAIL
+                      a FAIL; in an invocation-probe case any denial but a
+                      Skill call's is a warning, since the probe grades only
+                      whether the Skill call fired
     skill fired       every with-arm run of a should-trigger case fired the skill;
                       in an invocation-probe case a miss is the trigger rate it
                       measures, reported per case and overall as a warning
@@ -723,7 +725,7 @@ def bash_paths(command):
 def denials(run):
     """Every denied tool call in one trace, keyed by tool_use_id, as (detail line,
     the paths it targets: a Bash call's rooted arguments, else the target path or
-    None)."""
+    None, the tool's name)."""
     calls, found = {}, {}
     for line in run.trace:
         for block in as_list(as_dict(line.get(MESSAGE)).get(CONTENT)):
@@ -754,6 +756,7 @@ def denials(run):
             (
                 "%s: %s %s (%s)" % (run.where, name or "tool", target, run.trace_path),
                 paths,
+                name,
             )
         )
     return out
@@ -780,7 +783,7 @@ def same_as_clean(run, found, runs, roots):
     in the same arm, the case has at least one, every sibling in that arm has a
     readable trace, and no with-arm denial is aimed inside the plugin."""
     if run.arm == "with" and any(
-        inside(path, roots) for _, paths in found[run] for path in paths
+        inside(path, roots) for _, paths, _ in found[run] for path in paths
     ):
         return False
     siblings = [
@@ -797,20 +800,33 @@ def same_as_clean(run, found, runs, roots):
     )
 
 
-def check_denials(runs, roots):
+def probe_denial(run, found, root):
+    """True when a run of an invocation-probe case was denied only calls other than
+    Skill: the probe grades whether the Skill call fired, which loads the skill
+    without Read, Glob or Grep, so the denial hid nothing the grader reads."""
+    return is_probe(run.case, root) and all(
+        name != SKILL_TOOL for _, _, name in found[run]
+    )
+
+
+def check_denials(runs, roots, root):
     traced = [r for r in runs if r.trace is not None]
     found = {r: denials(r) for r in traced}
     denied = [r for r in traced if found[r]]
-    warned = [r for r in denied if same_as_clean(r, found, runs, roots)]
+    warned = [
+        r
+        for r in denied
+        if probe_denial(r, found, root) or same_as_clean(r, found, runs, roots)
+    ]
     failed = [r for r in denied if r not in warned]
-    details = [line for r in denied for line, _ in found[r]]
+    details = [line for r in denied for line, _, _ in found[r]]
     summary = "%s in %s" % (plural(len(details), "denial"), plural(len(denied), "run"))
     warned_cases = sorted({r.case.get(CASE_NAME) for r in warned}, key=str)
     if warned:
         summary += (
-            "; runs scoring the same as their case's denial-free runs in the same"
-            " arm, with no with-arm denial inside the plugin, are warnings: %s"
-            % ", ".join(warned_cases)
+            "; warnings (an invocation probe denied only calls other than Skill, or"
+            " a run scoring the same as its case's denial-free runs in the same arm"
+            " with no with-arm denial inside the plugin): %s" % ", ".join(warned_cases)
         )
     if failed:
         reason = "%s in the traces" % plural(
@@ -1134,7 +1150,7 @@ def main(argv=None):
         lines.append("traces: %d of %d tracePaths resolve" % (len(runs), len(runs)))
     later = [
         ("session started", check_started(runs)),
-        ("permission denials", check_denials(runs, plugin_roots)),
+        ("permission denials", check_denials(runs, plugin_roots, root)),
         ("skill fired", check_fired(cases, runs, root)),
         ("models", check_models(result, runs)),
         ("judge votes", check_votes(runs)),

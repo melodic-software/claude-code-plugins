@@ -547,6 +547,50 @@ class RunValidityTest(unittest.TestCase):
             "  case measurable-criterion, with-arm run 1: Grep x", proc.stdout
         )
 
+    def denied_probe(self, tool, tags="tags: [invocation-probe, train]"):
+        """measurable-criterion's with-arm run denied one `tool` call aimed at the
+        plugin's own directory, its prompt.md carrying tags."""
+        result = self.clean()
+        case = result["cases"][1]
+        prompt = self.dir / "suite" / case["dir"] / "prompt.md"
+        prompt.write_text(
+            "---\ndescription: invocation probe x\n%s\nmax_turns: 8\n---\n\nQ\n" % tags,
+            encoding="utf-8",
+        )
+        tool_input = (
+            {"skill": "evals:methodology"}
+            if tool == "Skill"
+            else {"pattern": "**/SKILL.md", "path": str(self.dir / "suite")}
+        )
+        trace = self.dir / "denied-probe.jsonl"
+        trace.write_text(
+            '{"type":"system","subtype":"init","model":"claude-opus-5-5"}\n'
+            + json.dumps({"type": "result", "is_error": False, "permission_denials": [
+                {"tool_name": tool, "tool_use_id": "d1", "tool_input": tool_input}]})
+            + "\n",
+            encoding="utf-8",
+        )
+        path = self.write(result)
+        data = load(path)
+        data["cases"][1]["arms"]["with"][0]["tracePath"] = str(trace)
+        path.write_text(json.dumps(data), encoding="utf-8")
+        return self.run_script(path, "--runs", "1")
+
+    def test_a_probe_denied_a_search_inside_the_plugin_is_a_warning(self):
+        proc = self.denied_probe("Glob")
+        self.assertIn("check permission denials: WARN", proc.stdout)
+        self.assertNotIn("permission denial in the traces", proc.stdout)
+
+    def test_a_probe_denied_its_skill_call_is_invalid(self):
+        proc = self.denied_probe("Skill")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check permission denials: FAIL", proc.stdout)
+
+    def test_a_non_probe_denied_a_search_inside_the_plugin_is_invalid(self):
+        proc = self.denied_probe("Glob", tags="tags: [knowledge]")
+        self.assertVerdict(proc, "INVALID", 1)
+        self.assertIn("check permission denials: FAIL", proc.stdout)
+
     def test_a_denial_names_the_path_it_was_aimed_at(self):
         trace = self.dir / "denied-paths.jsonl"
         trace.write_text(
