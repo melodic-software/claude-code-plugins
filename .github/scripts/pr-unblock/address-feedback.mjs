@@ -7,7 +7,8 @@
 //           model turn, with the job's read-only token: keeps the unresolved
 //           review threads the reviewer bot or a listed review bot opened
 //           in a review on a head a review lane's marker confirms, when
-//           every comment is the bot's,
+//           every comment is the bot's (a listed bot's only behind a trusted
+//           person's `@codex` request, requestSkip),
 //           a trusted person with write access asked the lane to fix it, or
 //           a trusted person answered the lane's escalation, then decides
 //           skip (no such thread), escalate (the PR changes
@@ -686,6 +687,121 @@ export function threadAuthors(comments, { reviewerId, reviewerIds = [], appId, t
   return authors;
 }
 
+// A `@codex` mention in any case, as a whole handle: the request that asks
+// chatgpt-codex-connector[bot] for a review. Code spans and fences count, as
+// the bot answers a mention there.
+export const CODEX_MENTION = /(?:^|[^\w@/.-])@codex(?![\w-])/i;
+// What counts as an untrusted request: `@codex` after any character, so a
+// form the bot may also answer (`x.@codex`) never slips past (fail closed).
+const ANY_CODEX_MENTION = /@codex(?![\w-])/i;
+
+// Why the `@codex` request behind a listed bot's review is not a trusted
+// person's, or null when it is. Anyone can comment `@codex` on a public repository, so a
+// request is looked for in the window from the same bot's previous review to
+// this one (`authorId`'s review submitted at `submittedAt`): `mentions` are
+// the PR's issue comments, review comments and review bodies, each
+// { authorId, createdAt, editedAt, body }, and `reviews` its reviews, each
+// { authorId, submittedAt }. The listed bots' own text never counts (Codex's
+// review names `@codex review` in its help text). Any untrusted request in the
+// window, by creation or last edit, fails it; so does none from a trusted
+// person (an automatic review, or a request answered earlier), or an
+// unreadable review time.
+//
+// With no `@codex` comment the review is automatic, asked for by whoever
+// triggered it: the PR's author on opening, or the actor of a ready-for-review
+// event (`triggers`, readTriggers). Which one cannot be told apart, so every
+// such event in the window must be a trusted person's or one of `ownIds` (the
+// lanes App, APP_SENDER_ID); one by anyone else fails it. An event with no
+// readable time is not counted, and unreadable triggers (null) count none.
+export function codexRequest({ authorId, submittedAt, reviews, mentions, triggers = null, reviewerIds = [], trustedHumans = new Set(), ownIds = new Set() }) {
+  const at = Date.parse(submittedAt ?? "");
+  if (Number.isNaN(at)) {
+    return { reason: "codex-request-not-found" };
+  }
+  const since = Math.max(...reviews.filter((review) => review.authorId === authorId).map((review) => Date.parse(review.submittedAt ?? "")).filter((time) => time < at));
+  const within = (time) => time > since && time <= at;
+  let trusted = false;
+  for (const mention of mentions) {
+    const trustedAuthor = trustedHumans.has(mention.authorId);
+    if (reviewerIds.includes(mention.authorId) || !(trustedAuthor ? CODEX_MENTION : ANY_CODEX_MENTION).test(String(mention.body ?? ""))) {
+      continue;
+    }
+    const created = Date.parse(mention.createdAt ?? "");
+    if (trustedAuthor) {
+      trusted ||= within(created);
+    } else if (Number.isNaN(created) || within(created) || within(Date.parse(mention.editedAt ?? ""))) {
+      return { reason: "codex-request-untrusted", requester: mention.authorId, via: "@codex request" };
+    }
+  }
+  const events = triggers
+    ? [{ via: "opening of the pull request", ...triggers.opened }, ...triggers.ready.map((event) => ({ via: "ready-for-review event", ...event }))]
+    : [];
+  for (const event of events) {
+    if (!within(Date.parse(event.at ?? ""))) {
+      continue;
+    }
+    if (!trustedHumans.has(event.actorId) && !ownIds.has(event.actorId)) {
+      return { reason: "codex-request-untrusted", requester: event.actorId, via: event.via };
+    }
+    trusted = true;
+  }
+  return trusted ? null : { reason: "codex-request-not-found" };
+}
+
+// The events that start an automatic review, for codexRequest: the PR's
+// opening (its author and creation time) and each ready-for-review event of
+// its REST issue timeline. `pull` is the REST pull request when the caller
+// already read it. A failed read is null, which counts no event.
+export async function readTriggers({ api, pr, pull }) {
+  try {
+    const [read, timeline] = await Promise.all([pull ?? api.getPull(pr), api.listTimeline(pr)]);
+    return {
+      opened: { actorId: read?.user?.id, at: read?.created_at },
+      ready: timeline.filter((event) => event?.event === "ready_for_review").map((event) => ({ actorId: event.actor?.id, at: event.created_at })),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Whether any of `authorIds` is a listed bot's, so readTriggers is worth a read.
+export const anyListed = (authorIds, reviewerIds = []) => reviewerIds.length > 0 && authorIds.some((id) => reviewerIds.includes(id));
+
+// Why a thread threadAuthors accepted (`authors`) is not worked for want of a
+// trusted `@codex` request (codexRequest), or null. Only a thread no trusted
+// person directed is checked, at each listed bot's comment (`comments`, each
+// { authorId, review: { authorId, submittedAt } }). The select step and the
+// reply job (keepThreads) and the dispatcher (feedback-dispatch.mjs) all ask.
+export function requestSkip({ authors, comments, reviews, mentions, triggers = null, reviewerIds = [], trustedHumans, ownIds = new Set() }) {
+  if (authors.some((author) => author.direction === true)) {
+    return null;
+  }
+  for (const comment of comments) {
+    if (reviewerIds.includes(comment.authorId)) {
+      const submittedAt = comment.review?.authorId === comment.authorId ? comment.review.submittedAt : undefined;
+      const skip = codexRequest({ authorId: comment.authorId, submittedAt, reviews, mentions, triggers, reviewerIds, trustedHumans, ownIds });
+      if (skip) {
+        return skip;
+      }
+    }
+  }
+  return null;
+}
+
+// The log line for a requestSkip answer: ids and a fixed reason, never a body.
+export const requestSkipLine = (id, skip) =>
+  `skip thread ${id}: ${skip.reason} (${
+    skip.reason === "codex-request-untrusted"
+      ? `the ${skip.via} behind the bot's review came from account ${skip.requester}, not on the trusted-actor list`
+      : "no trusted @codex request, and no readable opening or ready-for-review event, since the bot's previous review"
+  })`;
+
+// The `@codex` request candidates of a PR's REST rows, for codexRequest.
+export const restMentions = ({ issueComments = [], reviewComments = [], reviews = [] }) => [
+  ...[...issueComments, ...reviewComments].map((row) => ({ authorId: row.user?.id, createdAt: row.created_at, editedAt: row.updated_at, body: row.body })),
+  ...reviews.map((review) => ({ authorId: review.user?.id, createdAt: review.submitted_at, body: review.body })),
+];
+
 // Whether a thread threadAuthors accepted (`authors`) sits on a review its
 // finder submitted on a marker-confirmed head: the reviewer bot's, a listed review bot's,
 // github-actions[bot]'s for a verifier note or a lane comment, or the trusted
@@ -709,10 +825,15 @@ export function onReviewedHead({ authors, firstAuthorId, review, heads }) {
 // marker-confirmed head (any head for a thread carrying
 // a trusted person's direction), and threadAuthors accepts its comments.
 // A thread with more comments than one page reads is left alone. A listed
-// review bot's comment is tagged `listed`, from its account id alone.
-export function keepThreads({ threads, reviewComments, reviews, heads, security = { reviewed: new Set(), holds: [] }, reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set() }) {
+// review bot's comment is tagged `listed`, from its account id alone. A
+// thread requestSkip refuses (no trusted `@codex` request behind a listed
+// bot's review, read from `issueComments`, the review comments and the
+// reviews) is left alone, its reason logged.
+export function keepThreads({ threads, reviewComments, reviews, heads, security = { reviewed: new Set(), holds: [] }, reviewerId, reviewerIds = [], appId, trustedHumans = new Set(), requesters = null, fixers = requesters ?? new Set(), issueComments = [], triggers = null, log = () => {} }) {
   const comments = new Map(reviewComments.map((comment) => [comment.id, comment]));
   const reviewsById = new Map(reviews.map((review) => [review.id, review]));
+  const mentions = restMentions({ issueComments, reviewComments, reviews });
+  const reviewTimes = reviews.map((review) => ({ authorId: review.user?.id, submittedAt: review.submitted_at }));
   const kept = [];
   for (const thread of threads) {
     if (thread.isResolved || thread.comments.totalCount > THREAD_COMMENT_CAP) {
@@ -738,6 +859,23 @@ export function keepThreads({ threads, reviewComments, reviews, heads, security 
     }
     const review = reviewsById.get(rows[0].pull_request_review_id);
     if (!onReviewedHead({ authors, firstAuthorId: rows[0].user?.id, review, heads })) {
+      continue;
+    }
+    const skip = requestSkip({
+      authors,
+      comments: rows.map((row) => {
+        const own = reviewsById.get(row.pull_request_review_id);
+        return { authorId: row.user?.id, review: own && { authorId: own.user?.id, submittedAt: own.submitted_at } };
+      }),
+      reviews: reviewTimes,
+      mentions,
+      triggers,
+      reviewerIds,
+      trustedHumans,
+      ownIds: new Set([appId]),
+    });
+    if (skip) {
+      log(requestSkipLine(thread.id, skip));
       continue;
     }
     kept.push({
@@ -776,6 +914,7 @@ export async function select({
   maxRounds = DEFAULT_MAX_ROUNDS,
   adoption = NO_ADOPTION,
   ci = async () => undefined,
+  log = () => {},
 }) {
   const [pull, files, issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.getPull(pr),
@@ -830,6 +969,9 @@ export async function select({
     trustedHumans,
     requesters: gated ? fixers : null,
     fixers,
+    issueComments,
+    triggers: anyListed(reviewComments.map((row) => row.user?.id), reviewerIds) ? await readTriggers({ api, pr, pull }) : null,
+    log,
   });
   // An unresolved thread the lane does not take (a reviewer it does not
   // trust, a review on an older head, a reply it already gave) would block
@@ -963,7 +1105,7 @@ export function runRecord(file, reviewedHeads, ci) {
 // The kept threads of a PR as they are now: the reply job's re-read, judged
 // against `heads` (the select job's reviewed heads) when given, else the
 // markers as they are now.
-export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], appId, trustedHumans, heads }) {
+export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], appId, trustedHumans, heads, log = () => {} }) {
   const [issueComments, reviews, reviewComments, threads] = await Promise.all([
     api.listIssueComments(pr),
     api.listReviews(pr),
@@ -971,10 +1113,11 @@ export async function currentThreads({ api, pr, reviewerId, reviewerIds = [], ap
     api.listThreads(pr),
   ]);
   const fixers = await reviewFixers({ reviewComments, trustedHumans, permission: api.getPermission });
+  const triggers = anyListed(reviewComments.map((row) => row.user?.id), reviewerIds) ? await readTriggers({ api, pr }) : null;
   return {
     issueComments,
     reviewComments,
-    kept: keepThreads({ threads, reviewComments, reviews, heads: heads ?? reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers }),
+    kept: keepThreads({ threads, reviewComments, reviews, heads: heads ?? reviewedHeads(issueComments), security: securitySignals(issueComments), reviewerId, reviewerIds, appId, trustedHumans, fixers, issueComments, triggers, log }),
   };
 }
 
@@ -1393,6 +1536,7 @@ export async function main(argv, env, { api, log = (line) => console.log(line) }
       maxRounds: maxRoundsFrom(env.REVIEW_ROUNDS),
       adoption: await ownerAdoption(env, log),
       ci: ({ headSha, files }) => ciSnapshot({ api: client, headSha, files }),
+      log,
     });
   };
   if (command === "select" && env.VERIFY_PASS_HEAD) {
