@@ -63,11 +63,11 @@ else
   ok "step fails the job on its exit code"
 fi
 order="$(grep -nE "^  ci-status:$|^      - name: ($NAME|Aggregate lane results)$" "$WORKFLOW" | cut -d: -f1 | paste -sd' ')"
-read -r job_line lanes_line agg_line <<<"$order"
-if [[ -n "${agg_line:-}" && "$job_line" -lt "$lanes_line" && "$lanes_line" -lt "$agg_line" ]]; then
-  ok "step sits in ci-status before the aggregate, so ci-lanes is written when it fails"
+read -r job_line agg_line lanes_line <<<"$order"
+if [[ -n "${lanes_line:-}" && "$job_line" -lt "$agg_line" && "$agg_line" -lt "$lanes_line" ]]; then
+  ok "step sits in ci-status after the aggregate, so a contract-only run's hold is not cut short by a review still running"
 else
-  fail "step is not inside ci-status before the aggregate (lines: $order)"
+  fail "step is not inside ci-status after the aggregate (lines: $order)"
 fi
 
 # The exempt ids are the trusted-actor list's Dependabot, release App and
