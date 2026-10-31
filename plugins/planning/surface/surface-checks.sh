@@ -48,7 +48,7 @@ fi
 cd "$here" || exit 1
 if [[ "$part" == main || "$part" == all ]]; then
   files=()
-  for f in server.py round.py round.sh watch.sh wake.sh index.html exporters.py schema.py schema/*.schema.json tests/*.js; do
+  for f in interview_server.py round.py round.sh watch.sh wake.sh index.html exporters.py schema.py schema/*.schema.json tests/*.js; do
     [[ -f "$f" ]] && files+=("$f")
   done
 
