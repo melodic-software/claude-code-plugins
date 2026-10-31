@@ -118,7 +118,7 @@ states which taxonomy row applies and how it satisfies fail-loud or agent-readab
 
 ## Enforceability
 
-Classified per `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`:
+Classified per `melodic-software/standards` `standards/engineering/enforceability-tiers.md`:
 
 | Judgment | Tier |
 |---|---|
@@ -148,4 +148,4 @@ instance rows is a minor bump; docs-only clarification is a patch.
 
 - [`plugin-philosophy` Prerequisites and failure behavior](../../plugin-philosophy.md#prerequisites-and-failure-behavior): prose doctrine this convention specializes.
 - [`hook-observability`](../hook-observability/README.md): hook-shaped visibility surfaces and the `silent-skip-gate` slice.
-- `melodic-software/standards` `conventions/engineering/enforceability-tiers.md`: tier vocabulary and routing rule.
+- `melodic-software/standards` `standards/engineering/enforceability-tiers.md`: tier vocabulary and routing rule.

@@ -1058,3 +1058,45 @@ test("the prompt says a rename-only entry is unseen and a change that references
   // It sits with the diff parts, before the placeholder they replace.
   assert.ok(prompt.indexOf("rename from") < prompt.indexOf("DIFF_PARTS"));
 });
+
+// An upstream-status skip fails the leg before its review starts, so the run
+// is a failed first attempt the lost-run reconciler re-runs once with a record
+// (reconcile.mjs RECORDED_LANES, holdReason); a kill-switch stop stays green.
+test("each leg's kill-switch report fails on an upstream outage and passes a kill-switch stop", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "report-"));
+  try {
+    for (const job of LEGS) reportCases(job, dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+function reportCases(job, dir) {
+  {
+    const block = step("Report the kill switch", job);
+    const body = block
+      .slice(block.indexOf("        run: |\n"))
+      .split("\n")
+      .filter((line) => line.startsWith("          "))
+      .map((line) => line.slice(10))
+      .join("\n");
+    const run = (env) => {
+      const out = path.join(dir, `${job}-${Object.values(env).join("-")}`);
+      const result = spawnSync("bash", ["-e", "-c", body], {
+        env: { PATH: process.env.PATH, GITHUB_OUTPUT: out, ...env },
+        encoding: "utf8",
+      });
+      return { ...result, output: readFileSync(out, { encoding: "utf8", flag: "a+" }) };
+    };
+    const outage = run({ PROCEED: "true", LANE_SWITCH: "", UPSTREAM_DEGRADED: "true" });
+    assert.equal(outage.status, 1, job);
+    assert.match(outage.stdout, /^::error::an upstream outage stops this review; /m, job);
+    assert.equal(outage.output, "", job);
+    const killed = run({ PROCEED: "false", REASON: "disabled", LANE_SWITCH: "", UPSTREAM_DEGRADED: "" });
+    assert.equal(killed.status, 0, job);
+    assert.match(killed.stdout, /^::notice::a kill switch stops this review \(/m, job);
+    const proceed = run({ PROCEED: "true", LANE_SWITCH: "", UPSTREAM_DEGRADED: "false" });
+    assert.equal(proceed.status, 0, job);
+    assert.equal(proceed.output, "proceed=true\n", job);
+  }
+}

@@ -567,6 +567,13 @@
       "defaultEnabled": false
     },
     {
+      "name": "sql-server",
+      "source": "./plugins/sql-server",
+      "category": "development",
+      "tags": ["sql-server", "azure-sql", "t-sql", "database", "read-only", "mcp"],
+      "defaultEnabled": false
+    },
+    {
       "name": "dometrain",
       "source": "./plugins/dometrain",
       "category": "discovery",

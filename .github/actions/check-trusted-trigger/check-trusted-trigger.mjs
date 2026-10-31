@@ -81,13 +81,47 @@ const ciStatusRerunRecorder = (workflow) => ({
 
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// detail is responseDetail's line for the answer, kept out of the message so
+// a caller that logs only the message logs what it did before.
 export class GitHubError extends Error {
-  constructor(status, what) {
+  constructor(status, what, detail = "") {
     super(`${what} failed with status ${status}`);
     this.name = "GitHubError";
     this.status = status;
+    this.detail = detail;
   }
 }
+
+// Why GitHub refused a call, from the answer already in hand, so it costs no
+// request: the status, the x-ratelimit-remaining, -reset and -resource
+// headers ("none" when absent), retry-after when sent, and the body's first
+// 200 characters. x-ratelimit-resource names "the rate limit resource that the
+// request counted against", and a secondary limit's 403 or 429 carries "an
+// error message that indicates that you exceeded a secondary rate limit"
+// (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api);
+// retry-after, x-ratelimit-remaining and x-ratelimit-reset say when to call
+// again (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately).
+// The body is JSON-quoted and % escaped, so it cannot end or re-encode the
+// annotation line it goes in. A body already read is "".
+export async function responseDetail(response) {
+  const header = (name) => response.headers?.get?.(name) ?? null;
+  let text = "";
+  try {
+    text = await response.clone().text();
+  } catch {
+    text = "";
+  }
+  const fields = [
+    `status=${response.status}`,
+    ...["remaining", "reset", "resource"].map((key) => `x-ratelimit-${key}=${header(`x-ratelimit-${key}`) ?? "none"}`),
+    ...(header("retry-after") === null ? [] : [`retry-after=${header("retry-after")}`]),
+    `body=${JSON.stringify(text.slice(0, 200))}`,
+  ];
+  return fields.join(" ").replaceAll("%", "%25");
+}
+
+// The annotation suffix for a thrown error's responseDetail, or "".
+export const detailSuffix = (error) => (typeof error?.detail === "string" && error.detail ? ` [${error.detail}]` : "");
 
 // Wraps a fetch so an idempotent request (a GET, or a GraphQL query) has each
 // attempt aborted after attemptTimeoutMs, and is sent again after 2 s, 4 s and
@@ -249,7 +283,7 @@ export function createGitHub({
     });
     onResponse?.(response);
     if (!response.ok) {
-      throw new GitHubError(response.status, `${method} ${apiPath}`);
+      throw new GitHubError(response.status, `${method} ${apiPath}`, await responseDetail(response));
     }
     // A success can carry no body: 204, or the 201 a workflow re-run answers.
     const text = await response.text();

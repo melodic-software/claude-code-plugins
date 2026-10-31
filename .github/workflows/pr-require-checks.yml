@@ -5230,7 +5230,10 @@ jobs:
                 elif $s != null and $s.conclusion != "skipped" then "red \($s.conclusion)"
                 elif $k.conclusion == "success" and any($k.steps[]?; .name == "Report the kill switch" and .conclusion == "success") then "stopped"
                 elif $run_status != "completed" then "pending"
+                elif $k.conclusion == "failure" and any($k.steps[]?; .name == "Stop on upstream status" and .conclusion == "failure") then "upstream"
+                elif $k.conclusion == "failure" and (any($k.steps[]?; .name == "Stop on upstream status" and .conclusion != null) | not) then "upstreamunlisted \($k.id)"
                 elif $k.conclusion == "success" and (any($k.steps[]?; .name == "Report the kill switch" and .conclusion != null) | not) then "killunlisted \($k.id)"
+                elif $k.conclusion == "success" and any($k.steps[]?; .name == "Check upstream status" and .conclusion == "success") then "gateskip \($k.id)"
                 else "missing \($k.conclusion // "absent")" end' <<<"$jobs")
           }
           # record_at <job> <sha>: sets record from the job's review-complete
@@ -5280,6 +5283,23 @@ jobs:
               failed=1
               continue
             fi
+            # The hosted callers' `Stop on upstream status` step fails the
+            # kill-switch job with this lane's error while GitHub Actions or
+            # npm lists an outage (.github/actions/check-upstream-status).
+            if [[ $verdict =~ ^upstreamunlisted\ ([1-9][0-9]*)$ ]]; then
+              job=${BASH_REMATCH[1]}
+              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
+              verdict=$(jq -r 'if any(.[]?; .annotation_level == "failure" and ((.message // "") | test("^an upstream outage stops this (security )?review \\(")))
+                then "upstream" else "missing failure" end' <<<"$notes")
+            fi
+            # A run from before that step skipped the review with the gate's
+            # notice and a kill-switch job that succeeded.
+            if [[ $verdict =~ ^gateskip\ ([1-9][0-9]*)$ ]]; then
+              job=${BASH_REMATCH[1]}
+              notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
+              verdict=$(jq -r 'if any(.[]?; .annotation_level == "notice" and ((.message // "") | test("^upstream status: .*; this run is skipped$")))
+                then "gateskipped" else "missing success" end' <<<"$notes")
+            fi
             if [[ $verdict =~ ^killunlisted\ ([1-9][0-9]*)$ ]]; then
               job=${BASH_REMATCH[1]}
               notes=$(read_api "the annotations of job $job" "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations?per_page=100") || exit 1
@@ -5316,6 +5336,14 @@ jobs:
               ;;
             stopped)
               echo "::error::'$check' did not run on $HEAD_SHA ($url): a kill switch was on when it started. Once it is off, re-run all jobs of $url; ci-status re-runs when it finishes."
+              failed=1
+              ;;
+            upstream)
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): GitHub Actions or npm listed an outage on its status page when it started. Within 24 hours of the run, the lost-run reconciler re-runs its failed jobs once, as soon as neither lists an outage and GitHub Actions is operational. Once that review passes, a person re-runs this ci-status job, not the review run, so pr-verify accepts it; after 24 hours, push to the head."
+              failed=1
+              ;;
+            gateskipped)
+              echo "::error::'$check' did not run on $HEAD_SHA ($url): the upstream status gate skipped it when it started. Once GitHub Actions and npm are operational, re-run all jobs of $url; ci-status re-runs when it finishes."
               failed=1
               ;;
             pending)
