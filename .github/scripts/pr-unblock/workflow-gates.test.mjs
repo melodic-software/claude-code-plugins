@@ -324,7 +324,8 @@ test("pr-feedback-dispatch.yml re-runs ci-status after a pr-unblock dispatch on 
   assert.equal(review({ "github.event.workflow_run.head_repository.full_name": "fork/repo" }), false);
   assert.equal(review({ "github.ref": "refs/heads/feat/x" }), false);
   const text = readFileSync(new URL("../../workflows/pr-feedback-dispatch.yml", import.meta.url), "utf8");
-  assert.match(text, /\n    workflows: \[[^\]]*\bpr-unblock\b[^\]]*\bpr-review-approved\b[^\]]*\]\n/, "both are workflow_run upstreams");
+  const upstreams = text.match(/\n    workflows: \[([^\]]*)\]\n/)[1].split(",").map((name) => name.trim());
+  for (const name of ["pr-unblock", "pr-review-approved"]) assert.ok(upstreams.includes(name), `${name} is a workflow_run upstream`);
 });
 
 // The relay starts a runner only for an approval of a same-repository PR.
