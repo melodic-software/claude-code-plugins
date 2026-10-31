@@ -185,7 +185,7 @@ function mergeEntries(entries) {
 }
 
 // The whole-spec judgment's schema: the verdict's, and each done-when item with
-// the chunk that delivers it, or null.
+// the chunks that together deliver it, none when no chunk does.
 export const FINAL_SCHEMA = Object.freeze({
   type: "object",
   properties: {
@@ -196,8 +196,8 @@ export const FINAL_SCHEMA = Object.freeze({
       type: "array",
       items: {
         type: "object",
-        properties: { item: { type: "string" }, chunk: { type: ["integer", "null"], minimum: 1 } },
-        required: ["item", "chunk"],
+        properties: { item: { type: "string" }, chunks: { type: "array", items: { type: "integer", minimum: 1 } } },
+        required: ["item", "chunks"],
         additionalProperties: false,
       },
     },
@@ -216,14 +216,14 @@ export function parseFinal(output, count) {
     throw new Error("the structured output does not match the verdict schema");
   }
   const { items, ...rest } = output;
-  if (!items.every((entry) => isObject(entry) && typeof entry.item === "string" && (entry.chunk === null || Number.isInteger(entry.chunk)))) {
+  if (!items.every((entry) => isObject(entry) && typeof entry.item === "string" && Array.isArray(entry.chunks) && entry.chunks.every(Number.isInteger))) {
     throw new Error("the structured output does not match the verdict schema");
   }
   const parsed = parseOutput(rest);
   if (parsed.verdict === "fail") {
     return parsed;
   }
-  const nowhere = items.filter(({ chunk }) => chunk === null);
+  const nowhere = items.filter(({ chunks }) => chunks.length === 0);
   if (nowhere.length > 0) {
     return parseOutput({
       verdict: "fail",
@@ -231,7 +231,7 @@ export function parseFinal(output, count) {
       notes: [...nowhere.map(({ item }) => `${item}: delivered by no chunk`), ...parsed.notes],
     });
   }
-  if (items.length === 0 || items.some(({ chunk }) => chunk < 1 || chunk > count)) {
+  if (items.length === 0 || items.some(({ chunks }) => chunks.some((chunk) => chunk < 1 || chunk > count))) {
     throw new Error("the whole-spec judgment mapped no item, or an item to no such chunk");
   }
   return parsed;
@@ -587,7 +587,7 @@ function headOutput(env, count, results) {
 // schema: written only when every chunk counts. The prompt lists the spec's
 // parts, whose number only this step knows.
 export function writeChunkResults(env = process.env) {
-  for (const key of ["EXECUTION_FILES", "LOG_FILES", "CHUNKS", "DIFF_DIR", "RESULTS_DIR", "SPEC_TEXT_FILE", "SPEC_FILE", "CONTEXT_FILE", "PR_FILE", "MANIFEST_DIR", "PROMPT_FILE", "SCHEMA_FILE"]) {
+  for (const key of ["EXECUTION_FILES", "LOG_FILES", "CHUNKS", "DIFF_DIR", "RESULTS_DIR", "SPEC_TEXT_FILE", "SPEC_FILE", "CONTEXT_FILE", "PR_FILE", "MANIFEST_DIR", "PROMPT_FILE", "PROMPT_TEMPLATE", "SCHEMA_FILE"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
@@ -611,7 +611,7 @@ export function writeChunkResults(env = process.env) {
     return file;
   });
   const listed = (files) => files.map((file) => `  - \`${file}\``).join("\n");
-  const template = readFileSync(new URL("./spec-prompt.md", import.meta.url), "utf8");
+  const template = readFileSync(env.PROMPT_TEMPLATE, "utf8");
   const prompt = [
     ["RESULT_FILES", listed(resultFiles)],
     ["SPEC_PARTS", listed(partFiles)],

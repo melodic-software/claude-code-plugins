@@ -787,6 +787,7 @@ jobs:
           PR_FILE: ${{ github.workspace }}/pr-verify-data/pr.json
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
           PROMPT_FILE: ${{ runner.temp }}/pr-verify-prompt-spec.md
+          PROMPT_TEMPLATE: .base/.github/scripts/pr-verify/spec-prompt.md
           SCHEMA_FILE: ${{ runner.temp }}/pr-verify-spec-schema.json
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-results
 
@@ -1652,6 +1653,7 @@ jobs:
           PR_FILE: ${{ github.workspace }}/pr-verify-data/pr.json
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
           PROMPT_FILE: ${{ runner.temp }}/pr-verify-prompt-spec.md
+          PROMPT_TEMPLATE: .base/.github/scripts/pr-verify/spec-prompt.md
           SCHEMA_FILE: ${{ runner.temp }}/pr-verify-spec-schema.json
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-results
 
@@ -2443,6 +2445,7 @@ jobs:
           PR_FILE: ${{ github.workspace }}/pr-verify-data/pr.json
           MANIFEST_DIR: ${{ github.workspace }}/pr-verify-data/manifest
           PROMPT_FILE: ${{ runner.temp }}/pr-verify-prompt-spec.md
+          PROMPT_TEMPLATE: .base/.github/scripts/pr-verify/spec-prompt.md
           SCHEMA_FILE: ${{ runner.temp }}/pr-verify-spec-schema.json
         run: node .base/.github/scripts/pr-verify/write-verdict.mjs chunk-results
 

@@ -32,6 +32,7 @@ import {
   retentionDays,
   structuredOutput,
 } from "./write-verdict.mjs";
+import { fileURLToPath } from "node:url";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HEAD = "a".repeat(40);
@@ -462,7 +463,7 @@ const CHUNK_NOTES = { verdict: "pass-notes", summary: "chunk noted", notes: ["do
 const CHUNK_FAIL = { verdict: "fail", summary: "chunk broken", notes: ["src/a.mjs:3: inverted check"] };
 const FINAL_PASS = { verdict: "pass", summary: "spec delivered", notes: [] };
 const FINAL_FAIL = { verdict: "fail", summary: "item 2 delivered nowhere", notes: ["item 2: no chunk delivers it"] };
-const FINAL_ITEMS = [{ item: "item 1", chunk: 1 }];
+const FINAL_ITEMS = [{ item: "item 1", chunks: [1] }];
 
 test("mergeChunks passes only when every chunk does, and a fail's notes come first", () => {
   assert.deepEqual(mergeChunks([CHUNK_NOTES]), CHUNK_NOTES);
@@ -638,7 +639,7 @@ test("main writes one verdict from every chunk, and none when a chunk leaves non
     ["a final step that did not read the spec", run("final-spec", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_EXECUTION_FILE: execution([...results, manifest], { structured_output: { ...FINAL_PASS, items: FINAL_ITEMS } }) })],
     ["a final step that did not read the manifest", run("final-manifest", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_EXECUTION_FILE: execution([...results, spec], { structured_output: { ...FINAL_PASS, items: FINAL_ITEMS } }) })],
     ["a final pass that maps no item", run("final-items", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_EXECUTION_FILE: final({ ...FINAL_PASS, items: [] }) })],
-    ["a final pass that maps an item to no such chunk", run("final-range", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_EXECUTION_FILE: final({ ...FINAL_PASS, items: [{ item: "x", chunk: 3 }] }) })],
+    ["a final pass that maps an item to no such chunk", run("final-range", chunk(0, CHUNK_PASS), chunk(1, CHUNK_PASS), undefined, { FINAL_EXECUTION_FILE: final({ ...FINAL_PASS, items: [{ item: "x", chunks: [3] }] }) })],
   ]) {
     assert.throws(() => main(bad), undefined, label);
     assert.equal(existsSync(path.join(bad.VERDICT_DIR, "verdict.json")), false, label);
@@ -707,18 +708,20 @@ test("checkChunk stops the slots only on a fail the head can count", () => {
   }
 });
 
-test("parseFinal maps each item to a chunk, and an item no chunk delivers fails the head", () => {
-  assert.deepEqual(parseFinal({ ...FINAL_PASS, items: [{ item: "a", chunk: 2 }] }, 2), FINAL_PASS);
-  const nowhere = parseFinal({ ...FINAL_PASS, items: [{ item: "a", chunk: 1 }, { item: "b", chunk: null }] }, 2);
+test("parseFinal maps each item to its chunks, and an item no chunk delivers fails the head", () => {
+  assert.deepEqual(parseFinal({ ...FINAL_PASS, items: [{ item: "a", chunks: [2] }] }, 2), FINAL_PASS);
+  // Two chunks can deliver one item between them.
+  assert.deepEqual(parseFinal({ ...FINAL_PASS, items: [{ item: "a", chunks: [1, 2] }] }, 2), FINAL_PASS);
+  const nowhere = parseFinal({ ...FINAL_PASS, items: [{ item: "a", chunks: [1] }, { item: "b", chunks: [] }] }, 2);
   assert.equal(nowhere.verdict, "fail");
   assert.deepEqual(nowhere.notes, ["b: delivered by no chunk"]);
   assert.equal(parseFinal({ ...FINAL_FAIL, items: [] }, 2).verdict, "fail");
-  for (const bad of [{ ...FINAL_PASS, items: [] }, { ...FINAL_PASS, items: [{ item: "a", chunk: 3 }] }, { ...FINAL_PASS, items: [{ item: "a" }] }, FINAL_PASS, {}]) {
+  for (const bad of [{ ...FINAL_PASS, items: [] }, { ...FINAL_PASS, items: [{ item: "a", chunks: [1, 3] }] }, { ...FINAL_PASS, items: [{ item: "a", chunks: 1 }] }, { ...FINAL_PASS, items: [{ item: "a", chunks: ["1"] }] }, { ...FINAL_PASS, items: [{ item: "a" }] }, FINAL_PASS, {}]) {
     assert.throws(() => parseFinal(bad, 2), /schema|item/);
   }
-  assert.throws(() => parseFinal({ ...FINAL_PASS, items: [{ item: KEY, chunk: null }] }, 2), /credential/);
+  assert.throws(() => parseFinal({ ...FINAL_PASS, items: [{ item: KEY, chunks: [] }] }, 2), /credential/);
   // An item no chunk delivers fails the head, even beside a chunk out of range.
-  assert.equal(parseFinal({ ...FINAL_PASS, items: [{ item: "a", chunk: 9 }, { item: "b", chunk: null }] }, 2).verdict, "fail");
+  assert.equal(parseFinal({ ...FINAL_PASS, items: [{ item: "a", chunks: [9] }, { item: "b", chunks: [] }] }, 2).verdict, "fail");
 });
 
 test("writeChunkResults hands the final step each chunk's output and the spec, each one Read", () => {
@@ -753,6 +756,7 @@ test("writeChunkResults hands the final step each chunk's output and the spec, e
     PR_FILE: write("pr.json", "{}\n"),
     MANIFEST_DIR: path.join(dir, "manifest"),
     PROMPT_FILE: path.join(dir, "prompt-spec.md"),
+    PROMPT_TEMPLATE: fileURLToPath(new URL("./spec-prompt.md", import.meta.url)),
     SCHEMA_FILE: path.join(dir, "spec-schema.json"),
   };
   writeChunkResults({ ...env, EXECUTION_FILES: `${execution("e1.json", parts[0], crowded)}\n${execution("e2.json", parts[1], CHUNK_PASS)}\n\n\n` });

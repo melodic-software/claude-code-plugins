@@ -45,14 +45,15 @@ lists. When an entry's `spec_kind` is `refs`, the body in `CONTEXT_FILE` says wh
 delivered: judge that part only, and return `fail` when it names no delivered part or no remaining
 work, or claims the whole issue.
 
-List the spec's outcome and each done-when item in `items`, each with the number of the chunk that
-delivers it, or `chunk` null when none does. A script fails the head on a null, and voids a verdict
-that lists no item or a chunk that does not exist. An item is delivered only when a chunk says so
-plainly, in its summary or a note, and that chunk's files in the manifest plausibly hold it. A chunk
-saying that another chunk delivers an item, or that some file could, delivers nothing. Return `fail`
-when any item is delivered by no chunk, or when chunk results contradict each other on it, with one
-note per item naming it and saying what is missing. Also return `fail` when a note shows a change in
-one chunk breaking on a file in another.
+List the spec's outcome and each done-when item in `items`, each with the numbers of the chunks that
+together deliver it, in `chunks`, empty when none does. A script fails the head on an empty list, and
+voids a verdict that lists no item or a chunk that does not exist. An item is delivered only when the
+chunks you list say so plainly, in a summary or a note, each for the part in its own files, those
+parts together make up the whole item, and those chunks' files in the manifest plausibly hold them. A
+chunk saying that another chunk delivers an item or part, or that some file could, delivers nothing.
+Return `fail` when any item is delivered by no chunk or only in part, or when chunk results contradict
+each other on it, with one note per item naming it and saying what is missing. Also return `fail`
+when a note shows a change in one chunk breaking on a file in another.
 
 A cut can hide what you need. On a chunk with `notes_left_out` above 0 whose kept notes reach across
 chunks, return `pass-notes` or `fail`, never `pass`, and say what may be missing.

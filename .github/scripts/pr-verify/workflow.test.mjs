@@ -9,10 +9,10 @@
 // hands it on, so one job per run writes a verdict.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
+import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
 const KEY = "check-intent";
@@ -671,7 +671,7 @@ test("a handoff from any chunk hands the whole judgment on, and a denial in any 
 test("the prompt step gives each chunk its own parts, and a lone chunk no note", () => {
   const run = /^ {8}run: \|\n((?: {10}.*\n?| *\n)+)/m.exec(step("Write the prompt and schema"))[1].replace(/^ {10}/gm, "");
   const write = (chunks, parts) => {
-    const cwd = mkdtempSync(path.join(tmpdir(), "pr-verify-prompt-"));
+    const cwd = tempDir("pr-verify-prompt-");
     const scripts = path.join(cwd, ".base/.github/scripts/pr-verify");
     mkdirSync(scripts, { recursive: true });
     for (const name of ["prompt.md", "chunk-note.md"]) cpSync(new URL(`../pr-verify/${name}`, import.meta.url), path.join(scripts, name));
@@ -704,8 +704,6 @@ test("the prompt step gives each chunk its own parts, and a lone chunk no note",
   for (const text of [prompt(1), prompt(2), one.prompt(1)]) {
     assert.doesNotMatch(text, /DIFF_PARTS|CHUNK_NOTE|CHUNK_INDEX|CHUNK_COUNT|DATA_DIR|MANIFEST_PARTS|SPEC_FILE|SPEC_TEXT_FILE|PR_FILE|CONTEXT_FILE/);
   }
-  rmSync(cwd, { recursive: true, force: true });
-  rmSync(one.cwd, { recursive: true, force: true });
 });
 
 test("the whole-spec step runs only on a chunked head, after every chunk, and cannot read the diff", () => {
@@ -719,6 +717,7 @@ test("the whole-spec step runs only on a chunked head, after every chunk, and ca
     assert.match(results, /write-verdict\.mjs chunk-results$/m, job);
     assert.doesNotMatch(results, /continue-on-error/, job);
     assert.equal(input(results, "PROMPT_FILE"), "${{ runner.temp }}/pr-verify-prompt-spec.md", job);
+    assert.equal(input(results, "PROMPT_TEMPLATE"), ".base/.github/scripts/pr-verify/spec-prompt.md", job);
     assert.equal(input(results, "SCHEMA_FILE"), "${{ runner.temp }}/pr-verify-spec-schema.json", job);
     assert.equal(input(judgeSpec(job), "json-schema-file"), "${{ runner.temp }}/pr-verify-spec-schema.json", job);
     const judge = step("Judge the whole spec", job);
