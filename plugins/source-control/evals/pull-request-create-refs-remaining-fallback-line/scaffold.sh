@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # A git repo whose feature branch is one commit ahead of main and an offline forge (fixtures/gh-forge,
-# --no-pr) that takes the push, opens the PR and serves issue 820: open, with no checklist, no slice
-# list and no sub-issues. The branch delivers the byte order mark. The case's gh-forge-path plugin
-# puts the stand-in first on the run's PATH; any command it does not serve exits 1, so nothing
-# reaches GitHub.
+# --no-pr) that takes the push, opens the PR and serves the issues/820.json fixture: open, with no
+# checklist, no slice list and no sub-issues. The branch delivers the byte order mark. The case's
+# gh-forge-path plugin puts the stand-in first on the run's PATH; any command it does not serve
+# exits 1, so nothing reaches GitHub.
 set -euo pipefail
 
 git init -q -b main
