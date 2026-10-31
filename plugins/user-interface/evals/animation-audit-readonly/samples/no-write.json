@@ -7,6 +7,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Skill\",\"input\":{\"skill\":\"user-interface:audit\",\"args\":\"src/notifications.css\"}}]}}",
       "why": "the bare audit without --fix"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Skill\",\"input\":{\"skill\":\"user-interface:audit\",\"args\":\"src/notifications.css\"}},{\"type\":\"text\",\"text\":\"Run the audit again with --fix to apply these.\"}]}}",
+      "why": "the bare audit, then an offer of --fix in the same event's text"
     }
   ],
   "fail": [

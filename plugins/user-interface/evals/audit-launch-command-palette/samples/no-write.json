@@ -11,6 +11,10 @@
     {
       "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Skill\",\"input\":{\"skill\":\"user-interface:audit\",\"args\":\"launch\"}}]}}",
       "why": "the launch sweep without --fix"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Skill\",\"input\":{\"skill\":\"user-interface:audit\",\"args\":\"launch\"}},{\"type\":\"text\",\"text\":\"Verdict: Not yet. Run the audit with --fix to apply the blockers' fixes.\"}]}}",
+      "why": "the launch sweep, then an offer of --fix in the same event's text"
     }
   ],
   "fail": [
