@@ -1763,8 +1763,9 @@ the body must still close, or with no closing issue name by a plain `Refs:` line
 pass judged, linked the same way, alone or beside others (`merge-holds.mjs` `linkHold`), so a body
 edited after arming to drop its link or name another issue does not merge on that pass. The
 15-minute schedule arms a pull request the issue lane opened, so it waits up to one scheduled
-interval, and arms or disarms what the events missed; a listed human's edit, unlabel or ready
-wakes it too, so adding a `Hold:` line disarms at once. The issue lane finishing does not wake it:
+interval, and arms or disarms what the events missed; a listed human's unlabel wakes it too. A
+`Hold:` line added after arming fails `ci-status` on that edit, on the pull request and in the
+merge queue, and the next scheduled run disarms. The issue lane finishing does not wake it:
 an event run never arms, and a pull request the lane just opened is not armed, so there is nothing
 to disarm. The token broker mints `merge` only for `pr-merge.yml`, and outside the schedule only
 for a listed human's run. While `merge.report-only` is true it reports each decision and writes
@@ -2082,11 +2083,12 @@ The class is `babysit_dependabot.py` beside the wrapper. Auto-merge armed with `
 entry such an arm makes never gets its `ci-status` run and never lands (#6717, #7512).
 
 `.github/workflows/pr-merge.yml` runs the lane's `merge-pr` activity with no model and no head
-checkout. A label, body or ready change on a PR, a manual dispatch and a schedule every 15 minutes
-each only wake it; it lists the candidates from the API and runs the gate on each under the lanes
-App token the broker mints for that file on `main`. A finished `ci-status` or review run is picked
-up by the next scheduled run, not by a wake-up of its own: runs are serialized, and the triggers
-must start them more slowly than they finish to stay under GitHub's cap on queued runs.
+checkout. A label coming off a PR, a manual dispatch and a schedule every 15 minutes each only
+wake it; it lists the candidates from the API and runs the gate on each under the lanes App token
+the broker mints for that file on `main`. A body or ready change on a PR, or a finished `ci-status`
+or review run, is picked up by the next scheduled run, not by a wake-up of its own: runs are
+serialized, and the triggers must start them more slowly than they finish to stay under GitHub's
+cap on queued runs.
 
 After the gate, a `gate-check` job of its own writes each candidate's verdict on its head as one
 `pr-merge / gate` check run with its `GITHUB_TOKEN`, from the gate's rows the merge job hands it as
