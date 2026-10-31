@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": ":root {\n  --brand-50: oklch(0.97 0.014 277);\n  --brand-500: oklch(0.51 0.23 277);\n  --brand-950: oklch(0.22 0.06 277);\n}",
+      "why": "one hue from 50 to 950, endpoints off the poles"
+    },
+    {
+      "answer": ":root {\n  --brand-50: oklch(0.97 0.014 277);\n  --brand-500: oklch(0.51 0.23 277.0);\n  --brand-950: oklch(0.22 0.06 277);\n}",
+      "why": "277 and 277.0 are the same hue"
+    },
+    {
+      "answer": ":root {\n  --brand-hue: 277;\n  --brand-50: oklch(0.97 0.014 var(--brand-hue));\n  --brand-500: oklch(0.51 0.23 var(--brand-hue));\n  --brand-950: oklch(0.22 0.06 var(--brand-hue));\n}",
+      "why": "one shared hue custom property"
+    },
+    {
+      "answer": ":root {\n  --brand-50: oklch(0.97 0.014 277 / 1);\n  --brand-950: oklch(0.22 0.06 277 / 1);\n}",
+      "why": "an explicit alpha does not change the hue"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": ":root {\n  --brand-50: oklch(0.97 0.014 285);\n  --brand-950: oklch(0.22 0.06 272);\n}",
+      "why": "hue drifts between the endpoints"
+    },
+    {
+      "answer": ":root {\n  --brand-50: oklch(0.97 0.014 277);\n  --brand-300: oklch(0.75 0.12 290);\n  --brand-500: oklch(0.51 0.23 265);\n  --brand-950: oklch(0.22 0.06 277);\n}",
+      "why": "matching endpoints, drifting middle steps"
+    },
+    {
+      "answer": ":root {\n  --brand-50: hsl(243 75% 97%);\n  --brand-500: hsl(243 75% 59%);\n  --brand-950: hsl(243 75% 15%);\n}",
+      "why": "one HSL hue, which drifts in oklch, and not written in oklch"
+    },
+    {
+      "answer": ":root {\n  --brand-50: oklch(1 0 277);\n  --brand-500: oklch(0.51 0.23 277);\n  --brand-950: oklch(0 0 277);\n}",
+      "why": "endpoints at lightness 1 and 0"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": ".search { padding: 16px; border-radius: calc(var(--radius-control) + 16px); }\n.search :is(input, button) { border-radius: var(--radius-control); }",
+      "why": "outer from the fixed inner token"
+    },
+    {
+      "answer": ".search { padding: 16px; border-radius: 22px; }\n.search button, .search input { border-radius: var(--radius-control); }",
+      "why": "the computed 22px"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ".search { padding: 16px; border-radius: 12px; }\n.search button { border-radius: max(0px, 12px - 16px); }",
+      "why": "inner derived from the outer, reaching zero"
+    },
+    {
+      "answer": ".search { padding: 16px; border-radius: var(--radius-control); }",
+      "why": "near miss: outer equals the inner"
+    }
+  ]
+}
