@@ -146,6 +146,12 @@ new_fixture yes
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_CI=failure
 check 'behind+failed: rebuild' true "$(val rebuild)"
 
+echo '# not queued, base behind main, the check read fails'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_RUNS=fail
+check 'behind read failure: non-zero exit' 1 "$((RC != 0))"
+check 'behind read failure: no rebuild written' '' "$(val rebuild)"
+
 echo '# not queued, base behind main, ci-status passed'
 new_fixture yes
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GATE_RC=0 FAKE_CI=success
@@ -236,6 +242,13 @@ echo '# push: base behind main, ci-status failed'
 new_fixture yes
 FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_CI=failure
 check 'push behind+failed: rebuild, not deferred' 'true ' "$(val rebuild) $(val deferred)"
+check 'push behind+failed: reads ci-status once' 1 "$(grep -c 'check_name=ci-status' "$TMP/gh.log" || true)"
+
+echo '# push: base behind main, the check read fails'
+new_fixture yes
+FAKE_PRS="$(pr_json MERGEABLE)" run_decide GITHUB_EVENT_NAME=push GATE_RC=0 FAKE_RUNS=fail
+check 'push behind read failure: non-zero exit' 1 "$((RC != 0))"
+check 'push behind read failure: no rebuild written' '' "$(val rebuild)"
 
 echo '# push: current'
 new_fixture no

@@ -367,8 +367,22 @@ completed). While it is pending the push run defers to the next scheduled run, a
 did under the 2026-10-20 amendment. That rule's "never rebuilds" clause no longer holds; its
 "current" rule stands.
 
-The 2026-10-20 rule existed because a rebuild cancels running checks. With no check running there
-is nothing to cancel, yet a release ejected from the queue waited up to three hours for the next
-scheduled run. A pending read still defers, so fragments landing faster than the checks finish
-cannot cancel them run after run. A failed read stops the run. The owner decided this on
-2026-10-31.
+The 2026-10-20 rule existed because a rebuild cancels running checks. Once a full run's `ci-status`
+has completed, a rebuild cancels nothing the gate needs: `pr-test-windows.yml` is not in
+`ci-status.needs`, so its cancelled run gates nothing. A release ejected from the queue still waited
+up to three hours for the next scheduled run. A pending read still defers, so fragments landing
+faster than the checks finish cannot cancel them run after run. A failed read of `ci-status` in
+`decide-rebuild.sh` stops the run, on every event. The owner decided this on 2026-10-31.
+
+The 2026-10-17 amendment's "every run" now includes every fragment push: while main keeps moving, a
+failing release pull request is rebuilt by each fragment push that finds its checks finished. A
+rebuild's new head reads pending until its `ci-status` completes, so these rebuilds run no faster
+than that.
+
+Pushes still wait for a running run, and a scheduled or dispatched run still cancels one. Since a
+push run can now write, that cancel can land between its head write and its pull request edit,
+leaving a new head under the old title and body until the next rebuild. The released content is
+correct; only the description of it is stale. This risk is accepted: the window is the seconds
+between two steps, and a run must start inside it.
+Refreshing the body from the merge job would need the release report only the build job produces,
+and a rebuild for a stale description would cancel checks to correct text.

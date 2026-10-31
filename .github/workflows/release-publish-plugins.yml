@@ -19,9 +19,9 @@ name: release-publish-plugins
 # it consumed, a CHANGELOG.md, a plugin.json) since its build base, the main
 # commit it was cut from; fragments main added since then ride the next
 # release. It also rebuilds one that is not current, conflicted, or failing
-# ci-status on a base behind main; a push run leaves that to a scheduled run
-# while ci-status is pending, since each rebuild cancels the release pull
-# request's running checks (ADR 0048, Rollout 3, Resolved decisions 1 and 2,
+# ci-status on a base behind main; a push run leaves that to a later run while
+# ci-status is pending, since each rebuild cancels the release pull request's
+# running checks (ADR 0048, Rollout 3, Resolved decisions 1 and 2,
 # and the 2026-10-17, 2026-10-20 and 2026-10-31 amendments). Neither action
 # rebuilds one in the merge queue:
 # .github/scripts/release-publish-plugins/decide-rebuild.sh decides for both.
@@ -46,9 +46,10 @@ on:
 
 permissions: {}
 
-# One release at a time. A newer run supersedes a running one: the newest run
-# reads the newest main. A push run waits instead, so it never cancels a
-# scheduled run's rebuild that it would not redo.
+# One release at a time. A scheduled or dispatched run supersedes a running one,
+# since it reads the newest main; it can land between a push run's head write
+# and pull request edit, an accepted risk (ADR 0048, 2026-10-31 amendment). A
+# push run waits instead, so a burst of fragments never cuts a build short.
 concurrency:
   group: release-plugins
   cancel-in-progress: ${{ github.event_name != 'push' }}

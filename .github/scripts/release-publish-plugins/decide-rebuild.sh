@@ -15,8 +15,9 @@
 #            2026-10-20 amendment)
 #   deferred true when a push run would have rebuilt an open one while its
 #            ci-status is pending: each rebuild cancels the release pull
-#            request's running checks, so the next scheduled or dispatched run
-#            does (ADR 0048, 2026-10-31 amendment). Absent otherwise.
+#            request's running checks, so a later run decides again: a fragment
+#            push once they finish, or the next scheduled or dispatched run
+#            (ADR 0048, 2026-10-31 amendment). Absent otherwise.
 # A gate run leaves the tree detached at <main-sha>. Exit 0 decided, anything
 # else an error.
 set -euo pipefail
@@ -24,25 +25,26 @@ set -euo pipefail
 # Resolved before the checkouts below move the tree; the read runs on main's.
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# rebuild <annotation> <why>: rebuild, or on a push with the head's (decide's
-# $head) ci-status pending leave it to the next scheduled run. A failed read
-# stops the run, so it never cancels checks it could not see.
+# rebuild <head> <ci> <annotation> <why>: rebuild, or on a push with <head>'s
+# ci-status pending leave it to a later run. <ci> is a ci-status already read,
+# or empty. A failed read stops the run, so it never cancels checks it could
+# not see.
 rebuild() {
-  local ci=""
-  if [[ $GITHUB_EVENT_NAME == push ]]; then
+  local head=$1 ci=$2 annotation=$3 why=$4
+  if [[ $GITHUB_EVENT_NAME == push && -z $ci ]]; then
     ci="$("$here/ci-status.sh" "$head")"
   fi
   if [[ $ci == pending ]]; then
-    echo "::notice::$2; its checks are running, so the next scheduled run rebuilds it."
+    echo "::notice::$why; its checks are running or have not started, so a later run decides again."
     printf 'rebuild=false\ndeferred=true\n' >>"$GITHUB_OUTPUT"
   else
-    echo "$1$2; rebuilding."
+    echo "$annotation$why; rebuilding."
     echo "rebuild=true" >>"$GITHUB_OUTPUT"
   fi
 }
 
 decide() {
-  local main_sha=$1 pr id number head queued rc=0
+  local main_sha=$1 pr id number head queued ci="" rc=0
   pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open \
     --json id,number,headRefOid,mergeable,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
   if [[ -z $pr ]]; then
@@ -56,21 +58,21 @@ decide() {
   id="$(jq -r .id <<<"$pr")"
   printf 'found=true\nid=%s\nnumber=%s\nhead=%s\n' "$id" "$number" "$head" >>"$GITHUB_OUTPUT"
   # GitHub refuses to update a queued branch (HTTP 422). Leave a queued release
-  # to the queue: it merges, or the queue removes it and the next scheduled run
-  # rebuilds it from main's tip. A merged release leaves any fragment it missed
-  # on main for the next release.
+  # to the queue: it merges, or the queue removes it and a later run decides it
+  # again against main's tip. A merged release leaves any fragment it missed on
+  # main for the next release.
   # A failed lookup stops the run here, before any ref write.
   # shellcheck disable=SC2016  # the $ names are GraphQL variables, not shell
   queued="$(gh api graphql -f id="$id" \
     -f query='query($id: ID!) { node(id: $id) { ... on PullRequest { isInMergeQueue } } }' \
     --jq '.data.node.isInMergeQueue')"
   if [[ $queued == true ]]; then
-    echo "::notice::Release pull request #$number is in the merge queue; not rebuilding it. If the queue ejects it, the next scheduled run rebuilds it."
+    echo "::notice::Release pull request #$number is in the merge queue; not rebuilding it. If the queue ejects it, a later run decides it again."
     echo "rebuild=false" >>"$GITHUB_OUTPUT"
     return
   fi
   if [[ "$(jq -r .mergeable <<<"$pr")" == CONFLICTING ]]; then
-    rebuild "" "Release pull request #$number has a merge conflict"
+    rebuild "$head" "" "" "Release pull request #$number has a merge conflict"
     return
   fi
   git fetch -q --no-tags origin "$head"
@@ -84,16 +86,18 @@ decide() {
   case "$rc" in
     0)
       # A failed check on a base behind main never clears on a re-run; rebuild on main's tip.
-      if ! git merge-base --is-ancestor "$main_sha" "$head" &&
-        [[ "$("$here/ci-status.sh" "$head")" == failure ]]; then
-        rebuild ::warning:: "ci-status failed on release pull request #$number and its base is behind main"
+      if ! git merge-base --is-ancestor "$main_sha" "$head"; then
+        ci="$("$here/ci-status.sh" "$head")"
+      fi
+      if [[ $ci == failure ]]; then
+        rebuild "$head" "$ci" ::warning:: "ci-status failed on release pull request #$number and its base is behind main"
       else
         echo "Release pull request #$number changes no file main changed since its build base."
         echo "rebuild=false" >>"$GITHUB_OUTPUT"
       fi
       ;;
     1)
-      rebuild ::warning:: "Main changed a file release pull request #$number changes since its build base"
+      rebuild "$head" "" ::warning:: "Main changed a file release pull request #$number changes since its build base"
       ;;
     *) return "$rc" ;;
   esac
