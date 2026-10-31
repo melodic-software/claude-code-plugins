@@ -117,12 +117,14 @@ You write the results, not the sub-agent, so register ids stay contiguous.
 
 Any `open` row it adds returns the run to Step 2.
 
-**Record every item.** Write each item into the ledger's `## Assumption sweep` section as
-`- S<N> | sweep <M> | <category> | <class> | <source> | <disposition>`, where `sweep <M>` counts
-the sweeps from 1. The disposition is one of: the `Q<N>` register row the item became, or the
+**Record every item.** Before dispatching a sweep, write `- sweep <M> | register through Q<N>`
+into the ledger's `## Assumption sweep` section, where `sweep <M>` counts the sweeps from 1 and
+`Q<N>` is the register's last row. Then write each item there as
+`- S<N> | sweep <M> | <category> | <class> | <source> | <disposition>`. The disposition is one of: the `Q<N>` register row the item became, or the
 existing row a hedged item points at; the `F<N>` line that settles it; or `deferred: <where>` for
 an item settled outside the register (a hedged item's `deferred: confirmation restate`). Only a
-hedged item points at a row its source names; every other item's `Q<N>` is the new row it became.
+hedged item points at a row its source names; every other item's `Q<N>` is the new row it became,
+above that sweep's `register through` row.
 A `decision` or `person` item never takes an `F<N>`. A sweep that returned nothing records `- none`. Then tick the Step 2 exit box. When the sweep is skipped,
 tick the box with `SKIPPED: <reason>`. The `--procedure` gate fails on an unchecked Step-exit box,
 an item with no disposition, a `decision` or `person` item without a `Q<N>`, and an `F<N>` whose

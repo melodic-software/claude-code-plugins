@@ -102,7 +102,9 @@
 #     a file:line or a URL, or `deferred: <where>`. A `decision` or `person`
 #     item never takes `F<N>`, nor `deferred:` unless it is `hedged`. Only a
 #     `hedged` item's `Q<N>` may be a row its source names; any other item
-#     becomes a new row. S ids run
+#     becomes a new row, above the sweep's `- sweep <M> | register through Q<N>`
+#     line, which precedes the sweep's rows and names the register's last row
+#     when that sweep ran. S ids run
 #     contiguously from 1 within each sweep, no S row sits outside the section,
 #     a section with no item says `- none`, and a ticked Step 2 exit that is
 #     not `SKIPPED` needs the section
@@ -352,6 +354,7 @@ proc_problem() { proc_problems="$proc_problems$1"$'\n'; }
 check_sweep() {
   local text lno sweep_ran sweep_matches sweep_line facts_matches facts="" body
   local s_lo=0 s_hi=0 sweep_keys=$'\n' sweep_rows=0 sweep_none=0 row seps key
+  local sweep_marks=$'\n' sweep_no high_water
   local category class src disposition hedged user_owned qnum qid fid basis found gaps src_rest src_max
   local quote_re='"[^"]+"' loc_re='(https?://[^[:space:]]+|[^[:space:]:]+:[0-9]+)'
 
@@ -409,6 +412,19 @@ check_sweep() {
         sweep_none=1
         continue
       fi
+      if [[ "$text" =~ ^[[:space:]]*-[[:space:]]+[Ss]weep[[:space:]]+([1-9][0-9]*)[[:space:]]*\|[[:space:]]*[Rr]egister[[:space:]]+through[[:space:]]+[Qq]([1-9][0-9]*)[[:space:]]*$ ]]; then
+        sweep_no="${BASH_REMATCH[1]}"
+        qnum="${BASH_REMATCH[2]}"
+        case "$seen_ids" in
+        *" Q$qnum "*) ;;
+        *) proc_problem "line $lno: sweep $sweep_no's high-water line names Q$qnum, which has no register row" ;;
+        esac
+        case "$sweep_marks" in
+        *$'\n'"$sweep_no "*) proc_problem "line $lno: duplicate high-water line for sweep $sweep_no" ;;
+        *) sweep_marks="$sweep_marks$sweep_no $qnum"$'\n' ;;
+        esac
+        continue
+      fi
       [[ "$text" =~ ^[[:space:]]*-[[:space:]]+[Ss][0-9]+([^0-9]|$) ]] || continue
       sweep_rows=$((sweep_rows + 1))
       row="${text#*-}"
@@ -417,7 +433,8 @@ check_sweep() {
         proc_problem "line $lno: malformed sweep row (needs 'S<N> | sweep <M> | category | class | source | disposition'): $text"
         continue
       fi
-      key="sweep ${BASH_REMATCH[2]} S${BASH_REMATCH[1]}"
+      sweep_no="${BASH_REMATCH[2]}"
+      key="sweep $sweep_no S${BASH_REMATCH[1]}"
       case "$sweep_keys" in
       *$'\n'"$key"$'\n'*)
         proc_problem "line $lno: duplicate sweep row: $key"
@@ -466,9 +483,10 @@ check_sweep() {
           if [[ "$src" =~ (^|[^A-Za-z0-9])[Qq]$qnum([^0-9]|$) ]]; then
             proc_problem "line $lno: $key names $qid, the row it was found in; a sweep item becomes a new register row at the next Q<N>, asked with a recommendation"
           else
-            # The new row is written after the sweep read its source, so its id is
-            # above every row the source names. An older row (an earlier answer)
-            # would settle the item without asking it.
+            # The new row is written after the sweep ran, so its id is above the
+            # register's last row at that point, which is also at or above every
+            # row the source names. An older row (an earlier answer) would settle
+            # the item without asking it.
             src_rest="$src"
             src_max=0
             while [[ "$src_rest" =~ (^|[^A-Za-z0-9])[Qq]([1-9][0-9]*)([^0-9].*)?$ ]]; do
@@ -477,8 +495,17 @@ check_sweep() {
               # digits is not read as a token the single-row test above would skip.
               src_rest="x${BASH_REMATCH[3]}"
             done
-            [[ "$qnum" -gt "$src_max" ]] ||
-              proc_problem "line $lno: $key names $qid, which is not above Q$src_max, the highest row its source names; a sweep item becomes a new register row at the next Q<N>, asked with a recommendation"
+            high_water="${sweep_marks#*$'\n'"$sweep_no "}"
+            if [[ "$high_water" == "$sweep_marks" ]]; then
+              proc_problem "line $lno: $key has a Q<N> disposition but sweep $sweep_no has no '- sweep $sweep_no | register through Q<N>' line above it; write that line, with the register's last row, before the sweep runs"
+            else
+              high_water="${high_water%%$'\n'*}"
+              if [[ "$src_max" -gt "$high_water" ]]; then
+                proc_problem "line $lno: $key's source names Q$src_max, above Q$high_water, sweep $sweep_no's high-water line; that line names the register's last row when the sweep ran"
+              elif [[ "$qnum" -le "$high_water" ]]; then
+                proc_problem "line $lno: $key names $qid, which is not above Q$high_water, the last row before sweep $sweep_no; a sweep item becomes a new register row at the next Q<N>, asked with a recommendation"
+              fi
+            fi
           fi
         fi
       elif [[ "$disposition" =~ ^[Ff]([1-9][0-9]*)$ ]]; then

@@ -721,9 +721,10 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
 # Re-pinned for #8314: adds the coined-term category, item-shape value, disposition and a glossary dispatch input; every existing category and disposition is unchanged, so the open-decision (case A) and resolved-but-one (case B) plants survive.
 # EARS and coverage-prompt rule text moved to context/ears.md and context/coverage-prompt.md, both digested whole (#10703); each former site keeps a one-sentence pointer, the coverage prompt still exempts only itself, and the auto-guard, STOP-on-gap and no-silent-resolve lines are byte-identical
 # Re-pin for #8293: adds the quoted-source rule and fresh-context quote check for fact-settled items, a `decision` line that is never settled from facts, and the `## Assumption sweep` record the gate grades; every category, item-shape field and existing disposition is unchanged, and a decision still becomes a register row, so cases A and B survive.
+# Re-pin for #8293 review: each sweep records the register high-water mark before it runs and a non-hedged item must land above it; categories, item shape and dispositions are unchanged, and a decision still becomes a register row, so cases A and B survive.
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "97babe157bf17c1ea051f42fa60738248eb001d936afb6415f8a35247fb1276d"
+  "91b22c79b7bd67eace2bfd0c4419084f8d6a59d91a17afd4def6dc1daa481b4b"
 # The coverage prompt's exemption from the register, the gate and the unattended ladder moved
 # here from SKILL.md "Acceptance-criteria capture"; it exempts that one prompt, and every other
 # question still writes its row at ask-time and brings the gate into scope.

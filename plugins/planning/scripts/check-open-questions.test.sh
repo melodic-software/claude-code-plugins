@@ -1040,10 +1040,12 @@ sweep_ledger() {
   printf '%s' "$path"
 }
 ticked='- [x] Step 2 exit: Assumption sweep'
-sweep_ok="$(sweep_ledger "$ticked" '- S1 | sweep 1 | undecided | decision | Q1 recommendation, size carrier | Q2
+sweep_ok="$(sweep_ledger "$ticked" '- sweep 1 | register through Q1
+- S1 | sweep 1 | undecided | decision | Q1 recommendation, size carrier | Q2
 - S2 | sweep 1 | hidden-default | fact | Q1 recommendation, queue library | F1
 - S3 | sweep 1 | hedged | decision | Q1 resolution | deferred: confirmation restate
 - S4 | sweep 1 | hedged | decision | Q2 resolution | Q2
+- sweep 2 | register through Q2
 - S1 | sweep 2 | contradiction | decision | Q1 and Q2 | Q3')"
 expect_exit "every sweep item dispositioned -> 0" 0 --ledger "$sweep_ok" --procedure
 expect_stdout "a dispositioned sweep reports procedure=ok" "status=clean procedure=ok" --ledger "$sweep_ok" --procedure
@@ -1073,8 +1075,22 @@ expect_sweep_defect "a sweep item with no disposition" '- S1 | sweep 1 | undecid
 expect_sweep_defect "a sweep item naming a missing register row" '- S1 | sweep 1 | undecided | decision | Q2 | Q7' "names Q7, which has no register row"
 expect_sweep_defect "a decision item deferred outside the register" '- S1 | sweep 1 | undecided | decision | Q2 | deferred: later' "deferred outside the register"
 expect_sweep_defect "a decision item pointed at the row it was found in" '- S1 | sweep 1 | undecided | decision | Q2 recommendation | Q2' "names Q2, the row it was found in"
-expect_sweep_defect "a decision item pointed at an older answered row" '- S1 | sweep 1 | undecided | decision | Q3 recommendation, size carrier | Q1' "names Q1, which is not above Q3, the highest row its source names"
-expect_sweep_defect "a decision item pointed at a row below one its source names" '- S1 | sweep 1 | contradiction | decision | Q1 and Q3 | Q2' "names Q2, which is not above Q3"
+through_q3='- sweep 1 | register through Q3'
+expect_sweep_defect "a decision item pointed at an older answered row" "$through_q3
+- S1 | sweep 1 | undecided | decision | Q3 recommendation, size carrier | Q1" "names Q1, which is not above Q3, the last row before sweep 1"
+expect_sweep_defect "a decision item pointed at a row below one its source names" "$through_q3
+- S1 | sweep 1 | contradiction | decision | Q1 and Q3 | Q2" "names Q2, which is not above Q3"
+expect_sweep_defect "a decision item pointed at an answered row above its source" "$through_q3
+- S1 | sweep 1 | hidden-default | decision | Q1 recommendation, who moderates comments | Q3" "names Q3, which is not above Q3"
+expect_sweep_defect "an artifact-sourced decision item pointed at an answered row" "$through_q3
+- S1 | sweep 1 | hidden-default | decision | docs/moderation.md, who moderates | Q2" "names Q2, which is not above Q3"
+expect_sweep_defect "a sweep with no high-water line" '- S1 | sweep 1 | undecided | decision | Q1 recommendation | Q2' "sweep 1 has no '- sweep 1 | register through Q<N>' line above it"
+expect_sweep_defect "a high-water line below a row the source names" '- sweep 1 | register through Q1
+- S1 | sweep 1 | undecided | decision | Q2 recommendation | Q3' "source names Q2, above Q1"
+expect_sweep_defect "a high-water line naming a missing row" '- sweep 1 | register through Q9' "names Q9, which has no register row"
+expect_sweep_defect "a duplicate high-water line" '- sweep 1 | register through Q1
+- sweep 1 | register through Q2
+- none' "duplicate high-water line for sweep 1"
 expect_sweep_defect "a hedged decision item settled by a fact" '- S1 | sweep 1 | hedged | decision | Q1 resolution | F1' "sweep 1 S1 is a decision item settled by F1"
 expect_sweep_defect "a gap in a sweep's S ids" '- S1 | sweep 1 | undecided | decision | Q1 | Q2
 - S3 | sweep 1 | inherited | fact | C1 | F1' "sweep 1 has no row for S2"

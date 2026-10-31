@@ -67,8 +67,9 @@ One line per candidate question the self-answer step answered instead of asking:
 
 ## Assumption sweep
 
-One row per item each sweep returned, `- S<N> | sweep <M> | <category> | <class> | <source> | <disposition>`, where `sweep <M>` counts the sweeps from 1 and `S<N>` is the sub-agent's id within that sweep. The disposition is the `Q<N>` register row the item became, the `F<N>` line above that settles it (its basis quotes the source with a file:line or a URL), or `deferred: <where>`. A `decision` or `person` item takes a `Q<N>` (a `hedged` one may also be `deferred: confirmation restate`). Only a `hedged` item points at the row it came from; every other item gets a new row. A sweep that returned nothing gets `- none`. Rules: `context/assumption-sweep.md` "Disposition". Replace the example row with this run's items.
+Before each sweep, `- sweep <M> | register through Q<N>`, where `sweep <M>` counts the sweeps from 1 and `Q<N>` is the register's last row. Then one row per item the sweep returned, `- S<N> | sweep <M> | <category> | <class> | <source> | <disposition>`, where `S<N>` is the sub-agent's id within that sweep. The disposition is the `Q<N>` register row the item became, the `F<N>` line above that settles it (its basis quotes the source with a file:line or a URL), or `deferred: <where>`. A `decision` or `person` item takes a `Q<N>` (a `hedged` one may also be `deferred: confirmation restate`). Only a `hedged` item points at the row it came from; every other item gets a new row, above that sweep's `register through` row. A sweep that returned nothing gets `- none`. Rules: `context/assumption-sweep.md` "Disposition". Replace the example rows with this run's items.
 
+- sweep 1 | register through Q2
 - S1 | sweep 1 | undecided | decision | Q1 recommendation, who moderates comments | Q3
 
 ## Decision tree (`me` mode only)

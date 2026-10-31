@@ -10,5 +10,6 @@ bump: patch
   basis quotes its source with a file:line or URL, or `deferred: <where>`. A fresh-context check
   confirms each quote before the item counts as settled. `check-open-questions.sh --procedure` now
   fails on an item with no disposition, a `decision` or `person` item settled outside the register,
-  an unquoted fact, and any unchecked `Step <N> exit` box. A skipped exit step is ticked with
-  `SKIPPED: <reason>`.
+  an unquoted fact, a non-hedged item whose `Q<N>` is not above the register's last row when that
+  sweep ran (each sweep records it as `- sweep <M> | register through Q<N>`), and any unchecked
+  `Step <N> exit` box. A skipped exit step is ticked with `SKIPPED: <reason>`.
