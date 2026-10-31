@@ -121,8 +121,10 @@ updates:
           - "minor"
           - "patch"
   # The sql-server plugin's database driver (tedious, @azure/identity). Nothing is
-  # vendored and the code holds SQL credentials, so a bump here is the reviewed release
-  # (docs/contracts/on-demand-dependencies/).
+  # vendored, so a bump here is the release (docs/contracts/on-demand-dependencies/).
+  # The code holds SQL credentials, so the standards Dependabot policy lists both under
+  # autoMerge.reviewOnly and their bumps take the review tier, never auto-merge
+  # (docs/conventions/pr-pipeline/README.md#review-only-dependencies).
   - package-ecosystem: npm
     directory: /plugins/sql-server
     labels:
