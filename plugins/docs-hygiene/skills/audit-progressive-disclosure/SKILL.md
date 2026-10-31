@@ -177,7 +177,7 @@ Total: <N> file(s) audited — T1=<n>, T2=<n>, T3=<n>. Facts: files=<n> pointers
 - **Not `/docs-hygiene:audit-derivability`**. Whether a whole doc should exist at all.
 - **Not `/docs-hygiene:extract-ssot`**. Content repeated across files is deduplication territory.
 - **Not `/skill-quality:check`**. Frontmatter validation, listing budgets, and description QA are
-  its static gates; this skill audits loading structure and cross-references rather than
+  its static gates; this skill audits loading structure, and cross-references rather than
   duplicates those checks.
 
 ## Sources

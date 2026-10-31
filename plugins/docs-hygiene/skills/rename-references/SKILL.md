@@ -168,7 +168,7 @@ Paths skipped from sweeps automatically:
 - **Does not perform AST-level renames** (Python class names, C# type names, JS function refactors). Use IDE or language-aware refactoring tools. This skill handles documentation, configuration, and identifier-string renames in text files.
 - **Does not rename git branches**. Use `git branch -m`.
 - **Does not handle framework version migrations**. Use dedicated migration tooling: that is a behavioral upgrade, not a text rename.
-- **Does not auto-fix conversation history or memory entries**. Past mentions of the old name there are preserved as historical record.
+- **Does not auto-fix conversation history or memory entries**. Past mentions of the old name there are preserved as historical record. Future renames are the user's responsibility to invoke this skill for.
 - **Does not audit a whole tree against a casing rule**. If `docs-naming` is enabled, `/docs-naming:audit-file-names` does. Without it, list the tree with `git ls-files`, compare each name against the rule by hand, and run `audit` here once per pair you decide to rename.
 - **Does not run builds or tests**. Hand off to the consuming repository's build/test/verification workflow after the rename completes.
 - **Does not perform general dead-reference scanning**. `audit orphans` is STRICTLY pair-driven (post-rename hygiene only). For repo-wide dead-link / dead-reference checks unrelated to a specific rename, use a codebase-audit workflow or documentation link checker if your environment provides one.

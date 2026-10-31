@@ -63,8 +63,8 @@ not a sweep. Use Read only to confirm a Grep hit in context before classifying i
 
 **Collect per-OCCURRENCE records, not per-line ones.** `output_mode: "content"` returns matching
 LINES, and `--column` reports only the first match on a line, so a line-shaped record gives the
-span rule below nothing to compare and silently degrades it to line-keyed dedup, restoring a false
-completion. For every returned match, re-scan it locally for ALL occurrences of the form's pattern
+span rule below nothing to compare and silently degrades it to line-keyed dedup, restoring the false
+completion eval 14 exists to prevent. For every returned match, re-scan it locally for ALL occurrences of the form's pattern
 and emit one record per occurrence: `{file, line, start, end, pattern_form, snippet}`. A line with
 two `<old>` occurrences produces two records.
 
