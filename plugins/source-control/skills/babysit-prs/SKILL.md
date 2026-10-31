@@ -431,7 +431,10 @@ either.
   resolves threads or merges.
 
 **Routing.** When the person wants one PR watched after this session ends, offer it to the
-person: you can run `/autofix-pr` instead of or alongside this skill for that PR. Prefer this
+person: If /autofix-pr is available in your session (gate basis: it registers hidden and gated and
+needs forge CLI and cloud-session access; records in
+[reference/native-autofix-pr.md](reference/native-autofix-pr.md)), you can run it instead of or
+alongside this skill for that PR. Prefer this
 skill for the fleet, for tiered merge authority, and for anything the gates must prove. An
 unattended run records the offer in its output instead of asking.
 
