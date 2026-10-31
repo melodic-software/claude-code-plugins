@@ -1384,6 +1384,11 @@ the rules that only tighten in
   refuses at the cap, and an entry enqueued past it (another host's came first) dequeues itself. A
   red full run or canary run charges every unverified merge whose commit it contains, so a breakage
   found with several in flight demotes the rung and fails the post-merge check for all of them.
+  The value is computed from `merge.in-flight-sizing`, measured burst rate, time in flight and
+  lanes App spend, by `scripts/compute-max-in-flight.py`; the YAML states the formula. The gate
+  reads a value above the schema's maximum as unset. A value above the merge-queue ruleset's
+  `max_entries_to_build` needs no ruleset change: that setting throttles builds, not the queue's
+  length, and this count also holds merges already out of the queue.
 - **Quarantined suites.** A red full run on the default branch demotes only for a newly failing
   suite (a test file) in the affected set of the merges since the branch's last green full run:
   `scripts/plan-test-lanes.sh`, the pull request runs' selector, over the paths changed since that

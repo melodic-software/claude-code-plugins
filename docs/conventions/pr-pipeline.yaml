@@ -995,10 +995,40 @@ merge:
   # head (lane PRs under lane-prs native are not listed). Must be true at a
   # rung above off: the gate refuses otherwise.
   require-verifier-verdict: true
-  # Lane merges in flight at once (queued plus merged and not yet verified).
-  # The merge queue tests each PR against the latest base plus the PRs ahead
-  # of it.
-  max-in-flight: 10
+  # Lane merges in flight at once (queued plus merged and not yet verified,
+  # and armed pull requests the queue has not taken). The merge queue tests
+  # each PR against the latest base plus the PRs ahead of it. Computed from
+  # in-flight-sizing below: scripts/compute-max-in-flight.py prints it, and
+  # its --check test fails any other value.
+  max-in-flight: 11
+  # max-in-flight = min(ceil(peak-merges-per-hour * p90-minutes-in-flight / 60),
+  #   floor((app-hourly-limit * app-target-percent / 100 - app-peak-hourly-used)
+  #   / (reader-runs-per-hour * app-calls-per-candidate))), at least 1.
+  # The first term is Little's law (in flight = rate * time in flight) at the
+  # burst the cap must not hold back, not at the mean rate (1.8 an hour). The
+  # 90th percentile time, not the mean (38 minutes, which computes 8), leaves
+  # room for the armed pull requests this time does not measure, 0 to 3 at the
+  # sampled runs (judgment). The second term keeps candidate reads inside the
+  # 70% planned-load target for the lanes App bucket.
+  # The merge-queue ruleset's 5 and 5 need no raise for a value above 5:
+  # max_entries_to_build throttles builds and max_entries_to_merge sizes a
+  # group, neither limits the queue's length, which reached 8 on the measured
+  # day, and this count also holds merges already out of the queue.
+  # Inputs, for the day ending at measured: rate and time from each lanes
+  # App-enqueued merge's AddedToMergeQueueEvent to the first pr-merge run after
+  # the next full run of main finished; app-peak-hourly-used and the calls from
+  # pr-merge's api-budget notices and `calls=` log lines on 16 scheduled runs.
+  # Measure again when a pr-merge run logs `merge.max-in-flight is`: the cap is
+  # holding work back.
+  in-flight-sizing:
+    measured: 2026-10-31
+    peak-merges-per-hour: 11
+    p90-minutes-in-flight: 59
+    app-hourly-limit: 5200
+    app-target-percent: 70
+    app-peak-hourly-used: 1974
+    app-calls-per-candidate: 9
+    reader-runs-per-hour: 4
   # Paths the PR checks read (git pathspecs). When main changed one since a
   # PR's merge base, the gate updates the PR from main instead of enqueuing
   # it, and a later run enqueues the new head once its checks pass: a head

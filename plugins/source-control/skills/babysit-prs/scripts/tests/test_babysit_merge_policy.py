@@ -285,6 +285,22 @@ class ReadConfigAt(unittest.TestCase):
             (PIPELINE, 1, False),
             (PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: 5\n"), 5, False),
             (PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: 0\n"), 1, True),
+            (
+                PIPELINE.replace(
+                    "merge:\n",
+                    f"merge:\n  max-in-flight: {policy.MAX_IN_FLIGHT_CEILING}\n",
+                ),
+                policy.MAX_IN_FLIGHT_CEILING,
+                False,
+            ),
+            (
+                PIPELINE.replace(
+                    "merge:\n",
+                    f"merge:\n  max-in-flight: {policy.MAX_IN_FLIGHT_CEILING + 1}\n",
+                ),
+                1,
+                True,
+            ),
             (PIPELINE.replace("merge:\n", "merge:\n  max-in-flight: two\n"), 1, True),
         ):
             with self.subTest(expected=expected, noted=noted):

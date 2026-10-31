@@ -4939,7 +4939,14 @@ def unattended_enqueue(
     if entries is None or number not in numbers[: max(room, 0)]:
         # Earlier entries (another host's) fill the room, or the order cannot
         # be read: this entry leaves so no more than `merge.max-in-flight`
-        # unattended merges are in flight.
+        # unattended merges are in flight. Two hosts enqueuing at about the
+        # same time each count before seeing the other's entry; the queue
+        # order then decides, and the later entry removes itself here. An
+        # entry that lands between the gate's count and this re-read is
+        # neither queued nor unverified to it, so that window can still pass
+        # the cap (reference/safety.md). Under `merge.lane-prs: native` the
+        # lane's own pull requests are armed by enable-auto-merge.mjs and
+        # never reach this check.
         mine = next(
             (
                 e
