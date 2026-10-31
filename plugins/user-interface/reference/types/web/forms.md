@@ -506,5 +506,5 @@ no autosave or dirty guard.
 
 ## 15. Build on accessible primitives
 
-Which accessible primitives library to build form controls on, and the accessibility bar it must
+How to choose an accessible primitives library for form controls, and the accessibility bar it must
 meet, is in `../../component-libraries.md`.
