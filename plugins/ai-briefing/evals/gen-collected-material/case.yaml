@@ -10,7 +10,7 @@ graders:
     target: last_message
   - name: contoso-unreadable
     type: regex
-    pattern: '\bcontoso\b[^\n]{0,160}?\bunreadable\b|\bunreadable\b[^\n]{0,160}?\bcontoso\b|\bcontoso\b[^\n]{0,160}?\b(?:timed out|time-?out|could(?: not|n''t) be (?:read|fetched|reached)|failed to (?:load|fetch|read))|^#{1,4}[ \t]+[^\n]*\bcontoso\b[^\n]*\n(?:[ \t]*\n)?[^\n#]*?\b(?:timed out|time-?out|could(?: not|n''t) be (?:read|fetched|reached)|failed to (?:load|fetch|read))'
+    pattern: '\bcontoso\b[^\n]{0,160}?\bunreadable\b|\bunreadable\b[^\n]{0,160}?\bcontoso\b|\bcontoso\b[^\n]{0,160}?\b(?:timed out|time-?out|could(?: not|n''t) be (?:read|fetched|reached)|failed to (?:load|fetch|read))|^(?:#{1,4}[ \t]+|\*\*)[^\n]*\bcontoso\b[^\n]*\n(?:[ \t]*\n)?[^\n#]*?\b(?:unreadable|timed out|time-?out|could(?: not|n''t) be (?:read|fetched|reached)|failed to (?:load|fetch|read))'
     flags: 'im'
     target: last_message
   - name: fabrikam-bucket
